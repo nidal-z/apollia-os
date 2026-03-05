@@ -4,7 +4,7 @@
 
 ---
 
-## Sprint 0 — Fondations (semaines 1-2)
+## Sprint 0 — Fondations (semaines 1-2) — LIVRE ✅
 
 **Objectif :** Workspace Rust qui compile, tous les types de base définis.
 **Livrable démo-able :** `cargo build --workspace` sans erreur + CI verte.
@@ -12,12 +12,12 @@
 | ID | Story | Taille | Statut |
 |---|---|---|---|
 | STORY-001 | Init workspace Cargo avec 7 crates | S | ✅ |
-| STORY-002 | Types fondamentaux `apollia-core` (AgentManifest, AIPTask, AIPResult) | M | 🔲 |
-| STORY-003 | Types ProcessState, TaskStatus, AIPError avec serde | S | 🔲 |
-| STORY-004 | StepBudgetConfig et SandboxProfile | S | 🔲 |
-| STORY-005 | CI : cargo fmt + clippy + test | S | 🔲 |
+| STORY-002 | Types fondamentaux `apollia-core` (AgentManifest, AIPTask, AIPResult) | M | ✅ |
+| STORY-003 | Types ProcessState, TaskStatus, AIPError avec serde | S | ✅ |
+| STORY-004 | StepBudgetConfig et SandboxProfile | S | ✅ |
+| STORY-005 | CI : cargo fmt + clippy + test | S | ✅ |
 
-[Détail → sprint-0/index.md](sprint-0/index.md)
+[Détail → sprint-0/index.md](sprint-0/index.md) | [Bilan → sprint-0/bilan.md](sprint-0/bilan.md)
 
 ---
 

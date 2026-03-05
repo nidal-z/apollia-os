@@ -11,10 +11,10 @@
 | ID | Titre | Crate | Taille | Statut |
 |---|---|---|---|---|
 | [STORY-001](story-001-init-workspace-cargo.md) | Init workspace Cargo avec 7 crates | workspace | S | ✅ |
-| [STORY-002](story-002-types-fondamentaux-apollia-core.md) | Types fondamentaux apollia-core (AgentManifest, AIPTask, AIPResult) | apollia-core | M | 🔲 |
-| [STORY-003](story-003-types-processstate-taskstatus.md) | Types ProcessState, TaskStatus, AIPError avec serde | apollia-core | S | 🔲 |
-| [STORY-004](story-004-stepbudgetconfig-sandboxprofile.md) | StepBudgetConfig et SandboxProfile | apollia-core | S | 🔲 |
-| [STORY-005](story-005-ci-cargo-fmt-clippy-test.md) | CI : cargo fmt + clippy + test | workspace | S | 🔲 |
+| [STORY-002](story-002-types-fondamentaux-apollia-core.md) | Types fondamentaux apollia-core (AgentManifest, AIPTask, AIPResult) | apollia-core | M | ✅ |
+| [STORY-003](story-003-types-processstate-taskstatus.md) | Types ProcessState, TaskStatus, AIPError avec serde | apollia-core | S | ✅ |
+| [STORY-004](story-004-stepbudgetconfig-sandboxprofile.md) | StepBudgetConfig et SandboxProfile | apollia-core | S | ✅ |
+| [STORY-005](story-005-ci-cargo-fmt-clippy-test.md) | CI : cargo fmt + clippy + test | workspace | S | ✅ |
 
 ---
 
@@ -30,8 +30,8 @@ STORY-001 (workspace)
 
 ## Critère de sortie du sprint
 
-- [ ] `cargo build --workspace` : 0 erreur, 0 warning
-- [ ] `cargo test --workspace` : tous les tests passent
-- [ ] `cargo clippy --workspace -- -D warnings` : propre
-- [ ] CI GitHub Actions verte sur main
-- [ ] Types `AgentManifest`, `AIPTask`, `AIPResult`, `ProcessState`, `TaskStatus`, `StepBudgetConfig`, `SandboxProfile` disponibles dans `apollia-core`
+- [x] `cargo build --workspace` : 0 erreur, 0 warning
+- [x] `cargo test --workspace` : tous les tests passent
+- [x] `cargo clippy --workspace -- -D warnings` : propre
+- [x] CI GitHub Actions verte sur main
+- [x] Types `AgentManifest`, `AIPTask`, `AIPResult`, `ProcessState`, `TaskStatus`, `StepBudgetConfig`, `SandboxProfile` disponibles dans `apollia-core`
