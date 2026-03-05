@@ -1,0 +1,16 @@
+[package]
+name = "apollia-tools"
+version = "0.1.0"
+edition = "2024"
+description = "Apollia OS — Tool Registry, native tools (bash, python, file_io, http, mcp), and Linux namespace sandbox"
+license = "MIT"
+
+[dependencies]
+apollia-core = { workspace = true }
+tokio        = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+thiserror    = { workspace = true }
+tracing      = { workspace = true }
+rusqlite     = { workspace = true }
+uuid         = { workspace = true }

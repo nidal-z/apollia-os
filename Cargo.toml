@@ -1,13 +1,65 @@
-# Workspace Apollia OS — À compléter au Sprint 0
 [workspace]
 resolver = "2"
+members = [
+    "crates/apollia-core",
+    "crates/apollia-runtime",
+    "crates/apollia-oria",
+    "crates/apollia-tools",
+    "crates/apollia-memory",
+    "crates/apollia-aip",
+    "crates/apollia-cli",
+]
 
-# members = [
-#     "crates/apollia-core",
-#     "crates/apollia-runtime",
-#     "crates/apollia-oria",
-#     "crates/apollia-tools",
-#     "crates/apollia-memory",
-#     "crates/apollia-aip",
-#     "crates/apollia-cli",
-# ]
+# Centralize all dependency versions here.
+# Individual crates use { workspace = true } — never specify versions inline.
+[workspace.dependencies]
+
+# --- Async runtime ---
+tokio = { version = "1", features = ["full"] }
+
+# --- Serialization ---
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# --- Error handling — thiserror ONLY, anyhow FORBIDDEN in all workspace crates ---
+thiserror = "2"
+
+# --- Logging ---
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# --- Identifiers ---
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# --- API server (apollia-runtime) ---
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace"] }
+
+# --- CLI (apollia-cli) ---
+clap = { version = "4", features = ["derive"] }
+
+# --- SQLite — bundled = zero external system dependency (Principe #2) ---
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# --- Python bridge (apollia-aip) ---
+pyo3 = { version = "0.22", features = ["auto-initialize"] }
+pyo3-async-runtimes = { version = "0.22", features = ["tokio-runtime"] }
+
+# --- Internal crates ---
+apollia-core    = { path = "crates/apollia-core" }
+apollia-runtime = { path = "crates/apollia-runtime" }
+apollia-oria    = { path = "crates/apollia-oria" }
+apollia-tools   = { path = "crates/apollia-tools" }
+apollia-memory  = { path = "crates/apollia-memory" }
+apollia-aip     = { path = "crates/apollia-aip" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true

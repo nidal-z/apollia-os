@@ -1,0 +1,15 @@
+[package]
+name = "apollia-core"
+version = "0.1.0"
+edition = "2024"
+description = "Apollia OS — shared types (AgentManifest, AIPTask, AIPResult, ProcessState, StepBudgetConfig)"
+license = "MIT"
+
+# apollia-core depends on NOTHING else in the workspace.
+# All other crates depend on apollia-core.
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+thiserror  = { workspace = true }
+tracing    = { workspace = true }
+uuid       = { workspace = true }

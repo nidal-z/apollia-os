@@ -1,0 +1,16 @@
+[package]
+name = "apollia-memory"
+version = "0.1.0"
+edition = "2024"
+description = "Apollia OS — Memory Engine (SQLite + FTS5 unicode61, episodic/semantic/procedural memory, namespace isolation)"
+license = "MIT"
+
+[dependencies]
+apollia-core = { workspace = true }
+tokio        = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+thiserror    = { workspace = true }
+tracing      = { workspace = true }
+rusqlite     = { workspace = true }
+uuid         = { workspace = true }
