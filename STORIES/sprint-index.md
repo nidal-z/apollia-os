@@ -11,7 +11,7 @@
 
 | ID | Story | Taille | Statut |
 |---|---|---|---|
-| STORY-001 | Init workspace Cargo avec 7 crates | S | 🔲 |
+| STORY-001 | Init workspace Cargo avec 7 crates | S | ✅ |
 | STORY-002 | Types fondamentaux `apollia-core` (AgentManifest, AIPTask, AIPResult) | M | 🔲 |
 | STORY-003 | Types ProcessState, TaskStatus, AIPError avec serde | S | 🔲 |
 | STORY-004 | StepBudgetConfig et SandboxProfile | S | 🔲 |

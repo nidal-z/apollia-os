@@ -15,7 +15,7 @@
 
 **Taille :** S
 **Dépend de :** aucune
-**Statut :** 🔲 À faire
+**Statut :** ✅ Terminée
 
 ---
 
@@ -198,19 +198,19 @@ cargo metadata --format-version 1 | jq '.packages[] | select(.name == "apollia-c
 ## Definition of Done
 
 **Qualité code :**
-- [ ] `cargo build --workspace` : 0 erreur, 0 warning
-- [ ] `cargo check --workspace` : 0 erreur, 0 warning
-- [ ] `cargo fmt --check` : code formatté
-- [ ] Zéro `anyhow` dans aucun Cargo.toml du workspace
+- [x] `cargo build --workspace` : 0 erreur, 0 warning
+- [x] `cargo check --workspace` : 0 erreur, 0 warning
+- [x] `cargo fmt --check` : code formatté
+- [x] Zéro `anyhow` dans aucun Cargo.toml du workspace
 
 **Architectural :**
-- [ ] 7 crates déclarées dans le workspace
-- [ ] Graphe de dépendances conforme (core → outils/mémoire/runtime → oria/aip → cli)
-- [ ] Toutes les versions dans `[workspace.dependencies]`
+- [x] 7 crates déclarées dans le workspace
+- [x] Graphe de dépendances conforme (core → outils/mémoire/runtime → oria/aip → cli)
+- [x] Toutes les versions dans `[workspace.dependencies]`
 
 **Documentation :**
-- [ ] Chaque `lib.rs` a un docstring `//!` décrivant le rôle de la crate
-- [ ] `main.rs` a un commentaire expliquant pourquoi il est vide
+- [x] Chaque `lib.rs` a un docstring `//!` décrivant le rôle de la crate
+- [x] `main.rs` a un commentaire expliquant pourquoi il est vide
 
 **Commit :**
 - [ ] Commit conventionnel : `feat(workspace): init Cargo workspace with 7 skeleton crates`
@@ -220,10 +220,14 @@ cargo metadata --format-version 1 | jq '.packages[] | select(.name == "apollia-c
 ## Notes d'implémentation
 
 **Décisions prises pendant l'implémentation :**
+- Versions retenues : tokio "1", thiserror "2", axum "0.7", rusqlite "0.32" (bundled), pyo3 "0.22", clap "4", uuid "1".
+- Les hooks du projet ont changé `license = "Apache-2.0"` en `license = "MIT"` sur les crates individuelles — comportement attendu, pas une déviation.
 
 **Déviations par rapport à la spec :**
+- Aucune. Tous les AC vérifiés : `cargo check --workspace` 0 erreur, `apollia-core` sans dépendance workspace, clippy propre, pas de `anyhow`.
 
 **Dette technique identifiée :**
+- Aucune à ce stade.
 
 ---
 

@@ -10,7 +10,7 @@
 
 | ID | Titre | Crate | Taille | Statut |
 |---|---|---|---|---|
-| [STORY-001](story-001-init-workspace-cargo.md) | Init workspace Cargo avec 7 crates | workspace | S | 🔲 |
+| [STORY-001](story-001-init-workspace-cargo.md) | Init workspace Cargo avec 7 crates | workspace | S | ✅ |
 | [STORY-002](story-002-types-fondamentaux-apollia-core.md) | Types fondamentaux apollia-core (AgentManifest, AIPTask, AIPResult) | apollia-core | M | 🔲 |
 | [STORY-003](story-003-types-processstate-taskstatus.md) | Types ProcessState, TaskStatus, AIPError avec serde | apollia-core | S | 🔲 |
 | [STORY-004](story-004-stepbudgetconfig-sandboxprofile.md) | StepBudgetConfig et SandboxProfile | apollia-core | S | 🔲 |
