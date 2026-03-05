@@ -10,7 +10,7 @@
 
 **Taille :** S
 **Dépend de :** STORY-004
-**Statut :** 🔲 À faire
+**Statut :** ✅ Terminé
 
 ---
 
@@ -201,28 +201,31 @@ Il n'y a pas de test automatisé pour la CI. La validation est :
 ## Definition of Done
 
 **CI :**
-- [ ] `.github/workflows/ci.yml` créé et valide
-- [ ] La CI se déclenche sur la branche main (vérifiable dans GitHub Actions)
-- [ ] Les 3 jobs (fmt, clippy, test) passent sur le code du workspace actuel
+- [x] `.github/workflows/ci.yml` créé et valide
+- [x] La CI se déclenche sur la branche main (vérifiable dans GitHub Actions)
+- [x] Les 3 jobs (fmt, clippy, test) passent sur le code du workspace actuel
 
 **Qualité :**
-- [ ] `rustfmt.toml` configuré avec `edition = "2021"`
-- [ ] `cargo fmt --all -- --check` passe localement
-- [ ] `cargo clippy --workspace -- -D warnings` : zéro warning localement
-- [ ] `cargo test --workspace` : tous les tests passent localement
+- [x] `rustfmt.toml` configuré avec `edition = "2021"`
+- [x] `cargo fmt --all -- --check` passe localement
+- [x] `cargo clippy --workspace -- -D warnings` : zéro warning localement
+- [x] `cargo test --workspace` : tous les tests passent localement
 
 **Commit :**
-- [ ] Commit conventionnel : `chore(ci): add GitHub Actions workflow for fmt, clippy and test`
+- [x] Commit conventionnel : `chore(ci): add GitHub Actions workflow for fmt, clippy and test`
 
 ---
 
 ## Notes d'implémentation
 
 **Décisions prises pendant l'implémentation :**
+- `imports_granularity = "Crate"` et `group_imports = "StdExternalCrate"` retirés de `rustfmt.toml` : ces options sont nightly-only et génèrent des warnings sur stable, qui est le toolchain de la CI.
 
 **Déviations par rapport à la spec :**
+- `rustfmt.toml` réduit à 3 options stables (`edition`, `max_width`, `use_small_heuristics`) au lieu des 5 de la spec — les 2 options nightly exclues ne changent pas le comportement sur stable.
 
 **Dette technique identifiée :**
+- Aucune
 
 ---
 

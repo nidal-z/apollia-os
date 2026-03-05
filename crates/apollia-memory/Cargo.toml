@@ -1,7 +1,7 @@
 [package]
 name = "apollia-memory"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 description = "Apollia OS — Memory Engine (SQLite + FTS5 unicode61, episodic/semantic/procedural memory, namespace isolation)"
 license = "MIT"
 
