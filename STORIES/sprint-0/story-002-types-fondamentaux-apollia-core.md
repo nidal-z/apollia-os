@@ -11,7 +11,7 @@
 
 **Taille :** M
 **Dépend de :** STORY-001
-**Statut :** 🔲 À faire
+**Statut :** ✅ Terminé
 
 ---
 
@@ -342,10 +342,15 @@ mod tests {
 ## Notes d'implémentation
 
 **Décisions prises pendant l'implémentation :**
+- `TaskStatus` défini dans `result.rs` (minimal : Pending, Running, Completed, Failed, Cancelled) car `AIPResult` ne peut pas compiler sans lui. STORY-003 ajoutera `ProcessState` et la logique de machine à états ; TaskStatus pourra être étendu là.
+- `StepBudgetConfig` défini dans `result.rs` (minimal : `max_steps: u32`) car `AgentManifest` ne peut pas compiler sans lui. STORY-004 ajoutera la validation et les champs complets.
+- 9 tests unitaires écrits et passants (dont les 4 ACs de la story + 5 cas supplémentaires pour la couverture des variantes).
 
 **Déviations par rapport à la spec :**
+- La spec indiquait que `TaskStatus` et `StepBudgetConfig` seraient définis dans STORY-003/004. En pratique, ces types sont nécessaires à la compilation des types STORY-002. Des versions minimales ont été définies ici ; les stories suivantes les étendront sans rupture (ajout de champs/variantes).
 
 **Dette technique identifiée :**
+- `StepBudgetConfig` est minimal (1 champ). STORY-004 doit l'enrichir avec timeout, step_timeout, etc.
 
 ---
 
