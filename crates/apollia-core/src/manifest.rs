@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::result::StepBudgetConfig;
+use crate::budget::StepBudgetConfig;
 
 /// Identité et capacités déclarées d'un agent.
 ///

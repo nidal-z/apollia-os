@@ -11,10 +11,16 @@
 //! - `ProcessState` — STORY-003
 //! - Full `StepBudgetConfig` expansion, `SandboxProfile` — STORY-004
 
+pub mod budget;
 pub mod manifest;
+pub mod process;
 pub mod result;
+pub mod sandbox;
 pub mod task;
 
+pub use budget::StepBudgetConfig;
 pub use manifest::{AgentManifest, AgentSkill};
-pub use result::{AIPArtifact, AIPError, AIPResult, StepBudgetConfig, TaskStatus};
+pub use process::ProcessState;
+pub use result::{AIPArtifact, AIPError, AIPResult, TaskStatus};
+pub use sandbox::SandboxProfile;
 pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, TextPart};

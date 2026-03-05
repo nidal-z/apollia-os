@@ -2,34 +2,29 @@ use serde::{Deserialize, Serialize};
 
 use crate::task::AIPPart;
 
-/// Statut d'une tâche AIP.
+/// Machine d'état d'une tâche individuelle, alignée A2A TaskState.
 ///
-/// Défini ici car requis par `AIPResult`. Les transitions d'état du cycle de vie
-/// de l'agent (`ProcessState`) sont définies dans STORY-003 avec la logique
-/// de machine à états associée.
+/// Transitions valides :
+/// `Submitted` → `Working` → `Completed`
+///                    ↓           ↑ (reprise après input)
+///                `InputRequired` → `Working`
+///                    ↓
+///              `Failed` | `Canceled`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatus {
-    /// Tâche en attente de traitement.
-    Pending,
-    /// Tâche en cours d'exécution.
-    Running,
+    /// Tâche reçue, en attente d'un agent disponible.
+    Submitted,
+    /// Tâche en cours d'exécution par l'agent.
+    Working,
     /// Tâche terminée avec succès.
     Completed,
-    /// Tâche échouée.
+    /// L'agent a rencontré une erreur non récupérable.
     Failed,
-    /// Tâche annulée.
-    Cancelled,
-}
-
-/// Budget d'étapes alloué à un agent.
-///
-/// Défini ici car requis par `AgentManifest`. La logique de validation
-/// et les champs complets seront définis dans STORY-004.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StepBudgetConfig {
-    /// Nombre maximum d'étapes autorisées pour une tâche.
-    pub max_steps: u32,
+    /// L'agent attend une entrée humaine pour continuer (Human-in-the-Loop).
+    InputRequired,
+    /// Tâche annulée par l'opérateur ou timeout.
+    Canceled,
 }
 
 /// Résultat retourné par l'agent au runtime via le bridge AIP.
