@@ -1,0 +1,317 @@
+# Runtime Core — Supervision, Routing, API, EventBus
+
+> *Le cerveau opérationnel d'Apollia OS : comment les briques sont orchestrées, supervisées, et exposées.*
+
+---
+
+## 1. Architecture interne — Un superviseur d'acteurs
+
+Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs Tokio, chacun avec une responsabilité unique, communiquant exclusivement par messages.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                       RUNTIME CORE                          │
+│                                                             │
+│  ┌──────────────┐  ← watchdog tous acteurs                 │
+│  │  Supervisor  │                                           │
+│  └──────┬───────┘                                           │
+│         │ démarre dans l'ordre                              │
+│  ┌──────▼───────┐  ┌───────────────┐  ┌─────────────────┐ │
+│  │  EventBus    │  │ AgentRegistry │  │   TaskRouter    │ │
+│  │ (broadcast)  │  │  (état agents)│  │ (dispatch tasks)│ │
+│  └──────┬───────┘  └───────┬───────┘  └────────┬────────┘ │
+│         │ événements       │                    │          │
+│  ┌──────▼───────────────────▼──────────────────▼────────┐  │
+│  │            ExecutionCoordinator[agent_N]              │  │
+│  │         (un par agent ACTIVE, sémaphore concurrence)  │  │
+│  └──────────────────────────┬────────────────────────────┘  │
+│                             │                               │
+│                    ┌────────▼───────────────┐               │
+│                    │     ORIA Engine         │               │
+│                    └────────────────────────┘               │
+│                                                             │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  APIServer (axum)                                     │  │
+│  │  Unix socket /tmp/apollia.sock + TCP localhost:7771   │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Supervisor — Démarrage et watchdog
+
+### 2.1 Séquence de démarrage (ordre strict)
+
+```
+1. EventBus        → bus interne (premier, tout le monde en dépend)
+2. AgentRegistry   → registre d'état
+3. Tool Registry   → catalogue outils + résolution MCP
+4. Memory Engine   → ouverture connexions SQLite
+5. TaskRouter      → peut router seulement si 2-4 sont prêts
+6. APIServer       → accepte les connexions externes en dernier
+```
+
+Chaque acteur émet un événement `RuntimeEvent::Ready(actor_id)` sur l'EventBus quand son init est terminée. Le Supervisor attend ce signal (timeout 10s) avant de démarrer le suivant. **Démarrage séquentiel strict** — pas de démarrage parallèle qui masquerait des dépendances.
+
+### 2.2 Restart policy
+
+```rust
+pub enum RestartPolicy {
+    Always,      // Tool Registry, Memory Engine — services critiques
+    OnFailure,   // APIServer — redémarre seulement sur panique
+    Never,       // One-shot actors
+}
+
+pub struct ChildSpec {
+    pub restart_policy: RestartPolicy,
+    pub restart_count: u32,
+    pub max_restarts: u32,         // Défaut : 5
+    pub restart_window_secs: u64,  // Défaut : 60s
+}
+```
+
+Si un acteur dépasse `max_restarts` dans `restart_window_secs` : arrêt du runtime entier avec `exit(1)`. Le système préfère un arrêt net à un état incohérent.
+
+---
+
+## 3. AgentRegistry — Inventaire des agents
+
+Source de vérité pour l'état de tous les agents actifs.
+
+**Messages acceptés :**
+
+| Message | Description |
+|---|---|
+| `Register(manifest)` | Enregistre un nouvel agent → retourne `AgentId` |
+| `Unregister(agent_id)` | Supprime un agent du registre |
+| `UpdateState(agent_id, state)` | Transition de `ProcessState` |
+| `GetAgent(agent_id)` | Retourne `AgentEntry` ou `None` |
+| `ListAgents(filter)` | Liste tous les agents (filtrable par `ProcessState`) |
+
+**Cycle de vie d'enregistrement :**
+
+```
+apollia-os agent start mon-agent.py
+     │
+     ▼
+AgentRegistry.Register(manifest)      → INITIALIZING
+     │
+     ├── ToolResolver.resolve(tools_required)
+     ├── MemoryManager.open(memory_namespace)
+     └── AIPBridge.load_agent_module(path)
+     │
+     ▼ (succès)
+ProcessState → ACTIVE
+EventBus.broadcast(AgentReady(agent_id))
+```
+
+---
+
+## 4. TaskRouter — Dispatch des tâches
+
+Le TaskRouter reçoit toutes les requêtes de soumission (depuis l'APIServer) et les route vers le bon `ExecutionCoordinator`.
+
+**Logique de routing :**
+
+```
+1. Vérifier ProcessState de l'agent cible
+   - ACTIVE : passe
+   - DEGRADED : passe avec warning EventBus
+   - INITIALIZING : SubmitError::AgentNotReady
+   - STOPPING/STOPPED : SubmitError::AgentUnavailable
+
+2. Construire AIPTask (UUID, context_id, timeout depuis manifest)
+
+3. Dispatcher vers ExecutionCoordinator de l'agent
+
+4. Enregistrer dans pending_tasks pour tracking
+```
+
+---
+
+## 5. ExecutionCoordinator — Un par agent
+
+Chaque agent ACTIVE a son propre `ExecutionCoordinator`. C'est lui qui fait le pont entre le TaskRouter et l'ORIA Engine.
+
+**Gestion de la concurrence :**
+
+```rust
+// Sémaphore Tokio — bloque si max_concurrent_tasks atteint
+let permit = Arc::clone(&self.concurrency)
+    .try_acquire_owned()
+    .map_err(|_| CoordinatorError::ConcurrencyLimitReached)?;
+
+let handle = tokio::spawn(async move {
+    let _permit = permit;  // Libéré automatiquement à la fin du spawn
+
+    event_bus.broadcast(RuntimeEvent::TaskStarted { agent_id, task_id }).await;
+    let result = oria.execute(task).await;
+    event_bus.broadcast(RuntimeEvent::TaskCompleted { agent_id, task_id, success }).await;
+
+    result
+});
+```
+
+Un agent PME typique est **séquentiel par défaut** (`max_concurrent_tasks=1`). Les agents batch peuvent déclarer jusqu'à N tâches parallèles dans leur manifest.
+
+---
+
+## 6. APIServer — Surface externe
+
+Deux surfaces exposées :
+
+| Surface | Adresse | Usage |
+|---|---|---|
+| Unix socket | `/tmp/apollia.sock` | CLI locale (plus rapide, sécurisé par permissions fichier) |
+| HTTP/REST | `localhost:7771` | SDK Python, intégrations tierces, Apollia Workspace futur |
+
+### 6.1 Endpoints REST (MVP v0.1)
+
+```
+POST   /api/v1/tasks                    → Soumettre une tâche
+GET    /api/v1/tasks/{id}               → Statut d'une tâche
+DELETE /api/v1/tasks/{id}               → Annuler
+GET    /api/v1/tasks/{id}/stream        → SSE streaming (si supports_streaming=True)
+
+GET    /api/v1/agents                   → Lister les agents
+POST   /api/v1/agents                   → Démarrer un agent
+GET    /api/v1/agents/{id}              → Détail d'un agent
+DELETE /api/v1/agents/{id}              → Arrêter un agent
+
+GET    /api/v1/tools                    → Lister les outils
+GET    /api/v1/health                   → Santé du runtime
+GET    /api/v1/audit                    → Log d'audit (filtrable)
+```
+
+### 6.2 Streaming SSE
+
+Pour les agents avec `supports_streaming=True` :
+
+```
+GET /api/v1/tasks/{id}/stream
+Content-Type: text/event-stream
+
+data: {"event": "step", "step": 1, "thought": "Je recherche les infos client..."}
+data: {"event": "tool_call", "tool": "file_io", "input": "clients/dupont.json"}
+data: {"event": "observation", "output": "{siret: ...}"}
+data: {"event": "completed", "result": {...}}
+```
+
+L'`EventBus` interne alimente les streams SSE. L'`ExecutionCoordinator` émet des événements progressifs, l'`APIServer` les consomme et les pousse aux clients abonnés.
+
+---
+
+## 7. EventBus — Découplage interne
+
+```rust
+pub enum RuntimeEvent {
+    // Lifecycle agents
+    AgentRegistered(AgentId),
+    AgentReady(AgentId),
+    AgentDegraded { agent_id: AgentId, reason: String },
+    AgentStopped(AgentId),
+
+    // Lifecycle tâches
+    TaskStarted { agent_id: AgentId, task_id: TaskId },
+    TaskCompleted { agent_id: AgentId, task_id: TaskId, success: bool },
+    TaskCanceled { task_id: TaskId },
+
+    // Exécution
+    StepExecuted { task_id: TaskId, step: u32, tool: Option<String> },
+    ToolCircuitBroken { tool_name: String },
+    ToolCircuitRestored { tool_name: String },
+
+    // Système
+    AllReady,
+    FatalError(String),
+    ShutdownRequested,
+}
+```
+
+Basé sur `tokio::sync::broadcast` — abonnement multiple, non-bloquant, buffer borné (1024 événements).
+
+---
+
+## 8. Graceful Shutdown
+
+```
+SIGTERM / SIGINT / apollia-os stop
+     │
+     ▼
+EventBus.broadcast(ShutdownRequested)
+     │
+     ▼
+APIServer : refuse nouvelles connexions
+     │
+     ▼
+TaskRouter : refuse nouvelles tâches (SubmitError::ShuttingDown)
+     │
+     ▼
+Pour chaque agent ACTIVE → ProcessState = STOPPING
+  ├── Drain des tâches en cours (timeout: 30s)
+  ├── on_stop() callback Python
+  └── ProcessState = STOPPED
+     │
+     ▼
+Memory Engine → flush SQLite + fermeture connexions
+Tool Registry → fermeture connexions MCP ouvertes
+     │
+     ▼
+Supervisor → arrêt tous acteurs Tokio
+     │
+     ▼
+exit(0)
+```
+
+**Timeout de drain : 30s.** Si une tâche n'est pas terminée après 30s, elle est annulée (`CANCELED`) et tracée dans l'audit log.
+
+---
+
+## 9. Configuration `apollia.toml`
+
+```toml
+[runtime]
+socket_path        = "/tmp/apollia.sock"
+api_port           = 7771
+max_concurrent_agents = 10
+shutdown_drain_timeout_secs = 30
+
+[oria]
+max_steps          = 10
+max_tool_calls     = 20
+wall_clock_timeout = 300
+max_replans        = 2
+
+[memory]
+base_path          = "~/.apollia/memory"
+episodic_ttl_days  = 90
+purge_on_startup   = true
+embedding_strategy = "auto"
+gguf_model_path    = ""
+ollama_url         = ""
+
+[tools]
+sandbox_base_path  = "~/.apollia/sandboxes"
+audit_log_path     = "~/.apollia/audit.db"
+
+[logging]
+level              = "info"
+format             = "text"
+path               = "~/.apollia/runtime.log"
+```
+
+---
+
+## 10. Décisions architecturales clés
+
+| Décision | Justification |
+|---|---|
+| Acteurs Tokio (pas god object) | Testabilité, isolation des paniques, restart granulaire |
+| Démarrage séquentiel avec signal Ready | Pas de race condition, erreurs précoces claires |
+| Un ExecutionCoordinator par agent | Panique d'un agent n'affecte pas les autres |
+| Concurrence = 1 tâche/agent par défaut | Comportement déterministe, PME n'a pas besoin de parallélisme implicite |
+| REST JSON (pas gRPC) | Debuggable avec curl, pas de génération protobuf, CLI simple |
+| SSE pour streaming | Unidirectionnel suffisant, compatible tout client HTTP |
+| Graceful shutdown avec drain 30s | Jamais de tâche perdue silencieusement |
+| `apollia.toml` unique | Zéro surprise opérationnelle |

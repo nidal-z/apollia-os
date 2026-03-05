@@ -1,0 +1,28 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# Cargo.lock — omis pour les binaires (conservé pour les libs)
+# Cargo.lock
+
+# Environnement
+.env
+.env.local
+.env.*.local
+
+# Apollia runtime data (local uniquement)
+.apollia/
+apollia.toml.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log

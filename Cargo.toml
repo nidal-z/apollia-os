@@ -1,0 +1,13 @@
+# Workspace Apollia OS — À compléter au Sprint 0
+[workspace]
+resolver = "2"
+
+# members = [
+#     "crates/apollia-core",
+#     "crates/apollia-runtime",
+#     "crates/apollia-oria",
+#     "crates/apollia-tools",
+#     "crates/apollia-memory",
+#     "crates/apollia-aip",
+#     "crates/apollia-cli",
+# ]
