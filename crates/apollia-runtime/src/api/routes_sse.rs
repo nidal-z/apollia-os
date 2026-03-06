@@ -269,10 +269,7 @@ mod tests {
             event_sender: event_tx,
         };
         Router::new()
-            .route(
-                "/api/v1/tasks/:id/stream",
-                get(stream_task::<MockBackend>),
-            )
+            .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))
             .with_state(state)
     }
 
@@ -407,10 +404,7 @@ mod tests {
         let stream = tokio_stream::iter(items);
 
         // WHEN on applique take_while_inclusive avec predicate > 3
-        let collected: Vec<i32> = stream
-            .take_while_inclusive(|x| *x < 4)
-            .collect()
-            .await;
+        let collected: Vec<i32> = stream.take_while_inclusive(|x| *x < 4).collect().await;
 
         // THEN on obtient [1, 2, 3, 4] (4 inclus, le premier qui echoue le predicate)
         assert_eq!(collected, vec![1, 2, 3, 4]);

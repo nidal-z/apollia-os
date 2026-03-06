@@ -8,6 +8,7 @@
 
 use std::path::PathBuf;
 
+use axum::extract::State;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Serialize;
@@ -112,10 +113,33 @@ struct HealthResponse {
     status: String,
 }
 
+/// Response body for the shutdown endpoint.
+#[derive(Serialize)]
+struct ShutdownResponse {
+    status: String,
+}
+
 /// Handler for `GET /api/v1/health`.
 async fn health_handler() -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "ok".into(),
+    })
+}
+
+/// Handler for `POST /api/v1/shutdown`.
+///
+/// Emits [`RuntimeEvent::ShutdownRequested`] on the EventBus. The caller
+/// (typically `apollia-os start`) listens for this event to trigger
+/// graceful shutdown (ADR-018).
+async fn shutdown_handler<B: ExecutionBackend>(
+    State(state): State<AppState<B>>,
+) -> Json<ShutdownResponse> {
+    info!("Shutdown requested via API");
+    let _ = state
+        .event_sender
+        .send(apollia_core::RuntimeEvent::ShutdownRequested);
+    Json(ShutdownResponse {
+        status: "shutting_down".into(),
     })
 }
 
@@ -127,6 +151,7 @@ fn build_router<B: ExecutionBackend>(state: AppState<B>) -> Router {
 
     Router::new()
         .route("/api/v1/health", get(health_handler))
+        .route("/api/v1/shutdown", post(shutdown_handler::<B>))
         .route("/api/v1/tasks", post(submit_task::<B>))
         .route(
             "/api/v1/tasks/:id",

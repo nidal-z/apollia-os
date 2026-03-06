@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-cli/src/main.rs`, `crates/apollia-cli/src/commands/start.rs`, `crates/apollia-cli/src/commands/stop.rs`, `crates/apollia-cli/src/commands/status.rs`, `crates/apollia-cli/src/commands/run.rs`, `crates/apollia-cli/src/client.rs`
 **Taille :** L
 **Depend de :** STORY-039 (Supervisor), STORY-040 (Graceful shutdown)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 
