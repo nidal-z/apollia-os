@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-tools/src/tools/bash_executor.rs`
 **Taille :** L
 **Depend de :** STORY-010
-**Statut :** 🔲 A faire
+**Statut :** ✅ Livré
 
 ---
 
@@ -358,10 +358,16 @@ mod tests {
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- `BashExecutor` implémenté comme struct vide (zero-sized) — le mode sandbox est dispatch à la compilation via `#[cfg(target_os)]`, pas stocké dans un champ.
+- `tokio::select!` utilisé pour le timeout : quand le sleep gagne, la future `child.wait()` est droppée, libérant le borrow mutable → `child.kill()` + `child.wait()` sans zombie.
+- Stdout/stderr drainés dans deux `tokio::spawn` tasks en parallèle pour éviter un deadlock pipe-buffer sur les outputs larges.
 
 **Deviations par rapport a la spec :**
+- La spec prévoyait un champ `sandbox_mode: SandboxMode` dans la struct. Supprimé car `SandboxMode::Dev` ne serait jamais construit sur Linux (et vice versa) → clippy `dead_code` warning. L'énumération est remplacée par la résolution compile-time pure via `#[cfg]`. Sémantiquement identique.
 
 **Dette technique identifiee :**
+- Cgroups (CPU/RAM) — roadmap v0.2 (hors scope sprint 2)
+- Mount namespace avec tmpfs dédié — roadmap v0.2
 
 ---
 
