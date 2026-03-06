@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-runtime/src/router.rs`
 **Taille :** M (3h)
 **Depend de :** STORY-031 (ExecutionCoordinator) ✅, STORY-007 (AgentRegistry) ✅
-**Statut :** 🔲 A faire
+**Statut :** ✅ Termine
 
 ---
 

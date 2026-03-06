@@ -11,7 +11,9 @@
 pub mod coordinator;
 pub mod eventbus;
 pub mod registry;
+pub mod router;
 
 pub use coordinator::{CoordinatorError, ExecutionBackend, ExecutionCoordinator};
 pub use eventbus::{EventBus, EventBusReceiver, EventBusSender};
 pub use registry::{AgentEntry, AgentRegistry, AgentRegistryError, AgentRegistryHandle};
+pub use router::{SubmitError, TaskRouterHandle};
