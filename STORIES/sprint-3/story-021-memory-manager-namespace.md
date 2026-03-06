@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-memory/src/manager.rs`
 **Taille :** M
 **Depend de :** STORY-018, STORY-019, STORY-020
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 
@@ -351,10 +351,14 @@ mod tests {
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- Ajout d'un variant `Io(std::io::Error)` a `MemoryManagerError` pour propager les erreurs `create_dir_all` et `fs::metadata` proprement (via `#[from]`).
+- `purge_expired()` purge uniquement le namespace prive (coherent avec le fait que les shared sont en lecture seule).
 
 **Deviations par rapport a la spec :**
+- Ajout de tests supplementaires au-dela des 7 de la spec : `test_purge_expired_no_namespace`, `test_purge_expired_delegates_to_backends`, `test_stats_with_data`, `test_lazy_opening`, `test_create_dir_all_on_open` (12 tests total manager).
 
 **Dette technique identifiee :**
+- Aucune.
 
 ---
 
