@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-aip/src/validator.rs`, `crates/apollia-aip/src/lib.rs`
 **Taille :** M (3h)
 **Depend de :** STORY-024 (chargement module Python)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 

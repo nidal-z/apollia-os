@@ -11,3 +11,4 @@
 //! - `wrapper` — `AIPWrapper` for non-native agents (LangGraph, CrewAI) (STORY-025)
 
 pub mod loader;
+pub mod validator;

@@ -2,6 +2,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::budget::StepBudgetConfig;
 
+/// Default value for `AgentManifest::max_concurrent_tasks`.
+fn default_max_concurrent_tasks() -> u32 {
+    1
+}
+
 /// Identité et capacités déclarées d'un agent.
 ///
 /// Source unique de vérité pour la résolution des outils et la configuration
@@ -18,28 +23,38 @@ pub struct AgentManifest {
     /// Outils requis — résolution fail-fast à l'état INITIALIZING.
     pub tools_required: Vec<String>,
     /// Outils optionnels — absent → état DEGRADED, pas d'erreur fatale.
+    #[serde(default)]
     pub tools_optional: Vec<String>,
     /// Indique si l'agent supporte le mode streaming (défaut: false).
+    #[serde(default)]
     pub supports_streaming: bool,
     /// Indique si l'agent supporte le protocole Agent-to-Agent (défaut: false).
+    #[serde(default)]
     pub supports_a2a: bool,
     /// Namespace mémoire privé de l'agent (None = pas de mémoire persistante).
+    #[serde(default)]
     pub memory_namespace: Option<String>,
     /// Namespaces mémoire partagés accessibles en lecture.
+    #[serde(default)]
     pub shared_memory_namespaces: Vec<String>,
     /// Nombre maximum de tâches concurrentes (défaut: 1).
+    #[serde(default = "default_max_concurrent_tasks")]
     pub max_concurrent_tasks: u32,
     /// Override du budget d'étapes par défaut du runtime (None = utiliser le défaut).
+    #[serde(default)]
     pub step_budget: Option<StepBudgetConfig>,
     /// Liste blanche réseau (None = pas d'accès réseau autorisé).
+    #[serde(default)]
     pub network_allowlist: Option<Vec<String>>,
     /// Autorise explicitement l'utilisation d'outils marqués `dangerous=true`.
     /// `false` par défaut — les outils dangereux sont bloqués sauf opt-in explicite.
     #[serde(default)]
     pub dangerous_tools_allowed: bool,
     /// Tags libres pour le routage et la découverte.
+    #[serde(default)]
     pub tags: Vec<String>,
     /// Compétences déclaratives de l'agent (utilisées pour la carte A2A).
+    #[serde(default)]
     pub skills: Vec<AgentSkill>,
 }
 
