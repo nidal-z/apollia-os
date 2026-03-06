@@ -259,8 +259,30 @@ impl Default for BashExecutor {
 mod tests {
     use super::*;
 
+    /// Returns `true` if the platform can actually execute shell commands
+    /// through our `build_command` path. On Linux without `CAP_SYS_ADMIN`
+    /// (e.g. GitHub Actions runners), `unshare --pid --mount` fails with
+    /// EPERM — these tests must be skipped gracefully.
+    fn can_run_shell() -> bool {
+        #[cfg(target_os = "linux")]
+        {
+            let result = std::process::Command::new("/usr/bin/unshare")
+                .args(["--pid", "--mount", "--fork", "/bin/true"])
+                .output();
+            matches!(result, Ok(output) if output.status.success())
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            true
+        }
+    }
+
     #[tokio::test]
     async fn test_ac1_echo_returns_stdout() {
+        if !can_run_shell() {
+            eprintln!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
         // GIVEN
         let executor = BashExecutor::new();
         let input = BashInput {
@@ -277,6 +299,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac2_failed_command_returns_nonzero_exit_code() {
+        if !can_run_shell() {
+            eprintln!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
         // GIVEN
         let executor = BashExecutor::new();
         let input = BashInput {
@@ -295,6 +321,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac3_timeout_kills_process() {
+        if !can_run_shell() {
+            eprintln!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
         // GIVEN
         let executor = BashExecutor::new();
         let input = BashInput {
@@ -340,6 +370,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac5_stderr_captured_separately() {
+        if !can_run_shell() {
+            eprintln!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
         // GIVEN
         let executor = BashExecutor::new();
         let input = BashInput {

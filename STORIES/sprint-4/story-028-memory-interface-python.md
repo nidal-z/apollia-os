@@ -3,10 +3,10 @@
 **ID :** STORY-028
 **Sprint :** 4
 **Crate cible :** `apollia-aip`
-**Fichier(s) cible(s) :** `crates/apollia-aip/src/context.rs`
+**Fichier(s) cible(s) :** `crates/apollia-aip/src/memory.rs`
 **Taille :** M (3h)
 **Depend de :** STORY-026 (bridge async PyO3), apollia-memory Sprint 3 (STORY-017 a STORY-022 toutes livrees)
-**Statut :** A faire
+**Statut :** Done
 
 ---
 

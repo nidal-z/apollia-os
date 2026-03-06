@@ -14,4 +14,6 @@ pub mod bridge;
 #[allow(clippy::useless_conversion)]
 pub mod context;
 pub mod loader;
+#[allow(clippy::useless_conversion)]
+pub mod memory;
 pub mod validator;
