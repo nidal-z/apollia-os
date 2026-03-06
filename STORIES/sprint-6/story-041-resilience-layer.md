@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-oria/src/resilience.rs`
 **Taille :** L
 **Depend de :** Sprint 4 (ORIA Engine, ToolProxy)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 

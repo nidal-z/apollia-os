@@ -14,3 +14,4 @@
 pub mod budget;
 pub mod engine;
 pub mod observer;
+pub mod resilience;

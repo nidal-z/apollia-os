@@ -145,6 +145,8 @@ pub enum RuntimeEvent {
     },
     /// Le circuit breaker d'un outil s'est ouvert.
     ToolCircuitBroken { tool_name: String },
+    /// Le circuit breaker d'un outil s'est refermé après recovery.
+    ToolCircuitRestored { tool_name: String },
     /// Tous les composants sont prêts — runtime opérationnel.
     AllReady,
     /// Arrêt demandé (SIGTERM ou commande CLI).
@@ -187,6 +189,9 @@ mod tests {
                 tool: Some("file_io".into()),
             },
             RuntimeEvent::ToolCircuitBroken {
+                tool_name: "bash_executor".into(),
+            },
+            RuntimeEvent::ToolCircuitRestored {
                 tool_name: "bash_executor".into(),
             },
             RuntimeEvent::AllReady,
