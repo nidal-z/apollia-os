@@ -21,17 +21,19 @@
 
 ---
 
-## Sprint 1 — EventBus + AgentRegistry (semaines 3-4)
+## Sprint 1 — EventBus + AgentRegistry (semaines 3-4) — LIVRE ✅
 
 **Objectif :** Deux premiers acteurs Tokio fonctionnels.
 **Livrable démo-able :** Test d'intégration EventBus + Registry avec transitions ProcessState.
 
 | ID | Story | Taille | Statut |
 |---|---|---|---|
-| STORY-006 | EventBus broadcast Tokio + RuntimeEvent catalogue | M | 🔲 |
-| STORY-007 | AgentRegistry acteur Tokio (Register/Unregister/UpdateState) | M | 🔲 |
-| STORY-008 | AgentRegistryHandle API publique async | S | 🔲 |
-| STORY-009 | Test d'intégration EventBus ↔ AgentRegistry | M | 🔲 |
+| STORY-006 | EventBus broadcast Tokio + RuntimeEvent catalogue | M | ✅ |
+| STORY-007 | AgentRegistry acteur Tokio (Register/Unregister/UpdateState) | M | ✅ |
+| STORY-008 | AgentRegistryHandle API publique async | S | ✅ |
+| STORY-009 | Test d'intégration EventBus ↔ AgentRegistry | M | ✅ |
+
+[Détail → sprint-1/index.md](sprint-1/index.md) | [Plan → sprint-1/plan.md](sprint-1/plan.md) | [Bilan → sprint-1/bilan.md](sprint-1/bilan.md)
 
 ---
 

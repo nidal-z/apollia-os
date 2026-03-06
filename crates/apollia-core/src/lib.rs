@@ -10,8 +10,12 @@
 //! - [`AIPResult`], [`AIPError`], [`AIPArtifact`], [`TaskStatus`], [`StepBudgetConfig`] — STORY-002
 //! - `ProcessState` — STORY-003
 //! - Full `StepBudgetConfig` expansion, `SandboxProfile` — STORY-004
+//!
+//! Types implemented in Sprint 1:
+//! - [`RuntimeEvent`], [`AgentId`], [`TaskId`] — STORY-006
 
 pub mod budget;
+pub mod events;
 pub mod manifest;
 pub mod process;
 pub mod result;
@@ -19,6 +23,7 @@ pub mod sandbox;
 pub mod task;
 
 pub use budget::StepBudgetConfig;
+pub use events::{AgentId, RuntimeEvent, TaskId};
 pub use manifest::{AgentManifest, AgentSkill};
 pub use process::ProcessState;
 pub use result::{AIPArtifact, AIPError, AIPResult, TaskStatus};

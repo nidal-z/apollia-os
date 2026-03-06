@@ -198,5 +198,22 @@
 
 ---
 
+## ADR-011 — AgentId et TaskId ajoutés dans apollia-core (STORY-006)
+
+**Date :** 2026-03-05
+**Statut :** Accepté
+
+**Contexte :** `RuntimeEvent` utilise `AgentId` et `TaskId`. Ces types doivent vivre dans `apollia-core` (zéro dépendance workspace) pour éviter des cycles.
+
+**Décision :** `pub type AgentId = String` et `pub type TaskId = String` dans `apollia-core/src/events.rs`. Alias de type (pas de newtype) pour la friction minimale à l'utilisation.
+
+**Alternatives considérées :**
+- Newtype wrapping `String` : Plus de sécurité de type mais friction à la construction (`.into()` partout), non justifiée au Sprint 1.
+- UUID natif (`uuid::Uuid`) : Contraint les callers à dépendre de `uuid`, sur-ingénierie pour des IDs qui peuvent être slugs ou UUIDs selon le contexte.
+
+**Conséquences :** Les alias resteront des `String` jusqu'à ce qu'un besoin de distinction de type fort soit identifié. Migration vers newtype possible sans impact binaire.
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

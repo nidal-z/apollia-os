@@ -23,6 +23,31 @@ pub enum ProcessState {
     Stopped,
 }
 
+impl ProcessState {
+    /// Vérifie si la transition vers `target` est valide selon la machine d'état.
+    ///
+    /// Transitions valides :
+    /// - `Initializing` → `Active` (démarrage normal)
+    /// - `Initializing` → `Stopping` (fail-fast sur erreur de démarrage)
+    /// - `Active` → `Degraded` (outils optionnels manquants)
+    /// - `Active` → `Stopping` (arrêt demandé)
+    /// - `Degraded` → `Active` (récupération)
+    /// - `Degraded` → `Stopping` (arrêt demandé)
+    /// - `Stopping` → `Stopped` (fin du drain des tâches)
+    pub fn can_transition_to(&self, target: &ProcessState) -> bool {
+        matches!(
+            (self, target),
+            (ProcessState::Initializing, ProcessState::Active)
+                | (ProcessState::Initializing, ProcessState::Stopping)
+                | (ProcessState::Active, ProcessState::Degraded)
+                | (ProcessState::Active, ProcessState::Stopping)
+                | (ProcessState::Degraded, ProcessState::Active)
+                | (ProcessState::Degraded, ProcessState::Stopping)
+                | (ProcessState::Stopping, ProcessState::Stopped)
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -59,6 +84,27 @@ mod tests {
         let json = serde_json::to_string(&status).expect("serialize failed");
         // THEN
         assert_eq!(json, "\"input_required\"");
+    }
+
+    #[test]
+    fn test_can_transition_to_valid() {
+        // GIVEN / WHEN / THEN — toutes les transitions valides passent
+        assert!(ProcessState::Initializing.can_transition_to(&ProcessState::Active));
+        assert!(ProcessState::Initializing.can_transition_to(&ProcessState::Stopping));
+        assert!(ProcessState::Active.can_transition_to(&ProcessState::Degraded));
+        assert!(ProcessState::Active.can_transition_to(&ProcessState::Stopping));
+        assert!(ProcessState::Degraded.can_transition_to(&ProcessState::Active));
+        assert!(ProcessState::Degraded.can_transition_to(&ProcessState::Stopping));
+        assert!(ProcessState::Stopping.can_transition_to(&ProcessState::Stopped));
+    }
+
+    #[test]
+    fn test_can_transition_to_invalid() {
+        // GIVEN / WHEN / THEN — transitions invalides refusées
+        assert!(!ProcessState::Stopped.can_transition_to(&ProcessState::Active));
+        assert!(!ProcessState::Stopped.can_transition_to(&ProcessState::Initializing));
+        assert!(!ProcessState::Initializing.can_transition_to(&ProcessState::Stopped));
+        assert!(!ProcessState::Active.can_transition_to(&ProcessState::Initializing));
     }
 
     #[test]
