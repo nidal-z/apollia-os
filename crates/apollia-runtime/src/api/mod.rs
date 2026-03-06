@@ -2,6 +2,7 @@
 //!
 //! Provides the external API surface for the runtime (CLI, SDK, integrations).
 
+pub mod routes_tasks;
 pub mod server;
 
 pub use server::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};

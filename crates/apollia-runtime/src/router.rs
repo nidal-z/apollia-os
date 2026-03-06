@@ -50,6 +50,11 @@ enum RouterMessage<B: ExecutionBackend> {
         task_id: TaskId,
         reply: oneshot::Sender<Option<TaskStatus>>,
     },
+    /// Annuler une tache en cours.
+    Cancel {
+        task_id: TaskId,
+        reply: oneshot::Sender<Option<TaskStatus>>,
+    },
     /// Enregistrer un ExecutionCoordinator pour un agent.
     RegisterCoordinator {
         agent_id: AgentId,
@@ -92,6 +97,10 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                 RouterMessage::GetStatus { task_id, reply } => {
                     let status = self.task_statuses.get(&task_id).cloned();
                     let _ = reply.send(status);
+                }
+                RouterMessage::Cancel { task_id, reply } => {
+                    let result = self.handle_cancel(&task_id);
+                    let _ = reply.send(result);
                 }
                 RouterMessage::RegisterCoordinator {
                     agent_id,
@@ -178,6 +187,22 @@ impl<B: ExecutionBackend> TaskRouter<B> {
 
         info!(task_id = %task_id, agent_id = %agent_id, "Task dispatched");
         Ok(task_id)
+    }
+
+    /// Gere l'annulation d'une tache.
+    ///
+    /// Retourne le nouveau statut si la tache existe, None sinon.
+    /// Seules les taches en etat `Submitted` ou `Working` peuvent etre annulees.
+    fn handle_cancel(&mut self, task_id: &str) -> Option<TaskStatus> {
+        let status = self.task_statuses.get_mut(task_id)?;
+        match status {
+            TaskStatus::Submitted | TaskStatus::Working | TaskStatus::InputRequired => {
+                *status = TaskStatus::Canceled;
+                info!(task_id = %task_id, "Task canceled");
+                Some(TaskStatus::Canceled)
+            }
+            _ => Some(status.clone()),
+        }
     }
 }
 
@@ -274,6 +299,21 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             })
             .await
             .map_err(|_| SubmitError::ActorDead)
+    }
+
+    /// Annule une tache en cours.
+    ///
+    /// Retourne le nouveau statut si la tache existe, None sinon.
+    pub async fn cancel(&self, task_id: &str) -> Result<Option<TaskStatus>, SubmitError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(RouterMessage::Cancel {
+                task_id: task_id.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| SubmitError::ActorDead)?;
+        reply_rx.await.map_err(|_| SubmitError::ActorDead)
     }
 
     /// Demande l'arret de l'acteur.

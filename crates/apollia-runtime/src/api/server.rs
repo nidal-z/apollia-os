@@ -8,7 +8,7 @@
 
 use std::path::PathBuf;
 
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Serialize;
 use tokio::net::TcpListener;
@@ -121,8 +121,15 @@ async fn health_handler() -> Json<HealthResponse> {
 
 /// Build the axum Router with all routes and shared state.
 fn build_router<B: ExecutionBackend>(state: AppState<B>) -> Router {
+    use super::routes_tasks::{cancel_task, get_task, submit_task};
+
     Router::new()
         .route("/api/v1/health", get(health_handler))
+        .route("/api/v1/tasks", post(submit_task::<B>))
+        .route(
+            "/api/v1/tasks/:id",
+            get(get_task::<B>).delete(cancel_task::<B>),
+        )
         .with_state(state)
 }
 

@@ -104,7 +104,7 @@
 | ID | Story | Taille | Statut |
 |---|---|---|---|
 | STORY-033 | APIServer axum Unix socket + TCP | L | ✅ |
-| STORY-034 | Routes REST tasks (POST/GET/DELETE) | M | 🔲 |
+| STORY-034 | Routes REST tasks (POST/GET/DELETE) | M | ✅ |
 | STORY-035 | Routes REST agents (POST/GET/DELETE) | M | 🔲 |
 | STORY-036 | SSE streaming pour tâches | M | 🔲 |
 | STORY-037 | CLI commandes niveau 1 (start/stop/status/run) | L | 🔲 |

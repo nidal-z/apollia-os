@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-runtime/src/api/routes_tasks.rs`
 **Taille :** M
 **Depend de :** STORY-033 (APIServer skeleton)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 
@@ -214,10 +214,17 @@ mod tests {
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- `SubmitTaskRequest.input` (serde_json::Value) est converti en `AIPInput` avec un seul `DataPart` — API flexible, pas de couplage callers/AIPPart
+- Ajout de `Cancel` message + `cancel()` method sur `TaskRouterHandle` (inexistant avant cette story)
+- `handle_cancel()` ne cancel que les taches en etat Submitted/Working/InputRequired, retourne le statut courant sinon
+- axum 0.7.9 : path params utilisent la syntaxe `:id` (et non `{id}` qui est axum 0.8+)
+- axum retourne 422 (pas 400) pour les erreurs de deserialisation JSON — AC-5 adapte en consequence
 
 **Deviations par rapport a la spec :**
+- AC-5 : axum renvoie 422 Unprocessable Entity au lieu de 400 Bad Request pour body invalide (comportement natif axum, pas de custom error handler)
 
 **Dette technique identifiee :**
+- Le TaskRouter ne met pas a jour le statut des taches completees (il les garde en Working) — sera corrige quand le ExecutionBackend reportera les completions
 
 ---
 
