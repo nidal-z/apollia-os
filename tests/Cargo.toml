@@ -1,0 +1,45 @@
+[package]
+name = "apollia-e2e-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[features]
+# Gate Python-dependent tests behind this flag.
+# Enable with: cargo test -p apollia-e2e-tests --features python-tests
+python-tests = ["dep:apollia-aip", "dep:pyo3"]
+
+[dependencies]
+apollia-core    = { workspace = true }
+apollia-runtime = { workspace = true }
+apollia-oria    = { workspace = true }
+apollia-tools   = { workspace = true }
+tokio           = { workspace = true }
+tracing         = { workspace = true }
+uuid            = { workspace = true }
+
+# Optional: only when python-tests feature is enabled
+apollia-aip = { workspace = true, optional = true }
+pyo3        = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+# --- Integration test binaries ---
+
+[[test]]
+name = "test_resilience"
+path = "integration/test_resilience.rs"
+
+[[test]]
+name = "test_shutdown_e2e"
+path = "integration/test_shutdown_e2e.rs"
+
+[[test]]
+name = "test_budget_e2e"
+path = "integration/test_budget_e2e.rs"
+
+[[test]]
+name = "test_hello_agent"
+path = "integration/test_hello_agent.rs"
+required-features = ["python-tests"]

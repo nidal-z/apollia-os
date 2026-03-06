@@ -130,6 +130,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "apollia-e2e-tests"
+version = "0.1.0"
+dependencies = [
+ "apollia-aip",
+ "apollia-core",
+ "apollia-oria",
+ "apollia-runtime",
+ "apollia-tools",
+ "pyo3",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "apollia-memory"
 version = "0.1.0"
 dependencies = [

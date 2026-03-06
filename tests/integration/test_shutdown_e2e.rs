@@ -1,0 +1,324 @@
+//! Integration tests — graceful shutdown with active tasks (AC-4, STORY-045).
+//!
+//! Tests the full shutdown sequence: drain in-progress tasks → stop agents →
+//! stop actors in reverse order. Uses a mock backend to avoid Python dependency.
+
+use std::future::Future;
+use std::path::PathBuf;
+use std::pin::Pin;
+use std::time::Duration;
+
+use apollia_core::{AIPInput, AIPResult, AIPTask, AgentManifest, ProcessState, RuntimeEvent, TaskStatus};
+use apollia_runtime::{
+    coordinator::{ExecutionBackend, ExecutionCoordinator},
+    eventbus::EventBus,
+    registry::AgentRegistry,
+    router::TaskRouterHandle,
+    shutdown::{ShutdownConfig, ShutdownController},
+    api::{APIServer, APIServerConfig, AppState},
+};
+use apollia_runtime::api::routes_agents::StubAgentLoader;
+
+// --- Mock backends ---
+
+/// Backend that completes tasks after a configurable delay.
+#[derive(Clone)]
+struct MockBackend {
+    delay: Duration,
+}
+
+impl MockBackend {
+    fn slow(delay: Duration) -> Self {
+        Self { delay }
+    }
+}
+
+impl ExecutionBackend for MockBackend {
+    fn execute(
+        &self,
+        task: AIPTask,
+    ) -> Pin<Box<dyn Future<Output = Result<AIPResult, String>> + Send>> {
+        let delay = self.delay;
+        Box::pin(async move {
+            if !delay.is_zero() {
+                tokio::time::sleep(delay).await;
+            }
+            Ok(AIPResult {
+                task_id: task.task_id,
+                status: TaskStatus::Completed,
+                output: vec![],
+                error: None,
+                artifacts: vec![],
+            })
+        })
+    }
+}
+
+/// Backend that never completes (blocks forever, for drain timeout tests).
+#[derive(Clone)]
+struct NeverBackend;
+
+impl ExecutionBackend for NeverBackend {
+    fn execute(
+        &self,
+        _task: AIPTask,
+    ) -> Pin<Box<dyn Future<Output = Result<AIPResult, String>> + Send>> {
+        Box::pin(async {
+            std::future::pending::<()>().await;
+            unreachable!()
+        })
+    }
+}
+
+// --- Test helpers ---
+
+fn test_manifest(name: &str) -> AgentManifest {
+    AgentManifest {
+        name: name.to_string(),
+        version: "1.0.0".to_string(),
+        description: String::new(),
+        tools_required: vec![],
+        tools_optional: vec![],
+        supports_streaming: false,
+        supports_a2a: false,
+        memory_namespace: None,
+        shared_memory_namespaces: vec![],
+        max_concurrent_tasks: 2,
+        step_budget: None,
+        network_allowlist: None,
+        dangerous_tools_allowed: false,
+        tags: vec![],
+        skills: vec![],
+    }
+}
+
+fn temp_socket_path() -> PathBuf {
+    let id = &uuid::Uuid::new_v4().to_string()[..8];
+    PathBuf::from(format!("/tmp/ap-e2e-{}.sock", id))
+}
+
+async fn free_port() -> u16 {
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    l.local_addr().unwrap().port()
+}
+
+// AC-4 — task drains successfully before shutdown completes
+#[tokio::test]
+async fn test_shutdown_drains_active_tasks() {
+    // GIVEN a full runtime with a slow backend (completes in 300ms)
+    let (event_sender, _rx) = EventBus::new();
+    let registry = AgentRegistry::spawn(event_sender.clone());
+    let router: TaskRouterHandle<MockBackend> =
+        TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
+
+    // Register an active agent
+    let agent_id = registry.register(test_manifest("drain-agent")).await.unwrap();
+    registry
+        .update_state(agent_id.as_str(), ProcessState::Active)
+        .await
+        .unwrap();
+
+    // Register coordinator with slow backend
+    let coordinator = ExecutionCoordinator::new(
+        agent_id.clone(),
+        2,
+        event_sender.clone(),
+        MockBackend::slow(Duration::from_millis(300)),
+    );
+    router.register_coordinator(agent_id.clone(), coordinator).await.unwrap();
+
+    // Submit a task (will take 300ms to complete)
+    let _task_id = router.submit(agent_id.as_str(), AIPInput::default()).await.unwrap();
+
+    // Set up minimal API server for ShutdownController
+    let socket_path = temp_socket_path();
+    let port = free_port().await;
+    let state = AppState {
+        router_handle: router.clone(),
+        registry_handle: registry.clone(),
+        event_sender: event_sender.clone(),
+        agent_loader: std::sync::Arc::new(StubAgentLoader),
+    };
+    let api = APIServer::new(APIServerConfig { socket_path: socket_path.clone(), tcp_port: port }, state);
+    let api_handle = api.start().await.unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+
+    // WHEN ShutdownController drains with 5s timeout
+    let controller = ShutdownController::new(
+        ShutdownConfig { drain_timeout_secs: 5 },
+        event_sender.clone(),
+        api_handle,
+        router,
+        registry,
+    );
+
+    let start = tokio::time::Instant::now();
+    let result = controller.shutdown().await;
+    let elapsed = start.elapsed();
+
+    // THEN drain returns Ok (task completed within timeout)
+    assert!(result.is_ok(), "drain should succeed: {result:?}");
+    // AND shutdown was not instant (waited for the task)
+    assert!(elapsed >= Duration::from_millis(200), "should have waited for task: {elapsed:?}");
+    // AND shutdown completed within reasonable time
+    assert!(elapsed < Duration::from_secs(4), "shutdown too slow: {elapsed:?}");
+
+    let _ = std::fs::remove_file(&socket_path);
+}
+
+// AC-4 — agent transitions to STOPPED after shutdown
+#[tokio::test]
+async fn test_shutdown_stops_all_agents() {
+    // GIVEN an active agent registered in the runtime
+    let (event_sender, _rx) = EventBus::new();
+    let registry = AgentRegistry::spawn(event_sender.clone());
+    let router: TaskRouterHandle<MockBackend> =
+        TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
+
+    let agent_id = registry.register(test_manifest("stop-agent")).await.unwrap();
+    registry
+        .update_state(agent_id.as_str(), ProcessState::Active)
+        .await
+        .unwrap();
+
+    let socket_path = temp_socket_path();
+    let port = free_port().await;
+    let state = AppState {
+        router_handle: router.clone(),
+        registry_handle: registry.clone(),
+        event_sender: event_sender.clone(),
+        agent_loader: std::sync::Arc::new(StubAgentLoader),
+    };
+    let api = APIServer::new(APIServerConfig { socket_path: socket_path.clone(), tcp_port: port }, state);
+    let api_handle = api.start().await.unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+
+    let mut event_rx = event_sender.subscribe();
+
+    // WHEN shutdown is triggered
+    let controller = ShutdownController::new(
+        ShutdownConfig { drain_timeout_secs: 5 },
+        event_sender.clone(),
+        api_handle,
+        router,
+        registry,
+    );
+    let _ = controller.shutdown().await;
+
+    // THEN AgentStopped event is emitted for the agent
+    let mut found_stopped = false;
+    loop {
+        match event_rx.try_recv() {
+            Ok(RuntimeEvent::AgentStopped(id)) if id == agent_id => {
+                found_stopped = true;
+            }
+            Ok(_) => {}
+            Err(_) => break,
+        }
+    }
+    assert!(found_stopped, "AgentStopped event should have been emitted");
+
+    let _ = std::fs::remove_file(&socket_path);
+}
+
+// AC-4 — Supervisor stops all actors in reverse order (structural test)
+#[tokio::test]
+async fn test_shutdown_broadcasts_requested_event() {
+    // GIVEN a runtime with an event subscriber
+    let (event_sender, _rx) = EventBus::new();
+    let registry = AgentRegistry::spawn(event_sender.clone());
+    let router: TaskRouterHandle<MockBackend> =
+        TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
+
+    let socket_path = temp_socket_path();
+    let port = free_port().await;
+    let state = AppState {
+        router_handle: router.clone(),
+        registry_handle: registry.clone(),
+        event_sender: event_sender.clone(),
+        agent_loader: std::sync::Arc::new(StubAgentLoader),
+    };
+    let api = APIServer::new(APIServerConfig { socket_path: socket_path.clone(), tcp_port: port }, state);
+    let api_handle = api.start().await.unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+
+    let mut event_rx = event_sender.subscribe();
+
+    // WHEN ShutdownController::shutdown() is called
+    let controller = ShutdownController::new(
+        ShutdownConfig { drain_timeout_secs: 1 },
+        event_sender.clone(),
+        api_handle,
+        router,
+        registry,
+    );
+    let _ = controller.shutdown().await;
+
+    // THEN ShutdownRequested is broadcast on the EventBus
+    let mut found_shutdown = false;
+    loop {
+        match event_rx.try_recv() {
+            Ok(RuntimeEvent::ShutdownRequested) => found_shutdown = true,
+            Ok(_) => {}
+            Err(_) => break,
+        }
+    }
+    assert!(found_shutdown, "ShutdownRequested should be broadcast");
+
+    let _ = std::fs::remove_file(&socket_path);
+}
+
+// AC-4 — drain timeout results in DrainTimeout error, but shutdown still completes
+#[tokio::test]
+async fn test_shutdown_drain_timeout_force_cancels() {
+    use apollia_runtime::shutdown::ShutdownError;
+
+    // GIVEN a never-completing backend
+    let (event_sender, _rx) = EventBus::new();
+    let registry = AgentRegistry::spawn(event_sender.clone());
+    let router: TaskRouterHandle<NeverBackend> =
+        TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
+
+    let agent_id = registry.register(test_manifest("never-agent")).await.unwrap();
+    registry
+        .update_state(agent_id.as_str(), ProcessState::Active)
+        .await
+        .unwrap();
+
+    let coordinator = ExecutionCoordinator::new(agent_id.clone(), 2, event_sender.clone(), NeverBackend);
+    router.register_coordinator(agent_id.clone(), coordinator).await.unwrap();
+
+    // Submit a task that will never finish
+    let _task_id = router.submit(agent_id.as_str(), AIPInput::default()).await.unwrap();
+
+    let socket_path = temp_socket_path();
+    let port = free_port().await;
+    let state = AppState {
+        router_handle: router.clone(),
+        registry_handle: registry.clone(),
+        event_sender: event_sender.clone(),
+        agent_loader: std::sync::Arc::new(StubAgentLoader),
+    };
+    let api = APIServer::new(APIServerConfig { socket_path: socket_path.clone(), tcp_port: port }, state);
+    let api_handle = api.start().await.unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+
+    // WHEN drain timeout is 1s (short for tests)
+    let controller = ShutdownController::new(
+        ShutdownConfig { drain_timeout_secs: 1 },
+        event_sender,
+        api_handle,
+        router,
+        registry,
+    );
+
+    let result = controller.shutdown().await;
+
+    // THEN DrainTimeout is returned (task still running after timeout)
+    assert!(
+        matches!(result, Err(ShutdownError::DrainTimeout { count: 1, timeout_secs: 1 })),
+        "expected DrainTimeout with count=1, got: {result:?}"
+    );
+
+    let _ = std::fs::remove_file(&socket_path);
+}

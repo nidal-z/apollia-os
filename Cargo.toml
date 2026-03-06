@@ -8,6 +8,7 @@ members = [
     "crates/apollia-memory",
     "crates/apollia-aip",
     "crates/apollia-cli",
+    "tests",
 ]
 
 # Centralize all dependency versions here.
