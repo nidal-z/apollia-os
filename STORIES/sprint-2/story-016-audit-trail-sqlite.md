@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-tools/src/audit.rs`
 **Taille :** M
 **Depend de :** STORY-010 (ToolDescriptor), STORY-013 (bash_executor — premier outil a tracer)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Livré
 
 ---
 
@@ -333,10 +333,15 @@ mod tests {
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- Acteur implémenté via `std::thread` + `std::sync::mpsc::sync_channel` (borné, 1024) plutôt que Tokio tasks — `rusqlite::Connection` est blocking, cette approche évite `spawn_blocking` sur chaque opération.
+- `AuditMessage::Record` boxé (`Box<ToolInvocationRecord>`) suite à warning Clippy `large_enum_variant`.
+- `query_last` utilise `spawn_blocking` pour attendre la réponse de l'acteur sans bloquer le runtime Tokio.
 
 **Deviations par rapport a la spec :**
+- Aucune.
 
 **Dette technique identifiee :**
+- `shutdown()` attend 50ms arbitrairement au lieu de joindre le thread (le `JoinHandle` n'est pas stocké pour préserver `Clone`). Suffisant pour les tests, à améliorer si besoin de shutdown garanti.
 
 ---
 

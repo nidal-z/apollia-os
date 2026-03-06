@@ -13,10 +13,12 @@
 //! - `http_client` — network-restricted HTTP client
 //! - `mcp_consumer` — MCP server protocol consumer
 
+pub mod audit;
 pub mod descriptor;
 pub mod registry;
 pub mod tools;
 
+pub use audit::{compute_input_hash, AuditTrailError, AuditTrailHandle, ToolInvocationRecord};
 pub use descriptor::{McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind};
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use tools::file_io::{FileIo, FileIoError};

@@ -42,6 +42,9 @@ clap = { version = "4", features = ["derive"] }
 # --- SQLite — bundled = zero external system dependency (Principe #2) ---
 rusqlite = { version = "0.32", features = ["bundled"] }
 
+# --- Cryptography ---
+sha2 = "0.10"
+
 # --- Python bridge (apollia-aip) ---
 pyo3 = { version = "0.22", features = ["auto-initialize"] }
 pyo3-async-runtimes = { version = "0.22", features = ["tokio-runtime"] }
