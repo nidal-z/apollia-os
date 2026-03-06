@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-oria/src/observer.rs`
 **Taille :** M (3h)
 **Depend de :** apollia-memory Sprint 3 (STORY-017 a STORY-022 toutes livrees), apollia-core Sprint 0 (STORY-001 a STORY-005 toutes livrees)
-**Statut :** A faire
+**Statut :** Done ✅
 
 ---
 

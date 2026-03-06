@@ -10,3 +10,5 @@
 //! ORIA operates in two modes classified automatically per task:
 //! - Direct mode: for simple tasks (≤ 4 tools, ≤ 15 steps)
 //! - Orchestrated mode: full Reasoner + Actor loop for complex tasks
+
+pub mod observer;

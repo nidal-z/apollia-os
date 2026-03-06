@@ -170,6 +170,50 @@ impl<'a> SemanticMemory<'a> {
         Ok(id)
     }
 
+    /// Recupere toutes les connaissances d'un namespace, triees par cle.
+    ///
+    /// Retourne un vecteur vide si le namespace n'a aucune entree.
+    pub fn recall_all(
+        &self,
+        namespace: &str,
+    ) -> Result<Vec<SemanticEntry>, SemanticMemoryError> {
+        let conn = self.store.conn();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, namespace, key, value, source, confidence, created_at, updated_at, expires_at
+                 FROM semantic_memories
+                 WHERE namespace = ?1
+                 ORDER BY key ASC",
+            )
+            .map_err(|e| SemanticMemoryError::RecallFailed(e.to_string()))?;
+
+        let rows = stmt
+            .query_map(rusqlite::params![namespace], |row| {
+                let value_str: String = row.get(3)?;
+                Ok(SemanticEntry {
+                    id: row.get(0)?,
+                    namespace: row.get(1)?,
+                    key: row.get(2)?,
+                    value: serde_json::from_str(&value_str)
+                        .unwrap_or(serde_json::Value::String(value_str)),
+                    source: row.get(4)?,
+                    confidence: row.get(5)?,
+                    created_at: row.get(6)?,
+                    updated_at: row.get(7)?,
+                    expires_at: row.get(8)?,
+                })
+            })
+            .map_err(|e| SemanticMemoryError::RecallFailed(e.to_string()))?;
+
+        let mut entries = Vec::new();
+        for row in rows {
+            entries.push(row.map_err(|e| SemanticMemoryError::RecallFailed(e.to_string()))?);
+        }
+
+        Ok(entries)
+    }
+
     /// Recupere une connaissance par cle. `None` si absente.
     pub fn recall(
         &self,
