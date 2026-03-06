@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-cli/src/commands/agent.rs`, `crates/apollia-cli/src/commands/task.rs`, `crates/apollia-cli/src/commands/tools.rs`, `crates/apollia-cli/src/commands/audit.rs`
 **Taille :** L
 **Depend de :** STORY-037 (CLI niveau 1)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 

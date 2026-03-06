@@ -131,6 +131,58 @@ impl RuntimeClient {
         Ok(json)
     }
 
+    /// Start (register) a new agent via `POST /api/v1/agents`.
+    pub async fn start_agent(&self, agent_path: &str) -> Result<serde_json::Value, ClientError> {
+        let body = serde_json::json!({ "agent_path": agent_path });
+        let resp = self.post("/api/v1/agents", Some(&body)).await?;
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: json
+                    .get("error")
+                    .and_then(|e| e.as_str())
+                    .unwrap_or("unknown error")
+                    .to_string(),
+            });
+        }
+        Ok(json)
+    }
+
+    /// Get agent detail via `GET /api/v1/agents/{id}`.
+    pub async fn get_agent(&self, agent_id: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get(&format!("/api/v1/agents/{agent_id}")).await?;
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: json
+                    .get("error")
+                    .and_then(|e| e.as_str())
+                    .unwrap_or("unknown error")
+                    .to_string(),
+            });
+        }
+        Ok(json)
+    }
+
+    /// Stop an agent via `DELETE /api/v1/agents/{id}`.
+    pub async fn stop_agent(&self, agent_id: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self.delete(&format!("/api/v1/agents/{agent_id}")).await?;
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: json
+                    .get("error")
+                    .and_then(|e| e.as_str())
+                    .unwrap_or("unknown error")
+                    .to_string(),
+            });
+        }
+        Ok(json)
+    }
+
     /// Submit a task via `POST /api/v1/tasks`.
     pub async fn submit_task(
         &self,
@@ -159,6 +211,23 @@ impl RuntimeClient {
     /// Get task status via `GET /api/v1/tasks/{id}`.
     pub async fn get_task(&self, task_id: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.get(&format!("/api/v1/tasks/{task_id}")).await?;
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: json
+                    .get("error")
+                    .and_then(|e| e.as_str())
+                    .unwrap_or("unknown error")
+                    .to_string(),
+            });
+        }
+        Ok(json)
+    }
+
+    /// Cancel a task via `DELETE /api/v1/tasks/{id}`.
+    pub async fn cancel_task(&self, task_id: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self.delete(&format!("/api/v1/tasks/{task_id}")).await?;
         let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {

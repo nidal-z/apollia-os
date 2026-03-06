@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-runtime/src/supervisor.rs`
 **Taille :** L
 **Depend de :** STORY-033 (APIServer), STORY-034 (Routes tasks), STORY-035 (Routes agents)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 

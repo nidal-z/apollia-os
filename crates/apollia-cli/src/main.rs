@@ -16,7 +16,11 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
+use commands::agent::AgentCommand;
+use commands::audit::AuditCommand;
 use commands::memory::MemoryCommand;
+use commands::task::TaskCommand;
+use commands::tools::ToolsCommand;
 
 /// Apollia OS — Sovereign AI Agent Runtime.
 #[derive(Debug, Parser)]
@@ -72,6 +76,50 @@ enum Commands {
         json: bool,
     },
 
+    /// Agent management (list, start, stop, info).
+    Agent {
+        /// Agent subcommand.
+        #[command(subcommand)]
+        command: AgentCommand,
+
+        /// Output JSON instead of human-readable text.
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Task management (list, status, cancel).
+    Task {
+        /// Task subcommand.
+        #[command(subcommand)]
+        command: TaskCommand,
+
+        /// Output JSON instead of human-readable text.
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Tool registry queries (list, describe).
+    Tools {
+        /// Tools subcommand.
+        #[command(subcommand)]
+        command: ToolsCommand,
+
+        /// Output JSON instead of human-readable text.
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Audit trail (list, stats).
+    Audit {
+        /// Audit subcommand.
+        #[command(subcommand)]
+        command: AuditCommand,
+
+        /// Output JSON instead of human-readable text.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Memory management.
     Memory {
         /// Memory subcommand.
@@ -111,6 +159,18 @@ fn main() {
                 stream,
                 json,
             } => commands::run::run(&agent_id, &input, cli.socket, json, stream).await,
+            Commands::Agent { command, json } => {
+                commands::agent::run(&command, cli.socket, json).await
+            }
+            Commands::Task { command, json } => {
+                commands::task::run(&command, cli.socket, json).await
+            }
+            Commands::Tools { command, json } => {
+                commands::tools::run(&command, cli.socket, json).await
+            }
+            Commands::Audit { command, json } => {
+                commands::audit::run(&command, cli.socket, json).await
+            }
             Commands::Memory { command } => match commands::memory::run(&command) {
                 Ok(output) => {
                     println!("{output}");
@@ -132,6 +192,11 @@ mod tests {
     use clap::Parser;
 
     use super::*;
+    use commands::agent::AgentCommand;
+    use commands::audit::AuditCommand;
+    use commands::memory::MemoryCommand;
+    use commands::task::TaskCommand;
+    use commands::tools::ToolsCommand;
 
     fn parse(args: &[&str]) -> Cli {
         Cli::parse_from(args)
@@ -246,5 +311,229 @@ mod tests {
         assert_eq!(exit_codes::RUNTIME_ERROR, 2);
         assert_eq!(exit_codes::TASK_FAILED, 3);
         assert_eq!(exit_codes::TIMEOUT, 4);
+    }
+
+    // --- Level-2 command parsing tests (STORY-038) ---
+
+    #[test]
+    fn test_cli_parses_agent_list() {
+        // GIVEN "apollia-os agent list"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "agent", "list"]);
+        // THEN Commands::Agent { command: AgentCommand::List }
+        match &cli.command {
+            Commands::Agent { command, json } => {
+                assert!(matches!(command, AgentCommand::List));
+                assert!(!json);
+            }
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_start() {
+        // GIVEN "apollia-os agent start /path/to/agent.py"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "agent", "start", "/path/to/agent.py"]);
+        // THEN Commands::Agent { command: AgentCommand::Start { path } }
+        match &cli.command {
+            Commands::Agent { command, .. } => match command {
+                AgentCommand::Start { path } => {
+                    assert_eq!(path, "/path/to/agent.py");
+                }
+                other => panic!("expected AgentCommand::Start, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_stop() {
+        // GIVEN "apollia-os agent stop hello-agent"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "agent", "stop", "hello-agent"]);
+        // THEN Commands::Agent { command: AgentCommand::Stop { agent_id } }
+        match &cli.command {
+            Commands::Agent { command, .. } => match command {
+                AgentCommand::Stop { agent_id } => {
+                    assert_eq!(agent_id, "hello-agent");
+                }
+                other => panic!("expected AgentCommand::Stop, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_info() {
+        // GIVEN "apollia-os agent info hello-agent"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "agent", "info", "hello-agent"]);
+        // THEN Commands::Agent { command: AgentCommand::Info { agent_id } }
+        match &cli.command {
+            Commands::Agent { command, .. } => match command {
+                AgentCommand::Info { agent_id } => {
+                    assert_eq!(agent_id, "hello-agent");
+                }
+                other => panic!("expected AgentCommand::Info, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_json_flag() {
+        // GIVEN "apollia-os agent --json list"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "agent", "--json", "list"]);
+        // THEN json=true
+        match &cli.command {
+            Commands::Agent { json, .. } => assert!(json),
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_task_list() {
+        // GIVEN "apollia-os task list"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "task", "list"]);
+        // THEN Commands::Task { command: TaskCommand::List }
+        match &cli.command {
+            Commands::Task { command, json } => {
+                assert!(matches!(command, TaskCommand::List));
+                assert!(!json);
+            }
+            other => panic!("expected Commands::Task, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_task_cancel() {
+        // GIVEN "apollia-os task cancel t-001"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "task", "cancel", "t-001"]);
+        // THEN Commands::Task { command: TaskCommand::Cancel { task_id: "t-001" } }
+        match &cli.command {
+            Commands::Task { command, .. } => match command {
+                TaskCommand::Cancel { task_id } => {
+                    assert_eq!(task_id, "t-001");
+                }
+                other => panic!("expected TaskCommand::Cancel, got {other:?}"),
+            },
+            other => panic!("expected Commands::Task, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_task_status() {
+        // GIVEN "apollia-os task status t-002"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "task", "status", "t-002"]);
+        // THEN Commands::Task { command: TaskCommand::Status { task_id: "t-002" } }
+        match &cli.command {
+            Commands::Task { command, .. } => match command {
+                TaskCommand::Status { task_id } => {
+                    assert_eq!(task_id, "t-002");
+                }
+                other => panic!("expected TaskCommand::Status, got {other:?}"),
+            },
+            other => panic!("expected Commands::Task, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_tools_list() {
+        // GIVEN "apollia-os tools list"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "tools", "list"]);
+        // THEN Commands::Tools { command: ToolsCommand::List }
+        match &cli.command {
+            Commands::Tools { command, json } => {
+                assert!(matches!(command, ToolsCommand::List));
+                assert!(!json);
+            }
+            other => panic!("expected Commands::Tools, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_tools_describe() {
+        // GIVEN "apollia-os tools describe file_io"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "tools", "describe", "file_io"]);
+        // THEN Commands::Tools { command: ToolsCommand::Describe { tool_name: "file_io" } }
+        match &cli.command {
+            Commands::Tools { command, .. } => match command {
+                ToolsCommand::Describe { tool_name } => {
+                    assert_eq!(tool_name, "file_io");
+                }
+                other => panic!("expected ToolsCommand::Describe, got {other:?}"),
+            },
+            other => panic!("expected Commands::Tools, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_audit_list_default() {
+        // GIVEN "apollia-os audit list"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "audit", "list"]);
+        // THEN Commands::Audit { command: AuditCommand::List { limit: 20 } }
+        match &cli.command {
+            Commands::Audit { command, json } => {
+                match command {
+                    AuditCommand::List { limit } => assert_eq!(*limit, 20),
+                    other => panic!("expected AuditCommand::List, got {other:?}"),
+                }
+                assert!(!json);
+            }
+            other => panic!("expected Commands::Audit, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_audit_list_custom_limit() {
+        // GIVEN "apollia-os audit list --limit 50"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "audit", "list", "--limit", "50"]);
+        // THEN Commands::Audit { command: AuditCommand::List { limit: 50 } }
+        match &cli.command {
+            Commands::Audit { command, .. } => match command {
+                AuditCommand::List { limit } => assert_eq!(*limit, 50),
+                other => panic!("expected AuditCommand::List, got {other:?}"),
+            },
+            other => panic!("expected Commands::Audit, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_audit_stats() {
+        // GIVEN "apollia-os audit stats"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "audit", "stats"]);
+        // THEN Commands::Audit { command: AuditCommand::Stats }
+        match &cli.command {
+            Commands::Audit { command, .. } => {
+                assert!(matches!(command, AuditCommand::Stats));
+            }
+            other => panic!("expected Commands::Audit, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_memory_still_works() {
+        // GIVEN "apollia-os memory inspect test-ns"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "memory", "inspect", "test-ns"]);
+        // THEN Commands::Memory preserved from STORY-023
+        match &cli.command {
+            Commands::Memory { command } => match command {
+                MemoryCommand::Inspect { namespace, .. } => {
+                    assert_eq!(namespace, "test-ns");
+                }
+            },
+            other => panic!("expected Commands::Memory, got {other:?}"),
+        }
     }
 }
