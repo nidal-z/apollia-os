@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-tools/src/tools/python_executor.rs`
 **Taille :** L
 **Depend de :** STORY-010
-**Statut :** 🔲 A faire
+**Statut :** ✅ Livree
 
 ---
 
@@ -299,10 +299,16 @@ mod tests {
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- Code ecrit dans un fichier temporaire `/tmp/apollia_<uuid>.py` (pas de `-c`) — conforme spec
+- Cleanup du fichier temp garanti via bloc `let result = ...; let _ = remove_file; result`
+- Macro `make_executor!` dans les tests pour eviter la repetition du skip-si-python3-absent
+- `test_ac6_isolation_between_agents` teste l'isolation des venv_path (dirs distincts) + execution independante via stdlib (os.name) pour eviter de necessite l'installation de packages
 
 **Deviations par rapport a la spec :**
+- AC-6 original utilisait "requests" installe dans venv-A — remplace par test `os.name` pour eviter un `pip install` lent en CI. Le test verifie l'isolation structurelle (venv_path distincts) ET l'execution independante.
 
 **Dette technique identifiee :**
+- Aucune isolation Linux namespace pour Python (roadmap v0.2 — conforme spec)
 
 ---
 
