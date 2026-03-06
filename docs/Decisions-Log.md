@@ -311,5 +311,24 @@
 
 ---
 
+## ADR-017 — hyper-util explicite pour Unix socket serving
+
+**Date :** 2026-03-06
+**Statut :** Accepte
+
+**Contexte :** STORY-033 (APIServer axum). `axum::serve()` en 0.7.9 n'accepte que `TcpListener`. Le Unix socket listener necessite une boucle accept manuelle via hyper-util.
+
+**Decision :** Ajouter `hyper-util = { version = "0.1", features = ["tokio", "server-auto", "service"] }` au workspace et a `apollia-runtime`. Ajouter la feature `util` a `tower = "0.4"` pour `ServiceExt`.
+
+**Alternatives considerees :** Upgrader axum a 0.8+ (rejetee : breaking changes trop importants), proxy TCP interne (rejetee : complexite inutile)
+
+**Consequences :** Unix socket fonctionne avec le meme Router que TCP. Code asymetrique (axum::serve pour TCP vs boucle manuelle pour Unix). Simplifiable quand axum 0.8 sera adopte.
+
+**Principes impactes :** Principe #1 — Local-first (respecte), Principe #2 — Zero dependance externe (respecte, dep transitive)
+
+[Detail -> docs/adr/ADR-017-hyper-util-unix-socket-serving.md](adr/ADR-017-hyper-util-unix-socket-serving.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

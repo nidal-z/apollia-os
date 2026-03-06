@@ -33,7 +33,8 @@ uuid = { version = "1", features = ["v4", "serde"] }
 
 # --- API server (apollia-runtime) ---
 axum = { version = "0.7", features = ["macros"] }
-tower = "0.4"
+hyper-util = { version = "0.1", features = ["tokio", "server-auto", "service"] }
+tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["trace"] }
 
 # --- CLI (apollia-cli) ---

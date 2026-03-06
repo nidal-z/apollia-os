@@ -8,7 +8,7 @@
 
 | ID | Story | Crate | Taille | Statut |
 |---|---|---|---|---|
-| STORY-033 | APIServer axum Unix socket + TCP | apollia-runtime | L | 🔲 |
+| STORY-033 | APIServer axum Unix socket + TCP | apollia-runtime | L | ✅ |
 | STORY-034 | Routes REST tasks (POST/GET/DELETE) | apollia-runtime | M | 🔲 |
 | STORY-035 | Routes REST agents (POST/GET/DELETE) | apollia-runtime | M | 🔲 |
 | STORY-036 | SSE streaming pour taches | apollia-runtime | M | 🔲 |

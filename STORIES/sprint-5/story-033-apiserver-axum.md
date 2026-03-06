@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-runtime/src/api/mod.rs`, `crates/apollia-runtime/src/api/server.rs`
 **Taille :** L
 **Depend de :** Sprint 4 ✅ (EventBus, AgentRegistry, TaskRouter, ExecutionCoordinator)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 
@@ -247,10 +247,17 @@ mod tests {
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- ADR-017 : hyper-util ajoute explicitement pour Unix socket serving (axum 0.7.9 ne supporte que TcpListener dans axum::serve)
+- tower passe a features = ["util"] pour ServiceExt::oneshot() dans les tests
+- AppState<B> utilise un impl Clone manuel (evite le bound B: Clone inutile)
+- APIServer n'est pas generique sur B — le type parameter est consomme dans build_router() et le Router resultant est type-erased (Router<()>)
 
 **Deviations par rapport a la spec :**
+- hyper-util utilise a la place d'axum::serve() pour le Unix socket (prevu comme possibilite dans la spec)
+- Pas d'emission RuntimeEvent::Ready("api_server") — sera ajoute avec le Supervisor (STORY-039)
 
 **Dette technique identifiee :**
+- Code asymetrique TCP (axum::serve) vs Unix socket (boucle manuelle hyper-util) — simplifiable quand axum 0.8 sera adopte
 
 ---
 
@@ -258,4 +265,5 @@ mod tests {
 
 - Epic parent : Sprint 5 — APIServer + CLI complete
 - Story suivante : STORY-034 (Routes REST tasks)
+- ADR associe : ADR-017
 - Spec : `docs/Briques-Runtime-Core.md` (section APIServer)
