@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-tools/src/tools/file_io.rs`
 **Taille :** M
 **Depend de :** STORY-010
-**Statut :** 🔲 A faire
+**Statut :** ✅ Livree
 
 ---
 
@@ -306,10 +306,16 @@ mod tests {
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- Protection path traversal via normalisation composant-par-composant (std::path::Component) sans aucun I/O — conforme spec.
+- `sandbox_root` canonicalise a la construction (le repertoire existe apres `create_dir_all`) pour des prefix-checks stables malgre les symlinks.
+- Matcher glob minimal implemente en interne (`glob_match` recursive) — aucune dependance externe ajoutee.
+- AC5 test ajoute (non presente dans la spec initiale mais couvrant le critere d'acceptation).
 
 **Deviations par rapport a la spec :**
+- Aucune.
 
 **Dette technique identifiee :**
+- `list()` est non-recursif (documenté). Une variante recursive sera une story future si besoin.
 
 ---
 

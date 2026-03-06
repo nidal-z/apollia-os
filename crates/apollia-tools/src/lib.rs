@@ -15,6 +15,8 @@
 
 pub mod descriptor;
 pub mod registry;
+pub mod tools;
 
 pub use descriptor::{McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind};
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
+pub use tools::file_io::{FileIo, FileIoError};
