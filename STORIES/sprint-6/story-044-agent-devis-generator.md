@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `agents/hello_agent.py`, `agents/devis_agent.py`, `crates/apollia-runtime/src/api/routes_agents.rs`
 **Taille :** L
 **Depend de :** STORY-041 (ResilienceLayer), STORY-042 (RetryPolicy), Sprint 5 (CLI + API)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Termine
 
 ---
 
@@ -255,4 +255,5 @@ Tests manuels via `apollia-os run` — la validation unitaire de l'agent Python 
 - DT-031 : manifest_from_path MVP dans routes_agents.rs
 - Story precedente : STORY-042 (RetryPolicy)
 - Story suivante : STORY-045 (Tests e2e)
+- ADR associe : ADR-019 (AgentLoader trait, decouplage runtime/PyO3)
 - Spec : `docs/Architecture-Vue-Ensemble.md` (section AIP agent minimal)

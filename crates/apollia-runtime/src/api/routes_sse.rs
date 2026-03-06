@@ -267,6 +267,7 @@ mod tests {
             router_handle,
             registry_handle,
             event_sender: event_tx,
+            agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
         };
         Router::new()
             .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))

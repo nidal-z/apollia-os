@@ -429,6 +429,7 @@ mod tests {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
             event_sender: event_sender.clone(),
+            agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -546,6 +547,7 @@ mod tests {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
             event_sender: event_sender.clone(),
+            agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -616,6 +618,7 @@ mod tests {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
             event_sender: event_sender.clone(),
+            agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -792,6 +795,7 @@ mod tests {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
             event_sender: event_sender.clone(),
+            agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

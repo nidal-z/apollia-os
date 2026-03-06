@@ -349,5 +349,24 @@
 
 ---
 
+## ADR-019 — Trait AgentLoader pour decoupler apollia-runtime de PyO3
+
+**Date :** 2026-03-06
+**Statut :** Accepte
+
+**Contexte :** STORY-044 resout DT-031 (manifest_from_path placeholder). Le handler `start_agent` doit charger le module Python reel via AIPLoader, mais ajouter apollia-aip comme dependance de apollia-runtime couplerait le runtime a PyO3.
+
+**Decision :** Introduire un trait `AgentLoader` (Send+Sync) avec `load_and_validate(path) -> Result<AgentManifest, String>`. Injecte dans `AppState` via `Arc<dyn AgentLoader>`. L'implementation concrete `AIPAgentLoader` vit dans apollia-cli.
+
+**Alternatives considerees :** apollia-runtime depend directement de apollia-aip (rejetee : couple runtime a PyO3, casse 73 tests), feature flag python (rejetee : complexite conditionnelle)
+
+**Consequences :** Tests unitaires sans Python. Pattern coherent avec ADR-015 (ToolExecutor), ADR-016 (AgentRunner). Champ supplementaire dans AppState.
+
+**Principes impactes :** Principe #3 — Contrat minimal (respecte), Principe #5 — Un acteur, une responsabilite (respecte)
+
+[Detail -> docs/adr/ADR-019-agent-loader-trait-decouplage-runtime-pyo3.md](adr/ADR-019-agent-loader-trait-decouplage-runtime-pyo3.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

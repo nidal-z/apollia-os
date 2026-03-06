@@ -4,11 +4,13 @@
 //! → APIServer) with timeout and rollback on failure. Shutdown is handled by the
 //! ShutdownController with graceful drain.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Instant;
 
-use apollia_core::{AIPResult, AIPTask, RuntimeEvent, TaskStatus};
+use apollia_core::{AIPResult, AIPTask, AgentManifest, RuntimeEvent, TaskStatus};
+use apollia_runtime::api::routes_agents::AgentLoader;
 use apollia_runtime::api::APIServerConfig;
 use apollia_runtime::coordinator::ExecutionBackend;
 use apollia_runtime::shutdown::{ShutdownConfig, ShutdownController};
@@ -22,6 +24,21 @@ pub enum StartError {
     /// Supervisor failed to start actors.
     #[error("failed to start runtime: {0}")]
     Supervisor(#[from] apollia_runtime::supervisor::SupervisorError),
+}
+
+/// Real agent loader using AIPLoader + validate_agent (ADR-019).
+///
+/// Loads a Python module via PyO3, validates AIP duck typing, and returns
+/// the deserialized [`AgentManifest`].
+struct AIPAgentLoader;
+
+impl AgentLoader for AIPAgentLoader {
+    fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
+        let module = apollia_aip::loader::load_agent_module(path).map_err(|e| e.to_string())?;
+        let validated =
+            apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
+        Ok(validated.manifest)
+    }
 }
 
 /// Placeholder execution backend for MVP (no real agent execution yet).
@@ -70,7 +87,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         startup_timeout_secs: 10,
     };
     let supervisor = Supervisor::new(config);
-    let handles = supervisor.start(NoopBackend).await?;
+    let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);
+    let handles = supervisor.start(NoopBackend, agent_loader).await?;
 
     let elapsed = start.elapsed();
     println!("  * EventBus        ready");

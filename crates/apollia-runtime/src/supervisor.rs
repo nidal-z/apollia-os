@@ -10,6 +10,7 @@
 //! [`RestartPolicy`] on failure.
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tokio::sync::broadcast;
@@ -18,6 +19,7 @@ use tracing::{error, info, warn};
 use apollia_core::RuntimeEvent;
 use apollia_tools::ToolRegistryHandle;
 
+use crate::api::routes_agents::AgentLoader;
 use crate::api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
 use crate::coordinator::ExecutionBackend;
 use crate::eventbus::{EventBus, EventBusSender};
@@ -179,6 +181,7 @@ impl Supervisor {
     pub async fn start<B: ExecutionBackend>(
         self,
         backend: B,
+        agent_loader: Arc<dyn AgentLoader>,
     ) -> Result<SupervisorHandles<B>, SupervisorError> {
         let timeout = Duration::from_secs(self.config.startup_timeout_secs);
 
@@ -218,6 +221,7 @@ impl Supervisor {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
             event_sender: event_sender.clone(),
+            agent_loader,
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -433,7 +437,12 @@ mod tests {
         let supervisor = Supervisor::new(config);
 
         // WHEN start() est appele
-        let result = supervisor.start(MockBackend).await;
+        let result = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+            )
+            .await;
 
         // THEN tous les acteurs demarrent et on obtient des handles
         assert!(result.is_ok(), "start() should succeed");
@@ -457,7 +466,13 @@ mod tests {
         let supervisor = Supervisor::new(config);
 
         // WHEN start() est appele
-        let handles = supervisor.start(MockBackend).await.unwrap();
+        let handles = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+            )
+            .await
+            .unwrap();
 
         // Subscribe AFTER start (AllReady was already emitted, but let's verify via a new event)
         let mut rx = handles.event_sender.subscribe();
@@ -489,7 +504,13 @@ mod tests {
         let socket_path = temp_socket_path();
         let config = test_config(port, socket_path.clone());
         let supervisor = Supervisor::new(config);
-        let handles = supervisor.start(MockBackend).await.unwrap();
+        let handles = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+            )
+            .await
+            .unwrap();
 
         // THEN tous les handles sont presents et utilisables
         // EventBusSender: can send (need a subscriber for broadcast to succeed)
@@ -553,7 +574,12 @@ mod tests {
         let supervisor = Supervisor::new(config);
 
         // WHEN start() est appele
-        let result = supervisor.start(MockBackend).await;
+        let result = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+            )
+            .await;
 
         // THEN ActorStartFailed est retourne (port already in use)
         assert!(result.is_err());

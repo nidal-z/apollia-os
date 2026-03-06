@@ -7,6 +7,7 @@
 //! with `hyper-util` since axum 0.7 only supports `TcpListener` natively.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use axum::extract::State;
 use axum::routing::{get, post};
@@ -18,6 +19,7 @@ use tokio::net::UnixListener;
 use tokio::sync::watch;
 use tracing::info;
 
+use crate::api::routes_agents::AgentLoader;
 use crate::coordinator::ExecutionBackend;
 use crate::eventbus::EventBusSender;
 use crate::registry::AgentRegistryHandle;
@@ -37,6 +39,8 @@ pub struct AppState<B: ExecutionBackend> {
     pub registry_handle: AgentRegistryHandle,
     /// Sender side of the runtime event bus.
     pub event_sender: EventBusSender,
+    /// Agent loader for Python module loading (ADR-019).
+    pub agent_loader: Arc<dyn AgentLoader>,
 }
 
 impl<B: ExecutionBackend> Clone for AppState<B> {
@@ -45,6 +49,7 @@ impl<B: ExecutionBackend> Clone for AppState<B> {
             router_handle: self.router_handle.clone(),
             registry_handle: self.registry_handle.clone(),
             event_sender: self.event_sender.clone(),
+            agent_loader: Arc::clone(&self.agent_loader),
         }
     }
 }
@@ -327,6 +332,7 @@ mod tests {
             router_handle,
             registry_handle,
             event_sender: event_tx,
+            agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
         }
     }
 

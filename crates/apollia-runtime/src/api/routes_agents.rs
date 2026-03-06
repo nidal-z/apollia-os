@@ -2,6 +2,9 @@
 //!
 //! These routes expose agent lifecycle management via the API. They delegate
 //! to [`AgentRegistryHandle`] for state reads and transitions.
+//!
+//! Agent loading is abstracted via the [`AgentLoader`] trait (ADR-019) to keep
+//! `apollia-runtime` decoupled from PyO3/apollia-aip.
 
 use std::path::Path;
 
@@ -15,6 +18,50 @@ use crate::coordinator::ExecutionBackend;
 use crate::registry::AgentRegistryError;
 
 use apollia_core::{AgentManifest, ProcessState};
+
+/// Trait for loading and validating Python agent modules (ADR-019).
+///
+/// Abstracts away the PyO3-based AIP loading so that `apollia-runtime` does
+/// not depend on `apollia-aip`. The concrete implementation lives in `apollia-cli`.
+pub trait AgentLoader: Send + Sync {
+    /// Load a Python agent module from `path`, validate AIP duck typing,
+    /// and return the deserialized [`AgentManifest`].
+    ///
+    /// Returns a human-readable error string on failure.
+    fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String>;
+}
+
+/// Stub [`AgentLoader`] that builds a minimal manifest from the file name.
+///
+/// Intended for tests that don't exercise agent loading logic.
+pub struct StubAgentLoader;
+
+impl AgentLoader for StubAgentLoader {
+    fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
+        let name = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("stub-agent")
+            .replace('_', "-");
+        Ok(AgentManifest {
+            name,
+            version: "0.0.0".to_string(),
+            description: "stub agent for tests".to_string(),
+            tools_required: vec![],
+            tools_optional: vec![],
+            supports_streaming: false,
+            supports_a2a: false,
+            memory_namespace: None,
+            shared_memory_namespaces: vec![],
+            max_concurrent_tasks: 1,
+            step_budget: None,
+            network_allowlist: None,
+            dangerous_tools_allowed: false,
+            tags: vec![],
+            skills: vec![],
+        })
+    }
+}
 
 /// Request body for `POST /api/v1/agents`.
 #[derive(Debug, Deserialize)]
@@ -60,38 +107,23 @@ fn state_to_string(state: &ProcessState) -> String {
     }
 }
 
-/// Extract agent name from a file path (stem without extension).
+/// Load an agent manifest via the [`AgentLoader`] trait (ADR-019).
 ///
-/// Falls back to the full path string if no stem is found.
-fn agent_name_from_path(path: &str) -> String {
-    Path::new(path)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or(path)
-        .replace('_', "-")
-}
-
-/// Build a minimal manifest from an agent path (MVP simplification).
-///
-/// Full AIP loading/validation is out of scope for this story.
-fn manifest_from_path(path: &str) -> AgentManifest {
-    AgentManifest {
-        name: agent_name_from_path(path),
-        version: "0.0.0".to_string(),
-        description: format!("Agent loaded from {path}"),
-        tools_required: vec![],
-        tools_optional: vec![],
-        supports_streaming: false,
-        supports_a2a: false,
-        memory_namespace: None,
-        shared_memory_namespaces: vec![],
-        max_concurrent_tasks: 1,
-        step_budget: None,
-        network_allowlist: None,
-        dangerous_tools_allowed: false,
-        tags: vec![],
-        skills: vec![],
-    }
+/// Delegates to the concrete loader injected in `AppState`.
+/// Returns a structured error response on failure.
+fn load_manifest(
+    loader: &dyn AgentLoader,
+    agent_path: &str,
+) -> Result<AgentManifest, (StatusCode, Json<ErrorResponse>)> {
+    let path = Path::new(agent_path);
+    loader.load_and_validate(path).map_err(|reason| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: format!("failed to load agent from '{agent_path}': {reason}"),
+            }),
+        )
+    })
 }
 
 /// Convert a registry error to an HTTP error response.
@@ -130,16 +162,19 @@ pub async fn list_agents<B: ExecutionBackend>(
 
 /// Handler for `POST /api/v1/agents`.
 ///
-/// Registers a new agent from the given path. Returns 201 Created with
-/// the generated agent_id and initial state "initializing".
+/// Loads the Python agent module via [`AgentLoader`] (ADR-019), validates
+/// AIP duck typing, registers the agent with its real manifest, and
+/// transitions to Active (or Degraded if optional tools are missing).
 ///
-/// MVP simplification: creates a manifest from the path without actually
-/// loading the Python module via AIP.
+/// Returns 201 Created with the agent_id and state.
+/// Returns 400 Bad Request if the Python module is invalid.
 pub async fn start_agent<B: ExecutionBackend>(
     State(state): State<AppState<B>>,
     Json(req): Json<StartAgentRequest>,
 ) -> Result<(StatusCode, Json<AgentResponse>), (StatusCode, Json<ErrorResponse>)> {
-    let manifest = manifest_from_path(&req.agent_path);
+    let manifest = load_manifest(state.agent_loader.as_ref(), &req.agent_path)?;
+
+    let has_missing_optional = !manifest.tools_optional.is_empty();
 
     let agent_id = state
         .registry_handle
@@ -147,11 +182,33 @@ pub async fn start_agent<B: ExecutionBackend>(
         .await
         .map_err(registry_error_to_response)?;
 
+    let final_state = if has_missing_optional {
+        // AC-5: optional tools listed but not resolved yet -> DEGRADED
+        state
+            .registry_handle
+            .update_state(agent_id.as_str(), ProcessState::Active)
+            .await
+            .map_err(registry_error_to_response)?;
+        state
+            .registry_handle
+            .update_state(agent_id.as_str(), ProcessState::Degraded)
+            .await
+            .map_err(registry_error_to_response)?;
+        "degraded"
+    } else {
+        state
+            .registry_handle
+            .update_state(agent_id.as_str(), ProcessState::Active)
+            .await
+            .map_err(registry_error_to_response)?;
+        "active"
+    };
+
     Ok((
         StatusCode::CREATED,
         Json(AgentResponse {
             agent_id: agent_id.to_string(),
-            state: "initializing".to_string(),
+            state: final_state.to_string(),
             manifest: None,
         }),
     ))
@@ -254,6 +311,7 @@ mod tests {
     use apollia_core::{AIPResult, AgentManifest, ProcessState, TaskStatus};
     use std::future::Future;
     use std::pin::Pin;
+    use std::sync::Arc;
 
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
@@ -281,6 +339,45 @@ mod tests {
         }
     }
 
+    /// Mock AgentLoader that builds a manifest from the file path stem.
+    struct MockAgentLoader;
+
+    impl AgentLoader for MockAgentLoader {
+        fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
+            let name = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown")
+                .replace('_', "-");
+            Ok(AgentManifest {
+                name,
+                version: "1.0.0".to_string(),
+                description: "mock agent".to_string(),
+                tools_required: vec![],
+                tools_optional: vec![],
+                supports_streaming: false,
+                supports_a2a: false,
+                memory_namespace: None,
+                shared_memory_namespaces: vec![],
+                max_concurrent_tasks: 1,
+                step_budget: None,
+                network_allowlist: None,
+                dangerous_tools_allowed: false,
+                tags: vec![],
+                skills: vec![],
+            })
+        }
+    }
+
+    /// Mock AgentLoader that always fails (for error path tests).
+    struct FailingAgentLoader;
+
+    impl AgentLoader for FailingAgentLoader {
+        fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String> {
+            Err(format!("syntax error in '{}'", path.display()))
+        }
+    }
+
     fn test_manifest(name: &str) -> AgentManifest {
         AgentManifest {
             name: name.to_string(),
@@ -302,6 +399,10 @@ mod tests {
     }
 
     fn test_router() -> (Router, AgentRegistryHandle) {
+        test_router_with_loader(Arc::new(MockAgentLoader))
+    }
+
+    fn test_router_with_loader(loader: Arc<dyn AgentLoader>) -> (Router, AgentRegistryHandle) {
         let (event_tx, _) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =
@@ -310,6 +411,7 @@ mod tests {
             router_handle,
             registry_handle: registry_handle.clone(),
             event_sender: event_tx,
+            agent_loader: loader,
         };
         let router = Router::new()
             .route(
@@ -408,10 +510,10 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 201 Created avec agent_id et state "initializing"
+        // THEN 201 Created avec agent_id et state "active"
         assert_eq!(resp.status(), StatusCode::CREATED);
         let json = body_json(resp).await;
-        assert_eq!(json["state"], "initializing");
+        assert_eq!(json["state"], "active");
         assert!(json["agent_id"].is_string());
         assert!(!json["agent_id"].as_str().expect("agent_id str").is_empty());
     }
@@ -526,5 +628,71 @@ mod tests {
             .as_str()
             .expect("error str")
             .contains("already stopped"));
+    }
+
+    #[tokio::test]
+    async fn test_start_agent_invalid_python_returns_400() {
+        // GIVEN un loader qui echoue toujours (AC-6)
+        let (router, _) = test_router_with_loader(Arc::new(FailingAgentLoader));
+
+        // WHEN POST /api/v1/agents avec un fichier invalide
+        let body = serde_json::json!({"agent_path": "/path/to/broken.py"});
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/agents")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+
+        // THEN 400 avec erreur claire
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let json = body_json(resp).await;
+        let error = json["error"].as_str().expect("error str");
+        assert!(error.contains("failed to load agent"));
+        assert!(error.contains("syntax error"));
+    }
+
+    #[tokio::test]
+    async fn test_start_agent_with_optional_tools_degraded() {
+        // GIVEN un loader qui retourne un manifest avec tools_optional (AC-5)
+        struct DegradedLoader;
+        impl AgentLoader for DegradedLoader {
+            fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
+                Ok(AgentManifest {
+                    name: "degraded-agent".to_string(),
+                    version: "1.0.0".to_string(),
+                    description: "agent with optional tools".to_string(),
+                    tools_required: vec![],
+                    tools_optional: vec!["mcp_erp".to_string()],
+                    supports_streaming: false,
+                    supports_a2a: false,
+                    memory_namespace: None,
+                    shared_memory_namespaces: vec![],
+                    max_concurrent_tasks: 1,
+                    step_budget: None,
+                    network_allowlist: None,
+                    dangerous_tools_allowed: false,
+                    tags: vec![],
+                    skills: vec![],
+                })
+            }
+        }
+        let (router, _) = test_router_with_loader(Arc::new(DegradedLoader));
+
+        // WHEN POST /api/v1/agents
+        let body = serde_json::json!({"agent_path": "/path/to/degraded_agent.py"});
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/agents")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+
+        // THEN 201 avec state "degraded"
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let json = body_json(resp).await;
+        assert_eq!(json["state"], "degraded");
     }
 }

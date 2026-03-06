@@ -101,6 +101,7 @@ dependencies = [
 name = "apollia-cli"
 version = "0.1.0"
 dependencies = [
+ "apollia-aip",
  "apollia-core",
  "apollia-memory",
  "apollia-runtime",

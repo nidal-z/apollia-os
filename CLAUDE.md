@@ -120,6 +120,6 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 **Sprint actif :** Sprint 6 — Hardening + Agent de démo
 **Dernier sprint livré :** Sprint 5 — APIServer + CLI complète (8/8 stories, 289 tests)
-**Dernière décision :** ADR-018 — CLI Bootstrap sans Supervisor
+**Dernière décision :** ADR-019 — AgentLoader trait decouplage runtime/PyO3
 
 Pour l'état détaillé : lire `STORIES/sprint-index.md`.
