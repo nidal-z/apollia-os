@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-runtime/src/api/routes_sse.rs`
 **Taille :** M
 **Depend de :** STORY-034 (Routes REST tasks)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Termine
 
 ---
 

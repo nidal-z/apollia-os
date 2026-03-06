@@ -84,7 +84,7 @@
 
 | Crate | Usage | Decision |
 |---|---|---|
-| `tokio-stream` | Conversion broadcast → Stream pour SSE | A evaluer dans STORY-036. Probable ajout workspace |
+| `tokio-stream` 0.1 (feature `sync`) | Conversion broadcast → Stream pour SSE | ✅ Ajout workspace dans STORY-036 |
 | `reqwest` (feature unix-socket) | Client HTTP CLI → APIServer | A evaluer dans STORY-037. Alternative : client leger custom |
 | `hyper-util` | Unix socket listener pour axum | A evaluer dans STORY-033. Necessaire si `axum::serve` ne supporte pas UnixListener directement |
 
