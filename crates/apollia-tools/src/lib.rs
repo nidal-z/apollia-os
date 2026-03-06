@@ -12,3 +12,7 @@
 //! - `file_io` — filesystem operations with path traversal protection (STORY-015)
 //! - `http_client` — network-restricted HTTP client
 //! - `mcp_consumer` — MCP server protocol consumer
+
+pub mod descriptor;
+
+pub use descriptor::{McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind};

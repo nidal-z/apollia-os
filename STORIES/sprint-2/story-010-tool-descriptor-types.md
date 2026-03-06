@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-tools/src/descriptor.rs`
 **Taille :** S
 **Depend de :** STORY-004 ✅ (`SandboxProfile` defini dans `apollia-core`)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Livree
 
 ---
 
@@ -271,10 +271,15 @@ mod tests {
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- `ToolKind` serialise avec `#[serde(tag = "type")]` pour un JSON lisible (`{"type": "native"}`, etc.)
+- `McpTransport` serialise en snake_case (`stdio`, `http`, `web_socket`)
+- Test supplementaire ajout : `test_full_profile_with_dangerous_flag_passes_validation` (happy path Full+dangerous)
 
 **Deviations par rapport a la spec :**
+- Aucune.
 
 **Dette technique identifiee :**
+- Aucune.
 
 ---
 
