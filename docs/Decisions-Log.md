@@ -215,5 +215,25 @@
 
 ---
 
+## ADR-012 — Mode DevSandbox sur macOS : pas de sandbox réel en développement
+
+**Date :** 2026-03-06
+**Statut :** Accepté
+
+**Contexte :** `unshare(1)` n'existe pas sur macOS. `sandbox-exec` (Seatbelt/SBPL), l'alternative native macOS, est deprecated depuis macOS 10.15 et basé sur une API privée non documentée. Docker viole le Principe #2.
+
+**Décision :** Deux modes compilés via `#[cfg(target_os = "linux")]` : `SandboxMode::LinuxNamespaces` en production (Linux), `SandboxMode::Dev` sur macOS avec `tracing::warn!` à chaque invocation. La CI tourne sur Linux et valide le chemin sandbox réel.
+
+**Alternatives considérées :**
+- `sandbox-exec` macOS : API deprecated depuis macOS 10.15, syntaxe SBPL propriétaire, retrait possible sans préavis. Rejetée — dette technique garantie.
+- Docker en dev : Viole Principe #2, commercial pour orgs > 250 personnes. Rejeté.
+- Warning uniquement au démarrage : Trop discret — un dev peut oublier l'absence de sandbox. Rejeté.
+
+**Conséquences :** Pas d'isolation réelle sur macOS dev (acceptable : code de confiance du développeur). Zero dépendance ajoutée. Parity prod garantie par CI Linux. Le warning par invocation rend l'absence de sandbox impossible à ignorer.
+
+[Détail → docs/adr/ADR-012-sandbox-devmode-macos.md](adr/ADR-012-sandbox-devmode-macos.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
