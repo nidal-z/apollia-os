@@ -119,7 +119,7 @@ pub async fn list_agents<B: ExecutionBackend>(
     let agents = entries
         .into_iter()
         .map(|entry| AgentResponse {
-            agent_id: entry.id,
+            agent_id: entry.id.to_string(),
             state: state_to_string(&entry.process_state),
             manifest: None,
         })
@@ -150,7 +150,7 @@ pub async fn start_agent<B: ExecutionBackend>(
     Ok((
         StatusCode::CREATED,
         Json(AgentResponse {
-            agent_id,
+            agent_id: agent_id.to_string(),
             state: "initializing".to_string(),
             manifest: None,
         }),
@@ -175,7 +175,7 @@ pub async fn get_agent<B: ExecutionBackend>(
         Some(e) => {
             let manifest_json = serde_json::to_value(&e.manifest).ok();
             Ok(Json(AgentResponse {
-                agent_id: e.id,
+                agent_id: e.id.to_string(),
                 state: state_to_string(&e.process_state),
                 manifest: manifest_json,
             }))
@@ -233,7 +233,7 @@ pub async fn stop_agent<B: ExecutionBackend>(
 
     state
         .registry_handle
-        .update_state(&agent_id, ProcessState::Stopping)
+        .update_state(agent_id.as_str(), ProcessState::Stopping)
         .await
         .map_err(registry_error_to_response)?;
 
@@ -340,7 +340,7 @@ mod tests {
             .await
             .expect("register");
         registry
-            .update_state(&id1, ProcessState::Active)
+            .update_state(id1.as_str(), ProcessState::Active)
             .await
             .expect("activate");
         let id2 = registry
@@ -348,15 +348,15 @@ mod tests {
             .await
             .expect("register");
         registry
-            .update_state(&id2, ProcessState::Active)
+            .update_state(id2.as_str(), ProcessState::Active)
             .await
             .expect("activate");
         registry
-            .update_state(&id2, ProcessState::Stopping)
+            .update_state(id2.as_str(), ProcessState::Stopping)
             .await
             .expect("stopping");
         registry
-            .update_state(&id2, ProcessState::Stopped)
+            .update_state(id2.as_str(), ProcessState::Stopped)
             .await
             .expect("stopped");
 
@@ -425,7 +425,7 @@ mod tests {
             .await
             .expect("register");
         registry
-            .update_state(&agent_id, ProcessState::Active)
+            .update_state(agent_id.as_str(), ProcessState::Active)
             .await
             .expect("activate");
 
@@ -439,7 +439,7 @@ mod tests {
         // THEN 200 avec detail complet incluant manifest
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
-        assert_eq!(json["agent_id"], agent_id);
+        assert_eq!(json["agent_id"], agent_id.as_str());
         assert_eq!(json["state"], "active");
         assert!(json["manifest"].is_object());
         assert_eq!(json["manifest"]["name"], "hello-agent");
@@ -475,7 +475,7 @@ mod tests {
             .await
             .expect("register");
         registry
-            .update_state(&agent_id, ProcessState::Active)
+            .update_state(agent_id.as_str(), ProcessState::Active)
             .await
             .expect("activate");
 
@@ -490,7 +490,7 @@ mod tests {
         // THEN 200 avec state "stopping"
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
-        assert_eq!(json["agent_id"], agent_id);
+        assert_eq!(json["agent_id"], agent_id.as_str());
         assert_eq!(json["state"], "stopping");
     }
 
@@ -503,11 +503,11 @@ mod tests {
             .await
             .expect("register");
         registry
-            .update_state(&agent_id, ProcessState::Stopping)
+            .update_state(agent_id.as_str(), ProcessState::Stopping)
             .await
             .expect("stopping");
         registry
-            .update_state(&agent_id, ProcessState::Stopped)
+            .update_state(agent_id.as_str(), ProcessState::Stopped)
             .await
             .expect("stopped");
 

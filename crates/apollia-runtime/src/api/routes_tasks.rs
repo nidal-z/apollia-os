@@ -85,7 +85,7 @@ pub async fn submit_task<B: ExecutionBackend>(
     Ok((
         StatusCode::ACCEPTED,
         Json(TaskResponse {
-            task_id,
+            task_id: task_id.to_string(),
             status: "submitted".into(),
             result: None,
             error: None,
@@ -250,7 +250,7 @@ mod tests {
             .await
             .expect("register failed");
         registry_handle
-            .update_state(&agent_id, ProcessState::Active)
+            .update_state(agent_id.as_str(), ProcessState::Active)
             .await
             .expect("activate failed");
 
@@ -275,7 +275,7 @@ mod tests {
             )
             .with_state(state);
 
-        (router, agent_id)
+        (router, agent_id.to_string())
     }
 
     async fn body_json(resp: axum::response::Response) -> serde_json::Value {

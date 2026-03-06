@@ -116,7 +116,7 @@
 
 ---
 
-## Sprint 6 — Hardening + Agent de démo (semaines 18-20)
+## Sprint 6 — Hardening + Agent de démo (semaines 18-19) — PLANIFIE
 
 **Objectif :** Démo client réelle. Agent devis-generator opérationnel.
 **Livrable démo-able :** Démo PME live, tout local, zéro cloud.
@@ -125,10 +125,20 @@
 |---|---|---|---|
 | STORY-041 | ResilienceLayer circuit breaker par outil | L | 🔲 |
 | STORY-042 | Retry policy avec backoff exponentiel + jitter | M | 🔲 |
-| STORY-043 | ORIA Mode Orchestré + Reasoner LLM | XL | 🔲 |
+| STORY-043 | ORIA Mode Orchestré + Reasoner LLM | XL | 🚫 Reportée Sprint 7 |
 | STORY-044 | Agent devis-generator complet | L | 🔲 |
 | STORY-045 | Tests d'intégration end-to-end | L | 🔲 |
 | STORY-046 | README + documentation installation | M | 🔲 |
+
+[Plan → sprint-6/plan.md](sprint-6/plan.md)
+
+---
+
+## Sprint 7 — ORIA Orchestré + extensions (à planifier)
+
+| ID | Story | Taille | Statut |
+|---|---|---|---|
+| STORY-043 | ORIA Mode Orchestré + Reasoner LLM | XL | 🔲 (reportée Sprint 6) |
 
 ---
 

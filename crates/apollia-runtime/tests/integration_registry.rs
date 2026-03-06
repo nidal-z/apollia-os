@@ -43,9 +43,8 @@ async fn collect_events(
 /// AC-1 — Cycle de vie complet d'un agent.
 ///
 /// Transitions : register → Active → Degraded → Active → Stopping → Stopped → unregister
-/// Événements attendus (6) :
-///   AgentRegistered → AgentReady → AgentDegraded → AgentReady → AgentStopped → AgentStopped
-/// Note : la transition vers `Stopping` n'émet pas d'événement (aucune variante AgentStopping).
+/// Événements attendus (7) :
+///   AgentRegistered → AgentReady → AgentDegraded → AgentReady → AgentStopping → AgentStopped → AgentStopped
 #[tokio::test]
 async fn test_ac1_cycle_de_vie_complet() {
     // GIVEN
@@ -58,34 +57,33 @@ async fn test_ac1_cycle_de_vie_complet() {
         .await
         .unwrap();
     registry
-        .update_state(&id, ProcessState::Active)
+        .update_state(id.as_str(), ProcessState::Active)
         .await
         .unwrap();
     registry
-        .update_state(&id, ProcessState::Degraded)
+        .update_state(id.as_str(), ProcessState::Degraded)
         .await
         .unwrap();
     registry
-        .update_state(&id, ProcessState::Active)
+        .update_state(id.as_str(), ProcessState::Active)
         .await
         .unwrap();
     registry
-        .update_state(&id, ProcessState::Stopping)
+        .update_state(id.as_str(), ProcessState::Stopping)
         .await
         .unwrap();
     registry
-        .update_state(&id, ProcessState::Stopped)
+        .update_state(id.as_str(), ProcessState::Stopped)
         .await
         .unwrap();
-    registry.unregister(&id).await.unwrap();
+    registry.unregister(id.as_str()).await.unwrap();
 
-    // THEN — 6 événements dans l'ordre exact
-    // (Stopping n'émet pas d'événement car RuntimeEvent n'a pas de variante AgentStopping)
-    let events = collect_events(&mut bus_rx, 6, 200).await;
+    // THEN — 7 événements dans l'ordre exact
+    let events = collect_events(&mut bus_rx, 7, 200).await;
     assert_eq!(
         events.len(),
-        6,
-        "Attendu 6 événements, reçu {}",
+        7,
+        "Attendu 7 événements, reçu {}",
         events.len()
     );
 
@@ -93,8 +91,9 @@ async fn test_ac1_cycle_de_vie_complet() {
     assert!(matches!(&events[1], RuntimeEvent::AgentReady(eid) if eid == &id));
     assert!(matches!(&events[2], RuntimeEvent::AgentDegraded { agent_id, .. } if agent_id == &id));
     assert!(matches!(&events[3], RuntimeEvent::AgentReady(eid) if eid == &id));
-    assert!(matches!(&events[4], RuntimeEvent::AgentStopped(eid) if eid == &id));
+    assert!(matches!(&events[4], RuntimeEvent::AgentStopping(eid) if eid == &id));
     assert!(matches!(&events[5], RuntimeEvent::AgentStopped(eid) if eid == &id));
+    assert!(matches!(&events[6], RuntimeEvent::AgentStopped(eid) if eid == &id));
 }
 
 /// AC-2 — Plusieurs agents simultanés.
@@ -138,7 +137,7 @@ async fn test_ac3_transition_invalide_preserve_etat() {
         .await
         .unwrap();
     registry
-        .update_state(&id, ProcessState::Active)
+        .update_state(id.as_str(), ProcessState::Active)
         .await
         .unwrap();
 
@@ -146,7 +145,9 @@ async fn test_ac3_transition_invalide_preserve_etat() {
     collect_events(&mut bus_rx, 2, 100).await;
 
     // WHEN — transition invalide Active → Initializing
-    let result = registry.update_state(&id, ProcessState::Initializing).await;
+    let result = registry
+        .update_state(id.as_str(), ProcessState::Initializing)
+        .await;
 
     // THEN — erreur InvalidTransition retournée
     assert!(matches!(
@@ -155,7 +156,7 @@ async fn test_ac3_transition_invalide_preserve_etat() {
     ));
 
     // ET — l'état est toujours Active
-    let entry = registry.get_agent(&id).await.unwrap().unwrap();
+    let entry = registry.get_agent(id.as_str()).await.unwrap().unwrap();
     assert!(matches!(entry.process_state, ProcessState::Active));
 
     // ET — aucun événement supplémentaire publié

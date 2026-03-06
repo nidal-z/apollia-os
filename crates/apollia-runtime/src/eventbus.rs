@@ -47,7 +47,7 @@ mod tests {
         let (tx, mut rx) = EventBus::new();
 
         // WHEN
-        tx.send(RuntimeEvent::AgentRegistered("agent-1".to_string()))
+        tx.send(RuntimeEvent::AgentRegistered("agent-1".into()))
             .unwrap();
 
         // THEN
@@ -79,7 +79,7 @@ mod tests {
         // WHEN — on envoie 9 messages sans consommer (buffer saturé)
         for i in 0..9u32 {
             let _ = tx.send(RuntimeEvent::StepExecuted {
-                task_id: format!("task-{}", i),
+                task_id: format!("task-{}", i).into(),
                 step: i,
                 tool: None,
             });

@@ -7,6 +7,10 @@
 
 use crate::store::MemoryStore;
 
+/// Default maximum number of procedural entries per namespace.
+/// Beyond this limit, least-recently-used entries are evicted (LRU).
+pub(crate) const DEFAULT_MAX_ENTRIES_PER_NAMESPACE: u64 = 1_000;
+
 /// Backend de memoire procedurale — workflows appris par l'agent.
 ///
 /// Stocke des patterns trigger->steps avec compteur de succes.
@@ -128,11 +132,63 @@ impl<'a> ProceduralMemory<'a> {
                     "procedure learned"
                 );
 
+                self.enforce_limit(namespace, DEFAULT_MAX_ENTRIES_PER_NAMESPACE)?;
+
                 new_id
             }
         };
 
         Ok(id)
+    }
+
+    /// Evicts least-recently-used entries when the namespace exceeds `max_entries`.
+    ///
+    /// Deletes entries ordered by `last_used_at ASC` (LRU). Procedural memories
+    /// have no FTS index, so only the main table rows are deleted.
+    /// Returns the number of evicted entries.
+    fn enforce_limit(
+        &self,
+        namespace: &str,
+        max_entries: u64,
+    ) -> Result<u64, ProceduralMemoryError> {
+        let conn = self.store.conn();
+
+        let count: u64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM procedural_memories WHERE namespace = ?1",
+                rusqlite::params![namespace],
+                |row| row.get(0),
+            )
+            .map_err(|e| ProceduralMemoryError::LearnFailed(format!("count query failed: {e}")))?;
+
+        if count <= max_entries {
+            return Ok(0);
+        }
+
+        let excess = count - max_entries;
+
+        let evicted = conn
+            .execute(
+                "DELETE FROM procedural_memories WHERE id IN (
+                    SELECT id FROM procedural_memories
+                    WHERE namespace = ?1
+                    ORDER BY last_used_at ASC
+                    LIMIT ?2
+                )",
+                rusqlite::params![namespace, excess],
+            )
+            .map_err(|e| {
+                ProceduralMemoryError::LearnFailed(format!("eviction delete failed: {e}"))
+            })?;
+
+        tracing::info!(
+            namespace = %namespace,
+            evicted = evicted,
+            max_entries = max_entries,
+            "procedural entries evicted to enforce namespace limit"
+        );
+
+        Ok(evicted as u64)
     }
 
     /// Recupere une procedure par trigger exact. `None` si absente.
@@ -330,6 +386,85 @@ mod tests {
             proc.learn("ns", "trigger", &[]),
             Err(ProceduralMemoryError::EmptySteps)
         ));
+    }
+
+    // DT-018 — enforce_limit evicts least-recently-used entries (LRU)
+    #[test]
+    fn test_enforce_limit_evicts_lru_entries() {
+        // GIVEN — 5 procedures with explicit last_used_at timestamps
+        let (store, _) = setup();
+        let proc_mem = ProceduralMemory::new(&store);
+        let conn = store.conn();
+
+        for i in 0..5 {
+            let id = uuid::Uuid::new_v4().to_string();
+            let trigger = format!("trigger-{i}");
+            conn.execute(
+                "INSERT INTO procedural_memories (id, namespace, trigger_text, steps, success_count, last_used_at, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![
+                    id,
+                    "ns",
+                    trigger,
+                    "[\"step\"]",
+                    1,
+                    format!("2026-01-0{}T10:00:00Z", i + 1),
+                    format!("2026-01-0{}T10:00:00Z", i + 1),
+                ],
+            )
+            .unwrap();
+        }
+
+        // WHEN — enforce limit of 3
+        let evicted = proc_mem.enforce_limit("ns", 3).unwrap();
+
+        // THEN — 2 LRU evicted, 3 remain
+        assert_eq!(evicted, 2);
+        let remaining = proc_mem.list("ns").unwrap();
+        assert_eq!(remaining.len(), 3);
+        // trigger-0 and trigger-1 (oldest last_used_at) should be gone
+        for entry in &remaining {
+            assert!(
+                entry.trigger != "trigger-0" && entry.trigger != "trigger-1",
+                "LRU entries should have been evicted"
+            );
+        }
+    }
+
+    // DT-018 — enforce_limit is no-op when under limit
+    #[test]
+    fn test_enforce_limit_noop_under_limit() {
+        // GIVEN — 2 procedures
+        let (store, _) = setup();
+        let proc_mem = ProceduralMemory::new(&store);
+        proc_mem.learn("ns", "t1", &["s".into()]).unwrap();
+        proc_mem.learn("ns", "t2", &["s".into()]).unwrap();
+
+        // WHEN — enforce limit of 10
+        let evicted = proc_mem.enforce_limit("ns", 10).unwrap();
+
+        // THEN — nothing evicted
+        assert_eq!(evicted, 0);
+        assert_eq!(proc_mem.list("ns").unwrap().len(), 2);
+    }
+
+    // DT-018 — reinforcing existing trigger does NOT trigger eviction
+    #[test]
+    fn test_reinforce_does_not_trigger_eviction() {
+        // GIVEN — 3 procedures
+        let (store, _) = setup();
+        let proc_mem = ProceduralMemory::new(&store);
+        proc_mem.learn("ns", "t1", &["s".into()]).unwrap();
+        proc_mem.learn("ns", "t2", &["s".into()]).unwrap();
+        proc_mem.learn("ns", "t3", &["s".into()]).unwrap();
+
+        // WHEN — reinforce existing trigger (no new row)
+        proc_mem
+            .learn("ns", "t1", &["s1".into(), "s2".into()])
+            .unwrap();
+
+        // THEN — still 3 procedures
+        assert_eq!(proc_mem.list("ns").unwrap().len(), 3);
     }
 
     #[test]

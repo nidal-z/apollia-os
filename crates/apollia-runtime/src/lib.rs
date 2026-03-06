@@ -26,3 +26,6 @@ pub use supervisor::{
     ChildSpec, RestartPolicy, RestartTracker, Supervisor, SupervisorConfig, SupervisorError,
     SupervisorHandles,
 };
+
+// Re-export from apollia-tools for convenience
+pub use apollia_tools::ToolRegistryHandle;

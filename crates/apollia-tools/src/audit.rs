@@ -1,12 +1,11 @@
 //! Audit trail — SQLite-persisted log of tool invocations.
 //!
-//! Architecture : acteur `std::thread` avec `mpsc::sync_channel` borné.
+//! Architecture : acteur `tokio::task::spawn_blocking` avec `tokio::sync::mpsc` borné.
 //! L'acteur détient la `rusqlite::Connection` (non-`Sync`) en exclusivité.
-//! Le handle est clonable et expose une API async via `spawn_blocking` pour
+//! Le handle est clonable et expose une API async via `oneshot` pour
 //! les opérations qui nécessitent une réponse.
 
 use std::path::Path;
-use std::sync::mpsc;
 
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -58,8 +57,34 @@ pub enum AuditTrailError {
 pub fn compute_input_hash(params: &serde_json::Value) -> String {
     let serialized = serde_json::to_string(params).unwrap_or_default();
     let hash = Sha256::digest(serialized.as_bytes());
-    hash.iter().map(|b| format!("{:02x}", b)).collect()
+    hash.iter().map(|b| format!("{b:02x}")).collect()
 }
+
+// ---------------------------------------------------------------------------
+// Schéma SQL
+// ---------------------------------------------------------------------------
+
+/// Schéma SQL de la table `tool_invocations` et de ses index.
+const SCHEMA: &str = "
+    CREATE TABLE IF NOT EXISTS tool_invocations (
+        id              TEXT PRIMARY KEY,
+        agent_id        TEXT NOT NULL,
+        task_id         TEXT NOT NULL,
+        tool_name       TEXT NOT NULL,
+        input_hash      TEXT NOT NULL,
+        sandbox_profile TEXT NOT NULL,
+        started_at      TEXT NOT NULL,
+        duration_ms     INTEGER,
+        exit_code       INTEGER,
+        success         INTEGER NOT NULL,
+        error_code      TEXT,
+        resources_used  TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_tool_invocations_agent_id
+        ON tool_invocations(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_tool_invocations_started_at
+        ON tool_invocations(started_at);
+";
 
 // ---------------------------------------------------------------------------
 // Messages internes
@@ -72,7 +97,7 @@ enum AuditMessage {
     /// Retourne les N dernières invocations, triées par date décroissante.
     QueryLast {
         n: usize,
-        reply: mpsc::SyncSender<Vec<ToolInvocationRecord>>,
+        reply: tokio::sync::oneshot::Sender<Vec<ToolInvocationRecord>>,
     },
     /// Arrête l'acteur proprement après avoir vidé la file.
     Shutdown,
@@ -88,17 +113,16 @@ enum AuditMessage {
 /// garantissant l'absence de contention sur la base de données.
 struct AuditTrail {
     conn: rusqlite::Connection,
-    receiver: mpsc::Receiver<AuditMessage>,
+    receiver: tokio::sync::mpsc::Receiver<AuditMessage>,
 }
 
 impl AuditTrail {
     /// Boucle principale de l'acteur.
-    fn run(self) {
-        let AuditTrail { conn, receiver } = self;
-        while let Ok(msg) = receiver.recv() {
+    fn run(mut self) {
+        while let Some(msg) = self.receiver.blocking_recv() {
             match msg {
                 AuditMessage::Record(record) => {
-                    if let Err(e) = Self::insert(&conn, &record) {
+                    if let Err(e) = Self::insert(&self.conn, &record) {
                         tracing::error!(
                             error = %e,
                             tool = %record.tool_name,
@@ -108,7 +132,7 @@ impl AuditTrail {
                     }
                 }
                 AuditMessage::QueryLast { n, reply } => {
-                    let results = Self::query_last_n(&conn, n).unwrap_or_default();
+                    let results = Self::query_last_n(&self.conn, n).unwrap_or_default();
                     let _ = reply.send(results);
                 }
                 AuditMessage::Shutdown => break,
@@ -189,7 +213,7 @@ const CHANNEL_CAPACITY: usize = 1024;
 /// plusieurs handles peuvent coexister et émettre des messages vers le même acteur.
 #[derive(Clone)]
 pub struct AuditTrailHandle {
-    sender: mpsc::SyncSender<AuditMessage>,
+    sender: tokio::sync::mpsc::Sender<AuditMessage>,
 }
 
 impl AuditTrailHandle {
@@ -199,13 +223,13 @@ impl AuditTrailHandle {
     /// si ils n'existent pas (`CREATE … IF NOT EXISTS`). Active le mode WAL.
     pub async fn open(db_path: &Path) -> Result<Self, AuditTrailError> {
         let db_path = db_path.to_path_buf();
-        let (sender, receiver) = mpsc::sync_channel::<AuditMessage>(CHANNEL_CAPACITY);
+        let (sender, receiver) = tokio::sync::mpsc::channel::<AuditMessage>(CHANNEL_CAPACITY);
 
         // Canal de signalisation pour l'initialisation : le thread informe l'appelant
         // dès que la connexion et le schéma sont prêts (ou en cas d'erreur).
-        let (init_tx, init_rx) = mpsc::sync_channel::<Result<(), AuditTrailError>>(1);
+        let (init_tx, init_rx) = tokio::sync::oneshot::channel::<Result<(), AuditTrailError>>();
 
-        std::thread::spawn(move || {
+        tokio::task::spawn_blocking(move || {
             // Ouverture de la connexion SQLite.
             let conn = match rusqlite::Connection::open(&db_path) {
                 Ok(c) => c,
@@ -222,27 +246,7 @@ impl AuditTrailHandle {
             }
 
             // Création du schéma (idempotente).
-            let schema = "
-                CREATE TABLE IF NOT EXISTS tool_invocations (
-                    id              TEXT PRIMARY KEY,
-                    agent_id        TEXT NOT NULL,
-                    task_id         TEXT NOT NULL,
-                    tool_name       TEXT NOT NULL,
-                    input_hash      TEXT NOT NULL,
-                    sandbox_profile TEXT NOT NULL,
-                    started_at      TEXT NOT NULL,
-                    duration_ms     INTEGER,
-                    exit_code       INTEGER,
-                    success         INTEGER NOT NULL,
-                    error_code      TEXT,
-                    resources_used  TEXT
-                );
-                CREATE INDEX IF NOT EXISTS idx_tool_invocations_agent_id
-                    ON tool_invocations(agent_id);
-                CREATE INDEX IF NOT EXISTS idx_tool_invocations_started_at
-                    ON tool_invocations(started_at);
-            ";
-            if let Err(e) = conn.execute_batch(schema) {
+            if let Err(e) = conn.execute_batch(SCHEMA) {
                 let _ = init_tx.send(Err(AuditTrailError::SchemaInitFailed(e.to_string())));
                 return;
             }
@@ -254,10 +258,9 @@ impl AuditTrailHandle {
             AuditTrail { conn, receiver }.run();
         });
 
-        // Attendre le résultat de l'initialisation dans un contexte bloquant.
-        tokio::task::spawn_blocking(move || init_rx.recv())
+        // Attendre le résultat de l'initialisation.
+        init_rx
             .await
-            .map_err(|e| AuditTrailError::OpenFailed(e.to_string()))?
             .map_err(|_| AuditTrailError::OpenFailed("init channel disconnected".to_string()))??;
 
         Ok(Self { sender })
@@ -270,10 +273,10 @@ impl AuditTrailHandle {
     pub fn record(&self, record: ToolInvocationRecord) {
         match self.sender.try_send(AuditMessage::Record(Box::new(record))) {
             Ok(()) => {}
-            Err(mpsc::TrySendError::Full(_)) => {
+            Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
                 tracing::warn!("audit trail channel full, record dropped (backpressure)");
             }
-            Err(mpsc::TrySendError::Disconnected(_)) => {
+            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
                 tracing::warn!("audit trail actor disconnected, record dropped");
             }
         }
@@ -281,17 +284,16 @@ impl AuditTrailHandle {
 
     /// Retourne les N dernières invocations, triées par date décroissante.
     pub async fn query_last(&self, n: usize) -> Vec<ToolInvocationRecord> {
-        let (reply_tx, reply_rx) = mpsc::sync_channel(1);
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
         if self
             .sender
             .send(AuditMessage::QueryLast { n, reply: reply_tx })
+            .await
             .is_err()
         {
             return Vec::new();
         }
-        tokio::task::spawn_blocking(move || reply_rx.recv().unwrap_or_default())
-            .await
-            .unwrap_or_default()
+        reply_rx.await.unwrap_or_default()
     }
 
     /// Envoie le signal d'arrêt à l'acteur et attend qu'il ait traité tous les messages en attente.
@@ -299,7 +301,7 @@ impl AuditTrailHandle {
     /// Après cet appel, le handle est consommé. Les handles clonés restants
     /// tenteront d'envoyer sur un channel dont le receiver est fermé.
     pub async fn shutdown(self) {
-        let _ = self.sender.send(AuditMessage::Shutdown);
+        let _ = self.sender.send(AuditMessage::Shutdown).await;
         // Laisse le temps à l'acteur de traiter les messages en file et de fermer la connexion.
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
     }
@@ -396,8 +398,8 @@ mod tests {
         // WHEN — on enregistre 10 invocations sans attendre
         for i in 0..10 {
             let mut r = make_record(true, None);
-            r.id = format!("id-{}", i);
-            r.started_at = format!("2026-01-01T00:00:{:02}Z", i);
+            r.id = format!("id-{i}");
+            r.started_at = format!("2026-01-01T00:00:{i:02}Z");
             handle.record(r);
         }
         // THEN — la méthode a retourné immédiatement ; les inserts arrivent en fond

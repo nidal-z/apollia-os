@@ -1,10 +1,112 @@
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 
 /// Identifiant unique d'un agent dans le runtime (UUID v4 ou nom slug).
-pub type AgentId = String;
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct AgentId(String);
+
+impl AgentId {
+    /// Create a new AgentId with a random UUID v4.
+    pub fn new_v4() -> Self {
+        Self(uuid::Uuid::new_v4().to_string())
+    }
+
+    /// Borrow the inner string slice.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for AgentId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<String> for AgentId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for AgentId {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl AsRef<str> for AgentId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl PartialEq<str> for AgentId {
+    fn eq(&self, other: &str) -> bool {
+        self.0 == other
+    }
+}
+
+impl PartialEq<&str> for AgentId {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
 
 /// Identifiant unique d'une tâche dans le runtime (UUID v4).
-pub type TaskId = String;
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct TaskId(String);
+
+impl TaskId {
+    /// Create a new TaskId with a random UUID v4.
+    pub fn new_v4() -> Self {
+        Self(uuid::Uuid::new_v4().to_string())
+    }
+
+    /// Borrow the inner string slice.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for TaskId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<String> for TaskId {
+    fn from(s: String) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl From<&str> for TaskId {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl AsRef<str> for TaskId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl PartialEq<str> for TaskId {
+    fn eq(&self, other: &str) -> bool {
+        self.0 == other
+    }
+}
+
+impl PartialEq<&str> for TaskId {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
 
 /// Catalogue complet des événements du runtime Apollia OS.
 ///
@@ -21,6 +123,8 @@ pub enum RuntimeEvent {
     AgentReady(AgentId),
     /// Un agent est passé en état dégradé.
     AgentDegraded { agent_id: AgentId, reason: String },
+    /// Un agent est en cours d'arrêt (état: Stopping, drain des tâches).
+    AgentStopping(AgentId),
     /// Un agent s'est arrêté proprement.
     AgentStopped(AgentId),
     /// Une tâche a démarré sur un agent.
@@ -63,6 +167,7 @@ mod tests {
                 agent_id: "agent-1".into(),
                 reason: "tool missing".into(),
             },
+            RuntimeEvent::AgentStopping("agent-1".into()),
             RuntimeEvent::AgentStopped("agent-1".into()),
             RuntimeEvent::TaskStarted {
                 agent_id: "agent-1".into(),

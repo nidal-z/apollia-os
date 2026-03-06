@@ -7,6 +7,10 @@
 
 use crate::store::MemoryStore;
 
+/// Default maximum number of semantic entries per namespace.
+/// Beyond this limit, least-recently-updated entries are evicted.
+pub(crate) const DEFAULT_MAX_ENTRIES_PER_NAMESPACE: u64 = 5_000;
+
 /// Backend de memoire semantique — base de connaissances structuree.
 ///
 /// Stocke des paires cle/valeur avec confiance et source.
@@ -163,11 +167,70 @@ impl<'a> SemanticMemory<'a> {
                     "semantic knowledge stored"
                 );
 
+                self.enforce_limit(namespace, DEFAULT_MAX_ENTRIES_PER_NAMESPACE)?;
+
                 new_id
             }
         };
 
         Ok(id)
+    }
+
+    /// Evicts least-recently-updated entries when the namespace exceeds `max_entries`.
+    ///
+    /// Deletes entries ordered by `updated_at ASC` and their corresponding FTS
+    /// index rows. Returns the number of evicted entries.
+    fn enforce_limit(&self, namespace: &str, max_entries: u64) -> Result<u64, SemanticMemoryError> {
+        let conn = self.store.conn();
+
+        let count: u64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM semantic_memories WHERE namespace = ?1",
+                rusqlite::params![namespace],
+                |row| row.get(0),
+            )
+            .map_err(|e| SemanticMemoryError::StoreFailed(format!("count query failed: {e}")))?;
+
+        if count <= max_entries {
+            return Ok(0);
+        }
+
+        let excess = count - max_entries;
+
+        // Delete FTS entries for the rows about to be evicted.
+        conn.execute(
+            "DELETE FROM memory_fts WHERE source_table = 'semantic' AND source_id IN (
+                SELECT id FROM semantic_memories
+                WHERE namespace = ?1
+                ORDER BY updated_at ASC
+                LIMIT ?2
+            )",
+            rusqlite::params![namespace, excess],
+        )
+        .map_err(|e| SemanticMemoryError::StoreFailed(format!("FTS eviction failed: {e}")))?;
+
+        let evicted = conn
+            .execute(
+                "DELETE FROM semantic_memories WHERE id IN (
+                    SELECT id FROM semantic_memories
+                    WHERE namespace = ?1
+                    ORDER BY updated_at ASC
+                    LIMIT ?2
+                )",
+                rusqlite::params![namespace, excess],
+            )
+            .map_err(|e| {
+                SemanticMemoryError::StoreFailed(format!("eviction delete failed: {e}"))
+            })?;
+
+        tracing::info!(
+            namespace = %namespace,
+            evicted = evicted,
+            max_entries = max_entries,
+            "semantic entries evicted to enforce namespace limit"
+        );
+
+        Ok(evicted as u64)
     }
 
     /// Recupere toutes les connaissances d'un namespace, triees par cle.
@@ -564,6 +627,105 @@ mod tests {
             )
             .unwrap();
         assert_eq!(fts_count, 0);
+    }
+
+    // DT-018 — enforce_limit evicts least-recently-updated entries and cleans FTS
+    #[test]
+    fn test_enforce_limit_evicts_oldest_updated() {
+        // GIVEN — 5 entries with explicit updated_at timestamps
+        let (store, _) = setup();
+        let sem = SemanticMemory::new(&store);
+        let conn = store.conn();
+
+        for i in 0..5 {
+            let id = uuid::Uuid::new_v4().to_string();
+            let key = format!("key.{i}");
+            let value = format!("\"val{i}\"");
+            conn.execute(
+                "INSERT INTO semantic_memories (id, namespace, key, value, confidence, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![
+                    id,
+                    "ns",
+                    key,
+                    value,
+                    1.0,
+                    format!("2026-01-0{}T10:00:00Z", i + 1),
+                    format!("2026-01-0{}T10:00:00Z", i + 1),
+                ],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO memory_fts (content, source_table, source_id) VALUES (?1, ?2, ?3)",
+                rusqlite::params![format!("{key} {value}"), "semantic", id],
+            )
+            .unwrap();
+        }
+
+        // WHEN — enforce limit of 3
+        let evicted = sem.enforce_limit("ns", 3).unwrap();
+
+        // THEN — 2 oldest evicted, 3 remain
+        assert_eq!(evicted, 2);
+        let remaining = sem.recall_all("ns").unwrap();
+        assert_eq!(remaining.len(), 3);
+        // key.0 and key.1 (oldest updated_at) should be gone
+        for entry in &remaining {
+            assert!(
+                entry.key != "key.0" && entry.key != "key.1",
+                "oldest entries should have been evicted"
+            );
+        }
+
+        // FTS entries for evicted rows should also be gone
+        let fts_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM memory_fts WHERE source_table = 'semantic'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(fts_count, 3);
+    }
+
+    // DT-018 — enforce_limit is no-op when under limit
+    #[test]
+    fn test_enforce_limit_noop_under_limit() {
+        // GIVEN — 2 entries
+        let (store, _) = setup();
+        let sem = SemanticMemory::new(&store);
+        sem.remember("ns", "k1", &json!("v1"), 1.0, None, None)
+            .unwrap();
+        sem.remember("ns", "k2", &json!("v2"), 1.0, None, None)
+            .unwrap();
+
+        // WHEN — enforce limit of 10
+        let evicted = sem.enforce_limit("ns", 10).unwrap();
+
+        // THEN — nothing evicted
+        assert_eq!(evicted, 0);
+        assert_eq!(sem.recall_all("ns").unwrap().len(), 2);
+    }
+
+    // DT-018 — upsert does NOT trigger eviction (only new inserts do)
+    #[test]
+    fn test_upsert_does_not_trigger_eviction() {
+        // GIVEN — 3 entries at the limit
+        let (store, _) = setup();
+        let sem = SemanticMemory::new(&store);
+        sem.remember("ns", "k1", &json!("v1"), 1.0, None, None)
+            .unwrap();
+        sem.remember("ns", "k2", &json!("v2"), 1.0, None, None)
+            .unwrap();
+        sem.remember("ns", "k3", &json!("v3"), 1.0, None, None)
+            .unwrap();
+
+        // WHEN — upsert existing key (no new row)
+        sem.remember("ns", "k1", &json!("updated"), 0.9, None, None)
+            .unwrap();
+
+        // THEN — still 3 entries (no eviction happened)
+        assert_eq!(sem.recall_all("ns").unwrap().len(), 3);
     }
 
     // Namespace isolation

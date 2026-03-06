@@ -1,27 +1,27 @@
-//! `apollia-os start` — start the runtime in foreground (ADR-018).
+//! `apollia-os start` — start the runtime in foreground.
 //!
-//! Uses inline sequential bootstrap (EventBus -> AgentRegistry -> TaskRouter ->
-//! APIServer) until the Supervisor (STORY-039) is implemented.
+//! Uses the Supervisor for ordered startup (EventBus → AgentRegistry → TaskRouter
+//! → APIServer) with timeout and rollback on failure. Shutdown is handled by the
+//! ShutdownController with graceful drain.
 
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Instant;
 
 use apollia_core::{AIPResult, AIPTask, RuntimeEvent, TaskStatus};
-use apollia_runtime::api::{APIServer, APIServerConfig, APIServerHandle, AppState};
+use apollia_runtime::api::APIServerConfig;
 use apollia_runtime::coordinator::ExecutionBackend;
-use apollia_runtime::eventbus::EventBus;
-use apollia_runtime::registry::AgentRegistry;
-use apollia_runtime::router::TaskRouterHandle;
+use apollia_runtime::shutdown::{ShutdownConfig, ShutdownController};
+use apollia_runtime::supervisor::{Supervisor, SupervisorConfig};
 
 use crate::client::{DEFAULT_SOCKET_PATH, DEFAULT_TCP_PORT};
 
 /// Errors that can occur during runtime startup.
 #[derive(Debug, thiserror::Error)]
 pub enum StartError {
-    /// APIServer failed to start.
-    #[error("failed to start APIServer: {0}")]
-    ApiServer(#[from] apollia_runtime::api::APIServerError),
+    /// Supervisor failed to start actors.
+    #[error("failed to start runtime: {0}")]
+    Supervisor(#[from] apollia_runtime::supervisor::SupervisorError),
 }
 
 /// Placeholder execution backend for MVP (no real agent execution yet).
@@ -51,77 +51,82 @@ impl ExecutionBackend for NoopBackend {
     }
 }
 
-/// Bootstrap and run the runtime in foreground (ADR-018).
+/// Bootstrap and run the runtime in foreground.
 ///
-/// Starts actors in sequence: EventBus -> AgentRegistry -> TaskRouter -> APIServer.
-/// Blocks until Ctrl+C or `POST /api/v1/shutdown` is received.
+/// Uses the Supervisor for ordered startup with timeout and rollback.
+/// Blocks until Ctrl+C, SIGTERM, or `POST /api/v1/shutdown` is received.
+/// Graceful shutdown drains in-progress tasks (30s default).
 pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), StartError> {
     let start = Instant::now();
     let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
     let tcp_port = port.unwrap_or(DEFAULT_TCP_PORT);
 
-    // 1. EventBus
-    let (event_tx, _event_rx) = EventBus::new();
+    // Start all actors via Supervisor (ordered, with timeout + rollback)
+    let config = SupervisorConfig {
+        api_config: APIServerConfig {
+            socket_path: socket_path.clone(),
+            tcp_port,
+        },
+        startup_timeout_secs: 10,
+    };
+    let supervisor = Supervisor::new(config);
+    let handles = supervisor.start(NoopBackend).await?;
+
+    let elapsed = start.elapsed();
     println!("  * EventBus        ready");
-
-    // 2. AgentRegistry
-    let registry_handle = AgentRegistry::spawn(event_tx.clone());
     println!("  * AgentRegistry   ready");
-
-    // 3. TaskRouter
-    let router_handle: TaskRouterHandle<NoopBackend> =
-        TaskRouterHandle::spawn(registry_handle.clone(), event_tx.clone(), 256);
+    println!("  * ToolRegistry    ready (3 native tools)");
     println!("  * TaskRouter      ready");
-
-    // 4. APIServer
-    let state = AppState {
-        router_handle,
-        registry_handle,
-        event_sender: event_tx.clone(),
-    };
-    let config = APIServerConfig {
-        socket_path: socket_path.clone(),
-        tcp_port,
-    };
-    let server = APIServer::new(config, state);
-    let handle: APIServerHandle = server.start().await?;
     println!(
         "  * APIServer       listening on {} + localhost:{}",
         socket_path.display(),
         tcp_port
     );
-
-    let elapsed = start.elapsed();
     println!("  -------------------------------------------------");
     println!("  * Runtime ready in {:.1}s", elapsed.as_secs_f64());
     println!();
     println!("  Press Ctrl+C or run `apollia-os stop` to shut down.");
 
-    // Wait for Ctrl+C or ShutdownRequested event
-    let mut shutdown_rx = event_tx.subscribe();
+    // Wait for shutdown signal (Ctrl+C, SIGTERM, or ShutdownRequested via API)
+    let mut shutdown_rx = handles.event_sender.subscribe();
     tokio::select! {
-        _ = tokio::signal::ctrl_c() => {
+        signal = apollia_runtime::shutdown::wait_for_shutdown_signal() => {
             println!();
-            println!("  Ctrl+C received, shutting down...");
+            println!("  {signal} received, draining tasks...");
         }
-        _ = wait_for_shutdown(&mut shutdown_rx) => {
-            println!("  Shutdown requested via API, shutting down...");
+        _ = wait_for_shutdown_event(&mut shutdown_rx) => {
+            println!("  Shutdown requested via API, draining tasks...");
         }
     }
 
-    handle.shutdown();
+    // Graceful shutdown via ShutdownController (drain + ordered teardown)
+    let tool_registry_handle = handles.tool_registry_handle;
+    let shutdown = ShutdownController::new(
+        ShutdownConfig::default(),
+        handles.event_sender,
+        handles.api_handle,
+        handles.router_handle,
+        handles.registry_handle,
+    );
+
+    match shutdown.shutdown().await {
+        Ok(()) => println!("  * Runtime stopped."),
+        Err(e) => eprintln!("  * Runtime stopped with warnings: {e}"),
+    }
+
+    // Stop the tool registry after the main shutdown sequence
+    tool_registry_handle.shutdown().await;
 
     // Clean up socket file
     if socket_path.exists() {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    println!("  * Runtime stopped.");
     Ok(())
 }
 
-/// Wait until a `RuntimeEvent::ShutdownRequested` event is received.
-async fn wait_for_shutdown(rx: &mut tokio::sync::broadcast::Receiver<RuntimeEvent>) {
+/// Wait until a `RuntimeEvent::ShutdownRequested` event is received on the bus.
+async fn wait_for_shutdown_event(rx: &mut tokio::sync::broadcast::Receiver<RuntimeEvent>) {
     loop {
         match rx.recv().await {
             Ok(RuntimeEvent::ShutdownRequested) => return,
@@ -143,5 +148,13 @@ mod tests {
     fn test_noop_backend_is_clone() {
         let backend = NoopBackend;
         let _cloned = backend.clone();
+    }
+
+    #[test]
+    fn test_start_error_display() {
+        let err = StartError::Supervisor(
+            apollia_runtime::supervisor::SupervisorError::ConfigError("bad config".to_string()),
+        );
+        assert!(err.to_string().contains("bad config"));
     }
 }

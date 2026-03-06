@@ -37,8 +37,6 @@ pub enum AgentRegistryError {
 
 // Messages internes — enum privé, jamais exposé publiquement.
 // AgentManifest est boxé dans Register pour éviter une variante de taille disproportionnée.
-// dead_code autorisé : ces types seront utilisés par le Supervisor (stories futures).
-#[allow(dead_code)]
 enum RegistryMessage {
     Register {
         manifest: Box<AgentManifest>,
@@ -66,16 +64,12 @@ enum RegistryMessage {
 /// Acteur interne du registry — état privé, jamais exposé directement.
 ///
 /// Toute interaction passe par [`AgentRegistryHandle`].
-/// La construction se fait uniquement via [`AgentRegistry::spawn`], accessible
-/// depuis les autres modules du crate (`pub(crate)`).
-/// dead_code autorisé : sera utilisé par le Supervisor (stories futures).
-#[allow(dead_code)]
+/// La construction se fait uniquement via [`AgentRegistry::spawn`].
 pub struct AgentRegistry {
     agents: HashMap<AgentId, AgentEntry>,
     bus: EventBusSender,
 }
 
-#[allow(dead_code)]
 impl AgentRegistry {
     /// Spawn l'acteur dans un Tokio task et retourne son [`AgentRegistryHandle`] public.
     ///
@@ -126,7 +120,7 @@ impl AgentRegistry {
     }
 
     fn handle_register(&mut self, manifest: AgentManifest) -> Result<AgentId, AgentRegistryError> {
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = AgentId::new_v4();
         let entry = AgentEntry {
             id: id.clone(),
             manifest,
@@ -138,24 +132,24 @@ impl AgentRegistry {
         Ok(id)
     }
 
-    fn handle_unregister(&mut self, id: &str) -> Result<(), AgentRegistryError> {
+    fn handle_unregister(&mut self, id: &AgentId) -> Result<(), AgentRegistryError> {
         if self.agents.remove(id).is_none() {
-            return Err(AgentRegistryError::NotFound(id.to_string()));
+            return Err(AgentRegistryError::NotFound(id.clone()));
         }
-        let _ = self.bus.send(RuntimeEvent::AgentStopped(id.to_string()));
+        let _ = self.bus.send(RuntimeEvent::AgentStopped(id.clone()));
         info!(agent_id = %id, "Agent désenregistré");
         Ok(())
     }
 
     fn handle_update_state(
         &mut self,
-        id: &str,
+        id: &AgentId,
         new_state: ProcessState,
     ) -> Result<(), AgentRegistryError> {
         let entry = self
             .agents
             .get_mut(id)
-            .ok_or_else(|| AgentRegistryError::NotFound(id.to_string()))?;
+            .ok_or_else(|| AgentRegistryError::NotFound(id.clone()))?;
 
         if !entry.process_state.can_transition_to(&new_state) {
             return Err(AgentRegistryError::InvalidTransition {
@@ -169,13 +163,14 @@ impl AgentRegistry {
         info!(agent_id = %id, from = ?prev, to = ?new_state, "Transition ProcessState");
 
         let event = match &new_state {
-            ProcessState::Active => RuntimeEvent::AgentReady(id.to_string()),
+            ProcessState::Active => RuntimeEvent::AgentReady(id.clone()),
             ProcessState::Degraded => RuntimeEvent::AgentDegraded {
-                agent_id: id.to_string(),
+                agent_id: id.clone(),
                 reason: "transition manuelle".to_string(),
             },
-            ProcessState::Stopped => RuntimeEvent::AgentStopped(id.to_string()),
-            _ => return Ok(()),
+            ProcessState::Stopping => RuntimeEvent::AgentStopping(id.clone()),
+            ProcessState::Stopped => RuntimeEvent::AgentStopped(id.clone()),
+            ProcessState::Initializing => return Ok(()),
         };
         let _ = self.bus.send(event);
         Ok(())
@@ -217,7 +212,7 @@ impl AgentRegistryHandle {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(RegistryMessage::Unregister {
-                id: id.to_string(),
+                id: AgentId::from(id),
                 reply: reply_tx,
             })
             .await
@@ -237,7 +232,7 @@ impl AgentRegistryHandle {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(RegistryMessage::UpdateState {
-                id: id.to_string(),
+                id: AgentId::from(id),
                 state,
                 reply: reply_tx,
             })
@@ -253,7 +248,7 @@ impl AgentRegistryHandle {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(RegistryMessage::GetAgent {
-                id: id.to_string(),
+                id: AgentId::from(id),
                 reply: reply_tx,
             })
             .await
@@ -318,7 +313,7 @@ mod tests {
         // THEN
         assert!(result.is_ok());
         let id = result.unwrap();
-        assert!(!id.is_empty());
+        assert!(!id.as_str().is_empty());
         let event = bus_rx.recv().await.unwrap();
         assert!(matches!(event, RuntimeEvent::AgentRegistered(eid) if eid == id));
     }
@@ -332,7 +327,7 @@ mod tests {
         let _ = bus_rx.recv().await; // consommer AgentRegistered
 
         // WHEN
-        let result = handle.update_state(&id, ProcessState::Active).await;
+        let result = handle.update_state(id.as_str(), ProcessState::Active).await;
 
         // THEN
         assert!(result.is_ok());
@@ -347,16 +342,16 @@ mod tests {
         let handle = AgentRegistry::spawn(bus_tx);
         let id = handle.register(test_manifest("agent-test")).await.unwrap();
         handle
-            .update_state(&id, ProcessState::Stopping)
+            .update_state(id.as_str(), ProcessState::Stopping)
             .await
             .unwrap();
         handle
-            .update_state(&id, ProcessState::Stopped)
+            .update_state(id.as_str(), ProcessState::Stopped)
             .await
             .unwrap();
 
         // WHEN — Stopped → Active est invalide
-        let result = handle.update_state(&id, ProcessState::Active).await;
+        let result = handle.update_state(id.as_str(), ProcessState::Active).await;
 
         // THEN
         assert!(matches!(
@@ -387,7 +382,7 @@ mod tests {
         let _ = bus_rx.recv().await; // consommer AgentRegistered
 
         // WHEN
-        let result = handle.unregister(&id).await;
+        let result = handle.unregister(id.as_str()).await;
 
         // THEN
         assert!(result.is_ok());

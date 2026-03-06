@@ -210,7 +210,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
     /// Force-cancel a list of tasks and emit audit events.
     async fn cancel_tasks(&self, task_ids: &[TaskId]) {
         for task_id in task_ids {
-            let _ = self.router_handle.cancel(task_id).await;
+            let _ = self.router_handle.cancel(task_id.as_str()).await;
             let _ = self.event_sender.send(RuntimeEvent::TaskCanceled {
                 task_id: task_id.clone(),
             });
@@ -247,7 +247,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
             for state in transitions {
                 if let Err(e) = self
                     .registry_handle
-                    .update_state(&agent.id, state.clone())
+                    .update_state(agent.id.as_str(), state.clone())
                     .await
                 {
                     warn!(
@@ -514,7 +514,7 @@ mod tests {
             .await
             .unwrap();
         registry_handle
-            .update_state(&agent_id, ProcessState::Active)
+            .update_state(agent_id.as_str(), ProcessState::Active)
             .await
             .unwrap();
 
@@ -532,7 +532,7 @@ mod tests {
 
         // Submit a task
         let _task_id = router_handle
-            .submit(&agent_id, AIPInput::default())
+            .submit(agent_id.as_str(), AIPInput::default())
             .await
             .unwrap();
 
@@ -589,7 +589,7 @@ mod tests {
             .await
             .unwrap();
         registry_handle
-            .update_state(&agent_id, ProcessState::Active)
+            .update_state(agent_id.as_str(), ProcessState::Active)
             .await
             .unwrap();
 
@@ -603,7 +603,7 @@ mod tests {
 
         // Submit a task
         let _task_id = router_handle
-            .submit(&agent_id, AIPInput::default())
+            .submit(agent_id.as_str(), AIPInput::default())
             .await
             .unwrap();
 
@@ -672,7 +672,7 @@ mod tests {
             .unwrap();
         controller
             .registry_handle
-            .update_state(&agent_id, ProcessState::Active)
+            .update_state(agent_id.as_str(), ProcessState::Active)
             .await
             .unwrap();
 
@@ -759,7 +759,7 @@ mod tests {
             .await
             .unwrap();
         registry_handle
-            .update_state(&active_id, ProcessState::Active)
+            .update_state(active_id.as_str(), ProcessState::Active)
             .await
             .unwrap();
 
@@ -775,11 +775,11 @@ mod tests {
             .await
             .unwrap();
         registry_handle
-            .update_state(&stopped_id, ProcessState::Stopping)
+            .update_state(stopped_id.as_str(), ProcessState::Stopping)
             .await
             .unwrap();
         registry_handle
-            .update_state(&stopped_id, ProcessState::Stopped)
+            .update_state(stopped_id.as_str(), ProcessState::Stopped)
             .await
             .unwrap();
 

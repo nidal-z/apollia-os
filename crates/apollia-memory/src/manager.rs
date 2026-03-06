@@ -8,12 +8,16 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use crate::episodic::EpisodicMemory;
 use crate::semantic::SemanticMemory;
 use crate::store::MemoryStore;
 
 pub use crate::store::MemoryStats;
+
+/// Intervalle minimum entre deux purges automatiques (5 minutes).
+const PURGE_INTERVAL_SECS: u64 = 300;
 
 /// Gestionnaire de memoire avec isolation par namespace.
 ///
@@ -29,6 +33,8 @@ pub struct MemoryManager {
     shared_namespaces: Vec<String>,
     /// Stores ouverts (lazy-opened).
     stores: HashMap<String, MemoryStore>,
+    /// Instant de la derniere purge automatique (None si jamais purgee).
+    last_purge: Option<Instant>,
 }
 
 /// Niveau d'acces a un namespace.
@@ -103,6 +109,7 @@ impl MemoryManager {
             primary_namespace,
             shared_namespaces,
             stores: HashMap::new(),
+            last_purge: None,
         }
     }
 
@@ -181,6 +188,37 @@ impl MemoryManager {
         }
 
         Ok(total)
+    }
+
+    /// Purge automatique conditionnelle des entrees expirees.
+    ///
+    /// Appelle `purge_expired()` uniquement si au moins `PURGE_INTERVAL_SECS`
+    /// secondes se sont ecoulees depuis la derniere purge (ou si aucune purge
+    /// n'a encore eu lieu). Les erreurs sont loguees mais ignorees (fire-and-forget).
+    ///
+    /// Destinee a etre appelee apres chaque ecriture memoire.
+    pub fn maybe_purge(&mut self) {
+        let should_purge = match self.last_purge {
+            None => true,
+            Some(last) => last.elapsed().as_secs() >= PURGE_INTERVAL_SECS,
+        };
+
+        if !should_purge {
+            return;
+        }
+
+        self.last_purge = Some(Instant::now());
+
+        match self.purge_expired() {
+            Ok(count) => {
+                if count > 0 {
+                    tracing::info!(purged = count, "automatic TTL purge completed");
+                }
+            }
+            Err(err) => {
+                tracing::warn!(error = %err, "automatic TTL purge failed");
+            }
+        }
     }
 
     /// Construit le chemin du fichier `.db` pour un namespace.
@@ -400,6 +438,63 @@ mod tests {
         let _mgr = MemoryManager::new(&base, Some("lazy-ns".into()), vec![]);
         // THEN -- no .db file created yet
         assert!(!base.join("lazy-ns.db").exists());
+    }
+
+    // maybe_purge -- purge au premier appel, skip si intervalle non ecoule
+    #[test]
+    fn test_maybe_purge_runs_after_interval() {
+        // GIVEN -- manager with an expired episodic entry
+        let base = temp_base_dir();
+        let mut mgr = MemoryManager::new(&base, Some("ns".into()), vec![]);
+        let store = mgr.store("ns").expect("open store");
+
+        let ep = EpisodicMemory::new(store);
+        ep.record(
+            "ns",
+            "agent-1",
+            "Expired episode",
+            0.5,
+            None,
+            Some("2020-01-01T00:00:00Z"),
+            None,
+        )
+        .expect("record expired episode");
+
+        // WHEN -- first call should purge
+        mgr.maybe_purge();
+
+        // THEN -- the expired entry should be gone
+        let store = mgr.store("ns").expect("reopen store");
+        let ep = EpisodicMemory::new(store);
+        let entries = ep.history("ns", 100, None).expect("history");
+        assert!(entries.is_empty(), "expired entry should have been purged");
+
+        // GIVEN -- insert another expired entry
+        let store = mgr.store("ns").expect("reopen store");
+        let ep = EpisodicMemory::new(store);
+        ep.record(
+            "ns",
+            "agent-1",
+            "Another expired episode",
+            0.5,
+            None,
+            Some("2020-01-01T00:00:00Z"),
+            None,
+        )
+        .expect("record second expired episode");
+
+        // WHEN -- second call immediately after should NOT purge (interval not elapsed)
+        mgr.maybe_purge();
+
+        // THEN -- the second expired entry should still be present
+        let store = mgr.store("ns").expect("reopen store");
+        let ep = EpisodicMemory::new(store);
+        let entries = ep.history("ns", 100, None).expect("history");
+        assert_eq!(
+            entries.len(),
+            1,
+            "second expired entry should NOT have been purged yet"
+        );
     }
 
     // create_dir_all -- le repertoire base est cree automatiquement

@@ -147,7 +147,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
         // 1. Verifier l'agent dans le registre
         let agent_entry = self
             .registry
-            .get_agent(&agent_id)
+            .get_agent(agent_id.as_str())
             .await
             .map_err(|_| SubmitError::ActorDead)?
             .ok_or_else(|| SubmitError::AgentNotFound(agent_id.clone()))?;
@@ -173,9 +173,9 @@ impl<B: ExecutionBackend> TaskRouter<B> {
         }
 
         // 3. Generer TaskId + construire AIPTask
-        let task_id: TaskId = uuid::Uuid::new_v4().to_string();
+        let task_id = TaskId::new_v4();
         let task = AIPTask {
-            task_id: task_id.clone(),
+            task_id: task_id.to_string(),
             context_id: format!("ctx-{}", agent_id),
             input,
             history: vec![],
@@ -204,7 +204,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
     ///
     /// Retourne le nouveau statut si la tache existe, None sinon.
     /// Seules les taches en etat `Submitted` ou `Working` peuvent etre annulees.
-    fn handle_cancel(&mut self, task_id: &str) -> Option<TaskStatus> {
+    fn handle_cancel(&mut self, task_id: &TaskId) -> Option<TaskStatus> {
         let status = self.task_statuses.get_mut(task_id)?;
         match status {
             TaskStatus::Submitted | TaskStatus::Working | TaskStatus::InputRequired => {
@@ -265,7 +265,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(RouterMessage::Submit {
-                agent_id: agent_id.to_string(),
+                agent_id: AgentId::from(agent_id),
                 input,
                 reply: reply_tx,
             })
@@ -279,7 +279,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(RouterMessage::GetStatus {
-                task_id: task_id.to_string(),
+                task_id: TaskId::from(task_id),
                 reply: reply_tx,
             })
             .await
@@ -319,7 +319,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(RouterMessage::Cancel {
-                task_id: task_id.to_string(),
+                task_id: TaskId::from(task_id),
                 reply: reply_tx,
             })
             .await
@@ -439,41 +439,41 @@ mod tests {
             ProcessState::Initializing => {}
             ProcessState::Active => {
                 registry
-                    .update_state(&agent_id, ProcessState::Active)
+                    .update_state(agent_id.as_str(), ProcessState::Active)
                     .await
                     .expect("transition to Active failed");
             }
             ProcessState::Degraded => {
                 registry
-                    .update_state(&agent_id, ProcessState::Active)
+                    .update_state(agent_id.as_str(), ProcessState::Active)
                     .await
                     .expect("transition to Active failed");
                 registry
-                    .update_state(&agent_id, ProcessState::Degraded)
+                    .update_state(agent_id.as_str(), ProcessState::Degraded)
                     .await
                     .expect("transition to Degraded failed");
             }
             ProcessState::Stopping => {
                 registry
-                    .update_state(&agent_id, ProcessState::Active)
+                    .update_state(agent_id.as_str(), ProcessState::Active)
                     .await
                     .expect("transition to Active failed");
                 registry
-                    .update_state(&agent_id, ProcessState::Stopping)
+                    .update_state(agent_id.as_str(), ProcessState::Stopping)
                     .await
                     .expect("transition to Stopping failed");
             }
             ProcessState::Stopped => {
                 registry
-                    .update_state(&agent_id, ProcessState::Active)
+                    .update_state(agent_id.as_str(), ProcessState::Active)
                     .await
                     .expect("transition to Active failed");
                 registry
-                    .update_state(&agent_id, ProcessState::Stopping)
+                    .update_state(agent_id.as_str(), ProcessState::Stopping)
                     .await
                     .expect("transition to Stopping failed");
                 registry
-                    .update_state(&agent_id, ProcessState::Stopped)
+                    .update_state(agent_id.as_str(), ProcessState::Stopped)
                     .await
                     .expect("transition to Stopped failed");
             }
@@ -497,14 +497,14 @@ mod tests {
             .expect("register coordinator failed");
 
         // WHEN on soumet une tache via router.submit()
-        let result = router.submit(&agent_id, AIPInput::default()).await;
+        let result = router.submit(agent_id.as_str(), AIPInput::default()).await;
 
         // THEN un TaskId est retourne (non vide, format UUID)
         assert!(result.is_ok(), "submit should succeed, got: {result:?}");
         let task_id = result.expect("already checked");
-        assert!(!task_id.is_empty());
+        assert!(!task_id.as_str().is_empty());
         assert!(
-            uuid::Uuid::parse_str(&task_id).is_ok(),
+            uuid::Uuid::parse_str(task_id.as_str()).is_ok(),
             "task_id should be a valid UUID"
         );
     }
@@ -517,7 +517,7 @@ mod tests {
             register_agent_in_state(&registry, "agent-init", ProcessState::Initializing).await;
 
         // WHEN on soumet une tache
-        let result = router.submit(&agent_id, AIPInput::default()).await;
+        let result = router.submit(agent_id.as_str(), AIPInput::default()).await;
 
         // THEN retourne SubmitError::AgentNotReady
         assert!(matches!(
@@ -534,7 +534,7 @@ mod tests {
             register_agent_in_state(&registry, "agent-stopped", ProcessState::Stopped).await;
 
         // WHEN on soumet une tache
-        let result = router.submit(&agent_id, AIPInput::default()).await;
+        let result = router.submit(agent_id.as_str(), AIPInput::default()).await;
 
         // THEN retourne SubmitError::AgentUnavailable
         assert!(matches!(
@@ -569,7 +569,7 @@ mod tests {
         }
 
         // WHEN on soumet une tache
-        let result = router.submit(&agent_id, AIPInput::default()).await;
+        let result = router.submit(agent_id.as_str(), AIPInput::default()).await;
 
         // THEN la tache est dispatche (TaskId retourne)
         assert!(result.is_ok(), "submit should succeed for degraded agent");
@@ -621,13 +621,13 @@ mod tests {
             .expect("register coordinator failed");
 
         let task_id = router
-            .submit(&agent_id, AIPInput::default())
+            .submit(agent_id.as_str(), AIPInput::default())
             .await
             .expect("submit failed");
 
         // WHEN on appelle get_status(task_id)
         let status = router
-            .get_status(&task_id)
+            .get_status(task_id.as_str())
             .await
             .expect("get_status failed");
 

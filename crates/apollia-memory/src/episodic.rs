@@ -7,6 +7,10 @@
 use crate::store::MemoryStore;
 use serde_json::Value as JsonValue;
 
+/// Default maximum number of episodic entries per namespace.
+/// Beyond this limit, oldest entries are evicted (FIFO).
+pub(crate) const DEFAULT_MAX_ENTRIES_PER_NAMESPACE: u64 = 10_000;
+
 /// Backend de memoire episodique — journal des evenements de l'agent.
 ///
 /// Chaque episode est date, porte un score d'importance, et peut expirer.
@@ -112,7 +116,66 @@ impl<'a> EpisodicMemory<'a> {
             "episode recorded"
         );
 
+        self.enforce_limit(namespace, DEFAULT_MAX_ENTRIES_PER_NAMESPACE)?;
+
         Ok(id)
+    }
+
+    /// Evicts oldest entries when the namespace exceeds `max_entries`.
+    ///
+    /// Deletes the oldest entries by `created_at` (FIFO) and their
+    /// corresponding FTS index rows. Returns the number of evicted entries.
+    fn enforce_limit(&self, namespace: &str, max_entries: u64) -> Result<u64, EpisodicMemoryError> {
+        let conn = self.store.conn();
+
+        let count: u64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM episodic_memories WHERE namespace = ?1",
+                rusqlite::params![namespace],
+                |row| row.get(0),
+            )
+            .map_err(|e| EpisodicMemoryError::RecordFailed(format!("count query failed: {e}")))?;
+
+        if count <= max_entries {
+            return Ok(0);
+        }
+
+        let excess = count - max_entries;
+
+        // Delete FTS entries for the rows about to be evicted.
+        conn.execute(
+            "DELETE FROM memory_fts WHERE source_table = 'episodic' AND source_id IN (
+                SELECT id FROM episodic_memories
+                WHERE namespace = ?1
+                ORDER BY created_at ASC
+                LIMIT ?2
+            )",
+            rusqlite::params![namespace, excess],
+        )
+        .map_err(|e| EpisodicMemoryError::RecordFailed(format!("FTS eviction failed: {e}")))?;
+
+        let evicted = conn
+            .execute(
+                "DELETE FROM episodic_memories WHERE id IN (
+                    SELECT id FROM episodic_memories
+                    WHERE namespace = ?1
+                    ORDER BY created_at ASC
+                    LIMIT ?2
+                )",
+                rusqlite::params![namespace, excess],
+            )
+            .map_err(|e| {
+                EpisodicMemoryError::RecordFailed(format!("eviction delete failed: {e}"))
+            })?;
+
+        tracing::info!(
+            namespace = %namespace,
+            evicted = evicted,
+            max_entries = max_entries,
+            "episodic entries evicted to enforce namespace limit"
+        );
+
+        Ok(evicted as u64)
     }
 
     /// Retourne l'historique du namespace, trie par date descendante.
@@ -421,6 +484,105 @@ mod tests {
             result,
             Err(EpisodicMemoryError::InvalidImportance(_))
         ));
+    }
+
+    // DT-018 — enforce_limit evicts oldest entries (FIFO) and cleans FTS
+    #[test]
+    fn test_enforce_limit_evicts_oldest_entries() {
+        // GIVEN — 5 episodes with explicit timestamps for deterministic ordering
+        let (store, _) = setup();
+        let ep = EpisodicMemory::new(&store);
+        let conn = store.conn();
+
+        for i in 0..5 {
+            let id = uuid::Uuid::new_v4().to_string();
+            conn.execute(
+                "INSERT INTO episodic_memories (id, namespace, agent_id, content, importance, created_at, metadata)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![
+                    id,
+                    "ns",
+                    "agent-1",
+                    format!("Episode {i}"),
+                    0.5,
+                    format!("2026-01-0{}T10:00:00Z", i + 1),
+                    "{}"
+                ],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO memory_fts (content, source_table, source_id) VALUES (?1, ?2, ?3)",
+                rusqlite::params![format!("Episode {i}"), "episodic", id],
+            )
+            .unwrap();
+        }
+
+        // WHEN — enforce limit of 3
+        let evicted = ep.enforce_limit("ns", 3).unwrap();
+
+        // THEN — 2 oldest evicted, 3 remain
+        assert_eq!(evicted, 2);
+        let remaining = ep.history("ns", 10, None).unwrap();
+        assert_eq!(remaining.len(), 3);
+        // Oldest (Episode 0, Episode 1) should be gone
+        for entry in &remaining {
+            assert!(
+                entry.content != "Episode 0" && entry.content != "Episode 1",
+                "oldest entries should have been evicted"
+            );
+        }
+
+        // FTS entries for evicted rows should also be gone
+        let fts_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM memory_fts WHERE source_table = 'episodic'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(fts_count, 3);
+    }
+
+    // DT-018 — enforce_limit is no-op when under limit
+    #[test]
+    fn test_enforce_limit_noop_under_limit() {
+        // GIVEN — 2 episodes
+        let (store, _) = setup();
+        let ep = EpisodicMemory::new(&store);
+        ep.record("ns", "agent-1", "A", 0.5, None, None, None)
+            .unwrap();
+        ep.record("ns", "agent-1", "B", 0.5, None, None, None)
+            .unwrap();
+
+        // WHEN — enforce limit of 10
+        let evicted = ep.enforce_limit("ns", 10).unwrap();
+
+        // THEN — nothing evicted
+        assert_eq!(evicted, 0);
+        let remaining = ep.history("ns", 10, None).unwrap();
+        assert_eq!(remaining.len(), 2);
+    }
+
+    // DT-018 — record() triggers eviction when over default limit (tested with small limit via enforce_limit)
+    #[test]
+    fn test_record_triggers_eviction_via_enforce_limit() {
+        // GIVEN — insert 3 entries, then enforce limit of 2 manually
+        let (store, _) = setup();
+        let ep = EpisodicMemory::new(&store);
+        ep.record("ns", "agent-1", "First", 0.5, None, None, None)
+            .unwrap();
+        ep.record("ns", "agent-1", "Second", 0.5, None, None, None)
+            .unwrap();
+        ep.record("ns", "agent-1", "Third", 0.5, None, None, None)
+            .unwrap();
+
+        // WHEN — enforce small limit
+        let evicted = ep.enforce_limit("ns", 2).unwrap();
+
+        // THEN — 1 evicted, 2 remain
+        assert_eq!(evicted, 1);
+        let remaining = ep.history("ns", 10, None).unwrap();
+        assert_eq!(remaining.len(), 2);
     }
 
     // Namespace isolation — episodes from different namespaces don't mix

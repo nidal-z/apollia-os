@@ -1,7 +1,7 @@
 //! Supervisor — ordered startup, shutdown rollback, and watchdog for runtime actors.
 //!
 //! The Supervisor starts all runtime actors in a strict sequence:
-//! `EventBus → AgentRegistry → ToolRegistry → MemoryEngine → TaskRouter → APIServer`.
+//! `EventBus → AgentRegistry → ToolRegistry (+ native tools) → TaskRouter → APIServer`.
 //! Each actor must emit `RuntimeEvent::Ready` (or equivalent) before the next one starts.
 //! If any actor fails to start within the configured timeout, all previously started
 //! actors are stopped in reverse order.
@@ -16,6 +16,7 @@ use tokio::sync::broadcast;
 use tracing::{error, info, warn};
 
 use apollia_core::RuntimeEvent;
+use apollia_tools::ToolRegistryHandle;
 
 use crate::api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
 use crate::coordinator::ExecutionBackend;
@@ -63,6 +64,8 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     pub event_sender: EventBusSender,
     /// Handle to the agent registry actor.
     pub registry_handle: AgentRegistryHandle,
+    /// Handle to the tool registry actor.
+    pub tool_registry_handle: ToolRegistryHandle,
     /// Handle to the task router actor.
     pub router_handle: TaskRouterHandle<B>,
     /// Handle to the API server.
@@ -167,12 +170,12 @@ impl Supervisor {
 
     /// Start all runtime actors in order and return their handles.
     ///
-    /// Sequence: EventBus → AgentRegistry → TaskRouter → APIServer.
+    /// Sequence: EventBus → AgentRegistry → ToolRegistry → TaskRouter → APIServer.
     /// Each step must complete within `startup_timeout_secs`.
     /// On failure, previously started actors are stopped in reverse order.
     ///
-    /// ToolRegistry and MemoryEngine are not started here (they live in
-    /// other crates and will be integrated when those crates expose actor handles).
+    /// The ToolRegistry is spawned and the three native tools (BashExecutor,
+    /// PythonExecutor, FileIo) are registered automatically.
     pub async fn start<B: ExecutionBackend>(
         self,
         backend: B,
@@ -189,7 +192,17 @@ impl Supervisor {
         let registry_handle = AgentRegistry::spawn(event_sender.clone());
         info!("Supervisor: AgentRegistry ready");
 
-        // Phase 3: TaskRouter
+        // Phase 3: ToolRegistry + native tool registration
+        info!("Supervisor: starting ToolRegistry");
+        let tool_registry_handle = ToolRegistryHandle::start();
+        for descriptor in native_tool_descriptors() {
+            if let Err(e) = tool_registry_handle.register(descriptor).await {
+                warn!(error = %e, "failed to register native tool");
+            }
+        }
+        info!("Supervisor: ToolRegistry ready (native tools registered)");
+
+        // Phase 4: TaskRouter
         info!("Supervisor: starting TaskRouter");
         let router_handle: TaskRouterHandle<B> =
             TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 256);
@@ -199,7 +212,7 @@ impl Supervisor {
         // (real usage registers coordinators per-agent via the router handle)
         let _ = &backend;
 
-        // Phase 4: APIServer
+        // Phase 5: APIServer
         info!("Supervisor: starting APIServer");
         let state = AppState {
             router_handle: router_handle.clone(),
@@ -213,11 +226,13 @@ impl Supervisor {
             Ok(Err(api_err)) => {
                 // Rollback: stop actors in reverse order
                 router_handle.shutdown();
+                tool_registry_handle.shutdown().await;
                 registry_handle.shutdown();
                 return Err(SupervisorError::from(api_err));
             }
             Err(_elapsed) => {
                 router_handle.shutdown();
+                tool_registry_handle.shutdown().await;
                 registry_handle.shutdown();
                 return Err(SupervisorError::StartupTimeout {
                     actor: "api_server".to_string(),
@@ -227,7 +242,7 @@ impl Supervisor {
         };
         info!("Supervisor: APIServer ready");
 
-        // Phase 5: Emit AllReady
+        // Phase 6: Emit AllReady
         let _ = event_sender.send(RuntimeEvent::AllReady);
         info!("Supervisor: all actors ready, emitted AllReady");
 
@@ -237,10 +252,22 @@ impl Supervisor {
         Ok(SupervisorHandles {
             event_sender,
             registry_handle,
+            tool_registry_handle,
             router_handle,
             api_handle,
         })
     }
+}
+
+/// Returns descriptors for the three native tools bundled with `apollia-tools`.
+///
+/// Used by the Supervisor to auto-register tools at startup.
+fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
+    vec![
+        apollia_tools::tools::bash_executor::BashExecutor::descriptor(),
+        apollia_tools::tools::python_executor::PythonExecutor::descriptor(),
+        apollia_tools::tools::file_io::FileIo::descriptor(),
+    ]
 }
 
 /// Watch actor health and apply restart policies.
@@ -415,6 +442,7 @@ mod tests {
         // Cleanup
         handles.api_handle.shutdown();
         handles.router_handle.shutdown();
+        handles.tool_registry_handle.shutdown().await;
         handles.registry_handle.shutdown();
         tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
@@ -448,6 +476,7 @@ mod tests {
         // Cleanup
         handles.api_handle.shutdown();
         handles.router_handle.shutdown();
+        handles.tool_registry_handle.shutdown().await;
         handles.registry_handle.shutdown();
         tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
@@ -473,6 +502,15 @@ mod tests {
         assert!(agents.is_ok());
         assert!(agents.unwrap().is_empty());
 
+        // ToolRegistryHandle: can list (native tools should be registered)
+        let tools = handles.tool_registry_handle.list().await;
+        assert!(tools.is_ok());
+        assert_eq!(
+            tools.unwrap().len(),
+            3,
+            "3 native tools should be auto-registered"
+        );
+
         // TaskRouterHandle: is clone
         let _cloned = handles.router_handle.clone();
 
@@ -483,10 +521,12 @@ mod tests {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<EventBusSender>();
         assert_send_sync::<AgentRegistryHandle>();
+        assert_send_sync::<ToolRegistryHandle>();
         assert_send_sync::<TaskRouterHandle<MockBackend>>();
 
         // Cleanup
         handles.router_handle.shutdown();
+        handles.tool_registry_handle.shutdown().await;
         handles.registry_handle.shutdown();
         tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);

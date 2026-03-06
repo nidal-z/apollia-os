@@ -81,7 +81,7 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
 
         let agent_id = self.agent_id.clone();
         let event_bus = self.event_bus.clone();
-        let task_id: TaskId = task.task_id.clone();
+        let task_id = TaskId::from(task.task_id.clone());
         let backend = Arc::clone(&self.backend);
 
         let handle = tokio::spawn(async move {

@@ -162,6 +162,7 @@ name = "apollia-runtime"
 version = "0.1.0"
 dependencies = [
  "apollia-core",
+ "apollia-tools",
  "axum",
  "hyper-util",
  "serde",
