@@ -73,10 +73,8 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
     pub fn submit_task(
         &self,
         task: AIPTask,
-    ) -> Result<
-        tokio::task::JoinHandle<Result<AIPResult, CoordinatorError>>,
-        CoordinatorError,
-    > {
+    ) -> Result<tokio::task::JoinHandle<Result<AIPResult, CoordinatorError>>, CoordinatorError>
+    {
         let permit = Arc::clone(&self.concurrency)
             .try_acquire_owned()
             .map_err(|_| CoordinatorError::ConcurrencyLimitReached(self.agent_id.clone()))?;
@@ -160,9 +158,8 @@ mod tests {
         fn execute(
             &self,
             task: AIPTask,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>,
-        > {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
+        {
             let fail = self.should_fail.load(Ordering::SeqCst);
             let delay = self.delay;
             Box::pin(async move {
@@ -278,7 +275,10 @@ mod tests {
         let handle = coord
             .submit_task(make_task("task-42"))
             .expect("submit should succeed");
-        handle.await.expect("join failed").expect("execution failed");
+        handle
+            .await
+            .expect("join failed")
+            .expect("execution failed");
 
         // THEN un RuntimeEvent::TaskStarted est recu avec le bon agent_id et task_id
         let event = rx.recv().await.expect("should receive TaskStarted");
@@ -299,7 +299,10 @@ mod tests {
         let handle = coord
             .submit_task(make_task("task-99"))
             .expect("submit should succeed");
-        handle.await.expect("join failed").expect("execution failed");
+        handle
+            .await
+            .expect("join failed")
+            .expect("execution failed");
 
         // THEN un RuntimeEvent::TaskCompleted est recu avec success=true
         // (skip TaskStarted first)

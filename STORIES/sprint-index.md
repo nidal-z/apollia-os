@@ -75,7 +75,7 @@
 
 ---
 
-## Sprint 4 — Bridge PyO3 + ORIA Direct (semaines 11-14)
+## Sprint 4 — Bridge PyO3 + ORIA Direct (semaines 11-14) — LIVRE ✅
 
 **Objectif :** Agent Python s'exécute dans le runtime Rust.
 **Livrable démo-able :** `apollia-os run hello-agent "Bonjour"` → résultat affiché.
@@ -92,7 +92,7 @@
 | STORY-031 | ExecutionCoordinator + sémaphore concurrence | M | ✅ |
 | STORY-032 | TaskRouter dispatch | M | ✅ |
 
-[Plan → sprint-4/plan.md](sprint-4/plan.md)
+[Plan → sprint-4/plan.md](sprint-4/plan.md) | [Bilan → sprint-4/bilan.md](sprint-4/bilan.md)
 
 ---
 

@@ -225,11 +225,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
     /// Soumet une tache pour un agent.
     ///
     /// Retourne le TaskId genere en cas de succes.
-    pub async fn submit(
-        &self,
-        agent_id: &str,
-        input: AIPInput,
-    ) -> Result<TaskId, SubmitError> {
+    pub async fn submit(&self, agent_id: &str, input: AIPInput) -> Result<TaskId, SubmitError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(RouterMessage::Submit {
@@ -243,10 +239,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
     }
 
     /// Obtient le statut d'une tache.
-    pub async fn get_status(
-        &self,
-        task_id: &str,
-    ) -> Result<Option<TaskStatus>, SubmitError> {
+    pub async fn get_status(&self, task_id: &str) -> Result<Option<TaskStatus>, SubmitError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(RouterMessage::GetStatus {
@@ -274,10 +267,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
     }
 
     /// Retire le coordinateur d'un agent.
-    pub async fn unregister_coordinator(
-        &self,
-        agent_id: &AgentId,
-    ) -> Result<(), SubmitError> {
+    pub async fn unregister_coordinator(&self, agent_id: &AgentId) -> Result<(), SubmitError> {
         self.tx
             .send(RouterMessage::UnregisterCoordinator {
                 agent_id: agent_id.clone(),
@@ -319,9 +309,8 @@ mod tests {
         fn execute(
             &self,
             task: AIPTask,
-        ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>,
-        > {
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
+        {
             let fail = self.should_fail.load(Ordering::SeqCst);
             Box::pin(async move {
                 if fail {
@@ -379,7 +368,10 @@ mod tests {
         name: &str,
         target_state: ProcessState,
     ) -> AgentId {
-        let agent_id = registry.register(test_manifest(name)).await.expect("register failed");
+        let agent_id = registry
+            .register(test_manifest(name))
+            .await
+            .expect("register failed");
 
         // Transitions vers l'etat cible
         match target_state {
@@ -433,9 +425,11 @@ mod tests {
     async fn test_submit_to_active_agent_returns_task_id() {
         // GIVEN un agent enregistre en etat Active avec un coordinateur
         let (router, registry, _rx) = setup_test_env().await;
-        let agent_id = register_agent_in_state(&registry, "agent-active", ProcessState::Active).await;
+        let agent_id =
+            register_agent_in_state(&registry, "agent-active", ProcessState::Active).await;
         let (event_tx, _) = broadcast::channel(64);
-        let coordinator = ExecutionCoordinator::new(agent_id.clone(), 1, event_tx, MockBackend::success());
+        let coordinator =
+            ExecutionCoordinator::new(agent_id.clone(), 1, event_tx, MockBackend::success());
         router
             .register_coordinator(agent_id.clone(), coordinator)
             .await
@@ -448,7 +442,10 @@ mod tests {
         assert!(result.is_ok(), "submit should succeed, got: {result:?}");
         let task_id = result.expect("already checked");
         assert!(!task_id.is_empty());
-        assert!(uuid::Uuid::parse_str(&task_id).is_ok(), "task_id should be a valid UUID");
+        assert!(
+            uuid::Uuid::parse_str(&task_id).is_ok(),
+            "task_id should be a valid UUID"
+        );
     }
 
     #[tokio::test]
@@ -552,9 +549,11 @@ mod tests {
     async fn test_get_status_returns_task_status() {
         // GIVEN une tache soumise avec succes (task_id connu)
         let (router, registry, _rx) = setup_test_env().await;
-        let agent_id = register_agent_in_state(&registry, "agent-status", ProcessState::Active).await;
+        let agent_id =
+            register_agent_in_state(&registry, "agent-status", ProcessState::Active).await;
         let (event_tx, _) = broadcast::channel(64);
-        let coordinator = ExecutionCoordinator::new(agent_id.clone(), 1, event_tx, MockBackend::success());
+        let coordinator =
+            ExecutionCoordinator::new(agent_id.clone(), 1, event_tx, MockBackend::success());
         router
             .register_coordinator(agent_id.clone(), coordinator)
             .await
@@ -566,7 +565,10 @@ mod tests {
             .expect("submit failed");
 
         // WHEN on appelle get_status(task_id)
-        let status = router.get_status(&task_id).await.expect("get_status failed");
+        let status = router
+            .get_status(&task_id)
+            .await
+            .expect("get_status failed");
 
         // THEN retourne Some(TaskStatus::Working)
         assert_eq!(status, Some(TaskStatus::Working));

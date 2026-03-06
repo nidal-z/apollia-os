@@ -65,7 +65,14 @@ impl MemoryInterface {
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let result = tokio::task::spawn_blocking(move || {
-                record_inner(&manager, &namespace, &agent_id, &content, importance, task_id.as_deref())
+                record_inner(
+                    &manager,
+                    &namespace,
+                    &agent_id,
+                    &content,
+                    importance,
+                    task_id.as_deref(),
+                )
             })
             .await
             .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
@@ -104,20 +111,15 @@ impl MemoryInterface {
     /// Retrieves a value by key from semantic memory.
     ///
     /// Returns the value (str) or None if the key doesn't exist.
-    fn recall<'py>(
-        &self,
-        py: Python<'py>,
-        key: String,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    fn recall<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
         let manager = Arc::clone(&self.manager);
         let namespace = self.namespace.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = tokio::task::spawn_blocking(move || {
-                recall_inner(&manager, &namespace, &key)
-            })
-            .await
-            .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
+            let result =
+                tokio::task::spawn_blocking(move || recall_inner(&manager, &namespace, &key))
+                    .await
+                    .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
 
             match result {
                 Ok(Some(value)) => Ok(Python::with_gil(|py| value.into_py(py))),
@@ -171,20 +173,15 @@ impl MemoryInterface {
     }
 
     /// Removes a key/value pair from semantic memory.
-    fn forget<'py>(
-        &self,
-        py: Python<'py>,
-        key: String,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    fn forget<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
         let manager = Arc::clone(&self.manager);
         let namespace = self.namespace.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result = tokio::task::spawn_blocking(move || {
-                forget_inner(&manager, &namespace, &key)
-            })
-            .await
-            .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
+            let result =
+                tokio::task::spawn_blocking(move || forget_inner(&manager, &namespace, &key))
+                    .await
+                    .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
 
             result.map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
             Ok(Python::with_gil(|py| py.None()))
@@ -197,11 +194,7 @@ impl MemoryInterface {
     /// Creates a new MemoryInterface for a given agent.
     ///
     /// Returns None if the namespace is empty or absent (AC-6).
-    pub(crate) fn new(
-        manager: MemoryManager,
-        namespace: String,
-        agent_id: String,
-    ) -> Option<Self> {
+    pub(crate) fn new(manager: MemoryManager, namespace: String, agent_id: String) -> Option<Self> {
         if namespace.is_empty() {
             return None;
         }
@@ -234,8 +227,10 @@ fn record_inner(
         .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
 
     let ep = EpisodicMemory::new(store);
-    ep.record(namespace, agent_id, content, importance, task_id, None, None)
-        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))
+    ep.record(
+        namespace, agent_id, content, importance, task_id, None, None,
+    )
+    .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))
 }
 
 /// Stores a key/value pair in semantic memory.
@@ -345,10 +340,7 @@ fn lock(
 }
 
 /// Checks that the namespace allows write operations.
-fn check_write_access(
-    mgr: &MemoryManager,
-    namespace: &str,
-) -> Result<(), MemoryInterfaceError> {
+fn check_write_access(mgr: &MemoryManager, namespace: &str) -> Result<(), MemoryInterfaceError> {
     match mgr.access_level(namespace) {
         Some(MemoryAccess::ReadWrite) => Ok(()),
         Some(MemoryAccess::ReadOnly) => Err(MemoryInterfaceError::ReadOnly(namespace.to_string())),
@@ -369,10 +361,7 @@ mod tests {
         (iface, dir)
     }
 
-    fn setup_shared_interface(
-        primary: &str,
-        shared: &str,
-    ) -> (MemoryInterface, TempDir) {
+    fn setup_shared_interface(primary: &str, shared: &str) -> (MemoryInterface, TempDir) {
         let dir = TempDir::new().expect("create temp dir");
         // Pre-create the shared namespace DB
         let shared_path = dir.path().join(format!("{shared}.db"));
@@ -383,9 +372,8 @@ mod tests {
             Some(primary.to_string()),
             vec![shared.to_string()],
         );
-        let iface =
-            MemoryInterface::new(manager, shared.to_string(), "test-agent".to_string())
-                .expect("should create interface");
+        let iface = MemoryInterface::new(manager, shared.to_string(), "test-agent".to_string())
+            .expect("should create interface");
         (iface, dir)
     }
 
@@ -554,21 +542,25 @@ mod tests {
         );
 
         // THEN we get ReadOnly error
-        assert!(matches!(record_result, Err(MemoryInterfaceError::ReadOnly(_))));
+        assert!(matches!(
+            record_result,
+            Err(MemoryInterfaceError::ReadOnly(_))
+        ));
 
         // WHEN we try to write (remember)
-        let remember_result = remember_inner(
-            &iface.manager,
-            &iface.namespace,
-            "key",
-            "value",
-            None,
-        );
-        assert!(matches!(remember_result, Err(MemoryInterfaceError::ReadOnly(_))));
+        let remember_result =
+            remember_inner(&iface.manager, &iface.namespace, "key", "value", None);
+        assert!(matches!(
+            remember_result,
+            Err(MemoryInterfaceError::ReadOnly(_))
+        ));
 
         // WHEN we try to write (forget)
         let forget_result = forget_inner(&iface.manager, &iface.namespace, "key");
-        assert!(matches!(forget_result, Err(MemoryInterfaceError::ReadOnly(_))));
+        assert!(matches!(
+            forget_result,
+            Err(MemoryInterfaceError::ReadOnly(_))
+        ));
 
         // WHEN we try to read (recall) — should work
         let recall_result = recall_inner(&iface.manager, &iface.namespace, "nonexistent");

@@ -12,7 +12,7 @@
 //! The Observer is a **pure function** (not a Tokio actor) — it takes inputs and
 //! returns a result with no internal state.
 
-use apollia_core::{AgentManifest, AIPTask};
+use apollia_core::{AIPTask, AgentManifest};
 use apollia_memory::episodic::EpisodicMemory;
 use apollia_memory::manager::MemoryManager;
 use apollia_memory::semantic::SemanticMemory;
@@ -83,10 +83,7 @@ pub enum ObserverError {
 /// - `manifest.tags` contains "multi-step"
 /// - `manifest.tools_required.len() > 4`
 pub fn classify(task: &AIPTask, manifest: &AgentManifest) -> ExecutionMode {
-    let budget = manifest
-        .step_budget
-        .clone()
-        .unwrap_or_default();
+    let budget = manifest.step_budget.clone().unwrap_or_default();
 
     let is_complex = budget.max_steps > COMPLEXITY_STEP_THRESHOLD
         || task.input.parts.len() > COMPLEXITY_PARTS_THRESHOLD
@@ -136,8 +133,7 @@ pub fn observe(
                 .history(&namespace, MAX_RECENT_EPISODES as u32, None)
                 .map_err(|e| ObserverError::MemoryError(e.to_string()))?;
 
-            let episodic_recent: Vec<String> =
-                episodes.into_iter().map(|ep| ep.content).collect();
+            let episodic_recent: Vec<String> = episodes.into_iter().map(|ep| ep.content).collect();
 
             let semantic = SemanticMemory::new(store);
             let facts = semantic
@@ -269,17 +265,32 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("apollia_obs_{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).expect("create temp dir");
 
-        let mut mgr =
-            MemoryManager::new(&dir, Some("agent-test".into()), vec![]);
+        let mut mgr = MemoryManager::new(&dir, Some("agent-test".into()), vec![]);
 
         let store = mgr.store("agent-test").expect("open store");
 
         let episodic = EpisodicMemory::new(store);
         episodic
-            .record("agent-test", "agent-1", "Episode one", 0.8, None, None, None)
+            .record(
+                "agent-test",
+                "agent-1",
+                "Episode one",
+                0.8,
+                None,
+                None,
+                None,
+            )
             .expect("record episode 1");
         episodic
-            .record("agent-test", "agent-1", "Episode two", 0.5, None, None, None)
+            .record(
+                "agent-test",
+                "agent-1",
+                "Episode two",
+                0.5,
+                None,
+                None,
+                None,
+            )
             .expect("record episode 2");
 
         let semantic = SemanticMemory::new(store);

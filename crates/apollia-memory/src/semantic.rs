@@ -173,10 +173,7 @@ impl<'a> SemanticMemory<'a> {
     /// Recupere toutes les connaissances d'un namespace, triees par cle.
     ///
     /// Retourne un vecteur vide si le namespace n'a aucune entree.
-    pub fn recall_all(
-        &self,
-        namespace: &str,
-    ) -> Result<Vec<SemanticEntry>, SemanticMemoryError> {
+    pub fn recall_all(&self, namespace: &str) -> Result<Vec<SemanticEntry>, SemanticMemoryError> {
         let conn = self.store.conn();
 
         let mut stmt = conn

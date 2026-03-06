@@ -118,8 +118,8 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Sprint actif :** Sprint 0 — Fondations  
-**Prochaine story :** STORY-001 — Init workspace Cargo  
-**Dernière décision :** ADR-010 — Pivot SaaS → Runtime Rust open-source
+**Sprint actif :** Sprint 5 — APIServer + CLI complète
+**Dernier sprint livré :** Sprint 4 — Bridge PyO3 + ORIA Direct (9/9 stories, 217 tests)
+**Dernière décision :** ADR-016 — AgentRunner trait abstraction
 
 Pour l'état détaillé : lire `STORIES/sprint-index.md`.
