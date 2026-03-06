@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-memory/src/procedural.rs`
 **Taille :** S
 **Depend de :** STORY-017 (MemoryStore avec schema)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 
@@ -328,10 +328,12 @@ mod tests {
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- Upsert via SELECT + UPDATE/INSERT (meme pattern que SemanticMemory) plutot que ON CONFLICT — la table `procedural_memories` n'a pas de UNIQUE constraint sur (namespace, trigger_text), uniquement un index. Ce choix est coherent avec le reste du codebase.
+- Ajout d'un test `test_namespace_isolation` et `test_list_empty_namespace` en plus des 7 tests specifies, pour 9 tests total.
 
-**Deviations par rapport a la spec :**
+**Deviations par rapport a la spec :** Aucune.
 
-**Dette technique identifiee :**
+**Dette technique identifiee :** Aucune.
 
 ---
 

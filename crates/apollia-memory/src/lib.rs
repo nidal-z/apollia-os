@@ -15,6 +15,7 @@
 
 pub mod episodic;
 pub mod manager;
+pub mod procedural;
 pub mod search;
 pub mod semantic;
 pub mod store;
