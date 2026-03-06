@@ -14,5 +14,7 @@
 //! - `mcp_consumer` — MCP server protocol consumer
 
 pub mod descriptor;
+pub mod registry;
 
 pub use descriptor::{McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind};
+pub use registry::{ToolRegistryError, ToolRegistryHandle};

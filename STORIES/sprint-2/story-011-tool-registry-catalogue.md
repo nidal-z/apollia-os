@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-tools/src/registry.rs`
 **Taille :** M
 **Depend de :** STORY-010
-**Statut :** 🔲 A faire
+**Statut :** ✅ Livré
 
 ---
 
