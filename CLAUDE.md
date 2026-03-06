@@ -118,8 +118,8 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Sprint actif :** Sprint 5 — APIServer + CLI complète
-**Dernier sprint livré :** Sprint 4 — Bridge PyO3 + ORIA Direct (9/9 stories, 217 tests)
-**Dernière décision :** ADR-016 — AgentRunner trait abstraction
+**Sprint actif :** Sprint 6 — Hardening + Agent de démo
+**Dernier sprint livré :** Sprint 5 — APIServer + CLI complète (8/8 stories, 289 tests)
+**Dernière décision :** ADR-018 — CLI Bootstrap sans Supervisor
 
 Pour l'état détaillé : lire `STORIES/sprint-index.md`.

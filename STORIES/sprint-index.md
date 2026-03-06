@@ -96,7 +96,7 @@
 
 ---
 
-## Sprint 5 — APIServer + CLI complète (semaines 15-17)
+## Sprint 5 — APIServer + CLI complète (semaines 15-17) — LIVRE ✅
 
 **Objectif :** Runtime opérable sans modifier le code.
 **Livrable démo-able :** start/stop/status/run/audit fonctionnels.
@@ -112,7 +112,7 @@
 | STORY-039 | Supervisor démarrage ordonné + watchdog | L | ✅ |
 | STORY-040 | Graceful shutdown SIGTERM/drain 30s | M | ✅ |
 
-[Détail → sprint-5/index.md](sprint-5/index.md) | [Plan → sprint-5/plan.md](sprint-5/plan.md)
+[Détail → sprint-5/index.md](sprint-5/index.md) | [Plan → sprint-5/plan.md](sprint-5/plan.md) | [Bilan → sprint-5/bilan.md](sprint-5/bilan.md)
 
 ---
 
