@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-memory/src/store.rs`
 **Taille :** M
 **Depend de :** STORY-016 ✅ (pattern rusqlite WAL valide dans apollia-tools)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 
@@ -337,19 +337,19 @@ mod tests {
 ## Definition of Done
 
 **Qualite code :**
-- [ ] `cargo test -p apollia-memory` passe (0 test ignore)
-- [ ] `cargo clippy -p apollia-memory -- -D warnings` : zero warning
-- [ ] `cargo fmt --check` : code formate
-- [ ] Zero `unwrap()` dans le code de production
-- [ ] Zero `todo!()` dans le code de production
-- [ ] Docstring `///` sur chaque struct, enum, et fonction publique
+- [x] `cargo test -p apollia-memory` passe (7 tests, 0 ignore)
+- [x] `cargo clippy -p apollia-memory -- -D warnings` : zero warning
+- [x] `cargo fmt --check` : code formate
+- [x] Zero `unwrap()` dans le code de production
+- [x] Zero `todo!()` dans le code de production
+- [x] Docstring `///` sur chaque struct, enum, et fonction publique
 
 **Architectural :**
-- [ ] `thiserror` utilise pour `MemoryStoreError`, jamais `anyhow`
-- [ ] WAL active a l'ouverture
-- [ ] FTS5 avec `unicode61` fonctionne (test AC-2)
-- [ ] Principe #1 (local-first) : un fichier par namespace
-- [ ] Principe #4 (fail fast) : schema invalide detecte a l'ouverture
+- [x] `thiserror` utilise pour `MemoryStoreError`, jamais `anyhow`
+- [x] WAL active a l'ouverture
+- [x] FTS5 avec `unicode61` fonctionne (test AC-2)
+- [x] Principe #1 (local-first) : un fichier par namespace
+- [x] Principe #4 (fail fast) : schema invalide detecte a l'ouverture
 
 **Commit :**
 - [ ] Commit conventionnel : `feat(apollia-memory): add MemoryStore with SQLite schema and versioned migrations`
@@ -359,10 +359,16 @@ mod tests {
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- FTS5 DDL execute separement de `execute_batch` car certaines builds SQLite
+  necessitent une execution individuelle pour les tables virtuelles.
+- `conn()` annote `#[allow(dead_code)]` car `pub(crate)` mais pas encore utilise
+  (le sera par STORY-018, 019, 022).
 
 **Deviations par rapport a la spec :**
+- Aucune.
 
 **Dette technique identifiee :**
+- Aucune.
 
 ---
 
