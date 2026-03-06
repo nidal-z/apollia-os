@@ -137,7 +137,6 @@ impl MemoryStore {
     }
 
     /// Provides direct access to the underlying connection for backends.
-    #[allow(dead_code)]
     pub(crate) fn conn(&self) -> &Connection {
         &self.conn
     }

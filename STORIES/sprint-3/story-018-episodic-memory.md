@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-memory/src/episodic.rs`
 **Taille :** M
 **Depend de :** STORY-017 (MemoryStore avec schema)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 
@@ -293,17 +293,17 @@ mod tests {
 ## Definition of Done
 
 **Qualite code :**
-- [ ] `cargo test -p apollia-memory` passe (0 test ignore)
-- [ ] `cargo clippy -p apollia-memory -- -D warnings` : zero warning
-- [ ] `cargo fmt --check` : code formate
-- [ ] Zero `unwrap()` dans le code de production
-- [ ] Zero `todo!()` dans le code de production
-- [ ] Docstring `///` sur chaque struct, enum, et fonction publique
+- [x] `cargo test -p apollia-memory` passe (14 tests, 0 ignore)
+- [x] `cargo clippy -p apollia-memory -- -D warnings` : zero warning
+- [x] `cargo fmt --check` : code formate
+- [x] Zero `unwrap()` dans le code de production
+- [x] Zero `todo!()` dans le code de production
+- [x] Docstring `///` sur chaque struct, enum, et fonction publique
 
 **Architectural :**
-- [ ] Principe #6 respecte : l'agent appelle `record()` explicitement
-- [ ] Insertion dans `memory_fts` a chaque `record()`
-- [ ] Purge expire nettoie aussi `memory_fts`
+- [x] Principe #6 respecte : l'agent appelle `record()` explicitement
+- [x] Insertion dans `memory_fts` a chaque `record()`
+- [x] Purge expire nettoie aussi `memory_fts`
 
 **Commit :**
 - [ ] Commit conventionnel : `feat(apollia-memory): add EpisodicMemory backend with record, history, and TTL purge`
@@ -313,10 +313,15 @@ mod tests {
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- `#[allow(clippy::too_many_arguments)]` sur `record()` car la signature a 8 parametres (specifiee dans la story). Un builder pattern serait plus idiomatique mais ajouterait de la complexite sans benefice a ce stade.
+- Timestamps generes via `strftime('%Y-%m-%dT%H:%M:%SZ', 'now')` SQLite en memoire pour rester coherent avec les comparaisons `datetime('now')` dans les requetes de purge. Pas de dependance `chrono` ajoutee.
+- `conn()` sur `MemoryStore` etait `#[allow(dead_code)]` — supprime maintenant qu'il est utilise par `EpisodicMemory`.
 
 **Deviations par rapport a la spec :**
+- Aucune deviation.
 
 **Dette technique identifiee :**
+- La generation de timestamp via `Connection::open_in_memory()` a chaque appel `record()` est fonctionnelle mais sous-optimale. A remplacer par un appel `datetime('now')` directement dans le SQL INSERT si la performance devient un enjeu.
 
 ---
 
