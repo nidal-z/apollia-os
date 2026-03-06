@@ -121,6 +121,7 @@ async fn health_handler() -> Json<HealthResponse> {
 
 /// Build the axum Router with all routes and shared state.
 fn build_router<B: ExecutionBackend>(state: AppState<B>) -> Router {
+    use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use super::routes_tasks::{cancel_task, get_task, submit_task};
 
     Router::new()
@@ -129,6 +130,14 @@ fn build_router<B: ExecutionBackend>(state: AppState<B>) -> Router {
         .route(
             "/api/v1/tasks/:id",
             get(get_task::<B>).delete(cancel_task::<B>),
+        )
+        .route(
+            "/api/v1/agents",
+            get(list_agents::<B>).post(start_agent::<B>),
+        )
+        .route(
+            "/api/v1/agents/:id",
+            get(get_agent::<B>).delete(stop_agent::<B>),
         )
         .with_state(state)
 }

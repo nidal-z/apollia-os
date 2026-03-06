@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-runtime/src/api/routes_agents.rs`
 **Taille :** M
 **Depend de :** STORY-033 (APIServer skeleton)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 
