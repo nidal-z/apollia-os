@@ -37,22 +37,22 @@
 
 ---
 
-## Sprint 2 — Tool Registry + Outils natifs (semaines 5-7) — PLANIFIE
+## Sprint 2 — Tool Registry + Outils natifs (semaines 5-7) — LIVRE ✅
 
 **Objectif :** bash_executor sandboxé avec audit trail.
 **Livrable démo-able :** `bash_executor.run("echo hello")` → stdout tracé dans SQLite.
 
 | ID | Story | Taille | Statut |
 |---|---|---|---|
-| STORY-010 | ToolDescriptor, ToolKind types dans apollia-tools | S | 🔲 |
-| STORY-011 | ToolRegistry catalogue en mémoire | M | 🔲 |
-| STORY-012 | ToolResolver validation à INITIALIZING | M | 🔲 |
-| STORY-013 | bash_executor avec Linux namespaces (unshare) | L | 🔲 |
-| STORY-014 | python_executor avec virtualenv isolé | L | 🔲 |
-| STORY-015 | file_io avec validation path traversal | M | 🔲 |
-| STORY-016 | Audit trail SQLite (tool_invocations) | M | 🔲 |
+| STORY-010 | ToolDescriptor, ToolKind types dans apollia-tools | S | ✅ |
+| STORY-011 | ToolRegistry catalogue en mémoire | M | ✅ |
+| STORY-012 | ToolResolver validation à INITIALIZING | M | ✅ |
+| STORY-013 | bash_executor avec Linux namespaces (unshare) | L | ✅ |
+| STORY-014 | python_executor avec virtualenv isolé | L | ✅ |
+| STORY-015 | file_io avec validation path traversal | M | ✅ |
+| STORY-016 | Audit trail SQLite (tool_invocations) | M | ✅ |
 
-[Plan → sprint-2/plan.md](sprint-2/plan.md)
+[Plan → sprint-2/plan.md](sprint-2/plan.md) | [Bilan → sprint-2/bilan.md](sprint-2/bilan.md)
 
 ---
 
