@@ -71,6 +71,8 @@
 | STORY-022 | ProceduralMemory backend | S | ✅ |
 | STORY-023 | CLI `apollia-os memory inspect` preview | S | ✅ |
 
+[Plan → sprint-3/plan.md](sprint-3/plan.md) | [Bilan → sprint-3/bilan.md](sprint-3/bilan.md)
+
 ---
 
 ## Sprint 4 — Bridge PyO3 + ORIA Direct (semaines 11-14)
