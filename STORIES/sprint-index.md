@@ -65,7 +65,7 @@
 |---|---|---|---|
 | STORY-017 | Schema SQLite complet + migrations versionnées | M | ✅ |
 | STORY-018 | EpisodicMemory backend (record/history/TTL) | M | ✅ |
-| STORY-019 | SemanticMemory backend (remember/recall/forget) | M | 🔲 |
+| STORY-019 | SemanticMemory backend (remember/recall/forget) | M | ✅ |
 | STORY-020 | FTS5 search avec tokenizer unicode61 + BM25 | M | 🔲 |
 | STORY-021 | MemoryManager namespace isolation | M | 🔲 |
 | STORY-022 | ProceduralMemory backend | S | 🔲 |

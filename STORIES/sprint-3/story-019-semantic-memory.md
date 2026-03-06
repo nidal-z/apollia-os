@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-memory/src/semantic.rs`
 **Taille :** M
 **Depend de :** STORY-017 (MemoryStore avec schema)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 
@@ -356,10 +356,15 @@ mod tests {
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- Upsert implementé via SELECT + UPDATE/INSERT plutot que `ON CONFLICT DO UPDATE`, car il faut gérer le nettoyage FTS (delete + re-insert) dans le même flux. Le résultat fonctionnel est identique.
+- Le contenu FTS indexe `"{key} {value}"` pour permettre la recherche par clé et par valeur.
+- `chrono_now_utc()` réutilise le pattern de `episodic.rs` (délégation à SQLite `strftime`).
 
 **Deviations par rapport a la spec :**
+- Pas d'utilisation de `ON CONFLICT` SQL natif — remplacé par un SELECT préalable pour gérer le FTS proprement (voir décision ci-dessus). Pas d'ADR nécessaire, c'est un détail d'implémentation.
 
 **Dette technique identifiee :**
+- La fonction `chrono_now_utc()` est dupliquée entre `episodic.rs` et `semantic.rs`. A factoriser dans un module utilitaire commun si un 3e backend l'utilise.
 
 ---
 
