@@ -112,6 +112,8 @@
 | STORY-039 | Supervisor démarrage ordonné + watchdog | L | 🔲 |
 | STORY-040 | Graceful shutdown SIGTERM/drain 30s | M | 🔲 |
 
+[Détail → sprint-5/index.md](sprint-5/index.md) | [Plan → sprint-5/plan.md](sprint-5/plan.md)
+
 ---
 
 ## Sprint 6 — Hardening + Agent de démo (semaines 18-20)
