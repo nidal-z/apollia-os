@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-memory/src/search.rs`
 **Taille :** M
 **Depend de :** STORY-017 ✅, STORY-018, STORY-019 (donnees dans FTS)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 
@@ -350,30 +350,42 @@ mod tests {
 ## Definition of Done
 
 **Qualite code :**
-- [ ] `cargo test -p apollia-memory` passe (0 test ignore)
-- [ ] `cargo clippy -p apollia-memory -- -D warnings` : zero warning
-- [ ] `cargo fmt --check` : code formate
-- [ ] Zero `unwrap()` dans le code de production
-- [ ] Zero `todo!()` dans le code de production
-- [ ] Docstring `///` sur chaque struct, enum, et fonction publique
+- [x] `cargo test -p apollia-memory` passe (0 test ignore) — 35 tests, 10 dans search.rs
+- [x] `cargo clippy -p apollia-memory -- -D warnings` : zero warning
+- [x] `cargo fmt --check` : code formate
+- [x] Zero `unwrap()` dans le code de production
+- [x] Zero `todo!()` dans le code de production
+- [x] Docstring `///` sur chaque struct, enum, et fonction publique
 
 **Architectural :**
-- [ ] BM25 ranking via FTS5 `rank` natif
-- [ ] Unicode61 valide (accents normalises)
-- [ ] Sprint Goal demo-able : `search("devis Dupont")` retourne des resultats classes
+- [x] BM25 ranking via FTS5 `rank` natif
+- [x] Unicode61 valide (accents normalises)
+- [x] Sprint Goal demo-able : `search("devis Dupont")` retourne des resultats classes
 
 **Commit :**
-- [ ] Commit conventionnel : `feat(apollia-memory): add FTS5 search with BM25 ranking and unicode61`
+- [x] Commit conventionnel : `feat(apollia-memory): add FTS5 search with BM25 ranking and unicode61`
 
 ---
 
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- Queries episodic et semantic separees puis merge en memoire (au lieu de UNION ALL SQL)
+  pour pouvoir JOIN chaque source avec sa table respective et filtrer namespace+importance
+  independamment. Tri final par score BM25 en Rust.
+- Echappement FTS5 : chaque mot est wrape dans des guillemets doubles pour neutraliser
+  les operateurs (AND, OR, NOT, NEAR, `*`, `:`, `^`, parentheses).
+- Score normalise en positif via `-rank` (convention FTS5 : rank est negatif, plus proche
+  de 0 = plus pertinent).
 
 **Deviations par rapport a la spec :**
+- Ajout de 3 tests supplementaires non prevus : `test_ac2_filter_by_semantic_source`,
+  `test_whitespace_only_query_returns_error`, `test_namespace_isolation`.
 
 **Dette technique identifiee :**
+- Les scores BM25 entre episodic et semantic sont comparables car issus de la meme table
+  FTS5, mais sur gros volumes (>10K entries) il faudrait profiler la performance du
+  merge+sort en memoire vs UNION ALL natif.
 
 ---
 
