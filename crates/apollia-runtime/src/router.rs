@@ -55,6 +55,8 @@ enum RouterMessage<B: ExecutionBackend> {
         task_id: TaskId,
         reply: oneshot::Sender<Option<TaskStatus>>,
     },
+    /// Retourner les IDs des taches actives (Working ou Submitted).
+    GetActiveTasks { reply: oneshot::Sender<Vec<TaskId>> },
     /// Enregistrer un ExecutionCoordinator pour un agent.
     RegisterCoordinator {
         agent_id: AgentId,
@@ -101,6 +103,15 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                 RouterMessage::Cancel { task_id, reply } => {
                     let result = self.handle_cancel(&task_id);
                     let _ = reply.send(result);
+                }
+                RouterMessage::GetActiveTasks { reply } => {
+                    let active: Vec<TaskId> = self
+                        .task_statuses
+                        .iter()
+                        .filter(|(_, s)| matches!(s, TaskStatus::Working | TaskStatus::Submitted))
+                        .map(|(id, _)| id.clone())
+                        .collect();
+                    let _ = reply.send(active);
                 }
                 RouterMessage::RegisterCoordinator {
                     agent_id,
@@ -311,6 +322,16 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
                 task_id: task_id.to_string(),
                 reply: reply_tx,
             })
+            .await
+            .map_err(|_| SubmitError::ActorDead)?;
+        reply_rx.await.map_err(|_| SubmitError::ActorDead)
+    }
+
+    /// Retourne les IDs des taches actives (Working ou Submitted).
+    pub async fn active_tasks(&self) -> Result<Vec<TaskId>, SubmitError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(RouterMessage::GetActiveTasks { reply: reply_tx })
             .await
             .map_err(|_| SubmitError::ActorDead)?;
         reply_rx.await.map_err(|_| SubmitError::ActorDead)

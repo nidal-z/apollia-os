@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-runtime/src/shutdown.rs`
 **Taille :** M
 **Depend de :** STORY-039 (Supervisor)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 

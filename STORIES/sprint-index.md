@@ -110,7 +110,7 @@
 | STORY-037 | CLI commandes niveau 1 (start/stop/status/run) | L | ✅ |
 | STORY-038 | CLI commandes niveau 2 (agent/task/tools/memory/audit) | L | ✅ |
 | STORY-039 | Supervisor démarrage ordonné + watchdog | L | ✅ |
-| STORY-040 | Graceful shutdown SIGTERM/drain 30s | M | 🔲 |
+| STORY-040 | Graceful shutdown SIGTERM/drain 30s | M | ✅ |
 
 [Détail → sprint-5/index.md](sprint-5/index.md) | [Plan → sprint-5/plan.md](sprint-5/plan.md)
 

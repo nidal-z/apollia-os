@@ -13,6 +13,7 @@ pub mod coordinator;
 pub mod eventbus;
 pub mod registry;
 pub mod router;
+pub mod shutdown;
 pub mod supervisor;
 
 pub use api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
@@ -20,6 +21,7 @@ pub use coordinator::{CoordinatorError, ExecutionBackend, ExecutionCoordinator};
 pub use eventbus::{EventBus, EventBusReceiver, EventBusSender};
 pub use registry::{AgentEntry, AgentRegistry, AgentRegistryError, AgentRegistryHandle};
 pub use router::{SubmitError, TaskRouterHandle};
+pub use shutdown::{wait_for_shutdown_signal, ShutdownConfig, ShutdownController, ShutdownError};
 pub use supervisor::{
     ChildSpec, RestartPolicy, RestartTracker, Supervisor, SupervisorConfig, SupervisorError,
     SupervisorHandles,
