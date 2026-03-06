@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `README.md`, `docs/INSTALL.md`
 **Taille :** M
 **Depend de :** STORY-044 (Agent devis-generator — pour documenter la demo)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminée
 
 ---
 

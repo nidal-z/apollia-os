@@ -116,7 +116,7 @@
 
 ---
 
-## Sprint 6 — Hardening + Agent de démo (semaines 18-19) — EN COURS
+## Sprint 6 — Hardening + Agent de démo (semaines 18-19) — LIVRE ✅
 
 **Objectif :** Démo client réelle. Agent devis-generator opérationnel.
 **Livrable démo-able :** Démo PME live, tout local, zéro cloud.
@@ -128,9 +128,9 @@
 | STORY-043 | ORIA Mode Orchestré + Reasoner LLM | XL | 🚫 Reportée Sprint 7 |
 | STORY-044 | Agent devis-generator complet | L | ✅ |
 | STORY-045 | Tests d'intégration end-to-end | L | ✅ |
-| STORY-046 | README + documentation installation | M | 🔲 |
+| STORY-046 | README + documentation installation | M | ✅ |
 
-[Plan → sprint-6/plan.md](sprint-6/plan.md)
+[Plan → sprint-6/plan.md](sprint-6/plan.md) | [Bilan → sprint-6/bilan.md](sprint-6/bilan.md)
 
 ---
 
