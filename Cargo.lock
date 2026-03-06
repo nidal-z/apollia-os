@@ -101,6 +101,7 @@ name = "apollia-cli"
 version = "0.1.0"
 dependencies = [
  "apollia-core",
+ "apollia-memory",
  "apollia-runtime",
  "clap",
  "serde",
@@ -109,6 +110,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 apollia-core    = { workspace = true }
+apollia-memory  = { workspace = true }
 apollia-runtime = { workspace = true }
 tokio              = { workspace = true }
 serde              = { workspace = true }
@@ -19,3 +20,4 @@ thiserror          = { workspace = true }
 tracing            = { workspace = true }
 tracing-subscriber = { workspace = true }
 clap               = { workspace = true }
+uuid               = { workspace = true }

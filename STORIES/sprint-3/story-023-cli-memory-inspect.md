@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-cli/src/commands/memory.rs`
 **Taille :** S
 **Depend de :** STORY-021 (MemoryManager avec stats)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 
@@ -242,10 +242,16 @@ pas le binaire CLI. Les tests E2E du binaire sont hors scope Sprint 3.
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- `MemoryStats` deplace de `manager.rs` vers `store.rs` pour permettre a `MemoryStore::stats()` de retourner les statistiques sans passer par `MemoryManager`. Re-export via `pub use` dans `manager.rs` pour compatibilite.
+- `MemoryStore::stats(namespace, db_path)` ajoute comme methode publique — le CLI lit directement le `.db` sans runtime, comme prevu par la spec.
+- `MemoryManager::stats()` simplifie pour deleguer a `MemoryStore::stats()` (suppression de duplication).
 
 **Deviations par rapport a la spec :**
+- Aucune deviation significative.
 
 **Dette technique identifiee :**
+- Le flag `--json` est local a la sous-commande `inspect`, pas global (prevu Sprint 5).
+- Pas de detection TTY pour couleurs (acceptable pour preview).
 
 ---
 

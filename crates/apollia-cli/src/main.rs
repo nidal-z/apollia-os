@@ -3,14 +3,48 @@
 //! Command structure follows noun-verb pattern (ADR-008):
 //!   apollia-os <noun> <verb> [options]
 //!
-//! Level-1 commands (STORY-037): start, stop, status, run
-//! Level-2 commands (STORY-038): agent, task, tools, memory, audit
-//!
 //! Global flags: --json (machine-readable output), TTY auto-detected.
 
+mod commands;
+
+use clap::Parser;
+
+use commands::memory::MemoryCommand;
+
+/// Apollia OS — Sovereign AI Agent Runtime.
+#[derive(Debug, Parser)]
+#[command(name = "apollia-os", version, about)]
+struct Cli {
+    /// Commande a executer.
+    #[command(subcommand)]
+    command: Commands,
+}
+
+/// Commandes de premier niveau.
+#[derive(Debug, clap::Subcommand)]
+enum Commands {
+    /// Memory management.
+    Memory {
+        /// Sous-commande memoire.
+        #[command(subcommand)]
+        command: MemoryCommand,
+    },
+}
+
 fn main() {
-    // CLI commands are implemented in STORY-037 and STORY-038.
-    // This entry point will be replaced with the full clap command tree.
-    eprintln!("apollia-os: not yet implemented — Sprint 5");
-    std::process::exit(1);
+    let cli = Cli::parse();
+
+    let result = match &cli.command {
+        Commands::Memory { command } => commands::memory::run(command),
+    };
+
+    match result {
+        Ok(output) => {
+            println!("{output}");
+        }
+        Err(err) => {
+            eprintln!("Error: {err}");
+            std::process::exit(1);
+        }
+    }
 }

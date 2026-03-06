@@ -13,6 +13,8 @@ use crate::episodic::EpisodicMemory;
 use crate::semantic::SemanticMemory;
 use crate::store::MemoryStore;
 
+pub use crate::store::MemoryStats;
+
 /// Gestionnaire de memoire avec isolation par namespace.
 ///
 /// Point d'entree unique pour acceder a la memoire d'un agent.
@@ -36,23 +38,6 @@ pub enum MemoryAccess {
     ReadWrite,
     /// Lecture seule (namespace partage).
     ReadOnly,
-}
-
-/// Statistiques d'un namespace memoire.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct MemoryStats {
-    /// Nom du namespace.
-    pub namespace: String,
-    /// Nombre d'episodes en memoire episodique.
-    pub episodic_count: u64,
-    /// Nombre d'entrees en memoire semantique.
-    pub semantic_count: u64,
-    /// Nombre de procedures en memoire procedurale.
-    pub procedural_count: u64,
-    /// Nombre d'entrees dans l'index FTS5.
-    pub fts_entries: u64,
-    /// Taille du fichier `.db` en octets.
-    pub db_size_bytes: u64,
 }
 
 /// Erreurs du MemoryManager.
@@ -159,63 +144,12 @@ impl MemoryManager {
 
     /// Statistiques d'un namespace.
     ///
-    /// Execute des `SELECT COUNT(*)` sur chaque table et lit la taille
-    /// du fichier `.db` via `fs::metadata`.
+    /// Delegue a [`MemoryStore::stats`] apres verification des permissions.
     pub fn stats(&mut self, namespace: &str) -> Result<MemoryStats, MemoryManagerError> {
-        let store = self.store(namespace)?;
-        let conn = store.conn();
-
-        let episodic_count: u64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM episodic_memories WHERE namespace = ?1",
-                rusqlite::params![namespace],
-                |row| row.get(0),
-            )
-            .map_err(|e| MemoryManagerError::OpenFailed {
-                namespace: namespace.to_string(),
-                reason: format!("failed to count episodic: {e}"),
-            })?;
-
-        let semantic_count: u64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM semantic_memories WHERE namespace = ?1",
-                rusqlite::params![namespace],
-                |row| row.get(0),
-            )
-            .map_err(|e| MemoryManagerError::OpenFailed {
-                namespace: namespace.to_string(),
-                reason: format!("failed to count semantic: {e}"),
-            })?;
-
-        let procedural_count: u64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM procedural_memories WHERE namespace = ?1",
-                rusqlite::params![namespace],
-                |row| row.get(0),
-            )
-            .map_err(|e| MemoryManagerError::OpenFailed {
-                namespace: namespace.to_string(),
-                reason: format!("failed to count procedural: {e}"),
-            })?;
-
-        let fts_entries: u64 = conn
-            .query_row("SELECT COUNT(*) FROM memory_fts", [], |row| row.get(0))
-            .map_err(|e| MemoryManagerError::OpenFailed {
-                namespace: namespace.to_string(),
-                reason: format!("failed to count fts: {e}"),
-            })?;
-
         let db_path = self.db_path(namespace);
-        let db_size_bytes = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
-
-        Ok(MemoryStats {
-            namespace: namespace.to_string(),
-            episodic_count,
-            semantic_count,
-            procedural_count,
-            fts_entries,
-            db_size_bytes,
-        })
+        let store = self.store(namespace)?;
+        let stats = store.stats(namespace, &db_path)?;
+        Ok(stats)
     }
 
     /// Purge les entrees expirees dans le namespace prive.

@@ -56,7 +56,7 @@
 
 ---
 
-## Sprint 3 — Memory Engine (semaines 8-10)
+## Sprint 3 — Memory Engine (semaines 8-10) — LIVRE ✅
 
 **Objectif :** Persistance souveraine FTS5 fonctionnelle.
 **Livrable démo-able :** `memory.search("devis Dupont")` retourne 3 résultats classés BM25.
@@ -69,7 +69,7 @@
 | STORY-020 | FTS5 search avec tokenizer unicode61 + BM25 | M | ✅ |
 | STORY-021 | MemoryManager namespace isolation | M | ✅ |
 | STORY-022 | ProceduralMemory backend | S | ✅ |
-| STORY-023 | CLI `apollia-os memory inspect` preview | S | 🔲 |
+| STORY-023 | CLI `apollia-os memory inspect` preview | S | ✅ |
 
 ---
 

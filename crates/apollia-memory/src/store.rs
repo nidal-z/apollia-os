@@ -8,6 +8,25 @@ use std::path::Path;
 
 use rusqlite::Connection;
 
+/// Statistics for a memory namespace database.
+///
+/// Returned by [`MemoryStore::stats`] and used by the CLI `memory inspect` command.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MemoryStats {
+    /// Namespace name.
+    pub namespace: String,
+    /// Number of episodic memory entries.
+    pub episodic_count: u64,
+    /// Number of semantic memory entries.
+    pub semantic_count: u64,
+    /// Number of procedural memory entries.
+    pub procedural_count: u64,
+    /// Number of FTS5 index entries.
+    pub fts_entries: u64,
+    /// Size of the `.db` file in bytes.
+    pub db_size_bytes: u64,
+}
+
 /// Current schema version for the memory database.
 const SCHEMA_VERSION: u32 = 1;
 
@@ -134,6 +153,45 @@ impl MemoryStore {
     /// Returns the current schema version stored in `_schema_version`.
     pub fn schema_version(&self) -> Result<u32, MemoryStoreError> {
         Self::read_schema_version(&self.conn)
+    }
+
+    /// Returns memory statistics for the given namespace.
+    ///
+    /// Queries row counts in each memory table and reads the file size
+    /// from `db_path`. This is used by the CLI `memory inspect` command.
+    pub fn stats(&self, namespace: &str, db_path: &Path) -> Result<MemoryStats, MemoryStoreError> {
+        let episodic_count: u64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM episodic_memories WHERE namespace = ?1",
+            rusqlite::params![namespace],
+            |row| row.get(0),
+        )?;
+
+        let semantic_count: u64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM semantic_memories WHERE namespace = ?1",
+            rusqlite::params![namespace],
+            |row| row.get(0),
+        )?;
+
+        let procedural_count: u64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM procedural_memories WHERE namespace = ?1",
+            rusqlite::params![namespace],
+            |row| row.get(0),
+        )?;
+
+        let fts_entries: u64 =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM memory_fts", [], |row| row.get(0))?;
+
+        let db_size_bytes = std::fs::metadata(db_path).map(|m| m.len()).unwrap_or(0);
+
+        Ok(MemoryStats {
+            namespace: namespace.to_string(),
+            episodic_count,
+            semantic_count,
+            procedural_count,
+            fts_entries,
+            db_size_bytes,
+        })
     }
 
     /// Provides direct access to the underlying connection for backends.
