@@ -235,5 +235,24 @@
 
 ---
 
+## ADR-013 — Configuration PyO3 Python sur macOS via PYO3_PYTHON
+
+**Date :** 2026-03-06
+**Statut :** Accepté
+
+**Contexte :** Sur macOS, le Python system (CommandLineTools 3.9) provoque un échec de link PyO3 (`library 'python3.9' not found`) car le chemin framework est incorrect. Sur Linux, aucun problème.
+
+**Décision :** Utiliser `PYO3_PYTHON` pour pointer vers un Python Homebrew (3.12+) sur macOS. Pas de forçage dans `.cargo/config.toml` (trop machine-spécifique).
+
+**Alternatives considérées :** Forcer dans .cargo/config.toml (rejetée : chemin varie par machine), exiger Xcode.app (rejetée : 12+ GB disproportionné), attendre fix PyO3 (rejetée : pas un bug PyO3).
+
+**Conséquences :** Étape setup supplémentaire pour contributeurs macOS. Zéro impact Linux/CI. Compatible Principe #2 (dépendance dev uniquement, pas production).
+
+**Principes impactés :** Principe #2 — Zéro dépendance externe (non violé : dépendance dev)
+
+[Détail → docs/adr/ADR-013-pyo3-python-config-macos.md](adr/ADR-013-pyo3-python-config-macos.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

@@ -9,3 +9,5 @@
 //! - `bridge` — async Rust→Python calls via pyo3-async-runtimes (STORY-026)
 //! - `context` — `RuntimeContext` injected into agent `run()` calls (STORY-027, STORY-028)
 //! - `wrapper` — `AIPWrapper` for non-native agents (LangGraph, CrewAI) (STORY-025)
+
+pub mod loader;

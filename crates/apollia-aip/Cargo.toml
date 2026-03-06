@@ -17,3 +17,6 @@ tracing        = { workspace = true }
 uuid           = { workspace = true }
 pyo3                = { workspace = true }
 pyo3-async-runtimes = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
