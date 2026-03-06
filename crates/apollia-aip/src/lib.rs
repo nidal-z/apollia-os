@@ -11,5 +11,7 @@
 //! - `wrapper` — `AIPWrapper` for non-native agents (LangGraph, CrewAI) (STORY-025)
 
 pub mod bridge;
+#[allow(clippy::useless_conversion)]
+pub mod context;
 pub mod loader;
 pub mod validator;

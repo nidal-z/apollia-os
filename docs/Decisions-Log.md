@@ -273,5 +273,24 @@
 
 ---
 
+## ADR-015 — Trait ToolExecutor pour abstraire l'execution des outils
+
+**Date :** 2026-03-06
+**Statut :** Accepte
+
+**Contexte :** STORY-027 (ToolProxy) necessite un point d'entree unifie pour executer les outils par nom, mais `ToolRegistryHandle` est un catalogue pur (register/get/list) sans methode d'execution.
+
+**Decision :** Introduire un trait `ToolExecutor` (Send+Sync) avec `execute(tool_name, input) -> Result<Value, String>`. `ToolProxy` detient un `Arc<dyn ToolExecutor>`.
+
+**Alternatives considerees :** Ajouter execute() a ToolRegistryHandle (rejetee : couple catalogue et execution, modifie Sprint 2), Execution hardcodee dans ToolProxy (rejetee : impossible a tester unitairement)
+
+**Consequences :** Tests unitaires sans Python ni outils reels. Champ `executor` ajoute au struct ToolProxy par rapport a la spec initiale. Le NativeToolExecutor concret sera implemente dans une story ulterieure.
+
+**Principes impactes :** Principe #5 — Un acteur, une responsabilite (respecte)
+
+[Detail -> docs/adr/ADR-015-tool-executor-trait-abstraction.md](adr/ADR-015-tool-executor-trait-abstraction.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

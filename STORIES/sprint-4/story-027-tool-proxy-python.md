@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-aip/src/context.rs`
 **Taille :** M (3h)
 **Depend de :** STORY-026 (bridge async PyO3), apollia-tools Sprint 2 (STORY-010 a STORY-016 toutes livrees)
-**Statut :** A faire
+**Statut :** Done
 
 ---
 
@@ -210,15 +210,16 @@ mod tests {
 
 ## Definition of Done
 
-- [ ] `ToolProxy` expose via `#[pyclass]` avec `call()`, `list_tools()`, `tool_call_count()`
-- [ ] `ToolProxyError` avec `thiserror` (3 variantes)
-- [ ] Conversion PyObject <-> serde_json::Value fonctionnelle
-- [ ] AuditTrail enregistre chaque appel
-- [ ] 6 tests passent (`cargo test -p apollia-aip`)
-- [ ] Zero `unwrap()` en production
-- [ ] Zero `todo!()` avant commit
-- [ ] Docstring `///` sur chaque struct, enum, fn publique
-- [ ] `cargo clippy -p apollia-aip` sans warning
+- [x] `ToolProxy` expose via `#[pyclass]` avec `call()`, `list_tools()`, `tool_call_count()`
+- [x] `ToolProxyError` avec `thiserror` (3 variantes)
+- [x] Conversion PyObject <-> serde_json::Value fonctionnelle (via json roundtrip, comme bridge.rs)
+- [x] AuditTrail enregistre chaque appel
+- [x] 6 tests passent (`cargo test -p apollia-aip`) — 23 total
+- [x] Zero `unwrap()` en production
+- [x] Zero `todo!()` avant commit
+- [x] Docstring `///` sur chaque struct, enum, fn publique
+- [x] `cargo clippy -p apollia-aip` sans warning
+- [x] ADR-015 : trait ToolExecutor pour abstraire l'execution (deviation spec)
 
 ## Ce que cette story N'implemente PAS
 

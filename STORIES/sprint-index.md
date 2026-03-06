@@ -85,7 +85,7 @@
 | STORY-024 | Chargement module Python via PyO3 | L | ✅ |
 | STORY-025 | Validation AIP duck typing (manifest + run async) | M | ✅ |
 | STORY-026 | Bridge Tokio ↔ asyncio via pyo3-async-runtimes | L | ✅ |
-| STORY-027 | ToolProxy Python → outils Rust | M | 🔲 |
+| STORY-027 | ToolProxy Python → outils Rust | M | ✅ |
 | STORY-028 | MemoryInterface Python → apollia-memory | M | 🔲 |
 | STORY-029 | Observer + ContextBundle + classify() | M | 🔲 |
 | STORY-030 | ORIA Mode Direct + StepBudget enforcement | L | 🔲 |
