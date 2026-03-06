@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-oria/src/budget.rs`, `crates/apollia-oria/src/engine.rs`
 **Taille :** L (6h)
 **Depend de :** STORY-026 (AIPBridge call_run) ✅, STORY-027 (ToolProxy) ✅, STORY-028 (MemoryInterface) ✅, STORY-029 (Observer classify/ContextBundle) ✅
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminée
 
 ---
 
@@ -250,15 +250,16 @@ mod tests {
 
 ## Definition of Done
 
-- [ ] `budget.rs` compile sans warning
-- [ ] `engine.rs` compile sans warning
-- [ ] 8+ tests passent (`cargo test -p apollia-oria`)
-- [ ] Zero `unwrap()` en production
-- [ ] Zero `todo!()` dans le code commite
-- [ ] `thiserror` pour toutes les erreurs
-- [ ] Docstrings `///` sur chaque struct, enum, fn publique
-- [ ] `cargo clippy -p apollia-oria` sans warning
-- [ ] Commit conventionnel : `feat(apollia-oria): implement Mode Direct with StepBudget enforcement`
+- [x] `budget.rs` compile sans warning
+- [x] `engine.rs` compile sans warning
+- [x] 8+ tests passent (`cargo test -p apollia-oria`) — 16 tests passent (7 budget + 3 engine + 6 observer)
+- [x] Zero `unwrap()` en production
+- [x] Zero `todo!()` dans le code commite
+- [x] `thiserror` pour toutes les erreurs
+- [x] Docstrings `///` sur chaque struct, enum, fn publique
+- [x] `cargo clippy -p apollia-oria` sans warning
+- [x] Commit conventionnel : `feat(apollia-oria): implement Mode Direct with StepBudget enforcement`
+- [x] ADR-016 : Trait `AgentRunner` pour testabilite (meme pattern ADR-015)
 
 ## Notes d'implementation
 

@@ -292,5 +292,24 @@
 
 ---
 
+## ADR-016 — Trait AgentRunner pour decoupler ORIAEngine de AIPBridge
+
+**Date :** 2026-03-06
+**Statut :** Accepte
+
+**Contexte :** STORY-030 (ORIAEngine execute_direct) necessite de tester la supervision StepBudget sans Python reel. `AIPBridge` depend de PyO3 et ne peut etre instancie sans interpreteur.
+
+**Decision :** Introduire un trait `AgentRunner` (Send+Sync) avec `call_run(task) -> Pin<Box<dyn Future<...>>>`. `execute_direct()` prend `&dyn AgentRunner` au lieu de `&AIPBridge`.
+
+**Alternatives considerees :** Prendre `&AIPBridge` directement (rejetee : tests impossibles sans Python), fonction libre inner (rejetee : le Future doit etre fourni par le caller)
+
+**Consequences :** Tests unitaires sans Python. Pattern coherent avec ADR-015 (ToolExecutor). Signature diverge legerement de la spec STORY-030 initiale.
+
+**Principes impactes :** Principe #5 — Un acteur, une responsabilite (respecte), Principe #7 — Garde-fous non-negociables (respecte)
+
+[Detail -> docs/adr/ADR-016-agent-runner-trait-abstraction.md](adr/ADR-016-agent-runner-trait-abstraction.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
