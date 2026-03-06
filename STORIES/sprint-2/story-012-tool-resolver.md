@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-tools/src/resolver.rs`
 **Taille :** M
 **Depend de :** STORY-011 (ToolRegistry), STORY-007 ✅ (AgentRegistry)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Livree
 
 ---
 
@@ -288,10 +288,18 @@ mod tests {
 ## Notes d'implementation
 
 **Decisions prises pendant l'implementation :**
+- Ajout de `dangerous_tools_allowed: bool` a `AgentManifest` dans `apollia-core` avec `#[serde(default)]` pour backward compat JSON. Toutes les constructions de `AgentManifest` dans le workspace mises a jour.
+- `resolve()` : fonction libre asynchrone, lecture seule, aucun side-effect sauf `tracing`.
+- AC-4 (outils dangereux optionnels) : degradation en warning, pas d'erreur bloquante.
 
 **Deviations par rapport a la spec :**
+- 8 tests implementes au lieu des 4 du template : +`test_ac4_dangerous_tool_allowed_when_flag_set`, +`test_fail_fast_stops_at_first_missing_required`, +`test_optional_present_and_missing_mix` pour couvrir les branches complementaires.
 
 **Dette technique identifiee :**
+- Le champ `dangerous_tools_allowed` est global pour l'agent. Une granularite par outil (whitelist d'outils dangereux autorises) serait plus fine — roadmap v0.2.
+
+**Fix annexe STORY-014 :**
+- `setup_venv` rendu robuste aux venvs corrompus : si `python_bin` est un lien brise, `python3 -m venv --clear` purge et recrée. Idempotent sur `INITIALIZING` restarts.
 
 ---
 

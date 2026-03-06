@@ -123,6 +123,10 @@ impl PythonExecutor {
 
     /// Creates the virtualenv and installs the declared packages.
     ///
+    /// Idempotent: if the virtualenv already exists and the Python interpreter is present,
+    /// creation is skipped and package installation proceeds normally. This allows agents
+    /// to go through INITIALIZING multiple times without recreating the venv.
+    ///
     /// Must be called at agent `INITIALIZING`. May take time if packages are numerous.
     /// Installing packages at execution time is forbidden by design.
     ///
@@ -131,22 +135,44 @@ impl PythonExecutor {
     /// - [`PythonExecutorError::VenvCreationFailed`] — `python3 -m venv` failed
     /// - [`PythonExecutorError::PackageInstallFailed`] — `pip install <package>` failed
     pub async fn setup_venv(&self, packages: &[String]) -> Result<(), PythonExecutorError> {
-        tracing::info!(
-            agent_id = %self.agent_id,
-            venv_path = %self.venv_path.display(),
-            "python_executor: creating virtualenv"
-        );
+        // Idempotent: skip creation if the venv interpreter already resolves to a live binary.
+        // `Path::exists()` follows symlinks — returns false for broken symlinks.
+        // This handles INITIALIZING restarts without blowing away installed packages.
+        if self.python_bin.exists() {
+            tracing::info!(
+                agent_id = %self.agent_id,
+                "python_executor: virtualenv already exists, skipping creation"
+            );
+        } else {
+            // `--clear` purges any existing (possibly broken) venv directory before recreating.
+            // This handles stale venvs whose interpreter symlinks point to a removed Python.
+            let venv_args: &[&str] = if self.venv_path.is_dir() {
+                &["-m", "venv", "--clear"]
+            } else {
+                &["-m", "venv"]
+            };
 
-        // Create the virtualenv directory.
-        let venv_output = tokio::process::Command::new("python3")
-            .args(["-m", "venv", self.venv_path.to_str().unwrap_or("")])
-            .output()
-            .await
-            .map_err(|e| PythonExecutorError::VenvCreationFailed(e.to_string()))?;
+            tracing::info!(
+                agent_id = %self.agent_id,
+                venv_path = %self.venv_path.display(),
+                clear = self.venv_path.is_dir(),
+                "python_executor: creating virtualenv"
+            );
 
-        if !venv_output.status.success() {
-            let stderr = String::from_utf8_lossy(&venv_output.stderr).into_owned();
-            return Err(PythonExecutorError::VenvCreationFailed(stderr));
+            let venv_path_str = self.venv_path.to_str().unwrap_or("");
+            let mut cmd_args: Vec<&str> = venv_args.to_vec();
+            cmd_args.push(venv_path_str);
+
+            let venv_output = tokio::process::Command::new("python3")
+                .args(&cmd_args)
+                .output()
+                .await
+                .map_err(|e| PythonExecutorError::VenvCreationFailed(e.to_string()))?;
+
+            if !venv_output.status.success() {
+                let stderr = String::from_utf8_lossy(&venv_output.stderr).into_owned();
+                return Err(PythonExecutorError::VenvCreationFailed(stderr));
+            }
         }
 
         let pip_bin = self.venv_path.join("bin").join("pip");

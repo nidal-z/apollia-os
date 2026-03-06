@@ -16,9 +16,11 @@
 pub mod audit;
 pub mod descriptor;
 pub mod registry;
+pub mod resolver;
 pub mod tools;
 
 pub use audit::{compute_input_hash, AuditTrailError, AuditTrailHandle, ToolInvocationRecord};
 pub use descriptor::{McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind};
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
+pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
 pub use tools::file_io::{FileIo, FileIoError};

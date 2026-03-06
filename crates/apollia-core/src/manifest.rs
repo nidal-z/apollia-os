@@ -33,6 +33,10 @@ pub struct AgentManifest {
     pub step_budget: Option<StepBudgetConfig>,
     /// Liste blanche réseau (None = pas d'accès réseau autorisé).
     pub network_allowlist: Option<Vec<String>>,
+    /// Autorise explicitement l'utilisation d'outils marqués `dangerous=true`.
+    /// `false` par défaut — les outils dangereux sont bloqués sauf opt-in explicite.
+    #[serde(default)]
+    pub dangerous_tools_allowed: bool,
     /// Tags libres pour le routage et la découverte.
     pub tags: Vec<String>,
     /// Compétences déclaratives de l'agent (utilisées pour la carte A2A).
@@ -76,6 +80,7 @@ mod tests {
             max_concurrent_tasks: 1,
             step_budget: None,
             network_allowlist: None,
+            dangerous_tools_allowed: false,
             tags: vec![],
             skills: vec![],
         };
@@ -102,6 +107,7 @@ mod tests {
             max_concurrent_tasks: 1,
             step_budget: None,
             network_allowlist: None,
+            dangerous_tools_allowed: false,
             tags: vec![],
             skills: vec![],
         };

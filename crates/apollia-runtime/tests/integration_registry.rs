@@ -16,6 +16,7 @@ fn make_manifest(name: &str) -> AgentManifest {
         max_concurrent_tasks: 1,
         step_budget: None,
         network_allowlist: None,
+        dangerous_tools_allowed: false,
         tags: vec![],
         skills: vec![],
     }
