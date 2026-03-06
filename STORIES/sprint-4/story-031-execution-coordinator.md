@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-runtime/src/coordinator.rs`
 **Taille :** M (3h)
 **Depend de :** STORY-030 (ORIAEngine execute_direct) ✅, STORY-007 (AgentRegistry) ✅
-**Statut :** 🔲 A faire
+**Statut :** ✅ Termine
 
 ---
 

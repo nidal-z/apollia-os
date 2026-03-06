@@ -8,8 +8,10 @@
 //! - `APIServer` — axum HTTP server on Unix socket + TCP 7771 (STORY-033)
 //! - `Supervisor` — ordered startup + watchdog (STORY-039)
 
+pub mod coordinator;
 pub mod eventbus;
 pub mod registry;
 
+pub use coordinator::{CoordinatorError, ExecutionBackend, ExecutionCoordinator};
 pub use eventbus::{EventBus, EventBusReceiver, EventBusSender};
 pub use registry::{AgentEntry, AgentRegistry, AgentRegistryError, AgentRegistryHandle};

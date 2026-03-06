@@ -89,7 +89,7 @@
 | STORY-028 | MemoryInterface Python → apollia-memory | M | ✅ |
 | STORY-029 | Observer + ContextBundle + classify() | M | ✅ |
 | STORY-030 | ORIA Mode Direct + StepBudget enforcement | L | ✅ |
-| STORY-031 | ExecutionCoordinator + sémaphore concurrence | M | 🔲 |
+| STORY-031 | ExecutionCoordinator + sémaphore concurrence | M | ✅ |
 | STORY-032 | TaskRouter dispatch | M | 🔲 |
 
 [Plan → sprint-4/plan.md](sprint-4/plan.md)
