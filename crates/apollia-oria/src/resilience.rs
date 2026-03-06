@@ -1,14 +1,20 @@
-//! ResilienceLayer — per-tool circuit breaker for production reliability.
+//! ResilienceLayer — per-tool circuit breaker and retry policy for production reliability.
 //!
 //! Each registered tool has its own [`CircuitBreaker`] with three states:
 //! `Closed` (normal), `Open` (rejecting), `HalfOpen` (probing).
 //!
-//! Only [`ErrorClass::Transient`] errors (timeout, rate limit) increment
-//! the failure counter. Permanent errors pass through without affecting
-//! the circuit state.
+//! [`RetryPolicy`] adds exponential backoff with jitter for transient errors,
+//! retrying automatically before counting a failure on the circuit breaker.
+//!
+//! Only [`ErrorClass::Transient`] errors (timeout, rate limit) are retried
+//! and increment the failure counter. Permanent errors pass through without
+//! affecting the circuit state.
 
 use std::collections::HashMap;
+use std::future::Future;
 use std::time::{Duration, Instant};
+
+use rand::Rng;
 
 /// Classification of errors to determine circuit breaker behavior.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -257,6 +263,113 @@ impl ResilienceLayer {
     /// Returns a mutable reference to a circuit breaker by tool name.
     pub fn get_mut(&mut self, tool_name: &str) -> Option<&mut CircuitBreaker> {
         self.circuit_breakers.get_mut(tool_name)
+    }
+
+    /// Executes an operation with retry policy and circuit breaker integration.
+    ///
+    /// 1. Checks the circuit breaker (`pre_check`).
+    /// 2. Runs the operation.
+    /// 3. On success: calls `record_success` and returns `Ok`.
+    /// 4. On failure: classifies the error.
+    ///    - **Transient** and attempts remaining: waits with exponential backoff, retries.
+    ///    - **Transient** and all retries exhausted: calls `record_failure`, returns `Err`.
+    ///    - **Other** (`Permanent`, `BudgetExceeded`, `SandboxViolation`): returns `Err` immediately.
+    pub async fn execute<F, Fut, T>(
+        &mut self,
+        tool_name: &str,
+        retry_policy: &RetryPolicy,
+        error_classifier: impl Fn(&str) -> ErrorClass,
+        operation: F,
+    ) -> Result<T, ResilienceError>
+    where
+        F: Fn() -> Fut,
+        Fut: Future<Output = Result<T, String>>,
+    {
+        self.pre_check(tool_name)?;
+
+        for attempt in 1..=retry_policy.max_attempts {
+            match operation().await {
+                Ok(value) => {
+                    let _ = self.record_success(tool_name);
+                    return Ok(value);
+                }
+                Err(err_msg) => {
+                    let error_class = error_classifier(&err_msg);
+
+                    if error_class != ErrorClass::Transient {
+                        return Err(ResilienceError::ExecutionFailed(err_msg));
+                    }
+
+                    if attempt < retry_policy.max_attempts {
+                        let delay = retry_policy.calculate_delay(attempt);
+                        tracing::warn!(
+                            tool = %tool_name,
+                            attempt = attempt,
+                            max_attempts = retry_policy.max_attempts,
+                            delay_ms = delay.as_millis() as u64,
+                            "transient error, retrying after backoff"
+                        );
+                        tokio::time::sleep(delay).await;
+                    } else {
+                        let _ = self.record_failure(tool_name, &ErrorClass::Transient);
+                        return Err(ResilienceError::ExecutionFailed(err_msg));
+                    }
+                }
+            }
+        }
+
+        unreachable!("loop always returns")
+    }
+}
+
+/// Retry policy with exponential backoff and optional jitter.
+///
+/// Computes delays as `min(base_delay * 2^(attempt-1), max_delay)` with
+/// an optional random jitter of +/- 25% to desynchronize concurrent retries.
+#[derive(Debug, Clone)]
+pub struct RetryPolicy {
+    /// Maximum number of attempts (including the initial call).
+    pub max_attempts: u32,
+    /// Base delay for the first retry (in milliseconds).
+    pub base_delay_ms: u64,
+    /// Maximum delay cap for exponential backoff (in milliseconds).
+    pub max_delay_ms: u64,
+    /// Whether to add random jitter (+/- 25%) to the computed delay.
+    pub jitter: bool,
+}
+
+impl Default for RetryPolicy {
+    fn default() -> Self {
+        Self {
+            max_attempts: 3,
+            base_delay_ms: 500,
+            max_delay_ms: 10_000,
+            jitter: true,
+        }
+    }
+}
+
+impl RetryPolicy {
+    /// Calculates the delay for a given attempt number (1-indexed).
+    ///
+    /// Formula: `min(base_delay_ms * 2^(attempt - 1), max_delay_ms)`,
+    /// with optional jitter of +/- 25%.
+    pub fn calculate_delay(&self, attempt: u32) -> Duration {
+        let exponent = attempt.saturating_sub(1);
+        let multiplier = 1u64.checked_shl(exponent).unwrap_or(u64::MAX);
+        let raw_delay = self.base_delay_ms.saturating_mul(multiplier);
+        let capped = raw_delay.min(self.max_delay_ms);
+
+        let final_delay = if self.jitter {
+            let mut rng = rand::thread_rng();
+            let jitter_factor: f64 = rng.gen_range(0.75..=1.25);
+            let jittered = (capped as f64 * jitter_factor) as u64;
+            jittered.min(self.max_delay_ms)
+        } else {
+            capped
+        };
+
+        Duration::from_millis(final_delay)
     }
 }
 
@@ -537,5 +650,213 @@ mod tests {
             result.unwrap_err(),
             ResilienceError::UnknownTool(_)
         ));
+    }
+
+    // --- RetryPolicy tests ---
+
+    // AC-1 — Exponential backoff delays
+    #[test]
+    fn test_calculate_delay_exponential() {
+        // GIVEN RetryPolicy with base_delay=500, jitter=false
+        let policy = RetryPolicy {
+            max_attempts: 5,
+            base_delay_ms: 500,
+            max_delay_ms: 100_000,
+            jitter: false,
+        };
+
+        // WHEN calculate_delay for attempts 1, 2, 3
+        // THEN 500ms, 1000ms, 2000ms
+        assert_eq!(policy.calculate_delay(1), Duration::from_millis(500));
+        assert_eq!(policy.calculate_delay(2), Duration::from_millis(1000));
+        assert_eq!(policy.calculate_delay(3), Duration::from_millis(2000));
+    }
+
+    // AC-6 — Max delay caps the backoff
+    #[test]
+    fn test_calculate_delay_capped_at_max() {
+        // GIVEN RetryPolicy with base_delay=500, max_delay=2000
+        let policy = RetryPolicy {
+            max_attempts: 10,
+            base_delay_ms: 500,
+            max_delay_ms: 2000,
+            jitter: false,
+        };
+
+        // WHEN calculate_delay for attempt 10
+        let delay = policy.calculate_delay(10);
+
+        // THEN <= 2000ms
+        assert!(delay <= Duration::from_millis(2000));
+        assert_eq!(delay, Duration::from_millis(2000));
+    }
+
+    // AC-2 — Jitter adds randomness
+    #[test]
+    fn test_calculate_delay_with_jitter() {
+        // GIVEN RetryPolicy with jitter=true
+        let policy = RetryPolicy {
+            max_attempts: 3,
+            base_delay_ms: 1000,
+            max_delay_ms: 100_000,
+            jitter: true,
+        };
+
+        // WHEN calculate_delay called 20 times for attempt 1
+        let delays: Vec<Duration> = (0..20).map(|_| policy.calculate_delay(1)).collect();
+
+        // THEN not all values are identical (jitter introduces variation)
+        let first = delays[0];
+        let has_variation = delays.iter().any(|d| *d != first);
+        assert!(has_variation, "jitter should produce varying delays");
+
+        // AND all values are within +/- 25% of base (750..=1250)
+        for d in &delays {
+            let ms = d.as_millis() as u64;
+            assert!(ms >= 750, "delay {ms}ms below jitter floor 750ms");
+            assert!(ms <= 1250, "delay {ms}ms above jitter ceiling 1250ms");
+        }
+    }
+
+    // Default values
+    #[test]
+    fn test_default_retry_policy() {
+        // GIVEN RetryPolicy::default()
+        let policy = RetryPolicy::default();
+
+        // THEN expected defaults
+        assert_eq!(policy.max_attempts, 3);
+        assert_eq!(policy.base_delay_ms, 500);
+        assert_eq!(policy.max_delay_ms, 10_000);
+        assert!(policy.jitter);
+    }
+
+    // --- execute() tests ---
+
+    fn transient_classifier(err: &str) -> ErrorClass {
+        if err.contains("permanent") {
+            ErrorClass::Permanent
+        } else {
+            ErrorClass::Transient
+        }
+    }
+
+    fn fast_retry_policy(max_attempts: u32) -> RetryPolicy {
+        RetryPolicy {
+            max_attempts,
+            base_delay_ms: 1,
+            max_delay_ms: 5,
+            jitter: false,
+        }
+    }
+
+    // AC-4 (partial) — Success on first try, no retry needed
+    #[tokio::test]
+    async fn test_execute_success_no_retry() {
+        // GIVEN an operation that succeeds
+        let mut layer = make_layer(5);
+        layer.register_tool("t");
+        let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        // WHEN execute()
+        let result = layer
+            .execute("t", &fast_retry_policy(3), transient_classifier, || {
+                let cc = cc.clone();
+                async move {
+                    cc.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    Ok::<_, String>(42)
+                }
+            })
+            .await;
+
+        // THEN Ok returned, operation called once
+        assert_eq!(result.unwrap(), 42);
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    // AC-4 — Transient failures then success
+    #[tokio::test]
+    async fn test_execute_transient_then_success() {
+        // GIVEN an operation that fails 2 times (Transient) then succeeds
+        let mut layer = make_layer(5);
+        layer.register_tool("t");
+        let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        // WHEN execute() with max_attempts=3
+        let result = layer
+            .execute("t", &fast_retry_policy(3), transient_classifier, || {
+                let cc = cc.clone();
+                async move {
+                    let n = cc.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    if n < 2 {
+                        Err("transient timeout".to_string())
+                    } else {
+                        Ok(99)
+                    }
+                }
+            })
+            .await;
+
+        // THEN Ok returned after 3 calls
+        assert_eq!(result.unwrap(), 99);
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 3);
+        // AND circuit breaker is healthy (success recorded)
+        assert_eq!(layer.get("t").unwrap().failure_count(), 0);
+    }
+
+    // AC-3 — Permanent error returns immediately, no retry
+    #[tokio::test]
+    async fn test_execute_permanent_no_retry() {
+        // GIVEN an operation that fails with Permanent
+        let mut layer = make_layer(5);
+        layer.register_tool("t");
+        let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        // WHEN execute()
+        let result: Result<i32, _> = layer
+            .execute("t", &fast_retry_policy(3), transient_classifier, || {
+                let cc = cc.clone();
+                async move {
+                    cc.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    Err("permanent error".to_string())
+                }
+            })
+            .await;
+
+        // THEN Err returned after 1 call (no retry)
+        assert!(result.is_err());
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+        // AND circuit breaker not affected
+        assert_eq!(layer.get("t").unwrap().failure_count(), 0);
+    }
+
+    // AC-5 — All retries exhausted, failure recorded on circuit breaker
+    #[tokio::test]
+    async fn test_execute_all_retries_exhausted() {
+        // GIVEN an operation that always fails (Transient), max_attempts=3
+        let mut layer = make_layer(5);
+        layer.register_tool("t");
+        let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        // WHEN execute()
+        let result: Result<i32, _> = layer
+            .execute("t", &fast_retry_policy(3), transient_classifier, || {
+                let cc = cc.clone();
+                async move {
+                    cc.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    Err("transient timeout".to_string())
+                }
+            })
+            .await;
+
+        // THEN Err returned after 3 calls
+        assert!(result.is_err());
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 3);
+        // AND record_failure was called on circuit breaker
+        assert_eq!(layer.get("t").unwrap().failure_count(), 1);
     }
 }

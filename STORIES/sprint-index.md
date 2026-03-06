@@ -124,7 +124,7 @@
 | ID | Story | Taille | Statut |
 |---|---|---|---|
 | STORY-041 | ResilienceLayer circuit breaker par outil | L | ✅ |
-| STORY-042 | Retry policy avec backoff exponentiel + jitter | M | 🔲 |
+| STORY-042 | Retry policy avec backoff exponentiel + jitter | M | ✅ |
 | STORY-043 | ORIA Mode Orchestré + Reasoner LLM | XL | 🚫 Reportée Sprint 7 |
 | STORY-044 | Agent devis-generator complet | L | 🔲 |
 | STORY-045 | Tests d'intégration end-to-end | L | 🔲 |

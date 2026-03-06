@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-oria/src/resilience.rs` (extension de STORY-041)
 **Taille :** M
 **Depend de :** STORY-041 (ResilienceLayer)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminee
 
 ---
 
