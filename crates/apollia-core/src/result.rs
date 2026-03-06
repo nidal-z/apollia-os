@@ -31,14 +31,18 @@ pub enum TaskStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AIPResult {
     /// Identifiant de la tâche correspondante.
+    #[serde(default)]
     pub task_id: String,
     /// Statut final de la tâche.
     pub status: TaskStatus,
     /// Parties de la réponse produite par l'agent.
+    #[serde(default)]
     pub output: Vec<AIPPart>,
     /// Erreur structurée si `status == Failed`.
+    #[serde(default)]
     pub error: Option<AIPError>,
     /// Artefacts produits par la tâche (fichiers générés, rapports, etc.).
+    #[serde(default)]
     pub artifacts: Vec<AIPArtifact>,
 }
 

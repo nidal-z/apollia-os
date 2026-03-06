@@ -52,10 +52,7 @@ pub enum AIPLoaderError {
 /// - [`AIPLoaderError::NoAgentFound`] if the module has no `agent` attribute
 pub fn load_agent_module(path: &Path) -> Result<Py<PyAny>, AIPLoaderError> {
     // 1. Validate .py extension
-    let extension = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
+    let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     if extension != "py" {
         return Err(AIPLoaderError::InvalidPath(path.display().to_string()));
     }
@@ -66,9 +63,8 @@ pub fn load_agent_module(path: &Path) -> Result<Py<PyAny>, AIPLoaderError> {
     }
 
     // 3. Read file contents
-    let code = std::fs::read_to_string(path).map_err(|e| {
-        AIPLoaderError::FileNotFound(format!("{}: {e}", path.display()))
-    })?;
+    let code = std::fs::read_to_string(path)
+        .map_err(|e| AIPLoaderError::FileNotFound(format!("{}: {e}", path.display())))?;
 
     // 4. Derive module and file names
     let module_name = path
@@ -84,12 +80,12 @@ pub fn load_agent_module(path: &Path) -> Result<Py<PyAny>, AIPLoaderError> {
     Python::with_gil(|py| {
         // Add parent directory to sys.path
         let parent = path.parent().unwrap_or(Path::new("."));
-        let sys = py.import_bound("sys").map_err(|e| {
-            AIPLoaderError::PythonError(format!("failed to import sys: {e}"))
-        })?;
-        let sys_path = sys.getattr("path").map_err(|e| {
-            AIPLoaderError::PythonError(format!("failed to get sys.path: {e}"))
-        })?;
+        let sys = py
+            .import_bound("sys")
+            .map_err(|e| AIPLoaderError::PythonError(format!("failed to import sys: {e}")))?;
+        let sys_path = sys
+            .getattr("path")
+            .map_err(|e| AIPLoaderError::PythonError(format!("failed to get sys.path: {e}")))?;
         sys_path
             .call_method1("insert", (0, parent.to_string_lossy().as_ref()))
             .map_err(|e| {
@@ -97,13 +93,12 @@ pub fn load_agent_module(path: &Path) -> Result<Py<PyAny>, AIPLoaderError> {
             })?;
 
         // Execute the module code
-        let module =
-            PyModule::from_code_bound(py, &code, file_name, module_name).map_err(|e| {
-                AIPLoaderError::ImportFailed {
-                    module: module_name.to_owned(),
-                    reason: e.to_string(),
-                }
-            })?;
+        let module = PyModule::from_code_bound(py, &code, file_name, module_name).map_err(|e| {
+            AIPLoaderError::ImportFailed {
+                module: module_name.to_owned(),
+                reason: e.to_string(),
+            }
+        })?;
 
         // Extract the 'agent' attribute
         let agent = module

@@ -6,7 +6,7 @@
 **Fichier(s) cible(s) :** `crates/apollia-aip/src/bridge.rs`, `crates/apollia-aip/src/lib.rs`
 **Taille :** L (6h)
 **Depend de :** STORY-024 (chargement module Python), STORY-025 (validation AIP)
-**Statut :** 🔲 A faire
+**Statut :** ✅ Terminé
 
 ---
 
@@ -519,3 +519,4 @@ agent = A()
 - Spec AIP Bridge : `docs/Briques-AIP-Bridge.md` (si disponible)
 - AIPTask / AIPResult : `crates/apollia-core/src/aip.rs`
 - Principe #6 (Memoire a initiative de l'agent) : `docs/Architecture-Principes.md`
+- ADR associe : ADR-014 (spawn_blocking + asyncio.run() au lieu de into_future)

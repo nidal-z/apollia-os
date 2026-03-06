@@ -10,5 +10,6 @@
 //! - `context` — `RuntimeContext` injected into agent `run()` calls (STORY-027, STORY-028)
 //! - `wrapper` — `AIPWrapper` for non-native agents (LangGraph, CrewAI) (STORY-025)
 
+pub mod bridge;
 pub mod loader;
 pub mod validator;

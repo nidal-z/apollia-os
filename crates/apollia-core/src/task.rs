@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Contient tout le contexte nécessaire à l'agent pour traiter la demande :
 /// identifiant, entrée multi-modale, historique de conversation, et timeout.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AIPTask {
     /// Identifiant unique de la tâche (UUID v4 généré par le runtime).
     pub task_id: String,
@@ -19,7 +19,7 @@ pub struct AIPTask {
 }
 
 /// Entrée multi-modale d'une tâche AIP.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AIPInput {
     /// Parties constitutives de l'entrée (texte, fichiers, données structurées).
     pub parts: Vec<AIPPart>,

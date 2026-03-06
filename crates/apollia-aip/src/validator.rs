@@ -145,10 +145,7 @@ mod tests {
         Python::with_gil(|py| {
             let module = PyModule::from_code_bound(py, code, "test_agent.py", "test_agent")
                 .expect("failed to create test module");
-            module
-                .getattr("agent")
-                .expect("failed to get agent")
-                .into()
+            module.getattr("agent").expect("failed to get agent").into()
         })
     }
 
@@ -191,8 +188,7 @@ agent = TestAgent()
     #[test]
     fn test_validate_missing_manifest() {
         // GIVEN a Python agent without manifest()
-        let agent =
-            create_py_agent("class A:\n    async def run(self, t, c): pass\nagent = A()\n");
+        let agent = create_py_agent("class A:\n    async def run(self, t, c): pass\nagent = A()\n");
 
         // WHEN we validate
         let result = validate_agent(&agent);

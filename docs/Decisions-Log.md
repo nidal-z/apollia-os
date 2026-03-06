@@ -254,5 +254,24 @@
 
 ---
 
+## ADR-014 — Bridge AIP utilise spawn_blocking + asyncio.run()
+
+**Date :** 2026-03-06
+**Statut :** Accepté
+
+**Contexte :** STORY-026 specifie `pyo3_async_runtimes::tokio::into_future` pour convertir les coroutines Python en Futures Rust. En pratique, `into_future` necessite un event loop asyncio actif en arriere-plan et un custom test harness, complexite disproportionnee pour Sprint 4.
+
+**Decision :** Utiliser `tokio::task::spawn_blocking` + `asyncio.run()` pour executer les coroutines Python. Le GIL est tenu uniquement sur le blocking thread pool, jamais sur les workers Tokio.
+
+**Alternatives considerees :** `into_future` + custom test harness (rejetee : complexite), `asyncio.run()` synchrone sans `spawn_blocking` (rejetee : bloque le worker Tokio)
+
+**Consequences :** Tests compatibles `#[tokio::test]` standard, zero initialisation globale. Un thread blocking par appel agent concurrent. Migration vers `into_future` possible quand le runtime initialisera l'event loop asyncio.
+
+**Principes impactes :** Principe #5 — Un acteur, une responsabilite (respecte)
+
+[Détail → docs/adr/ADR-014-bridge-spawn-blocking-asyncio-run.md](adr/ADR-014-bridge-spawn-blocking-asyncio-run.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
