@@ -732,6 +732,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_submit_by_manifest_name_dispatches_task() {
+        // GIVEN un agent enregistre avec manifest.name = "hello-agent" en etat Active
+        let (router, registry, _rx) = setup_test_env().await;
+        let agent_id =
+            register_agent_in_state(&registry, "hello-agent", ProcessState::Active).await;
+
+        // ET un coordinateur enregistre pour cet agent (par UUID)
+        let (event_tx, _) = broadcast::channel(64);
+        let coordinator =
+            ExecutionCoordinator::new(agent_id.clone(), 1, event_tx, MockBackend::success());
+        router
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+            .expect("register coordinator failed");
+
+        // WHEN router.submit("hello-agent", input) est appele (par nom, pas par UUID)
+        let result = router.submit("hello-agent", AIPInput::default()).await;
+
+        // THEN un TaskId valide est retourne (pas AgentNotFound)
+        assert!(
+            result.is_ok(),
+            "submit by manifest name should succeed, got: {result:?}"
+        );
+        let task_id = result.unwrap();
+        assert!(
+            uuid::Uuid::parse_str(task_id.as_str()).is_ok(),
+            "task_id should be a valid UUID"
+        );
+    }
+
+    #[tokio::test]
     async fn test_task_status_transitions_to_failed_via_eventbus() {
         // GIVEN un agent actif avec un coordinateur FailingMockBackend
         let (event_tx, _event_rx) = broadcast::channel::<RuntimeEvent>(64);

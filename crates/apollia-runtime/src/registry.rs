@@ -481,4 +481,53 @@ mod tests {
             AgentRegistryError::NotFound(_)
         ));
     }
+
+    #[tokio::test]
+    async fn test_find_by_name_returns_uuid_after_register() {
+        // GIVEN un agent enregistre avec manifest.name = "hello-agent"
+        let (bus_tx, _) = broadcast::channel(16);
+        let handle = AgentRegistry::spawn(bus_tx);
+        let registered_id = handle.register(test_manifest("hello-agent")).await.unwrap();
+
+        // WHEN registry.find_by_name("hello-agent") est appele
+        let result = handle.find_by_name("hello-agent").await;
+
+        // THEN Some(agent_uuid) est retourne
+        assert!(result.is_ok());
+        let found = result.unwrap();
+        assert_eq!(found, Some(registered_id));
+    }
+
+    #[tokio::test]
+    async fn test_find_by_name_unknown_name_returns_none() {
+        // GIVEN aucun agent avec manifest.name = "fantome"
+        let (bus_tx, _) = broadcast::channel(16);
+        let handle = AgentRegistry::spawn(bus_tx);
+
+        // WHEN registry.find_by_name("fantome") est appele
+        let result = handle.find_by_name("fantome").await;
+
+        // THEN None est retourne
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn test_find_by_name_cleared_after_unregister() {
+        // GIVEN un agent "hello-agent" enregistre
+        let (bus_tx, _) = broadcast::channel(16);
+        let handle = AgentRegistry::spawn(bus_tx);
+        let agent_id = handle.register(test_manifest("hello-agent")).await.unwrap();
+
+        // Verifie que le nom est indexe avant unregister
+        let before = handle.find_by_name("hello-agent").await.unwrap();
+        assert_eq!(before, Some(agent_id.clone()));
+
+        // WHEN l'agent est retire via unregister
+        handle.unregister(agent_id.as_str()).await.unwrap();
+
+        // THEN find_by_name("hello-agent") retourne None
+        let after = handle.find_by_name("hello-agent").await.unwrap();
+        assert_eq!(after, None);
+    }
 }

@@ -17,6 +17,7 @@ apollia-tools   = { workspace = true }
 tokio           = { workspace = true }
 tracing         = { workspace = true }
 uuid            = { workspace = true }
+serde_json      = { workspace = true }
 
 # Optional: only when python-tests feature is enabled
 apollia-aip = { workspace = true, optional = true }
@@ -38,6 +39,10 @@ path = "integration/test_shutdown_e2e.rs"
 [[test]]
 name = "test_budget_e2e"
 path = "integration/test_budget_e2e.rs"
+
+[[test]]
+name = "test_runtime_chain"
+path = "integration/test_runtime_chain.rs"
 
 [[test]]
 name = "test_hello_agent"
