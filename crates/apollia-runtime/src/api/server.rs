@@ -29,10 +29,7 @@ use crate::router::TaskRouterHandle;
 ///
 /// Contains handles to the runtime actors. Passed to axum via `with_state()`.
 /// Routes extract it with `State<AppState<B>>`.
-///
-/// Manual `Clone` impl avoids requiring `B: Clone` — the handles are
-/// Clone-independent of the backend type parameter.
-pub struct AppState<B: ExecutionBackend> {
+pub struct AppState<B: ExecutionBackend + Clone> {
     /// Handle to the task router actor.
     pub router_handle: TaskRouterHandle<B>,
     /// Handle to the agent registry actor.
@@ -41,15 +38,18 @@ pub struct AppState<B: ExecutionBackend> {
     pub event_sender: EventBusSender,
     /// Agent loader for Python module loading (ADR-019).
     pub agent_loader: Arc<dyn AgentLoader>,
+    /// Execution backend — cloned per coordinator on agent start.
+    pub backend: B,
 }
 
-impl<B: ExecutionBackend> Clone for AppState<B> {
+impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
     fn clone(&self) -> Self {
         Self {
             router_handle: self.router_handle.clone(),
             registry_handle: self.registry_handle.clone(),
             event_sender: self.event_sender.clone(),
             agent_loader: Arc::clone(&self.agent_loader),
+            backend: self.backend.clone(),
         }
     }
 }
@@ -136,7 +136,7 @@ async fn health_handler() -> Json<HealthResponse> {
 /// Emits [`RuntimeEvent::ShutdownRequested`] on the EventBus. The caller
 /// (typically `apollia-os start`) listens for this event to trigger
 /// graceful shutdown (ADR-018).
-async fn shutdown_handler<B: ExecutionBackend>(
+async fn shutdown_handler<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Json<ShutdownResponse> {
     info!("Shutdown requested via API");
@@ -149,7 +149,7 @@ async fn shutdown_handler<B: ExecutionBackend>(
 }
 
 /// Build the axum Router with all routes and shared state.
-fn build_router<B: ExecutionBackend>(state: AppState<B>) -> Router {
+fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use super::routes_sse::stream_task;
     use super::routes_tasks::{cancel_task, get_task, submit_task};
@@ -176,7 +176,7 @@ fn build_router<B: ExecutionBackend>(state: AppState<B>) -> Router {
 
 impl APIServer {
     /// Create a new APIServer with the given config and application state.
-    pub fn new<B: ExecutionBackend>(config: APIServerConfig, state: AppState<B>) -> Self {
+    pub fn new<B: ExecutionBackend + Clone>(config: APIServerConfig, state: AppState<B>) -> Self {
         let router = build_router(state);
         Self { config, router }
     }
@@ -333,6 +333,7 @@ mod tests {
             registry_handle,
             event_sender: event_tx,
             agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: MockBackend,
         }
     }
 

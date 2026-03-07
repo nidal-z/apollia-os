@@ -138,6 +138,7 @@ async fn test_shutdown_drains_active_tasks() {
         registry_handle: registry.clone(),
         event_sender: event_sender.clone(),
         agent_loader: std::sync::Arc::new(StubAgentLoader),
+        backend: MockBackend::slow(Duration::from_millis(300)),
     };
     let api = APIServer::new(APIServerConfig { socket_path: socket_path.clone(), tcp_port: port }, state);
     let api_handle = api.start().await.unwrap();
@@ -188,6 +189,7 @@ async fn test_shutdown_stops_all_agents() {
         registry_handle: registry.clone(),
         event_sender: event_sender.clone(),
         agent_loader: std::sync::Arc::new(StubAgentLoader),
+        backend: MockBackend::slow(Duration::ZERO),
     };
     let api = APIServer::new(APIServerConfig { socket_path: socket_path.clone(), tcp_port: port }, state);
     let api_handle = api.start().await.unwrap();
@@ -237,6 +239,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         registry_handle: registry.clone(),
         event_sender: event_sender.clone(),
         agent_loader: std::sync::Arc::new(StubAgentLoader),
+        backend: MockBackend::slow(Duration::ZERO),
     };
     let api = APIServer::new(APIServerConfig { socket_path: socket_path.clone(), tcp_port: port }, state);
     let api_handle = api.start().await.unwrap();
@@ -298,6 +301,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         registry_handle: registry.clone(),
         event_sender: event_sender.clone(),
         agent_loader: std::sync::Arc::new(StubAgentLoader),
+        backend: NeverBackend,
     };
     let api = APIServer::new(APIServerConfig { socket_path: socket_path.clone(), tcp_port: port }, state);
     let api_handle = api.start().await.unwrap();

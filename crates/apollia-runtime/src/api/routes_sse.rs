@@ -106,7 +106,7 @@ fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskE
 /// Returns 404 if the task does not exist in the TaskRouter.
 /// The stream closes after a terminal event (completed/failed/canceled).
 /// Client disconnection drops the subscriber automatically (no leak).
-pub async fn stream_task<B: ExecutionBackend>(
+pub async fn stream_task<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(task_id): Path<String>,
 ) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, impl IntoResponse> {
@@ -268,6 +268,7 @@ mod tests {
             registry_handle,
             event_sender: event_tx,
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: MockBackend,
         };
         Router::new()
             .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))

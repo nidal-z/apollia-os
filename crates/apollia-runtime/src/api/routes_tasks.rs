@@ -70,7 +70,7 @@ fn json_to_aip_input(value: serde_json::Value) -> AIPInput {
 ///
 /// Submits a new task to the specified agent via the TaskRouter.
 /// Returns 202 Accepted with the generated task_id on success.
-pub async fn submit_task<B: ExecutionBackend>(
+pub async fn submit_task<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<SubmitTaskRequest>,
 ) -> Result<(StatusCode, Json<TaskResponse>), (StatusCode, Json<ErrorResponse>)> {
@@ -96,7 +96,7 @@ pub async fn submit_task<B: ExecutionBackend>(
 /// Handler for `GET /api/v1/tasks/{id}`.
 ///
 /// Returns the current status of a task. Returns 404 if the task does not exist.
-pub async fn get_task<B: ExecutionBackend>(
+pub async fn get_task<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(task_id): Path<String>,
 ) -> Result<Json<TaskResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -128,7 +128,7 @@ pub async fn get_task<B: ExecutionBackend>(
 /// Handler for `DELETE /api/v1/tasks/{id}`.
 ///
 /// Cancels a running task. Returns 404 if the task does not exist.
-pub async fn cancel_task<B: ExecutionBackend>(
+pub async fn cancel_task<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(task_id): Path<String>,
 ) -> Result<Json<TaskResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -177,7 +177,7 @@ mod tests {
 
     use crate::coordinator::ExecutionCoordinator;
 
-    /// Minimal ExecutionBackend for testing.
+    /// Minimal ExecutionBackend for testing (completes instantly).
     #[derive(Clone)]
     struct MockBackend;
 
@@ -194,6 +194,22 @@ mod tests {
                     error: None,
                     artifacts: Vec::new(),
                 })
+            })
+        }
+    }
+
+    /// Backend that blocks forever — used for cancel tests to avoid race with TaskCompleted.
+    #[derive(Clone)]
+    struct NeverMockBackend;
+
+    impl ExecutionBackend for NeverMockBackend {
+        fn execute(
+            &self,
+            _task: apollia_core::AIPTask,
+        ) -> Pin<Box<dyn Future<Output = Result<AIPResult, String>> + Send>> {
+            Box::pin(async {
+                std::future::pending::<()>().await;
+                unreachable!()
             })
         }
     }
@@ -228,6 +244,7 @@ mod tests {
             registry_handle,
             event_sender: event_tx,
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: MockBackend,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -268,12 +285,54 @@ mod tests {
             registry_handle,
             event_sender: event_tx,
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: MockBackend,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
             .route(
                 "/api/v1/tasks/:id",
                 get(get_task::<MockBackend>).delete(cancel_task::<MockBackend>),
+            )
+            .with_state(state);
+
+        (router, agent_id.to_string())
+    }
+
+    /// Build a test environment with a never-completing backend — for cancel tests.
+    async fn test_router_with_blocking_agent() -> (Router, String) {
+        let (event_tx, _) = broadcast::channel::<RuntimeEvent>(64);
+        let registry_handle = AgentRegistry::spawn(event_tx.clone());
+        let router_handle: TaskRouterHandle<NeverMockBackend> =
+            TaskRouterHandle::spawn(registry_handle.clone(), event_tx.clone(), 64);
+
+        let agent_id = registry_handle
+            .register(test_manifest("blocking-agent"))
+            .await
+            .expect("register failed");
+        registry_handle
+            .update_state(agent_id.as_str(), ProcessState::Active)
+            .await
+            .expect("activate failed");
+
+        let coordinator =
+            ExecutionCoordinator::new(agent_id.clone(), 1, event_tx.clone(), NeverMockBackend);
+        router_handle
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+            .expect("register coordinator failed");
+
+        let state = AppState {
+            router_handle,
+            registry_handle,
+            event_sender: event_tx,
+            agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: NeverMockBackend,
+        };
+        let router = Router::new()
+            .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
+            .route(
+                "/api/v1/tasks/:id",
+                get(get_task::<NeverMockBackend>).delete(cancel_task::<NeverMockBackend>),
             )
             .with_state(state);
 
@@ -415,8 +474,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_cancel_task_returns_200() {
-        // GIVEN une tache soumise
-        let (router, agent_id) = test_router_with_agent().await;
+        // GIVEN une tache soumise sur un backend bloquant (jamais termine)
+        // Utilise NeverMockBackend pour eviter la race condition entre TaskCompleted et Cancel
+        let (router, agent_id) = test_router_with_blocking_agent().await;
 
         // Submit a task first
         let body = serde_json::json!({

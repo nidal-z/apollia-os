@@ -55,6 +55,10 @@ enum RegistryMessage {
         id: AgentId,
         reply: oneshot::Sender<Option<AgentEntry>>,
     },
+    FindByName {
+        name: String,
+        reply: oneshot::Sender<Option<AgentId>>,
+    },
     ListAgents {
         reply: oneshot::Sender<Vec<AgentEntry>>,
     },
@@ -67,6 +71,8 @@ enum RegistryMessage {
 /// La construction se fait uniquement via [`AgentRegistry::spawn`].
 pub struct AgentRegistry {
     agents: HashMap<AgentId, AgentEntry>,
+    /// Index secondaire : manifest.name → AgentId pour lookup par nom.
+    name_index: HashMap<String, AgentId>,
     bus: EventBusSender,
 }
 
@@ -80,6 +86,7 @@ impl AgentRegistry {
         let (tx, rx) = mpsc::channel(256);
         let registry = Self {
             agents: HashMap::new(),
+            name_index: HashMap::new(),
             bus,
         };
         tokio::spawn(registry.run(rx));
@@ -106,6 +113,10 @@ impl AgentRegistry {
                     let entry = self.agents.get(&id).cloned();
                     let _ = reply.send(entry);
                 }
+                RegistryMessage::FindByName { name, reply } => {
+                    let id = self.name_index.get(&name).cloned();
+                    let _ = reply.send(id);
+                }
                 RegistryMessage::ListAgents { reply } => {
                     let list = self.agents.values().cloned().collect();
                     let _ = reply.send(list);
@@ -121,6 +132,7 @@ impl AgentRegistry {
 
     fn handle_register(&mut self, manifest: AgentManifest) -> Result<AgentId, AgentRegistryError> {
         let id = AgentId::new_v4();
+        self.name_index.insert(manifest.name.clone(), id.clone());
         let entry = AgentEntry {
             id: id.clone(),
             manifest,
@@ -133,9 +145,11 @@ impl AgentRegistry {
     }
 
     fn handle_unregister(&mut self, id: &AgentId) -> Result<(), AgentRegistryError> {
-        if self.agents.remove(id).is_none() {
-            return Err(AgentRegistryError::NotFound(id.clone()));
-        }
+        let entry = self
+            .agents
+            .remove(id)
+            .ok_or_else(|| AgentRegistryError::NotFound(id.clone()))?;
+        self.name_index.remove(&entry.manifest.name);
         let _ = self.bus.send(RuntimeEvent::AgentStopped(id.clone()));
         info!(agent_id = %id, "Agent désenregistré");
         Ok(())
@@ -239,6 +253,19 @@ impl AgentRegistryHandle {
             .await
             .map_err(|_| AgentRegistryError::ActorDead)?;
         reply_rx.await.map_err(|_| AgentRegistryError::ActorDead)?
+    }
+
+    /// Retourne l'AgentId correspondant à un nom de manifest, ou `None`.
+    pub async fn find_by_name(&self, name: &str) -> Result<Option<AgentId>, AgentRegistryError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(RegistryMessage::FindByName {
+                name: name.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| AgentRegistryError::ActorDead)?;
+        reply_rx.await.map_err(|_| AgentRegistryError::ActorDead)
     }
 
     /// Retourne l'entrée d'un agent ou `None` s'il n'est pas enregistré.

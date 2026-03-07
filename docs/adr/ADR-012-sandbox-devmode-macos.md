@@ -174,4 +174,4 @@ sans sandbox. Un warning à chaque invocation est intentionnellement visible.
 - ADR précédent : ADR-005 (Sandbox sans Docker — décision fondatrice)
 - Story impactée : STORY-013 (bash_executor — implémente `SandboxMode`)
 - Story impactée : STORY-014 (python_executor — même pattern DevMode)
-- Plan sprint 2 : STORIES/sprint-2/plan.md (Risque #1)
+- Plan sprint 2 : docs/internal/STORIES/sprint-2/plan.md (Risque #1)

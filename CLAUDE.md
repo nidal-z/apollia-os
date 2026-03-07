@@ -94,8 +94,8 @@ Ces principes ne peuvent pas être violés sans créer un ADR explicite.
 
 Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
-- **apollia-story** : Créer/affiner une User Story → `STORIES/sprint-N/story-NNN.md`
-- **apollia-sprint** : Planifier/clôturer un sprint → `STORIES/sprint-N/plan.md`
+- **apollia-story** : Créer/affiner une User Story → `docs/internal/STORIES/sprint-N/story-NNN.md`
+- **apollia-sprint** : Planifier/clôturer un sprint → `docs/internal/STORIES/sprint-N/plan.md`
 - **apollia-adr** : Documenter une décision architecturale → `docs/adr/ADR-NNN.md`
 
 ---
@@ -111,15 +111,16 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 | Spec ORIA Engine | `docs/Briques-ORIA-Engine.md` |
 | Spec Runtime Core | `docs/Briques-Runtime-Core.md` |
 | Spec CLI | `docs/Briques-CLI.md` |
-| Stories et sprints | `STORIES/sprint-index.md` |
+| Stories et sprints | `docs/internal/STORIES/sprint-index.md` |
 | Décisions (ADR) | `docs/Decisions-Log.md` |
 
 ---
 
 ## État courant
 
-**Sprint actif :** Sprint 7 — ORIA Orchestré + extensions (à planifier)
+**Sprint actif :** Sprint 7 — Hardening tests + CI verte (4 stories : STORY-047→050)
 **Dernier sprint livré :** Sprint 6 — Hardening + Agent de démo (5/5 stories, 336 tests)
+**MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
 **Dernière décision :** ADR-019 — AgentLoader trait decouplage runtime/PyO3
 
-Pour l'état détaillé : lire `STORIES/sprint-index.md`.
+Pour l'état détaillé : lire `docs/internal/STORIES/sprint-index.md`.

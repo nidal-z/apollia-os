@@ -27,6 +27,10 @@ Thumbs.db
 # Logs
 *.log
 
+# Docs
+docs/internal/STORIES/
+docs/internal/
+
 # Claude
 .claude/
 CLAUDE.md

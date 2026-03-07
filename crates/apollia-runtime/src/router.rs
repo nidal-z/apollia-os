@@ -76,6 +76,8 @@ struct TaskRouter<B: ExecutionBackend> {
     rx: mpsc::Receiver<RouterMessage<B>>,
     registry: AgentRegistryHandle,
     event_bus: EventBusSender,
+    /// Subscription to the EventBus for receiving TaskCompleted/TaskFailed events.
+    event_rx: tokio::sync::broadcast::Receiver<apollia_core::RuntimeEvent>,
     coordinators: HashMap<AgentId, ExecutionCoordinator<B>>,
     task_statuses: HashMap<TaskId, TaskStatus>,
 }
@@ -83,50 +85,62 @@ struct TaskRouter<B: ExecutionBackend> {
 impl<B: ExecutionBackend> TaskRouter<B> {
     /// Boucle principale de l'acteur.
     ///
-    /// Traite les messages jusqu'a reception de Shutdown.
+    /// Traite les messages mpsc ET les evenements EventBus (TaskCompleted/TaskFailed).
     async fn run(mut self) {
+        use apollia_core::RuntimeEvent;
         info!("TaskRouter demarre");
-        while let Some(msg) = self.rx.recv().await {
-            match msg {
-                RouterMessage::Submit {
-                    agent_id,
-                    input,
-                    reply,
-                } => {
-                    let result = self.handle_submit(agent_id, input).await;
-                    let _ = reply.send(result);
+        loop {
+            tokio::select! {
+                msg = self.rx.recv() => {
+                    let Some(msg) = msg else { break };
+                    match msg {
+                        RouterMessage::Submit { agent_id, input, reply } => {
+                            let result = self.handle_submit(agent_id, input).await;
+                            let _ = reply.send(result);
+                        }
+                        RouterMessage::GetStatus { task_id, reply } => {
+                            let status = self.task_statuses.get(&task_id).cloned();
+                            let _ = reply.send(status);
+                        }
+                        RouterMessage::Cancel { task_id, reply } => {
+                            let result = self.handle_cancel(&task_id);
+                            let _ = reply.send(result);
+                        }
+                        RouterMessage::GetActiveTasks { reply } => {
+                            let active: Vec<TaskId> = self
+                                .task_statuses
+                                .iter()
+                                .filter(|(_, s)| {
+                                    matches!(s, TaskStatus::Working | TaskStatus::Submitted)
+                                })
+                                .map(|(id, _)| id.clone())
+                                .collect();
+                            let _ = reply.send(active);
+                        }
+                        RouterMessage::RegisterCoordinator { agent_id, coordinator } => {
+                            info!(agent_id = %agent_id, "Coordinator enregistre");
+                            self.coordinators.insert(agent_id, coordinator);
+                        }
+                        RouterMessage::UnregisterCoordinator { agent_id } => {
+                            info!(agent_id = %agent_id, "Coordinator retire");
+                            self.coordinators.remove(&agent_id);
+                        }
+                        RouterMessage::Shutdown => {
+                            info!("TaskRouter arret demande");
+                            break;
+                        }
+                    }
                 }
-                RouterMessage::GetStatus { task_id, reply } => {
-                    let status = self.task_statuses.get(&task_id).cloned();
-                    let _ = reply.send(status);
-                }
-                RouterMessage::Cancel { task_id, reply } => {
-                    let result = self.handle_cancel(&task_id);
-                    let _ = reply.send(result);
-                }
-                RouterMessage::GetActiveTasks { reply } => {
-                    let active: Vec<TaskId> = self
-                        .task_statuses
-                        .iter()
-                        .filter(|(_, s)| matches!(s, TaskStatus::Working | TaskStatus::Submitted))
-                        .map(|(id, _)| id.clone())
-                        .collect();
-                    let _ = reply.send(active);
-                }
-                RouterMessage::RegisterCoordinator {
-                    agent_id,
-                    coordinator,
-                } => {
-                    info!(agent_id = %agent_id, "Coordinator enregistre");
-                    self.coordinators.insert(agent_id, coordinator);
-                }
-                RouterMessage::UnregisterCoordinator { agent_id } => {
-                    info!(agent_id = %agent_id, "Coordinator retire");
-                    self.coordinators.remove(&agent_id);
-                }
-                RouterMessage::Shutdown => {
-                    info!("TaskRouter arret demande");
-                    break;
+                event = self.event_rx.recv() => {
+                    if let Ok(RuntimeEvent::TaskCompleted { task_id, success, .. }) = event {
+                        if let Some(status) = self.task_statuses.get_mut(&task_id) {
+                            *status = if success {
+                                TaskStatus::Completed
+                            } else {
+                                TaskStatus::Failed
+                            };
+                        }
+                    }
                 }
             }
         }
@@ -144,13 +158,32 @@ impl<B: ExecutionBackend> TaskRouter<B> {
         agent_id: AgentId,
         input: AIPInput,
     ) -> Result<TaskId, SubmitError> {
-        // 1. Verifier l'agent dans le registre
-        let agent_entry = self
+        // 1. Verifier l'agent dans le registre (par UUID puis par nom manifest)
+        let resolved_id = if self
             .registry
             .get_agent(agent_id.as_str())
             .await
             .map_err(|_| SubmitError::ActorDead)?
+            .is_some()
+        {
+            agent_id.clone()
+        } else {
+            // Tentative de résolution par nom manifest
+            self.registry
+                .find_by_name(agent_id.as_str())
+                .await
+                .map_err(|_| SubmitError::ActorDead)?
+                .ok_or_else(|| SubmitError::AgentNotFound(agent_id.clone()))?
+        };
+
+        let agent_entry = self
+            .registry
+            .get_agent(resolved_id.as_str())
+            .await
+            .map_err(|_| SubmitError::ActorDead)?
             .ok_or_else(|| SubmitError::AgentNotFound(agent_id.clone()))?;
+
+        let agent_id = resolved_id;
 
         // 2. Verifier le ProcessState
         match agent_entry.process_state {
@@ -247,10 +280,12 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         buffer_size: usize,
     ) -> Self {
         let (tx, rx) = mpsc::channel(buffer_size);
+        let event_rx = event_bus.subscribe();
         let router = TaskRouter {
             rx,
             registry,
             event_bus,
+            event_rx,
             coordinators: HashMap::new(),
             task_statuses: HashMap::new(),
         };
@@ -362,6 +397,12 @@ mod tests {
         fn success() -> Self {
             Self {
                 should_fail: AtomicBool::new(false),
+            }
+        }
+
+        fn failing() -> Self {
+            Self {
+                should_fail: AtomicBool::new(true),
             }
         }
     }
@@ -645,5 +686,89 @@ mod tests {
         // AND on peut cloner le handle
         let (router, _registry, _rx) = setup_test_env().await;
         let _cloned = router.clone();
+    }
+
+    #[tokio::test]
+    async fn test_task_status_transitions_to_completed_via_eventbus() {
+        // GIVEN un agent actif avec un coordinateur MockBackend (completion instantanee)
+        // Le coordinator utilise le MEME event_tx que le router pour que
+        // TaskCompleted soit recu par l'event_rx du TaskRouter.
+        let (event_tx, _event_rx) = broadcast::channel::<RuntimeEvent>(64);
+        let registry = AgentRegistry::spawn(event_tx.clone());
+        let router = TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 256);
+
+        let agent_id =
+            register_agent_in_state(&registry, "agent-lifecycle-ok", ProcessState::Active).await;
+        let coordinator =
+            ExecutionCoordinator::new(agent_id.clone(), 1, event_tx, MockBackend::success());
+        router
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+            .expect("register coordinator failed");
+
+        // WHEN on soumet une tache
+        let task_id = router
+            .submit(agent_id.as_str(), AIPInput::default())
+            .await
+            .expect("submit failed");
+
+        // THEN get_status() retourne Completed apres propagation EventBus
+        let final_status = tokio::time::timeout(
+            std::time::Duration::from_millis(500),
+            async {
+                loop {
+                    let s = router.get_status(task_id.as_str()).await.unwrap();
+                    if !matches!(s, Some(TaskStatus::Working) | Some(TaskStatus::Submitted)) {
+                        return s;
+                    }
+                    tokio::task::yield_now().await;
+                }
+            },
+        )
+        .await
+        .expect("timeout waiting for task completion");
+
+        assert_eq!(final_status, Some(TaskStatus::Completed));
+    }
+
+    #[tokio::test]
+    async fn test_task_status_transitions_to_failed_via_eventbus() {
+        // GIVEN un agent actif avec un coordinateur FailingMockBackend
+        let (event_tx, _event_rx) = broadcast::channel::<RuntimeEvent>(64);
+        let registry = AgentRegistry::spawn(event_tx.clone());
+        let router = TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 256);
+
+        let agent_id =
+            register_agent_in_state(&registry, "agent-lifecycle-fail", ProcessState::Active).await;
+        let coordinator =
+            ExecutionCoordinator::new(agent_id.clone(), 1, event_tx, MockBackend::failing());
+        router
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+            .expect("register coordinator failed");
+
+        // WHEN on soumet une tache
+        let task_id = router
+            .submit(agent_id.as_str(), AIPInput::default())
+            .await
+            .expect("submit failed");
+
+        // THEN get_status() retourne Failed apres propagation EventBus
+        let final_status = tokio::time::timeout(
+            std::time::Duration::from_millis(500),
+            async {
+                loop {
+                    let s = router.get_status(task_id.as_str()).await.unwrap();
+                    if !matches!(s, Some(TaskStatus::Working) | Some(TaskStatus::Submitted)) {
+                        return s;
+                    }
+                    tokio::task::yield_now().await;
+                }
+            },
+        )
+        .await
+        .expect("timeout waiting for task failure");
+
+        assert_eq!(final_status, Some(TaskStatus::Failed));
     }
 }

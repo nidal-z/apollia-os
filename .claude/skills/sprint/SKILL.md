@@ -26,7 +26,7 @@ Produit le plan détaillé du sprint avant de commencer.
 2. Vérifier que les dépendances des stories sont toutes ✅ dans les sprints précédents
 3. Calculer la charge totale (S=2h, M=3h, L=6h) et comparer au budget (8-10h/semaine × 2 = 16-20h)
 4. Identifier le **Sprint Goal** — le livrable démo-able unique qui valide le sprint
-5. Produire `STORIES/sprint-N/plan.md`
+5. Produire `docs/internal/STORIES/sprint-N/plan.md`
 
 **Format du plan :**
 ```markdown
@@ -61,7 +61,7 @@ Produit le plan détaillé du sprint avant de commencer.
 Initialise les artefacts du sprint et la première story.
 
 **Actions :**
-1. Créer `STORIES/sprint-N/` si inexistant
+1. Créer `docs/internal/STORIES/sprint-N/` si inexistant
 2. Copier le template de story pour la première story du plan
 3. Mettre à jour `sprint-index.md` : sprint → 🔄 En cours, première story → 🔄
 4. Afficher le focus immédiat : "Commence par STORY-NNN : [titre]"
@@ -74,7 +74,7 @@ Vue d'ensemble de l'avancement en cours.
 ```
 Sprint N — En cours (jour X/14)
 
-STORIES
+docs/internal/STORIES
   ✅ STORY-006  EventBus broadcast Tokio              M  2.5h
   ✅ STORY-007  AgentRegistry acteur Tokio             M  3h
   🔄 STORY-008  AgentRegistryHandle API publique       S  [en cours]
@@ -95,7 +95,7 @@ Valide le sprint terminé et prépare le bilan.
 - [ ] Sprint Goal atteint (démo réalisable)
 - [ ] `cargo test --workspace` passe
 - [ ] `sprint-index.md` mis à jour
-- [ ] `STORIES/sprint-N/bilan.md` rédigé
+- [ ] `docs/internal/STORIES/sprint-N/bilan.md` rédigé
 
 **Format du bilan :**
 ```markdown
@@ -161,7 +161,7 @@ Si une décision architecturale significative est prise pendant un sprint :
 ## Fichiers produits par ce skill
 
 ```
-STORIES/
+docs/internal/STORIES/
 ├── sprint-N/
 │   ├── plan.md              ← produit par "prépare sprint N"
 │   ├── bilan.md             ← produit par "clôture sprint N"

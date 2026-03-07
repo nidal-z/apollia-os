@@ -409,8 +409,8 @@ mod tests {
     }
 
     /// Set up a full test environment with all actors.
-    async fn setup_env<B: ExecutionBackend>(
-        _backend: B,
+    async fn setup_env<B: ExecutionBackend + Clone>(
+        backend: B,
     ) -> (ShutdownController<B>, EventBusSender, PathBuf) {
         use crate::api::{APIServer, APIServerConfig, AppState};
 
@@ -430,6 +430,7 @@ mod tests {
             registry_handle: registry_handle.clone(),
             event_sender: event_sender.clone(),
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -548,6 +549,7 @@ mod tests {
             registry_handle: registry_handle.clone(),
             event_sender: event_sender.clone(),
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: MockBackend::instant(),
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -619,6 +621,7 @@ mod tests {
             registry_handle: registry_handle.clone(),
             event_sender: event_sender.clone(),
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: NeverBackend,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -796,6 +799,7 @@ mod tests {
             registry_handle: registry_handle.clone(),
             event_sender: event_sender.clone(),
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: MockBackend::instant(),
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

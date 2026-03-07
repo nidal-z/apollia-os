@@ -59,8 +59,8 @@ Passer la checklist de validation avant de livrer :
 ### Étape 4 — Générer les fichiers
 
 Produire systématiquement :
-1. `STORIES/sprint-N/story-NNN-titre-court.md` — la story complète
-2. Une mise à jour de `STORIES/sprint-N/index.md` — ajout de la story dans l'index du sprint
+1. `docs/internal/STORIES/sprint-N/story-NNN-titre-court.md` — la story complète
+2. Une mise à jour de `docs/internal/STORIES/sprint-N/index.md` — ajout de la story dans l'index du sprint
 
 ---
 

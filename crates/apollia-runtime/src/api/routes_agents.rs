@@ -14,7 +14,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::api::server::AppState;
-use crate::coordinator::ExecutionBackend;
+use crate::coordinator::{ExecutionBackend, ExecutionCoordinator};
 use crate::registry::AgentRegistryError;
 
 use apollia_core::{AgentManifest, ProcessState};
@@ -139,7 +139,7 @@ fn registry_error_to_response(err: AgentRegistryError) -> (StatusCode, Json<Erro
 /// Handler for `GET /api/v1/agents`.
 ///
 /// Lists all registered agents with their current state.
-pub async fn list_agents<B: ExecutionBackend>(
+pub async fn list_agents<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Result<Json<AgentListResponse>, (StatusCode, Json<ErrorResponse>)> {
     let entries = state
@@ -163,18 +163,20 @@ pub async fn list_agents<B: ExecutionBackend>(
 /// Handler for `POST /api/v1/agents`.
 ///
 /// Loads the Python agent module via [`AgentLoader`] (ADR-019), validates
-/// AIP duck typing, registers the agent with its real manifest, and
-/// transitions to Active (or Degraded if optional tools are missing).
+/// AIP duck typing, registers the agent with its real manifest, transitions
+/// to Active (or Degraded if optional tools are missing), and creates an
+/// [`ExecutionCoordinator`] registered with the [`TaskRouter`].
 ///
 /// Returns 201 Created with the agent_id and state.
 /// Returns 400 Bad Request if the Python module is invalid.
-pub async fn start_agent<B: ExecutionBackend>(
+pub async fn start_agent<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<StartAgentRequest>,
 ) -> Result<(StatusCode, Json<AgentResponse>), (StatusCode, Json<ErrorResponse>)> {
     let manifest = load_manifest(state.agent_loader.as_ref(), &req.agent_path)?;
 
     let has_missing_optional = !manifest.tools_optional.is_empty();
+    let max_concurrent = manifest.max_concurrent_tasks;
 
     let agent_id = state
         .registry_handle
@@ -204,6 +206,19 @@ pub async fn start_agent<B: ExecutionBackend>(
         "active"
     };
 
+    // Create and register an ExecutionCoordinator for this agent.
+    let coordinator = ExecutionCoordinator::new(
+        agent_id.clone(),
+        max_concurrent,
+        state.event_sender.clone(),
+        state.backend.clone(),
+    );
+    // Fire-and-forget: if registration fails the task submission will return NoCoordinator.
+    let _ = state
+        .router_handle
+        .register_coordinator(agent_id.clone(), coordinator)
+        .await;
+
     Ok((
         StatusCode::CREATED,
         Json(AgentResponse {
@@ -218,7 +233,7 @@ pub async fn start_agent<B: ExecutionBackend>(
 ///
 /// Returns the detail of a single agent including its manifest.
 /// Returns 404 if the agent does not exist.
-pub async fn get_agent<B: ExecutionBackend>(
+pub async fn get_agent<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     AxumPath(agent_id): AxumPath<String>,
 ) -> Result<Json<AgentResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -251,7 +266,7 @@ pub async fn get_agent<B: ExecutionBackend>(
 /// Initiates agent shutdown by transitioning to `Stopping`.
 /// Returns 409 Conflict if the agent is already stopped.
 /// Returns 404 if the agent does not exist.
-pub async fn stop_agent<B: ExecutionBackend>(
+pub async fn stop_agent<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     AxumPath(agent_id): AxumPath<String>,
 ) -> Result<Json<AgentResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -412,6 +427,7 @@ mod tests {
             registry_handle: registry_handle.clone(),
             event_sender: event_tx,
             agent_loader: loader,
+            backend: MockBackend,
         };
         let router = Router::new()
             .route(

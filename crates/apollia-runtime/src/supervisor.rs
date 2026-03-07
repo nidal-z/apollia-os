@@ -178,7 +178,7 @@ impl Supervisor {
     ///
     /// The ToolRegistry is spawned and the three native tools (BashExecutor,
     /// PythonExecutor, FileIo) are registered automatically.
-    pub async fn start<B: ExecutionBackend>(
+    pub async fn start<B: ExecutionBackend + Clone>(
         self,
         backend: B,
         agent_loader: Arc<dyn AgentLoader>,
@@ -211,10 +211,6 @@ impl Supervisor {
             TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 256);
         info!("Supervisor: TaskRouter ready");
 
-        // Register the default backend as a coordinator if needed by tests
-        // (real usage registers coordinators per-agent via the router handle)
-        let _ = &backend;
-
         // Phase 5: APIServer
         info!("Supervisor: starting APIServer");
         let state = AppState {
@@ -222,6 +218,7 @@ impl Supervisor {
             registry_handle: registry_handle.clone(),
             event_sender: event_sender.clone(),
             agent_loader,
+            backend,
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
