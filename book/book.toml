@@ -1,0 +1,28 @@
+[book]
+title = "Apollia OS"
+authors = ["Nidal"]
+description = "Runtime Rust open-source pour l'exécution souveraine d'agents IA autonomes."
+language = "fr"
+src = "src"
+
+[build]
+build-dir = "../target/book"
+create-missing = false
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "coal"
+additional-css = ["theme/apollia.css"]
+git-repository-url = "https://github.com/nidal-z/apollia-os"
+edit-url-template = "https://github.com/nidal-z/apollia-os/edit/main/docs/wiki/{path}"
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.search]
+enable = true
+limit-results = 30
+use-boolean-and = true
+boost-title = 2
+boost-hierarchy = 1

@@ -9,16 +9,16 @@ skinparam SequenceGroupBorderColor #888888
 
 title Séquence — Task Lifecycle Complet — Apollia OS
 
-actor "User / CLI" as user #3a3a3a;text:white
-participant "APIServer\n(axum)" as api #1a1a2e;text:#e0e0ff
-participant "TaskRouter" as router #1a1a2e;text:#e0e0ff
-participant "AgentRegistry" as reg #1a1a2e;text:#e0e0ff
-participant "ExecutionCoord." as coord #1a1a2e;text:#e0e0ff
-participant "ORIA Engine" as oria #1a1a2e;text:#e0e0ff
-participant "Agent Python" as agent #2d4a22;text:#d4edda
-participant "ToolRegistry" as tools #1a1a2e;text:#e0e0ff
-participant "MemoryEngine" as mem #2a3a4a;text:#cce5ff
-participant "EventBus" as bus #2a3a4a;text:#cce5ff
+actor "User / CLI" as user #3a3a3a/white
+participant "APIServer\n(axum)" as api #1a1a2e/e0e0ff
+participant "TaskRouter" as router #1a1a2e/e0e0ff
+participant "AgentRegistry" as reg #1a1a2e/e0e0ff
+participant "ExecutionCoord." as coord #1a1a2e/e0e0ff
+participant "ORIA Engine" as oria #1a1a2e/e0e0ff
+participant "Agent Python" as agent #2d4a22/d4edda
+participant "ToolRegistry" as tools #1a1a2e/e0e0ff
+participant "MemoryEngine" as mem #2a3a4a/cce5ff
+participant "EventBus" as bus #2a3a4a/cce5ff
 
 user -> api : POST /api/v1/tasks\n{agent_name, input}
 

@@ -13,6 +13,7 @@
 # Apollia runtime data (local uniquement)
 .apollia/
 apollia.toml.local
+models/
 
 # OS
 .DS_Store

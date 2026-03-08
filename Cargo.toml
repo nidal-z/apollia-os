@@ -58,7 +58,10 @@ rand = "0.8"
 futures = "0.3"
 async-trait = "0.1"
 # async-openai, reqwest (cloud) ajoutés en STORY-053
-# mistral-rs-core, tokenizers (local) ajoutés en STORY-052
+# mistralrs-core = moteur d'inférence (inclus transitivement via mistralrs)
+# mistralrs      = SDK public GGUF — STORY-052 [feature = "local"]
+mistralrs-core = { version = "0.7" }
+mistralrs       = { version = "0.7" }
 
 # --- Python bridge (apollia-aip) ---
 pyo3 = { version = "0.22", features = ["auto-initialize"] }

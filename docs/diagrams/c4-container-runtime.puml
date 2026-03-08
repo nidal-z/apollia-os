@@ -8,14 +8,14 @@ skinparam BorderColor #444444
 
 title C4 Container — 7 Crates Workspace — Apollia OS
 
-actor "Opérateur" as ops #3a3a3a;text:white
-actor "Développeur" as dev #3a3a3a;text:white
+actor "Opérateur" as ops #3a3a3a/white
+actor "Développeur" as dev #3a3a3a/white
 
-rectangle "Apollia OS Workspace" as workspace #1a1a2e;text:#e0e0ff {
+rectangle "Apollia OS Workspace" as workspace #1a1a2e {
 
-  rectangle "apollia-cli\n(binaire clap v4)" as cli #1a1a2e;text:#e0e0ff
+  rectangle "apollia-cli\n(binaire clap v4)" as cli #1a1a2e
 
-  rectangle "apollia-runtime\n(Runtime Core)" as runtime #1a1a2e;text:#e0e0ff {
+  rectangle "apollia-runtime\n(Runtime Core)" as runtime #1a1a2e {
     component "Supervisor" as sup
     component "AgentRegistry" as reg
     component "TaskRouter" as router
@@ -24,36 +24,36 @@ rectangle "Apollia OS Workspace" as workspace #1a1a2e;text:#e0e0ff {
     component "EventBus (broadcast)" as bus
   }
 
-  rectangle "apollia-oria\n(ORIA Engine)" as oria #1a1a2e;text:#e0e0ff {
+  rectangle "apollia-oria\n(ORIA Engine)" as oria #1a1a2e {
     component "Observer\nContextBundle" as obs
     component "StepBudget\nResilienceLayer" as budget
   }
 
-  rectangle "apollia-tools\n(Tool Registry)" as tools #1a1a2e;text:#e0e0ff {
+  rectangle "apollia-tools\n(Tool Registry)" as tools #1a1a2e {
     component "ToolRegistry\nAuditTrail" as reg2
     component "BashExecutor\nFileIo\nPythonExecutor" as native
   }
 
-  rectangle "apollia-memory\n(Memory Engine)" as memory #2a3a4a;text:#cce5ff {
+  rectangle "apollia-memory\n(Memory Engine)" as memory #2a3a4a {
     component "MemoryManager\nEpisodic / Semantic\nProcedural / FTS5" as mem
   }
 
-  rectangle "apollia-aip\n(PyO3 Bridge)" as aip #1a1a2e;text:#e0e0ff {
+  rectangle "apollia-aip\n(PyO3 Bridge)" as aip #1a1a2e {
     component "AIPBridge\nToolProxy\nMemoryInterface" as bridge
   }
 
-  rectangle "apollia-core\n(types partagés)" as core #1a1a2e;text:#e0e0ff {
+  rectangle "apollia-core\n(types partagés)" as core #1a1a2e {
     component "AgentManifest\nAIPTask / AIPResult\nProcessState / TaskStatus" as types
   }
 }
 
-rectangle "Agent Python\n(LangGraph / CrewAI / Custom)" as agent #2d4a22;text:#d4edda
+rectangle "Agent Python\n(LangGraph / CrewAI / Custom)" as agent #2d4a22
 
-database "SQLite\n(FTS5)" as sqlite #2a3a4a;text:#cce5ff
+database "SQLite\n(FTS5)" as sqlite #2a3a4a
 
-rectangle "Linux namespaces\n(unshare, sandbox)" as sandbox #4a3728;text:#f5e6d3
+rectangle "Linux namespaces\n(unshare, sandbox)" as sandbox #4a3728
 
-rectangle "Serveur MCP\n(externe, optionnel)" as mcp #4a3728;text:#f5e6d3
+rectangle "Serveur MCP\n(externe, optionnel)" as mcp #4a3728
 
 ops --> cli : apollia-os [cmd]
 dev --> agent : écrit

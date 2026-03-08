@@ -97,6 +97,9 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 - **apollia-story** : Créer/affiner une User Story → `docs/internal/STORIES/sprint-N/story-NNN.md`
 - **apollia-sprint** : Planifier/clôturer un sprint → `docs/internal/STORIES/sprint-N/plan.md`
 - **apollia-adr** : Documenter une décision architecturale → `docs/adr/ADR-NNN.md`
+- **apollia-doc-setup** : Initialiser docs/ + book/ mdBook (usage unique, première fois)
+- **apollia-doc-sync** : Mettre à jour la doc après sprint/story/changement architectural/diagramme
+- **apollia-doc-research** : Veille technologique interne (MCP/A2A, concurrents, signaux pivot)
 
 ---
 

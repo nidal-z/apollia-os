@@ -8,26 +8,26 @@ skinparam BorderColor #444444
 
 title C4 Component — Runtime Core (Acteurs Tokio) — Apollia OS
 
-rectangle "apollia-runtime" as runtime #1a1a2e;text:#e0e0ff {
+rectangle "apollia-runtime" as runtime #1a1a2e {
 
-  rectangle "Supervisor\n(démarrage ordonné + watchdog)" as sup #1a1a2e;text:#e0e0ff
+  rectangle "Supervisor\n(démarrage ordonné + watchdog)" as sup #1a1a2e
 
-  queue "EventBus\nbroadcast::Sender<RuntimeEvent>\ncapacité 1024" as bus #2a3a4a;text:#cce5ff
+  queue "EventBus\nbroadcast::Sender<RuntimeEvent>\ncapacité 1024" as bus #2a3a4a
 
-  rectangle "AgentRegistry\nmpsc acteur Tokio\nHashMap<AgentId, AgentEntry>\nHashMap<String, AgentId>" as reg #1a1a2e;text:#e0e0ff
+  rectangle "AgentRegistry\nmpsc acteur Tokio\nHashMap<AgentId, AgentEntry>\nHashMap<String, AgentId>" as reg #1a1a2e
 
-  rectangle "TaskRouter\nmpsc acteur Tokio\nHashMap<TaskId, TaskState>\nHashMap<AgentId, Coordinator>" as router #1a1a2e;text:#e0e0ff
+  rectangle "TaskRouter\nmpsc acteur Tokio\nHashMap<TaskId, TaskState>\nHashMap<AgentId, Coordinator>" as router #1a1a2e
 
-  rectangle "ExecutionCoordinator\nSemaphore(max_concurrent)\nun par agent actif" as coord #1a1a2e;text:#e0e0ff
+  rectangle "ExecutionCoordinator\nSemaphore(max_concurrent)\nun par agent actif" as coord #1a1a2e
 
-  rectangle "APIServer (axum 0.7)\nUnix socket /tmp/apollia.sock\nTCP 0.0.0.0:7771\nwatch::channel shutdown" as api #1a1a2e;text:#e0e0ff
+  rectangle "APIServer (axum 0.7)\nUnix socket /tmp/apollia.sock\nTCP 0.0.0.0:7771\nwatch::channel shutdown" as api #1a1a2e
 
-  rectangle "ShutdownController\nSIGTERM / SIGINT\ndrain 30s" as shutdown #1a1a2e;text:#e0e0ff
+  rectangle "ShutdownController\nSIGTERM / SIGINT\ndrain 30s" as shutdown #1a1a2e
 }
 
-rectangle "ORIA Engine" as oria #1a1a2e;text:#e0e0ff
-rectangle "AIP Bridge (PyO3)" as aip #1a1a2e;text:#e0e0ff
-actor "CLI / Client HTTP" as cli #3a3a3a;text:white
+rectangle "ORIA Engine" as oria #1a1a2e
+rectangle "AIP Bridge (PyO3)" as aip #1a1a2e
+actor "CLI / Client HTTP" as cli #3a3a3a/white
 
 sup --> bus : démarre\nen premier
 sup --> reg : démarre

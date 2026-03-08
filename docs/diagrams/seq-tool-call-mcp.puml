@@ -8,13 +8,13 @@ skinparam BorderColor #444444
 
 title Séquence — Tool Call MCP (mcp_consumer) — Apollia OS
 
-participant "Agent Python" as agent #2d4a22;text:#d4edda
-participant "ToolProxy" as proxy #1a1a2e;text:#e0e0ff
-participant "ToolRegistry" as reg #1a1a2e;text:#e0e0ff
-participant "McpConsumer" as mcp_c #1a1a2e;text:#e0e0ff
-participant "ResilienceLayer\n(circuit breaker)" as resilience #1a1a2e;text:#e0e0ff
-participant "MCP Server\n(externe stdio/HTTP)" as mcp_s #4a3728;text:#f5e6d3
-participant "AuditTrail" as audit #2a3a4a;text:#cce5ff
+participant "Agent Python" as agent #2d4a22/d4edda
+participant "ToolProxy" as proxy #1a1a2e/e0e0ff
+participant "ToolRegistry" as reg #1a1a2e/e0e0ff
+participant "McpConsumer" as mcp_c #1a1a2e/e0e0ff
+participant "ResilienceLayer\n(circuit breaker)" as resilience #1a1a2e/e0e0ff
+participant "MCP Server\n(externe stdio/HTTP)" as mcp_s #4a3728/f5e6d3
+participant "AuditTrail" as audit #2a3a4a/cce5ff
 
 note over mcp_c, mcp_s
   Connexion établie à INITIALIZING.

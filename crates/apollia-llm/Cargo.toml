@@ -3,19 +3,42 @@ name = "apollia-llm"
 version = "0.1.0"
 edition = "2021"
 
-# STORY-051 : types + trait uniquement — aucun backend implémenté.
-# Les features cloud / local existent pour la compilation conditionnelle future.
-# Les dépendances de backends seront ajoutées dans STORY-052 (local) et STORY-053/054 (cloud).
 [features]
 default = ["cloud"]
-local   = []
-cloud   = []
+
+# ── Backend local (inférence in-process via mistralrs) ───────────────────────
+local            = ["dep:mistralrs-core", "dep:mistralrs"]
+
+# CPU seul — explicitement déclaré pour la lisibilité TOML, équivaut à `local`.
+local-cpu        = ["local"]
+
+# CPU + Accelerate.framework Apple (BLAS vectorisé — Apple Silicon).
+# Nettement plus rapide que CPU pur sur macOS, sans GPU.
+local-accelerate = ["local", "mistralrs/accelerate", "mistralrs-core/accelerate"]
+
+# GPU NVIDIA CUDA.
+# NOTE : n'active pas encore mistralrs/cuda — en attente de validation CUDA
+# sur la matrice CI (pas de GPU NVIDIA dans l'environnement de dev actuel).
+# Quand disponible : ajouter "mistralrs/cuda", "mistralrs-core/cuda" ici.
+local-cuda       = ["local"]
+
+# GPU Apple Silicon Metal.
+# NOTE : mistralrs 0.7.x requiert objc2-metal = "^0.3.2" qui n'existe pas
+# encore sur crates.io (seul 0.3.1 est publié). Activation différée jusqu'à
+# la publication de objc2-metal 0.3.2 ou une release mistralrs compatible.
+# Quand résolu : ajouter "mistralrs/metal", "mistralrs-core/metal" ici.
+local-metal      = ["local"]
+
+# ── Backend cloud (API HTTP — Anthropic, OpenAI-compatible) ──────────────────
+cloud            = []
 
 [dependencies]
-tokio        = { workspace = true }
-serde        = { workspace = true }
-serde_json   = { workspace = true }
-thiserror    = { workspace = true }
-tracing      = { workspace = true }
-futures      = { workspace = true }
-async-trait  = { workspace = true }
+tokio          = { workspace = true }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+thiserror      = { workspace = true }
+tracing        = { workspace = true }
+futures        = { workspace = true }
+async-trait    = { workspace = true }
+mistralrs-core = { workspace = true, optional = true }
+mistralrs       = { workspace = true, optional = true }

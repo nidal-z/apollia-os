@@ -9,12 +9,12 @@ skinparam SequenceGroupBorderColor #888888
 
 title Séquence — ORIA Engine (Mode Direct & Orchestré) — Apollia OS
 
-participant "ExecutionCoord." as coord #1a1a2e;text:#e0e0ff
-participant "Observer" as obs #1a1a2e;text:#e0e0ff
-participant "StepBudget" as budget #2a3a4a;text:#cce5ff
-participant "ResilienceLayer" as resilience #1a1a2e;text:#e0e0ff
-participant "Agent Python" as agent #2d4a22;text:#d4edda
-participant "ToolRegistry" as tools #1a1a2e;text:#e0e0ff
+participant "ExecutionCoord." as coord #1a1a2e/e0e0ff
+participant "Observer" as obs #1a1a2e/e0e0ff
+participant "StepBudget" as budget #2a3a4a/cce5ff
+participant "ResilienceLayer" as resilience #1a1a2e/e0e0ff
+participant "Agent Python" as agent #2d4a22/d4edda
+participant "ToolRegistry" as tools #1a1a2e/e0e0ff
 
 coord -> obs : observe(task, memory?)
 

@@ -8,12 +8,12 @@ skinparam BorderColor #444444
 
 title Séquence — Tool Call Natif (bash_executor) — Apollia OS
 
-participant "Agent Python\n(ctx.tools)" as agent #2d4a22;text:#d4edda
-participant "ToolProxy\n(PyO3 #[pyclass])" as proxy #1a1a2e;text:#e0e0ff
-participant "ToolRegistry\n(acteur Tokio)" as reg #1a1a2e;text:#e0e0ff
-participant "BashExecutor" as bash #1a1a2e;text:#e0e0ff
-participant "Sandbox\n(unshare)" as sandbox #4a3728;text:#f5e6d3
-participant "AuditTrail\n(SQLite WAL)" as audit #2a3a4a;text:#cce5ff
+participant "Agent Python\n(ctx.tools)" as agent #2d4a22/d4edda
+participant "ToolProxy\n(PyO3 #[pyclass])" as proxy #1a1a2e/e0e0ff
+participant "ToolRegistry\n(acteur Tokio)" as reg #1a1a2e/e0e0ff
+participant "BashExecutor" as bash #1a1a2e/e0e0ff
+participant "Sandbox\n(unshare)" as sandbox #4a3728/f5e6d3
+participant "AuditTrail\n(SQLite WAL)" as audit #2a3a4a/cce5ff
 
 agent -> proxy : await ctx.tools.call(\n  "bash_executor",\n  {"command": "ls -la"}\n)
 

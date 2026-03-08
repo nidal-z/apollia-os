@@ -310,6 +310,17 @@ pub enum LlmError {
     /// Impossible de parser la réponse du backend.
     #[error("response parse error: {0}")]
     ParseError(String),
+
+    /// L'accélérateur demandé n'est pas compilé dans ce binaire.
+    ///
+    /// Recompiler avec la feature indiquée dans `hint` pour activer ce device.
+    #[error("device '{device}' not available — recompile with --features {hint}")]
+    DeviceNotAvailable {
+        /// Nom du device demandé (ex. `"cuda"`, `"metal"`).
+        device: String,
+        /// Feature Cargo à activer (ex. `"local-cuda"`, `"local-metal"`).
+        hint: String,
+    },
 }
 
 // ─────────────────────────────────────────────
@@ -483,6 +494,10 @@ mod tests {
             LlmError::MaxIterationsReached { iterations: 3 },
             LlmError::MaxTokensReached,
             LlmError::ParseError("invalid json".into()),
+            LlmError::DeviceNotAvailable {
+                device: "cuda".into(),
+                hint: "local-cuda".into(),
+            },
         ];
         for err in &errors {
             assert!(
