@@ -431,8 +431,8 @@ mod runtime_context_tests {
     use tokio::sync::broadcast;
 
     use apollia_llm::{
-        CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError,
-        LlmRouter, TokenUsage,
+        CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, LlmRouter,
+        TokenUsage,
     };
     use futures::Stream;
 
@@ -489,7 +489,10 @@ mod runtime_context_tests {
     }
 
     fn make_tool_helper() -> Arc<ToolCallHelper> {
-        Arc::new(ToolCallHelper::new(Arc::new(NoopModel), Arc::new(NoopInvoker)))
+        Arc::new(ToolCallHelper::new(
+            Arc::new(NoopModel),
+            Arc::new(NoopInvoker),
+        ))
     }
 
     /// AC-2 — `ctx.llm` est `None` si le router n'a aucun backend.

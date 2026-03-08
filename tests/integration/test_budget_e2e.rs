@@ -80,7 +80,10 @@ async fn test_budget_exceeded_returns_failed() {
     // Exhaust the step budget
     budget.increment_steps();
     budget.increment_steps();
-    assert!(budget.is_exhausted(), "budget should be exhausted after 2 steps");
+    assert!(
+        budget.is_exhausted(),
+        "budget should be exhausted after 2 steps"
+    );
 
     let engine = ORIAEngine::new();
     let runner = InstantRunner;
@@ -112,7 +115,10 @@ async fn test_wall_clock_budget_exceeded_during_execution() {
         wall_clock_secs: 0, // 0 seconds = always exhausted
     };
     let budget = Arc::new(StepBudget::new(&config));
-    assert!(budget.is_exhausted(), "wall_clock=0 should be immediately exhausted");
+    assert!(
+        budget.is_exhausted(),
+        "wall_clock=0 should be immediately exhausted"
+    );
 
     let engine = ORIAEngine::new();
     let runner = InstantRunner;
@@ -140,7 +146,9 @@ async fn test_budget_enforced_during_slow_execution() {
     let budget = Arc::new(StepBudget::new(&config));
 
     let engine = ORIAEngine::new();
-    let runner = SlowRunner { delay: Duration::from_millis(300) };
+    let runner = SlowRunner {
+        delay: Duration::from_millis(300),
+    };
 
     // WHEN execute_direct is called with exhausted budget
     let result = engine.execute_direct(make_task(), &runner, budget).await;
@@ -162,7 +170,10 @@ async fn test_tool_calls_budget_exceeded() {
         wall_clock_secs: 300,
     };
     let budget = Arc::new(StepBudget::new(&config));
-    assert!(budget.is_exhausted(), "max_tool_calls=0 should be immediately exhausted");
+    assert!(
+        budget.is_exhausted(),
+        "max_tool_calls=0 should be immediately exhausted"
+    );
 
     let engine = ORIAEngine::new();
     let runner = InstantRunner;
@@ -194,11 +205,17 @@ async fn test_budget_from_capped_enforced() {
 
     // WHEN creating via from_capped
     let budget = Arc::new(StepBudget::from_capped(&agent_config, &runtime_config));
-    assert_eq!(budget.max_steps, 1, "from_capped should take min(100, 1) = 1");
+    assert_eq!(
+        budget.max_steps, 1,
+        "from_capped should take min(100, 1) = 1"
+    );
 
     // AND exhausting the capped budget
     budget.increment_steps();
-    assert!(budget.is_exhausted(), "1 step should exhaust a max_steps=1 budget");
+    assert!(
+        budget.is_exhausted(),
+        "1 step should exhaust a max_steps=1 budget"
+    );
 
     let engine = ORIAEngine::new();
     let runner = InstantRunner;

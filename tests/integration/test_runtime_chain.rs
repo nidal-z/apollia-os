@@ -18,8 +18,8 @@ use std::time::Duration;
 
 use apollia_core::{AIPResult, AIPTask, TaskStatus};
 use apollia_runtime::{
-    api::{APIServer, APIServerConfig, APIServerHandle, AppState},
     api::routes_agents::StubAgentLoader,
+    api::{APIServer, APIServerConfig, APIServerHandle, AppState},
     coordinator::ExecutionBackend,
     eventbus::EventBus,
     registry::AgentRegistry,
@@ -122,9 +122,7 @@ async fn http_post(port: u16, path: &str, body: serde_json::Value) -> (u16, serd
 async fn http_get(port: u16, path: &str) -> (u16, serde_json::Value) {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-    let request = format!(
-        "GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
-    );
+    let request = format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
 
     let mut stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{port}"))
         .await
@@ -199,7 +197,9 @@ async fn test_start_agent_via_api_returns_active() {
     // AND state is "active"
     assert_eq!(resp["state"], "active", "expected state 'active': {resp}");
     // AND agent_id is a non-empty string
-    let agent_id = resp["agent_id"].as_str().expect("agent_id must be a string");
+    let agent_id = resp["agent_id"]
+        .as_str()
+        .expect("agent_id must be a string");
     assert!(!agent_id.is_empty(), "agent_id should not be empty");
 
     // AC-5: cleanup
@@ -264,14 +264,20 @@ async fn test_task_completes_end_to_end_mock_backend() {
     .await;
 
     // THEN 202 Accepted (name resolution worked)
-    assert_eq!(status, 202, "submit by name should return 202, got {status}: {task_resp}");
+    assert_eq!(
+        status, 202,
+        "submit by name should return 202, got {status}: {task_resp}"
+    );
     let task_id = task_resp["task_id"].as_str().expect("task_id missing");
 
     // WHEN polling GET /api/v1/tasks/{task_id} until terminal — AC-3
     let final_status = poll_until_terminal(port, task_id).await;
 
     // THEN status is "completed" (MockBackend completes instantly)
-    assert_eq!(final_status, "completed", "expected 'completed', got '{final_status}'");
+    assert_eq!(
+        final_status, "completed",
+        "expected 'completed', got '{final_status}'"
+    );
 
     // AC-5: cleanup
     handle.shutdown();
@@ -287,16 +293,21 @@ async fn test_cleanup_socket_and_port_after_shutdown() {
 
     // Verify it's reachable
     let (health_status, _) = http_get(port, "/api/v1/health").await;
-    assert_eq!(health_status, 200, "server should be reachable before shutdown");
-    assert!(socket_path.exists(), "Unix socket file should exist while server is running");
+    assert_eq!(
+        health_status, 200,
+        "server should be reachable before shutdown"
+    );
+    assert!(
+        socket_path.exists(),
+        "Unix socket file should exist while server is running"
+    );
 
     // WHEN the server is shut down
     handle.shutdown();
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // THEN the TCP port no longer accepts connections
-    let connect_result =
-        tokio::net::TcpStream::connect(format!("127.0.0.1:{port}")).await;
+    let connect_result = tokio::net::TcpStream::connect(format!("127.0.0.1:{port}")).await;
     assert!(
         connect_result.is_err(),
         "TCP port {port} should be released after shutdown"
@@ -304,5 +315,8 @@ async fn test_cleanup_socket_and_port_after_shutdown() {
 
     // AND the socket file can be cleaned up (no lock held by server)
     let _ = std::fs::remove_file(&socket_path);
-    assert!(!socket_path.exists(), "socket file should be removable after shutdown");
+    assert!(
+        !socket_path.exists(),
+        "socket file should be removable after shutdown"
+    );
 }

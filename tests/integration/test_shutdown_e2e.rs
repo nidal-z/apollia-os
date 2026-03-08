@@ -8,16 +8,18 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Duration;
 
-use apollia_core::{AIPInput, AIPResult, AIPTask, AgentManifest, ProcessState, RuntimeEvent, TaskStatus};
+use apollia_core::{
+    AIPInput, AIPResult, AIPTask, AgentManifest, ProcessState, RuntimeEvent, TaskStatus,
+};
+use apollia_runtime::api::routes_agents::StubAgentLoader;
 use apollia_runtime::{
+    api::{APIServer, APIServerConfig, AppState},
     coordinator::{ExecutionBackend, ExecutionCoordinator},
     eventbus::EventBus,
     registry::AgentRegistry,
     router::TaskRouterHandle,
     shutdown::{ShutdownConfig, ShutdownController},
-    api::{APIServer, APIServerConfig, AppState},
 };
-use apollia_runtime::api::routes_agents::StubAgentLoader;
 
 // --- Mock backends ---
 
@@ -112,7 +114,10 @@ async fn test_shutdown_drains_active_tasks() {
         TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
 
     // Register an active agent
-    let agent_id = registry.register(test_manifest("drain-agent")).await.unwrap();
+    let agent_id = registry
+        .register(test_manifest("drain-agent"))
+        .await
+        .unwrap();
     registry
         .update_state(agent_id.as_str(), ProcessState::Active)
         .await
@@ -125,10 +130,16 @@ async fn test_shutdown_drains_active_tasks() {
         event_sender.clone(),
         MockBackend::slow(Duration::from_millis(300)),
     );
-    router.register_coordinator(agent_id.clone(), coordinator).await.unwrap();
+    router
+        .register_coordinator(agent_id.clone(), coordinator)
+        .await
+        .unwrap();
 
     // Submit a task (will take 300ms to complete)
-    let _task_id = router.submit(agent_id.as_str(), AIPInput::default()).await.unwrap();
+    let _task_id = router
+        .submit(agent_id.as_str(), AIPInput::default())
+        .await
+        .unwrap();
 
     // Set up minimal API server for ShutdownController
     let socket_path = temp_socket_path();
@@ -141,13 +152,21 @@ async fn test_shutdown_drains_active_tasks() {
         backend: MockBackend::slow(Duration::from_millis(300)),
         llm_router: None,
     };
-    let api = APIServer::new(APIServerConfig { socket_path: socket_path.clone(), tcp_port: port }, state);
+    let api = APIServer::new(
+        APIServerConfig {
+            socket_path: socket_path.clone(),
+            tcp_port: port,
+        },
+        state,
+    );
     let api_handle = api.start().await.unwrap();
     tokio::time::sleep(Duration::from_millis(20)).await;
 
     // WHEN ShutdownController drains with 5s timeout
     let controller = ShutdownController::new(
-        ShutdownConfig { drain_timeout_secs: 5 },
+        ShutdownConfig {
+            drain_timeout_secs: 5,
+        },
         event_sender.clone(),
         api_handle,
         router,
@@ -161,9 +180,15 @@ async fn test_shutdown_drains_active_tasks() {
     // THEN drain returns Ok (task completed within timeout)
     assert!(result.is_ok(), "drain should succeed: {result:?}");
     // AND shutdown was not instant (waited for the task)
-    assert!(elapsed >= Duration::from_millis(200), "should have waited for task: {elapsed:?}");
+    assert!(
+        elapsed >= Duration::from_millis(200),
+        "should have waited for task: {elapsed:?}"
+    );
     // AND shutdown completed within reasonable time
-    assert!(elapsed < Duration::from_secs(4), "shutdown too slow: {elapsed:?}");
+    assert!(
+        elapsed < Duration::from_secs(4),
+        "shutdown too slow: {elapsed:?}"
+    );
 
     let _ = std::fs::remove_file(&socket_path);
 }
@@ -177,7 +202,10 @@ async fn test_shutdown_stops_all_agents() {
     let router: TaskRouterHandle<MockBackend> =
         TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
 
-    let agent_id = registry.register(test_manifest("stop-agent")).await.unwrap();
+    let agent_id = registry
+        .register(test_manifest("stop-agent"))
+        .await
+        .unwrap();
     registry
         .update_state(agent_id.as_str(), ProcessState::Active)
         .await
@@ -193,7 +221,13 @@ async fn test_shutdown_stops_all_agents() {
         backend: MockBackend::slow(Duration::ZERO),
         llm_router: None,
     };
-    let api = APIServer::new(APIServerConfig { socket_path: socket_path.clone(), tcp_port: port }, state);
+    let api = APIServer::new(
+        APIServerConfig {
+            socket_path: socket_path.clone(),
+            tcp_port: port,
+        },
+        state,
+    );
     let api_handle = api.start().await.unwrap();
     tokio::time::sleep(Duration::from_millis(20)).await;
 
@@ -201,7 +235,9 @@ async fn test_shutdown_stops_all_agents() {
 
     // WHEN shutdown is triggered
     let controller = ShutdownController::new(
-        ShutdownConfig { drain_timeout_secs: 5 },
+        ShutdownConfig {
+            drain_timeout_secs: 5,
+        },
         event_sender.clone(),
         api_handle,
         router,
@@ -244,7 +280,13 @@ async fn test_shutdown_broadcasts_requested_event() {
         backend: MockBackend::slow(Duration::ZERO),
         llm_router: None,
     };
-    let api = APIServer::new(APIServerConfig { socket_path: socket_path.clone(), tcp_port: port }, state);
+    let api = APIServer::new(
+        APIServerConfig {
+            socket_path: socket_path.clone(),
+            tcp_port: port,
+        },
+        state,
+    );
     let api_handle = api.start().await.unwrap();
     tokio::time::sleep(Duration::from_millis(20)).await;
 
@@ -252,7 +294,9 @@ async fn test_shutdown_broadcasts_requested_event() {
 
     // WHEN ShutdownController::shutdown() is called
     let controller = ShutdownController::new(
-        ShutdownConfig { drain_timeout_secs: 1 },
+        ShutdownConfig {
+            drain_timeout_secs: 1,
+        },
         event_sender.clone(),
         api_handle,
         router,
@@ -285,17 +329,27 @@ async fn test_shutdown_drain_timeout_force_cancels() {
     let router: TaskRouterHandle<NeverBackend> =
         TaskRouterHandle::spawn(registry.clone(), event_sender.clone(), 256);
 
-    let agent_id = registry.register(test_manifest("never-agent")).await.unwrap();
+    let agent_id = registry
+        .register(test_manifest("never-agent"))
+        .await
+        .unwrap();
     registry
         .update_state(agent_id.as_str(), ProcessState::Active)
         .await
         .unwrap();
 
-    let coordinator = ExecutionCoordinator::new(agent_id.clone(), 2, event_sender.clone(), NeverBackend);
-    router.register_coordinator(agent_id.clone(), coordinator).await.unwrap();
+    let coordinator =
+        ExecutionCoordinator::new(agent_id.clone(), 2, event_sender.clone(), NeverBackend);
+    router
+        .register_coordinator(agent_id.clone(), coordinator)
+        .await
+        .unwrap();
 
     // Submit a task that will never finish
-    let _task_id = router.submit(agent_id.as_str(), AIPInput::default()).await.unwrap();
+    let _task_id = router
+        .submit(agent_id.as_str(), AIPInput::default())
+        .await
+        .unwrap();
 
     let socket_path = temp_socket_path();
     let port = free_port().await;
@@ -307,13 +361,21 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         backend: NeverBackend,
         llm_router: None,
     };
-    let api = APIServer::new(APIServerConfig { socket_path: socket_path.clone(), tcp_port: port }, state);
+    let api = APIServer::new(
+        APIServerConfig {
+            socket_path: socket_path.clone(),
+            tcp_port: port,
+        },
+        state,
+    );
     let api_handle = api.start().await.unwrap();
     tokio::time::sleep(Duration::from_millis(20)).await;
 
     // WHEN drain timeout is 1s (short for tests)
     let controller = ShutdownController::new(
-        ShutdownConfig { drain_timeout_secs: 1 },
+        ShutdownConfig {
+            drain_timeout_secs: 1,
+        },
         event_sender,
         api_handle,
         router,
@@ -324,7 +386,13 @@ async fn test_shutdown_drain_timeout_force_cancels() {
 
     // THEN DrainTimeout is returned (task still running after timeout)
     assert!(
-        matches!(result, Err(ShutdownError::DrainTimeout { count: 1, timeout_secs: 1 })),
+        matches!(
+            result,
+            Err(ShutdownError::DrainTimeout {
+                count: 1,
+                timeout_secs: 1
+            })
+        ),
         "expected DrainTimeout with count=1, got: {result:?}"
     );
 

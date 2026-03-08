@@ -17,7 +17,10 @@ async fn test_circuit_breaker_opens_on_threshold() {
     layer.register_tool("test_tool");
 
     // Verify initial state is Closed
-    assert_eq!(layer.get("test_tool").unwrap().state(), &CircuitState::Closed);
+    assert_eq!(
+        layer.get("test_tool").unwrap().state(),
+        &CircuitState::Closed
+    );
     assert!(layer.pre_check("test_tool").is_ok());
 
     // WHEN 3 consecutive Transient failures are recorded
@@ -49,7 +52,10 @@ async fn test_circuit_breaker_opens_on_threshold() {
     // AND other tools remain unaffected (Closed)
     layer.register_tool("other_tool");
     assert!(layer.pre_check("other_tool").is_ok());
-    assert_eq!(layer.get("other_tool").unwrap().state(), &CircuitState::Closed);
+    assert_eq!(
+        layer.get("other_tool").unwrap().state(),
+        &CircuitState::Closed
+    );
 }
 
 // AC-3 — circuit transitions to HalfOpen after cooldown, then Closed on probe success
@@ -75,7 +81,10 @@ async fn test_circuit_breaker_half_open_after_cooldown() {
     let result = layer.pre_check("test_tool");
 
     // THEN the call is allowed (transitions Open -> HalfOpen)
-    assert!(result.is_ok(), "pre_check should succeed after cooldown elapsed");
+    assert!(
+        result.is_ok(),
+        "pre_check should succeed after cooldown elapsed"
+    );
     assert_eq!(
         layer.get("test_tool").unwrap().state(),
         &CircuitState::HalfOpen,
@@ -84,7 +93,10 @@ async fn test_circuit_breaker_half_open_after_cooldown() {
 
     // AND a successful probe closes the circuit
     let restored = layer.record_success("test_tool").unwrap();
-    assert!(restored, "record_success on HalfOpen should return true (restored)");
+    assert!(
+        restored,
+        "record_success on HalfOpen should return true (restored)"
+    );
     assert_eq!(
         layer.get("test_tool").unwrap().state(),
         &CircuitState::Closed,
@@ -99,11 +111,16 @@ async fn test_circuit_half_open_probe_failure_reopens() {
     // GIVEN a circuit in HalfOpen state
     let mut layer = ResilienceLayer::new(1, Duration::from_millis(1));
     layer.register_tool("test_tool");
-    layer.record_failure("test_tool", &ErrorClass::Transient).unwrap();
+    layer
+        .record_failure("test_tool", &ErrorClass::Transient)
+        .unwrap();
     tokio::time::sleep(Duration::from_millis(5)).await;
     layer.pre_check("test_tool").unwrap(); // transitions to HalfOpen
 
-    assert_eq!(layer.get("test_tool").unwrap().state(), &CircuitState::HalfOpen);
+    assert_eq!(
+        layer.get("test_tool").unwrap().state(),
+        &CircuitState::HalfOpen
+    );
 
     // WHEN the probe fails with a Transient error
     let reopened = layer
@@ -139,23 +156,28 @@ async fn test_execute_with_retry_transient_then_success() {
 
     // WHEN execute() is called with an op that fails once (Transient) then succeeds
     let result = layer
-        .execute("tool", &policy, |e| {
-            if e.contains("transient") {
-                ErrorClass::Transient
-            } else {
-                ErrorClass::Permanent
-            }
-        }, || {
-            let cc = cc.clone();
-            async move {
-                let n = cc.fetch_add(1, Ordering::SeqCst);
-                if n == 0 {
-                    Err("transient timeout".to_string())
+        .execute(
+            "tool",
+            &policy,
+            |e| {
+                if e.contains("transient") {
+                    ErrorClass::Transient
                 } else {
-                    Ok(42u32)
+                    ErrorClass::Permanent
                 }
-            }
-        })
+            },
+            || {
+                let cc = cc.clone();
+                async move {
+                    let n = cc.fetch_add(1, Ordering::SeqCst);
+                    if n == 0 {
+                        Err("transient timeout".to_string())
+                    } else {
+                        Ok(42u32)
+                    }
+                }
+            },
+        )
         .await;
 
     // THEN Ok returned after 2 calls

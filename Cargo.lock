@@ -222,9 +222,12 @@ version = "0.1.0"
 dependencies = [
  "apollia-aip",
  "apollia-core",
+ "apollia-llm",
  "apollia-oria",
  "apollia-runtime",
  "apollia-tools",
+ "async-trait",
+ "futures",
  "pyo3",
  "serde_json",
  "tempfile",

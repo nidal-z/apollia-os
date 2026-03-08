@@ -8,16 +8,22 @@ publish = false
 # Gate Python-dependent tests behind this flag.
 # Enable with: cargo test -p apollia-e2e-tests --features python-tests
 python-tests = ["dep:apollia-aip", "dep:pyo3"]
+# Gate local-inference tests (EmbeddedBackend) behind this flag.
+# Enable with: cargo test -p apollia-e2e-tests --features python-tests,local
+local = ["apollia-llm/local"]
 
 [dependencies]
 apollia-core    = { workspace = true }
 apollia-runtime = { workspace = true }
 apollia-oria    = { workspace = true }
 apollia-tools   = { workspace = true }
+apollia-llm     = { workspace = true }
 tokio           = { workspace = true }
 tracing         = { workspace = true }
 uuid            = { workspace = true }
 serde_json      = { workspace = true }
+async-trait     = { workspace = true }
+futures         = { workspace = true }
 
 # Optional: only when python-tests feature is enabled
 apollia-aip = { workspace = true, optional = true }
@@ -48,3 +54,21 @@ path = "integration/test_runtime_chain.rs"
 name = "test_hello_agent"
 path = "integration/test_hello_agent.rs"
 required-features = ["python-tests"]
+
+[[test]]
+name = "test_llm_degraded"
+path = "integration/test_llm_degraded.rs"
+
+[[test]]
+name = "test_run_tools"
+path = "integration/test_run_tools.rs"
+
+[[test]]
+name = "test_llm_agent"
+path = "integration/test_llm_agent.rs"
+required-features = ["python-tests"]
+
+[[test]]
+name = "test_embedded_backend"
+path = "integration/test_embedded_backend.rs"
+required-features = ["python-tests", "local"]

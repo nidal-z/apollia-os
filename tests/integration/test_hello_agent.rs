@@ -13,11 +13,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
-use apollia_aip::{
-    bridge::AIPBridge,
-    loader::load_agent_module,
-    validator::validate_agent,
-};
+use apollia_aip::{bridge::AIPBridge, loader::load_agent_module, validator::validate_agent};
 use apollia_core::{
     AIPInput, AIPResult, AIPTask, AgentManifest, ProcessState, RuntimeEvent, TaskStatus,
 };
@@ -45,9 +41,7 @@ impl ExecutionBackend for AIPBridgeBackend {
         let bridge = Arc::clone(&self.bridge);
         Box::pin(async move {
             // Build a minimal context (empty dict — hello_agent doesn't use tools/memory)
-            let ctx: PyObject = Python::with_gil(|py| {
-                pyo3::types::PyDict::new_bound(py).into()
-            });
+            let ctx: PyObject = Python::with_gil(|py| pyo3::types::PyDict::new_bound(py).into());
             bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
         })
     }
@@ -79,7 +73,9 @@ fn test_manifest_for(name: &str) -> AgentManifest {
 /// CARGO_MANIFEST_DIR is the `tests/` directory; agents/ is one level up.
 fn hello_agent_path() -> std::path::PathBuf {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let workspace_root = manifest_dir.parent().expect("tests/ must be inside workspace root");
+    let workspace_root = manifest_dir
+        .parent()
+        .expect("tests/ must be inside workspace root");
     workspace_root.join("agents").join("hello_agent.py")
 }
 
@@ -87,11 +83,16 @@ fn hello_agent_path() -> std::path::PathBuf {
 #[tokio::test]
 async fn test_hello_agent_full_chain() {
     let agent_path = hello_agent_path();
-    assert!(agent_path.exists(), "hello_agent.py must exist at: {}", agent_path.display());
+    assert!(
+        agent_path.exists(),
+        "hello_agent.py must exist at: {}",
+        agent_path.display()
+    );
 
     // GIVEN hello_agent.py loaded and validated
     let agent_obj = load_agent_module(&agent_path).expect("load_agent_module should succeed");
-    let validated = validate_agent(&agent_obj).expect("hello_agent.py should pass duck-typing validation");
+    let validated =
+        validate_agent(&agent_obj).expect("hello_agent.py should pass duck-typing validation");
     let bridge = Arc::new(AIPBridge::new(validated));
 
     // AND a full runtime stack (EventBus, AgentRegistry, TaskRouter)
@@ -146,7 +147,10 @@ async fn test_hello_agent_full_chain() {
     .await
     .expect("TaskCompleted should be received within 15s");
 
-    assert!(completed, "Task should have completed successfully via hello_agent.py");
+    assert!(
+        completed,
+        "Task should have completed successfully via hello_agent.py"
+    );
 
     // Cleanup
     router.shutdown();
@@ -168,10 +172,12 @@ async fn test_invalid_agent_fails_at_load() {
         .suffix(".py")
         .tempfile()
         .expect("failed to create temp file");
-    tmp.write_all(invalid_code.as_bytes()).expect("failed to write temp file");
+    tmp.write_all(invalid_code.as_bytes())
+        .expect("failed to write temp file");
 
     // WHEN the agent is loaded and validated
-    let agent_obj = load_agent_module(tmp.path()).expect("load should succeed (file is syntactically valid)");
+    let agent_obj =
+        load_agent_module(tmp.path()).expect("load should succeed (file is syntactically valid)");
     let result = validate_agent(&agent_obj);
 
     // THEN AIPValidationError is returned (manifest() missing)
@@ -203,7 +209,8 @@ async fn test_sync_run_fails_validation() {
         .suffix(".py")
         .tempfile()
         .expect("failed to create temp file");
-    tmp.write_all(invalid_code.as_bytes()).expect("failed to write temp file");
+    tmp.write_all(invalid_code.as_bytes())
+        .expect("failed to write temp file");
 
     let agent_obj = load_agent_module(tmp.path()).expect("load should succeed");
     let result = validate_agent(&agent_obj);
@@ -225,14 +232,18 @@ async fn test_missing_agent_variable_fails_load() {
         .suffix(".py")
         .tempfile()
         .expect("failed to create temp file");
-    tmp.write_all(code.as_bytes()).expect("failed to write temp file");
+    tmp.write_all(code.as_bytes())
+        .expect("failed to write temp file");
 
     // WHEN load_agent_module is called
     let result = load_agent_module(tmp.path());
 
     // THEN AIPLoaderError::NoAgentFound is returned
     assert!(
-        matches!(result, Err(apollia_aip::loader::AIPLoaderError::NoAgentFound(_))),
+        matches!(
+            result,
+            Err(apollia_aip::loader::AIPLoaderError::NoAgentFound(_))
+        ),
         "expected NoAgentFound, got: {result:?}"
     );
 }

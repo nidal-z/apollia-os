@@ -393,6 +393,26 @@ impl LlmRouter {
         self.backends.get(key).cloned()
     }
 
+    /// Construit un `LlmRouter` avec des backends déjà instanciés.
+    ///
+    /// Utilisé dans les tests d'intégration pour injecter des mocks [`CompletionModel`]
+    /// sans passer par la configuration TOML.
+    ///
+    /// # Panics
+    ///
+    /// Panique si `default` n'est pas présent dans `backends`.
+    pub fn with_backends(
+        backends: HashMap<String, Arc<dyn CompletionModel>>,
+        default: impl Into<String>,
+    ) -> Self {
+        let default = default.into();
+        assert!(
+            backends.contains_key(&default),
+            "LlmRouter::with_backends — backend '{default}' must be present in backends map"
+        );
+        Self { backends, default }
+    }
+
     /// Crée un `LlmRouter` vide sans aucun backend — pour les tests unitaires.
     ///
     /// Utilisé par STORY-059 pour tester les chemins de dégradation :
