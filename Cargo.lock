@@ -186,6 +186,7 @@ version = "0.1.0"
 dependencies = [
  "apollia-aip",
  "apollia-core",
+ "apollia-llm",
  "apollia-memory",
  "apollia-runtime",
  "clap",
@@ -196,6 +197,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "toml 0.8.23",
  "tracing",
  "tracing-subscriber",
  "uuid 1.21.0",

@@ -88,7 +88,7 @@ pub struct BackendConfig {
 
 impl BackendConfig {
     /// Retourne le nom logique du backend depuis la config interne.
-    fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         match &self.kind {
             #[cfg(feature = "local")]
             BackendKind::Embedded(cfg) => &cfg.name,

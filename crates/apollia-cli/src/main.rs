@@ -10,6 +10,7 @@
 
 pub mod client;
 pub mod commands;
+pub mod config;
 pub mod exit_codes;
 
 use std::path::PathBuf;

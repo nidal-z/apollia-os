@@ -9,11 +9,19 @@ license = "MIT"
 name = "apollia-os"
 path = "src/main.rs"
 
+[features]
+default = ["cloud"]
+## Active le backend cloud (Anthropic, OpenAI-compatible) — activé par défaut.
+cloud = ["apollia-llm/cloud"]
+## Active le backend embarqué in-process (inférence .gguf via mistralrs).
+local = ["apollia-llm/local"]
+
 [dependencies]
 apollia-core    = { workspace = true }
 apollia-aip     = { workspace = true }
 apollia-memory  = { workspace = true }
 apollia-runtime = { workspace = true }
+apollia-llm     = { workspace = true, default-features = false }
 tokio              = { workspace = true }
 serde              = { workspace = true }
 serde_json         = { workspace = true }
@@ -25,3 +33,4 @@ uuid               = { workspace = true }
 hyper              = { workspace = true }
 hyper-util         = { workspace = true }
 http-body-util     = { workspace = true }
+toml               = { workspace = true }
