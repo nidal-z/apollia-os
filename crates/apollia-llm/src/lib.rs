@@ -15,6 +15,7 @@ pub mod tool_helper;
 pub mod types;
 
 pub use router::{BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig};
+pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{
     BackendInfo, ChatMessage, CompletionModel, CompletionRequest, CompletionResponse, FinishReason,
     LlmError, MessageContent, Role, TokenUsage, ToolCall, ToolSpec,
