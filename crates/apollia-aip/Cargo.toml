@@ -9,12 +9,14 @@ license = "MIT"
 apollia-core   = { workspace = true }
 apollia-tools  = { workspace = true }
 apollia-memory = { workspace = true }
+apollia-llm    = { workspace = true }
 tokio          = { workspace = true }
 serde          = { workspace = true }
 serde_json     = { workspace = true }
 thiserror      = { workspace = true }
 tracing        = { workspace = true }
 uuid           = { workspace = true }
+futures             = { workspace = true }
 pyo3                = { workspace = true }
 pyo3-async-runtimes = { workspace = true }
 

@@ -13,6 +13,8 @@
 pub mod bridge;
 #[allow(clippy::useless_conversion)]
 pub mod context;
+#[allow(clippy::useless_conversion)]
+pub mod llm;
 pub mod loader;
 #[allow(clippy::useless_conversion)]
 pub mod memory;

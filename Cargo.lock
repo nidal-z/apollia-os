@@ -164,8 +164,10 @@ name = "apollia-aip"
 version = "0.1.0"
 dependencies = [
  "apollia-core",
+ "apollia-llm",
  "apollia-memory",
  "apollia-tools",
+ "futures",
  "pyo3",
  "pyo3-async-runtimes",
  "serde",
