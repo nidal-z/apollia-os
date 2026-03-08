@@ -17,6 +17,7 @@ use tokio::sync::broadcast;
 use tracing::{error, info, warn};
 
 use apollia_core::RuntimeEvent;
+use apollia_llm::{LlmConfig, LlmRouter};
 use apollia_tools::ToolRegistryHandle;
 
 use crate::api::routes_agents::AgentLoader;
@@ -56,6 +57,11 @@ pub struct SupervisorConfig {
     pub api_config: APIServerConfig,
     /// Maximum time (in seconds) to wait for each actor to become ready.
     pub startup_timeout_secs: u64,
+    /// Optional LLM configuration parsed from the `[llm]` section of `apollia.toml`.
+    ///
+    /// `None` disables the LLM layer entirely — the runtime starts normally and
+    /// agents receive `ctx.llm = None` (see STORY-059). No error is raised.
+    pub llm_config: Option<LlmConfig>,
 }
 
 /// Handles returned after successful startup.
@@ -72,6 +78,11 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     pub router_handle: TaskRouterHandle<B>,
     /// Handle to the API server.
     pub api_handle: APIServerHandle,
+    /// LLM router initialized at position 5 of the startup sequence (STORY-060).
+    ///
+    /// `None` when no `[llm]` section is present in `apollia.toml`, or when
+    /// `LlmRouter::from_config_with_bus` fails (warning logged, runtime continues).
+    pub llm_router: Option<Arc<LlmRouter>>,
 }
 
 /// Supervisor errors.
@@ -205,13 +216,38 @@ impl Supervisor {
         }
         info!("Supervisor: ToolRegistry ready (native tools registered)");
 
-        // Phase 4: TaskRouter
+        // Phase 4 (pos 5): LlmRouter — initialized before TaskRouter
+        let llm_router: Option<Arc<LlmRouter>> = if let Some(llm_cfg) = &self.config.llm_config {
+            info!("Supervisor: starting LlmRouter");
+            match LlmRouter::from_config_with_bus(llm_cfg, Some(event_sender.clone())).await {
+                Ok(router) => {
+                    for info in router.list() {
+                        tracing::info!(
+                            backend = %info.name,
+                            model = %info.model_id,
+                            "LLM backend ready"
+                        );
+                    }
+                    info!("Supervisor: LlmRouter ready");
+                    Some(Arc::new(router))
+                }
+                Err(e) => {
+                    warn!(error = %e, "LlmRouter failed to initialize — continuing without LLM");
+                    None
+                }
+            }
+        } else {
+            info!("Supervisor: no [llm] section in config — LLM disabled");
+            None
+        };
+
+        // Phase 5 (pos 6): TaskRouter
         info!("Supervisor: starting TaskRouter");
         let router_handle: TaskRouterHandle<B> =
             TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 256);
         info!("Supervisor: TaskRouter ready");
 
-        // Phase 5: APIServer
+        // Phase 6 (pos 7): APIServer
         info!("Supervisor: starting APIServer");
         let state = AppState {
             router_handle: router_handle.clone(),
@@ -219,7 +255,7 @@ impl Supervisor {
             event_sender: event_sender.clone(),
             agent_loader,
             backend,
-            llm_router: None,
+            llm_router: llm_router.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -257,6 +293,7 @@ impl Supervisor {
             tool_registry_handle,
             router_handle,
             api_handle,
+            llm_router,
         })
     }
 }
@@ -423,6 +460,7 @@ mod tests {
                 tcp_port: port,
             },
             startup_timeout_secs: 10,
+            llm_config: None,
         }
     }
 
@@ -568,6 +606,7 @@ mod tests {
                 tcp_port: port,
             },
             startup_timeout_secs: 1,
+            llm_config: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -683,5 +722,76 @@ mod tests {
         assert_eq!(specs[0].restart_policy, RestartPolicy::Always);
         assert_eq!(specs[4].restart_policy, RestartPolicy::OnFailure);
         assert_eq!(specs[5].restart_policy, RestartPolicy::OnFailure);
+    }
+
+    // AC-2 — Supervisor starts successfully with llm_config = None
+    #[tokio::test]
+    async fn test_ac2_start_without_llm_config_succeeds() {
+        // GIVEN un Supervisor sans section [llm]
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let config = SupervisorConfig {
+            api_config: APIServerConfig {
+                socket_path: socket_path.clone(),
+                tcp_port: port,
+            },
+            startup_timeout_secs: 10,
+            llm_config: None,
+        };
+        let supervisor = Supervisor::new(config);
+
+        // WHEN start() est appele
+        let handles = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+            )
+            .await
+            .expect("start() doit reussir sans config LLM");
+
+        // THEN llm_router est None et le demarrage s'est deroule normalement
+        assert!(
+            handles.llm_router.is_none(),
+            "llm_router doit etre None quand llm_config est absent"
+        );
+
+        // Cleanup
+        handles.api_handle.shutdown();
+        handles.router_handle.shutdown();
+        handles.tool_registry_handle.shutdown().await;
+        handles.registry_handle.shutdown();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    // AC-4 — AppState clone preserves llm_router = None
+    #[tokio::test]
+    async fn test_app_state_clone_with_llm_router_none() {
+        use crate::eventbus::EventBus;
+        use crate::registry::AgentRegistry;
+        use crate::router::TaskRouterHandle;
+
+        // GIVEN un AppState avec llm_router = None
+        let (event_tx, _event_rx) = EventBus::new();
+        let registry_handle = AgentRegistry::spawn(event_tx.clone());
+        let router_handle: TaskRouterHandle<MockBackend> =
+            TaskRouterHandle::spawn(registry_handle.clone(), event_tx.clone(), 64);
+        let state = AppState {
+            router_handle,
+            registry_handle,
+            event_sender: event_tx,
+            agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: MockBackend,
+            llm_router: None,
+        };
+
+        // WHEN on clone l'AppState
+        let cloned = state.clone();
+
+        // THEN le clone preserve llm_router = None
+        assert!(
+            cloned.llm_router.is_none(),
+            "le clone doit preserver llm_router = None"
+        );
     }
 }

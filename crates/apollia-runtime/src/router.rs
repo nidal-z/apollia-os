@@ -713,18 +713,15 @@ mod tests {
             .expect("submit failed");
 
         // THEN get_status() retourne Completed apres propagation EventBus
-        let final_status = tokio::time::timeout(
-            std::time::Duration::from_millis(500),
-            async {
-                loop {
-                    let s = router.get_status(task_id.as_str()).await.unwrap();
-                    if !matches!(s, Some(TaskStatus::Working) | Some(TaskStatus::Submitted)) {
-                        return s;
-                    }
-                    tokio::task::yield_now().await;
+        let final_status = tokio::time::timeout(std::time::Duration::from_millis(500), async {
+            loop {
+                let s = router.get_status(task_id.as_str()).await.unwrap();
+                if !matches!(s, Some(TaskStatus::Working) | Some(TaskStatus::Submitted)) {
+                    return s;
                 }
-            },
-        )
+                tokio::task::yield_now().await;
+            }
+        })
         .await
         .expect("timeout waiting for task completion");
 
@@ -785,18 +782,15 @@ mod tests {
             .expect("submit failed");
 
         // THEN get_status() retourne Failed apres propagation EventBus
-        let final_status = tokio::time::timeout(
-            std::time::Duration::from_millis(500),
-            async {
-                loop {
-                    let s = router.get_status(task_id.as_str()).await.unwrap();
-                    if !matches!(s, Some(TaskStatus::Working) | Some(TaskStatus::Submitted)) {
-                        return s;
-                    }
-                    tokio::task::yield_now().await;
+        let final_status = tokio::time::timeout(std::time::Duration::from_millis(500), async {
+            loop {
+                let s = router.get_status(task_id.as_str()).await.unwrap();
+                if !matches!(s, Some(TaskStatus::Working) | Some(TaskStatus::Submitted)) {
+                    return s;
                 }
-            },
-        )
+                tokio::task::yield_now().await;
+            }
+        })
         .await
         .expect("timeout waiting for task failure");
 
