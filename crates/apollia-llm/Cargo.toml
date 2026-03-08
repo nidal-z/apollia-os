@@ -33,6 +33,7 @@ local-metal      = ["local"]
 cloud            = ["dep:async-openai", "dep:reqwest"]
 
 [dependencies]
+apollia-core   = { workspace = true }
 tokio          = { workspace = true }
 serde          = { workspace = true }
 serde_json     = { workspace = true }

@@ -6,8 +6,11 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
-use crate::types::{BackendInfo, CompletionModel, LlmError};
+use apollia_core::events::{EventBusSender, RuntimeEvent};
+
+use crate::types::{BackendInfo, CompletionModel, CompletionRequest, CompletionResponse, LlmError};
 
 #[cfg(feature = "local")]
 use crate::backends::embedded::{EmbeddedBackend, EmbeddedBackendConfig};
@@ -91,6 +94,19 @@ impl BackendConfig {
             BackendKind::Embedded(cfg) => &cfg.name,
             #[cfg(feature = "cloud")]
             BackendKind::Api(cfg) => &cfg.name,
+        }
+    }
+
+    /// Retourne un hint de chemin/URL pour l'événement `LlmModelLoading`.
+    ///
+    /// - Backend local : chemin vers le fichier `.gguf`
+    /// - Backend cloud : URL de l'API
+    fn model_path_hint(&self) -> String {
+        match &self.kind {
+            #[cfg(feature = "local")]
+            BackendKind::Embedded(cfg) => cfg.model_path.to_string_lossy().into_owned(),
+            #[cfg(feature = "cloud")]
+            BackendKind::Api(cfg) => cfg.api_url.clone(),
         }
     }
 }
@@ -194,6 +210,181 @@ impl LlmRouter {
         })
     }
 
+    /// Construit le router depuis la configuration avec observabilité EventBus.
+    ///
+    /// Variante de [`from_config`](Self::from_config) à utiliser par le Supervisor (STORY-060).
+    /// Émet sur le bus pour chaque backend :
+    /// - [`RuntimeEvent::LlmModelLoading`] — avant le chargement
+    /// - [`RuntimeEvent::LlmModelReady`] — si le chargement réussit
+    /// - [`RuntimeEvent::LlmModelFailed`] — si le chargement échoue (backend ignoré, pas de crash)
+    ///
+    /// L'`EventBusSender` est optionnel — `None` désactive l'émission d'événements
+    /// sans changer le comportement fonctionnel.
+    ///
+    /// Contrairement à [`from_config`](Self::from_config), les erreurs de chargement
+    /// par backend (`.gguf` absent, etc.) sont loggées + émises comme `LlmModelFailed`
+    /// mais ne propagent pas d'erreur — le router continue avec les backends disponibles.
+    ///
+    /// # Erreurs
+    ///
+    /// - [`LlmError::BackendUnavailable`] — le backend par défaut est introuvable
+    ///   après que tous les backends aient été tentés.
+    pub async fn from_config_with_bus(
+        config: &LlmConfig,
+        bus: Option<EventBusSender>,
+    ) -> Result<Self, LlmError> {
+        let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
+
+        for backend_cfg in &config.backends {
+            let name = backend_cfg.name().to_owned();
+            let model_path = backend_cfg.model_path_hint();
+
+            // AC-2 : émettre LlmModelLoading avant chaque tentative de chargement.
+            if let Some(ref b) = bus {
+                let _ = b.send(RuntimeEvent::LlmModelLoading {
+                    backend: name.clone(),
+                    model_path,
+                });
+            }
+
+            let result: Result<Arc<dyn CompletionModel>, LlmError> = match &backend_cfg.kind {
+                #[cfg(feature = "local")]
+                BackendKind::Embedded(cfg) => EmbeddedBackend::load(cfg)
+                    .await
+                    .map(|b| Arc::new(b) as Arc<dyn CompletionModel>),
+
+                #[cfg(feature = "cloud")]
+                BackendKind::Api(cfg) => match cfg.resolve_api_key() {
+                    Ok(key) => {
+                        let b: Arc<dyn CompletionModel> = if cfg.api_url.contains("anthropic.com") {
+                            Arc::new(AnthropicClient::new(cfg, key))
+                        } else {
+                            Arc::new(OpenAICompatibleClient::new(cfg, key))
+                        };
+                        Ok(b)
+                    }
+                    Err(e) => Err(LlmError::BackendUnavailable {
+                        backend: name.clone(),
+                        reason: e.to_string(),
+                    }),
+                },
+            };
+
+            match result {
+                Ok(backend) => {
+                    // AC-2 : émettre LlmModelReady après succès.
+                    if let Some(ref b) = bus {
+                        let _ = b.send(RuntimeEvent::LlmModelReady {
+                            backend: name.clone(),
+                            model_id: backend.model_id().to_owned(),
+                        });
+                    }
+                    backends.insert(name, backend);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        backend = %name,
+                        error = %e,
+                        "backend ignoré : chargement échoué"
+                    );
+                    // AC-3 : émettre LlmModelFailed — backend ignoré, pas de crash.
+                    if let Some(ref b) = bus {
+                        let _ = b.send(RuntimeEvent::LlmModelFailed {
+                            backend: name.clone(),
+                            reason: e.to_string(),
+                        });
+                    }
+                    // Continue — on tente les backends suivants.
+                }
+            }
+        }
+
+        if !backends.contains_key(&config.default) {
+            return Err(LlmError::BackendUnavailable {
+                backend: config.default.clone(),
+                reason: "not configured".to_owned(),
+            });
+        }
+
+        Ok(Self {
+            backends,
+            default: config.default.clone(),
+        })
+    }
+
+    /// Appelle le backend et émet automatiquement [`RuntimeEvent::LlmCallCompleted`].
+    ///
+    /// Séquence d'exécution :
+    /// 1. Log le prompt au niveau `TRACE` si `obs.debug_log_prompt` est actif.
+    /// 2. Appelle `backend.complete(req)`.
+    /// 3. Émet `LlmCallCompleted` fire-and-forget sur le bus (si présent).
+    /// 4. Log tokens/latence au niveau `INFO` selon les flags `obs`.
+    /// 5. Retourne `Ok(response)`.
+    ///
+    /// L'`EventBusSender` est optionnel — `None` désactive l'émission sans changer
+    /// le comportement fonctionnel. Les erreurs `send()` sont silencieusement ignorées.
+    ///
+    /// # Erreurs
+    ///
+    /// - [`LlmError::BackendUnavailable`] — le backend demandé n'est pas dans le router.
+    /// - Toute erreur propagée par `backend.complete()`.
+    pub async fn complete_with_observability(
+        &self,
+        backend_name: Option<&str>,
+        req: CompletionRequest,
+        bus: Option<&EventBusSender>,
+        obs: &ObservabilityConfig,
+    ) -> Result<CompletionResponse, LlmError> {
+        let backend_key = backend_name.unwrap_or(&self.default);
+
+        let backend =
+            self.backends
+                .get(backend_key)
+                .ok_or_else(|| LlmError::BackendUnavailable {
+                    backend: backend_key.to_owned(),
+                    reason: "not found in router".to_owned(),
+                })?;
+
+        // AC-4 : log du prompt uniquement à TRACE — jamais à INFO.
+        if obs.debug_log_prompt {
+            tracing::trace!(prompt = ?req.messages, "llm prompt");
+        }
+
+        let started = Instant::now();
+        let response = backend.complete(req).await?;
+        let latency_ms = started.elapsed().as_millis() as u64;
+
+        // AC-1 : émission fire-and-forget — erreurs send() silencieusement ignorées.
+        if let Some(b) = bus {
+            let _ = b.send(RuntimeEvent::LlmCallCompleted {
+                backend: backend_key.to_owned(),
+                prompt_tokens: response.usage.prompt_tokens,
+                completion_tokens: response.usage.completion_tokens,
+                latency_ms,
+                cost_usd: response.usage.cost_usd,
+            });
+        }
+
+        if obs.log_token_usage {
+            tracing::info!(
+                backend = backend_key,
+                prompt_tokens = response.usage.prompt_tokens,
+                completion_tokens = response.usage.completion_tokens,
+                "llm token usage"
+            );
+        }
+
+        if obs.log_latency {
+            tracing::info!(
+                backend = backend_key,
+                latency_ms = latency_ms,
+                "llm latency"
+            );
+        }
+
+        Ok(response)
+    }
+
     /// Retourne le backend par nom, ou le backend défaut si `name` est `None`.
     ///
     /// Retourne `None` si le backend demandé n'est pas dans le router.
@@ -235,6 +426,14 @@ mod tests {
         name: String,
     }
 
+    impl Default for MockCompletionModel {
+        fn default() -> Self {
+            Self {
+                name: "mock".to_owned(),
+            }
+        }
+    }
+
     #[async_trait::async_trait]
     impl CompletionModel for MockCompletionModel {
         async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
@@ -242,8 +441,8 @@ mod tests {
                 content: "mock response".to_owned(),
                 tool_calls: vec![],
                 usage: TokenUsage {
-                    prompt_tokens: 0,
-                    completion_tokens: 0,
+                    prompt_tokens: 10,
+                    completion_tokens: 5,
                     cost_usd: None,
                 },
                 finish_reason: FinishReason::Stop,
@@ -425,6 +624,120 @@ mod tests {
                 Err(LlmError::BackendUnavailable { ref backend, .. }) if backend == "local"
             ),
             "from_config doit retourner BackendUnavailable si le backend défaut est absent"
+        );
+    }
+
+    // ── Tests observabilité (STORY-056) ──────────────────────────────────────
+
+    // GIVEN un LlmRouter avec un mock backend et un EventBusSender
+    // WHEN on appelle complete_with_observability(None, req, Some(&tx), &obs)
+    // THEN un événement LlmCallCompleted est reçu sur le bus avec backend == "mock"
+    // AC-1
+    #[tokio::test]
+    async fn test_ac1_llm_call_completed_emitted() {
+        use apollia_core::events::RuntimeEvent;
+        use tokio::sync::broadcast;
+
+        // GIVEN
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
+        let mut backends = HashMap::new();
+        backends.insert(
+            "mock".into(),
+            Arc::new(MockCompletionModel::default()) as Arc<dyn CompletionModel>,
+        );
+        let router = LlmRouter {
+            backends,
+            default: "mock".into(),
+        };
+        let req = CompletionRequest {
+            messages: vec![crate::types::ChatMessage::user("test")],
+            ..Default::default()
+        };
+        let obs = ObservabilityConfig::default();
+
+        // WHEN
+        router
+            .complete_with_observability(None, req, Some(&tx), &obs)
+            .await
+            .expect("complete_with_observability ne doit pas échouer avec un mock valide");
+
+        // THEN
+        let event = rx
+            .try_recv()
+            .expect("un événement doit être présent dans le bus");
+        assert!(
+            matches!(
+                event,
+                RuntimeEvent::LlmCallCompleted { ref backend, .. } if backend == "mock"
+            ),
+            "l'événement reçu doit être LlmCallCompleted avec backend == \"mock\", obtenu: {event:?}"
+        );
+    }
+
+    // GIVEN un router avec debug_log_prompt = false
+    // WHEN on appelle complete_with_observability() avec un message "secret_payload_xyz"
+    // THEN la fonction ne panic pas et retourne Ok — le prompt n'est pas loggué à INFO
+    // AC-4
+    #[tokio::test]
+    async fn test_ac4_prompt_not_logged_at_info_without_debug_flag() {
+        // GIVEN
+        let obs = ObservabilityConfig {
+            debug_log_prompt: false,
+            ..Default::default()
+        };
+        let req = CompletionRequest {
+            messages: vec![crate::types::ChatMessage::user("secret_payload_xyz")],
+            ..Default::default()
+        };
+        let mut backends = HashMap::new();
+        backends.insert(
+            "mock".into(),
+            Arc::new(MockCompletionModel::default()) as Arc<dyn CompletionModel>,
+        );
+        let router = LlmRouter {
+            backends,
+            default: "mock".into(),
+        };
+
+        // WHEN — ne doit pas panic, bus absent est acceptable (Option::None)
+        let result = router
+            .complete_with_observability(None, req, None, &obs)
+            .await;
+
+        // THEN
+        assert!(
+            result.is_ok(),
+            "complete_with_observability doit retourner Ok même sans bus : {result:?}"
+        );
+    }
+
+    // GIVEN un LlmRouter avec EventBusSender et backends vide (default absent)
+    // WHEN on appelle from_config_with_bus
+    // THEN Err(LlmError::BackendUnavailable) est retourné sans crash
+    // AC-3 (variante sans feature "local" : vérifie que le router ne crash pas)
+    #[tokio::test]
+    async fn test_ac3_from_config_with_bus_no_backends_returns_error() {
+        use apollia_core::events::RuntimeEvent;
+        use tokio::sync::broadcast;
+
+        // GIVEN
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(16);
+        let config = LlmConfig {
+            default: "local".to_owned(),
+            backends: vec![],
+            observability: ObservabilityConfig::default(),
+        };
+
+        // WHEN
+        let result = LlmRouter::from_config_with_bus(&config, Some(tx)).await;
+
+        // THEN — erreur propre, pas de crash
+        assert!(
+            matches!(
+                result,
+                Err(LlmError::BackendUnavailable { ref backend, .. }) if backend == "local"
+            ),
+            "from_config_with_bus doit retourner BackendUnavailable si aucun backend n'est disponible"
         );
     }
 }

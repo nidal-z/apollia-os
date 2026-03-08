@@ -2,6 +2,16 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+/// Handle en écriture sur l'EventBus — clonable, partageable entre acteurs.
+///
+/// Alias public défini dans `apollia-core` pour permettre à `apollia-llm`
+/// (et toute autre crate sans dépendance sur `apollia-runtime`) d'émettre
+/// des événements sur le bus sans créer de dépendance circulaire.
+///
+/// La publication est non-bloquante ; si le buffer est plein, l'envoi
+/// retourne une erreur silencieusement ignorée (fire-and-forget).
+pub type EventBusSender = tokio::sync::broadcast::Sender<RuntimeEvent>;
+
 /// Identifiant unique d'un agent dans le runtime (UUID v4 ou nom slug).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -153,6 +163,41 @@ pub enum RuntimeEvent {
     ShutdownRequested,
     /// Erreur fatale non récupérable.
     FatalError(String),
+
+    /// Un backend LLM est en cours de chargement (avant `load()` ou initialisation HTTP).
+    LlmModelLoading {
+        /// Nom logique du backend tel que configuré dans `apollia.toml`.
+        backend: String,
+        /// Chemin du fichier `.gguf` (backend local) ou URL de l'API (backend cloud).
+        model_path: String,
+    },
+    /// Un backend LLM est prêt — modèle chargé en mémoire ou connexion cloud vérifiée.
+    LlmModelReady {
+        /// Nom logique du backend.
+        backend: String,
+        /// Identifiant du modèle : nom de fichier sans extension (.gguf) ou model_id API.
+        model_id: String,
+    },
+    /// Le chargement d'un backend LLM a échoué — backend ignoré, runtime continue.
+    LlmModelFailed {
+        /// Nom logique du backend.
+        backend: String,
+        /// Raison de l'échec (message d'erreur).
+        reason: String,
+    },
+    /// Un appel LLM s'est terminé — émis par `complete_with_observability()`.
+    LlmCallCompleted {
+        /// Nom logique du backend qui a traité la requête.
+        backend: String,
+        /// Nombre de tokens dans le prompt.
+        prompt_tokens: u32,
+        /// Nombre de tokens générés.
+        completion_tokens: u32,
+        /// Latence totale de l'appel en millisecondes.
+        latency_ms: u64,
+        /// Coût estimé en USD (backends cloud uniquement ; `None` pour l'inférence locale).
+        cost_usd: Option<f64>,
+    },
 }
 
 #[cfg(test)]
@@ -197,6 +242,25 @@ mod tests {
             RuntimeEvent::AllReady,
             RuntimeEvent::ShutdownRequested,
             RuntimeEvent::FatalError("out of memory".into()),
+            RuntimeEvent::LlmModelLoading {
+                backend: "local".into(),
+                model_path: "/tmp/model.gguf".into(),
+            },
+            RuntimeEvent::LlmModelReady {
+                backend: "local".into(),
+                model_id: "llama3.2-q4".into(),
+            },
+            RuntimeEvent::LlmModelFailed {
+                backend: "local".into(),
+                reason: "file not found".into(),
+            },
+            RuntimeEvent::LlmCallCompleted {
+                backend: "anthropic".into(),
+                prompt_tokens: 100,
+                completion_tokens: 50,
+                latency_ms: 250,
+                cost_usd: Some(0.001),
+            },
         ];
 
         // THEN — toutes les variantes sont clonables et debuggables

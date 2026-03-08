@@ -23,7 +23,7 @@ pub mod sandbox;
 pub mod task;
 
 pub use budget::StepBudgetConfig;
-pub use events::{AgentId, RuntimeEvent, TaskId};
+pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
 pub use manifest::{AgentManifest, AgentSkill};
 pub use process::ProcessState;
 pub use result::{AIPArtifact, AIPError, AIPResult, TaskStatus};
