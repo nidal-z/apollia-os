@@ -368,5 +368,31 @@
 
 ---
 
+## ADR-020 — apollia-llm : moteur d'inférence embarqué, modèles fichiers externes, feature flags
+
+**Date :** 2026-03-08
+**Statut :** Accepté
+
+**Contexte :** Sprint 8 introduit `ctx.llm` pour les agents Python. Trois contraintes encadrent le choix : inférence locale offline (Principe #1), zéro daemon tiers requis (Principe #2), et fail fast si le modèle est absent (Principe #4). Certains utilisateurs préfèrent les backends cloud (Anthropic, OpenAI) — la solution doit couvrir les deux cas sans imposer la compilation du moteur d'inférence à tous.
+
+**Décision :** Crate `apollia-llm` avec deux feature flags Cargo : `cloud` (défaut, clients HTTP purs via `async-openai` + `reqwest`) et `local` (compile `EmbeddedBackend` via `mistral-rs-core` in-process). Le modèle `.gguf` est toujours un fichier externe dans `~/.apollia/models/` — jamais dans le binaire. `LlmRouter` dispatche au runtime selon `apollia.toml`. Backend absent → warning, pas de crash. Aucun backend disponible → `ctx.llm = None`, agent en `DEGRADED`.
+
+**Alternatives considérées :**
+- Daemon externe géré par Supervisor (rejetée : viole Principe #2 — suppose llama.cpp/ollama installé, gestion PID complexe, pas de single-binary réel)
+- Modèle GGUF embarqué dans le binaire (rejetée : ~2 Go inutilisables, impossible de changer de modèle sans recompiler)
+
+**Conséquences :**
+- `feature = "local"` : inférence offline complète, binaire plus lourd (mistral-rs-core).
+- `feature = "cloud"` (défaut) : binaire léger, aucun moteur compilé.
+- `LlmCallCompleted` émis sur EventBus après chaque appel (tokens, latence, coût estimatif).
+- `run_tools()` intègre `StepBudget` — garde-fou Principe #7 respecté dans la boucle ReAct.
+- `mistral-rs-core 0.4` à surveiller pour breaking changes.
+
+**Principes impactés :** Principe #1 — Local-first, Principe #2 — Zéro dépendance opérationnelle, Principe #4 — Fail fast, Principe #7 — Garde-fous non-négociables
+
+[Détail complet → docs/adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md](adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

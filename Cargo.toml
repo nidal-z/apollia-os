@@ -7,6 +7,7 @@ members = [
     "crates/apollia-tools",
     "crates/apollia-memory",
     "crates/apollia-aip",
+    "crates/apollia-llm",
     "crates/apollia-cli",
     "tests",
 ]
@@ -53,6 +54,12 @@ sha2 = "0.10"
 # --- Random ---
 rand = "0.8"
 
+# --- LLM (apollia-llm) ---
+futures = "0.3"
+async-trait = "0.1"
+# async-openai, reqwest (cloud) ajoutés en STORY-053
+# mistral-rs-core, tokenizers (local) ajoutés en STORY-052
+
 # --- Python bridge (apollia-aip) ---
 pyo3 = { version = "0.22", features = ["auto-initialize"] }
 pyo3-async-runtimes = { version = "0.22", features = ["tokio-runtime"] }
@@ -64,6 +71,7 @@ apollia-oria    = { path = "crates/apollia-oria" }
 apollia-tools   = { path = "crates/apollia-tools" }
 apollia-memory  = { path = "crates/apollia-memory" }
 apollia-aip     = { path = "crates/apollia-aip" }
+apollia-llm     = { path = "crates/apollia-llm" }
 
 [profile.release]
 opt-level = 3

@@ -1,0 +1,21 @@
+[package]
+name = "apollia-llm"
+version = "0.1.0"
+edition = "2021"
+
+# STORY-051 : types + trait uniquement — aucun backend implémenté.
+# Les features cloud / local existent pour la compilation conditionnelle future.
+# Les dépendances de backends seront ajoutées dans STORY-052 (local) et STORY-053/054 (cloud).
+[features]
+default = ["cloud"]
+local   = []
+cloud   = []
+
+[dependencies]
+tokio        = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+thiserror    = { workspace = true }
+tracing      = { workspace = true }
+futures      = { workspace = true }
+async-trait  = { workspace = true }
