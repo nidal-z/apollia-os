@@ -1,0 +1,70 @@
+@startuml seq-run-tools-react
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 11
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+skinparam SequenceGroupBorderColor #888888
+
+title Séquence — Boucle ReAct run_tools() — Apollia OS
+
+participant "Agent Python" as agent #2d4a22/d4edda
+participant "LlmProxy\n(PyO3)" as proxy #4a3728/f5e6d3
+participant "ToolCallHelper" as helper #4a3728/f5e6d3
+participant "CompletionModel\n(backend LLM)" as model #4a3728/f5e6d3
+participant "ToolInvoker\n(ToolProxy)" as invoker #1a1a2e/e0e0ff
+participant "ToolRegistry" as tools #1a1a2e/e0e0ff
+participant "StepBudget" as budget #2a3a4a/cce5ff
+
+agent -> proxy : await ctx.llm.run_tools(\n  messages=[...],\n  tools=[{name, description, parameters}],\n  max_iterations=5\n)
+
+proxy -> proxy : parse list[dict] → Vec<ChatMessage>\nparse list[dict] → Vec<ToolSpec>
+
+proxy -> helper : run_tools(\n  messages, tools,\n  max_iters=5,\n  budget_view\n)
+
+loop itérations ReAct (jusqu'à Stop ou max_iters)
+
+  helper -> budget : is_exhausted() ?
+  alt budget épuisé
+    budget --> helper : true
+    helper --> proxy : LlmError::BudgetExceeded
+    proxy --> agent : PyRuntimeError("step budget exhausted")
+  end
+
+  helper -> model : complete(CompletionRequest {\n  messages, tools\n})
+  model --> helper : CompletionResponse { finish_reason, content, tool_calls }
+
+  alt finish_reason == Stop
+    helper --> proxy : Ok(content)  [sortie de boucle]
+    proxy --> agent : LlmResponse { content, usage, latency_ms }
+
+  else finish_reason == ToolCalls
+    helper -> helper : push ChatMessage::assistant_with_calls(\n  content, tool_calls\n)
+
+    loop pour chaque tool_call
+      helper -> invoker : invoke(call.name, call.arguments)
+      invoker -> tools : execute(name, input_json)
+      tools --> invoker : serde_json::Value
+      invoker --> helper : Ok(result_str)
+      note right of helper : Erreur invoker → absorbée\n"tool error: ..." (jamais fatale)
+      helper -> helper : push ChatMessage::tool_result(\n  call.id, result_str\n)
+    end
+
+    note over helper : → prochain tour de boucle\navec historique enrichi
+
+  else finish_reason == Length
+    helper --> proxy : LlmError::MaxTokensReached
+    proxy --> agent : PyRuntimeError
+
+  else finish_reason == Error
+    helper --> proxy : LlmError::InferenceError
+    proxy --> agent : PyRuntimeError
+  end
+
+end
+
+helper --> proxy : LlmError::MaxIterationsReached { iterations: 5 }
+proxy --> agent : PyRuntimeError("max tool iterations reached (5)")
+
+@enduml

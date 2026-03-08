@@ -98,34 +98,34 @@ ContextBundle → agent.run(task, ctx)
 
 ### 3.2 Mode Orchestré — Reasoner LLM explicite
 
-En Mode Orchestré, ORIA instancie un Reasoner LLM qui produit un `ExecutionPlan` structuré.
+En Mode Orchestré, ORIA instancie un `Reasoner` qui appelle un `Arc<dyn CompletionModel>` (depuis `apollia-llm`) pour produire un `ExecutionPlan` structuré JSON.
 
 ```rust
 pub struct ExecutionPlan {
     pub plan_id: String,
-    pub task_id: String,
     pub steps: Vec<PlanStep>,
-    pub created_at: DateTime<Utc>,
 }
 
 pub struct PlanStep {
     pub step_id: String,
     pub description: String,        // "Récupérer les infos client Dupont SA"
     pub tool_hint: Option<String>,  // "file_io"
-    pub depends_on: Vec<String>,    // Dépendances entre steps
-    pub status: StepStatus,
-}
-
-pub enum StepStatus {
-    Pending,
-    Running,
-    Completed { output: String },
-    Failed { error: String, retryable: bool },
-    Skipped,
+    pub depends_on: Vec<String>,    // Dépendances entre steps (par step_id)
 }
 ```
 
-**Prompt système Reasoner (MVP) :**
+Le `Reasoner` est injecté dans l'`ORIAEngine` via un builder :
+
+```rust
+// Dans le Supervisor — après LlmRouter démarré (position 5)
+let model: Arc<dyn CompletionModel> = llm_router.get(None).unwrap();
+let reasoner = Reasoner::new(model);
+let engine = ORIAEngine::new().with_reasoner(reasoner);
+```
+
+**Robustesse JSON :** Si le LLM produit un JSON invalide, le Reasoner retente automatiquement jusqu'à **3 fois** avec un message de correction explicite. Au-delà, `ReasonerError::PlanParseError` est levé et la tâche échoue proprement.
+
+**Prompt système Reasoner :**
 
 ```
 Tu es un planificateur de tâches pour un agent IA autonome souverain.
@@ -134,7 +134,6 @@ Tu es un planificateur de tâches pour un agent IA autonome souverain.
 Contraintes :
 - Maximum {max_steps} étapes
 - Outils disponibles : {tool_names}
-- Contexte mémoire : {memory_summary}
 
 Format JSON strict :
 {
@@ -151,7 +150,7 @@ Format JSON strict :
 Tâche : {task_input}
 ```
 
-**Décision modèle Reasoner :** Le Reasoner utilise **le même LLM que l'agent** avec un system prompt dédié. Pas de second modèle en MVP — la complexité de configurer deux modèles différents n'est pas justifiable pour la cible PME.
+**Décision modèle Reasoner :** Le Reasoner utilise **le même LLM que l'agent** via `Arc<dyn CompletionModel>` injecté depuis le `LlmRouter`. Pas de second modèle en MVP — la complexité de configurer deux modèles différents n'est pas justifiable pour la cible PME (ADR-004). Si `ORIAEngine` n'a pas de `Reasoner` configuré (LLM absent), `execute_orchestrated()` retourne `ORIAError::NoLlmConfigured`.
 
 ---
 

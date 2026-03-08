@@ -6,7 +6,7 @@
 ## C4 — Vue Contexte
 ![C4 Context](c4-context-runtime.svg)
 
-## C4 — Vue Container (7 crates)
+## C4 — Vue Container (8 crates)
 ![C4 Container](c4-container-runtime.svg)
 
 ## C4 — Composants Runtime Core
@@ -32,3 +32,12 @@
 
 ## Séquence — Mémoire
 ![Memory Usage](seq-memory-usage.svg)
+
+## Séquence — Appel LLM (ctx.llm.chat / complete / stream)
+![LLM Call](seq-llm-call.svg)
+
+## Séquence — Boucle ReAct run_tools()
+![ReAct run_tools](seq-run-tools-react.svg)
+
+## Séquence — Démarrage Supervisor (7 phases)
+![Supervisor Startup](seq-supervisor-startup.svg)

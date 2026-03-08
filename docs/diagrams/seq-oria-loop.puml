@@ -11,6 +11,7 @@ title Séquence — ORIA Engine (Mode Direct & Orchestré) — Apollia OS
 
 participant "ExecutionCoord." as coord #1a1a2e/e0e0ff
 participant "Observer" as obs #1a1a2e/e0e0ff
+participant "Reasoner\n(LLM)" as reasoner #4a3728/f5e6d3
 participant "StepBudget" as budget #2a3a4a/cce5ff
 participant "ResilienceLayer" as resilience #1a1a2e/e0e0ff
 participant "Agent Python" as agent #2d4a22/d4edda
@@ -32,7 +33,7 @@ alt Mode Direct (tâche courte, outils simples)
       coord --> coord : TaskStatus::Failed\n(code: BUDGET_EXCEEDED)
     end
 
-    coord -> agent : agent.run(task, ctx)
+    coord -> agent : agent.run(task, ctx)\n[ctx.llm disponible si LlmRouter présent]
     agent -> resilience : pre_check("bash_executor")
 
     alt circuit OPEN
@@ -56,16 +57,36 @@ alt Mode Direct (tâche courte, outils simples)
 
 else Mode Orchestré (tâche complexe, multi-étapes)
 
-  obs --> coord : Orchestrated(plan)
+  obs --> coord : Orchestrated
 
-  loop chaque étape du plan (max 2 replans)
+  coord -> reasoner : plan(context_bundle)\n[Arc<dyn CompletionModel>]
+
+  loop retry JSON (max 3 si parse échoue)
+    reasoner -> reasoner : complete(prompt_planner)
+    reasoner -> reasoner : parse JSON → ExecutionPlan
+    alt JSON invalide
+      reasoner -> reasoner : correction_message\n→ retry
+    end
+  end
+
+  reasoner --> coord : ExecutionPlan { steps: Vec<PlanStep> }
+
+  loop chaque step du plan
     coord -> budget : check_remaining()
+
+    alt budget épuisé
+      budget --> coord : BudgetExceeded
+      coord --> coord : TaskStatus::Failed
+    end
+
     coord -> agent : agent.run(step_task, ctx)
     agent --> coord : StepResult
 
-    alt step failed et replan possible
-      coord -> obs : replan(remaining_steps)
-      obs --> coord : ExecutionPlan (révisé)
+    alt step failed ET replan_count < 2
+      coord -> reasoner : replan(plan, failed_step, error)
+      reasoner --> coord : ExecutionPlan (révisé)
+    else replan_count >= 2
+      coord --> coord : TaskStatus::Failed\n(MAX_REPLAN_EXCEEDED)
     end
   end
 

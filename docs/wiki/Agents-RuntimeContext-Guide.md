@@ -14,6 +14,7 @@ async def run(self, task, ctx):
     # ctx donne accès à :
     # ctx.tools         — ToolProxy : invocation des outils
     # ctx.memory        — MemoryInterface | None : mémoire persistante
+    # ctx.llm           — LlmProxy | None : appels LLM (None si aucun backend configuré)
     # ctx.log           — AgentLogger : logs structurés
     # ctx.step_budget   — StepBudgetView : budget restant (lecture seule)
 ```
@@ -210,6 +211,164 @@ async def run(self, task, ctx):
 
 ---
 
+## ctx.llm — LlmProxy
+
+**Disponible uniquement si au moins un backend LLM est configuré dans `apollia.toml`.** `None` sinon.
+
+Quand `ctx.llm` est `None`, le runtime émet automatiquement `RuntimeEvent::AgentDegraded` sur l'EventBus (visible dans `apollia-os status` et les logs). L'agent peut continuer à tourner en mode dégradé — aucun crash, aucune exception Python.
+
+```python
+if ctx.llm is None:
+    # AgentDegraded déjà émis par le runtime — l'agent décide quoi faire
+    return {"task_id": task["task_id"], "status": "failed",
+            "error": "LLM backend requis mais non disponible"}
+```
+
+### Propriété `default_backend`
+
+```python
+# Connaître le backend par défaut utilisé (utile pour les logs)
+print(ctx.llm.default_backend)   # "local" | "anthropic" | "gpt-4o-mini" ...
+```
+
+### Chat simple (80% des cas)
+
+Un system prompt + un message utilisateur → une réponse.
+
+```python
+response = await ctx.llm.chat(
+    system="Tu es un assistant commercial expert en devis.",
+    user=task["input"]["parts"][0]["text"],
+)
+# response.content : str — texte généré
+# response.usage.prompt_tokens : int
+# response.usage.completion_tokens : int
+# response.usage.cost_usd : float | None  (None pour les backends locaux)
+# response.latency_ms : int
+print(response.content)
+```
+
+### Conversation multi-tour
+
+Pour les flux avec historique ou les rôles system/user/assistant explicites.
+
+```python
+response = await ctx.llm.complete([
+    {"role": "system",    "content": "Sois concis. Réponds en 3 points max."},
+    {"role": "user",      "content": "Quels sont les avantages du cloud ?"},
+    {"role": "assistant", "content": "1. Scalabilité 2. Coût variable 3. ..."},
+    {"role": "user",      "content": "Et les inconvénients ?"},
+])
+print(response.content)
+```
+
+### Streaming
+
+Retourne une liste de chunks texte. Utile pour les réponses longues.
+
+```python
+chunks = await ctx.llm.stream([
+    {"role": "user", "content": "Génère un rapport détaillé sur..."},
+])
+full_response = "".join(chunks)
+```
+
+`stream()` retourne toujours une `list[str]`. Si le backend ne supporte pas le streaming nativement, un seul chunk contenant la réponse complète est retourné (fallback silencieux — le code de l'agent ne change pas).
+
+### Boucle ReAct automatique — `run_tools()`
+
+Délègue la boucle Thought → Action → Observe au LLM. Idéal pour les agents qui laissent le modèle décider des outils à utiliser.
+
+> **Types importants :** `messages` et `tools` sont des **`list[dict]`** Python — pas des objets Rust. La sérialisation est gérée automatiquement par le bridge PyO3.
+
+```python
+result = await ctx.llm.run_tools(
+    messages=[                   # list[dict] avec clés "role" et "content"
+        {"role": "system", "content": "Tu es un assistant qui lit des fichiers."},
+        {"role": "user",   "content": "Lis le fichier config.json et résume-le."},
+    ],
+    tools=[                      # list[dict] — schéma JSON Schema
+        {
+            "name":        "file_io",
+            "description": "Lit ou écrit des fichiers locaux.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["read", "write", "list"]},
+                    "path":   {"type": "string"},
+                },
+                "required": ["action", "path"],
+            },
+        }
+    ],
+    max_iterations=5,   # garde-fou : max 5 aller-retours LLM ↔ outils
+)
+# result.content : str — réponse finale après toutes les boucles
+# result.usage.prompt_tokens : int (cumul de toutes les itérations)
+print(result.content)
+```
+
+La boucle `run_tools()` :
+1. Appelle le LLM avec les outils disponibles
+2. Si `finish_reason == tool_calls` → exécute les outils via `ctx.tools` (erreurs absorbées comme texte, jamais fatales)
+3. Injecte les résultats comme messages `role: tool`
+4. Répète jusqu'à `finish_reason == stop` ou `max_iterations` atteint → `PyRuntimeError`
+5. Si `StepBudget` épuisé → `PyRuntimeError` immédiat
+
+### Choisir un backend spécifique
+
+Si plusieurs backends sont configurés, il est possible d'en choisir un explicitement.
+
+```python
+# Utiliser le backend anthropic pour une tâche spécifique
+response = await ctx.llm.chat(
+    system="...",
+    user="...",
+    backend="anthropic",   # override du backend par défaut
+)
+```
+
+### Pattern complet — agent LLM avec mémoire
+
+```python
+async def run(self, task, ctx):
+    user_input = task["input"]["parts"][0]["text"]
+
+    # 1. Contexte mémoriel
+    memory_context = ""
+    if ctx.memory:
+        results = await ctx.memory.search(user_input, limit=3)
+        if results:
+            memory_context = "\n".join(r["content"] for r in results)
+
+    # 2. Appel LLM avec contexte
+    if ctx.llm is None:
+        return {"task_id": task["task_id"], "status": "failed",
+                "error": "LLM requis"}
+
+    system_prompt = "Tu es un assistant commercial."
+    if memory_context:
+        system_prompt += f"\n\nContexte mémorisé :\n{memory_context}"
+
+    response = await ctx.llm.chat(system=system_prompt, user=user_input)
+
+    # 3. Mémoriser la réponse
+    if ctx.memory:
+        await ctx.memory.record(
+            f"Q: {user_input[:80]} → R: {response.content[:80]}",
+            importance=0.7,
+            task_id=task["task_id"],
+        )
+
+    return {
+        "task_id": task["task_id"],
+        "status": "completed",
+        "output": [{"type": "text", "text": response.content}],
+    }
+```
+
+---
+
 ## ctx.log — AgentLogger
 
 Logs structurés envoyés via le système de logging du runtime (`tracing`).
@@ -260,4 +419,5 @@ elapsed_seconds      = ctx.step_budget.elapsed_seconds        # float
 - [Briques AIP Specification](./Briques-AIP-Specification) — contrat complet AIPTask, AIPResult, AgentManifest
 - [Briques Tool Registry](./Briques-Tool-Registry) — catalogue des outils, schémas complets
 - [Briques Memory Engine](./Briques-Memory-Engine) — backends mémoire, FTS5, namespaces
+- [Briques LLM Backend](./Briques-LLM-Backend) — backends LLM, feature flags, configuration
 - [Agents Bonnes Pratiques](./Agents-Bonnes-Pratiques) — gestion du StepBudget, coûts LLM

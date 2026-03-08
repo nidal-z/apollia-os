@@ -25,31 +25,40 @@ rectangle "apollia-runtime" as runtime #1a1a2e {
   rectangle "ShutdownController\nSIGTERM / SIGINT\ndrain 30s" as shutdown #1a1a2e
 }
 
-rectangle "ORIA Engine" as oria #1a1a2e
-rectangle "AIP Bridge (PyO3)" as aip #1a1a2e
+rectangle "LlmRouter\nArc<dyn CompletionModel>\nposition 5 Supervisor" as llm #4a3728
+
+rectangle "ORIA Engine\n(Observer + Reasoner + Actor)" as oria #1a1a2e
+rectangle "AIP Bridge (PyO3)\n(RuntimeContext + LlmProxy)" as aip #1a1a2e
 actor "CLI / Client HTTP" as cli #3a3a3a/white
 
-sup --> bus : démarre\nen premier
-sup --> reg : démarre
-sup --> router : démarre
-sup --> api : démarre\nen dernier
+' --- ordre de démarrage Supervisor (1→7) ---
+sup --> bus    : 1. démarre\nen premier
+sup --> reg    : 2. démarre
+sup --> oria   : 3. démarre\n(ToolRegistry + MemoryEngine)
+sup --> llm    : 5. LlmRouter::from_config_with_bus()\nLlmModelReady / Failed → bus
+sup --> router : 6. démarre
+sup --> api    : 7. démarre\nen dernier
 
-bus ..> reg : broadcast\nRuntimeEvent
+bus ..> reg    : broadcast\nRuntimeEvent
 bus ..> router : broadcast\nRuntimeEvent
-bus ..> api : broadcast\n(SSE stream)
+bus ..> api    : broadcast\n(SSE stream)\nLlmCallCompleted…
 
-reg --> bus : publie\nAgentTransitioned
+reg    --> bus    : publie\nAgentTransitioned
+llm    --> bus    : publie\nLlmModelLoading / Ready / Failed\nLlmCallCompleted
 
-router --> reg : GetByName / Transition\n(mpsc message)
-router --> coord : dispatch\nSubmitTask
+router --> reg    : GetByName / Transition\n(mpsc message)
+router --> coord  : dispatch\nSubmitTask
 
-coord --> oria : execute_direct()\n(AIPBridge backend)
-coord --> bus : publie\nTaskCompleted / TaskFailed
+coord  --> oria   : execute_direct()\nexecute_orchestrated()\n(AIPBridge backend)
+coord  --> bus    : publie\nTaskCompleted / TaskFailed
 
-api --> router : Submit / GetStatus / Cancel\n(mpsc message)
-api --> reg : List / GetById\n(mpsc message)
+api    --> router : Submit / GetStatus / Cancel\n(mpsc message)
+api    --> reg    : List / GetById\n(mpsc message)
+api    --> llm    : GET /llm/status\nPOST /llm/ping\nPOST /llm/chat
 
-shutdown --> bus : publie\nShutdownRequested
+aip    --> llm    : ctx.llm (LlmProxy)\nArc<LlmRouter>
+
+shutdown --> bus    : publie\nShutdownRequested
 shutdown --> router : GetActiveTasks\n(drain)
 
 cli --> api : HTTP REST\n/ SSE

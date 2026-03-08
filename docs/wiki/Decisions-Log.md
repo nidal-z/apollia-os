@@ -394,5 +394,32 @@
 
 ---
 
+## ADR-021 — apollia-triggers : configuration TOML-only, authentification HMAC-SHA256 webhooks, hot reload sans restart
+
+**Date :** 2026-03-08
+**Statut :** Accepté
+
+**Contexte :** Sprint 9 introduit `apollia-triggers` (cron, interval, file watch, webhooks). Trois décisions structurantes engagent des interfaces difficiles à inverser : (1) format de configuration des triggers, (2) authentification des webhooks entrants, (3) mise à jour des triggers sans redémarrer le runtime.
+
+**Décision :** (1) Configuration TOML-only via `[[triggers]]` dans `apollia.toml` — même source de vérité que les LLM backends. Validation sémantique complète dans `ApolliaConfig::load()` au démarrage (schedule cron via `cron::Schedule::from_str`, secret webhook non vide, path résolvable). Trigger `enabled = false` → source non validée. (2) HMAC-SHA256 avec header `X-Apollia-Signature: sha256=<hex>` (standard GitHub Webhooks) + `constant_time_eq` pour la comparaison — le body est lié cryptographiquement au secret, timing attacks éliminées. Ordre de réponse : 503 → 404 → 401 → 200. (3) Hot reload via `POST /api/v1/triggers/reload` + `apollia-os trigger reload` : timeout 2s sur chaque `JoinHandle<()>` actif avant drop forcé, full-replace des définitions, compteurs SQLite préservés, `TriggersReloaded { count }` sur EventBus. Erreur TOML au reload → 422, triggers actuels inchangés.
+
+**Alternatives considérées :**
+- API REST + stockage SQLite (rejetée : double source de vérité TOML/base, pas de fail fast naturel au démarrage)
+- Fichier `triggers.toml` séparé avec auto-reload inotify (rejetée : fragmentation config, reload implicite = comportement surprenant, viole ADR-008)
+- Token Bearer statique pour les webhooks (rejetée : n'authentifie pas le body — rejoue possible, pas de protection timing attacks)
+- Hot reload via SIGHUP (rejetée : pas de retour sur erreur, incompatible Windows roadmap, rompt le pattern REST `POST /api/v1/shutdown`)
+
+**Conséquences :**
+- `apollia.toml` est la source de vérité unique pour l'ensemble du runtime (runtime, LLM, agents, triggers).
+- Full-replace au reload : sources inchangées stoppées et respawnées (impact minimal en pratique).
+- Trois nouvelles dépendances workspace : `cron = "0.12"`, `notify = "6"`, `chrono = "0.4"`.
+- Risque compatibilité `hmac 0.12` + `sha2 0.10` : vérifier `digest` commun avant STORY-069.
+
+**Principes impactés :** Principe #1 — Local-first, Principe #4 — Fail fast, Principe #5 — Un acteur une responsabilité, Principe #8 — CLI humaine
+
+[Détail complet → docs/adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md](adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

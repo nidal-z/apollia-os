@@ -25,6 +25,7 @@
 - [[Briques-Tool-Registry|Tool Registry]]
 - [[Briques-Memory-Engine|Memory Engine]]
 - [[Briques-ORIA-Engine|ORIA Engine]]
+- [[Briques-LLM-Backend|LLM Backend]]
 - [[Briques-Runtime-Core|Runtime Core]]
 - [[Briques-CLI|Apollia CLI]]
 

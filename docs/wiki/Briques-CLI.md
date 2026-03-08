@@ -37,6 +37,20 @@ $ apollia-os start
   ✔ AgentRegistry    prêt
   ✔ Tool Registry    6 outils chargés
   ✔ Memory Engine    prêt (FTS5, embedding désactivé)
+  ✔ LlmRouter        2 backends prêts (local · anthropic)
+  ✔ TaskRouter       prêt
+  ✔ APIServer        écoute sur /tmp/apollia.sock · localhost:7771
+  ─────────────────────────────────────────────────
+  ✔ Runtime prêt en 1.2s
+
+# Sans LLM configuré :
+$ apollia-os start
+  Apollia OS v0.1.0 démarrage...
+  ✔ EventBus         prêt
+  ✔ AgentRegistry    prêt
+  ✔ Tool Registry    6 outils chargés
+  ✔ Memory Engine    prêt (FTS5, embedding désactivé)
+  ⚠ LlmRouter        aucun backend configuré — ctx.llm sera None pour tous les agents
   ✔ TaskRouter       prêt
   ✔ APIServer        écoute sur /tmp/apollia.sock · localhost:7771
   ─────────────────────────────────────────────────
@@ -232,6 +246,67 @@ $ apollia-os audit stats
   Temps moy  : 2.8s
   Outil +    : python_executor (34 appels)
   Outil —    : http_client (2 timeouts)
+```
+
+### `apollia-os llm <verb>`
+
+Diagnostiquer et tester les backends LLM. Nécessite un runtime démarré.
+
+```bash
+# État de tous les backends configurés
+$ apollia-os llm status
+  BACKENDS LLM
+  ────────────────────────────────────────────────────
+  NOM           TYPE        MODÈLE                   ÉTAT
+  local         embedded    llama3.2-3B-q4_K_M.gguf  ✔ prêt
+  anthropic     cloud       claude-haiku-4-5          ✔ prêt
+  gpt-4o-mini   cloud       gpt-4o-mini               ✔ prêt (défaut)
+
+$ apollia-os llm status --json
+
+# Mesurer la latence d'un backend
+$ apollia-os llm ping
+  ✔ gpt-4o-mini (défaut) — 234ms
+$ apollia-os llm ping anthropic
+  ✔ anthropic — 187ms
+$ apollia-os llm ping local
+  ✔ local (embedded) — 1 243ms
+
+# Si la clé API est absente :
+$ apollia-os llm ping anthropic
+  ✗ anthropic — ANTHROPIC_API_KEY absent (exit code 2)
+
+# Envoyer un prompt direct et afficher la réponse
+$ apollia-os llm chat "Résume les avantages du local-first en 3 points"
+  1. Pas de latence réseau — réponse instantanée
+  2. Confidentialité totale des données
+  3. Fonctionnement hors ligne garanti
+
+$ apollia-os llm chat "test" --backend anthropic
+$ apollia-os llm chat "test" --json
+  {"content": "...", "usage": {"prompt_tokens": 12, "completion_tokens": 42}, "latency_ms": 187}
+```
+
+### `apollia-os model <verb>`
+
+Gestion des fichiers modèles locaux `.gguf`. Ne nécessite **pas** un runtime démarré — lecture directe du filesystem.
+
+```bash
+# Lister les modèles disponibles dans ~/.apollia/models/
+$ apollia-os model list
+  MODÈLES LOCAUX (~/.apollia/models/)
+  ────────────────────────────────────────────
+  NOM                              TAILLE
+  llama3.2-3B-q4_K_M.gguf         2.0 GB
+  mistral-7b-instruct-q4.gguf     4.1 GB
+
+$ apollia-os model list --json
+  {"models": [{"name": "llama3.2-3B-q4_K_M.gguf", "size_bytes": 2097152000}]}
+
+# Si le répertoire n'existe pas encore :
+$ apollia-os model list
+  Aucun modèle trouvé dans ~/.apollia/models/
+  → Téléchargez un modèle .gguf et placez-le dans ~/.apollia/models/
 ```
 
 ---

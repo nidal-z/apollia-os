@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title C4 Container — 7 Crates Workspace — Apollia OS
+title C4 Container — 8 Crates Workspace — Apollia OS
 
 actor "Opérateur" as ops #3a3a3a/white
 actor "Développeur" as dev #3a3a3a/white
@@ -26,6 +26,7 @@ rectangle "Apollia OS Workspace" as workspace #1a1a2e {
 
   rectangle "apollia-oria\n(ORIA Engine)" as oria #1a1a2e {
     component "Observer\nContextBundle" as obs
+    component "Reasoner (LLM)\nExecutionPlan" as reasoner
     component "StepBudget\nResilienceLayer" as budget
   }
 
@@ -39,11 +40,16 @@ rectangle "Apollia OS Workspace" as workspace #1a1a2e {
   }
 
   rectangle "apollia-aip\n(PyO3 Bridge)" as aip #1a1a2e {
-    component "AIPBridge\nToolProxy\nMemoryInterface" as bridge
+    component "AIPBridge\nToolProxy\nMemoryInterface\nLlmProxy" as bridge
+  }
+
+  rectangle "apollia-llm\n(LLM Engine)" as llm #4a3728 {
+    component "LlmRouter\nCompletionModel trait\nToolCallHelper (ReAct)" as llmrouter
+    component "EmbeddedBackend [local]\nOpenAICompatibleClient [cloud]\nAnthropicClient [cloud]" as backends
   }
 
   rectangle "apollia-core\n(types partagés)" as core #1a1a2e {
-    component "AgentManifest\nAIPTask / AIPResult\nProcessState / TaskStatus" as types
+    component "AgentManifest\nAIPTask / AIPResult\nProcessState / TaskStatus\nRuntimeEvent (LlmCallCompleted…)" as types
   }
 }
 
@@ -55,17 +61,22 @@ rectangle "Linux namespaces\n(unshare, sandbox)" as sandbox #4a3728
 
 rectangle "Serveur MCP\n(externe, optionnel)" as mcp #4a3728
 
+rectangle "API Cloud LLM\n(OpenAI / Anthropic\noptionnel [feature=cloud])" as cloudllm #4a3728
+
 ops --> cli : apollia-os [cmd]
 dev --> agent : écrit
 cli --> runtime : RuntimeClient (HTTP Unix socket)
 runtime --> oria : dispatch tâche
 oria --> tools : ctx.tools.call()
 oria --> memory : ctx.memory.*
+oria --> llm : Reasoner\nArc<dyn CompletionModel>
 runtime --> aip : AIPBridge.call_run()
 aip --> agent : PyO3 (asyncio.run)
+aip --> llm : ctx.llm (LlmProxy)
 agent --> aip : AIPResult (dict)
 tools --> sandbox : bash_executor\npython_executor
 tools --> mcp : mcp_consumer (v0.2)
 memory --> sqlite : INSERT / FTS5 MATCH
+llm --> cloudllm : HTTP REST\n(feature = cloud)
 
 @enduml

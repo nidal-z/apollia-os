@@ -110,6 +110,100 @@ tcp_enabled = true
 bind_address = "127.0.0.1"
 ```
 
+### [llm] et [[llm.backends]] — Moteur LLM
+
+La section `[llm]` configure le `LlmRouter`. Elle est **optionnelle** — le runtime démarre sans LLM, et `ctx.llm` sera `None` dans les agents.
+
+```toml
+[llm]
+# Nom du backend utilisé par défaut (get(None) → ce backend)
+default = "local"
+
+# Observabilité — paramètres communs à tous les backends
+[llm.observability]
+log_token_usage  = true   # log tokens consommés (défaut: true)
+log_latency      = true   # log latence de chaque appel (défaut: true)
+log_cost         = false  # log coût USD estimé pour les backends cloud (défaut: false)
+debug_log_prompt = false  # log le prompt complet au niveau TRACE (défaut: false, JAMAIS en prod)
+```
+
+#### Backend embarqué — inférence locale in-process
+
+```toml
+[[llm.backends]]
+type       = "embedded"
+name       = "local"
+model_path = "~/.apollia/models/llama3.2-3B-q4_K_M.gguf"
+device     = "cpu"    # "cpu" | "cuda" | "metal"
+```
+
+Requis : compilé avec `--features local`. Le chemin `~` est résolu au démarrage.
+
+#### Backend cloud OpenAI-compatible
+
+```toml
+[[llm.backends]]
+type        = "api"
+name        = "gpt-4o-mini"
+api_url     = "https://api.openai.com/v1"
+model       = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY"   # nom de la variable d'environnement
+```
+
+#### Backend cloud Anthropic
+
+```toml
+[[llm.backends]]
+type        = "api"
+name        = "anthropic"
+api_url     = "https://api.anthropic.com/v1"
+model       = "claude-haiku-4-5-20251001"
+api_key_env = "ANTHROPIC_API_KEY"
+```
+
+**Heuristique de sélection client :** `api_url.contains("anthropic.com")` → `AnthropicClient`. Sinon → `OpenAICompatibleClient`.
+
+**Comportement si clé API absente :** warning loggé au démarrage (`WARN apollia_llm — backend "anthropic" skipped: ANTHROPIC_API_KEY not set`), backend ignoré, runtime continue. L'agent recevra `ctx.llm = None` si *tous* les backends configurés échouent ou sont absents.
+
+**Expansion du chemin `~` :** effectuée au parsing TOML (avant `LlmRouter::from_config`). Le chemin est converti en chemin absolu — si le fichier est absent, `LlmError::ModelNotFound` est émis au démarrage (fail-fast, Principe #4).
+
+#### Exemple complet — config mixte (local + cloud)
+
+```toml
+[llm]
+default = "local"    # préférer le modèle local par défaut
+
+[llm.observability]
+log_token_usage  = true
+log_latency      = true
+log_cost         = true
+debug_log_prompt = false
+
+# Backend 1 : modèle local (nécessite --features local)
+[[llm.backends]]
+type       = "embedded"
+name       = "local"
+model_path = "~/.apollia/models/llama3.2-3B-q4_K_M.gguf"
+device     = "cpu"
+
+# Backend 2 : Anthropic cloud (fallback pour les tâches gourmandes en raisonnement)
+[[llm.backends]]
+type        = "api"
+name        = "anthropic"
+api_url     = "https://api.anthropic.com/v1"
+model       = "claude-haiku-4-5-20251001"
+api_key_env = "ANTHROPIC_API_KEY"
+```
+
+Dans un agent, pour utiliser le backend cloud explicitement :
+```python
+response = await ctx.llm.chat(
+    system="Analyse complexe...", user=user_input, backend="anthropic"
+)
+```
+
+---
+
 ### [budget] — défauts StepBudget
 
 ```toml
@@ -159,6 +253,19 @@ sandbox = false  # désactivé sur macOS / en dev
 max_steps = 50   # plus permissif pour le debug
 max_tool_calls = 100
 wall_clock_timeout_secs = 600
+
+# LLM local pour le dev (aucun coût cloud)
+[llm]
+default = "local"
+
+[[llm.backends]]
+type       = "embedded"
+name       = "local"
+model_path = "~/.apollia/models/llama3.2-3B-q4_K_M.gguf"
+device     = "cpu"
+
+[llm.observability]
+debug_log_prompt = true   # activer uniquement en dev
 ```
 
 Utiliser avec :
@@ -195,7 +302,33 @@ bind_address = "127.0.0.1"  # jamais exposer sur 0.0.0.0 en prod
 max_steps = 10
 max_tool_calls = 20
 wall_clock_timeout_secs = 300
+
+# LLM cloud en production
+[llm]
+default = "anthropic"
+
+[llm.observability]
+log_token_usage = true
+log_latency     = true
+log_cost        = true    # activer pour suivi des coûts en prod
+
+[[llm.backends]]
+type        = "api"
+name        = "anthropic"
+api_url     = "https://api.anthropic.com/v1"
+model       = "claude-haiku-4-5-20251001"
+api_key_env = "ANTHROPIC_API_KEY"
 ```
+
+---
+
+## Variables d'environnement LLM
+
+| Variable | Usage |
+|---|---|
+| `ANTHROPIC_API_KEY` | Clé API Anthropic (backend `type = "api"` avec api_url anthropic) |
+| `OPENAI_API_KEY` | Clé API OpenAI ou compatible |
+| `APOLLIA_LLM_DEFAULT` | Override du backend par défaut |
 
 ---
 

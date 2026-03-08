@@ -36,6 +36,7 @@
   - [Tool Registry](components/tool-registry.md)
   - [Memory Engine](components/memory-engine.md)
   - [ORIA Engine](components/oria-engine.md)
+  - [LLM Backend](components/llm-backend.md)
   - [CLI](components/cli.md)
 
 # API & Intégration

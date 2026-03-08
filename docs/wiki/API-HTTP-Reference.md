@@ -241,6 +241,98 @@ Le flux se ferme après l'événement terminal (`TaskCompleted`, `TaskFailed`, `
 
 ---
 
+## LLM
+
+### GET /api/v1/llm/status
+
+État de tous les backends LLM configurés.
+
+**Réponse 200 :**
+```json
+{
+  "backends": [
+    {
+      "name":         "local",
+      "model_id":     "llama3.2-3B-q4_K_M.gguf",
+      "backend_type": "embedded",
+      "is_local":     true
+    },
+    {
+      "name":         "anthropic",
+      "model_id":     "claude-haiku-4-5-20251001",
+      "backend_type": "anthropic",
+      "is_local":     false
+    }
+  ]
+}
+```
+
+Si aucun `LlmRouter` n'est configuré : `{"backends": []}`.
+
+---
+
+### POST /api/v1/llm/ping
+
+Mesurer la latence d'un backend LLM.
+
+**Corps :**
+```json
+{
+  "backend": "anthropic"   // optionnel — utilise le backend par défaut si absent
+}
+```
+
+**Réponse 200 :**
+```json
+{
+  "backend":    "anthropic",
+  "available":  true,
+  "latency_ms": 187,
+  "error":      null
+}
+```
+
+**Réponse 200 (backend indisponible — clé API absente, etc.) :**
+```json
+{
+  "backend":    "anthropic",
+  "available":  false,
+  "latency_ms": null,
+  "error":      "ANTHROPIC_API_KEY not set"
+}
+```
+
+---
+
+### POST /api/v1/llm/chat
+
+Envoyer un prompt direct à un backend LLM et récupérer la réponse.
+
+**Corps :**
+```json
+{
+  "prompt":  "Résume les avantages du local-first en 3 points",
+  "backend": "local"   // optionnel — backend par défaut si absent
+}
+```
+
+**Réponse 200 :**
+```json
+{
+  "content":    "1. Pas de latence réseau...",
+  "usage": {
+    "prompt_tokens":     12,
+    "completion_tokens": 48,
+    "cost_usd":          null
+  },
+  "latency_ms": 1243
+}
+```
+
+**Réponse 503 :** Aucun backend LLM disponible.
+
+---
+
 ## Shutdown
 
 ### POST /api/v1/shutdown

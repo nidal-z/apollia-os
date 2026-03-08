@@ -1,0 +1,55 @@
+@startuml seq-llm-call
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 11
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+skinparam SequenceGroupBorderColor #888888
+
+title Séquence — Appel LLM via ctx.llm (chat / complete / stream) — Apollia OS
+
+participant "Agent Python" as agent #2d4a22/d4edda
+participant "LlmProxy\n(PyO3)" as proxy #4a3728/f5e6d3
+participant "LlmRouter" as router #4a3728/f5e6d3
+participant "CompletionModel\n(backend)" as backend #4a3728/f5e6d3
+participant "EventBus" as bus #2a3a4a/cce5ff
+
+agent -> proxy : await ctx.llm.chat(\n  system="...", user="...",\n  backend=None\n)
+
+proxy -> proxy : build CompletionRequest\n[ChatMessage::system + ChatMessage::user]
+
+proxy -> router : complete_with_observability(\n  name=None → default_backend\n)
+
+router -> router : get(name) → Arc<dyn CompletionModel>
+
+alt backend non trouvé
+  router --> proxy : LlmError::BackendUnavailable
+  proxy --> agent : PyRuntimeError
+end
+
+note over router : t₀ = Instant::now()
+
+router -> backend : model.complete(request)
+
+alt backend cloud (OpenAI / Anthropic)
+  backend -> backend : HTTP POST (reqwest / async-openai)
+  backend --> router : CompletionResponse
+else backend local (EmbeddedBackend)
+  backend -> backend : inférence in-process\n(mistral-rs-core)
+  backend --> router : CompletionResponse
+end
+
+router -> router : latency_ms = t₀.elapsed()
+
+router -> bus : send(LlmCallCompleted {\n  backend, prompt_tokens,\n  completion_tokens, latency_ms,\n  cost_usd\n}) [fire-and-forget]
+
+router --> proxy : CompletionResponse
+
+proxy -> proxy : build PyLlmResponse\n{ content, usage, latency_ms }
+
+proxy --> agent : LlmResponse
+
+note over agent : response.content : str\nresponse.usage.prompt_tokens : int\nresponse.usage.cost_usd : float | None\nresponse.latency_ms : int
+
+@enduml
