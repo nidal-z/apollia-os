@@ -30,7 +30,7 @@ local-cuda       = ["local"]
 local-metal      = ["local"]
 
 # ── Backend cloud (API HTTP — Anthropic, OpenAI-compatible) ──────────────────
-cloud            = []
+cloud            = ["dep:async-openai", "dep:reqwest"]
 
 [dependencies]
 tokio          = { workspace = true }
@@ -40,5 +40,12 @@ thiserror      = { workspace = true }
 tracing        = { workspace = true }
 futures        = { workspace = true }
 async-trait    = { workspace = true }
+# cloud backends [feature = "cloud"]
+async-openai   = { workspace = true, optional = true }
+reqwest        = { workspace = true, optional = true }
+# local backend [feature = "local"]
 mistralrs-core = { workspace = true, optional = true }
 mistralrs       = { workspace = true, optional = true }
+
+[dev-dependencies]
+toml = { workspace = true }

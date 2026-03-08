@@ -57,11 +57,16 @@ rand = "0.8"
 # --- LLM (apollia-llm) ---
 futures = "0.3"
 async-trait = "0.1"
-# async-openai, reqwest (cloud) ajoutés en STORY-053
+# cloud backends (OpenAI-compatible + Anthropic) — STORY-053/054 [feature = "cloud"]
+async-openai = "0.28"
+reqwest = { version = "0.12", features = ["json", "stream"] }
 # mistralrs-core = moteur d'inférence (inclus transitivement via mistralrs)
 # mistralrs      = SDK public GGUF — STORY-052 [feature = "local"]
 mistralrs-core = { version = "0.7" }
 mistralrs       = { version = "0.7" }
+
+# --- Config parsing ---
+toml = "0.8"
 
 # --- Python bridge (apollia-aip) ---
 pyo3 = { version = "0.22", features = ["auto-initialize"] }
