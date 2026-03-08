@@ -194,7 +194,7 @@
 - SaaS Python avec runtime Python : Viole les principes #1 et #2.
 - Open-source le SaaS complet : Trop complexe à opérer pour la communauté.
 
-**Conséquences :** Abandon de 8 mois de code SaaS. Conservation de la valeur architecturale. Nouveau modèle économique (freelance vs. SaaS).
+**Conséquences :** Abandon du code SaaS. Conservation de la valeur architecturale. Nouveau modèle économique open-source.
 
 ---
 

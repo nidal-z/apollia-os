@@ -1,0 +1,71 @@
+@startuml c4-container-runtime
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+
+title C4 Container — 7 Crates Workspace — Apollia OS
+
+actor "Opérateur" as ops #3a3a3a;text:white
+actor "Développeur" as dev #3a3a3a;text:white
+
+rectangle "Apollia OS Workspace" as workspace #1a1a2e;text:#e0e0ff {
+
+  rectangle "apollia-cli\n(binaire clap v4)" as cli #1a1a2e;text:#e0e0ff
+
+  rectangle "apollia-runtime\n(Runtime Core)" as runtime #1a1a2e;text:#e0e0ff {
+    component "Supervisor" as sup
+    component "AgentRegistry" as reg
+    component "TaskRouter" as router
+    component "ExecutionCoordinator" as coord
+    component "APIServer (axum)" as api
+    component "EventBus (broadcast)" as bus
+  }
+
+  rectangle "apollia-oria\n(ORIA Engine)" as oria #1a1a2e;text:#e0e0ff {
+    component "Observer\nContextBundle" as obs
+    component "StepBudget\nResilienceLayer" as budget
+  }
+
+  rectangle "apollia-tools\n(Tool Registry)" as tools #1a1a2e;text:#e0e0ff {
+    component "ToolRegistry\nAuditTrail" as reg2
+    component "BashExecutor\nFileIo\nPythonExecutor" as native
+  }
+
+  rectangle "apollia-memory\n(Memory Engine)" as memory #2a3a4a;text:#cce5ff {
+    component "MemoryManager\nEpisodic / Semantic\nProcedural / FTS5" as mem
+  }
+
+  rectangle "apollia-aip\n(PyO3 Bridge)" as aip #1a1a2e;text:#e0e0ff {
+    component "AIPBridge\nToolProxy\nMemoryInterface" as bridge
+  }
+
+  rectangle "apollia-core\n(types partagés)" as core #1a1a2e;text:#e0e0ff {
+    component "AgentManifest\nAIPTask / AIPResult\nProcessState / TaskStatus" as types
+  }
+}
+
+rectangle "Agent Python\n(LangGraph / CrewAI / Custom)" as agent #2d4a22;text:#d4edda
+
+database "SQLite\n(FTS5)" as sqlite #2a3a4a;text:#cce5ff
+
+rectangle "Linux namespaces\n(unshare, sandbox)" as sandbox #4a3728;text:#f5e6d3
+
+rectangle "Serveur MCP\n(externe, optionnel)" as mcp #4a3728;text:#f5e6d3
+
+ops --> cli : apollia-os [cmd]
+dev --> agent : écrit
+cli --> runtime : RuntimeClient (HTTP Unix socket)
+runtime --> oria : dispatch tâche
+oria --> tools : ctx.tools.call()
+oria --> memory : ctx.memory.*
+runtime --> aip : AIPBridge.call_run()
+aip --> agent : PyO3 (asyncio.run)
+agent --> aip : AIPResult (dict)
+tools --> sandbox : bash_executor\npython_executor
+tools --> mcp : mcp_consumer (v0.2)
+memory --> sqlite : INSERT / FTS5 MATCH
+
+@enduml

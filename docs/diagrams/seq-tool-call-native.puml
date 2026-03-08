@@ -1,0 +1,53 @@
+@startuml seq-tool-call-native
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 11
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+
+title Séquence — Tool Call Natif (bash_executor) — Apollia OS
+
+participant "Agent Python\n(ctx.tools)" as agent #2d4a22;text:#d4edda
+participant "ToolProxy\n(PyO3 #[pyclass])" as proxy #1a1a2e;text:#e0e0ff
+participant "ToolRegistry\n(acteur Tokio)" as reg #1a1a2e;text:#e0e0ff
+participant "BashExecutor" as bash #1a1a2e;text:#e0e0ff
+participant "Sandbox\n(unshare)" as sandbox #4a3728;text:#f5e6d3
+participant "AuditTrail\n(SQLite WAL)" as audit #2a3a4a;text:#cce5ff
+
+agent -> proxy : await ctx.tools.call(\n  "bash_executor",\n  {"command": "ls -la"}\n)
+
+proxy -> proxy : json.dumps(input)\n→ serde_json::Value
+
+note over proxy
+  Permission check :
+  "bash_executor" ∈ allowed_tools ?
+  Si non → ToolNotAllowed (sans révéler l'existence)
+end note
+
+proxy -> reg : get("bash_executor")
+reg --> proxy : ToolDescriptor{sandbox: FileSystem}
+
+proxy -> bash : execute("bash_executor", input)
+
+bash -> bash : construire commande :\nunshare --user --mount\n  --pid --net --fork\n  /bin/bash -c "ls -la"
+
+bash -> sandbox : spawn process\ndans namespace isolé
+sandbox --> bash : stdout / stderr / exit_code
+
+bash --> proxy : Ok({"stdout": "...", "exit_code": 0})
+
+proxy -> audit : record(fire-and-forget)\n{tool_name, input_hash, duration_ms,\n agent_id, task_id, success}
+
+audit -> audit : INSERT tool_invocations\n(SQLite WAL, sync_channel 1024)
+
+proxy -> proxy : serde_json → json.loads\n→ Python dict
+
+proxy --> agent : {"stdout": "...", "exit_code": 0}
+
+note over proxy
+  tool_calls counter++
+  (AtomicU32, Relaxed)
+end note
+
+@enduml

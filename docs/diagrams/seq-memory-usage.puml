@@ -1,0 +1,57 @@
+@startuml seq-memory-usage
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 11
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+
+title Séquence — Memory Usage (record + search) — Apollia OS
+
+participant "Agent Python" as agent #2d4a22;text:#d4edda
+participant "MemoryInterface\n(PyO3 #[pyclass])" as iface #1a1a2e;text:#e0e0ff
+participant "MemoryManager\n(Rust)" as mgr #1a1a2e;text:#e0e0ff
+participant "MemoryStore\n(SQLite)" as store #2a3a4a;text:#cce5ff
+participant "FTS5 Index\n(memory_fts)" as fts #2a3a4a;text:#cce5ff
+
+== ctx.memory.record() — Stocker un épisode ==
+
+agent -> iface : await ctx.memory.record(\n  "Client Acme — 10 licences Figma",\n  importance=0.8,\n  task_id="t-abc123"\n)
+
+iface -> iface : spawn_blocking\n(opération SQLite sync\ndans thread dédié)
+
+iface -> mgr : record_inner(content, 0.8, task_id)
+mgr -> mgr : check_write_access()\n(ReadWrite requis)
+mgr -> store : store(namespace)
+note right of store : lazy open —\nSQLite ouvert au\npremier accès
+
+store -> store : INSERT INTO episodic_memories\n(id, namespace, content,\n importance, task_id, created_at)
+store -> fts : INSERT INTO memory_fts\n(id, namespace, content, type)
+
+store --> mgr : memory_id (UUID)
+mgr --> iface : Ok(memory_id)
+iface --> agent : "mem-uuid-xyz"
+
+== ctx.memory.search() — Recherche full-text ==
+
+agent -> iface : await ctx.memory.search(\n  "licences Figma",\n  limit=5\n)
+
+iface -> iface : spawn_blocking
+
+iface -> mgr : search_inner("licences Figma", 5)
+mgr -> store : store(namespace)
+
+store -> fts : SELECT e.*, fts.rank\nFROM memory_fts fts\nJOIN episodic_memories e\n  ON e.id = fts.id\nWHERE memory_fts MATCH 'licences Figma'\n  AND fts.namespace = ?\nORDER BY fts.rank\nLIMIT 5
+
+note over fts
+  FTS5 tokenizer : unicode61
+  Ranking : BM25 natif SQLite
+  Cross-backend : épisodique + sémantique + procédural
+end note
+
+fts --> store : rows[{content, score, type, created_at}]
+store --> mgr : Vec<MemorySearchResult>
+mgr --> iface : Ok(results)
+iface --> agent : [\n  {"content": "...", "score": 0.92, "type": "episodic"},\n  {"content": "...", "score": 0.71, "type": "semantic"}\n]
+
+@enduml

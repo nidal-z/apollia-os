@@ -1,0 +1,39 @@
+@startuml c4-context-runtime
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+
+title C4 Context — Apollia OS
+
+actor "Développeur d'agent" as dev #3a3a3a;text:white
+actor "Opérateur / Admin" as ops #3a3a3a;text:white
+
+rectangle "Apollia OS Runtime" as runtime #1a1a2e;text:#e0e0ff {
+  component "apollia-os binaire" as bin
+}
+
+rectangle "Agent Python" as agent #2d4a22;text:#d4edda {
+  component "LangGraph / CrewAI / Custom" as fw
+}
+
+database "SQLite local\n~/.apollia/" as sqlite #2a3a4a;text:#cce5ff
+rectangle "Serveur MCP externe\n(optionnel)" as mcp #4a3728;text:#f5e6d3
+rectangle "LLM\n(Ollama / API)" as llm #4a3728;text:#f5e6d3
+
+dev --> agent : écrit et déploie
+ops --> runtime : apollia-os CLI
+agent --> runtime : AIP (duck typing)
+runtime --> sqlite : mémoire persistante
+runtime --> mcp : mcp_consumer (optionnel)
+agent --> llm : appels LLM\n(hors runtime)
+
+note bottom of runtime
+  Tout s'exécute localement.
+  Aucun octet ne quitte la machine
+  sans action explicite.
+end note
+
+@enduml

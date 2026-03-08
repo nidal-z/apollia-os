@@ -1,53 +1,100 @@
-# Apollia OS — Wiki du Projet
+# Apollia OS — Wiki
 
 > Runtime open-source Rust pour l'exécution souveraine d'agents IA autonomes.
+> Local-first. Zéro cloud. Un binaire.
 
 ---
 
-## Navigation
+## Démarrage rapide
 
-### Vision & Contexte
+| | |
+|---|---|
+| [Installation en 5 min](./INSTALL-Quickstart) | Rust + Python + `cargo build` |
+| [Premier agent en 5 min](./Agents-Quickstart) | `manifest()` + `async run()` — c'est tout |
+
+---
+
+## Guides Agents
+
+| Document | Audience |
+|---|---|
+| [Tutoriel Hello Agent](./Agents-Tutoriel-Hello-Agent) | Débutant — pas à pas avec explications |
+| [RuntimeContext Guide](./Agents-RuntimeContext-Guide) | Intermédiaire — `ctx.tools`, `ctx.memory`, `ctx.step_budget` |
+| [Adapter LangGraph / CrewAI](./Agents-Adapter-Existants) | Intermédiaire — adapter un agent existant |
+| [Bonnes pratiques](./Agents-Bonnes-Pratiques) | Avancé — StepBudget, coûts LLM, résilience |
+| [Troubleshooting](./Agents-Troubleshooting) | Tous — par symptôme |
+
+---
+
+## Référence AIP
 
 | Document | Description |
 |---|---|
-| [Pivot & Renouveau](./Vision-Pivot-et-Renouveau) | Pourquoi on pivote, les enseignements du projet SaaS, la nouvelle direction |
-| [Problème & Solution](./Vision-Probleme-et-Solution) | Le problème ciblé, l'espace libre sur le marché, la solution proposée |
-| [Ambition Open-Source](./Vision-Ambition-Open-Source) | Stratégie open-source, proposition de valeur, modèle économique freelance |
-| [Positionnement Concurrentiel](./Vision-Positionnement-Concurrentiel) | Analyse des concurrents, espace libre validé, différenciateurs |
+| [AIP Specification](./Briques-AIP-Specification) | Contrat complet : AgentManifest, AIPTask, AIPResult, RuntimeContext |
 
-### Architecture & Principes
+---
+
+## Architecture & Principes
 
 | Document | Description |
 |---|---|
-| [Principes Architecturaux](./Architecture-Principes) | Les décisions fondamentales qui guident tout le projet |
-| [Vue d'ensemble technique & AIP](./Architecture-Vue-Ensemble) | Stack, workspace Rust, interactions entre briques, Agent Interface Protocol |
+| [Principes Architecturaux](./Architecture-Principes) | Les 8 décisions fondamentales non-négociables |
+| [Vue d'ensemble technique](./Architecture-Vue-Ensemble) | Stack, workspace 7 crates, Agent Interface Protocol |
+| [Modèle Acteur Tokio](./Architecture-Modele-Acteur) | 6 acteurs, pattern Handle, séquence démarrage |
+| [Machines d'état](./Architecture-Machines-Etat) | ProcessState vs TaskState — la distinction critique |
 | [Protocoles & Standards](./Architecture-Protocoles-Standards) | MCP, A2A, ACP — alignement avec l'écosystème |
 
-### Briques Fondamentales
+---
+
+## Briques Fondamentales
 
 | Document | Description |
 |---|---|
 | [Tool Registry](./Briques-Tool-Registry) | Catalogue d'outils, sandbox, audit trail |
-| [Memory Engine](./Briques-Memory-Engine) | Persistance souveraine multi-types, SQLite, FTS5 |
-| [ORIA Engine](./Briques-ORIA-Engine) | Observer-Reasoner-Actor, modes d'exécution, résilience |
+| [Memory Engine](./Briques-Memory-Engine) | SQLite, FTS5, épisodique / sémantique / procédural |
+| [ORIA Engine](./Briques-ORIA-Engine) | Observer-Reasoner-Actor, StepBudget, ResilienceLayer |
 | [Runtime Core](./Briques-Runtime-Core) | Supervision, routing, API, EventBus |
 | [Apollia CLI](./Briques-CLI) | Interface d'administration et de debug |
 
-### Roadmap
+---
+
+## Installation & Configuration
 
 | Document | Description |
 |---|---|
-| [Roadmap d'Implémentation](./Roadmap-Implementation) | 6 sprints, livrables démo-ables, risques |
-| [Décisions Architecturales](./Decisions-Log) | Log de toutes les décisions techniques majeures |
+| [Installation complète](./INSTALL) | Prérequis, build, macOS PyO3, dépannage |
+| [Production Linux](./INSTALL-Production) | systemd, sécurité, mise à jour |
+| [apollia.toml](./Config-apollia-toml) | Toutes les options de configuration |
 
 ---
 
-## Statut du Projet
+## API & Intégration
 
-**Phase actuelle :** Spécification complète — Implémentation à venir
-**Version cible :** v0.1.0 (runtime local fonctionnel)
-**Langage principal :** Rust (Tokio, PyO3)
-**Bridge agent :** Python (via PyO3 + pyo3-async-runtimes)
+| Document | Description |
+|---|---|
+| [API HTTP](./API-HTTP-Reference) | Endpoints REST, SSE, codes d'erreur |
+| [MCP Integration](./MCP-Integration) | Consommer des serveurs MCP depuis les agents |
+| [A2A / ACP](./A2A-ACP-Alignement) | Alignement avec les standards émergents |
+
+---
+
+## Sécurité
+
+| Document | Description |
+|---|---|
+| [Local-First](./Securite-Local-First) | Garantie de souveraineté des données |
+| [Sandbox Isolation](./Securite-Sandbox-Isolation) | Linux namespaces, unshare, SandboxProfile |
+| [Guardrails](./Securite-Guardrails) | StepBudget, circuit breakers, RetryPolicy |
+
+---
+
+## Ops & Roadmap
+
+| Document | Description |
+|---|---|
+| [Exploitation & Debug](./Ops-Exploitation-et-Debug) | Monitoring, diagnostics, logs |
+| [Roadmap](./Roadmap-Implementation) | v0.1 → v0.2 → v1.0 |
+| [Décisions Architecturales](./Decisions-Log) | ADR-001 à ADR-019 |
 
 ---
 
@@ -55,7 +102,7 @@
 
 Apollia OS est un **runtime Rust open-source** qui permet à n'importe quel agent IA Python (CrewAI, LangGraph, custom) de s'exécuter de manière **isolée, souveraine, et outillée** — sans dépendance cloud, sans Docker obligatoire, avec mémoire persistante locale.
 
-C'est l'infrastructure que tout développeur d'agents devrait avoir, et que personne n'a encore construite sous cette forme.
+**État :** v0.1.0 en préparation — 342 tests, MVP validé (mars 2026)
 
 ---
 

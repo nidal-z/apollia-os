@@ -1,0 +1,39 @@
+@startuml state-process
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+
+title ProcessState — Lifecycle Agent — Apollia OS
+
+[*] --> Initializing : apollia-os agent start
+
+Initializing --> Active : tools_required ✅\nmémoire ouverte\nmodule Python chargé
+Initializing --> Stopped : tools_required ❌\nou erreur fatale
+
+Active --> Degraded : tools_optional ❌\n(continue à fonctionner)
+Active --> Stopping : apollia-os agent stop\nou SIGTERM
+Degraded --> Active : outil optionnel restauré
+Degraded --> Stopping : apollia-os agent stop
+
+Stopping --> Stopped : drain tâches terminé\nou timeout 30s
+
+Stopped --> [*]
+
+note right of Initializing
+  Validation à INITIALIZING :
+  - tools_required présents ?
+  - packages Python installés ?
+  - connexions MCP établies ?
+  Fail fast — jamais silencieux.
+end note
+
+note right of Degraded
+  Agent toujours fonctionnel.
+  Outils optionnels absents.
+  Warning dans l'audit trail.
+end note
+
+@enduml

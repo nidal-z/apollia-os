@@ -139,6 +139,7 @@ dependencies = [
  "apollia-runtime",
  "apollia-tools",
  "pyo3",
+ "serde_json",
  "tempfile",
  "tokio",
  "tracing",

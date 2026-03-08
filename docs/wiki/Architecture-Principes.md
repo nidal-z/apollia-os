@@ -38,7 +38,7 @@ Toute dépendance à un service externe est optionnelle et doit se dégrader gra
 - Un seul fichier binaire à distribuer
 
 **Pourquoi ce principe existe :**
-Le SaaS précédent nécessitait 6 services d'infrastructure pour tourner (PostgreSQL, DragonflyDB, Qdrant, MinIO, Keycloak, Traefik). Chaque service était une source de friction à l'installation, une surface d'attaque supplémentaire, et un composant à maintenir.
+Le projet précédent nécessitait plusieurs services d'infrastructure distincts à déployer et maintenir. Chaque service était une source de friction à l'installation, une surface d'attaque supplémentaire, et un composant à maintenir.
 
 Pour un runtime d'agents IA qui cible des développeurs individuels et des entreprises avec des DSI réticents, la complexité opérationnelle est un veto commercial.
 

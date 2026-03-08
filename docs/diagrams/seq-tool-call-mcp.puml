@@ -1,0 +1,62 @@
+@startuml seq-tool-call-mcp
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 11
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+
+title Séquence — Tool Call MCP (mcp_consumer) — Apollia OS
+
+participant "Agent Python" as agent #2d4a22;text:#d4edda
+participant "ToolProxy" as proxy #1a1a2e;text:#e0e0ff
+participant "ToolRegistry" as reg #1a1a2e;text:#e0e0ff
+participant "McpConsumer" as mcp_c #1a1a2e;text:#e0e0ff
+participant "ResilienceLayer\n(circuit breaker)" as resilience #1a1a2e;text:#e0e0ff
+participant "MCP Server\n(externe stdio/HTTP)" as mcp_s #4a3728;text:#f5e6d3
+participant "AuditTrail" as audit #2a3a4a;text:#cce5ff
+
+note over mcp_c, mcp_s
+  Connexion établie à INITIALIZING.
+  Maintenue pour toute la durée de vie de l'agent.
+  Échec connexion → ProcessState::Degraded (si optional)
+  ou ProcessState::Stopped (si required).
+end note
+
+agent -> proxy : await ctx.tools.call(\n  "mcp:filesystem",\n  {"action": "read_file", "path": "/data/a.pdf"}\n)
+
+proxy -> reg : get("mcp:filesystem")
+reg --> proxy : ToolDescriptor{kind: Mcp}
+
+proxy -> resilience : pre_check("mcp:filesystem")
+
+alt circuit OPEN
+  resilience --> proxy : ResilienceError::CircuitOpen
+  proxy --> agent : PyRuntimeError (circuit open)
+else circuit CLOSED ou HALF_OPEN
+  proxy -> mcp_c : call("filesystem", input_json)
+
+  mcp_c -> mcp_s : MCP tools/call\n{"name": "read_file", "arguments": {...}}
+
+  alt succès
+    mcp_s --> mcp_c : MCP result\n{"content": [...]}
+    mcp_c --> proxy : Ok(result_json)
+    proxy -> resilience : record_success("mcp:filesystem")
+
+  else erreur transitoire (timeout, connexion perdue)
+    mcp_s --> mcp_c : erreur / timeout
+    mcp_c --> proxy : Err(Transient)
+    proxy -> resilience : record_failure("mcp:filesystem")
+    note right of resilience : backoff jitter\nmax 3 retries
+
+  else erreur permanente
+    mcp_s --> mcp_c : erreur MCP permanente
+    mcp_c --> proxy : Err(Permanent)
+    proxy --> agent : PyRuntimeError (permanent)
+  end
+
+  proxy -> audit : record(fire-and-forget)
+  proxy --> agent : result dict
+end
+
+@enduml

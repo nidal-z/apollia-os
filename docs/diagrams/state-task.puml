@@ -1,0 +1,39 @@
+@startuml state-task
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+
+title TaskState — Lifecycle Tâche — Apollia OS
+
+[*] --> submitted : POST /api/v1/tasks\nou apollia-os run
+
+submitted --> working : agent ACTIVE\nExecutionCoordinator dispatch
+
+working --> completed : AIPResult.completed()
+working --> failed : AIPResult.failed()\nou erreur non-récupérable
+working --> input_required : agent attend input\nHITL
+working --> canceled : DELETE /api/v1/tasks/{id}\nou timeout
+
+input_required --> working : input fourni
+
+completed --> [*]
+failed --> [*]
+canceled --> [*]
+
+note right of submitted
+  Rejeté si agent :
+  - INITIALIZING → SubmitError::NotReady
+  - STOPPING/STOPPED → SubmitError::Unavailable
+  - DEGRADED → accepté avec warning
+end note
+
+note right of working
+  StepBudget surveillé en continu.
+  BudgetExceeded → failed.
+  ResilienceLayer actif.
+end note
+
+@enduml

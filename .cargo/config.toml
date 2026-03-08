@@ -1,0 +1,15 @@
+# Default environment for all cargo commands on macOS (Homebrew Rust).
+# force = false : shell env vars take precedence — CI overrides via $GITHUB_ENV.
+[env]
+PYO3_PYTHON = { value = "/opt/homebrew/bin/python3", force = false }
+
+[alias]
+# Generate HTML coverage report (local — uses cargo-tarpaulin, no rustup required).
+# Prerequisites: cargo install cargo-tarpaulin
+# Output: target/tarpaulin/tarpaulin-report.html
+# Usage: cargo cov
+cov = "tarpaulin --workspace --out Html --output-dir target/tarpaulin"
+
+# Same + LCOV output (for IDE plugins like Coverage Gutters in VS Code).
+# Usage: cargo cov-lcov
+cov-lcov = "tarpaulin --workspace --out Html --out Lcov --output-dir target/tarpaulin"

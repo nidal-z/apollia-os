@@ -24,12 +24,16 @@ Thumbs.db
 *.swp
 *.swo
 
+# Coverage
+lcov.info
+
 # Logs
 *.log
 
 # Docs
 docs/internal/STORIES/
 docs/internal/
+docs/specs/
 
 # Claude
 .claude/

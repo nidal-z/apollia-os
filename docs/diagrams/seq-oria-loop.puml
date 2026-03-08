@@ -1,0 +1,74 @@
+@startuml seq-oria-loop
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 11
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+skinparam SequenceGroupBorderColor #888888
+
+title Séquence — ORIA Engine (Mode Direct & Orchestré) — Apollia OS
+
+participant "ExecutionCoord." as coord #1a1a2e;text:#e0e0ff
+participant "Observer" as obs #1a1a2e;text:#e0e0ff
+participant "StepBudget" as budget #2a3a4a;text:#cce5ff
+participant "ResilienceLayer" as resilience #1a1a2e;text:#e0e0ff
+participant "Agent Python" as agent #2d4a22;text:#d4edda
+participant "ToolRegistry" as tools #1a1a2e;text:#e0e0ff
+
+coord -> obs : observe(task, memory?)
+
+obs -> obs : classify(ContextBundle)\n→ ExecutionMode
+
+alt Mode Direct (tâche courte, outils simples)
+
+  obs --> coord : Direct
+
+  loop chaque étape (jusqu'à max_steps)
+    coord -> budget : check_remaining()
+
+    alt budget épuisé
+      budget --> coord : BudgetExceeded
+      coord --> coord : TaskStatus::Failed\n(code: BUDGET_EXCEEDED)
+    end
+
+    coord -> agent : agent.run(task, ctx)
+    agent -> resilience : pre_check("bash_executor")
+
+    alt circuit OPEN
+      resilience --> agent : ResilienceError::CircuitOpen
+    else circuit CLOSED / HALF_OPEN
+      agent -> tools : execute("bash_executor", input)
+      tools --> agent : result
+
+      alt succès
+        agent -> resilience : record_success("bash_executor")
+      else échec transitoire
+        agent -> resilience : record_failure("bash_executor")
+        resilience -> resilience : backoff jitter\n(100ms × 2^n ±25%)
+        note right : max 3 retries\nTransient only
+      end
+    end
+
+    agent --> coord : AIPResult
+    coord -> budget : decrement(steps=1, tool_calls=N)
+  end
+
+else Mode Orchestré (tâche complexe, multi-étapes)
+
+  obs --> coord : Orchestrated(plan)
+
+  loop chaque étape du plan (max 2 replans)
+    coord -> budget : check_remaining()
+    coord -> agent : agent.run(step_task, ctx)
+    agent --> coord : StepResult
+
+    alt step failed et replan possible
+      coord -> obs : replan(remaining_steps)
+      obs --> coord : ExecutionPlan (révisé)
+    end
+  end
+
+end
+
+@enduml

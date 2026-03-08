@@ -18,7 +18,7 @@ La solution proposée : **ORIA**, un agent IA autonome avec un vrai runtime d'ex
 
 ### Ce qui a été construit
 
-En 8 mois de développement intensif (soir et week-end en parallèle d'une activité salariée), le projet a produit :
+En 8 mois de développement intensif, le projet a produit :
 
 - **8 epics complètes** avec plus de 1 500 tests passants
 - Une **stack technique sophistiquée** : FastAPI + PostgreSQL + DragonflyDB + Qdrant + MinIO + Keycloak + LiteLLM + vLLM (Qwen3 30B)
@@ -52,7 +52,7 @@ En 8 mois, le marché des workspaces IA a évolué rapidement :
 
 - **Notion AI, Microsoft Copilot, Google Gemini Workspace** ont accéléré leur intégration dans les outils existants
 - Les PME adoptent ces solutions par défaut (friction zéro, budget logiciel déjà engagé)
-- Concurrencer ces acteurs en frontal nécessiterait des ressources de distribution hors de portée d'une startup à 2 personnes
+- Concurrencer ces acteurs en frontal nécessiterait des ressources de distribution hors de portée d'une startup bootstrappée
 - Le marché cible (PME 10-500 employés France) est plus difficile à penetrer qu'anticipé : cycles de vente longs, frilosité au changement d'outil
 
 ### 2.3 Le problème de la fenêtre d'opportunité
@@ -133,9 +133,9 @@ Un runtime open-source génère de la valeur pour Nidal de plusieurs façons san
 
 ### 4.4 La trajectoire temporelle est réaliste
 
-Le SaaS complet nécessitait de gérer simultanément : produit, infrastructure, acquisition clients, support, ventes. Trop de fronts pour 2 personnes.
+Le SaaS complet nécessitait de gérer simultanément : produit, infrastructure, acquisition clients, support, ventes. Trop de fronts à gérer simultanément.
 
-Le runtime open-source peut être **fonctionnel et démontrable en 20 semaines** de développement soir/week-end. Le premier commit qui fait tourner un agent Python dans un sandbox Rust est le premier livrable de valeur — pas besoin d'attendre une V1 complète pour commencer à créer de la traction.
+Le runtime open-source peut être **fonctionnel et démontrable en 20 semaines** de développement. Le premier commit qui fait tourner un agent Python dans un sandbox Rust est le premier livrable de valeur — pas besoin d'attendre une V1 complète pour commencer à créer de la traction.
 
 ---
 
