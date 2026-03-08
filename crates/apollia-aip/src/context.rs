@@ -341,6 +341,223 @@ fn is_leap(y: i32) -> bool {
     (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
 }
 
+// ─────────────────────────────────────────────
+// RuntimeContext
+// ─────────────────────────────────────────────
+
+use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
+use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
+
+use crate::llm::LlmProxy;
+
+/// Contexte d'exécution exposé à l'agent Python via `run(task, ctx)`.
+///
+/// Construit par le runtime pour chaque exécution d'agent. Expose les
+/// capacités optionnelles du runtime :
+/// - `ctx.llm` — [`LlmProxy`] si au moins un backend LLM est disponible,
+///   `None` sinon (Principe #6 — l'agent choisit si l'absence est fatale).
+///
+/// L'absence de LLM est signalée sur l'EventBus via `AgentDegraded`
+/// dès la construction (Principe #4 — fail fast).
+#[pyclass(name = "RuntimeContext")]
+pub struct RuntimeContext {
+    /// Proxy LLM exposé à Python — `None` si aucun backend LLM disponible.
+    pub llm: Option<LlmProxy>,
+}
+
+impl RuntimeContext {
+    /// Construit le contexte avec injection LLM optionnelle.
+    ///
+    /// Si `llm_router` est `None` ou contient un router sans backend,
+    /// `ctx.llm` est `None` et `RuntimeEvent::AgentDegraded` est émis
+    /// fire-and-forget sur `event_bus` (erreurs `send()` silencieusement ignorées).
+    ///
+    /// Le contexte ne panic jamais à la construction : la dégradation est
+    /// signalée, mais l'agent décide lui-même si l'absence de LLM est fatale.
+    pub fn new_with_llm(
+        llm_router: Option<Arc<LlmRouter>>,
+        budget_view: Arc<StepBudgetView>,
+        tool_helper: Arc<ToolCallHelper>,
+        obs_config: Arc<ObservabilityConfig>,
+        event_bus: EventBusSender,
+        agent_id: AgentId,
+    ) -> Self {
+        let llm = llm_router.and_then(|router| {
+            if router.list().is_empty() {
+                // AC-3: fire-and-forget — erreurs send() silencieusement ignorées.
+                let _ = event_bus.send(RuntimeEvent::AgentDegraded {
+                    agent_id,
+                    reason: "no LLM backend available".into(),
+                });
+                None
+            } else {
+                Some(LlmProxy::new(
+                    router,
+                    tool_helper,
+                    budget_view,
+                    obs_config,
+                    Some(event_bus),
+                ))
+            }
+        });
+        Self { llm }
+    }
+}
+
+#[pymethods]
+impl RuntimeContext {
+    /// Proxy LLM injecté — `None` si aucun backend LLM disponible.
+    ///
+    /// Propriété Python `ctx.llm`. Retourne `None` Python (pas d'exception)
+    /// si le runtime a démarré sans backend LLM configuré ou disponible.
+    #[getter]
+    fn llm(&self, py: Python<'_>) -> PyObject {
+        match &self.llm {
+            Some(proxy) => Py::new(py, proxy.clone())
+                .map(|p| p.into_any())
+                .unwrap_or_else(|_| py.None()),
+            None => py.None(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod runtime_context_tests {
+    use super::*;
+    use apollia_core::events::RuntimeEvent;
+    use apollia_llm::{ObservabilityConfig, StepBudgetView, ToolCallHelper, ToolInvoker};
+    use std::pin::Pin;
+    use std::sync::Arc;
+    use tokio::sync::broadcast;
+
+    use apollia_llm::{
+        CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError,
+        LlmRouter, TokenUsage,
+    };
+    use futures::Stream;
+
+    // ── Mocks pour la construction du ToolCallHelper (jamais réellement appelés) ──
+
+    struct NoopModel;
+
+    #[async_trait::async_trait]
+    impl CompletionModel for NoopModel {
+        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+            Ok(CompletionResponse {
+                content: String::new(),
+                tool_calls: vec![],
+                usage: TokenUsage {
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                    cost_usd: None,
+                },
+                finish_reason: FinishReason::Stop,
+                latency_ms: 0,
+            })
+        }
+
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
+        {
+            Ok(Box::pin(futures::stream::empty()))
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+        fn backend_name(&self) -> &str {
+            "noop"
+        }
+        fn model_id(&self) -> &str {
+            "noop"
+        }
+    }
+
+    struct NoopInvoker;
+
+    #[async_trait::async_trait]
+    impl ToolInvoker for NoopInvoker {
+        async fn invoke(
+            &self,
+            _tool_name: &str,
+            _arguments: &serde_json::Value,
+        ) -> Result<String, String> {
+            Ok(String::new())
+        }
+    }
+
+    fn make_tool_helper() -> Arc<ToolCallHelper> {
+        Arc::new(ToolCallHelper::new(Arc::new(NoopModel), Arc::new(NoopInvoker)))
+    }
+
+    /// AC-2 — `ctx.llm` est `None` si le router n'a aucun backend.
+    #[tokio::test]
+    async fn test_ac2_ctx_llm_none_if_no_backends() {
+        // GIVEN un LlmRouter vide (0 backends)
+        let router = Arc::new(LlmRouter::empty());
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(16);
+        // WHEN
+        let ctx = RuntimeContext::new_with_llm(
+            Some(router),
+            Arc::new(StepBudgetView::unlimited()),
+            make_tool_helper(),
+            Arc::new(ObservabilityConfig::default()),
+            tx,
+            AgentId::new_v4(),
+        );
+        // THEN
+        assert!(ctx.llm.is_none());
+    }
+
+    /// AC-3 — `AgentDegraded` émis sur EventBus si aucun backend LLM.
+    #[tokio::test]
+    async fn test_ac3_agent_degraded_emitted_if_no_llm() {
+        // GIVEN un router vide et un bus avec receiver
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
+        let router = Arc::new(LlmRouter::empty());
+        let agent_id = AgentId::new_v4();
+        // WHEN
+        let _ctx = RuntimeContext::new_with_llm(
+            Some(router),
+            Arc::new(StepBudgetView::unlimited()),
+            make_tool_helper(),
+            Arc::new(ObservabilityConfig::default()),
+            tx,
+            agent_id,
+        );
+        // THEN un événement AgentDegraded est présent sur le bus
+        let event = rx.try_recv().expect("un événement doit être présent");
+        assert!(
+            matches!(
+                event,
+                RuntimeEvent::AgentDegraded { ref reason, .. }
+                    if reason.contains("no LLM backend")
+            ),
+            "événement inattendu : {event:?}"
+        );
+    }
+
+    /// AC-2 (variante) — `ctx.llm` est `None` si `llm_router` est `None`.
+    #[tokio::test]
+    async fn test_ac2_ctx_llm_none_if_router_option_is_none() {
+        // GIVEN llm_router = None (Supervisor n'a pas pu initialiser le LLM)
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(16);
+        // WHEN
+        let ctx = RuntimeContext::new_with_llm(
+            None,
+            Arc::new(StepBudgetView::unlimited()),
+            make_tool_helper(),
+            Arc::new(ObservabilityConfig::default()),
+            tx,
+            AgentId::new_v4(),
+        );
+        // THEN
+        assert!(ctx.llm.is_none());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

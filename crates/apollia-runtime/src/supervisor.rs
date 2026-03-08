@@ -219,6 +219,7 @@ impl Supervisor {
             event_sender: event_sender.clone(),
             agent_loader,
             backend,
+            llm_router: None,
         };
         let api_server = APIServer::new(self.config.api_config, state);
 

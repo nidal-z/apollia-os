@@ -428,6 +428,7 @@ mod tests {
             event_sender: event_tx,
             agent_loader: loader,
             backend: MockBackend,
+            llm_router: None,
         };
         let router = Router::new()
             .route(

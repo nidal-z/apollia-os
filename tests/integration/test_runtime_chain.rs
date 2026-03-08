@@ -75,6 +75,7 @@ fn build_app_state() -> AppState<MockBackend> {
         event_sender,
         agent_loader: Arc::new(StubAgentLoader),
         backend: MockBackend,
+        llm_router: None,
     }
 }
 

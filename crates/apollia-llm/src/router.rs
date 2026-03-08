@@ -393,6 +393,22 @@ impl LlmRouter {
         self.backends.get(key).cloned()
     }
 
+    /// Crée un `LlmRouter` vide sans aucun backend — pour les tests unitaires.
+    ///
+    /// Utilisé par STORY-059 pour tester les chemins de dégradation :
+    /// `ctx.llm = None` et `AgentDegraded` sur l'EventBus.
+    pub fn empty() -> Self {
+        Self {
+            backends: HashMap::new(),
+            default: String::new(),
+        }
+    }
+
+    /// Retourne le nom du backend par défaut configuré dans `apollia.toml`.
+    pub fn default_name(&self) -> &str {
+        &self.default
+    }
+
     /// Liste tous les backends disponibles avec leurs informations synthétiques.
     pub fn list(&self) -> Vec<BackendInfo> {
         self.backends

@@ -431,6 +431,7 @@ mod tests {
             event_sender: event_sender.clone(),
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend,
+            llm_router: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -550,6 +551,7 @@ mod tests {
             event_sender: event_sender.clone(),
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend::instant(),
+            llm_router: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -622,6 +624,7 @@ mod tests {
             event_sender: event_sender.clone(),
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: NeverBackend,
+            llm_router: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -800,6 +803,7 @@ mod tests {
             event_sender: event_sender.clone(),
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend::instant(),
+            llm_router: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

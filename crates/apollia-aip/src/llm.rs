@@ -107,6 +107,7 @@ pub struct PyLlmResponse {
 /// )
 /// ```
 #[pyclass(name = "LlmProxy")]
+#[derive(Clone)]
 pub struct LlmProxy {
     router: Arc<LlmRouter>,
     tool_helper: Arc<ToolCallHelper>,
@@ -139,6 +140,15 @@ impl LlmProxy {
 
 #[pymethods]
 impl LlmProxy {
+    /// Nom du backend LLM par défaut configuré dans `apollia.toml`.
+    ///
+    /// Propriété Python `ctx.llm.default_backend`.
+    /// Retourne une chaîne vide si aucun backend n'est configuré.
+    #[getter]
+    fn default_backend(&self) -> String {
+        self.router.default_name().to_string()
+    }
+
     /// Appel LLM simplifié : prompt système + message utilisateur.
     ///
     /// Construit automatiquement `[ChatMessage::system(system), ChatMessage::user(user)]`.

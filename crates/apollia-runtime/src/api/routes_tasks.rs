@@ -245,6 +245,7 @@ mod tests {
             event_sender: event_tx,
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
+            llm_router: None,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -286,6 +287,7 @@ mod tests {
             event_sender: event_tx,
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
+            llm_router: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -327,6 +329,7 @@ mod tests {
             event_sender: event_tx,
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: NeverMockBackend,
+            llm_router: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))

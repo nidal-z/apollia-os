@@ -19,6 +19,8 @@ use tokio::net::UnixListener;
 use tokio::sync::watch;
 use tracing::info;
 
+use apollia_llm::LlmRouter;
+
 use crate::api::routes_agents::AgentLoader;
 use crate::coordinator::ExecutionBackend;
 use crate::eventbus::EventBusSender;
@@ -40,6 +42,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     pub agent_loader: Arc<dyn AgentLoader>,
     /// Execution backend — cloned per coordinator on agent start.
     pub backend: B,
+    /// LLM router — `None` if no LLM backend was configured or available.
+    ///
+    /// Injected into each agent's `RuntimeContext` via `ctx.llm` (STORY-059).
+    /// Agents receive `ctx.llm = None` and an `AgentDegraded` event if absent.
+    pub llm_router: Option<Arc<LlmRouter>>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -50,6 +57,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             event_sender: self.event_sender.clone(),
             agent_loader: Arc::clone(&self.agent_loader),
             backend: self.backend.clone(),
+            llm_router: self.llm_router.clone(),
         }
     }
 }
@@ -334,6 +342,7 @@ mod tests {
             event_sender: event_tx,
             agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
+            llm_router: None,
         }
     }
 

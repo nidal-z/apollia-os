@@ -34,6 +34,14 @@ impl StepBudgetView {
         }
     }
 
+    /// Crée une vue sans limite de budget — pour les tests unitaires.
+    pub fn unlimited() -> Self {
+        Self {
+            step_count: Arc::new(AtomicU32::new(0)),
+            step_limit: u32::MAX,
+        }
+    }
+
     /// Retourne `true` si le budget de steps a été épuisé.
     pub fn is_exhausted(&self) -> bool {
         self.step_count.load(Ordering::Relaxed) >= self.step_limit
