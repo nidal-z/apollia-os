@@ -159,6 +159,7 @@ async fn shutdown_handler<B: ExecutionBackend + Clone>(
 /// Build the axum Router with all routes and shared state.
 fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
+    use super::routes_llm::llm_routes;
     use super::routes_sse::stream_task;
     use super::routes_tasks::{cancel_task, get_task, submit_task};
 
@@ -179,6 +180,7 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
             "/api/v1/agents/:id",
             get(get_agent::<B>).delete(stop_agent::<B>),
         )
+        .merge(llm_routes::<B>())
         .with_state(state)
 }
 

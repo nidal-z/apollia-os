@@ -19,7 +19,9 @@ use clap::Parser;
 
 use commands::agent::AgentCommand;
 use commands::audit::AuditCommand;
+use commands::llm::LlmCommand;
 use commands::memory::MemoryCommand;
+use commands::model::ModelCommand;
 use commands::task::TaskCommand;
 use commands::tools::ToolsCommand;
 
@@ -127,6 +129,28 @@ enum Commands {
         #[command(subcommand)]
         command: MemoryCommand,
     },
+
+    /// LLM backend diagnostics (status, ping, chat).
+    Llm {
+        /// LLM subcommand.
+        #[command(subcommand)]
+        command: LlmCommand,
+
+        /// Output JSON instead of human-readable text.
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Local model file management.
+    Model {
+        /// Model subcommand.
+        #[command(subcommand)]
+        command: ModelCommand,
+
+        /// Output JSON instead of human-readable text.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() {
@@ -182,6 +206,8 @@ fn main() {
                     exit_codes::GENERAL_ERROR
                 }
             },
+            Commands::Llm { command, json } => commands::llm::run(&command, cli.socket, json).await,
+            Commands::Model { command, json } => commands::model::run(&command, json),
         }
     });
 
@@ -195,7 +221,9 @@ mod tests {
     use super::*;
     use commands::agent::AgentCommand;
     use commands::audit::AuditCommand;
+    use commands::llm::LlmCommand;
     use commands::memory::MemoryCommand;
+    use commands::model::ModelCommand;
     use commands::task::TaskCommand;
     use commands::tools::ToolsCommand;
 
@@ -535,6 +563,136 @@ mod tests {
                 }
             },
             other => panic!("expected Commands::Memory, got {other:?}"),
+        }
+    }
+
+    // ── STORY-063: llm / model command parsing ───────────────────────────────
+
+    #[test]
+    fn test_cli_parses_llm_status() {
+        // GIVEN "apollia-os llm status"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "llm", "status"]);
+        // THEN Commands::Llm { command: LlmCommand::Status }
+        match &cli.command {
+            Commands::Llm { command, json } => {
+                assert!(matches!(command, LlmCommand::Status));
+                assert!(!json);
+            }
+            other => panic!("expected Commands::Llm, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_llm_status_json_flag() {
+        // GIVEN "apollia-os llm --json status"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "llm", "--json", "status"]);
+        // THEN json = true
+        match &cli.command {
+            Commands::Llm { json, .. } => assert!(json),
+            other => panic!("expected Commands::Llm, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_llm_ping_no_backend() {
+        // GIVEN "apollia-os llm ping"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "llm", "ping"]);
+        // THEN LlmCommand::Ping { backend: None }
+        match &cli.command {
+            Commands::Llm { command, .. } => match command {
+                LlmCommand::Ping { backend } => assert!(backend.is_none()),
+                other => panic!("expected LlmCommand::Ping, got {other:?}"),
+            },
+            other => panic!("expected Commands::Llm, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_llm_ping_with_backend() {
+        // GIVEN "apollia-os llm ping anthropic"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "llm", "ping", "anthropic"]);
+        // THEN LlmCommand::Ping { backend: Some("anthropic") }
+        match &cli.command {
+            Commands::Llm { command, .. } => match command {
+                LlmCommand::Ping { backend } => {
+                    assert_eq!(backend.as_deref(), Some("anthropic"));
+                }
+                other => panic!("expected LlmCommand::Ping, got {other:?}"),
+            },
+            other => panic!("expected Commands::Llm, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_llm_chat() {
+        // GIVEN "apollia-os llm chat 'Hello'"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "llm", "chat", "Hello"]);
+        // THEN LlmCommand::Chat { prompt: "Hello", backend: None }
+        match &cli.command {
+            Commands::Llm { command, .. } => match command {
+                LlmCommand::Chat { prompt, backend } => {
+                    assert_eq!(prompt, "Hello");
+                    assert!(backend.is_none());
+                }
+                other => panic!("expected LlmCommand::Chat, got {other:?}"),
+            },
+            other => panic!("expected Commands::Llm, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_llm_chat_with_backend() {
+        // GIVEN "apollia-os llm chat 'Hello' --backend anthropic"
+        // WHEN parse
+        let cli = parse(&[
+            "apollia-os",
+            "llm",
+            "chat",
+            "Hello",
+            "--backend",
+            "anthropic",
+        ]);
+        // THEN LlmCommand::Chat { backend: Some("anthropic") }
+        match &cli.command {
+            Commands::Llm { command, .. } => match command {
+                LlmCommand::Chat { backend, .. } => {
+                    assert_eq!(backend.as_deref(), Some("anthropic"));
+                }
+                other => panic!("expected LlmCommand::Chat, got {other:?}"),
+            },
+            other => panic!("expected Commands::Llm, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_model_list() {
+        // GIVEN "apollia-os model list"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "model", "list"]);
+        // THEN Commands::Model { command: ModelCommand::List }
+        match &cli.command {
+            Commands::Model { command, json } => {
+                assert!(matches!(command, ModelCommand::List));
+                assert!(!json);
+            }
+            other => panic!("expected Commands::Model, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_model_list_json_flag() {
+        // GIVEN "apollia-os model --json list"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "model", "--json", "list"]);
+        // THEN json = true
+        match &cli.command {
+            Commands::Model { json, .. } => assert!(json),
+            other => panic!("expected Commands::Model, got {other:?}"),
         }
     }
 }

@@ -2,7 +2,9 @@
 
 pub mod agent;
 pub mod audit;
+pub mod llm;
 pub mod memory;
+pub mod model;
 pub mod run;
 pub mod start;
 pub mod status;
