@@ -60,6 +60,8 @@ pub struct ContextBundle {
     pub memory_snapshot: Option<MemorySnapshot>,
     /// Execution mode determined by [`classify`].
     pub execution_mode: ExecutionMode,
+    /// Names of tools available to the agent (from manifest `tools_required` + `tools_optional`).
+    pub available_tools: Vec<String>,
 }
 
 /// Errors that can occur during observation.
@@ -111,6 +113,13 @@ pub fn observe(
 ) -> Result<ContextBundle, ObserverError> {
     let execution_mode = classify(&task, manifest);
 
+    let available_tools: Vec<String> = manifest
+        .tools_required
+        .iter()
+        .chain(manifest.tools_optional.iter())
+        .cloned()
+        .collect();
+
     let memory_snapshot = match memory {
         Some(mgr) => {
             let namespace = match &manifest.memory_namespace {
@@ -120,6 +129,7 @@ pub fn observe(
                         task,
                         memory_snapshot: None,
                         execution_mode,
+                        available_tools,
                     });
                 }
             };
@@ -157,6 +167,7 @@ pub fn observe(
         task,
         memory_snapshot,
         execution_mode,
+        available_tools,
     })
 }
 

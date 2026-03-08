@@ -268,8 +268,11 @@ name = "apollia-oria"
 version = "0.1.0"
 dependencies = [
  "apollia-core",
+ "apollia-llm",
  "apollia-memory",
  "apollia-tools",
+ "async-trait",
+ "futures",
  "rand 0.8.5",
  "serde",
  "serde_json",

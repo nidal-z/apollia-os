@@ -10,9 +10,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use apollia_core::{AIPResult, AIPTask};
+use apollia_llm::CompletionModel;
 
 use crate::budget::StepBudget;
-use crate::observer::ObserverError;
+use crate::observer::{ContextBundle, ObserverError};
+use crate::reasoner::{ExecutionPlan, Reasoner, ReasonerError};
 
 /// Trait abstracting agent execution for testability.
 ///
@@ -47,6 +49,14 @@ pub enum ORIAError {
     /// Erreur du bridge AIP.
     #[error("bridge error: {0}")]
     BridgeError(String),
+
+    /// Aucun LLM configuré — impossible d'exécuter le mode Orchestrated.
+    #[error("no LLM configured for orchestrated execution")]
+    NoLlmConfigured,
+
+    /// Erreur du Reasoner lors de la planification.
+    #[error("planning failed: {0}")]
+    PlanFailed(#[from] ReasonerError),
 }
 
 /// Interval for polling budget exhaustion during `execute_direct`.
@@ -55,13 +65,42 @@ const BUDGET_POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// Moteur d'execution ORIA (Observer-Reasoner-Actor).
 ///
 /// Point d'entree principal pour l'execution des taches.
-/// Gere le Mode Direct avec supervision StepBudget.
-pub struct ORIAEngine;
+/// Gere le Mode Direct avec supervision StepBudget et le Mode Orchestrated via le Reasoner.
+///
+/// Le `Reasoner` est optionnel : sans LLM configuré, seul le Mode Direct est disponible.
+/// Utiliser [`ORIAEngine::with_reasoner`] pour activer le Mode Orchestrated.
+pub struct ORIAEngine {
+    reasoner: Option<Reasoner>,
+}
 
 impl ORIAEngine {
-    /// Creates a new ORIAEngine.
+    /// Crée un `ORIAEngine` sans LLM (Mode Direct uniquement).
     pub fn new() -> Self {
-        Self
+        Self { reasoner: None }
+    }
+
+    /// Configure le `ORIAEngine` avec un LLM pour activer le Mode Orchestrated.
+    ///
+    /// Utilise le pattern builder pour l'injection de dépendance (ADR-016).
+    pub fn with_reasoner(mut self, model: Arc<dyn CompletionModel>) -> Self {
+        self.reasoner = Some(Reasoner::new(model));
+        self
+    }
+
+    /// Exécute le mode Orchestrated : appelle le Reasoner pour produire un [`ExecutionPlan`].
+    ///
+    /// Retourne [`ORIAError::NoLlmConfigured`] si aucun LLM n'a été injecté via
+    /// [`with_reasoner`].
+    ///
+    /// Note : l'exécution réelle des [`PlanStep`] par des sous-agents est prévue Sprint 9+.
+    /// Le paramètre `budget` est accepté pour conformité API et sera enforced lors de l'exécution.
+    pub async fn execute_orchestrated(
+        &self,
+        bundle: &ContextBundle,
+        _budget: &StepBudget,
+    ) -> Result<ExecutionPlan, ORIAError> {
+        let reasoner = self.reasoner.as_ref().ok_or(ORIAError::NoLlmConfigured)?;
+        reasoner.plan(bundle).await.map_err(ORIAError::from)
     }
 
     /// Execute une tache en Mode Direct.
@@ -117,6 +156,136 @@ impl ORIAEngine {
 impl Default for ORIAEngine {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// ─────────────────────────────────────────────
+// Tests — execute_orchestrated (AC-5)
+// ─────────────────────────────────────────────
+
+#[cfg(test)]
+mod orchestrated_tests {
+    use super::*;
+    use apollia_core::{AIPInput, AIPPart, AIPTask, StepBudgetConfig, TextPart};
+    use apollia_llm::{CompletionRequest, CompletionResponse, FinishReason, LlmError, TokenUsage};
+    use std::pin::Pin;
+
+    use crate::observer::{ContextBundle, ExecutionMode};
+
+    struct SimpleMockModel {
+        response: String,
+    }
+
+    #[async_trait::async_trait]
+    impl CompletionModel for SimpleMockModel {
+        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+            Ok(CompletionResponse {
+                content: self.response.clone(),
+                tool_calls: vec![],
+                usage: TokenUsage {
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                    cost_usd: None,
+                },
+                finish_reason: FinishReason::Stop,
+                latency_ms: 0,
+            })
+        }
+
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
+        {
+            Err(LlmError::InferenceError(
+                "mock does not support streaming".into(),
+            ))
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+
+        fn backend_name(&self) -> &str {
+            "mock"
+        }
+
+        fn model_id(&self) -> &str {
+            "mock-model"
+        }
+    }
+
+    fn make_orchestrated_bundle() -> ContextBundle {
+        ContextBundle {
+            task: AIPTask {
+                task_id: "task-001".into(),
+                context_id: "ctx-001".into(),
+                input: AIPInput {
+                    parts: vec![AIPPart::Text(TextPart {
+                        text: "Generate a multi-step plan".into(),
+                    })],
+                },
+                history: vec![],
+                timeout_seconds: None,
+            },
+            memory_snapshot: None,
+            execution_mode: ExecutionMode::Orchestrated,
+            available_tools: vec!["file_io".into(), "bash_executor".into()],
+        }
+    }
+
+    fn make_budget() -> Arc<StepBudget> {
+        let config = StepBudgetConfig {
+            max_steps: 20,
+            max_tool_calls: 50,
+            wall_clock_secs: 600,
+        };
+        Arc::new(StepBudget::new(&config))
+    }
+
+    /// ÉTANT DONNÉ un `ORIAEngine` configuré avec un mock `CompletionModel`
+    ///      ET un `ContextBundle` avec `ExecutionMode::Orchestrated`
+    /// QUAND on appelle `engine.execute_orchestrated(&bundle, &budget).await`
+    /// ALORS `Reasoner::plan()` est appelé 1 fois et le résultat est un `ExecutionPlan`
+    #[tokio::test]
+    async fn test_ac5_execute_orchestrated_returns_plan() {
+        // GIVEN
+        let valid_plan = r#"{"goal":"multi-step plan","steps":[{"id":"s1","description":"read config","tool":"file_io","depends_on":[]},{"id":"s2","description":"run script","tool":"bash_executor","depends_on":["s1"]}]}"#;
+        let model = Arc::new(SimpleMockModel {
+            response: valid_plan.into(),
+        });
+        let engine = ORIAEngine::new().with_reasoner(model);
+        let bundle = make_orchestrated_bundle();
+        let budget = make_budget();
+
+        // WHEN
+        let result = engine.execute_orchestrated(&bundle, &budget).await;
+
+        // THEN
+        let plan = result.expect("expected Ok(ExecutionPlan)");
+        assert_eq!(plan.goal, "multi-step plan");
+        assert_eq!(plan.steps.len(), 2);
+    }
+
+    /// ÉTANT DONNÉ un `ORIAEngine` sans LLM configuré
+    /// QUAND on appelle `execute_orchestrated()`
+    /// ALORS `Err(ORIAError::NoLlmConfigured)` est retourné
+    #[tokio::test]
+    async fn test_execute_orchestrated_no_llm_returns_error() {
+        // GIVEN
+        let engine = ORIAEngine::new(); // no reasoner
+        let bundle = make_orchestrated_bundle();
+        let budget = make_budget();
+
+        // WHEN
+        let result = engine.execute_orchestrated(&bundle, &budget).await;
+
+        // THEN
+        assert!(
+            matches!(result, Err(ORIAError::NoLlmConfigured)),
+            "expected NoLlmConfigured, got: {:?}",
+            result
+        );
     }
 }
 
