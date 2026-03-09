@@ -1,25 +1,33 @@
 //! Dashboard routes for Apollia OS runtime.
 //!
-//! Exposes three routes:
-//! - `GET /dashboard`                       — serves the embedded HTML placeholder (AC-1).
-//! - `GET /api/v1/dashboard/state`          — returns a full JSON snapshot of runtime state (AC-2).
+//! Exposes four routes:
+//! - `GET /dashboard`                         — serves the embedded HTML placeholder (AC-1).
+//! - `GET /api/v1/dashboard/state`            — returns a full JSON snapshot of runtime state (AC-2).
 //! - `GET /api/v1/dashboard/partials/:section` — returns HTML fragments for HTMX (AC-3/AC-4).
+//! - `GET /api/v1/dashboard/stream`           — SSE bridge: RuntimeEvent → named HTMX events (STORY-076).
 //!
 //! Supported sections: `"agents"` | `"triggers"` | `"tasks"` | `"llm"` | `"tools"` | `"memory"`.
 //! Unknown sections return HTTP 404 (AC-4).
 //!
-//! STORY-076 will add the SSE stream route. STORY-077 will replace the placeholder HTML.
+//! STORY-077 will replace the placeholder HTML with the full HTMX dashboard.
+
+use std::convert::Infallible;
 
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::{Html, IntoResponse},
+    response::{
+        sse::{Event, KeepAlive, Sse},
+        Html, IntoResponse,
+    },
     Json,
 };
 use chrono::Utc;
 use serde::Serialize;
+use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_stream::StreamExt;
 
-use apollia_core::ProcessState;
+use apollia_core::{ProcessState, RuntimeEvent};
 use apollia_llm::BackendInfo;
 use apollia_triggers::TriggerStatus;
 
@@ -302,6 +310,95 @@ fn render_memory_partial() -> Html<&'static str> {
     )
 }
 
+// ─── SSE Dashboard Stream ─────────────────────────────────────────────────
+
+/// Map a [`RuntimeEvent`] to 0, 1, or 2 named SSE [`Event`]s for the dashboard.
+///
+/// Returns `None` for events irrelevant to the dashboard (e.g. `AllReady`,
+/// `ShutdownRequested`). Returns `Some(vec![...])` with 1 or 2 named events
+/// otherwise. Each event carries `data: refresh` — HTMX uses the event name
+/// to decide which partial to reload.
+///
+/// This function is pure and unit-tested independently of the HTTP layer.
+pub(crate) fn runtime_event_to_sse_events(event: RuntimeEvent) -> Option<Vec<Event>> {
+    match event {
+        RuntimeEvent::AgentReady(_)
+        | RuntimeEvent::AgentStopped(_)
+        | RuntimeEvent::AgentDegraded { .. } => {
+            Some(vec![Event::default().event("agents").data("refresh")])
+        }
+        RuntimeEvent::TaskCompleted { .. } | RuntimeEvent::TaskStarted { .. } => Some(vec![
+            Event::default().event("tasks").data("refresh"),
+            Event::default().event("agents").data("refresh"),
+        ]),
+        RuntimeEvent::TriggerFired { .. }
+        | RuntimeEvent::TriggerSkipped { .. }
+        | RuntimeEvent::TriggerError { .. }
+        | RuntimeEvent::TriggersReloaded { .. } => {
+            Some(vec![Event::default().event("triggers").data("refresh")])
+        }
+        RuntimeEvent::LlmCallCompleted { .. }
+        | RuntimeEvent::LlmModelReady { .. }
+        | RuntimeEvent::LlmModelFailed { .. } => {
+            Some(vec![Event::default().event("llm").data("refresh")])
+        }
+        RuntimeEvent::ToolCircuitBroken { .. } | RuntimeEvent::ToolCircuitRestored { .. } => {
+            Some(vec![Event::default().event("tools").data("refresh")])
+        }
+        _ => None,
+    }
+}
+
+/// SSE bridge from [`EventBus`] to browser dashboard via `GET /api/v1/dashboard/stream`.
+///
+/// Subscribes to the runtime EventBus, filters [`RuntimeEvent`]s relevant to
+/// the dashboard, and pushes **named SSE events** so HTMX can selectively reload
+/// only the affected section. A keep-alive comment (`: keep-alive`) is sent
+/// every 30 s to prevent proxy timeouts (AC-5).
+///
+/// A Tokio task bridges the broadcast receiver to an unbounded channel.
+/// When the client disconnects, `tx.is_closed()` becomes true, and the task
+/// exits on the next received EventBus event — no subscriber leak (AC-6).
+pub async fn dashboard_stream<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
+    use tokio::sync::broadcast::error::RecvError;
+
+    let mut bus_rx = state.event_sender.subscribe();
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Event>();
+
+    // Bridge task: map RuntimeEvents to SSE Events and forward through the channel.
+    // Exits when the client disconnects (tx.is_closed()) or the EventBus closes.
+    tokio::spawn(async move {
+        loop {
+            if tx.is_closed() {
+                return;
+            }
+            match bus_rx.recv().await {
+                Ok(event) => {
+                    if let Some(events) = runtime_event_to_sse_events(event) {
+                        for sse_event in events {
+                            if tx.send(sse_event).is_err() {
+                                return;
+                            }
+                        }
+                    }
+                }
+                Err(RecvError::Lagged(_)) => {} // skip missed events silently
+                Err(RecvError::Closed) => return,
+            }
+        }
+    });
+
+    let stream = UnboundedReceiverStream::new(rx).map(Ok::<Event, Infallible>);
+
+    Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(std::time::Duration::from_secs(30))
+            .text("keep-alive"),
+    )
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -567,5 +664,137 @@ mod tests {
                 "section '{section}' should return 200"
             );
         }
+    }
+
+    // ─── SSE unit tests (STORY-076) ─────────────────────────────────────
+
+    /// AC-1 — GET /api/v1/dashboard/stream returns HTTP 200 with text/event-stream.
+    #[tokio::test]
+    async fn test_sse_ac1_stream_returns_event_stream_content_type() {
+        // GIVEN a started APIServer state
+        let state = make_test_app_state().await;
+        let router = Router::new()
+            .route(
+                "/api/v1/dashboard/stream",
+                get(dashboard_stream::<MockBackend>),
+            )
+            .with_state(state);
+
+        // WHEN GET /api/v1/dashboard/stream
+        let req = Request::builder()
+            .uri("/api/v1/dashboard/stream")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN HTTP 200
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // AND Content-Type: text/event-stream
+        let ct = resp
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(
+            ct.contains("text/event-stream"),
+            "expected text/event-stream, got: {ct}"
+        );
+    }
+
+    /// AC-2 — AgentReady maps to one "agents" SSE event.
+    #[test]
+    fn test_sse_ac2_agent_ready_maps_to_agents_event() {
+        // GIVEN AgentReady event
+        let result = runtime_event_to_sse_events(RuntimeEvent::AgentReady("agent-1".into()));
+
+        // THEN one event produced
+        let events = result.expect("AgentReady should produce events");
+        assert_eq!(events.len(), 1, "expected 1 event for AgentReady");
+    }
+
+    /// AC-2 — AgentStopped also maps to "agents" section.
+    #[test]
+    fn test_sse_ac2_agent_stopped_maps_to_agents_event() {
+        // GIVEN AgentStopped event
+        let result = runtime_event_to_sse_events(RuntimeEvent::AgentStopped("agent-1".into()));
+
+        // THEN one event produced
+        let events = result.expect("AgentStopped should produce events");
+        assert_eq!(events.len(), 1, "expected 1 event for AgentStopped");
+    }
+
+    /// AC-3 — TriggerFired maps to one "triggers" SSE event.
+    #[test]
+    fn test_sse_ac3_trigger_fired_maps_to_triggers_event() {
+        // GIVEN TriggerFired event
+        let result = runtime_event_to_sse_events(RuntimeEvent::TriggerFired {
+            trigger_id: "rapport-hebdo".into(),
+            agent: "rapport-agent".into(),
+            task_id: "t-001".into(),
+        });
+
+        // THEN one event produced
+        let events = result.expect("TriggerFired should produce events");
+        assert_eq!(events.len(), 1, "expected 1 event for TriggerFired");
+    }
+
+    /// AC-4 — TaskCompleted maps to two events: "tasks" and "agents".
+    #[test]
+    fn test_sse_ac4_task_completed_maps_to_two_events() {
+        // GIVEN TaskCompleted event
+        let result = runtime_event_to_sse_events(RuntimeEvent::TaskCompleted {
+            task_id: "t-001".into(),
+            agent_id: "agent-1".into(),
+            success: true,
+        });
+
+        // THEN two events: tasks + agents
+        let events = result.expect("TaskCompleted should produce events");
+        assert_eq!(
+            events.len(),
+            2,
+            "TaskCompleted should yield tasks + agents events"
+        );
+    }
+
+    /// Unknown system events return None (not relevant to dashboard).
+    #[test]
+    fn test_sse_unknown_event_returns_none() {
+        // GIVEN AllReady (irrelevant to dashboard)
+        let result = runtime_event_to_sse_events(RuntimeEvent::AllReady);
+
+        // THEN None
+        assert!(
+            result.is_none(),
+            "AllReady should not produce dashboard events"
+        );
+    }
+
+    /// LLM model ready maps to "llm" section.
+    #[test]
+    fn test_sse_llm_model_ready_maps_to_llm_event() {
+        // GIVEN LlmModelReady event
+        let result = runtime_event_to_sse_events(RuntimeEvent::LlmModelReady {
+            backend: "anthropic".into(),
+            model_id: "claude-3".into(),
+        });
+
+        // THEN one event produced
+        let events = result.expect("LlmModelReady should produce events");
+        assert_eq!(events.len(), 1, "expected 1 event for LlmModelReady");
+    }
+
+    /// Tool circuit broken maps to "tools" section.
+    #[test]
+    fn test_sse_tool_circuit_broken_maps_to_tools_event() {
+        // GIVEN ToolCircuitBroken event
+        let result = runtime_event_to_sse_events(RuntimeEvent::ToolCircuitBroken {
+            tool_name: "bash_executor".into(),
+        });
+
+        // THEN one event produced
+        let events = result.expect("ToolCircuitBroken should produce events");
+        assert_eq!(events.len(), 1, "expected 1 event for ToolCircuitBroken");
     }
 }

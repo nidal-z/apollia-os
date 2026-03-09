@@ -171,7 +171,9 @@ async fn shutdown_handler<B: ExecutionBackend + Clone>(
 /// Build the axum Router with all routes and shared state.
 fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
-    use super::routes_dashboard::{get_dashboard, get_dashboard_partial, get_dashboard_state};
+    use super::routes_dashboard::{
+        dashboard_stream, get_dashboard, get_dashboard_partial, get_dashboard_state,
+    };
     use super::routes_llm::llm_routes;
     use super::routes_sse::stream_task;
     use super::routes_tasks::{cancel_task, get_task, submit_task};
@@ -207,13 +209,14 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
         .route("/api/v1/triggers/:id/enable", post(enable_trigger::<B>))
         .route("/api/v1/triggers/:id/disable", post(disable_trigger::<B>))
         .route("/api/v1/triggers/:id/logs", get(get_trigger_logs::<B>))
-        // Dashboard routes (STORY-075) — /dashboard has no /api/v1 prefix (browser navigation)
+        // Dashboard routes (STORY-075/076) — /dashboard has no /api/v1 prefix (browser navigation)
         .route("/dashboard", get(get_dashboard))
         .route("/api/v1/dashboard/state", get(get_dashboard_state::<B>))
         .route(
             "/api/v1/dashboard/partials/:section",
             get(get_dashboard_partial::<B>),
         )
+        .route("/api/v1/dashboard/stream", get(dashboard_stream::<B>))
         .merge(llm_routes::<B>())
         .with_state(state)
 }
