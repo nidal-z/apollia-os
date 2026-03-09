@@ -188,6 +188,7 @@ dependencies = [
  "apollia-core",
  "apollia-llm",
  "apollia-memory",
+ "apollia-oria",
  "apollia-runtime",
  "apollia-triggers",
  "chrono",

@@ -488,6 +488,36 @@ mod tests {
     }
 
     #[test]
+    fn test_cli_parses_task_inspect() {
+        // GIVEN "apollia-os task inspect t-0042"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "task", "inspect", "t-0042"]);
+        // THEN Commands::Task { command: TaskCommand::Inspect { id: "t-0042" } }
+        match &cli.command {
+            Commands::Task { command, json } => {
+                match command {
+                    TaskCommand::Inspect { id } => assert_eq!(id, "t-0042"),
+                    other => panic!("expected TaskCommand::Inspect, got {other:?}"),
+                }
+                assert!(!json);
+            }
+            other => panic!("expected Commands::Task, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_task_inspect_json_flag() {
+        // GIVEN "apollia-os task --json inspect t-0042"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "task", "--json", "inspect", "t-0042"]);
+        // THEN json = true
+        match &cli.command {
+            Commands::Task { json, .. } => assert!(json),
+            other => panic!("expected Commands::Task, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn test_cli_parses_tools_list() {
         // GIVEN "apollia-os tools list"
         // WHEN parse
