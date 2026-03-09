@@ -72,6 +72,22 @@ pub struct AIPError {
 }
 
 impl AIPResult {
+    /// Construit un résultat de succès avec un texte de réponse.
+    ///
+    /// Raccourci utilisé par `execute_orchestrated` pour la concaténation automatique
+    /// des outputs de steps (fallback quand `on_plan_complete()` est absent).
+    pub fn completed(text: &str) -> Self {
+        Self {
+            task_id: String::new(),
+            status: TaskStatus::Completed,
+            output: vec![AIPPart::Text(TextPart {
+                text: text.to_string(),
+            })],
+            error: None,
+            artifacts: vec![],
+        }
+    }
+
     /// Construit un résultat d'échec avec un code et un message structurés.
     ///
     /// Raccourci utilisé par `ActorLoop` pour les erreurs de budget, de step ou de plan.

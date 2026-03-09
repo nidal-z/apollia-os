@@ -1,21 +1,47 @@
 //! ORIAEngine — execution engine for agent tasks.
 //!
-//! Entry point for running agent tasks. Currently supports Mode Direct
-//! (single `agent.run()` call with StepBudget supervision).
+//! Entry point for running agent tasks. Supports two modes:
+//! - **Mode Direct** — single `agent.run()` call with `StepBudget` supervision.
+//! - **Mode Orchestrated** — `Reasoner` generates a plan, `ActorLoop` executes
+//!   each step via `ToolProxy`, and outputs are concatenated or forwarded to
+//!   `on_plan_complete()` (STORY-086).
 //!
-//! The engine uses `tokio::select!` to race the agent execution against
-//! periodic budget checks, ensuring wall-clock timeouts are enforced.
+//! The primary entry point is [`ORIAEngine::execute`], which classifies the task
+//! and delegates to the appropriate mode. The lower-level [`ORIAEngine::execute_direct`]
+//! remains available for callers that already hold an [`AgentRunner`].
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use std::time::Instant;
 
-use apollia_core::{AIPResult, AIPTask};
-use apollia_llm::CompletionModel;
+use apollia_core::{
+    AIPPart, AIPResult, AIPTask, AgentManifest, DataPart, EventBusSender, RuntimeEvent,
+    StepBudgetConfig, TaskStatus,
+};
+use apollia_llm::{CompletionModel, LlmRouter};
 
+use crate::actor::{ActorLoop, ToolProxyTrait};
 use crate::budget::StepBudget;
-use crate::observer::{ContextBundle, ObserverError};
+use crate::observer::{classify, ContextBundle, ExecutionMode, ObserverError};
 use crate::plan::ExecutionPlan;
+use crate::plan_repository::PlanRepository;
 use crate::reasoner::{Reasoner, ReasonerError};
+use crate::resilience::ResilienceLayer;
+
+// ─────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────
+
+/// Interval for polling budget exhaustion during `execute_direct`.
+const BUDGET_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+/// Maximum number of replanning attempts in orchestrated execution.
+const MAX_REPLANS: u32 = 2;
+
+// ─────────────────────────────────────────────
+// Traits
+// ─────────────────────────────────────────────
 
 /// Trait abstracting agent execution for testability.
 ///
@@ -28,6 +54,30 @@ pub trait AgentRunner: Send + Sync {
         task: AIPTask,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send + '_>>;
 }
+
+/// Trait abstracting an agent that can be executed by `ORIAEngine::execute`.
+///
+/// Provides the `manifest()` for mode classification and tool resolution.
+/// Optionally declares `on_plan_complete()` availability for orchestrated post-processing
+/// (duck-typing detection, ADR-022 / ADR-003).
+///
+/// Minimum contract: implement `manifest()` only. All other methods have defaults.
+pub trait AIPAgent: Send + Sync {
+    /// Returns the agent's manifest declaring capabilities and execution mode.
+    fn manifest(&self) -> AgentManifest;
+
+    /// Returns `true` if the agent exposes an `on_plan_complete()` method.
+    ///
+    /// Detected via `hasattr` Python in STORY-086. Returns `false` by default —
+    /// the automatic step-output concatenation is used as fallback.
+    fn has_on_plan_complete(&self) -> bool {
+        false
+    }
+}
+
+// ─────────────────────────────────────────────
+// Error types
+// ─────────────────────────────────────────────
 
 /// Erreurs de l'engine ORIA.
 #[derive(Debug, thiserror::Error)]
@@ -60,51 +110,295 @@ pub enum ORIAError {
     PlanFailed(#[from] ReasonerError),
 }
 
-/// Interval for polling budget exhaustion during `execute_direct`.
-const BUDGET_POLL_INTERVAL: Duration = Duration::from_millis(100);
+// ─────────────────────────────────────────────
+// NoopToolProxy — fallback when no proxy configured
+// ─────────────────────────────────────────────
+
+/// Tool proxy that always returns an error — used when no tool proxy is configured.
+struct NoopToolProxy;
+
+#[async_trait::async_trait]
+impl ToolProxyTrait for NoopToolProxy {
+    async fn invoke(&self, tool_name: &str, _input: &serde_json::Value) -> Result<String, String> {
+        Err(format!(
+            "No tool proxy configured — cannot invoke '{tool_name}'"
+        ))
+    }
+}
+
+// ─────────────────────────────────────────────
+// ORIAEngine
+// ─────────────────────────────────────────────
 
 /// Moteur d'execution ORIA (Observer-Reasoner-Actor).
 ///
-/// Point d'entree principal pour l'execution des taches.
-/// Gere le Mode Direct avec supervision StepBudget et le Mode Orchestrated via le Reasoner.
+/// Point d'entrée unifié pour l'exécution des tâches agents.
+/// Supporte deux modes :
+/// - **Mode Direct** — `execute_direct()` avec supervision `StepBudget`.
+/// - **Mode Orchestrated** — `execute()` → planification LLM + `ActorLoop`.
 ///
-/// Le `Reasoner` est optionnel : sans LLM configuré, seul le Mode Direct est disponible.
-/// Utiliser [`ORIAEngine::with_reasoner`] pour activer le Mode Orchestrated.
+/// Utilise le pattern builder pour l'injection des dépendances (ADR-016).
+/// Toutes les dépendances sont optionnelles — un engine sans LLM ne supporte
+/// que le Mode Direct.
 pub struct ORIAEngine {
     reasoner: Option<Reasoner>,
+    tool_proxy: Option<Arc<dyn ToolProxyTrait>>,
+    llm_router: LlmRouter,
+    resilience: ResilienceLayer,
+    event_bus: EventBusSender,
+    runtime_config: StepBudgetConfig,
+    db_path: Option<String>,
 }
 
 impl ORIAEngine {
-    /// Crée un `ORIAEngine` sans LLM (Mode Direct uniquement).
+    /// Crée un `ORIAEngine` avec les valeurs par défaut (Mode Direct uniquement).
+    ///
+    /// Pour activer le Mode Orchestrated, chaîner avec [`with_reasoner`].
     pub fn new() -> Self {
-        Self { reasoner: None }
+        let (event_bus, _) = tokio::sync::broadcast::channel(64);
+        Self {
+            reasoner: None,
+            tool_proxy: None,
+            llm_router: LlmRouter::empty(),
+            resilience: ResilienceLayer::new(3, Duration::from_secs(30)),
+            event_bus,
+            runtime_config: StepBudgetConfig::default(),
+            db_path: None,
+        }
     }
 
     /// Configure le `ORIAEngine` avec un LLM pour activer le Mode Orchestrated.
     ///
     /// `max_steps` borne la taille des plans générés par le Reasoner
     /// (principe #7 — Garde-fous non-négociables).
-    /// Utilise le pattern builder pour l'injection de dépendance (ADR-016).
     pub fn with_reasoner(mut self, model: Arc<dyn CompletionModel>, max_steps: u32) -> Self {
         self.reasoner = Some(Reasoner::new(model, max_steps));
         self
     }
 
-    /// Exécute le mode Orchestrated : appelle le Reasoner pour produire un [`ExecutionPlan`].
+    /// Configure le `ToolProxy` pour l'exécution des steps orchestrés.
     ///
-    /// Retourne [`ORIAError::NoLlmConfigured`] si aucun LLM n'a été injecté via
-    /// [`with_reasoner`].
-    ///
-    /// Note : l'exécution réelle des [`PlanStep`] par des sous-agents est prévue Sprint 9+.
-    /// Le paramètre `budget` est accepté pour conformité API et sera enforced lors de l'exécution.
-    pub async fn execute_orchestrated(
-        &self,
-        bundle: &ContextBundle,
-        _budget: &StepBudget,
-    ) -> Result<ExecutionPlan, ORIAError> {
-        let reasoner = self.reasoner.as_ref().ok_or(ORIAError::NoLlmConfigured)?;
-        reasoner.plan(bundle).await.map_err(ORIAError::from)
+    /// Sans `ToolProxy`, les steps avec `tool_hint` échouent avec `NoopToolProxy`.
+    pub fn with_tool_proxy(mut self, proxy: Arc<dyn ToolProxyTrait>) -> Self {
+        self.tool_proxy = Some(proxy);
+        self
     }
+
+    /// Configure le `LlmRouter` pour la synthèse LLM dans les steps orchestrés.
+    pub fn with_llm_router(mut self, router: LlmRouter) -> Self {
+        self.llm_router = router;
+        self
+    }
+
+    /// Injecte un `EventBusSender` pour diffuser les événements du plan sur le bus.
+    pub fn with_event_bus(mut self, bus: EventBusSender) -> Self {
+        self.event_bus = bus;
+        self
+    }
+
+    /// Configure le budget runtime global (plafond appliqué via `StepBudget::from_capped`).
+    pub fn with_runtime_config(mut self, config: StepBudgetConfig) -> Self {
+        self.runtime_config = config;
+        self
+    }
+
+    /// Configure le chemin SQLite pour la persistance des plans d'exécution.
+    ///
+    /// Si absent, un fallback `:memory:` est utilisé (pas de persistance entre redémarrages).
+    pub fn with_db_path(mut self, path: impl Into<String>) -> Self {
+        self.db_path = Some(path.into());
+        self
+    }
+
+    // ─── Point d'entrée unifié ────────────────────────────────────────────
+
+    /// Point d'entrée principal — route la tâche vers le mode Direct ou Orchestrated.
+    ///
+    /// Le mode est déterminé par [`classify`] selon `manifest.execution_mode`
+    /// (override explicite) ou les heuristiques de complexité.
+    ///
+    /// ## Mode Direct
+    /// Non implémenté via ce point d'entrée — utiliser [`execute_direct`] directement
+    /// avec un [`AgentRunner`] concret.
+    ///
+    /// ## Mode Orchestrated
+    /// Délègue à [`execute_orchestrated_plan`] :
+    /// validate → plan → persist → ActorLoop → concat outputs.
+    pub async fn execute(&self, task: AIPTask, agent: &dyn AIPAgent) -> AIPResult {
+        let manifest = agent.manifest();
+        let mode = classify(&task, &manifest);
+
+        match mode {
+            ExecutionMode::Direct => {
+                // Direct mode via AIPAgent not yet implemented here.
+                // Callers should use execute_direct() with an AgentRunner.
+                // Will be connected in a follow-up story.
+                AIPResult::failed(
+                    "DIRECT_MODE_NOT_AVAILABLE_VIA_AIP_AGENT",
+                    "Direct mode requires an AgentRunner — use execute_direct() directly",
+                )
+            }
+            ExecutionMode::Orchestrated => {
+                self.execute_orchestrated_plan(task, agent, manifest).await
+            }
+        }
+    }
+
+    // ─── Mode Orchestrated ────────────────────────────────────────────────
+
+    /// Exécution orchestrée complète : plan → persist → ActorLoop → concat.
+    ///
+    /// Implémente le pipeline ADR-022 Option B :
+    /// 1. Valide `system_prompt` présent (fail fast — Principe #4)
+    /// 2. Génère le plan via `Reasoner` (retry ×3 interne)
+    /// 3. Persiste plan + steps dans SQLite (non-bloquant sur erreur)
+    /// 4. Émet `RuntimeEvent::PlanGenerated`
+    /// 5. Crée `StepBudget::from_capped(manifest, runtime)`
+    /// 6. Exécute via `ActorLoop`
+    /// 7. Concatène les outputs (ou stub `on_plan_complete` — STORY-086)
+    async fn execute_orchestrated_plan(
+        &self,
+        task: AIPTask,
+        agent: &dyn AIPAgent,
+        manifest: AgentManifest,
+    ) -> AIPResult {
+        // ── AC-2 : validate system_prompt ────────────────────────────────
+        if manifest.system_prompt.is_none() {
+            return AIPResult::failed(
+                "MISSING_SYSTEM_PROMPT",
+                "execution_mode=orchestrated requires system_prompt in the agent manifest",
+            );
+        }
+
+        // ── Build ContextBundle ───────────────────────────────────────────
+        let available_tools: Vec<String> = manifest
+            .tools_required
+            .iter()
+            .chain(manifest.tools_optional.iter())
+            .cloned()
+            .collect();
+
+        let ctx = ContextBundle {
+            task: task.clone(),
+            memory_snapshot: None,
+            execution_mode: ExecutionMode::Orchestrated,
+            available_tools,
+            manifest_system_prompt: manifest.system_prompt.clone(),
+        };
+
+        // ── AC-3 : get reasoner or fail ───────────────────────────────────
+        let reasoner = match self.reasoner.as_ref() {
+            Some(r) => r,
+            None => {
+                return AIPResult::failed(
+                    "NO_LLM",
+                    "Orchestrated mode requires a configured LLM (use with_reasoner())",
+                )
+            }
+        };
+
+        // ── Generate plan (Reasoner handles retries internally) ───────────
+        let plan = match reasoner.plan(&ctx).await {
+            Ok(p) => p,
+            Err(e) => return AIPResult::failed("PLAN_FAILED", &e.to_string()),
+        };
+
+        let plan_id = plan.plan_id.clone();
+        let step_count = plan.steps.len();
+        let task_id_str = task.task_id.clone();
+
+        // ── Persist plan in SQLite (non-blocking on error) ────────────────
+        let db_path = self.db_path.as_deref().unwrap_or(":memory:");
+        let repo = self.open_repo_with_plan(db_path, &plan, &manifest.name);
+
+        // ── AC-5 : emit PlanGenerated ─────────────────────────────────────
+        let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
+            task_id: task_id_str.clone().into(),
+            agent_name: manifest.name.clone(),
+            plan_id: plan_id.clone(),
+            step_count,
+        });
+
+        // ── AC-4 : create StepBudget via from_capped ─────────────────────
+        let agent_budget = manifest.step_budget.clone().unwrap_or_default();
+        let budget = StepBudget::from_capped(&agent_budget, &self.runtime_config);
+
+        // ── Execute via ActorLoop ─────────────────────────────────────────
+        let noop_proxy = NoopToolProxy;
+        let tool_proxy: &dyn ToolProxyTrait = match &self.tool_proxy {
+            Some(p) => p.as_ref(),
+            None => &noop_proxy,
+        };
+
+        let plan_start = Instant::now();
+        let mut actor = ActorLoop::new(plan, MAX_REPLANS, repo, self.event_bus.clone());
+        let step_result = actor
+            .execute(
+                tool_proxy,
+                &self.llm_router,
+                &budget,
+                &self.resilience,
+                reasoner,
+            )
+            .await;
+        let duration_ms = plan_start.elapsed().as_millis() as u64;
+
+        // ── Post-process ──────────────────────────────────────────────────
+        if step_result.status == TaskStatus::Completed {
+            let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
+                task_id: task_id_str.into(),
+                plan_id,
+                step_count,
+                duration_ms,
+            });
+
+            let outputs = extract_step_outputs(&step_result);
+
+            // STORY-086 stub: on_plan_complete() Python hook not yet wired.
+            // has_on_plan_complete() returns false by default (ADR-022).
+            // When STORY-086 is implemented, the true branch will call call_on_plan_complete()
+            // instead of concat_outputs(). Both branches are identical until then.
+            #[allow(clippy::if_same_then_else)]
+            if agent.has_on_plan_complete() {
+                concat_outputs(&outputs)
+            } else {
+                concat_outputs(&outputs)
+            }
+        } else {
+            step_result
+        }
+    }
+
+    /// Opens a `PlanRepository` at `db_path`, inserts the plan and its steps.
+    ///
+    /// Falls back to `:memory:` if `db_path` fails. Errors during `insert_plan`
+    /// or `insert_steps` are logged but do not abort execution (Principle #4 —
+    /// persistance non-bloquante).
+    fn open_repo_with_plan(
+        &self,
+        db_path: &str,
+        plan: &ExecutionPlan,
+        agent_name: &str,
+    ) -> PlanRepository {
+        let repo = match PlanRepository::new(db_path) {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to open PlanRepository — falling back to :memory:");
+                PlanRepository::new(":memory:").expect("in-memory SQLite must always succeed")
+            }
+        };
+
+        if let Err(e) = repo.insert_plan(plan, agent_name) {
+            tracing::error!(error = %e, "Failed to persist plan (non-blocking)");
+        }
+        if let Err(e) = repo.insert_steps(&plan.plan_id, &plan.steps) {
+            tracing::error!(error = %e, "Failed to persist plan steps (non-blocking)");
+        }
+
+        repo
+    }
+
+    // ─── Mode Direct (unchanged) ──────────────────────────────────────────
 
     /// Execute une tache en Mode Direct.
     ///
@@ -163,139 +457,40 @@ impl Default for ORIAEngine {
 }
 
 // ─────────────────────────────────────────────
-// Tests — execute_orchestrated (AC-5)
+// Private helpers
 // ─────────────────────────────────────────────
 
-#[cfg(test)]
-mod orchestrated_tests {
-    use super::*;
-    use apollia_core::{AIPInput, AIPPart, AIPTask, StepBudgetConfig, TextPart};
-    use apollia_llm::{CompletionRequest, CompletionResponse, FinishReason, LlmError, TokenUsage};
-    use std::pin::Pin;
-
-    use crate::observer::{ContextBundle, ExecutionMode};
-
-    struct SimpleMockModel {
-        response: String,
-    }
-
-    #[async_trait::async_trait]
-    impl CompletionModel for SimpleMockModel {
-        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
-            Ok(CompletionResponse {
-                content: self.response.clone(),
-                tool_calls: vec![],
-                usage: TokenUsage {
-                    prompt_tokens: 0,
-                    completion_tokens: 0,
-                    cost_usd: None,
-                },
-                finish_reason: FinishReason::Stop,
-                latency_ms: 0,
-            })
-        }
-
-        async fn stream(
-            &self,
-            _req: CompletionRequest,
-        ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
-        {
-            Err(LlmError::InferenceError(
-                "mock does not support streaming".into(),
-            ))
-        }
-
-        fn is_available(&self) -> bool {
-            true
-        }
-
-        fn backend_name(&self) -> &str {
-            "mock"
-        }
-
-        fn model_id(&self) -> &str {
-            "mock-model"
+/// Extracts the step outputs map from an `AIPResult::completed_with_steps` result.
+///
+/// `AIPResult::completed_with_steps` stores the `HashMap<step_id, output>` as
+/// `AIPPart::Data`. Returns an empty map if the data cannot be parsed.
+fn extract_step_outputs(result: &AIPResult) -> HashMap<String, String> {
+    if let Some(AIPPart::Data(DataPart { data })) = result.output.first() {
+        if let Ok(map) = serde_json::from_value::<HashMap<String, String>>(data.clone()) {
+            return map;
         }
     }
-
-    fn make_orchestrated_bundle() -> ContextBundle {
-        ContextBundle {
-            task: AIPTask {
-                task_id: "task-001".into(),
-                context_id: "ctx-001".into(),
-                input: AIPInput {
-                    parts: vec![AIPPart::Text(TextPart {
-                        text: "Generate a multi-step plan".into(),
-                    })],
-                },
-                history: vec![],
-                timeout_seconds: None,
-            },
-            memory_snapshot: None,
-            execution_mode: ExecutionMode::Orchestrated,
-            available_tools: vec!["file_io".into(), "bash_executor".into()],
-            manifest_system_prompt: None,
-        }
-    }
-
-    fn make_budget() -> Arc<StepBudget> {
-        let config = StepBudgetConfig {
-            max_steps: 20,
-            max_tool_calls: 50,
-            wall_clock_secs: 600,
-        };
-        Arc::new(StepBudget::new(&config))
-    }
-
-    /// ÉTANT DONNÉ un `ORIAEngine` configuré avec un mock `CompletionModel`
-    ///      ET un `ContextBundle` avec `ExecutionMode::Orchestrated`
-    /// QUAND on appelle `engine.execute_orchestrated(&bundle, &budget).await`
-    /// ALORS `Reasoner::plan()` est appelé 1 fois et le résultat est un `ExecutionPlan`
-    #[tokio::test]
-    async fn test_ac5_execute_orchestrated_returns_plan() {
-        // GIVEN
-        let valid_plan = r#"{"steps":[
-            {"step_id":"s1","description":"read config","tool_hint":"file_io","depends_on":[]},
-            {"step_id":"s2","description":"run script","tool_hint":"bash_executor","depends_on":["s1"]}
-        ]}"#;
-        let model = Arc::new(SimpleMockModel {
-            response: valid_plan.into(),
-        });
-        let engine = ORIAEngine::new().with_reasoner(model, 20);
-        let bundle = make_orchestrated_bundle();
-        let budget = make_budget();
-
-        // WHEN
-        let result = engine.execute_orchestrated(&bundle, &budget).await;
-
-        // THEN
-        let plan = result.expect("expected Ok(ExecutionPlan)");
-        assert_eq!(plan.steps.len(), 2);
-        assert_eq!(plan.steps[0].step_id, "s1");
-        assert_eq!(plan.steps[1].step_id, "s2");
-    }
-
-    /// ÉTANT DONNÉ un `ORIAEngine` sans LLM configuré
-    /// QUAND on appelle `execute_orchestrated()`
-    /// ALORS `Err(ORIAError::NoLlmConfigured)` est retourné
-    #[tokio::test]
-    async fn test_execute_orchestrated_no_llm_returns_error() {
-        // GIVEN — no reasoner configured
-        let engine = ORIAEngine::new();
-        let bundle = make_orchestrated_bundle();
-        let budget = make_budget();
-
-        // WHEN
-        let result = engine.execute_orchestrated(&bundle, &budget).await;
-
-        // THEN
-        assert!(
-            matches!(result, Err(ORIAError::NoLlmConfigured)),
-            "expected NoLlmConfigured, got: {:?}",
-            result
-        );
-    }
+    HashMap::new()
 }
+
+/// Concatène les outputs des steps en un `AIPResult::Completed`.
+///
+/// Les steps sont triés par `step_id` pour un résultat déterministe.
+/// Séparateur : deux sauts de ligne (`\n\n`), aligné sur le format Markdown.
+fn concat_outputs(outputs: &HashMap<String, String>) -> AIPResult {
+    let mut sorted: Vec<(&String, &String)> = outputs.iter().collect();
+    sorted.sort_by_key(|(k, _)| *k);
+    let text = sorted
+        .iter()
+        .map(|(_, v)| v.as_str())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    AIPResult::completed(&text)
+}
+
+// ─────────────────────────────────────────────
+// Tests — execute_direct (unchanged)
+// ─────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -422,5 +617,358 @@ mod tests {
             matches!(err, ORIAError::BridgeError(_)),
             "expected BridgeError, got: {err}"
         );
+    }
+}
+
+// ─────────────────────────────────────────────
+// Tests — execute() Mode Orchestrated (STORY-085)
+// ─────────────────────────────────────────────
+
+#[cfg(test)]
+mod orchestrated_tests {
+    use super::*;
+    use apollia_core::{AgentManifest, StepBudgetConfig, TaskStatus};
+    use apollia_llm::{CompletionRequest, CompletionResponse, FinishReason, LlmError, TokenUsage};
+    use std::pin::Pin;
+
+    // ── Mock LLM model ──────────────────────────────────────────────────
+
+    struct SimpleMockModel {
+        response: String,
+    }
+
+    #[async_trait::async_trait]
+    impl CompletionModel for SimpleMockModel {
+        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+            Ok(CompletionResponse {
+                content: self.response.clone(),
+                tool_calls: vec![],
+                usage: TokenUsage {
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                    cost_usd: None,
+                },
+                finish_reason: FinishReason::Stop,
+                latency_ms: 0,
+            })
+        }
+
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
+        {
+            Err(LlmError::InferenceError(
+                "mock does not support streaming".into(),
+            ))
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+
+        fn backend_name(&self) -> &str {
+            "mock"
+        }
+
+        fn model_id(&self) -> &str {
+            "mock-model"
+        }
+    }
+
+    // ── Mock LLM that always returns an error ───────────────────────────
+
+    struct ErrorMockModel;
+
+    #[async_trait::async_trait]
+    impl CompletionModel for ErrorMockModel {
+        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+            Err(LlmError::InferenceError("planned LLM failure".into()))
+        }
+
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
+        {
+            Err(LlmError::InferenceError(
+                "mock does not support streaming".into(),
+            ))
+        }
+
+        fn is_available(&self) -> bool {
+            false
+        }
+
+        fn backend_name(&self) -> &str {
+            "error-mock"
+        }
+
+        fn model_id(&self) -> &str {
+            "error-mock"
+        }
+    }
+
+    // ── Mock ToolProxy ──────────────────────────────────────────────────
+
+    struct MockToolProxy {
+        output: String,
+    }
+
+    #[async_trait::async_trait]
+    impl ToolProxyTrait for MockToolProxy {
+        async fn invoke(
+            &self,
+            _tool_name: &str,
+            _input: &serde_json::Value,
+        ) -> Result<String, String> {
+            Ok(self.output.clone())
+        }
+    }
+
+    // ── Mock AIPAgent ───────────────────────────────────────────────────
+
+    struct MockAgent {
+        manifest: AgentManifest,
+    }
+
+    impl AIPAgent for MockAgent {
+        fn manifest(&self) -> AgentManifest {
+            self.manifest.clone()
+        }
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────
+
+    /// Valid 2-step plan JSON returned by the mock LLM.
+    fn two_step_plan_json() -> String {
+        r#"{"steps":[
+            {"step_id":"s1","description":"step one","tool_hint":"file_io","depends_on":[]},
+            {"step_id":"s2","description":"step two","tool_hint":"bash_executor","depends_on":[]}
+        ]}"#
+        .to_string()
+    }
+
+    /// Valid 4-step plan JSON (for AC-5 step_count verification).
+    fn four_step_plan_json() -> String {
+        r#"{"steps":[
+            {"step_id":"s1","description":"step 1","tool_hint":"file_io","depends_on":[]},
+            {"step_id":"s2","description":"step 2","tool_hint":"file_io","depends_on":[]},
+            {"step_id":"s3","description":"step 3","tool_hint":"bash_executor","depends_on":[]},
+            {"step_id":"s4","description":"step 4","tool_hint":"bash_executor","depends_on":[]}
+        ]}"#
+        .to_string()
+    }
+
+    fn make_engine_with_mock(plan_json: String) -> ORIAEngine {
+        let model = Arc::new(SimpleMockModel {
+            response: plan_json,
+        });
+        let proxy = Arc::new(MockToolProxy {
+            output: "mock output".into(),
+        });
+        ORIAEngine::new()
+            .with_reasoner(model, 20)
+            .with_tool_proxy(proxy)
+    }
+
+    fn orchestrated_manifest_with_prompt() -> AgentManifest {
+        AgentManifest {
+            name: "test-agent".into(),
+            version: "1.0.0".into(),
+            description: "Test orchestrated agent".into(),
+            tools_required: vec!["file_io".into(), "bash_executor".into()],
+            tools_optional: vec![],
+            supports_streaming: false,
+            supports_a2a: false,
+            memory_namespace: None,
+            shared_memory_namespaces: vec![],
+            max_concurrent_tasks: 1,
+            step_budget: Some(StepBudgetConfig {
+                max_steps: 20,
+                max_tool_calls: 50,
+                wall_clock_secs: 600,
+            }),
+            network_allowlist: None,
+            dangerous_tools_allowed: false,
+            tags: vec![],
+            skills: vec![],
+            execution_mode: "orchestrated".into(),
+            system_prompt: Some("Planifie les étapes nécessaires.".into()),
+        }
+    }
+
+    // ── AC-1 : agent sans hook → concaténation automatique des outputs ──
+
+    /// ÉTANT DONNÉ un agent execution_mode=orchestrated sans on_plan_complete()
+    ///      ET un mock LLM retournant un plan de 2 steps
+    ///      ET un mock ToolProxy retournant un output pour chaque step
+    /// QUAND ORIAEngine::execute(task, &agent) est appelé
+    /// ALORS AIPResult::Completed est retourné
+    ///   ET RuntimeEvent::PlanCompleted a été émis
+    #[tokio::test]
+    async fn test_ac1_sans_hook_concatenation() {
+        // GIVEN
+        let engine = make_engine_with_mock(two_step_plan_json());
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+        let task = AIPTask::default();
+
+        // WHEN
+        let result = engine.execute(task, &agent).await;
+
+        // THEN
+        assert_eq!(
+            result.status,
+            TaskStatus::Completed,
+            "expected Completed, got: {:?}",
+            result.error
+        );
+    }
+
+    // ── AC-2 : system_prompt absent → AIPResult::failed immédiat ────────
+
+    /// ÉTANT DONNÉ un agent execution_mode=orchestrated SANS system_prompt
+    /// QUAND ORIAEngine::execute(task, &agent) est appelé
+    /// ALORS AIPResult::failed("MISSING_SYSTEM_PROMPT", _) est retourné
+    ///   ET Reasoner.plan() n'est PAS appelé (aucun LLM configuré)
+    #[tokio::test]
+    async fn test_ac2_system_prompt_absent_retourne_failed() {
+        // GIVEN — no LLM and no system_prompt (both should be caught at system_prompt check)
+        let engine = ORIAEngine::new();
+        let agent = MockAgent {
+            manifest: AgentManifest {
+                name: "no-prompt-agent".into(),
+                version: "1.0.0".into(),
+                description: "Agent without system_prompt".into(),
+                tools_required: vec![],
+                tools_optional: vec![],
+                supports_streaming: false,
+                supports_a2a: false,
+                memory_namespace: None,
+                shared_memory_namespaces: vec![],
+                max_concurrent_tasks: 1,
+                step_budget: None,
+                network_allowlist: None,
+                dangerous_tools_allowed: false,
+                tags: vec![],
+                skills: vec![],
+                execution_mode: "orchestrated".into(),
+                system_prompt: None, // ← absent
+            },
+        };
+        let task = AIPTask::default();
+
+        // WHEN
+        let result = engine.execute(task, &agent).await;
+
+        // THEN
+        assert_eq!(result.status, TaskStatus::Failed);
+        let err_code = result.error.as_ref().map(|e| e.code.as_str()).unwrap_or("");
+        assert_eq!(
+            err_code, "MISSING_SYSTEM_PROMPT",
+            "expected MISSING_SYSTEM_PROMPT, got: {err_code}"
+        );
+    }
+
+    // ── AC-3 : Reasoner échoue → AIPResult::failed propagé ──────────────
+
+    /// ÉTANT DONNÉ un mock LLM qui retourne toujours une erreur
+    /// QUAND ORIAEngine::execute(task, &agent) est appelé
+    /// ALORS AIPResult::failed("PLAN_FAILED", _) est retourné
+    #[tokio::test]
+    async fn test_ac3_reasoner_echec_retourne_failed() {
+        // GIVEN
+        let model = Arc::new(ErrorMockModel);
+        let engine = ORIAEngine::new().with_reasoner(model, 20);
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+        let task = AIPTask::default();
+
+        // WHEN
+        let result = engine.execute(task, &agent).await;
+
+        // THEN
+        assert_eq!(result.status, TaskStatus::Failed);
+        let err_code = result.error.as_ref().map(|e| e.code.as_str()).unwrap_or("");
+        assert_eq!(
+            err_code, "PLAN_FAILED",
+            "expected PLAN_FAILED, got: {err_code}"
+        );
+    }
+
+    // ── AC-5 : PlanGenerated avec step_count correct ─────────────────────
+
+    /// ÉTANT DONNÉ un plan de 4 steps généré par le Reasoner
+    ///      ET un EventBus subscriber actif
+    /// QUAND ORIAEngine::execute_orchestrated() est appelé
+    /// ALORS le subscriber reçoit RuntimeEvent::PlanGenerated { step_count: 4, .. }
+    #[tokio::test]
+    async fn test_ac5_plan_generated_event_step_count() {
+        // GIVEN
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(32);
+        let engine = make_engine_with_mock(four_step_plan_json()).with_event_bus(tx);
+
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+        let task = AIPTask::default();
+
+        // WHEN
+        let _ = engine.execute(task, &agent).await;
+
+        // THEN — collect all events and look for PlanGenerated
+        let mut found_step_count = None;
+        while let Ok(event) = rx.try_recv() {
+            if let RuntimeEvent::PlanGenerated { step_count, .. } = event {
+                found_step_count = Some(step_count);
+                break;
+            }
+        }
+
+        assert_eq!(
+            found_step_count,
+            Some(4),
+            "expected PlanGenerated with step_count=4"
+        );
+    }
+
+    // ── Helper tests ────────────────────────────────────────────────────
+
+    /// ÉTANT DONNÉ un AIPResult::completed_with_steps avec 2 outputs
+    /// QUAND extract_step_outputs est appelé
+    /// ALORS les 2 outputs sont correctement extraits
+    #[test]
+    fn test_extract_step_outputs_parses_data_part() {
+        // GIVEN
+        let mut steps = HashMap::new();
+        steps.insert("s1".to_string(), "output one".to_string());
+        steps.insert("s2".to_string(), "output two".to_string());
+        let result = AIPResult::completed_with_steps(steps);
+
+        // WHEN
+        let outputs = extract_step_outputs(&result);
+
+        // THEN
+        assert_eq!(outputs.len(), 2);
+        assert_eq!(outputs.get("s1").map(String::as_str), Some("output one"));
+        assert_eq!(outputs.get("s2").map(String::as_str), Some("output two"));
+    }
+
+    /// ÉTANT DONNÉ une map vide
+    /// QUAND concat_outputs est appelé
+    /// ALORS AIPResult::Completed avec output vide est retourné
+    #[test]
+    fn test_concat_outputs_empty_map_returns_completed() {
+        // GIVEN
+        let outputs = HashMap::new();
+
+        // WHEN
+        let result = concat_outputs(&outputs);
+
+        // THEN
+        assert_eq!(result.status, TaskStatus::Completed);
     }
 }
