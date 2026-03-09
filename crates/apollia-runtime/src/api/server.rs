@@ -19,6 +19,7 @@ use tokio::net::UnixListener;
 use tokio::sync::watch;
 use tracing::info;
 
+use apollia_core::PendingApprovals;
 use apollia_llm::LlmRouter;
 use apollia_tools::TaskRepository;
 use apollia_triggers::TriggerEngineHandle;
@@ -64,6 +65,12 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `None` in unit tests or when HITL is not configured.
     /// The resume route returns 503 when this is `None`.
     pub task_repository: Option<Arc<TaskRepository>>,
+    /// Registre HITL des approbations en attente — partagé entre routes et ORIAEngine.
+    ///
+    /// `ResumeHandler` appelle `pending_approvals.resolve()` pour débloquer
+    /// `execute_direct()` qui attend sur le oneshot channel (STORY-096).
+    /// `None` quand le HITL n'est pas configuré — `resume_task` logue un warning.
+    pub pending_approvals: Option<Arc<PendingApprovals>>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -78,6 +85,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             trigger_engine: self.trigger_engine.clone(),
             config_path: self.config_path.clone(),
             task_repository: self.task_repository.clone(),
+            pending_approvals: self.pending_approvals.clone(),
         }
     }
 }
@@ -397,6 +405,7 @@ mod tests {
             trigger_engine: None,
             config_path: None,
             task_repository: None,
+            pending_approvals: None,
         }
     }
 

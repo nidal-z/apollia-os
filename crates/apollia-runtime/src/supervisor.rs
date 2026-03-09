@@ -294,6 +294,7 @@ impl Supervisor {
             trigger_engine: Some(trigger_engine.clone()),
             config_path: self.config.config_path.clone(),
             task_repository: None,
+            pending_approvals: None,
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -842,6 +843,7 @@ mod tests {
             trigger_engine: None,
             config_path: None,
             task_repository: None,
+            pending_approvals: None,
         };
 
         // WHEN on clone l'AppState

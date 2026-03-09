@@ -652,6 +652,7 @@ mod tests {
             trigger_engine: None,
             config_path: None,
             task_repository: None,
+            pending_approvals: None,
         }
     }
 
@@ -672,6 +673,7 @@ mod tests {
             trigger_engine: Some(engine),
             config_path: None,
             task_repository: None,
+            pending_approvals: None,
         }
     }
 

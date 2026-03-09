@@ -291,6 +291,7 @@ mod tests {
             trigger_engine: None,
             config_path: None,
             task_repository: None,
+            pending_approvals: None,
         }
     }
 

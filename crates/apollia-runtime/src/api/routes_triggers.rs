@@ -512,6 +512,7 @@ mod tests {
             trigger_engine,
             config_path,
             task_repository: None,
+            pending_approvals: None,
         }
     }
 

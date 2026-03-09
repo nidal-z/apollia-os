@@ -16,8 +16,8 @@ use std::time::Duration;
 use std::time::Instant;
 
 use apollia_core::{
-    AIPPart, AIPResult, AIPTask, AgentManifest, DataPart, EventBusSender, RuntimeEvent,
-    StepBudgetConfig, TaskStatus,
+    AIPPart, AIPResult, AIPTask, AgentManifest, DataPart, EventBusSender, PendingApprovals,
+    RuntimeEvent, StepBudgetConfig, TaskStatus,
 };
 use apollia_llm::{CompletionModel, LlmRouter};
 
@@ -124,6 +124,10 @@ pub enum ORIAError {
     /// Erreur du Reasoner lors de la planification.
     #[error("planning failed: {0}")]
     PlanFailed(#[from] ReasonerError),
+
+    /// Le oneshot channel d'approbation a été fermé avant réponse — runtime shutdown.
+    #[error("approval channel closed before human response — runtime may be shutting down")]
+    ApprovalChannelClosed,
 }
 
 // ─────────────────────────────────────────────
@@ -164,12 +168,27 @@ pub struct ORIAEngine {
     event_bus: EventBusSender,
     runtime_config: StepBudgetConfig,
     db_path: Option<String>,
+    /// Registre HITL des approbations en attente — partagé avec le `ResumeHandler`.
+    ///
+    /// Requis pour que `execute_direct()` suspende la tâche et attende la décision
+    /// humaine (STORY-096). Si `None`, les résultats `InputRequired` sont retournés
+    /// tels quels sans suspension.
+    pending_approvals: Option<Arc<PendingApprovals>>,
+    /// Repository SQLite HITL — persiste le prompt et le contexte lors de la suspension.
+    ///
+    /// Si `None`, la persistance est ignorée (warning tracé) mais l'exécution continue.
+    task_repository: Option<Arc<apollia_tools::TaskRepository>>,
 }
 
 impl ORIAEngine {
     /// Crée un `ORIAEngine` avec les valeurs par défaut (Mode Direct uniquement).
     ///
     /// Pour activer le Mode Orchestrated, chaîner avec [`with_reasoner`].
+    /// Pour activer le HITL, chaîner avec [`with_pending_approvals`] et [`with_task_repository`].
+    ///
+    /// [`with_reasoner`]: ORIAEngine::with_reasoner
+    /// [`with_pending_approvals`]: ORIAEngine::with_pending_approvals
+    /// [`with_task_repository`]: ORIAEngine::with_task_repository
     pub fn new() -> Self {
         let (event_bus, _) = tokio::sync::broadcast::channel(64);
         Self {
@@ -180,6 +199,8 @@ impl ORIAEngine {
             event_bus,
             runtime_config: StepBudgetConfig::default(),
             db_path: None,
+            pending_approvals: None,
+            task_repository: None,
         }
     }
 
@@ -223,6 +244,25 @@ impl ORIAEngine {
     /// Si absent, un fallback `:memory:` est utilisé (pas de persistance entre redémarrages).
     pub fn with_db_path(mut self, path: impl Into<String>) -> Self {
         self.db_path = Some(path.into());
+        self
+    }
+
+    /// Injecte le registre HITL des approbations en attente (STORY-096).
+    ///
+    /// Requis pour que `execute_direct()` suspende la tâche en status `input_required`
+    /// et attende la décision humaine via un oneshot channel.
+    /// Partagé entre le `ORIAEngine` et les routes REST via `AppState`.
+    pub fn with_pending_approvals(mut self, pending: Arc<PendingApprovals>) -> Self {
+        self.pending_approvals = Some(pending);
+        self
+    }
+
+    /// Injecte le repository SQLite HITL pour persister le prompt et le contexte (STORY-096).
+    ///
+    /// Si absent, la persistance SQLite est ignorée mais l'exécution HITL continue
+    /// (warning tracé — Principe #4 : fail fast uniquement pour les erreurs détectables).
+    pub fn with_task_repository(mut self, repo: Arc<apollia_tools::TaskRepository>) -> Self {
+        self.task_repository = Some(repo);
         self
     }
 
@@ -417,17 +457,23 @@ impl ORIAEngine {
         repo
     }
 
-    // ─── Mode Direct (unchanged) ──────────────────────────────────────────
+    // ─── Mode Direct ──────────────────────────────────────────────────────
 
-    /// Execute une tache en Mode Direct.
+    /// Exécute une tâche en Mode Direct avec support HITL (STORY-096).
     ///
-    /// 1. Verifie que le budget n'est pas deja epuise
-    /// 2. Appelle `runner.call_run(task)`
-    /// 3. Retourne `AIPResult` ou `ORIAError`
+    /// 1. Vérifie que le budget n'est pas déjà épuisé.
+    /// 2. Appelle `runner.call_run(task)` avec supervision `StepBudget`.
+    /// 3. Si `AIPResult::InputRequired` :
+    ///    - Persiste prompt + context dans SQLite via `task_repository` (si configuré).
+    ///    - Émet `RuntimeEvent::TaskInputRequired` sur l'EventBus.
+    ///    - Enregistre un oneshot dans `pending_approvals` et **attend** la décision humaine.
+    ///    - Si `approved=true` : reconstruit `AIPTask` avec `is_resumed=true` et rappelle `run()`.
+    ///    - Si `approved=false` : retourne `AIPResult::failed("REJECTED", reason)`.
+    /// 4. Sinon retourne le résultat directement.
     ///
-    /// Le StepBudget est supervise en parallele via `tokio::select!` :
-    /// - branche 1 : `runner.call_run()` termine normalement
-    /// - branche 2 : polling periodique de `budget.is_exhausted()` (100ms interval)
+    /// **AC-4 (StepBudget pausé pendant suspension)** : l'attente sur le oneshot est un
+    /// `await` pur — le polling du budget ne tourne pas pendant la suspension.
+    /// Le budget ne progresse pas tant que l'humain n'a pas répondu.
     pub async fn execute_direct(
         &self,
         task: AIPTask,
@@ -442,13 +488,103 @@ impl ORIAEngine {
             return Err(ORIAError::BudgetExceeded { reason });
         }
 
-        let run_future = runner.call_run(task);
+        // First run — with budget supervision
+        let result = Self::run_with_budget(runner, task.clone(), &budget).await?;
 
+        // Non-HITL path — return immediately
+        if result.status != TaskStatus::InputRequired {
+            return Ok(result);
+        }
+
+        // ── HITL Suspension ───────────────────────────────────────────────
+        let (prompt, context) = match result.input_required_data {
+            Some(data) => (data.prompt, data.context),
+            None => ("Approbation requise".to_string(), serde_json::Value::Null),
+        };
+
+        // AC-1 : persist input_required in SQLite (non-blocking on error — Principle #4)
+        if let Some(repo) = self.task_repository.as_ref() {
+            if let Err(e) = repo
+                .save_input_required(&task.task_id, None, &prompt, &context)
+                .await
+            {
+                tracing::warn!(
+                    task_id = %task.task_id,
+                    error = %e,
+                    "failed to persist input_required — continuing without DB record"
+                );
+            }
+        }
+
+        // AC-1 : broadcast TaskInputRequired on EventBus
+        let _ = self.event_bus.send(RuntimeEvent::TaskInputRequired {
+            task_id: task.task_id.clone().into(),
+            prompt: prompt.clone(),
+        });
+
+        tracing::info!(
+            task_id = %task.task_id,
+            %prompt,
+            "task suspended — waiting for human approval"
+        );
+
+        // AC-5 : register on PendingApprovals — if not configured, degrade gracefully
+        let pending = match self.pending_approvals.as_ref() {
+            Some(p) => p,
+            None => {
+                tracing::warn!(
+                    task_id = %task.task_id,
+                    "PendingApprovals not configured — returning InputRequired without suspension"
+                );
+                return Ok(AIPResult::input_required(&prompt, context));
+            }
+        };
+
+        let rx = pending.register(&task.task_id);
+
+        // AC-4 : plain await — StepBudget does NOT advance during suspension
+        let response = rx.await.map_err(|_| ORIAError::ApprovalChannelClosed)?;
+
+        tracing::info!(
+            task_id = %task.task_id,
+            approved = response.approved,
+            "human approval received — resuming task"
+        );
+
+        // AC-3 : rejection → AIPResult::failed without calling run()
+        if !response.approved {
+            return Ok(AIPResult::failed(
+                "REJECTED",
+                response.reason.as_deref().unwrap_or("Refusé"),
+            ));
+        }
+
+        // AC-2 : approval → rebuild AIPTask with is_resumed=true and call run() again
+        let resumed_task = AIPTask {
+            is_resumed: true,
+            input_response: Some(response),
+            ..task
+        };
+
+        // Run resumed task with budget protection
+        Self::run_with_budget(runner, resumed_task, &budget).await
+    }
+
+    /// Exécute `runner.call_run(task)` avec supervision concurrente du `StepBudget`.
+    ///
+    /// Retourne immédiatement avec `ORIAError::BudgetExceeded` si le budget expire
+    /// avant la fin de l'exécution. Utilisé pour le premier appel et pour la reprise
+    /// après HITL.
+    async fn run_with_budget(
+        runner: &dyn AgentRunner,
+        task: AIPTask,
+        budget: &Arc<StepBudget>,
+    ) -> Result<AIPResult, ORIAError> {
         tokio::select! {
-            result = run_future => {
+            result = runner.call_run(task) => {
                 result.map_err(ORIAError::BridgeError)
             }
-            _ = Self::poll_budget_exhaustion(&budget) => {
+            _ = Self::poll_budget_exhaustion(budget) => {
                 let reason = budget
                     .exhaustion_reason()
                     .unwrap_or_else(|| "budget exhausted during execution".into());
@@ -508,13 +644,13 @@ fn concat_outputs(outputs: &HashMap<String, String>) -> AIPResult {
 }
 
 // ─────────────────────────────────────────────
-// Tests — execute_direct (unchanged)
+// Tests — execute_direct
 // ─────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apollia_core::{AIPResult, StepBudgetConfig, TaskStatus};
+    use apollia_core::{AIPResult, PendingApprovals, StepBudgetConfig, TaskStatus};
 
     struct MockRunnerOk {
         result: AIPResult,
@@ -637,6 +773,233 @@ mod tests {
             matches!(err, ORIAError::BridgeError(_)),
             "expected BridgeError, got: {err}"
         );
+    }
+
+    // ── HITL tests (STORY-096) ───────────────────────────────────────────
+
+    /// Runner qui retourne InputRequired au premier appel, puis Completed au second.
+    struct MockRunnerInputRequired {
+        call_count: std::sync::Arc<std::sync::atomic::AtomicU32>,
+    }
+
+    impl AgentRunner for MockRunnerInputRequired {
+        fn call_run(
+            &self,
+            task: AIPTask,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send + '_>,
+        > {
+            let count = self
+                .call_count
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Box::pin(async move {
+                if count == 0 {
+                    // First call — return InputRequired
+                    Ok(AIPResult::input_required(
+                        "Confirmer l'envoi ?",
+                        serde_json::json!({"devis": 42}),
+                    ))
+                } else {
+                    // Second call (resumed) — verify is_resumed and return Completed
+                    assert!(task.is_resumed, "task should be resumed on second call");
+                    assert!(
+                        task.input_response.is_some(),
+                        "input_response should be set on resume"
+                    );
+                    Ok(AIPResult {
+                        task_id: task.task_id,
+                        status: TaskStatus::Completed,
+                        output: vec![],
+                        error: None,
+                        artifacts: vec![],
+                        input_required_data: None,
+                    })
+                }
+            })
+        }
+    }
+
+    fn make_budget() -> Arc<StepBudget> {
+        Arc::new(StepBudget::new(&StepBudgetConfig {
+            max_steps: 10,
+            max_tool_calls: 20,
+            wall_clock_secs: 300,
+        }))
+    }
+
+    // AC-1 : InputRequired → TaskInputRequired émis sur EventBus + suspension enregistrée
+
+    /// ÉTANT DONNÉ un agent qui retourne InputRequired
+    /// QUAND execute_direct() reçoit ce résultat
+    /// ALORS RuntimeEvent::TaskInputRequired est émis sur l'EventBus
+    #[tokio::test]
+    async fn test_ac1_input_required_emits_event() {
+        // GIVEN
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<apollia_core::RuntimeEvent>(16);
+        let pending = Arc::new(PendingApprovals::new());
+        let engine = ORIAEngine::new()
+            .with_event_bus(tx)
+            .with_pending_approvals(pending.clone());
+        let runner = MockRunnerInputRequired {
+            call_count: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        };
+        let task = AIPTask {
+            task_id: "t-0001".into(),
+            ..AIPTask::default()
+        };
+
+        // WHEN — spawn execute_direct in background so we can resolve from this task
+        let engine_ref = &engine;
+        let runner_ref = &runner;
+        let budget = make_budget();
+        let task_clone = task.clone();
+        let pending_clone = pending.clone();
+
+        let handle = tokio::spawn(async move {
+            // Resolve from another task after a short yield
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            pending_clone
+                .resolve(
+                    "t-0001",
+                    apollia_core::InputResponseData {
+                        approved: true,
+                        reason: None,
+                        context: serde_json::Value::Null,
+                        responded_at: "2026-01-01T00:00:00Z".into(),
+                    },
+                )
+                .expect("resolve failed");
+        });
+
+        let result = engine_ref
+            .execute_direct(task_clone, runner_ref, budget)
+            .await;
+
+        handle.await.expect("background task failed");
+
+        // THEN result is Ok (Completed from second run)
+        assert!(result.is_ok(), "expected Ok, got: {:?}", result.err());
+        assert_eq!(result.unwrap().status, TaskStatus::Completed);
+
+        // THEN TaskInputRequired was emitted
+        let mut found = false;
+        while let Ok(event) = rx.try_recv() {
+            if matches!(event, apollia_core::RuntimeEvent::TaskInputRequired { .. }) {
+                found = true;
+                break;
+            }
+        }
+        assert!(found, "expected TaskInputRequired event on EventBus");
+    }
+
+    // AC-2 : Approve → run() rappelé avec is_resumed=true
+
+    /// ÉTANT DONNÉ une tâche suspendue en input_required
+    /// QUAND PendingApprovals.resolve(approved=true)
+    /// ALORS execute_direct() se débloque et rappelle run() avec is_resumed=true
+    #[tokio::test]
+    async fn test_ac2_approve_resumes_and_recalls_run() {
+        // GIVEN
+        let pending = Arc::new(PendingApprovals::new());
+        let engine = ORIAEngine::new().with_pending_approvals(pending.clone());
+        let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let runner = MockRunnerInputRequired {
+            call_count: call_count.clone(),
+        };
+        let task = AIPTask {
+            task_id: "t-0002".into(),
+            ..AIPTask::default()
+        };
+
+        // Spawn resolver
+        let pending_for_resolver = pending.clone();
+        let resolver = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            pending_for_resolver
+                .resolve(
+                    "t-0002",
+                    apollia_core::InputResponseData {
+                        approved: true,
+                        reason: None,
+                        context: serde_json::Value::Null,
+                        responded_at: "2026-01-01T00:00:00Z".into(),
+                    },
+                )
+                .expect("resolve failed");
+        });
+
+        // WHEN
+        let result = engine.execute_direct(task, &runner, make_budget()).await;
+        resolver.await.expect("resolver task failed");
+
+        // THEN result is Completed (run() called twice)
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().status, TaskStatus::Completed);
+        // run() was called twice: first → InputRequired, second → Completed
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    // AC-3 : Reject → AIPResult::failed("REJECTED") sans rappeler run()
+
+    /// ÉTANT DONNÉ une tâche suspendue en input_required
+    /// QUAND PendingApprovals.resolve(approved=false, reason="Trop cher")
+    /// ALORS execute_direct() retourne AIPResult::failed("REJECTED") sans rappeler run()
+    #[tokio::test]
+    async fn test_ac3_reject_returns_failed_without_run() {
+        // GIVEN
+        let pending = Arc::new(PendingApprovals::new());
+        let engine = ORIAEngine::new().with_pending_approvals(pending.clone());
+        let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let runner = MockRunnerInputRequired {
+            call_count: call_count.clone(),
+        };
+        let task = AIPTask {
+            task_id: "t-0003".into(),
+            ..AIPTask::default()
+        };
+
+        // Spawn resolver with rejection
+        let pending_for_resolver = pending.clone();
+        let resolver = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            pending_for_resolver
+                .resolve(
+                    "t-0003",
+                    apollia_core::InputResponseData {
+                        approved: false,
+                        reason: Some("Trop cher".into()),
+                        context: serde_json::Value::Null,
+                        responded_at: "2026-01-01T00:00:00Z".into(),
+                    },
+                )
+                .expect("resolve failed");
+        });
+
+        // WHEN
+        let result = engine.execute_direct(task, &runner, make_budget()).await;
+        resolver.await.expect("resolver task failed");
+
+        // THEN result is Failed with code REJECTED
+        assert!(result.is_ok());
+        let aip_result = result.unwrap();
+        assert_eq!(aip_result.status, TaskStatus::Failed);
+        let code = aip_result
+            .error
+            .as_ref()
+            .map(|e| e.code.as_str())
+            .unwrap_or("");
+        assert_eq!(code, "REJECTED", "expected REJECTED error code");
+        let msg = aip_result
+            .error
+            .as_ref()
+            .map(|e| e.message.as_str())
+            .unwrap_or("");
+        assert!(
+            msg.contains("Trop cher"),
+            "reason should appear in message: {msg}"
+        );
+        // run() was called exactly once (first call only)
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 }
 

@@ -273,17 +273,51 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
             )
         })?;
 
-    // ── Émettre TaskResumed sur l'EventBus (consommé par ORIA — STORY-096) ──
+    // ── Émettre TaskResumed sur l'EventBus ──────────────────────────────────
     let _ = state.event_sender.send(RuntimeEvent::TaskResumed {
         task_id: TaskId::from(task_id.as_str()),
         approved: body.approved,
     });
 
-    // ── Reconstruire l'AIPTask enrichi (validé en DB, prêt pour ORIA-096) ───
+    // ── Reconstruire l'AIPTask enrichi et résoudre le oneshot ORIA (STORY-096) ──
     match repo.rebuild_for_resume(&task_id).await {
-        Ok(_enriched_task) => {
-            // STORY-096 souscrit à TaskResumed et soumet l'AIPTask enrichi à ORIA.
-            // Pour l'instant le handler retourne 200 — la relance est fire-and-forget.
+        Ok(enriched_task) => {
+            // Résoudre le oneshot PendingApprovals pour débloquer execute_direct()
+            if let Some(pending) = state.pending_approvals.as_ref() {
+                match pending.resolve(
+                    &task_id,
+                    enriched_task.input_response.clone().unwrap_or(
+                        apollia_core::InputResponseData {
+                            approved: body.approved,
+                            reason: body.reason.clone(),
+                            context: serde_json::Value::Null,
+                            responded_at: chrono::Utc::now().to_rfc3339(),
+                        },
+                    ),
+                ) {
+                    Ok(()) => {
+                        tracing::info!(
+                            task_id = %task_id,
+                            approved = body.approved,
+                            "PendingApprovals resolved — ORIA execute_direct unblocked"
+                        );
+                    }
+                    Err(e) => {
+                        // Not a fatal error — the task may have been cleaned up or
+                        // PendingApprovals was not registered (e.g. non-ORIA execution).
+                        tracing::warn!(
+                            task_id = %task_id,
+                            error = %e,
+                            "PendingApprovals.resolve failed — task may not be suspended via ORIA"
+                        );
+                    }
+                }
+            } else {
+                tracing::warn!(
+                    task_id = %task_id,
+                    "PendingApprovals not configured in AppState — ORIA will not be unblocked"
+                );
+            }
         }
         Err(e) => {
             tracing::error!(task_id = %task_id, error = %e, "rebuild_for_resume failed");
@@ -401,6 +435,7 @@ mod tests {
             trigger_engine: None,
             config_path: None,
             task_repository: None,
+            pending_approvals: None,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -446,6 +481,7 @@ mod tests {
             trigger_engine: None,
             config_path: None,
             task_repository: None,
+            pending_approvals: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -491,6 +527,7 @@ mod tests {
             trigger_engine: None,
             config_path: None,
             task_repository: None,
+            pending_approvals: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
@@ -701,6 +738,7 @@ mod tests {
             trigger_engine: None,
             config_path: None,
             task_repository: Some(std::sync::Arc::new(repo)),
+            pending_approvals: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/resume", post(resume_task::<MockBackend>))
