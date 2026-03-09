@@ -13,5 +13,6 @@ pub mod config;
 pub mod engine;
 pub mod event_filter;
 
+pub use channels::DesktopChannel;
 pub use config::{ChannelConfig, ChannelKind, NotificationConfig, Severity};
 pub use engine::{NotifError, Notification, NotificationChannel, NotificationEngine};
