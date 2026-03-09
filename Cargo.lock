@@ -338,6 +338,7 @@ dependencies = [
  "cron",
  "dirs-next",
  "notify",
+ "rusqlite",
  "serde",
  "serde_json",
  "tempfile",

@@ -1,0 +1,427 @@
+//! Persistance SQLite des triggers — `trigger_history` et `trigger_state`.
+//!
+//! [`TriggerPersistence`] est une struct **synchrone** (pas d'acteur Tokio).
+//! Elle est conçue pour être utilisée depuis [`crate::engine::TriggerEngine`]
+//! directement (la connexion SQLite étant `Send`, elle vit dans la tâche Tokio
+//! de l'acteur) ou via `spawn_blocking` si appelée depuis un contexte qui ne
+//! tolère pas de blocage.
+//!
+//! La migration [`include_str`] est idempotente (`CREATE TABLE IF NOT EXISTS`).
+
+use chrono::{DateTime, Utc};
+use rusqlite::{params, Connection};
+
+// ─── Erreurs ──────────────────────────────────────────────────────────────
+
+/// Erreurs de persistance des triggers.
+#[derive(thiserror::Error, Debug)]
+pub enum TriggerPersistenceError {
+    /// Erreur SQLite sous-jacente.
+    #[error("database error: {0}")]
+    Database(#[from] rusqlite::Error),
+
+    /// Échec de parsing d'un horodatage stocké en base.
+    #[error("timestamp parse error: {0}")]
+    TimestampParse(String),
+}
+
+// ─── Types de résultats ───────────────────────────────────────────────────
+
+/// Entrée d'historique retournée par [`TriggerPersistence::query_history`].
+#[derive(Debug, Clone)]
+pub struct TriggerHistoryEntry {
+    /// Identifiant unique de l'entrée (hex randomblob généré par SQLite).
+    pub id: String,
+    /// Identifiant du trigger concerné.
+    pub trigger_id: String,
+    /// Nom de l'agent cible.
+    pub agent_name: String,
+    /// Horodatage du déclenchement.
+    pub fired_at: DateTime<Utc>,
+    /// Identifiant de la tâche soumise — `None` si `status` est `skipped` ou `error`.
+    pub task_id: Option<String>,
+    /// Statut : `"fired"` | `"skipped"` | `"error"`.
+    pub status: String,
+    /// Raison du skip ou de l'erreur — `None` si `status` est `"fired"`.
+    pub reason: Option<String>,
+}
+
+/// État courant d'un trigger dans `trigger_state`.
+#[derive(Debug, Clone)]
+pub struct TriggerStateRow {
+    /// Identifiant du trigger.
+    pub trigger_id: String,
+    /// Horodatage du dernier fire réussi — `None` si jamais déclenché.
+    pub last_fired: Option<DateTime<Utc>>,
+    /// Nombre cumulé de fires réussis.
+    pub fire_count: u64,
+    /// Nombre cumulé de skips.
+    pub skip_count: u64,
+    /// Indique si le trigger est activé dans `trigger_state`.
+    pub enabled: bool,
+}
+
+// ─── TriggerPersistence ───────────────────────────────────────────────────
+
+/// Interface de persistance pour les triggers — wraps `rusqlite::Connection`.
+///
+/// Conçue pour être détenue par [`crate::engine::TriggerEngine`]. La connexion
+/// SQLite implémente `Send`, ce qui autorise son stockage dans un `tokio::spawn`.
+pub struct TriggerPersistence {
+    conn: Connection,
+}
+
+impl TriggerPersistence {
+    /// Ouvre (ou crée) la base SQLite et applique la migration 003.
+    ///
+    /// Utilise `CREATE TABLE IF NOT EXISTS` — idempotente.
+    /// **Fail fast** : une erreur de migration est fatale (`.expect`),
+    /// conformément au Principe #4 d'Apollia OS.
+    pub fn open(db_path: &std::path::Path) -> Result<Self, TriggerPersistenceError> {
+        let conn = Connection::open(db_path)?;
+        // WAL pour de meilleures performances en écriture concurrente
+        conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+        conn.execute_batch(include_str!(
+            "../../apollia-tools/migrations/003_trigger_tables.sql"
+        ))?;
+        Ok(Self { conn })
+    }
+
+    /// Persiste un fire réussi dans `trigger_history` et incrémente `fire_count`.
+    ///
+    /// Met également à jour `trigger_state.last_fired` avec `fired_at`.
+    pub fn record_fired(
+        &mut self,
+        trigger_id: &str,
+        agent_name: &str,
+        task_id: &str,
+        fired_at: DateTime<Utc>,
+    ) -> Result<(), TriggerPersistenceError> {
+        let fired_at_str = fired_at.to_rfc3339();
+        self.conn.execute(
+            "INSERT INTO trigger_history (trigger_id, agent_name, fired_at, task_id, status) \
+             VALUES (?1, ?2, ?3, ?4, 'fired')",
+            params![trigger_id, agent_name, fired_at_str, task_id],
+        )?;
+        self.conn.execute(
+            "INSERT INTO trigger_state (trigger_id, last_fired, fire_count, skip_count) \
+             VALUES (?1, ?2, 1, 0) \
+             ON CONFLICT(trigger_id) DO UPDATE SET \
+               last_fired = excluded.last_fired, \
+               fire_count = fire_count + 1",
+            params![trigger_id, fired_at_str],
+        )?;
+        Ok(())
+    }
+
+    /// Persiste un skip (`on_busy=drop`) dans `trigger_history` et incrémente `skip_count`.
+    pub fn record_skipped(
+        &mut self,
+        trigger_id: &str,
+        agent_name: &str,
+        reason: &str,
+        fired_at: DateTime<Utc>,
+    ) -> Result<(), TriggerPersistenceError> {
+        let fired_at_str = fired_at.to_rfc3339();
+        self.conn.execute(
+            "INSERT INTO trigger_history (trigger_id, agent_name, fired_at, task_id, status, reason) \
+             VALUES (?1, ?2, ?3, NULL, 'skipped', ?4)",
+            params![trigger_id, agent_name, fired_at_str, reason],
+        )?;
+        self.conn.execute(
+            "INSERT INTO trigger_state (trigger_id, fire_count, skip_count) \
+             VALUES (?1, 0, 1) \
+             ON CONFLICT(trigger_id) DO UPDATE SET \
+               skip_count = skip_count + 1",
+            params![trigger_id],
+        )?;
+        Ok(())
+    }
+
+    /// Persiste une erreur de soumission au `TaskRouter` dans `trigger_history`.
+    pub fn record_error(
+        &mut self,
+        trigger_id: &str,
+        agent_name: &str,
+        error: &str,
+        fired_at: DateTime<Utc>,
+    ) -> Result<(), TriggerPersistenceError> {
+        let fired_at_str = fired_at.to_rfc3339();
+        self.conn.execute(
+            "INSERT INTO trigger_history (trigger_id, agent_name, fired_at, task_id, status, reason) \
+             VALUES (?1, ?2, ?3, NULL, 'error', ?4)",
+            params![trigger_id, agent_name, fired_at_str, error],
+        )?;
+        Ok(())
+    }
+
+    /// Retourne les `limit` dernières entrées pour un trigger donné, triées `fired_at DESC`.
+    pub fn query_history(
+        &self,
+        trigger_id: &str,
+        limit: usize,
+    ) -> Result<Vec<TriggerHistoryEntry>, TriggerPersistenceError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, trigger_id, agent_name, fired_at, task_id, status, reason \
+             FROM trigger_history \
+             WHERE trigger_id = ?1 \
+             ORDER BY fired_at DESC \
+             LIMIT ?2",
+        )?;
+
+        let mut entries = Vec::new();
+        let rows = stmt.query_map(params![trigger_id, limit as i64], |row| {
+            Ok(RawHistoryRow {
+                id: row.get(0)?,
+                trigger_id: row.get(1)?,
+                agent_name: row.get(2)?,
+                fired_at: row.get(3)?,
+                task_id: row.get(4)?,
+                status: row.get(5)?,
+                reason: row.get(6)?,
+            })
+        })?;
+
+        for row_result in rows {
+            let row = row_result?;
+            let fired_at = DateTime::parse_from_rfc3339(&row.fired_at)
+                .map(|dt| dt.with_timezone(&Utc))
+                .map_err(|e| TriggerPersistenceError::TimestampParse(e.to_string()))?;
+            entries.push(TriggerHistoryEntry {
+                id: row.id,
+                trigger_id: row.trigger_id,
+                agent_name: row.agent_name,
+                fired_at,
+                task_id: row.task_id,
+                status: row.status,
+                reason: row.reason,
+            });
+        }
+        Ok(entries)
+    }
+
+    /// Retourne l'état courant d'un trigger (`last_fired`, `fire_count`, `skip_count`).
+    ///
+    /// Retourne `None` si aucun état n'existe encore pour ce trigger.
+    pub fn get_state(
+        &self,
+        trigger_id: &str,
+    ) -> Result<Option<TriggerStateRow>, TriggerPersistenceError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT trigger_id, last_fired, fire_count, skip_count, enabled \
+             FROM trigger_state \
+             WHERE trigger_id = ?1",
+        )?;
+
+        let mut rows = stmt.query_map(params![trigger_id], |row| {
+            Ok(RawStateRow {
+                trigger_id: row.get(0)?,
+                last_fired: row.get(1)?,
+                fire_count: row.get::<_, i64>(2)?,
+                skip_count: row.get::<_, i64>(3)?,
+                enabled: row.get(4)?,
+            })
+        })?;
+
+        match rows.next() {
+            None => Ok(None),
+            Some(row_result) => {
+                let row = row_result?;
+                let last_fired = row
+                    .last_fired
+                    .map(|s: String| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .map(|dt| dt.with_timezone(&Utc))
+                            .map_err(|e| TriggerPersistenceError::TimestampParse(e.to_string()))
+                    })
+                    .transpose()?;
+                Ok(Some(TriggerStateRow {
+                    trigger_id: row.trigger_id,
+                    last_fired,
+                    fire_count: row.fire_count as u64,
+                    skip_count: row.skip_count as u64,
+                    enabled: row.enabled,
+                }))
+            }
+        }
+    }
+}
+
+// ─── Types internes (raw rows) ────────────────────────────────────────────
+
+/// Ligne brute de `trigger_history` telle que lue depuis SQLite.
+struct RawHistoryRow {
+    id: String,
+    trigger_id: String,
+    agent_name: String,
+    fired_at: String,
+    task_id: Option<String>,
+    status: String,
+    reason: Option<String>,
+}
+
+/// Ligne brute de `trigger_state` telle que lue depuis SQLite.
+struct RawStateRow {
+    trigger_id: String,
+    last_fired: Option<String>,
+    fire_count: i64,
+    skip_count: i64,
+    enabled: bool,
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    /// Ouvre une base de test dans un répertoire temporaire.
+    fn open_test_db() -> (TempDir, TriggerPersistence) {
+        let dir = TempDir::new().unwrap();
+        let db = TriggerPersistence::open(&dir.path().join("test.db")).unwrap();
+        (dir, db)
+    }
+
+    // ── AC-1 ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_ac1_migration_creates_tables() {
+        // GIVEN / WHEN — open_test_db applique la migration
+        let (_dir, persistence) = open_test_db();
+        // THEN — les tables existent (query ne panique pas, retourne vec vide)
+        let entries = persistence.query_history("any", 10).unwrap();
+        assert!(entries.is_empty());
+    }
+
+    // ── AC-2 ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_ac2_record_fired_persists_entry() {
+        // GIVEN
+        let (_dir, mut persistence) = open_test_db();
+        // WHEN
+        persistence
+            .record_fired("rapport-hebdo", "rapport-agent", "task-001", Utc::now())
+            .unwrap();
+        // THEN — entrée dans trigger_history
+        let entries = persistence.query_history("rapport-hebdo", 10).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].status, "fired");
+        assert_eq!(entries[0].task_id, Some("task-001".into()));
+        // ET trigger_state.fire_count = 1
+        let state = persistence.get_state("rapport-hebdo").unwrap().unwrap();
+        assert_eq!(state.fire_count, 1);
+        assert!(state.last_fired.is_some());
+    }
+
+    // ── AC-3 ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_ac3_record_skipped_persists_reason() {
+        // GIVEN
+        let (_dir, mut persistence) = open_test_db();
+        // WHEN
+        persistence
+            .record_skipped("crm-sync", "crm-agent", "agent busy", Utc::now())
+            .unwrap();
+        // THEN
+        let entries = persistence.query_history("crm-sync", 10).unwrap();
+        assert_eq!(entries[0].status, "skipped");
+        assert!(entries[0].task_id.is_none());
+        assert_eq!(entries[0].reason, Some("agent busy".into()));
+        let state = persistence.get_state("crm-sync").unwrap().unwrap();
+        assert_eq!(state.skip_count, 1);
+        assert_eq!(state.fire_count, 0);
+    }
+
+    // ── AC-4 ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_ac4_record_error_persists_error_message() {
+        // GIVEN
+        let (_dir, mut persistence) = open_test_db();
+        // WHEN
+        persistence
+            .record_error(
+                "factures",
+                "facture-agent",
+                "submit failed: agent not found",
+                Utc::now(),
+            )
+            .unwrap();
+        // THEN
+        let entries = persistence.query_history("factures", 10).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].status, "error");
+        assert!(entries[0]
+            .reason
+            .as_deref()
+            .unwrap_or("")
+            .contains("submit failed"));
+    }
+
+    // ── AC-5 ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_ac5_query_history_returns_n_last_entries_sorted_desc() {
+        // GIVEN — 5 fires espacés de 1 seconde
+        let (_dir, mut persistence) = open_test_db();
+        let base = Utc::now();
+        for i in 0..5u64 {
+            let t = base + chrono::Duration::seconds(i as i64);
+            persistence
+                .record_fired("rapport-hebdo", "agent", &format!("task-{i}"), t)
+                .unwrap();
+        }
+        // WHEN — limit = 3
+        let entries = persistence.query_history("rapport-hebdo", 3).unwrap();
+        // THEN — 3 entrées, triées DESC (la plus récente en premier)
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].task_id, Some("task-4".into()));
+        assert_eq!(entries[1].task_id, Some("task-3".into()));
+        assert_eq!(entries[2].task_id, Some("task-2".into()));
+    }
+
+    // ── Extra ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_get_state_returns_none_for_unknown_trigger() {
+        // GIVEN une base vide
+        let (_dir, persistence) = open_test_db();
+        // WHEN
+        let state = persistence.get_state("unknown-trigger").unwrap();
+        // THEN
+        assert!(state.is_none());
+    }
+
+    #[test]
+    fn test_fire_count_accumulates_across_multiple_fires() {
+        // GIVEN
+        let (_dir, mut persistence) = open_test_db();
+        // WHEN — 3 fires
+        for i in 0..3u64 {
+            persistence
+                .record_fired("my-trigger", "my-agent", &format!("task-{i}"), Utc::now())
+                .unwrap();
+        }
+        // THEN — fire_count = 3
+        let state = persistence.get_state("my-trigger").unwrap().unwrap();
+        assert_eq!(state.fire_count, 3);
+        assert_eq!(state.skip_count, 0);
+    }
+
+    #[test]
+    fn test_idempotent_migration_can_open_twice() {
+        // GIVEN une base déjà migrée
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("test.db");
+        {
+            let _p = TriggerPersistence::open(&path).unwrap();
+        }
+        // WHEN on ouvre de nouveau (IF NOT EXISTS → pas d'erreur)
+        let result = TriggerPersistence::open(&path);
+        // THEN
+        assert!(result.is_ok());
+    }
+}
