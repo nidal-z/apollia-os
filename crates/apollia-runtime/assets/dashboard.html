@@ -1,11 +1,93 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Apollia OS — Dashboard</title>
+  <script src="/static/htmx.min.js"></script>
+  <style>
+    body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; margin: 0; padding: 1rem; }
+    h1   { color: #00d4ff; border-bottom: 1px solid #333; padding-bottom: 0.5rem; }
+    h2   { color: #a0c4ff; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.1em; }
+    section { background: #16213e; border: 1px solid #333; border-radius: 4px;
+              padding: 1rem; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th    { text-align: left; color: #888; padding: 0.25rem 0.5rem; border-bottom: 1px solid #333; }
+    td    { padding: 0.25rem 0.5rem; border-bottom: 1px solid #222; }
+    .badge-active   { color: #00ff88; }
+    .badge-stopped  { color: #888; }
+    .badge-degraded { color: #ffaa00; }
+    .badge-error    { color: #ff4444; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .uptime { color: #888; font-size: 0.75rem; }
+  </style>
 </head>
-<body>
-  <h1>Apollia OS Dashboard</h1>
-  <p>Loading...</p>
+<body hx-ext="sse" sse-connect="/api/v1/dashboard/stream">
+
+  <div class="header">
+    <h1>Apollia OS</h1>
+    <span class="uptime" id="timestamp"></span>
+  </div>
+
+  <!-- Section Agents -->
+  <section id="agents"
+           hx-get="/api/v1/dashboard/partials/agents"
+           hx-trigger="load, sse:agents"
+           hx-target="#agents"
+           hx-swap="innerHTML">
+    <h2>Agents</h2>
+    <p>Chargement...</p>
+  </section>
+
+  <!-- Section Triggers -->
+  <section id="triggers"
+           hx-get="/api/v1/dashboard/partials/triggers"
+           hx-trigger="load, sse:triggers"
+           hx-target="#triggers"
+           hx-swap="innerHTML">
+    <h2>Triggers</h2>
+    <p>Chargement...</p>
+  </section>
+
+  <!-- Section Tâches récentes -->
+  <section id="recent-tasks"
+           hx-get="/api/v1/dashboard/partials/tasks"
+           hx-trigger="load, sse:tasks"
+           hx-target="#recent-tasks"
+           hx-swap="innerHTML">
+    <h2>Tâches récentes</h2>
+    <p>Chargement...</p>
+  </section>
+
+  <!-- Section Backends LLM -->
+  <section id="llm-backends"
+           hx-get="/api/v1/dashboard/partials/llm"
+           hx-trigger="load, sse:llm"
+           hx-target="#llm-backends"
+           hx-swap="innerHTML">
+    <h2>Backends LLM</h2>
+    <p>Chargement...</p>
+  </section>
+
+  <!-- Section Circuit breakers outils -->
+  <section id="tools"
+           hx-get="/api/v1/dashboard/partials/tools"
+           hx-trigger="load, sse:tools"
+           hx-target="#tools"
+           hx-swap="innerHTML">
+    <h2>Circuit breakers outils</h2>
+    <p>Chargement...</p>
+  </section>
+
+  <!-- Section Mémoire -->
+  <section id="memory"
+           hx-get="/api/v1/dashboard/partials/memory"
+           hx-trigger="load, sse:memory"
+           hx-target="#memory"
+           hx-swap="innerHTML">
+    <h2>Mémoire</h2>
+    <p>Chargement...</p>
+  </section>
+
 </body>
 </html>

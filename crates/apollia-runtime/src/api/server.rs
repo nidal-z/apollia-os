@@ -172,7 +172,7 @@ async fn shutdown_handler<B: ExecutionBackend + Clone>(
 fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use super::routes_dashboard::{
-        dashboard_stream, get_dashboard, get_dashboard_partial, get_dashboard_state,
+        dashboard_stream, get_dashboard, get_dashboard_partial, get_dashboard_state, get_htmx_js,
     };
     use super::routes_llm::llm_routes;
     use super::routes_sse::stream_task;
@@ -209,7 +209,9 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
         .route("/api/v1/triggers/:id/enable", post(enable_trigger::<B>))
         .route("/api/v1/triggers/:id/disable", post(disable_trigger::<B>))
         .route("/api/v1/triggers/:id/logs", get(get_trigger_logs::<B>))
-        // Dashboard routes (STORY-075/076) — /dashboard has no /api/v1 prefix (browser navigation)
+        // Static assets — HTMX served from binary (STORY-077, Principle #2)
+        .route("/static/htmx.min.js", get(get_htmx_js))
+        // Dashboard routes (STORY-075/076/077) — /dashboard has no /api/v1 prefix (browser navigation)
         .route("/dashboard", get(get_dashboard))
         .route("/api/v1/dashboard/state", get(get_dashboard_state::<B>))
         .route(

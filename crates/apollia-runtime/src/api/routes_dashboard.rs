@@ -15,7 +15,7 @@ use std::convert::Infallible;
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{header, StatusCode},
     response::{
         sse::{Event, KeepAlive, Sse},
         Html, IntoResponse,
@@ -36,15 +36,22 @@ use crate::coordinator::ExecutionBackend;
 
 // ─── Static assets ────────────────────────────────────────────────────────
 
-/// Placeholder HTML served at `GET /dashboard`.
+/// Full HTMX dashboard HTML served at `GET /dashboard`.
 ///
-/// Embedded at compile time via `include_str!`. STORY-077 will replace this
-/// with the full HTMX dashboard. The `CARGO_MANIFEST_DIR`-based path ensures
-/// correctness regardless of where `cargo build` is invoked (AC-1 + Principle #2).
+/// Embedded at compile time via `include_str!`. The `CARGO_MANIFEST_DIR`-based
+/// path ensures correctness regardless of where `cargo build` is invoked
+/// (AC-6 + Principle #2 — Zéro dépendance externe).
 static DASHBOARD_HTML: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/assets/dashboard.html"
 ));
+
+/// HTMX v1.9.x minified JavaScript, served at `GET /static/htmx.min.js`.
+///
+/// Embedded at compile time via `include_str!`. Browsers load HTMX from the
+/// runtime itself — no CDN, no external network access required (Principle #1
+/// and #2, AC-5).
+static HTMX_JS: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/htmx.min.js"));
 
 // ─── Response types ────────────────────────────────────────────────────────
 
@@ -119,10 +126,24 @@ fn process_state_label(state: &ProcessState) -> &'static str {
 
 /// Serve the embedded HTML dashboard at `GET /dashboard`.
 ///
-/// Returns HTTP 200 with `Content-Type: text/html`. The body contains the
-/// `CARGO_MANIFEST_DIR/assets/dashboard.html` placeholder (AC-1).
+/// Returns HTTP 200 with `Content-Type: text/html`. The body is the full HTMX
+/// dashboard compiled into the binary via `include_str!` (AC-2, AC-6).
 pub async fn get_dashboard() -> impl IntoResponse {
     Html(DASHBOARD_HTML)
+}
+
+/// Serve the embedded HTMX JavaScript at `GET /static/htmx.min.js`.
+///
+/// Returns HTTP 200 with `Content-Type: application/javascript`. The body is
+/// HTMX v1.9.x minified, compiled into the binary — no CDN required (AC-1, AC-5).
+pub async fn get_htmx_js() -> impl IntoResponse {
+    (
+        [(
+            header::CONTENT_TYPE,
+            "application/javascript; charset=utf-8",
+        )],
+        HTMX_JS,
+    )
 }
 
 /// Return a full JSON snapshot of the runtime state at `GET /api/v1/dashboard/state`.
@@ -796,5 +817,70 @@ mod tests {
         // THEN one event produced
         let events = result.expect("ToolCircuitBroken should produce events");
         assert_eq!(events.len(), 1, "expected 1 event for ToolCircuitBroken");
+    }
+
+    // ─── STORY-077 tests ────────────────────────────────────────────────────
+
+    /// AC-6 — DASHBOARD_HTML is non-empty and contains the expected title.
+    #[test]
+    fn test_ac6_dashboard_html_embedded_compiles() {
+        // GIVEN the include_str! evaluated at compile time
+        // THEN the constant is non-empty and contains the page title
+        assert!(!DASHBOARD_HTML.is_empty());
+        assert!(
+            DASHBOARD_HTML.contains("Apollia OS"),
+            "dashboard.html must contain 'Apollia OS'"
+        );
+    }
+
+    /// AC-6 — HTMX_JS is non-empty and contains the HTMX library marker.
+    #[test]
+    fn test_ac6_htmx_js_embedded() {
+        // GIVEN the include_str! evaluated at compile time
+        // THEN the constant is non-empty and contains recognisable HTMX code
+        assert!(!HTMX_JS.is_empty());
+        assert!(HTMX_JS.contains("htmx"), "htmx.min.js must contain 'htmx'");
+    }
+
+    /// AC-4 — All 6 sections declare hx-trigger="load, sse:<section>".
+    #[test]
+    fn test_ac4_dashboard_html_has_hx_trigger_load() {
+        // GIVEN the embedded dashboard HTML
+        // THEN every section carries hx-trigger="load" so initial state loads
+        assert!(
+            DASHBOARD_HTML.contains("hx-trigger=\"load"),
+            "dashboard.html must have at least one hx-trigger containing 'load'"
+        );
+        // AND all 6 SSE event names are present
+        assert!(DASHBOARD_HTML.contains("sse:agents"), "missing sse:agents");
+        assert!(
+            DASHBOARD_HTML.contains("sse:triggers"),
+            "missing sse:triggers"
+        );
+        assert!(DASHBOARD_HTML.contains("sse:tasks"), "missing sse:tasks");
+        assert!(DASHBOARD_HTML.contains("sse:llm"), "missing sse:llm");
+        assert!(DASHBOARD_HTML.contains("sse:tools"), "missing sse:tools");
+        assert!(DASHBOARD_HTML.contains("sse:memory"), "missing sse:memory");
+    }
+
+    /// AC-1 — GET /static/htmx.min.js returns HTTP 200 with Content-Type application/javascript.
+    #[tokio::test]
+    async fn test_ac1_htmx_route_returns_javascript() {
+        // GIVEN the get_htmx_js handler
+        let response = get_htmx_js().await.into_response();
+
+        // THEN HTTP 200
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // AND Content-Type contains "javascript"
+        let ct = response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(
+            ct.contains("javascript"),
+            "expected Content-Type to contain 'javascript', got: {ct}"
+        );
     }
 }
