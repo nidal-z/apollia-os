@@ -393,7 +393,8 @@ impl ORIAEngine {
             repo,
             self.event_bus.clone(),
             manifest.clone(),
-        );
+        )
+        .with_pending_approvals(self.pending_approvals.clone());
         let step_result = actor
             .execute(
                 tool_proxy,
@@ -517,9 +518,11 @@ impl ORIAEngine {
         }
 
         // AC-1 : broadcast TaskInputRequired on EventBus
+        // step_id=None in Mode Direct — the whole task is suspended (not a specific step).
         let _ = self.event_bus.send(RuntimeEvent::TaskInputRequired {
             task_id: task.task_id.clone().into(),
             prompt: prompt.clone(),
+            step_id: None,
         });
 
         tracing::info!(

@@ -332,14 +332,22 @@ pub enum RuntimeEvent {
     // ── HITL — Human-in-the-Loop events (Sprint 11) ────────────────────
     /// Une tâche est suspendue en attente d'une entrée humaine.
     ///
-    /// Émis par ORIA (STORY-096) après que l'agent retourne
-    /// `AIPResult::input_required()` et que la suspension est persistée
-    /// dans SQLite via `TaskRepository::save_input_required()`.
+    /// Émis par ORIA (STORY-096, STORY-097) après que la suspension est détectée.
+    /// - **Mode Direct** : émis par `ORIAEngine::execute_direct()` quand l'agent
+    ///   retourne `AIPResult::input_required()`. `step_id` est `None`.
+    /// - **Mode Orchestré** : émis par `ActorLoop::suspend_for_approval()` avant
+    ///   d'exécuter un step dont l'outil est dans `tools_requiring_approval`.
+    ///   `step_id` est `Some(step.step_id)`.
     TaskInputRequired {
         /// Identifiant de la tâche suspendue.
         task_id: TaskId,
         /// Prompt affiché à l'utilisateur pour prendre sa décision.
         prompt: String,
+        /// Identifiant du step en attente d'approbation (Mode Orchestré uniquement).
+        ///
+        /// `None` pour les suspensions en Mode Direct (toute la tâche est suspendue).
+        /// `Some(step_id)` pour les suspensions en Mode Orchestré (un step spécifique).
+        step_id: Option<String>,
     },
 
     /// Une tâche a été reprise après une suspension HITL.
@@ -486,6 +494,7 @@ mod tests {
             RuntimeEvent::TaskInputRequired {
                 task_id: "task-1".into(),
                 prompt: "Confirmer l'envoi ?".into(),
+                step_id: None,
             },
             RuntimeEvent::TaskResumed {
                 task_id: "task-1".into(),

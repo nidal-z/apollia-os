@@ -29,11 +29,12 @@
 //! Les futures produites par `execute()` sont donc `!Send`.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Instant;
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::manifest::AgentManifest;
-use apollia_core::AIPResult;
+use apollia_core::{AIPResult, PendingApprovals};
 use apollia_llm::{ChatMessage, CompletionRequest, LlmRouter};
 
 use crate::budget::StepBudget;
@@ -81,13 +82,29 @@ pub enum StepError {
     /// L'outil demandé n'est pas enregistré dans le registre.
     #[error("Tool not found: {0}")]
     ToolNotFound(String),
+    /// Le step a été rejeté par l'utilisateur avant exécution (HITL Mode Orchestré).
+    ///
+    /// Retourné par [`ActorLoop::suspend_for_approval`] quand le `ResumeHandler`
+    /// envoie `approved=false`. L'exécution du plan s'arrête immédiatement —
+    /// les steps suivants ne sont pas tentés.
+    #[error("step rejeté par l'utilisateur : {reason}")]
+    RejectedByUser {
+        /// Raison transmise par l'opérateur lors du rejet.
+        reason: String,
+    },
+    /// Le oneshot channel d'approbation a été fermé avant réponse (shutdown runtime).
+    ///
+    /// Indique que le runtime est en cours d'arrêt. L'exécution du plan est
+    /// interrompue proprement sans panique.
+    #[error("channel d'approbation fermé — runtime en cours d'arrêt")]
+    ApprovalChannelClosed,
 }
 
 impl StepError {
     /// Retourne `true` si cette erreur peut déclencher une replanification.
     ///
     /// `ToolCallFailed` et `LlmCallFailed` sont retryables (problèmes transitoires).
-    /// `NoLlmBackend` et `ToolNotFound` sont permanents (configuration manquante).
+    /// Les autres variantes sont permanentes et ne déclenchent pas de replanification.
     pub fn is_retryable(&self) -> bool {
         matches!(
             self,
@@ -109,6 +126,12 @@ impl StepError {
 ///
 /// En cas d'échec retryable d'un step, déclenche une replanification via le [`Reasoner`]
 /// jusqu'à `max_replans` fois.
+///
+/// Pour activer le support HITL (STORY-097), injecter un [`PendingApprovals`] via
+/// [`with_pending_approvals`]. Sans cela, les steps avec `tools_requiring_approval`
+/// s'exécutent directement sans suspension.
+///
+/// [`with_pending_approvals`]: ActorLoop::with_pending_approvals
 pub struct ActorLoop {
     plan: ExecutionPlan,
     replan_count: u32,
@@ -120,6 +143,12 @@ pub struct ActorLoop {
     /// Stocké en lecture seule pour que `execute_step` puisse accéder à
     /// `tools_requiring_approval` lors de chaque step (vérification STORY-097).
     pub manifest: AgentManifest,
+    /// Registre HITL des approbations en attente — partagé avec le `ResumeHandler`.
+    ///
+    /// `Some` → les steps dont l'outil est dans `tools_requiring_approval` suspendent
+    /// l'exécution et attendent la décision humaine via un oneshot channel.
+    /// `None` → pas de suspension HITL (mode dégradé, steps s'exécutent normalement).
+    pending_approvals: Option<Arc<PendingApprovals>>,
 }
 
 impl ActorLoop {
@@ -130,6 +159,10 @@ impl ActorLoop {
     ///
     /// `manifest` est conservé en lecture seule pour que les steps puissent
     /// accéder à `tools_requiring_approval` (vérification STORY-097).
+    ///
+    /// Pour activer le support HITL, chaîner avec [`with_pending_approvals`].
+    ///
+    /// [`with_pending_approvals`]: ActorLoop::with_pending_approvals
     pub fn new(
         plan: ExecutionPlan,
         max_replans: u32,
@@ -144,7 +177,18 @@ impl ActorLoop {
             db,
             event_bus,
             manifest,
+            pending_approvals: None,
         }
+    }
+
+    /// Injecte le registre HITL des approbations en attente (STORY-097).
+    ///
+    /// Requis pour que les steps dont l'outil est dans `tools_requiring_approval`
+    /// suspendent l'exécution et attendent la décision humaine.
+    /// Partagé entre l'`ActorLoop` et le `ResumeHandler` via `AppState`.
+    pub fn with_pending_approvals(mut self, pending: Option<Arc<PendingApprovals>>) -> Self {
+        self.pending_approvals = pending;
+        self
     }
 
     /// Exécute le plan complet dans l'ordre topologique.
@@ -294,6 +338,47 @@ impl ActorLoop {
                     );
                 }
 
+                // AC-3 : rejet humain → plan stoppé, steps suivants non exécutés.
+                Err(StepError::RejectedByUser { ref reason }) => {
+                    if let Err(db_err) = self.db.fail_step(&self.plan.plan_id, &step_id, reason) {
+                        tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                    }
+                    if let Err(db_err) = self.db.fail_plan(&self.plan.plan_id, "REJECTED") {
+                        tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
+                    }
+                    let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                        task_id: self.plan.task_id.clone().into(),
+                        plan_id: self.plan.plan_id.clone(),
+                        reason: "REJECTED".to_string(),
+                    });
+                    return AIPResult::failed("REJECTED", reason);
+                }
+
+                // Fermeture du channel d'approbation → runtime en arrêt.
+                Err(StepError::ApprovalChannelClosed) => {
+                    if let Err(db_err) =
+                        self.db
+                            .fail_step(&self.plan.plan_id, &step_id, "approval_channel_closed")
+                    {
+                        tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                    }
+                    if let Err(db_err) = self
+                        .db
+                        .fail_plan(&self.plan.plan_id, "APPROVAL_CHANNEL_CLOSED")
+                    {
+                        tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
+                    }
+                    let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                        task_id: self.plan.task_id.clone().into(),
+                        plan_id: self.plan.plan_id.clone(),
+                        reason: "APPROVAL_CHANNEL_CLOSED".to_string(),
+                    });
+                    return AIPResult::failed(
+                        "APPROVAL_CHANNEL_CLOSED",
+                        "Approval channel closed — runtime shutting down",
+                    );
+                }
+
                 Err(e) => {
                     // Échec permanent non-retryable.
                     if let Err(db_err) =
@@ -341,11 +426,17 @@ impl ActorLoop {
 
     /// Exécute un step individuel — outil ou LLM selon `tool_hint`.
     ///
+    /// Avant l'exécution effective, vérifie si l'outil du step est dans
+    /// `manifest.tools_requiring_approval`. Si oui et que `pending_approvals` est
+    /// configuré, appelle [`suspend_for_approval`] et attend la décision humaine.
+    ///
     /// - `tool_hint = Some("llm")` ou `None` → appel direct au `LlmRouter` (backend défaut).
     /// - `tool_hint = Some(tool_name)` → appel via `ToolProxyTrait::invoke`.
     ///
     /// Les outputs des steps précédents sont interpolés dans la description du step
     /// via [`interpolate_outputs`] avant d'être transmis à l'outil ou au LLM.
+    ///
+    /// [`suspend_for_approval`]: ActorLoop::suspend_for_approval
     async fn execute_step(
         &self,
         step: &PlanStep,
@@ -353,11 +444,35 @@ impl ActorLoop {
         tool_proxy: &dyn ToolProxyTrait,
         llm_router: &LlmRouter,
     ) -> Result<String, StepError> {
-        // AC-7 : interpoler les outputs des steps précédents dans la description.
+        // AC-1/AC-5 : vérifier si l'outil du step nécessite une approbation humaine.
+        let tool_needs_approval = step
+            .tool_hint
+            .as_deref()
+            .map(|t| {
+                self.manifest
+                    .tools_requiring_approval
+                    .iter()
+                    .any(|a| a == t)
+            })
+            .unwrap_or(false);
+
+        if tool_needs_approval {
+            if let Some(pending) = self.pending_approvals.as_ref() {
+                self.suspend_for_approval(step, pending).await?;
+            } else {
+                tracing::warn!(
+                    step_id = %step.step_id,
+                    tool = ?step.tool_hint,
+                    "PendingApprovals not configured — executing sensitive step without approval"
+                );
+            }
+        }
+
+        // Exécution normale du step après approbation (ou si outil non-sensible).
         let input = interpolate_outputs(&step.description, completed_outputs);
 
         match step.tool_hint.as_deref() {
-            // AC-6 : step LLM — appel direct au backend défaut du LlmRouter.
+            // step LLM — appel direct au backend défaut du LlmRouter.
             Some("llm") | None => {
                 let model = llm_router.get(None).ok_or(StepError::NoLlmBackend)?;
                 let response = model
@@ -369,11 +484,77 @@ impl ActorLoop {
                     .map_err(|e| StepError::LlmCallFailed(e.to_string()))?;
                 Ok(response.content)
             }
-            // AC-5 : step outil — appel via ToolProxyTrait.
+            // step outil — appel via ToolProxyTrait.
             Some(tool_name) => tool_proxy
                 .invoke(tool_name, &serde_json::json!({"input": input}))
                 .await
                 .map_err(StepError::ToolCallFailed),
+        }
+    }
+
+    /// Suspend l'exécution du step et attend la décision humaine (HITL Mode Orchestré).
+    ///
+    /// ## Séquence
+    ///
+    /// 1. Enregistre un oneshot channel dans `pending_approvals` → récepteur `rx`.
+    /// 2. Émet [`RuntimeEvent::TaskInputRequired`] avec `step_id: Some(step.step_id)`
+    ///    sur l'`EventBus` pour notifier l'utilisateur.
+    /// 3. Attend `rx.await` — le `ResumeHandler` (STORY-095) envoie sur le sender.
+    /// 4. Si `approved=true` → `Ok(())` → l'outil du step est exécuté normalement.
+    /// 5. Si `approved=false` → `Err(StepError::RejectedByUser { reason })`.
+    /// 6. Si le channel est fermé (shutdown runtime) → `Err(StepError::ApprovalChannelClosed)`.
+    ///
+    /// **StepBudget pausé pendant suspension** : l'attente est un `await` pur —
+    /// le compteur de steps ne progresse pas pendant la suspension humaine.
+    async fn suspend_for_approval(
+        &self,
+        step: &PlanStep,
+        pending_approvals: &PendingApprovals,
+    ) -> Result<(), StepError> {
+        // Clé d'enregistrement : task_id + step_id pour identifier précisément la suspension.
+        let approval_key = format!("{}::{}", self.plan.task_id, step.step_id);
+
+        // 1. Enregistrer dans PendingApprovals → rx
+        let rx = pending_approvals.register(&approval_key);
+
+        // 2. Émettre TaskInputRequired avec step_id renseigné (distingue Mode Direct / Orchestré)
+        let prompt = format!(
+            "Approbation requise avant d'exécuter '{}' (step: {})",
+            step.tool_hint.as_deref().unwrap_or("llm"),
+            step.step_id
+        );
+        let _ = self.event_bus.send(RuntimeEvent::TaskInputRequired {
+            task_id: self.plan.task_id.clone().into(),
+            prompt,
+            step_id: Some(step.step_id.clone()),
+        });
+
+        tracing::info!(
+            task_id = %self.plan.task_id,
+            step_id = %step.step_id,
+            tool = ?step.tool_hint,
+            "step suspended — waiting for human approval"
+        );
+
+        // 3. Attendre la décision humaine (await pur — StepBudget ne progresse pas)
+        let response = rx.await.map_err(|_| StepError::ApprovalChannelClosed)?;
+
+        tracing::info!(
+            task_id = %self.plan.task_id,
+            step_id = %step.step_id,
+            approved = response.approved,
+            "human decision received for step"
+        );
+
+        // 4/5. Retourner selon la décision
+        if response.approved {
+            Ok(())
+        } else {
+            Err(StepError::RejectedByUser {
+                reason: response
+                    .reason
+                    .unwrap_or_else(|| "Rejeté par l'utilisateur".into()),
+            })
         }
     }
 
@@ -609,6 +790,49 @@ impl ActorLoop {
                         );
                     }
 
+                    // Rejet humain dans execute_remaining → plan stoppé.
+                    Err(StepError::RejectedByUser { ref reason }) => {
+                        if let Err(db_err) = self.db.fail_step(&self.plan.plan_id, &step_id, reason)
+                        {
+                            tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                        }
+                        if let Err(db_err) = self.db.fail_plan(&self.plan.plan_id, "REJECTED") {
+                            tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
+                        }
+                        let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                            task_id: self.plan.task_id.clone().into(),
+                            plan_id: self.plan.plan_id.clone(),
+                            reason: "REJECTED".to_string(),
+                        });
+                        return AIPResult::failed("REJECTED", reason);
+                    }
+
+                    // Channel fermé dans execute_remaining → runtime en arrêt.
+                    Err(StepError::ApprovalChannelClosed) => {
+                        if let Err(db_err) = self.db.fail_step(
+                            &self.plan.plan_id,
+                            &step_id,
+                            "approval_channel_closed",
+                        ) {
+                            tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                        }
+                        if let Err(db_err) = self
+                            .db
+                            .fail_plan(&self.plan.plan_id, "APPROVAL_CHANNEL_CLOSED")
+                        {
+                            tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
+                        }
+                        let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                            task_id: self.plan.task_id.clone().into(),
+                            plan_id: self.plan.plan_id.clone(),
+                            reason: "APPROVAL_CHANNEL_CLOSED".to_string(),
+                        });
+                        return AIPResult::failed(
+                            "APPROVAL_CHANNEL_CLOSED",
+                            "Approval channel closed — runtime shutting down",
+                        );
+                    }
+
                     Err(e) => {
                         if let Err(db_err) =
                             self.db
@@ -694,7 +918,7 @@ fn build_replan_context(plan: &ExecutionPlan) -> ContextBundle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apollia_core::{AgentManifest, TaskStatus};
+    use apollia_core::{AgentManifest, PendingApprovals, TaskStatus};
     use apollia_llm::{CompletionRequest, CompletionResponse, FinishReason, LlmError, TokenUsage};
     use std::collections::VecDeque;
     use std::pin::Pin;
@@ -1101,5 +1325,380 @@ mod tests {
                 .contains(&"smtp".to_string()),
             "expected 'smtp' in tools_requiring_approval"
         );
+    }
+
+    // ── STORY-097 — HITL Mode Orchestré ──────────────────────────────────────
+
+    /// Construit un `AgentManifest` avec `tools_requiring_approval` pour les tests HITL.
+    fn make_manifest_with_approval(tools: &[&str]) -> AgentManifest {
+        let tools_json = tools
+            .iter()
+            .map(|t| format!("\"{t}\""))
+            .collect::<Vec<_>>()
+            .join(",");
+        serde_json::from_str(&format!(
+            r#"{{"name":"hitl-agent","version":"0.1.0","description":"test","tools_required":[],
+               "tools_requiring_approval":[{tools_json}]}}"#
+        ))
+        .expect("manifest must deserialize")
+    }
+
+    /// Construit un plan mono-step avec l'outil donné.
+    fn make_plan_with_tool(step_id: &str, tool_name: &str, task_id: &str) -> ExecutionPlan {
+        ExecutionPlan {
+            plan_id: format!("plan-{step_id}"),
+            task_id: task_id.into(),
+            steps: vec![PlanStep {
+                step_id: step_id.into(),
+                description: format!("Step {step_id} using {tool_name}"),
+                tool_hint: Some(tool_name.into()),
+                depends_on: vec![],
+            }],
+        }
+    }
+
+    // AC-1 — Step avec outil sensible → suspension avant exécution
+    //
+    // ÉTANT DONNÉ un manifest avec tools_requiring_approval=["smtp"] et un step "s3" avec tool_hint="smtp"
+    // QUAND execute() est appelé SANS résoudre le oneshot
+    // ALORS l'outil "smtp" n'est PAS appelé avant l'approbation,
+    //       RuntimeEvent::TaskInputRequired{step_id: Some("s3")} est émis
+    #[tokio::test]
+    async fn test_ac1_step_sensitive_tool_suspends_before_execution() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        // GIVEN
+        let manifest = make_manifest_with_approval(&["smtp"]);
+        let plan = make_plan_with_tool("s3", "smtp", "task-ac1");
+        let (bus_tx, mut bus_rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "hitl-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+
+        let pending = Arc::new(PendingApprovals::new());
+        let call_count = Arc::new(AtomicU32::new(0));
+        let call_count_clone = call_count.clone();
+
+        struct CountingProxy(Arc<AtomicU32>);
+        #[async_trait::async_trait]
+        impl ToolProxyTrait for CountingProxy {
+            async fn invoke(
+                &self,
+                _tool_name: &str,
+                _input: &serde_json::Value,
+            ) -> Result<String, String> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok("tool output".into())
+            }
+        }
+
+        let pending_clone = pending.clone();
+        let call_count_for_bus = call_count.clone();
+        let mut actor = ActorLoop::new(plan, 2, db, bus_tx, manifest)
+            .with_pending_approvals(Some(pending.clone()));
+
+        let proxy = CountingProxy(call_count_clone);
+        let llm = LlmRouter::empty();
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        // ActorLoop is !Send (PlanRepository wraps RefCell<Connection>) — use tokio::join!
+        // so both futures run on the same task without spawning.
+        //
+        // The observer future: waits for TaskInputRequired, asserts tool not called yet,
+        // then resolves the oneshot to unblock actor.execute().
+        let observer_fut = async move {
+            let mut found_input_required = false;
+            let mut found_step_id = false;
+            let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(500);
+            loop {
+                match tokio::time::timeout_at(deadline, bus_rx.recv()).await {
+                    Ok(Ok(event)) => {
+                        if let RuntimeEvent::TaskInputRequired { ref step_id, .. } = event {
+                            found_input_required = true;
+                            found_step_id = step_id.as_deref() == Some("s3");
+                            break;
+                        }
+                    }
+                    _ => break,
+                }
+            }
+
+            // THEN — l'outil smtp n'a pas encore été appelé
+            assert_eq!(
+                call_count_for_bus.load(Ordering::SeqCst),
+                0,
+                "smtp tool must NOT be called before approval"
+            );
+            assert!(found_input_required, "TaskInputRequired event not emitted");
+            assert!(found_step_id, "step_id should be Some(\"s3\")");
+
+            // Résoudre pour débloquer actor.execute()
+            let _ = pending_clone.resolve(
+                "task-ac1::s3",
+                apollia_core::result::InputResponseData {
+                    approved: false,
+                    reason: Some("test cleanup".into()),
+                    context: serde_json::Value::Null,
+                    responded_at: "2026-01-01T00:00:00Z".into(),
+                },
+            );
+        };
+
+        tokio::join!(
+            actor.execute(&proxy, &llm, &budget, &resilience, &reasoner),
+            observer_fut
+        );
+    }
+
+    // AC-2 — Approbation → step exécuté normalement
+    //
+    // ÉTANT DONNÉ un step "s3" avec tool_hint="smtp" suspendu
+    // QUAND PendingApprovals.resolve(approved=true)
+    // ALORS l'outil "smtp" est appelé, le plan se complète
+    #[tokio::test]
+    async fn test_ac2_approve_executes_step() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        // GIVEN
+        let manifest = make_manifest_with_approval(&["smtp"]);
+        let plan = make_plan_with_tool("s3", "smtp", "task-ac2");
+        let (bus_tx, _bus_rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "hitl-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+
+        let pending = Arc::new(PendingApprovals::new());
+        let call_count = Arc::new(AtomicU32::new(0));
+        let call_count_clone = call_count.clone();
+
+        struct CountingProxy(Arc<AtomicU32>);
+        #[async_trait::async_trait]
+        impl ToolProxyTrait for CountingProxy {
+            async fn invoke(
+                &self,
+                _tool_name: &str,
+                _input: &serde_json::Value,
+            ) -> Result<String, String> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok("smtp sent".into())
+            }
+        }
+
+        let pending_clone = pending.clone();
+        let mut actor = ActorLoop::new(plan, 2, db, bus_tx, manifest)
+            .with_pending_approvals(Some(pending.clone()));
+
+        let proxy = CountingProxy(call_count_clone);
+        let llm = LlmRouter::empty();
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        // ActorLoop is !Send — use tokio::join! instead of tokio::spawn.
+        // The resolver future sleeps briefly then approves, unblocking actor.execute().
+        let resolve_fut = async move {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            pending_clone
+                .resolve(
+                    "task-ac2::s3",
+                    apollia_core::result::InputResponseData {
+                        approved: true,
+                        reason: None,
+                        context: serde_json::Value::Null,
+                        responded_at: "2026-01-01T00:00:00Z".into(),
+                    },
+                )
+                .expect("resolve must succeed");
+        };
+
+        // WHEN
+        let (result, _) = tokio::join!(
+            actor.execute(&proxy, &llm, &budget, &resilience, &reasoner),
+            resolve_fut
+        );
+        let result = result;
+
+        // THEN — le plan se complète avec succès
+        assert_eq!(
+            result.status,
+            TaskStatus::Completed,
+            "plan should complete after approval: {result:?}"
+        );
+        assert_eq!(
+            call_count.load(Ordering::SeqCst),
+            1,
+            "smtp tool must be called exactly once after approval"
+        );
+    }
+
+    // AC-3 — Rejet → plan stoppé, AIPResult::failed("REJECTED") retourné,
+    //         steps suivants non exécutés
+    //
+    // ÉTANT DONNÉ un plan [s1:file_io (non-sensible), s2:smtp (sensible)]
+    // QUAND l'opérateur rejette s2
+    // ALORS s2 n'est pas exécuté, plan retourne failed("REJECTED", reason)
+    #[tokio::test]
+    async fn test_ac3_reject_stops_plan() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        // GIVEN
+        let manifest = make_manifest_with_approval(&["smtp"]);
+        let plan = ExecutionPlan {
+            plan_id: "plan-ac3".into(),
+            task_id: "task-ac3".into(),
+            steps: vec![
+                PlanStep {
+                    step_id: "s1".into(),
+                    description: "Lire fichier".into(),
+                    tool_hint: Some("file_io".into()),
+                    depends_on: vec![],
+                },
+                PlanStep {
+                    step_id: "s2".into(),
+                    description: "Envoyer email".into(),
+                    tool_hint: Some("smtp".into()),
+                    depends_on: vec!["s1".into()],
+                },
+            ],
+        };
+        let (bus_tx, _bus_rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "hitl-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+
+        let pending = Arc::new(PendingApprovals::new());
+        let call_count = Arc::new(AtomicU32::new(0));
+        let call_count_clone = call_count.clone();
+
+        struct CountingProxy(Arc<AtomicU32>);
+        #[async_trait::async_trait]
+        impl ToolProxyTrait for CountingProxy {
+            async fn invoke(
+                &self,
+                _tool_name: &str,
+                _input: &serde_json::Value,
+            ) -> Result<String, String> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok("ok".into())
+            }
+        }
+
+        let pending_clone = pending.clone();
+        let mut actor = ActorLoop::new(plan, 2, db, bus_tx, manifest)
+            .with_pending_approvals(Some(pending.clone()));
+
+        let proxy = CountingProxy(call_count_clone);
+        let llm = LlmRouter::empty();
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        // ActorLoop is !Send — use tokio::join! instead of tokio::spawn.
+        // The resolver future sleeps briefly then rejects s2, causing the plan to fail.
+        let resolve_fut = async move {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            pending_clone
+                .resolve(
+                    "task-ac3::s2",
+                    apollia_core::result::InputResponseData {
+                        approved: false,
+                        reason: Some("Email non approuvé".into()),
+                        context: serde_json::Value::Null,
+                        responded_at: "2026-01-01T00:00:00Z".into(),
+                    },
+                )
+                .expect("resolve must succeed");
+        };
+
+        // WHEN
+        let (result, _) = tokio::join!(
+            actor.execute(&proxy, &llm, &budget, &resilience, &reasoner),
+            resolve_fut
+        );
+        let result = result;
+
+        // THEN — plan retourne Failed avec code REJECTED
+        assert_eq!(result.status, TaskStatus::Failed);
+        let err = result.error.expect("error must be set");
+        assert_eq!(err.code, "REJECTED");
+        assert!(
+            err.message.contains("Email non approuvé"),
+            "reason must be propagated: {}",
+            err.message
+        );
+        // s1 (file_io, non-sensible) a été exécuté mais s2 (smtp) a été rejeté avant appel
+        assert_eq!(
+            call_count.load(Ordering::SeqCst),
+            1,
+            "only s1 should be called — s2 rejected before tool call"
+        );
+    }
+
+    // AC-5 — Step avec outil NON sensible → aucune suspension
+    //
+    // ÉTANT DONNÉ un step utilisant "file_io" absent de tools_requiring_approval
+    // QUAND execute() est appelé avec PendingApprovals configuré
+    // ALORS aucun TaskInputRequired émis, step s'exécute directement
+    #[tokio::test]
+    async fn test_ac5_non_sensitive_tool_no_suspension() {
+        // GIVEN
+        let manifest = make_manifest_with_approval(&["smtp"]);
+        let plan = make_plan_with_tool("s1", "file_io", "task-ac5");
+        let (bus_tx, mut bus_rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "hitl-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+
+        let pending = Arc::new(PendingApprovals::new());
+        let mut actor =
+            ActorLoop::new(plan, 2, db, bus_tx, manifest).with_pending_approvals(Some(pending));
+
+        let proxy = MockToolProxy {
+            response: "file content".into(),
+        };
+        let llm = LlmRouter::empty();
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        // WHEN — exécuter sans aucun resolve (aucune suspension attendue)
+        let result = actor
+            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .await;
+
+        // THEN — le plan se complète directement sans suspension
+        assert_eq!(
+            result.status,
+            TaskStatus::Completed,
+            "non-sensitive tool must execute without suspension: {result:?}"
+        );
+
+        // THEN — aucun TaskInputRequired n'a été émis
+        let mut found = false;
+        while let Ok(event) = bus_rx.try_recv() {
+            if matches!(event, RuntimeEvent::TaskInputRequired { .. }) {
+                found = true;
+            }
+        }
+        assert!(
+            !found,
+            "TaskInputRequired must NOT be emitted for non-sensitive tool"
+        );
+    }
+
+    // StepError — les nouvelles variantes ne sont pas retryables
+    #[test]
+    fn test_step_error_rejected_and_closed_not_retryable() {
+        assert!(!StepError::RejectedByUser {
+            reason: "Non".into()
+        }
+        .is_retryable());
+        assert!(!StepError::ApprovalChannelClosed.is_retryable());
     }
 }
