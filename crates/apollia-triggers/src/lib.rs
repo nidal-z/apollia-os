@@ -3,8 +3,10 @@
 //! Ce crate fournit :
 //! - Les types de base ([`types`]) : `TriggerDefinition`, `TriggerEvent`, `InputTemplate`, etc.
 //! - L'acteur central ([`engine`]) : `TriggerEngine` + `TriggerEngineHandle` + `TaskSubmitter`.
+//! - Les sources ([`sources`]) : `CronTrigger`, `IntervalTrigger`, `OneshotTrigger` + stubs.
 
 pub mod engine;
+pub mod sources;
 pub mod types;
 
 pub use engine::{TaskSubmitter, TriggerEngineError, TriggerEngineHandle, TriggerStatus};

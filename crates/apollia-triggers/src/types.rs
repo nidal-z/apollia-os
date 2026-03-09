@@ -242,6 +242,16 @@ fn replace_unknown_vars(mut s: String) -> String {
 /// Retourne [`TriggerDefinitionError::InvalidInterval`] si le format est invalide.
 /// Les unités reconnues sont : `m` (minutes), `h` (heures), `d` (jours).
 pub fn parse_interval(value: &str) -> Result<Duration, TriggerDefinitionError> {
+    // Handle "ms" (milliseconds) before single-char suffixes to avoid ambiguity
+    if let Some(s) = value.strip_suffix("ms") {
+        let n: u64 = s
+            .parse()
+            .map_err(|_| TriggerDefinitionError::InvalidInterval {
+                value: value.to_string(),
+            })?;
+        return Ok(Duration::from_millis(n));
+    }
+
     let (num_str, multiplier) = if let Some(s) = value.strip_suffix('m') {
         (s, 60u64)
     } else if let Some(s) = value.strip_suffix('h') {

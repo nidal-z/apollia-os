@@ -21,6 +21,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use apollia_core::{AIPInput, AIPPart, EventBusSender, RuntimeEvent, TaskId, TextPart};
 
+use crate::sources::spawn_source;
 use crate::types::{
     OnBusyPolicy, TriggerDefinition, TriggerEvent, TriggerPayload, TriggerSourceConfig,
 };
@@ -157,13 +158,12 @@ struct TriggerEngine {
     definitions: Vec<TriggerDefinition>,
     /// Canal interne sources → moteur.
     ///
-    /// Conservé ici pour être transmis aux sources concrètes (`CronTrigger`,
-    /// `FileWatchTrigger`) lors de `spawn_source` — implémenté en STORY-067/068.
-    #[allow(dead_code)]
+    /// Conservé pour être cloné et transmis aux nouvelles sources lors du hot reload
+    /// ([`TriggerCommand::Reload`]).
     event_tx: mpsc::Sender<TriggerEvent>,
     task_router: Arc<dyn TaskSubmitter>,
     event_bus: EventBusSender,
-    /// JoinHandles des sources actives (spawn_source est un stub dans cette story).
+    /// JoinHandles des sources actives — abortés lors du hot reload (STORY-073).
     handles: Vec<tokio::task::JoinHandle<()>>,
     fire_counts: HashMap<String, u64>,
     skip_counts: HashMap<String, u64>,
@@ -182,19 +182,23 @@ impl TriggerEngine {
         let (event_tx, event_rx) = mpsc::channel::<TriggerEvent>(256);
         let (cmd_tx, cmd_rx) = mpsc::channel::<TriggerCommand>(64);
 
+        // Spawner les sources pour chaque définition active
+        let handles: Vec<tokio::task::JoinHandle<()>> = definitions
+            .iter()
+            .filter(|d| d.enabled)
+            .map(|d| spawn_source(d.clone(), event_tx.clone()))
+            .collect();
+
         let engine = TriggerEngine {
             definitions,
             event_tx: event_tx.clone(),
             task_router: Arc::new(task_router),
             event_bus,
-            handles: vec![],
+            handles,
             fire_counts: HashMap::new(),
             skip_counts: HashMap::new(),
             last_fired: HashMap::new(),
         };
-
-        // Démarrer les sources (stub no-op dans cette story)
-        // spawn_source(&def, event_tx.clone()) → STORY-067/068
 
         tokio::spawn(engine.run_loop(event_rx, cmd_rx));
 
@@ -373,7 +377,13 @@ impl TriggerEngine {
                     handle.abort();
                 }
                 self.definitions = definitions;
-                // Spawn des nouvelles sources → STORY-073
+                // Spawner les nouvelles sources pour les définitions actives
+                self.handles = self
+                    .definitions
+                    .iter()
+                    .filter(|d| d.enabled)
+                    .map(|d| spawn_source(d.clone(), self.event_tx.clone()))
+                    .collect();
                 let _ = reply.send(());
                 false
             }
