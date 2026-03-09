@@ -108,7 +108,7 @@ async fn test_ac2_empty_input_returns_failed() {
     let module = load_agent_module(&path).expect("load failed");
     let validated = validate_agent(&module).expect("validate failed");
 
-    let bridge = Arc::new(AIPBridge::new(validated));
+    let bridge = Arc::new(AIPBridge::new(validated).expect("AIPBridge init failed"));
     let backend = AIPBridgeBackend { bridge };
 
     // Entrée vide — l'agent Python doit retourner status=failed
@@ -151,7 +151,7 @@ async fn test_ac3_valid_repo_path_reaches_tool_call() {
     let module = load_agent_module(&path).expect("load failed");
     let validated = validate_agent(&module).expect("validate failed");
 
-    let bridge = Arc::new(AIPBridge::new(validated));
+    let bridge = Arc::new(AIPBridge::new(validated).expect("AIPBridge init failed"));
     let backend = AIPBridgeBackend { bridge };
 
     // Chemin vers ce repo (toujours valide en dev)

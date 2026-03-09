@@ -360,6 +360,7 @@ mod tests {
                     output: Vec::new(),
                     error: None,
                     artifacts: Vec::new(),
+                    input_required_data: None,
                 })
             })
         }

@@ -213,6 +213,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
             input,
             history: vec![],
             timeout_seconds: None,
+            ..AIPTask::default()
         };
 
         // 4. Dispatcher vers le coordinateur
@@ -463,6 +464,7 @@ mod tests {
                         output: vec![],
                         error: None,
                         artifacts: vec![],
+                        input_required_data: None,
                     })
                 }
             })

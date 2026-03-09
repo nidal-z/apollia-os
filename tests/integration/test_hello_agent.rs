@@ -95,7 +95,7 @@ async fn test_hello_agent_full_chain() {
     let agent_obj = load_agent_module(&agent_path).expect("load_agent_module should succeed");
     let validated =
         validate_agent(&agent_obj).expect("hello_agent.py should pass duck-typing validation");
-    let bridge = Arc::new(AIPBridge::new(validated));
+    let bridge = Arc::new(AIPBridge::new(validated).expect("AIPBridge init failed"));
 
     // AND a full runtime stack (EventBus, AgentRegistry, TaskRouter)
     let (event_sender, _rx) = EventBus::new();

@@ -274,6 +274,7 @@ mod tests {
             },
             history: vec![],
             timeout_seconds: None,
+            ..AIPTask::default()
         }
     }
 
@@ -299,6 +300,7 @@ mod tests {
             },
             history: vec![],
             timeout_seconds: None,
+            ..AIPTask::default()
         }
     }
 

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::result::InputResponseData;
+
 /// Tâche soumise par le runtime à l'agent via le bridge AIP.
 ///
 /// Contient tout le contexte nécessaire à l'agent pour traiter la demande :
@@ -16,6 +18,19 @@ pub struct AIPTask {
     pub history: Vec<AIPMessage>,
     /// Timeout en secondes (None = utiliser le défaut du runtime).
     pub timeout_seconds: Option<u32>,
+    /// `true` si cette exécution est une reprise après un `input_required`.
+    ///
+    /// L'agent vérifie ce champ pour distinguer le premier appel d'une reprise.
+    /// Toujours `false` sur le premier appel (valeur par défaut).
+    #[serde(default)]
+    pub is_resumed: bool,
+    /// Réponse humaine fournie après la suspension — peuplée uniquement si `is_resumed == true`.
+    ///
+    /// Contient la décision (`approved`), la raison optionnelle, et le contexte
+    /// JSON sérialisé par l'agent au moment du `input_required`.
+    /// Construite par `TaskRepository::rebuild_for_resume()` (STORY-094).
+    #[serde(default)]
+    pub input_response: Option<InputResponseData>,
 }
 
 /// Entrée multi-modale d'une tâche AIP.
@@ -98,6 +113,7 @@ mod tests {
             },
             history: vec![],
             timeout_seconds: None,
+            ..AIPTask::default()
         };
         // WHEN
         let cloned = task.clone();

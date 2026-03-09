@@ -175,6 +175,7 @@ mod tests {
                         output: vec![],
                         error: None,
                         artifacts: vec![],
+                        input_required_data: None,
                     })
                 }
             })
@@ -188,6 +189,7 @@ mod tests {
             input: AIPInput::default(),
             history: vec![],
             timeout_seconds: None,
+            ..AIPTask::default()
         }
     }
 

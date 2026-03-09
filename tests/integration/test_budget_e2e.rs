@@ -32,6 +32,7 @@ impl AgentRunner for InstantRunner {
                 output: vec![],
                 error: None,
                 artifacts: vec![],
+                input_required_data: None,
             })
         })
     }
@@ -57,6 +58,7 @@ impl AgentRunner for SlowRunner {
                 output: vec![],
                 error: None,
                 artifacts: vec![],
+                input_required_data: None,
             })
         })
     }

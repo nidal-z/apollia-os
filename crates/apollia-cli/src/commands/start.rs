@@ -63,6 +63,7 @@ impl ExecutionBackend for NoopBackend {
                     details: None,
                 }),
                 artifacts: Vec::new(),
+                input_required_data: None,
             })
         })
     }

@@ -4,6 +4,41 @@ use serde::{Deserialize, Serialize};
 
 use crate::task::{AIPPart, DataPart, TextPart};
 
+// ─────────────────────────────────────────────
+// HITL — Human-in-the-Loop types (Sprint 11)
+// ─────────────────────────────────────────────
+
+/// Données portées par [`AIPResult`] quand `status == InputRequired`.
+///
+/// Persist dans SQLite par le runtime (STORY-094) et restituées dans
+/// [`InputResponseData::context`] lors de la reprise (STORY-095).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InputRequiredData {
+    /// Prompt affiché à l'utilisateur pour prendre sa décision.
+    pub prompt: String,
+    /// Contexte JSON sérialisé par l'agent au moment de la suspension.
+    ///
+    /// Le runtime le stocke tel quel dans SQLite et le restitue dans
+    /// [`InputResponseData::context`] lors de la reprise.
+    pub context: serde_json::Value,
+}
+
+/// Réponse humaine reçue après une suspension `input_required`.
+///
+/// Peuplée par `TaskRepository::rebuild_for_resume()` (STORY-094) et injectée
+/// dans [`crate::task::AIPTask::input_response`] lors de la reprise (STORY-095).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InputResponseData {
+    /// `true` si l'utilisateur a approuvé, `false` si rejeté.
+    pub approved: bool,
+    /// Raison transmise à l'agent — `None` si approuvé, potentiellement peuplé si rejeté.
+    pub reason: Option<String>,
+    /// Contexte JSON sérialisé par l'agent au moment du suspend, restitué intégralement.
+    pub context: serde_json::Value,
+    /// Horodatage ISO 8601 de la décision humaine.
+    pub responded_at: String,
+}
+
 /// Machine d'état d'une tâche individuelle, alignée A2A TaskState.
 ///
 /// Transitions valides :
@@ -46,6 +81,13 @@ pub struct AIPResult {
     /// Artefacts produits par la tâche (fichiers générés, rapports, etc.).
     #[serde(default)]
     pub artifacts: Vec<AIPArtifact>,
+    /// Données de la demande d'approbation si `status == InputRequired`.
+    ///
+    /// Peuplé par [`AIPResult::input_required`].
+    /// Persisté dans SQLite par le runtime (STORY-094).
+    /// `None` pour tous les autres statuts.
+    #[serde(default)]
+    pub input_required_data: Option<InputRequiredData>,
 }
 
 /// Artefact binaire produit par une tâche.
@@ -72,6 +114,28 @@ pub struct AIPError {
 }
 
 impl AIPResult {
+    /// Construit un résultat demandant une approbation humaine (Human-in-the-Loop).
+    ///
+    /// Le runtime détecte ce variant via `status == InputRequired`, suspend la tâche,
+    /// persiste `prompt` et `context` dans SQLite (STORY-094), puis notifie l'utilisateur
+    /// sur les canaux configurés (STORY-099).
+    ///
+    /// À la reprise, `context` est restitué dans [`InputResponseData::context`]
+    /// injecté dans [`crate::task::AIPTask::input_response`].
+    pub fn input_required(prompt: &str, context: serde_json::Value) -> Self {
+        Self {
+            task_id: String::new(),
+            status: TaskStatus::InputRequired,
+            output: vec![],
+            error: None,
+            artifacts: vec![],
+            input_required_data: Some(InputRequiredData {
+                prompt: prompt.to_string(),
+                context,
+            }),
+        }
+    }
+
     /// Construit un résultat de succès avec un texte de réponse.
     ///
     /// Raccourci utilisé par `execute_orchestrated` pour la concaténation automatique
@@ -85,6 +149,7 @@ impl AIPResult {
             })],
             error: None,
             artifacts: vec![],
+            input_required_data: None,
         }
     }
 
@@ -102,6 +167,7 @@ impl AIPResult {
                 details: None,
             }),
             artifacts: vec![],
+            input_required_data: None,
         }
     }
 
@@ -129,6 +195,7 @@ impl AIPResult {
             output: vec![part],
             error: None,
             artifacts: vec![],
+            input_required_data: None,
         }
     }
 }
@@ -150,6 +217,7 @@ mod tests {
                 details: None,
             }),
             artifacts: vec![],
+            input_required_data: None,
         };
         // WHEN
         let json = serde_json::to_string(&result).expect("serialize failed");

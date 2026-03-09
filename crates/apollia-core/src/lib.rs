@@ -26,6 +26,8 @@ pub use budget::StepBudgetConfig;
 pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
 pub use manifest::{AgentManifest, AgentSkill};
 pub use process::ProcessState;
-pub use result::{AIPArtifact, AIPError, AIPResult, TaskStatus};
+pub use result::{
+    AIPArtifact, AIPError, AIPResult, InputRequiredData, InputResponseData, TaskStatus,
+};
 pub use sandbox::SandboxProfile;
 pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, TextPart};

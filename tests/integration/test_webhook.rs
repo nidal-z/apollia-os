@@ -89,6 +89,7 @@ impl ExecutionBackend for MockBackend {
                 output: vec![],
                 error: None,
                 artifacts: vec![],
+                input_required_data: None,
             })
         })
     }

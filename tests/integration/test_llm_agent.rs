@@ -149,7 +149,7 @@ async fn test_agent_llm_chat_completed() {
 
     let agent_obj = load_agent_module(tmp.path()).expect("load_agent_module should succeed");
     let validated = validate_agent(&agent_obj).expect("agent should pass validation");
-    let bridge = Arc::new(AIPBridge::new(validated));
+    let bridge = Arc::new(AIPBridge::new(validated).expect("AIPBridge init failed"));
 
     // AND un ctx Python avec un mock LLM natif Python
     let mock_ctx_code = concat!(
@@ -307,7 +307,7 @@ async fn test_run_tools_full_react_cycle() {
 
     let agent_obj = load_agent_module(tmp.path()).expect("load should succeed");
     let validated = validate_agent(&agent_obj).expect("validation should succeed");
-    let bridge = Arc::new(AIPBridge::new(validated));
+    let bridge = Arc::new(AIPBridge::new(validated).expect("AIPBridge init failed"));
 
     // AND un mock ctx Python avec run_tools qui simule 1 ToolCall puis Stop
     let mock_ctx_code = concat!(

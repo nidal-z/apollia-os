@@ -4,6 +4,21 @@
 //! coroutines without blocking Tokio workers. See ADR-014 for rationale.
 //!
 //! The GIL is only held on the blocking thread pool, never on Tokio workers.
+//!
+//! ## Python AIP types (STORY-092)
+//!
+//! `AIPResult` and `InputResponse` Python convenience classes are injected into
+//! the agent's `run.__globals__` namespace before each `call_run()` invocation.
+//! Agents may use them directly without any import statement:
+//!
+//! ```python
+//! async def run(self, task, ctx):
+//!     if task["is_resumed"]:
+//!         ir = task["input_response"]
+//!         if not ir.approved:
+//!             return AIPResult.failed("REJECTED", ir.reason or "Refusé")
+//!     return AIPResult.input_required("Confirmer ?", {"key": "val"})
+//! ```
 
 use std::collections::HashMap;
 
@@ -12,6 +27,69 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use crate::validator::ValidatedAgent;
+
+// ─────────────────────────────────────────────
+// Python AIP types — static definition (STORY-092)
+// ─────────────────────────────────────────────
+
+/// Python source for the `AIPResult` and `InputResponse` helper classes.
+///
+/// Injected into the agent's `run.__globals__` namespace before each `call_run()`.
+/// The factory methods return plain Python dicts that serialise cleanly with
+/// `json.dumps()` and deserialise into the Rust [`AIPResult`] / [`InputResponseData`]
+/// types via serde.
+const AIP_TYPES_PY: &str = r#"
+class InputResponse:
+    """Réponse humaine reçue après une suspension input_required.
+
+    Accessible via task["input_response"] dans run().
+    Les attributs (.approved, .reason, .context, .responded_at) permettent
+    l'accès Python naturel à la décision humaine.
+    """
+    def __init__(self, data):
+        self.approved     = data.get("approved", False)
+        self.reason       = data.get("reason")
+        self.context      = data.get("context", {})
+        self.responded_at = data.get("responded_at", "")
+
+
+class AIPResult:
+    """Factory pour les variants de résultat AIP.
+
+    Retourne des dicts JSON-sérialisables directement par json.dumps().
+    Injecté automatiquement dans run.__globals__ par le bridge Rust.
+    """
+
+    @classmethod
+    def input_required(cls, prompt, context):
+        """Suspendre la tâche et demander une validation humaine.
+
+        Le runtime persiste prompt et context dans SQLite (STORY-094),
+        puis notifie l'utilisateur sur les canaux configurés (STORY-099).
+        """
+        return {
+            "status": "input_required",
+            "output": [],
+            "input_required_data": {"prompt": prompt, "context": context},
+        }
+
+    @classmethod
+    def completed(cls, text):
+        """Résultat de succès avec texte de réponse."""
+        return {
+            "status": "completed",
+            "output": [{"type": "text", "text": text}],
+        }
+
+    @classmethod
+    def failed(cls, code, message):
+        """Résultat d'échec avec code et message structurés."""
+        return {
+            "status": "failed",
+            "output": [],
+            "error": {"code": code, "message": message},
+        }
+"#;
 
 /// Errors that can occur when calling a Python agent via the bridge.
 #[derive(Debug, thiserror::Error)]
@@ -40,6 +118,9 @@ pub enum AIPBridgeError {
 ///
 /// Uses `tokio::task::spawn_blocking` to move Python execution off
 /// Tokio worker threads (ADR-014).
+///
+/// Injects Python `AIPResult` and `InputResponse` convenience classes into
+/// the agent's `run.__globals__` namespace before every `call_run()` (STORY-092).
 pub struct AIPBridge {
     /// The Python agent object.
     agent: Py<PyAny>,
@@ -49,17 +130,58 @@ pub struct AIPBridge {
     has_on_stop: bool,
     /// Whether the agent has an `on_plan_complete` hook (STORY-086).
     has_on_plan_complete: bool,
+    /// Python `AIPResult` class — injected into agent globals for convenience (STORY-092).
+    aip_result_class: Py<PyAny>,
+    /// Python `InputResponse` class — wraps the input_response dict for attribute access (STORY-092).
+    input_response_class: Py<PyAny>,
 }
 
 impl AIPBridge {
     /// Creates a new bridge from a validated agent.
-    pub fn new(validated: ValidatedAgent) -> Self {
-        Self {
+    ///
+    /// Initialises the Python `AIPResult` and `InputResponse` helper classes
+    /// (STORY-092) that will be injected into the agent's globals on each
+    /// `call_run()` invocation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AIPBridgeError::Internal` if the Python helper classes cannot
+    /// be defined (should never happen with the bundled static source).
+    pub fn new(validated: ValidatedAgent) -> Result<Self, AIPBridgeError> {
+        let (aip_result_class, input_response_class) = Python::with_gil(|py| {
+            let module = pyo3::types::PyModule::from_code_bound(
+                py,
+                AIP_TYPES_PY,
+                "apollia_aip_types.py",
+                "apollia_aip_types",
+            )
+            .map_err(|e| {
+                AIPBridgeError::Internal(format!("failed to define AIP Python types: {e}"))
+            })?;
+
+            let aip_result = module
+                .getattr("AIPResult")
+                .map_err(|e| AIPBridgeError::Internal(format!("AIPResult class not found: {e}")))?
+                .unbind();
+
+            let input_response = module
+                .getattr("InputResponse")
+                .map_err(|e| {
+                    AIPBridgeError::Internal(format!("InputResponse class not found: {e}"))
+                })?
+                .unbind();
+
+            Ok::<_, AIPBridgeError>((aip_result, input_response))
+        })?;
+
+        Ok(Self {
             agent: validated.object,
             has_on_start: validated.has_on_start,
             has_on_stop: validated.has_on_stop,
             has_on_plan_complete: validated.has_on_plan_complete,
-        }
+            aip_result_class,
+            input_response_class,
+        })
     }
 
     /// Returns `true` if the agent exposes an `on_plan_complete()` hook.
@@ -71,8 +193,14 @@ impl AIPBridge {
 
     /// Calls `agent.run(task, ctx)` asynchronously.
     ///
-    /// Serializes `AIPTask` to a Python dict, calls the `run` coroutine
-    /// via `asyncio.run()`, and deserializes the result into `AIPResult`.
+    /// Serializes `AIPTask` to a Python dict, injects the `AIPResult` and
+    /// `InputResponse` helper classes into the agent's `run.__globals__`
+    /// (STORY-092), calls the `run` coroutine via `asyncio.run()`, and
+    /// deserializes the result into `AIPResult`.
+    ///
+    /// If `task.input_response` is present (resumed task), the raw dict is
+    /// wrapped as an `InputResponse` object so agents can use attribute access
+    /// (`ir.approved`, `ir.reason`, etc.).
     ///
     /// The GIL is only held on the blocking thread pool, not on Tokio workers.
     ///
@@ -81,6 +209,7 @@ impl AIPBridge {
     /// - `SerializationError` if `AIPTask` cannot be converted to a dict
     /// - `PythonException` if the Python code raises an exception
     /// - `DeserializationError` if the result cannot become `AIPResult`
+    /// - `Internal` if Python class injection fails
     pub async fn call_run(
         &self,
         task: &AIPTask,
@@ -89,11 +218,54 @@ impl AIPBridge {
         let task_json = serde_json::to_string(task)
             .map_err(|e| AIPBridgeError::SerializationError(e.to_string()))?;
         let agent = Python::with_gil(|py| self.agent.clone_ref(py));
+        let aip_result_class = Python::with_gil(|py| self.aip_result_class.clone_ref(py));
+        let input_response_class = Python::with_gil(|py| self.input_response_class.clone_ref(py));
 
         let result_json = tokio::task::spawn_blocking(move || {
             Python::with_gil(|py| -> Result<String, AIPBridgeError> {
+                // 1. Inject AIPResult and InputResponse into the agent's run method globals
+                //    so the agent can use them without any import statement (STORY-092).
+                let run_method = agent.bind(py).getattr("run").map_err(|e| {
+                    AIPBridgeError::Internal(format!("agent has no run method: {e}"))
+                })?;
+                let run_globals = run_method.getattr("__globals__").map_err(|e| {
+                    AIPBridgeError::Internal(format!("run has no __globals__: {e}"))
+                })?;
+                run_globals
+                    .set_item("AIPResult", aip_result_class.bind(py))
+                    .map_err(|e| {
+                        AIPBridgeError::Internal(format!("inject AIPResult failed: {e}"))
+                    })?;
+                run_globals
+                    .set_item("InputResponse", input_response_class.bind(py))
+                    .map_err(|e| {
+                        AIPBridgeError::Internal(format!("inject InputResponse failed: {e}"))
+                    })?;
+
+                // 2. Deserialise AIPTask into a Python dict.
                 let task_dict = json_loads(py, &task_json)
                     .map_err(|e| AIPBridgeError::SerializationError(e.to_string()))?;
+
+                // 3. If task["input_response"] is present, wrap it as an InputResponse
+                //    object so the agent can use ir.approved, ir.reason, etc. (STORY-092).
+                if let Ok(dict) = task_dict.downcast::<pyo3::types::PyDict>() {
+                    if let Ok(Some(ir_raw)) = dict.get_item("input_response") {
+                        if !ir_raw.is_none() {
+                            let ir_obj =
+                                input_response_class
+                                    .bind(py)
+                                    .call1((ir_raw,))
+                                    .map_err(|e| {
+                                        AIPBridgeError::Internal(format!(
+                                            "InputResponse wrap failed: {e}"
+                                        ))
+                                    })?;
+                            dict.set_item("input_response", ir_obj).map_err(|e| {
+                                AIPBridgeError::Internal(format!("set input_response failed: {e}"))
+                            })?;
+                        }
+                    }
+                }
 
                 let coroutine = agent
                     .bind(py)
@@ -263,10 +435,26 @@ fn py_obj_to_json_string(py: Python<'_>, obj: &PyObject) -> Result<String, AIPBr
 mod tests {
     use super::*;
     use crate::validator::validate_agent;
+    use apollia_core::{InputResponseData, TaskStatus};
     use pyo3::types::{PyDict, PyModule};
 
-    /// Helper: create a ValidatedAgent from inline Python code.
-    fn create_validated_agent(code: &str) -> ValidatedAgent {
+    // ─────────────────────────────────────────────
+    // Test helpers
+    // ─────────────────────────────────────────────
+
+    /// Creates an `AIPBridge` from inline Python code (test helper).
+    fn create_bridge(code: &str) -> AIPBridge {
+        let agent = Python::with_gil(|py| {
+            let module = PyModule::from_code_bound(py, code, "test_bridge.py", "test_bridge")
+                .expect("failed to create test module");
+            module.getattr("agent").expect("failed to get agent").into()
+        });
+        let validated = validate_agent(&agent).expect("agent validation failed");
+        AIPBridge::new(validated).expect("AIPBridge init failed")
+    }
+
+    /// Creates a `ValidatedAgent` from inline Python code (for flag-inspection tests).
+    fn create_validated(code: &str) -> crate::validator::ValidatedAgent {
         let agent = Python::with_gil(|py| {
             let module = PyModule::from_code_bound(py, code, "test_bridge.py", "test_bridge")
                 .expect("failed to create test module");
@@ -275,13 +463,17 @@ mod tests {
         validate_agent(&agent).expect("agent validation failed")
     }
 
-    /// Helper: create an empty Python dict as ctx.
+    /// Creates an empty Python dict for use as ctx.
     fn empty_ctx() -> PyObject {
         Python::with_gil(|py| {
             let dict = PyDict::new_bound(py);
             dict.into()
         })
     }
+
+    // ─────────────────────────────────────────────
+    // Python agent fixtures
+    // ─────────────────────────────────────────────
 
     const AGENT_WITH_HOOK: &str = r#"
 class AgentAvecHook:
@@ -348,11 +540,14 @@ class TestAgent:
 agent = TestAgent()
 "#;
 
+    // ─────────────────────────────────────────────
+    // Existing bridge tests (unchanged behaviour)
+    // ─────────────────────────────────────────────
+
     #[tokio::test]
     async fn test_call_run_success() {
         // GIVEN a bridge with a valid agent
-        let validated = create_validated_agent(VALID_AGENT_CODE);
-        let bridge = AIPBridge::new(validated);
+        let bridge = create_bridge(VALID_AGENT_CODE);
         let task = AIPTask::default();
         let ctx = empty_ctx();
 
@@ -362,7 +557,7 @@ agent = TestAgent()
         // THEN we get a valid AIPResult
         assert!(result.is_ok());
         let aip_result = result.expect("call_run should succeed");
-        assert_eq!(aip_result.status, apollia_core::TaskStatus::Completed);
+        assert_eq!(aip_result.status, TaskStatus::Completed);
     }
 
     #[tokio::test]
@@ -379,8 +574,7 @@ class A:
         raise ValueError("test error from python")
 agent = A()
 "#;
-        let validated = create_validated_agent(code);
-        let bridge = AIPBridge::new(validated);
+        let bridge = create_bridge(code);
         let ctx = empty_ctx();
 
         // WHEN we call run()
@@ -393,9 +587,9 @@ agent = A()
     #[tokio::test]
     async fn test_call_on_start_with_callback() {
         // GIVEN a bridge with an agent that has on_start
-        let validated = create_validated_agent(VALID_AGENT_CODE);
+        let validated = create_validated(VALID_AGENT_CODE);
         assert!(validated.has_on_start);
-        let bridge = AIPBridge::new(validated);
+        let bridge = AIPBridge::new(validated).expect("bridge init");
         let ctx = empty_ctx();
 
         // WHEN we call on_start()
@@ -408,9 +602,9 @@ agent = A()
     #[tokio::test]
     async fn test_call_on_stop_with_callback() {
         // GIVEN a bridge with an agent that has on_stop
-        let validated = create_validated_agent(VALID_AGENT_CODE);
+        let validated = create_validated(VALID_AGENT_CODE);
         assert!(validated.has_on_stop);
-        let bridge = AIPBridge::new(validated);
+        let bridge = AIPBridge::new(validated).expect("bridge init");
 
         // WHEN we call on_stop()
         let result = bridge.call_on_stop().await;
@@ -433,9 +627,9 @@ class A:
         return {"status": "completed", "output": []}
 agent = A()
 "#;
-        let validated = create_validated_agent(code);
+        let validated = create_validated(code);
         assert!(!validated.has_on_start);
-        let bridge = AIPBridge::new(validated);
+        let bridge = AIPBridge::new(validated).expect("bridge init");
         let ctx = empty_ctx();
 
         // WHEN we call on_start() on an agent without the callback
@@ -445,42 +639,27 @@ agent = A()
         assert!(result.is_ok());
     }
 
-    // AC-1 — has_on_plan_complete() returns true when hook is present
-
     #[test]
     fn test_has_on_plan_complete_true() {
         // GIVEN a validated agent with on_plan_complete()
-        let validated = create_validated_agent(AGENT_WITH_HOOK);
-
-        // WHEN we create the bridge
-        let bridge = AIPBridge::new(validated);
-
+        let bridge = create_bridge(AGENT_WITH_HOOK);
         // THEN has_on_plan_complete() returns true
         assert!(bridge.has_on_plan_complete());
     }
 
-    // AC-2 — has_on_plan_complete() returns false when hook is absent
-
     #[test]
     fn test_has_on_plan_complete_false() {
         // GIVEN a validated agent without on_plan_complete()
-        let validated = create_validated_agent(VALID_AGENT_CODE);
-
-        // WHEN we create the bridge
-        let bridge = AIPBridge::new(validated);
-
+        let bridge = create_bridge(VALID_AGENT_CODE);
         // THEN has_on_plan_complete() returns false
         assert!(!bridge.has_on_plan_complete());
     }
-
-    // AC-3 — call_on_plan_complete() calls hook with step_results dict
 
     #[tokio::test]
     async fn test_call_on_plan_complete_success() {
         // GIVEN a bridge with an agent that has on_plan_complete()
         //   AND step_results with 2 entries
-        let validated = create_validated_agent(AGENT_WITH_HOOK);
-        let bridge = AIPBridge::new(validated);
+        let bridge = create_bridge(AGENT_WITH_HOOK);
         let mut step_results = HashMap::new();
         step_results.insert("s1".to_string(), "output A".to_string());
         step_results.insert("s2".to_string(), "output B".to_string());
@@ -492,8 +671,7 @@ agent = A()
         // THEN we get AIPResult::Completed with the hook's string output
         assert!(result.is_ok());
         let aip_result = result.expect("call_on_plan_complete should succeed");
-        assert_eq!(aip_result.status, apollia_core::TaskStatus::Completed);
-        // The hook returns "résultat: 2 steps"
+        assert_eq!(aip_result.status, TaskStatus::Completed);
         if let Some(apollia_core::AIPPart::Text(t)) = aip_result.output.first() {
             assert!(
                 t.text.contains("2 steps"),
@@ -505,13 +683,10 @@ agent = A()
         }
     }
 
-    // AC-4 — call_on_plan_complete() propagates Python exceptions
-
     #[tokio::test]
     async fn test_call_on_plan_complete_python_exception() {
         // GIVEN a bridge with an agent whose on_plan_complete() raises
-        let validated = create_validated_agent(AGENT_HOOK_RAISES);
-        let bridge = AIPBridge::new(validated);
+        let bridge = create_bridge(AGENT_HOOK_RAISES);
         let ctx = empty_ctx();
 
         // WHEN we call on_plan_complete()
@@ -541,8 +716,7 @@ class A:
         }
 agent = A()
 "#;
-        let validated = create_validated_agent(code);
-        let bridge = AIPBridge::new(validated);
+        let bridge = create_bridge(code);
         let ctx = empty_ctx();
         let task = AIPTask::default();
 
@@ -551,5 +725,191 @@ agent = A()
 
         // THEN serialization/deserialization works
         assert!(result.is_ok());
+    }
+
+    // ─────────────────────────────────────────────
+    // STORY-092 — HITL contract tests
+    // ─────────────────────────────────────────────
+
+    // AC-1 — AIPResult.input_required() retourne le bon variant
+
+    #[tokio::test]
+    async fn test_ac1_aip_result_input_required_variant() {
+        // GIVEN an agent that returns AIPResult.input_required(...)
+        let code = r#"
+class A:
+    def manifest(self):
+        return {
+            "name": "hitl-agent", "version": "1.0.0",
+            "description": "HITL test agent", "tools_required": [],
+        }
+    async def run(self, task, ctx):
+        # AIPResult is injected by the bridge — no import needed
+        return AIPResult.input_required("Confirmer ?", {"key": "val"})
+agent = A()
+"#;
+        let bridge = create_bridge(code);
+        let ctx = empty_ctx();
+
+        // WHEN we call run()
+        let result = bridge.call_run(&AIPTask::default(), ctx).await;
+
+        // THEN the variant is InputRequired with correct prompt and context
+        assert!(result.is_ok(), "call_run failed: {:?}", result.err());
+        let aip_result = result.expect("call_run should succeed");
+        assert_eq!(
+            aip_result.status,
+            TaskStatus::InputRequired,
+            "expected InputRequired status"
+        );
+        let data = aip_result
+            .input_required_data
+            .expect("input_required_data must be present");
+        assert_eq!(data.prompt, "Confirmer ?");
+        assert_eq!(data.context, serde_json::json!({"key": "val"}));
+    }
+
+    // AC-2 — AIPTask enrichi à la reprise (is_resumed=true, input_response peuplé)
+
+    #[tokio::test]
+    async fn test_ac2_aip_task_is_resumed_true() {
+        // GIVEN an AIPTask built with is_resumed=true and a populated InputResponse
+        let task = AIPTask {
+            task_id: "t-resume-001".into(),
+            is_resumed: true,
+            input_response: Some(InputResponseData {
+                approved: true,
+                reason: None,
+                context: serde_json::json!({"devis": 42}),
+                responded_at: "2026-03-09T10:00:00Z".into(),
+            }),
+            ..AIPTask::default()
+        };
+
+        // WHEN an agent reads task["is_resumed"] and task["input_response"]
+        let code = r#"
+class A:
+    def manifest(self):
+        return {
+            "name": "resume-reader", "version": "1.0.0",
+            "description": "Reads is_resumed and input_response", "tools_required": [],
+        }
+    async def run(self, task, ctx):
+        ir = task["input_response"]
+        return {
+            "status": "completed",
+            "output": [{"type": "text", "text": str(task["is_resumed"]) + "|" + str(ir.approved)}],
+        }
+agent = A()
+"#;
+        let bridge = create_bridge(code);
+        let ctx = empty_ctx();
+
+        // WHEN we call run() with a resumed task
+        let result = bridge.call_run(&task, ctx).await;
+
+        // THEN is_resumed=True and input_response.approved=True are visible in Python
+        assert!(result.is_ok(), "call_run failed: {:?}", result.err());
+        let aip_result = result.expect("should succeed");
+        if let Some(apollia_core::AIPPart::Text(t)) = aip_result.output.first() {
+            assert!(
+                t.text.contains("True|True"),
+                "expected 'True|True' in output, got: {}",
+                t.text
+            );
+        } else {
+            panic!("expected TextPart output");
+        }
+    }
+
+    // AC-3 — AIPTask reprise après rejet (input_response.approved=False, reason peuplée)
+
+    #[tokio::test]
+    async fn test_ac3_aip_task_is_resumed_rejected() {
+        // GIVEN an AIPTask built after a rejected approval
+        let task = AIPTask {
+            task_id: "t-reject-001".into(),
+            is_resumed: true,
+            input_response: Some(InputResponseData {
+                approved: false,
+                reason: Some("Remise à négocier d'abord".into()),
+                context: serde_json::json!({}),
+                responded_at: "2026-03-09T10:01:00Z".into(),
+            }),
+            ..AIPTask::default()
+        };
+
+        let code = r#"
+class A:
+    def manifest(self):
+        return {
+            "name": "reject-reader", "version": "1.0.0",
+            "description": "Reads rejection response", "tools_required": [],
+        }
+    async def run(self, task, ctx):
+        ir = task["input_response"]
+        return {
+            "status": "completed",
+            "output": [{"type": "text", "text": str(ir.approved) + "|" + (ir.reason or "none")}],
+        }
+agent = A()
+"#;
+        let bridge = create_bridge(code);
+        let ctx = empty_ctx();
+
+        // WHEN we call run()
+        let result = bridge.call_run(&task, ctx).await;
+
+        // THEN approved=False and reason is transmitted correctly
+        assert!(result.is_ok(), "call_run failed: {:?}", result.err());
+        let aip_result = result.expect("should succeed");
+        if let Some(apollia_core::AIPPart::Text(t)) = aip_result.output.first() {
+            assert!(
+                t.text.contains("False|Remise"),
+                "expected 'False|Remise' in output, got: {}",
+                t.text
+            );
+        } else {
+            panic!("expected TextPart output");
+        }
+    }
+
+    // AC-4 — Valeurs par défaut — is_resumed=False sur un premier appel
+
+    #[test]
+    fn test_ac4_aip_task_default_not_resumed() {
+        // GIVEN an AIPTask created normally (first call, no resume)
+        let task = AIPTask::default();
+
+        // WHEN we inspect is_resumed and input_response
+        // THEN is_resumed == false, input_response == None
+        assert!(!task.is_resumed, "is_resumed must be false by default");
+        assert!(
+            task.input_response.is_none(),
+            "input_response must be None by default"
+        );
+    }
+
+    // AC-5 — InputResponseData serializable en JSON (roundtrip)
+
+    #[test]
+    fn test_ac5_input_response_json_roundtrip() {
+        // GIVEN an InputResponseData with all fields populated
+        let original = InputResponseData {
+            approved: true,
+            reason: None,
+            context: serde_json::json!({"n": 42, "label": "test"}),
+            responded_at: "2026-03-09T10:00:00Z".into(),
+        };
+
+        // WHEN we serialise then deserialise via serde_json
+        let json = serde_json::to_string(&original).expect("serialise failed");
+        let restored: InputResponseData = serde_json::from_str(&json).expect("deserialise failed");
+
+        // THEN the roundtrip is lossless
+        assert_eq!(restored.approved, original.approved);
+        assert_eq!(restored.reason, original.reason);
+        assert_eq!(restored.context, original.context);
+        assert_eq!(restored.responded_at, original.responded_at);
     }
 }

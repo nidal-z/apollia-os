@@ -553,6 +553,7 @@ mod tests {
             output: vec![],
             error: None,
             artifacts: vec![],
+            input_required_data: None,
         }
     }
 
