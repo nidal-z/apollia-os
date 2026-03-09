@@ -20,6 +20,15 @@
     .badge-error    { color: #ff4444; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
     .uptime { color: #888; font-size: 0.75rem; }
+    .plan-header { display: flex; gap: 1rem; align-items: baseline; margin-bottom: 0.5rem; font-size: 0.875rem; }
+    .plan-header span:first-child { color: #00d4ff; font-weight: bold; }
+    .plan-header span:last-child  { color: #888; }
+    #plan-steps-list { list-style: none; padding: 0; margin: 0.25rem 0; }
+    #plan-steps-list li { padding: 0.2rem 0; font-size: 0.8125rem; }
+    .step-running   { color: #ffaa00; }
+    .step-completed { color: #00ff88; }
+    .step-failed    { color: #ff4444; }
+    #plan-replan-info { margin-top: 0.25rem; font-size: 0.8125rem; }
   </style>
 </head>
 <body hx-ext="sse" sse-connect="/api/v1/dashboard/stream">
@@ -59,6 +68,17 @@
     <p>Chargement...</p>
   </section>
 
+  <!-- Section Plan orchestré — mise à jour par JavaScript (STORY-090) -->
+  <section id="current-plan" style="display:none">
+    <h2>Plan en cours</h2>
+    <div class="plan-header">
+      <span id="plan-agent"></span>
+      <span id="plan-steps-count"></span>
+    </div>
+    <ul id="plan-steps-list"></ul>
+    <div id="plan-replan-info"></div>
+  </section>
+
   <!-- Section Backends LLM -->
   <section id="llm-backends"
            hx-get="/api/v1/dashboard/partials/llm"
@@ -88,6 +108,82 @@
     <h2>Mémoire</h2>
     <p>Chargement...</p>
   </section>
+
+  <script>
+    // SSE tasks handler — Sprint 10 (STORY-090)
+    // Listens for sse:tasks events carrying JSON plan/step payloads and updates
+    // the #current-plan section without triggering a full partial reload.
+    document.addEventListener('sse:tasks', function(e) {
+      var raw = e.detail && e.detail.data;
+      if (!raw) { return; }
+      var data;
+      try { data = JSON.parse(raw); } catch (_) { return; }
+
+      switch (data.event_type) {
+        case 'plan_generated': {
+          var planSection = document.getElementById('current-plan');
+          planSection.style.display = 'block';
+          planSection.style.borderColor = '';
+          document.getElementById('plan-agent').textContent = data.agent_name || '';
+          document.getElementById('plan-steps-count').textContent =
+            data.step_count + ' étapes';
+          document.getElementById('plan-steps-list').innerHTML = '';
+          document.getElementById('plan-replan-info').textContent = '';
+          break;
+        }
+        case 'step_started': {
+          var stepsList = document.getElementById('plan-steps-list');
+          var li = document.getElementById('step-' + data.task_id + '-' + data.step_id);
+          if (!li) {
+            li = document.createElement('li');
+            li.id = 'step-' + data.task_id + '-' + data.step_id;
+            stepsList.appendChild(li);
+          }
+          li.className = 'step-running';
+          li.textContent = '● [' + data.num + '/' + data.total + '] ' + data.desc + '...';
+          break;
+        }
+        case 'step_completed': {
+          var li = document.getElementById('step-' + data.task_id + '-' + data.step_id);
+          if (li) {
+            li.className = 'step-completed';
+            li.textContent = li.textContent.replace('●', '✔') +
+              ' ' + (data.duration_ms / 1000).toFixed(1) + 's';
+          }
+          break;
+        }
+        case 'step_failed': {
+          var li = document.getElementById('step-' + data.task_id + '-' + data.step_id);
+          if (li) {
+            li.className = 'step-failed';
+            li.textContent = li.textContent.replace('●', '✗') + ' — ' + data.error;
+          }
+          break;
+        }
+        case 'replanning': {
+          var replanDiv = document.getElementById('plan-replan-info');
+          replanDiv.textContent =
+            '↻ Replanification (' + data.attempt + '/2) — ' +
+            data.failed_step + ': ' + data.reason;
+          replanDiv.style.color = 'orange';
+          break;
+        }
+        case 'plan_completed': {
+          var planSection = document.getElementById('current-plan');
+          planSection.style.borderColor = 'green';
+          break;
+        }
+        case 'plan_failed': {
+          var planSection = document.getElementById('current-plan');
+          planSection.style.borderColor = 'red';
+          var info = document.getElementById('plan-replan-info');
+          info.textContent = '✗ Échec : ' + data.reason;
+          info.style.color = 'red';
+          break;
+        }
+      }
+    });
+  </script>
 
 </body>
 </html>
