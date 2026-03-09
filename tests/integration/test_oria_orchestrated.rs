@@ -221,6 +221,14 @@ fn make_bus() -> tokio::sync::broadcast::Sender<RuntimeEvent> {
     tokio::sync::broadcast::channel(64).0
 }
 
+/// Builds a minimal `AgentManifest` for integration tests.
+fn make_manifest() -> AgentManifest {
+    serde_json::from_str(
+        r#"{"name":"test","version":"0.1.0","description":"test","tools_required":[]}"#,
+    )
+    .expect("minimal manifest must deserialize")
+}
+
 // ── AC-1 ─────────────────────────────────────────────────────────────────────
 
 /// AC-1: Plan valide de 4 steps exécuté séquentiellement — `PlanCompleted` émis.
@@ -251,7 +259,7 @@ async fn test_ac1_plan_4_steps_execute_sequentiellement() {
     let budget = StepBudget::unlimited();
     let resilience = ResilienceLayer::default();
     let reasoner = Reasoner::new(MockCompletionModel::with_responses(vec![]), 10);
-    let mut actor = ActorLoop::new(plan, 2, db, bus.clone());
+    let mut actor = ActorLoop::new(plan, 2, db, bus.clone(), make_manifest());
 
     // WHEN
     let result = actor
@@ -312,7 +320,7 @@ async fn test_ac2_depends_on_respectes() {
     let budget = StepBudget::unlimited();
     let resilience = ResilienceLayer::default();
     let reasoner = Reasoner::new(MockCompletionModel::with_responses(vec![]), 10);
-    let mut actor = ActorLoop::new(plan, 2, db, bus);
+    let mut actor = ActorLoop::new(plan, 2, db, bus, make_manifest());
 
     // WHEN
     let result = actor
@@ -371,7 +379,7 @@ async fn test_ac3_budget_epuise_step_3_sur_5() {
     let budget = StepBudget::with_max(2); // only 2 steps allowed
     let resilience = ResilienceLayer::default();
     let reasoner = Reasoner::new(MockCompletionModel::with_responses(vec![]), 10);
-    let mut actor = ActorLoop::new(plan, 2, db, bus);
+    let mut actor = ActorLoop::new(plan, 2, db, bus, make_manifest());
 
     // WHEN
     let result = actor
@@ -432,7 +440,7 @@ async fn test_ac4_replanification_step_echec() {
     let reasoner = Reasoner::new(mock_model, 10);
 
     // max_replans=1: one replan allowed before MAX_REPLAN_EXCEEDED
-    let mut actor = ActorLoop::new(plan, 1, db, bus.clone());
+    let mut actor = ActorLoop::new(plan, 1, db, bus.clone(), make_manifest());
 
     // WHEN
     let result = actor
@@ -487,7 +495,7 @@ async fn test_ac5_max_replan_exceeded() {
     let reasoner = Reasoner::new(MockCompletionModel::with_responses(vec![]), 10);
 
     // max_replans=0 → any retryable failure immediately yields MAX_REPLAN_EXCEEDED
-    let mut actor = ActorLoop::new(plan, 0, db, bus);
+    let mut actor = ActorLoop::new(plan, 0, db, bus, make_manifest());
 
     // WHEN
     let result = actor
@@ -578,6 +586,7 @@ async fn test_ac7_agent_sans_hook_concatenation() {
                 dangerous_tools_allowed: false,
                 tags: vec![],
                 skills: vec![],
+                tools_requiring_approval: vec![],
             }
         }
         // has_on_plan_complete() returns false by default — auto-concat is used

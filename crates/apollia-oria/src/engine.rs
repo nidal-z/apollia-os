@@ -347,7 +347,13 @@ impl ORIAEngine {
         };
 
         let plan_start = Instant::now();
-        let mut actor = ActorLoop::new(plan, MAX_REPLANS, repo, self.event_bus.clone());
+        let mut actor = ActorLoop::new(
+            plan,
+            MAX_REPLANS,
+            repo,
+            self.event_bus.clone(),
+            manifest.clone(),
+        );
         let step_result = actor
             .execute(
                 tool_proxy,
@@ -832,6 +838,7 @@ mod orchestrated_tests {
             skills: vec![],
             execution_mode: "orchestrated".into(),
             system_prompt: Some("Planifie les étapes nécessaires.".into()),
+            tools_requiring_approval: vec![],
         }
     }
 
@@ -971,6 +978,7 @@ mod orchestrated_tests {
                 skills: vec![],
                 execution_mode: "orchestrated".into(),
                 system_prompt: None, // ← absent
+                tools_requiring_approval: vec![],
             },
         };
         let task = AIPTask::default();

@@ -32,6 +32,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
+use apollia_core::manifest::AgentManifest;
 use apollia_core::AIPResult;
 use apollia_llm::{ChatMessage, CompletionRequest, LlmRouter};
 
@@ -114,6 +115,11 @@ pub struct ActorLoop {
     max_replans: u32,
     db: PlanRepository,
     event_bus: EventBusSender,
+    /// Manifest de l'agent propriétaire de ce plan.
+    ///
+    /// Stocké en lecture seule pour que `execute_step` puisse accéder à
+    /// `tools_requiring_approval` lors de chaque step (vérification STORY-097).
+    pub manifest: AgentManifest,
 }
 
 impl ActorLoop {
@@ -121,11 +127,15 @@ impl ActorLoop {
     ///
     /// Le plan doit déjà être inséré dans SQLite avant la création de l'`ActorLoop`
     /// (via `PlanRepository::insert_plan` + `insert_steps`).
+    ///
+    /// `manifest` est conservé en lecture seule pour que les steps puissent
+    /// accéder à `tools_requiring_approval` (vérification STORY-097).
     pub fn new(
         plan: ExecutionPlan,
         max_replans: u32,
         db: PlanRepository,
         event_bus: EventBusSender,
+        manifest: AgentManifest,
     ) -> Self {
         Self {
             plan,
@@ -133,6 +143,7 @@ impl ActorLoop {
             max_replans,
             db,
             event_bus,
+            manifest,
         }
     }
 
@@ -683,11 +694,19 @@ fn build_replan_context(plan: &ExecutionPlan) -> ContextBundle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apollia_core::TaskStatus;
+    use apollia_core::{AgentManifest, TaskStatus};
     use apollia_llm::{CompletionRequest, CompletionResponse, FinishReason, LlmError, TokenUsage};
     use std::collections::VecDeque;
     use std::pin::Pin;
     use std::sync::{Arc, Mutex};
+
+    /// Construit un `AgentManifest` minimal pour les tests.
+    fn make_manifest() -> AgentManifest {
+        serde_json::from_str(
+            r#"{"name":"test","version":"0.1.0","description":"test","tools_required":[]}"#,
+        )
+        .expect("minimal manifest must deserialize")
+    }
 
     // ── Mock ToolProxy ────────────────────────────────────────────────────────
 
@@ -800,7 +819,7 @@ mod tests {
         db.insert_plan(&plan, "test-agent").expect("insert_plan");
         db.insert_steps(&plan.plan_id, &plan.steps)
             .expect("insert_steps");
-        let actor = ActorLoop::new(plan, 2, db, bus_tx);
+        let actor = ActorLoop::new(plan, 2, db, bus_tx, make_manifest());
         (actor, bus_rx)
     }
 
@@ -944,7 +963,7 @@ mod tests {
         ]}"#;
         let model = MockCompletionModel::new(vec![replacement_plan]);
         let reasoner = Reasoner::new(model, 10);
-        let mut actor = ActorLoop::new(plan, 2, db, bus_tx);
+        let mut actor = ActorLoop::new(plan, 2, db, bus_tx, make_manifest());
         let llm = LlmRouter::empty();
         let budget = StepBudget::unlimited();
         let resilience = ResilienceLayer::default();
@@ -999,7 +1018,7 @@ mod tests {
         let model = MockCompletionModel::new(vec![failing_plan, failing_plan]);
         let reasoner = Reasoner::new(model, 10);
         let proxy = FailingToolProxy;
-        let mut actor = ActorLoop::new(plan, 2, db, bus_tx);
+        let mut actor = ActorLoop::new(plan, 2, db, bus_tx, make_manifest());
         let llm = LlmRouter::empty();
         let budget = StepBudget::unlimited();
         let resilience = ResilienceLayer::default();
@@ -1047,5 +1066,40 @@ mod tests {
         assert!(StepError::LlmCallFailed("network error".into()).is_retryable());
         assert!(!StepError::NoLlmBackend.is_retryable());
         assert!(!StepError::ToolNotFound("bash".into()).is_retryable());
+    }
+
+    // ── AC-3 — Propagation manifest vers ActorLoop ───────────────────────────
+
+    /// ÉTANT DONNÉ un AgentManifest avec tools_requiring_approval=["smtp"]
+    /// QUAND un ActorLoop est créé avec ce manifest
+    /// ALORS self.manifest.tools_requiring_approval contient "smtp"
+    #[test]
+    fn test_ac3_manifest_propagated_to_actor_loop() {
+        // GIVEN
+        let manifest: AgentManifest = serde_json::from_str(
+            r#"{
+                "name":"test","version":"0.1.0","description":"test","tools_required":[],
+                "tools_requiring_approval":["smtp"]
+            }"#,
+        )
+        .expect("manifest must deserialize");
+        let plan = make_plan(vec![("s1", &[])]);
+        let (bus_tx, _bus_rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "test-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+
+        // WHEN
+        let actor = ActorLoop::new(plan, 2, db, bus_tx, manifest);
+
+        // THEN
+        assert!(
+            actor
+                .manifest
+                .tools_requiring_approval
+                .contains(&"smtp".to_string()),
+            "expected 'smtp' in tools_requiring_approval"
+        );
     }
 }

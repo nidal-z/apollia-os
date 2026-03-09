@@ -327,6 +327,7 @@ mod tests {
             skills: vec![],
             execution_mode: "auto".to_string(),
             system_prompt: None,
+            tools_requiring_approval: vec![],
         }
     }
 
