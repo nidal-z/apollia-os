@@ -463,6 +463,7 @@ impl TriggerEngine {
             Ok(task_id) => {
                 let _ = self.event_bus.send(RuntimeEvent::TriggerFired {
                     trigger_id: event.trigger_id.clone(),
+                    agent: def.agent.clone(),
                     task_id: task_id.clone(),
                 });
                 self.persist_fired(&event, &task_id).await;

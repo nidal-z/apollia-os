@@ -168,6 +168,8 @@ pub enum RuntimeEvent {
     TriggerFired {
         /// Identifiant du trigger qui a produit l'événement.
         trigger_id: String,
+        /// Nom de l'agent cible.
+        agent: String,
         /// Identifiant de la tâche soumise au TaskRouter.
         task_id: TaskId,
     },
@@ -194,6 +196,11 @@ pub enum RuntimeEvent {
     TriggerDisabled {
         /// Identifiant du trigger désactivé.
         trigger_id: String,
+    },
+    /// Le TriggerEngine a rechargé sa configuration (hot reload ou démarrage initial).
+    TriggersReloaded {
+        /// Nombre de triggers actifs après rechargement.
+        count: usize,
     },
 
     /// Un backend LLM est en cours de chargement (avant `load()` ou initialisation HTTP).
@@ -295,6 +302,7 @@ mod tests {
             },
             RuntimeEvent::TriggerFired {
                 trigger_id: "rapport-hebdo".into(),
+                agent: "rapport-agent".into(),
                 task_id: "task-1".into(),
             },
             RuntimeEvent::TriggerSkipped {
@@ -311,6 +319,7 @@ mod tests {
             RuntimeEvent::TriggerDisabled {
                 trigger_id: "rapport-hebdo".into(),
             },
+            RuntimeEvent::TriggersReloaded { count: 3 },
         ];
 
         // THEN — toutes les variantes sont clonables et debuggables

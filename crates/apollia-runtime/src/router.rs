@@ -378,6 +378,45 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
     }
 }
 
+// ─── TaskSubmitter impl ────────────────────────────────────────────────────
+
+use std::future::Future;
+use std::pin::Pin;
+
+/// Implémentation du trait `TaskSubmitter` pour `TaskRouterHandle<B>`.
+///
+/// Permet au `TriggerEngine` de soumettre des tâches au `TaskRouter` sans
+/// dépendance directe sur `apollia-runtime` (pattern ADR-015/016).
+///
+/// `pending_count` retourne toujours 0 en MVP — le comptage per-agent n'est
+/// pas encore exposé dans l'API publique du `TaskRouter`. `OnBusyPolicy::Drop`
+/// peut être amélioré en STORY-073 avec un message `GetPendingCountForAgent`.
+impl<B> apollia_triggers::TaskSubmitter for TaskRouterHandle<B>
+where
+    B: ExecutionBackend + Clone + Send + Sync + 'static,
+{
+    fn submit<'a>(
+        &'a self,
+        agent: &'a str,
+        input: AIPInput,
+    ) -> Pin<Box<dyn Future<Output = Result<TaskId, String>> + Send + 'a>> {
+        Box::pin(async move {
+            TaskRouterHandle::submit(self, agent, input)
+                .await
+                .map_err(|e| e.to_string())
+        })
+    }
+
+    fn pending_count<'a>(
+        &'a self,
+        _agent: &'a str,
+    ) -> Pin<Box<dyn Future<Output = usize> + Send + 'a>> {
+        // MVP: per-agent pending count non exposé — retourne 0.
+        // OnBusyPolicy::Drop sera affiné en STORY-073.
+        Box::pin(async move { 0 })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

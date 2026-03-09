@@ -19,6 +19,7 @@ use tracing::{error, info, warn};
 use apollia_core::RuntimeEvent;
 use apollia_llm::{LlmConfig, LlmRouter};
 use apollia_tools::ToolRegistryHandle;
+use apollia_triggers::{TriggerDefinition, TriggerEngineHandle};
 
 use crate::api::routes_agents::AgentLoader;
 use crate::api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
@@ -62,6 +63,11 @@ pub struct SupervisorConfig {
     /// `None` disables the LLM layer entirely — the runtime starts normally and
     /// agents receive `ctx.llm = None` (see STORY-059). No error is raised.
     pub llm_config: Option<LlmConfig>,
+    /// Trigger definitions parsed from `[[triggers]]` blocks in `apollia.toml`.
+    ///
+    /// An empty `Vec` starts the `TriggerEngine` with no active sources (AC-3).
+    /// Populated by `apollia-cli` from `ApolliaConfig.triggers` (STORY-071).
+    pub triggers: Vec<TriggerDefinition>,
 }
 
 /// Handles returned after successful startup.
@@ -83,6 +89,11 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `None` when no `[llm]` section is present in `apollia.toml`, or when
     /// `LlmRouter::from_config_with_bus` fails (warning logged, runtime continues).
     pub llm_router: Option<Arc<LlmRouter>>,
+    /// Handle to the TriggerEngine actor at position 6 of the startup sequence (STORY-072).
+    ///
+    /// Always `Some` after successful startup — even when `config.triggers` is empty
+    /// (AC-3). Injected into `AppState` so webhook routes and CLI commands can reach it.
+    pub trigger_engine: TriggerEngineHandle,
 }
 
 /// Supervisor errors.
@@ -247,7 +258,26 @@ impl Supervisor {
             TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 256);
         info!("Supervisor: TaskRouter ready");
 
-        // Phase 6 (pos 7): APIServer
+        // Phase 6 (pos 7): TriggerEngine — démarré après TaskRouter (besoin du submitter)
+        info!("Supervisor: starting TriggerEngine");
+        let enabled_count = self.config.triggers.iter().filter(|t| t.enabled).count();
+        let trigger_engine = TriggerEngineHandle::spawn(
+            self.config.triggers.clone(),
+            router_handle.clone(),
+            event_sender.clone(),
+            None, // persistance SQLite désactivée en MVP — activée via STORY-070 config
+        )
+        .await;
+        tracing::info!(
+            active = enabled_count,
+            "✔ TriggerEngine — {} trigger(s) actif(s)",
+            enabled_count
+        );
+        let _ = event_sender.send(RuntimeEvent::TriggersReloaded {
+            count: enabled_count,
+        });
+
+        // Phase 7 (pos 8): APIServer
         info!("Supervisor: starting APIServer");
         let state = AppState {
             router_handle: router_handle.clone(),
@@ -256,20 +286,22 @@ impl Supervisor {
             agent_loader,
             backend,
             llm_router: llm_router.clone(),
-            trigger_engine: None,
+            trigger_engine: Some(trigger_engine.clone()),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
         let api_handle = match tokio::time::timeout(timeout, api_server.start()).await {
             Ok(Ok(handle)) => handle,
             Ok(Err(api_err)) => {
-                // Rollback: stop actors in reverse order
+                // Rollback: stop actors in reverse order (TriggerEngine → TaskRouter → …)
+                trigger_engine.shutdown().await;
                 router_handle.shutdown();
                 tool_registry_handle.shutdown().await;
                 registry_handle.shutdown();
                 return Err(SupervisorError::from(api_err));
             }
             Err(_elapsed) => {
+                trigger_engine.shutdown().await;
                 router_handle.shutdown();
                 tool_registry_handle.shutdown().await;
                 registry_handle.shutdown();
@@ -281,7 +313,7 @@ impl Supervisor {
         };
         info!("Supervisor: APIServer ready");
 
-        // Phase 6: Emit AllReady
+        // Emit AllReady
         let _ = event_sender.send(RuntimeEvent::AllReady);
         info!("Supervisor: all actors ready, emitted AllReady");
 
@@ -295,6 +327,7 @@ impl Supervisor {
             router_handle,
             api_handle,
             llm_router,
+            trigger_engine,
         })
     }
 }
@@ -403,6 +436,12 @@ pub fn default_child_specs() -> Vec<ChildSpec> {
             restart_window_secs: 60,
         },
         ChildSpec {
+            name: "trigger_engine".to_string(),
+            restart_policy: RestartPolicy::OnFailure,
+            max_restarts: 5,
+            restart_window_secs: 60,
+        },
+        ChildSpec {
             name: "api_server".to_string(),
             restart_policy: RestartPolicy::OnFailure,
             max_restarts: 5,
@@ -462,6 +501,7 @@ mod tests {
             },
             startup_timeout_secs: 10,
             llm_config: None,
+            triggers: vec![],
         }
     }
 
@@ -608,6 +648,7 @@ mod tests {
             },
             startup_timeout_secs: 1,
             llm_config: None,
+            triggers: vec![],
         };
         let supervisor = Supervisor::new(config);
 
@@ -710,19 +751,21 @@ mod tests {
         // GIVEN / WHEN
         let specs = default_child_specs();
 
-        // THEN 6 specs sont retournees dans l'ordre
-        assert_eq!(specs.len(), 6);
+        // THEN 7 specs sont retournees dans l'ordre (TriggerEngine ajouté en STORY-072)
+        assert_eq!(specs.len(), 7);
         assert_eq!(specs[0].name, "event_bus");
         assert_eq!(specs[1].name, "agent_registry");
         assert_eq!(specs[2].name, "tool_registry");
         assert_eq!(specs[3].name, "memory_engine");
         assert_eq!(specs[4].name, "task_router");
-        assert_eq!(specs[5].name, "api_server");
+        assert_eq!(specs[5].name, "trigger_engine");
+        assert_eq!(specs[6].name, "api_server");
 
         // AND les policies sont correctes
         assert_eq!(specs[0].restart_policy, RestartPolicy::Always);
         assert_eq!(specs[4].restart_policy, RestartPolicy::OnFailure);
         assert_eq!(specs[5].restart_policy, RestartPolicy::OnFailure);
+        assert_eq!(specs[6].restart_policy, RestartPolicy::OnFailure);
     }
 
     // AC-2 — Supervisor starts successfully with llm_config = None
@@ -738,6 +781,7 @@ mod tests {
             },
             startup_timeout_secs: 10,
             llm_config: None,
+            triggers: vec![],
         };
         let supervisor = Supervisor::new(config);
 
@@ -795,5 +839,110 @@ mod tests {
             cloned.llm_router.is_none(),
             "le clone doit preserver llm_router = None"
         );
+    }
+
+    // AC-3 (STORY-072) — Supervisor démarre avec 0 triggers ; TriggerEngine toujours présent
+    #[tokio::test]
+    async fn test_ac3_supervisor_starts_with_zero_triggers() {
+        // GIVEN une config sans triggers
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let config = SupervisorConfig {
+            api_config: APIServerConfig {
+                socket_path: socket_path.clone(),
+                tcp_port: port,
+            },
+            startup_timeout_secs: 10,
+            llm_config: None,
+            triggers: vec![],
+        };
+        let supervisor = Supervisor::new(config);
+
+        // WHEN start() est appele
+        let result = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+            )
+            .await;
+
+        // THEN le demarrage reussit et TriggerEngine est present avec 0 triggers
+        assert!(result.is_ok(), "start() doit reussir avec 0 triggers");
+        let handles = result.unwrap();
+        let trigger_list = handles.trigger_engine.list().await;
+        assert!(
+            trigger_list.is_empty(),
+            "aucun trigger attendu, got {:?}",
+            trigger_list
+        );
+
+        // Cleanup
+        handles.trigger_engine.shutdown().await;
+        handles.api_handle.shutdown();
+        handles.router_handle.shutdown();
+        handles.tool_registry_handle.shutdown().await;
+        handles.registry_handle.shutdown();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    // AC-4 (STORY-072) — AppState.trigger_engine est Some après démarrage
+    #[tokio::test]
+    async fn test_ac4_trigger_engine_handle_in_app_state() {
+        use apollia_triggers::{
+            InputTemplate, OnBusyPolicy, TriggerDefinition, TriggerSourceConfig,
+        };
+
+        // GIVEN une config avec 1 trigger activé
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let def = TriggerDefinition {
+            id: "test-trigger".into(),
+            agent: "test-agent".into(),
+            enabled: true,
+            on_busy: OnBusyPolicy::Queue,
+            source: TriggerSourceConfig::Cron {
+                schedule: "0 8 * * MON".into(),
+            },
+            input_template: InputTemplate("hello".into()),
+        };
+        let config = SupervisorConfig {
+            api_config: APIServerConfig {
+                socket_path: socket_path.clone(),
+                tcp_port: port,
+            },
+            startup_timeout_secs: 10,
+            llm_config: None,
+            triggers: vec![def],
+        };
+        let supervisor = Supervisor::new(config);
+
+        // WHEN start() est appele
+        let handles = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+            )
+            .await
+            .expect("start() doit reussir");
+
+        // THEN trigger_engine contient 1 trigger
+        let trigger_list = handles.trigger_engine.list().await;
+        assert_eq!(
+            trigger_list.len(),
+            1,
+            "1 trigger attendu, got {:?}",
+            trigger_list
+        );
+        assert_eq!(trigger_list[0].id, "test-trigger");
+
+        // Cleanup
+        handles.trigger_engine.shutdown().await;
+        handles.api_handle.shutdown();
+        handles.router_handle.shutdown();
+        handles.tool_registry_handle.shutdown().await;
+        handles.registry_handle.shutdown();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _ = std::fs::remove_file(&socket_path);
     }
 }

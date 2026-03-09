@@ -86,6 +86,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         },
         startup_timeout_secs: 10,
         llm_config: None,
+        triggers: vec![],
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);
@@ -96,6 +97,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
     println!("  * AgentRegistry   ready");
     println!("  * ToolRegistry    ready (3 native tools)");
     println!("  * TaskRouter      ready");
+    println!("  * TriggerEngine   ready (0 trigger(s))");
     println!(
         "  * APIServer       listening on {} + localhost:{}",
         socket_path.display(),
