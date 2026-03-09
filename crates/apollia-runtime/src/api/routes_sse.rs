@@ -271,6 +271,7 @@ mod tests {
             backend: MockBackend,
             llm_router: None,
             trigger_engine: None,
+            config_path: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))

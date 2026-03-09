@@ -9,12 +9,14 @@
 pub mod engine;
 pub mod persistence;
 pub mod sources;
+pub mod toml_config;
 pub mod types;
 
 pub use engine::{TaskSubmitter, TriggerEngineError, TriggerEngineHandle, TriggerStatus};
 pub use persistence::{
     TriggerHistoryEntry, TriggerPersistence, TriggerPersistenceError, TriggerStateRow,
 };
+pub use toml_config::{parse_triggers_from_toml_str, TriggerTomlError};
 pub use types::{
     parse_interval, FileEventKind, InputTemplate, OnBusyPolicy, TriggerDefinition,
     TriggerDefinitionError, TriggerEvent, TriggerId, TriggerPayload, TriggerSourceConfig,

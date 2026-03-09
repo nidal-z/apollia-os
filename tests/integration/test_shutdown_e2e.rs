@@ -152,6 +152,7 @@ async fn test_shutdown_drains_active_tasks() {
         backend: MockBackend::slow(Duration::from_millis(300)),
         llm_router: None,
         trigger_engine: None,
+        config_path: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -222,6 +223,7 @@ async fn test_shutdown_stops_all_agents() {
         backend: MockBackend::slow(Duration::ZERO),
         llm_router: None,
         trigger_engine: None,
+        config_path: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -282,6 +284,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         backend: MockBackend::slow(Duration::ZERO),
         llm_router: None,
         trigger_engine: None,
+        config_path: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -364,6 +367,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         backend: NeverBackend,
         llm_router: None,
         trigger_engine: None,
+        config_path: None,
     };
     let api = APIServer::new(
         APIServerConfig {

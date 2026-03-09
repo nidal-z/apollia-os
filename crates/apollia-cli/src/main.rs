@@ -24,6 +24,7 @@ use commands::memory::MemoryCommand;
 use commands::model::ModelCommand;
 use commands::task::TaskCommand;
 use commands::tools::ToolsCommand;
+use commands::trigger::TriggerCommand;
 
 /// Apollia OS — Sovereign AI Agent Runtime.
 #[derive(Debug, Parser)]
@@ -151,6 +152,17 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+
+    /// Trigger management (reload).
+    Trigger {
+        /// Trigger subcommand.
+        #[command(subcommand)]
+        command: TriggerCommand,
+
+        /// Output JSON instead of human-readable text.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() {
@@ -208,6 +220,9 @@ fn main() {
             },
             Commands::Llm { command, json } => commands::llm::run(&command, cli.socket, json).await,
             Commands::Model { command, json } => commands::model::run(&command, json),
+            Commands::Trigger { command, json } => {
+                commands::trigger::run(&command, cli.socket, json).await
+            }
         }
     });
 
@@ -226,6 +241,7 @@ mod tests {
     use commands::model::ModelCommand;
     use commands::task::TaskCommand;
     use commands::tools::ToolsCommand;
+    use commands::trigger::TriggerCommand;
 
     fn parse(args: &[&str]) -> Cli {
         Cli::parse_from(args)
@@ -693,6 +709,35 @@ mod tests {
         match &cli.command {
             Commands::Model { json, .. } => assert!(json),
             other => panic!("expected Commands::Model, got {other:?}"),
+        }
+    }
+
+    // ── STORY-073: trigger command parsing ───────────────────────────────────
+
+    #[test]
+    fn test_cli_parses_trigger_reload() {
+        // GIVEN "apollia-os trigger reload"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "trigger", "reload"]);
+        // THEN Commands::Trigger { command: TriggerCommand::Reload, json: false }
+        match &cli.command {
+            Commands::Trigger { command, json } => {
+                assert!(matches!(command, TriggerCommand::Reload));
+                assert!(!json);
+            }
+            other => panic!("expected Commands::Trigger, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_trigger_reload_json_flag() {
+        // GIVEN "apollia-os trigger --json reload"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "trigger", "--json", "reload"]);
+        // THEN json = true
+        match &cli.command {
+            Commands::Trigger { json, .. } => assert!(json),
+            other => panic!("expected Commands::Trigger, got {other:?}"),
         }
     }
 }

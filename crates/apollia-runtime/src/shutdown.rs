@@ -433,6 +433,7 @@ mod tests {
             backend,
             llm_router: None,
             trigger_engine: None,
+            config_path: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -554,6 +555,7 @@ mod tests {
             backend: MockBackend::instant(),
             llm_router: None,
             trigger_engine: None,
+            config_path: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -628,6 +630,7 @@ mod tests {
             backend: NeverBackend,
             llm_router: None,
             trigger_engine: None,
+            config_path: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -808,6 +811,7 @@ mod tests {
             backend: MockBackend::instant(),
             llm_router: None,
             trigger_engine: None,
+            config_path: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

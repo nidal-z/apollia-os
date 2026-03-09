@@ -77,6 +77,7 @@ fn build_app_state() -> AppState<MockBackend> {
         backend: MockBackend,
         llm_router: None,
         trigger_engine: None,
+        config_path: None,
     }
 }
 

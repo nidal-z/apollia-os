@@ -52,6 +52,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     ///
     /// Webhook route returns 503 Service Unavailable when this is `None` (AC-6).
     pub trigger_engine: Option<TriggerEngineHandle>,
+    /// Path to `apollia.toml` — used by `POST /api/v1/triggers/reload` (STORY-073).
+    ///
+    /// `None` when the runtime was started without a config file (e.g. in unit tests).
+    /// The reload route returns 503 when this is `None`.
+    pub config_path: Option<PathBuf>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -64,6 +69,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             backend: self.backend.clone(),
             llm_router: self.llm_router.clone(),
             trigger_engine: self.trigger_engine.clone(),
+            config_path: self.config_path.clone(),
         }
     }
 }
@@ -168,6 +174,7 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
     use super::routes_llm::llm_routes;
     use super::routes_sse::stream_task;
     use super::routes_tasks::{cancel_task, get_task, submit_task};
+    use super::routes_triggers::reload_triggers;
     use super::routes_webhooks::handle_webhook;
 
     Router::new()
@@ -188,6 +195,7 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
             get(get_agent::<B>).delete(stop_agent::<B>),
         )
         .route("/webhooks/:id", post(handle_webhook::<B>))
+        .route("/api/v1/triggers/reload", post(reload_triggers::<B>))
         .merge(llm_routes::<B>())
         .with_state(state)
 }
@@ -354,6 +362,7 @@ mod tests {
             backend: MockBackend,
             llm_router: None,
             trigger_engine: None,
+            config_path: None,
         }
     }
 

@@ -378,18 +378,7 @@ impl TriggerEngine {
             }
 
             TriggerCommand::Reload { definitions, reply } => {
-                // Annule les sources existantes
-                for handle in self.handles.drain(..) {
-                    handle.abort();
-                }
-                self.definitions = definitions;
-                // Spawner les nouvelles sources pour les définitions actives
-                self.handles = self
-                    .definitions
-                    .iter()
-                    .filter(|d| d.enabled)
-                    .map(|d| spawn_source(d.clone(), self.event_tx.clone()))
-                    .collect();
+                self.do_reload(definitions).await;
                 let _ = reply.send(());
                 false
             }
@@ -528,6 +517,49 @@ impl TriggerEngine {
         } else {
             tracing::debug!(trigger = %event.trigger_id, %reason, "trigger skipped (no persistence)");
         }
+    }
+
+    /// Recharge les définitions de triggers (hot reload — STORY-073).
+    ///
+    /// Donne à chaque source active 2 secondes pour se terminer proprement avant
+    /// d'utiliser [`tokio::task::AbortHandle`] pour forcer l'arrêt. Cette fenêtre
+    /// permet à `notify::Watcher` de se drop correctement (ADR-021).
+    ///
+    /// Les compteurs en mémoire (`fire_counts`, `skip_counts`, `last_fired`)
+    /// et les données SQLite sont **préservés** — seules les définitions et les
+    /// JoinHandles sont remplacés (AC-2).
+    async fn do_reload(&mut self, new_definitions: Vec<TriggerDefinition>) {
+        // 1. Arrêter toutes les sources actives avec timeout 2s.
+        let handles = std::mem::take(&mut self.handles);
+        for handle in handles {
+            // Sauvegarder l'AbortHandle avant que timeout consomme le JoinHandle.
+            let abort_handle = handle.abort_handle();
+            match tokio::time::timeout(std::time::Duration::from_secs(2), handle).await {
+                Ok(_) => {}
+                Err(_) => {
+                    // Timeout dépassé — forcer l'abort via l'AbortHandle.
+                    abort_handle.abort();
+                }
+            }
+        }
+
+        // 2. Remplacer les définitions (les compteurs en mémoire sont préservés).
+        self.definitions = new_definitions;
+
+        // 3. Respawn les sources activées.
+        self.handles = self
+            .definitions
+            .iter()
+            .filter(|d| d.enabled)
+            .map(|d| spawn_source(d.clone(), self.event_tx.clone()))
+            .collect();
+
+        // 4. Émettre l'événement TriggersReloaded.
+        let count = self.definitions.iter().filter(|d| d.enabled).count();
+        let _ = self
+            .event_bus
+            .send(apollia_core::RuntimeEvent::TriggersReloaded { count });
+        tracing::info!(count, "triggers reloaded");
     }
 
     /// Persiste une erreur de soumission dans `trigger_history` via [`TriggerPersistence`].
@@ -969,5 +1001,65 @@ mod tests {
         // THEN TriggerEngineHandle est Clone + Send + Sync (vérifié à la compilation)
         fn assert_send_sync<T: Clone + Send + Sync>() {}
         assert_send_sync::<TriggerEngineHandle>();
+    }
+
+    // ── STORY-073 — Hot reload ─────────────────────────────────────────────
+
+    /// AC-1 : reload() remplace toutes les définitions existantes.
+    #[tokio::test]
+    async fn test_ac1_reload_replaces_all_triggers() {
+        // GIVEN un moteur avec 1 trigger
+        let def1 = make_definition("trigger-1", OnBusyPolicy::Queue);
+        let (router, _) = MockTaskRouterHandle::new();
+        let handle = TriggerEngine::start(vec![def1], router, make_bus(), None).await;
+        assert_eq!(handle.list().await.len(), 1);
+
+        // WHEN reload avec 2 nouveaux triggers
+        let def2 = make_definition("trigger-2", OnBusyPolicy::Drop);
+        let def3 = make_definition("trigger-3", OnBusyPolicy::Queue);
+        handle.reload(vec![def2, def3]).await;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // THEN 2 triggers actifs, trigger-1 absent
+        let list = handle.list().await;
+        assert_eq!(list.len(), 2, "list() doit retourner 2 triggers");
+        assert!(
+            !list.iter().any(|t| t.id == "trigger-1"),
+            "trigger-1 ne doit plus être présent"
+        );
+        assert!(list.iter().any(|t| t.id == "trigger-2"));
+        assert!(list.iter().any(|t| t.id == "trigger-3"));
+    }
+
+    /// AC-1 : reload() émet RuntimeEvent::TriggersReloaded { count }.
+    #[tokio::test]
+    async fn test_ac1_triggers_reloaded_event_emitted() {
+        // GIVEN un bus avec subscriber actif
+        let (bus_tx, mut bus_rx) = broadcast::channel::<apollia_core::RuntimeEvent>(64);
+        let (router, _) = MockTaskRouterHandle::new();
+        let handle = TriggerEngine::start(vec![], router, bus_tx, None).await;
+
+        // WHEN reload avec 1 trigger activé
+        let def = make_definition("new-trigger", OnBusyPolicy::Queue);
+        handle.reload(vec![def]).await;
+
+        // THEN TriggersReloaded { count: 1 } reçu dans les 500ms
+        let received = tokio::time::timeout(std::time::Duration::from_millis(500), async {
+            loop {
+                match bus_rx.recv().await {
+                    Ok(apollia_core::RuntimeEvent::TriggersReloaded { count: 1 }) => {
+                        return true;
+                    }
+                    Ok(_) => {}
+                    Err(_) => return false,
+                }
+            }
+        })
+        .await;
+        assert_eq!(
+            received,
+            Ok(true),
+            "TriggersReloaded {{ count: 1 }} doit être émis"
+        );
     }
 }

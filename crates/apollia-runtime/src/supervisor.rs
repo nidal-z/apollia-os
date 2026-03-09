@@ -68,6 +68,11 @@ pub struct SupervisorConfig {
     /// An empty `Vec` starts the `TriggerEngine` with no active sources (AC-3).
     /// Populated by `apollia-cli` from `ApolliaConfig.triggers` (STORY-071).
     pub triggers: Vec<TriggerDefinition>,
+    /// Path to `apollia.toml` — injected into [`AppState`] for hot reload (STORY-073).
+    ///
+    /// `None` when the runtime starts without a config file (e.g. tests, `apollia-os start`
+    /// without a config file). The `POST /api/v1/triggers/reload` route returns 503 when absent.
+    pub config_path: Option<std::path::PathBuf>,
 }
 
 /// Handles returned after successful startup.
@@ -287,6 +292,7 @@ impl Supervisor {
             backend,
             llm_router: llm_router.clone(),
             trigger_engine: Some(trigger_engine.clone()),
+            config_path: self.config.config_path.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -502,6 +508,7 @@ mod tests {
             startup_timeout_secs: 10,
             llm_config: None,
             triggers: vec![],
+            config_path: None,
         }
     }
 
@@ -649,6 +656,7 @@ mod tests {
             startup_timeout_secs: 1,
             llm_config: None,
             triggers: vec![],
+            config_path: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -782,6 +790,7 @@ mod tests {
             startup_timeout_secs: 10,
             llm_config: None,
             triggers: vec![],
+            config_path: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -829,6 +838,7 @@ mod tests {
             backend: MockBackend,
             llm_router: None,
             trigger_engine: None,
+            config_path: None,
         };
 
         // WHEN on clone l'AppState
@@ -855,6 +865,7 @@ mod tests {
             startup_timeout_secs: 10,
             llm_config: None,
             triggers: vec![],
+            config_path: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -914,6 +925,7 @@ mod tests {
             startup_timeout_secs: 10,
             llm_config: None,
             triggers: vec![def],
+            config_path: None,
         };
         let supervisor = Supervisor::new(config);
 

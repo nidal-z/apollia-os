@@ -288,6 +288,7 @@ mod tests {
             backend: MockBackend,
             llm_router: None,
             trigger_engine: None,
+            config_path: None,
         }
     }
 

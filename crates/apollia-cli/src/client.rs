@@ -225,6 +225,25 @@ impl RuntimeClient {
         Ok(json)
     }
 
+    /// Hot-reload triggers via `POST /api/v1/triggers/reload`.
+    ///
+    /// Returns the JSON response on success (`{ "reloaded": <count> }`).
+    pub async fn reload_triggers(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.post("/api/v1/triggers/reload", None).await?;
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: json
+                    .get("error")
+                    .and_then(|e| e.as_str())
+                    .unwrap_or("unknown error")
+                    .to_string(),
+            });
+        }
+        Ok(json)
+    }
+
     /// Cancel a task via `DELETE /api/v1/tasks/{id}`.
     pub async fn cancel_task(&self, task_id: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.delete(&format!("/api/v1/tasks/{task_id}")).await?;

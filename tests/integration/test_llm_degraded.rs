@@ -199,6 +199,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         backend: NeverMockBackend,
         llm_router: None,
         trigger_engine: None,
+        config_path: None,
     };
 
     let api = APIServer::new(
