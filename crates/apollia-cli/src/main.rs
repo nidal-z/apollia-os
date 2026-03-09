@@ -446,7 +446,15 @@ mod tests {
         // THEN Commands::Task { command: TaskCommand::List }
         match &cli.command {
             Commands::Task { command, json } => {
-                assert!(matches!(command, TaskCommand::List));
+                assert!(
+                    matches!(
+                        command,
+                        TaskCommand::List {
+                            pending_approval: false
+                        }
+                    ),
+                    "expected TaskCommand::List {{ pending_approval: false }}, got {command:?}"
+                );
                 assert!(!json);
             }
             other => panic!("expected Commands::Task, got {other:?}"),

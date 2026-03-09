@@ -1,3 +1,8 @@
+use crate::{
+    channels::{DesktopChannel, WebhookChannel},
+    engine::NotificationChannel,
+    WebhookChannelConfig,
+};
 use serde::Deserialize;
 
 /// Configuration globale du système de notifications.
@@ -96,6 +101,62 @@ pub fn channel_accepts_event(
     }
 }
 
+/// Erreur retournée par [`build_channels`] quand la configuration est invalide.
+#[derive(Debug, thiserror::Error)]
+pub enum NotifConfigError {
+    /// Champ `url` absent pour un canal de type `webhook`.
+    #[error("url manquante pour le canal webhook '{id}'")]
+    MissingWebhookUrl {
+        /// Identifiant du canal mal configuré.
+        id: String,
+    },
+}
+
+/// Instancie les canaux actifs à partir d'une liste de [`ChannelConfig`].
+///
+/// Itère sur `configs` en ordre de déclaration :
+/// - `enabled = false` → canal ignoré silencieusement
+/// - `type = "desktop"` → [`DesktopChannel`] ajouté
+/// - `type = "webhook"` → [`WebhookChannel`] ajouté (erreur si `url` absent)
+/// - `type = "sse"` → ignoré (géré directement par le dashboard, STORY-105)
+///
+/// Retourne une erreur si un canal `webhook` actif n'a pas de `url`.
+pub fn build_channels(
+    configs: &[ChannelConfig],
+) -> Result<Vec<Box<dyn NotificationChannel>>, NotifConfigError> {
+    let mut channels: Vec<Box<dyn NotificationChannel>> = Vec::new();
+    for cfg in configs {
+        if !cfg.enabled {
+            continue;
+        }
+        match cfg.kind {
+            ChannelKind::Desktop => {
+                channels.push(Box::new(DesktopChannel::new(
+                    cfg.id.clone(),
+                    cfg.enabled,
+                    cfg.events.clone(),
+                )));
+            }
+            ChannelKind::Webhook => {
+                let url = cfg
+                    .url
+                    .clone()
+                    .ok_or_else(|| NotifConfigError::MissingWebhookUrl { id: cfg.id.clone() })?;
+                channels.push(Box::new(WebhookChannel::new(WebhookChannelConfig {
+                    id: cfg.id.clone(),
+                    url,
+                    enabled: cfg.enabled,
+                    events: cfg.events.clone(),
+                })));
+            }
+            ChannelKind::Sse => {
+                // Le canal SSE est géré directement par le dashboard (STORY-105).
+            }
+        }
+    }
+    Ok(channels)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,5 +243,73 @@ mod tests {
         assert_eq!(Severity::Info.as_str(), "info");
         assert_eq!(Severity::Warning.as_str(), "warning");
         assert_eq!(Severity::Error.as_str(), "error");
+    }
+
+    // AC-1 — build_channels retourne un DesktopChannel quand desktop enabled=true
+    #[test]
+    fn test_ac1_build_channels_desktop_enabled() {
+        // GIVEN config avec desktop enabled=true
+        let configs = vec![ChannelConfig {
+            id: "desktop".into(),
+            kind: ChannelKind::Desktop,
+            enabled: true,
+            events: None,
+            url: None,
+        }];
+
+        // WHEN
+        let result = build_channels(&configs);
+
+        // THEN 1 canal retourné
+        let channels = result.expect("build_channels ne doit pas échouer");
+        assert_eq!(channels.len(), 1);
+        assert_eq!(channels[0].id(), "desktop");
+    }
+
+    // AC-3 — build_channels ignore les canaux avec enabled=false
+    #[test]
+    fn test_ac3_build_channels_disabled_skipped() {
+        // GIVEN config avec webhook enabled=false
+        let configs = vec![ChannelConfig {
+            id: "slack".into(),
+            kind: ChannelKind::Webhook,
+            enabled: false,
+            events: None,
+            url: Some("https://hooks.slack.com/test".into()),
+        }];
+
+        // WHEN
+        let result = build_channels(&configs);
+
+        // THEN 0 canaux retournés (canal désactivé ignoré silencieusement)
+        let channels = result.expect("build_channels ne doit pas échouer");
+        assert!(channels.is_empty());
+    }
+
+    // AC-5 — build_channels retourne une erreur si webhook n'a pas d'url
+    #[test]
+    fn test_ac5_build_channels_webhook_no_url_returns_error() {
+        // GIVEN config type="webhook" sans champ url
+        let configs = vec![ChannelConfig {
+            id: "monitoring".into(),
+            kind: ChannelKind::Webhook,
+            enabled: true,
+            events: None,
+            url: None,
+        }];
+
+        // WHEN
+        let result = build_channels(&configs);
+
+        // THEN Err(NotifConfigError::MissingWebhookUrl) avec l'id du canal
+        let err = match result {
+            Err(e) => e,
+            Ok(_) => panic!("build_channels doit retourner une erreur pour webhook sans url"),
+        };
+        assert!(
+            matches!(&err, NotifConfigError::MissingWebhookUrl { id } if id == "monitoring"),
+            "attendu MissingWebhookUrl {{ id: monitoring }}, obtenu: {err:?}"
+        );
+        assert!(err.to_string().contains("monitoring"));
     }
 }

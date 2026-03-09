@@ -6,10 +6,11 @@ description = "Apollia OS — Runtime Core (Supervisor, AgentRegistry, TaskRoute
 license = "MIT"
 
 [dependencies]
-apollia-core       = { workspace = true }
-apollia-llm        = { workspace = true }
-apollia-tools      = { workspace = true }
-apollia-triggers   = { path = "../apollia-triggers" }
+apollia-core          = { workspace = true }
+apollia-llm           = { workspace = true }
+apollia-notifications = { workspace = true }
+apollia-tools         = { workspace = true }
+apollia-triggers      = { path = "../apollia-triggers" }
 chrono             = { workspace = true }
 hmac               = "0.12"
 sha2               = "0.10"

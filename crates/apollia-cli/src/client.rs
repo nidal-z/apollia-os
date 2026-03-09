@@ -354,6 +354,24 @@ impl RuntimeClient {
         Ok(json)
     }
 
+    /// Resume a HITL task via `POST /api/v1/tasks/{id}/resume`.
+    ///
+    /// Returns the raw response so the caller can handle HTTP 409
+    /// (task not in `input_required` state) distinctly from other errors.
+    pub async fn resume_task(
+        &self,
+        task_id: &str,
+        approved: bool,
+        reason: Option<String>,
+    ) -> Result<RawResponse, ClientError> {
+        let mut body = serde_json::json!({ "approved": approved });
+        if let Some(r) = reason {
+            body["reason"] = serde_json::Value::String(r);
+        }
+        self.post(&format!("/api/v1/tasks/{task_id}/resume"), Some(&body))
+            .await
+    }
+
     /// Cancel a task via `DELETE /api/v1/tasks/{id}`.
     pub async fn cancel_task(&self, task_id: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.delete(&format!("/api/v1/tasks/{task_id}")).await?;

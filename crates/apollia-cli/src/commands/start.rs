@@ -90,6 +90,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         triggers: vec![],
         config_path: None,
         input_required_timeout_hours: 24,
+        notifications: None,
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);

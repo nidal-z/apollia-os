@@ -18,6 +18,7 @@ use tracing::{error, info, warn};
 
 use apollia_core::RuntimeEvent;
 use apollia_llm::{LlmConfig, LlmRouter};
+use apollia_notifications::{build_channels, NotificationConfig, NotificationEngine};
 use apollia_tools::ToolRegistryHandle;
 use apollia_triggers::{TriggerDefinition, TriggerEngineHandle};
 
@@ -80,6 +81,13 @@ pub struct SupervisorConfig {
     /// Le `TimeoutWatcher` (STORY-098) utilise cette valeur. Défaut : 24 heures.
     /// Ignoré si `AppState.task_repository` est `None`.
     pub input_required_timeout_hours: u64,
+    /// Configuration optionnelle du système de notifications (section `[notifications]`
+    /// dans `apollia.toml`).
+    ///
+    /// `None` → le `NotificationEngine` n'est pas démarré (pas d'erreur).
+    /// `Some` → `build_channels()` est appelé et le moteur est spawné en position 9
+    /// du Supervisor. Un crash du moteur n'affecte pas le runtime (tâche détachée).
+    pub notifications: Option<NotificationConfig>,
 }
 
 /// Handles returned after successful startup.
@@ -143,6 +151,10 @@ pub enum SupervisorError {
         /// Time window in seconds.
         window_secs: u64,
     },
+
+    /// The `[notifications]` section contains an invalid channel configuration.
+    #[error("notification configuration error: {0}")]
+    NotificationConfig(String),
 }
 
 impl From<APIServerError> for SupervisorError {
@@ -347,6 +359,20 @@ impl Supervisor {
             info!("Supervisor: TimeoutWatcher started");
         }
 
+        // Phase 9: NotificationEngine — démarré si [notifications] présent dans la config
+        if let Some(notif_config) = self.config.notifications {
+            let channels = build_channels(&notif_config.channels)
+                .map_err(|e| SupervisorError::NotificationConfig(e.to_string()))?;
+            let active = notif_config.channels.iter().filter(|c| c.enabled).count();
+            let engine = NotificationEngine::new(notif_config, channels, event_sender.clone());
+            tokio::spawn(engine.run());
+            tracing::info!(channels = active, "NotificationEngine démarré");
+        } else {
+            tracing::info!(
+                "Supervisor: aucune section [notifications] — NotificationEngine désactivé"
+            );
+        }
+
         // Emit AllReady
         let _ = event_sender.send(RuntimeEvent::AllReady);
         info!("Supervisor: all actors ready, emitted AllReady");
@@ -539,6 +565,7 @@ mod tests {
             triggers: vec![],
             config_path: None,
             input_required_timeout_hours: 24,
+            notifications: None,
         }
     }
 
@@ -688,6 +715,7 @@ mod tests {
             triggers: vec![],
             config_path: None,
             input_required_timeout_hours: 24,
+            notifications: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -823,6 +851,7 @@ mod tests {
             triggers: vec![],
             config_path: None,
             input_required_timeout_hours: 24,
+            notifications: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -901,6 +930,7 @@ mod tests {
             triggers: vec![],
             config_path: None,
             input_required_timeout_hours: 24,
+            notifications: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -924,6 +954,51 @@ mod tests {
 
         // Cleanup
         handles.trigger_engine.shutdown().await;
+        handles.api_handle.shutdown();
+        handles.router_handle.shutdown();
+        handles.tool_registry_handle.shutdown().await;
+        handles.registry_handle.shutdown();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    // AC-4 (STORY-102) — Supervisor démarre sans section [notifications] sans erreur
+    #[tokio::test]
+    async fn test_ac4_no_notifications_section_starts_ok() {
+        // GIVEN une config sans section [notifications]
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let config = SupervisorConfig {
+            api_config: APIServerConfig {
+                socket_path: socket_path.clone(),
+                tcp_port: port,
+            },
+            startup_timeout_secs: 10,
+            llm_config: None,
+            triggers: vec![],
+            config_path: None,
+            input_required_timeout_hours: 24,
+            notifications: None,
+        };
+        let supervisor = Supervisor::new(config);
+
+        // WHEN start() est appelé
+        let result = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+            )
+            .await;
+
+        // THEN pas d'erreur — NotificationEngine non démarré silencieusement
+        assert!(
+            result.is_ok(),
+            "démarrage sans [notifications] doit réussir, erreur: {:?}",
+            result.err()
+        );
+
+        // Cleanup
+        let handles = result.unwrap();
         handles.api_handle.shutdown();
         handles.router_handle.shutdown();
         handles.tool_registry_handle.shutdown().await;
@@ -962,6 +1037,7 @@ mod tests {
             triggers: vec![def],
             config_path: None,
             input_required_timeout_hours: 24,
+            notifications: None,
         };
         let supervisor = Supervisor::new(config);
 
