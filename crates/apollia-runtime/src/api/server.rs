@@ -21,6 +21,7 @@ use tracing::info;
 
 use apollia_core::PendingApprovals;
 use apollia_llm::LlmRouter;
+use apollia_notifications::NotificationConfig;
 use apollia_tools::TaskRepository;
 use apollia_triggers::TriggerEngineHandle;
 
@@ -71,6 +72,12 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `execute_direct()` qui attend sur le oneshot channel (STORY-096).
     /// `None` quand le HITL n'est pas configuré — `resume_task` logue un warning.
     pub pending_approvals: Option<Arc<PendingApprovals>>,
+    /// Configuration des canaux de notification chargée depuis `apollia.toml`.
+    ///
+    /// Utilisée par `GET /api/v1/notifications/channels` et
+    /// `POST /api/v1/notifications/test` (STORY-104).
+    /// `None` si aucune section `[notifications]` n'est présente dans la config.
+    pub notification_config: Option<NotificationConfig>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -86,6 +93,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             config_path: self.config_path.clone(),
             task_repository: self.task_repository.clone(),
             pending_approvals: self.pending_approvals.clone(),
+            notification_config: self.notification_config.clone(),
         }
     }
 }
@@ -187,6 +195,7 @@ async fn shutdown_handler<B: ExecutionBackend + Clone>(
 /// Build the axum Router with all routes and shared state.
 fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
+    use super::routes_notifications::{list_channels, notification_logs, test_channels};
     use super::routes_dashboard::{
         dashboard_stream, get_dashboard, get_dashboard_partial, get_dashboard_state, get_htmx_js,
     };
@@ -236,6 +245,10 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
             get(get_dashboard_partial::<B>),
         )
         .route("/api/v1/dashboard/stream", get(dashboard_stream::<B>))
+        // Notification routes (STORY-104)
+        .route("/api/v1/notifications/channels", get(list_channels::<B>))
+        .route("/api/v1/notifications/test", post(test_channels::<B>))
+        .route("/api/v1/notifications/logs", get(notification_logs::<B>))
         .merge(llm_routes::<B>())
         .with_state(state)
 }
@@ -406,6 +419,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            notification_config: None,
         }
     }
 

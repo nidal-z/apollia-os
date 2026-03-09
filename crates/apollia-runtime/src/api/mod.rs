@@ -5,6 +5,7 @@
 pub mod routes_agents;
 pub mod routes_dashboard;
 pub mod routes_llm;
+pub mod routes_notifications;
 pub mod routes_sse;
 pub mod routes_tasks;
 pub mod routes_triggers;
