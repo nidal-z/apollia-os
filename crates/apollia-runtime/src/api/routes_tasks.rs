@@ -1,8 +1,8 @@
-//! REST routes for task management — POST/GET/DELETE `/api/v1/tasks`.
+//! REST routes for task management — POST/GET/DELETE/resume `/api/v1/tasks`.
 //!
-//! These routes are the core API surface for submitting, querying, and
-//! canceling agent tasks. They delegate to [`TaskRouterHandle`] for dispatch
-//! and status tracking.
+//! These routes are the core API surface for submitting, querying, canceling,
+//! and resuming agent tasks. They delegate to [`TaskRouterHandle`] for dispatch
+//! and status tracking, and to [`TaskRepository`] for HITL persistence.
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -13,7 +13,7 @@ use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::router::SubmitError;
 
-use apollia_core::{AIPInput, AIPPart, DataPart};
+use apollia_core::{AIPInput, AIPPart, DataPart, InputResponseData, RuntimeEvent, TaskId};
 
 /// Request body for `POST /api/v1/tasks`.
 #[derive(Debug, Deserialize)]
@@ -157,6 +157,152 @@ pub async fn cancel_task<B: ExecutionBackend + Clone>(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ResumeHandler — POST /api/v1/tasks/{id}/resume
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Body de la requête `POST /api/v1/tasks/{id}/resume`.
+///
+/// L'opérateur transmet sa décision (`approved`) et une raison optionnelle.
+/// Le champ `approved` est obligatoire — son absence provoque HTTP 422.
+#[derive(Debug, Deserialize)]
+pub struct ResumeRequest {
+    /// `true` pour approuver, `false` pour rejeter.
+    pub approved: bool,
+    /// Raison de la décision — optionnelle, surtout utile en cas de rejet.
+    pub reason: Option<String>,
+}
+
+/// Réponse de la route `POST /api/v1/tasks/{id}/resume`.
+///
+/// Retournée avec HTTP 200 quand la reprise est enregistrée avec succès.
+#[derive(Debug, Serialize)]
+pub struct ResumeResponse {
+    /// Identifiant de la tâche reprise.
+    pub task_id: String,
+    /// Décision de l'opérateur.
+    pub approved: bool,
+    /// Nouveau statut de la tâche (`"working"` après approbation ou rejet).
+    pub status: String,
+}
+
+/// Handler pour `POST /api/v1/tasks/{id}/resume`.
+///
+/// Valide que la tâche est en status `input_required`, persiste la décision
+/// humaine dans SQLite, émet `RuntimeEvent::TaskResumed` sur l'EventBus,
+/// et reconstruit l'`AIPTask` enrichi pour la relance ORIA (STORY-096).
+///
+/// ## Codes HTTP
+/// - `200 OK` — reprise enregistrée avec succès
+/// - `404 Not Found` — tâche inconnue du système HITL
+/// - `409 Conflict` — tâche connue mais pas en status `input_required`
+/// - `503 Service Unavailable` — HITL non configuré (`task_repository` absent)
+/// - `500 Internal Server Error` — erreur SQLite ou interne
+pub async fn resume_task<B: ExecutionBackend + Clone>(
+    Path(task_id): Path<String>,
+    State(state): State<AppState<B>>,
+    Json(body): Json<ResumeRequest>,
+) -> Result<Json<ResumeResponse>, (StatusCode, Json<ErrorResponse>)> {
+    // ── Vérifier que le TaskRepository est disponible ────────────────────────
+    let repo = match state.task_repository.as_ref() {
+        Some(r) => r,
+        None => {
+            return Err((
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "HITL not configured — task_repository absent".into(),
+                }),
+            ));
+        }
+    };
+
+    // ── AC-4 / AC-3 : vérifier le statut via TaskRepository ─────────────────
+    let db_status = repo.get_task_status(&task_id).await.map_err(|e| {
+        tracing::error!(task_id = %task_id, error = %e, "get_task_status failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: format!("database error: {e}"),
+            }),
+        )
+    })?;
+
+    match db_status.as_deref() {
+        // AC-4 — tâche absente de la table tasks → 404
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: format!("task not found: {task_id}"),
+                }),
+            ));
+        }
+        // AC-3 — tâche présente mais pas en input_required → 409
+        Some(status) if status != "input_required" => {
+            return Err((
+                StatusCode::CONFLICT,
+                Json(ErrorResponse {
+                    error: format!(
+                        "task '{task_id}' is not in input_required status (current: {status})"
+                    ),
+                }),
+            ));
+        }
+        _ => {}
+    }
+
+    // ── Construire la réponse humaine avec horodatage ISO 8601 ───────────────
+    let responded_at = chrono::Utc::now().to_rfc3339();
+    let input_response = InputResponseData {
+        approved: body.approved,
+        reason: body.reason.clone(),
+        context: serde_json::Value::Object(serde_json::Map::new()),
+        responded_at,
+    };
+
+    // ── AC-2 : durabilité avant notification — DB write avant EventBus ───────
+    repo.save_input_response(&task_id, &input_response)
+        .await
+        .map_err(|e| {
+            tracing::error!(task_id = %task_id, error = %e, "save_input_response failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("failed to persist response: {e}"),
+                }),
+            )
+        })?;
+
+    // ── Émettre TaskResumed sur l'EventBus (consommé par ORIA — STORY-096) ──
+    let _ = state.event_sender.send(RuntimeEvent::TaskResumed {
+        task_id: TaskId::from(task_id.as_str()),
+        approved: body.approved,
+    });
+
+    // ── Reconstruire l'AIPTask enrichi (validé en DB, prêt pour ORIA-096) ───
+    match repo.rebuild_for_resume(&task_id).await {
+        Ok(_enriched_task) => {
+            // STORY-096 souscrit à TaskResumed et soumet l'AIPTask enrichi à ORIA.
+            // Pour l'instant le handler retourne 200 — la relance est fire-and-forget.
+        }
+        Err(e) => {
+            tracing::error!(task_id = %task_id, error = %e, "rebuild_for_resume failed");
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("failed to rebuild task for resume: {e}"),
+                }),
+            ));
+        }
+    }
+
+    Ok(Json(ResumeResponse {
+        task_id,
+        approved: body.approved,
+        status: "working".into(),
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,7 +310,9 @@ mod tests {
     use crate::eventbus::EventBus;
     use crate::registry::AgentRegistry;
     use crate::router::TaskRouterHandle;
-    use apollia_core::{AIPResult, AgentManifest, ProcessState, RuntimeEvent, TaskStatus};
+    use apollia_core::{
+        AIPResult, AgentManifest, InputResponseData, ProcessState, RuntimeEvent, TaskStatus,
+    };
     use std::future::Future;
     use std::pin::Pin;
     use tokio::sync::broadcast;
@@ -252,6 +400,7 @@ mod tests {
             llm_router: None,
             trigger_engine: None,
             config_path: None,
+            task_repository: None,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -296,6 +445,7 @@ mod tests {
             llm_router: None,
             trigger_engine: None,
             config_path: None,
+            task_repository: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -340,6 +490,7 @@ mod tests {
             llm_router: None,
             trigger_engine: None,
             config_path: None,
+            task_repository: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
@@ -520,5 +671,177 @@ mod tests {
         let json = body_json(resp).await;
         assert_eq!(json["task_id"], task_id);
         assert_eq!(json["status"], "canceled");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Tests ResumeHandler — POST /api/v1/tasks/{id}/resume
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Ouvre un `TaskRepository` sur un fichier temporaire unique.
+    async fn open_test_repo() -> apollia_tools::TaskRepository {
+        let path = std::env::temp_dir().join(format!("apollia_resume_{}.db", uuid::Uuid::new_v4()));
+        apollia_tools::TaskRepository::open(&path)
+            .await
+            .expect("TaskRepository::open failed")
+    }
+
+    /// Construit un Router avec la route resume et un `TaskRepository` actif.
+    async fn resume_router_with_repo(repo: apollia_tools::TaskRepository) -> axum::Router {
+        let (event_tx, _) = EventBus::new();
+        let registry_handle = AgentRegistry::spawn(event_tx.clone());
+        let router_handle: TaskRouterHandle<MockBackend> =
+            TaskRouterHandle::spawn(registry_handle.clone(), event_tx.clone(), 64);
+        let state = AppState {
+            router_handle,
+            registry_handle,
+            event_sender: event_tx,
+            agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: MockBackend,
+            llm_router: None,
+            trigger_engine: None,
+            config_path: None,
+            task_repository: Some(std::sync::Arc::new(repo)),
+        };
+        Router::new()
+            .route("/api/v1/tasks/:id/resume", post(resume_task::<MockBackend>))
+            .with_state(state)
+    }
+
+    // AC-1 — Approbation valide → 200 OK + TaskResumed émis sur EventBus
+
+    #[tokio::test]
+    async fn test_ac1_resume_approve_returns_200() {
+        // GIVEN une tâche en status input_required dans le HITL DB
+        let repo = open_test_repo().await;
+        let task_id = "t-0042";
+        repo.save_input_required(task_id, None, "Confirmer ?", &serde_json::json!({}))
+            .await
+            .expect("save_input_required failed");
+
+        let router = resume_router_with_repo(repo).await;
+
+        // WHEN POST /api/v1/tasks/t-0042/resume { "approved": true }
+        let body = serde_json::json!({ "approved": true });
+        let req = Request::builder()
+            .method("POST")
+            .uri(format!("/api/v1/tasks/{task_id}/resume"))
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+
+        // THEN 200 avec approved=true et status="working"
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = body_json(resp).await;
+        assert_eq!(json["task_id"], task_id);
+        assert_eq!(json["approved"], true);
+        assert_eq!(json["status"], "working");
+    }
+
+    // AC-2 — Rejet valide avec raison → 200 OK
+
+    #[tokio::test]
+    async fn test_ac2_resume_reject_with_reason() {
+        // GIVEN une tâche en status input_required
+        let repo = open_test_repo().await;
+        let task_id = "t-0043";
+        repo.save_input_required(task_id, None, "Budget OK ?", &serde_json::json!({}))
+            .await
+            .expect("save_input_required failed");
+
+        let router = resume_router_with_repo(repo).await;
+
+        // WHEN POST /resume { "approved": false, "reason": "Budget insuffisant" }
+        let body = serde_json::json!({
+            "approved": false,
+            "reason": "Budget insuffisant"
+        });
+        let req = Request::builder()
+            .method("POST")
+            .uri(format!("/api/v1/tasks/{task_id}/resume"))
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+
+        // THEN 200 avec approved=false et status="working"
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = body_json(resp).await;
+        assert_eq!(json["approved"], false);
+        assert_eq!(json["status"], "working");
+    }
+
+    // AC-3 — Tâche pas en input_required → 409 CONFLICT
+
+    #[tokio::test]
+    async fn test_ac3_resume_not_input_required_returns_409() {
+        // GIVEN une tâche en status working (input_required → save_input_response → working)
+        let repo = open_test_repo().await;
+        let task_id = "t-0044";
+        repo.save_input_required(task_id, None, "Prompt", &serde_json::json!({}))
+            .await
+            .expect("save_input_required failed");
+        // Transition vers working via save_input_response
+        let resp_data = apollia_core::InputResponseData {
+            approved: true,
+            reason: None,
+            context: serde_json::json!({}),
+            responded_at: "2026-03-09T10:00:00Z".into(),
+        };
+        repo.save_input_response(task_id, &resp_data)
+            .await
+            .expect("save_input_response failed");
+
+        let router = resume_router_with_repo(repo).await;
+
+        // WHEN POST /resume { "approved": true } sur tâche déjà en working
+        let body = serde_json::json!({ "approved": true });
+        let req = Request::builder()
+            .method("POST")
+            .uri(format!("/api/v1/tasks/{task_id}/resume"))
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+
+        // THEN 409 CONFLICT
+        assert_eq!(resp.status(), StatusCode::CONFLICT);
+        let json = body_json(resp).await;
+        assert!(
+            json["error"]
+                .as_str()
+                .unwrap_or("")
+                .contains("not in input_required"),
+            "error should mention not in input_required, got: {}",
+            json["error"]
+        );
+    }
+
+    // AC-4 — Tâche inexistante → 404 NOT FOUND
+
+    #[tokio::test]
+    async fn test_ac4_resume_task_not_found_returns_404() {
+        // GIVEN un TaskRepository vide (aucune tâche)
+        let repo = open_test_repo().await;
+        let router = resume_router_with_repo(repo).await;
+
+        // WHEN POST /resume sur un task_id inexistant
+        let body = serde_json::json!({ "approved": true });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/tasks/t-9999/resume")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+
+        // THEN 404 NOT FOUND
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let json = body_json(resp).await;
+        assert!(
+            json["error"].as_str().unwrap_or("").contains("t-9999"),
+            "error should mention task_id, got: {}",
+            json["error"]
+        );
     }
 }

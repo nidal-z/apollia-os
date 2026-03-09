@@ -20,6 +20,7 @@ use tokio::sync::watch;
 use tracing::info;
 
 use apollia_llm::LlmRouter;
+use apollia_tools::TaskRepository;
 use apollia_triggers::TriggerEngineHandle;
 
 use crate::api::routes_agents::AgentLoader;
@@ -57,6 +58,12 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `None` when the runtime was started without a config file (e.g. in unit tests).
     /// The reload route returns 503 when this is `None`.
     pub config_path: Option<PathBuf>,
+    /// HITL task repository — SQLite persistence for Human-in-the-Loop state.
+    ///
+    /// Opened by the Supervisor on startup from `~/.apollia/hitl.db`.
+    /// `None` in unit tests or when HITL is not configured.
+    /// The resume route returns 503 when this is `None`.
+    pub task_repository: Option<Arc<TaskRepository>>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -70,6 +77,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             llm_router: self.llm_router.clone(),
             trigger_engine: self.trigger_engine.clone(),
             config_path: self.config_path.clone(),
+            task_repository: self.task_repository.clone(),
         }
     }
 }
@@ -176,7 +184,7 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
     };
     use super::routes_llm::llm_routes;
     use super::routes_sse::stream_task;
-    use super::routes_tasks::{cancel_task, get_task, submit_task};
+    use super::routes_tasks::{cancel_task, get_task, resume_task, submit_task};
     use super::routes_triggers::{
         disable_trigger, enable_trigger, fire_trigger, get_trigger, get_trigger_logs,
         list_triggers, reload_triggers,
@@ -192,6 +200,7 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
             get(get_task::<B>).delete(cancel_task::<B>),
         )
         .route("/api/v1/tasks/:id/stream", get(stream_task::<B>))
+        .route("/api/v1/tasks/:id/resume", post(resume_task::<B>))
         .route(
             "/api/v1/agents",
             get(list_agents::<B>).post(start_agent::<B>),
@@ -387,6 +396,7 @@ mod tests {
             llm_router: None,
             trigger_engine: None,
             config_path: None,
+            task_repository: None,
         }
     }
 

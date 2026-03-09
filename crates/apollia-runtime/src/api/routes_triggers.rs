@@ -511,6 +511,7 @@ mod tests {
             llm_router: None,
             trigger_engine,
             config_path,
+            task_repository: None,
         }
     }
 

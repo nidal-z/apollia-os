@@ -441,6 +441,7 @@ mod tests {
             llm_router: None,
             trigger_engine: None,
             config_path: None,
+            task_repository: None,
         };
         let router = Router::new()
             .route(

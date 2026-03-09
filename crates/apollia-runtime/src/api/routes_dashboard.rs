@@ -651,6 +651,7 @@ mod tests {
             llm_router: None,
             trigger_engine: None,
             config_path: None,
+            task_repository: None,
         }
     }
 
@@ -670,6 +671,7 @@ mod tests {
             llm_router: None,
             trigger_engine: Some(engine),
             config_path: None,
+            task_repository: None,
         }
     }
 

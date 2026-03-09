@@ -438,6 +438,7 @@ mod tests {
             llm_router: None,
             trigger_engine: None,
             config_path: None,
+            task_repository: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -560,6 +561,7 @@ mod tests {
             llm_router: None,
             trigger_engine: None,
             config_path: None,
+            task_repository: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -635,6 +637,7 @@ mod tests {
             llm_router: None,
             trigger_engine: None,
             config_path: None,
+            task_repository: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -816,6 +819,7 @@ mod tests {
             llm_router: None,
             trigger_engine: None,
             config_path: None,
+            task_repository: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

@@ -280,6 +280,35 @@ impl TaskRepository {
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
 
+    /// Retourne le statut SQLite d'une tâche, ou `None` si absente de la table `tasks`.
+    ///
+    /// Utilisé par le `ResumeHandler` (STORY-095) pour vérifier qu'une tâche
+    /// est bien en status `input_required` avant de traiter la reprise.
+    ///
+    /// # Errors
+    ///
+    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    pub async fn get_task_status(&self, task_id: &str) -> Result<Option<String>, TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+
+        tokio::task::spawn_blocking(move || -> Result<Option<String>, TaskRepoError> {
+            let conn = rusqlite::Connection::open(&path)?;
+            let result = conn.query_row(
+                "SELECT status FROM tasks WHERE task_id = ?1",
+                params![&task_id],
+                |row| row.get::<_, String>(0),
+            );
+            match result {
+                Ok(status) => Ok(Some(status)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(TaskRepoError::Sqlite(e)),
+            }
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))?
+    }
+
     /// Retourne les `task_id` en status `input_required` depuis plus longtemps que `older_than`.
     ///
     /// Utilise `strftime('%s', 'now') - strftime('%s', input_required_at)` pour calculer

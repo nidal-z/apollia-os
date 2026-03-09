@@ -328,6 +328,31 @@ pub enum RuntimeEvent {
         /// Raison de l'échec.
         reason: String,
     },
+
+    // ── HITL — Human-in-the-Loop events (Sprint 11) ────────────────────
+    /// Une tâche est suspendue en attente d'une entrée humaine.
+    ///
+    /// Émis par ORIA (STORY-096) après que l'agent retourne
+    /// `AIPResult::input_required()` et que la suspension est persistée
+    /// dans SQLite via `TaskRepository::save_input_required()`.
+    TaskInputRequired {
+        /// Identifiant de la tâche suspendue.
+        task_id: TaskId,
+        /// Prompt affiché à l'utilisateur pour prendre sa décision.
+        prompt: String,
+    },
+
+    /// Une tâche a été reprise après une suspension HITL.
+    ///
+    /// Émis par le `ResumeHandler` (STORY-095) après persistence de la
+    /// décision humaine dans SQLite et avant la relance ORIA.
+    /// STORY-096 souscrit à cet événement pour relancer `run()` sur l'agent.
+    TaskResumed {
+        /// Identifiant de la tâche reprise.
+        task_id: TaskId,
+        /// `true` si l'opérateur a approuvé, `false` si rejeté.
+        approved: bool,
+    },
 }
 
 #[cfg(test)]
@@ -456,6 +481,15 @@ mod tests {
                 task_id: "task-1".into(),
                 plan_id: "plan-abc".into(),
                 reason: "MAX_REPLAN_EXCEEDED".into(),
+            },
+            // ── HITL (Sprint 11) ──────────────────────────────────────────
+            RuntimeEvent::TaskInputRequired {
+                task_id: "task-1".into(),
+                prompt: "Confirmer l'envoi ?".into(),
+            },
+            RuntimeEvent::TaskResumed {
+                task_id: "task-1".into(),
+                approved: true,
             },
         ];
 
