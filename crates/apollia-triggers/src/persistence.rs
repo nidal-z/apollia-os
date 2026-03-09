@@ -28,7 +28,7 @@ pub enum TriggerPersistenceError {
 // ─── Types de résultats ───────────────────────────────────────────────────
 
 /// Entrée d'historique retournée par [`TriggerPersistence::query_history`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TriggerHistoryEntry {
     /// Identifiant unique de l'entrée (hex randomblob généré par SQLite).
     pub id: String,

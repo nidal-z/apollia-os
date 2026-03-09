@@ -225,6 +225,116 @@ impl RuntimeClient {
         Ok(json)
     }
 
+    /// List all triggers via `GET /api/v1/triggers`.
+    pub async fn list_triggers(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/triggers").await?;
+        if resp.status != 200 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: resp.body,
+            });
+        }
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        Ok(json)
+    }
+
+    /// Get trigger detail via `GET /api/v1/triggers/{id}`.
+    pub async fn get_trigger(&self, id: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get(&format!("/api/v1/triggers/{id}")).await?;
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: json
+                    .get("error")
+                    .and_then(|e| e.as_str())
+                    .unwrap_or("unknown error")
+                    .to_string(),
+            });
+        }
+        Ok(json)
+    }
+
+    /// Fire a trigger immediately via `POST /api/v1/triggers/{id}/fire`.
+    pub async fn fire_trigger(&self, id: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .post(&format!("/api/v1/triggers/{id}/fire"), None)
+            .await?;
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: json
+                    .get("error")
+                    .and_then(|e| e.as_str())
+                    .unwrap_or("unknown error")
+                    .to_string(),
+            });
+        }
+        Ok(json)
+    }
+
+    /// Enable a trigger via `POST /api/v1/triggers/{id}/enable`.
+    pub async fn enable_trigger(&self, id: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .post(&format!("/api/v1/triggers/{id}/enable"), None)
+            .await?;
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: json
+                    .get("error")
+                    .and_then(|e| e.as_str())
+                    .unwrap_or("unknown error")
+                    .to_string(),
+            });
+        }
+        Ok(json)
+    }
+
+    /// Disable a trigger via `POST /api/v1/triggers/{id}/disable`.
+    pub async fn disable_trigger(&self, id: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .post(&format!("/api/v1/triggers/{id}/disable"), None)
+            .await?;
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: json
+                    .get("error")
+                    .and_then(|e| e.as_str())
+                    .unwrap_or("unknown error")
+                    .to_string(),
+            });
+        }
+        Ok(json)
+    }
+
+    /// Get trigger logs via `GET /api/v1/triggers/{id}/logs?last={last}`.
+    pub async fn get_trigger_logs(
+        &self,
+        id: &str,
+        last: usize,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .get(&format!("/api/v1/triggers/{id}/logs?last={last}"))
+            .await?;
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: json
+                    .get("error")
+                    .and_then(|e| e.as_str())
+                    .unwrap_or("unknown error")
+                    .to_string(),
+            });
+        }
+        Ok(json)
+    }
+
     /// Hot-reload triggers via `POST /api/v1/triggers/reload`.
     ///
     /// Returns the JSON response on success (`{ "reloaded": <count> }`).

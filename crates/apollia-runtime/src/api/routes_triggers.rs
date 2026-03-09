@@ -1,26 +1,37 @@
-//! Route `POST /api/v1/triggers/reload` — hot reload depuis `apollia.toml`.
+//! Routes REST pour la gestion des triggers.
 //!
-//! Relit la section `[[triggers]]` depuis le fichier de configuration connu
-//! (stocké dans [`AppState::config_path`]), valide les nouvelles définitions,
-//! et appelle [`TriggerEngineHandle::reload`] si tout est valide.
+//! Expose les opérations CRUD sur les triggers via l'API REST du runtime :
+//! - `GET  /api/v1/triggers`          — liste de tous les triggers (STORY-074)
+//! - `GET  /api/v1/triggers/:id`       — statut détaillé d'un trigger (STORY-074)
+//! - `POST /api/v1/triggers/:id/fire`  — déclenchement immédiat (STORY-074)
+//! - `POST /api/v1/triggers/:id/enable`  — activation (STORY-074)
+//! - `POST /api/v1/triggers/:id/disable` — désactivation (STORY-074)
+//! - `GET  /api/v1/triggers/:id/logs`  — historique SQLite (STORY-074)
+//! - `POST /api/v1/triggers/reload`    — hot reload (STORY-073)
 //!
-//! **Codes de retour :**
-//! - `503` — `TriggerEngine` non disponible ou `config_path` inconnu dans [`AppState`].
-//! - `422` — TOML malformé ou trigger avec configuration invalide ; les triggers
-//!   actuels continuent de fonctionner sans interruption (AC-5).
-//! - `200` — Rechargement réussi avec `{ "reloaded": N }`.
+//! **Codes de retour partagés :**
+//! - `503` — `TriggerEngine` non disponible.
+//! - `404` — trigger inconnu.
+//! - `200` — succès.
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
-use serde::Serialize;
+use axum::{
+    extract::{Path, Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+    Json,
+};
+use serde::{Deserialize, Serialize};
 
-use apollia_triggers::{parse_triggers_from_toml_str, TriggerTomlError};
+use apollia_triggers::{
+    parse_triggers_from_toml_str, TriggerEngineError, TriggerHistoryEntry, TriggerTomlError,
+};
 
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 
 // ─── Response types ────────────────────────────────────────────────────────
 
-/// Corps de réponse en cas de succès.
+/// Corps de réponse en cas de succès pour le rechargement.
 #[derive(Serialize)]
 pub struct ReloadResponse {
     /// Nombre de triggers actifs après rechargement.
@@ -32,6 +43,316 @@ pub struct ReloadResponse {
 struct ErrorResponse {
     /// Description de l'erreur.
     error: String,
+}
+
+/// Réponse pour `GET /api/v1/triggers/:id` — statut détaillé.
+#[derive(Serialize)]
+pub struct TriggerDetailResponse {
+    /// Identifiant du trigger.
+    pub id: String,
+    /// Nom de l'agent cible.
+    pub agent: String,
+    /// Type de source.
+    pub source_kind: String,
+    /// Détail de la configuration source (ex : expression cron, intervalle).
+    pub source_detail: String,
+    /// Politique quand l'agent est occupé.
+    pub on_busy: String,
+    /// Trigger actif ou non.
+    pub enabled: bool,
+    /// Nombre de fires réussis.
+    pub fire_count: u64,
+    /// Nombre de skips.
+    pub skip_count: u64,
+    /// Horodatage du dernier fire (RFC3339) ou `null`.
+    pub last_fired: Option<String>,
+}
+
+/// Réponse pour `POST /api/v1/triggers/:id/fire`.
+#[derive(Serialize)]
+pub struct FireResponse {
+    /// Identifiant de la tâche soumise.
+    pub task_id: String,
+}
+
+/// Réponse pour enable/disable.
+#[derive(Serialize)]
+pub struct OkResponse {
+    /// Message de confirmation.
+    pub ok: bool,
+}
+
+/// Réponse pour `GET /api/v1/triggers/:id/logs`.
+#[derive(Serialize)]
+pub struct LogsResponse {
+    /// Entrées d'historique.
+    pub entries: Vec<TriggerHistoryEntry>,
+}
+
+/// Paramètres de query pour `GET /api/v1/triggers/:id/logs`.
+#[derive(Debug, Deserialize)]
+pub struct LogsQuery {
+    /// Nombre maximum d'entrées à retourner (défaut : 20).
+    #[serde(default = "default_last")]
+    pub last: usize,
+}
+
+fn default_last() -> usize {
+    20
+}
+
+// ─── Handlers STORY-074 ────────────────────────────────────────────────────
+
+/// `GET /api/v1/triggers` — liste de tous les triggers avec leur statut.
+pub async fn list_triggers<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> impl IntoResponse {
+    let engine = match &state.trigger_engine {
+        Some(e) => e.clone(),
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(serde_json::json!({"error": "TriggerEngine not available"})),
+            )
+                .into_response();
+        }
+    };
+
+    let statuses = engine.list().await;
+    Json(serde_json::json!({ "triggers": statuses })).into_response()
+}
+
+/// `GET /api/v1/triggers/:id` — statut détaillé d'un trigger.
+pub async fn get_trigger<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let engine = match &state.trigger_engine {
+        Some(e) => e.clone(),
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "TriggerEngine not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    // Récupère la définition complète pour les champs non présents dans TriggerStatus.
+    let def = match engine.get_definition(&id).await {
+        Some(d) => d,
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: format!("trigger '{id}' not found"),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    // Récupère le statut (fire_count, skip_count, last_fired) depuis la liste.
+    let status = engine
+        .list()
+        .await
+        .into_iter()
+        .find(|s| s.id == id)
+        .unwrap_or_else(|| apollia_triggers::TriggerStatus {
+            id: def.id.clone(),
+            agent: def.agent.clone(),
+            source_kind: source_detail_kind(&def.source),
+            enabled: def.enabled,
+            fire_count: 0,
+            skip_count: 0,
+            last_fired: None,
+        });
+
+    let (source_kind, source_detail) = source_kind_and_detail(&def.source);
+    let on_busy = match def.on_busy {
+        apollia_triggers::OnBusyPolicy::Queue => "queue",
+        apollia_triggers::OnBusyPolicy::Drop => "drop",
+    };
+
+    let detail = TriggerDetailResponse {
+        id: status.id,
+        agent: status.agent,
+        source_kind,
+        source_detail,
+        on_busy: on_busy.to_string(),
+        enabled: status.enabled,
+        fire_count: status.fire_count,
+        skip_count: status.skip_count,
+        last_fired: status.last_fired.map(|dt| dt.to_rfc3339()),
+    };
+
+    Json(detail).into_response()
+}
+
+/// `POST /api/v1/triggers/:id/fire` — déclenchement immédiat.
+pub async fn fire_trigger<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let engine = match &state.trigger_engine {
+        Some(e) => e.clone(),
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "TriggerEngine not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    match engine.fire_now(&id).await {
+        Ok(task_id) => Json(FireResponse {
+            task_id: task_id.to_string(),
+        })
+        .into_response(),
+        Err(TriggerEngineError::NotFound { .. }) => (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("trigger '{id}' not found"),
+            }),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+/// `POST /api/v1/triggers/:id/enable` — active un trigger désactivé.
+pub async fn enable_trigger<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let engine = match &state.trigger_engine {
+        Some(e) => e.clone(),
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "TriggerEngine not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    match engine.enable(&id).await {
+        Ok(()) => Json(OkResponse { ok: true }).into_response(),
+        Err(TriggerEngineError::NotFound { .. }) => (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("trigger '{id}' not found"),
+            }),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+/// `POST /api/v1/triggers/:id/disable` — désactive un trigger actif.
+pub async fn disable_trigger<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let engine = match &state.trigger_engine {
+        Some(e) => e.clone(),
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "TriggerEngine not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    match engine.disable(&id).await {
+        Ok(()) => Json(OkResponse { ok: true }).into_response(),
+        Err(TriggerEngineError::NotFound { .. }) => (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("trigger '{id}' not found"),
+            }),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+/// `GET /api/v1/triggers/:id/logs` — historique des déclenchements depuis SQLite.
+///
+/// Le paramètre de query `?last=N` contrôle le nombre d'entrées (défaut : 20).
+pub async fn get_trigger_logs<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+    Query(params): Query<LogsQuery>,
+) -> impl IntoResponse {
+    let engine = match &state.trigger_engine {
+        Some(e) => e.clone(),
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "TriggerEngine not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    let entries = engine.query_history(&id, params.last).await;
+    Json(LogsResponse { entries }).into_response()
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+/// Retourne la chaîne de type de source pour usage dans `TriggerStatus` fallback.
+fn source_detail_kind(source: &apollia_triggers::TriggerSourceConfig) -> String {
+    source_kind_and_detail(source).0
+}
+
+/// Retourne `(kind, detail)` depuis une [`TriggerSourceConfig`].
+fn source_kind_and_detail(source: &apollia_triggers::TriggerSourceConfig) -> (String, String) {
+    use apollia_triggers::TriggerSourceConfig;
+    match source {
+        TriggerSourceConfig::Cron { schedule } => ("cron".into(), schedule.clone()),
+        TriggerSourceConfig::Interval { every } => ("interval".into(), every.clone()),
+        TriggerSourceConfig::Oneshot { fire_at } => ("oneshot".into(), fire_at.to_rfc3339()),
+        TriggerSourceConfig::FileWatch { path, events } => {
+            let evts: Vec<_> = events.iter().map(|e| e.to_string()).collect();
+            (
+                "file_watch".into(),
+                format!("{} [{}]", path.display(), evts.join(",")),
+            )
+        }
+        TriggerSourceConfig::Webhook { .. } => ("webhook".into(), String::new()),
+    }
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────

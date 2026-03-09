@@ -89,6 +89,17 @@ enum TriggerCommand {
     List {
         reply: oneshot::Sender<Vec<TriggerStatus>>,
     },
+    /// Retourne la définition complète d'un trigger par ID (STORY-074).
+    GetDefinition {
+        id: String,
+        reply: oneshot::Sender<Option<TriggerDefinition>>,
+    },
+    /// Retourne l'historique SQLite d'un trigger (STORY-074).
+    QueryHistory {
+        trigger_id: String,
+        limit: usize,
+        reply: oneshot::Sender<Vec<crate::persistence::TriggerHistoryEntry>>,
+    },
     /// Recharge les définitions de triggers (hot reload, implémenté STORY-073).
     Reload {
         definitions: Vec<TriggerDefinition>,
@@ -374,6 +385,25 @@ impl TriggerEngine {
                     })
                     .collect();
                 let _ = reply.send(statuses);
+                false
+            }
+
+            TriggerCommand::GetDefinition { id, reply } => {
+                let def = self.definitions.iter().find(|d| d.id == id).cloned();
+                let _ = reply.send(def);
+                false
+            }
+
+            TriggerCommand::QueryHistory {
+                trigger_id,
+                limit,
+                reply,
+            } => {
+                let entries = match self.persistence.as_ref() {
+                    Some(p) => p.query_history(&trigger_id, limit).unwrap_or_default(),
+                    None => vec![],
+                };
+                let _ = reply.send(entries);
                 false
             }
 
@@ -706,6 +736,42 @@ impl TriggerEngineHandle {
     pub async fn list(&self) -> Vec<TriggerStatus> {
         let (reply_tx, reply_rx) = oneshot::channel();
         let _ = self.tx.send(TriggerCommand::List { reply: reply_tx }).await;
+        reply_rx.await.unwrap_or_default()
+    }
+
+    /// Retourne la définition complète d'un trigger par ID (STORY-074).
+    ///
+    /// Retourne `None` si aucun trigger ne correspond à `id`.
+    pub async fn get_definition(&self, id: &str) -> Option<TriggerDefinition> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let _ = self
+            .tx
+            .send(TriggerCommand::GetDefinition {
+                id: id.to_string(),
+                reply: reply_tx,
+            })
+            .await;
+        reply_rx.await.unwrap_or(None)
+    }
+
+    /// Retourne les `limit` dernières entrées d'historique pour un trigger (STORY-074).
+    ///
+    /// Retourne un vec vide si la persistance n'est pas configurée ou si le trigger
+    /// n'a pas encore été déclenché.
+    pub async fn query_history(
+        &self,
+        trigger_id: &str,
+        limit: usize,
+    ) -> Vec<crate::persistence::TriggerHistoryEntry> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let _ = self
+            .tx
+            .send(TriggerCommand::QueryHistory {
+                trigger_id: trigger_id.to_string(),
+                limit,
+                reply: reply_tx,
+            })
+            .await;
         reply_rx.await.unwrap_or_default()
     }
 

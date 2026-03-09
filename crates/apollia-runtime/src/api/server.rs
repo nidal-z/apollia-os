@@ -174,7 +174,10 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
     use super::routes_llm::llm_routes;
     use super::routes_sse::stream_task;
     use super::routes_tasks::{cancel_task, get_task, submit_task};
-    use super::routes_triggers::reload_triggers;
+    use super::routes_triggers::{
+        disable_trigger, enable_trigger, fire_trigger, get_trigger, get_trigger_logs,
+        list_triggers, reload_triggers,
+    };
     use super::routes_webhooks::handle_webhook;
 
     Router::new()
@@ -195,7 +198,14 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
             get(get_agent::<B>).delete(stop_agent::<B>),
         )
         .route("/webhooks/:id", post(handle_webhook::<B>))
+        // Trigger routes (STORY-073 reload + STORY-074 CRUD)
+        .route("/api/v1/triggers", get(list_triggers::<B>))
         .route("/api/v1/triggers/reload", post(reload_triggers::<B>))
+        .route("/api/v1/triggers/:id", get(get_trigger::<B>))
+        .route("/api/v1/triggers/:id/fire", post(fire_trigger::<B>))
+        .route("/api/v1/triggers/:id/enable", post(enable_trigger::<B>))
+        .route("/api/v1/triggers/:id/disable", post(disable_trigger::<B>))
+        .route("/api/v1/triggers/:id/logs", get(get_trigger_logs::<B>))
         .merge(llm_routes::<B>())
         .with_state(state)
 }
