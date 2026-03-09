@@ -1,0 +1,14 @@
+[package]
+name    = "apollia-notifications"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+apollia-core = { workspace = true }
+async-trait  = { workspace = true }
+chrono       = { workspace = true }
+serde        = { workspace = true, features = ["derive"] }
+serde_json   = { workspace = true }
+thiserror    = { workspace = true }
+tokio        = { workspace = true }
+tracing      = { workspace = true }

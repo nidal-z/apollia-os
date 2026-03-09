@@ -278,6 +278,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "apollia-notifications"
+version = "0.1.0"
+dependencies = [
+ "apollia-core",
+ "async-trait",
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "apollia-oria"
 version = "0.1.0"
 dependencies = [
