@@ -421,5 +421,29 @@
 
 ---
 
+## ADR-022 — ORIA Mode Orchestré : Option B (exécution directe outils) + hook `on_plan_complete`
+
+**Date :** 2026-03-09
+**Statut :** Accepté
+
+**Contexte :** Sprint 10 implémente le Mode Orchestré d'ORIA (ADR-004). La question centrale est : pendant l'exécution d'un plan multi-step, qui exécute les outils — ORIA ou l'agent Python ? Trois options ont été considérées : (A) ORIA délègue chaque step à `agent.run()`, (B) ORIA exécute les outils directement sans appeler `run()`, (C) ORIA injecte le plan dans un `agent.run()` unique. Une décision connexe porte sur le post-traitement optionnel des outputs agrégés par l'agent.
+
+**Décision :** Option B — ORIA exécute les outils directement via `ActorLoop`. `agent.run()` n'est jamais appelé pendant les steps du plan. L'agent est déclaratif : il fournit `manifest()` + `system_prompt`. Hook optionnel `on_plan_complete(step_results, ctx)` détecté via `hasattr` Python (duck typing ADR-003) pour le post-traitement métier custom. Si absent, ORIA concatène automatiquement les outputs.
+
+**Alternatives considérées :** Option A (rejetée : état inter-steps reporté sur l'agent, `StepBudget` partagé complexifie l'interface AIP), Option C (rejetée : expose `ExecutionPlan` à l'agent, contourne `ResilienceLayer` et persistance SQLite par step)
+
+**Conséquences :**
+- Agent déclaratif : `manifest()` + `system_prompt` suffisent pour le Mode Orchestré.
+- Tous les garde-fous runtime (`StepBudget`, `ResilienceLayer`, audit SQLite) appliqués systématiquement sans coopération de l'agent.
+- `ActorLoop` testable en Rust pur (mock `CompletionModel` + mock `ToolProxy`).
+- `system_prompt` obligatoire en Mode Orchestré → fail fast si absent (Principe #4).
+- L'agent ne peut pas modifier le plan step par step — replanification déléguée à ORIA (max 2 fois).
+
+**Principes impactés :** Principe #3 — Contrat minimal (respecté), Principe #4 — Fail fast (respecté), Principe #7 — Garde-fous non-négociables (respecté), Principe #5 — Un acteur une responsabilité (respecté)
+
+[Détail complet → docs/adr/ADR-022-oria-mode-orchestre-option-b.md](adr/ADR-022-oria-mode-orchestre-option-b.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
