@@ -445,5 +445,58 @@
 
 ---
 
+## ADR-023 — HITL : re-appel `agent.run()` avec `AIPTask.is_resumed` + `InputResponse`, `tools_requiring_approval` dans le manifest
+
+**Date :** 2026-03-09
+**Statut :** Accepté
+
+**Contexte :** Sprint 11 introduit le Human-in-the-Loop. Deux décisions de design encadrent le contrat AIP : (1) comment le runtime communique-t-il la réponse humaine à l'agent lors de la relance ? (2) comment l'agent déclare-t-il les outils nécessitant approbation avant exécution en Mode Orchestré ?
+
+**Décision :** Réutiliser `agent.run()` comme unique point d'entrée. `AIPTask` est enrichi de deux champs optionnels (`is_resumed: bool`, `input_response: InputResponse | None`). L'agent vérifie `if task.is_resumed` pour brancher sa logique de reprise. `tools_requiring_approval: list[str]` est un champ optionnel de `AgentManifest` — l'`ActorLoop` le consulte avant chaque step en Mode Orchestré.
+
+**Alternatives considérées :**
+- Option 2 — Nouveau hook `on_resume(response, ctx)` (rejetée : quatrième méthode AIP, comportement par défaut ambigu si absent, duplication `spawn_blocking`)
+- Option 3 — Réponse dans `MemoryManager`, agent lit via `ctx.memory` (rejetée : injection implicite contraire à Principe #6, couplage fort HITL ↔ apollia-memory)
+
+**Conséquences :**
+- `call_run()` dans `AIPBridge` réutilisé sans modification pour la reprise — zéro nouveau chemin d'exécution.
+- `InputResponse.context` persiste dans SQLite (`task_approvals`) — état de l'agent au moment de la suspension auditable.
+- Un agent qui n'implémente pas `if task.is_resumed` produira un comportement incorrect mais explicite à l'exécution.
+- `TimeoutWatcher` annule automatiquement après `input_required_timeout_hours` — garde-fou Principe #7.
+
+**Principes impactés :** Principe #3 — Contrat minimal (respecté), Principe #4 — Fail fast (ResumeHandler valide l'état), Principe #6 — Mémoire à initiative de l'agent (respecté), Principe #7 — Garde-fous non-négociables (TimeoutWatcher)
+
+[Détail complet → docs/adr/ADR-023-hitl-is-resumed-input-response-tools-requiring-approval.md](adr/ADR-023-hitl-is-resumed-input-response-tools-requiring-approval.md)
+
+---
+
+## ADR-024 — apollia-notifications : trait `NotificationChannel`, 3 canaux (desktop/SSE/webhook), payload JSON fixe Apollia
+
+**Date :** 2026-03-09
+**Statut :** Accepté
+
+**Contexte :** Sprint 11 introduit `apollia-notifications`. Trois décisions structurantes engagent l'interface publique et la configuration `apollia.toml` : (1) architecture push (EventBus) ou pull (polling SQLite), (2) canaux câblés en dur ou via trait commun extensible, (3) payload webhook JSON fixe Apollia ou templates configurables (Handlebars/Tera).
+
+**Décision :** `NotificationEngine` s'abonne directement à l'`EventBus` (push). Trait `NotificationChannel: Send + Sync` avec `send(&Notification)` — trois implémentations initiales : `DesktopChannel` (notify-rust v4), `SseChannel` (bridge EventBus → dashboard), `WebhookChannel` (reqwest). Payload webhook JSON fixe versionné (`"runtime": "apollia-os"`, `"version": "..."`, `"severity"`, `"metadata.resume_url"`). La transformation vers les formats propriétaires (Slack Block Kit, PagerDuty) est déléguée à l'intégrateur (n8n, Zapier).
+
+**Alternatives considérées :**
+- Polling SQLite (rejetée : latence 1–5s inacceptable pour HITL interactif, événements éphémères non capturables, complexité curseurs)
+- Templates Handlebars/Tera (rejetée : dépendance ~500 Ko, courbe d'apprentissage, bugs silencieux, transformation déjà couverte côté intégrateur)
+- Dashboard SSE uniquement, sans crate notifications (rejetée : l'utilisateur ne sait pas qu'une approbation l'attend si le dashboard n'est pas ouvert — objectif HITL non atteint)
+- Canaux câblés en dur sans trait (rejetée : ajout de canal → modification engine, tests impossibles sans canaux concrets)
+
+**Conséquences :**
+- `NotificationEngine` testable via `MockChannel : NotificationChannel`.
+- Latence quasi-nulle (abonnement EventBus direct).
+- Échec canal → `tracing::warn!` uniquement, runtime non affecté.
+- `notify-rust v4` requiert libnotify sur Linux headless → `NotifError::DesktopUnavailable` non-critique.
+- Table SQLite `notification_logs` nécessaire pour `apollia-os notify logs` — rotation TTL 30j à prévoir Sprint 12.
+
+**Principes impactés :** Principe #1 — Local-first (desktop/SSE offline), Principe #2 — Zéro dépendance externe (dépendances compilées statiquement), Principe #4 — Fail fast (config validée au démarrage), Principe #5 — Un acteur une responsabilité (dispatch uniquement)
+
+[Détail complet → docs/adr/ADR-024-apollia-notifications-trait-channel-json-fixe.md](adr/ADR-024-apollia-notifications-trait-channel-json-fixe.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
