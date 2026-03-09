@@ -287,6 +287,7 @@ mod tests {
             agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
             llm_router: None,
+            trigger_engine: None,
         }
     }
 

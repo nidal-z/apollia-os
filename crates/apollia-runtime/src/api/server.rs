@@ -20,6 +20,7 @@ use tokio::sync::watch;
 use tracing::info;
 
 use apollia_llm::LlmRouter;
+use apollia_triggers::TriggerEngineHandle;
 
 use crate::api::routes_agents::AgentLoader;
 use crate::coordinator::ExecutionBackend;
@@ -47,6 +48,10 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// Injected into each agent's `RuntimeContext` via `ctx.llm` (STORY-059).
     /// Agents receive `ctx.llm = None` and an `AgentDegraded` event if absent.
     pub llm_router: Option<Arc<LlmRouter>>,
+    /// Handle to the TriggerEngine actor — `None` before STORY-072 (Supervisor integration).
+    ///
+    /// Webhook route returns 503 Service Unavailable when this is `None` (AC-6).
+    pub trigger_engine: Option<TriggerEngineHandle>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -58,6 +63,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             agent_loader: Arc::clone(&self.agent_loader),
             backend: self.backend.clone(),
             llm_router: self.llm_router.clone(),
+            trigger_engine: self.trigger_engine.clone(),
         }
     }
 }
@@ -162,6 +168,7 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
     use super::routes_llm::llm_routes;
     use super::routes_sse::stream_task;
     use super::routes_tasks::{cancel_task, get_task, submit_task};
+    use super::routes_webhooks::handle_webhook;
 
     Router::new()
         .route("/api/v1/health", get(health_handler))
@@ -180,6 +187,7 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
             "/api/v1/agents/:id",
             get(get_agent::<B>).delete(stop_agent::<B>),
         )
+        .route("/webhooks/:id", post(handle_webhook::<B>))
         .merge(llm_routes::<B>())
         .with_state(state)
 }
@@ -345,6 +353,7 @@ mod tests {
             agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
             llm_router: None,
+            trigger_engine: None,
         }
     }
 

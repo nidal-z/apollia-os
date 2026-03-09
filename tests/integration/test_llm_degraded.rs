@@ -198,6 +198,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         agent_loader: Arc::new(StubAgentLoader),
         backend: NeverMockBackend,
         llm_router: None,
+        trigger_engine: None,
     };
 
     let api = APIServer::new(

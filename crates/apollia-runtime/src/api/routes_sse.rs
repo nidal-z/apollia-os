@@ -270,6 +270,7 @@ mod tests {
             agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
             llm_router: None,
+            trigger_engine: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))

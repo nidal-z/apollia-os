@@ -429,6 +429,7 @@ mod tests {
             agent_loader: loader,
             backend: MockBackend,
             llm_router: None,
+            trigger_engine: None,
         };
         let router = Router::new()
             .route(

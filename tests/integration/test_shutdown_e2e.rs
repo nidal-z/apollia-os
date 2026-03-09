@@ -151,6 +151,7 @@ async fn test_shutdown_drains_active_tasks() {
         agent_loader: std::sync::Arc::new(StubAgentLoader),
         backend: MockBackend::slow(Duration::from_millis(300)),
         llm_router: None,
+        trigger_engine: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -220,6 +221,7 @@ async fn test_shutdown_stops_all_agents() {
         agent_loader: std::sync::Arc::new(StubAgentLoader),
         backend: MockBackend::slow(Duration::ZERO),
         llm_router: None,
+        trigger_engine: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -279,6 +281,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         agent_loader: std::sync::Arc::new(StubAgentLoader),
         backend: MockBackend::slow(Duration::ZERO),
         llm_router: None,
+        trigger_engine: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -360,6 +363,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         agent_loader: std::sync::Arc::new(StubAgentLoader),
         backend: NeverBackend,
         llm_router: None,
+        trigger_engine: None,
     };
     let api = APIServer::new(
         APIServerConfig {

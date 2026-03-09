@@ -256,6 +256,7 @@ impl Supervisor {
             agent_loader,
             backend,
             llm_router: llm_router.clone(),
+            trigger_engine: None,
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -783,6 +784,7 @@ mod tests {
             agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
             llm_router: None,
+            trigger_engine: None,
         };
 
         // WHEN on clone l'AppState

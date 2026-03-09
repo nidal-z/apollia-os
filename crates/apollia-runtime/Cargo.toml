@@ -9,6 +9,11 @@ license = "MIT"
 apollia-core       = { workspace = true }
 apollia-llm        = { workspace = true }
 apollia-tools      = { workspace = true }
+apollia-triggers   = { path = "../apollia-triggers" }
+hmac               = "0.12"
+sha2               = "0.10"
+hex                = "0.4"
+constant_time_eq   = "0.3"
 tokio              = { workspace = true }
 serde              = { workspace = true }
 serde_json         = { workspace = true }
