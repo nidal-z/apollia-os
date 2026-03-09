@@ -328,6 +328,7 @@ dependencies = [
 name = "apollia-triggers"
 version = "0.1.0"
 dependencies = [
+ "apollia-core",
  "chrono",
  "serde",
  "serde_json",

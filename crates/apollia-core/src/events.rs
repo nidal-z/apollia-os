@@ -164,6 +164,38 @@ pub enum RuntimeEvent {
     /// Erreur fatale non récupérable.
     FatalError(String),
 
+    /// Un trigger a été déclenché — tâche soumise au runtime.
+    TriggerFired {
+        /// Identifiant du trigger qui a produit l'événement.
+        trigger_id: String,
+        /// Identifiant de la tâche soumise au TaskRouter.
+        task_id: TaskId,
+    },
+    /// Un trigger a été ignoré (OnBusyPolicy::Drop ou agent occupé).
+    TriggerSkipped {
+        /// Identifiant du trigger.
+        trigger_id: String,
+        /// Raison du skip.
+        reason: String,
+    },
+    /// Une erreur s'est produite lors du traitement d'un trigger.
+    TriggerError {
+        /// Identifiant du trigger.
+        trigger_id: String,
+        /// Message d'erreur.
+        error: String,
+    },
+    /// Un trigger a été activé via la CLI ou l'API.
+    TriggerEnabled {
+        /// Identifiant du trigger activé.
+        trigger_id: String,
+    },
+    /// Un trigger a été désactivé via la CLI ou l'API.
+    TriggerDisabled {
+        /// Identifiant du trigger désactivé.
+        trigger_id: String,
+    },
+
     /// Un backend LLM est en cours de chargement (avant `load()` ou initialisation HTTP).
     LlmModelLoading {
         /// Nom logique du backend tel que configuré dans `apollia.toml`.
@@ -260,6 +292,24 @@ mod tests {
                 completion_tokens: 50,
                 latency_ms: 250,
                 cost_usd: Some(0.001),
+            },
+            RuntimeEvent::TriggerFired {
+                trigger_id: "rapport-hebdo".into(),
+                task_id: "task-1".into(),
+            },
+            RuntimeEvent::TriggerSkipped {
+                trigger_id: "rapport-hebdo".into(),
+                reason: "agent busy, on_busy=drop".into(),
+            },
+            RuntimeEvent::TriggerError {
+                trigger_id: "rapport-hebdo".into(),
+                error: "agent not found".into(),
+            },
+            RuntimeEvent::TriggerEnabled {
+                trigger_id: "rapport-hebdo".into(),
+            },
+            RuntimeEvent::TriggerDisabled {
+                trigger_id: "rapport-hebdo".into(),
             },
         ];
 
