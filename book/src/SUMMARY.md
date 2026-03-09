@@ -15,6 +15,7 @@
   - [Tutoriel Hello Agent](agents/tutorial.md)
   - [RuntimeContext (ctx.*)](agents/runtime-context.md)
   - [Adapter LangGraph / CrewAI](agents/adapters.md)
+  - [Mode Orchestré (ORIA)](agents/mode-orchestre.md)
   - [Bonnes pratiques](agents/best-practices.md)
   - [Troubleshooting](agents/troubleshooting.md)
 
@@ -87,6 +88,7 @@
   - [ADR-019 — ADR-019 — Trait AgentLoader pour decoupler apollia-runtime de PyO3](decisions/adr-019-agent-loader-trait-decouplage-runtime-pyo3.md)
   - [ADR-020 — ADR-020 — apollia-llm : moteur d'inférence embarqué, modèles fichiers externes, feature flags](decisions/adr-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md)
   - [ADR-021 — apollia-triggers : TOML-only, HMAC-SHA256 webhooks, hot reload sans restart](decisions/adr-021-apollia-triggers-toml-hmac-hot-reload.md)
+  - [ADR-022 — ORIA Mode Orchestré : Option B (exécution directe outils) + hook on_plan_complete](decisions/adr-022-oria-mode-orchestre-option-b.md)
 
 ---
 

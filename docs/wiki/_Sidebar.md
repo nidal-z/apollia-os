@@ -7,6 +7,7 @@
 **Guides Agents**
 - [[Agents-Tutoriel-Hello-Agent|Tutoriel Hello Agent]]
 - [[Agents-RuntimeContext-Guide|RuntimeContext (ctx.*)]]
+- [[Agents-Mode-Orchestre|Mode Orchestré (ORIA)]]
 - [[Agents-Adapter-Existants|Adapter LangGraph / CrewAI]]
 - [[Agents-Bonnes-Pratiques|Bonnes pratiques]]
 - [[Agents-Troubleshooting|Troubleshooting]]

@@ -29,8 +29,12 @@ rectangle "LlmRouter\nArc<dyn CompletionModel>\nposition 5 Supervisor" as llm #4
 
 rectangle "TriggerEngine\nmpsc acteur Tokio\nTriggerDefinitions + sources\nposition 6 Supervisor" as trig #1a1a2e
 
-rectangle "ORIA Engine\n(Observer + Reasoner + Actor)" as oria #1a1a2e
-rectangle "AIP Bridge (PyO3)\n(RuntimeContext + LlmProxy)" as aip #1a1a2e
+rectangle "ORIA Engine" as oriabox #1a1a2e {
+  rectangle "Observer + Reasoner\n(classify + LLM plan)" as oria #1a1a2e
+  rectangle "ActorLoop\n(exécution topologique\nToolProxyTrait + replan max 2)" as actor #1a1a2e
+  database "PlanRepository\n(~/.apollia/plans.db)\nmigration 004" as plandb #2a3a4a
+}
+rectangle "AIP Bridge (PyO3)\n(RuntimeContext + LlmProxy\n+ on_plan_complete hook)" as aip #1a1a2e
 actor "CLI / Client HTTP / Browser" as cli #3a3a3a/white
 
 ' --- ordre de démarrage Supervisor (1→7) ---
@@ -52,7 +56,10 @@ llm    --> bus    : publie\nLlmModelLoading / Ready / Failed\nLlmCallCompleted
 router --> reg    : GetByName / Transition\n(mpsc message)
 router --> coord  : dispatch\nSubmitTask
 
-coord  --> oria   : execute_direct()\nexecute_orchestrated()\n(AIPBridge backend)
+coord  --> oria   : execute_direct()\n(Mode Direct)
+coord  --> actor  : execute_orchestrated()\n(Mode Orchestré)
+actor  --> plandb : insert_plan / start_step\ncomplete_step / complete_plan
+actor  --> bus    : PlanGenerated / StepStarted\nStepCompleted / StepFailed\nPlanReplanning / PlanCompleted
 coord  --> bus    : publie\nTaskCompleted / TaskFailed
 
 api    --> router : Submit / GetStatus / Cancel\n(mpsc message)

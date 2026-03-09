@@ -60,8 +60,19 @@ pub enum ExecutionMode {
     Direct,        // ReAct supervisé, tâche atomique
     Orchestrated,  // Reasoner + Actor découplés
 }
+```
 
+Le champ `execution_mode` de l'`AgentManifest` permet un override explicite (`"direct"` | `"orchestrated"`). La valeur `"auto"` (défaut) déclenche l'heuristique :
+
+```rust
 fn classify(task: &AIPTask, manifest: &AgentManifest) -> ExecutionMode {
+    // Override explicite depuis le manifest Python
+    match manifest.execution_mode.as_str() {
+        "direct" => return ExecutionMode::Direct,
+        "orchestrated" => return ExecutionMode::Orchestrated,
+        _ => {}  // "auto" ou valeur inconnue → heuristique
+    }
+
     let is_complex =
         manifest.step_budget.as_ref()
             .map(|b| b.max_steps > 15)
@@ -74,6 +85,23 @@ fn classify(task: &AIPTask, manifest: &AgentManifest) -> ExecutionMode {
     else { ExecutionMode::Direct }
 }
 ```
+
+**Configuration Python de l'agent :**
+
+```python
+from apollia_aip import AgentManifest
+
+def manifest(self):
+    return AgentManifest(
+        name="analyse-contrat",
+        execution_mode="orchestrated",   # Force le Mode Orchestré
+        system_prompt="Tu es un expert juridique spécialisé dans l'analyse de contrats...",
+        tools_required=["file_io"],
+        # ...
+    )
+```
+
+Le champ `system_prompt` est injecté par ORIA dans les prompts du Reasoner pour personnaliser la planification par domaine métier.
 
 ---
 
@@ -160,79 +188,104 @@ L'Actor est le composant qui traduit les steps en appels concrets aux outils, ob
 
 ### 4.1 Boucle Actor en Mode Orchestré
 
+L'`ActorLoop` exécute un `ExecutionPlan` en ordre topologique. En Mode Orchestré (Option B — ADR-022), `agent.run()` n'est **jamais** appelé pendant les steps : ORIA appelle les outils et le LLM directement via `ToolProxyTrait`.
+
 ```rust
-impl ActorLoop {
-    pub async fn execute(&mut self, agent: &dyn AIPAgent) -> AIPResult {
-        let mut completed_outputs: HashMap<String, String> = HashMap::new();
+/// Abstraction du ToolProxy pour l'ActorLoop — permet les tests sans PyO3.
+#[async_trait::async_trait]
+pub trait ToolProxyTrait: Send + Sync {
+    async fn invoke(&self, tool_name: &str, input: &serde_json::Value) -> Result<String, String>;
+}
 
-        for step in &mut self.plan.steps {
-            // Vérifier les dépendances
-            if !self.deps_satisfied(step, &completed_outputs) {
-                continue;
-            }
+/// Erreur d'un step individuel.
+#[derive(Debug, thiserror::Error)]
+pub enum StepError {
+    #[error("Tool call failed: {0}")]
+    ToolCallFailed(String),
+    #[error("LLM call failed: {0}")]
+    LlmCallFailed(String),
+    #[error("No LLM backend configured")]
+    NoLlmBackend,
+    #[error("Tool not found: {0}")]
+    ToolNotFound(String),
+}
 
-            // Vérifier le budget
-            if self.step_budget.is_exhausted() {
-                return AIPResult::failed(
-                    "STEP_BUDGET_EXCEEDED",
-                    &format!("Budget de {} steps atteint", self.step_budget.max)
-                );
-            }
-
-            // Exécuter avec résilience
-            let result = self.resilience
-                .execute(|| agent.run_step(step, &self.ctx))
-                .await;
-
-            self.step_budget.increment();
-
-            match result {
-                Ok(output) => {
-                    step.status = StepStatus::Completed { output: output.clone() };
-                    completed_outputs.insert(step.step_id.clone(), output);
-                }
-                Err(e) if e.retryable && self.replan_count < 2 => {
-                    // Demander une replanification
-                    return self.request_replan(step, e).await;
-                }
-                Err(e) => {
-                    return AIPResult::failed(&e.code, &e.message);
-                }
-            }
-        }
-
-        AIPResult::completed(self.collect_outputs(&completed_outputs))
+impl StepError {
+    /// Retourne true si l'erreur peut déclencher une replanification.
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, StepError::ToolCallFailed(_) | StepError::LlmCallFailed(_))
     }
 }
+```
+
+Pipeline d'exécution de l'`ActorLoop` :
+
+```
+ActorLoop::execute()
+  ├── topological_sort(plan.steps)          → ordre d'exécution garanti
+  ├── Pour chaque step dans l'ordre :
+  │   ├── StepBudget::is_exhausted()        → STEP_BUDGET_EXCEEDED si épuisé
+  │   ├── db.start_step()                   → SQLite persistance
+  │   ├── EventBus: StepStarted { step_id, step_num, total, desc }
+  │   ├── execute_step()                    → outil via ToolProxyTrait OU LLM via LlmRouter
+  │   ├── budget.increment_steps()
+  │   ├── db.complete_step() / db.fail_step()
+  │   └── EventBus: StepCompleted { duration_ms } / StepFailed { error, retryable }
+  ├── Si step échoue (retryable) + replan_count < max_replans :
+  │   ├── EventBus: PlanReplanning { attempt, failed_step, reason }
+  │   └── reasoner.replan() → nouveau plan → execute_remaining()
+  └── Tous steps complétés :
+      ├── db.complete_plan()
+      └── EventBus: PlanCompleted { step_count, duration_ms }
 ```
 
 ### 4.2 Replanification (Mode Orchestré uniquement)
 
-Si un step critique échoue, l'Actor peut demander une replanification plutôt qu'un abandon immédiat. **Maximum 2 replans** — au-delà, la tâche échoue proprement.
+Si un step retryable échoue, l'Actor déclenche une replanification LLM plutôt qu'un abandon immédiat. **Maximum 2 replans** — au-delà, `MAX_REPLAN_EXCEEDED` est retourné.
+
+Le Reasoner reçoit le plan original, le step ayant échoué, et son erreur, puis génère un plan alternatif. L'`ActorLoop` reprend l'exécution avec le nouveau plan en sautant les steps déjà complétés.
+
+**Pourquoi max 2 replans :** La replanification sans limite est le vecteur principal de boucles infinies et de coûts LLM incontrôlés. 2 replans offrent une seconde chance pour les erreurs transitoires sans risque de récursion incontrôlée.
+
+### 4.3 Persistance SQLite — PlanRepository
+
+Chaque plan et chaque step sont persistés en temps réel dans `~/.apollia/plans.db` (migration `004_execution_plans.sql`).
 
 ```rust
-async fn request_replan(&self, failed_step: &PlanStep, error: AIPError) -> AIPResult {
-    if self.replan_count >= 2 {
-        return AIPResult::failed(
-            "MAX_REPLAN_EXCEEDED",
-            "Impossible de replanner après 2 tentatives"
-        );
-    }
+pub struct PlanRepository { /* connexion SQLite */ }
 
-    // Appel LLM pour générer un plan alternatif
-    let new_plan = self.reasoner
-        .replan(&self.plan, failed_step, &error, &self.ctx)
-        .await?;
-
-    self.plan = new_plan;
-    self.replan_count += 1;
-
-    // Recommencer l'exécution avec le nouveau plan
-    self.execute(self.agent).await
+impl PlanRepository {
+    pub fn insert_plan(&self, plan_id: &str, task_id: &str, agent_name: &str,
+                       steps: &[PlanStep]) -> Result<(), PlanRepositoryError>;
+    pub fn start_step(&self, plan_id: &str, step_id: &str) -> Result<(), PlanRepositoryError>;
+    pub fn complete_step(&self, plan_id: &str, step_id: &str,
+                         output: &str) -> Result<(), PlanRepositoryError>;
+    pub fn fail_step(&self, plan_id: &str, step_id: &str,
+                     error: &str) -> Result<(), PlanRepositoryError>;
+    pub fn complete_plan(&self, plan_id: &str) -> Result<(), PlanRepositoryError>;
+    pub fn fail_plan(&self, plan_id: &str, reason: &str) -> Result<(), PlanRepositoryError>;
+    pub fn get_plan_with_steps(&self, task_id: &str) -> Result<PlanWithSteps, PlanRepositoryError>;
 }
 ```
 
-**Pourquoi max 2 replans :** La replanification sans limite est le vecteur principal de boucles infinies et de coûts LLM incontrôlés. 2 replans offrent une seconde chance pour les erreurs transitoires sans exposer le système à des récursions incontrôlées.
+`get_plan_with_steps()` est utilisé par `apollia-os task inspect` pour afficher le plan post-exécution sans nécessiter un runtime démarré.
+
+### 4.4 Hook `on_plan_complete()` (optionnel)
+
+Après l'exécution complète du plan, ORIA appelle le hook Python `on_plan_complete()` si l'agent l'expose (duck typing via `hasattr`). L'agent reçoit les outputs de tous les steps et peut appliquer une logique métier finale.
+
+```python
+# Hook optionnel — le contrat AIP minimal (manifest + run) reste suffisant
+async def on_plan_complete(self, step_results: dict[str, str], ctx) -> str:
+    """
+    step_results: { "s1": "output du step 1", "s2": "output du step 2", ... }
+    Retourne la réponse finale (str).
+    """
+    rapport = "\n\n".join(step_results.values())
+    return f"## Rapport consolidé\n\n{rapport}"
+```
+
+Si le hook est absent, ORIA concatène automatiquement les outputs des steps et retourne un `AIPResult::Completed`.
 
 ---
 
@@ -437,16 +490,26 @@ Mode Direct
       └── supervision StepBudget + ResilienceLayer sur chaque tool_call
 
 Mode Orchestré
-  └── ORIA.Reasoner.plan(context_bundle)  → ExecutionPlan
-  └── ORIA.Actor.execute(plan, agent, ctx)
-      └── step by step, avec replan si nécessaire (max 2)
-      └── supervision StepBudget + ResilienceLayer
+  └── ORIA.Reasoner.plan(context_bundle)  → ExecutionPlan (JSON LLM)
+  └── PlanRepository.insert_plan()       → SQLite (~/.apollia/plans.db)
+  └── EventBus: PlanGenerated { plan_id, step_count }
+  └── ORIA.ActorLoop.execute(plan)
+      └── Pour chaque step (ordre topologique) :
+          ├── EventBus: StepStarted { step_id, step_num, total, desc }
+          ├── execute_step() → outil ou LLM
+          └── EventBus: StepCompleted / StepFailed
+      └── Si step échoue (retryable) + replan_count < 2 :
+          ├── EventBus: PlanReplanning { attempt, failed_step }
+          └── reasoner.replan() → nouveau plan → reprendre
+  └── Si agent.on_plan_complete() → appel hook
+  └── PlanRepository.complete_plan() / fail_plan()
+  └── EventBus: PlanCompleted / PlanFailed
 
 AIPResult → Runtime Core
   └── Audit log SQLite
   └── EventBus.broadcast(TaskCompleted/Failed)
   └── TaskState → completed | failed | input_required | canceled
-  └── SSE stream si supports_streaming=True
+  └── SSE stream → tous les events PlanGenerated/Step* émis en temps réel
 ```
 
 ---

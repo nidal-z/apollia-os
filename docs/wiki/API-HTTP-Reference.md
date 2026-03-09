@@ -226,18 +226,39 @@ Flux SSE temps réel des événements d'une tâche.
 
 **Headers :** `Accept: text/event-stream`
 
-**Événements :**
+**Événements Mode Direct :**
 ```
-data: {"event":"TaskStarted","task_id":"t-abc123","agent_id":"agent-def456"}
+data: {"event":"started","task_id":"t-abc123","agent_id":"agent-def456"}
 
-data: {"event":"StepCompleted","task_id":"t-abc123","step":1}
-
-data: {"event":"ToolCalled","task_id":"t-abc123","tool":"file_io","duration_ms":12}
-
-data: {"event":"TaskCompleted","task_id":"t-abc123","status":"completed"}
+data: {"event":"completed","task_id":"t-abc123","status":"completed","output":"..."}
 ```
 
-Le flux se ferme après l'événement terminal (`TaskCompleted`, `TaskFailed`, `TaskCanceled`).
+**Événements Mode Orchestré (Sprint 10) :**
+```
+data: {"event":"plan_generated","task_id":"t-abc123","plan_id":"p-001","step_count":3,
+       "steps":[{"step_id":"s1","description":"Lire le fichier","tool_hint":"file_io","depends_on":[]},
+                {"step_id":"s2","description":"Analyser","tool_hint":null,"depends_on":["s1"]}]}
+
+data: {"event":"step_started","task_id":"t-abc123","plan_id":"p-001",
+       "step_id":"s1","num":1,"total":3,"desc":"Lire le fichier"}
+
+data: {"event":"step_completed","task_id":"t-abc123","plan_id":"p-001",
+       "step_id":"s1","duration_ms":120}
+
+data: {"event":"step_failed","task_id":"t-abc123","plan_id":"p-001",
+       "step_id":"s2","error":"file not found","retryable":true}
+
+data: {"event":"plan_replanning","task_id":"t-abc123","plan_id":"p-001",
+       "attempt":1,"failed_step":"s2","reason":"file not found"}
+
+data: {"event":"plan_completed","task_id":"t-abc123","plan_id":"p-001",
+       "step_count":3,"duration_ms":4100}
+
+data: {"event":"plan_failed","task_id":"t-abc123","plan_id":"p-001",
+       "reason":"MAX_REPLAN_EXCEEDED"}
+```
+
+**Événements terminaux :** `completed`, `failed`, `canceled`, `plan_failed`. Le flux se ferme après réception d'un événement terminal.
 
 ---
 

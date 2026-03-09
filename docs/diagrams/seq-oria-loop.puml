@@ -55,23 +55,24 @@ alt Mode Direct (tâche courte, outils simples)
     coord -> budget : decrement(steps=1, tool_calls=N)
   end
 
-else Mode Orchestré (tâche complexe, multi-étapes)
+else Mode Orchestré (tâche complexe, multi-étapes — ADR-022 Option B)
 
   obs --> coord : Orchestrated
 
   coord -> reasoner : plan(context_bundle)\n[Arc<dyn CompletionModel>]
 
   loop retry JSON (max 3 si parse échoue)
-    reasoner -> reasoner : complete(prompt_planner)
-    reasoner -> reasoner : parse JSON → ExecutionPlan
+    reasoner -> reasoner : complete(prompt_planner\n+ system_prompt agent)
+    reasoner -> reasoner : parse JSON → ExecutionPlan\ntopological_sort() + DFS cycle check
     alt JSON invalide
-      reasoner -> reasoner : correction_message\n→ retry
+      reasoner -> reasoner : correction_message → retry
     end
   end
 
   reasoner --> coord : ExecutionPlan { steps: Vec<PlanStep> }
+  note right : agent.run() N'EST PAS appelé\nActorLoop exécute outils directement\n(ToolProxyTrait)
 
-  loop chaque step du plan
+  loop chaque step (ordre topologique)
     coord -> budget : check_remaining()
 
     alt budget épuisé
@@ -79,15 +80,22 @@ else Mode Orchestré (tâche complexe, multi-étapes)
       coord --> coord : TaskStatus::Failed
     end
 
-    coord -> agent : agent.run(step_task, ctx)
-    agent --> coord : StepResult
+    coord -> tools : ToolProxyTrait::invoke(tool_hint, input)
+    tools --> coord : output (String)
 
-    alt step failed ET replan_count < 2
+    alt step failed retryable ET replan_count < 2
       coord -> reasoner : replan(plan, failed_step, error)
       reasoner --> coord : ExecutionPlan (révisé)
     else replan_count >= 2
       coord --> coord : TaskStatus::Failed\n(MAX_REPLAN_EXCEEDED)
     end
+  end
+
+  alt hasattr(agent, "on_plan_complete") == True
+    coord -> agent : on_plan_complete(step_results, ctx)
+    agent --> coord : AIPResult (str)
+  else hook absent
+    coord -> coord : concaténation auto outputs
   end
 
 end

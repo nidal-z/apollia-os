@@ -114,7 +114,29 @@ $ apollia-os status --json
 
 ### `apollia-os run`
 
+En Mode Orchestré, `apollia-os run` affiche le plan généré, la progression step par step en temps réel, et les notices de replanification.
+
 ```bash
+# Mode Direct (comportement inchangé)
+$ apollia-os run devis-generator "Génère un devis pour Dupont SA, 5 jours, 850€/jour"
+
+# Mode Orchestré — affichage plan + steps temps réel
+$ apollia-os run analyse-contrat "Analyse ce contrat et extrait les clauses clés"
+
+  Plan généré (3 étapes) :
+  ├── [s1] Lire le fichier contrat  → file_io
+  ├── [s2] Extraire les clauses  → llm  (attend s1)
+  └── [s3] Produire le rapport  → llm  (attend s2)
+
+  ● [1/3] Lire le fichier contrat...
+  ✔ [1/3] (complété)  0.1s
+  ● [2/3] Extraire les clauses...
+  ✔ [2/3] (complété)  1.8s
+  ● [3/3] Produire le rapport...
+  ✔ [3/3] (complété)  2.1s
+
+  ✔ Tâche complétée en 4.1s
+
 $ apollia-os run devis-generator "Génère un devis pour Dupont SA, 5 jours, 850€/jour"
   → Tâche t-009 soumise à devis-generator
   ⠿ Exécution en cours...
@@ -202,7 +224,29 @@ $ apollia-os task retry t-007
 
 # Reprendre une tâche input_required
 $ apollia-os task resume t-012 --input "Approuvé, procéder à l'envoi"
+
+# Inspecter le plan d'exécution d'une tâche orchestrée (Sprint 10)
+# Lit directement ~/.apollia/plans.db — ne nécessite pas un runtime démarré
+$ apollia-os task inspect t-abc123
+
+  Tâche       : t-abc123
+  Agent       : analyse-contrat
+  Mode        : orchestré
+  Statut      : completed
+  Créé        : 2026-03-09T14:32:00Z
+  Replanif.   : 0/2
+
+  Plan d'exécution :
+  ✔ [s1]  Lire le fichier contrat  → file_io
+  ✔ [s2]  Extraire les clauses  → llm
+  ✔ [s3]  Produire le rapport  → llm
+
+$ apollia-os task inspect t-abc123 --json
+# → JSON complet avec outputs par step, durées, erreurs
 ```
+
+> Pour les tâches Mode Direct (pas de plan SQLite), `task inspect` répond :
+> `La tâche t-xxx n'a pas de plan d'exécution (mode direct ou plan non persisté).`
 
 ### `apollia-os tools <verb>`
 
