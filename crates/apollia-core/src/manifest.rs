@@ -7,6 +7,11 @@ fn default_max_concurrent_tasks() -> u32 {
     1
 }
 
+/// Default value for `AgentManifest::execution_mode`.
+fn default_execution_mode() -> String {
+    "auto".to_string()
+}
+
 /// Identité et capacités déclarées d'un agent.
 ///
 /// Source unique de vérité pour la résolution des outils et la configuration
@@ -56,6 +61,21 @@ pub struct AgentManifest {
     /// Compétences déclaratives de l'agent (utilisées pour la carte A2A).
     #[serde(default)]
     pub skills: Vec<AgentSkill>,
+    /// Mode d'exécution ORIA : `"auto"` | `"direct"` | `"orchestrated"`.
+    ///
+    /// - `"auto"` (défaut) : l'heuristique `classify()` décide.
+    /// - `"direct"` : force le Mode Direct quel que soit le manifest.
+    /// - `"orchestrated"` : force le Mode Orchestré quel que soit le manifest.
+    ///
+    /// Toute valeur inconnue est traitée comme `"auto"` sans erreur.
+    #[serde(default = "default_execution_mode")]
+    pub execution_mode: String,
+    /// Prompt système fourni à ORIA pour planifier l'exécution orchestrée.
+    ///
+    /// Requis si `execution_mode = "orchestrated"` (validation dans STORY-085).
+    /// Ignoré pour les autres modes.
+    #[serde(default)]
+    pub system_prompt: Option<String>,
 }
 
 /// Compétence déclarative d'un agent.
@@ -98,6 +118,8 @@ mod tests {
             dangerous_tools_allowed: false,
             tags: vec![],
             skills: vec![],
+            execution_mode: "auto".to_string(),
+            system_prompt: None,
         };
         // WHEN
         let json = serde_json::to_string(&manifest).expect("serialization failed");
@@ -125,6 +147,8 @@ mod tests {
             dangerous_tools_allowed: false,
             tags: vec![],
             skills: vec![],
+            execution_mode: "auto".to_string(),
+            system_prompt: None,
         };
         // THEN
         assert_eq!(manifest.max_concurrent_tasks, 1);

@@ -77,14 +77,26 @@ pub enum ObserverError {
 
 /// Classifies a task as Direct or Orchestrated.
 ///
-/// Pure function based on simple heuristics.
+/// Honours the `execution_mode` field of the manifest first:
+/// - `"orchestrated"` → always [`ExecutionMode::Orchestrated`], skipping the heuristic.
+/// - `"direct"` → always [`ExecutionMode::Direct`], skipping the heuristic.
+/// - `"auto"` (or any unknown value) → falls through to the heuristic below.
 ///
-/// Complexity criteria (any single one triggers Orchestrated):
+/// Heuristic complexity criteria (any single one triggers Orchestrated):
 /// - `manifest.step_budget.max_steps > 15`
 /// - `task.input.parts.len() > 3`
-/// - `manifest.tags` contains "multi-step"
+/// - `manifest.tags` contains `"multi-step"`
 /// - `manifest.tools_required.len() > 4`
+///
+/// This is a **pure function** — no side effects, deterministic output.
 pub fn classify(task: &AIPTask, manifest: &AgentManifest) -> ExecutionMode {
+    // Override explicite — priorité absolue sur l'heuristique.
+    match manifest.execution_mode.as_str() {
+        "orchestrated" => return ExecutionMode::Orchestrated,
+        "direct" => return ExecutionMode::Direct,
+        _ => {} // "auto" ou valeur inconnue → heuristique
+    }
+
     let budget = manifest.step_budget.clone().unwrap_or_default();
 
     let is_complex = budget.max_steps > COMPLEXITY_STEP_THRESHOLD
@@ -197,6 +209,8 @@ mod tests {
             dangerous_tools_allowed: false,
             tags: vec![],
             skills: vec![],
+            execution_mode: "auto".to_string(),
+            system_prompt: None,
         }
     }
 
@@ -227,6 +241,8 @@ mod tests {
             dangerous_tools_allowed: false,
             tags: vec![],
             skills: vec![],
+            execution_mode: "auto".to_string(),
+            system_prompt: None,
         }
     }
 
@@ -402,5 +418,106 @@ mod tests {
 
         // THEN
         assert_eq!(mode, ExecutionMode::Orchestrated);
+    }
+
+    // STORY-079 — AC-1 : override explicite "orchestrated"
+    #[test]
+    fn test_ac1_orchestrated_override() {
+        // GIVEN un manifest avec execution_mode = "orchestrated"
+        let mut manifest = simple_manifest();
+        manifest.execution_mode = "orchestrated".to_string();
+        let task = simple_task();
+
+        // WHEN
+        let mode = classify(&task, &manifest);
+
+        // THEN : override prime, même pour un agent simple
+        assert_eq!(mode, ExecutionMode::Orchestrated);
+    }
+
+    // STORY-079 — AC-2 : override explicite "direct" même avec 6 outils
+    #[test]
+    fn test_ac2_direct_override_despite_many_tools() {
+        // GIVEN un manifest avec execution_mode = "direct" et 6 outils (> 4)
+        let mut manifest = simple_manifest();
+        manifest.execution_mode = "direct".to_string();
+        manifest.tools_required = vec!["a", "b", "c", "d", "e", "f"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let task = simple_task();
+
+        // WHEN
+        let mode = classify(&task, &manifest);
+
+        // THEN : l'override prime sur l'heuristique
+        assert_eq!(mode, ExecutionMode::Direct);
+    }
+
+    // STORY-079 — AC-3 : "auto" + 5 outils → heuristique Orchestrated
+    #[test]
+    fn test_ac3_auto_heuristic_orchestrated_on_many_tools() {
+        // GIVEN un manifest avec execution_mode = "auto" et 5 outils
+        let mut manifest = simple_manifest();
+        manifest.execution_mode = "auto".to_string();
+        manifest.tools_required = vec!["a", "b", "c", "d", "e"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let task = simple_task();
+
+        // WHEN
+        let mode = classify(&task, &manifest);
+
+        // THEN : heuristique → Orchestrated (5 > 4)
+        assert_eq!(mode, ExecutionMode::Orchestrated);
+    }
+
+    // STORY-079 — AC-4 : "auto" + agent simple → Direct
+    #[test]
+    fn test_ac4_auto_heuristic_direct_on_simple_agent() {
+        // GIVEN un manifest avec execution_mode = "auto" et 1 outil
+        let mut manifest = simple_manifest();
+        manifest.execution_mode = "auto".to_string();
+        manifest.tools_required = vec!["file_io".to_string()];
+        let task = simple_task();
+
+        // WHEN
+        let mode = classify(&task, &manifest);
+
+        // THEN : heuristique → Direct
+        assert_eq!(mode, ExecutionMode::Direct);
+    }
+
+    // STORY-079 — AC-5 : serde round-trip JSON → execution_mode + system_prompt
+    #[test]
+    fn test_ac5_serde_round_trip() {
+        use apollia_core::AgentManifest;
+
+        // GIVEN un JSON avec execution_mode et system_prompt
+        let json = r#"{"name":"a","version":"1.0.0","description":"d","tools_required":[],"execution_mode":"orchestrated","system_prompt":"Planifie."}"#;
+
+        // WHEN
+        let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize");
+
+        // THEN
+        assert_eq!(manifest.execution_mode, "orchestrated");
+        assert_eq!(manifest.system_prompt, Some("Planifie.".to_string()));
+    }
+
+    // STORY-079 — valeur par défaut "auto" quand le champ est absent
+    #[test]
+    fn test_default_execution_mode_is_auto() {
+        use apollia_core::AgentManifest;
+
+        // GIVEN un JSON minimal sans execution_mode
+        let json = r#"{"name":"a","version":"1.0.0","description":"d","tools_required":[]}"#;
+
+        // WHEN
+        let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize");
+
+        // THEN
+        assert_eq!(manifest.execution_mode, "auto");
+        assert_eq!(manifest.system_prompt, None);
     }
 }

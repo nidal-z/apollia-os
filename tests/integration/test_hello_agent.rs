@@ -66,6 +66,8 @@ fn test_manifest_for(name: &str) -> AgentManifest {
         dangerous_tools_allowed: false,
         tags: vec![],
         skills: vec![],
+        execution_mode: "auto".to_string(),
+        system_prompt: None,
     }
 }
 
