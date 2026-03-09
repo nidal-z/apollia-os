@@ -4,5 +4,7 @@
 // - webhook : Requêtes HTTP POST vers une URL configurée (STORY-101)
 
 pub mod desktop;
+pub mod webhook;
 
 pub use desktop::DesktopChannel;
+pub use webhook::WebhookChannel;
