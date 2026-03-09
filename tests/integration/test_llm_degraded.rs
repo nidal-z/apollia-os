@@ -85,6 +85,11 @@ async fn test_runtime_starts_without_llm_router() {
         agent_loader: Arc::new(StubAgentLoader),
         backend: NeverMockBackend,
         llm_router: None, // aucun LLM configuré
+        trigger_engine: None,
+        config_path: None,
+        task_repository: None,
+        pending_approvals: None,
+        notification_config: None,
     };
 
     // WHEN l'APIServer démarre
@@ -200,6 +205,9 @@ async fn test_runtime_continues_after_llm_init_failure() {
         llm_router: None,
         trigger_engine: None,
         config_path: None,
+        task_repository: None,
+        pending_approvals: None,
+        notification_config: None,
     };
 
     let api = APIServer::new(

@@ -30,11 +30,16 @@ hmac             = "0.12"
 hex              = "0.4"
 
 # Optional: only when python-tests feature is enabled
-apollia-aip = { workspace = true, optional = true }
-pyo3        = { workspace = true, optional = true }
+apollia-aip           = { workspace = true, optional = true }
+pyo3                  = { workspace = true, optional = true }
+apollia-notifications = { workspace = true }
+reqwest               = { workspace = true, features = ["json"] }
+rusqlite              = { workspace = true }
+chrono                = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
+wiremock = "0.6"
 
 # --- Integration test binaries ---
 
@@ -93,3 +98,19 @@ required-features = ["python-tests"]
 [[test]]
 name = "test_oria_orchestrated"
 path = "integration/test_oria_orchestrated.rs"
+
+[[test]]
+name = "test_hitl_direct"
+path = "integration/test_hitl_direct.rs"
+
+[[test]]
+name = "test_hitl_orchestrated"
+path = "integration/test_hitl_orchestrated.rs"
+
+[[test]]
+name = "test_hitl_timeout"
+path = "integration/test_hitl_timeout.rs"
+
+[[test]]
+name = "test_webhook_notification"
+path = "integration/test_webhook_notification.rs"

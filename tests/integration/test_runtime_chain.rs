@@ -79,6 +79,9 @@ fn build_app_state() -> AppState<MockBackend> {
         llm_router: None,
         trigger_engine: None,
         config_path: None,
+        task_repository: None,
+        pending_approvals: None,
+        notification_config: None,
     }
 }
 

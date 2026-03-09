@@ -157,6 +157,9 @@ async fn test_shutdown_drains_active_tasks() {
         llm_router: None,
         trigger_engine: None,
         config_path: None,
+        task_repository: None,
+        pending_approvals: None,
+        notification_config: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -228,6 +231,9 @@ async fn test_shutdown_stops_all_agents() {
         llm_router: None,
         trigger_engine: None,
         config_path: None,
+        task_repository: None,
+        pending_approvals: None,
+        notification_config: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -289,6 +295,9 @@ async fn test_shutdown_broadcasts_requested_event() {
         llm_router: None,
         trigger_engine: None,
         config_path: None,
+        task_repository: None,
+        pending_approvals: None,
+        notification_config: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -372,6 +381,9 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         llm_router: None,
         trigger_engine: None,
         config_path: None,
+        task_repository: None,
+        pending_approvals: None,
+        notification_config: None,
     };
     let api = APIServer::new(
         APIServerConfig {

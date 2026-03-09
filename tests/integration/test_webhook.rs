@@ -143,6 +143,9 @@ async fn build_webhook_state(
         llm_router: None,
         trigger_engine: Some(engine_handle),
         config_path: None,
+        task_repository: None,
+        pending_approvals: None,
+        notification_config: None,
     };
     (state, submit_count)
 }
