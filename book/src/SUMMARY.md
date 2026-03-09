@@ -39,6 +39,7 @@
   - [ORIA Engine](components/oria-engine.md)
   - [LLM Backend](components/llm-backend.md)
   - [Triggers Engine](components/triggers.md)
+  - [Notifications Engine](components/notifications.md)
   - [CLI](components/cli.md)
 
 # API & Intégration
@@ -89,6 +90,8 @@
   - [ADR-020 — ADR-020 — apollia-llm : moteur d'inférence embarqué, modèles fichiers externes, feature flags](decisions/adr-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md)
   - [ADR-021 — apollia-triggers : TOML-only, HMAC-SHA256 webhooks, hot reload sans restart](decisions/adr-021-apollia-triggers-toml-hmac-hot-reload.md)
   - [ADR-022 — ORIA Mode Orchestré : Option B (exécution directe outils) + hook on_plan_complete](decisions/adr-022-oria-mode-orchestre-option-b.md)
+  - [ADR-023 — HITL : AIPTask.is_resumed + InputResponse + tools_requiring_approval](decisions/adr-023-hitl-is-resumed-input-response-tools-requiring-approval.md)
+  - [ADR-024 — apollia-notifications : trait NotificationChannel, canaux, payload JSON fixe](decisions/adr-024-apollia-notifications-trait-channel-json-fixe.md)
 
 ---
 

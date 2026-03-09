@@ -423,6 +423,146 @@ secret = "un-secret-robuste-minimum-32-caracteres"
 
 ---
 
+## [notifications] — Moteur de notifications *(Sprint 11)*
+
+La section `[notifications]` configure le `NotificationEngine`. Elle est **optionnelle** — si absente, le moteur n'est pas démarré et aucune notification n'est envoyée.
+
+### Vue d'ensemble
+
+Le système de notifications permet d'informer l'opérateur d'événements importants du runtime (tâche en attente d'input, échec, agent dégradé…) via des canaux externes. Le filtrage s'effectue à deux niveaux :
+
+1. **Niveau moteur** — la liste `events` de `[notifications]` définit les événements que le moteur dispatch à ses canaux.
+2. **Niveau canal** — chaque `[[notifications.channels]]` peut affiner cette liste avec son propre champ `events`.
+
+### Structure TOML complète
+
+```toml
+[notifications]
+# Événements globaux — filtrage au niveau du moteur
+# Valeurs : "task.input_required", "task.failed", "task.completed",
+#            "agent.degraded", "llm.backend_down", "trigger.error"
+# Défaut : tous les événements si absent
+events = ["task.input_required", "task.failed"]
+
+[[notifications.channels]]
+id      = "desktop"
+type    = "desktop"
+enabled = true
+# events = ["task.input_required"]  # optionnel — filtre canal spécifique
+
+[[notifications.channels]]
+id      = "slack-webhook"
+type    = "webhook"
+enabled = true
+url     = "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX"
+events  = ["task.input_required", "task.failed", "agent.degraded"]
+```
+
+### Champs `[notifications]`
+
+| Champ | Type | Défaut | Description |
+|---|---|---|---|
+| `events` | list[str] | (tous) | Liste des événements que le moteur dispatch. Si absent, tous les événements reconnus sont transmis. |
+
+**Valeurs d'événements reconnues :**
+
+| Événement | Sévérité | Description |
+|---|---|---|
+| `task.input_required` | Warning | Une tâche est en attente d'input humain (HITL) |
+| `task.failed` | Error | Une tâche s'est terminée en erreur |
+| `task.completed` | Info | Une tâche s'est terminée avec succès |
+| `agent.degraded` | Warning | Un agent est passé à l'état DEGRADED |
+| `llm.backend_down` | Error | Un backend LLM est inaccessible |
+| `trigger.error` | Error | Un trigger a émis une erreur |
+
+### Champs `[[notifications.channels]]`
+
+| Champ | Type | Obligatoire | Description |
+|---|---|---|---|
+| `id` | str | Oui | Identifiant unique du canal (ex: `"desktop"`, `"slack"`) |
+| `type` | str | Oui | Type de canal : `"desktop"` ou `"webhook"` |
+| `enabled` | bool | Non (défaut `true`) | Si `false`, le canal est ignoré même s'il est déclaré |
+| `url` | str | Oui pour `webhook` | URL HTTP POST de destination. Ignoré pour `desktop`. Erreur de démarrage si absent sur un canal `webhook` actif. |
+| `events` | list[str] | Non | Sous-ensemble des événements globaux à recevoir sur ce canal. `["*"]` ou absent → hérite de la liste globale. |
+
+**Logique de filtrage des événements par canal :**
+
+| Valeur de `events` (canal) | Comportement |
+|---|---|
+| Absent (`None`) | Accepte tous les événements de la liste globale |
+| `["*"]` | Accepte tous les événements de la liste globale |
+| `["task.failed", "agent.degraded"]` | Accepte uniquement les événements listés (sous-ensemble) |
+
+### Types de canaux
+
+| Type | Implémentation | Prérequis |
+|---|---|---|
+| `desktop` | Notification native OS via `notify-rust` | macOS (NSUserNotification) ou Linux (libnotify ≥ 0.7.9 + session graphique) |
+| `webhook` | Requête HTTP POST vers l'URL configurée | Réseau accessible depuis la machine |
+
+**Payload webhook (HTTP POST, `Content-Type: application/json`) :**
+
+```json
+{
+  "event":   "task.input_required",
+  "severity": "warning",
+  "message":  "La tâche abc123 attend une réponse humaine",
+  "timestamp": "2026-03-09T08:00:00Z"
+}
+```
+
+### Dégradation gracieuse
+
+Le runtime **ne s'arrête jamais** à cause d'un échec de notification :
+
+- **`desktop` sans session graphique** — `notify-rust` retourne `Ok(())` silencieusement, l'événement est consommé sans erreur.
+- **Webhook en timeout ou URL inaccessible** — `WARN` loggé (`apollia_notifications — webhook "slack" failed: ...`), le runtime continue.
+- **Canal `webhook` sans `url`** — erreur de démarrage détectée au parsing TOML (fail-fast, Principe #4). Le runtime refuse de démarrer avec un message explicite.
+- **Section `[notifications]` absente** — `INFO` loggé (`Supervisor: aucune section [notifications] — NotificationEngine désactivé`), aucun canal n'est instancié.
+
+### Exemple — Desktop uniquement
+
+```toml
+[notifications]
+events = ["task.input_required", "task.failed"]
+
+[[notifications.channels]]
+id      = "bureau"
+type    = "desktop"
+enabled = true
+```
+
+### Exemple — Multi-canaux avec filtrage fin
+
+```toml
+[notifications]
+events = ["task.input_required", "task.failed", "task.completed", "agent.degraded"]
+
+# Canal desktop — uniquement les événements urgents
+[[notifications.channels]]
+id      = "bureau"
+type    = "desktop"
+enabled = true
+events  = ["task.input_required", "task.failed", "agent.degraded"]
+
+# Canal Slack — tous les événements globaux
+[[notifications.channels]]
+id      = "slack"
+type    = "webhook"
+enabled = true
+url     = "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX"
+
+# Canal monitoring interne — uniquement les erreurs
+[[notifications.channels]]
+id      = "alertmanager"
+type    = "webhook"
+enabled = true
+url     = "http://localhost:9093/api/v2/alerts"
+events  = ["task.failed", "agent.degraded", "llm.backend_down", "trigger.error"]
+```
+
+---
+
 ## Voir aussi
 
 - [INSTALL.md](./INSTALL) — installation et prérequis

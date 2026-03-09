@@ -28,6 +28,7 @@
 - [[Briques-ORIA-Engine|ORIA Engine]]
 - [[Briques-LLM-Backend|LLM Backend]]
 - [[Briques-Triggers|Triggers Engine]]
+- [[Briques-Notifications|Notifications Engine]]
 - [[Briques-Runtime-Core|Runtime Core]]
 - [[Briques-CLI|Apollia CLI]]
 

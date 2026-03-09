@@ -222,8 +222,19 @@ $ apollia-os task cancel t-008
 $ apollia-os task retry t-007
   → Nouvelle tâche t-011 soumise (retry de t-007)
 
-# Reprendre une tâche input_required
-$ apollia-os task resume t-012 --input "Approuvé, procéder à l'envoi"
+# Lister les tâches en attente d'approbation humaine (HITL)
+$ apollia-os task list --pending-approval
+  ID        AGENT              DEPUIS   PROMPT
+  t-042     devis-generator    14min    Confirmer l'envoi du devis à dupont@sa.fr ?
+  t-038     crm-qualifier      2h       Autoriser la mise à jour du CRM ?
+
+# Approuver une tâche suspendue → reprend l'exécution
+$ apollia-os task resume t-042 --approve
+  ✔ Tâche t-042 reprise (approuvée)
+
+# Rejeter une tâche suspendue → AIPResult::failed("REJECTED")
+$ apollia-os task resume t-042 --reject --reason "Budget insuffisant"
+  ✔ Tâche t-042 terminée (rejetée : Budget insuffisant)
 
 # Inspecter le plan d'exécution d'une tâche orchestrée (Sprint 10)
 # Lit directement ~/.apollia/plans.db — ne nécessite pas un runtime démarré
@@ -353,6 +364,37 @@ $ apollia-os model list
   → Téléchargez un modèle .gguf et placez-le dans ~/.apollia/models/
 ```
 
+### `apollia-os notify <verb>`
+
+Gérer les notifications et tester les canaux configurés. Nécessite un runtime démarré.
+
+```bash
+$ apollia-os notify test
+  CANAUX DE NOTIFICATION
+  ────────────────────────────────────────────────────
+  NOM              TYPE       ÉTAT
+  desktop          desktop    ✔ envoyé (42ms)
+  slack-webhook    webhook    ✔ envoyé (187ms)
+
+# Si un canal est indisponible
+$ apollia-os notify test
+  desktop          desktop    ✗ indisponible (libnotify absent)
+  slack-webhook    webhook    ✗ erreur (connection refused)
+
+# Lister les canaux configurés
+$ apollia-os notify list
+  CANAUX CONFIGURÉS
+  desktop          desktop    activé
+  slack-webhook    webhook    activé — events: task.input_required, task.failed
+
+# Historique des 20 dernières notifications
+$ apollia-os notify logs
+$ apollia-os notify logs --last 50
+  HEURE              EVENT                TÂCHE      CANAUX
+  14:32:01           task.input_required  t-042      desktop
+  14:28:15           task.failed          t-038      desktop, slack-webhook
+```
+
 ---
 
 ## 4. Niveau 3 — Debug
@@ -432,10 +474,11 @@ $ apollia-os
   TOUTES LES COMMANDES
     start · stop · restart · status · run · health
     agent   list | start | stop | restart | info | logs | validate
-    task    list | status | result | cancel | retry | resume
+    task    list | status | result | cancel | retry | resume | inspect
     tools   list | describe | register | unregister | test | reset-circuit
     memory  inspect | search | get | forget | purge | export | import
     audit   [list] | stats | export
+    notify  test | list | logs
 
   FLAGS GLOBAUX : --json · -q/--quiet · -v/--verbose · --debug · --no-color
 

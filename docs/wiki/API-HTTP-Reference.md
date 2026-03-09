@@ -220,6 +220,45 @@ Annuler une tâche.
 - `404` — tâche introuvable
 - `409` — tâche déjà terminée (completed, failed, canceled)
 
+### POST /api/v1/tasks/:id/resume *(Sprint 11)*
+
+Reprendre une tâche suspendue en attente d'approbation humaine (HITL).
+
+**Corps de requête :**
+```json
+{
+  "approved": true,
+  "reason": null
+}
+```
+ou pour un rejet :
+```json
+{
+  "approved": false,
+  "reason": "Budget insuffisant"
+}
+```
+
+Le champ `approved` est obligatoire — son absence provoque HTTP 422. Le champ `reason` est optionnel, surtout utile en cas de rejet.
+
+**Réponse 200 :**
+```json
+{
+  "task_id": "t-abc123",
+  "approved": true,
+  "status": "working"
+}
+```
+
+Le champ `status` vaut toujours `"working"` que la décision soit une approbation ou un rejet — l'agent reprend l'exécution dans les deux cas.
+
+**Erreurs :**
+- `404` — tâche introuvable dans le système HITL
+- `409` — tâche connue mais pas en status `input_required`
+- `422` — corps de requête invalide (champ `approved` manquant)
+- `500` — erreur SQLite ou echec de reconstruction de la tâche (`rebuild_for_resume`)
+- `503` — HITL non configuré (`task_repository` absent)
+
 ### GET /api/v1/tasks/:id/stream
 
 Flux SSE temps réel des événements d'une tâche.
@@ -258,7 +297,16 @@ data: {"event":"plan_failed","task_id":"t-abc123","plan_id":"p-001",
        "reason":"MAX_REPLAN_EXCEEDED"}
 ```
 
-**Événements terminaux :** `completed`, `failed`, `canceled`, `plan_failed`. Le flux se ferme après réception d'un événement terminal.
+**Événements HITL *(Sprint 11)* :**
+```
+data: {"event":"input_required","task_id":"t-abc123","prompt":"Confirmer l'envoi ?","step_id":null}
+
+data: {"event":"task_resumed","task_id":"t-abc123","approved":true}
+```
+
+`input_required` n'est **pas** un événement terminal — la tâche reste suspendue et attend une décision via `POST /api/v1/tasks/:id/resume`. Le flux reste ouvert. `task_resumed` est émis dès que la reprise est enregistrée ; la tâche repasse en `working`.
+
+**Événements terminaux :** `completed`, `failed`, `canceled`, `plan_failed`. Le flux se ferme après réception d'un événement terminal. `input_required` et `task_resumed` ne ferment pas le flux.
 
 ---
 
@@ -380,9 +428,12 @@ Initier un graceful shutdown du runtime (drain 30s).
 | `201` | Créé avec succès |
 | `400` | Requête invalide (manifest, champs manquants) |
 | `404` | Ressource introuvable |
-| `409` | Conflit d'état (agent déjà démarré, tâche déjà terminée) |
-| `422` | Erreur de traitement (fichier Python invalide) |
-| `503` | Service indisponible (capacité saturée) |
+| `409` | Conflit d'état (agent déjà démarré, tâche déjà terminée, tâche non en `input_required`) |
+| `422` | Erreur de traitement (fichier Python invalide, corps de requête invalide) |
+| `500` | Erreur interne (SQLite, rebuild HITL) |
+| `503` | Service indisponible (capacité saturée, HITL non configuré) |
+
+**Statut `input_required` :** statut intermédiaire émis par ORIA en mode Direct quand l'agent requiert une validation humaine. La tâche est suspendue et attend une décision via `POST /api/v1/tasks/:id/resume`. Ce n'est pas un état terminal — le flux SSE reste ouvert.
 
 **Format d'erreur standard :**
 ```json
@@ -543,6 +594,98 @@ curl -X POST http://localhost:7771/webhooks/github-push \
 
 ---
 
+## Notifications *(Sprint 11)*
+
+### GET /api/v1/notifications/channels
+
+État de tous les canaux de notification configurés.
+
+**Réponse 200 :**
+```json
+{
+  "channels": [
+    {
+      "channel_id": "desktop",
+      "type": "desktop",
+      "enabled": true,
+      "events": ["task.input_required", "task.completed", "task.failed"]
+    },
+    {
+      "channel_id": "slack-webhook",
+      "type": "webhook",
+      "enabled": true,
+      "events": ["task.input_required"]
+    }
+  ]
+}
+```
+
+Si aucune section `[notifications]` n'est configurée dans `apollia.toml` : `{"channels": []}`.
+
+Les canaux de type `"sse"` apparaissent également dans cette liste. Le champ `events` liste les événements que le canal accepte (hérité de la config globale `events` si non surchargé au niveau du canal).
+
+### POST /api/v1/notifications/test
+
+Envoyer une notification de test (`"test.ping"`) à tous les canaux actifs.
+
+**Corps :** aucun
+
+**Réponse 200 :**
+```json
+{
+  "results": [
+    {
+      "channel_id": "desktop",
+      "type": "desktop",
+      "status": "ok",
+      "error": null,
+      "latency_ms": 12
+    },
+    {
+      "channel_id": "slack-webhook",
+      "type": "webhook",
+      "status": "error",
+      "error": "connection refused",
+      "latency_ms": 5001
+    },
+    {
+      "channel_id": "monitoring",
+      "type": "webhook",
+      "status": "disabled",
+      "error": null,
+      "latency_ms": null
+    }
+  ]
+}
+```
+
+Les canaux désactivés (`enabled: false`) apparaissent avec `status: "disabled"` sans tentative d'envoi. Les canaux actifs ont `status: "ok"` ou `status: "error"` avec la latence mesurée.
+
+### GET /api/v1/notifications/logs?last=N
+
+Historique des N dernières notifications envoyées depuis SQLite (`~/.apollia/hitl.db`). Défaut `N=20`, maximum `N=1000`.
+
+**Réponse 200 :**
+```json
+{
+  "entries": [
+    {
+      "id": "01J9X...",
+      "event_name": "task.input_required",
+      "task_id": "t-abc123",
+      "agent_id": "agent-def456",
+      "sent_at": "2026-03-09T14:32:01Z",
+      "channels": {"desktop": "ok"},
+      "error": null
+    }
+  ]
+}
+```
+
+La table `notification_logs` est créée de manière idempotente si elle n'existe pas encore. Les entrées sont triées par `sent_at` décroissant (la plus récente en premier).
+
+---
+
 ## Dashboard *(Sprint 9)*
 
 ### GET /dashboard
@@ -573,7 +716,10 @@ curl -N -H "Accept: text/event-stream" \
 - [Briques CLI](./Briques-CLI) — wrapper CLI sur cette API
 - [Briques Runtime Core](./Briques-Runtime-Core) — implémentation APIServer axum
 - [Briques Triggers](./Briques-Triggers) — moteur de déclenchement
+- [Briques Notifications](./Briques-Notifications) — canaux de notification et moteur HITL
 - [Dashboard Observabilité](./Dashboard-Observabilite) — dashboard embarqué
 - [ADR-006](../adr/ADR-006-rest-json-api-locale) — pourquoi REST JSON plutôt qu'une autre API
 - [ADR-017](../adr/ADR-017-hyper-util-unix-socket-serving) — Unix socket avec hyper-util
 - [ADR-021](../adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md) — décisions TOML/HMAC/hot reload
+- [ADR-023](../adr/ADR-023) — décisions architecture HITL (TaskRepository, PendingApprovals)
+- [ADR-024](../adr/ADR-024) — décisions système de notifications (canaux, événements, SQLite)

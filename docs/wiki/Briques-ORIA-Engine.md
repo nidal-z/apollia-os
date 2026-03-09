@@ -289,7 +289,163 @@ Si le hook est absent, ORIA concatène automatiquement les outputs des steps et 
 
 ---
 
-## 5. StepBudget — Garde-fou fondamental
+## 5. HITL — Human-in-the-Loop (Sprint 11)
+
+Le HITL permet à un agent de **suspendre son exécution** pour demander une décision humaine avant de continuer. ORIA implémente deux variantes selon le mode d'exécution.
+
+### 5.1 Mode Direct — Suspension sur `AIPResult.input_required()`  (STORY-096)
+
+En Mode Direct, l'agent Python initie la suspension en retournant `AIPResult.input_required(prompt, context)` depuis `run()`. ORIA prend alors le relais :
+
+```
+agent.run(task, ctx)
+  └── AIPResult.input_required(prompt="Confirmer le montant 5 100 €", context={...})
+
+ORIA.execute_direct() :
+  ├── 1. Persiste prompt + context → TaskRepository.save_input_required() (SQLite)
+  ├── 2. Émet RuntimeEvent::TaskInputRequired { task_id, prompt, step_id: None }
+  ├── 3. PendingApprovals.register(task_id) → oneshot::Receiver<InputResponseData>
+  ├── 4. await rx  ← SUSPENSION PURE (StepBudget ne progresse pas)
+  │         │
+  │         └── ResumeHandler.resolve(task_id, approved=true/false, reason?)
+  │                  └── oneshot::Sender<InputResponseData>.send(response)
+  │
+  ├── Si approved=true :
+  │   ├── Reconstruit AIPTask avec is_resumed=True + input_response peuplé
+  │   └── Rappelle agent.run(resumed_task, ctx) → résultat final
+  │
+  └── Si approved=false :
+      └── AIPResult::failed("REJECTED", reason) — run() n'est PAS rappelé
+```
+
+**Contrat Python côté agent :**
+
+```python
+async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
+    if task.is_resumed:
+        # L'humain a approuvé — input_response contient sa réponse
+        response = task.input_response
+        if response.approved:
+            # Continuer avec l'état sérialisé au moment du suspend
+            saved_state = response.context
+            return await self._continue_from(saved_state, ctx)
+
+    # Première exécution — calculer, puis demander validation
+    amount = await self._calculate_total(task, ctx)
+
+    return AIPResult.input_required(
+        prompt=f"Confirmer le devis de {amount} € pour le client ?",
+        context={"amount": amount, "step": "validation"}
+    )
+```
+
+**Persistance SQLite :** `TaskRepository.save_input_required(task_id, step_id=None, prompt, context)` écrit dans la table `task_hitl_state`. En cas d'échec SQLite, ORIA logue un `warn` et continue (fail-safe — Principe #4).
+
+**StepBudget pausé pendant la suspension :** L'attente sur le oneshot channel est un `await` pur — le polling du budget ne tourne pas. Le compteur de steps ne progresse pas tant que l'humain n'a pas répondu.
+
+**Dégradation gracieuse :** Si `PendingApprovals` n'est pas configuré sur l'`ORIAEngine`, ORIA retourne `AIPResult::InputRequired` sans suspendre (la tâche reste dans l'état `input_required` mais n'attend pas de résolution).
+
+### 5.2 `tools_requiring_approval` dans le manifest  (STORY-093)
+
+Le champ `tools_requiring_approval` dans `AgentManifest` permet à l'agent de déclarer les outils qui nécessitent une approbation humaine **avant** leur exécution (utilisé en Mode Orchestré).
+
+```python
+from apollia_aip import AgentManifest
+
+def manifest(self):
+    return AgentManifest(
+        name="envoi-devis",
+        tools_required=["file_io", "smtp", "http_client"],
+        # Outils qui déclenchent une suspension HITL avant exécution
+        tools_requiring_approval=["smtp", "http_client"],
+    )
+```
+
+**Règles :**
+- Champ optionnel — `[]` par défaut (aucune approbation requise).
+- Seuls les outils listés déclenchent une suspension ; les autres s'exécutent normalement.
+- La liste est lue par l'`ActorLoop` à chaque step (Mode Orchestré).
+
+**Côté Rust — `AgentManifest` :**
+```rust
+pub struct AgentManifest {
+    // ...
+    /// Outils qui nécessitent une approbation humaine avant exécution (Mode Orchestré).
+    #[serde(default)]
+    pub tools_requiring_approval: Vec<String>,
+}
+```
+
+### 5.3 Mode Orchestré — Suspension par step  (STORY-097)
+
+En Mode Orchestré, c'est l'`ActorLoop` (et non l'agent) qui gère la suspension. Avant d'exécuter un step, il vérifie si l'outil du step est dans `manifest.tools_requiring_approval`.
+
+```
+ActorLoop.execute() :
+  ├── Pour chaque step dans l'ordre topologique :
+  │   ├── Vérifier manifest.tools_requiring_approval
+  │   ├── Si step.tool_hint ∈ tools_requiring_approval ET pending_approvals configuré :
+  │   │   └── ActorLoop.suspend_for_approval(step, pending_approvals)
+  │   │         ├── Clé d'enregistrement : "{task_id}::{step_id}"
+  │   │         ├── PendingApprovals.register(key) → oneshot::Receiver
+  │   │         ├── Émet RuntimeEvent::TaskInputRequired {
+  │   │         │       task_id, prompt, step_id: Some(step_id)  ← distingue Mode Direct
+  │   │         │   }
+  │   │         ├── await rx  ← SUSPENSION PURE
+  │   │         ├── Si approved=true → Ok(()) → le step s'exécute normalement
+  │   │         └── Si approved=false → Err(StepError::RejectedByUser { reason })
+  │   │
+  │   ├── Si rejected → AIPResult::failed("REJECTED: <reason>")
+  │   │    └── Les steps restants ne s'exécutent PAS
+  │   └── Si approved → execute_step() → outil via ToolProxyTrait
+```
+
+**Distinction entre Mode Direct et Mode Orchestré sur l'EventBus :**
+
+| Champ | Mode Direct | Mode Orchestré |
+|---|---|---|
+| `step_id` | `None` — toute la tâche est suspendue | `Some(step_id)` — un step précis attend |
+| Qui suspend | L'agent Python via `AIPResult.input_required()` | L'`ActorLoop` Rust avant `execute_step()` |
+| Reprise | Re-appel `agent.run()` avec `is_resumed=True` | Exécution normale du step après `Ok(())` |
+| Rejet | `AIPResult::failed` sans rappel Python | `StepError::RejectedByUser` → plan arrêté |
+
+**Comportement si `PendingApprovals` absent :** L'`ActorLoop` logue un `warn` et exécute le step sans approbation (mode dégradé). Cela garantit qu'un runtime non-HITL reste fonctionnel avec des manifests HITL.
+
+### 5.4 TimeoutWatcher — Annulation automatique des suspensions  (STORY-098)
+
+Le `TimeoutWatcher` est un acteur Tokio démarré en position 9 dans le `Supervisor`. Il scanne toutes les **60 secondes** les tâches en état `input_required` et annule celles qui dépassent le délai configuré.
+
+```rust
+pub struct TimeoutWatcherConfig {
+    /// Délai max avant annulation — défaut : 24 heures.
+    pub input_required_timeout: Duration,
+    /// Intervalle de scan — défaut : 60 secondes.
+    pub scan_interval: Duration,
+}
+```
+
+**Pipeline d'annulation :**
+```
+TimeoutWatcher.scan_and_cancel() :
+  ├── TaskRepository.find_input_required_older_than(input_required_timeout)
+  ├── Pour chaque tâche expirée :
+  │   ├── TaskRouter.cancel_task(task_id, "input_required_timeout")
+  │   │     └── TaskStatus → Canceled
+  │   └── EventBus.broadcast(RuntimeEvent::TaskApprovalTimeout { task_id, after_secs })
+  └── Retourne le nombre de tâches annulées
+```
+
+**Configuration dans `apollia.toml` :**
+```toml
+[runtime]
+input_required_timeout_hours = 24    # défaut : 24h
+```
+
+**Robustesse :** Si `scan_and_cancel()` échoue (ex. SQLite indisponible), l'erreur est loguée et le `TimeoutWatcher` continue son cycle sans propager ni paniquer.
+
+---
+
+## 6. StepBudget — Garde-fou fondamental
 
 Le StepBudget est le mécanisme le plus important pour la robustesse en production.
 
@@ -356,9 +512,9 @@ L'agent **lit** le budget mais ne peut pas le modifier. C'est le runtime qui l'a
 
 ---
 
-## 6. ResilienceLayer — Circuit Breakers et Retry
+## 7. ResilienceLayer — Circuit Breakers et Retry
 
-### 6.1 Architecture
+### 7.1 Architecture
 
 ```rust
 pub struct ResilienceLayer {
@@ -388,7 +544,7 @@ pub enum CircuitState {
 }
 ```
 
-### 6.2 Machine d'état du circuit breaker
+### 7.2 Machine d'état du circuit breaker
 
 ```
 CLOSED (normal)
@@ -420,7 +576,7 @@ $ apollia-os tools reset-circuit mcp_erp_acme
   ✔ Circuit breaker de mcp_erp_acme réinitialisé (→ CLOSED)
 ```
 
-### 6.3 Classification des erreurs
+### 7.3 Classification des erreurs
 
 La classification est critique pour savoir quand retenter.
 
@@ -437,7 +593,7 @@ Le circuit breaker ne s'incrémente que sur les erreurs `Transient`. Une erreur 
 
 ---
 
-## 7. Trace end-to-end complète
+## 8. Trace end-to-end complète
 
 **Tâche :** "Génère un devis pour Dupont SA, 5 jours de conseil, tarif journalier 850€"
 
@@ -476,7 +632,7 @@ Le circuit breaker ne s'incrémente que sur les erreurs `Transient`. Une erreur 
 
 ---
 
-## 8. Intégration dans le lifecycle AIP
+## 9. Intégration dans le lifecycle AIP
 
 ```
 AIPTask soumise (submitted)
@@ -488,6 +644,15 @@ Mode Direct
   └── ORIA.Actor.run_direct(agent, ctx, budget)
       └── agent.run(task, ctx)             [boucle ReAct interne Python]
       └── supervision StepBudget + ResilienceLayer sur chaque tool_call
+      │
+      └── Si AIPResult::InputRequired (HITL STORY-096) :
+          ├── TaskRepository.save_input_required()   → SQLite
+          ├── EventBus: TaskInputRequired { task_id, prompt, step_id: None }
+          ├── PendingApprovals.register(task_id)     → oneshot::Receiver
+          ├── await rx  ←─── SUSPENSION (StepBudget pausé)
+          │         └── ResumeHandler.resolve() envoie InputResponseData
+          ├── Si approved=true  → AIPTask{is_resumed=true, input_response} → agent.run() again
+          └── Si approved=false → AIPResult::failed("REJECTED", reason)
 
 Mode Orchestré
   └── ORIA.Reasoner.plan(context_bundle)  → ExecutionPlan (JSON LLM)
@@ -495,6 +660,11 @@ Mode Orchestré
   └── EventBus: PlanGenerated { plan_id, step_count }
   └── ORIA.ActorLoop.execute(plan)
       └── Pour chaque step (ordre topologique) :
+          ├── Si tool_hint ∈ tools_requiring_approval (HITL STORY-097) :
+          │   ├── EventBus: TaskInputRequired { task_id, prompt, step_id: Some(step_id) }
+          │   ├── await rx  ←── SUSPENSION (StepBudget pausé)
+          │   ├── Si rejected → AIPResult::failed("REJECTED: <reason>") — plan arrêté
+          │   └── Si approved → continuer vers execute_step()
           ├── EventBus: StepStarted { step_id, step_num, total, desc }
           ├── execute_step() → outil ou LLM
           └── EventBus: StepCompleted / StepFailed
@@ -505,16 +675,22 @@ Mode Orchestré
   └── PlanRepository.complete_plan() / fail_plan()
   └── EventBus: PlanCompleted / PlanFailed
 
+TimeoutWatcher (toutes les 60s — STORY-098)
+  └── Scan TaskRepository.find_input_required_older_than(timeout)
+  └── Pour chaque tâche expirée :
+      ├── TaskRouter.cancel_task()         → TaskStatus::Canceled
+      └── EventBus: TaskApprovalTimeout { task_id, after_secs }
+
 AIPResult → Runtime Core
   └── Audit log SQLite
-  └── EventBus.broadcast(TaskCompleted/Failed)
+  └── EventBus.broadcast(TaskCompleted/Failed/ApprovalTimeout)
   └── TaskState → completed | failed | input_required | canceled
-  └── SSE stream → tous les events PlanGenerated/Step* émis en temps réel
+  └── SSE stream → tous les events TaskInputRequired/PlanGenerated/Step* émis en temps réel
 ```
 
 ---
 
-## 9. Décisions architecturales clés
+## 10. Décisions architecturales clés
 
 | Décision | Justification |
 |---|---|
@@ -526,6 +702,10 @@ AIPResult → Runtime Core
 | Classification Transient / Permanent | Retry uniquement sur ce qui peut se résoudre |
 | Modèle Reasoner = même LLM que l'agent | Pas de complexité multi-modèle en MVP PME |
 | StepBudget exposé à l'agent (lecture seule) | Agent peut adapter sa stratégie proactivement |
+| HITL via `oneshot` channel + `PendingApprovals` (ADR-023) | Suspension pure sans polling — le budget ne progresse pas ; résolution thread-safe via HashMap de senders |
+| Reprise HITL par re-appel `agent.run()` avec `is_resumed=True` (ADR-023) | Pas de nouveau point d'entrée — contrat minimal préservé (Principe #3) ; l'agent voit explicitement qu'il reprend via `task.is_resumed` |
+| `tools_requiring_approval` dans le manifest (ADR-023) | Déclaration décentralisée côté agent — le runtime n'a pas à connaître la sémantique métier de chaque outil |
+| `TimeoutWatcher` scan périodique (60s) | Pas de timer par tâche — un seul acteur gère tous les timeouts, O(n) SQLite au lieu de O(n) timers en mémoire |
 
 ---
 

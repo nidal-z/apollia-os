@@ -50,6 +50,7 @@ def manifest(self):
 
         # Sécurité
         "dangerous_tools_allowed": False,  # bool — défaut: False
+        "tools_requiring_approval": [],    # list[str] — outils nécessitant approbation humaine (Mode Orchestré)
 
         # Protocoles
         "supports_streaming": False,   # bool — SSE si True
@@ -74,7 +75,32 @@ def manifest(self):
 | `max_concurrent_tasks` | non | `1` | 1 tâche à la fois |
 | `step_budget` | non | `None` | Défauts runtime (10 steps, 20 calls, 300s) |
 | `dangerous_tools_allowed` | non | `False` | Outils dangereux bloqués |
+| `tools_requiring_approval` | non | `[]` | Aucun outil ne nécessite d'approbation |
 | `supports_a2a` | non | `False` | Pas de AgentCard A2A |
+
+### tools_requiring_approval (Sprint 11)
+
+Liste les outils dont l'exécution doit être approuvée par un humain avant d'être lancée par ORIA en **Mode Orchestré uniquement**. Lorsqu'un step planifié utilise un outil figurant dans cette liste, ORIA suspend la tâche avec `status = input_required` avant d'appeler l'outil, et attend une décision humaine explicite.
+
+```python
+def manifest(self):
+    return {
+        "name": "devis-agent",
+        "version": "2.0.0",
+        "description": "Génère et envoie des devis",
+        "tools_required": ["file_io", "smtp"],
+        "execution_mode": "orchestrated",
+        "system_prompt": "Tu es un agent de devis...",
+
+        # L'outil smtp nécessite une confirmation humaine avant chaque envoi.
+        "tools_requiring_approval": ["smtp"],
+    }
+```
+
+Règles d'application :
+- N'a d'effet qu'en `execution_mode: "orchestrated"`. En mode `direct` ou `auto`, ce champ est ignoré.
+- Une liste vide (défaut) signifie qu'aucun outil ne nécessite d'approbation.
+- L'outil doit également figurer dans `tools_required` ou `tools_optional` pour être résolu par le runtime.
 
 ### Structure AgentSkill
 
@@ -98,13 +124,40 @@ Ce que le runtime envoie à l'agent via `run(task, ctx)`. En Python, `task` est 
 
 ```python
 async def run(self, task, ctx):
-    # task est un dict avec ces clés :
+    # Champs de base
     task_id    = task["task_id"]           # str — UUID généré par le runtime
     context_id = task["context_id"]        # str — groupe de tâches liées
     parts      = task["input"]["parts"]    # list[dict] — AIPPart
     history    = task.get("history", [])   # list[dict] — messages précédents
     timeout    = task.get("timeout_seconds")  # int | None
+
+    # Champs HITL — Human-in-the-Loop (Sprint 11)
+    is_resumed     = task["is_resumed"]        # bool — True si reprise après approbation
+    input_response = task["input_response"]    # InputResponse | None — None au premier appel
 ```
+
+### Champs HITL — is_resumed et input_response (Sprint 11)
+
+Ces deux champs permettent à un agent de distinguer un premier appel d'une reprise après décision humaine.
+
+| Champ | Type Python | Valeur initiale | Valeur à la reprise |
+|---|---|---|---|
+| `task["is_resumed"]` | `bool` | `False` | `True` |
+| `task["input_response"]` | `InputResponse \| None` | `None` | Instance `InputResponse` peuplée |
+
+#### Classe InputResponse
+
+Injectée automatiquement dans `run.__globals__` par le bridge Rust (STORY-092). Aucun import requis.
+
+```python
+class InputResponse:
+    approved:     bool           # True si l'humain a approuvé, False si rejeté
+    reason:       str | None     # Raison transmise par l'humain — None si approuvé
+    context:      dict           # Contexte JSON sérialisé par l'agent au moment du suspend
+    responded_at: str            # Horodatage ISO 8601 de la décision humaine
+```
+
+L'attribut `context` est restitué tel quel depuis SQLite — il contient exactement ce que l'agent avait passé à `AIPResult.input_required(prompt, context)` lors de la suspension.
 
 ### Structure AIPPart
 
@@ -141,10 +194,47 @@ async def run(self, task, ctx):
 
 ## Composant 3 — AIPResult
 
-Ce que l'agent retourne. Peut être un dict Python ou un objet JSON-sérialisable.
+Ce que l'agent retourne. Peut être un dict Python ou l'une des classes factory injectées par le bridge.
+
+### Classe AIPResult — factory methods (Sprint 11)
+
+La classe `AIPResult` est injectée automatiquement dans `run.__globals__` par le bridge Rust (STORY-092). **Aucun import requis.** Elle expose trois factory methods :
 
 ```python
-# Format dict minimal
+# Tâche terminée avec succès
+return AIPResult.completed("Devis PDF généré avec succès")
+
+# Tâche échouée avec code et message structurés
+return AIPResult.failed("TOOL_ERROR", "L'outil smtp a retourné une erreur 550")
+
+# Suspendre et demander une approbation humaine
+return AIPResult.input_required(
+    prompt="Confirmer l'envoi du devis à dupont@sa.fr ?",
+    context={"amount": 5100, "email": "dupont@sa.fr"}
+)
+```
+
+#### AIPResult.input_required(prompt, context)
+
+Suspend la tâche et notifie l'utilisateur sur les canaux configurés (Sprint 11, STORY-099).
+
+| Paramètre | Type | Description |
+|---|---|---|
+| `prompt` | `str` | Question affichée à l'humain pour prendre sa décision |
+| `context` | `dict` | Données JSON que l'agent souhaite récupérer à la reprise |
+
+Le runtime :
+1. Persiste `prompt` et `context` dans SQLite (STORY-094)
+2. Passe la tâche en `status = input_required`
+3. Notifie l'utilisateur (canaux configurés — STORY-099)
+4. À la reprise, restitue `context` dans `task["input_response"].context`
+
+### Format dict (compatible rétrograde)
+
+Il reste possible de retourner un dict Python brut :
+
+```python
+# Résultat minimal
 return {
     "task_id": task["task_id"],      # str — obligatoire
     "status": "completed",           # str — voir TaskStatus
@@ -163,13 +253,13 @@ return {
     }
 }
 
-# Human-in-the-loop
+# Human-in-the-loop (format bas niveau — préférer AIPResult.input_required())
 return {
-    "task_id": task["task_id"],
     "status": "input_required",
-    "input_request": {
-        "type": "text",
-        "prompt": "Quel budget maximum pour ce devis ?"
+    "output": [],
+    "input_required_data": {
+        "prompt": "Quel budget maximum pour ce devis ?",
+        "context": {"client": "Acme"}
     }
 }
 ```
@@ -180,7 +270,7 @@ return {
 |---|---|
 | `"completed"` | Tâche terminée avec succès |
 | `"failed"` | Erreur non récupérable |
-| `"input_required"` | Attente d'une entrée humaine |
+| `"input_required"` | Tâche suspendue, attente d'une décision humaine |
 | `"canceled"` | Annulée par le runtime ou l'opérateur |
 
 ---
@@ -352,6 +442,110 @@ class FullAgent:
         }
 
 agent = FullAgent()
+```
+
+---
+
+## Agent avec Human-in-the-Loop (Sprint 11)
+
+Exemple complet d'un agent qui suspend la tâche pour demander confirmation avant d'envoyer un devis.
+
+```python
+# devis_agent.py
+class DevisAgent:
+    def manifest(self):
+        return {
+            "name": "devis-agent",
+            "version": "2.0.0",
+            "description": "Génère et envoie des devis avec validation humaine",
+            "tools_required": ["file_io", "smtp"],
+            "execution_mode": "orchestrated",
+            "system_prompt": "Tu es un agent de génération de devis...",
+            # L'envoi par email nécessite une approbation humaine.
+            "tools_requiring_approval": ["smtp"],
+        }
+
+    async def run(self, task, ctx):
+        if not task["is_resumed"]:
+            # Premier appel — générer le devis, puis demander confirmation
+            amount = task["input"]["parts"][0].get("data", {}).get("amount", 0)
+            email  = task["input"]["parts"][0].get("data", {}).get("email", "")
+
+            # Suspendre et demander validation à l'humain
+            return AIPResult.input_required(
+                prompt=f"Confirmer l'envoi du devis à {email} ?",
+                context={"amount": amount, "email": email}
+            )
+
+        # Reprise — la décision humaine est disponible
+        ir = task["input_response"]
+        if ir.approved:
+            email  = ir.context["email"]
+            amount = ir.context["amount"]
+            # Envoyer le devis via l'outil smtp
+            await ctx.tools.call("smtp", {
+                "to": email,
+                "subject": f"Votre devis — {amount} €",
+                "body": "Veuillez trouver ci-joint votre devis."
+            })
+            return AIPResult.completed(f"Devis envoyé avec succès à {email}")
+        else:
+            reason = ir.reason or "refusé"
+            return AIPResult.failed("REJECTED", f"Envoi annulé : {reason}")
+
+agent = DevisAgent()
+```
+
+Flux d'exécution :
+
+```
+apollia-os run devis-agent '{"amount": 5100, "email": "dupont@sa.fr"}'
+  → status: input_required
+  → Notification envoyée à l'opérateur
+
+apollia-os task resume <task-id> --approve
+  → is_resumed=True, input_response.approved=True
+  → Devis envoyé avec succès à dupont@sa.fr
+  → status: completed
+```
+
+---
+
+## Types Rust — HITL (Sprint 11)
+
+Les types Rust correspondants sont définis dans `apollia-core/src/result.rs` et `apollia-core/src/task.rs`.
+
+```rust
+/// Données portées par AIPResult quand status == InputRequired.
+/// Persistées dans SQLite par le runtime (STORY-094).
+pub struct InputRequiredData {
+    /// Prompt affiché à l'utilisateur pour prendre sa décision.
+    pub prompt: String,
+    /// Contexte JSON sérialisé par l'agent au moment de la suspension.
+    /// Restitué intégralement dans InputResponseData::context à la reprise.
+    pub context: serde_json::Value,
+}
+
+/// Réponse humaine reçue après une suspension input_required.
+/// Injectée dans AIPTask::input_response lors de la reprise (STORY-095).
+pub struct InputResponseData {
+    /// true si l'utilisateur a approuvé, false si rejeté.
+    pub approved: bool,
+    /// Raison transmise par l'humain — None si approuvé.
+    pub reason: Option<String>,
+    /// Contexte JSON sérialisé par l'agent, restitué intégralement.
+    pub context: serde_json::Value,
+    /// Horodatage ISO 8601 de la décision humaine.
+    pub responded_at: String,
+}
+```
+
+Le factory method côté Rust :
+
+```rust
+// Construit un AIPResult::InputRequired avec prompt et context.
+// Détecté par le runtime via status == InputRequired.
+AIPResult::input_required("Confirmer l'envoi ?", serde_json::json!({"email": "dupont@sa.fr"}))
 ```
 
 ---

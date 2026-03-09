@@ -79,7 +79,10 @@ Alignée sur A2A TaskState (Google Agent-to-Agent Protocol).
 ```
 submitted ──► working ──► completed
                 │
-                ├──► input_required ──► working  (reprise avec --input)
+                ├──► input_required ──► working   (POST /resume { approved: true })
+                │         │
+                │         ├──► failed              (POST /resume { approved: false })
+                │         └──► canceled            (TimeoutWatcher > 24h)
                 ├──► failed
                 └──► canceled
 ```
@@ -90,13 +93,14 @@ submitted ──► working ──► completed
 |---|---|---|
 | `submitted` | `working` | `ExecutionCoordinator` accepte et démarre la tâche |
 | `submitted` | `canceled` | `apollia-os task cancel` avant démarrage |
-| `working` | `completed` | Agent retourne `AIPResult{status: "completed"}` |
-| `working` | `failed` | Agent retourne `AIPResult{status: "failed"}` ou exception Python |
+| `working` | `completed` | Agent retourne `AIPResult.completed()` |
+| `working` | `failed` | Agent retourne `AIPResult.failed()` ou exception Python |
 | `working` | `failed` | `StepBudget` épuisé (steps, tool_calls, ou wall_clock) |
 | `working` | `canceled` | `apollia-os task cancel` + signal à l'agent |
-| `working` | `input_required` | Agent retourne `AIPResult{status: "input_required"}` |
-| `input_required` | `working` | `apollia-os task resume <id> --input "..."` |
-| `input_required` | `canceled` | Timeout d'attente ou annulation explicite |
+| `working` | `input_required` | Agent retourne `AIPResult.input_required(prompt, context)` — HITL |
+| `input_required` | `working` | `POST /api/v1/tasks/{id}/resume { approved: true }` — ORIA rappelle `agent.run()` |
+| `input_required` | `failed` | `POST /api/v1/tasks/{id}/resume { approved: false }` → `AIPResult::failed("REJECTED")` |
+| `input_required` | `canceled` | `TimeoutWatcher` (scan 60s, expire après `input_required_timeout`, défaut 24h) |
 
 ### Observation via CLI
 

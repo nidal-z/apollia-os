@@ -353,3 +353,14 @@ path               = "~/.apollia/runtime.log"
 | SSE pour streaming | Unidirectionnel suffisant, compatible tout client HTTP |
 | Graceful shutdown avec drain 30s | Jamais de tâche perdue silencieusement |
 | `apollia.toml` unique | Zéro surprise opérationnelle |
+| HITL via `oneshot` channel dans ORIA | Suspension sans polling, reprise déterministe via `ResumeHandler` (ADR-023) |
+| `TimeoutWatcher` scan 60s | Tâches orphelines nettoyées automatiquement sans intervention utilisateur |
+| `NotificationEngine` optionnel (Phase 9) | Zéro overhead si `[notifications]` absent — runtime léger par défaut |
+
+---
+
+## 11. Diagrammes de référence
+
+- [Démarrage ordonné Supervisor](../diagrams/seq-supervisor-startup.puml) — 9 phases, TriggerEngine + NotificationEngine
+- [HITL Flow complet](../diagrams/seq-hitl-flow.puml) — suspend → notify → approve/reject → resume
+- [Task Lifecycle](../diagrams/seq-task-lifecycle.puml) — flux complet soumission → résultat
