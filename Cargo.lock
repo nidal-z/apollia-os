@@ -300,6 +300,7 @@ dependencies = [
  "apollia-tools",
  "apollia-triggers",
  "axum",
+ "chrono",
  "constant_time_eq",
  "hex",
  "hmac",

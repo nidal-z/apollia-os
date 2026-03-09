@@ -1,0 +1,571 @@
+//! Dashboard routes for Apollia OS runtime.
+//!
+//! Exposes three routes:
+//! - `GET /dashboard`                       — serves the embedded HTML placeholder (AC-1).
+//! - `GET /api/v1/dashboard/state`          — returns a full JSON snapshot of runtime state (AC-2).
+//! - `GET /api/v1/dashboard/partials/:section` — returns HTML fragments for HTMX (AC-3/AC-4).
+//!
+//! Supported sections: `"agents"` | `"triggers"` | `"tasks"` | `"llm"` | `"tools"` | `"memory"`.
+//! Unknown sections return HTTP 404 (AC-4).
+//!
+//! STORY-076 will add the SSE stream route. STORY-077 will replace the placeholder HTML.
+
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::{Html, IntoResponse},
+    Json,
+};
+use chrono::Utc;
+use serde::Serialize;
+
+use apollia_core::ProcessState;
+use apollia_llm::BackendInfo;
+use apollia_triggers::TriggerStatus;
+
+use crate::api::server::AppState;
+use crate::coordinator::ExecutionBackend;
+
+// ─── Static assets ────────────────────────────────────────────────────────
+
+/// Placeholder HTML served at `GET /dashboard`.
+///
+/// Embedded at compile time via `include_str!`. STORY-077 will replace this
+/// with the full HTMX dashboard. The `CARGO_MANIFEST_DIR`-based path ensures
+/// correctness regardless of where `cargo build` is invoked (AC-1 + Principle #2).
+static DASHBOARD_HTML: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/assets/dashboard.html"
+));
+
+// ─── Response types ────────────────────────────────────────────────────────
+
+/// Complete snapshot of the runtime state, returned by `GET /api/v1/dashboard/state`.
+#[derive(Debug, Serialize)]
+pub struct DashboardState {
+    /// Summary of all registered agents.
+    pub agents: Vec<AgentSummary>,
+    /// Status of all configured triggers.
+    pub triggers: Vec<TriggerStatus>,
+    /// Most recent tasks (placeholder — populated by STORY-076).
+    pub recent_tasks: Vec<TaskSummary>,
+    /// LLM backends declared in `apollia.toml`.
+    pub llm_backends: Vec<BackendInfo>,
+    /// Circuit breaker state per tool (placeholder — populated when ORIA is wired in).
+    pub tool_circuits: Vec<CircuitSummary>,
+    /// Aggregate memory stats (placeholder).
+    pub memory_stats: Option<serde_json::Value>,
+    /// Seconds since the runtime started (placeholder — 0 until uptime tracking is added).
+    pub uptime_secs: u64,
+    /// RFC 3339 timestamp of this snapshot.
+    pub timestamp: String,
+}
+
+/// Lightweight summary of an agent for the dashboard.
+#[derive(Debug, Serialize)]
+pub struct AgentSummary {
+    /// Agent identifier (UUID).
+    pub id: String,
+    /// Human-readable status string: `"active"` | `"degraded"` | `"stopped"` | etc.
+    pub status: String,
+    /// Number of tasks currently active for this agent (placeholder — always 0).
+    pub task_count: u32,
+}
+
+/// Lightweight summary of a task for the dashboard.
+#[derive(Debug, Serialize)]
+pub struct TaskSummary {
+    /// Task identifier.
+    pub id: String,
+    /// Agent that owns the task.
+    pub agent: String,
+    /// Task status string.
+    pub status: String,
+    /// RFC 3339 start timestamp.
+    pub started_at: String,
+}
+
+/// Circuit breaker state summary for a single tool.
+#[derive(Debug, Serialize)]
+pub struct CircuitSummary {
+    /// Tool name.
+    pub tool_name: String,
+    /// Circuit state: `"closed"` | `"open"` | `"half_open"`.
+    pub state: String,
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+/// Map a [`ProcessState`] to a dashboard status string.
+fn process_state_label(state: &ProcessState) -> &'static str {
+    match state {
+        ProcessState::Initializing => "initializing",
+        ProcessState::Active => "active",
+        ProcessState::Degraded => "degraded",
+        ProcessState::Stopping => "stopping",
+        ProcessState::Stopped => "stopped",
+    }
+}
+
+// ─── Handlers ─────────────────────────────────────────────────────────────
+
+/// Serve the embedded HTML dashboard at `GET /dashboard`.
+///
+/// Returns HTTP 200 with `Content-Type: text/html`. The body contains the
+/// `CARGO_MANIFEST_DIR/assets/dashboard.html` placeholder (AC-1).
+pub async fn get_dashboard() -> impl IntoResponse {
+    Html(DASHBOARD_HTML)
+}
+
+/// Return a full JSON snapshot of the runtime state at `GET /api/v1/dashboard/state`.
+///
+/// Aggregates state from all available handles in [`AppState`]:
+/// - Agent registry → `agents`
+/// - Trigger engine → `triggers` (empty array when no engine is configured, AC-5)
+/// - LLM router     → `llm_backends`
+///
+/// Fields `recent_tasks`, `tool_circuits`, `memory_stats`, and `uptime_secs` are
+/// placeholders populated by later stories (AC-2).
+pub async fn get_dashboard_state<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> impl IntoResponse {
+    // Agents — ignore registry errors and return empty list gracefully.
+    let agents: Vec<AgentSummary> = state
+        .registry_handle
+        .list_agents()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|entry| AgentSummary {
+            id: entry.id.to_string(),
+            status: process_state_label(&entry.process_state).to_string(),
+            task_count: 0,
+        })
+        .collect();
+
+    // Triggers — always present, empty when TriggerEngine is not configured (AC-5).
+    let triggers: Vec<TriggerStatus> = match &state.trigger_engine {
+        Some(engine) => engine.list().await,
+        None => vec![],
+    };
+
+    // LLM backends — empty when no LlmRouter is configured.
+    let llm_backends: Vec<BackendInfo> = state
+        .llm_router
+        .as_ref()
+        .map(|r| r.list())
+        .unwrap_or_default();
+
+    let snapshot = DashboardState {
+        agents,
+        triggers,
+        recent_tasks: vec![],
+        llm_backends,
+        tool_circuits: vec![],
+        memory_stats: None,
+        uptime_secs: 0,
+        timestamp: Utc::now().to_rfc3339(),
+    };
+
+    Json(snapshot)
+}
+
+/// Return an HTML fragment for a dashboard section at `GET /api/v1/dashboard/partials/:section`.
+///
+/// Supported sections: `"agents"` | `"triggers"` | `"tasks"` | `"llm"` | `"tools"` | `"memory"`.
+/// Returns HTTP 404 for any unknown section name (AC-4).
+pub async fn get_dashboard_partial<B: ExecutionBackend + Clone>(
+    Path(section): Path<String>,
+    State(state): State<AppState<B>>,
+) -> impl IntoResponse {
+    match section.as_str() {
+        "agents" => render_agents_partial(&state).await.into_response(),
+        "triggers" => render_triggers_partial(&state).await.into_response(),
+        "tasks" => render_tasks_partial().into_response(),
+        "llm" => render_llm_partial(&state).into_response(),
+        "tools" => render_tools_partial().into_response(),
+        "memory" => render_memory_partial().into_response(),
+        _ => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+// ─── Partial renderers ────────────────────────────────────────────────────
+
+/// Render the agents section as an HTML `<table>`.
+async fn render_agents_partial<B: ExecutionBackend + Clone>(state: &AppState<B>) -> Html<String> {
+    let agents = state
+        .registry_handle
+        .list_agents()
+        .await
+        .unwrap_or_default();
+
+    let mut rows = String::new();
+    for entry in &agents {
+        rows.push_str(&format!(
+            "<tr><td>{}</td><td>{}</td></tr>",
+            entry.id,
+            process_state_label(&entry.process_state),
+        ));
+    }
+
+    Html(format!(
+        "<table>\
+           <thead><tr><th>ID</th><th>Status</th></tr></thead>\
+           <tbody>{}</tbody>\
+         </table>",
+        rows
+    ))
+}
+
+/// Render the triggers section as an HTML `<table>`.
+async fn render_triggers_partial<B: ExecutionBackend + Clone>(state: &AppState<B>) -> Html<String> {
+    let triggers: Vec<TriggerStatus> = match &state.trigger_engine {
+        Some(engine) => engine.list().await,
+        None => vec![],
+    };
+
+    let mut rows = String::new();
+    for t in &triggers {
+        let status = if t.enabled { "active" } else { "disabled" };
+        rows.push_str(&format!(
+            "<tr><td>{}</td><td>{}</td><td>{}</td></tr>",
+            t.id, t.agent, status,
+        ));
+    }
+
+    Html(format!(
+        "<table>\
+           <thead><tr><th>ID</th><th>Agent</th><th>Status</th></tr></thead>\
+           <tbody>{}</tbody>\
+         </table>",
+        rows
+    ))
+}
+
+/// Render the tasks section as an HTML `<table>` (placeholder — always empty).
+fn render_tasks_partial() -> Html<&'static str> {
+    Html(
+        "<table>\
+           <thead><tr><th>ID</th><th>Agent</th><th>Status</th></tr></thead>\
+           <tbody></tbody>\
+         </table>",
+    )
+}
+
+/// Render the LLM backends section as an HTML `<table>`.
+fn render_llm_partial<B: ExecutionBackend + Clone>(state: &AppState<B>) -> Html<String> {
+    let backends = state
+        .llm_router
+        .as_ref()
+        .map(|r| r.list())
+        .unwrap_or_default();
+
+    let mut rows = String::new();
+    for b in &backends {
+        let status = if b.available {
+            "available"
+        } else {
+            "unavailable"
+        };
+        rows.push_str(&format!(
+            "<tr><td>{}</td><td>{}</td><td>{}</td></tr>",
+            b.name, b.model_id, status,
+        ));
+    }
+
+    Html(format!(
+        "<table>\
+           <thead><tr><th>Name</th><th>Model</th><th>Status</th></tr></thead>\
+           <tbody>{}</tbody>\
+         </table>",
+        rows
+    ))
+}
+
+/// Render the tools circuit breaker section (placeholder — always empty).
+fn render_tools_partial() -> Html<&'static str> {
+    Html(
+        "<table>\
+           <thead><tr><th>Tool</th><th>Circuit</th></tr></thead>\
+           <tbody></tbody>\
+         </table>",
+    )
+}
+
+/// Render the memory section (placeholder — always empty).
+fn render_memory_partial() -> Html<&'static str> {
+    Html(
+        "<table>\
+           <thead><tr><th>Namespace</th><th>Stats</th></tr></thead>\
+           <tbody></tbody>\
+         </table>",
+    )
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::server::AppState;
+    use crate::coordinator::ExecutionBackend;
+    use crate::eventbus::EventBus;
+    use crate::registry::AgentRegistry;
+    use crate::router::TaskRouterHandle;
+    use apollia_core::{AIPResult, AIPTask, TaskStatus};
+    use apollia_triggers::{TaskSubmitter, TriggerEngineHandle};
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use axum::routing::get;
+    use axum::Router;
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    #[derive(Clone)]
+    struct MockBackend;
+
+    impl ExecutionBackend for MockBackend {
+        fn execute(
+            &self,
+            _task: AIPTask,
+        ) -> Pin<Box<dyn Future<Output = Result<AIPResult, String>> + Send>> {
+            Box::pin(async {
+                Ok(AIPResult {
+                    task_id: String::new(),
+                    status: TaskStatus::Completed,
+                    output: Vec::new(),
+                    error: None,
+                    artifacts: Vec::new(),
+                })
+            })
+        }
+    }
+
+    struct MockSubmitter;
+
+    impl TaskSubmitter for MockSubmitter {
+        fn submit<'a>(
+            &'a self,
+            _agent: &'a str,
+            _input: apollia_core::AIPInput,
+        ) -> Pin<Box<dyn Future<Output = Result<apollia_core::TaskId, String>> + Send + 'a>>
+        {
+            Box::pin(async { Ok(apollia_core::TaskId::new_v4()) })
+        }
+
+        fn pending_count<'a>(
+            &'a self,
+            _agent: &'a str,
+        ) -> Pin<Box<dyn Future<Output = usize> + Send + 'a>> {
+            Box::pin(async { 0 })
+        }
+    }
+
+    async fn make_test_app_state() -> AppState<MockBackend> {
+        let (event_tx, _) = EventBus::new();
+        let registry = AgentRegistry::spawn(event_tx.clone());
+        let router: TaskRouterHandle<MockBackend> =
+            TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 64);
+        AppState {
+            router_handle: router,
+            registry_handle: registry,
+            event_sender: event_tx,
+            agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: MockBackend,
+            llm_router: None,
+            trigger_engine: None,
+            config_path: None,
+        }
+    }
+
+    async fn make_test_app_state_with_engine() -> AppState<MockBackend> {
+        let (event_tx, _) = EventBus::new();
+        let registry = AgentRegistry::spawn(event_tx.clone());
+        let router: TaskRouterHandle<MockBackend> =
+            TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 64);
+        let engine =
+            TriggerEngineHandle::spawn(vec![], MockSubmitter, event_tx.clone(), None).await;
+        AppState {
+            router_handle: router,
+            registry_handle: registry,
+            event_sender: event_tx,
+            agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: MockBackend,
+            llm_router: None,
+            trigger_engine: Some(engine),
+            config_path: None,
+        }
+    }
+
+    fn make_router(state: AppState<MockBackend>) -> Router {
+        Router::new()
+            .route("/dashboard", get(get_dashboard))
+            .route(
+                "/api/v1/dashboard/state",
+                get(get_dashboard_state::<MockBackend>),
+            )
+            .route(
+                "/api/v1/dashboard/partials/:section",
+                get(get_dashboard_partial::<MockBackend>),
+            )
+            .with_state(state)
+    }
+
+    /// AC-1 — GET /dashboard returns HTTP 200 with Content-Type text/html and "Apollia OS".
+    #[tokio::test]
+    async fn test_ac1_get_dashboard_returns_html() {
+        // GIVEN a started APIServer
+        let state = make_test_app_state().await;
+        let router = make_router(state);
+
+        // WHEN GET /dashboard
+        let req = Request::builder()
+            .uri("/dashboard")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN HTTP 200
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // AND Content-Type: text/html
+        let ct = resp
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(ct.contains("text/html"), "expected text/html, got: {ct}");
+
+        // AND body contains "Apollia OS"
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        let body_str = std::str::from_utf8(&body).unwrap();
+        assert!(
+            body_str.contains("Apollia OS"),
+            "body should contain 'Apollia OS'"
+        );
+    }
+
+    /// AC-2 — GET /api/v1/dashboard/state returns JSON with required keys.
+    #[tokio::test]
+    async fn test_ac2_dashboard_state_contains_required_keys() {
+        // GIVEN AppState with mock handles
+        let state = make_test_app_state().await;
+        let router = make_router(state);
+
+        // WHEN GET /api/v1/dashboard/state
+        let req = Request::builder()
+            .uri("/api/v1/dashboard/state")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN HTTP 200
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // AND JSON contains the 6 required keys
+        let body = axum::body::to_bytes(resp.into_body(), 65536).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(json["agents"].is_array(), "missing 'agents'");
+        assert!(json["triggers"].is_array(), "missing 'triggers'");
+        assert!(json["recent_tasks"].is_array(), "missing 'recent_tasks'");
+        assert!(json["llm_backends"].is_array(), "missing 'llm_backends'");
+        assert!(json["tool_circuits"].is_array(), "missing 'tool_circuits'");
+        assert!(json.get("timestamp").is_some(), "missing 'timestamp'");
+    }
+
+    /// AC-3 — GET /api/v1/dashboard/partials/agents returns HTML.
+    #[tokio::test]
+    async fn test_ac3_agents_partial_returns_html() {
+        // GIVEN AppState
+        let state = make_test_app_state().await;
+        let router = make_router(state);
+
+        // WHEN GET /api/v1/dashboard/partials/agents
+        let req = Request::builder()
+            .uri("/api/v1/dashboard/partials/agents")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN HTTP 200
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // AND Content-Type: text/html
+        let ct = resp
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(ct.contains("text/html"), "expected text/html, got: {ct}");
+    }
+
+    /// AC-4 — GET /api/v1/dashboard/partials/unknown-section returns 404.
+    #[tokio::test]
+    async fn test_ac4_unknown_partial_returns_404() {
+        // GIVEN AppState
+        let state = make_test_app_state().await;
+        let router = make_router(state);
+
+        // WHEN GET /api/v1/dashboard/partials/unknown-section
+        let req = Request::builder()
+            .uri("/api/v1/dashboard/partials/unknown-section")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN HTTP 404
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    /// AC-5 — GET /api/v1/dashboard/state without triggers returns "triggers": [].
+    #[tokio::test]
+    async fn test_ac5_dashboard_state_triggers_empty_when_no_engine() {
+        // GIVEN runtime started without triggers configured
+        let state = make_test_app_state().await;
+        let router = make_router(state);
+
+        // WHEN GET /api/v1/dashboard/state
+        let req = Request::builder()
+            .uri("/api/v1/dashboard/state")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN "triggers": [] is present (not absent)
+        let body = axum::body::to_bytes(resp.into_body(), 65536).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(
+            json.get("triggers").is_some(),
+            "key 'triggers' must be present"
+        );
+        assert_eq!(
+            json["triggers"],
+            serde_json::json!([]),
+            "triggers must be []"
+        );
+    }
+
+    /// All 6 sections return HTTP 200 (not 404).
+    #[tokio::test]
+    async fn test_all_sections_return_200() {
+        // GIVEN AppState with TriggerEngine
+        let state = make_test_app_state_with_engine().await;
+        let router = make_router(state);
+
+        let sections = ["agents", "triggers", "tasks", "llm", "tools", "memory"];
+        for section in sections {
+            let req = Request::builder()
+                .uri(format!("/api/v1/dashboard/partials/{section}"))
+                .body(Body::empty())
+                .unwrap();
+            let resp = router.clone().oneshot(req).await.unwrap();
+            assert_eq!(
+                resp.status(),
+                StatusCode::OK,
+                "section '{section}' should return 200"
+            );
+        }
+    }
+}

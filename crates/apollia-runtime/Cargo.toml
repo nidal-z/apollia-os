@@ -10,6 +10,7 @@ apollia-core       = { workspace = true }
 apollia-llm        = { workspace = true }
 apollia-tools      = { workspace = true }
 apollia-triggers   = { path = "../apollia-triggers" }
+chrono             = { workspace = true }
 hmac               = "0.12"
 sha2               = "0.10"
 hex                = "0.4"
