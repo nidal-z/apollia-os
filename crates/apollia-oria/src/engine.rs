@@ -14,7 +14,8 @@ use apollia_llm::CompletionModel;
 
 use crate::budget::StepBudget;
 use crate::observer::{ContextBundle, ObserverError};
-use crate::reasoner::{ExecutionPlan, Reasoner, ReasonerError};
+use crate::plan::ExecutionPlan;
+use crate::reasoner::{Reasoner, ReasonerError};
 
 /// Trait abstracting agent execution for testability.
 ///
@@ -81,9 +82,11 @@ impl ORIAEngine {
 
     /// Configure le `ORIAEngine` avec un LLM pour activer le Mode Orchestrated.
     ///
+    /// `max_steps` borne la taille des plans générés par le Reasoner
+    /// (principe #7 — Garde-fous non-négociables).
     /// Utilise le pattern builder pour l'injection de dépendance (ADR-016).
-    pub fn with_reasoner(mut self, model: Arc<dyn CompletionModel>) -> Self {
-        self.reasoner = Some(Reasoner::new(model));
+    pub fn with_reasoner(mut self, model: Arc<dyn CompletionModel>, max_steps: u32) -> Self {
+        self.reasoner = Some(Reasoner::new(model, max_steps));
         self
     }
 
@@ -231,6 +234,7 @@ mod orchestrated_tests {
             memory_snapshot: None,
             execution_mode: ExecutionMode::Orchestrated,
             available_tools: vec!["file_io".into(), "bash_executor".into()],
+            manifest_system_prompt: None,
         }
     }
 
@@ -250,11 +254,14 @@ mod orchestrated_tests {
     #[tokio::test]
     async fn test_ac5_execute_orchestrated_returns_plan() {
         // GIVEN
-        let valid_plan = r#"{"goal":"multi-step plan","steps":[{"id":"s1","description":"read config","tool":"file_io","depends_on":[]},{"id":"s2","description":"run script","tool":"bash_executor","depends_on":["s1"]}]}"#;
+        let valid_plan = r#"{"steps":[
+            {"step_id":"s1","description":"read config","tool_hint":"file_io","depends_on":[]},
+            {"step_id":"s2","description":"run script","tool_hint":"bash_executor","depends_on":["s1"]}
+        ]}"#;
         let model = Arc::new(SimpleMockModel {
             response: valid_plan.into(),
         });
-        let engine = ORIAEngine::new().with_reasoner(model);
+        let engine = ORIAEngine::new().with_reasoner(model, 20);
         let bundle = make_orchestrated_bundle();
         let budget = make_budget();
 
@@ -263,8 +270,9 @@ mod orchestrated_tests {
 
         // THEN
         let plan = result.expect("expected Ok(ExecutionPlan)");
-        assert_eq!(plan.goal, "multi-step plan");
         assert_eq!(plan.steps.len(), 2);
+        assert_eq!(plan.steps[0].step_id, "s1");
+        assert_eq!(plan.steps[1].step_id, "s2");
     }
 
     /// ÉTANT DONNÉ un `ORIAEngine` sans LLM configuré
@@ -272,8 +280,8 @@ mod orchestrated_tests {
     /// ALORS `Err(ORIAError::NoLlmConfigured)` est retourné
     #[tokio::test]
     async fn test_execute_orchestrated_no_llm_returns_error() {
-        // GIVEN
-        let engine = ORIAEngine::new(); // no reasoner
+        // GIVEN — no reasoner configured
+        let engine = ORIAEngine::new();
         let bundle = make_orchestrated_bundle();
         let budget = make_budget();
 

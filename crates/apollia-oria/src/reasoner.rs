@@ -1,174 +1,345 @@
 //! ORIA Reasoner — produit un `ExecutionPlan` structuré via un appel LLM.
 //!
 //! Le Reasoner est le composant central du pipeline ORIA pour le mode Orchestrated.
-//! Il reçoit un [`ContextBundle`] enrichi par l'Observer, appelle un LLM via
-//! `Arc<dyn CompletionModel>` et retourne un [`ExecutionPlan`] parsé depuis JSON.
+//! Il reçoit un [`crate::observer::ContextBundle`] enrichi par l'Observer, appelle
+//! un LLM via `Arc<dyn CompletionModel>` et retourne un [`crate::plan::ExecutionPlan`]
+//! validé.
 //!
-//! En cas de réponse JSON invalide, un message de correction est ajouté à l'historique
-//! et l'appel est retenté jusqu'à 3 fois (principe #4 — Fail fast après N retries).
+//! En cas de réponse invalide, un message de correction est injecté dans le prompt
+//! et l'appel est retenté jusqu'à [`MAX_ATTEMPTS`] fois (principe #4 — Fail fast
+//! après N retries).
 
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use apollia_core::AIPPart;
-use apollia_llm::{ChatMessage, CompletionModel, CompletionRequest, LlmError};
+use apollia_llm::{ChatMessage, CompletionModel, CompletionRequest};
 
 use crate::observer::ContextBundle;
+use crate::plan::{ExecutionPlan, PlanStep};
+use crate::topo::topological_sort;
 
 // ─────────────────────────────────────────────
-// Types
+// Error types
 // ─────────────────────────────────────────────
 
-/// Plan d'exécution multi-étapes produit par le Reasoner.
+/// Erreurs de validation d'un plan individuel retourné par le LLM.
 ///
-/// Sérialisable en JSON pour être transmis au LLM et parsé depuis sa réponse.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct ExecutionPlan {
-    /// Objectif global du plan (résumé de haut niveau).
-    pub goal: String,
-    /// Étapes ordonnées du plan d'exécution.
-    pub steps: Vec<PlanStep>,
-}
-
-/// Étape individuelle dans un [`ExecutionPlan`].
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct PlanStep {
-    /// Identifiant unique de l'étape (ex: `"s1"`, `"s2"`).
-    pub id: String,
-    /// Description lisible de l'action à réaliser lors de cette étape.
-    pub description: String,
-    /// Outil à utiliser pour cette étape (`None` si aucun outil requis).
-    pub tool: Option<String>,
-    /// Identifiants des étapes dont cette étape dépend (pour le DAG d'exécution).
-    pub depends_on: Vec<String>,
+/// Retournées par [`Reasoner::parse_and_validate`] ; encapsulées dans
+/// [`ReasonerError::PlanParseError`] après épuisement des tentatives.
+#[derive(Debug, thiserror::Error)]
+pub enum PlanValidationError {
+    /// La réponse du LLM n'est pas du JSON valide.
+    #[error("Invalid JSON: {0}")]
+    InvalidJson(String),
+    /// La structure JSON ne correspond pas au schéma `{{ "steps": [...] }}` attendu.
+    #[error("Invalid structure: {0}")]
+    InvalidStructure(String),
+    /// Plusieurs steps partagent le même `step_id`.
+    #[error("Duplicate step IDs")]
+    DuplicateStepIds,
+    /// Un step référence dans ses `depends_on` un `step_id` inexistant dans le plan.
+    #[error("Unknown dependency: step '{step_id}' depends on unknown '{dep}'")]
+    UnknownDependency {
+        /// Identifiant du step qui contient la référence invalide.
+        step_id: String,
+        /// Identifiant de la dépendance introuvable.
+        dep: String,
+    },
+    /// Les dépendances forment un cycle — exécution topologique impossible.
+    #[error("Circular dependency detected")]
+    CircularDependency,
 }
 
 /// Erreurs du Reasoner ORIA.
-#[derive(thiserror::Error, Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ReasonerError {
-    /// Échec de parsage JSON de l'`ExecutionPlan` après N tentatives.
-    #[error("plan parse failed after {attempts} attempts, last: {last_response}")]
+    /// Échec d'un appel LLM (réseau, timeout, backend indisponible…).
+    #[error("LLM call failed: {0}")]
+    LlmFailed(String),
+    /// Échec de parsage/validation JSON après N tentatives consécutives.
+    #[error("Plan parse/validation failed after {attempts} attempts: {reason}")]
     PlanParseError {
         /// Nombre de tentatives effectuées avant l'abandon.
         attempts: u32,
-        /// Dernière réponse brute reçue du LLM (pour le débogage).
-        last_response: String,
+        /// Dernière erreur de validation rencontrée.
+        reason: String,
     },
-
-    /// Erreur LLM pendant la phase de planification.
-    #[error("LLM error during planning: {0}")]
-    LlmError(#[from] LlmError),
 }
+
+// ─────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────
+
+/// Nombre maximum de tentatives de génération de plan avant abandon.
+const MAX_ATTEMPTS: u32 = 3;
+
+/// Prompt système pour la planification initiale.
+///
+/// Les placeholders `{max_steps}`, `{tool_names}`, `{memory_summary}` et
+/// `{recent_history}` sont interpolés par `build_system_prompt()` via `str::replace`.
+const PLANNER_SYSTEM_PROMPT: &str = r#"Tu es un planificateur d'exécution pour un agent IA autonome.
+À partir du contexte et du system_prompt de l'agent, génère un plan d'exécution structuré.
+
+CONTRAINTES STRICTES :
+- Maximum {max_steps} étapes
+- Outils disponibles : {tool_names}
+- Chaque step_id doit être unique (s1, s2, s3...)
+- Les depends_on ne peuvent référencer que des step_ids existants dans ce plan
+- Pas de dépendances circulaires
+
+RÉPONDRE UNIQUEMENT EN JSON VALIDE, sans texte avant ou après :
+{"steps": [{"step_id": "s1", "description": "Description claire de l'action", "tool_hint": "nom_outil_ou_llm", "depends_on": []}]}
+
+Contexte mémoire disponible : {memory_summary}
+Historique récent : {recent_history}"#;
+
+/// Prompt système pour la replanification partielle après l'échec d'un step.
+///
+/// Les placeholders `{original_plan_json}`, `{completed_steps_json}`,
+/// `{failed_step_id}` et `{error_message}` sont interpolés par `replan()`.
+const REPLANNER_SYSTEM_PROMPT: &str = r#"Le plan d'exécution a rencontré une erreur. Génère un plan alternatif.
+
+Plan original : {original_plan_json}
+Steps complétés avec succès : {completed_steps_json}
+Step en échec : {failed_step_id} — erreur : {error_message}
+
+Génère un nouveau plan pour les steps restants uniquement.
+Réutilise les outputs des steps déjà complétés si pertinent.
+RÉPONDRE UNIQUEMENT EN JSON VALIDE."#;
 
 // ─────────────────────────────────────────────
 // Reasoner
 // ─────────────────────────────────────────────
 
-/// Produit un [`ExecutionPlan`] structuré via un appel LLM.
+/// Produit et valide des [`ExecutionPlan`] via un appel LLM.
 ///
 /// Le `Reasoner` reçoit un `Arc<dyn CompletionModel>` injecté (pattern ADR-016
-/// pour la testabilité) et construit un plan multi-étapes à partir d'un [`ContextBundle`].
+/// pour la testabilité) et un `max_steps` bornant la taille des plans générés
+/// (principe #7 — Garde-fous non-négociables).
 ///
-/// En cas de réponse JSON invalide, il ajoute un message de correction et retente
-/// jusqu'à [`MAX_RETRIES`] fois. Après épuisement des tentatives, retourne
-/// [`ReasonerError::PlanParseError`].
+/// En cas de réponse JSON invalide, le message d'erreur est injecté dans le prompt
+/// suivant et l'appel est retenté jusqu'à [`MAX_ATTEMPTS`] fois.
 pub struct Reasoner {
     model: Arc<dyn CompletionModel>,
+    max_steps: u32,
 }
 
-/// Nombre maximum de tentatives de parsage JSON avant abandon.
-const MAX_RETRIES: u32 = 3;
-
 impl Reasoner {
-    /// Crée un `Reasoner` avec le modèle LLM injecté.
-    pub fn new(model: Arc<dyn CompletionModel>) -> Self {
-        Self { model }
+    /// Crée un `Reasoner` avec le modèle LLM injecté et un budget maximum de steps.
+    ///
+    /// `max_steps` borne la taille du plan que le LLM est autorisé à générer.
+    /// Il est typiquement dérivé du `StepBudget` de l'agent via `from_capped()`.
+    pub fn new(model: Arc<dyn CompletionModel>, max_steps: u32) -> Self {
+        Self { model, max_steps }
     }
 
-    /// Construit le prompt planner à partir d'un [`ContextBundle`].
+    /// Génère un plan d'exécution initial depuis le [`ContextBundle`].
     ///
-    /// Retourne un vecteur de [`ChatMessage`] prêt à être envoyé au LLM :
-    /// 1. Un message système décrivant le format JSON `ExecutionPlan` attendu
-    ///    avec un exemple few-shot pour guider le modèle.
-    /// 2. Un message utilisateur avec le texte de la tâche et les outils disponibles.
-    ///
-    /// Cette fonction est publique et testable unitairement sans appel LLM.
-    pub fn build_prompt(bundle: &ContextBundle) -> Vec<ChatMessage> {
-        let schema_example = r#"{"goal":"short goal description","steps":[{"id":"s1","description":"what to do","tool":null,"depends_on":[]},{"id":"s2","description":"next step","tool":"file_io","depends_on":["s1"]}]}"#;
+    /// Appelle le LLM et tente de valider la réponse via [`parse_and_validate`].
+    /// En cas de plan invalide, injecte l'erreur dans le prompt utilisateur suivant
+    /// et retente. Retourne [`ReasonerError::PlanParseError`] après [`MAX_ATTEMPTS`]
+    /// tentatives infructueuses.
+    pub async fn plan(&self, ctx: &ContextBundle) -> Result<ExecutionPlan, ReasonerError> {
+        let mut last_error = String::new();
 
-        let system = format!(
-            "You are a task planning assistant for an autonomous agent runtime.\n\
-             Given a task and the list of available tools, produce an ExecutionPlan as JSON.\n\
-             Return ONLY valid JSON matching this exact schema:\n{schema_example}\n\
-             Rules:\n\
-             - No prose, no markdown, no explanation — pure JSON object only.\n\
-             - \"tool\" must be null or one of the available tool names.\n\
-             - \"depends_on\" lists step ids that must complete before this step.\n\
-             - Each step id must be unique (s1, s2, ...)."
-        );
-
-        let task_text: String = bundle
-            .task
-            .input
-            .parts
-            .iter()
-            .filter_map(|part| match part {
-                AIPPart::Text(t) => Some(t.text.clone()),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        let tools_section = if bundle.available_tools.is_empty() {
-            "No tools available.".to_string()
-        } else {
-            format!("Available tools: {}", bundle.available_tools.join(", "))
-        };
-
-        let user = format!("Task: {task_text}\n{tools_section}");
-
-        vec![ChatMessage::system(system), ChatMessage::user(user)]
-    }
-
-    /// Génère un [`ExecutionPlan`] depuis le [`ContextBundle`].
-    ///
-    /// Appelle `CompletionModel::complete()` et tente de parser la réponse en JSON.
-    /// Si le parsage échoue, ajoute un message de correction à l'historique et retente.
-    /// Après [`MAX_RETRIES`] tentatives infructueuses, retourne [`ReasonerError::PlanParseError`].
-    pub async fn plan(&self, bundle: &ContextBundle) -> Result<ExecutionPlan, ReasonerError> {
-        let mut messages = Self::build_prompt(bundle);
-        let mut last_response = String::new();
-
-        for attempt in 1..=MAX_RETRIES {
-            let req = CompletionRequest {
-                messages: messages.clone(),
-                ..Default::default()
+        for attempt in 0..MAX_ATTEMPTS {
+            let system = self.build_system_prompt(ctx);
+            let user = if attempt == 0 {
+                self.build_user_prompt(ctx)
+            } else {
+                format!(
+                    "{}\n\nATTENTION : ta réponse précédente était invalide.\nErreur : {}\nCorrige et renvoie uniquement du JSON valide.",
+                    self.build_user_prompt(ctx),
+                    last_error
+                )
             };
-            let response = self.model.complete(req).await?;
-            last_response = response.content.clone();
 
-            match serde_json::from_str::<ExecutionPlan>(&response.content) {
+            let response = self
+                .model
+                .complete(CompletionRequest {
+                    messages: vec![ChatMessage::system(system), ChatMessage::user(user)],
+                    ..Default::default()
+                })
+                .await
+                .map_err(|e| ReasonerError::LlmFailed(e.to_string()))?;
+
+            match self.parse_and_validate(&response.content, &ctx.task.task_id) {
                 Ok(plan) => {
                     tracing::info!(
-                        attempts = attempt,
+                        attempt = attempt + 1,
                         steps = plan.steps.len(),
                         "ExecutionPlan ready"
                     );
                     return Ok(plan);
                 }
                 Err(e) => {
-                    tracing::warn!(attempt, error = %e, "invalid JSON plan, retrying");
-                    messages.push(ChatMessage::user(
-                        "Your response was not valid JSON. Return ONLY a JSON object \
-                         matching the ExecutionPlan schema. No prose, no markdown.",
-                    ));
+                    tracing::warn!(attempt = attempt + 1, error = %e, "plan invalide, retry");
+                    last_error = e.to_string();
                 }
             }
         }
 
         Err(ReasonerError::PlanParseError {
-            attempts: MAX_RETRIES,
-            last_response,
+            attempts: MAX_ATTEMPTS,
+            reason: last_error,
         })
+    }
+
+    /// Replanification partielle après l'échec d'un step.
+    ///
+    /// Génère uniquement les steps restants en tenant compte des outputs des steps
+    /// complétés (`completed_outputs`) et de la raison d'échec du step `failed_step_id`.
+    ///
+    /// Un seul appel LLM sans retry propre — la gestion des retries de replanification
+    /// incombe à l'`ActorLoop` (STORY-083).
+    pub async fn replan(
+        &self,
+        ctx: &ContextBundle,
+        completed_outputs: &HashMap<String, String>,
+        failed_step_id: &str,
+        error_message: &str,
+    ) -> Result<ExecutionPlan, ReasonerError> {
+        let original_plan_json = serde_json::to_string(&ctx.task).unwrap_or_default();
+        let completed_steps_json = serde_json::to_string(completed_outputs).unwrap_or_default();
+
+        let system = REPLANNER_SYSTEM_PROMPT
+            .replace("{original_plan_json}", &original_plan_json)
+            .replace("{completed_steps_json}", &completed_steps_json)
+            .replace("{failed_step_id}", failed_step_id)
+            .replace("{error_message}", error_message);
+
+        let response = self
+            .model
+            .complete(CompletionRequest {
+                messages: vec![ChatMessage::system(system)],
+                ..Default::default()
+            })
+            .await
+            .map_err(|e| ReasonerError::LlmFailed(e.to_string()))?;
+
+        self.parse_and_validate(&response.content, &ctx.task.task_id)
+            .map_err(|e| ReasonerError::PlanParseError {
+                attempts: 1,
+                reason: e.to_string(),
+            })
+    }
+
+    /// Valide un plan JSON brut retourné par le LLM.
+    ///
+    /// 5 validations séquentielles — retourne `Err` au premier problème rencontré :
+    /// 1. Strip les backticks Markdown éventuels et parse le JSON
+    /// 2. Désérialise le tableau de [`PlanStep`] depuis le champ `"steps"`
+    /// 3. Vérifie que tous les `step_id` sont uniques
+    /// 4. Vérifie que chaque `depends_on` référence un `step_id` existant dans le plan
+    /// 5. Détecte les cycles via [`topological_sort`] (algorithme de Kahn)
+    ///
+    /// Cette fonction est publique et pure — testable indépendamment du LLM.
+    pub fn parse_and_validate(
+        &self,
+        raw: &str,
+        task_id: &str,
+    ) -> Result<ExecutionPlan, PlanValidationError> {
+        // 1. Strip Markdown backticks and trim whitespace
+        let clean = raw
+            .trim()
+            .trim_start_matches("```json")
+            .trim_start_matches("```")
+            .trim_end_matches("```")
+            .trim();
+
+        // 2. Parse JSON and extract steps array
+        let parsed: serde_json::Value = serde_json::from_str(clean)
+            .map_err(|e| PlanValidationError::InvalidJson(e.to_string()))?;
+
+        let steps: Vec<PlanStep> = serde_json::from_value(parsed["steps"].clone())
+            .map_err(|e| PlanValidationError::InvalidStructure(e.to_string()))?;
+
+        // 3. Validate unique step_ids
+        let ids: HashSet<&str> = steps.iter().map(|s| s.step_id.as_str()).collect();
+        if ids.len() != steps.len() {
+            return Err(PlanValidationError::DuplicateStepIds);
+        }
+
+        // 4. Validate all depends_on reference existing step_ids
+        for step in &steps {
+            for dep in &step.depends_on {
+                if !ids.contains(dep.as_str()) {
+                    return Err(PlanValidationError::UnknownDependency {
+                        step_id: step.step_id.clone(),
+                        dep: dep.clone(),
+                    });
+                }
+            }
+        }
+
+        // 5. Detect cycles via topological sort (Kahn BFS)
+        topological_sort(&steps).map_err(|_| PlanValidationError::CircularDependency)?;
+
+        Ok(ExecutionPlan {
+            plan_id: uuid::Uuid::new_v4().to_string(),
+            task_id: task_id.to_string(),
+            steps,
+        })
+    }
+
+    fn build_system_prompt(&self, ctx: &ContextBundle) -> String {
+        let tool_names = if ctx.available_tools.is_empty() {
+            "Aucun outil disponible.".to_string()
+        } else {
+            ctx.available_tools.join(", ")
+        };
+
+        let memory_summary = ctx.memory_snapshot.as_ref().map_or_else(
+            || "Aucun contexte mémoriel disponible.".to_string(),
+            |m| {
+                let episodes = if m.episodic_recent.is_empty() {
+                    "aucun".to_string()
+                } else {
+                    m.episodic_recent.join("; ")
+                };
+                let facts = if m.semantic_relevant.is_empty() {
+                    "aucun".to_string()
+                } else {
+                    m.semantic_relevant
+                        .iter()
+                        .map(|(k, v)| format!("{k}={v}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                };
+                format!("Épisodes: {episodes}. Faits: {facts}")
+            },
+        );
+
+        PLANNER_SYSTEM_PROMPT
+            .replace("{max_steps}", &self.max_steps.to_string())
+            .replace("{tool_names}", &tool_names)
+            .replace("{memory_summary}", &memory_summary)
+            .replace("{recent_history}", "")
+    }
+
+    fn build_user_prompt(&self, ctx: &ContextBundle) -> String {
+        let system_prompt = ctx
+            .manifest_system_prompt
+            .as_deref()
+            .unwrap_or("Exécute la tâche demandée de manière optimale.");
+
+        let task_input = ctx
+            .task
+            .input
+            .parts
+            .iter()
+            .filter_map(|p| {
+                if let AIPPart::Text(t) = p {
+                    Some(t.text.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        format!("Agent system prompt:\n{system_prompt}\n\nTâche: {task_input}")
     }
 }
 
@@ -179,22 +350,18 @@ impl Reasoner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apollia_core::{AIPInput, AIPPart, AIPTask, TextPart};
-    use apollia_llm::{CompletionResponse, FinishReason, MessageContent, TokenUsage};
+    use apollia_llm::{CompletionRequest, CompletionResponse, FinishReason, LlmError, TokenUsage};
     use std::collections::VecDeque;
     use std::pin::Pin;
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Mutex;
 
-    use crate::observer::{ContextBundle, ExecutionMode};
-
     // ─── Mock LLM ─────────────────────────────
 
     /// Mock `CompletionModel` pour les tests du Reasoner.
     ///
-    /// Supporte trois modes :
-    /// - `returning(json)` / `always_returning(json)` : retourne toujours la même réponse
-    /// - `sequence(vec)` : consomme les réponses dans l'ordre, puis retourne `fallback`
+    /// Consomme les réponses de la `queue` dans l'ordre ; utilise `fallback`
+    /// une fois la queue épuisée. Compte le nombre d'appels via `call_count`.
     struct MockCompletionModel {
         queue: Mutex<VecDeque<String>>,
         fallback: String,
@@ -202,27 +369,15 @@ mod tests {
     }
 
     impl MockCompletionModel {
-        fn returning(json: &str) -> Self {
-            Self {
-                queue: Mutex::new(VecDeque::new()),
-                fallback: json.to_string(),
-                call_count: AtomicU32::new(0),
-            }
-        }
-
-        fn always_returning(json: &str) -> Self {
-            Self::returning(json)
-        }
-
-        fn sequence(responses: Vec<&str>) -> Self {
-            Self {
+        fn sequence(responses: Vec<&str>) -> Arc<Self> {
+            Arc::new(Self {
                 queue: Mutex::new(responses.iter().map(|s| s.to_string()).collect()),
                 fallback: "{}".to_string(),
                 call_count: AtomicU32::new(0),
-            }
+            })
         }
 
-        fn call_count(&self) -> u32 {
+        fn calls(&self) -> u32 {
             self.call_count.load(Ordering::SeqCst)
         }
     }
@@ -232,8 +387,8 @@ mod tests {
         async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
             self.call_count.fetch_add(1, Ordering::SeqCst);
             let content = {
-                let mut queue = self.queue.lock().expect("mock lock poisoned");
-                queue.pop_front().unwrap_or_else(|| self.fallback.clone())
+                let mut q = self.queue.lock().expect("mock lock poisoned");
+                q.pop_front().unwrap_or_else(|| self.fallback.clone())
             };
             Ok(CompletionResponse {
                 content,
@@ -271,94 +426,63 @@ mod tests {
         }
     }
 
-    // ─── Helper ───────────────────────────────
+    // ─── JSON fixtures ────────────────────────
 
-    fn make_context_bundle(task_text: &str) -> ContextBundle {
-        ContextBundle {
-            task: AIPTask {
-                task_id: "task-001".into(),
-                context_id: "ctx-001".into(),
-                input: AIPInput {
-                    parts: vec![AIPPart::Text(TextPart {
-                        text: task_text.into(),
-                    })],
-                },
-                history: vec![],
-                timeout_seconds: None,
-            },
-            memory_snapshot: None,
-            execution_mode: ExecutionMode::Orchestrated,
-            available_tools: vec![],
-        }
-    }
+    const VALID_PLAN_2_STEPS: &str = r#"{"steps":[
+        {"step_id":"s1","description":"Step 1","tool_hint":"file_io","depends_on":[]},
+        {"step_id":"s2","description":"Step 2","tool_hint":"llm","depends_on":["s1"]}
+    ]}"#;
 
-    // ─── AC-1 ─────────────────────────────────
+    const VALID_PLAN_3_STEPS: &str = r#"{"steps":[
+        {"step_id":"s1","description":"Step 1","depends_on":[]},
+        {"step_id":"s2","description":"Step 2","depends_on":["s1"]},
+        {"step_id":"s3","description":"Step 3","depends_on":["s2"]}
+    ]}"#;
 
-    /// GIVEN un mock `CompletionModel` qui retourne un JSON `ExecutionPlan` bien formé
-    /// WHEN on appelle `reasoner.plan(&context_bundle).await`
-    /// THEN `Ok(ExecutionPlan { steps, ... })` est retourné avec les steps corrects
+    const CYCLIC_PLAN: &str = r#"{"steps":[
+        {"step_id":"s1","description":"Step 1","depends_on":["s2"]},
+        {"step_id":"s2","description":"Step 2","depends_on":["s1"]}
+    ]}"#;
+
+    // ─── AC-1 — Plan valide depuis mock LLM ───
+
+    /// GIVEN un Reasoner avec un mock CompletionModel qui retourne un JSON valide
+    /// WHEN reasoner.plan(&ctx).await est appelé
+    /// THEN Ok(ExecutionPlan) est retourné avec 2 steps
+    ///   ET le mock a été appelé exactement 1 fois
     #[tokio::test]
-    async fn test_ac1_valid_json_returns_plan() {
+    async fn test_ac1_plan_valide_depuis_mock_llm() {
         // GIVEN
-        let valid_json = r#"{"goal":"test","steps":[{"id":"s1","description":"step 1","tool":null,"depends_on":[]}]}"#;
-        let model = Arc::new(MockCompletionModel::returning(valid_json));
-        let reasoner = Reasoner::new(model);
-        let bundle = make_context_bundle("plan this task");
+        let model = MockCompletionModel::sequence(vec![VALID_PLAN_2_STEPS]);
+        let reasoner = Reasoner::new(model.clone(), 10);
+        let ctx = ContextBundle::default();
 
         // WHEN
-        let result = reasoner.plan(&bundle).await;
+        let result = reasoner.plan(&ctx).await;
 
         // THEN
         let plan = result.expect("expected Ok(ExecutionPlan)");
-        assert_eq!(plan.goal, "test");
-        assert_eq!(plan.steps.len(), 1);
-        assert_eq!(plan.steps[0].id, "s1");
-        assert_eq!(plan.steps[0].description, "step 1");
-        assert!(plan.steps[0].tool.is_none());
-        assert!(plan.steps[0].depends_on.is_empty());
+        assert_eq!(plan.steps.len(), 2);
+        assert_eq!(plan.steps[0].step_id, "s1");
+        assert_eq!(plan.steps[1].depends_on, vec!["s1"]);
+        assert_eq!(model.calls(), 1);
     }
 
-    // ─── AC-2 ─────────────────────────────────
+    // ─── AC-2 — Retry ×3 sur JSON invalide ───
 
-    /// GIVEN un mock LLM qui retourne 2 fois du JSON invalide, puis un JSON valide
-    /// WHEN on appelle `reasoner.plan(&context_bundle).await`
-    /// THEN `Ok(ExecutionPlan)` est retourné après le 3ème appel
-    ///      ET `complete()` a été appelé exactement 3 fois
+    /// GIVEN un mock qui retourne du texte non-JSON 3 fois
+    /// WHEN reasoner.plan(&ctx).await est appelé
+    /// THEN Err(PlanParseError { attempts: 3 }) est retourné
+    ///   ET le mock a été appelé exactement 3 fois
     #[tokio::test]
-    async fn test_ac2_retry_on_invalid_json() {
-        // GIVEN — 2 JSON invalides, puis 1 valide
-        let valid_json = r#"{"goal":"ok","steps":[]}"#;
-        let model = Arc::new(MockCompletionModel::sequence(vec![
-            "not json",
-            "also not json",
-            valid_json,
-        ]));
-        let reasoner = Reasoner::new(Arc::clone(&model) as Arc<dyn CompletionModel>);
-        let bundle = make_context_bundle("test");
+    async fn test_ac2_retry_3_fois_sur_json_invalide() {
+        // GIVEN
+        let model = MockCompletionModel::sequence(vec!["not json", "still not json", "nope"]);
+        let reasoner = Reasoner::new(model.clone(), 10);
+        let ctx = ContextBundle::default();
 
         // WHEN
-        let result = reasoner.plan(&bundle).await;
-
-        // THEN
-        assert!(result.is_ok(), "expected Ok but got: {:?}", result.err());
-        assert_eq!(model.call_count(), 3, "expected exactly 3 LLM calls");
-    }
-
-    // ─── AC-3 ─────────────────────────────────
-
-    /// GIVEN un mock LLM qui retourne toujours du JSON invalide
-    /// WHEN on appelle `reasoner.plan(&context_bundle).await`
-    /// THEN `Err(ReasonerError::PlanParseError { attempts: 3, .. })` est retourné
-    ///      ET `complete()` a été appelé exactement 3 fois
-    #[tokio::test]
-    async fn test_ac3_error_after_3_retries() {
-        // GIVEN — toujours JSON invalide
-        let model = Arc::new(MockCompletionModel::always_returning("invalid json !"));
-        let reasoner = Reasoner::new(Arc::clone(&model) as Arc<dyn CompletionModel>);
-        let bundle = make_context_bundle("test");
-
-        // WHEN
-        let result = reasoner.plan(&bundle).await;
+        let result = reasoner.plan(&ctx).await;
 
         // THEN
         assert!(
@@ -366,72 +490,165 @@ mod tests {
                 result,
                 Err(ReasonerError::PlanParseError { attempts: 3, .. })
             ),
-            "expected PlanParseError{{attempts:3}}, got: {:?}",
-            result
+            "expected PlanParseError{{attempts:3}}, got: {result:?}"
         );
-        assert_eq!(model.call_count(), 3, "expected exactly 3 LLM calls");
+        assert_eq!(model.calls(), 3);
     }
 
-    // ─── AC-4 ─────────────────────────────────
+    // ─── AC-3 — Détection dépendance circulaire → retry ───
 
-    /// GIVEN un `ContextBundle` avec `task.input` contenant un texte
-    /// WHEN `Reasoner::build_prompt()` est appelé
-    /// ALORS le prompt contient le texte de la tâche
-    #[test]
-    fn test_ac4_build_prompt_contains_task_text() {
+    /// GIVEN un mock qui retourne un plan cyclique 3 fois
+    /// WHEN reasoner.plan(&ctx).await est appelé
+    /// THEN PlanParseError après 3 tentatives
+    #[tokio::test]
+    async fn test_ac3_cycle_detecte_et_retry() {
         // GIVEN
-        let bundle = make_context_bundle("calculate the devis for client X");
+        let model = MockCompletionModel::sequence(vec![CYCLIC_PLAN, CYCLIC_PLAN, CYCLIC_PLAN]);
+        let reasoner = Reasoner::new(model.clone(), 10);
+        let ctx = ContextBundle::default();
 
         // WHEN
-        let messages = Reasoner::build_prompt(&bundle);
-
-        // THEN — le texte de la tâche doit apparaître dans les messages
-        let all_content: String = messages
-            .iter()
-            .filter_map(|m| {
-                if let MessageContent::Text(t) = &m.content {
-                    Some(t.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-        assert!(
-            all_content.contains("calculate the devis"),
-            "prompt must contain task text, got: {all_content}"
-        );
-    }
-
-    /// GIVEN un `ContextBundle` avec 2 outils disponibles
-    /// WHEN `Reasoner::build_prompt()` est appelé
-    /// ALORS le prompt contient les noms des 2 outils
-    #[test]
-    fn test_ac4_build_prompt_contains_tool_names() {
-        // GIVEN
-        let mut bundle = make_context_bundle("do something");
-        bundle.available_tools = vec!["file_io".into(), "bash_executor".into()];
-
-        // WHEN
-        let messages = Reasoner::build_prompt(&bundle);
+        let result = reasoner.plan(&ctx).await;
 
         // THEN
-        let all_content: String = messages
-            .iter()
-            .filter_map(|m| {
-                if let MessageContent::Text(t) = &m.content {
-                    Some(t.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
         assert!(
-            all_content.contains("file_io"),
-            "prompt must contain tool name 'file_io', got: {all_content}"
+            matches!(
+                result,
+                Err(ReasonerError::PlanParseError { attempts: 3, .. })
+            ),
+            "expected PlanParseError{{attempts:3}}, got: {result:?}"
         );
+        assert_eq!(model.calls(), 3);
+    }
+
+    // ─── AC-3 suite — cycle puis plan valide ───
+
+    /// GIVEN un mock qui retourne un plan cyclique puis un plan valide
+    /// WHEN reasoner.plan(&ctx).await est appelé
+    /// THEN Ok(ExecutionPlan) au 2ème essai
+    #[tokio::test]
+    async fn test_ac3_cycle_puis_plan_valide() {
+        // GIVEN
+        let model = MockCompletionModel::sequence(vec![CYCLIC_PLAN, VALID_PLAN_2_STEPS]);
+        let reasoner = Reasoner::new(model.clone(), 10);
+        let ctx = ContextBundle::default();
+
+        // WHEN
+        let result = reasoner.plan(&ctx).await;
+
+        // THEN
+        assert!(result.is_ok());
+        assert_eq!(model.calls(), 2);
+    }
+
+    // ─── AC-5 — replan() génère un plan partiel ───
+
+    /// GIVEN un mock qui retourne un plan de remplacement valide
+    /// WHEN reasoner.replan(&ctx, &outputs, "s3", "timeout").await est appelé
+    /// THEN Ok(ExecutionPlan) avec les nouveaux steps
+    #[tokio::test]
+    async fn test_ac5_replan_retourne_plan_valide() {
+        // GIVEN
+        let replacement_plan = r#"{"steps":[
+            {"step_id":"s3b","description":"Retry step","depends_on":[]},
+            {"step_id":"s4","description":"Final step","depends_on":["s3b"]}
+        ]}"#;
+        let model = MockCompletionModel::sequence(vec![replacement_plan]);
+        let reasoner = Reasoner::new(model.clone(), 10);
+        let ctx = ContextBundle::default();
+        let mut completed_outputs = HashMap::new();
+        completed_outputs.insert("s1".to_string(), "output1".to_string());
+        completed_outputs.insert("s2".to_string(), "output2".to_string());
+
+        // WHEN
+        let result = reasoner
+            .replan(&ctx, &completed_outputs, "s3", "timeout")
+            .await;
+
+        // THEN
+        let plan = result.expect("expected Ok(ExecutionPlan)");
+        assert_eq!(plan.steps.len(), 2);
+        assert_eq!(plan.steps[0].step_id, "s3b");
+        assert_eq!(model.calls(), 1);
+    }
+
+    // ─── AC-6 — Backticks Markdown strippés ───
+
+    /// GIVEN une réponse LLM avec backticks Markdown
+    /// WHEN parse_and_validate() est appelé
+    /// THEN le JSON est parsé correctement
+    #[test]
+    fn test_ac6_backticks_strippes() {
+        // GIVEN
+        let reasoner = Reasoner::new(MockCompletionModel::sequence(vec![]), 10);
+        let raw = "```json\n{\"steps\":[{\"step_id\":\"s1\",\"description\":\"d\",\"depends_on\":[]}]}\n```";
+
+        // WHEN
+        let result = reasoner.parse_and_validate(raw, "task-001");
+
+        // THEN
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().steps[0].step_id, "s1");
+    }
+
+    // ─── Validation directe de parse_and_validate ───
+
+    /// GIVEN un plan avec dépendance vers step inexistant
+    /// WHEN parse_and_validate() est appelé
+    /// THEN Err(UnknownDependency)
+    #[test]
+    fn test_unknown_dependency() {
+        // GIVEN
+        let reasoner = Reasoner::new(MockCompletionModel::sequence(vec![]), 10);
+        let raw = r#"{"steps":[{"step_id":"s1","description":"d","depends_on":["s99"]}]}"#;
+
+        // WHEN
+        let result = reasoner.parse_and_validate(raw, "task-001");
+
+        // THEN
         assert!(
-            all_content.contains("bash_executor"),
-            "prompt must contain tool name 'bash_executor', got: {all_content}"
+            matches!(result, Err(PlanValidationError::UnknownDependency { .. })),
+            "expected UnknownDependency, got: {result:?}"
         );
+    }
+
+    /// GIVEN un plan avec deux steps ayant le même step_id
+    /// WHEN parse_and_validate() est appelé
+    /// THEN Err(DuplicateStepIds)
+    #[test]
+    fn test_duplicate_step_ids() {
+        // GIVEN
+        let reasoner = Reasoner::new(MockCompletionModel::sequence(vec![]), 10);
+        let raw = r#"{"steps":[
+            {"step_id":"s1","description":"d","depends_on":[]},
+            {"step_id":"s1","description":"e","depends_on":[]}
+        ]}"#;
+
+        // WHEN
+        let result = reasoner.parse_and_validate(raw, "task-001");
+
+        // THEN
+        assert!(
+            matches!(result, Err(PlanValidationError::DuplicateStepIds)),
+            "expected DuplicateStepIds, got: {result:?}"
+        );
+    }
+
+    /// GIVEN un plan 3 steps linéaires (s1→s2→s3)
+    /// WHEN parse_and_validate() est appelé
+    /// THEN Ok(ExecutionPlan) avec 3 steps et task_id correct
+    #[test]
+    fn test_parse_and_validate_plan_lineaire() {
+        // GIVEN
+        let reasoner = Reasoner::new(MockCompletionModel::sequence(vec![]), 10);
+
+        // WHEN
+        let result = reasoner.parse_and_validate(VALID_PLAN_3_STEPS, "task-abc");
+
+        // THEN
+        let plan = result.expect("expected Ok");
+        assert_eq!(plan.steps.len(), 3);
+        assert_eq!(plan.task_id, "task-abc");
+        assert!(!plan.plan_id.is_empty());
     }
 }

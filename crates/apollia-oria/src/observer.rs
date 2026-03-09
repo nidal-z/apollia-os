@@ -62,6 +62,20 @@ pub struct ContextBundle {
     pub execution_mode: ExecutionMode,
     /// Names of tools available to the agent (from manifest `tools_required` + `tools_optional`).
     pub available_tools: Vec<String>,
+    /// System prompt from the agent manifest, forwarded to the Reasoner for plan generation.
+    pub manifest_system_prompt: Option<String>,
+}
+
+impl Default for ContextBundle {
+    fn default() -> Self {
+        Self {
+            task: AIPTask::default(),
+            memory_snapshot: None,
+            execution_mode: ExecutionMode::Direct,
+            available_tools: vec![],
+            manifest_system_prompt: None,
+        }
+    }
 }
 
 /// Errors that can occur during observation.
@@ -124,6 +138,7 @@ pub fn observe(
     memory: Option<&mut MemoryManager>,
 ) -> Result<ContextBundle, ObserverError> {
     let execution_mode = classify(&task, manifest);
+    let manifest_system_prompt = manifest.system_prompt.clone();
 
     let available_tools: Vec<String> = manifest
         .tools_required
@@ -142,6 +157,7 @@ pub fn observe(
                         memory_snapshot: None,
                         execution_mode,
                         available_tools,
+                        manifest_system_prompt,
                     });
                 }
             };
@@ -180,6 +196,7 @@ pub fn observe(
         memory_snapshot,
         execution_mode,
         available_tools,
+        manifest_system_prompt,
     })
 }
 
