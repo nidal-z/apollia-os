@@ -24,6 +24,8 @@ pub struct ValidatedAgent {
     pub has_on_stop: bool,
     /// `true` if the agent implements `health_check()`.
     pub has_health_check: bool,
+    /// `true` if the agent implements `on_plan_complete()` (STORY-086).
+    pub has_on_plan_complete: bool,
 }
 
 /// Errors that can occur during AIP validation of a Python agent.
@@ -124,6 +126,9 @@ pub fn validate_agent(agent: &Py<PyAny>) -> Result<ValidatedAgent, AIPValidation
         let has_health_check = agent_ref
             .hasattr("health_check")
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
+        let has_on_plan_complete = agent_ref
+            .hasattr("on_plan_complete")
+            .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
 
         Ok(ValidatedAgent {
             object: agent.clone_ref(py),
@@ -131,6 +136,7 @@ pub fn validate_agent(agent: &Py<PyAny>) -> Result<ValidatedAgent, AIPValidation
             has_on_start,
             has_on_stop,
             has_health_check,
+            has_on_plan_complete,
         })
     })
 }

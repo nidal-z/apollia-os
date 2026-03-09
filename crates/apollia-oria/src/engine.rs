@@ -73,6 +73,22 @@ pub trait AIPAgent: Send + Sync {
     fn has_on_plan_complete(&self) -> bool {
         false
     }
+
+    /// Calls `on_plan_complete(step_results)` on the agent.
+    ///
+    /// Invoked by `ORIAEngine::execute_orchestrated_plan()` when [`has_on_plan_complete`]
+    /// returns `true`. The concrete Python implementation delegates to
+    /// `AIPBridge::call_on_plan_complete()`.
+    ///
+    /// Default: concatenates step outputs automatically (same as the fallback path).
+    ///
+    /// [`has_on_plan_complete`]: AIPAgent::has_on_plan_complete
+    fn call_on_plan_complete(
+        &self,
+        step_results: HashMap<String, String>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AIPResult> + Send + '_>> {
+        Box::pin(async move { concat_outputs(&step_results) })
+    }
 }
 
 // ─────────────────────────────────────────────
@@ -354,13 +370,10 @@ impl ORIAEngine {
 
             let outputs = extract_step_outputs(&step_result);
 
-            // STORY-086 stub: on_plan_complete() Python hook not yet wired.
-            // has_on_plan_complete() returns false by default (ADR-022).
-            // When STORY-086 is implemented, the true branch will call call_on_plan_complete()
-            // instead of concat_outputs(). Both branches are identical until then.
-            #[allow(clippy::if_same_then_else)]
+            // AC-5 (STORY-086): call on_plan_complete() if the agent exposes it,
+            // otherwise fall back to automatic step-output concatenation (AC-6).
             if agent.has_on_plan_complete() {
-                concat_outputs(&outputs)
+                agent.call_on_plan_complete(outputs).await
             } else {
                 concat_outputs(&outputs)
             }
@@ -726,7 +739,7 @@ mod orchestrated_tests {
         }
     }
 
-    // ── Mock AIPAgent ───────────────────────────────────────────────────
+    // ── Mock AIPAgent (no hook) ─────────────────────────────────────────
 
     struct MockAgent {
         manifest: AgentManifest,
@@ -735,6 +748,29 @@ mod orchestrated_tests {
     impl AIPAgent for MockAgent {
         fn manifest(&self) -> AgentManifest {
             self.manifest.clone()
+        }
+    }
+
+    // ── Mock AIPAgent with on_plan_complete hook ─────────────────────────
+
+    struct MockAgentWithHook {
+        manifest: AgentManifest,
+    }
+
+    impl AIPAgent for MockAgentWithHook {
+        fn manifest(&self) -> AgentManifest {
+            self.manifest.clone()
+        }
+
+        fn has_on_plan_complete(&self) -> bool {
+            true
+        }
+
+        fn call_on_plan_complete(
+            &self,
+            _step_results: HashMap<String, String>,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = AIPResult> + Send + '_>> {
+            Box::pin(async move { AIPResult::completed("HOOK_CALLED") })
         }
     }
 
@@ -824,6 +860,84 @@ mod orchestrated_tests {
             TaskStatus::Completed,
             "expected Completed, got: {:?}",
             result.error
+        );
+    }
+
+    // ── AC-5 : hook on_plan_complete() appelé si présent ────────────────
+
+    /// ÉTANT DONNÉ un agent avec on_plan_complete() qui retourne "HOOK_CALLED"
+    ///      ET execute_orchestrated() qui retourne CompletedWithSteps
+    /// QUAND ORIAEngine::execute(task, &agent) est appelé
+    /// ALORS le résultat contient "HOOK_CALLED" (pas la concaténation auto)
+    #[tokio::test]
+    async fn test_ac5_hook_called_when_present() {
+        // GIVEN
+        let engine = make_engine_with_mock(two_step_plan_json());
+        let agent = MockAgentWithHook {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+        let task = AIPTask::default();
+
+        // WHEN
+        let result = engine.execute(task, &agent).await;
+
+        // THEN status Completed AND output contains "HOOK_CALLED"
+        assert_eq!(
+            result.status,
+            TaskStatus::Completed,
+            "expected Completed, got: {:?}",
+            result.error
+        );
+        let output_text = result.output.iter().find_map(|p| {
+            if let apollia_core::AIPPart::Text(t) = p {
+                Some(t.text.clone())
+            } else {
+                None
+            }
+        });
+        assert_eq!(
+            output_text.as_deref(),
+            Some("HOOK_CALLED"),
+            "expected hook output 'HOOK_CALLED', got: {output_text:?}"
+        );
+    }
+
+    // ── AC-6 : concaténation utilisée si hook absent ─────────────────────
+
+    /// ÉTANT DONNÉ un agent SANS on_plan_complete()
+    ///      ET execute_orchestrated() qui retourne CompletedWithSteps
+    /// QUAND ORIAEngine::execute(task, &agent) est appelé
+    /// ALORS call_on_plan_complete() n'est PAS appelé
+    ///   ET la concaténation automatique des outputs est retournée
+    #[tokio::test]
+    async fn test_ac6_concat_used_when_no_hook() {
+        // GIVEN
+        let engine = make_engine_with_mock(two_step_plan_json());
+        let agent = MockAgent {
+            manifest: orchestrated_manifest_with_prompt(),
+        };
+        let task = AIPTask::default();
+
+        // WHEN
+        let result = engine.execute(task, &agent).await;
+
+        // THEN status Completed AND output does NOT contain "HOOK_CALLED"
+        assert_eq!(
+            result.status,
+            TaskStatus::Completed,
+            "expected Completed, got: {:?}",
+            result.error
+        );
+        let has_hook_called = result.output.iter().any(|p| {
+            if let apollia_core::AIPPart::Text(t) = p {
+                t.text.contains("HOOK_CALLED")
+            } else {
+                false
+            }
+        });
+        assert!(
+            !has_hook_called,
+            "hook output should NOT appear when agent has no on_plan_complete"
         );
     }
 

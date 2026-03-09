@@ -5,8 +5,11 @@
 //!
 //! The GIL is only held on the blocking thread pool, never on Tokio workers.
 
+use std::collections::HashMap;
+
 use apollia_core::{AIPResult, AIPTask};
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
 use crate::validator::ValidatedAgent;
 
@@ -33,7 +36,7 @@ pub enum AIPBridgeError {
 /// Bridge between the Tokio runtime and a Python asyncio agent.
 ///
 /// Wraps a validated Python agent and provides async Rust methods
-/// to call `run()`, `on_start()`, and `on_stop()` on the agent.
+/// to call `run()`, `on_start()`, `on_stop()`, and `on_plan_complete()`.
 ///
 /// Uses `tokio::task::spawn_blocking` to move Python execution off
 /// Tokio worker threads (ADR-014).
@@ -44,6 +47,8 @@ pub struct AIPBridge {
     has_on_start: bool,
     /// Whether the agent has an `on_stop` callback.
     has_on_stop: bool,
+    /// Whether the agent has an `on_plan_complete` hook (STORY-086).
+    has_on_plan_complete: bool,
 }
 
 impl AIPBridge {
@@ -53,7 +58,15 @@ impl AIPBridge {
             agent: validated.object,
             has_on_start: validated.has_on_start,
             has_on_stop: validated.has_on_stop,
+            has_on_plan_complete: validated.has_on_plan_complete,
         }
+    }
+
+    /// Returns `true` if the agent exposes an `on_plan_complete()` hook.
+    ///
+    /// Detected at validation time via `hasattr` Python duck typing (AC-1, AC-2).
+    pub fn has_on_plan_complete(&self) -> bool {
+        self.has_on_plan_complete
     }
 
     /// Calls `agent.run(task, ctx)` asynchronously.
@@ -122,6 +135,59 @@ impl AIPBridge {
 
                 run_coroutine(py, &coroutine)?;
                 Ok(())
+            })
+        })
+        .await
+        .map_err(|e| AIPBridgeError::Internal(format!("spawn_blocking failed: {e}")))?
+    }
+
+    /// Calls `agent.on_plan_complete(step_results, ctx)` asynchronously.
+    ///
+    /// Converts `step_results: HashMap<String, String>` into a Python `dict[str, str]`
+    /// via [`PyDict`], then calls the Python coroutine via `asyncio.run()` (ADR-014).
+    /// The hook must return a `str`; the return value is wrapped in [`AIPResult::completed`].
+    ///
+    /// The GIL is only held on the blocking thread pool, not on Tokio workers.
+    ///
+    /// # Errors
+    ///
+    /// - `PythonException` if the Python method raises an exception
+    /// - `DeserializationError` if the return value is not a `str`
+    /// - `Internal` if `spawn_blocking` fails
+    pub async fn call_on_plan_complete(
+        &self,
+        step_results: HashMap<String, String>,
+        ctx: PyObject,
+    ) -> Result<AIPResult, AIPBridgeError> {
+        let agent = Python::with_gil(|py| self.agent.clone_ref(py));
+
+        tokio::task::spawn_blocking(move || {
+            Python::with_gil(|py| -> Result<AIPResult, AIPBridgeError> {
+                // Build PyDict from HashMap (AC-3 — correct step_results injection)
+                let py_dict = PyDict::new_bound(py);
+                for (k, v) in &step_results {
+                    py_dict
+                        .set_item(k, v)
+                        .map_err(|e| AIPBridgeError::PythonException(e.to_string()))?;
+                }
+
+                let coroutine = agent
+                    .bind(py)
+                    .call_method1("on_plan_complete", (py_dict, ctx))
+                    .map_err(|e| AIPBridgeError::PythonException(format!("{e}")))?;
+
+                let result = run_coroutine(py, &coroutine)?;
+
+                // Hook must return a str (AC-3)
+                result
+                    .bind(py)
+                    .extract::<String>()
+                    .map(|s| AIPResult::completed(&s))
+                    .map_err(|e| {
+                        AIPBridgeError::DeserializationError(format!(
+                            "on_plan_complete must return str, got: {e}"
+                        ))
+                    })
             })
         })
         .await
@@ -216,6 +282,44 @@ mod tests {
             dict.into()
         })
     }
+
+    const AGENT_WITH_HOOK: &str = r#"
+class AgentAvecHook:
+    def manifest(self):
+        return {
+            "name": "hook-agent",
+            "version": "1.0.0",
+            "description": "Agent with on_plan_complete",
+            "tools_required": [],
+        }
+
+    async def run(self, task, ctx):
+        return {"status": "completed", "output": [{"type": "text", "text": "ok"}]}
+
+    async def on_plan_complete(self, step_results, ctx):
+        return "résultat: " + str(len(step_results)) + " steps"
+
+agent = AgentAvecHook()
+"#;
+
+    const AGENT_HOOK_RAISES: &str = r#"
+class AgentHookRaises:
+    def manifest(self):
+        return {
+            "name": "error-hook-agent",
+            "version": "1.0.0",
+            "description": "Agent whose on_plan_complete raises",
+            "tools_required": [],
+        }
+
+    async def run(self, task, ctx):
+        return {"status": "completed", "output": []}
+
+    async def on_plan_complete(self, step_results, ctx):
+        raise ValueError("hook exploded")
+
+agent = AgentHookRaises()
+"#;
 
     const VALID_AGENT_CODE: &str = r#"
 import asyncio
@@ -339,6 +443,85 @@ agent = A()
 
         // THEN the call succeeds (no-op)
         assert!(result.is_ok());
+    }
+
+    // AC-1 — has_on_plan_complete() returns true when hook is present
+
+    #[test]
+    fn test_has_on_plan_complete_true() {
+        // GIVEN a validated agent with on_plan_complete()
+        let validated = create_validated_agent(AGENT_WITH_HOOK);
+
+        // WHEN we create the bridge
+        let bridge = AIPBridge::new(validated);
+
+        // THEN has_on_plan_complete() returns true
+        assert!(bridge.has_on_plan_complete());
+    }
+
+    // AC-2 — has_on_plan_complete() returns false when hook is absent
+
+    #[test]
+    fn test_has_on_plan_complete_false() {
+        // GIVEN a validated agent without on_plan_complete()
+        let validated = create_validated_agent(VALID_AGENT_CODE);
+
+        // WHEN we create the bridge
+        let bridge = AIPBridge::new(validated);
+
+        // THEN has_on_plan_complete() returns false
+        assert!(!bridge.has_on_plan_complete());
+    }
+
+    // AC-3 — call_on_plan_complete() calls hook with step_results dict
+
+    #[tokio::test]
+    async fn test_call_on_plan_complete_success() {
+        // GIVEN a bridge with an agent that has on_plan_complete()
+        //   AND step_results with 2 entries
+        let validated = create_validated_agent(AGENT_WITH_HOOK);
+        let bridge = AIPBridge::new(validated);
+        let mut step_results = HashMap::new();
+        step_results.insert("s1".to_string(), "output A".to_string());
+        step_results.insert("s2".to_string(), "output B".to_string());
+        let ctx = empty_ctx();
+
+        // WHEN we call on_plan_complete()
+        let result = bridge.call_on_plan_complete(step_results, ctx).await;
+
+        // THEN we get AIPResult::Completed with the hook's string output
+        assert!(result.is_ok());
+        let aip_result = result.expect("call_on_plan_complete should succeed");
+        assert_eq!(aip_result.status, apollia_core::TaskStatus::Completed);
+        // The hook returns "résultat: 2 steps"
+        if let Some(apollia_core::AIPPart::Text(t)) = aip_result.output.first() {
+            assert!(
+                t.text.contains("2 steps"),
+                "expected '2 steps' in: {}",
+                t.text
+            );
+        } else {
+            panic!("expected TextPart output");
+        }
+    }
+
+    // AC-4 — call_on_plan_complete() propagates Python exceptions
+
+    #[tokio::test]
+    async fn test_call_on_plan_complete_python_exception() {
+        // GIVEN a bridge with an agent whose on_plan_complete() raises
+        let validated = create_validated_agent(AGENT_HOOK_RAISES);
+        let bridge = AIPBridge::new(validated);
+        let ctx = empty_ctx();
+
+        // WHEN we call on_plan_complete()
+        let result = bridge.call_on_plan_complete(HashMap::new(), ctx).await;
+
+        // THEN we get PythonException (no panic)
+        assert!(
+            matches!(result, Err(AIPBridgeError::PythonException(_))),
+            "expected PythonException, got: {result:?}"
+        );
     }
 
     #[tokio::test]
