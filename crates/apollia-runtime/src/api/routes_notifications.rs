@@ -111,10 +111,7 @@ pub async fn list_channels<B: ExecutionBackend + Clone>(
             channel_id: ch.id.clone(),
             kind: channel_kind_str(&ch.kind),
             enabled: ch.enabled,
-            events: ch
-                .events
-                .clone()
-                .unwrap_or_else(|| config.events.clone()),
+            events: ch.events.clone().unwrap_or_else(|| config.events.clone()),
         })
         .collect();
 
@@ -134,10 +131,7 @@ pub async fn test_channels<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> (StatusCode, Json<serde_json::Value>) {
     let Some(config) = state.notification_config.clone() else {
-        return (
-            StatusCode::OK,
-            Json(serde_json::json!({ "results": [] })),
-        );
+        return (StatusCode::OK, Json(serde_json::json!({ "results": [] })));
     };
 
     let mut results: Vec<ChannelTestResult> = Vec::new();
@@ -284,7 +278,10 @@ fn resolve_notif_db_path<B: ExecutionBackend + Clone>(state: &AppState<B>) -> Pa
 }
 
 /// Open `db_path`, create `notification_logs` if needed, and return the last `N` entries.
-fn query_notification_logs(db_path: &PathBuf, last: usize) -> Result<Vec<serde_json::Value>, String> {
+fn query_notification_logs(
+    db_path: &PathBuf,
+    last: usize,
+) -> Result<Vec<serde_json::Value>, String> {
     let conn = rusqlite::Connection::open(db_path)
         .map_err(|e| format!("impossible d'ouvrir la base : {e}"))?;
 
@@ -332,9 +329,8 @@ fn query_notification_logs(db_path: &PathBuf, last: usize) -> Result<Vec<serde_j
         let (id, event_name, task_id, agent_id, sent_at, channels_raw, error) =
             row_result.map_err(|e| format!("lecture ligne échouée : {e}"))?;
 
-        let channels = serde_json::from_str(&channels_raw).unwrap_or(serde_json::Value::Object(
-            serde_json::Map::new(),
-        ));
+        let channels = serde_json::from_str(&channels_raw)
+            .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
         entries.push(serde_json::json!({
             "id": id,

@@ -443,6 +443,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            notification_config: None,
         };
         let router = Router::new()
             .route(

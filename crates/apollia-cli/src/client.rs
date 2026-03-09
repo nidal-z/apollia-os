@@ -25,6 +25,22 @@ pub struct RuntimeClient {
     socket_path: PathBuf,
 }
 
+/// Result returned by `POST /api/v1/notifications/test` for one channel.
+#[derive(Debug, serde::Deserialize)]
+pub struct ChannelTestResult {
+    /// Identifiant unique du canal.
+    pub channel_id: String,
+    /// Type de canal : `"desktop"`, `"webhook"`, ou `"sse"`.
+    #[serde(rename = "type")]
+    pub kind: String,
+    /// Statut : `"ok"`, `"error"`, ou `"disabled"`.
+    pub status: String,
+    /// Message d'erreur si `status == "error"`.
+    pub error: Option<String>,
+    /// Latence mesurée en millisecondes (`None` si canal désactivé).
+    pub latency_ms: Option<u64>,
+}
+
 /// Errors that can occur when communicating with the runtime.
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
@@ -370,6 +386,58 @@ impl RuntimeClient {
         }
         self.post(&format!("/api/v1/tasks/{task_id}/resume"), Some(&body))
             .await
+    }
+
+    /// Send a test notification through all active channels via `POST /api/v1/notifications/test`.
+    ///
+    /// Returns the per-channel results (status, latency, error).
+    pub async fn test_notifications(&self) -> Result<Vec<ChannelTestResult>, ClientError> {
+        let resp = self.post("/api/v1/notifications/test", None).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: resp.body,
+            });
+        }
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        let results_val = json
+            .get("results")
+            .cloned()
+            .unwrap_or(serde_json::Value::Array(vec![]));
+        let results: Vec<ChannelTestResult> = serde_json::from_value(results_val)?;
+        Ok(results)
+    }
+
+    /// List configured notification channels via `GET /api/v1/notifications/channels`.
+    ///
+    /// Returns the raw JSON value from the `"channels"` array.
+    pub async fn list_notification_channels(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/notifications/channels").await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: resp.body,
+            });
+        }
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        Ok(json)
+    }
+
+    /// Fetch notification log history via `GET /api/v1/notifications/logs?last={last}`.
+    ///
+    /// Returns the raw JSON value from the `"entries"` array.
+    pub async fn notification_logs(&self, last: usize) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .get(&format!("/api/v1/notifications/logs?last={last}"))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: resp.body,
+            });
+        }
+        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
+        Ok(json)
     }
 
     /// Cancel a task via `DELETE /api/v1/tasks/{id}`.

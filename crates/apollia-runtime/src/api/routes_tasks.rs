@@ -436,6 +436,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            notification_config: None,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -482,6 +483,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            notification_config: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -528,6 +530,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            notification_config: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
@@ -739,6 +742,7 @@ mod tests {
             config_path: None,
             task_repository: Some(std::sync::Arc::new(repo)),
             pending_approvals: None,
+            notification_config: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/resume", post(resume_task::<MockBackend>))

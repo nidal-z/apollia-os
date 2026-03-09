@@ -29,6 +29,23 @@
     .step-completed { color: #00ff88; }
     .step-failed    { color: #ff4444; }
     #plan-replan-info { margin-top: 0.25rem; font-size: 0.8125rem; }
+    /* ── Approvals section (STORY-105) ──────────────────────────── */
+    #approvals-section h2 { color: #ffaa00; }
+    .approval-row { display: flex; align-items: baseline; gap: 0.75rem;
+                    padding: 0.375rem 0; border-bottom: 1px solid #222;
+                    font-size: 0.875rem; }
+    .approval-row:last-child { border-bottom: none; }
+    .approval-task-id { color: #00d4ff; font-weight: bold; min-width: 7rem; }
+    .approval-prompt  { flex: 1; color: #ccc; }
+    .btn-approve { background: #004d2e; color: #00ff88; border: 1px solid #00ff88;
+                   border-radius: 3px; padding: 0.15rem 0.6rem; cursor: pointer;
+                   font-family: monospace; font-size: 0.8125rem; }
+    .btn-approve:hover { background: #006640; }
+    .btn-reject  { background: #4d0000; color: #ff6666; border: 1px solid #ff4444;
+                   border-radius: 3px; padding: 0.15rem 0.6rem; cursor: pointer;
+                   font-family: monospace; font-size: 0.8125rem; }
+    .btn-reject:hover { background: #660000; }
+    .empty-state { color: #555; font-style: italic; }
   </style>
 </head>
 <body hx-ext="sse" sse-connect="/api/v1/dashboard/stream">
@@ -66,6 +83,14 @@
            hx-swap="innerHTML">
     <h2>Tâches récentes</h2>
     <p>Chargement...</p>
+  </section>
+
+  <!-- Section Approbations en attente (STORY-105) -->
+  <section id="approvals-section" class="card">
+    <h2>⏸ Approbations en attente</h2>
+    <div id="approvals-list">
+      <p class="empty-state">Aucune approbation en attente</p>
+    </div>
   </section>
 
   <!-- Section Plan orchestré — mise à jour par JavaScript (STORY-090) -->
@@ -110,6 +135,87 @@
   </section>
 
   <script>
+    // SSE approvals handler — Sprint 11 (STORY-105)
+    // Listens for sse:approvals events carrying TaskInputRequired / TaskResumed
+    // payloads and manages the #approvals-list section without page reload.
+
+    function sendResume(taskId, approved) {
+      fetch('/api/v1/tasks/' + taskId + '/resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approved: approved })
+      }).then(function(r) {
+        if (r.ok) { removeApprovalRow(taskId); }
+      });
+    }
+
+    function removeApprovalRow(taskId) {
+      var row = document.getElementById('task-' + taskId);
+      if (row) { row.remove(); }
+      var list = document.getElementById('approvals-list');
+      if (list && !list.querySelector('.approval-row')) {
+        var es = list.querySelector('.empty-state');
+        if (es) { es.style.display = ''; }
+      }
+    }
+
+    function createApprovalRow(taskId, prompt) {
+      var maxLen = 80;
+      var truncated = prompt.length > maxLen ? prompt.substring(0, maxLen) + '\u2026' : prompt;
+
+      var row = document.createElement('div');
+      row.className = 'approval-row';
+      row.id = 'task-' + taskId;
+      row.dataset.taskId = taskId;
+
+      var idSpan = document.createElement('span');
+      idSpan.className = 'approval-task-id';
+      idSpan.textContent = taskId;
+
+      var promptSpan = document.createElement('span');
+      promptSpan.className = 'approval-prompt';
+      promptSpan.textContent = truncated;
+
+      var approveBtn = document.createElement('button');
+      approveBtn.className = 'btn-approve';
+      approveBtn.textContent = '\u2714 Approuver';
+      approveBtn.addEventListener('click', function() { sendResume(taskId, true); });
+
+      var rejectBtn = document.createElement('button');
+      rejectBtn.className = 'btn-reject';
+      rejectBtn.textContent = '\u2717 Rejeter';
+      rejectBtn.addEventListener('click', function() { sendResume(taskId, false); });
+
+      row.appendChild(idSpan);
+      row.appendChild(promptSpan);
+      row.appendChild(approveBtn);
+      row.appendChild(rejectBtn);
+
+      return row;
+    }
+
+    document.addEventListener('sse:approvals', function(e) {
+      var raw = e.detail && e.detail.data;
+      if (!raw) { return; }
+      var data;
+      try { data = JSON.parse(raw); } catch (_) { return; }
+
+      var list = document.getElementById('approvals-list');
+      if (!list) { return; }
+
+      if (data.event_type === 'TaskInputRequired') {
+        // Add a new approval row if not already present
+        if (!document.getElementById('task-' + data.task_id)) {
+          var emptyState = list.querySelector('.empty-state');
+          if (emptyState) { emptyState.style.display = 'none'; }
+          list.appendChild(createApprovalRow(data.task_id, data.prompt || ''));
+        }
+      } else if (data.event_type === 'TaskResumed') {
+        // Remove the row — task was approved or rejected
+        removeApprovalRow(data.task_id);
+      }
+    });
+
     // SSE tasks handler — Sprint 10 (STORY-090)
     // Listens for sse:tasks events carrying JSON plan/step payloads and updates
     // the #current-plan section without triggering a full partial reload.

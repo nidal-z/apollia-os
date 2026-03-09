@@ -195,11 +195,11 @@ async fn shutdown_handler<B: ExecutionBackend + Clone>(
 /// Build the axum Router with all routes and shared state.
 fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
-    use super::routes_notifications::{list_channels, notification_logs, test_channels};
     use super::routes_dashboard::{
         dashboard_stream, get_dashboard, get_dashboard_partial, get_dashboard_state, get_htmx_js,
     };
     use super::routes_llm::llm_routes;
+    use super::routes_notifications::{list_channels, notification_logs, test_channels};
     use super::routes_sse::stream_task;
     use super::routes_tasks::{cancel_task, get_task, resume_task, submit_task};
     use super::routes_triggers::{

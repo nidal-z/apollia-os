@@ -473,6 +473,34 @@ pub(crate) fn dashboard_event_to_sse(event: &RuntimeEvent) -> Option<DashboardSs
             }),
         }),
 
+        // ── HITL events (Sprint 11 / STORY-105) ─────────────────────────
+        // A task has been suspended waiting for human approval — sent to the
+        // "approvals" channel so the dashboard section updates in real time.
+        RuntimeEvent::TaskInputRequired {
+            task_id,
+            prompt,
+            step_id,
+        } => Some(DashboardSseEvent {
+            channel: "approvals".into(),
+            data: serde_json::json!({
+                "event_type": "TaskInputRequired",
+                "task_id":    task_id,
+                "prompt":     prompt,
+                "step_id":    step_id,
+            }),
+        }),
+
+        // A task has been resumed after HITL — the row must be removed from
+        // the "Approbations en attente" section.
+        RuntimeEvent::TaskResumed { task_id, approved } => Some(DashboardSseEvent {
+            channel: "approvals".into(),
+            data: serde_json::json!({
+                "event_type": "TaskResumed",
+                "task_id":    task_id,
+                "approved":   approved,
+            }),
+        }),
+
         _ => None,
     }
 }
@@ -520,6 +548,12 @@ pub(crate) fn runtime_event_to_sse_events(event: RuntimeEvent) -> Option<Vec<Eve
         | RuntimeEvent::PlanReplanning { .. }
         | RuntimeEvent::PlanCompleted { .. }
         | RuntimeEvent::PlanFailed { .. }) => dashboard_event_to_sse(plan_event)
+            .map(|e| vec![Event::default().event(e.channel).data(e.data.to_string())]),
+        // HITL events (STORY-105) — delegate to dashboard_event_to_sse for routing.
+        // Each event carries a JSON payload forwarded to the "approvals" channel so
+        // the browser can add/remove rows without a full partial reload.
+        ref hitl_event @ (RuntimeEvent::TaskInputRequired { .. }
+        | RuntimeEvent::TaskResumed { .. }) => dashboard_event_to_sse(hitl_event)
             .map(|e| vec![Event::default().event(e.channel).data(e.data.to_string())]),
         _ => None,
     }
@@ -653,6 +687,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            notification_config: None,
         }
     }
 
@@ -674,6 +709,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            notification_config: None,
         }
     }
 
@@ -717,7 +753,7 @@ mod tests {
         assert!(ct.contains("text/html"), "expected text/html, got: {ct}");
 
         // AND body contains "Apollia OS"
-        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 65536).await.unwrap();
         let body_str = std::str::from_utf8(&body).unwrap();
         assert!(
             body_str.contains("Apollia OS"),
@@ -1084,6 +1120,102 @@ mod tests {
         assert!(DASHBOARD_HTML.contains("sse:llm"), "missing sse:llm");
         assert!(DASHBOARD_HTML.contains("sse:tools"), "missing sse:tools");
         assert!(DASHBOARD_HTML.contains("sse:memory"), "missing sse:memory");
+    }
+
+    // ── STORY-105 tests — HITL approvals channel ────────────────────────────
+
+    /// AC-2 — TaskInputRequired routes to the "approvals" dashboard channel.
+    #[test]
+    fn test_story105_task_input_required_routes_to_approvals() {
+        // GIVEN RuntimeEvent::TaskInputRequired
+        let event = RuntimeEvent::TaskInputRequired {
+            task_id: "t-001".into(),
+            prompt: "Confirmer l'envoi ?".into(),
+            step_id: None,
+        };
+
+        // WHEN mapped through dashboard_event_to_sse
+        let sse = dashboard_event_to_sse(&event);
+
+        // THEN routed to "approvals" channel with correct event_type and task_id
+        let sse = sse.expect("TaskInputRequired must produce a dashboard event");
+        assert_eq!(sse.channel, "approvals");
+        assert_eq!(sse.data["event_type"], "TaskInputRequired");
+        assert_eq!(sse.data["task_id"], "t-001");
+        assert_eq!(sse.data["prompt"], "Confirmer l'envoi ?");
+    }
+
+    /// AC-5 — TaskResumed routes to the "approvals" dashboard channel.
+    #[test]
+    fn test_story105_task_resumed_routes_to_approvals() {
+        // GIVEN RuntimeEvent::TaskResumed{approved:true}
+        let event = RuntimeEvent::TaskResumed {
+            task_id: "t-001".into(),
+            approved: true,
+        };
+
+        // WHEN mapped through dashboard_event_to_sse
+        let sse = dashboard_event_to_sse(&event);
+
+        // THEN routed to "approvals" channel with approved flag
+        let sse = sse.expect("TaskResumed must produce a dashboard event");
+        assert_eq!(sse.channel, "approvals");
+        assert_eq!(sse.data["event_type"], "TaskResumed");
+        assert_eq!(sse.data["approved"], true);
+    }
+
+    /// AC-2 — TaskInputRequired produces one SSE event via runtime_event_to_sse_events.
+    #[test]
+    fn test_story105_task_input_required_produces_sse_event() {
+        // GIVEN RuntimeEvent::TaskInputRequired
+        let event = RuntimeEvent::TaskInputRequired {
+            task_id: "t-001".into(),
+            prompt: "Confirmer ?".into(),
+            step_id: Some("s3".into()),
+        };
+
+        // WHEN runtime_event_to_sse_events
+        let result = runtime_event_to_sse_events(event);
+
+        // THEN exactly one SSE event produced
+        let events = result.expect("TaskInputRequired should produce SSE events");
+        assert_eq!(events.len(), 1);
+    }
+
+    /// AC-5 — TaskResumed produces one SSE event via runtime_event_to_sse_events.
+    #[test]
+    fn test_story105_task_resumed_produces_sse_event() {
+        // GIVEN RuntimeEvent::TaskResumed{approved:false}
+        let event = RuntimeEvent::TaskResumed {
+            task_id: "t-001".into(),
+            approved: false,
+        };
+
+        // WHEN runtime_event_to_sse_events
+        let result = runtime_event_to_sse_events(event);
+
+        // THEN exactly one SSE event produced
+        let events = result.expect("TaskResumed should produce SSE events");
+        assert_eq!(events.len(), 1);
+    }
+
+    /// AC-1 — dashboard.html contains the "approvals-section" element.
+    #[test]
+    fn test_story105_dashboard_html_has_approvals_section() {
+        // GIVEN the embedded dashboard HTML
+        // THEN the approvals section and its key elements are present
+        assert!(
+            DASHBOARD_HTML.contains("approvals-section"),
+            "dashboard.html must contain the approvals-section"
+        );
+        assert!(
+            DASHBOARD_HTML.contains("approvals-list"),
+            "dashboard.html must contain the approvals-list"
+        );
+        assert!(
+            DASHBOARD_HTML.contains("sse:approvals"),
+            "dashboard.html must listen for sse:approvals events"
+        );
     }
 
     /// AC-1 — GET /static/htmx.min.js returns HTTP 200 with Content-Type application/javascript.

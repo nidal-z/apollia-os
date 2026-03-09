@@ -232,6 +232,42 @@ fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskE
             true,
         )),
 
+        // ── HITL events (Sprint 11) ────────────────────────────────────────
+
+        // The task is suspended waiting for human approval — non-terminal.
+        RuntimeEvent::TaskInputRequired {
+            task_id: tid,
+            prompt,
+            step_id,
+        } if tid == task_id => Some((
+            SseTaskEvent {
+                event: "input_required".into(),
+                data: serde_json::json!({
+                    "task_id":  tid,
+                    "prompt":   prompt,
+                    "step_id":  step_id,
+                    "channel":  "approvals",
+                }),
+            },
+            false,
+        )),
+
+        // The task has been resumed after HITL — non-terminal, execution continues.
+        RuntimeEvent::TaskResumed {
+            task_id: tid,
+            approved,
+        } if tid == task_id => Some((
+            SseTaskEvent {
+                event: "resumed".into(),
+                data: serde_json::json!({
+                    "task_id":  tid,
+                    "approved": approved,
+                    "channel":  "approvals",
+                }),
+            },
+            false,
+        )),
+
         _ => None,
     }
 }
@@ -411,6 +447,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            notification_config: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))
@@ -637,5 +674,45 @@ mod tests {
         assert_eq!(sse.event, "plan_failed");
         assert_eq!(sse.data["reason"], "MAX_REPLAN");
         assert!(is_terminal, "plan_failed doit etre terminal");
+    }
+
+    // ── Tests STORY-105 : HITL events mapped to SSE ────────────────────────
+
+    #[test]
+    fn test_task_input_required_mapped_to_sse() {
+        // GIVEN RuntimeEvent::TaskInputRequired pour task "t-001"
+        let event = RuntimeEvent::TaskInputRequired {
+            task_id: "t-001".into(),
+            prompt: "Confirmer l'envoi ?".into(),
+            step_id: Some("s3".into()),
+        };
+
+        // WHEN runtime_event_to_sse()
+        let result = runtime_event_to_sse(&event, "t-001");
+
+        // THEN SseTaskEvent{event:"input_required", data contient channel:"approvals"}
+        let (sse, is_terminal) = result.expect("TaskInputRequired should match t-001");
+        assert_eq!(sse.event, "input_required");
+        assert_eq!(sse.data["channel"], "approvals");
+        assert_eq!(sse.data["prompt"], "Confirmer l'envoi ?");
+        assert!(!is_terminal, "input_required est non-terminal");
+    }
+
+    #[test]
+    fn test_task_resumed_mapped_to_sse() {
+        // GIVEN RuntimeEvent::TaskResumed{approved:true} pour task "t-001"
+        let event = RuntimeEvent::TaskResumed {
+            task_id: "t-001".into(),
+            approved: true,
+        };
+
+        // WHEN runtime_event_to_sse()
+        let result = runtime_event_to_sse(&event, "t-001");
+
+        // THEN SseTaskEvent{event:"resumed", data.approved==true}, non-terminal
+        let (sse, is_terminal) = result.expect("TaskResumed should match t-001");
+        assert_eq!(sse.event, "resumed");
+        assert_eq!(sse.data["approved"], true);
+        assert!(!is_terminal, "resumed est non-terminal");
     }
 }

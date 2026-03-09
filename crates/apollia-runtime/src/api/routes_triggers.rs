@@ -513,6 +513,7 @@ mod tests {
             config_path,
             task_repository: None,
             pending_approvals: None,
+            notification_config: None,
         }
     }
 

@@ -316,6 +316,7 @@ impl Supervisor {
             config_path: self.config.config_path.clone(),
             task_repository: task_repository.clone(),
             pending_approvals: None,
+            notification_config: None,
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -902,6 +903,7 @@ mod tests {
             config_path: None,
             task_repository: None,
             pending_approvals: None,
+            notification_config: None,
         };
 
         // WHEN on clone l'AppState

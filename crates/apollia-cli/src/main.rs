@@ -22,6 +22,7 @@ use commands::audit::AuditCommand;
 use commands::llm::LlmCommand;
 use commands::memory::MemoryCommand;
 use commands::model::ModelCommand;
+use commands::notify::NotifyCommand;
 use commands::task::TaskCommand;
 use commands::tools::ToolsCommand;
 use commands::trigger::TriggerCommand;
@@ -163,6 +164,17 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+
+    /// Notification channel management (test, list, logs).
+    Notify {
+        /// Notify subcommand.
+        #[command(subcommand)]
+        command: NotifyCommand,
+
+        /// Output JSON instead of human-readable text.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() {
@@ -223,6 +235,9 @@ fn main() {
             Commands::Trigger { command, json } => {
                 commands::trigger::run(&command, cli.socket, json).await
             }
+            Commands::Notify { command, json } => {
+                commands::notify::run(&command, cli.socket, json).await
+            }
         }
     });
 
@@ -239,6 +254,7 @@ mod tests {
     use commands::llm::LlmCommand;
     use commands::memory::MemoryCommand;
     use commands::model::ModelCommand;
+    use commands::notify::NotifyCommand;
     use commands::task::TaskCommand;
     use commands::tools::ToolsCommand;
     use commands::trigger::TriggerCommand;
@@ -776,6 +792,64 @@ mod tests {
         match &cli.command {
             Commands::Trigger { json, .. } => assert!(json),
             other => panic!("expected Commands::Trigger, got {other:?}"),
+        }
+    }
+
+    // ── STORY-104: notify command parsing ─────────────────────────────────────
+
+    #[test]
+    fn test_cli_parses_notify_test() {
+        // GIVEN "apollia-os notify test"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "notify", "test"]);
+        // THEN Commands::Notify { command: NotifyCommand::Test }
+        match &cli.command {
+            Commands::Notify { command, json } => {
+                assert!(matches!(command, NotifyCommand::Test));
+                assert!(!json);
+            }
+            other => panic!("expected Commands::Notify, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_notify_list() {
+        // GIVEN "apollia-os notify list"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "notify", "list"]);
+        // THEN Commands::Notify { command: NotifyCommand::List }
+        match &cli.command {
+            Commands::Notify { command, .. } => {
+                assert!(matches!(command, NotifyCommand::List));
+            }
+            other => panic!("expected Commands::Notify, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_notify_logs_default() {
+        // GIVEN "apollia-os notify logs"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "notify", "logs"]);
+        // THEN NotifyCommand::Logs { last: 20 }
+        match &cli.command {
+            Commands::Notify { command, .. } => match command {
+                NotifyCommand::Logs { last } => assert_eq!(*last, 20),
+                other => panic!("expected NotifyCommand::Logs, got {other:?}"),
+            },
+            other => panic!("expected Commands::Notify, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_notify_test_json_flag() {
+        // GIVEN "apollia-os notify --json test"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "notify", "--json", "test"]);
+        // THEN json = true
+        match &cli.command {
+            Commands::Notify { json, .. } => assert!(json),
+            other => panic!("expected Commands::Notify, got {other:?}"),
         }
     }
 }
