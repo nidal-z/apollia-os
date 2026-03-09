@@ -26,6 +26,7 @@
 - [[Briques-Memory-Engine|Memory Engine]]
 - [[Briques-ORIA-Engine|ORIA Engine]]
 - [[Briques-LLM-Backend|LLM Backend]]
+- [[Briques-Triggers|Triggers Engine]]
 - [[Briques-Runtime-Core|Runtime Core]]
 - [[Briques-CLI|Apollia CLI]]
 
@@ -46,6 +47,7 @@
 
 **Ops**
 - [[Ops-Exploitation-et-Debug|Exploitation & Debug]]
+- [[Dashboard-Observabilite|Dashboard Observabilité]]
 
 **Roadmap & Décisions**
 - [[Roadmap|Roadmap v0.1 → v1.0]]

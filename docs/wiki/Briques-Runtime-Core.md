@@ -48,8 +48,9 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
 2. AgentRegistry   → registre d'état
 3. Tool Registry   → catalogue outils + résolution MCP
 4. Memory Engine   → ouverture connexions SQLite
-5. TaskRouter      → peut router seulement si 2-4 sont prêts
-6. APIServer       → accepte les connexions externes en dernier
+5. LlmRouter       → backends LLM (embedded + cloud) [Sprint 8]
+6. TriggerEngine   → moteur de déclenchement automatique [Sprint 9]
+7. APIServer       → accepte les connexions externes en dernier
 ```
 
 Chaque acteur émet un événement `RuntimeEvent::Ready(actor_id)` sur l'EventBus quand son init est terminée. Le Supervisor attend ce signal (timeout 10s) avant de démarrer le suivant. **Démarrage séquentiel strict** — pas de démarrage parallèle qui masquerait des dépendances.
@@ -166,22 +167,45 @@ Deux surfaces exposées :
 | Unix socket | `/tmp/apollia.sock` | CLI locale (plus rapide, sécurisé par permissions fichier) |
 | HTTP/REST | `localhost:7771` | SDK Python, intégrations tierces, Apollia Workspace futur |
 
-### 6.1 Endpoints REST (MVP v0.1)
+### 6.1 Endpoints REST
 
 ```
-POST   /api/v1/tasks                    → Soumettre une tâche
-GET    /api/v1/tasks/{id}               → Statut d'une tâche
-DELETE /api/v1/tasks/{id}               → Annuler
-GET    /api/v1/tasks/{id}/stream        → SSE streaming (si supports_streaming=True)
+POST   /api/v1/tasks                        → Soumettre une tâche
+GET    /api/v1/tasks/{id}                   → Statut d'une tâche
+DELETE /api/v1/tasks/{id}                   → Annuler
+GET    /api/v1/tasks/{id}/stream            → SSE streaming (si supports_streaming=True)
 
-GET    /api/v1/agents                   → Lister les agents
-POST   /api/v1/agents                   → Démarrer un agent
-GET    /api/v1/agents/{id}              → Détail d'un agent
-DELETE /api/v1/agents/{id}              → Arrêter un agent
+GET    /api/v1/agents                       → Lister les agents
+POST   /api/v1/agents                       → Démarrer un agent
+GET    /api/v1/agents/{id}                  → Détail d'un agent
+DELETE /api/v1/agents/{id}                  → Arrêter un agent
 
-GET    /api/v1/tools                    → Lister les outils
-GET    /api/v1/health                   → Santé du runtime
-GET    /api/v1/audit                    → Log d'audit (filtrable)
+GET    /api/v1/tools                        → Lister les outils
+GET    /api/v1/health                       → Santé du runtime
+GET    /api/v1/audit                        → Log d'audit (filtrable)
+
+# LLM [Sprint 8]
+GET    /api/v1/llm/status                   → Statut backends LLM
+POST   /api/v1/llm/ping                     → Test de connectivité
+POST   /api/v1/llm/chat                     → Appel LLM direct
+
+# Triggers [Sprint 9]
+GET    /api/v1/triggers                     → Lister les triggers
+GET    /api/v1/triggers/{id}                → Statut d'un trigger
+POST   /api/v1/triggers/{id}/fire           → Déclencher immédiatement
+POST   /api/v1/triggers/{id}/enable         → Activer
+POST   /api/v1/triggers/{id}/disable        → Désactiver
+GET    /api/v1/triggers/{id}/logs           → Historique SQLite
+POST   /api/v1/triggers/reload              → Hot reload depuis apollia.toml
+
+# Webhook [Sprint 9]
+POST   /webhooks/:trigger_id                → Endpoint webhook HMAC-SHA256
+
+# Dashboard [Sprint 9]
+GET    /dashboard                           → Dashboard HTML embarqué
+GET    /api/v1/dashboard/state              → Snapshot JSON état runtime
+GET    /api/v1/dashboard/partials/{section} → Fragment HTML (HTMX)
+GET    /api/v1/dashboard/stream             → SSE stream dashboard
 ```
 
 ### 6.2 Streaming SSE
@@ -221,6 +245,20 @@ pub enum RuntimeEvent {
     StepExecuted { task_id: TaskId, step: u32, tool: Option<String> },
     ToolCircuitBroken { tool_name: String },
     ToolCircuitRestored { tool_name: String },
+
+    // LLM [Sprint 8]
+    LlmModelLoading { backend: String },
+    LlmModelReady   { backend: String },
+    LlmModelFailed  { backend: String, error: String },
+    LlmCallCompleted { backend: String, model: String, cost_usd: Option<f64> },
+
+    // Triggers [Sprint 9]
+    TriggerFired    { trigger_id: TriggerId, agent: String, task_id: TaskId },
+    TriggerSkipped  { trigger_id: TriggerId, reason: String },
+    TriggerError    { trigger_id: TriggerId, error: String },
+    TriggerEnabled  { trigger_id: TriggerId },
+    TriggerDisabled { trigger_id: TriggerId },
+    TriggersReloaded { count: usize },
 
     // Système
     AllReady,

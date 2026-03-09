@@ -27,16 +27,19 @@ rectangle "apollia-runtime" as runtime #1a1a2e {
 
 rectangle "LlmRouter\nArc<dyn CompletionModel>\nposition 5 Supervisor" as llm #4a3728
 
+rectangle "TriggerEngine\nmpsc acteur Tokio\nTriggerDefinitions + sources\nposition 6 Supervisor" as trig #1a1a2e
+
 rectangle "ORIA Engine\n(Observer + Reasoner + Actor)" as oria #1a1a2e
 rectangle "AIP Bridge (PyO3)\n(RuntimeContext + LlmProxy)" as aip #1a1a2e
-actor "CLI / Client HTTP" as cli #3a3a3a/white
+actor "CLI / Client HTTP / Browser" as cli #3a3a3a/white
 
 ' --- ordre de démarrage Supervisor (1→7) ---
 sup --> bus    : 1. démarre\nen premier
 sup --> reg    : 2. démarre
 sup --> oria   : 3. démarre\n(ToolRegistry + MemoryEngine)
 sup --> llm    : 5. LlmRouter::from_config_with_bus()\nLlmModelReady / Failed → bus
-sup --> router : 6. démarre
+sup --> trig   : 6. TriggerEngine::start(defs)\nTriggersReloaded → bus
+sup --> router : (TaskRouter démarré étape 3-4)
 sup --> api    : 7. démarre\nen dernier
 
 bus ..> reg    : broadcast\nRuntimeEvent
@@ -55,6 +58,10 @@ coord  --> bus    : publie\nTaskCompleted / TaskFailed
 api    --> router : Submit / GetStatus / Cancel\n(mpsc message)
 api    --> reg    : List / GetById\n(mpsc message)
 api    --> llm    : GET /llm/status\nPOST /llm/ping\nPOST /llm/chat
+api    --> trig   : GET /triggers\nPOST /triggers/:id/fire\nPOST /webhooks/:id\nGET /dashboard
+
+trig   --> router : submit AIPTask\n(TriggerFired)
+trig   --> bus    : publie TriggerFired\nTriggerSkipped / TriggerError\nTriggersReloaded
 
 aip    --> llm    : ctx.llm (LlmProxy)\nArc<LlmRouter>
 

@@ -332,6 +332,97 @@ api_key_env = "ANTHROPIC_API_KEY"
 
 ---
 
+## Section [[triggers]] *(Sprint 9)*
+
+Tableau TOML — chaque entrée déclenche automatiquement un agent selon une règle déclarative.
+
+```toml
+# Trigger Cron — chaque lundi à 8h
+[[triggers]]
+id      = "rapport-hebdomadaire"
+agent   = "rapport-agent"
+enabled = true
+on_busy = "queue"    # queue | drop | error
+
+[triggers.source]
+type     = "cron"
+schedule = "0 8 * * MON"
+
+[triggers.input]
+text = "Génère le rapport de la semaine {{week_iso}}"
+
+# ---
+
+# Trigger Interval — toutes les 30 minutes
+[[triggers]]
+id      = "check-inbox"
+agent   = "mail-agent"
+enabled = true
+on_busy = "drop"
+
+[triggers.source]
+type  = "interval"
+every = "30m"    # 30m | 1h | 6h | 1d
+
+# ---
+
+# Trigger FileWatch — sur création de fichier
+[[triggers]]
+id      = "import-csv"
+agent   = "import-agent"
+enabled = true
+on_busy = "queue"
+
+[triggers.source]
+type   = "file_watch"
+path   = "~/imports/"
+events = ["create"]  # create | modify | delete | any
+
+[triggers.input]
+text = "Importe le fichier {{filename}}"
+
+# ---
+
+# Trigger Webhook — authentifié HMAC-SHA256
+[[triggers]]
+id      = "github-push"
+agent   = "deploy-agent"
+enabled = true
+on_busy = "error"
+
+[triggers.source]
+type   = "webhook"
+secret = "un-secret-robuste-minimum-32-caracteres"
+```
+
+**Variables `on_busy` :**
+
+| Valeur | Comportement si agent WORKING |
+|---|---|
+| `queue` | Soumet la tâche — elle attend dans la file |
+| `drop` | Ignore le fire, trace `TriggerSkipped` dans SQLite |
+| `error` | Émet `TriggerError` sur EventBus |
+
+**Variables de template disponibles :**
+
+| Variable | Disponible dans | Description |
+|---|---|---|
+| `{{week_iso}}` | Cron, Interval | Semaine ISO (ex: `2026-W10`) |
+| `{{date_iso}}` | Cron, Interval | Date ISO (ex: `2026-03-09`) |
+| `{{filename}}` | FileWatch | Nom du fichier modifié |
+| `{{filepath}}` | FileWatch | Chemin complet |
+| `{{size_bytes}}` | FileWatch | Taille en octets |
+| `{{file_event}}` | FileWatch | Type d'événement (`create`, `modify`, etc.) |
+| `{{webhook_body}}` | Webhook | Contenu JSON du body |
+
+**Validation au démarrage (`enabled=true`) :**
+- Cron : expression valide (`cron::Schedule::from_str`)
+- FileWatch : chemin `~` résolu, warning si répertoire absent
+- Webhook : secret non vide (minimum 32 caractères recommandé)
+- `enabled=false` : validation ignorée entièrement
+
+---
+
 ## Voir aussi
 
 - [INSTALL.md](./INSTALL) — installation et prérequis

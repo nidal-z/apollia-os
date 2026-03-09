@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title C4 Container — 8 Crates Workspace — Apollia OS
+title C4 Container — 9 Crates Workspace — Apollia OS
 
 actor "Opérateur" as ops #3a3a3a/white
 actor "Développeur" as dev #3a3a3a/white
@@ -48,8 +48,13 @@ rectangle "Apollia OS Workspace" as workspace #1a1a2e {
     component "EmbeddedBackend [local]\nOpenAICompatibleClient [cloud]\nAnthropicClient [cloud]" as backends
   }
 
+  rectangle "apollia-triggers\n(Triggers Engine)" as triggers #1a1a2e {
+    component "TriggerEngine (acteur Tokio)\nTriggerEngineHandle\nTriggerPersistence (SQLite)" as trigengine
+    component "CronTrigger · IntervalTrigger\nOneshotTrigger · FileWatchTrigger\nWebhook (axum route HMAC-SHA256)" as trigsources
+  }
+
   rectangle "apollia-core\n(types partagés)" as core #1a1a2e {
-    component "AgentManifest\nAIPTask / AIPResult\nProcessState / TaskStatus\nRuntimeEvent (LlmCallCompleted…)" as types
+    component "AgentManifest\nAIPTask / AIPResult\nProcessState / TaskStatus\nRuntimeEvent (TriggerFired…)" as types
   }
 }
 
@@ -77,6 +82,8 @@ agent --> aip : AIPResult (dict)
 tools --> sandbox : bash_executor\npython_executor
 tools --> mcp : mcp_consumer (v0.2)
 memory --> sqlite : INSERT / FTS5 MATCH
+triggers --> runtime : TriggerEvent → TaskRouter\n(submit AIPTask)
+triggers --> sqlite : trigger_history\ntrigger_state
 llm --> cloudllm : HTTP REST\n(feature = cloud)
 
 @enduml

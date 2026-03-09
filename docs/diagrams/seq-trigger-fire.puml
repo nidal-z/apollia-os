@@ -1,0 +1,86 @@
+@startuml seq-trigger-fire
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 11
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+skinparam SequenceGroupBorderColor #888888
+
+title Séquence — Trigger Fire (Cron / FileWatch / Webhook) — Apollia OS
+
+participant "Source\n(Cron / Interval\nFileWatch / Webhook)" as source #4a3728/f5e6d3
+participant "TriggerEngine\n(acteur Tokio)" as engine #1a1a2e/e0e0ff
+participant "AgentRegistry" as reg #1a1a2e/e0e0ff
+participant "TaskRouter" as router #1a1a2e/e0e0ff
+participant "TriggerPersistence\n(SQLite)" as db #2a3a4a/cce5ff
+participant "EventBus" as bus #2a3a4a/cce5ff
+
+== Déclenchement ==
+
+alt Tier 1 — CronTrigger / IntervalTrigger
+  source -> source : calcule next_occurrence\n(cron::Schedule::upcoming)
+  source -> engine : TriggerEvent { trigger_id, payload }
+else Tier 2 — FileWatchTrigger
+  source -> source : notify::Watcher détecte\nCreate / Modify / Delete
+  source -> source : map_notify_event()\nfiltrage par FileEventKind
+  source -> engine : TriggerEvent { trigger_id, payload\n  filename, size_bytes }
+else Tier 3 — Webhook POST /webhooks/:id
+  [-> engine : POST /webhooks/:trigger_id\n  X-Apollia-Signature: sha256=<hmac>
+  engine -> engine : verify_hmac(secret, body)\n  constant_time_eq
+  note right
+    401 si signature invalide
+    404 si trigger inconnu
+    503 si engine absent
+  end note
+end
+
+== Évaluation OnBusyPolicy ==
+
+engine -> engine : lookup TriggerDefinition(trigger_id)
+engine -> engine : InputTemplate::render(payload)\n→ text avec variables substituées
+
+engine -> reg : GetByName(agent_name)
+reg --> engine : AgentEntry { state }
+
+alt agent ACTIVE (slot disponible)
+  engine -> engine : OnBusyPolicy::Queue OU agent libre
+  engine -> router : submit_task(AIPTask{\n  agent_name, input: rendered_text })
+  router --> engine : task_id
+
+  engine -> db : record_fired(trigger_id, task_id)
+  db -> db : INSERT trigger_history (status='fired')\nUPDATE trigger_state fire_count++
+
+  engine -> bus : Publish(TriggerFired {\n  trigger_id, agent, task_id })
+
+else agent WORKING + OnBusyPolicy::Drop
+  engine -> db : record_skipped(trigger_id, reason)
+  db -> db : INSERT trigger_history (status='skipped')\nUPDATE trigger_state skip_count++
+
+  engine -> bus : Publish(TriggerSkipped {\n  trigger_id, reason: "agent working (drop)" })
+
+  note over engine : Fire ignoré silencieusement.\nHistorique SQLite mis à jour.
+
+else agent WORKING + OnBusyPolicy::Queue
+  engine -> router : submit_task(AIPTask)
+  note over router : Tâche mise en file d'attente\n(sémaphore ExecutionCoordinator)
+
+  engine -> db : record_fired(trigger_id, task_id)
+  engine -> bus : Publish(TriggerFired { trigger_id, agent, task_id })
+
+else erreur (TaskRouter down, agent STOPPED)
+  engine -> db : record_error(trigger_id, error_msg)
+  engine -> bus : Publish(TriggerError { trigger_id, error })
+end
+
+== Observabilité ==
+
+bus ->]: SSE /api/v1/dashboard/stream\n  event: "triggers" → HTML partial HTMX
+
+note over bus
+  Dashboard mis à jour en temps réel.
+  CLI : apollia-os trigger logs <id>
+  lit depuis trigger_history SQLite.
+end note
+
+@enduml

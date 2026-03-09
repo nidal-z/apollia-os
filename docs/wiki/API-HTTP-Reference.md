@@ -409,9 +409,150 @@ curl --unix-socket /tmp/apollia.sock http://localhost/api/v1/health
 
 ---
 
+## Triggers *(Sprint 9)*
+
+### GET /api/v1/triggers
+
+Lister tous les triggers avec leur statut.
+
+**Réponse 200 :**
+```json
+{
+  "triggers": [
+    {
+      "id": "rapport-hebdomadaire",
+      "agent": "rapport-agent",
+      "type": "cron",
+      "enabled": true,
+      "fire_count": 42,
+      "skip_count": 3,
+      "error_count": 0,
+      "last_fired_at": "2026-03-08T08:00:00Z"
+    }
+  ]
+}
+```
+
+### GET /api/v1/triggers/:id
+
+Détail d'un trigger.
+
+**Erreurs :** `404 Not Found` si trigger inconnu.
+
+### POST /api/v1/triggers/:id/fire
+
+Déclencher immédiatement un trigger (test ou opération manuelle).
+
+**Réponse 200 :**
+```json
+{ "task_id": "t-abc123" }
+```
+
+### POST /api/v1/triggers/:id/enable | /disable
+
+Activer ou désactiver un trigger sans modifier `apollia.toml`.
+
+### GET /api/v1/triggers/:id/logs?last=N
+
+Historique des fires/skips/erreurs depuis SQLite. `last` (défaut 50) limite les entrées.
+
+**Réponse 200 :**
+```json
+{
+  "entries": [
+    {
+      "status": "fired",
+      "task_id": "t-abc123",
+      "fired_at": "2026-03-09T08:00:00Z"
+    },
+    {
+      "status": "skipped",
+      "reason": "agent working (on_busy=drop)",
+      "fired_at": "2026-03-08T08:00:00Z"
+    }
+  ]
+}
+```
+
+### POST /api/v1/triggers/reload
+
+Hot reload : relit `apollia.toml`, redémarre les sources modifiées sans arrêter le runtime.
+
+**Réponse 200 :**
+```json
+{ "reloaded": 3, "added": 1, "removed": 0, "modified": 2 }
+```
+
+---
+
+## Webhook *(Sprint 9)*
+
+### POST /webhooks/:trigger_id
+
+Endpoint d'ingestion webhook avec authentification HMAC-SHA256.
+
+**Headers requis :**
+```
+X-Apollia-Signature: sha256=<hmac_sha256_hex>
+Content-Type: application/json
+```
+
+**Corps :** JSON quelconque.
+
+**Réponses :**
+
+| Code | Condition |
+|---|---|
+| `200` | Signature valide, TriggerEvent envoyé |
+| `401` | Signature invalide ou header manquant |
+| `404` | trigger_id inconnu |
+| `503` | TriggerEngine non démarré |
+
+**Exemple :**
+```bash
+# Calculer la signature
+BODY='{"ref":"refs/heads/main"}'
+SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "un-secret-robuste" | cut -d' ' -f2)
+
+curl -X POST http://localhost:7771/webhooks/github-push \
+  -H "X-Apollia-Signature: sha256=$SIG" \
+  -H "Content-Type: application/json" \
+  -d "$BODY"
+```
+
+---
+
+## Dashboard *(Sprint 9)*
+
+### GET /dashboard
+
+Retourne le dashboard HTML complet (HTMX embarqué, CSS inline).
+
+### GET /api/v1/dashboard/state
+
+Snapshot JSON complet de l'état du runtime (agents, tasks, triggers, LLM, outils).
+
+### GET /api/v1/dashboard/partials/:section
+
+Fragment HTML d'une section pour HTMX polling. Sections : `agents`, `tasks`, `triggers`, `tools`, `llm`, `audit`.
+
+### GET /api/v1/dashboard/stream
+
+SSE stream pour mises à jour temps réel. Événements nommés : `agents`, `tasks`, `triggers`, `llm`, `tools`.
+
+```bash
+curl -N -H "Accept: text/event-stream" \
+  http://localhost:7771/api/v1/dashboard/stream
+```
+
+---
+
 ## Voir aussi
 
 - [Briques CLI](./Briques-CLI) — wrapper CLI sur cette API
 - [Briques Runtime Core](./Briques-Runtime-Core) — implémentation APIServer axum
+- [Briques Triggers](./Briques-Triggers) — moteur de déclenchement
+- [Dashboard Observabilité](./Dashboard-Observabilite) — dashboard embarqué
 - [ADR-006](../adr/ADR-006-rest-json-api-locale) — pourquoi REST JSON plutôt qu'une autre API
 - [ADR-017](../adr/ADR-017-hyper-util-unix-socket-serving) — Unix socket avec hyper-util
+- [ADR-021](../adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md) — décisions TOML/HMAC/hot reload

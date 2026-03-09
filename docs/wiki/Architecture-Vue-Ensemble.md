@@ -6,7 +6,7 @@
 
 ## 1. Vue d'ensemble de l'architecture
 
-### 1.1 Les 6 briques fondamentales
+### 1.1 Les 7 briques fondamentales
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -32,6 +32,11 @@
 │  │ REGISTRY │  │   ENGINE      │                                   │
 │  │ + SANDBOX│  │  (SQLite)     │                                   │
 │  └──────────┘  └───────────────┘                                   │
+│                                                                     │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                    TRIGGERS ENGINE                           │  │
+│  │  CronTrigger · IntervalTrigger · FileWatchTrigger · Webhook  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
 │                                                                     │
 │  ┌──────────────────────────────────────────────────────────────┐  │
 │  │                      AIP BRIDGE (PyO3)                       │  │
@@ -73,8 +78,26 @@ apollia-os/                          ← workspace Cargo
 │   │       ├── api/                 ← APIServer axum (Unix socket + TCP)
 │   │       │   ├── server.rs
 │   │       │   ├── routes/
+│   │       │   │   ├── routes_tasks.rs
+│   │       │   │   ├── routes_agents.rs
+│   │       │   │   ├── routes_triggers.rs  ← Sprint 9
+│   │       │   │   ├── routes_webhooks.rs  ← Sprint 9 (HMAC-SHA256)
+│   │       │   │   └── routes_dashboard.rs ← Sprint 9 (HTMX embarqué)
 │   │       │   └── sse.rs           ← Server-Sent Events streaming
 │   │       └── eventbus.rs          ← EventBus broadcast Tokio
+│   │
+│   ├── apollia-triggers/            ← Triggers Engine (Sprint 9)
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── types.rs             ← TriggerDefinition, OnBusyPolicy, InputTemplate
+│   │       ├── engine.rs            ← TriggerEngine acteur Tokio + Handle
+│   │       ├── persistence.rs       ← TriggerPersistence (SQLite)
+│   │       ├── toml_config.rs       ← parse_triggers_from_toml_str()
+│   │       └── sources/
+│   │           ├── cron.rs          ← CronTrigger (crate cron 0.12)
+│   │           ├── interval.rs      ← IntervalTrigger
+│   │           ├── oneshot.rs       ← OneshotTrigger
+│   │           └── file_watch.rs    ← FileWatchTrigger (notify v6)
 │   │
 │   ├── apollia-oria/                ← ORIA Engine
 │   │   └── src/
@@ -131,6 +154,9 @@ apollia-os/                          ← workspace Cargo
 │           │   ├── tools.rs
 │           │   ├── memory.rs
 │           │   └── audit.rs
+│           ├── commands/
+│           │   ├── trigger.rs       ← `apollia-os trigger list|status|fire|...`
+│           │   └── ...
 │           └── output/              ← Formatters (table, json, quiet)
 │
 ├── agents/                          ← Agents d'exemple et de test
@@ -143,7 +169,9 @@ apollia-os/                          ← workspace Cargo
         ├── test_hello_agent.rs
         ├── test_devis_workflow.rs
         ├── test_memory_persistence.rs
-        └── test_graceful_shutdown.rs
+        ├── test_graceful_shutdown.rs
+        ├── test_triggers.rs          ← Sprint 9
+        └── test_webhook.rs           ← Sprint 9
 ```
 
 ### 1.3 Stack technique

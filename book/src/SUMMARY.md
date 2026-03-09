@@ -37,6 +37,7 @@
   - [Memory Engine](components/memory-engine.md)
   - [ORIA Engine](components/oria-engine.md)
   - [LLM Backend](components/llm-backend.md)
+  - [Triggers Engine](components/triggers.md)
   - [CLI](components/cli.md)
 
 # API & Intégration
@@ -60,6 +61,7 @@
   - [Production Linux](ops/production.md)
   - [Configuration apollia.toml](ops/config.md)
   - [Exploitation & Debug](ops/debug.md)
+  - [Dashboard Observabilité](ops/dashboard.md)
 
 # Décisions Architecturales
 
@@ -84,6 +86,7 @@
   - [ADR-018 — ADR-018 — CLI Bootstrap sans Supervisor](decisions/adr-018-cli-bootstrap-sans-supervisor.md)
   - [ADR-019 — ADR-019 — Trait AgentLoader pour decoupler apollia-runtime de PyO3](decisions/adr-019-agent-loader-trait-decouplage-runtime-pyo3.md)
   - [ADR-020 — ADR-020 — apollia-llm : moteur d'inférence embarqué, modèles fichiers externes, feature flags](decisions/adr-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md)
+  - [ADR-021 — apollia-triggers : TOML-only, HMAC-SHA256 webhooks, hot reload sans restart](decisions/adr-021-apollia-triggers-toml-hmac-hot-reload.md)
 
 ---
 

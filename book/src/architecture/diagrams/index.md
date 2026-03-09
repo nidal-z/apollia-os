@@ -6,7 +6,7 @@
 ## C4 — Vue Contexte
 ![C4 Context](c4-context-runtime.svg)
 
-## C4 — Vue Container (8 crates)
+## C4 — Vue Container (9 crates)
 ![C4 Container](c4-container-runtime.svg)
 
 ## C4 — Composants Runtime Core
@@ -41,3 +41,6 @@
 
 ## Séquence — Démarrage Supervisor (7 phases)
 ![Supervisor Startup](seq-supervisor-startup.svg)
+
+## Séquence — Trigger Fire (Cron / FileWatch / Webhook)
+![Trigger Fire](seq-trigger-fire.svg)
