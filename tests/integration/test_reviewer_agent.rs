@@ -36,8 +36,7 @@ impl ExecutionBackend for AIPBridgeBackend {
             // Les appels ctx.tools.call() vont lever AttributeError —
             // c'est acceptable pour un smoke test : on vérifie que la
             // chaîne Rust → Python → retour fonctionne, pas les outils.
-            let ctx: PyObject =
-                Python::with_gil(|py| pyo3::types::PyDict::new_bound(py).into());
+            let ctx: PyObject = Python::with_gil(|py| pyo3::types::PyDict::new_bound(py).into());
             bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
         })
     }
@@ -76,17 +75,27 @@ fn make_task(input: &str) -> AIPTask {
 #[tokio::test]
 async fn test_ac1_agent_loads_and_validates() {
     let path = reviewer_agent_path();
-    assert!(path.exists(), "apollia-reviewer.py introuvable : {}", path.display());
+    assert!(
+        path.exists(),
+        "apollia-reviewer.py introuvable : {}",
+        path.display()
+    );
 
-    let module = load_agent_module(&path)
-        .unwrap_or_else(|e| panic!("load_agent_module failed: {e}"));
+    let module =
+        load_agent_module(&path).unwrap_or_else(|e| panic!("load_agent_module failed: {e}"));
 
-    let validated = validate_agent(&module)
-        .unwrap_or_else(|e| panic!("validate_agent failed: {e}"));
+    let validated =
+        validate_agent(&module).unwrap_or_else(|e| panic!("validate_agent failed: {e}"));
 
     assert_eq!(validated.manifest.name, "apollia-reviewer");
-    assert!(validated.manifest.tools_required.contains(&"bash_executor".to_string()));
-    assert!(validated.manifest.tools_required.contains(&"file_io".to_string()));
+    assert!(validated
+        .manifest
+        .tools_required
+        .contains(&"bash_executor".to_string()));
+    assert!(validated
+        .manifest
+        .tools_required
+        .contains(&"file_io".to_string()));
     assert!(validated.manifest.memory_namespace.is_some());
     println!("✔ manifest validé : {:?}", validated.manifest.name);
 }
@@ -117,7 +126,10 @@ async fn test_ac2_empty_input_returns_failed() {
                 TaskStatus::Failed,
                 "entrée vide → status doit être Failed"
             );
-            println!("✔ entrée vide → Failed, code={:?}", r.error.as_ref().map(|e| &e.code));
+            println!(
+                "✔ entrée vide → Failed, code={:?}",
+                r.error.as_ref().map(|e| &e.code)
+            );
         }
         Err(e) => {
             // AttributeError sur ctx.tools.call — acceptable : l'agent a bien
