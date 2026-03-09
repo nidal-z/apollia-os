@@ -239,7 +239,6 @@ pub enum RuntimeEvent {
     },
 
     // ── Plan / Step events (STORY-084) ─────────────────────────────────────
-
     /// Un `ExecutionPlan` a été généré par le Reasoner et persisté en SQLite.
     PlanGenerated {
         /// Identifiant de la tâche ayant déclenché la planification.
@@ -412,6 +411,52 @@ mod tests {
                 trigger_id: "rapport-hebdo".into(),
             },
             RuntimeEvent::TriggersReloaded { count: 3 },
+            // ── Mode Orchestré (STORY-084) ────────────────────────────────
+            RuntimeEvent::PlanGenerated {
+                task_id: "task-1".into(),
+                agent_name: "mon-agent".into(),
+                plan_id: "plan-abc".into(),
+                step_count: 4,
+            },
+            RuntimeEvent::StepStarted {
+                task_id: "task-1".into(),
+                plan_id: "plan-abc".into(),
+                step_id: "s1".into(),
+                step_num: 1,
+                total: 4,
+                desc: "Lire le fichier".into(),
+            },
+            RuntimeEvent::StepCompleted {
+                task_id: "task-1".into(),
+                plan_id: "plan-abc".into(),
+                step_id: "s1".into(),
+                duration_ms: 1200,
+            },
+            RuntimeEvent::StepFailed {
+                task_id: "task-1".into(),
+                plan_id: "plan-abc".into(),
+                step_id: "s2".into(),
+                error: "timeout".into(),
+                retryable: true,
+            },
+            RuntimeEvent::PlanReplanning {
+                task_id: "task-1".into(),
+                plan_id: "plan-abc".into(),
+                attempt: 1,
+                failed_step: "s2".into(),
+                reason: "timeout".into(),
+            },
+            RuntimeEvent::PlanCompleted {
+                task_id: "task-1".into(),
+                plan_id: "plan-abc".into(),
+                step_count: 4,
+                duration_ms: 15900,
+            },
+            RuntimeEvent::PlanFailed {
+                task_id: "task-1".into(),
+                plan_id: "plan-abc".into(),
+                reason: "MAX_REPLAN_EXCEEDED".into(),
+            },
         ];
 
         // THEN — toutes les variantes sont clonables et debuggables
@@ -430,5 +475,104 @@ mod tests {
         let s = format!("{:?}", event);
         // THEN
         assert!(s.contains("agent-42"));
+    }
+
+    // ── AC-1 : sérialisation JSON ─────────────────────────────────────────
+
+    #[test]
+    fn test_ac1_serialisation_plan_generated() {
+        // GIVEN
+        let event = RuntimeEvent::PlanGenerated {
+            task_id: "task-001".into(),
+            agent_name: "mon-agent".into(),
+            plan_id: "plan-abc".into(),
+            step_count: 4,
+        };
+        // WHEN
+        let json = serde_json::to_string(&event).expect("sérialisation échoue");
+        // THEN
+        assert!(json.contains("plan-abc"));
+        assert!(json.contains("\"step_count\":4"));
+    }
+
+    #[test]
+    fn test_ac1_serialisation_step_started() {
+        // GIVEN
+        let event = RuntimeEvent::StepStarted {
+            task_id: "task-001".into(),
+            plan_id: "plan-abc".into(),
+            step_id: "s1".into(),
+            step_num: 1,
+            total: 4,
+            desc: "Lire le fichier".into(),
+        };
+        // WHEN
+        let json = serde_json::to_string(&event).expect("sérialisation échoue");
+        // THEN
+        assert!(json.contains("\"step_num\":1"));
+        assert!(json.contains("\"total\":4"));
+    }
+
+    #[test]
+    fn test_ac1_serialisation_step_failed() {
+        // GIVEN
+        let event = RuntimeEvent::StepFailed {
+            task_id: "task-001".into(),
+            plan_id: "plan-abc".into(),
+            step_id: "s2".into(),
+            error: "timeout".into(),
+            retryable: true,
+        };
+        // WHEN
+        let json = serde_json::to_string(&event).expect("sérialisation échoue");
+        // THEN
+        assert!(json.contains("\"retryable\":true"));
+    }
+
+    // ── AC-2 : broadcast via EventBus ─────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_ac2_broadcast_plan_generated() {
+        // GIVEN
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(16);
+        let event = RuntimeEvent::PlanGenerated {
+            task_id: "t-001".into(),
+            agent_name: "agent".into(),
+            plan_id: "plan-001".into(),
+            step_count: 3,
+        };
+        // WHEN
+        tx.send(event).expect("envoi échoue");
+        // THEN
+        let received = rx.recv().await.expect("réception échoue");
+        if let RuntimeEvent::PlanGenerated { step_count, .. } = received {
+            assert_eq!(step_count, 3);
+        } else {
+            panic!("Mauvais event reçu");
+        }
+    }
+
+    // ── AC-3 : round-trip désérialisation ────────────────────────────────
+
+    #[test]
+    fn test_ac3_round_trip_step_failed() {
+        // GIVEN
+        let original = RuntimeEvent::StepFailed {
+            task_id: "task-001".into(),
+            plan_id: "plan-abc".into(),
+            step_id: "s3".into(),
+            error: "memory timeout".into(),
+            retryable: true,
+        };
+        // WHEN
+        let json = serde_json::to_string(&original).expect("sérialisation échoue");
+        let deserialized: RuntimeEvent =
+            serde_json::from_str(&json).expect("désérialisation échoue");
+        // THEN
+        if let RuntimeEvent::StepFailed { retryable, .. } = deserialized {
+            assert!(retryable);
+        } else {
+            panic!("Mauvais variant après désérialisation");
+        }
     }
 }
