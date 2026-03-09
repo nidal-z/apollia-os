@@ -330,6 +330,18 @@ pub enum RuntimeEvent {
     },
 
     // ── HITL — Human-in-the-Loop events (Sprint 11) ────────────────────
+    /// Une tâche `input_required` a expiré — annulée automatiquement par le `TimeoutWatcher`.
+    ///
+    /// Émis par `TimeoutWatcher::scan_and_cancel` (STORY-098) pour chaque tâche
+    /// dont `input_required_at` dépasse `input_required_timeout`.
+    /// Suivi immédiatement de [`RuntimeEvent::TaskCanceled`] pour la même tâche.
+    TaskApprovalTimeout {
+        /// Identifiant de la tâche expirée.
+        task_id: TaskId,
+        /// Durée du timeout configurée (en secondes).
+        after_secs: u64,
+    },
+
     /// Une tâche est suspendue en attente d'une entrée humaine.
     ///
     /// Émis par ORIA (STORY-096, STORY-097) après que la suspension est détectée.
@@ -491,6 +503,10 @@ mod tests {
                 reason: "MAX_REPLAN_EXCEEDED".into(),
             },
             // ── HITL (Sprint 11) ──────────────────────────────────────────
+            RuntimeEvent::TaskApprovalTimeout {
+                task_id: "task-1".into(),
+                after_secs: 86400,
+            },
             RuntimeEvent::TaskInputRequired {
                 task_id: "task-1".into(),
                 prompt: "Confirmer l'envoi ?".into(),

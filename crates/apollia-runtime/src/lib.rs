@@ -15,6 +15,7 @@ pub mod registry;
 pub mod router;
 pub mod shutdown;
 pub mod supervisor;
+pub mod timeout_watcher;
 
 pub use api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
 pub use coordinator::{CoordinatorError, ExecutionBackend, ExecutionCoordinator};
@@ -26,6 +27,7 @@ pub use supervisor::{
     ChildSpec, RestartPolicy, RestartTracker, Supervisor, SupervisorConfig, SupervisorError,
     SupervisorHandles,
 };
+pub use timeout_watcher::{TimeoutWatcher, TimeoutWatcherConfig, TimeoutWatcherError};
 
 // Re-export from apollia-tools for convenience
 pub use apollia_tools::ToolRegistryHandle;

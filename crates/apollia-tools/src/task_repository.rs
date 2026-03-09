@@ -54,6 +54,7 @@ pub enum TaskRepoError {
 /// Tokio sans partage de connexion entre threads.
 ///
 /// La migration `005_hitl_tables.sql` est appliquée à [`open`](Self::open).
+#[derive(Clone)]
 pub struct TaskRepository {
     db_path: PathBuf,
 }
@@ -307,6 +308,39 @@ impl TaskRepository {
         })
         .await
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
+    }
+
+    /// Annule une tâche en mettant son statut à `cancelled` dans la DB.
+    ///
+    /// Persiste `reason` dans la colonne `input_response_reason` pour la traçabilité.
+    /// Appelé par le `TimeoutWatcher` (STORY-098) lors de l'expiration d'une
+    /// suspension `input_required`.
+    ///
+    /// # Errors
+    ///
+    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    pub async fn cancel_task(&self, task_id: &str, reason: &str) -> Result<(), TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+        let reason = reason.to_string();
+
+        tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
+            let conn = rusqlite::Connection::open(&path)?;
+            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            conn.execute(
+                "UPDATE tasks SET \
+                     status                = 'cancelled', \
+                     input_response_reason = ?2, \
+                     updated_at            = CURRENT_TIMESTAMP \
+                 WHERE task_id = ?1",
+                params![&task_id, &reason],
+            )?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))??;
+
+        Ok(())
     }
 
     /// Retourne les `task_id` en status `input_required` depuis plus longtemps que `older_than`.

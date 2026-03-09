@@ -27,6 +27,7 @@ use crate::coordinator::ExecutionBackend;
 use crate::eventbus::{EventBus, EventBusSender};
 use crate::registry::{AgentRegistry, AgentRegistryHandle};
 use crate::router::TaskRouterHandle;
+use crate::timeout_watcher::{TimeoutWatcher, TimeoutWatcherConfig};
 
 /// Restart policy for supervised actors.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,6 +74,12 @@ pub struct SupervisorConfig {
     /// `None` when the runtime starts without a config file (e.g. tests, `apollia-os start`
     /// without a config file). The `POST /api/v1/triggers/reload` route returns 503 when absent.
     pub config_path: Option<std::path::PathBuf>,
+    /// Durée (en heures) au-delà de laquelle une tâche `input_required` est annulée.
+    ///
+    /// Configurable via `[runtime] input_required_timeout_hours` dans `apollia.toml`.
+    /// Le `TimeoutWatcher` (STORY-098) utilise cette valeur. Défaut : 24 heures.
+    /// Ignoré si `AppState.task_repository` est `None`.
+    pub input_required_timeout_hours: u64,
 }
 
 /// Handles returned after successful startup.
@@ -284,6 +291,8 @@ impl Supervisor {
 
         // Phase 7 (pos 8): APIServer
         info!("Supervisor: starting APIServer");
+        // Extract task_repository before moving state into APIServer (needed for TimeoutWatcher).
+        let task_repository: Option<std::sync::Arc<apollia_tools::TaskRepository>> = None;
         let state = AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -293,7 +302,7 @@ impl Supervisor {
             llm_router: llm_router.clone(),
             trigger_engine: Some(trigger_engine.clone()),
             config_path: self.config.config_path.clone(),
-            task_repository: None,
+            task_repository: task_repository.clone(),
             pending_approvals: None,
         };
         let api_server = APIServer::new(self.config.api_config, state);
@@ -320,6 +329,23 @@ impl Supervisor {
             }
         };
         info!("Supervisor: APIServer ready");
+
+        // Phase 8 (pos 9): TimeoutWatcher — démarré si task_repository est configuré (STORY-098)
+        if let Some(repo) = task_repository {
+            info!("Supervisor: starting TimeoutWatcher");
+            let watcher = TimeoutWatcher::new(
+                TimeoutWatcherConfig {
+                    input_required_timeout: Duration::from_secs(
+                        self.config.input_required_timeout_hours * 3600,
+                    ),
+                    ..TimeoutWatcherConfig::default()
+                },
+                repo,
+                event_sender.clone(),
+            );
+            tokio::spawn(watcher.run());
+            info!("Supervisor: TimeoutWatcher started");
+        }
 
         // Emit AllReady
         let _ = event_sender.send(RuntimeEvent::AllReady);
@@ -512,6 +538,7 @@ mod tests {
             llm_config: None,
             triggers: vec![],
             config_path: None,
+            input_required_timeout_hours: 24,
         }
     }
 
@@ -660,6 +687,7 @@ mod tests {
             llm_config: None,
             triggers: vec![],
             config_path: None,
+            input_required_timeout_hours: 24,
         };
         let supervisor = Supervisor::new(config);
 
@@ -794,6 +822,7 @@ mod tests {
             llm_config: None,
             triggers: vec![],
             config_path: None,
+            input_required_timeout_hours: 24,
         };
         let supervisor = Supervisor::new(config);
 
@@ -871,6 +900,7 @@ mod tests {
             llm_config: None,
             triggers: vec![],
             config_path: None,
+            input_required_timeout_hours: 24,
         };
         let supervisor = Supervisor::new(config);
 
@@ -931,6 +961,7 @@ mod tests {
             llm_config: None,
             triggers: vec![def],
             config_path: None,
+            input_required_timeout_hours: 24,
         };
         let supervisor = Supervisor::new(config);
 

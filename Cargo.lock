@@ -312,6 +312,7 @@ dependencies = [
  "hex",
  "hmac",
  "hyper-util",
+ "rusqlite",
  "serde",
  "serde_json",
  "sha2",
