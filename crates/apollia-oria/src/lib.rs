@@ -11,6 +11,7 @@
 //! - Direct mode: for simple tasks (≤ 4 tools, ≤ 15 steps)
 //! - Orchestrated mode: full Reasoner + Actor loop for complex tasks
 
+pub mod actor;
 pub mod budget;
 pub mod engine;
 pub mod observer;

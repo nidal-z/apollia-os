@@ -124,6 +124,14 @@ pub struct ResilienceLayer {
     default_cooldown: Duration,
 }
 
+impl Default for ResilienceLayer {
+    /// Crée une `ResilienceLayer` avec les paramètres par défaut :
+    /// seuil de 3 échecs consécutifs, cooldown de 30 secondes.
+    fn default() -> Self {
+        Self::new(3, Duration::from_secs(30))
+    }
+}
+
 impl ResilienceLayer {
     /// Creates a new resilience layer with default threshold and cooldown.
     pub fn new(default_failure_threshold: u32, default_cooldown: Duration) -> Self {

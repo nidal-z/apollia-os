@@ -18,8 +18,8 @@ tracing        = { workspace = true }
 uuid           = { workspace = true }
 rand           = { workspace = true }
 rusqlite       = { workspace = true }
+async-trait    = { workspace = true }
 
 [dev-dependencies]
-async-trait    = { workspace = true }
 futures        = { workspace = true }
 tempfile       = "3"

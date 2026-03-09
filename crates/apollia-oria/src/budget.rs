@@ -89,6 +89,30 @@ impl StepBudget {
         self.started_at.elapsed()
     }
 
+    /// Crée un `StepBudget` sans limite effective — réservé aux tests unitaires.
+    ///
+    /// Toutes les dimensions sont fixées à leur maximum pratique :
+    /// `max_steps = u32::MAX`, `max_tool_calls = u32::MAX`, `wall_clock = 24 h`.
+    pub fn unlimited() -> Self {
+        Self::new(&StepBudgetConfig {
+            max_steps: u32::MAX,
+            max_tool_calls: u32::MAX,
+            wall_clock_secs: 86_400,
+        })
+    }
+
+    /// Crée un `StepBudget` limité à `max_steps` steps — réservé aux tests unitaires.
+    ///
+    /// Les autres dimensions (`max_tool_calls`, `wall_clock`) sont fixées à leur
+    /// maximum pratique pour ne pas interférer avec le test.
+    pub fn with_max(max_steps: u32) -> Self {
+        Self::new(&StepBudgetConfig {
+            max_steps,
+            max_tool_calls: u32::MAX,
+            wall_clock_secs: 86_400,
+        })
+    }
+
     /// Description lisible de la raison d'epuisement (pour les messages d'erreur).
     pub fn exhaustion_reason(&self) -> Option<String> {
         if self.current_steps.load(Ordering::Relaxed) >= self.max_steps {

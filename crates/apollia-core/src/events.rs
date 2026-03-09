@@ -237,6 +237,98 @@ pub enum RuntimeEvent {
         /// Coût estimé en USD (backends cloud uniquement ; `None` pour l'inférence locale).
         cost_usd: Option<f64>,
     },
+
+    // ── Plan / Step events (STORY-084) ─────────────────────────────────────
+
+    /// Un `ExecutionPlan` a été généré par le Reasoner et persisté en SQLite.
+    PlanGenerated {
+        /// Identifiant de la tâche ayant déclenché la planification.
+        task_id: TaskId,
+        /// Nom de l'agent propriétaire du plan.
+        agent_name: String,
+        /// Identifiant unique du plan (UUID v4).
+        plan_id: String,
+        /// Nombre de steps dans le plan.
+        step_count: usize,
+    },
+
+    /// Un step a démarré son exécution — émis par `ActorLoop` avant chaque appel outil ou LLM.
+    StepStarted {
+        /// Identifiant de la tâche parente.
+        task_id: TaskId,
+        /// Identifiant du plan.
+        plan_id: String,
+        /// Identifiant du step (ex: `"s1"`).
+        step_id: String,
+        /// Numéro séquentiel du step dans l'exécution (1-based).
+        step_num: usize,
+        /// Nombre total de steps dans le plan courant.
+        total: usize,
+        /// Description en langage naturel du step.
+        desc: String,
+    },
+
+    /// Un step s'est terminé avec succès — émis par `ActorLoop` après chaque appel réussi.
+    StepCompleted {
+        /// Identifiant de la tâche parente.
+        task_id: TaskId,
+        /// Identifiant du plan.
+        plan_id: String,
+        /// Identifiant du step.
+        step_id: String,
+        /// Durée d'exécution du step en millisecondes.
+        duration_ms: u64,
+    },
+
+    /// Un step a échoué — émis par `ActorLoop` après chaque échec.
+    StepFailed {
+        /// Identifiant de la tâche parente.
+        task_id: TaskId,
+        /// Identifiant du plan.
+        plan_id: String,
+        /// Identifiant du step.
+        step_id: String,
+        /// Message d'erreur.
+        error: String,
+        /// `true` si l'erreur peut déclencher une replanification.
+        retryable: bool,
+    },
+
+    /// Une replanification a été déclenchée après l'échec d'un step retryable.
+    PlanReplanning {
+        /// Identifiant de la tâche parente.
+        task_id: TaskId,
+        /// Identifiant du plan.
+        plan_id: String,
+        /// Numéro de la tentative de replanification (1-based).
+        attempt: u32,
+        /// Identifiant du step qui a échoué et déclenché la replanification.
+        failed_step: String,
+        /// Raison d'échec du step.
+        reason: String,
+    },
+
+    /// Tous les steps ont été complétés avec succès — plan terminé.
+    PlanCompleted {
+        /// Identifiant de la tâche parente.
+        task_id: TaskId,
+        /// Identifiant du plan.
+        plan_id: String,
+        /// Nombre de steps complétés.
+        step_count: usize,
+        /// Durée totale d'exécution du plan en millisecondes.
+        duration_ms: u64,
+    },
+
+    /// Le plan a échoué de manière irrémédiable.
+    PlanFailed {
+        /// Identifiant de la tâche parente.
+        task_id: TaskId,
+        /// Identifiant du plan.
+        plan_id: String,
+        /// Raison de l'échec.
+        reason: String,
+    },
 }
 
 #[cfg(test)]

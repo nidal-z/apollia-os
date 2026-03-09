@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
-use crate::task::AIPPart;
+use crate::task::{AIPPart, DataPart, TextPart};
 
 /// Machine d'état d'une tâche individuelle, alignée A2A TaskState.
 ///
@@ -67,6 +69,52 @@ pub struct AIPError {
     pub message: String,
     /// Détails supplémentaires structurés (optionnel).
     pub details: Option<serde_json::Value>,
+}
+
+impl AIPResult {
+    /// Construit un résultat d'échec avec un code et un message structurés.
+    ///
+    /// Raccourci utilisé par `ActorLoop` pour les erreurs de budget, de step ou de plan.
+    pub fn failed(code: &str, message: &str) -> Self {
+        Self {
+            task_id: String::new(),
+            status: TaskStatus::Failed,
+            output: vec![],
+            error: Some(AIPError {
+                code: code.to_string(),
+                message: message.to_string(),
+                details: None,
+            }),
+            artifacts: vec![],
+        }
+    }
+
+    /// Construit un résultat de succès avec les outputs de chaque step sérialisés en JSON.
+    ///
+    /// Utilisé par `ActorLoop` en fin d'exécution orchestrée pour transmettre
+    /// les résultats step par step au hook `on_plan_complete()` (STORY-086).
+    ///
+    /// La `HashMap<step_id → output>` est sérialisée dans `output[0]`
+    /// comme `AIPPart::Data`, avec fallback `AIPPart::Text` si la sérialisation échoue.
+    pub fn completed_with_steps(steps: HashMap<String, String>) -> Self {
+        let part = match serde_json::to_value(&steps) {
+            Ok(val) => AIPPart::Data(DataPart { data: val }),
+            Err(_) => AIPPart::Text(TextPart {
+                text: steps
+                    .iter()
+                    .map(|(k, v)| format!("{k}: {v}"))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            }),
+        };
+        Self {
+            task_id: String::new(),
+            status: TaskStatus::Completed,
+            output: vec![part],
+            error: None,
+            artifacts: vec![],
+        }
+    }
 }
 
 #[cfg(test)]
