@@ -8,14 +8,16 @@
 //! | `Cron`       | ✅          | STORY-067 |
 //! | `Interval`   | ✅          | STORY-067 |
 //! | `Oneshot`    | ✅          | STORY-067 |
-//! | `FileWatch`  | stub        | STORY-068 |
+//! | `FileWatch`  | ✅          | STORY-068 |
 //! | `Webhook`    | route axum  | STORY-069 |
 
 pub mod cron;
+pub mod file_watch;
 pub mod interval;
 pub mod oneshot;
 
 pub use cron::CronTrigger;
+pub use file_watch::FileWatchTrigger;
 pub use interval::IntervalTrigger;
 pub use oneshot::OneshotTrigger;
 
@@ -39,11 +41,7 @@ pub fn spawn_source(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> J
         TriggerSourceConfig::Cron { .. } => CronTrigger::spawn(def, tx),
         TriggerSourceConfig::Interval { .. } => IntervalTrigger::spawn(def, tx),
         TriggerSourceConfig::Oneshot { .. } => OneshotTrigger::spawn(def, tx),
-        TriggerSourceConfig::FileWatch { .. } => {
-            // Stub — implémenté STORY-068
-            tracing::debug!(trigger = %def.id, "FileWatchTrigger stub (STORY-068)");
-            tokio::spawn(async {})
-        }
+        TriggerSourceConfig::FileWatch { .. } => FileWatchTrigger::spawn(def, tx),
         TriggerSourceConfig::Webhook { .. } => {
             // Pas de spawn autonome — la route axum gère l'événement (STORY-069)
             tracing::debug!(trigger = %def.id, "Webhook source: no autonomous task");
