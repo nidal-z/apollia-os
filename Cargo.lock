@@ -231,6 +231,7 @@ dependencies = [
  "apollia-llm",
  "apollia-notifications",
  "apollia-oria",
+ "apollia-pipelines",
  "apollia-runtime",
  "apollia-tools",
  "apollia-triggers",

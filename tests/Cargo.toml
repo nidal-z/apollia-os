@@ -33,6 +33,7 @@ hex              = "0.4"
 apollia-aip           = { workspace = true, optional = true }
 pyo3                  = { workspace = true, optional = true }
 apollia-notifications = { workspace = true }
+apollia-pipelines     = { workspace = true }
 reqwest               = { workspace = true, features = ["json"] }
 rusqlite              = { workspace = true }
 chrono                = { workspace = true }
@@ -114,3 +115,7 @@ path = "integration/test_hitl_timeout.rs"
 [[test]]
 name = "test_webhook_notification"
 path = "integration/test_webhook_notification.rs"
+
+[[test]]
+name = "test_pipelines"
+path = "integration/test_pipelines.rs"
