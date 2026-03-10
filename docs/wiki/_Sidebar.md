@@ -29,6 +29,7 @@
 - [[Briques-LLM-Backend|LLM Backend]]
 - [[Briques-Triggers|Triggers Engine]]
 - [[Briques-Notifications|Notifications Engine]]
+- [[Briques-Pipelines|Pipelines Engine]]
 - [[Briques-Runtime-Core|Runtime Core]]
 - [[Briques-CLI|Apollia CLI]]
 

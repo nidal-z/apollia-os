@@ -221,6 +221,70 @@ wall_clock_timeout_secs = 300
 
 ---
 
+## [[pipelines]] — Orchestration multi-agent *(Sprint 12)*
+
+Tableau TOML — chaque entrée définit un pipeline déclaratif coordonnant plusieurs agents.
+
+```toml
+[[pipelines]]
+id          = "traitement-facture"
+description = "OCR → validation → comptabilisation → archivage"
+on_failure  = "fail"   # "fail" (défaut) | "continue"
+
+[[pipelines.steps]]
+id    = "ocr"
+agent = "ocr-agent"
+input = "{{trigger.payload}}"
+
+[[pipelines.steps]]
+id         = "validation"
+agent      = "validation-agent"
+input      = "{{steps.ocr.output}}"
+depends_on = ["ocr"]
+on_failure = "fallback"   # "fail" | "skip" | "fallback"
+
+[pipelines.steps.condition]
+when  = "contains"
+field = "steps.ocr.output"
+value = "PDF"
+
+[[pipelines.steps]]
+id           = "validation-fallback"
+agent        = "manual-review-agent"
+input        = "{{steps.ocr.output}}"
+depends_on   = ["ocr"]
+fallback_for = "validation"
+```
+
+**Champs d'un step :**
+
+| Champ | Type | Défaut | Description |
+|---|---|---|---|
+| `id` | str | — | Identifiant unique dans le pipeline |
+| `agent` | str | — | Nom de l'agent (doit être démarré dans le runtime) |
+| `input` | str | — | Template d'entrée avec variables `{{...}}` |
+| `depends_on` | list[str] | `[]` | Steps amont à attendre avant soumission |
+| `on_failure` | str | `"fail"` | Politique d'échec : `fail` / `skip` / `fallback` |
+| `condition.when` | str | — | Opérateur : `contains` / `equals` / `starts_with` / `ends_with` / `regex` |
+| `condition.field` | str | — | Variable à évaluer (ex: `"steps.ocr.output"`) |
+| `condition.value` | str | — | Valeur de référence pour la comparaison |
+| `fallback_for` | str | — | ID du step dont ce step est le repli |
+
+**Variables de template disponibles :**
+
+| Variable | Description |
+|---|---|
+| `{{trigger.payload}}` | Payload du trigger déclencheur |
+| `{{pipeline.id}}` | ID du pipeline |
+| `{{pipeline.run_id}}` | ID unique du run (ex: `r-3f7a2b9c`) |
+| `{{steps.<id>.output}}` | Sortie du step `<id>` une fois complété |
+
+**Validation au démarrage :** step_id uniques, `depends_on` et `fallback_for` existants, absence de cycle. Un pipeline invalide empêche le démarrage du runtime (Principe #4 — fail-fast).
+
+**Déclencher via trigger :** ajouter le champ `pipeline = "id-pipeline"` dans `[[triggers]]` à la place du champ `agent`. Les deux sont mutuellement exclusifs.
+
+---
+
 ## Variables d'environnement
 
 Toutes les options configurables via variables d'environnement avec le préfixe `APOLLIA_` :
@@ -474,6 +538,9 @@ events  = ["task.input_required", "task.failed", "agent.degraded"]
 | `agent.degraded` | Warning | Un agent est passé à l'état DEGRADED |
 | `llm.backend_down` | Error | Un backend LLM est inaccessible |
 | `trigger.error` | Error | Un trigger a émis une erreur |
+| `pipeline.completed` | Info | Un run de pipeline s'est terminé avec succès |
+| `pipeline.failed` | Error | Un run de pipeline s'est terminé en erreur |
+| `pipeline.suspended` | Warning | Un pipeline est suspendu en attente d'approbation HITL |
 
 ### Champs `[[notifications.channels]]`
 
@@ -568,3 +635,4 @@ events  = ["task.failed", "agent.degraded", "llm.backend_down", "trigger.error"]
 - [INSTALL.md](./INSTALL) — installation et prérequis
 - [INSTALL Production](./INSTALL-Production) — déploiement en production
 - [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) — monitoring et debug
+- [Briques Pipelines](./Briques-Pipelines) — documentation complète `[[pipelines]]`

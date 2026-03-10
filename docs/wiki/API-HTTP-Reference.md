@@ -686,6 +686,127 @@ La table `notification_logs` est créée de manière idempotente si elle n'exist
 
 ---
 
+## Pipelines *(Sprint 12)*
+
+### GET /api/v1/pipelines
+
+Liste tous les pipelines déclarés dans `apollia.toml`.
+
+**Réponse 200 :**
+```json
+{
+  "pipelines": [
+    {
+      "id": "traitement-facture",
+      "description": "OCR → validation → comptabilisation → archivage",
+      "step_count": 4
+    },
+    {
+      "id": "rapport-hebdomadaire",
+      "description": "Génération automatique du rapport PME",
+      "step_count": 2
+    }
+  ]
+}
+```
+
+### POST /api/v1/pipelines/{id}/run
+
+Démarre un nouveau run pour le pipeline `{id}`.
+
+**Corps (optionnel) :**
+```json
+{
+  "input": "facture-acme-2026-03.pdf",
+  "trigger_id": null
+}
+```
+
+**Réponse 200 :**
+```json
+{
+  "run_id": "r-3f7a2b9c",
+  "pipeline_id": "traitement-facture",
+  "status": { "type": "running" },
+  "started_at": "2026-03-10T10:01:32Z"
+}
+```
+
+**Réponse 404 — pipeline inconnu :**
+```json
+{ "error": "pipeline not found: traitement-facture-typo" }
+```
+
+### GET /api/v1/pipelines/{id}/runs
+
+Historique des runs du pipeline `{id}`. Paramètre optionnel : `?limit=20` (défaut 20, max 100).
+
+**Réponse 200 :**
+```json
+{
+  "runs": [
+    {
+      "run_id": "r-3f7a2b9c",
+      "pipeline_id": "traitement-facture",
+      "status": { "type": "completed" },
+      "trigger_payload": "facture-acme.pdf",
+      "started_at": "2026-03-10T10:01:32Z",
+      "ended_at": "2026-03-10T10:02:55Z"
+    }
+  ]
+}
+```
+
+### GET /api/v1/pipelines/{id}/runs/{run_id}
+
+État détaillé d'un run incluant le statut par step.
+
+**Réponse 200 :**
+```json
+{
+  "run_id": "r-3f7a2b9c",
+  "pipeline_id": "traitement-facture",
+  "status": { "type": "completed" },
+  "trigger_payload": "facture-acme.pdf",
+  "started_at": "2026-03-10T10:01:32Z",
+  "ended_at": "2026-03-10T10:02:55Z",
+  "step_runs": {
+    "ocr": {
+      "step_id": "ocr",
+      "task_id": "t-0021",
+      "status": "completed",
+      "output": "Facture ACME Corp — 12 500€ — 2026-03-01",
+      "error": null,
+      "started_at": "2026-03-10T10:01:32Z",
+      "ended_at": "2026-03-10T10:01:45Z"
+    },
+    "validation": {
+      "step_id": "validation",
+      "task_id": "t-0022",
+      "status": "completed",
+      "output": "VALIDE",
+      "error": null,
+      "started_at": "2026-03-10T10:01:45Z",
+      "ended_at": "2026-03-10T10:01:47Z"
+    }
+  }
+}
+```
+
+**Statuts de step possibles :** `pending` / `running` / `waiting_approval` / `completed` / `failed` / `skipped` / `fallback_active`
+
+**Statuts de run possibles :**
+```json
+{ "type": "running" }
+{ "type": "waiting_approval", "step_id": "comptabilite", "task_id": "t-0023" }
+{ "type": "completed" }
+{ "type": "failed", "step_id": "validation", "reason": "timeout après 30s" }
+```
+
+**Réponse 404 :** `{ "error": "run not found: r-inexistant" }`
+
+---
+
 ## Dashboard *(Sprint 9)*
 
 ### GET /dashboard
@@ -723,3 +844,4 @@ curl -N -H "Accept: text/event-stream" \
 - [ADR-021](../adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md) — décisions TOML/HMAC/hot reload
 - [ADR-023](../adr/ADR-023) — décisions architecture HITL (TaskRepository, PendingApprovals)
 - [ADR-024](../adr/ADR-024) — décisions système de notifications (canaux, événements, SQLite)
+- [ADR-025](../adr/ADR-025) — décisions pipelines multi-agents (TOML déclaratif, topologies natives)

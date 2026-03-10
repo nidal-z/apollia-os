@@ -395,6 +395,57 @@ $ apollia-os notify logs --last 50
   14:28:15           task.failed          t-038      desktop, slack-webhook
 ```
 
+### `apollia-os pipeline <verb>`
+
+Orchestration multi-agent via pipelines déclaratifs. Nécessite un runtime démarré.
+
+```bash
+# Lister les pipelines déclarés dans apollia.toml
+$ apollia-os pipeline list
+  PIPELINES CONFIGURÉS
+  ──────────────────────────────────────────────────────
+  ID                      STEPS   DESCRIPTION
+  traitement-facture      4       OCR → validation → comptabilisation → archivage
+  rapport-hebdomadaire    2       Rapport PME automatique
+
+# Déclencher un pipeline manuellement
+$ apollia-os pipeline run traitement-facture --input "facture-acme.pdf"
+  ✔ Pipeline run démarré : r-3f7a2b9c
+
+# Déclencher et suivre en temps réel (SSE)
+$ apollia-os pipeline run traitement-facture --input "facture-acme.pdf" --follow
+  [10:01:32] ▶ Step "ocr"           → RUNNING   (agent: ocr-agent, task: t-0021)
+  [10:01:45] ✔ Step "ocr"           → COMPLETED (13.2s)
+  [10:01:45] ▶ Step "validation"    → RUNNING   (agent: validation-agent, task: t-0022)
+  [10:01:47] ✔ Step "validation"    → COMPLETED (1.8s)
+  [10:01:47] ▶ Step "comptabilite"  → RUNNING   (agent: compta-agent, task: t-0023)
+  [10:01:48] ⏸ Step "comptabilite"  → WAITING_APPROVAL (HITL)
+             → apollia-os task resume t-0023 --approve
+  [10:02:01] ✔ Step "comptabilite"  → COMPLETED (13.0s)
+  [10:02:55] ✔ Pipeline traitement-facture/r-3f7a2b9c terminé en 1m23s
+
+# Voir l'historique des runs d'un pipeline
+$ apollia-os pipeline runs traitement-facture
+  RUN ID       STATUT        DÉMARRÉ                DURÉE
+  r-3f7a2b9c   Completed     2026-03-10 10:01:32    1m23s
+  r-2e6b1a8b   Failed        2026-03-09 14:32:01    0m08s   (step: validation)
+
+# Inspecter l'état détaillé d'un run
+$ apollia-os pipeline status r-3f7a2b9c
+  Pipeline : traitement-facture
+  Run      : r-3f7a2b9c
+  Statut   : Completed — 2026-03-10 10:02:55
+
+  STEP              STATUT      DURÉE   TÂCHE
+  ocr               Completed   13.2s   t-0021
+  validation        Completed    1.8s   t-0022
+  comptabilisation  Completed   13.0s   t-0023
+  archivage         Completed    2.3s   t-0024
+
+# Format JSON pour scripts
+$ apollia-os pipeline status r-3f7a2b9c --json
+```
+
 ---
 
 ## 4. Niveau 3 — Debug
@@ -473,12 +524,13 @@ $ apollia-os
 
   TOUTES LES COMMANDES
     start · stop · restart · status · run · health
-    agent   list | start | stop | restart | info | logs | validate
-    task    list | status | result | cancel | retry | resume | inspect
-    tools   list | describe | register | unregister | test | reset-circuit
-    memory  inspect | search | get | forget | purge | export | import
-    audit   [list] | stats | export
-    notify  test | list | logs
+    agent    list | start | stop | restart | info | logs | validate
+    task     list | status | result | cancel | retry | resume | inspect
+    pipeline list | run | runs | status
+    tools    list | describe | register | unregister | test | reset-circuit
+    memory   inspect | search | get | forget | purge | export | import
+    audit    [list] | stats | export
+    notify   test | list | logs
 
   FLAGS GLOBAUX : --json · -q/--quiet · -v/--verbose · --debug · --no-color
 

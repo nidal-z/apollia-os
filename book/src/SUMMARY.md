@@ -40,6 +40,7 @@
   - [LLM Backend](components/llm-backend.md)
   - [Triggers Engine](components/triggers.md)
   - [Notifications Engine](components/notifications.md)
+  - [Pipelines Engine](components/pipelines.md)
   - [CLI](components/cli.md)
 
 # API & Intégration

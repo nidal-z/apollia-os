@@ -44,3 +44,25 @@
 
 ## Séquence — Trigger Fire (Cron / FileWatch / Webhook)
 ![Trigger Fire](seq-trigger-fire.svg)
+
+## Séquence — HITL Flow complet (approve / reject)
+![HITL Flow](seq-hitl-flow.svg)
+
+## Séquence — ORIA Mode Orchestré (ActorLoop)
+![ORIA Orchestrated](seq-oria-orchestrated.svg)
+
+---
+
+## Pipelines multi-agents *(Sprint 12)*
+
+## Topologie — Pipeline (fan-out / fan-in / fallback / condition)
+![Pipeline Topology](component-pipeline-topology.svg)
+
+## Machine d'état — PipelineRun & StepRun
+![Pipeline State](state-pipeline.svg)
+
+## Séquence — Exécution d'un pipeline (layers topologiques)
+![Pipeline Execution](seq-pipeline-execution.svg)
+
+## Séquence — HITL dans un pipeline (suspend / resume)
+![Pipeline HITL](seq-pipeline-hitl.svg)

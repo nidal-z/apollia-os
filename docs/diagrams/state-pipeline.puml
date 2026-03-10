@@ -1,0 +1,82 @@
+@startuml state-pipeline
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+
+title Machines d'état — Pipeline Run & Step Run — Apollia OS
+
+' ── PipelineRun ──────────────────────────────────────────────────────────────
+
+state "PipelineRun" as PR {
+
+  [*] --> Running : POST /api/v1/pipelines/{id}/run\nou TriggerEngine dispatch
+
+  Running --> WaitingApproval : step.input_required()\n→ PipelineSuspended EventBus
+  Running --> Completed : tous les steps terminés\n→ PipelineCompleted EventBus
+  Running --> Failed : step échoue + on_failure=fail\n→ PipelineFailed EventBus
+
+  WaitingApproval --> Running : POST /api/v1/tasks/{id}/resume\n{ approved: true }
+  WaitingApproval --> Failed : POST /api/v1/tasks/{id}/resume\n{ approved: false }
+
+  Completed --> [*]
+  Failed --> [*]
+
+  note right of Running
+    L'executor gère les steps
+    couche par couche (Kahn BFS).
+    Fan-out = FuturesUnordered.
+    Reprise au restart si status
+    = "running" dans SQLite.
+  end note
+
+  note right of WaitingApproval
+    Run suspendu sur le step HITL.
+    Les autres steps en attente
+    ne sont pas soumis.
+    NotificationEngine →
+    desktop + webhook.
+  end note
+}
+
+' ── StepRun ──────────────────────────────────────────────────────────────────
+
+state "StepRun" as SR {
+
+  [*] --> Pending : dépendances amont\nnon terminées
+
+  Pending --> Running : layer prêt\n+ condition = true\n→ PipelineStepStarted EventBus
+  Pending --> Skipped : condition = false\nou step fallback inactif
+
+  Running --> Completed : TaskCompleted EventBus\n→ PipelineStepCompleted EventBus
+  Running --> Failed : TaskFailed EventBus\n→ PipelineStepFailed EventBus
+  Running --> WaitingApproval : TaskInputRequired EventBus\n→ PipelineSuspended EventBus
+
+  WaitingApproval --> Running : TaskResumed (approved=true)\n→ PipelineResumed EventBus
+  WaitingApproval --> Failed : TaskResumed (approved=false)
+
+  Failed --> Skipped : on_failure = skip
+  Failed --> FallbackActive : on_failure = fallback\n→ fallback step activé
+
+  Completed --> [*]
+  Skipped --> [*]
+  FallbackActive --> [*]
+
+  note right of Pending
+    Chaque step démarre dans
+    cet état à la création du run.
+    Un step fallback_for reste
+    Pending jusqu'à activation.
+  end note
+
+  note right of FallbackActive
+    Le step désigné par fallback_for
+    est activé et soumis.
+    Ses outputs remplacent ceux
+    du step original dans le template.
+  end note
+}
+
+@enduml
