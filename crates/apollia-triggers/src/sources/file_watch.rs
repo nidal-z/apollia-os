@@ -199,6 +199,7 @@ mod tests {
         TriggerDefinition {
             id: "file-test".into(),
             agent: "file-agent".into(),
+            pipeline: None,
             enabled: true,
             on_busy: OnBusyPolicy::Queue,
             source: TriggerSourceConfig::FileWatch {

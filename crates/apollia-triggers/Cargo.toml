@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-apollia-core = { workspace = true }
-tokio        = { workspace = true }
+apollia-core      = { workspace = true }
+apollia-pipelines = { path = "../apollia-pipelines" }
+tokio             = { workspace = true }
 serde        = { workspace = true }
 serde_json   = { workspace = true }
 thiserror    = { workspace = true }

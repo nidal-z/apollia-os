@@ -17,8 +17,16 @@ pub type TriggerId = String;
 pub struct TriggerDefinition {
     /// Identifiant unique du trigger (non vide).
     pub id: TriggerId,
-    /// Nom de l'agent cible.
+    /// Nom de l'agent cible — exclusif avec `pipeline`.
+    ///
+    /// Chaîne vide lorsque `pipeline` est défini (validation exclusive dans STORY-118).
     pub agent: String,
+    /// Pipeline cible — exclusif avec `agent` (validation dans STORY-118).
+    ///
+    /// Si défini, le trigger dispatche vers `PipelineEngine` au lieu du `TaskRouter`.
+    /// `#[serde(default)]` garantit la compatibilité avec les configs existantes.
+    #[serde(default)]
+    pub pipeline: Option<String>,
     /// Indique si le trigger est actif.
     pub enabled: bool,
     /// Comportement quand l'agent cible est occupé.
@@ -383,6 +391,7 @@ mod tests {
         let def = TriggerDefinition {
             id: "rapport-hebdo".into(),
             agent: "rapport-agent".into(),
+            pipeline: None,
             enabled: true,
             on_busy: OnBusyPolicy::Queue,
             source: TriggerSourceConfig::Cron {
@@ -396,8 +405,56 @@ mod tests {
         // THEN
         assert_eq!(back.id, "rapport-hebdo");
         assert_eq!(back.agent, "rapport-agent");
+        assert!(back.pipeline.is_none());
         assert!(back.enabled);
         assert_eq!(back.on_busy, OnBusyPolicy::Queue);
+    }
+
+    // ── STORY-117 — Triggers → Pipelines ─────────────────────────────────
+
+    /// AC-1 : le champ `pipeline` est backward-compatible — absent = None, pas d'erreur.
+    #[test]
+    fn test_ac1_pipeline_field_backward_compatible() {
+        // GIVEN un JSON sans champ pipeline (config existante Sprint 9)
+        let json = r#"{
+            "id": "t1",
+            "agent": "hello-agent",
+            "enabled": true,
+            "on_busy": "Queue",
+            "source": {"type": "interval", "every": "30m"},
+            "input_template": "test"
+        }"#;
+        // WHEN
+        let def: TriggerDefinition = serde_json::from_str(json).expect("désérialisation");
+        // THEN pipeline == None — pas d'erreur, comportement inchangé
+        assert!(
+            def.pipeline.is_none(),
+            "pipeline doit être None si absent du JSON"
+        );
+        assert_eq!(def.agent, "hello-agent");
+    }
+
+    /// AC-1 (variant) : le champ `pipeline` est correctement désérialisé quand présent.
+    #[test]
+    fn test_pipeline_field_deserialized() {
+        // GIVEN un JSON avec champ pipeline
+        let json = r#"{
+            "id": "t1",
+            "agent": "",
+            "pipeline": "traitement-facture",
+            "enabled": true,
+            "on_busy": "Queue",
+            "source": {"type": "interval", "every": "30m"},
+            "input_template": "{{filename}}"
+        }"#;
+        // WHEN
+        let def: TriggerDefinition = serde_json::from_str(json).expect("désérialisation");
+        // THEN
+        assert_eq!(
+            def.pipeline.as_deref(),
+            Some("traitement-facture"),
+            "pipeline doit être Some(\"traitement-facture\")"
+        );
     }
 
     #[test]

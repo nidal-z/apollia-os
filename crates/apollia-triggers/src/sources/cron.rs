@@ -89,6 +89,7 @@ mod tests {
         TriggerDefinition {
             id: id.into(),
             agent: "test-agent".into(),
+            pipeline: None,
             enabled: true,
             on_busy: OnBusyPolicy::Queue,
             source: TriggerSourceConfig::Cron {

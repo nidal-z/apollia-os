@@ -697,7 +697,7 @@ mod tests {
         let router: TaskRouterHandle<MockBackend> =
             TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 64);
         let engine =
-            TriggerEngineHandle::spawn(vec![], MockSubmitter, event_tx.clone(), None).await;
+            TriggerEngineHandle::spawn(vec![], MockSubmitter, event_tx.clone(), None, None).await;
         AppState {
             router_handle: router,
             registry_handle: registry,

@@ -290,6 +290,7 @@ impl Supervisor {
             router_handle.clone(),
             event_sender.clone(),
             None, // persistance SQLite désactivée en MVP — activée via STORY-070 config
+            None, // PipelineEngine injecté après démarrage — STORY-119
         )
         .await;
         tracing::info!(
@@ -1022,6 +1023,7 @@ mod tests {
         let def = TriggerDefinition {
             id: "test-trigger".into(),
             agent: "test-agent".into(),
+            pipeline: None,
             enabled: true,
             on_busy: OnBusyPolicy::Queue,
             source: TriggerSourceConfig::Cron {

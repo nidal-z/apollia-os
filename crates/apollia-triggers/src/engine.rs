@@ -20,6 +20,7 @@ use chrono::{DateTime, Utc};
 use tokio::sync::{mpsc, oneshot};
 
 use apollia_core::{AIPInput, AIPPart, EventBusSender, RuntimeEvent, TaskId, TextPart};
+use apollia_pipelines::engine::PipelineEngineHandle;
 
 use crate::persistence::TriggerPersistence;
 use crate::sources::spawn_source;
@@ -174,6 +175,12 @@ struct TriggerEngine {
     /// ([`TriggerCommand::Reload`]).
     event_tx: mpsc::Sender<TriggerEvent>,
     task_router: Arc<dyn TaskSubmitter>,
+    /// Handle optionnel vers le `PipelineEngine` — `None` si Sprint 12 non déployé.
+    ///
+    /// Injecté au démarrage. Si absent et qu'un trigger définit `pipeline`, un
+    /// `tracing::warn!` est émis et `TriggerSkipped` est envoyé sur l'EventBus
+    /// (AC-3 STORY-117). Jamais de panic.
+    pipeline_engine: Option<PipelineEngineHandle>,
     event_bus: EventBusSender,
     /// JoinHandles des sources actives — abortés lors du hot reload (STORY-073).
     handles: Vec<tokio::task::JoinHandle<()>>,
@@ -188,12 +195,15 @@ impl TriggerEngine {
     /// Démarre le moteur et retourne son handle clonable.
     ///
     /// `persistence` : `None` désactive la persistance SQLite (utile pour les tests unitaires).
+    /// `pipeline_engine` : `None` désactive le dispatch vers les pipelines — un trigger
+    /// avec `pipeline` émettra `TriggerSkipped` au lieu de paniquer (AC-3 STORY-117).
     /// Les sources dans `definitions` sont actuellement des stubs no-op (STORY-067/068).
     pub async fn start<S: TaskSubmitter>(
         definitions: Vec<TriggerDefinition>,
         task_router: S,
         event_bus: EventBusSender,
         persistence: Option<TriggerPersistence>,
+        pipeline_engine: Option<PipelineEngineHandle>,
     ) -> TriggerEngineHandle {
         let (event_tx, event_rx) = mpsc::channel::<TriggerEvent>(256);
         let (cmd_tx, cmd_rx) = mpsc::channel::<TriggerCommand>(64);
@@ -209,6 +219,7 @@ impl TriggerEngine {
             definitions,
             event_tx: event_tx.clone(),
             task_router: Arc::new(task_router),
+            pipeline_engine,
             event_bus,
             handles,
             fire_counts: HashMap::new(),
@@ -421,6 +432,7 @@ impl TriggerEngine {
     /// émission des `RuntimeEvent` et persistance (stub).
     ///
     /// Retourne `Ok(task_id)` si une tâche a été soumise, `Err` sinon.
+    /// Pour les triggers `pipeline`, le `task_id` retourné est le `RunId` converti.
     async fn process_event(&mut self, event: TriggerEvent) -> Result<TaskId, TriggerEngineError> {
         // 1. Trouver la définition
         let def = match self
@@ -452,6 +464,15 @@ impl TriggerEngine {
                 .or_insert(0) += 1;
             return Err(TriggerEngineError::SubmitFailed(reason));
         }
+
+        // ── Dispatch pipeline (STORY-117) ─────────────────────────────────────
+        // Si `pipeline` est défini, dispatche vers `PipelineEngine` au lieu du `TaskRouter`.
+        // L'exclusivité `agent XOR pipeline` est validée dans STORY-118.
+        if let Some(ref pipeline_id) = def.pipeline.clone() {
+            return self.dispatch_to_pipeline(&event, pipeline_id, &def).await;
+        }
+
+        // ── Dispatch agent (chemin existant) ──────────────────────────────────
 
         // 3. Vérifier OnBusyPolicy::Drop
         if def.on_busy == OnBusyPolicy::Drop {
@@ -505,6 +526,94 @@ impl TriggerEngine {
                     "soumission de tâche échouée"
                 );
                 Err(TriggerEngineError::SubmitFailed(e))
+            }
+        }
+    }
+
+    /// Dispatche un événement vers le `PipelineEngine` (STORY-117).
+    ///
+    /// - Si `pipeline_engine` est `Some`, appelle `run_pipeline()` et retourne le
+    ///   `RunId` converti en `TaskId`.
+    /// - Si `pipeline_engine` est `None`, émet `TriggerSkipped` avec
+    ///   `reason = "pipeline_engine_unavailable"` et retourne `Err(SubmitFailed)`.
+    ///   Aucune panic dans les deux cas (AC-3).
+    async fn dispatch_to_pipeline(
+        &mut self,
+        event: &TriggerEvent,
+        pipeline_id: &str,
+        def: &TriggerDefinition,
+    ) -> Result<TaskId, TriggerEngineError> {
+        match &self.pipeline_engine {
+            Some(pe) => {
+                // Rendre le payload du trigger depuis le template
+                let trigger_payload = def.input_template.render(&event.payload);
+                let pe = pe.clone();
+                match pe
+                    .run_pipeline(
+                        pipeline_id,
+                        Some(event.trigger_id.clone()),
+                        Some(trigger_payload),
+                    )
+                    .await
+                {
+                    Ok(run_id) => {
+                        tracing::info!(
+                            trigger_id = %event.trigger_id,
+                            pipeline_id = %pipeline_id,
+                            run_id = %run_id,
+                            "trigger dispatched to pipeline"
+                        );
+                        // Convertir RunId → TaskId pour homogénéité du type de retour
+                        let task_id = TaskId::from(run_id.0.as_str());
+                        let _ = self.event_bus.send(RuntimeEvent::TriggerFired {
+                            trigger_id: event.trigger_id.clone(),
+                            agent: format!("pipeline:{pipeline_id}"),
+                            task_id: task_id.clone(),
+                        });
+                        *self
+                            .fire_counts
+                            .entry(event.trigger_id.clone())
+                            .or_insert(0) += 1;
+                        self.last_fired.insert(event.trigger_id.clone(), Utc::now());
+                        Ok(task_id)
+                    }
+                    Err(e) => {
+                        let reason = format!("pipeline_start_failed: {e}");
+                        tracing::warn!(
+                            trigger_id = %event.trigger_id,
+                            pipeline_id = %pipeline_id,
+                            error = %e,
+                            "failed to start pipeline"
+                        );
+                        let _ = self.event_bus.send(RuntimeEvent::TriggerSkipped {
+                            trigger_id: event.trigger_id.clone(),
+                            reason: reason.clone(),
+                        });
+                        *self
+                            .skip_counts
+                            .entry(event.trigger_id.clone())
+                            .or_insert(0) += 1;
+                        Err(TriggerEngineError::SubmitFailed(reason))
+                    }
+                }
+            }
+            None => {
+                tracing::warn!(
+                    trigger_id = %event.trigger_id,
+                    pipeline_id = %pipeline_id,
+                    "pipeline engine not available — trigger skipped"
+                );
+                let _ = self.event_bus.send(RuntimeEvent::TriggerSkipped {
+                    trigger_id: event.trigger_id.clone(),
+                    reason: "pipeline_engine_unavailable".into(),
+                });
+                *self
+                    .skip_counts
+                    .entry(event.trigger_id.clone())
+                    .or_insert(0) += 1;
+                Err(TriggerEngineError::SubmitFailed(
+                    "pipeline engine not available".into(),
+                ))
             }
         }
     }
@@ -638,14 +747,24 @@ impl TriggerEngineHandle {
     /// Démarre un `TriggerEngine` et retourne son handle.
     ///
     /// `persistence` : `None` désactive la persistance SQLite (ex : tests, démonstrations).
+    /// `pipeline_engine` : `None` désactive le dispatch pipeline — triggers avec `pipeline`
+    /// émettront `TriggerSkipped` au lieu de paniquer (AC-3 STORY-117).
     /// Équivalent à `TriggerEngine::start` — exposé ici pour une API publique cohérente.
     pub async fn spawn<S: TaskSubmitter>(
         definitions: Vec<TriggerDefinition>,
         task_router: S,
         event_bus: EventBusSender,
         persistence: Option<TriggerPersistence>,
+        pipeline_engine: Option<PipelineEngineHandle>,
     ) -> Self {
-        TriggerEngine::start(definitions, task_router, event_bus, persistence).await
+        TriggerEngine::start(
+            definitions,
+            task_router,
+            event_bus,
+            persistence,
+            pipeline_engine,
+        )
+        .await
     }
 
     /// Trouve un trigger webhook par ID.
@@ -811,17 +930,33 @@ mod tests {
         broadcast::channel(64).0
     }
 
-    /// Construit une `TriggerDefinition` minimale pour les tests.
+    /// Construit une `TriggerDefinition` minimale pour les tests (trigger agent).
     fn make_definition(id: &str, on_busy: OnBusyPolicy) -> TriggerDefinition {
         TriggerDefinition {
             id: id.into(),
             agent: "test-agent".into(),
+            pipeline: None,
             enabled: true,
             on_busy,
             source: TriggerSourceConfig::Cron {
                 schedule: "0 8 * * MON".into(),
             },
             input_template: InputTemplate("test {{scheduled_at}}".into()),
+        }
+    }
+
+    /// Construit une `TriggerDefinition` pour un trigger pipeline (STORY-117).
+    fn make_pipeline_definition(id: &str, pipeline_id: &str) -> TriggerDefinition {
+        TriggerDefinition {
+            id: id.into(),
+            agent: String::new(),
+            pipeline: Some(pipeline_id.into()),
+            enabled: true,
+            on_busy: OnBusyPolicy::Queue,
+            source: TriggerSourceConfig::Cron {
+                schedule: "0 8 * * MON".into(),
+            },
+            input_template: InputTemplate("{{scheduled_at}}".into()),
         }
     }
 
@@ -914,7 +1049,7 @@ mod tests {
         // GIVEN une liste vide de TriggerDefinition
         let (router, _) = MockTaskRouterHandle::new();
         // WHEN
-        let handle = TriggerEngine::start(vec![], router, make_bus(), None).await;
+        let handle = TriggerEngine::start(vec![], router, make_bus(), None, None).await;
         // THEN list() retourne un vec vide
         let list = handle.list().await;
         assert!(list.is_empty(), "liste attendue vide, got {:?}", list);
@@ -927,7 +1062,7 @@ mod tests {
         // GIVEN un trigger avec OnBusyPolicy::Queue et un mock en succès
         let def = make_definition("test-trigger", OnBusyPolicy::Queue);
         let (router, calls) = MockTaskRouterHandle::new_with_tracking();
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None).await;
+        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
         // WHEN
         handle
             .fire_now("test-trigger")
@@ -945,7 +1080,7 @@ mod tests {
         // GIVEN un trigger Drop et un agent occupé (pending_count = 1)
         let def = make_definition("busy-trigger", OnBusyPolicy::Drop);
         let (router, calls) = MockTaskRouterHandle::new_with_pending(1);
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None).await;
+        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
         // WHEN
         let result = handle.fire_now("busy-trigger").await;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -970,7 +1105,7 @@ mod tests {
         // GIVEN un trigger enregistré
         let def = make_definition("rapport-hebdo", OnBusyPolicy::Queue);
         let (router, _) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None).await;
+        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
         // WHEN
         let result = handle.fire_now("rapport-hebdo").await;
         // THEN Ok(task_id)
@@ -981,7 +1116,7 @@ mod tests {
     async fn test_ac4_fire_now_unknown_id_returns_error() {
         // GIVEN aucun trigger enregistré
         let (router, _) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(vec![], router, make_bus(), None).await;
+        let handle = TriggerEngine::start(vec![], router, make_bus(), None, None).await;
         // WHEN
         let result = handle.fire_now("unknown-trigger").await;
         // THEN NotFound
@@ -999,7 +1134,7 @@ mod tests {
         // GIVEN un trigger actif
         let def = make_definition("factures", OnBusyPolicy::Drop);
         let (router, _) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None).await;
+        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
 
         // WHEN disable
         handle.disable("factures").await.expect("disable failed");
@@ -1021,7 +1156,7 @@ mod tests {
         // GIVEN un trigger qui échoue toujours à la soumission
         let def = make_definition("failing-trigger", OnBusyPolicy::Queue);
         let (router, _) = MockTaskRouterHandle::new_always_fail();
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None).await;
+        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
 
         // WHEN — ne doit pas paniquer
         let result = handle.fire_now("failing-trigger").await;
@@ -1045,7 +1180,7 @@ mod tests {
         // GIVEN un trigger
         let def = make_definition("compteur", OnBusyPolicy::Queue);
         let (router, _) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None).await;
+        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
 
         // WHEN fire × 2
         handle
@@ -1077,7 +1212,7 @@ mod tests {
         // GIVEN un moteur avec 1 trigger
         let def1 = make_definition("trigger-1", OnBusyPolicy::Queue);
         let (router, _) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(vec![def1], router, make_bus(), None).await;
+        let handle = TriggerEngine::start(vec![def1], router, make_bus(), None, None).await;
         assert_eq!(handle.list().await.len(), 1);
 
         // WHEN reload avec 2 nouveaux triggers
@@ -1103,7 +1238,7 @@ mod tests {
         // GIVEN un bus avec subscriber actif
         let (bus_tx, mut bus_rx) = broadcast::channel::<apollia_core::RuntimeEvent>(64);
         let (router, _) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(vec![], router, bus_tx, None).await;
+        let handle = TriggerEngine::start(vec![], router, bus_tx, None, None).await;
 
         // WHEN reload avec 1 trigger activé
         let def = make_definition("new-trigger", OnBusyPolicy::Queue);
@@ -1127,5 +1262,104 @@ mod tests {
             Ok(true),
             "TriggersReloaded {{ count: 1 }} doit être émis"
         );
+    }
+
+    // ── STORY-117 — Triggers → Pipelines ──────────────────────────────────────
+
+    /// AC-3 : trigger avec `pipeline` sans PipelineEngineHandle → TriggerSkipped, pas de panic.
+    #[tokio::test]
+    async fn test_ac3_trigger_pipeline_no_engine_warning_no_panic() {
+        // GIVEN TriggerEngine sans pipeline_engine (None)
+        //   ET un trigger avec pipeline = "traitement-facture"
+        let def = make_pipeline_definition("factures-auto", "traitement-facture");
+        let (bus_tx, mut bus_rx) = broadcast::channel::<apollia_core::RuntimeEvent>(64);
+        let (router, task_calls) = MockTaskRouterHandle::new();
+        let handle = TriggerEngine::start(vec![def], router, bus_tx, None, None).await;
+
+        // WHEN le trigger fire
+        let result = handle.fire_now("factures-auto").await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // THEN Err(SubmitFailed) — aucune panic
+        assert!(
+            matches!(result, Err(TriggerEngineError::SubmitFailed(_))),
+            "expected SubmitFailed, got {result:?}"
+        );
+
+        // ET TaskRouter n'est pas appelé
+        assert_eq!(
+            task_calls.load(Ordering::SeqCst),
+            0,
+            "TaskRouter ne doit pas être appelé pour un trigger pipeline"
+        );
+
+        // ET TriggerSkipped est émis sur EventBus avec reason pipeline_engine_unavailable
+        let skipped = tokio::time::timeout(std::time::Duration::from_millis(200), async {
+            loop {
+                match bus_rx.recv().await {
+                    Ok(apollia_core::RuntimeEvent::TriggerSkipped { reason, .. }) => {
+                        return reason;
+                    }
+                    Ok(_) => {}
+                    Err(_) => return String::new(),
+                }
+            }
+        })
+        .await
+        .unwrap_or_default();
+
+        assert!(
+            skipped.contains("pipeline_engine_unavailable"),
+            "reason doit contenir 'pipeline_engine_unavailable', got: '{skipped}'"
+        );
+
+        // ET l'acteur est toujours vivant (pas de panic)
+        let list = handle.list().await;
+        assert_eq!(list.len(), 1, "l'acteur doit encore répondre après le skip");
+    }
+
+    /// AC-5 : trigger avec `agent` non affecté par l'ajout de la fonctionnalité pipeline.
+    #[tokio::test]
+    async fn test_ac5_agent_trigger_unaffected() {
+        // GIVEN trigger existant avec agent="hello-agent" (pipeline = None)
+        let def = make_definition("rapport-hebdo", OnBusyPolicy::Queue);
+        let (router, calls) = MockTaskRouterHandle::new_with_tracking();
+        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
+
+        // WHEN fire
+        let result = handle.fire_now("rapport-hebdo").await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // THEN TaskRouter.submit() appelé exactement une fois — comportement inchangé
+        assert!(result.is_ok(), "fire_now doit réussir, got {result:?}");
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            1,
+            "TaskRouter doit être appelé exactement une fois"
+        );
+    }
+
+    /// AC-1 : le champ `pipeline` de TriggerDefinition est backward-compatible.
+    ///
+    /// Un moteur créé avec des définitions sans `pipeline` fonctionne exactement
+    /// comme avant STORY-117 — aucune régression.
+    #[tokio::test]
+    async fn test_ac1_pipeline_none_no_regression() {
+        // GIVEN trigger sans pipeline (None)
+        let def = make_definition("ancien-trigger", OnBusyPolicy::Queue);
+        assert!(def.pipeline.is_none());
+
+        let (router, calls) = MockTaskRouterHandle::new_with_tracking();
+        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
+
+        // WHEN fire
+        handle
+            .fire_now("ancien-trigger")
+            .await
+            .expect("fire_now must succeed");
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // THEN submit appelé — même comportement qu'avant
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 }

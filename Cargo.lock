@@ -389,6 +389,7 @@ name = "apollia-triggers"
 version = "0.1.0"
 dependencies = [
  "apollia-core",
+ "apollia-pipelines",
  "chrono",
  "cron",
  "dirs-next",

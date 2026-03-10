@@ -110,6 +110,7 @@ fn webhook_def(id: &str, secret: &str) -> TriggerDefinition {
     TriggerDefinition {
         id: id.into(),
         agent: "crm-agent".into(),
+        pipeline: None,
         enabled: true,
         on_busy: OnBusyPolicy::Queue,
         source: TriggerSourceConfig::Webhook {
@@ -132,7 +133,7 @@ async fn build_webhook_state(
 
     let (mock_submitter, submit_count) = MockTaskSubmitter::new();
     let engine_handle =
-        TriggerEngineHandle::spawn(defs, mock_submitter, event_sender.clone(), None).await;
+        TriggerEngineHandle::spawn(defs, mock_submitter, event_sender.clone(), None, None).await;
 
     let state = AppState {
         router_handle,

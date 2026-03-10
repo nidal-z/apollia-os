@@ -86,8 +86,12 @@ pub struct AgentsConfig {
 struct RawTrigger {
     /// Identifiant unique du trigger.
     id: String,
-    /// Nom de l'agent cible.
+    /// Nom de l'agent cible — exclusif avec `pipeline` (validation dans STORY-118).
+    #[serde(default)]
     agent: String,
+    /// Pipeline cible — exclusif avec `agent` (validation exclusive dans STORY-118).
+    #[serde(default)]
+    pipeline: Option<String>,
     /// Indique si le trigger est actif (`true` par défaut).
     #[serde(default = "default_true")]
     enabled: bool,
@@ -242,18 +246,20 @@ fn parse_triggers(raws: &[RawTrigger]) -> Result<Vec<TriggerDefinition>, ConfigE
 
 /// Valide un trigger brut et le convertit en [`TriggerDefinition`].
 ///
-/// - `id` et `agent` doivent être non vides, quelle que soit la valeur de `enabled`.
+/// - `id` doit être non vide quelle que soit la valeur de `enabled`.
+/// - `agent` doit être non vide si `pipeline` est absent (validation exclusive `agent XOR pipeline`
+///   complète dans STORY-118).
 /// - Si `enabled = false`, la source n'est PAS validée sémantiquement (cron, path, etc.).
 /// - Si `enabled = true`, la source est entièrement validée.
 fn validate_trigger(raw: &RawTrigger) -> Result<TriggerDefinition, ConfigError> {
-    // id et agent toujours requis, même pour les triggers désactivés.
     if raw.id.is_empty() {
         return Err(ConfigError::InvalidTrigger {
             id: raw.id.clone(),
             reason: TriggerDefinitionError::EmptyId.to_string(),
         });
     }
-    if raw.agent.is_empty() {
+    // agent requis uniquement si pipeline est absent
+    if raw.pipeline.is_none() && raw.agent.is_empty() {
         return Err(ConfigError::InvalidTrigger {
             id: raw.id.clone(),
             reason: TriggerDefinitionError::EmptyAgent.to_string(),
@@ -276,6 +282,7 @@ fn validate_trigger(raw: &RawTrigger) -> Result<TriggerDefinition, ConfigError> 
     Ok(TriggerDefinition {
         id: raw.id.clone(),
         agent: raw.agent.clone(),
+        pipeline: raw.pipeline.clone(),
         enabled: raw.enabled,
         on_busy,
         source,
