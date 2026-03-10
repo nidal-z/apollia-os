@@ -498,5 +498,34 @@
 
 ---
 
+## ADR-025 — apollia-pipelines : TOML déclaratif, 5 topologies natives par graph `depends_on`, HITL intégré via EventBus
+
+**Date :** 2026-03-10
+**Statut :** Accepté
+
+**Contexte :** Sprint 12 introduit `apollia-pipelines` pour la coordination multi-agent. Quatre décisions structurantes engagent des interfaces difficiles à inverser : (1) format de déclaration des pipelines, (2) expression des topologies (séquentiel, fan-out, fan-in, conditionnel, fallback), (3) intégration du HITL Sprint 11 dans le cycle de vie pipeline, (4) rendu des templates `{{steps.x.output}}` entre steps.
+
+**Décision :** (1) Configuration TOML-only via `[[pipelines]]` + `[[pipelines.steps]]` dans `apollia.toml` — même source de vérité que les triggers (ADR-021). Validation sémantique exhaustive dans `ApolliaConfig::load()` : unicité des IDs, `depends_on` existants, `fallback_for` valides, absence de cycles. Pipeline invalide = démarrage refusé (Principe #4). (2) Les 5 topologies émergent du graph `depends_on` + champs `condition`/`fallback_for` sans primitive TOML explicite. `topological_layers()` partitionne les steps en layers — `FuturesUnordered` exécute une layer en parallèle (fan-out naturel), le join est implicite (fan-in = step avec plusieurs `depends_on`). (3) `PipelineExecutor` réutilise les événements `TaskInputRequired`/`TaskResumed` (ADR-023) sans nouveau mécanisme HITL — il observe l'EventBus, émet `PipelineSuspended`, attend `TaskResumed`, reprend avec le nouveau `task_id`. (4) `TemplateRenderer` par remplacement de chaîne (`render()` pur, pas de moteur externe) — variables non résolues nettoyées via regex, jamais de `panic!`.
+
+**Alternatives considérées :**
+- API REST CRUD pipelines + SQLite (rejetée : double source de vérité TOML/base, pas de fail fast au démarrage — même raison qu'ADR-021 Option A)
+- Topologies explicites `topology: "fan-out"` dans le TOML (rejetée : redondant avec `depends_on`, conflits possibles entre clé et graph réel)
+- DSL externe type Argo Workflows / Prefect (rejetée : viole Principe #2, surface massive, pas d'intégration HITL native)
+- Canal oneshot dédié `PipelineExecutor → ResumeHandler` pour le HITL (rejetée : duplique le mécanisme Sprint 11, non restaurable après restart depuis SQLite)
+- Moteur de templates Handlebars/Tera (rejetée : même décision qu'ADR-024 — dépendance ~500 Ko inutile pour du string replace)
+
+**Conséquences :**
+- `apollia.toml` est la source de vérité unique pour trigger → pipeline → agent : chaîne complète déclarative et versionnée.
+- `PipelineEngine` réutilise `TaskRouter` sans modification — StepBudget, ResilienceLayer et audit SQLite s'appliquent automatiquement à chaque step.
+- Reprise après restart native : `pipeline_runs` en status `running` rechargés depuis SQLite, steps complétés non re-soumis.
+- `PipelineCompleted`/`PipelineFailed` captés par `NotificationEngine` (ADR-024) sans modification.
+- `regex = "1"` nouvelle dépendance workspace pour le TemplateRenderer cleanup.
+
+**Principes impactés :** Principe #1 — Local-first, Principe #2 — Zéro dépendance externe, Principe #4 — Fail fast, Principe #5 — Un acteur une responsabilité, Principe #7 — Garde-fous non-négociables, Principe #8 — CLI humaine
+
+[Détail complet → docs/adr/ADR-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md](adr/ADR-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

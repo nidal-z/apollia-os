@@ -322,6 +322,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "apollia-pipelines"
+version = "0.1.0"
+dependencies = [
+ "apollia-core",
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+ "uuid 1.21.0",
+]
+
+[[package]]
 name = "apollia-runtime"
 version = "0.1.0"
 dependencies = [
