@@ -78,6 +78,27 @@ pub enum StepResult {
     },
 }
 
+// ── HitlResume ────────────────────────────────────────────────────────────────
+
+/// Outcome of a HITL approval request for a suspended pipeline step.
+///
+/// Returned by [`PipelineExecutor::wait_for_resume`] after the operator has
+/// acted on the suspended step via `apollia-os task resume --approve` or
+/// `--reject`.
+///
+/// # Note on `new_task_id`
+///
+/// The spec originally defined a `new_task_id` field to allow the resume
+/// handler to re-submit the task under a different identifier.  The actual
+/// [`RuntimeEvent::TaskResumed`] in `apollia-core` (Sprint 11) does **not**
+/// carry `new_task_id`; the resumed ORIA engine continues under the original
+/// `task_id`.  This struct therefore omits `new_task_id` — see implementation
+/// notes in `story-114-hitl-pipelines.md`.
+pub struct HitlResume {
+    /// `true` if the operator approved the suspended step; `false` if rejected.
+    pub approved: bool,
+}
+
 // ── TaskSubmitter trait ───────────────────────────────────────────────────────
 
 /// Abstraction over task submission — decouples the executor from the concrete
@@ -405,23 +426,137 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                         }
 
                         StepResult::InputRequired { task_id } => {
-                            // STORY-114 stub: suspend the pipeline and return.
-                            warn!(
-                                run_id = %self.run.run_id,
-                                step_id = %step_id,
-                                task_id = %task_id,
-                                "step requires input — pipeline suspended (HITL STORY-114)",
-                            );
-                            let _ = self.event_bus.send(RuntimeEvent::PipelineSuspended {
-                                run_id: self.run.run_id.0.clone(),
-                                step_id: step_id.0.clone(),
-                                task_id: task_id.clone(),
-                            });
-                            {
-                                let mut repo = self.repo.lock().unwrap_or_else(|e| e.into_inner());
-                                repo.suspend_run(&self.run.run_id, &step_id, &task_id)?;
+                            // ── HITL suspend/resume (STORY-114) ──────────────
+                            //
+                            // Protocol: subscribe EventBus BEFORE persisting the
+                            // suspension so a very fast operator response
+                            // (TaskResumed) is never missed.
+                            let rx_resume = self.event_bus.subscribe();
+
+                            // Persist WaitingApproval + emit PipelineSuspended.
+                            self.suspend_for_hitl(&step_id, &task_id)?;
+
+                            // Block until the operator approves or rejects.
+                            let resume = Self::wait_for_resume(&task_id, rx_resume).await;
+
+                            if resume.approved {
+                                // Restore run status to Running in SQLite.
+                                {
+                                    let mut repo =
+                                        self.repo.lock().unwrap_or_else(|e| e.into_inner());
+                                    repo.resume_run(&self.run.run_id)?;
+                                }
+                                let _ = self.event_bus.send(RuntimeEvent::PipelineResumed {
+                                    run_id: self.run.run_id.0.clone(),
+                                    step_id: step_id.0.clone(),
+                                });
+                                info!(
+                                    run_id  = %self.run.run_id,
+                                    step_id = %step_id,
+                                    task_id = %task_id,
+                                    "HITL approved — waiting for task to complete",
+                                );
+
+                                // NOTE: RuntimeEvent::TaskResumed (apollia-core Sprint 11)
+                                // does not carry `new_task_id`. ORIA resumes the original
+                                // task, so we subscribe fresh and wait for TaskCompleted on
+                                // the same task_id. (Deviation from spec documented in
+                                // story-114-hitl-pipelines.md.)
+                                let rx_complete = self.event_bus.subscribe();
+                                let (_, final_result) = Self::wait_for_task_completion(
+                                    step_id.clone(),
+                                    task_id,
+                                    rx_complete,
+                                    self.step_timeout,
+                                )
+                                .await;
+
+                                match final_result {
+                                    StepResult::Completed(output) => {
+                                        self.done_steps.insert(step_id.clone());
+                                        self.set_step_completed(&step_id, &output)?;
+                                        self.template_ctx
+                                            .insert_step_output(step_id.clone(), output.clone());
+                                        if let Some(ref fb_for) = step_def.fallback_for {
+                                            self.template_ctx
+                                                .insert_step_output(fb_for.clone(), output.clone());
+                                        }
+                                        let _ = self.event_bus.send(
+                                            RuntimeEvent::PipelineStepCompleted {
+                                                run_id: self.run.run_id.0.clone(),
+                                                step_id: step_id.0.clone(),
+                                            },
+                                        );
+                                        info!(
+                                            run_id  = %self.run.run_id,
+                                            step_id = %step_id,
+                                            "step completed after HITL approval",
+                                        );
+                                    }
+
+                                    StepResult::Failed(reason) => match step_def.on_failure {
+                                        StepFailurePolicy::Fail => {
+                                            self.done_steps.insert(step_id.clone());
+                                            self.set_step_failed(&step_id, &reason)?;
+                                            let _ = self.event_bus.send(
+                                                RuntimeEvent::PipelineStepFailed {
+                                                    run_id: self.run.run_id.0.clone(),
+                                                    step_id: step_id.0.clone(),
+                                                    reason: reason.clone(),
+                                                    on_failure: "fail".into(),
+                                                },
+                                            );
+                                            if layer_failed.is_none() {
+                                                layer_failed = Some((step_id, reason));
+                                            }
+                                        }
+                                        StepFailurePolicy::Skip => {
+                                            self.done_steps.insert(step_id.clone());
+                                            self.set_step_skipped(&step_id, &reason)?;
+                                            self.template_ctx
+                                                .insert_step_output(step_id.clone(), String::new());
+                                            let _ = self.event_bus.send(
+                                                RuntimeEvent::PipelineStepSkipped {
+                                                    run_id: self.run.run_id.0.clone(),
+                                                    step_id: step_id.0.clone(),
+                                                    reason,
+                                                },
+                                            );
+                                        }
+                                        StepFailurePolicy::Fallback => {
+                                            match self.activate_fallback(&step_id, &reason)? {
+                                                Some(_) => continue 'restart,
+                                                None => return Ok(()),
+                                            }
+                                        }
+                                    },
+
+                                    StepResult::InputRequired { .. } => {
+                                        // Nested HITL not supported — fail fast (Principle #4).
+                                        warn!(
+                                            run_id  = %self.run.run_id,
+                                            step_id = %step_id,
+                                            "nested HITL suspension not supported \
+                                             — failing pipeline",
+                                        );
+                                        return self.fail_pipeline_internal(
+                                            &step_id,
+                                            "nested HITL not supported",
+                                        );
+                                    }
+                                }
+                            } else {
+                                // Operator rejected — fail the pipeline immediately
+                                // (Principle #4: fail fast).
+                                info!(
+                                    run_id  = %self.run.run_id,
+                                    step_id = %step_id,
+                                    task_id = %task_id,
+                                    "HITL rejected by operator",
+                                );
+                                return self
+                                    .fail_pipeline_internal(&step_id, "rejected by operator");
                             }
-                            return Ok(());
                         }
                     }
                 }
@@ -655,6 +790,95 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
         }
     }
 
+    // ── HITL helpers ──────────────────────────────────────────────────────────
+
+    /// Persists the pipeline suspension and emits [`RuntimeEvent::PipelineSuspended`].
+    ///
+    /// Transitions the run to [`PipelineStatus::WaitingApproval`] in SQLite and
+    /// broadcasts `PipelineSuspended` on the EventBus.
+    ///
+    /// # Protocol
+    ///
+    /// The caller **must** subscribe to the EventBus for
+    /// [`RuntimeEvent::TaskResumed`] **before** calling this method to avoid the
+    /// race condition where the operator approves the step before the executor
+    /// starts listening.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExecutorError::Repository`] if the SQLite update fails.
+    fn suspend_for_hitl(&self, step_id: &StepId, task_id: &str) -> Result<(), ExecutorError> {
+        {
+            let mut repo = self.repo.lock().unwrap_or_else(|e| e.into_inner());
+            repo.suspend_run(&self.run.run_id, step_id, task_id)?;
+        }
+        let _ = self.event_bus.send(RuntimeEvent::PipelineSuspended {
+            run_id: self.run.run_id.0.clone(),
+            step_id: step_id.0.clone(),
+            task_id: task_id.to_string(),
+        });
+        info!(
+            run_id  = %self.run.run_id,
+            step_id = %step_id,
+            task_id = %task_id,
+            "pipeline suspended — awaiting HITL approval",
+        );
+        Ok(())
+    }
+
+    /// Blocks until a [`RuntimeEvent::TaskResumed`] matching `task_id` arrives
+    /// on the pre-subscribed `rx`.
+    ///
+    /// Returns a [`HitlResume`] indicating whether the operator approved or
+    /// rejected the suspended step.
+    ///
+    /// # Deadlock safety
+    ///
+    /// `rx` must have been subscribed **before** the corresponding
+    /// [`suspend_for_hitl`](Self::suspend_for_hitl) call so that a very fast
+    /// operator response cannot be missed.
+    ///
+    /// On `EventBus` closure (runtime shutdown), the function returns
+    /// `HitlResume { approved: false }` to avoid an infinite wait.
+    async fn wait_for_resume(
+        task_id: &str,
+        mut rx: broadcast::Receiver<RuntimeEvent>,
+    ) -> HitlResume {
+        loop {
+            match rx.recv().await {
+                Ok(RuntimeEvent::TaskResumed {
+                    task_id: tid,
+                    approved,
+                }) if tid == task_id => {
+                    return HitlResume { approved };
+                }
+
+                Ok(_) => {
+                    // Unrelated event — keep waiting.
+                }
+
+                Err(broadcast::error::RecvError::Lagged(n)) => {
+                    warn!(
+                        missed   = n,
+                        task_id  = %task_id,
+                        "EventBus lagged in wait_for_resume — some events skipped",
+                    );
+                    // Continue: TaskResumed may still arrive.
+                }
+
+                Err(broadcast::error::RecvError::Closed) => {
+                    // EventBus shut down — treat as rejection to avoid blocking forever.
+                    warn!(
+                        task_id = %task_id,
+                        "EventBus closed while waiting for HITL resume \
+                         — treating as rejected",
+                    );
+                    return HitlResume { approved: false };
+                }
+            }
+        }
+    }
+
     /// Returns the step definition matching `step_id`, or `None`.
     fn find_step(&self, step_id: &StepId) -> Option<&PipelineStepDef> {
         self.definition.steps.iter().find(|s| &s.id == step_id)
@@ -748,13 +972,16 @@ mod tests {
     /// After `submit_task` returns the task ID, it spawns a Tokio task that
     /// yields once (ensuring the receiver is listening) then emits
     /// `TaskCompleted` on the EventBus. Agents listed in `hanging` never emit
-    /// any event — used to trigger the per-step timeout.
+    /// any event — used to trigger the per-step timeout.  Agents listed in
+    /// `input_required` emit `TaskInputRequired` instead of `TaskCompleted`.
     struct MockSubmitter {
         event_bus: EventBusSender,
         /// (agent_name → (success, output_text))
         agents: Arc<Mutex<HashMap<String, (bool, String)>>>,
         /// Agents for which no event is emitted (timeout simulation).
         hanging: Arc<Mutex<HashSet<String>>>,
+        /// Agents that emit `TaskInputRequired` — used for HITL tests.
+        input_required: Arc<Mutex<HashSet<String>>>,
         /// All (agent, rendered_input) pairs submitted, in order.
         submitted: Arc<Mutex<Vec<(String, String)>>>,
         /// Counter for generating unique task IDs.
@@ -767,6 +994,7 @@ mod tests {
                 event_bus,
                 agents: Arc::new(Mutex::new(HashMap::new())),
                 hanging: Arc::new(Mutex::new(HashSet::new())),
+                input_required: Arc::new(Mutex::new(HashSet::new())),
                 submitted: Arc::new(Mutex::new(Vec::new())),
                 counter: Arc::new(std::sync::atomic::AtomicU32::new(0)),
             }
@@ -796,6 +1024,15 @@ mod tests {
             self
         }
 
+        /// Configures `agent` to emit `TaskInputRequired` — simulates HITL.
+        fn with_input_required(self, agent: &str) -> Self {
+            self.input_required
+                .lock()
+                .unwrap()
+                .insert(agent.to_string());
+            self
+        }
+
         fn submitted_inputs(&self) -> Vec<(String, String)> {
             self.submitted.lock().unwrap().clone()
         }
@@ -815,6 +1052,21 @@ mod tests {
                 .push((agent.to_string(), input.to_string()));
 
             if self.hanging.lock().unwrap().contains(agent) {
+                return Ok(task_id);
+            }
+
+            // Emit TaskInputRequired for HITL-configured agents.
+            if self.input_required.lock().unwrap().contains(agent) {
+                let event_bus = self.event_bus.clone();
+                let tid = task_id.clone();
+                tokio::spawn(async move {
+                    tokio::task::yield_now().await;
+                    let _ = event_bus.send(RuntimeEvent::TaskInputRequired {
+                        task_id: TaskId::from(tid.as_str()),
+                        prompt: "Approval required for HITL step".into(),
+                        step_id: None,
+                    });
+                });
                 return Ok(task_id);
             }
 
@@ -1467,5 +1719,258 @@ mod tests {
             .position(|e| matches!(e, RuntimeEvent::PipelineCompleted { .. }))
             .unwrap();
         assert!(started_pos < completed_pos);
+    }
+
+    // ── STORY-114 AC-1: InputRequired → PipelineSuspended ─────────────────────
+
+    #[tokio::test]
+    async fn test_s114_ac1_input_required_suspends_pipeline() {
+        // GIVEN — single step "comptabilite" whose agent emits TaskInputRequired
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(64);
+        let steps = vec![make_step(
+            "comptabilite",
+            "comptabilite-agent",
+            "process",
+            &[],
+            StepFailurePolicy::Fail,
+        )];
+        let def = make_pipeline(steps);
+        let run = make_run(&def);
+        let repo = make_repo();
+        {
+            let mut r = repo.lock().unwrap();
+            r.insert_run(&run).unwrap();
+        }
+        let run_id = run.run_id.clone();
+        let mock = MockSubmitter::new(tx.clone()).with_input_required("comptabilite-agent");
+
+        // Spawn a watcher that unblocks execute() by sending TaskResumed { approved: false }
+        // as soon as PipelineSuspended is observed — AC-1 only verifies the suspension event
+        // and the SQLite status; the rejection path terminates the pipeline cleanly.
+        let tx_watcher = tx.clone();
+        let mut rx_watcher = tx.subscribe();
+        tokio::spawn(async move {
+            // GIVEN (watcher) — wait for PipelineSuspended, extract task_id
+            while let Ok(event) = rx_watcher.recv().await {
+                if let RuntimeEvent::PipelineSuspended { task_id, .. } = event {
+                    // WHEN (watcher) — operator rejects (to unblock execute())
+                    let _ = tx_watcher.send(RuntimeEvent::TaskResumed {
+                        task_id: TaskId::from(task_id.as_str()),
+                        approved: false,
+                    });
+                    break;
+                }
+            }
+        });
+
+        // WHEN — execute the pipeline; it suspends on "comptabilite" then fails on rejection
+        let executor = PipelineExecutor::new(def, run, mock, tx, Arc::clone(&repo))
+            .with_step_timeout(Duration::from_millis(500));
+        let result = executor.execute().await;
+
+        // THEN — execute returns Ok (suspension + rejection is a terminal state, not an Err)
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+
+        // AND PipelineSuspended was emitted for "comptabilite"
+        let mut events = Vec::new();
+        while let Ok(e) = rx.try_recv() {
+            events.push(e);
+        }
+        let suspended = events.iter().any(|e| {
+            matches!(
+                e,
+                RuntimeEvent::PipelineSuspended { step_id, .. }
+                if step_id == "comptabilite"
+            )
+        });
+        assert!(
+            suspended,
+            "PipelineSuspended must be emitted for 'comptabilite'"
+        );
+
+        // AND SQLite run status is Failed (WaitingApproval → rejected → Failed)
+        let r = repo.lock().unwrap();
+        let found = r.find_run(&run_id).unwrap().unwrap();
+        assert!(
+            matches!(found.status, PipelineStatus::Failed { .. }),
+            "run must end in Failed after rejection; got {:?}",
+            found.status,
+        );
+    }
+
+    // ── STORY-114 AC-2: Approval → pipeline resumes and completes ─────────────
+
+    #[tokio::test]
+    async fn test_s114_ac2_approve_resumes_pipeline() {
+        // GIVEN — pipeline [A] → [comptabilite (HITL)] → [B]
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(128);
+        let steps = vec![
+            make_step("A", "agent-a", "start", &[], StepFailurePolicy::Fail),
+            make_step(
+                "comptabilite",
+                "comptabilite-agent",
+                "{{steps.A.output}}",
+                &["A"],
+                StepFailurePolicy::Fail,
+            ),
+            make_step(
+                "B",
+                "agent-b",
+                "{{steps.comptabilite.output}}",
+                &["comptabilite"],
+                StepFailurePolicy::Fail,
+            ),
+        ];
+        let def = make_pipeline(steps);
+        let run = make_run(&def);
+        let repo = make_repo();
+        {
+            let mut r = repo.lock().unwrap();
+            r.insert_run(&run).unwrap();
+        }
+
+        let mock = MockSubmitter::new(tx.clone())
+            .with_success("agent-a", "a-done")
+            .with_input_required("comptabilite-agent")
+            .with_success("agent-b", "b-done");
+
+        // WHEN (watcher) — approve the HITL step, then simulate the resumed task completing
+        let tx_watcher = tx.clone();
+        let mut rx_watcher = tx.subscribe();
+        tokio::spawn(async move {
+            while let Ok(event) = rx_watcher.recv().await {
+                if let RuntimeEvent::PipelineSuspended { task_id, .. } = event {
+                    // Send approval
+                    let _ = tx_watcher.send(RuntimeEvent::TaskResumed {
+                        task_id: TaskId::from(task_id.as_str()),
+                        approved: true,
+                    });
+                    // Yield briefly so execute() can re-subscribe for TaskCompleted
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    // Simulate ORIA completing the resumed task
+                    let _ = tx_watcher.send(RuntimeEvent::TaskCompleted {
+                        agent_id: "comptabilite-agent".into(),
+                        task_id: TaskId::from(task_id.as_str()),
+                        success: true,
+                        output: Some("comptabilite-approved-output".into()),
+                    });
+                    break;
+                }
+            }
+        });
+
+        // WHEN — run pipeline to completion
+        let executor = PipelineExecutor::new(def, run, mock, tx, Arc::clone(&repo))
+            .with_step_timeout(Duration::from_millis(500));
+        let result = executor.execute().await;
+
+        // THEN — pipeline completed without error
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+
+        // AND collect events
+        let mut events = Vec::new();
+        while let Ok(e) = rx.try_recv() {
+            events.push(e);
+        }
+
+        // PipelineSuspended was emitted
+        let suspended = events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::PipelineSuspended { step_id, .. } if step_id == "comptabilite"));
+        assert!(suspended, "PipelineSuspended must be emitted");
+
+        // PipelineResumed was emitted
+        let resumed = events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::PipelineResumed { step_id, .. } if step_id == "comptabilite"));
+        assert!(resumed, "PipelineResumed must be emitted");
+
+        // Pipeline completed (not failed)
+        let completed = events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::PipelineCompleted { .. }));
+        let failed = events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::PipelineFailed { .. }));
+        assert!(
+            completed,
+            "PipelineCompleted must be emitted after approval"
+        );
+        assert!(!failed, "PipelineFailed must NOT be emitted");
+    }
+
+    // ── STORY-114 AC-3: Rejection → PipelineFailed ────────────────────────────
+
+    #[tokio::test]
+    async fn test_s114_ac3_reject_fails_pipeline() {
+        // GIVEN — single step "comptabilite" that triggers HITL
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(64);
+        let steps = vec![make_step(
+            "comptabilite",
+            "comptabilite-agent",
+            "process",
+            &[],
+            StepFailurePolicy::Fail,
+        )];
+        let def = make_pipeline(steps);
+        let run = make_run(&def);
+        let repo = make_repo();
+        {
+            let mut r = repo.lock().unwrap();
+            r.insert_run(&run).unwrap();
+        }
+
+        let mock = MockSubmitter::new(tx.clone()).with_input_required("comptabilite-agent");
+
+        // WHEN (watcher) — operator rejects the HITL request
+        let tx_watcher = tx.clone();
+        let mut rx_watcher = tx.subscribe();
+        tokio::spawn(async move {
+            while let Ok(event) = rx_watcher.recv().await {
+                if let RuntimeEvent::PipelineSuspended { task_id, .. } = event {
+                    let _ = tx_watcher.send(RuntimeEvent::TaskResumed {
+                        task_id: TaskId::from(task_id.as_str()),
+                        approved: false,
+                    });
+                    break;
+                }
+            }
+        });
+
+        // WHEN — run pipeline
+        let executor = PipelineExecutor::new(def, run, mock, tx, Arc::clone(&repo))
+            .with_step_timeout(Duration::from_millis(500));
+        let result = executor.execute().await;
+
+        // THEN — execute returns Ok (rejection is a terminal state, not an Err)
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+
+        // AND collect events
+        let mut events = Vec::new();
+        while let Ok(e) = rx.try_recv() {
+            events.push(e);
+        }
+
+        // PipelineFailed emitted with "rejected by operator"
+        let failed_with_reason = events.iter().any(|e| {
+            matches!(
+                e,
+                RuntimeEvent::PipelineFailed { reason, .. }
+                if reason.contains("rejected by operator")
+            )
+        });
+        assert!(
+            failed_with_reason,
+            "PipelineFailed with 'rejected by operator' reason must be emitted",
+        );
+
+        // PipelineCompleted must NOT be emitted
+        let completed = events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::PipelineCompleted { .. }));
+        assert!(
+            !completed,
+            "PipelineCompleted must NOT be emitted on rejection"
+        );
     }
 }
