@@ -2,11 +2,13 @@
 //!
 //! Fournit [`parse_apollia_toml`] pour lire et désérialiser le fichier de config,
 //! [`validate_llm_config`] pour une validation non-fatale (warnings seulement)
-//! des backends LLM, et [`parse_triggers`] pour valider la section `[[triggers]]`.
+//! des backends LLM, [`parse_triggers`] pour valider la section `[[triggers]]`,
+//! et [`validate_pipeline`] pour valider les déclarations `[[pipelines]]`
+//! (STORY-118).
 //!
-//! La validation des triggers suit le **Principe #4 — Fail fast** : toute erreur
-//! de configuration (schedule cron invalide, secret webhook vide, path file_watch vide)
-//! est détectée dès l'appel à [`parse_apollia_toml`], avant le démarrage du runtime.
+//! La validation des triggers et pipelines suit le **Principe #4 — Fail fast** :
+//! toute erreur de configuration est détectée dès l'appel à [`parse_apollia_toml`],
+//! avant le démarrage du runtime.
 //!
 //! # Exemple TOML minimal
 //!
@@ -31,12 +33,22 @@
 //! [triggers.source]
 //! type     = "cron"
 //! schedule = "0 0 8 * * MON"
+//!
+//! [[pipelines]]
+//! id          = "traitement-facture"
+//! description = "Pipeline de traitement des factures"
+//!
+//! [[pipelines.steps]]
+//! id    = "ocr"
+//! agent = "ocr-agent"
+//! input = "{{trigger.payload}}"
 //! ```
 
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use apollia_llm::{BackendKind, LlmConfig};
+use apollia_pipelines::{topological_layers, ConditionKind, PipelineDefinition, TopologicalError};
 use apollia_triggers::{
     parse_interval, FileEventKind, InputTemplate, OnBusyPolicy, TriggerDefinition,
     TriggerDefinitionError, TriggerSourceConfig,
@@ -45,6 +57,71 @@ use apollia_triggers::{
 // ─────────────────────────────────────────────
 // Erreurs
 // ─────────────────────────────────────────────
+
+/// Erreurs de validation sémantique d'une déclaration `[[pipelines]]`.
+///
+/// Chaque variante contient le `pipeline_id` et le `step_id` fautifs pour permettre
+/// à l'opérateur de localiser précisément l'erreur dans `apollia.toml`
+/// (Principe #4 — Fail fast, Principe #8 — CLI humaine).
+#[derive(Debug, thiserror::Error)]
+pub enum PipelineConfigError {
+    /// Deux steps portent le même identifiant au sein du même pipeline.
+    #[error("pipeline '{pipeline_id}': duplicate step id '{step_id}'")]
+    DuplicateStepId {
+        /// Identifiant du pipeline fautif.
+        pipeline_id: String,
+        /// Identifiant de step dupliqué.
+        step_id: String,
+    },
+
+    /// Un step déclare une dépendance vers un step qui n'existe pas dans le pipeline.
+    #[error("pipeline '{pipeline_id}': step '{step_id}' depends on unknown step '{dependency}'")]
+    UnknownDependency {
+        /// Identifiant du pipeline fautif.
+        pipeline_id: String,
+        /// Step déclarant la dépendance invalide.
+        step_id: String,
+        /// Identifiant de dépendance référencé mais absent.
+        dependency: String,
+    },
+
+    /// Un step déclare `fallback_for` pointant vers un step qui n'existe pas.
+    #[error(
+        "pipeline '{pipeline_id}': step '{step_id}' \
+         fallback_for references unknown step '{target}'"
+    )]
+    UnknownFallbackTarget {
+        /// Identifiant du pipeline fautif.
+        pipeline_id: String,
+        /// Step portant le `fallback_for` invalide.
+        step_id: String,
+        /// Cible `fallback_for` absente du pipeline.
+        target: String,
+    },
+
+    /// Le graphe de dépendances contient un cycle — l'exécution est impossible.
+    #[error("pipeline '{pipeline_id}': cycle detected in step dependencies")]
+    PipelineCycle {
+        /// Identifiant du pipeline dont le graphe est cyclique.
+        pipeline_id: String,
+    },
+
+    /// Un step utilise `when = "regex"` avec une expression régulière invalide.
+    #[error(
+        "pipeline '{pipeline_id}': step '{step_id}' \
+         has invalid regex '{pattern}': {error}"
+    )]
+    InvalidConditionRegex {
+        /// Identifiant du pipeline fautif.
+        pipeline_id: String,
+        /// Step déclarant la condition avec regex invalide.
+        step_id: String,
+        /// Pattern regex qui a échoué à la compilation.
+        pattern: String,
+        /// Message d'erreur retourné par le moteur regex.
+        error: String,
+    },
+}
 
 /// Erreurs possibles lors du parsing de `apollia.toml`.
 #[derive(Debug, thiserror::Error)]
@@ -68,6 +145,17 @@ pub enum ConfigError {
         /// Description de l'erreur de validation.
         reason: String,
     },
+
+    /// Un trigger définit à la fois `agent` et `pipeline` — ces champs sont mutuellement exclusifs.
+    #[error("trigger '{trigger_id}': 'agent' and 'pipeline' are mutually exclusive")]
+    TriggerAgentAndPipelineExclusive {
+        /// Identifiant du trigger fautif.
+        trigger_id: String,
+    },
+
+    /// Un pipeline déclaré dans `[[pipelines]]` est invalide.
+    #[error("invalid pipeline configuration: {0}")]
+    InvalidPipeline(PipelineConfigError),
 }
 
 // ─────────────────────────────────────────────
@@ -131,6 +219,9 @@ struct RawApolliaCConfig {
     llm: Option<LlmConfig>,
     #[serde(default)]
     triggers: Vec<RawTrigger>,
+    /// Pipelines bruts désérialisés depuis `[[pipelines]]` — validés par [`validate_pipeline`].
+    #[serde(default)]
+    pipelines: Vec<PipelineDefinition>,
 }
 
 /// Configuration globale Apollia OS validée depuis `apollia.toml`.
@@ -156,6 +247,13 @@ pub struct ApolliaCConfig {
     /// utiliser [`parse_apollia_toml`] pour obtenir les triggers validés.
     #[serde(skip)]
     pub triggers: Vec<TriggerDefinition>,
+
+    /// Pipelines validés depuis la section `[[pipelines]]` dans `apollia.toml`.
+    ///
+    /// Toujours vide si désérialisé directement via `toml::from_str` —
+    /// utiliser [`parse_apollia_toml`] pour obtenir les pipelines validés.
+    #[serde(skip)]
+    pub pipelines: Vec<PipelineDefinition>,
 }
 
 /// Retourne `true` — valeur par défaut pour le champ `enabled` d'un trigger.
@@ -219,10 +317,14 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
     // Valide et convertit les triggers bruts en TriggerDefinition.
     let triggers = parse_triggers(&raw.triggers)?;
 
+    // Valide chaque pipeline déclaré dans [[pipelines]].
+    let pipelines = parse_pipelines(raw.pipelines)?;
+
     Ok(ApolliaCConfig {
         agents: raw.agents,
         llm: raw.llm,
         triggers,
+        pipelines,
     })
 }
 
@@ -256,6 +358,12 @@ fn validate_trigger(raw: &RawTrigger) -> Result<TriggerDefinition, ConfigError> 
         return Err(ConfigError::InvalidTrigger {
             id: raw.id.clone(),
             reason: TriggerDefinitionError::EmptyId.to_string(),
+        });
+    }
+    // AC-7 (STORY-118): `agent` et `pipeline` sont mutuellement exclusifs.
+    if raw.pipeline.is_some() && !raw.agent.is_empty() {
+        return Err(ConfigError::TriggerAgentAndPipelineExclusive {
+            trigger_id: raw.id.clone(),
         });
     }
     // agent requis uniquement si pipeline est absent
@@ -425,6 +533,96 @@ fn parse_file_event_kinds(raw: &[String]) -> Vec<FileEventKind> {
             _ => FileEventKind::Any,
         })
         .collect()
+}
+
+// ─────────────────────────────────────────────
+// Pipeline parsing & validation
+// ─────────────────────────────────────────────
+
+/// Valide et retourne la liste des pipelines depuis les définitions TOML brutes.
+///
+/// Chaque [`PipelineDefinition`] est validée via [`validate_pipeline`] avant d'être
+/// acceptée. La première erreur rencontrée arrête le parsing (Principe #4 — Fail fast).
+fn parse_pipelines(defs: Vec<PipelineDefinition>) -> Result<Vec<PipelineDefinition>, ConfigError> {
+    for def in &defs {
+        validate_pipeline(def).map_err(ConfigError::InvalidPipeline)?;
+    }
+    Ok(defs)
+}
+
+/// Valide une [`PipelineDefinition`] désérialisée depuis TOML.
+///
+/// Effectue les contrôles suivants dans l'ordre :
+///
+/// 1. **Unicité des step ids** (AC-2) — deux steps ne peuvent pas porter le même `id`.
+/// 2. **Validité des `fallback_for`** (AC-4) — le step cible doit exister dans le pipeline.
+/// 3. **Validité des regex** (AC-6) — les conditions `when = "regex"` sont compilées.
+/// 4. **Graphe acyclique + dépendances valides** (AC-3 / AC-5) — délégué à
+///    [`topological_layers`] qui retourne [`TopologicalError::UnknownDependency`]
+///    ou [`TopologicalError::CycleDetected`].
+///
+/// # Erreurs
+///
+/// Retourne [`PipelineConfigError`] à la première violation détectée.
+pub fn validate_pipeline(def: &PipelineDefinition) -> Result<(), PipelineConfigError> {
+    let pipeline_id = &def.id.0;
+
+    // AC-2: Step ids must be unique within the pipeline.
+    let mut seen = std::collections::HashSet::new();
+    for step in &def.steps {
+        if !seen.insert(step.id.0.as_str()) {
+            return Err(PipelineConfigError::DuplicateStepId {
+                pipeline_id: pipeline_id.clone(),
+                step_id: step.id.0.clone(),
+            });
+        }
+    }
+
+    // AC-4: `fallback_for` must reference a step that exists in this pipeline.
+    for step in &def.steps {
+        if let Some(ref target) = step.fallback_for {
+            if !seen.contains(target.0.as_str()) {
+                return Err(PipelineConfigError::UnknownFallbackTarget {
+                    pipeline_id: pipeline_id.clone(),
+                    step_id: step.id.0.clone(),
+                    target: target.0.clone(),
+                });
+            }
+        }
+    }
+
+    // AC-6: Regex conditions must compile successfully.
+    for step in &def.steps {
+        if let Some(ref cond) = step.condition {
+            if cond.when == ConditionKind::Regex {
+                if let Err(e) = regex::Regex::new(&cond.value) {
+                    return Err(PipelineConfigError::InvalidConditionRegex {
+                        pipeline_id: pipeline_id.clone(),
+                        step_id: step.id.0.clone(),
+                        pattern: cond.value.clone(),
+                        error: e.to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    // AC-3 + AC-5: Delegate dependency validation and cycle detection to topological_layers().
+    topological_layers(&def.steps).map_err(|e| match e {
+        TopologicalError::UnknownDependency {
+            dependent,
+            dependency,
+        } => PipelineConfigError::UnknownDependency {
+            pipeline_id: pipeline_id.clone(),
+            step_id: dependent,
+            dependency,
+        },
+        TopologicalError::CycleDetected(_) => PipelineConfigError::PipelineCycle {
+            pipeline_id: pipeline_id.clone(),
+        },
+    })?;
+
+    Ok(())
 }
 
 /// Parsing minimal d'une source sans validation sémantique — pour les triggers désactivés.
@@ -850,6 +1048,272 @@ schedule = "invalid-schedule"
             "le trigger doit être marqué disabled"
         );
         assert_eq!(config.triggers[0].id, "disabled-trigger");
+    }
+
+    // ─── STORY-118 — Parsing [[pipelines]] ──────────────────────────────────
+
+    // AC-1: valid pipeline with 2 steps and a condition is fully parsed.
+    #[test]
+    fn test_pipeline_ac1_valid_config_parses() {
+        // GIVEN — a valid [[pipelines]] section with sequential steps + condition
+        let toml = r#"
+[[pipelines]]
+id          = "traitement-facture"
+description = "Pipeline de traitement des factures"
+on_failure  = "fail"
+
+[[pipelines.steps]]
+id    = "ocr"
+agent = "ocr-agent"
+input = "{{trigger.payload}}"
+
+[[pipelines.steps]]
+id         = "validation"
+agent      = "validation-agent"
+input      = "Valide : {{steps.ocr.output}}"
+depends_on = ["ocr"]
+on_failure = "fallback"
+
+[[pipelines.steps]]
+id           = "validation-manuelle"
+agent        = "vm-agent"
+input        = "Validation manuelle : {{steps.ocr.output}}"
+depends_on   = ["ocr"]
+fallback_for = "validation"
+
+[[pipelines.steps]]
+id         = "alerte-fraude"
+agent      = "alerte-agent"
+input      = "{{steps.validation.output}}"
+depends_on = ["validation"]
+[pipelines.steps.condition]
+when  = "contains"
+field = "steps.validation.output"
+value = "FRAUDE_DETECTEE"
+"#;
+        let file = write_toml(toml);
+
+        // WHEN
+        let config = parse_apollia_toml(file.path()).unwrap();
+
+        // THEN — 1 pipeline with 4 steps is returned
+        assert_eq!(config.pipelines.len(), 1, "1 pipeline attendu");
+        let pipeline = &config.pipelines[0];
+        assert_eq!(pipeline.id.to_string(), "traitement-facture");
+        assert_eq!(pipeline.steps.len(), 4);
+        assert_eq!(pipeline.steps[0].id.to_string(), "ocr");
+        // fallback_for is correctly mapped
+        assert_eq!(
+            pipeline.steps[2].fallback_for.as_ref().unwrap().to_string(),
+            "validation"
+        );
+        // condition is present on step alerte-fraude
+        assert!(pipeline.steps[3].condition.is_some());
+    }
+
+    // AC-2: two steps with the same id produce DuplicateStepId.
+    #[test]
+    fn test_pipeline_ac2_duplicate_step_id_error() {
+        // GIVEN — two steps share the id "ocr"
+        let toml = r#"
+[[pipelines]]
+id          = "p"
+description = ""
+
+[[pipelines.steps]]
+id    = "ocr"
+agent = "a"
+input = "x"
+
+[[pipelines.steps]]
+id    = "ocr"
+agent = "b"
+input = "y"
+"#;
+        let file = write_toml(toml);
+
+        // WHEN
+        let result = parse_apollia_toml(file.path());
+
+        // THEN
+        assert!(result.is_err(), "une erreur doit être retournée");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("duplicate step id"),
+            "message attendu 'duplicate step id', obtenu : {err}"
+        );
+        assert!(
+            err.contains("ocr"),
+            "le step_id doit apparaître dans le message : {err}"
+        );
+    }
+
+    // AC-3: step with depends_on referencing an unknown step produces UnknownDependency.
+    #[test]
+    fn test_pipeline_ac3_unknown_dependency_error() {
+        // GIVEN — "validation" depends on "inexistant"
+        let toml = r#"
+[[pipelines]]
+id          = "p"
+description = ""
+
+[[pipelines.steps]]
+id         = "validation"
+agent      = "a"
+input      = "x"
+depends_on = ["inexistant"]
+"#;
+        let file = write_toml(toml);
+
+        // WHEN
+        let result = parse_apollia_toml(file.path());
+
+        // THEN
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("unknown step"),
+            "message attendu 'unknown step', obtenu : {err}"
+        );
+    }
+
+    // AC-4: fallback_for referencing an absent step produces UnknownFallbackTarget.
+    #[test]
+    fn test_pipeline_ac4_unknown_fallback_target_error() {
+        // GIVEN — "fallback" references a non-existent step "absent"
+        let toml = r#"
+[[pipelines]]
+id          = "p"
+description = ""
+
+[[pipelines.steps]]
+id           = "fallback"
+agent        = "a"
+input        = "x"
+fallback_for = "absent"
+"#;
+        let file = write_toml(toml);
+
+        // WHEN
+        let result = parse_apollia_toml(file.path());
+
+        // THEN
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("unknown step"),
+            "message attendu 'unknown step', obtenu : {err}"
+        );
+        assert!(
+            err.contains("absent"),
+            "la cible doit apparaître dans le message : {err}"
+        );
+    }
+
+    // AC-5: cycle in depends_on produces PipelineCycle.
+    #[test]
+    fn test_pipeline_ac5_cycle_detection_error() {
+        // GIVEN — A depends on B and B depends on A
+        let toml = r#"
+[[pipelines]]
+id          = "p"
+description = ""
+
+[[pipelines.steps]]
+id         = "A"
+agent      = "a"
+input      = "x"
+depends_on = ["B"]
+
+[[pipelines.steps]]
+id         = "B"
+agent      = "b"
+input      = "y"
+depends_on = ["A"]
+"#;
+        let file = write_toml(toml);
+
+        // WHEN
+        let result = parse_apollia_toml(file.path());
+
+        // THEN
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("cycle"),
+            "message attendu 'cycle', obtenu : {err}"
+        );
+    }
+
+    // AC-6: invalid regex in condition produces InvalidConditionRegex.
+    #[test]
+    fn test_pipeline_ac6_invalid_regex_error() {
+        // GIVEN — step condition with invalid regex "[invalid_regex"
+        let toml = r#"
+[[pipelines]]
+id          = "p"
+description = ""
+
+[[pipelines.steps]]
+id    = "step-a"
+agent = "a"
+input = "x"
+[pipelines.steps.condition]
+when  = "regex"
+field = "steps.step-a.output"
+value = "[invalid_regex"
+"#;
+        let file = write_toml(toml);
+
+        // WHEN
+        let result = parse_apollia_toml(file.path());
+
+        // THEN
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("invalid regex"),
+            "message attendu 'invalid regex', obtenu : {err}"
+        );
+        assert!(
+            err.contains("[invalid_regex"),
+            "le pattern doit apparaître dans le message : {err}"
+        );
+    }
+
+    // AC-7: trigger with both `agent` and `pipeline` produces TriggerAgentAndPipelineExclusive.
+    #[test]
+    fn test_trigger_ac7_agent_and_pipeline_exclusive_error() {
+        // GIVEN — trigger declares both agent and pipeline
+        let toml = r#"
+[[triggers]]
+id             = "bad-trigger"
+agent          = "some-agent"
+pipeline       = "some-pipeline"
+enabled        = true
+on_busy        = "queue"
+input_template = "test"
+
+[triggers.source]
+type     = "cron"
+schedule = "0 8 * * MON"
+"#;
+        let file = write_toml(toml);
+
+        // WHEN
+        let result = parse_apollia_toml(file.path());
+
+        // THEN
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("mutually exclusive"),
+            "message attendu 'mutually exclusive', obtenu : {err}"
+        );
+        assert!(
+            err.contains("bad-trigger"),
+            "le trigger_id doit apparaître dans le message : {err}"
+        );
     }
 
     // GIVEN un trigger interval avec format valide

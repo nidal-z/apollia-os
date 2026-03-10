@@ -23,8 +23,10 @@ apollia-memory   = { workspace = true }
 apollia-oria     = { workspace = true }
 apollia-runtime  = { workspace = true }
 apollia-llm      = { workspace = true, default-features = false }
-apollia-triggers = { workspace = true }
-cron             = { workspace = true }
+apollia-pipelines = { workspace = true }
+apollia-triggers  = { workspace = true }
+cron              = { workspace = true }
+regex             = { workspace = true }
 chrono           = { workspace = true }
 tokio              = { workspace = true }
 serde              = { workspace = true }
