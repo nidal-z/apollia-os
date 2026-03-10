@@ -29,6 +29,21 @@
     .step-completed { color: #00ff88; }
     .step-failed    { color: #ff4444; }
     #plan-replan-info { margin-top: 0.25rem; font-size: 0.8125rem; }
+    /* ── Pipelines section (STORY-122) ──────────────────────────── */
+    #pipelines-section h2 { color: #c0a4ff; }
+    .pipeline-run-item { padding: 0.5rem 0; border-bottom: 1px solid #222; font-size: 0.875rem; }
+    .pipeline-run-item:last-child { border-bottom: none; }
+    .pipeline-run-header { display: flex; gap: 0.75rem; align-items: baseline; margin-bottom: 0.25rem; }
+    .pipeline-run-id   { color: #00d4ff; font-weight: bold; min-width: 6rem; }
+    .pipeline-run-name { color: #888; min-width: 10rem; }
+    .pipeline-steps-list { list-style: none; padding: 0 0 0 1rem; margin: 0.25rem 0; }
+    .pipeline-steps-list li { padding: 0.15rem 0; font-size: 0.8125rem; }
+    .pipeline-step-pending   { color: #555; }
+    .pipeline-step-running   { color: #ffaa00; }
+    .pipeline-step-completed { color: #00ff88; }
+    .pipeline-step-failed    { color: #ff4444; }
+    .pipeline-step-skipped   { color: #555; font-style: italic; }
+    .pipeline-suspended-badge { color: #ffaa00; font-weight: bold; }
     /* ── Approvals section (STORY-105) ──────────────────────────── */
     #approvals-section h2 { color: #ffaa00; }
     .approval-row { display: flex; align-items: baseline; gap: 0.75rem;
@@ -85,6 +100,18 @@
     <p>Chargement...</p>
   </section>
 
+  <!-- Section Pipelines (STORY-122) -->
+  <!-- Chargement initial HTMX + refresh partiel via sse:pipeline (completed/failed). -->
+  <!-- Les events step-by-step sont gérés par le handler JavaScript ci-dessous.        -->
+  <section id="pipelines-section"
+           hx-get="/api/v1/dashboard/partials/pipelines"
+           hx-trigger="load, sse:pipeline-completed, sse:pipeline-failed"
+           hx-target="#pipelines-section"
+           hx-swap="innerHTML">
+    <h2>&#x25BA; Pipelines</h2>
+    <p>Chargement...</p>
+  </section>
+
   <!-- Section Approbations en attente (STORY-105) -->
   <section id="approvals-section" class="card">
     <h2>⏸ Approbations en attente</h2>
@@ -135,6 +162,168 @@
   </section>
 
   <script>
+    // SSE pipeline handler — Sprint 12 (STORY-122)
+    // Listens for sse:pipeline events carrying JSON pipeline/step payloads and
+    // updates the #pipelines-section in real time without a full partial reload.
+    // The section also uses hx-trigger="sse:pipeline-completed, sse:pipeline-failed"
+    // to do a full HTMX partial refresh at run boundaries.
+
+    // Map of run_id → { name, el, stepsEl, suspended }
+    var pipelineRuns = {};
+
+    function getPipelineRunEl(runId, pipelineId) {
+      if (pipelineRuns[runId]) { return pipelineRuns[runId]; }
+
+      var section = document.getElementById('pipelines-section');
+      if (!section) { return null; }
+
+      // Remove empty-state placeholder on first run
+      var emptyState = section.querySelector('.empty-state');
+      if (emptyState) { emptyState.remove(); }
+
+      var item = document.createElement('div');
+      item.className = 'pipeline-run-item';
+      item.id = 'pipeline-run-' + runId;
+
+      var header = document.createElement('div');
+      header.className = 'pipeline-run-header';
+
+      var runIdSpan = document.createElement('span');
+      runIdSpan.className = 'pipeline-run-id';
+      runIdSpan.textContent = runId;
+
+      var nameSpan = document.createElement('span');
+      nameSpan.className = 'pipeline-run-name';
+      nameSpan.textContent = pipelineId || '';
+
+      var statusSpan = document.createElement('span');
+      statusSpan.id = 'pipeline-status-' + runId;
+      statusSpan.className = 'badge-active';
+      statusSpan.textContent = '\u27BF running';
+
+      header.appendChild(runIdSpan);
+      header.appendChild(nameSpan);
+      header.appendChild(statusSpan);
+
+      var stepsEl = document.createElement('ul');
+      stepsEl.className = 'pipeline-steps-list';
+
+      item.appendChild(header);
+      item.appendChild(stepsEl);
+      section.appendChild(item);
+
+      pipelineRuns[runId] = { item: item, stepsEl: stepsEl, suspended: false };
+      return pipelineRuns[runId];
+    }
+
+    function getPipelineStepEl(runId, stepId) {
+      var run = pipelineRuns[runId];
+      if (!run) { return null; }
+      return document.getElementById('pipeline-step-' + runId + '-' + stepId);
+    }
+
+    document.addEventListener('sse:pipeline', function(e) {
+      var raw = e.detail && e.detail.data;
+      if (!raw) { return; }
+      var data;
+      try { data = JSON.parse(raw); } catch (_) { return; }
+
+      var runId = data.run_id || '';
+      var stepId = data.step_id || '';
+
+      switch (data.event_type) {
+        case 'pipeline-started': {
+          getPipelineRunEl(runId, data.pipeline_id || '');
+          break;
+        }
+        case 'pipeline-step-started': {
+          var run = getPipelineRunEl(runId, data.pipeline_id || '');
+          if (!run) { break; }
+          var li = document.createElement('li');
+          li.id = 'pipeline-step-' + runId + '-' + stepId;
+          li.className = 'pipeline-step-running';
+          li.textContent = '\u25CF [' + stepId + '] \u27BE ' + (data.agent || '') + '...';
+          run.stepsEl.appendChild(li);
+          break;
+        }
+        case 'pipeline-step-completed': {
+          var li = getPipelineStepEl(runId, stepId);
+          if (li) {
+            li.className = 'pipeline-step-completed';
+            li.textContent = li.textContent.replace('\u25CF', '\u2714').replace('...', '');
+          }
+          break;
+        }
+        case 'pipeline-step-failed': {
+          var li = getPipelineStepEl(runId, stepId);
+          if (li) {
+            li.className = 'pipeline-step-failed';
+            li.textContent = li.textContent.replace('\u25CF', '\u2717') +
+              ' \u2014 ' + (data.reason || '') + ' [' + (data.on_failure || '') + ']';
+          }
+          break;
+        }
+        case 'pipeline-step-skipped': {
+          var run = pipelineRuns[runId];
+          if (!run) { break; }
+          var li = getPipelineStepEl(runId, stepId);
+          if (!li) {
+            li = document.createElement('li');
+            li.id = 'pipeline-step-' + runId + '-' + stepId;
+            run.stepsEl.appendChild(li);
+          }
+          li.className = 'pipeline-step-skipped';
+          li.textContent = '\u25CB [' + stepId + '] skipped \u2014 ' + (data.reason || '');
+          break;
+        }
+        case 'pipeline-suspended': {
+          var run = pipelineRuns[runId];
+          if (run) { run.suspended = true; }
+          var statusEl = document.getElementById('pipeline-status-' + runId);
+          if (statusEl) {
+            statusEl.className = 'pipeline-suspended-badge';
+            statusEl.textContent = '\u23F8 suspendu \u2014 approbation requise (' + stepId + ')';
+          }
+          var li = getPipelineStepEl(runId, stepId);
+          if (li) {
+            li.className = 'pipeline-step-running';
+            li.textContent = '\u23F8 [' + stepId + '] en attente d\'approbation';
+          }
+          break;
+        }
+        case 'pipeline-resumed': {
+          var run = pipelineRuns[runId];
+          if (run) { run.suspended = false; }
+          var statusEl = document.getElementById('pipeline-status-' + runId);
+          if (statusEl) {
+            statusEl.className = 'badge-active';
+            statusEl.textContent = '\u27BF running';
+          }
+          break;
+        }
+        case 'pipeline-completed': {
+          var statusEl = document.getElementById('pipeline-status-' + runId);
+          if (statusEl) {
+            statusEl.className = 'badge-active';
+            var secs = data.duration_ms ? (data.duration_ms / 1000).toFixed(1) + 's' : '';
+            statusEl.textContent = '\u2714 completed ' + secs;
+          }
+          delete pipelineRuns[runId];
+          break;
+        }
+        case 'pipeline-failed': {
+          var statusEl = document.getElementById('pipeline-status-' + runId);
+          if (statusEl) {
+            statusEl.className = 'badge-error';
+            statusEl.textContent = '\u2717 failed \u2014 ' + (data.step_id || '') +
+              ': ' + (data.reason || '');
+          }
+          delete pipelineRuns[runId];
+          break;
+        }
+      }
+    });
+
     // SSE approvals handler — Sprint 11 (STORY-105)
     // Listens for sse:approvals events carrying TaskInputRequired / TaskResumed
     // payloads and manages the #approvals-list section without page reload.

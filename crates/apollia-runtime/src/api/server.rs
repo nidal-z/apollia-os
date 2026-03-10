@@ -207,6 +207,9 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
     };
     use super::routes_llm::llm_routes;
     use super::routes_notifications::{list_channels, notification_logs, test_channels};
+    use super::routes_pipelines::{
+        get_run, get_run_by_id, list_pipelines, list_runs, run_pipeline,
+    };
     use super::routes_sse::stream_task;
     use super::routes_tasks::{cancel_task, get_task, resume_task, submit_task};
     use super::routes_triggers::{
@@ -257,6 +260,12 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
         .route("/api/v1/notifications/test", post(test_channels::<B>))
         .route("/api/v1/notifications/logs", get(notification_logs::<B>))
         .merge(llm_routes::<B>())
+        // Pipeline routes (STORY-120 + STORY-121)
+        .route("/api/v1/pipelines", get(list_pipelines::<B>))
+        .route("/api/v1/pipelines/:id/run", post(run_pipeline::<B>))
+        .route("/api/v1/pipelines/:id/runs", get(list_runs::<B>))
+        .route("/api/v1/pipelines/:id/runs/:run_id", get(get_run::<B>))
+        .route("/api/v1/runs/:run_id", get(get_run_by_id::<B>))
         .with_state(state)
 }
 

@@ -6,10 +6,10 @@
 //! - `GET /api/v1/dashboard/partials/:section` — returns HTML fragments for HTMX (AC-3/AC-4).
 //! - `GET /api/v1/dashboard/stream`           — SSE bridge: RuntimeEvent → named HTMX events (STORY-076).
 //!
-//! Supported sections: `"agents"` | `"triggers"` | `"tasks"` | `"llm"` | `"tools"` | `"memory"`.
+//! Supported sections: `"agents"` | `"triggers"` | `"tasks"` | `"llm"` | `"tools"` | `"memory"` | `"pipelines"`.
 //! Unknown sections return HTTP 404 (AC-4).
 //!
-//! STORY-077 will replace the placeholder HTML with the full HTMX dashboard.
+//! STORY-122 adds a 6th `"pipeline"` SSE channel and a `"pipelines"` partial for active pipeline runs.
 
 use std::convert::Infallible;
 
@@ -111,13 +111,22 @@ pub struct CircuitSummary {
 
 /// A named SSE event destined for a specific dashboard channel.
 ///
-/// Used by [`dashboard_event_to_sse`] to carry plan/step payloads before
-/// they are converted to the axum [`Event`] type. Having a typed intermediate
-/// makes the routing logic unit-testable without an HTTP layer.
+/// Used by [`dashboard_event_to_sse`] to carry plan/step and pipeline payloads
+/// before they are converted to the axum [`Event`] type. Having a typed
+/// intermediate makes the routing logic unit-testable without an HTTP layer.
+///
+/// `channel` is the SSE event name used to drive HTMX swaps (e.g. `"tasks"`,
+/// `"approvals"`, `"pipeline"`). `event` is a finer-grained sub-type label
+/// (e.g. `"pipeline-started"`) stored on the struct for test assertions; it is
+/// embedded in `data["event_type"]` for the browser JavaScript handler.
 #[derive(Debug)]
 pub(crate) struct DashboardSseEvent {
-    /// Dashboard channel name (e.g. `"tasks"`, `"agents"`).
+    /// Dashboard channel name — becomes the SSE event name (e.g. `"pipeline"`).
     pub(crate) channel: String,
+    /// Fine-grained event sub-type (e.g. `"pipeline-started"`).
+    ///
+    /// Stored for unit-test assertions. Also embedded in `data["event_type"]`.
+    pub(crate) event: String,
     /// JSON payload forwarded verbatim to the browser.
     pub(crate) data: serde_json::Value,
 }
@@ -227,6 +236,7 @@ pub async fn get_dashboard_partial<B: ExecutionBackend + Clone>(
         "llm" => render_llm_partial(&state).into_response(),
         "tools" => render_tools_partial().into_response(),
         "memory" => render_memory_partial().into_response(),
+        "pipelines" => render_pipelines_partial(&state).await.into_response(),
         _ => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -344,6 +354,97 @@ fn render_memory_partial() -> Html<&'static str> {
     )
 }
 
+/// Render the pipelines section showing recent runs from SQLite (STORY-122).
+///
+/// Returns an empty-state message when no `PipelineEngine` is configured (AC-5).
+/// When a `PipelineEngine` is present, fetches the 5 most-recent runs for each
+/// declared pipeline and renders them as an HTML `<table>`.
+/// Runs with status `running` or `waiting_approval` are highlighted.
+async fn render_pipelines_partial<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+) -> Html<String> {
+    let Some(engine) = &state.pipeline_engine else {
+        return Html(
+            "<p style=\"color:#555;font-style:italic\">Aucun pipeline configuré</p>".into(),
+        );
+    };
+
+    let pipelines = engine.list_pipelines().await;
+
+    if pipelines.is_empty() {
+        return Html(
+            "<p style=\"color:#555;font-style:italic\">Aucun pipeline configuré</p>".into(),
+        );
+    }
+
+    let mut rows = String::new();
+    for (pipeline_id, description) in &pipelines {
+        let runs = engine.list_runs(pipeline_id, 5).await.unwrap_or_default();
+
+        if runs.is_empty() {
+            rows.push_str(&format!(
+                "<tr>\
+                   <td>{}</td>\
+                   <td style=\"color:#555;font-style:italic\">{}</td>\
+                   <td>—</td><td>—</td><td>—</td>\
+                 </tr>",
+                pipeline_id, description,
+            ));
+        } else {
+            for run in &runs {
+                let status_label = match &run.status {
+                    apollia_pipelines::PipelineStatus::Running => {
+                        "<span class=\"badge-active\">⟿ running</span>"
+                    }
+                    apollia_pipelines::PipelineStatus::WaitingApproval { .. } => {
+                        "<span class=\"badge-degraded\">⏸ suspendu</span>"
+                    }
+                    apollia_pipelines::PipelineStatus::Completed => {
+                        "<span class=\"badge-active\">✔ completed</span>"
+                    }
+                    apollia_pipelines::PipelineStatus::Failed { .. } => {
+                        "<span class=\"badge-error\">✗ failed</span>"
+                    }
+                };
+                let started = run.started_at.format("%d/%m %H:%M").to_string();
+                let duration = run.ended_at.map_or_else(
+                    || "—".to_string(),
+                    |end| {
+                        let ms = (end - run.started_at).num_milliseconds();
+                        format!("{:.1}s", ms as f64 / 1000.0)
+                    },
+                );
+                rows.push_str(&format!(
+                    "<tr>\
+                       <td>{}</td>\
+                       <td style=\"color:#888;font-size:0.8em\">{}</td>\
+                       <td>{}</td>\
+                       <td>{}</td>\
+                       <td>{}</td>\
+                     </tr>",
+                    pipeline_id, run.run_id, status_label, started, duration,
+                ));
+            }
+        }
+    }
+
+    Html(format!(
+        "<table>\
+           <thead>\
+             <tr>\
+               <th>Pipeline</th>\
+               <th>Run</th>\
+               <th>Statut</th>\
+               <th>Démarré</th>\
+               <th>Durée</th>\
+             </tr>\
+           </thead>\
+           <tbody>{}</tbody>\
+         </table>",
+        rows,
+    ))
+}
+
 // ─── SSE Dashboard Stream ─────────────────────────────────────────────────
 
 /// Map an orchestration-related [`RuntimeEvent`] to a [`DashboardSseEvent`] on
@@ -362,6 +463,7 @@ pub(crate) fn dashboard_event_to_sse(event: &RuntimeEvent) -> Option<DashboardSs
             step_count,
         } => Some(DashboardSseEvent {
             channel: "tasks".into(),
+            event: "plan_generated".into(),
             data: serde_json::json!({
                 "event_type": "plan_generated",
                 "task_id":    task_id,
@@ -381,6 +483,7 @@ pub(crate) fn dashboard_event_to_sse(event: &RuntimeEvent) -> Option<DashboardSs
             desc,
         } => Some(DashboardSseEvent {
             channel: "tasks".into(),
+            event: "step_started".into(),
             data: serde_json::json!({
                 "event_type": "step_started",
                 "task_id":  task_id,
@@ -399,6 +502,7 @@ pub(crate) fn dashboard_event_to_sse(event: &RuntimeEvent) -> Option<DashboardSs
             duration_ms,
         } => Some(DashboardSseEvent {
             channel: "tasks".into(),
+            event: "step_completed".into(),
             data: serde_json::json!({
                 "event_type":  "step_completed",
                 "task_id":     task_id,
@@ -416,6 +520,7 @@ pub(crate) fn dashboard_event_to_sse(event: &RuntimeEvent) -> Option<DashboardSs
             retryable,
         } => Some(DashboardSseEvent {
             channel: "tasks".into(),
+            event: "step_failed".into(),
             data: serde_json::json!({
                 "event_type": "step_failed",
                 "task_id":   task_id,
@@ -434,6 +539,7 @@ pub(crate) fn dashboard_event_to_sse(event: &RuntimeEvent) -> Option<DashboardSs
             reason,
         } => Some(DashboardSseEvent {
             channel: "tasks".into(),
+            event: "replanning".into(),
             data: serde_json::json!({
                 "event_type":  "replanning",
                 "task_id":     task_id,
@@ -451,6 +557,7 @@ pub(crate) fn dashboard_event_to_sse(event: &RuntimeEvent) -> Option<DashboardSs
             duration_ms,
         } => Some(DashboardSseEvent {
             channel: "tasks".into(),
+            event: "plan_completed".into(),
             data: serde_json::json!({
                 "event_type":  "plan_completed",
                 "task_id":     task_id,
@@ -466,6 +573,7 @@ pub(crate) fn dashboard_event_to_sse(event: &RuntimeEvent) -> Option<DashboardSs
             reason,
         } => Some(DashboardSseEvent {
             channel: "tasks".into(),
+            event: "plan_failed".into(),
             data: serde_json::json!({
                 "event_type": "plan_failed",
                 "task_id":    task_id,
@@ -482,6 +590,7 @@ pub(crate) fn dashboard_event_to_sse(event: &RuntimeEvent) -> Option<DashboardSs
             step_id,
         } => Some(DashboardSseEvent {
             channel: "approvals".into(),
+            event: "TaskInputRequired".into(),
             data: serde_json::json!({
                 "event_type": "TaskInputRequired",
                 "task_id":    task_id,
@@ -494,10 +603,148 @@ pub(crate) fn dashboard_event_to_sse(event: &RuntimeEvent) -> Option<DashboardSs
         // the "Approbations en attente" section.
         RuntimeEvent::TaskResumed { task_id, approved } => Some(DashboardSseEvent {
             channel: "approvals".into(),
+            event: "TaskResumed".into(),
             data: serde_json::json!({
                 "event_type": "TaskResumed",
                 "task_id":    task_id,
                 "approved":   approved,
+            }),
+        }),
+
+        // ── Pipeline events (STORY-122) ──────────────────────────────────
+        // Each variant is routed to the "pipeline" SSE channel so the browser
+        // JavaScript handler can update the Pipelines section without a full
+        // partial reload.
+        RuntimeEvent::PipelineStarted {
+            run_id,
+            pipeline_id,
+            step_count,
+            trigger_id,
+        } => Some(DashboardSseEvent {
+            channel: "pipeline".into(),
+            event: "pipeline-started".into(),
+            data: serde_json::json!({
+                "event_type":  "pipeline-started",
+                "run_id":      run_id,
+                "pipeline_id": pipeline_id,
+                "step_count":  step_count,
+                "trigger_id":  trigger_id,
+            }),
+        }),
+
+        RuntimeEvent::PipelineStepStarted {
+            run_id,
+            step_id,
+            task_id,
+            agent,
+        } => Some(DashboardSseEvent {
+            channel: "pipeline".into(),
+            event: "pipeline-step-started".into(),
+            data: serde_json::json!({
+                "event_type": "pipeline-step-started",
+                "run_id":     run_id,
+                "step_id":    step_id,
+                "task_id":    task_id,
+                "agent":      agent,
+            }),
+        }),
+
+        RuntimeEvent::PipelineStepCompleted { run_id, step_id } => Some(DashboardSseEvent {
+            channel: "pipeline".into(),
+            event: "pipeline-step-completed".into(),
+            data: serde_json::json!({
+                "event_type": "pipeline-step-completed",
+                "run_id":     run_id,
+                "step_id":    step_id,
+            }),
+        }),
+
+        RuntimeEvent::PipelineStepFailed {
+            run_id,
+            step_id,
+            reason,
+            on_failure,
+        } => Some(DashboardSseEvent {
+            channel: "pipeline".into(),
+            event: "pipeline-step-failed".into(),
+            data: serde_json::json!({
+                "event_type": "pipeline-step-failed",
+                "run_id":     run_id,
+                "step_id":    step_id,
+                "reason":     reason,
+                "on_failure": on_failure,
+            }),
+        }),
+
+        RuntimeEvent::PipelineStepSkipped {
+            run_id,
+            step_id,
+            reason,
+        } => Some(DashboardSseEvent {
+            channel: "pipeline".into(),
+            event: "pipeline-step-skipped".into(),
+            data: serde_json::json!({
+                "event_type": "pipeline-step-skipped",
+                "run_id":     run_id,
+                "step_id":    step_id,
+                "reason":     reason,
+            }),
+        }),
+
+        RuntimeEvent::PipelineSuspended {
+            run_id,
+            step_id,
+            task_id,
+        } => Some(DashboardSseEvent {
+            channel: "pipeline".into(),
+            event: "pipeline-suspended".into(),
+            data: serde_json::json!({
+                "event_type": "pipeline-suspended",
+                "run_id":     run_id,
+                "step_id":    step_id,
+                "task_id":    task_id,
+            }),
+        }),
+
+        RuntimeEvent::PipelineResumed { run_id, step_id } => Some(DashboardSseEvent {
+            channel: "pipeline".into(),
+            event: "pipeline-resumed".into(),
+            data: serde_json::json!({
+                "event_type": "pipeline-resumed",
+                "run_id":     run_id,
+                "step_id":    step_id,
+            }),
+        }),
+
+        RuntimeEvent::PipelineCompleted {
+            run_id,
+            pipeline_id,
+            duration_ms,
+        } => Some(DashboardSseEvent {
+            channel: "pipeline".into(),
+            event: "pipeline-completed".into(),
+            data: serde_json::json!({
+                "event_type":  "pipeline-completed",
+                "run_id":      run_id,
+                "pipeline_id": pipeline_id,
+                "duration_ms": duration_ms,
+            }),
+        }),
+
+        RuntimeEvent::PipelineFailed {
+            run_id,
+            pipeline_id,
+            step_id,
+            reason,
+        } => Some(DashboardSseEvent {
+            channel: "pipeline".into(),
+            event: "pipeline-failed".into(),
+            data: serde_json::json!({
+                "event_type":  "pipeline-failed",
+                "run_id":      run_id,
+                "pipeline_id": pipeline_id,
+                "step_id":     step_id,
+                "reason":      reason,
             }),
         }),
 
@@ -547,16 +794,44 @@ pub(crate) fn runtime_event_to_sse_events(event: RuntimeEvent) -> Option<Vec<Eve
         | RuntimeEvent::StepFailed { .. }
         | RuntimeEvent::PlanReplanning { .. }
         | RuntimeEvent::PlanCompleted { .. }
-        | RuntimeEvent::PlanFailed { .. }) => dashboard_event_to_sse(plan_event)
-            .map(|e| vec![Event::default().event(e.channel).data(e.data.to_string())]),
+        | RuntimeEvent::PlanFailed { .. }) => {
+            dashboard_event_to_sse(plan_event).map(sse_events_from_dashboard_event)
+        }
         // HITL events (STORY-105) — delegate to dashboard_event_to_sse for routing.
         // Each event carries a JSON payload forwarded to the "approvals" channel so
         // the browser can add/remove rows without a full partial reload.
         ref hitl_event @ (RuntimeEvent::TaskInputRequired { .. }
-        | RuntimeEvent::TaskResumed { .. }) => dashboard_event_to_sse(hitl_event)
-            .map(|e| vec![Event::default().event(e.channel).data(e.data.to_string())]),
+        | RuntimeEvent::TaskResumed { .. }) => {
+            dashboard_event_to_sse(hitl_event).map(sse_events_from_dashboard_event)
+        }
+        // Pipeline events (STORY-122) — delegate to dashboard_event_to_sse for routing.
+        // Each event carries a JSON payload forwarded to the "pipeline" channel so
+        // the browser handler can update the Pipelines section in real time.
+        ref pipeline_event @ (RuntimeEvent::PipelineStarted { .. }
+        | RuntimeEvent::PipelineStepStarted { .. }
+        | RuntimeEvent::PipelineStepCompleted { .. }
+        | RuntimeEvent::PipelineStepFailed { .. }
+        | RuntimeEvent::PipelineStepSkipped { .. }
+        | RuntimeEvent::PipelineSuspended { .. }
+        | RuntimeEvent::PipelineResumed { .. }
+        | RuntimeEvent::PipelineCompleted { .. }
+        | RuntimeEvent::PipelineFailed { .. }) => {
+            dashboard_event_to_sse(pipeline_event).map(sse_events_from_dashboard_event)
+        }
         _ => None,
     }
+}
+
+/// Convert a [`DashboardSseEvent`] into a `Vec<Event>` for the SSE stream.
+///
+/// Uses `channel` as the SSE event name (HTMX routing) and `event` as the
+/// SSE `id` (preserves the fine-grained sub-type on the wire without affecting
+/// HTMX trigger matching). The JSON payload is in `data`.
+fn sse_events_from_dashboard_event(e: DashboardSseEvent) -> Vec<Event> {
+    vec![Event::default()
+        .event(e.channel)
+        .id(e.event)
+        .data(e.data.to_string())]
 }
 
 /// SSE bridge from [`EventBus`] to browser dashboard via `GET /api/v1/dashboard/stream`.
@@ -1239,6 +1514,164 @@ mod tests {
         assert!(
             ct.contains("javascript"),
             "expected Content-Type to contain 'javascript', got: {ct}"
+        );
+    }
+
+    // ── STORY-122 tests — Pipeline dashboard channel ─────────────────────────
+
+    /// AC-1 — PipelineStarted routes to the "pipeline" SSE channel with event "pipeline-started".
+    #[test]
+    fn test_story122_pipeline_started_mapped_to_sse_event() {
+        // GIVEN RuntimeEvent::PipelineStarted
+        let event = RuntimeEvent::PipelineStarted {
+            run_id: "r-0017".into(),
+            pipeline_id: "traitement-facture".into(),
+            trigger_id: Some("factures-auto".into()),
+            step_count: 6,
+        };
+
+        // WHEN mapped through dashboard_event_to_sse
+        let sse = dashboard_event_to_sse(&event);
+
+        // THEN routed to "pipeline" channel with event "pipeline-started"
+        let sse = sse.expect("PipelineStarted must produce a dashboard SSE event");
+        assert_eq!(sse.channel, "pipeline", "channel must be 'pipeline'");
+        assert_eq!(
+            sse.event, "pipeline-started",
+            "event must be 'pipeline-started'"
+        );
+        assert_eq!(sse.data["run_id"], "r-0017");
+        assert_eq!(sse.data["pipeline_id"], "traitement-facture");
+        assert_eq!(sse.data["step_count"], 6);
+    }
+
+    /// AC-2 — PipelineSuspended routes to the "pipeline" channel with badge info (HITL suspend).
+    #[test]
+    fn test_story122_pipeline_suspended_mapped_to_sse_event() {
+        // GIVEN RuntimeEvent::PipelineSuspended (HITL — step en attente d'approbation)
+        let event = RuntimeEvent::PipelineSuspended {
+            run_id: "r-0018".into(),
+            step_id: "comptabilite".into(),
+            task_id: "t-0051".into(),
+        };
+
+        // WHEN mapped through dashboard_event_to_sse
+        let sse = dashboard_event_to_sse(&event);
+
+        // THEN routed to "pipeline" channel with event "pipeline-suspended"
+        let sse = sse.expect("PipelineSuspended must produce a dashboard SSE event");
+        assert_eq!(sse.channel, "pipeline", "channel must be 'pipeline'");
+        assert_eq!(
+            sse.event, "pipeline-suspended",
+            "event must be 'pipeline-suspended'"
+        );
+        assert_eq!(sse.data["run_id"], "r-0018");
+        assert_eq!(sse.data["step_id"], "comptabilite");
+        assert_eq!(sse.data["task_id"], "t-0051");
+    }
+
+    /// AC-3 — GET /api/v1/dashboard/partials/pipelines returns 200 (no engine = empty state).
+    #[tokio::test]
+    async fn test_story122_pipelines_partial_returns_200_without_engine() {
+        // GIVEN AppState with no PipelineEngine
+        let state = make_test_app_state().await;
+        let router = make_router(state);
+
+        // WHEN GET /api/v1/dashboard/partials/pipelines
+        let req = Request::builder()
+            .uri("/api/v1/dashboard/partials/pipelines")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN HTTP 200 — not 404 (section exists even without engine)
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    /// AC-4 — All 9 Pipeline RuntimeEvent variants produce one SSE event on the "pipeline" channel.
+    #[test]
+    fn test_story122_all_pipeline_events_produce_sse_on_pipeline_channel() {
+        // GIVEN — all 9 pipeline event variants
+        let events = vec![
+            RuntimeEvent::PipelineStarted {
+                run_id: "r".into(),
+                pipeline_id: "p".into(),
+                trigger_id: None,
+                step_count: 1,
+            },
+            RuntimeEvent::PipelineStepStarted {
+                run_id: "r".into(),
+                step_id: "s".into(),
+                task_id: "t".into(),
+                agent: "a".into(),
+            },
+            RuntimeEvent::PipelineStepCompleted {
+                run_id: "r".into(),
+                step_id: "s".into(),
+            },
+            RuntimeEvent::PipelineStepFailed {
+                run_id: "r".into(),
+                step_id: "s".into(),
+                reason: "err".into(),
+                on_failure: "fail".into(),
+            },
+            RuntimeEvent::PipelineStepSkipped {
+                run_id: "r".into(),
+                step_id: "s".into(),
+                reason: "condition=false".into(),
+            },
+            RuntimeEvent::PipelineSuspended {
+                run_id: "r".into(),
+                step_id: "s".into(),
+                task_id: "t".into(),
+            },
+            RuntimeEvent::PipelineResumed {
+                run_id: "r".into(),
+                step_id: "s".into(),
+            },
+            RuntimeEvent::PipelineCompleted {
+                run_id: "r".into(),
+                pipeline_id: "p".into(),
+                duration_ms: 1000,
+            },
+            RuntimeEvent::PipelineFailed {
+                run_id: "r".into(),
+                pipeline_id: "p".into(),
+                step_id: "s".into(),
+                reason: "err".into(),
+            },
+        ];
+
+        // WHEN / THEN — each produces exactly one SSE event on channel "pipeline"
+        for event in events {
+            let sse = dashboard_event_to_sse(&event)
+                .expect("all Pipeline* events must produce a DashboardSseEvent");
+            assert_eq!(
+                sse.channel, "pipeline",
+                "channel must be 'pipeline' for {:?}",
+                event
+            );
+            // AND event_type is embedded in data
+            assert!(
+                sse.data.get("event_type").is_some(),
+                "data must contain 'event_type'"
+            );
+        }
+    }
+
+    /// AC-5 — dashboard.html contains the pipelines-section and listens for sse:pipeline.
+    #[test]
+    fn test_story122_dashboard_html_has_pipelines_section() {
+        // GIVEN the embedded dashboard HTML
+        // THEN the pipelines section is present
+        assert!(
+            DASHBOARD_HTML.contains("pipelines-section"),
+            "dashboard.html must contain the pipelines-section"
+        );
+        // AND it listens for the pipeline SSE channel
+        assert!(
+            DASHBOARD_HTML.contains("sse:pipeline"),
+            "dashboard.html must listen for sse:pipeline events"
         );
     }
 }

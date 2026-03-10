@@ -6,6 +6,7 @@ pub mod llm;
 pub mod memory;
 pub mod model;
 pub mod notify;
+pub mod pipeline;
 pub mod run;
 pub mod start;
 pub mod status;
