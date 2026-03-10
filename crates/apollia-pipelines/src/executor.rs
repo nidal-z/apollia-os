@@ -160,6 +160,9 @@ pub struct PipelineExecutor<S: TaskSubmitter> {
     template_ctx: TemplateContext,
     /// Wall-clock start time used to compute `duration_ms` in `PipelineCompleted`.
     started_at: Instant,
+    /// When `true`, `init_step_rows` is skipped because the step rows already
+    /// exist in SQLite (resume after restart).  Set by [`as_resume`](Self::as_resume).
+    is_resume: bool,
 }
 
 impl<S: TaskSubmitter> PipelineExecutor<S> {
@@ -201,7 +204,29 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
             done_steps: HashSet::new(),
             template_ctx,
             started_at: Instant::now(),
+            is_resume: false,
         }
+    }
+
+    /// Marks this executor as resuming an existing run after a process restart.
+    ///
+    /// When set:
+    /// - `init_step_rows` is skipped because step rows already exist in SQLite.
+    /// - Steps whose status in `run.step_runs` is already terminal
+    ///   (`Completed`, `Skipped`, `FallbackActive`) are pre-inserted into
+    ///   `done_steps` so the executor skips re-submitting them.
+    pub fn as_resume(mut self) -> Self {
+        self.is_resume = true;
+        // Pre-populate done_steps from step_runs already in a terminal state.
+        for (step_id, step_run) in &self.run.step_runs {
+            if matches!(
+                step_run.status,
+                StepRunStatus::Completed | StepRunStatus::Skipped | StepRunStatus::FallbackActive
+            ) {
+                self.done_steps.insert(step_id.clone());
+            }
+        }
+        self
     }
 
     /// Overrides the per-step timeout (builder pattern, mainly for tests).
@@ -579,6 +604,11 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
 
     /// Inserts a `Pending` step row for every step defined in the pipeline.
     fn init_step_rows(&self) -> Result<(), ExecutorError> {
+        // When resuming after a restart the step rows already exist in SQLite;
+        // re-inserting them would produce StepAlreadyExists errors.
+        if self.is_resume {
+            return Ok(());
+        }
         let mut repo = self.repo.lock().unwrap_or_else(|e| e.into_inner());
         for step_def in &self.definition.steps {
             let step_run = StepRun {
