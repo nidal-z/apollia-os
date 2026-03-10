@@ -9,9 +9,12 @@ use crate::{config::Severity, engine::Notification};
 ///
 /// Fonction pure — pas d'effet de bord, testable sans infrastructure.
 ///
-/// Seuls 6 types d'événements produisent une notification :
-/// `TaskInputRequired`, `TaskCompleted` (succès et échec), `AgentDegraded`,
-/// `LlmModelFailed`, `TriggerError`. Tous les autres retournent `None`.
+/// Les événements qui produisent une notification :
+/// - `TaskInputRequired`, `TaskCompleted` (succès et échec), `AgentDegraded`,
+///   `LlmModelFailed`, `TriggerError` — existants (Sprints 9-11)
+/// - `PipelineCompleted`, `PipelineFailed`, `PipelineSuspended` — ajoutés STORY-123
+///
+/// Tous les autres retournent `None`.
 pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
     match event {
         RuntimeEvent::TaskInputRequired {
@@ -104,6 +107,77 @@ pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
                 message: format!("Erreur trigger : {}", error),
                 metadata,
                 severity: Severity::Error,
+            })
+        }
+
+        // ── Pipeline events (STORY-123) ───────────────────────────────────
+        RuntimeEvent::PipelineCompleted {
+            run_id,
+            pipeline_id,
+            duration_ms,
+        } => {
+            let duration_s = *duration_ms as f64 / 1000.0;
+            let mut metadata = HashMap::new();
+            metadata.insert("run_id".into(), run_id.clone());
+            metadata.insert("pipeline_id".into(), pipeline_id.clone());
+            Some(Notification {
+                event: "pipeline.completed".into(),
+                timestamp: Utc::now(),
+                task_id: None,
+                agent: None,
+                message: format!(
+                    "Pipeline {pipeline_id} terminé — run {run_id} en {duration_s:.1}s"
+                ),
+                metadata,
+                severity: Severity::Info,
+            })
+        }
+
+        RuntimeEvent::PipelineFailed {
+            run_id,
+            pipeline_id,
+            step_id,
+            reason,
+        } => {
+            let mut metadata = HashMap::new();
+            metadata.insert("run_id".into(), run_id.clone());
+            metadata.insert("step_id".into(), step_id.clone());
+            Some(Notification {
+                event: "pipeline.failed".into(),
+                timestamp: Utc::now(),
+                task_id: None,
+                agent: None,
+                message: format!("Pipeline {pipeline_id} échoué — step [{step_id}] : {reason}"),
+                metadata,
+                severity: Severity::Warning,
+            })
+        }
+
+        RuntimeEvent::PipelineSuspended {
+            run_id,
+            step_id,
+            task_id,
+        } => {
+            let mut metadata = HashMap::new();
+            metadata.insert("task_id".into(), task_id.clone());
+            metadata.insert(
+                "resume_approve".into(),
+                format!("apollia-os task resume {task_id} --approve"),
+            );
+            metadata.insert(
+                "resume_reject".into(),
+                format!("apollia-os task resume {task_id} --reject"),
+            );
+            Some(Notification {
+                event: "pipeline.suspended".into(),
+                timestamp: Utc::now(),
+                task_id: Some(task_id.clone()),
+                agent: None,
+                message: format!(
+                    "Pipeline suspendu — step [{step_id}] attend approbation (run {run_id})\napollia-os task resume {task_id} --approve"
+                ),
+                metadata,
+                severity: Severity::Warning,
             })
         }
 
@@ -251,5 +325,83 @@ mod tests {
         let event = RuntimeEvent::AllReady;
         // WHEN / THEN
         assert!(map_event(&event).is_none());
+    }
+
+    // ── STORY-123 : Pipeline notifications ───────────────────────────────
+
+    #[test]
+    fn test_ac1_pipeline_completed_maps_to_info_notification() {
+        // GIVEN
+        let event = RuntimeEvent::PipelineCompleted {
+            run_id: "r-0017".into(),
+            pipeline_id: "traitement-facture".into(),
+            duration_ms: 9400,
+        };
+        // WHEN
+        let notif = map_event(&event).expect("doit retourner Some");
+        // THEN
+        assert_eq!(notif.severity, Severity::Info);
+        assert_eq!(notif.event, "pipeline.completed");
+        assert!(notif.message.contains("traitement-facture"));
+        assert!(notif.message.contains("9.4s"));
+        assert_eq!(
+            notif.metadata.get("pipeline_id").map(String::as_str),
+            Some("traitement-facture")
+        );
+        assert_eq!(
+            notif.metadata.get("run_id").map(String::as_str),
+            Some("r-0017")
+        );
+    }
+
+    #[test]
+    fn test_ac2_pipeline_failed_maps_to_warning_notification() {
+        // GIVEN
+        let event = RuntimeEvent::PipelineFailed {
+            run_id: "r-0016".into(),
+            pipeline_id: "traitement-facture".into(),
+            step_id: "validation".into(),
+            reason: "timeout".into(),
+        };
+        // WHEN
+        let notif = map_event(&event).expect("doit retourner Some");
+        // THEN
+        assert_eq!(notif.severity, Severity::Warning);
+        assert_eq!(notif.event, "pipeline.failed");
+        assert!(notif.message.contains("validation"));
+        assert!(notif.message.contains("timeout"));
+        assert_eq!(
+            notif.metadata.get("step_id").map(String::as_str),
+            Some("validation")
+        );
+    }
+
+    #[test]
+    fn test_ac3_pipeline_suspended_maps_to_warning_with_resume_metadata() {
+        // GIVEN
+        let event = RuntimeEvent::PipelineSuspended {
+            run_id: "r-0018".into(),
+            step_id: "comptabilite".into(),
+            task_id: "t-0051".into(),
+        };
+        // WHEN
+        let notif = map_event(&event).expect("doit retourner Some");
+        // THEN
+        assert_eq!(notif.severity, Severity::Warning);
+        assert_eq!(notif.event, "pipeline.suspended");
+        assert!(notif.message.contains("t-0051"));
+        assert!(notif.metadata.contains_key("resume_approve"));
+        assert!(notif.metadata.contains_key("resume_reject"));
+        let approve_cmd = notif.metadata.get("resume_approve").expect("clé présente");
+        assert!(approve_cmd.contains("--approve"));
+        assert_eq!(notif.task_id.as_deref(), Some("t-0051"));
+    }
+
+    #[test]
+    fn test_ac4_agent_ready_unchanged() {
+        // GIVEN — non-pipeline event : comportement inchangé (non-régression)
+        let event = RuntimeEvent::AgentReady("agent-1".into());
+        // WHEN / THEN — aucune notification, pas de panic
+        let _result = map_event(&event);
     }
 }
