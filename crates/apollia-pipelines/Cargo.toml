@@ -1,0 +1,15 @@
+[package]
+name = "apollia-pipelines"
+version = "0.1.0"
+edition = "2021"
+description = "Apollia OS — Pipeline orchestration types and engine"
+license = "MIT"
+
+[dependencies]
+apollia-core = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+chrono       = { workspace = true }
+thiserror    = { workspace = true }
+tracing      = { workspace = true }
+uuid         = { workspace = true }

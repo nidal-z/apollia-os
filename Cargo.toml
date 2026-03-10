@@ -10,6 +10,7 @@ members = [
     "crates/apollia-llm",
     "crates/apollia-triggers",
     "crates/apollia-notifications",
+    "crates/apollia-pipelines",
     "crates/apollia-cli",
     "tests",
 ]
@@ -89,6 +90,7 @@ apollia-aip     = { path = "crates/apollia-aip" }
 apollia-llm           = { path = "crates/apollia-llm" }
 apollia-triggers      = { path = "crates/apollia-triggers" }
 apollia-notifications = { path = "crates/apollia-notifications" }
+apollia-pipelines     = { path = "crates/apollia-pipelines" }
 
 [profile.release]
 opt-level = 3
