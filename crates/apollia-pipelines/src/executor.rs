@@ -55,6 +55,11 @@ pub enum ExecutorError {
     /// The pipeline dependency graph is invalid (cycle or unknown dependency).
     #[error("topological error: {0}")]
     Topological(#[from] TopologicalError),
+
+    /// A step failed with `on_failure = fallback` but no fallback step is
+    /// declared for it. The pipeline is immediately terminated.
+    #[error("no fallback declared for step '{0}'")]
+    NoFallbackDeclared(String),
 }
 
 // ── StepResult ────────────────────────────────────────────────────────────────
@@ -119,8 +124,17 @@ pub struct PipelineExecutor<S: TaskSubmitter> {
     repo: Arc<Mutex<PipelineRepository>>,
     /// Maximum time a single step may wait for a `TaskCompleted` event.
     step_timeout: Duration,
-    /// Fallback step IDs that are currently active (populated by STORY-113).
+    /// Fallback step IDs that are currently active.
+    ///
+    /// When `activate_fallback` is called for step `"validation"`, the
+    /// corresponding fallback step (e.g. `"validation-manuelle"`) is inserted
+    /// here so the layer filter includes it on the next pass.
     active_fallbacks: HashSet<StepId>,
+    /// Steps that have already reached a terminal state in this run.
+    ///
+    /// Tracked across fallback-triggered restarts to avoid re-submitting
+    /// steps that already completed or were skipped in a previous pass.
+    done_steps: HashSet<StepId>,
     /// Template context updated after each completed step.
     template_ctx: TemplateContext,
     /// Wall-clock start time used to compute `duration_ms` in `PipelineCompleted`.
@@ -163,6 +177,7 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
             repo,
             step_timeout: Self::DEFAULT_STEP_TIMEOUT,
             active_fallbacks: HashSet::new(),
+            done_steps: HashSet::new(),
             template_ctx,
             started_at: Instant::now(),
         }
@@ -202,186 +217,223 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
             "pipeline started",
         );
 
-        // 3 — Compute topological layers (Kahn's BFS).
-        let layers = topological_layers(&self.definition.steps)?;
+        // 3 — Restart loop: repeated when a fallback is activated so the execution
+        //     graph can be re-evaluated with the newly active fallback step.
+        //     At most one restart occurs per activated fallback.
+        'restart: loop {
+            let layers = topological_layers(&self.definition.steps)?;
 
-        // 4 — Layer loop.
-        for layer in layers {
-            // Filter out fallback steps that have not been activated.
-            let active_steps: Vec<StepId> = layer
-                .into_iter()
-                .filter(|sid| {
-                    self.find_step(sid)
-                        .map(|d| match &d.fallback_for {
-                            None => true,
-                            Some(_) => self.active_fallbacks.contains(sid),
-                        })
-                        .unwrap_or(false)
-                })
-                .collect();
+            // 4 — Layer loop.
+            for layer in &layers {
+                // Filter out steps that already reached a terminal state and
+                // fallback steps that have not yet been activated.
+                let active_steps: Vec<StepId> = layer
+                    .iter()
+                    .filter(|sid| {
+                        if self.done_steps.contains(*sid) {
+                            return false;
+                        }
+                        self.find_step(sid)
+                            .map(|d| match &d.fallback_for {
+                                None => true,
+                                Some(_) => self.active_fallbacks.contains(*sid),
+                            })
+                            .unwrap_or(false)
+                    })
+                    .cloned()
+                    .collect();
 
-            if active_steps.is_empty() {
-                continue;
-            }
-
-            // Fan-out: subscribe → submit → wait, for each step in the layer.
-            type StepFut =
-                std::pin::Pin<Box<dyn std::future::Future<Output = (StepId, StepResult)> + Send>>;
-            let mut futs: futures::stream::FuturesUnordered<StepFut> =
-                futures::stream::FuturesUnordered::new();
-
-            for step_id in &active_steps {
-                let step_def = match self.find_step(step_id) {
-                    Some(d) => d.clone(),
-                    None => continue,
-                };
-
-                // Evaluate condition before submitting the step (STORY-112).
-                // A false condition skips the step without blocking downstream.
-                if let Some(cond) = &step_def.condition {
-                    if !crate::condition::evaluate_condition(cond, &self.template_ctx) {
-                        self.set_step_skipped(step_id, "condition=false")?;
-                        // Insert empty output so downstream templates resolve cleanly.
-                        self.template_ctx
-                            .insert_step_output(step_id.clone(), String::new());
-                        let _ = self.event_bus.send(RuntimeEvent::PipelineStepSkipped {
-                            run_id: self.run.run_id.0.clone(),
-                            step_id: step_id.0.clone(),
-                            reason: "condition=false".into(),
-                        });
-                        info!(
-                            run_id = %self.run.run_id,
-                            step_id = %step_id,
-                            "step skipped (condition=false)",
-                        );
-                        continue;
-                    }
+                if active_steps.is_empty() {
+                    continue;
                 }
 
-                let input = self.template_ctx.render(&step_def.input);
+                // Fan-out: subscribe → submit → wait, for each step in the layer.
+                type StepFut = std::pin::Pin<
+                    Box<dyn std::future::Future<Output = (StepId, StepResult)> + Send>,
+                >;
+                let mut futs: futures::stream::FuturesUnordered<StepFut> =
+                    futures::stream::FuturesUnordered::new();
 
-                // Subscribe BEFORE submit (subscribe-before-submit invariant).
-                let rx = self.event_bus.subscribe();
+                for step_id in &active_steps {
+                    let step_def = match self.find_step(step_id) {
+                        Some(d) => d.clone(),
+                        None => continue,
+                    };
 
-                // Submit task.
-                let task_id = match self.submitter.submit_task(&step_def.agent, &input).await {
-                    Ok(id) => id,
-                    Err(e) => {
-                        let reason = format!("submission failed: {e}");
-                        let sid = step_id.clone();
-                        futs.push(Box::pin(async move { (sid, StepResult::Failed(reason)) }));
-                        continue;
-                    }
-                };
-
-                // Persist Running state.
-                self.set_step_running(step_id, &task_id)?;
-
-                // Emit PipelineStepStarted with the now-known task_id.
-                let _ = self.event_bus.send(RuntimeEvent::PipelineStepStarted {
-                    run_id: self.run.run_id.0.clone(),
-                    step_id: step_id.0.clone(),
-                    task_id: task_id.clone(),
-                    agent: step_def.agent.clone(),
-                });
-
-                futs.push(Box::pin(Self::wait_for_task_completion(
-                    step_id.clone(),
-                    task_id,
-                    rx,
-                    self.step_timeout,
-                )));
-            }
-
-            // Fan-in: collect all results for this layer.
-            let mut layer_failed: Option<(StepId, String)> = None;
-
-            while let Some((step_id, result)) = futs.next().await {
-                let step_def = match self.find_step(&step_id) {
-                    Some(d) => d.clone(),
-                    None => continue,
-                };
-
-                match result {
-                    StepResult::Completed(output) => {
-                        self.set_step_completed(&step_id, &output)?;
-                        self.template_ctx
-                            .insert_step_output(step_id.clone(), output);
-                        let _ = self.event_bus.send(RuntimeEvent::PipelineStepCompleted {
-                            run_id: self.run.run_id.0.clone(),
-                            step_id: step_id.0.clone(),
-                        });
-                        info!(run_id = %self.run.run_id, step_id = %step_id, "step completed");
+                    // Evaluate condition before submitting the step (STORY-112).
+                    // A false condition skips the step without blocking downstream.
+                    if let Some(cond) = &step_def.condition {
+                        if !crate::condition::evaluate_condition(cond, &self.template_ctx) {
+                            self.set_step_skipped(step_id, "condition=false")?;
+                            self.done_steps.insert(step_id.clone());
+                            // Insert empty output so downstream templates resolve cleanly.
+                            self.template_ctx
+                                .insert_step_output(step_id.clone(), String::new());
+                            let _ = self.event_bus.send(RuntimeEvent::PipelineStepSkipped {
+                                run_id: self.run.run_id.0.clone(),
+                                step_id: step_id.0.clone(),
+                                reason: "condition=false".into(),
+                            });
+                            info!(
+                                run_id = %self.run.run_id,
+                                step_id = %step_id,
+                                "step skipped (condition=false)",
+                            );
+                            continue;
+                        }
                     }
 
-                    StepResult::Failed(reason) => {
-                        match step_def.on_failure {
-                            StepFailurePolicy::Fail => {
-                                self.set_step_failed(&step_id, &reason)?;
-                                let _ = self.event_bus.send(RuntimeEvent::PipelineStepFailed {
-                                    run_id: self.run.run_id.0.clone(),
-                                    step_id: step_id.0.clone(),
-                                    reason: reason.clone(),
-                                    on_failure: "fail".into(),
-                                });
-                                // Record the first fatal failure; drain remaining
-                                // futures in this layer before aborting.
-                                if layer_failed.is_none() {
-                                    layer_failed = Some((step_id, reason));
+                    let input = self.template_ctx.render(&step_def.input);
+
+                    // Subscribe BEFORE submit (subscribe-before-submit invariant).
+                    let rx = self.event_bus.subscribe();
+
+                    // Submit task.
+                    let task_id = match self.submitter.submit_task(&step_def.agent, &input).await {
+                        Ok(id) => id,
+                        Err(e) => {
+                            let reason = format!("submission failed: {e}");
+                            let sid = step_id.clone();
+                            futs.push(Box::pin(async move { (sid, StepResult::Failed(reason)) }));
+                            continue;
+                        }
+                    };
+
+                    // Persist Running state.
+                    self.set_step_running(step_id, &task_id)?;
+
+                    // Emit PipelineStepStarted with the now-known task_id.
+                    let _ = self.event_bus.send(RuntimeEvent::PipelineStepStarted {
+                        run_id: self.run.run_id.0.clone(),
+                        step_id: step_id.0.clone(),
+                        task_id: task_id.clone(),
+                        agent: step_def.agent.clone(),
+                    });
+
+                    futs.push(Box::pin(Self::wait_for_task_completion(
+                        step_id.clone(),
+                        task_id,
+                        rx,
+                        self.step_timeout,
+                    )));
+                }
+
+                // Fan-in: collect all results for this layer.
+                let mut layer_failed: Option<(StepId, String)> = None;
+
+                while let Some((step_id, result)) = futs.next().await {
+                    let step_def = match self.find_step(&step_id) {
+                        Some(d) => d.clone(),
+                        None => continue,
+                    };
+
+                    match result {
+                        StepResult::Completed(output) => {
+                            self.done_steps.insert(step_id.clone());
+                            self.set_step_completed(&step_id, &output)?;
+                            self.template_ctx
+                                .insert_step_output(step_id.clone(), output.clone());
+                            // If this is a fallback step, also inject its output
+                            // under the original step's name so downstream templates
+                            // resolve `{{steps.<original>.output}}` correctly.
+                            if let Some(ref fb_for) = step_def.fallback_for {
+                                self.template_ctx
+                                    .insert_step_output(fb_for.clone(), output.clone());
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::PipelineStepCompleted {
+                                run_id: self.run.run_id.0.clone(),
+                                step_id: step_id.0.clone(),
+                            });
+                            info!(
+                                run_id = %self.run.run_id,
+                                step_id = %step_id,
+                                "step completed",
+                            );
+                        }
+
+                        StepResult::Failed(reason) => {
+                            match step_def.on_failure {
+                                StepFailurePolicy::Fail => {
+                                    self.done_steps.insert(step_id.clone());
+                                    self.set_step_failed(&step_id, &reason)?;
+                                    let _ = self.event_bus.send(RuntimeEvent::PipelineStepFailed {
+                                        run_id: self.run.run_id.0.clone(),
+                                        step_id: step_id.0.clone(),
+                                        reason: reason.clone(),
+                                        on_failure: "fail".into(),
+                                    });
+                                    // Record the first fatal failure; drain remaining
+                                    // futures in this layer before aborting.
+                                    if layer_failed.is_none() {
+                                        layer_failed = Some((step_id, reason));
+                                    }
+                                }
+                                StepFailurePolicy::Skip => {
+                                    self.done_steps.insert(step_id.clone());
+                                    self.set_step_skipped(&step_id, &reason)?;
+                                    // Downstream templates resolve the skipped step to "".
+                                    self.template_ctx
+                                        .insert_step_output(step_id.clone(), String::new());
+                                    let _ =
+                                        self.event_bus.send(RuntimeEvent::PipelineStepSkipped {
+                                            run_id: self.run.run_id.0.clone(),
+                                            step_id: step_id.0.clone(),
+                                            reason: reason.clone(),
+                                        });
+                                    info!(
+                                        run_id = %self.run.run_id,
+                                        step_id = %step_id,
+                                        "step skipped (on_failure=skip)",
+                                    );
+                                }
+                                StepFailurePolicy::Fallback => {
+                                    match self.activate_fallback(&step_id, &reason)? {
+                                        Some(_fallback_id) => {
+                                            // Fallback step is now active. Restart the
+                                            // layer loop so the graph is re-evaluated
+                                            // with the fallback step included.
+                                            continue 'restart;
+                                        }
+                                        None => {
+                                            // No fallback declared — pipeline already
+                                            // marked as failed by activate_fallback.
+                                            return Ok(());
+                                        }
+                                    }
                                 }
                             }
-                            StepFailurePolicy::Skip => {
-                                self.set_step_skipped(&step_id, &reason)?;
-                                // Downstream templates resolve the skipped step to "".
-                                self.template_ctx
-                                    .insert_step_output(step_id.clone(), String::new());
-                                let _ = self.event_bus.send(RuntimeEvent::PipelineStepSkipped {
-                                    run_id: self.run.run_id.0.clone(),
-                                    step_id: step_id.0.clone(),
-                                    reason: reason.clone(),
-                                });
-                                info!(
-                                    run_id = %self.run.run_id,
-                                    step_id = %step_id,
-                                    "step skipped (on_failure=skip)",
-                                );
-                            }
-                            StepFailurePolicy::Fallback => {
-                                // STORY-113 stub: treat as Skip until full fallback
-                                // activation is implemented.
-                                self.activate_fallback(&step_id, &reason)?;
-                                self.template_ctx
-                                    .insert_step_output(step_id.clone(), String::new());
-                            }
                         }
-                    }
 
-                    StepResult::InputRequired { task_id } => {
-                        // STORY-114 stub: suspend the pipeline and return.
-                        warn!(
-                            run_id = %self.run.run_id,
-                            step_id = %step_id,
-                            task_id = %task_id,
-                            "step requires input — pipeline suspended (HITL STORY-114)",
-                        );
-                        let _ = self.event_bus.send(RuntimeEvent::PipelineSuspended {
-                            run_id: self.run.run_id.0.clone(),
-                            step_id: step_id.0.clone(),
-                            task_id: task_id.clone(),
-                        });
-                        {
-                            let mut repo = self.repo.lock().unwrap_or_else(|e| e.into_inner());
-                            repo.suspend_run(&self.run.run_id, &step_id, &task_id)?;
+                        StepResult::InputRequired { task_id } => {
+                            // STORY-114 stub: suspend the pipeline and return.
+                            warn!(
+                                run_id = %self.run.run_id,
+                                step_id = %step_id,
+                                task_id = %task_id,
+                                "step requires input — pipeline suspended (HITL STORY-114)",
+                            );
+                            let _ = self.event_bus.send(RuntimeEvent::PipelineSuspended {
+                                run_id: self.run.run_id.0.clone(),
+                                step_id: step_id.0.clone(),
+                                task_id: task_id.clone(),
+                            });
+                            {
+                                let mut repo = self.repo.lock().unwrap_or_else(|e| e.into_inner());
+                                repo.suspend_run(&self.run.run_id, &step_id, &task_id)?;
+                            }
+                            return Ok(());
                         }
-                        return Ok(());
                     }
+                }
+
+                // Abort after draining the layer if a fatal failure was recorded.
+                if let Some((failed_step, reason)) = layer_failed {
+                    return self.fail_pipeline_internal(&failed_step, &reason);
                 }
             }
 
-            // Abort after draining the layer if a fatal failure was recorded.
-            if let Some((failed_step, reason)) = layer_failed {
-                return self.fail_pipeline_internal(&failed_step, &reason);
-            }
+            // All layers processed without triggering a fallback restart.
+            break 'restart;
         }
 
         // 5 — All layers completed successfully.
@@ -464,6 +516,27 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
         Ok(())
     }
 
+    /// Updates the step row to `FallbackActive` with the failure `reason`.
+    ///
+    /// Called by [`activate_fallback`](Self::activate_fallback) to record that
+    /// the primary step was superseded by its designated fallback step.
+    fn set_step_fallback_active(
+        &self,
+        step_id: &StepId,
+        reason: &str,
+    ) -> Result<(), ExecutorError> {
+        let mut repo = self.repo.lock().unwrap_or_else(|e| e.into_inner());
+        repo.update_step(
+            &self.run.run_id,
+            step_id,
+            &StepRunStatus::FallbackActive,
+            None,
+            Some(reason),
+            None,
+        )?;
+        Ok(())
+    }
+
     /// Marks the run as `Failed`, persists state, and emits `PipelineFailed`.
     fn fail_pipeline_internal(
         &self,
@@ -511,25 +584,75 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
         Ok(())
     }
 
-    /// STORY-113 stub: marks the primary step as `Skipped`.
+    /// Activates the fallback step for `failed_step_id`.
     ///
-    /// Full fallback activation (finding the fallback step, injecting it into
-    /// the active layer, re-evaluating the graph) will be implemented in
-    /// STORY-113. Until then, treating Fallback like Skip is safe and avoids
-    /// infinite execution loops.
-    fn activate_fallback(&self, step_id: &StepId, reason: &str) -> Result<(), ExecutorError> {
+    /// Steps performed:
+    /// 1. Marks `failed_step_id` as [`StepRunStatus::FallbackActive`] in SQLite
+    ///    and inserts it into [`done_steps`](Self::done_steps).
+    /// 2. Emits [`RuntimeEvent::PipelineStepFailed`] for the original step.
+    /// 3. Finds the step declared with `fallback_for = failed_step_id`.
+    /// 4. Inserts the fallback step's ID into [`active_fallbacks`](Self::active_fallbacks)
+    ///    so the layer filter includes it on the next `'restart` pass.
+    ///
+    /// Returns `Some(fallback_step_id)` when a fallback is found and activated.
+    /// Returns `None` when no fallback is declared — in that case
+    /// [`fail_pipeline_internal`](Self::fail_pipeline_internal) has already
+    /// been called and the caller must propagate the terminal state via `return Ok(())`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExecutorError::Repository`] if a SQLite operation fails.
+    fn activate_fallback(
+        &mut self,
+        failed_step_id: &StepId,
+        reason: &str,
+    ) -> Result<Option<StepId>, ExecutorError> {
+        // 1. Mark the original step as FallbackActive.
+        self.set_step_fallback_active(failed_step_id, reason)?;
+        self.done_steps.insert(failed_step_id.clone());
+
+        // 2. Emit PipelineStepFailed for the original step.
+        let _ = self.event_bus.send(RuntimeEvent::PipelineStepFailed {
+            run_id: self.run.run_id.0.clone(),
+            step_id: failed_step_id.0.clone(),
+            reason: reason.to_string(),
+            on_failure: "fallback".into(),
+        });
         warn!(
             run_id = %self.run.run_id,
-            step_id = %step_id,
-            "fallback activation not yet implemented (STORY-113) — treating as skip",
+            step_id = %failed_step_id,
+            reason = reason,
+            "step failed — looking for fallback step",
         );
-        self.set_step_skipped(step_id, reason)?;
-        let _ = self.event_bus.send(RuntimeEvent::PipelineStepSkipped {
-            run_id: self.run.run_id.0.clone(),
-            step_id: step_id.0.clone(),
-            reason: format!("fallback stub: {reason}"),
-        });
-        Ok(())
+
+        // 3. Find the declared fallback step (fallback_for == failed_step_id).
+        let fallback_id = self
+            .definition
+            .steps
+            .iter()
+            .find(|s| s.fallback_for.as_ref() == Some(failed_step_id))
+            .map(|s| s.id.clone());
+
+        match fallback_id {
+            Some(fid) => {
+                // 4. Activate the fallback step so the layer filter includes it.
+                self.active_fallbacks.insert(fid.clone());
+                info!(
+                    run_id = %self.run.run_id,
+                    failed_step = %failed_step_id,
+                    fallback_step = %fid,
+                    "fallback step activated — restarting layer evaluation",
+                );
+                Ok(Some(fid))
+            }
+            None => {
+                // No fallback declared — fail the pipeline immediately (Principle #4).
+                let no_fallback_reason =
+                    format!("no fallback declared for step '{failed_step_id}'");
+                self.fail_pipeline_internal(failed_step_id, &no_fallback_reason)?;
+                Ok(None)
+            }
+        }
     }
 
     /// Returns the step definition matching `step_id`, or `None`.
@@ -1049,6 +1172,237 @@ mod tests {
         assert!(
             failed,
             "PipelineFailed with timeout reason should be emitted"
+        );
+    }
+
+    // ── STORY-113 AC-1: fallback activated on step failure ────────────────────
+
+    #[tokio::test]
+    async fn test_s113_ac1_fallback_activated_on_failure() {
+        // GIVEN — pipeline: ocr → validation (fails, on_failure=Fallback)
+        //                   ocr → validation-manuelle (fallback_for=validation)
+        //         notification depends on [validation] and uses {{steps.validation.output}}
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(128);
+
+        let ocr = make_step(
+            "ocr",
+            "ocr-agent",
+            "{{trigger.payload}}",
+            &[],
+            StepFailurePolicy::Fail,
+        );
+
+        let validation = PipelineStepDef {
+            id: StepId("validation".into()),
+            agent: "validation-agent".into(),
+            input: "{{steps.ocr.output}}".into(),
+            depends_on: vec![StepId("ocr".into())],
+            on_failure: StepFailurePolicy::Fallback,
+            condition: None,
+            fallback_for: None,
+        };
+        let validation_manuelle = PipelineStepDef {
+            id: StepId("validation-manuelle".into()),
+            agent: "validation-manuelle-agent".into(),
+            input: "Manual: {{steps.ocr.output}}".into(),
+            depends_on: vec![StepId("ocr".into())],
+            on_failure: StepFailurePolicy::Fail,
+            condition: None,
+            fallback_for: Some(StepId("validation".into())),
+        };
+        let notification = PipelineStepDef {
+            id: StepId("notification".into()),
+            agent: "notification-agent".into(),
+            input: "Result: {{steps.validation.output}}".into(),
+            depends_on: vec![StepId("validation".into())],
+            on_failure: StepFailurePolicy::Fail,
+            condition: None,
+            fallback_for: None,
+        };
+
+        let def = make_pipeline(vec![ocr, validation, validation_manuelle, notification]);
+        let run = make_run(&def);
+
+        let mock = MockSubmitter::new(tx.clone())
+            .with_success("ocr-agent", "ocr-output")
+            .with_failure("validation-agent")
+            .with_success("validation-manuelle-agent", "validé manuellement")
+            .with_success("notification-agent", "notified");
+        let submitted = mock.submitted.clone();
+
+        // WHEN
+        let result = make_executor(def, run, mock, tx.clone(), 500)
+            .execute()
+            .await;
+
+        // THEN — pipeline completes without an execution error
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+
+        // AND all four agents were submitted (validation-manuelle replaced validation)
+        let inputs = submitted.lock().unwrap().clone();
+        let agents: Vec<&str> = inputs.iter().map(|(a, _)| a.as_str()).collect();
+        assert!(agents.contains(&"ocr-agent"), "ocr-agent must be submitted");
+        assert!(
+            agents.contains(&"validation-agent"),
+            "validation-agent must be submitted (and fail)"
+        );
+        assert!(
+            agents.contains(&"validation-manuelle-agent"),
+            "validation-manuelle-agent must be submitted as fallback"
+        );
+        assert!(
+            agents.contains(&"notification-agent"),
+            "notification-agent must be submitted after fallback completes"
+        );
+
+        // AC-2 — notification received the fallback output via {{steps.validation.output}}
+        let notif_input = inputs
+            .iter()
+            .find(|(a, _)| a == "notification-agent")
+            .map(|(_, i)| i.as_str());
+        assert_eq!(
+            notif_input,
+            Some("Result: validé manuellement"),
+            "notification input must contain fallback output via {{steps.validation.output}}"
+        );
+
+        // AND PipelineCompleted (not PipelineFailed) was emitted
+        let mut events = Vec::new();
+        while let Ok(e) = rx.try_recv() {
+            events.push(e);
+        }
+        let completed = events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::PipelineCompleted { .. }));
+        let failed = events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::PipelineFailed { .. }));
+        assert!(completed, "PipelineCompleted should be emitted");
+        assert!(!failed, "PipelineFailed should NOT be emitted");
+    }
+
+    // ── STORY-113 AC-3: no fallback declared → pipeline fails ─────────────────
+
+    #[tokio::test]
+    async fn test_s113_ac3_no_fallback_declared_fails_pipeline() {
+        // GIVEN — pipeline [A, B(on_failure=Fallback)] without a fallback_for=B step
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(64);
+
+        let steps = vec![
+            make_step("A", "agent-a", "start", &[], StepFailurePolicy::Fail),
+            PipelineStepDef {
+                id: StepId("B".into()),
+                agent: "agent-b".into(),
+                input: "{{steps.A.output}}".into(),
+                depends_on: vec![StepId("A".into())],
+                on_failure: StepFailurePolicy::Fallback,
+                condition: None,
+                fallback_for: None,
+            },
+        ];
+        let def = make_pipeline(steps);
+        let run = make_run(&def);
+        let mock = MockSubmitter::new(tx.clone())
+            .with_success("agent-a", "a-ok")
+            .with_failure("agent-b");
+
+        // WHEN
+        let result = make_executor(def, run, mock, tx, 500).execute().await;
+
+        // THEN — execute returns Ok (pipeline failure is a terminal state, not an Err)
+        assert!(result.is_ok(), "execute must return Ok on pipeline failure");
+
+        // AND PipelineFailed was emitted with 'no fallback declared' reason
+        let mut events = Vec::new();
+        while let Ok(e) = rx.try_recv() {
+            events.push(e);
+        }
+        let failed_with_reason = events.iter().any(|e| {
+            matches!(
+                e,
+                RuntimeEvent::PipelineFailed { reason, .. }
+                if reason.contains("no fallback declared")
+            )
+        });
+        assert!(
+            failed_with_reason,
+            "PipelineFailed with 'no fallback declared' reason must be emitted"
+        );
+    }
+
+    // ── STORY-113 AC-4: FallbackActive status persisted in SQLite ────────────
+
+    #[tokio::test]
+    async fn test_s113_ac4_fallback_active_status_in_sqlite() {
+        // GIVEN — pipeline: ocr → validation (fails, Fallback)
+        //                   ocr → validation-manuelle (fallback_for=validation, succeeds)
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(64);
+
+        let steps = vec![
+            make_step("ocr", "ocr-agent", "input", &[], StepFailurePolicy::Fail),
+            PipelineStepDef {
+                id: StepId("validation".into()),
+                agent: "validation-agent".into(),
+                input: "{{steps.ocr.output}}".into(),
+                depends_on: vec![StepId("ocr".into())],
+                on_failure: StepFailurePolicy::Fallback,
+                condition: None,
+                fallback_for: None,
+            },
+            PipelineStepDef {
+                id: StepId("validation-manuelle".into()),
+                agent: "validation-manuelle-agent".into(),
+                input: "Manual".into(),
+                depends_on: vec![StepId("ocr".into())],
+                on_failure: StepFailurePolicy::Fail,
+                condition: None,
+                fallback_for: Some(StepId("validation".into())),
+            },
+        ];
+        let def = make_pipeline(steps);
+        let run = make_run(&def);
+        let repo = make_repo();
+        {
+            let mut r = repo.lock().unwrap();
+            r.insert_run(&run).unwrap();
+        }
+        let mock = MockSubmitter::new(tx.clone())
+            .with_success("ocr-agent", "ocr-done")
+            .with_failure("validation-agent")
+            .with_success("validation-manuelle-agent", "manuelle-done");
+
+        // WHEN
+        let executor = PipelineExecutor::new(def, run.clone(), mock, tx, Arc::clone(&repo))
+            .with_step_timeout(Duration::from_millis(500));
+        executor.execute().await.unwrap();
+
+        // THEN — "validation" step has FallbackActive status in SQLite
+        let r = repo.lock().unwrap();
+        let found_run = r.find_run(&run.run_id).unwrap().unwrap();
+
+        let validation_status = found_run
+            .step_runs
+            .get(&StepId("validation".into()))
+            .expect("validation step must exist in SQLite")
+            .status
+            .clone();
+        assert_eq!(
+            validation_status,
+            StepRunStatus::FallbackActive,
+            "validation step must have FallbackActive status"
+        );
+
+        // AND "validation-manuelle" step has Completed status
+        let fallback_status = found_run
+            .step_runs
+            .get(&StepId("validation-manuelle".into()))
+            .expect("validation-manuelle step must exist in SQLite")
+            .status
+            .clone();
+        assert_eq!(
+            fallback_status,
+            StepRunStatus::Completed,
+            "validation-manuelle step must have Completed status"
         );
     }
 
