@@ -144,6 +144,10 @@ pub enum RuntimeEvent {
         agent_id: AgentId,
         task_id: TaskId,
         success: bool,
+        /// Text output produced by the agent on success; `None` on failure or when the
+        /// backend does not carry output (legacy callers set this to `None`).
+        #[serde(default)]
+        output: Option<String>,
     },
     /// Une tâche a été annulée.
     TaskCanceled { task_id: TaskId },
@@ -373,6 +377,101 @@ pub enum RuntimeEvent {
         /// `true` si l'opérateur a approuvé, `false` si rejeté.
         approved: bool,
     },
+
+    // ── Pipeline events (Sprint 12 — STORY-116) ──────────────────────────
+    /// Un run de pipeline a démarré — émis par `PipelineExecutor::execute()`.
+    PipelineStarted {
+        /// Identifiant unique du run (e.g. `"r-0017"`).
+        run_id: String,
+        /// Identifiant du pipeline déclaré dans `apollia.toml`.
+        pipeline_id: String,
+        /// Trigger qui a lancé le run; `None` si démarré manuellement.
+        trigger_id: Option<String>,
+        /// Nombre de steps dans la définition du pipeline.
+        step_count: usize,
+    },
+
+    /// Un step a été soumis au TaskRouter et est en cours d'exécution.
+    PipelineStepStarted {
+        /// Identifiant du run parent.
+        run_id: String,
+        /// Identifiant du step (tel que déclaré dans `[[pipelines.steps]]`).
+        step_id: String,
+        /// Tâche soumise au TaskRouter pour ce step.
+        task_id: String,
+        /// Nom de l'agent cible.
+        agent: String,
+    },
+
+    /// Un step s'est terminé avec succès.
+    PipelineStepCompleted {
+        /// Identifiant du run parent.
+        run_id: String,
+        /// Identifiant du step complété.
+        step_id: String,
+    },
+
+    /// Un step a échoué ; la politique `on_failure` a été appliquée.
+    PipelineStepFailed {
+        /// Identifiant du run parent.
+        run_id: String,
+        /// Identifiant du step qui a échoué.
+        step_id: String,
+        /// Raison de l'échec.
+        reason: String,
+        /// Politique appliquée : `"skip"`, `"fallback"` ou `"fail"`.
+        on_failure: String,
+    },
+
+    /// Un step a été sauté (condition=false ou on_failure=skip).
+    PipelineStepSkipped {
+        /// Identifiant du run parent.
+        run_id: String,
+        /// Identifiant du step sauté.
+        step_id: String,
+        /// Raison du skip (e.g. `"condition=false"`, `"on_failure=skip"`).
+        reason: String,
+    },
+
+    /// Le pipeline est suspendu en attente d'une approbation HITL (STORY-114).
+    PipelineSuspended {
+        /// Identifiant du run suspendu.
+        run_id: String,
+        /// Step en attente d'approbation.
+        step_id: String,
+        /// Tâche en `input_required`.
+        task_id: String,
+    },
+
+    /// Le pipeline a repris après une approbation HITL (STORY-114).
+    PipelineResumed {
+        /// Identifiant du run repris.
+        run_id: String,
+        /// Step qui a été approuvé.
+        step_id: String,
+    },
+
+    /// Tous les steps ont complété ou été skippés — pipeline terminé avec succès.
+    PipelineCompleted {
+        /// Identifiant du run.
+        run_id: String,
+        /// Identifiant du pipeline.
+        pipeline_id: String,
+        /// Durée totale du run en millisecondes.
+        duration_ms: u64,
+    },
+
+    /// Le pipeline a échoué suite à un step avec `on_failure=fail`.
+    PipelineFailed {
+        /// Identifiant du run.
+        run_id: String,
+        /// Identifiant du pipeline.
+        pipeline_id: String,
+        /// Step qui a causé l'échec.
+        step_id: String,
+        /// Raison de l'échec.
+        reason: String,
+    },
 }
 
 #[cfg(test)]
@@ -399,6 +498,7 @@ mod tests {
                 agent_id: "agent-1".into(),
                 task_id: "task-1".into(),
                 success: true,
+                output: None,
             },
             RuntimeEvent::TaskCanceled {
                 task_id: "task-1".into(),
@@ -515,6 +615,54 @@ mod tests {
             RuntimeEvent::TaskResumed {
                 task_id: "task-1".into(),
                 approved: true,
+            },
+            // ── Pipeline (Sprint 12) ──────────────────────────────────────
+            RuntimeEvent::PipelineStarted {
+                run_id: "r-0001".into(),
+                pipeline_id: "traitement-facture".into(),
+                trigger_id: None,
+                step_count: 3,
+            },
+            RuntimeEvent::PipelineStepStarted {
+                run_id: "r-0001".into(),
+                step_id: "ocr".into(),
+                task_id: "t-0001".into(),
+                agent: "ocr-agent".into(),
+            },
+            RuntimeEvent::PipelineStepCompleted {
+                run_id: "r-0001".into(),
+                step_id: "ocr".into(),
+            },
+            RuntimeEvent::PipelineStepFailed {
+                run_id: "r-0001".into(),
+                step_id: "validation".into(),
+                reason: "timeout".into(),
+                on_failure: "fail".into(),
+            },
+            RuntimeEvent::PipelineStepSkipped {
+                run_id: "r-0001".into(),
+                step_id: "archivage".into(),
+                reason: "on_failure=skip".into(),
+            },
+            RuntimeEvent::PipelineSuspended {
+                run_id: "r-0001".into(),
+                step_id: "comptabilite".into(),
+                task_id: "t-0051".into(),
+            },
+            RuntimeEvent::PipelineResumed {
+                run_id: "r-0001".into(),
+                step_id: "comptabilite".into(),
+            },
+            RuntimeEvent::PipelineCompleted {
+                run_id: "r-0001".into(),
+                pipeline_id: "traitement-facture".into(),
+                duration_ms: 9400,
+            },
+            RuntimeEvent::PipelineFailed {
+                run_id: "r-0001".into(),
+                pipeline_id: "traitement-facture".into(),
+                step_id: "validation".into(),
+                reason: "timeout".into(),
             },
         ];
 

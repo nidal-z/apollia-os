@@ -521,6 +521,7 @@ mod tests {
             agent_id: "agent-1".into(),
             task_id: "t-001".into(),
             success: true,
+            output: None,
         };
 
         // WHEN on le convertit
@@ -555,6 +556,7 @@ mod tests {
             agent_id: "agent-1".into(),
             task_id: "t-001".into(),
             success: false,
+            output: None,
         };
 
         // WHEN on le convertit

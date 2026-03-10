@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use apollia_core::{AIPResult, AIPTask, AgentId, RuntimeEvent, TaskId};
+use apollia_core::{AIPPart, AIPResult, AIPTask, AgentId, RuntimeEvent, TaskId};
 use tokio::sync::Semaphore;
 
 use crate::eventbus::EventBusSender;
@@ -97,12 +97,14 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
             // Executer via le backend
             let result = backend.execute(task).await;
 
-            // Emettre TaskCompleted (succes ou echec)
+            // Emettre TaskCompleted (succes ou echec) avec l'output textuel si disponible.
             let is_success = result.is_ok();
+            let output = result.as_ref().ok().map(aip_result_to_text);
             let _ = event_bus.send(RuntimeEvent::TaskCompleted {
                 agent_id,
                 task_id,
                 success: is_success,
+                output,
             });
 
             result.map_err(CoordinatorError::ExecutionFailed)
@@ -115,6 +117,25 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
     pub fn available_permits(&self) -> usize {
         self.concurrency.available_permits()
     }
+}
+
+/// Concatenates the text parts of an [`AIPResult`] into a single `String`.
+///
+/// Only [`AIPPart::Text`] parts contribute; file and data parts are ignored.
+/// Returns an empty string when the result contains no text parts.
+fn aip_result_to_text(result: &AIPResult) -> String {
+    result
+        .output
+        .iter()
+        .filter_map(|part| {
+            if let AIPPart::Text(tp) = part {
+                Some(tp.text.as_str())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[cfg(test)]
@@ -311,7 +332,7 @@ mod tests {
         let _started = rx.recv().await.expect("should receive TaskStarted");
         let completed = rx.recv().await.expect("should receive TaskCompleted");
         assert!(
-            matches!(&completed, RuntimeEvent::TaskCompleted { agent_id, task_id, success }
+            matches!(&completed, RuntimeEvent::TaskCompleted { agent_id, task_id, success, .. }
                 if agent_id == "agent-1" && task_id == "task-99" && *success),
             "expected TaskCompleted with success=true, got: {completed:?}"
         );

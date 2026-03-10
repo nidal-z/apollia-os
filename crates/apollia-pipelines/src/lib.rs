@@ -5,14 +5,15 @@
 //! - [`repository`] — synchronous SQLite repository for pipeline runs and step runs.
 //! - [`template`] — `TemplateContext` and `render()` for `{{steps.x.output}}` interpolation.
 //! - [`topo`] — `topological_layers()` for parallel step scheduling via Kahn's BFS.
-//!
-//! Future stories will add the executor and engine actor.
+//! - [`executor`] — `PipelineExecutor` with sequential and fan-out step execution.
 
+pub mod executor;
 pub mod repository;
 pub mod template;
 pub mod topo;
 pub mod types;
 
+pub use executor::{ExecutorError, PipelineExecutor, StepResult, TaskSubmitter};
 pub use repository::{PipelineRepository, PipelineRepositoryError};
 pub use template::TemplateContext;
 pub use topo::{topological_layers, TopologicalError};

@@ -326,11 +326,14 @@ name = "apollia-pipelines"
 version = "0.1.0"
 dependencies = [
  "apollia-core",
+ "async-trait",
  "chrono",
+ "futures",
  "rusqlite",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
  "uuid 1.21.0",
 ]

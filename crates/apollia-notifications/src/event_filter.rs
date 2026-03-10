@@ -43,6 +43,7 @@ pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
             agent_id,
             task_id,
             success: false,
+            ..
         } => Some(Notification {
             event: "task.failed".into(),
             timestamp: Utc::now(),
@@ -57,6 +58,7 @@ pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
             agent_id,
             task_id,
             success: true,
+            ..
         } => Some(Notification {
             event: "task.completed".into(),
             timestamp: Utc::now(),
@@ -141,6 +143,7 @@ mod tests {
             agent_id: AgentId::from("devis-agent"),
             task_id: TaskId::from("t-002"),
             success: false,
+            output: None,
         };
         // WHEN
         let notif = map_event(&event).expect("doit retourner Some");
@@ -175,6 +178,7 @@ mod tests {
             agent_id: AgentId::from("hello-agent"),
             task_id: TaskId::from("t-003"),
             success: true,
+            output: None,
         };
         // WHEN
         let notif = map_event(&event).expect("doit retourner Some");

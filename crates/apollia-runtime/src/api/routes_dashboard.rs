@@ -964,6 +964,7 @@ mod tests {
             task_id: "t-001".into(),
             agent_id: "agent-1".into(),
             success: true,
+            output: None,
         });
 
         // THEN two events: tasks + agents
