@@ -17,3 +17,4 @@ rusqlite     = { workspace = true }
 tokio        = { workspace = true, features = ["time"] }
 futures      = { workspace = true }
 async-trait  = { workspace = true }
+regex        = { workspace = true }

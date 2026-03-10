@@ -6,13 +6,16 @@
 //! - [`template`] — `TemplateContext` and `render()` for `{{steps.x.output}}` interpolation.
 //! - [`topo`] — `topological_layers()` for parallel step scheduling via Kahn's BFS.
 //! - [`executor`] — `PipelineExecutor` with sequential and fan-out step execution.
+//! - [`condition`] — `evaluate_condition()` for the 5 step condition operators.
 
+pub mod condition;
 pub mod executor;
 pub mod repository;
 pub mod template;
 pub mod topo;
 pub mod types;
 
+pub use condition::evaluate_condition;
 pub use executor::{ExecutorError, PipelineExecutor, StepResult, TaskSubmitter};
 pub use repository::{PipelineRepository, PipelineRepositoryError};
 pub use template::TemplateContext;

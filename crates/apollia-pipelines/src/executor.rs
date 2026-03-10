@@ -235,6 +235,29 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                     Some(d) => d.clone(),
                     None => continue,
                 };
+
+                // Evaluate condition before submitting the step (STORY-112).
+                // A false condition skips the step without blocking downstream.
+                if let Some(cond) = &step_def.condition {
+                    if !crate::condition::evaluate_condition(cond, &self.template_ctx) {
+                        self.set_step_skipped(step_id, "condition=false")?;
+                        // Insert empty output so downstream templates resolve cleanly.
+                        self.template_ctx
+                            .insert_step_output(step_id.clone(), String::new());
+                        let _ = self.event_bus.send(RuntimeEvent::PipelineStepSkipped {
+                            run_id: self.run.run_id.0.clone(),
+                            step_id: step_id.0.clone(),
+                            reason: "condition=false".into(),
+                        });
+                        info!(
+                            run_id = %self.run.run_id,
+                            step_id = %step_id,
+                            "step skipped (condition=false)",
+                        );
+                        continue;
+                    }
+                }
+
                 let input = self.template_ctx.render(&step_def.input);
 
                 // Subscribe BEFORE submit (subscribe-before-submit invariant).
