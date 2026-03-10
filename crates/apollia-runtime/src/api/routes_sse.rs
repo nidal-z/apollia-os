@@ -448,6 +448,7 @@ mod tests {
             task_repository: None,
             pending_approvals: None,
             notification_config: None,
+            pipeline_engine: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))

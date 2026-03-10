@@ -19,6 +19,9 @@ use tracing::{error, info, warn};
 use apollia_core::RuntimeEvent;
 use apollia_llm::{LlmConfig, LlmRouter};
 use apollia_notifications::{build_channels, NotificationConfig, NotificationEngine};
+use apollia_pipelines::{
+    PipelineDefinition, PipelineEngine, PipelineEngineHandle, PipelineRepository,
+};
 use apollia_tools::ToolRegistryHandle;
 use apollia_triggers::{TriggerDefinition, TriggerEngineHandle};
 
@@ -88,6 +91,15 @@ pub struct SupervisorConfig {
     /// `Some` → `build_channels()` est appelé et le moteur est spawné en position 9
     /// du Supervisor. Un crash du moteur n'affecte pas le runtime (tâche détachée).
     pub notifications: Option<NotificationConfig>,
+    /// Définitions de pipelines parsées depuis `[[pipelines]]` dans `apollia.toml`.
+    ///
+    /// Un `Vec` vide (ou absent) → `PipelineEngine` non démarré, `AppState.pipeline_engine == None`.
+    /// Peuplé par `apollia-cli` depuis `ApolliaConfig.pipelines` (STORY-118).
+    pub pipelines: Vec<PipelineDefinition>,
+    /// Répertoire de données du runtime (ex: `~/.apollia/`).
+    ///
+    /// Utilisé pour localiser `pipelines.db`. Doit exister et être accessible en écriture.
+    pub data_dir: std::path::PathBuf,
 }
 
 /// Handles returned after successful startup.
@@ -114,6 +126,11 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// Always `Some` after successful startup — even when `config.triggers` is empty
     /// (AC-3). Injected into `AppState` so webhook routes and CLI commands can reach it.
     pub trigger_engine: TriggerEngineHandle,
+    /// Handle to the PipelineEngine actor (STORY-119).
+    ///
+    /// `None` when `config.pipelines` is empty — the runtime starts normally without
+    /// pipeline support (AC-3). `Some` when at least one pipeline is defined.
+    pub pipeline_engine: Option<PipelineEngineHandle>,
 }
 
 /// Supervisor errors.
@@ -302,7 +319,49 @@ impl Supervisor {
             count: enabled_count,
         });
 
-        // Phase 7 (pos 8): APIServer
+        // Phase 7 (pos 8): PipelineEngine (si pipelines définis)
+        //
+        // NOTE(STORY-119): PipelineEngine démarre APRÈS TaskRouter (et non en position 8
+        // théorique de la spec) pour résoudre la dépendance circulaire :
+        // PipelineEngine → TaskSubmitter → TaskRouterHandle.
+        // Décision documentée dans les Notes de la story.
+        let pipeline_engine: Option<PipelineEngineHandle> = if self.config.pipelines.is_empty() {
+            info!("Supervisor: no [[pipelines]] defined — PipelineEngine not started");
+            None
+        } else {
+            info!("Supervisor: starting PipelineEngine");
+            let db_path = self.config.data_dir.join("pipelines.db");
+            let db_path_str = db_path.to_string_lossy().into_owned();
+            let mut repo = PipelineRepository::open(&db_path_str).map_err(|e| {
+                SupervisorError::ActorStartFailed {
+                    actor: "pipeline_engine".to_string(),
+                    reason: format!("failed to open pipelines.db: {e}"),
+                }
+            })?;
+            repo.migrate()
+                .map_err(|e| SupervisorError::ActorStartFailed {
+                    actor: "pipeline_engine".to_string(),
+                    reason: format!("pipeline migration failed: {e}"),
+                })?;
+            let repo = std::sync::Arc::new(std::sync::Mutex::new(repo));
+            let submitter: std::sync::Arc<dyn apollia_pipelines::TaskSubmitter> =
+                std::sync::Arc::new(router_handle.clone());
+            let handle = PipelineEngine::spawn(
+                self.config.pipelines.clone(),
+                repo,
+                submitter,
+                event_sender.clone(),
+            );
+            let pipeline_count = self.config.pipelines.len();
+            tracing::info!(
+                count = pipeline_count,
+                "✔ PipelineEngine — {} pipeline(s) chargé(s)",
+                pipeline_count
+            );
+            Some(handle)
+        };
+
+        // Phase 8 (pos 9): APIServer
         info!("Supervisor: starting APIServer");
         // Extract task_repository before moving state into APIServer (needed for TimeoutWatcher).
         let task_repository: Option<std::sync::Arc<apollia_tools::TaskRepository>> = None;
@@ -318,13 +377,17 @@ impl Supervisor {
             task_repository: task_repository.clone(),
             pending_approvals: None,
             notification_config: None,
+            pipeline_engine: pipeline_engine.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
         let api_handle = match tokio::time::timeout(timeout, api_server.start()).await {
             Ok(Ok(handle)) => handle,
             Ok(Err(api_err)) => {
-                // Rollback: stop actors in reverse order (TriggerEngine → TaskRouter → …)
+                // Rollback: stop actors in reverse order (PipelineEngine → TriggerEngine → TaskRouter → …)
+                if let Some(ref pe) = pipeline_engine {
+                    pe.shutdown().await;
+                }
                 trigger_engine.shutdown().await;
                 router_handle.shutdown();
                 tool_registry_handle.shutdown().await;
@@ -332,6 +395,9 @@ impl Supervisor {
                 return Err(SupervisorError::from(api_err));
             }
             Err(_elapsed) => {
+                if let Some(ref pe) = pipeline_engine {
+                    pe.shutdown().await;
+                }
                 trigger_engine.shutdown().await;
                 router_handle.shutdown();
                 tool_registry_handle.shutdown().await;
@@ -390,6 +456,7 @@ impl Supervisor {
             api_handle,
             llm_router,
             trigger_engine,
+            pipeline_engine,
         })
     }
 }
@@ -568,6 +635,8 @@ mod tests {
             config_path: None,
             input_required_timeout_hours: 24,
             notifications: None,
+            pipelines: vec![],
+            data_dir: std::env::temp_dir(),
         }
     }
 
@@ -718,6 +787,8 @@ mod tests {
             config_path: None,
             input_required_timeout_hours: 24,
             notifications: None,
+            pipelines: vec![],
+            data_dir: std::env::temp_dir(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -854,6 +925,8 @@ mod tests {
             config_path: None,
             input_required_timeout_hours: 24,
             notifications: None,
+            pipelines: vec![],
+            data_dir: std::env::temp_dir(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -905,6 +978,7 @@ mod tests {
             task_repository: None,
             pending_approvals: None,
             notification_config: None,
+            pipeline_engine: None,
         };
 
         // WHEN on clone l'AppState
@@ -934,6 +1008,8 @@ mod tests {
             config_path: None,
             input_required_timeout_hours: 24,
             notifications: None,
+            pipelines: vec![],
+            data_dir: std::env::temp_dir(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -982,6 +1058,8 @@ mod tests {
             config_path: None,
             input_required_timeout_hours: 24,
             notifications: None,
+            pipelines: vec![],
+            data_dir: std::env::temp_dir(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -1042,6 +1120,8 @@ mod tests {
             config_path: None,
             input_required_timeout_hours: 24,
             notifications: None,
+            pipelines: vec![],
+            data_dir: std::env::temp_dir(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -1063,6 +1143,58 @@ mod tests {
             trigger_list
         );
         assert_eq!(trigger_list[0].id, "test-trigger");
+
+        // Cleanup
+        handles.trigger_engine.shutdown().await;
+        handles.api_handle.shutdown();
+        handles.router_handle.shutdown();
+        handles.tool_registry_handle.shutdown().await;
+        handles.registry_handle.shutdown();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    // AC-3 (STORY-119) — Aucun pipeline défini → PipelineEngine non démarré, pas d'erreur
+    #[tokio::test]
+    async fn test_ac3_no_pipelines_no_engine() {
+        // GIVEN une config sans section [[pipelines]]
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let config = SupervisorConfig {
+            api_config: APIServerConfig {
+                socket_path: socket_path.clone(),
+                tcp_port: port,
+            },
+            startup_timeout_secs: 10,
+            llm_config: None,
+            triggers: vec![],
+            config_path: None,
+            input_required_timeout_hours: 24,
+            notifications: None,
+            pipelines: vec![],
+            data_dir: std::env::temp_dir(),
+        };
+        let supervisor = Supervisor::new(config);
+
+        // WHEN start() est appelé
+        let result = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+            )
+            .await;
+
+        // THEN le démarrage réussit et pipeline_engine est None
+        assert!(
+            result.is_ok(),
+            "démarrage sans pipelines doit réussir, erreur: {:?}",
+            result.err()
+        );
+        let handles = result.unwrap();
+        assert!(
+            handles.pipeline_engine.is_none(),
+            "pipeline_engine doit être None quand aucun pipeline n'est défini"
+        );
 
         // Cleanup
         handles.trigger_engine.shutdown().await;

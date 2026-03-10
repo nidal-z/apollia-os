@@ -441,6 +441,7 @@ mod tests {
             task_repository: None,
             pending_approvals: None,
             notification_config: None,
+            pipeline_engine: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -566,6 +567,7 @@ mod tests {
             task_repository: None,
             pending_approvals: None,
             notification_config: None,
+            pipeline_engine: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -644,6 +646,7 @@ mod tests {
             task_repository: None,
             pending_approvals: None,
             notification_config: None,
+            pipeline_engine: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -828,6 +831,7 @@ mod tests {
             task_repository: None,
             pending_approvals: None,
             notification_config: None,
+            pipeline_engine: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

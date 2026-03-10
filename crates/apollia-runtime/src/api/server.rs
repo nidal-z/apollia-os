@@ -22,6 +22,7 @@ use tracing::info;
 use apollia_core::PendingApprovals;
 use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationConfig;
+use apollia_pipelines::PipelineEngineHandle;
 use apollia_tools::TaskRepository;
 use apollia_triggers::TriggerEngineHandle;
 
@@ -78,6 +79,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `POST /api/v1/notifications/test` (STORY-104).
     /// `None` si aucune section `[notifications]` n'est présente dans la config.
     pub notification_config: Option<NotificationConfig>,
+    /// Handle vers le `PipelineEngine` actor (STORY-119).
+    ///
+    /// `None` quand aucun `[[pipelines]]` n'est déclaré dans `apollia.toml`.
+    /// Les routes REST pipelines (STORY-120) retournent 503 quand `None`.
+    pub pipeline_engine: Option<PipelineEngineHandle>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -94,6 +100,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             task_repository: self.task_repository.clone(),
             pending_approvals: self.pending_approvals.clone(),
             notification_config: self.notification_config.clone(),
+            pipeline_engine: self.pipeline_engine.clone(),
         }
     }
 }
@@ -420,6 +427,7 @@ mod tests {
             task_repository: None,
             pending_approvals: None,
             notification_config: None,
+            pipeline_engine: None,
         }
     }
 

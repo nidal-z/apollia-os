@@ -497,7 +497,10 @@ mod tests {
             TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 64);
 
         let trigger_engine = if with_engine {
-            Some(TriggerEngineHandle::spawn(vec![], MockSubmitter, event_tx.clone(), None, None).await)
+            Some(
+                TriggerEngineHandle::spawn(vec![], MockSubmitter, event_tx.clone(), None, None)
+                    .await,
+            )
         } else {
             None
         };
@@ -514,6 +517,7 @@ mod tests {
             task_repository: None,
             pending_approvals: None,
             notification_config: None,
+            pipeline_engine: None,
         }
     }
 

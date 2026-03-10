@@ -384,6 +384,35 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
 use std::future::Future;
 use std::pin::Pin;
 
+use apollia_core::{AIPPart, TextPart};
+
+/// Implémentation de `apollia_pipelines::TaskSubmitter` pour `TaskRouterHandle<B>`.
+///
+/// Permet au `PipelineEngine` de soumettre des tâches au `TaskRouter` sans
+/// dépendance directe (pattern ADR-015/016). L'entrée `&str` est encapsulée
+/// dans un `AIPInput` à `TextPart` unique avant transmission au routeur.
+#[async_trait::async_trait]
+impl<B> apollia_pipelines::TaskSubmitter for TaskRouterHandle<B>
+where
+    B: ExecutionBackend + Clone + Send + Sync + 'static,
+{
+    async fn submit_task(
+        &self,
+        agent: &str,
+        input: &str,
+    ) -> Result<String, apollia_pipelines::ExecutorError> {
+        let aip_input = AIPInput {
+            parts: vec![AIPPart::Text(TextPart {
+                text: input.to_owned(),
+            })],
+        };
+        TaskRouterHandle::submit(self, agent, aip_input)
+            .await
+            .map(|task_id| task_id.to_string())
+            .map_err(|e| apollia_pipelines::ExecutorError::TaskRouterUnavailable(e.to_string()))
+    }
+}
+
 /// Implémentation du trait `TaskSubmitter` pour `TaskRouterHandle<B>`.
 ///
 /// Permet au `TriggerEngine` de soumettre des tâches au `TaskRouter` sans

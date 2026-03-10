@@ -444,6 +444,7 @@ mod tests {
             task_repository: None,
             pending_approvals: None,
             notification_config: None,
+            pipeline_engine: None,
         };
         let router = Router::new()
             .route(
