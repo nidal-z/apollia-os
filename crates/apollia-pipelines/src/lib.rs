@@ -4,15 +4,18 @@
 //! - [`types`] — `PipelineDefinition`, `PipelineRun`, `StepRun` and related enums.
 //! - [`repository`] — synchronous SQLite repository for pipeline runs and step runs.
 //! - [`template`] — `TemplateContext` and `render()` for `{{steps.x.output}}` interpolation.
+//! - [`topo`] — `topological_layers()` for parallel step scheduling via Kahn's BFS.
 //!
-//! Future stories will add the topological sorter, executor, and engine actor.
+//! Future stories will add the executor and engine actor.
 
 pub mod repository;
 pub mod template;
+pub mod topo;
 pub mod types;
 
 pub use repository::{PipelineRepository, PipelineRepositoryError};
 pub use template::TemplateContext;
+pub use topo::{topological_layers, TopologicalError};
 pub use types::{
     ConditionKind, GlobalFailurePolicy, PipelineDefinition, PipelineId, PipelineRun,
     PipelineStatus, PipelineStepDef, RunId, StepCondition, StepFailurePolicy, StepId, StepRun,
