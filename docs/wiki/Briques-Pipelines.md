@@ -171,14 +171,15 @@ Nouveaux variants `RuntimeEvent` ajoutés dans `apollia-core` (STORY-116) :
 
 | Événement | Émis par | Données |
 |---|---|---|
-| `PipelineStarted { pipeline_id, run_id }` | PipelineEngine | Identifiants |
-| `PipelineStepStarted { run_id, step_id, task_id }` | PipelineExecutor | Step soumis |
-| `PipelineStepCompleted { run_id, step_id, output }` | PipelineExecutor | Output du step |
-| `PipelineStepFailed { run_id, step_id, reason }` | PipelineExecutor | Raison d'échec |
+| `PipelineStarted { run_id, pipeline_id, trigger_id, step_count }` | PipelineEngine | Identifiants + nb steps |
+| `PipelineStepStarted { run_id, step_id, task_id, agent }` | PipelineExecutor | Step soumis + agent cible |
+| `PipelineStepCompleted { run_id, step_id }` | PipelineExecutor | Step terminé |
+| `PipelineStepFailed { run_id, step_id, reason, on_failure }` | PipelineExecutor | Raison + politique appliquée |
+| `PipelineStepSkipped { run_id, step_id, reason }` | PipelineExecutor | Raison du skip |
 | `PipelineSuspended { run_id, step_id, task_id }` | PipelineExecutor | HITL en attente |
 | `PipelineResumed { run_id, step_id }` | PipelineExecutor | Après approbation |
-| `PipelineCompleted { run_id }` | PipelineExecutor | Fin réussie |
-| `PipelineFailed { run_id, step_id, reason }` | PipelineExecutor | Fin en erreur |
+| `PipelineCompleted { run_id, pipeline_id, duration_ms }` | PipelineExecutor | Fin réussie + durée |
+| `PipelineFailed { run_id, pipeline_id, step_id, reason }` | PipelineExecutor | Fin en erreur |
 
 ---
 
@@ -364,15 +365,18 @@ $ apollia-os pipeline list
 $ apollia-os pipeline run traitement-facture --input "facture.pdf"
   ✔ Pipeline run démarré : r-3f7a2b9c
 
-# Suivre un run en temps réel (SSE)
-$ apollia-os pipeline run traitement-facture --input "facture.pdf" --follow
-  [10:01:32] ▶ Step "ocr"           → RUNNING   (agent: ocr-agent, task: t-0021)
-  [10:01:45] ✔ Step "ocr"           → COMPLETED (13.2s)
-  [10:01:45] ▶ Step "validation"    → RUNNING   (agent: validation-agent, task: t-0022)
-  [10:01:47] ✔ Step "validation"    → COMPLETED (1.8s)
-  [10:01:47] ▶ Step "comptabilite"  → RUNNING   (agent: compta-agent, task: t-0023)
-  [10:01:48] ⏸ Step "comptabilite"  → WAITING_APPROVAL (HITL)
-             → apollia-os task resume t-0023 --approve
+# Déclencher et suivre la progression (polling par défaut — --detach pour fire-and-forget)
+$ apollia-os pipeline run traitement-facture --input "facture.pdf"
+  [10:01:32]  ⟿ [ocr] running
+  [10:01:45]  ✔ [ocr] completed
+  [10:01:45]  ⟿ [validation] running
+  [10:01:47]  ✔ [validation] completed
+  [10:01:47]  ⟿ [comptabilite] running
+  [10:01:48]  ⏸ [comptabilite] waiting_approval
+
+# Déclencher sans attendre la fin (fire-and-forget)
+$ apollia-os pipeline run traitement-facture --input "facture.pdf" --detach
+  ● traitement-facture › démarré (run r-3f7a2b9c)
 
 # Voir l'historique des runs
 $ apollia-os pipeline runs traitement-facture
@@ -469,4 +473,4 @@ while let Some(result) = futures.next().await {
 - [Briques Notifications](./Briques-Notifications) — canal `pipeline.suspended`
 - [Briques Runtime Core](./Briques-Runtime-Core) — acteur `PipelineEngine` dans le Supervisor
 - [Architecture Modèle Acteur](./Architecture-Modele-Acteur) — pattern Handle + mpsc
-- [ADR-025](../adr/ADR-025-apollia-pipelines-toml-declaratif.md) — décision architecture pipelines
+- [ADR-025](../adr/ADR-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md) — décision architecture pipelines

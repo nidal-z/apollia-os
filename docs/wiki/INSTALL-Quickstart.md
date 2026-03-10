@@ -1,7 +1,9 @@
 # Installation Quickstart — Apollia OS
 
-> Démarrer en moins de 10 minutes sur Linux ou macOS.
+> Démarrer Apollia OS rapidement sur Linux ou macOS.
 > Public cible : développeur qui veut tester Apollia OS rapidement
+>
+> Première compilation : 5–10 min sur Linux, 15–25 min sur macOS (compilation Rust + dépendances).
 
 ---
 
@@ -42,22 +44,32 @@ cargo install --path crates/apollia-cli
 
 ## Configuration macOS uniquement (PyO3)
 
+PyO3 doit localiser l'interpréteur Python avant de compiler. Sans cette variable, la compilation
+échoue avec une erreur `python3 not found` ou lie la mauvaise version.
+
 ```bash
-export PYO3_PYTHON=/opt/homebrew/bin/python3.13
+export PYO3_PYTHON=$(brew --prefix python@3.13)/bin/python3.13
 cargo build --workspace --release
 ```
 
-Ajouter `export PYO3_PYTHON=...` dans `~/.zshrc` pour le rendre permanent.
+Ajouter cette ligne dans `~/.zshrc` pour la rendre permanente :
+
+```bash
+echo 'export PYO3_PYTHON=$(brew --prefix python@3.13)/bin/python3.13' >> ~/.zshrc
+```
 
 ---
 
-## Test rapide (5 minutes)
+## Test rapide
+
+Le fichier `agents/hello_agent.py` est inclus dans le dépôt cloné. Après `git clone`, le chemin
+relatif `agents/hello_agent.py` est disponible depuis la racine du dépôt.
 
 ```bash
 # 1. Démarrer le runtime
 apollia-os start
 
-# 2. Déployer l'agent de demo
+# 2. Déployer l'agent de demo (inclus dans le dépôt cloné)
 apollia-os agent start agents/hello_agent.py
 
 # 3. Envoyer une tâche

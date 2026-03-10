@@ -412,17 +412,20 @@ $ apollia-os pipeline list
 $ apollia-os pipeline run traitement-facture --input "facture-acme.pdf"
   ✔ Pipeline run démarré : r-3f7a2b9c
 
-# Déclencher et suivre en temps réel (SSE)
-$ apollia-os pipeline run traitement-facture --input "facture-acme.pdf" --follow
-  [10:01:32] ▶ Step "ocr"           → RUNNING   (agent: ocr-agent, task: t-0021)
-  [10:01:45] ✔ Step "ocr"           → COMPLETED (13.2s)
-  [10:01:45] ▶ Step "validation"    → RUNNING   (agent: validation-agent, task: t-0022)
-  [10:01:47] ✔ Step "validation"    → COMPLETED (1.8s)
-  [10:01:47] ▶ Step "comptabilite"  → RUNNING   (agent: compta-agent, task: t-0023)
-  [10:01:48] ⏸ Step "comptabilite"  → WAITING_APPROVAL (HITL)
-             → apollia-os task resume t-0023 --approve
-  [10:02:01] ✔ Step "comptabilite"  → COMPLETED (13.0s)
-  [10:02:55] ✔ Pipeline traitement-facture/r-3f7a2b9c terminé en 1m23s
+# Déclencher et suivre la progression (polling par défaut)
+$ apollia-os pipeline run traitement-facture --input "facture-acme.pdf"
+  ⟿ [ocr] running
+  ✔ [ocr] completed
+  ⟿ [validation] running
+  ✔ [validation] completed
+  ⟿ [comptabilite] running
+  ⏸ [comptabilite] waiting_approval
+
+  ✔ Pipeline terminé en 1m23s — 4/4 steps (0 skipped)
+
+# Déclencher sans attendre la fin (fire-and-forget)
+$ apollia-os pipeline run traitement-facture --input "facture-acme.pdf" --detach
+  ● traitement-facture › démarré (run r-3f7a2b9c)
 
 # Voir l'historique des runs d'un pipeline
 $ apollia-os pipeline runs traitement-facture

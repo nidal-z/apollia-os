@@ -1,0 +1,118 @@
+@startuml seq-aip-bridge
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 11
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+skinparam SequenceGroupBorderColor #888888
+
+title Séquence — AIP Bridge (Rust ↔ Python) — Apollia OS
+
+participant "ORIAEngine\n(Rust)" as oria #1a1a2e/e0e0ff
+participant "AIPBridge\n(Rust + PyO3)" as bridge #1a1a2e/e0e0ff
+participant "spawn_blocking\n(Tokio thread pool)" as spawn #2a3a4a/cce5ff
+participant "Python GIL\n(PyO3 with_gil)" as pyo3 #2d4a22/d4edda
+participant "asyncio.run()\n(Python stdlib)" as asyncio #2d4a22/d4edda
+participant "agent.run()\n(Agent Python)" as agent #2d4a22/d4edda
+
+== Initialisation (AIPBridge::new) ==
+
+oria -> bridge : AIPBridge::new(validated_agent)
+note right : ValidatedAgent contient Py<PyAny>\nhas_on_start / has_on_stop / has_on_plan_complete
+
+bridge -> pyo3 : Python::with_gil()\nfrom_code_bound(AIP_TYPES_PY)
+pyo3 --> bridge : aip_result_class, input_response_class
+bridge --> oria : AIPBridge { agent, aip_result_class, ... }
+
+== call_run(task, ctx) ==
+
+oria -> bridge : call_run(&AIPTask, ctx: PyObject)
+
+bridge -> bridge : serde_json::to_string(&task)\n→ task_json: String
+
+bridge -> pyo3 : Python::with_gil()\nclone_ref(py) agent, aip_result_class, input_response_class
+
+bridge -> spawn : tokio::task::spawn_blocking(|| { ... })
+note right : GIL jamais tenu sur\nles workers Tokio\n(ADR-014)
+
+activate spawn
+spawn -> pyo3 : Python::with_gil(|py| { ... })
+activate pyo3
+
+pyo3 -> pyo3 : agent.run.__globals__\n.set_item("AIPResult", aip_result_class)\n.set_item("InputResponse", input_response_class)
+note right : Injection automatique\nSans import dans l'agent
+
+pyo3 -> pyo3 : json.loads(task_json)\n→ task_dict: Py<PyAny>
+
+alt task["input_response"] présent (is_resumed == true)
+  pyo3 -> pyo3 : InputResponse(ir_raw)\n→ ir_obj (attribut access .approved, .reason)
+  pyo3 -> pyo3 : task_dict["input_response"] = ir_obj
+end
+
+pyo3 -> asyncio : asyncio.run(\n  agent.run(task_dict, ctx)\n)
+activate asyncio
+
+asyncio -> agent : run(task, ctx)
+activate agent
+
+note over agent : L'agent peut utiliser :\n- AIPResult.completed(text)\n- AIPResult.failed(code, msg)\n- AIPResult.input_required(prompt, ctx)\n(injectés dans __globals__)
+
+agent --> asyncio : dict Python\n({"status": "completed", "output": [...]})
+deactivate agent
+
+asyncio --> pyo3 : result: Py<PyAny>
+deactivate asyncio
+
+pyo3 -> pyo3 : json.dumps(result)\n→ result_json: String
+
+pyo3 --> spawn : Ok(result_json)
+deactivate pyo3
+deactivate spawn
+
+bridge -> bridge : serde_json::from_str::<AIPResult>(&result_json)
+
+bridge --> oria : Ok(AIPResult { status, output, ... })
+
+== call_on_start(ctx) — si has_on_start == true ==
+
+oria -> bridge : call_on_start(ctx: PyObject)
+bridge -> spawn : spawn_blocking(|| { Python::with_gil ... })
+activate spawn
+spawn -> asyncio : asyncio.run(\n  agent.on_start(ctx)\n)
+asyncio -> agent : on_start(ctx)
+agent --> asyncio : None
+asyncio --> spawn : result
+spawn --> bridge : Ok(())
+deactivate spawn
+bridge --> oria : Ok(())
+
+== call_on_stop() — si has_on_stop == true ==
+
+oria -> bridge : call_on_stop()
+bridge -> spawn : spawn_blocking(|| { Python::with_gil ... })
+activate spawn
+spawn -> asyncio : asyncio.run(\n  agent.on_stop()\n)
+asyncio -> agent : on_stop()
+agent --> asyncio : None
+asyncio --> spawn : result
+spawn --> bridge : Ok(())
+deactivate spawn
+bridge --> oria : Ok(())
+
+== Gestion des erreurs ==
+
+alt agent.run() lève une exception Python
+  agent --> asyncio : raise ValueError("...")
+  asyncio --> pyo3 : PyErr
+  pyo3 --> spawn : Err(AIPBridgeError::PythonException)
+  spawn --> bridge : Err(...)
+  bridge --> oria : Err(AIPBridgeError::PythonException(msg))
+end
+
+alt résultat non désérialisable en AIPResult
+  bridge -> bridge : serde_json::from_str — Err
+  bridge --> oria : Err(AIPBridgeError::DeserializationError)
+end
+
+@enduml

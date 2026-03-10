@@ -26,9 +26,7 @@ Vérifier que le runtime tourne.
 **Réponse 200 :**
 ```json
 {
-  "status": "ok",
-  "version": "0.1.0",
-  "uptime_seconds": 3600
+  "status": "ok"
 }
 ```
 
@@ -45,12 +43,8 @@ Lister tous les agents enregistrés.
 {
   "agents": [
     {
-      "id": "agent-abc123",
-      "name": "hello-agent",
-      "version": "1.0.0",
-      "state": "Active",
-      "active_tasks": 0,
-      "max_concurrent_tasks": 1
+      "agent_id": "agent-abc123",
+      "state": "active"
     }
   ]
 }
@@ -63,17 +57,15 @@ Démarrer un agent à partir d'un fichier Python.
 **Corps de requête :**
 ```json
 {
-  "path": "./agents/hello_agent.py"
+  "agent_path": "./agents/hello_agent.py"
 }
 ```
 
 **Réponse 201 :**
 ```json
 {
-  "id": "agent-abc123",
-  "name": "hello-agent",
-  "version": "1.0.0",
-  "state": "Initializing"
+  "agent_id": "agent-abc123",
+  "state": "active"
 }
 ```
 
@@ -89,16 +81,15 @@ Obtenir les détails d'un agent.
 **Réponse 200 :**
 ```json
 {
-  "id": "agent-abc123",
-  "name": "hello-agent",
-  "version": "1.0.0",
-  "state": "Active",
-  "description": "Agent de démonstration minimal",
-  "tools_required": [],
-  "tools_optional": [],
-  "memory_namespace": null,
-  "active_tasks": 0,
-  "max_concurrent_tasks": 1
+  "agent_id": "agent-abc123",
+  "state": "active",
+  "manifest": {
+    "name": "hello-agent",
+    "version": "1.0.0",
+    "description": "Agent de démonstration minimal",
+    "tools_required": [],
+    "tools_optional": []
+  }
 }
 ```
 
@@ -112,8 +103,8 @@ Arrêter un agent (graceful drain).
 **Réponse 200 :**
 ```json
 {
-  "id": "agent-abc123",
-  "state": "Stopping"
+  "agent_id": "agent-abc123",
+  "state": "stopping"
 }
 ```
 
@@ -132,23 +123,19 @@ Soumettre une tâche à un agent.
 **Corps de requête :**
 ```json
 {
-  "agent_name": "hello-agent",
+  "agent_id": "agent-abc123",
   "input": {
     "parts": [
       {"type": "text", "text": "Dupont SA"}
     ]
-  },
-  "timeout_seconds": 60
+  }
 }
 ```
 
-`timeout_seconds` est optionnel (défaut : wall_clock du StepBudget de l'agent).
-
-**Réponse 201 :**
+**Réponse 202 :**
 ```json
 {
   "task_id": "t-abc123",
-  "agent_id": "agent-def456",
   "status": "submitted"
 }
 ```
@@ -413,8 +400,7 @@ Initier un graceful shutdown du runtime (drain 30s).
 **Réponse 200 :**
 ```json
 {
-  "status": "shutting_down",
-  "drain_timeout_seconds": 30
+  "status": "shutting_down"
 }
 ```
 
@@ -425,7 +411,8 @@ Initier un graceful shutdown du runtime (drain 30s).
 | Code | Signification |
 |---|---|
 | `200` | Succès |
-| `201` | Créé avec succès |
+| `201` | Créé avec succès (POST /api/v1/agents) |
+| `202` | Accepté (POST /api/v1/tasks — tâche soumise, exécution asynchrone) |
 | `400` | Requête invalide (manifest, champs manquants) |
 | `404` | Ressource introuvable |
 | `409` | Conflit d'état (agent déjà démarré, tâche déjà terminée, tâche non en `input_required`) |
@@ -438,8 +425,7 @@ Initier un graceful shutdown du runtime (drain 30s).
 **Format d'erreur standard :**
 ```json
 {
-  "error": "REASON_CODE",
-  "message": "Description humaine de l'erreur"
+  "error": "description humaine de l'erreur"
 }
 ```
 
@@ -457,12 +443,12 @@ curl http://localhost:7771/api/v1/agents
 # Démarrer un agent
 curl -X POST http://localhost:7771/api/v1/agents \
   -H "Content-Type: application/json" \
-  -d '{"path": "./agents/hello_agent.py"}'
+  -d '{"agent_path": "./agents/hello_agent.py"}'
 
 # Soumettre une tâche
 curl -X POST http://localhost:7771/api/v1/tasks \
   -H "Content-Type: application/json" \
-  -d '{"agent_name": "hello-agent", "input": {"parts": [{"type": "text", "text": "test"}]}}'
+  -d '{"agent_id": "agent-abc123", "input": {"parts": [{"type": "text", "text": "test"}]}}'
 
 # Résultat d'une tâche
 curl http://localhost:7771/api/v1/tasks/t-abc123
@@ -802,6 +788,14 @@ Historique des runs du pipeline `{id}`. Paramètre optionnel : `?limit=20` (déf
 { "type": "completed" }
 { "type": "failed", "step_id": "validation", "reason": "timeout après 30s" }
 ```
+
+**Réponse 404 :** `{ "error": "run not found: r-inexistant" }`
+
+### GET /api/v1/runs/:run_id
+
+Raccourci pour obtenir l'état détaillé d'un run sans connaître le `pipeline_id`. Équivalent fonctionnel de `GET /api/v1/pipelines/{pipeline_id}/runs/{run_id}`.
+
+**Réponse 200 :** identique à `GET /api/v1/pipelines/{id}/runs/{run_id}` ci-dessus.
 
 **Réponse 404 :** `{ "error": "run not found: r-inexistant" }`
 
