@@ -35,16 +35,22 @@ pub struct RunDisplayState {
     pub current_num: usize,
     /// Whether `--json` raw mode is active.
     pub json_mode: bool,
+    /// When `true`, suppress all intermediate events — only terminal events produce output.
+    ///
+    /// Used by the default (non-`--stream`) `run` invocation to display only the final
+    /// result while still using SSE internally to receive the agent output.
+    pub quiet: bool,
 }
 
 impl RunDisplayState {
     /// Create a new display state.
-    pub fn new(json_mode: bool) -> Self {
+    pub fn new(json_mode: bool, quiet: bool) -> Self {
         Self {
             plan_id: None,
             step_count: 0,
             current_num: 0,
             json_mode,
+            quiet,
         }
     }
 }
@@ -67,6 +73,35 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             event.event_type.as_str(),
             "completed" | "canceled" | "failed" | "plan_failed"
         );
+    }
+
+    // In quiet mode only terminal events produce output — intermediate plan/step
+    // events are silently consumed.  This is used by the default (non-`--stream`)
+    // invocation so that the final agent output is still surfaced cleanly.
+    if state.quiet {
+        return match event.event_type.as_str() {
+            "completed" => {
+                if let Some(result) = event.data["result"].as_str() {
+                    println!("{result}");
+                }
+                true
+            }
+            "failed" => {
+                let error = event.data["error"].as_str().unwrap_or("unknown error");
+                eprintln!("  x Échec : {error}");
+                true
+            }
+            "plan_failed" => {
+                let reason = event.data["reason"].as_str().unwrap_or("Erreur inconnue");
+                eprintln!("  ✗ Plan échoué : {reason}");
+                true
+            }
+            "canceled" => {
+                eprintln!("  Tâche annulée.");
+                true
+            }
+            _ => false,
+        };
     }
 
     match event.event_type.as_str() {
@@ -226,8 +261,11 @@ pub async fn run(
     let client = RuntimeClient::new(socket_path);
     let start = Instant::now();
 
-    // Submit the task
-    let input_value = serde_json::json!({ "prompt": input });
+    // Submit the task using the A2A-aligned AIPInput format so Python agents can read
+    // parts[0]["text"] directly (see AIPPart::Text serialisation in apollia-core).
+    let input_value = serde_json::json!({
+        "parts": [{"type": "text", "text": input}]
+    });
     let submit_result = client.submit_task(agent_id, input_value).await;
 
     let task_json = match submit_result {
@@ -259,12 +297,16 @@ pub async fn run(
         println!("  -> Task {task_id} submitted to {agent_id}");
     }
 
+    // Default path uses polling: GET /api/v1/tasks/:id until completion.
+    // The router now stores task output alongside status (see router.rs), so polling
+    // correctly surfaces the agent result without SSE race conditions.
+    //
+    // With `--stream`: SSE streaming shows plan/step events in real time.
     if stream {
-        return stream_task(&client, &task_id, json, start).await;
+        stream_task(&client, &task_id, json, start, false).await
+    } else {
+        poll_task(&client, &task_id, json, start).await
     }
-
-    // Poll for completion
-    poll_task(&client, &task_id, json, start).await
 }
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
@@ -283,7 +325,7 @@ async fn poll_task(client: &RuntimeClient, task_id: &str, json: bool, start: Ins
                     .unwrap_or("unknown");
 
                 match status {
-                    "completed" | "\"Completed\"" => {
+                    "completed" => {
                         let elapsed = start.elapsed();
                         if json {
                             println!(
@@ -291,14 +333,17 @@ async fn poll_task(client: &RuntimeClient, task_id: &str, json: bool, start: Ins
                                 serde_json::to_string_pretty(&task_json).unwrap_or_default()
                             );
                         } else {
-                            println!("  * Completed in {:.1}s", elapsed.as_secs_f64());
-                            if let Some(result) = task_json.get("result") {
-                                println!("  RESULT: {result}");
+                            if let Some(text) = task_json
+                                .get("result")
+                                .and_then(|v| v.as_str())
+                            {
+                                println!("{text}");
                             }
+                            println!("  * Completed in {:.1}s", elapsed.as_secs_f64());
                         }
                         return exit_codes::SUCCESS;
                     }
-                    "failed" | "\"Failed\"" => {
+                    "failed" => {
                         let elapsed = start.elapsed();
                         let error_msg = task_json
                             .get("error")
@@ -314,7 +359,7 @@ async fn poll_task(client: &RuntimeClient, task_id: &str, json: bool, start: Ins
                         }
                         return exit_codes::TASK_FAILED;
                     }
-                    "canceled" | "\"Canceled\"" => {
+                    "canceled" => {
                         if json {
                             println!(
                                 "{}",
@@ -340,7 +385,16 @@ async fn poll_task(client: &RuntimeClient, task_id: &str, json: bool, start: Ins
 /// Connects to `GET /api/v1/tasks/{id}/stream`, parses SSE frames, and
 /// delegates rendering to `handle_sse_event`. Returns when a terminal event
 /// is received or falls back to polling if the stream closes without one.
-async fn stream_task(client: &RuntimeClient, task_id: &str, json: bool, start: Instant) -> i32 {
+///
+/// When `quiet` is `true`, intermediate plan/step events are suppressed and
+/// only the final agent output is printed (used by the default non-`--stream` path).
+async fn stream_task(
+    client: &RuntimeClient,
+    task_id: &str,
+    json: bool,
+    start: Instant,
+    quiet: bool,
+) -> i32 {
     let uri = format!("/api/v1/tasks/{task_id}/stream");
     let resp = match client.get(&uri).await {
         Ok(r) => r,
@@ -356,7 +410,7 @@ async fn stream_task(client: &RuntimeClient, task_id: &str, json: bool, start: I
         }
     };
 
-    let mut state = RunDisplayState::new(json);
+    let mut state = RunDisplayState::new(json, quiet);
     let mut terminal_event_type = String::new();
 
     for line in resp.body.lines() {
@@ -435,7 +489,7 @@ mod tests {
                 "steps": []
             }),
         );
-        let mut state = RunDisplayState::new(false);
+        let mut state = RunDisplayState::new(false, false);
 
         // WHEN
         let terminal = handle_sse_event(&event, &mut state);
@@ -461,7 +515,7 @@ mod tests {
                 ]
             }),
         );
-        let mut state = RunDisplayState::new(false);
+        let mut state = RunDisplayState::new(false, false);
 
         // WHEN
         let terminal = handle_sse_event(&event, &mut state);
@@ -479,7 +533,7 @@ mod tests {
             "step_started",
             serde_json::json!({"num": 1, "total": 4, "step_id": "s1", "desc": "fetch data"}),
         );
-        let mut state = RunDisplayState::new(false);
+        let mut state = RunDisplayState::new(false, false);
 
         // WHEN
         let terminal = handle_sse_event(&event, &mut state);
@@ -497,7 +551,7 @@ mod tests {
             "replanning",
             serde_json::json!({"attempt": 1, "failed_step": "s3", "reason": "timeout"}),
         );
-        let mut state = RunDisplayState::new(false);
+        let mut state = RunDisplayState::new(false, false);
 
         // WHEN
         let terminal = handle_sse_event(&event, &mut state);
@@ -511,7 +565,7 @@ mod tests {
     fn test_ac4_plan_failed_est_terminal() {
         // GIVEN
         let event = make_event("plan_failed", serde_json::json!({"reason": "MAX_REPLAN"}));
-        let mut state = RunDisplayState::new(false);
+        let mut state = RunDisplayState::new(false, false);
 
         // WHEN
         let terminal = handle_sse_event(&event, &mut state);
@@ -525,7 +579,7 @@ mod tests {
     fn test_ac5_completed_est_terminal() {
         // GIVEN
         let event = make_event("completed", serde_json::json!({"result": "Résultat final"}));
-        let mut state = RunDisplayState::new(false);
+        let mut state = RunDisplayState::new(false, false);
 
         // WHEN
         let terminal = handle_sse_event(&event, &mut state);
@@ -539,7 +593,7 @@ mod tests {
     fn test_ac5_direct_mode_step_not_terminal() {
         // GIVEN — legacy direct-mode step event
         let event = make_event("step", serde_json::json!({"step": 1, "tool": "file_io"}));
-        let mut state = RunDisplayState::new(false);
+        let mut state = RunDisplayState::new(false, false);
 
         // WHEN
         let terminal = handle_sse_event(&event, &mut state);
@@ -558,7 +612,7 @@ mod tests {
             data: serde_json::json!({}),
             raw_json: r#"{"event":"step_started"}"#.into(),
         };
-        let mut state = RunDisplayState::new(true); // json_mode = true
+        let mut state = RunDisplayState::new(true, false); // json_mode = true
 
         // WHEN — just verify it doesn't panic and returns non-terminal
         let terminal = handle_sse_event(&event, &mut state);
@@ -572,7 +626,7 @@ mod tests {
     fn test_ac6_json_mode_canceled_is_terminal() {
         // GIVEN
         let event = make_event("canceled", serde_json::json!({}));
-        let mut state = RunDisplayState::new(true);
+        let mut state = RunDisplayState::new(true, false);
 
         // WHEN
         let terminal = handle_sse_event(&event, &mut state);
@@ -589,7 +643,7 @@ mod tests {
             "step_failed",
             serde_json::json!({"duration_ms": 500, "error": "timeout", "retryable": true}),
         );
-        let mut state = RunDisplayState::new(false);
+        let mut state = RunDisplayState::new(false, false);
 
         // WHEN
         let terminal = handle_sse_event(&event, &mut state);
@@ -606,7 +660,7 @@ mod tests {
             "plan_completed",
             serde_json::json!({"step_count": 4, "duration_ms": 3200}),
         );
-        let mut state = RunDisplayState::new(false);
+        let mut state = RunDisplayState::new(false, false);
 
         // WHEN
         let terminal = handle_sse_event(&event, &mut state);

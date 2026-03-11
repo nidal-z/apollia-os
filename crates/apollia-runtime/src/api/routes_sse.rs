@@ -79,13 +79,21 @@ fn runtime_event_to_sse(event: &RuntimeEvent, task_id: &str) -> Option<(SseTaskE
         RuntimeEvent::TaskCompleted {
             task_id: tid,
             success,
+            output,
             ..
         } if tid == task_id => {
             let event_name = if *success { "completed" } else { "failed" };
+            // Include the agent output text in the "completed" event so that CLI
+            // callers (both polling and SSE) can display the result without a
+            // separate endpoint (GET /api/v1/tasks/:id never carries the output).
+            let mut data = serde_json::json!({ "success": success });
+            if let Some(text) = output {
+                data["result"] = serde_json::Value::String(text.clone());
+            }
             Some((
                 SseTaskEvent {
                     event: event_name.into(),
-                    data: serde_json::json!({ "success": success }),
+                    data,
                 },
                 true,
             ))
@@ -449,6 +457,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))

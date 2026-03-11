@@ -241,10 +241,11 @@ impl Supervisor {
     ///
     /// The ToolRegistry is spawned and the three native tools (BashExecutor,
     /// PythonExecutor, FileIo) are registered automatically.
-    pub async fn start<B: ExecutionBackend + Clone>(
+    pub async fn start<B: ExecutionBackend + Clone + From<crate::coordinator::DynBackend>>(
         self,
         backend: B,
         agent_loader: Arc<dyn AgentLoader>,
+        backend_factory: Option<Arc<dyn crate::api::routes_agents::AgentBackendFactory>>,
     ) -> Result<SupervisorHandles<B>, SupervisorError> {
         let timeout = Duration::from_secs(self.config.startup_timeout_secs);
 
@@ -378,6 +379,7 @@ impl Supervisor {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: pipeline_engine.clone(),
+            backend_factory,
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -593,6 +595,10 @@ mod tests {
     #[derive(Clone)]
     struct MockBackend;
 
+    impl From<crate::coordinator::DynBackend> for MockBackend {
+        fn from(_: crate::coordinator::DynBackend) -> Self { MockBackend }
+    }
+
     impl ExecutionBackend for MockBackend {
         fn execute(
             &self,
@@ -653,6 +659,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
             )
             .await;
 
@@ -682,6 +689,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
             )
             .await
             .unwrap();
@@ -720,6 +728,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
             )
             .await
             .unwrap();
@@ -797,6 +806,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
             )
             .await;
 
@@ -935,6 +945,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
             )
             .await
             .expect("start() doit reussir sans config LLM");
@@ -979,6 +990,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         };
 
         // WHEN on clone l'AppState
@@ -1018,6 +1030,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
             )
             .await;
 
@@ -1068,6 +1081,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
             )
             .await;
 
@@ -1130,6 +1144,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
             )
             .await
             .expect("start() doit reussir");
@@ -1181,6 +1196,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
             )
             .await;
 

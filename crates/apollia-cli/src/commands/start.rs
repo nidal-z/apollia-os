@@ -9,12 +9,21 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Instant;
 
+use apollia_aip::bridge::AIPBridge;
+use apollia_aip::context::RuntimeContext;
 use apollia_core::{AIPResult, AIPTask, AgentManifest, RuntimeEvent, TaskStatus};
-use apollia_runtime::api::routes_agents::AgentLoader;
+use apollia_llm::{
+    CompletionModel, CompletionRequest, CompletionResponse, LlmError, LlmRouter,
+    ObservabilityConfig, StepBudgetView, ToolCallHelper, ToolInvoker,
+};
+use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::api::APIServerConfig;
-use apollia_runtime::coordinator::ExecutionBackend;
+use apollia_runtime::coordinator::{DynBackend, ExecutionBackend};
+use apollia_runtime::eventbus::EventBusSender;
 use apollia_runtime::shutdown::{ShutdownConfig, ShutdownController};
 use apollia_runtime::supervisor::{Supervisor, SupervisorConfig};
+use futures::stream;
+use pyo3::prelude::*;
 
 use crate::client::{DEFAULT_SOCKET_PATH, DEFAULT_TCP_PORT};
 
@@ -47,9 +56,9 @@ impl AgentLoader for AIPAgentLoader {
     }
 }
 
-/// Placeholder execution backend for MVP (no real agent execution yet).
+/// Fallback backend — only used when agent loading fails at start time.
 ///
-/// Will be replaced by the real ORIA backend when the full pipeline is wired.
+/// Returns a `Failed` result immediately without calling Python.
 #[derive(Clone)]
 struct NoopBackend;
 
@@ -61,17 +70,189 @@ impl ExecutionBackend for NoopBackend {
         Box::pin(async move {
             Ok(AIPResult {
                 task_id: task.task_id,
-                status: TaskStatus::Completed,
+                status: TaskStatus::Failed,
                 output: Vec::new(),
                 error: Some(apollia_core::AIPError {
                     code: "NO_BACKEND".to_string(),
-                    message: "no execution backend configured".to_string(),
+                    message: "no execution backend configured for this agent".to_string(),
                     details: None,
                 }),
                 artifacts: Vec::new(),
                 input_required_data: None,
             })
         })
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Stub LLM types required by ToolCallHelper constructor.
+// RouterModel delegates to the real LlmRouter; NoopToolInvoker returns errors.
+// These stubs are only invoked when an agent uses the LLM ReAct loop.
+// ─────────────────────────────────────────────────────────────
+
+struct RouterModel(Arc<LlmRouter>);
+
+#[async_trait::async_trait]
+impl CompletionModel for RouterModel {
+    async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+        self.0
+            .complete_with_observability(None, req, None, &ObservabilityConfig::default())
+            .await
+    }
+
+    async fn stream(
+        &self,
+        _req: CompletionRequest,
+    ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
+    {
+        let s: Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>> =
+            Box::pin(stream::empty());
+        Ok(s)
+    }
+
+    fn is_available(&self) -> bool {
+        !self.0.list().is_empty()
+    }
+    fn backend_name(&self) -> &str { "router" }
+    fn model_id(&self) -> &str { "router" }
+}
+
+struct NoopToolInvoker;
+
+#[async_trait::async_trait]
+impl ToolInvoker for NoopToolInvoker {
+    async fn invoke(&self, name: &str, _args: &serde_json::Value) -> Result<String, String> {
+        Err(format!("tool '{name}' invocation via LLM loop not wired — use ctx.tools directly"))
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Real per-agent execution backend (AIPBridge + RuntimeContext)
+// ─────────────────────────────────────────────────────────────
+
+/// Per-agent backend that calls Python via `AIPBridge`.
+///
+/// Created once per agent at start time by `ProductionBackendFactory`.
+/// All fields are `Arc`-wrapped — cloning is cheap.
+struct AIPProductionBackend {
+    bridge: Arc<AIPBridge>,
+    agent_id: String,
+    llm_router: Option<Arc<LlmRouter>>,
+    event_bus: EventBusSender,
+}
+
+impl Clone for AIPProductionBackend {
+    fn clone(&self) -> Self {
+        Self {
+            bridge: Arc::clone(&self.bridge),
+            agent_id: self.agent_id.clone(),
+            llm_router: self.llm_router.clone(),
+            event_bus: self.event_bus.clone(),
+        }
+    }
+}
+
+impl ExecutionBackend for AIPProductionBackend {
+    fn execute(
+        &self,
+        task: AIPTask,
+    ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>> {
+        let bridge = Arc::clone(&self.bridge);
+        let llm_router = self.llm_router.clone();
+        let event_bus = self.event_bus.clone();
+        let agent_id = self.agent_id.clone();
+
+        Box::pin(async move {
+            // Build the ToolCallHelper backed by the real LlmRouter (or an empty one).
+            let router_for_helper = llm_router
+                .clone()
+                .unwrap_or_else(|| Arc::new(LlmRouter::empty()));
+            let tool_helper = Arc::new(ToolCallHelper::new(
+                Arc::new(RouterModel(router_for_helper)),
+                Arc::new(NoopToolInvoker),
+            ));
+
+            // Build a RuntimeContext and wrap it as a Python object.
+            let ctx: PyObject = Python::with_gil(|py| {
+                let ctx = RuntimeContext::new_with_llm(
+                    llm_router,
+                    Arc::new(StepBudgetView::unlimited()),
+                    tool_helper,
+                    Arc::new(ObservabilityConfig::default()),
+                    event_bus,
+                    agent_id.into(),
+                    None, // tool_proxy: None — direct tool access not wired in this sprint
+                );
+                Py::new(py, ctx)
+                    .map(|p| p.into_any())
+                    .expect("RuntimeContext PyObject construction failed")
+            });
+
+            bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
+        })
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Factory — creates one AIPProductionBackend per agent at `agent start`
+// ─────────────────────────────────────────────────────────────
+
+/// Creates a real `AIPProductionBackend` per agent (ADR-019 extension).
+///
+/// Called once from `POST /api/v1/agents` — loads Python, validates AIP duck typing,
+/// and bakes an `AIPBridge` into a backend registered with the `TaskRouter`.
+///
+/// Uses `OnceLock` for `event_bus` and `llm_router` because they are created
+/// inside `supervisor.start()`, which runs after this factory is constructed.
+/// Both locks are populated before the first HTTP request arrives.
+struct ProductionBackendFactory {
+    event_bus: Arc<std::sync::OnceLock<EventBusSender>>,
+    llm_router: Arc<std::sync::OnceLock<Option<Arc<LlmRouter>>>>,
+}
+
+impl AgentBackendFactory for ProductionBackendFactory {
+    fn create_for_agent(&self, agent_path: &Path, manifest: &AgentManifest) -> DynBackend {
+        let agent_id = manifest.name.clone();
+
+        // Retrieve the lazily-initialized event bus and LLM router.
+        let event_bus = match self.event_bus.get() {
+            Some(bus) => bus.clone(),
+            None => {
+                tracing::error!(
+                    agent = %agent_id,
+                    "event bus not initialized — factory called before supervisor.start() returned"
+                );
+                return DynBackend::new(NoopBackend);
+            }
+        };
+        let llm_router = self.llm_router.get().cloned().flatten();
+
+        let result: Result<AIPProductionBackend, String> = (|| {
+            let module = apollia_aip::loader::load_agent_module(agent_path)
+                .map_err(|e| e.to_string())?;
+            let validated =
+                apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
+            let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
+            Ok(AIPProductionBackend {
+                bridge,
+                agent_id: agent_id.clone(),
+                llm_router,
+                event_bus,
+            })
+        })();
+
+        match result {
+            Ok(backend) => DynBackend::new(backend),
+            Err(e) => {
+                tracing::error!(
+                    agent = %agent_id,
+                    path = %agent_path.display(),
+                    error = %e,
+                    "failed to load agent Python module — falling back to NoopBackend"
+                );
+                DynBackend::new(NoopBackend)
+            }
+        }
     }
 }
 
@@ -170,7 +351,31 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);
-    let handles = supervisor.start(NoopBackend, agent_loader).await?;
+
+    // The ProductionBackendFactory needs the EventBusSender, which is created
+    // inside supervisor.start(). We use a shared OnceLock so the factory can be
+    // constructed before start() returns, then initialized lazily before first use.
+    //
+    // Safety: create_for_agent() is called only from POST /api/v1/agents, which
+    // happens after the runtime is fully up — well after start() returns and the
+    // OnceLock is populated.
+    let event_bus_lock: Arc<std::sync::OnceLock<EventBusSender>> =
+        Arc::new(std::sync::OnceLock::new());
+    let llm_router_lock: Arc<std::sync::OnceLock<Option<Arc<LlmRouter>>>> =
+        Arc::new(std::sync::OnceLock::new());
+
+    let factory: Arc<dyn AgentBackendFactory> = Arc::new(ProductionBackendFactory {
+        event_bus: event_bus_lock.clone(),
+        llm_router: llm_router_lock.clone(),
+    });
+
+    let handles = supervisor
+        .start(DynBackend::new(NoopBackend), agent_loader, Some(factory))
+        .await?;
+
+    // Populate the OnceLocks now that the supervisor is running.
+    let _ = event_bus_lock.set(handles.event_sender.clone());
+    let _ = llm_router_lock.set(handles.llm_router.clone());
 
     let elapsed = start.elapsed();
     println!("  * EventBus            ready");

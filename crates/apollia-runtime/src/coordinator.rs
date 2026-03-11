@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use apollia_core::{AIPPart, AIPResult, AIPTask, AgentId, RuntimeEvent, TaskId};
+use apollia_core::{AIPPart, AIPResult, AIPTask, AgentId, RuntimeEvent, TaskId, TaskStatus};
 use tokio::sync::Semaphore;
 
 use crate::eventbus::EventBusSender;
@@ -15,6 +15,32 @@ pub trait ExecutionBackend: Send + Sync + 'static {
         &self,
         task: AIPTask,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>;
+}
+
+/// Type-erased execution backend for dynamic dispatch.
+///
+/// Wraps `Arc<dyn ExecutionBackend + Send + Sync>` and implements `Clone`
+/// cheaply (atomic reference count increment). Used in production so that
+/// different agents can each have a different concrete backend while sharing
+/// the same generic `TaskRouter<DynBackend>`.
+#[derive(Clone)]
+pub struct DynBackend(pub Arc<dyn ExecutionBackend + Send + Sync + 'static>);
+
+impl DynBackend {
+    /// Wraps any `ExecutionBackend` implementation in a `DynBackend`.
+    pub fn new<B: ExecutionBackend + Send + Sync + 'static>(backend: B) -> Self {
+        Self(Arc::new(backend))
+    }
+}
+
+impl ExecutionBackend for DynBackend {
+    fn execute(
+        &self,
+        task: AIPTask,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
+    {
+        self.0.execute(task)
+    }
 }
 
 /// Erreurs du coordinateur d'execution.
@@ -98,7 +124,15 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
             let result = backend.execute(task).await;
 
             // Emettre TaskCompleted (succes ou echec) avec l'output textuel si disponible.
-            let is_success = result.is_ok();
+            //
+            // `is_success` must reflect the Python-level status, not just whether the
+            // Rust call succeeded. An `Ok(AIPResult { status: Failed, .. })` means the
+            // agent explicitly reported failure and must propagate as success=false so
+            // that the TaskRouter transitions the task to `TaskStatus::Failed`.
+            let is_success = match &result {
+                Ok(aip_result) => aip_result.status != TaskStatus::Failed,
+                Err(_) => false,
+            };
             let output = result.as_ref().ok().map(aip_result_to_text);
             let _ = event_bus.send(RuntimeEvent::TaskCompleted {
                 agent_id,
@@ -364,6 +398,55 @@ mod tests {
         assert!(
             matches!(&completed, RuntimeEvent::TaskCompleted { success, .. } if !success),
             "expected TaskCompleted with success=false, got: {completed:?}"
+        );
+    }
+
+    /// When the backend returns `Ok(AIPResult { status: Failed })` the coordinator
+    /// must emit `TaskCompleted { success: false }`.  Without this, a Python agent
+    /// that returns `{"status": "failed"}` would silently appear as "completed".
+    #[tokio::test]
+    async fn test_python_level_failure_is_success_false() {
+        // GIVEN a backend that returns Ok(AIPResult { status: Failed })
+        struct AgentLevelFailBackend;
+        impl ExecutionBackend for AgentLevelFailBackend {
+            fn execute(
+                &self,
+                task: AIPTask,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>,
+            > {
+                Box::pin(async move {
+                    Ok(AIPResult {
+                        task_id: task.task_id,
+                        status: TaskStatus::Failed,
+                        output: vec![],
+                        error: Some(apollia_core::AIPError {
+                            code: "MISSING_INPUT".into(),
+                            message: "no text part".into(),
+                            details: None,
+                        }),
+                        artifacts: vec![],
+                        input_required_data: None,
+                    })
+                })
+            }
+        }
+
+        let (tx, mut rx) = broadcast::channel(16);
+        let coord = ExecutionCoordinator::new("agent-42".into(), 1, tx, AgentLevelFailBackend);
+
+        // WHEN
+        let handle = coord
+            .submit_task(make_task("task-agent-fail"))
+            .expect("submit should succeed");
+        handle.await.expect("join should succeed");
+
+        // THEN TaskCompleted carries success=false
+        let _started = rx.recv().await.expect("TaskStarted");
+        let completed = rx.recv().await.expect("TaskCompleted");
+        assert!(
+            matches!(&completed, RuntimeEvent::TaskCompleted { success, .. } if !success),
+            "agent-level Failed must propagate as success=false, got: {completed:?}"
         );
     }
 }

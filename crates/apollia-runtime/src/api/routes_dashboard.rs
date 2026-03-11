@@ -964,6 +964,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         }
     }
 
@@ -987,6 +988,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         }
     }
 

@@ -50,6 +50,11 @@ enum RouterMessage<B: ExecutionBackend> {
         task_id: TaskId,
         reply: oneshot::Sender<Option<TaskStatus>>,
     },
+    /// Obtenir le texte de sortie d'une tache terminee.
+    GetOutput {
+        task_id: TaskId,
+        reply: oneshot::Sender<Option<String>>,
+    },
     /// Annuler une tache en cours.
     Cancel {
         task_id: TaskId,
@@ -80,6 +85,8 @@ struct TaskRouter<B: ExecutionBackend> {
     event_rx: tokio::sync::broadcast::Receiver<apollia_core::RuntimeEvent>,
     coordinators: HashMap<AgentId, ExecutionCoordinator<B>>,
     task_statuses: HashMap<TaskId, TaskStatus>,
+    /// Output text stored when TaskCompleted is received (for GET /api/v1/tasks/:id).
+    task_outputs: HashMap<TaskId, String>,
 }
 
 impl<B: ExecutionBackend> TaskRouter<B> {
@@ -101,6 +108,10 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                         RouterMessage::GetStatus { task_id, reply } => {
                             let status = self.task_statuses.get(&task_id).cloned();
                             let _ = reply.send(status);
+                        }
+                        RouterMessage::GetOutput { task_id, reply } => {
+                            let output = self.task_outputs.get(&task_id).cloned();
+                            let _ = reply.send(output);
                         }
                         RouterMessage::Cancel { task_id, reply } => {
                             let result = self.handle_cancel(&task_id);
@@ -132,13 +143,16 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                     }
                 }
                 event = self.event_rx.recv() => {
-                    if let Ok(RuntimeEvent::TaskCompleted { task_id, success, .. }) = event {
+                    if let Ok(RuntimeEvent::TaskCompleted { task_id, success, output, .. }) = event {
                         if let Some(status) = self.task_statuses.get_mut(&task_id) {
                             *status = if success {
                                 TaskStatus::Completed
                             } else {
                                 TaskStatus::Failed
                             };
+                        }
+                        if let Some(text) = output {
+                            self.task_outputs.insert(task_id, text);
                         }
                     }
                 }
@@ -289,6 +303,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             event_rx,
             coordinators: HashMap::new(),
             task_statuses: HashMap::new(),
+            task_outputs: HashMap::new(),
         };
         tokio::spawn(router.run());
         Self { tx }
@@ -315,6 +330,19 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(RouterMessage::GetStatus {
+                task_id: TaskId::from(task_id),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| SubmitError::ActorDead)?;
+        reply_rx.await.map_err(|_| SubmitError::ActorDead)
+    }
+
+    /// Obtient le texte de sortie d'une tache terminee, s'il est disponible.
+    pub async fn get_output(&self, task_id: &str) -> Result<Option<String>, SubmitError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(RouterMessage::GetOutput {
                 task_id: TaskId::from(task_id),
                 reply: reply_tx,
             })

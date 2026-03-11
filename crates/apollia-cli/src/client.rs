@@ -79,6 +79,23 @@ pub struct RawResponse {
     pub body: String,
 }
 
+/// Extract a human-readable error message from a response body.
+///
+/// Tries to parse the body as JSON and read the `"error"` field.
+/// Falls back to the raw body, or a generic message if the body is empty.
+fn extract_error(body: &str, status: u16) -> String {
+    serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|j| j.get("error").and_then(|e| e.as_str()).map(str::to_string))
+        .unwrap_or_else(|| {
+            if body.is_empty() {
+                format!("server error (status {status}): no response body")
+            } else {
+                body.to_string()
+            }
+        })
+}
+
 impl RuntimeClient {
     /// Create a new client targeting the given Unix socket path.
     pub fn new(socket_path: PathBuf) -> Self {
@@ -151,52 +168,37 @@ impl RuntimeClient {
     pub async fn start_agent(&self, agent_path: &str) -> Result<serde_json::Value, ClientError> {
         let body = serde_json::json!({ "agent_path": agent_path });
         let resp = self.post("/api/v1/agents", Some(&body)).await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// Get agent detail via `GET /api/v1/agents/{id}`.
     pub async fn get_agent(&self, agent_id: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.get(&format!("/api/v1/agents/{agent_id}")).await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// Stop an agent via `DELETE /api/v1/agents/{id}`.
     pub async fn stop_agent(&self, agent_id: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.delete(&format!("/api/v1/agents/{agent_id}")).await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// Submit a task via `POST /api/v1/tasks`.
@@ -210,35 +212,25 @@ impl RuntimeClient {
             "input": input,
         });
         let resp = self.post("/api/v1/tasks", Some(&body)).await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// Get task status via `GET /api/v1/tasks/{id}`.
     pub async fn get_task(&self, task_id: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.get(&format!("/api/v1/tasks/{task_id}")).await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// List all triggers via `GET /api/v1/triggers`.
@@ -257,18 +249,13 @@ impl RuntimeClient {
     /// Get trigger detail via `GET /api/v1/triggers/{id}`.
     pub async fn get_trigger(&self, id: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.get(&format!("/api/v1/triggers/{id}")).await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// Fire a trigger immediately via `POST /api/v1/triggers/{id}/fire`.
@@ -276,18 +263,13 @@ impl RuntimeClient {
         let resp = self
             .post(&format!("/api/v1/triggers/{id}/fire"), None)
             .await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// Enable a trigger via `POST /api/v1/triggers/{id}/enable`.
@@ -295,18 +277,13 @@ impl RuntimeClient {
         let resp = self
             .post(&format!("/api/v1/triggers/{id}/enable"), None)
             .await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// Disable a trigger via `POST /api/v1/triggers/{id}/disable`.
@@ -314,18 +291,13 @@ impl RuntimeClient {
         let resp = self
             .post(&format!("/api/v1/triggers/{id}/disable"), None)
             .await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// Get trigger logs via `GET /api/v1/triggers/{id}/logs?last={last}`.
@@ -337,18 +309,13 @@ impl RuntimeClient {
         let resp = self
             .get(&format!("/api/v1/triggers/{id}/logs?last={last}"))
             .await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// Hot-reload triggers via `POST /api/v1/triggers/reload`.
@@ -356,18 +323,13 @@ impl RuntimeClient {
     /// Returns the JSON response on success (`{ "reloaded": <count> }`).
     pub async fn reload_triggers(&self) -> Result<serde_json::Value, ClientError> {
         let resp = self.post("/api/v1/triggers/reload", None).await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// Resume a HITL task via `POST /api/v1/tasks/{id}/resume`.
@@ -471,18 +433,13 @@ impl RuntimeClient {
         let resp = self
             .post(&format!("/api/v1/pipelines/{id}/run"), Some(&body))
             .await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// List recent runs for a pipeline via `GET /api/v1/pipelines/{id}/runs`.
@@ -516,35 +473,25 @@ impl RuntimeClient {
     /// This endpoint does not require the pipeline id in the URL.
     pub async fn get_pipeline_run(&self, run_id: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.get(&format!("/api/v1/runs/{run_id}")).await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// Cancel a task via `DELETE /api/v1/tasks/{id}`.
     pub async fn cancel_task(&self, task_id: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.delete(&format!("/api/v1/tasks/{task_id}")).await?;
-        let json: serde_json::Value = serde_json::from_str(&resp.body)?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
-                body: json
-                    .get("error")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown error")
-                    .to_string(),
+                body: extract_error(&resp.body, resp.status),
             });
         }
-        Ok(json)
+        Ok(serde_json::from_str(&resp.body)?)
     }
 
     /// Internal: send an HTTP request over Unix socket.

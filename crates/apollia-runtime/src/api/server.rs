@@ -27,8 +27,8 @@ use apollia_pipelines::PipelineEngineHandle;
 use apollia_tools::TaskRepository;
 use apollia_triggers::TriggerEngineHandle;
 
-use crate::api::routes_agents::AgentLoader;
-use crate::coordinator::ExecutionBackend;
+use crate::api::routes_agents::{AgentBackendFactory, AgentLoader};
+use crate::coordinator::{DynBackend, ExecutionBackend};
 use crate::eventbus::EventBusSender;
 use crate::registry::AgentRegistryHandle;
 use crate::router::TaskRouterHandle;
@@ -85,6 +85,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `None` quand aucun `[[pipelines]]` n'est déclaré dans `apollia.toml`.
     /// Les routes REST pipelines (STORY-120) retournent 503 quand `None`.
     pub pipeline_engine: Option<PipelineEngineHandle>,
+    /// Factory for creating per-agent execution backends (ADR-019 extension).
+    ///
+    /// `Some` in production — creates real `AIPBridge` backends with tool access.
+    /// `None` in tests — falls back to `state.backend.clone()` (MockBackend/NoopBackend).
+    pub backend_factory: Option<Arc<dyn AgentBackendFactory>>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -102,6 +107,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             pending_approvals: self.pending_approvals.clone(),
             notification_config: self.notification_config.clone(),
             pipeline_engine: self.pipeline_engine.clone(),
+            backend_factory: self.backend_factory.clone(),
         }
     }
 }
@@ -201,7 +207,7 @@ async fn shutdown_handler<B: ExecutionBackend + Clone>(
 }
 
 /// Build the axum Router with all routes and shared state.
-fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
+fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<B>) -> Router {
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use super::routes_dashboard::{
         dashboard_stream, get_dashboard, get_dashboard_partial, get_dashboard_state, get_htmx_js,
@@ -274,7 +280,7 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
 
 impl APIServer {
     /// Create a new APIServer with the given config and application state.
-    pub fn new<B: ExecutionBackend + Clone>(config: APIServerConfig, state: AppState<B>) -> Self {
+    pub fn new<B: ExecutionBackend + Clone + From<DynBackend>>(config: APIServerConfig, state: AppState<B>) -> Self {
         let router = build_router(state);
         Self { config, router }
     }
@@ -412,6 +418,10 @@ mod tests {
     #[derive(Clone)]
     struct MockBackend;
 
+    impl From<DynBackend> for MockBackend {
+        fn from(_: DynBackend) -> Self { MockBackend }
+    }
+
     impl ExecutionBackend for MockBackend {
         fn execute(
             &self,
@@ -449,6 +459,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         }
     }
 

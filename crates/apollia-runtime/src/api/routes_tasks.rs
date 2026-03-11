@@ -13,7 +13,7 @@ use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::router::SubmitError;
 
-use apollia_core::{AIPInput, AIPPart, DataPart, InputResponseData, RuntimeEvent, TaskId};
+use apollia_core::{AIPInput, AIPPart, DataPart, InputResponseData, RuntimeEvent, TaskId, TaskStatus};
 
 /// Request body for `POST /api/v1/tasks`.
 #[derive(Debug, Deserialize)]
@@ -59,8 +59,20 @@ fn submit_error_to_response(err: SubmitError) -> (StatusCode, Json<ErrorResponse
     (status, Json(ErrorResponse { error: message }))
 }
 
-/// Convert free-form JSON input into an [`AIPInput`] with a single `DataPart`.
+/// Convert JSON input into an [`AIPInput`].
+///
+/// If `value` is already an A2A-aligned `AIPInput` (i.e. a JSON object with a non-empty
+/// `"parts"` array whose items have a `"type"` discriminant), it is deserialized directly.
+/// This is the preferred format for CLI and API callers:
+/// `{"parts": [{"type": "text", "text": "..."}]}`.
+///
+/// Any other shape is wrapped as a single `DataPart` for backward compatibility.
 fn json_to_aip_input(value: serde_json::Value) -> AIPInput {
+    if let Ok(input) = serde_json::from_value::<AIPInput>(value.clone()) {
+        if !input.parts.is_empty() {
+            return input;
+        }
+    }
     AIPInput {
         parts: vec![AIPPart::Data(DataPart { data: value })],
     }
@@ -107,15 +119,29 @@ pub async fn get_task<B: ExecutionBackend + Clone>(
         .map_err(submit_error_to_response)?;
 
     match status {
-        Some(s) => Ok(Json(TaskResponse {
-            task_id,
-            status: serde_json::to_value(&s)
-                .ok()
-                .and_then(|v| v.as_str().map(String::from))
-                .unwrap_or_else(|| format!("{s:?}")),
-            result: None,
-            error: None,
-        })),
+        Some(s) => {
+            // Fetch stored output for completed tasks so the CLI can display it.
+            let result = if matches!(s, TaskStatus::Completed) {
+                state
+                    .router_handle
+                    .get_output(&task_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(serde_json::Value::String)
+            } else {
+                None
+            };
+            Ok(Json(TaskResponse {
+                task_id,
+                status: serde_json::to_value(&s)
+                    .ok()
+                    .and_then(|v| v.as_str().map(String::from))
+                    .unwrap_or_else(|| format!("{s:?}")),
+                result,
+                error: None,
+            }))
+        }
         None => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
@@ -363,6 +389,10 @@ mod tests {
     #[derive(Clone)]
     struct MockBackend;
 
+    impl From<crate::coordinator::DynBackend> for MockBackend {
+        fn from(_: crate::coordinator::DynBackend) -> Self { MockBackend }
+    }
+
     impl ExecutionBackend for MockBackend {
         fn execute(
             &self,
@@ -438,6 +468,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -486,6 +517,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -534,6 +566,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
@@ -747,6 +780,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/resume", post(resume_task::<MockBackend>))
@@ -889,5 +923,57 @@ mod tests {
             "error should mention task_id, got: {}",
             json["error"]
         );
+    }
+
+    // ─── json_to_aip_input unit tests ────────────────────────────────────────
+
+    /// A2A-aligned format with a TextPart must deserialize directly (not wrapped).
+    #[test]
+    fn test_json_to_aip_input_text_part() {
+        // GIVEN a well-formed AIPInput JSON (A2A format)
+        let value = serde_json::json!({
+            "parts": [{"type": "text", "text": "/home/user/project"}]
+        });
+
+        // WHEN
+        let input = json_to_aip_input(value);
+
+        // THEN exactly one TextPart with the correct text
+        assert_eq!(input.parts.len(), 1);
+        match &input.parts[0] {
+            AIPPart::Text(tp) => assert_eq!(tp.text, "/home/user/project"),
+            other => panic!("expected TextPart, got {other:?}"),
+        }
+    }
+
+    /// Legacy free-form JSON (no "parts" key) must be wrapped as a DataPart.
+    #[test]
+    fn test_json_to_aip_input_legacy_wraps_as_data() {
+        // GIVEN legacy input shape (no "parts" key)
+        let value = serde_json::json!({ "prompt": "review this" });
+
+        // WHEN
+        let input = json_to_aip_input(value.clone());
+
+        // THEN wrapped as a single DataPart
+        assert_eq!(input.parts.len(), 1);
+        match &input.parts[0] {
+            AIPPart::Data(dp) => assert_eq!(dp.data, value),
+            other => panic!("expected DataPart, got {other:?}"),
+        }
+    }
+
+    /// Empty parts array must fall back to DataPart wrapping.
+    #[test]
+    fn test_json_to_aip_input_empty_parts_falls_back() {
+        // GIVEN an AIPInput-shaped JSON but with no parts
+        let value = serde_json::json!({ "parts": [] });
+
+        // WHEN
+        let input = json_to_aip_input(value.clone());
+
+        // THEN wrapped as DataPart (empty parts would silently discard the input)
+        assert_eq!(input.parts.len(), 1);
+        assert!(matches!(&input.parts[0], AIPPart::Data(_)));
     }
 }

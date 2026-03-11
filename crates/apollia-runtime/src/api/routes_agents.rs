@@ -14,7 +14,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::api::server::AppState;
-use crate::coordinator::{ExecutionBackend, ExecutionCoordinator};
+use crate::coordinator::{DynBackend, ExecutionBackend, ExecutionCoordinator};
 use crate::registry::AgentRegistryError;
 
 use apollia_core::{AgentManifest, ProcessState};
@@ -29,6 +29,21 @@ pub trait AgentLoader: Send + Sync {
     ///
     /// Returns a human-readable error string on failure.
     fn load_and_validate(&self, path: &Path) -> Result<AgentManifest, String>;
+}
+
+/// Factory for creating per-agent execution backends (ADR-019 extension).
+///
+/// Abstracts away PyO3/AIPBridge creation so that `apollia-runtime` remains
+/// decoupled from `apollia-aip`. The concrete implementation lives in `apollia-cli`.
+///
+/// Called once per agent at start time from [`start_agent`].
+pub trait AgentBackendFactory: Send + Sync {
+    /// Creates a real execution backend for the given agent.
+    ///
+    /// The returned `DynBackend` is used for all tasks routed to this agent.
+    /// Implementations load the Python module, create an `AIPBridge`, and
+    /// build a `RuntimeContext` factory that is closed over in the backend.
+    fn create_for_agent(&self, agent_path: &Path, manifest: &AgentManifest) -> DynBackend;
 }
 
 /// Stub [`AgentLoader`] that builds a minimal manifest from the file name.
@@ -172,7 +187,7 @@ pub async fn list_agents<B: ExecutionBackend + Clone>(
 ///
 /// Returns 201 Created with the agent_id and state.
 /// Returns 400 Bad Request if the Python module is invalid.
-pub async fn start_agent<B: ExecutionBackend + Clone>(
+pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
     Json(req): Json<StartAgentRequest>,
 ) -> Result<(StatusCode, Json<AgentResponse>), (StatusCode, Json<ErrorResponse>)> {
@@ -180,6 +195,8 @@ pub async fn start_agent<B: ExecutionBackend + Clone>(
 
     let has_missing_optional = !manifest.tools_optional.is_empty();
     let max_concurrent = manifest.max_concurrent_tasks;
+    // Clone manifest before consuming it in register() — needed for factory below.
+    let manifest_for_factory = manifest.clone();
 
     let agent_id = state
         .registry_handle
@@ -210,11 +227,20 @@ pub async fn start_agent<B: ExecutionBackend + Clone>(
     };
 
     // Create and register an ExecutionCoordinator for this agent.
+    // Production: factory creates a real AIPBridge backend, converted to B via From<DynBackend>.
+    // Tests: factory is None — use state.backend directly (already type B).
+    let agent_backend: B = match &state.backend_factory {
+        Some(factory) => {
+            let dyn_backend = factory.create_for_agent(Path::new(&req.agent_path), &manifest_for_factory);
+            B::from(dyn_backend)
+        }
+        None => state.backend.clone(),
+    };
     let coordinator = ExecutionCoordinator::new(
         agent_id.clone(),
         max_concurrent,
         state.event_sender.clone(),
-        state.backend.clone(),
+        agent_backend,
     );
     // Fire-and-forget: if registration fails the task submission will return NoCoordinator.
     let _ = state
@@ -302,9 +328,19 @@ pub async fn get_agent<B: ExecutionBackend + Clone>(
 
 /// Handler for `DELETE /api/v1/agents/{id}`.
 ///
-/// Initiates agent shutdown by transitioning to `Stopping`.
+/// Performs a full graceful shutdown of the agent:
+/// 1. Transitions to `Stopping` (emits `AgentStopping` event for observers).
+/// 2. Unregisters the `ExecutionCoordinator` from the `TaskRouter` so no new
+///    tasks can be submitted to this agent.
+/// 3. Transitions to `Stopped` (emits `AgentStopped` event).
+///
+/// This mirrors the sequence performed by [`ShutdownController::stop_agents`]
+/// during full system shutdown. The `Stopping` intermediate state is preserved
+/// so that event-bus subscribers (dashboard, SSE streams) observe the correct
+/// lifecycle.
+///
 /// Accepts both a UUID and a human-readable agent name (e.g. `apollia-reviewer`).
-/// Returns 409 Conflict if the agent is already stopped.
+/// Returns 409 Conflict if the agent is already stopped or stopping.
 /// Returns 404 if the agent does not exist.
 pub async fn stop_agent<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
@@ -339,17 +375,30 @@ pub async fn stop_agent<B: ExecutionBackend + Clone>(
         ));
     }
 
-    // Use the canonical UUID for the state transition — never the raw input.
-    let canonical_id = entry.id.to_string();
+    // Use the canonical AgentId — never the raw user input which may be a name.
+    let agent_id = entry.id.clone();
+
+    // Step 1: signal drain (emits AgentStopping on the EventBus).
     state
         .registry_handle
-        .update_state(&canonical_id, ProcessState::Stopping)
+        .update_state(agent_id.as_str(), ProcessState::Stopping)
+        .await
+        .map_err(registry_error_to_response)?;
+
+    // Step 2: remove coordinator so the TaskRouter rejects any new task submissions.
+    // Fire-and-forget: if the router is already dead, this is a no-op.
+    let _ = state.router_handle.unregister_coordinator(&agent_id).await;
+
+    // Step 3: complete the lifecycle (emits AgentStopped on the EventBus).
+    state
+        .registry_handle
+        .update_state(agent_id.as_str(), ProcessState::Stopped)
         .await
         .map_err(registry_error_to_response)?;
 
     Ok(Json(AgentResponse {
-        agent_id: canonical_id,
-        state: "stopping".to_string(),
+        agent_id: agent_id.to_string(),
+        state: "stopped".to_string(),
         manifest: None,
     }))
 }
@@ -374,6 +423,10 @@ mod tests {
 
     #[derive(Clone)]
     struct MockBackend;
+
+    impl From<DynBackend> for MockBackend {
+        fn from(_: DynBackend) -> Self { MockBackend }
+    }
 
     impl ExecutionBackend for MockBackend {
         fn execute(
@@ -480,6 +533,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         };
         let router = Router::new()
             .route(
@@ -685,11 +739,11 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 200 avec state "stopping"
+        // THEN 200 avec state "stopped" — cycle Stopping→Stopped complété atomiquement
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         assert_eq!(json["agent_id"], agent_id.as_str());
-        assert_eq!(json["state"], "stopping");
+        assert_eq!(json["state"], "stopped");
     }
 
     #[tokio::test]
@@ -713,11 +767,42 @@ mod tests {
             .expect("build request");
         let resp = router.oneshot(req).await.expect("request failed");
 
-        // THEN 200 avec le canonical UUID et state "stopping"
+        // THEN 200 avec le canonical UUID et state "stopped"
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         assert_eq!(json["agent_id"], agent_id.as_str());
-        assert_eq!(json["state"], "stopping");
+        assert_eq!(json["state"], "stopped");
+    }
+
+    #[tokio::test]
+    async fn test_stop_agent_registry_state_is_stopped() {
+        // GIVEN un agent ACTIVE
+        let (router, registry) = test_router();
+        let agent_id = registry
+            .register(test_manifest("hello-agent"))
+            .await
+            .expect("register");
+        registry
+            .update_state(agent_id.as_str(), ProcessState::Active)
+            .await
+            .expect("activate");
+
+        // WHEN DELETE /api/v1/agents/{id}
+        let req = Request::builder()
+            .method("DELETE")
+            .uri(format!("/api/v1/agents/{agent_id}"))
+            .body(Body::empty())
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // THEN l'etat dans le registre est bien Stopped (pas Stopping)
+        let entry = registry
+            .get_agent(agent_id.as_str())
+            .await
+            .expect("registry call")
+            .expect("agent exists");
+        assert_eq!(entry.process_state, ProcessState::Stopped);
     }
 
     #[tokio::test]

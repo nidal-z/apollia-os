@@ -344,6 +344,10 @@ mod tests {
         }
     }
 
+    impl From<crate::coordinator::DynBackend> for MockBackend {
+        fn from(_: crate::coordinator::DynBackend) -> Self { MockBackend::instant() }
+    }
+
     impl ExecutionBackend for MockBackend {
         fn execute(
             &self,
@@ -369,6 +373,10 @@ mod tests {
     /// Backend that never completes (blocks forever).
     #[derive(Clone)]
     struct NeverBackend;
+
+    impl From<crate::coordinator::DynBackend> for NeverBackend {
+        fn from(_: crate::coordinator::DynBackend) -> Self { NeverBackend }
+    }
 
     impl ExecutionBackend for NeverBackend {
         fn execute(
@@ -413,7 +421,7 @@ mod tests {
     }
 
     /// Set up a full test environment with all actors.
-    async fn setup_env<B: ExecutionBackend + Clone>(
+    async fn setup_env<B: ExecutionBackend + Clone + From<crate::coordinator::DynBackend>>(
         backend: B,
     ) -> (ShutdownController<B>, EventBusSender, PathBuf) {
         use crate::api::{APIServer, APIServerConfig, AppState};
@@ -442,6 +450,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -568,6 +577,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -647,6 +657,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -832,6 +843,7 @@ mod tests {
             pending_approvals: None,
             notification_config: None,
             pipeline_engine: None,
+            backend_factory: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

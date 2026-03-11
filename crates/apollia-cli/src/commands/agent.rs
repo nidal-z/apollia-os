@@ -84,8 +84,28 @@ async fn run_start(client: &RuntimeClient, path: &str, json: bool) -> i32 {
     }
 }
 
+/// Return true if `arg` looks like a file path rather than an agent name or UUID.
+///
+/// Detects the common mistake of passing a Python module path (e.g. `agents/foo.py`)
+/// to commands that expect a name or UUID (e.g. `apollia-reviewer`).
+fn looks_like_file_path(arg: &str) -> bool {
+    arg.contains('/') || arg.contains('\\') || arg.ends_with(".py")
+}
+
 /// `apollia-os agent stop <id>` — stop a running agent.
 async fn run_stop(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
+    if looks_like_file_path(agent_id) {
+        let msg = format!(
+            "'{agent_id}' looks like a file path — use the agent name or UUID instead\n\
+             Hint: apollia-os agent stop <name|uuid>  (e.g. apollia-os agent stop apollia-reviewer)"
+        );
+        if json {
+            println!("{}", serde_json::json!({"error": msg}));
+        } else {
+            eprintln!("Error: {msg}");
+        }
+        return exit_codes::GENERAL_ERROR;
+    }
     match client.stop_agent(agent_id).await {
         Ok(resp) => {
             if json {
@@ -94,7 +114,7 @@ async fn run_stop(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("Agent {agent_id} stopping");
+                println!("Agent {agent_id} stopped");
             }
             exit_codes::SUCCESS
         }
@@ -104,6 +124,18 @@ async fn run_stop(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
 
 /// `apollia-os agent info <id>` — display agent detail.
 async fn run_info(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
+    if looks_like_file_path(agent_id) {
+        let msg = format!(
+            "'{agent_id}' looks like a file path — use the agent name or UUID instead\n\
+             Hint: apollia-os agent info <name|uuid>  (e.g. apollia-os agent info apollia-reviewer)"
+        );
+        if json {
+            println!("{}", serde_json::json!({"error": msg}));
+        } else {
+            eprintln!("Error: {msg}");
+        }
+        return exit_codes::GENERAL_ERROR;
+    }
     match client.get_agent(agent_id).await {
         Ok(resp) => {
             if json {
