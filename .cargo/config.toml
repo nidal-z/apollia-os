@@ -1,7 +1,11 @@
 # Default environment for all cargo commands on macOS (Homebrew Rust).
 # force = false : shell env vars take precedence — CI overrides via $GITHUB_ENV.
 [env]
-PYO3_PYTHON = { value = "/opt/homebrew/bin/python3", force = false }
+PYO3_PYTHON = { value = "/opt/homebrew/bin/python3.13", force = false }
+# Désactive la précompilation des shaders Metal au build — pas besoin de Xcode complet.
+# Les shaders sont compilés JIT par le driver Metal au premier appel d'inférence.
+# Pour activer la précompilation (Xcode requis) : export MISTRALRS_METAL_PRECOMPILE=1
+MISTRALRS_METAL_PRECOMPILE = { value = "0", force = false }
 
 [alias]
 # Generate HTML coverage report (local — uses cargo-tarpaulin, no rustup required).

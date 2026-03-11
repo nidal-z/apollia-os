@@ -131,13 +131,24 @@ debug_log_prompt = false  # log le prompt complet au niveau TRACE (défaut: fals
 
 ```toml
 [[llm.backends]]
-type       = "embedded"
-name       = "local"
-model_path = "~/.apollia/models/llama3.2-3B-q4_K_M.gguf"
-device     = "cpu"    # "cpu" | "cuda" | "metal"
+type         = "embedded"
+name         = "local"
+model_path   = "~/.apollia/models/llama3.2-3B-q4_K_M.gguf"
+quantization = "q4_k_m"
+device       = "cpu"    # "cpu" (défaut) | "metal" | "cuda"
 ```
 
-Requis : compilé avec `--features local`. Le chemin `~` est résolu au démarrage.
+Le chemin `~` est résolu au démarrage. Si le fichier est absent, `LlmError::ModelNotFound` est émis immédiatement (fail-fast, Principe #4).
+
+**Feature requise selon le device :**
+
+| Valeur `device` | Feature à compiler | Commande |
+|---|---|---|
+| `"cpu"` | `local` ou `local-cpu` | `cargo build --features local` |
+| `"metal"` | `local-metal` | `cargo build --features local-metal` ¹ |
+| `"cuda"` | `local-cuda` | `cargo build --features local-cuda` (non testé) |
+
+¹ Sans Xcode complet : préfixer avec `MISTRALRS_METAL_PRECOMPILE=0` (shaders Metal compilés JIT au premier appel au lieu d'être baked au build — voir [INSTALL.md](./INSTALL) pour le détail).
 
 #### Backend cloud OpenAI-compatible
 
@@ -167,11 +178,39 @@ api_key_env = "ANTHROPIC_API_KEY"
 
 **Expansion du chemin `~` :** effectuée au parsing TOML (avant `LlmRouter::from_config`). Le chemin est converti en chemin absolu — si le fichier est absent, `LlmError::ModelNotFound` est émis au démarrage (fail-fast, Principe #4).
 
-#### Exemple complet — config mixte (local + cloud)
+#### Exemple — local CPU (défaut)
 
 ```toml
 [llm]
-default = "local"    # préférer le modèle local par défaut
+default = "local"
+
+[[llm.backends]]
+type         = "embedded"
+name         = "local"
+model_path   = "~/.apollia/models/llama3.2-3B-q4_K_M.gguf"
+quantization = "q4_k_m"
+device       = "cpu"    # --features local
+```
+
+#### Exemple — local Metal (Apple Silicon GPU)
+
+```toml
+[llm]
+default = "local-metal"
+
+[[llm.backends]]
+type         = "embedded"
+name         = "local-metal"
+model_path   = "~/.apollia/models/llama3.2-3B-q4_K_M.gguf"
+quantization = "q4_k_m"
+device       = "metal"  # --features local-metal (ou local-metal,local-accelerate)
+```
+
+#### Exemple complet — config mixte (local Metal + cloud)
+
+```toml
+[llm]
+default = "local-metal"    # GPU Apple Silicon en priorité
 
 [llm.observability]
 log_token_usage  = true
@@ -179,12 +218,13 @@ log_latency      = true
 log_cost         = true
 debug_log_prompt = false
 
-# Backend 1 : modèle local (nécessite --features local)
+# Backend 1 : modèle local sur GPU Apple Silicon (--features local-metal)
 [[llm.backends]]
-type       = "embedded"
-name       = "local"
-model_path = "~/.apollia/models/llama3.2-3B-q4_K_M.gguf"
-device     = "cpu"
+type         = "embedded"
+name         = "local-metal"
+model_path   = "~/.apollia/models/llama3.2-3B-q4_K_M.gguf"
+quantization = "q4_k_m"
+device       = "metal"
 
 # Backend 2 : Anthropic cloud (fallback pour les tâches gourmandes en raisonnement)
 [[llm.backends]]
@@ -319,14 +359,16 @@ max_tool_calls = 100
 wall_clock_timeout_secs = 600
 
 # LLM local pour le dev (aucun coût cloud)
+# Sur macOS Apple Silicon : utiliser device = "metal" avec --features local-metal
 [llm]
 default = "local"
 
 [[llm.backends]]
-type       = "embedded"
-name       = "local"
-model_path = "~/.apollia/models/llama3.2-3B-q4_K_M.gguf"
-device     = "cpu"
+type         = "embedded"
+name         = "local"
+model_path   = "~/.apollia/models/llama3.2-3B-q4_K_M.gguf"
+quantization = "q4_k_m"
+device       = "cpu"    # remplacer par "metal" avec --features local-metal sur Apple Silicon
 
 [llm.observability]
 debug_log_prompt = true   # activer uniquement en dev

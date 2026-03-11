@@ -90,7 +90,7 @@ apollia-oria    = { path = "crates/apollia-oria" }
 apollia-tools   = { path = "crates/apollia-tools" }
 apollia-memory  = { path = "crates/apollia-memory" }
 apollia-aip     = { path = "crates/apollia-aip" }
-apollia-llm           = { path = "crates/apollia-llm" }
+apollia-llm           = { path = "crates/apollia-llm", default-features = false }
 apollia-triggers      = { path = "crates/apollia-triggers" }
 apollia-notifications = { path = "crates/apollia-notifications" }
 apollia-pipelines     = { path = "crates/apollia-pipelines" }

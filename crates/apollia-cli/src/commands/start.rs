@@ -24,6 +24,12 @@ pub enum StartError {
     /// Supervisor failed to start actors.
     #[error("failed to start runtime: {0}")]
     Supervisor(#[from] apollia_runtime::supervisor::SupervisorError),
+    /// Config file found but invalid.
+    #[error("invalid config file {path}: {reason}")]
+    Config {
+        path: std::path::PathBuf,
+        reason: String,
+    },
 }
 
 /// Real agent loader using AIPLoader + validate_agent (ADR-019).
@@ -69,6 +75,33 @@ impl ExecutionBackend for NoopBackend {
     }
 }
 
+/// Resolves `~` to `$HOME` in a path string.
+fn expand_tilde_str(s: &str) -> PathBuf {
+    if s.starts_with("~/") {
+        let home = std::env::var("HOME").unwrap_or_default();
+        PathBuf::from(format!("{}{}", home, &s[1..]))
+    } else {
+        PathBuf::from(s)
+    }
+}
+
+/// Finds `apollia.toml` by searching in order:
+///   1. `./apollia.toml`      (current working directory)
+///   2. `~/.config/apollia/apollia.toml`  (user config dir)
+/// Returns `None` if neither exists.
+fn find_config_file() -> Option<PathBuf> {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let local = cwd.join("apollia.toml");
+    if local.exists() {
+        return Some(local);
+    }
+    let user_cfg = expand_tilde_str("~/.config/apollia/apollia.toml");
+    if user_cfg.exists() {
+        return Some(user_cfg);
+    }
+    None
+}
+
 /// Bootstrap and run the runtime in foreground.
 ///
 /// Uses the Supervisor for ordered startup with timeout and rollback.
@@ -79,6 +112,47 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
     let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
     let tcp_port = port.unwrap_or(DEFAULT_TCP_PORT);
 
+    let home = std::env::var("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir());
+
+    // Load apollia.toml if found.
+    let (llm_config, triggers, notifications, pipelines, config_path) =
+        match find_config_file() {
+            Some(path) => {
+                tracing::info!(config = %path.display(), "loading config");
+                let cfg = crate::config::parse_apollia_toml(&path).map_err(|e| {
+                    StartError::Config {
+                        path: path.clone(),
+                        reason: e.to_string(),
+                    }
+                })?;
+                (cfg.llm, cfg.triggers, cfg.notifications, cfg.pipelines, Some(path))
+            }
+            None => {
+                tracing::info!("no apollia.toml found — starting with defaults");
+                (None, vec![], None, vec![], None)
+            }
+        };
+
+    let trigger_count = triggers.len();
+    let llm_label = llm_config
+        .as_ref()
+        .map(|l| format!("backend \"{}\"", l.default))
+        .unwrap_or_else(|| "disabled".to_string());
+    let notification_label = notifications
+        .as_ref()
+        .map(|n| {
+            let count = n.channels.iter().filter(|c| c.enabled).count();
+            format!("{count} channel(s)")
+        })
+        .unwrap_or_else(|| "disabled".to_string());
+    let pipeline_label = if pipelines.is_empty() {
+        "disabled (no [[pipelines]] defined)".to_string()
+    } else {
+        format!("{} pipeline(s)", pipelines.len())
+    };
+
     // Start all actors via Supervisor (ordered, with timeout + rollback)
     let config = SupervisorConfig {
         api_config: APIServerConfig {
@@ -86,34 +160,32 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
             tcp_port,
         },
         startup_timeout_secs: 10,
-        llm_config: None,
-        triggers: vec![],
-        config_path: None,
+        llm_config,
+        triggers,
+        config_path,
         input_required_timeout_hours: 24,
-        notifications: None,
-        pipelines: vec![],
-        data_dir: {
-            let home = std::env::var("HOME")
-                .map(std::path::PathBuf::from)
-                .unwrap_or_else(|_| std::env::temp_dir());
-            home.join(".apollia")
-        },
+        notifications,
+        pipelines,
+        data_dir: home.join(".apollia"),
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);
     let handles = supervisor.start(NoopBackend, agent_loader).await?;
 
     let elapsed = start.elapsed();
-    println!("  * EventBus        ready");
-    println!("  * AgentRegistry   ready");
-    println!("  * ToolRegistry    ready (3 native tools)");
-    println!("  * TaskRouter      ready");
-    println!("  * TriggerEngine   ready (0 trigger(s))");
+    println!("  * EventBus            ready");
+    println!("  * AgentRegistry       ready");
+    println!("  * ToolRegistry        ready (3 native tools)");
+    println!("  * LlmRouter           {llm_label}");
+    println!("  * TaskRouter          ready");
+    println!("  * TriggerEngine       ready ({trigger_count} trigger(s))");
+    println!("  * PipelineEngine      {pipeline_label}");
     println!(
-        "  * APIServer       listening on {} + localhost:{}",
+        "  * APIServer           listening on {} + localhost:{}",
         socket_path.display(),
         tcp_port
     );
+    println!("  * NotificationEngine  {notification_label}");
     println!("  -------------------------------------------------");
     println!("  * Runtime ready in {:.1}s", elapsed.as_secs_f64());
     println!();

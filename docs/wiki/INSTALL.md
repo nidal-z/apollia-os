@@ -27,7 +27,7 @@ sqlite3 --version      # >= 3.35
 git clone https://github.com/nidal-z/apollia-os.git
 cd apollia-os
 
-# Compiler tout le workspace
+# Compiler tout le workspace (binaire léger — backends cloud uniquement)
 cargo build --workspace
 
 # Ou en release (recommande pour la production)
@@ -35,6 +35,35 @@ cargo build --workspace --release
 ```
 
 Le binaire produit est `target/debug/apollia-os` (ou `target/release/apollia-os`).
+
+### Build avec moteur LLM local (inférence in-process)
+
+Par défaut, le build n'inclut que les backends cloud (HTTP). Pour activer l'inférence locale (modèles `.gguf` sur la machine), choisir une feature selon le matériel :
+
+| Feature | Matériel cible | Commande |
+|---|---|---|
+| `local` / `local-cpu` | CPU (tout matériel) | `cargo build --features local` |
+| `local-metal` | GPU Apple Silicon (M1/M2/M3/M4) | voir ci-dessous |
+| `local-accelerate` | macOS CPU + BLAS vectorisé | `cargo build --features local-accelerate` |
+| `local-cuda` | GPU NVIDIA | `cargo build --features local-cuda` (non testé) |
+
+**Metal sur macOS (Apple Silicon) :**
+
+```bash
+# Build standard — fonctionne sans Xcode complet (Command Line Tools suffit)
+# MISTRALRS_METAL_PRECOMPILE=0 est défini par défaut dans .cargo/config.toml
+cargo build --workspace --release --features local-metal
+
+# Combiner avec Accelerate (BLAS vectorisé) pour de meilleures performances
+cargo build --workspace --release --features local-metal,local-accelerate
+```
+
+Le projet configure `MISTRALRS_METAL_PRECOMPILE=0` par défaut dans `.cargo/config.toml`. Cela signifie que les shaders Metal sont compilés **JIT par le driver Metal** au premier appel d'inférence plutôt que pendant le `cargo build` (ce qui nécessiterait `xcrun metal`, outil présent uniquement dans Xcode complet). Les performances GPU sont identiques après le premier appel.
+
+Pour activer la précompilation au build (nécessite `/Applications/Xcode.app`) :
+```bash
+MISTRALRS_METAL_PRECOMPILE=1 cargo build --workspace --release --features local-metal
+```
 
 Pour l'ajouter au PATH :
 
@@ -115,6 +144,7 @@ apollia-os stop
 | `APOLLIA_SOCKET` | Chemin du socket Unix | `/tmp/apollia.sock` |
 | `APOLLIA_PORT` | Port TCP de l'API | `7771` |
 | `RUST_LOG` | Niveau de log (`info`, `debug`, `trace`) | `info` |
+| `MISTRALRS_METAL_PRECOMPILE` | `0` = shaders Metal compilés JIT (défaut projet via `.cargo/config.toml`). `1` = précompilation au build (nécessite Xcode) | `0` (défaut projet) |
 
 ---
 

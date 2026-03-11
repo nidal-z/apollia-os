@@ -43,6 +43,9 @@ pub async fn run(socket: Option<PathBuf>, json: bool) -> i32 {
 }
 
 /// Format status output as human-readable text.
+///
+/// Health was already verified by the caller — reaching this function
+/// means the runtime is active and reachable.
 fn format_text_status(agents_json: &serde_json::Value) {
     let agents = agents_json
         .get("agents")
@@ -55,6 +58,8 @@ fn format_text_status(agents_json: &serde_json::Value) {
         .filter(|a| a.get("state").and_then(|s| s.as_str()) == Some("active"))
         .count();
 
+    println!("  Runtime  ACTIVE");
+    println!();
     println!("  AGENTS ({active_count} active)");
     println!("  {:<20} {:<12}", "NOM", "STATE");
 

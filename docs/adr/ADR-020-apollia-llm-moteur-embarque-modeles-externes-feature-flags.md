@@ -90,8 +90,10 @@ script, pour un binaire vraiment auto-suffisant.
 **Compromis acceptés :**
 - Le binaire `feature = "local"` est plus lourd (mistral-rs-core compile du CUDA/Metal/CPU
   optionnellement).
-- `mistral-rs-core` est une dépendance nouvelle dans le workspace (version 0.4).
+- `mistral-rs-core` est une dépendance nouvelle dans le workspace (version 0.7).
 - L'utilisateur doit télécharger le `.gguf` séparément (`apollia-os model download` en roadmap).
+- Le build `local-metal` nécessite soit Xcode complet, soit `MISTRALRS_METAL_PRECOMPILE=0`
+  (shaders Metal compilés JIT au lieu d'être précompilés, sans impact sur les performances).
 
 ## Conséquences
 
@@ -108,9 +110,16 @@ script, pour un binaire vraiment auto-suffisant.
 - L'utilisateur `feature = "local"` doit gérer ses `.gguf` dans `~/.apollia/models/`.
 
 **Neutres / À surveiller :**
-- Stabilité de l'API `mistral-rs-core 0.4` — surveiller les breaking changes.
+- Stabilité de l'API `mistral-rs-core 0.7` — surveiller les breaking changes.
 - Performance de `EmbeddedBackend` sur macOS ARM vs Linux x86 (pas de CI Mac).
 - Migration future vers `candle` (Hugging Face, pure Rust) si `mistral-rs-core` stagne.
+
+**Mise à jour (2026-03-11) — Metal fonctionnel :**
+- `objc2-metal 0.3.2` et `candle-metal-kernels 0.9.2` sont désormais publiés sur crates.io.
+- `local-metal = ["local", "mistralrs/metal", "mistralrs-core/metal"]` est activé.
+- `GgufModelBuilder::with_device(Device::new_metal(0))` est utilisé dans `EmbeddedBackend::load()`.
+- Le blocker "objc2-metal absent" mentionné dans les sprints 8/9 est clos.
+- Seule contrainte résiduelle : le build `local-metal` nécessite Xcode complet **ou** `MISTRALRS_METAL_PRECOMPILE=0` (Command Line Tools suffisent dans ce cas).
 
 ## Principes architecturaux impactés
 

@@ -27,7 +27,7 @@ source ~/.cargo/env
 ## Build
 
 ```bash
-# Cloner et compiler
+# Cloner et compiler (binaire léger — backends cloud uniquement, par défaut)
 git clone https://github.com/nidal-z/apollia-os.git
 cd apollia-os
 cargo build --workspace --release
@@ -39,6 +39,20 @@ export PATH="$PWD/target/release:$PATH"
 # Ou installer définitivement :
 cargo install --path crates/apollia-cli
 ```
+
+### Option : inférence locale (modèle .gguf sur la machine)
+
+Pour activer le backend embarqué (`device = "cpu"`, `"metal"`, etc.) dans `apollia.toml`, recompiler avec la feature correspondante :
+
+```bash
+# CPU (tout matériel)
+cargo build --workspace --release --features local
+
+# GPU Apple Silicon — fonctionne directement (MISTRALRS_METAL_PRECOMPILE=0 configuré dans .cargo/config.toml)
+cargo build --workspace --release --features local-metal
+```
+
+Sans cette option, `ctx.llm` sera `None` dans les agents sauf si un backend `type = "api"` est configuré dans `apollia.toml`.
 
 ---
 

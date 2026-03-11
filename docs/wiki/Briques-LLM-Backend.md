@@ -187,12 +187,29 @@ pub enum AcceleratorDevice {
 | Feature | Activation | Prérequis | État |
 |---|---|---|---|
 | `local-cpu` | Inclus dans `local` | Aucun | ✅ Disponible |
-| `local-cuda` | `--features local-cuda` | GPU NVIDIA + CUDA toolkit | ⚠️ Dev sans GPU — non testé |
-| `local-metal` | `--features local-metal` | macOS Apple Silicon (M1+) | ⚠️ Bloqué — `objc2-metal ^0.3.2` absent de crates.io |
+| `local-metal` | `--features local-metal` | macOS Apple Silicon (M1+) | ✅ Disponible — `objc2-metal 0.3.2` sur crates.io |
+| `local-accelerate` | `--features local-accelerate` | macOS (CPU BLAS vectorisé) | ✅ Disponible — plus rapide que CPU pur sans GPU |
+| `local-cuda` | `--features local-cuda` | GPU NVIDIA + CUDA toolkit | ⚠️ Déclaré — non testé (pas de GPU NVIDIA en CI) |
 
 > **Fail-fast (Principe #4) :** Si `device = "cuda"` ou `device = "metal"` mais que la feature correspondante n'est pas compilée, `EmbeddedBackend::load()` retourne `LlmError::DeviceNotAvailable { device, hint }` au démarrage — jamais de panic silencieux.
 
-> **En pratique :** En 2026, utiliser `device = "cpu"` pour le dev local et les tests CI. `cuda` et `metal` seront activés quand les dépendances crates.io seront stabilisées (voir ADR-020).
+**Compiler avec Metal (Apple Silicon) :**
+
+```bash
+# Build standard — fonctionne sans Xcode complet
+# MISTRALRS_METAL_PRECOMPILE=0 est défini par défaut dans .cargo/config.toml
+cargo build --release --features local-metal
+
+# Combiner avec Accelerate (BLAS vectorisé Apple) — recommandé sur Apple Silicon
+cargo build --release --features local-metal,local-accelerate
+```
+
+Le projet configure `MISTRALRS_METAL_PRECOMPILE=0` dans `.cargo/config.toml` : les shaders Metal sont compilés JIT au premier appel d'inférence plutôt que pendant le build (ce qui nécessiterait Xcode complet). Les performances GPU sont identiques après ce premier appel.
+
+Pour la distribution (shaders baked dans le binaire, Xcode requis) :
+```bash
+MISTRALRS_METAL_PRECOMPILE=1 cargo build --release --features local-metal
+```
 
 ---
 

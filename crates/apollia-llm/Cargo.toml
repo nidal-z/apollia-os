@@ -23,11 +23,9 @@ local-accelerate = ["local", "mistralrs/accelerate", "mistralrs-core/accelerate"
 local-cuda       = ["local"]
 
 # GPU Apple Silicon Metal.
-# NOTE : mistralrs 0.7.x requiert objc2-metal = "^0.3.2" qui n'existe pas
-# encore sur crates.io (seul 0.3.1 est publié). Activation différée jusqu'à
-# la publication de objc2-metal 0.3.2 ou une release mistralrs compatible.
-# Quand résolu : ajouter "mistralrs/metal", "mistralrs-core/metal" ici.
-local-metal      = ["local"]
+# objc2-metal 0.3.2 et candle-metal-kernels sont désormais disponibles sur crates.io.
+# GgufModelBuilder::with_device(Device::new_metal(0)) est utilisé dans embedded.rs.
+local-metal      = ["local", "mistralrs/metal", "mistralrs-core/metal"]
 
 # ── Backend cloud (API HTTP — Anthropic, OpenAI-compatible) ──────────────────
 cloud            = ["dep:async-openai", "dep:reqwest"]

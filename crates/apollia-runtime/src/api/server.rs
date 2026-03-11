@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::extract::State;
+use axum::response::Redirect;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Serialize;
@@ -219,6 +220,8 @@ fn build_router<B: ExecutionBackend + Clone>(state: AppState<B>) -> Router {
     use super::routes_webhooks::handle_webhook;
 
     Router::new()
+        // Redirect root to the dashboard (browser convenience)
+        .route("/", get(|| async { Redirect::permanent("/dashboard") }))
         .route("/api/v1/health", get(health_handler))
         .route("/api/v1/shutdown", post(shutdown_handler::<B>))
         .route("/api/v1/tasks", post(submit_task::<B>))
@@ -370,7 +373,16 @@ async fn serve_unix(
                         let conn_builder = builder.clone();
                         tokio::spawn(async move {
                             if let Err(e) = conn_builder.serve_connection(io, svc).await {
-                                tracing::error!(error = %e, "Unix socket connection error");
+                                // "error shutting down connection" is benign — the CLI client
+                                // closed its end before hyper completed the graceful shutdown.
+                                // Note: hyper emits "shutting down" (not "shutdown") in this message,
+                                // so we match on "shut" to cover both variants.
+                                let msg = e.to_string();
+                                if msg.contains("shut") || msg.contains("broken pipe") || msg.contains("connection reset") {
+                                    tracing::debug!(error = %e, "Unix socket connection closed by client");
+                                } else {
+                                    tracing::error!(error = %e, "Unix socket connection error");
+                                }
                             }
                         });
                     }

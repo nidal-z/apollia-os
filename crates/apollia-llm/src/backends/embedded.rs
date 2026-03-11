@@ -7,10 +7,28 @@
 //! ```text
 //! apollia-llm [feature = "local"]
 //!   └── EmbeddedBackend : CompletionModel
-//!         ├── load()     — charge le .gguf, initialise le moteur via GgufModelBuilder
+//!         ├── load()     — charge le .gguf, configure le device, initialise le moteur
 //!         ├── complete() — inférence synchrone via send_chat_request (AC-3)
 //!         └── stream()   — fallback AC-5 : complete() → un seul chunk
 //! ```
+//!
+//! # Devices supportés
+//!
+//! | Feature          | Device          | API                                    |
+//! |------------------|-----------------|----------------------------------------|
+//! | `local` / `local-cpu` | CPU        | défaut, aucune configuration           |
+//! | `local-metal`    | Apple Silicon GPU | `GgufModelBuilder::with_device(Device::new_metal(0))` |
+//! | `local-accelerate` | CPU + BLAS   | `mistralrs/accelerate` (pas de device) |
+//! | `local-cuda`     | GPU NVIDIA       | non implémenté (feature déclarée)      |
+//!
+//! # Build Metal (prérequis)
+//!
+//! Xcode complet est requis pour compiler les shaders Metal embarqués dans
+//! `mistralrs-paged-attn`. Sans Xcode (Command Line Tools seul), passer :
+//! ```sh
+//! MISTRALRS_METAL_PRECOMPILE=0 cargo build --release --features local-metal
+//! ```
+//! Les shaders seront compilés à l'exécution par le driver Metal.
 //!
 //! # Streaming (AC-5)
 //!
@@ -221,8 +239,25 @@ impl EmbeddedBackend {
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
 
+        // Construction du builder de base.
+        let builder = GgufModelBuilder::new(folder.to_string_lossy().as_ref(), vec![filename]);
+
+        // Sélection du device Metal — compilé uniquement avec feature = "local-metal".
+        //
+        // `check_compiled()` ci-dessus garantit que si `config.device == Metal`,
+        // la feature est bien présente. Le bloc `else` préserve le builder CPU par défaut.
+        #[cfg(feature = "local-metal")]
+        let builder = if config.device == AcceleratorDevice::Metal {
+            let device = mistralrs::Device::new_metal(0).map_err(|e| {
+                LlmError::InferenceError(format!("échec initialisation Metal GPU : {e}"))
+            })?;
+            builder.with_device(device)
+        } else {
+            builder
+        };
+
         // Chargement in-process via mistralrs — zéro HTTP, zéro processus externe.
-        let engine = GgufModelBuilder::new(folder.to_string_lossy().as_ref(), vec![filename])
+        let engine = builder
             .build()
             .await
             .map_err(|e| LlmError::InferenceError(e.to_string()))?;
@@ -423,6 +458,18 @@ mod tests {
         assert!(
             matches!(result, Err(LlmError::DeviceNotAvailable { ref device, .. }) if device == "cuda"),
             "attendu DeviceNotAvailable cuda, obtenu: {result:?}"
+        );
+    }
+
+    // GIVEN AcceleratorDevice::Metal compilé avec feature local-metal
+    // WHEN on appelle check_compiled()
+    // THEN Ok(()) est retourné — le GPU Apple Silicon est disponible
+    #[cfg(feature = "local-metal")]
+    #[test]
+    fn test_accelerator_device_metal_compiled() {
+        assert!(
+            AcceleratorDevice::Metal.check_compiled().is_ok(),
+            "Metal doit être disponible quand feature local-metal est compilée"
         );
     }
 

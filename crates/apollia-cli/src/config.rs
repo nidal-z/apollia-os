@@ -48,6 +48,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use apollia_llm::{BackendKind, LlmConfig};
+use apollia_notifications::NotificationConfig;
 use apollia_pipelines::{topological_layers, ConditionKind, PipelineDefinition, TopologicalError};
 use apollia_triggers::{
     parse_interval, FileEventKind, InputTemplate, OnBusyPolicy, TriggerDefinition,
@@ -222,6 +223,8 @@ struct RawApolliaCConfig {
     /// Pipelines bruts désérialisés depuis `[[pipelines]]` — validés par [`validate_pipeline`].
     #[serde(default)]
     pipelines: Vec<PipelineDefinition>,
+    /// Notifications brutes depuis `[notifications]` — passées telles quelles au Supervisor.
+    notifications: Option<NotificationConfig>,
 }
 
 /// Configuration globale Apollia OS validée depuis `apollia.toml`.
@@ -254,6 +257,11 @@ pub struct ApolliaCConfig {
     /// utiliser [`parse_apollia_toml`] pour obtenir les pipelines validés.
     #[serde(skip)]
     pub pipelines: Vec<PipelineDefinition>,
+
+    /// Configuration du système de notifications depuis `[notifications]`.
+    ///
+    /// `None` si la section est absente — le `NotificationEngine` ne sera pas démarré.
+    pub notifications: Option<NotificationConfig>,
 }
 
 /// Retourne `true` — valeur par défaut pour le champ `enabled` d'un trigger.
@@ -325,6 +333,7 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
         llm: raw.llm,
         triggers,
         pipelines,
+        notifications: raw.notifications,
     })
 }
 

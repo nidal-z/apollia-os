@@ -1,0 +1,206 @@
+# apollia.toml — Configuration complète pour test utilisateur final
+# Tous les chemins sont regroupés sous ~/.apollia/
+
+# ─────────────────────────────────────────────
+# RUNTIME
+# ─────────────────────────────────────────────
+[runtime]
+socket                = "/tmp/apollia.sock"
+port                  = 7771
+log_level             = "info"
+drain_timeout_seconds = 30
+
+# ─────────────────────────────────────────────
+# MEMORY ENGINE
+# ─────────────────────────────────────────────
+[memory]
+path             = "~/.apollia/data/memory.db"
+max_size_mb      = 512
+episode_ttl_days = 90
+fts5_enabled     = true
+
+# ─────────────────────────────────────────────
+# TOOLS
+# ─────────────────────────────────────────────
+[tools]
+sandbox              = false           # désactivé sur macOS (Linux namespaces indisponibles)
+venv_base_path       = "~/.apollia/data/venvs"
+bash_timeout_seconds = 30
+python_timeout_seconds = 60
+
+# ─────────────────────────────────────────────
+# API
+# ─────────────────────────────────────────────
+[api]
+tcp_enabled  = true
+bind_address = "127.0.0.1"
+
+# ─────────────────────────────────────────────
+# BUDGET — limites par défaut par tâche
+# ─────────────────────────────────────────────
+[budget]
+max_steps               = 20
+max_tool_calls          = 50
+wall_clock_timeout_secs = 300
+
+# ─────────────────────────────────────────────
+# LLM — moteur d'inférence
+# ─────────────────────────────────────────────
+# Section [llm] optionnelle — commenter tout le bloc pour démarrer sans LLM.
+#
+# IMPORTANT : le binaire par défaut (cargo build --release) ne supporte QUE type="api".
+# Pour type="embedded" CPU  : cargo build --release --features local
+# Pour type="embedded" Metal: cargo build --release --features local-metal   (Apple Silicon GPU)
+#   → MISTRALRS_METAL_PRECOMPILE=0 est défini par défaut dans .cargo/config.toml (pas de Xcode requis)
+#
+# Décommenter UN des blocs ci-dessous selon votre setup :
+
+# ── Option A : backend cloud Anthropic ──────────────────────────────────────
+# Prérequis : export ANTHROPIC_API_KEY="sk-ant-..."
+#
+# [llm]
+# default = "anthropic"
+#
+# [llm.observability]
+# log_token_usage  = true
+# log_latency      = true
+# log_cost         = true
+# debug_log_prompt = false
+#
+# [[llm.backends]]
+# type        = "api"
+# name        = "anthropic"
+# api_url     = "https://api.anthropic.com/v1"
+# model       = "claude-haiku-4-5-20251001"
+# api_key_env = "ANTHROPIC_API_KEY"
+
+# ── Option B : backend local embarqué ───────────────────────────────────────
+# Prérequis : cargo build --release --features local
+#             + modèle .gguf dans ~/.apollia/models/
+
+[llm]
+default = "local"
+
+[llm.observability]
+log_token_usage  = true
+log_latency      = true
+log_cost         = false
+debug_log_prompt = false
+
+[[llm.backends]]
+type         = "embedded"
+name         = "local"
+model_path   = "~/.apollia/models/Qwen3-0.6B-Q8_0.gguf"
+device       = "metal"       # "cpu" (défaut) | "metal" (GPU Apple Silicon, nécessite --features local-metal)
+quantization = "q8_0"
+
+# ─────────────────────────────────────────────
+# TRIGGERS — déclencheurs automatiques
+# ─────────────────────────────────────────────
+
+# Trigger 1 — Cron : rapport quotidien à 8h
+# [[triggers]]
+# id      = "rapport-quotidien"
+# agent   = "hello-agent"
+# enabled = false         # passer à true pour activer
+# on_busy = "drop"
+
+# [triggers.source]
+# type     = "cron"
+# schedule = "0 8 * * *"
+
+# [triggers.input]
+# text = "Génère un rapport pour la journée du {{date_iso}}"
+
+# Trigger 2 — Interval : vérification toutes les heures
+# [[triggers]]
+# id      = "check-horaire"
+# agent   = "hello-agent"
+# enabled = false
+# on_busy = "drop"
+
+# [triggers.source]
+# type  = "interval"
+# every = "1h"
+
+# [triggers.input]
+# text = "Vérification automatique {{date_iso}}"
+
+# Trigger 3 — FileWatch : surveille un dossier d'imports
+# [[triggers]]
+# id      = "import-fichier"
+# agent   = "hello-agent"
+# enabled = false
+# on_busy = "queue"
+
+# [triggers.source]
+# type   = "file_watch"
+# path   = "~/.apollia/imports/"
+# events = ["create"]
+
+# [triggers.input]
+# text = "Traite le fichier {{filename}} ({{size_bytes}} octets)"
+
+# Trigger 4 — Webhook : endpoint HTTP authentifié HMAC-SHA256
+# Appel : POST http://127.0.0.1:7771/webhooks/deploy
+# Header : X-Apollia-Signature: <hmac-sha256-hex>
+# [[triggers]]
+# id      = "webhook-deploy"
+# agent   = "hello-agent"
+# enabled = false
+# on_busy = "error"
+
+# [triggers.source]
+# type   = "webhook"
+# secret = "remplacer-par-un-secret-robuste-minimum-32-caracteres"
+
+# [triggers.input]
+# text = "Webhook reçu : {{webhook_body}}"
+
+# ─────────────────────────────────────────────
+# NOTIFICATIONS
+# ─────────────────────────────────────────────
+[notifications]
+events = [
+  "task.input_required",
+  "task.failed",
+  "task.completed",
+  "agent.degraded",
+  "pipeline.completed",
+  "pipeline.failed",
+  "pipeline.suspended",
+]
+
+# Canal 1 — Notification desktop native macOS
+[[notifications.channels]]
+id      = "bureau"
+type    = "desktop"
+enabled = true
+
+# Canal 2 — Webhook vers Slack (remplacer l'URL)
+# [[notifications.channels]]
+# id      = "slack"
+# type    = "webhook"
+# enabled = false
+# url     = "https://hooks.slack.com/services/REMPLACER"
+# events  = ["task.input_required", "task.failed", "agent.degraded"]
+
+# ─────────────────────────────────────────────
+# PIPELINES — orchestration multi-agent
+# ─────────────────────────────────────────────
+
+# [[pipelines]]
+# id          = "pipeline-demo"
+# description = "Pipeline de démonstration : deux agents en séquence"
+# on_failure  = "fail"
+
+# [[pipelines.steps]]
+# id    = "etape-1"
+# agent = "hello-agent"
+# input = "{{trigger.payload}}"
+
+# [[pipelines.steps]]
+# id         = "etape-2"
+# agent      = "hello-agent"
+# input      = "Suite de l'étape 1 : {{steps.etape-1.output}}"
+# depends_on = ["etape-1"]

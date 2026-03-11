@@ -34,12 +34,29 @@ echo "kernel.unprivileged_userns_clone = 1" >> /etc/sysctl.conf
 ```bash
 git clone https://github.com/nidal-z/apollia-os.git
 cd apollia-os
+
+# Binaire cloud uniquement (léger, ~20–30 MB) — backends API Anthropic/OpenAI
 cargo build --workspace --release
 
 # Vérifier la taille du binaire
 ls -lh target/release/apollia-os
-# Environ 20-30 MB (statiquement lié)
+# Environ 20-30 MB (statiquement lié, cloud uniquement)
 ```
+
+**Avec inférence locale (modèle .gguf sur la machine) :**
+
+```bash
+# CPU (Linux x86_64, ARM)
+cargo build --workspace --release --features local
+
+# GPU Apple Silicon macOS — fonctionne directement (MISTRALRS_METAL_PRECOMPILE=0 dans .cargo/config.toml)
+cargo build --workspace --release --features local-metal
+
+# Avec précompilation des shaders (Xcode complet requis, optimal pour la distribution)
+MISTRALRS_METAL_PRECOMPILE=1 cargo build --workspace --release --features local-metal
+```
+
+Le binaire avec `--features local` est plus lourd (~200–400 MB selon la plateforme — moteur d'inférence mistralrs lié statiquement). La taille du modèle `.gguf` (1–8 GB) n'est **pas** dans le binaire : elle est chargée depuis `~/.apollia/models/` au démarrage.
 
 ---
 
