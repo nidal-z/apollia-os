@@ -232,67 +232,100 @@ pub async fn start_agent<B: ExecutionBackend + Clone>(
     ))
 }
 
-/// Handler for `GET /api/v1/agents/{id}`.
+/// Resolves `id_or_name` — either a UUID or a human-readable agent name — to its
+/// [`AgentEntry`].
 ///
-/// Returns the detail of a single agent including its manifest.
-/// Returns 404 if the agent does not exist.
-pub async fn get_agent<B: ExecutionBackend + Clone>(
-    State(state): State<AppState<B>>,
-    AxumPath(agent_id): AxumPath<String>,
-) -> Result<Json<AgentResponse>, (StatusCode, Json<ErrorResponse>)> {
+/// Resolution order:
+/// 1. Direct UUID lookup via [`AgentRegistryHandle::get_agent`].
+/// 2. Name index lookup via [`AgentRegistryHandle::find_by_name`], then UUID lookup.
+///
+/// Returns `None` if neither lookup finds a match.
+async fn resolve_agent<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    id_or_name: &str,
+) -> Result<Option<crate::registry::AgentEntry>, (StatusCode, Json<ErrorResponse>)> {
+    // 1. Direct lookup — works when id_or_name is a UUID.
     let entry = state
         .registry_handle
-        .get_agent(&agent_id)
+        .get_agent(id_or_name)
         .await
         .map_err(registry_error_to_response)?;
 
-    match entry {
-        Some(e) => {
-            let manifest_json = serde_json::to_value(&e.manifest).ok();
-            Ok(Json(AgentResponse {
-                agent_id: e.id.to_string(),
-                state: state_to_string(&e.process_state),
-                manifest: manifest_json,
-            }))
-        }
-        None => Err((
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse {
-                error: format!("agent not found: {agent_id}"),
-            }),
-        )),
+    if entry.is_some() {
+        return Ok(entry);
     }
+
+    // 2. Name-based lookup — resolves human-readable identifiers like "apollia-reviewer".
+    let resolved_id = state
+        .registry_handle
+        .find_by_name(id_or_name)
+        .await
+        .map_err(registry_error_to_response)?;
+
+    match resolved_id {
+        None => Ok(None),
+        Some(id) => state
+            .registry_handle
+            .get_agent(id.as_str())
+            .await
+            .map_err(registry_error_to_response),
+    }
+}
+
+/// Handler for `GET /api/v1/agents/{id}`.
+///
+/// Returns the detail of a single agent including its manifest.
+/// Accepts both a UUID and a human-readable agent name (e.g. `apollia-reviewer`).
+/// Returns 404 if the agent does not exist.
+pub async fn get_agent<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    AxumPath(id_or_name): AxumPath<String>,
+) -> Result<Json<AgentResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let entry = resolve_agent(&state, &id_or_name)
+        .await?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: format!("agent not found: {id_or_name}"),
+                }),
+            )
+        })?;
+
+    let manifest_json = serde_json::to_value(&entry.manifest).ok();
+    Ok(Json(AgentResponse {
+        agent_id: entry.id.to_string(),
+        state: state_to_string(&entry.process_state),
+        manifest: manifest_json,
+    }))
 }
 
 /// Handler for `DELETE /api/v1/agents/{id}`.
 ///
 /// Initiates agent shutdown by transitioning to `Stopping`.
+/// Accepts both a UUID and a human-readable agent name (e.g. `apollia-reviewer`).
 /// Returns 409 Conflict if the agent is already stopped.
 /// Returns 404 if the agent does not exist.
 pub async fn stop_agent<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
-    AxumPath(agent_id): AxumPath<String>,
+    AxumPath(id_or_name): AxumPath<String>,
 ) -> Result<Json<AgentResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let entry = state
-        .registry_handle
-        .get_agent(&agent_id)
-        .await
-        .map_err(registry_error_to_response)?;
-
-    let entry = entry.ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse {
-                error: format!("agent not found: {agent_id}"),
-            }),
-        )
-    })?;
+    let entry = resolve_agent(&state, &id_or_name)
+        .await?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse {
+                    error: format!("agent not found: {id_or_name}"),
+                }),
+            )
+        })?;
 
     if entry.process_state == ProcessState::Stopped {
         return Err((
             StatusCode::CONFLICT,
             Json(ErrorResponse {
-                error: format!("agent already stopped: {agent_id}"),
+                error: format!("agent already stopped: {}", entry.id),
             }),
         ));
     }
@@ -301,19 +334,21 @@ pub async fn stop_agent<B: ExecutionBackend + Clone>(
         return Err((
             StatusCode::CONFLICT,
             Json(ErrorResponse {
-                error: format!("agent already stopping: {agent_id}"),
+                error: format!("agent already stopping: {}", entry.id),
             }),
         ));
     }
 
+    // Use the canonical UUID for the state transition — never the raw input.
+    let canonical_id = entry.id.to_string();
     state
         .registry_handle
-        .update_state(agent_id.as_str(), ProcessState::Stopping)
+        .update_state(&canonical_id, ProcessState::Stopping)
         .await
         .map_err(registry_error_to_response)?;
 
     Ok(Json(AgentResponse {
-        agent_id,
+        agent_id: canonical_id,
         state: "stopping".to_string(),
         manifest: None,
     }))
@@ -581,6 +616,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_agent_by_name() {
+        // GIVEN un agent enregistré sous le nom "my-agent"
+        let (router, registry) = test_router();
+        let agent_id = registry
+            .register(test_manifest("my-agent"))
+            .await
+            .expect("register");
+        registry
+            .update_state(agent_id.as_str(), ProcessState::Active)
+            .await
+            .expect("activate");
+
+        // WHEN GET /api/v1/agents/my-agent (nom humain, pas UUID)
+        let req = Request::builder()
+            .uri("/api/v1/agents/my-agent")
+            .body(Body::empty())
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+
+        // THEN 200 avec le bon agent_id et le manifest
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = body_json(resp).await;
+        assert_eq!(json["agent_id"], agent_id.as_str());
+        assert_eq!(json["state"], "active");
+        assert_eq!(json["manifest"]["name"], "my-agent");
+    }
+
+    #[tokio::test]
     async fn test_get_agent_not_found() {
         // GIVEN aucun agent "ghost"
         let (router, _) = test_router();
@@ -623,6 +686,34 @@ mod tests {
         let resp = router.oneshot(req).await.expect("request failed");
 
         // THEN 200 avec state "stopping"
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = body_json(resp).await;
+        assert_eq!(json["agent_id"], agent_id.as_str());
+        assert_eq!(json["state"], "stopping");
+    }
+
+    #[tokio::test]
+    async fn test_stop_agent_by_name() {
+        // GIVEN un agent ACTIVE enregistré sous le nom "my-agent"
+        let (router, registry) = test_router();
+        let agent_id = registry
+            .register(test_manifest("my-agent"))
+            .await
+            .expect("register");
+        registry
+            .update_state(agent_id.as_str(), ProcessState::Active)
+            .await
+            .expect("activate");
+
+        // WHEN DELETE /api/v1/agents/my-agent (nom humain, pas UUID)
+        let req = Request::builder()
+            .method("DELETE")
+            .uri("/api/v1/agents/my-agent")
+            .body(Body::empty())
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+
+        // THEN 200 avec le canonical UUID et state "stopping"
         assert_eq!(resp.status(), StatusCode::OK);
         let json = body_json(resp).await;
         assert_eq!(json["agent_id"], agent_id.as_str());

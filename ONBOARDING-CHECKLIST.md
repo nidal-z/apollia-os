@@ -166,7 +166,7 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
     ⌨  apollia-os agent list
     →  apollia-reviewer   active
 
-[ ] Info agent complète
+[x] Info agent complète
     ⌨  apollia-os agent info apollia-reviewer
     →  name: apollia-reviewer
     →  version: 1.0.0
@@ -175,7 +175,7 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
     →  execution_mode: direct
     →  memory_namespace: apollia-reviewer
 
-[ ] Info agent en JSON
+[x] Info agent en JSON
     ⌨  apollia-os agent info apollia-reviewer --json
     →  JSON valide avec "agent_id", "state": "active"
 

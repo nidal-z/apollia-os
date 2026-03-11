@@ -36,6 +36,12 @@ struct Cli {
     #[arg(long, global = true, value_name = "PATH")]
     socket: Option<PathBuf>,
 
+    /// Output machine-readable JSON instead of human-readable text.
+    ///
+    /// Accepted at any position: before or after the subcommand and its arguments.
+    #[arg(long, global = true)]
+    json: bool,
+
     /// Command to execute.
     #[command(subcommand)]
     command: Commands,
@@ -52,18 +58,10 @@ enum Commands {
     },
 
     /// Stop a running runtime.
-    Stop {
-        /// Output JSON instead of human-readable text.
-        #[arg(long)]
-        json: bool,
-    },
+    Stop,
 
     /// Display runtime and agent status.
-    Status {
-        /// Output JSON instead of human-readable text.
-        #[arg(long)]
-        json: bool,
-    },
+    Status,
 
     /// Submit a task to an agent and wait for the result.
     Run {
@@ -76,10 +74,6 @@ enum Commands {
         /// Stream task progress in real-time via SSE.
         #[arg(long)]
         stream: bool,
-
-        /// Output JSON instead of human-readable text.
-        #[arg(long)]
-        json: bool,
     },
 
     /// Agent management (list, start, stop, info).
@@ -87,10 +81,6 @@ enum Commands {
         /// Agent subcommand.
         #[command(subcommand)]
         command: AgentCommand,
-
-        /// Output JSON instead of human-readable text.
-        #[arg(long)]
-        json: bool,
     },
 
     /// Task management (list, status, cancel).
@@ -98,10 +88,6 @@ enum Commands {
         /// Task subcommand.
         #[command(subcommand)]
         command: TaskCommand,
-
-        /// Output JSON instead of human-readable text.
-        #[arg(long)]
-        json: bool,
     },
 
     /// Tool registry queries (list, describe).
@@ -109,10 +95,6 @@ enum Commands {
         /// Tools subcommand.
         #[command(subcommand)]
         command: ToolsCommand,
-
-        /// Output JSON instead of human-readable text.
-        #[arg(long)]
-        json: bool,
     },
 
     /// Audit trail (list, stats).
@@ -120,10 +102,6 @@ enum Commands {
         /// Audit subcommand.
         #[command(subcommand)]
         command: AuditCommand,
-
-        /// Output JSON instead of human-readable text.
-        #[arg(long)]
-        json: bool,
     },
 
     /// Memory management.
@@ -138,10 +116,6 @@ enum Commands {
         /// LLM subcommand.
         #[command(subcommand)]
         command: LlmCommand,
-
-        /// Output JSON instead of human-readable text.
-        #[arg(long)]
-        json: bool,
     },
 
     /// Local model file management.
@@ -149,10 +123,6 @@ enum Commands {
         /// Model subcommand.
         #[command(subcommand)]
         command: ModelCommand,
-
-        /// Output JSON instead of human-readable text.
-        #[arg(long)]
-        json: bool,
     },
 
     /// Trigger management (reload).
@@ -160,10 +130,6 @@ enum Commands {
         /// Trigger subcommand.
         #[command(subcommand)]
         command: TriggerCommand,
-
-        /// Output JSON instead of human-readable text.
-        #[arg(long)]
-        json: bool,
     },
 
     /// Notification channel management (test, list, logs).
@@ -171,10 +137,6 @@ enum Commands {
         /// Notify subcommand.
         #[command(subcommand)]
         command: NotifyCommand,
-
-        /// Output JSON instead of human-readable text.
-        #[arg(long)]
-        json: bool,
     },
 
     /// Pipeline orchestration (list, run, runs, status).
@@ -182,10 +144,6 @@ enum Commands {
         /// Pipeline subcommand.
         #[command(subcommand)]
         command: PipelineCommand,
-
-        /// Output JSON instead of human-readable text.
-        #[arg(long)]
-        json: bool,
     },
 }
 
@@ -203,6 +161,7 @@ fn main() {
 
     let rt = tokio::runtime::Runtime::new().expect("failed to create Tokio runtime");
 
+    let json = cli.json;
     let exit_code = rt.block_on(async {
         match cli.command {
             Commands::Start { port } => match commands::start::run(cli.socket, port).await {
@@ -212,24 +171,23 @@ fn main() {
                     exit_codes::GENERAL_ERROR
                 }
             },
-            Commands::Stop { json } => commands::stop::run(cli.socket, json).await,
-            Commands::Status { json } => commands::status::run(cli.socket, json).await,
+            Commands::Stop => commands::stop::run(cli.socket, json).await,
+            Commands::Status => commands::status::run(cli.socket, json).await,
             Commands::Run {
                 agent_id,
                 input,
                 stream,
-                json,
             } => commands::run::run(&agent_id, &input, cli.socket, json, stream).await,
-            Commands::Agent { command, json } => {
+            Commands::Agent { command } => {
                 commands::agent::run(&command, cli.socket, json).await
             }
-            Commands::Task { command, json } => {
+            Commands::Task { command } => {
                 commands::task::run(&command, cli.socket, json).await
             }
-            Commands::Tools { command, json } => {
+            Commands::Tools { command } => {
                 commands::tools::run(&command, cli.socket, json).await
             }
-            Commands::Audit { command, json } => {
+            Commands::Audit { command } => {
                 commands::audit::run(&command, cli.socket, json).await
             }
             Commands::Memory { command } => match commands::memory::run(&command) {
@@ -242,15 +200,15 @@ fn main() {
                     exit_codes::GENERAL_ERROR
                 }
             },
-            Commands::Llm { command, json } => commands::llm::run(&command, cli.socket, json).await,
-            Commands::Model { command, json } => commands::model::run(&command, json),
-            Commands::Trigger { command, json } => {
+            Commands::Llm { command } => commands::llm::run(&command, cli.socket, json).await,
+            Commands::Model { command } => commands::model::run(&command, json),
+            Commands::Trigger { command } => {
                 commands::trigger::run(&command, cli.socket, json).await
             }
-            Commands::Notify { command, json } => {
+            Commands::Notify { command } => {
                 commands::notify::run(&command, cli.socket, json).await
             }
-            Commands::Pipeline { command, json } => {
+            Commands::Pipeline { command } => {
                 commands::pipeline::run(&command, cli.socket, json).await
             }
         }
@@ -300,32 +258,36 @@ mod tests {
     fn test_cli_parses_stop_command() {
         // GIVEN "apollia-os stop"
         let cli = parse(&["apollia-os", "stop"]);
-        // THEN Commands::Stop
-        assert!(matches!(cli.command, Commands::Stop { json: false }));
+        // THEN Commands::Stop, json=false (global flag not set)
+        assert!(matches!(cli.command, Commands::Stop));
+        assert!(!cli.json);
     }
 
     #[test]
     fn test_cli_parses_stop_json() {
         // GIVEN "apollia-os stop --json"
         let cli = parse(&["apollia-os", "stop", "--json"]);
-        // THEN Commands::Stop with json=true
-        assert!(matches!(cli.command, Commands::Stop { json: true }));
+        // THEN Commands::Stop, global json=true
+        assert!(matches!(cli.command, Commands::Stop));
+        assert!(cli.json);
     }
 
     #[test]
     fn test_cli_parses_status_command() {
         // GIVEN "apollia-os status"
         let cli = parse(&["apollia-os", "status"]);
-        // THEN Commands::Status
-        assert!(matches!(cli.command, Commands::Status { json: false }));
+        // THEN Commands::Status, json=false
+        assert!(matches!(cli.command, Commands::Status));
+        assert!(!cli.json);
     }
 
     #[test]
     fn test_cli_parses_status_json_flag() {
         // GIVEN "apollia-os status --json"
         let cli = parse(&["apollia-os", "status", "--json"]);
-        // THEN Commands::Status with json=true
-        assert!(matches!(cli.command, Commands::Status { json: true }));
+        // THEN Commands::Status, global json=true
+        assert!(matches!(cli.command, Commands::Status));
+        assert!(cli.json);
     }
 
     #[test]
@@ -338,12 +300,11 @@ mod tests {
                 agent_id,
                 input,
                 stream,
-                json,
             } => {
                 assert_eq!(agent_id, "hello-agent");
                 assert_eq!(input, "Bonjour");
                 assert!(!stream);
-                assert!(!json);
+                assert!(!cli.json);
             }
             other => panic!("expected Commands::Run, got {other:?}"),
         }
@@ -364,11 +325,9 @@ mod tests {
     fn test_cli_parses_run_json_flag() {
         // GIVEN "apollia-os run hello-agent Bonjour --json"
         let cli = parse(&["apollia-os", "run", "hello-agent", "Bonjour", "--json"]);
-        // THEN Commands::Run with json=true
-        match &cli.command {
-            Commands::Run { json, .. } => assert!(json),
-            other => panic!("expected Commands::Run, got {other:?}"),
-        }
+        // THEN global json=true
+        assert!(matches!(cli.command, Commands::Run { .. }));
+        assert!(cli.json);
     }
 
     #[test]
@@ -399,9 +358,9 @@ mod tests {
         let cli = parse(&["apollia-os", "agent", "list"]);
         // THEN Commands::Agent { command: AgentCommand::List }
         match &cli.command {
-            Commands::Agent { command, json } => {
+            Commands::Agent { command } => {
                 assert!(matches!(command, AgentCommand::List));
-                assert!(!json);
+                assert!(!cli.json);
             }
             other => panic!("expected Commands::Agent, got {other:?}"),
         }
@@ -414,7 +373,7 @@ mod tests {
         let cli = parse(&["apollia-os", "agent", "start", "/path/to/agent.py"]);
         // THEN Commands::Agent { command: AgentCommand::Start { path } }
         match &cli.command {
-            Commands::Agent { command, .. } => match command {
+            Commands::Agent { command } => match command {
                 AgentCommand::Start { path } => {
                     assert_eq!(path, "/path/to/agent.py");
                 }
@@ -431,7 +390,7 @@ mod tests {
         let cli = parse(&["apollia-os", "agent", "stop", "hello-agent"]);
         // THEN Commands::Agent { command: AgentCommand::Stop { agent_id } }
         match &cli.command {
-            Commands::Agent { command, .. } => match command {
+            Commands::Agent { command } => match command {
                 AgentCommand::Stop { agent_id } => {
                     assert_eq!(agent_id, "hello-agent");
                 }
@@ -448,7 +407,7 @@ mod tests {
         let cli = parse(&["apollia-os", "agent", "info", "hello-agent"]);
         // THEN Commands::Agent { command: AgentCommand::Info { agent_id } }
         match &cli.command {
-            Commands::Agent { command, .. } => match command {
+            Commands::Agent { command } => match command {
                 AgentCommand::Info { agent_id } => {
                     assert_eq!(agent_id, "hello-agent");
                 }
@@ -459,15 +418,23 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parses_agent_json_flag() {
-        // GIVEN "apollia-os agent --json list"
+    fn test_cli_parses_agent_json_flag_before_verb() {
+        // GIVEN "apollia-os agent --json list" (--json avant le verbe, syntaxe historique)
         // WHEN parse
         let cli = parse(&["apollia-os", "agent", "--json", "list"]);
-        // THEN json=true
-        match &cli.command {
-            Commands::Agent { json, .. } => assert!(json),
-            other => panic!("expected Commands::Agent, got {other:?}"),
-        }
+        // THEN global json=true
+        assert!(matches!(cli.command, Commands::Agent { .. }));
+        assert!(cli.json);
+    }
+
+    #[test]
+    fn test_cli_parses_agent_json_flag_after_arg() {
+        // GIVEN "apollia-os agent info hello-agent --json" (--json après l'arg positionnel)
+        // WHEN parse
+        let cli = parse(&["apollia-os", "agent", "info", "hello-agent", "--json"]);
+        // THEN global json=true — la forme attendue dans l'ONBOARDING
+        assert!(matches!(cli.command, Commands::Agent { .. }));
+        assert!(cli.json);
     }
 
     #[test]
@@ -477,7 +444,7 @@ mod tests {
         let cli = parse(&["apollia-os", "task", "list"]);
         // THEN Commands::Task { command: TaskCommand::List }
         match &cli.command {
-            Commands::Task { command, json } => {
+            Commands::Task { command } => {
                 assert!(
                     matches!(
                         command,
@@ -487,7 +454,7 @@ mod tests {
                     ),
                     "expected TaskCommand::List {{ pending_approval: false }}, got {command:?}"
                 );
-                assert!(!json);
+                assert!(!cli.json);
             }
             other => panic!("expected Commands::Task, got {other:?}"),
         }
@@ -500,7 +467,7 @@ mod tests {
         let cli = parse(&["apollia-os", "task", "cancel", "t-001"]);
         // THEN Commands::Task { command: TaskCommand::Cancel { task_id: "t-001" } }
         match &cli.command {
-            Commands::Task { command, .. } => match command {
+            Commands::Task { command } => match command {
                 TaskCommand::Cancel { task_id } => {
                     assert_eq!(task_id, "t-001");
                 }
@@ -517,7 +484,7 @@ mod tests {
         let cli = parse(&["apollia-os", "task", "status", "t-002"]);
         // THEN Commands::Task { command: TaskCommand::Status { task_id: "t-002" } }
         match &cli.command {
-            Commands::Task { command, .. } => match command {
+            Commands::Task { command } => match command {
                 TaskCommand::Status { task_id } => {
                     assert_eq!(task_id, "t-002");
                 }
@@ -534,12 +501,12 @@ mod tests {
         let cli = parse(&["apollia-os", "task", "inspect", "t-0042"]);
         // THEN Commands::Task { command: TaskCommand::Inspect { id: "t-0042" } }
         match &cli.command {
-            Commands::Task { command, json } => {
+            Commands::Task { command } => {
                 match command {
                     TaskCommand::Inspect { id } => assert_eq!(id, "t-0042"),
                     other => panic!("expected TaskCommand::Inspect, got {other:?}"),
                 }
-                assert!(!json);
+                assert!(!cli.json);
             }
             other => panic!("expected Commands::Task, got {other:?}"),
         }
@@ -550,11 +517,9 @@ mod tests {
         // GIVEN "apollia-os task --json inspect t-0042"
         // WHEN parse
         let cli = parse(&["apollia-os", "task", "--json", "inspect", "t-0042"]);
-        // THEN json = true
-        match &cli.command {
-            Commands::Task { json, .. } => assert!(json),
-            other => panic!("expected Commands::Task, got {other:?}"),
-        }
+        // THEN global json = true
+        assert!(matches!(cli.command, Commands::Task { .. }));
+        assert!(cli.json);
     }
 
     #[test]
@@ -564,9 +529,9 @@ mod tests {
         let cli = parse(&["apollia-os", "tools", "list"]);
         // THEN Commands::Tools { command: ToolsCommand::List }
         match &cli.command {
-            Commands::Tools { command, json } => {
+            Commands::Tools { command } => {
                 assert!(matches!(command, ToolsCommand::List));
-                assert!(!json);
+                assert!(!cli.json);
             }
             other => panic!("expected Commands::Tools, got {other:?}"),
         }
@@ -579,7 +544,7 @@ mod tests {
         let cli = parse(&["apollia-os", "tools", "describe", "file_io"]);
         // THEN Commands::Tools { command: ToolsCommand::Describe { tool_name: "file_io" } }
         match &cli.command {
-            Commands::Tools { command, .. } => match command {
+            Commands::Tools { command } => match command {
                 ToolsCommand::Describe { tool_name } => {
                     assert_eq!(tool_name, "file_io");
                 }
@@ -596,12 +561,12 @@ mod tests {
         let cli = parse(&["apollia-os", "audit", "list"]);
         // THEN Commands::Audit { command: AuditCommand::List { limit: 20 } }
         match &cli.command {
-            Commands::Audit { command, json } => {
+            Commands::Audit { command } => {
                 match command {
                     AuditCommand::List { limit } => assert_eq!(*limit, 20),
                     other => panic!("expected AuditCommand::List, got {other:?}"),
                 }
-                assert!(!json);
+                assert!(!cli.json);
             }
             other => panic!("expected Commands::Audit, got {other:?}"),
         }
@@ -614,7 +579,7 @@ mod tests {
         let cli = parse(&["apollia-os", "audit", "list", "--limit", "50"]);
         // THEN Commands::Audit { command: AuditCommand::List { limit: 50 } }
         match &cli.command {
-            Commands::Audit { command, .. } => match command {
+            Commands::Audit { command } => match command {
                 AuditCommand::List { limit } => assert_eq!(*limit, 50),
                 other => panic!("expected AuditCommand::List, got {other:?}"),
             },
@@ -629,7 +594,7 @@ mod tests {
         let cli = parse(&["apollia-os", "audit", "stats"]);
         // THEN Commands::Audit { command: AuditCommand::Stats }
         match &cli.command {
-            Commands::Audit { command, .. } => {
+            Commands::Audit { command } => {
                 assert!(matches!(command, AuditCommand::Stats));
             }
             other => panic!("expected Commands::Audit, got {other:?}"),
@@ -661,9 +626,9 @@ mod tests {
         let cli = parse(&["apollia-os", "llm", "status"]);
         // THEN Commands::Llm { command: LlmCommand::Status }
         match &cli.command {
-            Commands::Llm { command, json } => {
+            Commands::Llm { command } => {
                 assert!(matches!(command, LlmCommand::Status));
-                assert!(!json);
+                assert!(!cli.json);
             }
             other => panic!("expected Commands::Llm, got {other:?}"),
         }
@@ -674,11 +639,9 @@ mod tests {
         // GIVEN "apollia-os llm --json status"
         // WHEN parse
         let cli = parse(&["apollia-os", "llm", "--json", "status"]);
-        // THEN json = true
-        match &cli.command {
-            Commands::Llm { json, .. } => assert!(json),
-            other => panic!("expected Commands::Llm, got {other:?}"),
-        }
+        // THEN global json = true
+        assert!(matches!(cli.command, Commands::Llm { .. }));
+        assert!(cli.json);
     }
 
     #[test]
@@ -688,7 +651,7 @@ mod tests {
         let cli = parse(&["apollia-os", "llm", "ping"]);
         // THEN LlmCommand::Ping { backend: None }
         match &cli.command {
-            Commands::Llm { command, .. } => match command {
+            Commands::Llm { command } => match command {
                 LlmCommand::Ping { backend } => assert!(backend.is_none()),
                 other => panic!("expected LlmCommand::Ping, got {other:?}"),
             },
@@ -703,7 +666,7 @@ mod tests {
         let cli = parse(&["apollia-os", "llm", "ping", "anthropic"]);
         // THEN LlmCommand::Ping { backend: Some("anthropic") }
         match &cli.command {
-            Commands::Llm { command, .. } => match command {
+            Commands::Llm { command } => match command {
                 LlmCommand::Ping { backend } => {
                     assert_eq!(backend.as_deref(), Some("anthropic"));
                 }
@@ -720,7 +683,7 @@ mod tests {
         let cli = parse(&["apollia-os", "llm", "chat", "Hello"]);
         // THEN LlmCommand::Chat { prompt: "Hello", backend: None }
         match &cli.command {
-            Commands::Llm { command, .. } => match command {
+            Commands::Llm { command } => match command {
                 LlmCommand::Chat { prompt, backend } => {
                     assert_eq!(prompt, "Hello");
                     assert!(backend.is_none());
@@ -745,7 +708,7 @@ mod tests {
         ]);
         // THEN LlmCommand::Chat { backend: Some("anthropic") }
         match &cli.command {
-            Commands::Llm { command, .. } => match command {
+            Commands::Llm { command } => match command {
                 LlmCommand::Chat { backend, .. } => {
                     assert_eq!(backend.as_deref(), Some("anthropic"));
                 }
@@ -762,9 +725,9 @@ mod tests {
         let cli = parse(&["apollia-os", "model", "list"]);
         // THEN Commands::Model { command: ModelCommand::List }
         match &cli.command {
-            Commands::Model { command, json } => {
+            Commands::Model { command } => {
                 assert!(matches!(command, ModelCommand::List));
-                assert!(!json);
+                assert!(!cli.json);
             }
             other => panic!("expected Commands::Model, got {other:?}"),
         }
@@ -775,11 +738,9 @@ mod tests {
         // GIVEN "apollia-os model --json list"
         // WHEN parse
         let cli = parse(&["apollia-os", "model", "--json", "list"]);
-        // THEN json = true
-        match &cli.command {
-            Commands::Model { json, .. } => assert!(json),
-            other => panic!("expected Commands::Model, got {other:?}"),
-        }
+        // THEN global json = true
+        assert!(matches!(cli.command, Commands::Model { .. }));
+        assert!(cli.json);
     }
 
     // ── STORY-073: trigger command parsing ───────────────────────────────────
@@ -789,11 +750,11 @@ mod tests {
         // GIVEN "apollia-os trigger reload"
         // WHEN parse
         let cli = parse(&["apollia-os", "trigger", "reload"]);
-        // THEN Commands::Trigger { command: TriggerCommand::Reload, json: false }
+        // THEN Commands::Trigger { command: TriggerCommand::Reload }, json=false
         match &cli.command {
-            Commands::Trigger { command, json } => {
+            Commands::Trigger { command } => {
                 assert!(matches!(command, TriggerCommand::Reload));
-                assert!(!json);
+                assert!(!cli.json);
             }
             other => panic!("expected Commands::Trigger, got {other:?}"),
         }
@@ -804,11 +765,9 @@ mod tests {
         // GIVEN "apollia-os trigger --json reload"
         // WHEN parse
         let cli = parse(&["apollia-os", "trigger", "--json", "reload"]);
-        // THEN json = true
-        match &cli.command {
-            Commands::Trigger { json, .. } => assert!(json),
-            other => panic!("expected Commands::Trigger, got {other:?}"),
-        }
+        // THEN global json = true
+        assert!(matches!(cli.command, Commands::Trigger { .. }));
+        assert!(cli.json);
     }
 
     // ── STORY-104: notify command parsing ─────────────────────────────────────
@@ -820,9 +779,9 @@ mod tests {
         let cli = parse(&["apollia-os", "notify", "test"]);
         // THEN Commands::Notify { command: NotifyCommand::Test }
         match &cli.command {
-            Commands::Notify { command, json } => {
+            Commands::Notify { command } => {
                 assert!(matches!(command, NotifyCommand::Test));
-                assert!(!json);
+                assert!(!cli.json);
             }
             other => panic!("expected Commands::Notify, got {other:?}"),
         }
@@ -835,7 +794,7 @@ mod tests {
         let cli = parse(&["apollia-os", "notify", "list"]);
         // THEN Commands::Notify { command: NotifyCommand::List }
         match &cli.command {
-            Commands::Notify { command, .. } => {
+            Commands::Notify { command } => {
                 assert!(matches!(command, NotifyCommand::List));
             }
             other => panic!("expected Commands::Notify, got {other:?}"),
@@ -849,7 +808,7 @@ mod tests {
         let cli = parse(&["apollia-os", "notify", "logs"]);
         // THEN NotifyCommand::Logs { last: 20 }
         match &cli.command {
-            Commands::Notify { command, .. } => match command {
+            Commands::Notify { command } => match command {
                 NotifyCommand::Logs { last } => assert_eq!(*last, 20),
                 other => panic!("expected NotifyCommand::Logs, got {other:?}"),
             },
@@ -862,11 +821,9 @@ mod tests {
         // GIVEN "apollia-os notify --json test"
         // WHEN parse
         let cli = parse(&["apollia-os", "notify", "--json", "test"]);
-        // THEN json = true
-        match &cli.command {
-            Commands::Notify { json, .. } => assert!(json),
-            other => panic!("expected Commands::Notify, got {other:?}"),
-        }
+        // THEN global json = true
+        assert!(matches!(cli.command, Commands::Notify { .. }));
+        assert!(cli.json);
     }
 
     // ── STORY-121: pipeline command parsing ───────────────────────────────────
@@ -876,11 +833,11 @@ mod tests {
         // GIVEN "apollia-os pipeline list"
         // WHEN parse
         let cli = parse(&["apollia-os", "pipeline", "list"]);
-        // THEN Commands::Pipeline { command: PipelineCommand::List, json: false }
+        // THEN Commands::Pipeline { command: PipelineCommand::List }, json=false
         match &cli.command {
-            Commands::Pipeline { command, json } => {
+            Commands::Pipeline { command } => {
                 assert!(matches!(command, PipelineCommand::List));
-                assert!(!json);
+                assert!(!cli.json);
             }
             other => panic!("expected Commands::Pipeline, got {other:?}"),
         }
@@ -899,7 +856,7 @@ mod tests {
         ]);
         // THEN PipelineCommand::Run with correct fields
         match &cli.command {
-            Commands::Pipeline { command, .. } => match command {
+            Commands::Pipeline { command } => match command {
                 PipelineCommand::Run {
                     pipeline_id,
                     input,
@@ -922,7 +879,7 @@ mod tests {
         let cli = parse(&["apollia-os", "pipeline", "runs", "traitement-facture"]);
         // THEN PipelineCommand::Runs with default limit=20
         match &cli.command {
-            Commands::Pipeline { command, .. } => match command {
+            Commands::Pipeline { command } => match command {
                 PipelineCommand::Runs { pipeline_id, limit } => {
                     assert_eq!(pipeline_id, "traitement-facture");
                     assert_eq!(*limit, 20);
@@ -940,7 +897,7 @@ mod tests {
         let cli = parse(&["apollia-os", "pipeline", "status", "r-0017"]);
         // THEN PipelineCommand::Status { run_id: "r-0017" }
         match &cli.command {
-            Commands::Pipeline { command, .. } => match command {
+            Commands::Pipeline { command } => match command {
                 PipelineCommand::Status { run_id } => assert_eq!(run_id, "r-0017"),
                 other => panic!("expected PipelineCommand::Status, got {other:?}"),
             },
@@ -953,10 +910,8 @@ mod tests {
         // GIVEN "apollia-os pipeline --json list"
         // WHEN parse
         let cli = parse(&["apollia-os", "pipeline", "--json", "list"]);
-        // THEN json = true
-        match &cli.command {
-            Commands::Pipeline { json, .. } => assert!(json),
-            other => panic!("expected Commands::Pipeline, got {other:?}"),
-        }
+        // THEN global json = true
+        assert!(matches!(cli.command, Commands::Pipeline { .. }));
+        assert!(cli.json);
     }
 }
