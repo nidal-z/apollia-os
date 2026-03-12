@@ -451,6 +451,7 @@ mod tests {
             notification_config: None,
             pipeline_engine: None,
             backend_factory: None,
+            tool_registry_handle: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -578,6 +579,7 @@ mod tests {
             notification_config: None,
             pipeline_engine: None,
             backend_factory: None,
+            tool_registry_handle: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -658,6 +660,7 @@ mod tests {
             notification_config: None,
             pipeline_engine: None,
             backend_factory: None,
+            tool_registry_handle: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -844,6 +847,7 @@ mod tests {
             notification_config: None,
             pipeline_engine: None,
             backend_factory: None,
+            tool_registry_handle: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

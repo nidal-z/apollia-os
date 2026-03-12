@@ -109,16 +109,26 @@ fn format_tools_list(resp: &serde_json::Value) {
     } else {
         for tool in &tools {
             let name = tool.get("name").and_then(|v| v.as_str()).unwrap_or("?");
-            let kind = tool.get("kind").and_then(|v| v.as_str()).unwrap_or("?");
+            let kind = tool_kind_label(tool.get("kind"));
             println!("  {:<24} {kind}", name);
         }
     }
 }
 
+/// Extract a human-readable label from a [`ToolKind`] JSON value.
+///
+/// `ToolKind` is serialized as an adjacently-tagged object `{"type": "native"}`,
+/// not a plain string. This function reads the `"type"` field of that object.
+fn tool_kind_label(kind: Option<&serde_json::Value>) -> &str {
+    kind.and_then(|v| v.get("type"))
+        .and_then(|t| t.as_str())
+        .unwrap_or("?")
+}
+
 /// Format tool detail as human-readable text.
 fn format_tool_detail(resp: &serde_json::Value) {
     let name = resp.get("name").and_then(|v| v.as_str()).unwrap_or("?");
-    let kind = resp.get("kind").and_then(|v| v.as_str()).unwrap_or("?");
+    let kind = tool_kind_label(resp.get("kind"));
     let desc = resp
         .get("description")
         .and_then(|v| v.as_str())

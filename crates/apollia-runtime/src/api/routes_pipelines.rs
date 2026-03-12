@@ -453,6 +453,7 @@ mod tests {
             notification_config: None,
             pipeline_engine: Some(engine),
             backend_factory: None,
+            tool_registry_handle: None,
         }
     }
 
@@ -476,6 +477,7 @@ mod tests {
             notification_config: None,
             pipeline_engine: None,
             backend_factory: None,
+            tool_registry_handle: None,
         }
     }
 

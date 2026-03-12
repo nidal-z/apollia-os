@@ -9,6 +9,7 @@ pub mod routes_notifications;
 pub mod routes_pipelines;
 pub mod routes_sse;
 pub mod routes_tasks;
+pub mod routes_tools;
 pub mod routes_triggers;
 pub mod routes_webhooks;
 pub mod server;

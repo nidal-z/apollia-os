@@ -380,6 +380,7 @@ impl Supervisor {
             notification_config: None,
             pipeline_engine: pipeline_engine.clone(),
             backend_factory,
+            tool_registry_handle: Some(tool_registry_handle.clone()),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -991,6 +992,7 @@ mod tests {
             notification_config: None,
             pipeline_engine: None,
             backend_factory: None,
+            tool_registry_handle: None,
         };
 
         // WHEN on clone l'AppState

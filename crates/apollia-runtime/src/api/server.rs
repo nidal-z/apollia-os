@@ -24,7 +24,7 @@ use apollia_core::PendingApprovals;
 use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationConfig;
 use apollia_pipelines::PipelineEngineHandle;
-use apollia_tools::TaskRepository;
+use apollia_tools::{TaskRepository, ToolRegistryHandle};
 use apollia_triggers::TriggerEngineHandle;
 
 use crate::api::routes_agents::{AgentBackendFactory, AgentLoader};
@@ -90,6 +90,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` in production — creates real `AIPBridge` backends with tool access.
     /// `None` in tests — falls back to `state.backend.clone()` (MockBackend/NoopBackend).
     pub backend_factory: Option<Arc<dyn AgentBackendFactory>>,
+    /// Handle to the ToolRegistry actor — exposes the tool catalogue via REST.
+    ///
+    /// `Some` in production — populated by the Supervisor at startup.
+    /// `None` in tests — the `/api/v1/tools` routes return 503 when `None`.
+    pub tool_registry_handle: Option<ToolRegistryHandle>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -108,6 +113,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             notification_config: self.notification_config.clone(),
             pipeline_engine: self.pipeline_engine.clone(),
             backend_factory: self.backend_factory.clone(),
+            tool_registry_handle: self.tool_registry_handle.clone(),
         }
     }
 }
@@ -209,6 +215,7 @@ async fn shutdown_handler<B: ExecutionBackend + Clone>(
 /// Build the axum Router with all routes and shared state.
 fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<B>) -> Router {
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
+    use super::routes_tools::{describe_tool, list_tools};
     use super::routes_dashboard::{
         dashboard_stream, get_dashboard, get_dashboard_partial, get_dashboard_state, get_htmx_js,
     };
@@ -237,6 +244,9 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         )
         .route("/api/v1/tasks/:id/stream", get(stream_task::<B>))
         .route("/api/v1/tasks/:id/resume", post(resume_task::<B>))
+        // Tool routes (STORY-011 Tool Registry)
+        .route("/api/v1/tools", get(list_tools::<B>))
+        .route("/api/v1/tools/:name", get(describe_tool::<B>))
         .route(
             "/api/v1/agents",
             get(list_agents::<B>).post(start_agent::<B>),
@@ -460,6 +470,7 @@ mod tests {
             notification_config: None,
             pipeline_engine: None,
             backend_factory: None,
+            tool_registry_handle: None,
         }
     }
 
