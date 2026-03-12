@@ -106,17 +106,20 @@ fn format_audit_list(resp: &serde_json::Value) {
         .unwrap_or_default();
 
     println!(
-        "  {:<20} {:<20} {:<20} {:<10}",
-        "TIMESTAMP", "AGENT_ID", "TOOL", "STATUS"
+        "  {:<24} {:<24} {:<20} {:<8} {:<8}",
+        "TIMESTAMP", "AGENT_ID", "TOOL", "STATUS", "MS"
     );
 
     if events.is_empty() {
         println!("  (no audit events)");
     } else {
         for event in &events {
+            // API field names: started_at (RFC3339), success (bool), duration_ms (u64)
             let ts = event
-                .get("timestamp")
+                .get("started_at")
                 .and_then(|v| v.as_str())
+                // Trim to 23 chars (drop sub-second precision) for compact display
+                .map(|s| s.get(..19).unwrap_or(s))
                 .unwrap_or("?");
             let agent = event
                 .get("agent_id")
@@ -126,8 +129,17 @@ fn format_audit_list(resp: &serde_json::Value) {
                 .get("tool_name")
                 .and_then(|v| v.as_str())
                 .unwrap_or("?");
-            let status = event.get("status").and_then(|v| v.as_str()).unwrap_or("?");
-            println!("  {:<20} {:<20} {:<20} {status}", ts, agent, tool);
+            let status = match event.get("success").and_then(|v| v.as_bool()) {
+                Some(true) => "ok",
+                Some(false) => "failed",
+                None => "?",
+            };
+            let ms = event
+                .get("duration_ms")
+                .and_then(|v| v.as_u64())
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "-".to_string());
+            println!("  {:<24} {:<24} {:<20} {:<8} {:<8}", ts, agent, tool, status, ms);
         }
     }
 }

@@ -318,19 +318,19 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
 ### 5.1 Liste et descriptions
 
 ```
-[ ] Lister les outils
+[x] Lister les outils
     ⌨  apollia-os tools list
     →  3 outils : file_io, bash_executor, python_executor
 
-[ ] Décrire file_io
+[x] Décrire file_io
     ⌨  apollia-os tools describe file_io
     →  Description + schéma d'entrée (actions: read/write/delete/list/glob)
 
-[ ] Décrire bash_executor
+[x] Décrire bash_executor
     ⌨  apollia-os tools describe bash_executor
     →  Description + paramètres (command, timeout_seconds)
 
-[ ] Lister en JSON
+[x] Lister en JSON
     ⌨  apollia-os tools list --json
     →  JSON valide, tableau de 3 outils
 ```
@@ -338,16 +338,16 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
 ### 5.2 Audit trail (trace des appels outils)
 
 ```
-[ ] Audit peuplé après exécution
+[x] Audit peuplé après exécution
     ⌨  apollia-os audit list --limit 10
     →  Entrées présentes (issues des git + bash calls de apollia-reviewer)
     →  Champs : outil, agent, timestamp, résultat
 
-[ ] Stats d'audit
+[x] Stats d'audit
     ⌨  apollia-os audit stats
     →  Compteurs par outil
 
-[ ] Audit en JSON
+[x] Audit en JSON
     ⌨  apollia-os audit list --json
     →  JSON valide
 

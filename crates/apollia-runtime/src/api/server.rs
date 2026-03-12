@@ -24,7 +24,7 @@ use apollia_core::PendingApprovals;
 use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationConfig;
 use apollia_pipelines::PipelineEngineHandle;
-use apollia_tools::{TaskRepository, ToolRegistryHandle};
+use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use apollia_triggers::TriggerEngineHandle;
 
 use crate::api::routes_agents::{AgentBackendFactory, AgentLoader};
@@ -95,6 +95,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` in production — populated by the Supervisor at startup.
     /// `None` in tests — the `/api/v1/tools` routes return 503 when `None`.
     pub tool_registry_handle: Option<ToolRegistryHandle>,
+    /// Handle to the AuditTrail actor — exposes tool invocations via REST.
+    ///
+    /// `Some` in production — opened by the Supervisor from `~/.apollia/audit.db`.
+    /// `None` in tests — the `/api/v1/audit` routes return 503 when `None`.
+    pub audit_trail: Option<AuditTrailHandle>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -114,6 +119,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             pipeline_engine: self.pipeline_engine.clone(),
             backend_factory: self.backend_factory.clone(),
             tool_registry_handle: self.tool_registry_handle.clone(),
+            audit_trail: self.audit_trail.clone(),
         }
     }
 }
@@ -215,6 +221,7 @@ async fn shutdown_handler<B: ExecutionBackend + Clone>(
 /// Build the axum Router with all routes and shared state.
 fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<B>) -> Router {
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
+    use super::routes_audit::{get_audit_stats, list_audit};
     use super::routes_tools::{describe_tool, list_tools};
     use super::routes_dashboard::{
         dashboard_stream, get_dashboard, get_dashboard_partial, get_dashboard_state, get_htmx_js,
@@ -247,6 +254,9 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         // Tool routes (STORY-011 Tool Registry)
         .route("/api/v1/tools", get(list_tools::<B>))
         .route("/api/v1/tools/:name", get(describe_tool::<B>))
+        // Audit trail routes (STORY-016 AuditTrail)
+        .route("/api/v1/audit", get(list_audit::<B>))
+        .route("/api/v1/audit/stats", get(get_audit_stats::<B>))
         .route(
             "/api/v1/agents",
             get(list_agents::<B>).post(start_agent::<B>),
@@ -293,6 +303,12 @@ impl APIServer {
     pub fn new<B: ExecutionBackend + Clone + From<DynBackend>>(config: APIServerConfig, state: AppState<B>) -> Self {
         let router = build_router(state);
         Self { config, router }
+    }
+
+    /// Build the router from a state, for use in unit tests without starting a listener.
+    #[cfg(test)]
+    pub fn build_router_for_test<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<B>) -> Router {
+        build_router(state)
     }
 
     /// Start the server on both TCP and Unix socket listeners.
@@ -471,6 +487,7 @@ mod tests {
             pipeline_engine: None,
             backend_factory: None,
             tool_registry_handle: None,
+            audit_trail: None,
         }
     }
 

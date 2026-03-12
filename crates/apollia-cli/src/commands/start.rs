@@ -10,8 +10,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use apollia_aip::bridge::AIPBridge;
-use apollia_aip::context::RuntimeContext;
+use apollia_aip::context::{RuntimeContext, ToolExecutor, ToolProxy};
 use apollia_core::{AIPResult, AIPTask, AgentManifest, RuntimeEvent, TaskStatus};
+use apollia_tools::{AuditTrailHandle, ToolRegistryHandle};
 use apollia_llm::{
     CompletionModel, CompletionRequest, CompletionResponse, LlmError, LlmRouter,
     ObservabilityConfig, StepBudgetView, ToolCallHelper, ToolInvoker,
@@ -127,6 +128,128 @@ impl ToolInvoker for NoopToolInvoker {
 }
 
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// NativeToolExecutor — bridges sync ToolExecutor trait to async native tools
+// ─────────────────────────────────────────────────────────────
+
+/// Production `ToolExecutor` — dispatches tool calls to native Apollia tools.
+///
+/// Uses `block_in_place` to bridge the synchronous `ToolExecutor::execute` trait
+/// to the async tool implementations (`BashExecutor`, `FileIo`).
+///
+/// On macOS dev mode, `FileIo` uses `HOME` as its sandbox root — consistent with
+/// `BashExecutor` dev mode bypass (ADR-012). All paths under HOME are reachable.
+struct NativeToolExecutor {
+    home_dir: PathBuf,
+}
+
+impl NativeToolExecutor {
+    fn new() -> Self {
+        let home_dir = std::env::var("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| std::env::temp_dir());
+        Self { home_dir }
+    }
+}
+
+impl ToolExecutor for NativeToolExecutor {
+    fn execute(&self, tool_name: &str, input: serde_json::Value) -> Result<serde_json::Value, String> {
+        let tool = tool_name.to_string();
+        let home = self.home_dir.clone();
+
+        tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                match tool.as_str() {
+                    "bash_executor" => native_exec_bash(input).await,
+                    "file_io" => native_exec_file_io(input, &home).await,
+                    other => Err(format!("tool not found: {other}")),
+                }
+            })
+        })
+    }
+}
+
+/// Execute `bash_executor` from a raw JSON input dict.
+async fn native_exec_bash(input: serde_json::Value) -> Result<serde_json::Value, String> {
+    use apollia_tools::tools::bash_executor::{BashExecutor, BashInput};
+
+    let command = input
+        .get("command")
+        .and_then(|v| v.as_str())
+        .ok_or("bash_executor: missing 'command' field")?
+        .to_string();
+    let timeout_secs = input
+        .get("timeout_seconds")
+        .or_else(|| input.get("timeout_secs"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(30);
+
+    let bash_input = BashInput { command, timeout_secs, working_dir: None };
+    let result = BashExecutor::new().run(bash_input).await.map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "exit_code": result.exit_code,
+        "duration_ms": result.duration_ms,
+    }))
+}
+
+/// Execute `file_io` from a raw JSON input dict.
+///
+/// Uses `home_dir` as the sandbox root so agents can write to paths under
+/// the user's home directory (e.g. repo checkouts on macOS dev machines).
+async fn native_exec_file_io(
+    input: serde_json::Value,
+    home_dir: &Path,
+) -> Result<serde_json::Value, String> {
+    use apollia_tools::tools::file_io::FileIo;
+
+    let file_io = FileIo::new(home_dir.to_path_buf()).map_err(|e| e.to_string())?;
+
+    let action = input
+        .get("action")
+        .and_then(|v| v.as_str())
+        .ok_or("file_io: missing 'action' field")?;
+
+    match action {
+        "read" => {
+            let path = input
+                .get("path")
+                .and_then(|v| v.as_str())
+                .ok_or("file_io: missing 'path' field")?;
+            let bytes = file_io.read(path).await.map_err(|e| e.to_string())?;
+            let content = String::from_utf8_lossy(&bytes).to_string();
+            Ok(serde_json::json!({ "content": content, "size": bytes.len() }))
+        }
+        "write" => {
+            let path = input
+                .get("path")
+                .and_then(|v| v.as_str())
+                .ok_or("file_io: missing 'path' field")?;
+            let content = input
+                .get("content")
+                .and_then(|v| v.as_str())
+                .ok_or("file_io: missing 'content' field")?;
+            file_io.write(path, content.as_bytes()).await.map_err(|e| e.to_string())?;
+            Ok(serde_json::json!({ "written": true }))
+        }
+        "list" => {
+            let dir = input
+                .get("dir")
+                .and_then(|v| v.as_str())
+                .ok_or("file_io: missing 'dir' field")?;
+            let pattern = input
+                .get("pattern")
+                .and_then(|v| v.as_str())
+                .unwrap_or("*");
+            let files = file_io.list(dir, pattern).await.map_err(|e| e.to_string())?;
+            Ok(serde_json::json!({ "files": files }))
+        }
+        other => Err(format!("file_io: unknown action '{other}'")),
+    }
+}
+
 // Real per-agent execution backend (AIPBridge + RuntimeContext)
 // ─────────────────────────────────────────────────────────────
 
@@ -137,8 +260,11 @@ impl ToolInvoker for NoopToolInvoker {
 struct AIPProductionBackend {
     bridge: Arc<AIPBridge>,
     agent_id: String,
+    allowed_tools: Vec<String>,
     llm_router: Option<Arc<LlmRouter>>,
     event_bus: EventBusSender,
+    tool_registry: Option<ToolRegistryHandle>,
+    audit_trail: Option<AuditTrailHandle>,
 }
 
 impl Clone for AIPProductionBackend {
@@ -146,8 +272,11 @@ impl Clone for AIPProductionBackend {
         Self {
             bridge: Arc::clone(&self.bridge),
             agent_id: self.agent_id.clone(),
+            allowed_tools: self.allowed_tools.clone(),
             llm_router: self.llm_router.clone(),
             event_bus: self.event_bus.clone(),
+            tool_registry: self.tool_registry.clone(),
+            audit_trail: self.audit_trail.clone(),
         }
     }
 }
@@ -161,6 +290,9 @@ impl ExecutionBackend for AIPProductionBackend {
         let llm_router = self.llm_router.clone();
         let event_bus = self.event_bus.clone();
         let agent_id = self.agent_id.clone();
+        let allowed_tools = self.allowed_tools.clone();
+        let tool_registry = self.tool_registry.clone();
+        let audit_trail = self.audit_trail.clone();
 
         Box::pin(async move {
             // Build the ToolCallHelper backed by the real LlmRouter (or an empty one).
@@ -172,6 +304,32 @@ impl ExecutionBackend for AIPProductionBackend {
                 Arc::new(NoopToolInvoker),
             ));
 
+            // Build the ToolProxy when both registry and audit trail are available.
+            //
+            // The proxy gates calls to the tools listed in the agent's manifest
+            // (`allowed_tools`), records every invocation in the audit trail,
+            // and makes `ctx.tools` non-None in Python — enabling audited execution
+            // instead of the agent's subprocess fallback.
+            let tool_proxy: Option<ToolProxy> =
+                match (tool_registry.as_ref(), audit_trail.as_ref()) {
+                    (Some(registry), Some(audit)) => Some(ToolProxy::new(
+                        registry.clone(),
+                        audit.clone(),
+                        Arc::new(NativeToolExecutor::new()),
+                        allowed_tools,
+                        agent_id.clone(),
+                        task.task_id.clone(),
+                    )),
+                    _ => {
+                        tracing::warn!(
+                            agent = %agent_id,
+                            "ToolProxy not available — tool registry or audit trail missing; \
+                             agent will use its own fallback for tool calls"
+                        );
+                        None
+                    }
+                };
+
             // Build a RuntimeContext and wrap it as a Python object.
             let ctx: PyObject = Python::with_gil(|py| {
                 let ctx = RuntimeContext::new_with_llm(
@@ -181,7 +339,7 @@ impl ExecutionBackend for AIPProductionBackend {
                     Arc::new(ObservabilityConfig::default()),
                     event_bus,
                     agent_id.into(),
-                    None, // tool_proxy: None — direct tool access not wired in this sprint
+                    tool_proxy,
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
@@ -208,6 +366,8 @@ impl ExecutionBackend for AIPProductionBackend {
 struct ProductionBackendFactory {
     event_bus: Arc<std::sync::OnceLock<EventBusSender>>,
     llm_router: Arc<std::sync::OnceLock<Option<Arc<LlmRouter>>>>,
+    tool_registry: Arc<std::sync::OnceLock<ToolRegistryHandle>>,
+    audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
 }
 
 impl AgentBackendFactory for ProductionBackendFactory {
@@ -226,18 +386,24 @@ impl AgentBackendFactory for ProductionBackendFactory {
             }
         };
         let llm_router = self.llm_router.get().cloned().flatten();
+        let tool_registry = self.tool_registry.get().cloned();
+        let audit_trail = self.audit_trail.get().cloned();
 
         let result: Result<AIPProductionBackend, String> = (|| {
             let module = apollia_aip::loader::load_agent_module(agent_path)
                 .map_err(|e| e.to_string())?;
             let validated =
                 apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
+            let allowed_tools = validated.manifest.tools_required.clone();
             let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
             Ok(AIPProductionBackend {
                 bridge,
                 agent_id: agent_id.clone(),
+                allowed_tools,
                 llm_router,
                 event_bus,
+                tool_registry,
+                audit_trail,
             })
         })();
 
@@ -363,10 +529,16 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         Arc::new(std::sync::OnceLock::new());
     let llm_router_lock: Arc<std::sync::OnceLock<Option<Arc<LlmRouter>>>> =
         Arc::new(std::sync::OnceLock::new());
+    let tool_registry_lock: Arc<std::sync::OnceLock<ToolRegistryHandle>> =
+        Arc::new(std::sync::OnceLock::new());
+    let audit_trail_lock: Arc<std::sync::OnceLock<AuditTrailHandle>> =
+        Arc::new(std::sync::OnceLock::new());
 
     let factory: Arc<dyn AgentBackendFactory> = Arc::new(ProductionBackendFactory {
         event_bus: event_bus_lock.clone(),
         llm_router: llm_router_lock.clone(),
+        tool_registry: tool_registry_lock.clone(),
+        audit_trail: audit_trail_lock.clone(),
     });
 
     let handles = supervisor
@@ -376,6 +548,10 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
     // Populate the OnceLocks now that the supervisor is running.
     let _ = event_bus_lock.set(handles.event_sender.clone());
     let _ = llm_router_lock.set(handles.llm_router.clone());
+    let _ = tool_registry_lock.set(handles.tool_registry_handle.clone());
+    if let Some(audit) = handles.audit_trail.clone() {
+        let _ = audit_trail_lock.set(audit);
+    }
 
     let elapsed = start.elapsed();
     println!("  * EventBus            ready");

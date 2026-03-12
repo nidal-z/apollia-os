@@ -535,6 +535,7 @@ mod tests {
             pipeline_engine: None,
             backend_factory: None,
             tool_registry_handle: None,
+            audit_trail: None,
         };
         let router = Router::new()
             .route(

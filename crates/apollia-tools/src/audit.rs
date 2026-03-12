@@ -39,6 +39,17 @@ pub struct ToolInvocationRecord {
     pub resources_used: Option<serde_json::Value>,
 }
 
+/// Statistiques agrégées de l'audit trail.
+#[derive(Debug, Clone)]
+pub struct AuditStats {
+    /// Nombre total d'invocations enregistrées.
+    pub total_events: u64,
+    /// Nombre d'outils distincts invoqués.
+    pub unique_tools: u64,
+    /// Nombre d'agents distincts ayant invoqué des outils.
+    pub unique_agents: u64,
+}
+
 /// Erreurs d'ouverture ou d'initialisation de l'audit trail.
 #[derive(Debug, Error)]
 pub enum AuditTrailError {
@@ -99,6 +110,10 @@ enum AuditMessage {
         n: usize,
         reply: tokio::sync::oneshot::Sender<Vec<ToolInvocationRecord>>,
     },
+    /// Retourne les statistiques agrégées de l'audit trail.
+    QueryStats {
+        reply: tokio::sync::oneshot::Sender<AuditStats>,
+    },
     /// Arrête l'acteur proprement après avoir vidé la file.
     Shutdown,
 }
@@ -135,6 +150,14 @@ impl AuditTrail {
                     let results = Self::query_last_n(&self.conn, n).unwrap_or_default();
                     let _ = reply.send(results);
                 }
+                AuditMessage::QueryStats { reply } => {
+                    let stats = Self::query_stats(&self.conn).unwrap_or(AuditStats {
+                        total_events: 0,
+                        unique_tools: 0,
+                        unique_agents: 0,
+                    });
+                    let _ = reply.send(stats);
+                }
                 AuditMessage::Shutdown => break,
             }
         }
@@ -164,6 +187,22 @@ impl AuditTrail {
             ],
         )?;
         Ok(())
+    }
+
+    /// Retourne les statistiques agrégées de l'audit trail via une requête SQL agrégée.
+    fn query_stats(conn: &rusqlite::Connection) -> rusqlite::Result<AuditStats> {
+        conn.query_row(
+            "SELECT COUNT(*), COUNT(DISTINCT tool_name), COUNT(DISTINCT agent_id) \
+             FROM tool_invocations",
+            [],
+            |row| {
+                Ok(AuditStats {
+                    total_events: row.get::<_, i64>(0)? as u64,
+                    unique_tools: row.get::<_, i64>(1)? as u64,
+                    unique_agents: row.get::<_, i64>(2)? as u64,
+                })
+            },
+        )
     }
 
     /// Retourne les N dernières invocations, ordonnées par `started_at` décroissant.
@@ -294,6 +333,28 @@ impl AuditTrailHandle {
             return Vec::new();
         }
         reply_rx.await.unwrap_or_default()
+    }
+
+    /// Retourne les statistiques agrégées (total, outils distincts, agents distincts).
+    pub async fn stats(&self) -> AuditStats {
+        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+        if self
+            .sender
+            .send(AuditMessage::QueryStats { reply: reply_tx })
+            .await
+            .is_err()
+        {
+            return AuditStats {
+                total_events: 0,
+                unique_tools: 0,
+                unique_agents: 0,
+            };
+        }
+        reply_rx.await.unwrap_or(AuditStats {
+            total_events: 0,
+            unique_tools: 0,
+            unique_agents: 0,
+        })
     }
 
     /// Envoie le signal d'arrêt à l'acteur et attend qu'il ait traité tous les messages en attente.

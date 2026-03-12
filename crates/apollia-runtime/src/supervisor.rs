@@ -22,7 +22,7 @@ use apollia_notifications::{build_channels, NotificationConfig, NotificationEngi
 use apollia_pipelines::{
     PipelineDefinition, PipelineEngine, PipelineEngineHandle, PipelineRepository,
 };
-use apollia_tools::ToolRegistryHandle;
+use apollia_tools::{AuditTrailHandle, ToolRegistryHandle};
 use apollia_triggers::{TriggerDefinition, TriggerEngineHandle};
 
 use crate::api::routes_agents::AgentLoader;
@@ -131,6 +131,11 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `None` when `config.pipelines` is empty — the runtime starts normally without
     /// pipeline support (AC-3). `Some` when at least one pipeline is defined.
     pub pipeline_engine: Option<PipelineEngineHandle>,
+    /// Handle to the AuditTrail actor (STORY-016).
+    ///
+    /// `None` when the data directory is unavailable or the SQLite open fails
+    /// (warning logged, runtime continues without audit). `Some` in production.
+    pub audit_trail: Option<AuditTrailHandle>,
 }
 
 /// Supervisor errors.
@@ -362,7 +367,23 @@ impl Supervisor {
             Some(handle)
         };
 
-        // Phase 8 (pos 9): APIServer
+        // Phase 8 (pos 9): AuditTrail — opened before APIServer so it's injectable into AppState.
+        info!("Supervisor: opening AuditTrail");
+        let audit_trail_handle: Option<AuditTrailHandle> = {
+            let db_path = self.config.data_dir.join("audit.db");
+            match AuditTrailHandle::open(&db_path).await {
+                Ok(handle) => {
+                    info!("Supervisor: AuditTrail ready");
+                    Some(handle)
+                }
+                Err(e) => {
+                    warn!(error = %e, "AuditTrail failed to open — audit disabled");
+                    None
+                }
+            }
+        };
+
+        // Phase 9 (pos 10): APIServer
         info!("Supervisor: starting APIServer");
         // Extract task_repository before moving state into APIServer (needed for TimeoutWatcher).
         let task_repository: Option<std::sync::Arc<apollia_tools::TaskRepository>> = None;
@@ -381,6 +402,7 @@ impl Supervisor {
             pipeline_engine: pipeline_engine.clone(),
             backend_factory,
             tool_registry_handle: Some(tool_registry_handle.clone()),
+            audit_trail: audit_trail_handle.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -460,6 +482,7 @@ impl Supervisor {
             llm_router,
             trigger_engine,
             pipeline_engine,
+            audit_trail: audit_trail_handle,
         })
     }
 }
@@ -993,6 +1016,7 @@ mod tests {
             pipeline_engine: None,
             backend_factory: None,
             tool_registry_handle: None,
+            audit_trail: None,
         };
 
         // WHEN on clone l'AppState

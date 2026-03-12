@@ -459,6 +459,7 @@ mod tests {
             pipeline_engine: None,
             backend_factory: None,
             tool_registry_handle: None,
+            audit_trail: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))
