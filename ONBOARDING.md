@@ -585,8 +585,24 @@ cat .apollia/reviews/review-latest.md
 
 ```bash
 apollia-os run apollia-reviewer "$(pwd)" --stream
-# Affiche les événements en temps réel : tool calls, progression
 ```
+
+Sortie attendue :
+```
+  -> Task <uuid> submitted to apollia-reviewer
+  ~ Running on apollia-reviewer...
+  (quelques secondes d'exécution Python)
+  # Review — <commit_msg>
+  ...
+```
+
+**Différence vs sans `--stream` :** le message `~ Running on apollia-reviewer...` apparaît
+immédiatement quand la tâche démarre (événement SSE `started`), et le rapport s'affiche
+sans délai de polling dès que la tâche se termine.
+
+> **Note :** `apollia-reviewer` utilise le mode d'exécution **direct** — l'agent Python
+> est exécuté comme une boîte noire. Les événements par appel outil (`step_started`,
+> `step_completed`) seront disponibles une fois le ToolProxy câblé en production.
 
 ### Étape 5 — Review avec LLM (Tier 1)
 
@@ -929,6 +945,100 @@ Déployer :
 ```bash
 apollia-os agent start ./mon_agent.py
 apollia-os run mon-agent "hello world"
+```
+
+---
+
+## 9b. Agents ReAct et mode orchestré
+
+### ReAct : la boucle Pensée → Action → Observation
+
+Le pattern **ReAct** (Reasoning + Acting) est la boucle fondamentale des agents LLM autonomes :
+
+```
+Thought: Je dois trouver le nombre de fichiers Rust dans le projet.
+Action:  bash_executor({"command": "find . -name '*.rs' | wc -l"})
+Observe: 312
+Thought: J'ai la réponse.
+Action:  FINISH({"answer": "Il y a 312 fichiers Rust."})
+```
+
+L'agent répète la boucle jusqu'à trouver une réponse ou atteindre son budget de steps.
+
+**`agents/react_agent.py`** — implémente cette boucle **manuellement dans `run()`** :
+- `execution_mode: "direct"` — le runtime appelle `run()` et l'agent gère tout
+- Utilise `ctx.llm` pour le raisonnement (mode dégradé si absent)
+- Utilise `ctx.tools` pour les appels d'outils (fallback subprocess si `None`)
+- Limite : `MAX_STEPS = 8` steps pour éviter les boucles infinies
+
+### Mode orchestré : ORIA comme moteur autonome
+
+**`agents/orchestrated_agent.py`** — délègue la boucle au moteur **ORIA** :
+- `execution_mode: "orchestrated"` — ORIA génère le plan et exécute les steps
+- `system_prompt` — indique à ORIA comment planifier pour cet agent
+- `run()` est **optionnel** — s'il existe, il est appelé *après* l'exécution du plan pour post-traitement
+
+Ce que ORIA fait automatiquement :
+1. **Génère** un `ExecutionPlan` JSON via le LLM (`Reasoner`)
+2. **Exécute** les steps de façon topologique (parallélisme si pas de dépendances)
+3. **Re-planifie** si un step échoue (`replanning`)
+4. **Émet** des `RuntimeEvent` visibles en SSE côté CLI
+
+```
+plan_generated   → le plan JSON est créé
+step_started     → un step commence
+step_completed   → un step réussit
+step_failed      → un step échoue (déclenchement du replanning)
+plan_completed   → tous les steps terminés
+```
+
+### Faut-il un modèle MoE spécifique ?
+
+**Non.** MoE (Mixture of Experts — ex. Mixtral, Grok) est une *architecture* de modèle, pas un prérequis pour les agents ReAct. N'importe quel LLM suffisamment capable fonctionne :
+
+| Backend | Configuration |
+|---------|--------------|
+| Claude (Anthropic) | `backend = "anthropic"`, `model = "claude-sonnet-4-5"` |
+| GPT-4o (OpenAI) | `backend = "openai"`, `model = "gpt-4o-mini"` |
+| Local GGUF (Ollama, llama.cpp) | `backend = "local"`, `model_path = "~/.apollia/models/..."` |
+
+Ce qui compte : le modèle doit suivre des instructions de format strict (JSON, Thought/Action). Les modèles instruction-tuned récents (≥ 7B) fonctionnent bien.
+
+### Apollia OS a-t-il un système vraiment autonome type Claude Code ?
+
+**Oui — ORIA Mode Orchestré est l'équivalent de la boucle agentique de Claude Code.**
+
+| Claude Code | Apollia OS (ORIA Orchestré) |
+|-------------|---------------------------|
+| Boucle Thought/Tool/Observe | `execute_orchestrated()` dans `apollia-oria` |
+| Choix dynamique d'outils | `Reasoner` génère un plan avec `tool_calls` |
+| Re-planification en cas d'erreur | `replanning` automatique |
+| Budget de steps (`--max-turns`) | `StepBudget` (non-contournable, appliqué par le runtime) |
+| Exécution parallèle d'outils | Steps indépendants exécutés via `FuturesUnordered` |
+| Visible en streaming | SSE : `plan_generated`, `step_started`, `step_completed` |
+
+La différence clé : Apollia OS est **local-first** — aucun octet ne quitte la machine. Le modèle LLM peut lui aussi être local (GGUF via `EmbeddedBackend`).
+
+### Déployer et tester les deux agents
+
+```bash
+# Déployer
+apollia-os agent start agents/react_agent.py
+apollia-os agent start agents/orchestrated_agent.py
+
+# Vérifier
+apollia-os agent list
+# → react-agent        Running
+# → orchestrated-agent Running
+
+# Lancer le ReAct agent
+apollia-os run react-agent "How many Rust source files are in $(pwd)/crates?" --stream
+
+# Lancer l'agent orchestré
+apollia-os run orchestrated-agent "Summarise the crate structure of $(pwd)" --stream
+
+# Inspecter le plan généré par ORIA
+apollia-os task inspect <task-id>
 ```
 
 ---

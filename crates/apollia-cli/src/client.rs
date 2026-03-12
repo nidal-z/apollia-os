@@ -5,6 +5,8 @@
 
 use std::path::{Path, PathBuf};
 
+use futures::channel::mpsc;
+use futures::SinkExt;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use hyper::client::conn::http1;
@@ -492,6 +494,102 @@ impl RuntimeClient {
             });
         }
         Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Open a streaming GET connection for SSE endpoints.
+    ///
+    /// Unlike [`get`], this method does **not** buffer the entire response body.
+    /// It reads HTTP body frames incrementally and yields complete text lines as they
+    /// arrive from the server, enabling real-time display of Server-Sent Events.
+    ///
+    /// Designed exclusively for `GET /api/v1/tasks/{id}/stream`. Dropping the
+    /// returned stream closes the connection automatically (the background reader
+    /// task exits when the channel receiver is dropped).
+    pub async fn stream_sse_lines(
+        &self,
+        uri: &str,
+    ) -> Result<impl futures::Stream<Item = Result<String, ClientError>>, ClientError> {
+        let stream = UnixStream::connect(&self.socket_path).await.map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound
+                || e.kind() == std::io::ErrorKind::ConnectionRefused
+            {
+                ClientError::ConnectionRefused
+            } else {
+                ClientError::Io(e)
+            }
+        })?;
+
+        let io = TokioIo::new(stream);
+        let (mut sender, conn) = http1::handshake(io)
+            .await
+            .map_err(|e| ClientError::Http(e.to_string()))?;
+
+        tokio::spawn(async move {
+            if let Err(e) = conn.await {
+                tracing::debug!(error = %e, "SSE connection closed");
+            }
+        });
+
+        let req = hyper::Request::builder()
+            .method("GET")
+            .uri(uri)
+            .header("host", "localhost")
+            .header("accept", "text/event-stream")
+            .body(Full::new(Bytes::new()))
+            .map_err(|e| ClientError::Http(e.to_string()))?;
+
+        let resp = sender
+            .send_request(req)
+            .await
+            .map_err(|e| ClientError::Http(e.to_string()))?;
+
+        // Buffer of 64 events — generous for any realistic task execution.
+        let (tx, rx) = mpsc::channel::<Result<String, ClientError>>(64);
+
+        // Background task: reads body frames, accumulates a line buffer, and
+        // pushes complete lines (stripped of trailing '\r') to the channel.
+        // Exits when the connection closes or when the receiver is dropped.
+        tokio::spawn(async move {
+            let mut buffer = String::new();
+            let mut pinned_body = Box::pin(resp.into_body());
+            let mut tx = tx;
+
+            loop {
+                let frame_opt = std::future::poll_fn(|cx| {
+                    hyper::body::Body::poll_frame(pinned_body.as_mut(), cx)
+                })
+                .await;
+
+                match frame_opt {
+                    None => break, // Server closed the connection
+                    Some(Err(e)) => {
+                        let _ = tx.send(Err(ClientError::Http(e.to_string()))).await;
+                        return;
+                    }
+                    Some(Ok(frame)) => {
+                        let Ok(data) = frame.into_data() else {
+                            continue; // Skip HTTP trailers
+                        };
+                        buffer.push_str(&String::from_utf8_lossy(&data));
+                        // Drain all complete lines ('\n'-terminated) from the buffer.
+                        while let Some(pos) = buffer.find('\n') {
+                            let line = buffer[..pos].trim_end_matches('\r').to_string();
+                            buffer.drain(..=pos);
+                            if tx.send(Ok(line)).await.is_err() {
+                                return; // Receiver dropped — stop reading
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Flush any remaining content that arrived without a trailing newline.
+            if !buffer.is_empty() {
+                let _ = tx.send(Ok(std::mem::take(&mut buffer))).await;
+            }
+        });
+
+        Ok(rx)
     }
 
     /// Internal: send an HTTP request over Unix socket.

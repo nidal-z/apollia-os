@@ -74,6 +74,12 @@ enum Commands {
         /// Stream task progress in real-time via SSE.
         #[arg(long)]
         stream: bool,
+
+        /// Submit the task and return immediately without waiting for the result.
+        ///
+        /// The task ID is printed so it can be tracked with `apollia-os task status <id>`.
+        #[arg(long)]
+        detach: bool,
     },
 
     /// Agent management (list, start, stop, info).
@@ -177,7 +183,8 @@ fn main() {
                 agent_id,
                 input,
                 stream,
-            } => commands::run::run(&agent_id, &input, cli.socket, json, stream).await,
+                detach,
+            } => commands::run::run(&agent_id, &input, cli.socket, json, stream, detach).await,
             Commands::Agent { command } => {
                 commands::agent::run(&command, cli.socket, json).await
             }
@@ -300,10 +307,12 @@ mod tests {
                 agent_id,
                 input,
                 stream,
+                detach,
             } => {
                 assert_eq!(agent_id, "hello-agent");
                 assert_eq!(input, "Bonjour");
                 assert!(!stream);
+                assert!(!detach);
                 assert!(!cli.json);
             }
             other => panic!("expected Commands::Run, got {other:?}"),
@@ -317,6 +326,46 @@ mod tests {
         // THEN Commands::Run with stream=true
         match &cli.command {
             Commands::Run { stream, .. } => assert!(stream),
+            other => panic!("expected Commands::Run, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_run_detach_flag() {
+        // GIVEN "apollia-os run hello-agent Bonjour --detach"
+        let cli = parse(&["apollia-os", "run", "hello-agent", "Bonjour", "--detach"]);
+        // THEN Commands::Run with detach=true, stream=false
+        match &cli.command {
+            Commands::Run { detach, stream, .. } => {
+                assert!(detach);
+                assert!(!stream);
+            }
+            other => panic!("expected Commands::Run, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_run_detach_flag_after_input() {
+        // GIVEN — detach appears after the positional arguments (the pattern from ONBOARDING)
+        let cli = parse(&[
+            "apollia-os",
+            "run",
+            "apollia-reviewer",
+            "/some/path",
+            "--detach",
+        ]);
+        // THEN detach=true, agent_id and input are correctly captured
+        match &cli.command {
+            Commands::Run {
+                agent_id,
+                input,
+                detach,
+                ..
+            } => {
+                assert_eq!(agent_id, "apollia-reviewer");
+                assert_eq!(input, "/some/path");
+                assert!(detach);
+            }
             other => panic!("expected Commands::Run, got {other:?}"),
         }
     }

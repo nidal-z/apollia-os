@@ -62,6 +62,10 @@ enum RouterMessage<B: ExecutionBackend> {
     },
     /// Retourner les IDs des taches actives (Working ou Submitted).
     GetActiveTasks { reply: oneshot::Sender<Vec<TaskId>> },
+    /// Retourner toutes les taches connues avec leur agent_id et statut.
+    GetAllTasks {
+        reply: oneshot::Sender<Vec<(TaskId, AgentId, TaskStatus)>>,
+    },
     /// Enregistrer un ExecutionCoordinator pour un agent.
     RegisterCoordinator {
         agent_id: AgentId,
@@ -85,6 +89,8 @@ struct TaskRouter<B: ExecutionBackend> {
     event_rx: tokio::sync::broadcast::Receiver<apollia_core::RuntimeEvent>,
     coordinators: HashMap<AgentId, ExecutionCoordinator<B>>,
     task_statuses: HashMap<TaskId, TaskStatus>,
+    /// Maps each task to the agent that runs it (for GET /api/v1/tasks list).
+    task_agents: HashMap<TaskId, AgentId>,
     /// Output text stored when TaskCompleted is received (for GET /api/v1/tasks/:id).
     task_outputs: HashMap<TaskId, String>,
 }
@@ -128,6 +134,21 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                                 .collect();
                             let _ = reply.send(active);
                         }
+                        RouterMessage::GetAllTasks { reply } => {
+                            let all: Vec<(TaskId, AgentId, TaskStatus)> = self
+                                .task_statuses
+                                .iter()
+                                .map(|(id, status)| {
+                                    let agent_id = self
+                                        .task_agents
+                                        .get(id)
+                                        .cloned()
+                                        .unwrap_or_else(|| AgentId::from("unknown"));
+                                    (id.clone(), agent_id, status.clone())
+                                })
+                                .collect();
+                            let _ = reply.send(all);
+                        }
                         RouterMessage::RegisterCoordinator { agent_id, coordinator } => {
                             info!(agent_id = %agent_id, "Coordinator enregistre");
                             self.coordinators.insert(agent_id, coordinator);
@@ -145,11 +166,16 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                 event = self.event_rx.recv() => {
                     if let Ok(RuntimeEvent::TaskCompleted { task_id, success, output, .. }) = event {
                         if let Some(status) = self.task_statuses.get_mut(&task_id) {
-                            *status = if success {
-                                TaskStatus::Completed
-                            } else {
-                                TaskStatus::Failed
-                            };
+                            // Ne pas ecraser un statut terminal deja fixe (Canceled, Completed, Failed).
+                            // Un evenement TaskCompleted tardif du backend ne doit pas effacer une
+                            // annulation explicite de l'utilisateur.
+                            if !matches!(*status, TaskStatus::Canceled | TaskStatus::Completed | TaskStatus::Failed) {
+                                *status = if success {
+                                    TaskStatus::Completed
+                                } else {
+                                    TaskStatus::Failed
+                                };
+                            }
                         }
                         if let Some(text) = output {
                             self.task_outputs.insert(task_id, text);
@@ -240,9 +266,10 @@ impl<B: ExecutionBackend> TaskRouter<B> {
             .submit_task(task)
             .map_err(|_| SubmitError::ConcurrencyLimit(agent_id.clone()))?;
 
-        // 5. Enregistrer le statut
+        // 5. Enregistrer le statut et l'association task → agent
         self.task_statuses
             .insert(task_id.clone(), TaskStatus::Working);
+        self.task_agents.insert(task_id.clone(), agent_id.clone());
 
         info!(task_id = %task_id, agent_id = %agent_id, "Task dispatched");
         Ok(task_id)
@@ -303,6 +330,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             event_rx,
             coordinators: HashMap::new(),
             task_statuses: HashMap::new(),
+            task_agents: HashMap::new(),
             task_outputs: HashMap::new(),
         };
         tokio::spawn(router.run());
@@ -396,6 +424,18 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(RouterMessage::GetActiveTasks { reply: reply_tx })
+            .await
+            .map_err(|_| SubmitError::ActorDead)?;
+        reply_rx.await.map_err(|_| SubmitError::ActorDead)
+    }
+
+    /// Retourne toutes les taches connues avec leur agent_id et statut.
+    ///
+    /// Utilisé par `GET /api/v1/tasks` pour lister les taches récentes.
+    pub async fn all_tasks(&self) -> Result<Vec<(TaskId, AgentId, TaskStatus)>, SubmitError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(RouterMessage::GetAllTasks { reply: reply_tx })
             .await
             .map_err(|_| SubmitError::ActorDead)?;
         reply_rx.await.map_err(|_| SubmitError::ActorDead)
@@ -857,6 +897,76 @@ mod tests {
         assert!(
             uuid::Uuid::parse_str(task_id.as_str()).is_ok(),
             "task_id should be a valid UUID"
+        );
+    }
+
+    /// Backend mock avec delai configurable — permet de simuler une completion tardive.
+    struct DelayedMockBackend {
+        delay_ms: u64,
+    }
+
+    impl ExecutionBackend for DelayedMockBackend {
+        fn execute(
+            &self,
+            task: AIPTask,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
+        {
+            let delay_ms = self.delay_ms;
+            Box::pin(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                Ok(AIPResult {
+                    task_id: task.task_id,
+                    status: TaskStatus::Completed,
+                    output: vec![],
+                    error: None,
+                    artifacts: vec![],
+                    input_required_data: None,
+                })
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn test_canceled_status_not_overwritten_by_late_task_completed_event() {
+        // GIVEN un agent actif avec un backend a completion differee (100ms)
+        let (event_tx, _event_rx) = broadcast::channel::<RuntimeEvent>(64);
+        let registry = AgentRegistry::spawn(event_tx.clone());
+        let router = TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 256);
+
+        let agent_id =
+            register_agent_in_state(&registry, "agent-cancel-race", ProcessState::Active).await;
+        let coordinator = ExecutionCoordinator::new(
+            agent_id.clone(),
+            1,
+            event_tx,
+            DelayedMockBackend { delay_ms: 100 },
+        );
+        router
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+            .expect("register coordinator failed");
+
+        // WHEN on soumet une tache puis on l'annule immediatement
+        let task_id = router
+            .submit(agent_id.as_str(), AIPInput::default())
+            .await
+            .expect("submit failed");
+
+        let cancel_result = router.cancel(task_id.as_str()).await.expect("cancel failed");
+        assert_eq!(cancel_result, Some(TaskStatus::Canceled), "cancel should return Canceled");
+
+        // AND on attend que le backend envoie son TaskCompleted tardif (>100ms)
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+        // THEN le statut reste Canceled — l'evenement tardif n'a pas ecrase l'annulation
+        let status = router
+            .get_status(task_id.as_str())
+            .await
+            .expect("get_status failed");
+        assert_eq!(
+            status,
+            Some(TaskStatus::Canceled),
+            "Canceled status must not be overwritten by a late TaskCompleted event"
         );
     }
 

@@ -8,6 +8,8 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
+use futures::StreamExt;
+
 use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
 use crate::exit_codes;
 
@@ -229,6 +231,13 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             true
         }
 
+        // ── Common: task picked up by executor — shows the stream is live ──
+        "started" => {
+            let agent = event.data["agent_id"].as_str().unwrap_or("?");
+            println!("  ~ Running on {agent}...");
+            false
+        }
+
         // ── Direct mode legacy: step progress ─────────────────────────────
         "step" => {
             let step = event.data["step"].as_u64().unwrap_or(0);
@@ -249,6 +258,7 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
 /// Execute the `run` command.
 ///
 /// Submits a task to the specified agent and waits for the result.
+/// With `--detach`, returns immediately after submission and prints the task ID.
 /// Returns the process exit code.
 pub async fn run(
     agent_id: &str,
@@ -256,6 +266,7 @@ pub async fn run(
     socket: Option<PathBuf>,
     json: bool,
     stream: bool,
+    detach: bool,
 ) -> i32 {
     let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
     let client = RuntimeClient::new(socket_path);
@@ -292,6 +303,23 @@ pub async fn run(
             );
         }
     };
+
+    // --detach: fire-and-forget — print task_id and return immediately.
+    if detach {
+        if json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &serde_json::json!({"task_id": task_id, "agent_id": agent_id, "status": "submitted"})
+                )
+                .unwrap_or_default()
+            );
+        } else {
+            println!("  -> Task {task_id} submitted to {agent_id}");
+            println!("     Track with: apollia-os task status {task_id}");
+        }
+        return exit_codes::SUCCESS;
+    }
 
     if !json {
         println!("  -> Task {task_id} submitted to {agent_id}");
@@ -382,12 +410,16 @@ async fn poll_task(client: &RuntimeClient, task_id: &str, json: bool, start: Ins
 
 /// Stream task events via SSE and display them using [`handle_sse_event`].
 ///
-/// Connects to `GET /api/v1/tasks/{id}/stream`, parses SSE frames, and
-/// delegates rendering to `handle_sse_event`. Returns when a terminal event
-/// is received or falls back to polling if the stream closes without one.
+/// Connects to `GET /api/v1/tasks/{id}/stream` using [`RuntimeClient::stream_sse_lines`],
+/// which reads the HTTP body incrementally — one line at a time as the server flushes it.
+/// Each SSE frame is parsed and dispatched to `handle_sse_event` immediately, producing
+/// real-time output instead of waiting for the full response to buffer.
 ///
-/// When `quiet` is `true`, intermediate plan/step events are suppressed and
-/// only the final agent output is printed (used by the default non-`--stream` path).
+/// Returns when a terminal event is received or falls back to polling if the
+/// stream closes without a terminal event (e.g. race on task already completed).
+///
+/// When `quiet` is `true`, intermediate events are suppressed and only the final
+/// agent output is printed (used by the default non-`--stream` path).
 async fn stream_task(
     client: &RuntimeClient,
     task_id: &str,
@@ -396,8 +428,8 @@ async fn stream_task(
     quiet: bool,
 ) -> i32 {
     let uri = format!("/api/v1/tasks/{task_id}/stream");
-    let resp = match client.get(&uri).await {
-        Ok(r) => r,
+    let mut line_stream = match client.stream_sse_lines(&uri).await {
+        Ok(s) => s,
         Err(ClientError::ConnectionRefused) => {
             return output_error(
                 "runtime not started (connection refused)",
@@ -413,7 +445,16 @@ async fn stream_task(
     let mut state = RunDisplayState::new(json, quiet);
     let mut terminal_event_type = String::new();
 
-    for line in resp.body.lines() {
+    // Each line arrives as soon as the server flushes it — true streaming.
+    while let Some(line_result) = line_stream.next().await {
+        let line = match line_result {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("  x Stream error: {e}");
+                break;
+            }
+        };
+
         if let Some(data) = line.strip_prefix("data: ") {
             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
                 let event_type = parsed
@@ -439,14 +480,9 @@ async fn stream_task(
     // Map terminal event type to exit code (AC-4, AC-5)
     match terminal_event_type.as_str() {
         "completed" => exit_codes::SUCCESS,
-        "failed" => {
-            // Direct-mode failure: elapsed time already printed by handle_sse_event;
-            // use TASK_FAILED to match poll_task behaviour.
-            let _ = start; // start used for context, not needed here
-            exit_codes::TASK_FAILED
-        }
+        "failed" => exit_codes::TASK_FAILED,
         "plan_failed" | "canceled" => exit_codes::GENERAL_ERROR,
-        // No terminal event received — fall back to polling
+        // No terminal event — stream closed early (task already done) → fall back to polling
         _ => poll_task(client, task_id, json, start).await,
     }
 }
@@ -633,6 +669,20 @@ mod tests {
 
         // THEN
         assert!(terminal);
+    }
+
+    // "started" is NOT terminal — the task is now running
+    #[test]
+    fn test_started_event_not_terminal() {
+        // GIVEN
+        let event = make_event("started", serde_json::json!({"agent_id": "apollia-reviewer"}));
+        let mut state = RunDisplayState::new(false, false);
+
+        // WHEN
+        let terminal = handle_sse_event(&event, &mut state);
+
+        // THEN — stream stays open
+        assert!(!terminal);
     }
 
     // step_failed is NOT terminal (replanning may follow)

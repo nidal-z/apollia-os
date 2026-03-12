@@ -7,6 +7,15 @@ PYO3_PYTHON = { value = "/opt/homebrew/bin/python3.13", force = false }
 # Pour activer la précompilation (Xcode requis) : export MISTRALRS_METAL_PRECOMPILE=1
 MISTRALRS_METAL_PRECOMPILE = { value = "0", force = false }
 
+# ── Profil dev accéléré ──────────────────────────────────────────────────────
+# split-debuginfo = "unpacked" : évite que le linker macOS agrège les debuginfo
+# dans un .dSYM — économise 20-40% du temps de link en dev.
+# codegen-units = 256 : parallélise la codegen au max (moins d'optimisations,
+# build plus rapide — acceptable en dev, jamais en release).
+[profile.dev]
+split-debuginfo = "unpacked"
+codegen-units = 256
+
 [alias]
 # Generate HTML coverage report (local — uses cargo-tarpaulin, no rustup required).
 # Prerequisites: cargo install cargo-tarpaulin

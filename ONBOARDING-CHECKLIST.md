@@ -3,7 +3,7 @@
 Checklist complète pour valider qu'`apollia-os` fonctionne correctement de bout en bout.
 Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = bug à ouvrir.
 
-**Durée estimée :** 45–60 min (sans LLM) · 75–90 min (avec LLM)
+**Durée estimée :** 45–60 min (sans LLM) · 90–110 min (avec LLM, inclus Bloc 16)
 **Prérequis :** avoir lu `ONBOARDING.md` sections 2 et 3 avant de commencer.
 
 ---
@@ -232,33 +232,47 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
 ### 4.2 Exécution avec streaming
 
 ```
-[ ] Streaming temps réel
+[x] Streaming temps réel
     ⌨  apollia-os run apollia-reviewer "$(pwd)" --stream
-    →  Affiche des événements SSE au fil de l'exécution
-    →  Events visibles : tool_call, step_progress ou similaire
-    →  Se termine avec le rapport complet
+    →  Ligne "  -> Task <uuid> submitted to apollia-reviewer"
+    →  Immédiatement après : "  ~ Running on apollia-reviewer..."
+       (confirme que le stream est actif et que la tâche est prise en charge)
+    →  Quelques secondes plus tard : rapport Markdown affiché dès completion
+    →  Exit code 0
 
-📝 Nombre d'événements SSE observés : _____
+    ℹ  apollia-reviewer fonctionne en mode direct (exécution Python opaque).
+       En mode direct, seuls les événements "started" et "completed" sont émis —
+       pas d'events intermédiaires par appel outil. Les appels outils en mode
+       orchestré (step_started / step_completed) apparaîtront une fois le
+       ToolProxy câblé (story à venir).
+
+    ℹ  Différence visible vs sans --stream :
+       - Sans --stream  : poll toutes les 200 ms → terminal gelé → rapport d'un coup
+       - Avec --stream  : "Running on apollia-reviewer..." s'affiche immédiatement,
+         puis le rapport apparaît sans délai de poll dès que la tâche se termine.
+
+📝 Délai visible entre "submitted" et "Running on..." : < 1 s
+📝 Rapport affiché dès completion (pas de délai de poll) : oui / non
 ```
 
 ### 4.3 Exécution asynchrone (detach)
 
 ```
-[ ] Soumission non-bloquante
+[x] Soumission non-bloquante
     ⌨  apollia-os run apollia-reviewer "$(pwd)" --detach
     →  Retourne immédiatement un task-id (ex: t-abc123)
     →  Prompt revient sans attendre
 
-[ ] Suivi par task-id
+[x] Suivi par task-id
     ⌨  apollia-os task status <task-id-copié>
     →  status: running  (si encore en cours)
     →  puis status: completed  (après quelques secondes)
 
-[ ] Liste des tâches
+[x] Liste des tâches
     ⌨  apollia-os task list
     →  Tâche visible avec son statut
 
-[ ] Tâche en JSON
+[x] Tâche en JSON
     ⌨  apollia-os task status <task-id> --json
     →  JSON valide avec "status", "task_id"
 
@@ -268,7 +282,7 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
 ### 4.4 Annulation de tâche
 
 ```
-[ ] Annulation d'une tâche en cours
+[x] Annulation d'une tâche en cours
     ⌨  apollia-os run apollia-reviewer "$(pwd)" --detach
     →  Récupérer le task-id
     ⌨  apollia-os task cancel <task-id>
@@ -276,7 +290,7 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
     ⌨  apollia-os task status <task-id>
     →  status: canceled
 
-[ ] Exit code annulation
+[x] Exit code annulation
     ⌨  apollia-os task cancel <task-id-inexistant>; echo "Exit: $?"
     →  Exit: 2 ou message d'erreur cohérent (pas de panic)
 ```
@@ -284,12 +298,12 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
 ### 4.5 Input invalide
 
 ```
-[ ] Agent avec chemin invalide
+[x] Agent avec chemin invalide
     ⌨  apollia-os run apollia-reviewer "/chemin/inexistant"
     →  Exit code != 0  (3 = tâche échouée ou 2 = erreur)
     →  Message d'erreur lisible, pas de panic Rust
 
-[ ] Agent inexistant
+[x] Agent inexistant
     ⌨  apollia-os run agent-inexistant "input"
     →  Erreur "agent not found" ou similaire
     →  Exit code != 0
@@ -648,6 +662,103 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
 
 ---
 
+## Bloc 16 — Agents ReAct et mode orchestré *(optionnel — LLM requis)*
+
+> Ce bloc nécessite un backend LLM configuré (voir Bloc 8).
+> Sans LLM : seul le test de dégradation (16.3) est possible.
+
+```
+[ ] Prérequis : LLM backend configuré et pingable
+    ⌨  apollia-os llm ping
+    →  Pong ! Latence : X ms
+    →  Si échec, configurer un backend dans apollia.toml (voir Bloc 8)
+
+[ ] Déployer react-agent
+    ⌨  apollia-os agent start agents/react_agent.py
+    →  Agent registered: react-agent
+    →  Status: Running
+
+[ ] Vérifier le manifest de react-agent
+    ⌨  apollia-os agent info react-agent
+    →  name: react-agent
+    →  execution_mode: direct
+    →  tools_required: bash_executor, file_io
+
+[ ] 16.1 — Exécution ReAct synchrone (LLM requis)
+    ⌨  apollia-os run react-agent "How many .rs files are in $(pwd)/crates?"
+    →  Rapport commence par "# ReAct —"
+    →  Section "## Loop (Thought / Action / Observe)" présente
+    →  Au moins un "Thought:" et un "Action:" visibles
+    →  Section "## Answer" présente avec une réponse
+    →  Termine par "*Generated by react-agent (Tier 1 — LLM enabled)*"
+    →  Exit code 0
+
+[ ] 16.2 — Streaming ReAct (--stream)
+    ⌨  apollia-os run react-agent "List top-level directories in $(pwd)" --stream
+    →  Première ligne : "~ Running on react-agent..."  (apparaît immédiatement)
+    →  Events SSE arrivent progressivement (pas d'un seul coup)
+    →  Rapport final identique à 16.1
+
+[ ] 16.3 — Dégradation sans LLM
+    ⌨  (temporairement, commenter le backend LLM dans apollia.toml ou utiliser un agent isolé)
+    ⌨  apollia-os run react-agent "echo hello"
+    →  Rapport contient "⚠ LLM backend not configured"
+    →  Contient "static fallback only"
+    →  Exit code 0 (dégradation gracieuse, pas d'erreur fatale)
+
+    📝 LLM disponible lors du test : Oui / Non
+    📝 Modèle utilisé : _______________________________
+
+[ ] Déployer orchestrated-agent
+    ⌨  apollia-os agent start agents/orchestrated_agent.py
+    →  Agent registered: orchestrated-agent
+    →  Status: Running
+
+[ ] Vérifier le manifest de orchestrated-agent
+    ⌨  apollia-os agent info orchestrated-agent
+    →  name: orchestrated-agent
+    →  execution_mode: orchestrated
+    →  system_prompt présent dans le manifest
+
+[ ] 16.4 — Exécution mode orchestré (LLM requis)
+    ⌨  apollia-os run orchestrated-agent "Summarise the crate structure of $(pwd)/crates"
+    →  ORIA génère un plan automatiquement
+    →  Steps s'exécutent (bash_executor appelé pour chaque step)
+    →  Rapport final retourné avec statut "completed"
+    →  Exit code 0
+
+[ ] 16.5 — Inspecter le plan ORIA généré
+    ⌨  TASK_ID=$(apollia-os run orchestrated-agent "count .rs files in $(pwd)" --json | jq -r '.task_id')
+    ⌨  apollia-os task inspect $TASK_ID
+    →  Plan JSON visible avec les steps
+    →  Chaque step a un statut (Completed / Failed)
+    →  Steps exécutés dans l'ordre topologique
+
+[ ] 16.6 — Streaming mode orchestré
+    ⌨  apollia-os run orchestrated-agent "Count lines in the largest .rs file in $(pwd)" --stream
+    →  "~ Running on orchestrated-agent..."  (immédiat)
+    →  Events plan_generated / step_started / step_completed apparaissent
+    →  Rapport final avec réponse
+    →  Exit code 0
+
+[ ] Les deux agents coexistent sans interférence
+    ⌨  apollia-os agent list
+    →  react-agent        Running
+    →  orchestrated-agent Running
+    →  (+ autres agents déployés précédemment)
+
+[ ] Arrêt propre des deux agents
+    ⌨  apollia-os agent stop react-agent
+    ⌨  apollia-os agent stop orchestrated-agent
+    →  Status: Stopped (ou Stopping puis Stopped)
+
+📝 Nombre de steps générés par ORIA : _______
+📝 Modèle utilisé : _______________________________
+📝 Comportements inattendus : _______________________________
+```
+
+---
+
 ## Récapitulatif
 
 | Bloc | Libellé | Statut | Notes |
@@ -668,6 +779,7 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
 | 13 | Arrêt graceful | | |
 | 14 | Résilience | | |
 | 15 | Commandes just | | |
+| 16 | Agents ReAct / orchestré *(optionnel)* | | |
 
 **Score :** _____ / _____ items validés
 **Date du test :** _______________

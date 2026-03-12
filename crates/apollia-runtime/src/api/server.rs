@@ -218,7 +218,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         get_run, get_run_by_id, list_pipelines, list_runs, run_pipeline,
     };
     use super::routes_sse::stream_task;
-    use super::routes_tasks::{cancel_task, get_task, resume_task, submit_task};
+    use super::routes_tasks::{cancel_task, get_task, list_tasks, resume_task, submit_task};
     use super::routes_triggers::{
         disable_trigger, enable_trigger, fire_trigger, get_trigger, get_trigger_logs,
         list_triggers, reload_triggers,
@@ -230,7 +230,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route("/", get(|| async { Redirect::permanent("/dashboard") }))
         .route("/api/v1/health", get(health_handler))
         .route("/api/v1/shutdown", post(shutdown_handler::<B>))
-        .route("/api/v1/tasks", post(submit_task::<B>))
+        .route("/api/v1/tasks", get(list_tasks::<B>).post(submit_task::<B>))
         .route(
             "/api/v1/tasks/:id",
             get(get_task::<B>).delete(cancel_task::<B>),

@@ -4,7 +4,7 @@
 //! and resuming agent tasks. They delegate to [`TaskRouterHandle`] for dispatch
 //! and status tracking, and to [`TaskRepository`] for HITL persistence.
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -76,6 +76,70 @@ fn json_to_aip_input(value: serde_json::Value) -> AIPInput {
     AIPInput {
         parts: vec![AIPPart::Data(DataPart { data: value })],
     }
+}
+
+/// Query parameters for `GET /api/v1/tasks`.
+#[derive(Debug, Deserialize)]
+pub struct ListTasksQuery {
+    /// Optional status filter (e.g. `status=input_required`).
+    pub status: Option<String>,
+}
+
+/// Response body for `GET /api/v1/tasks`.
+#[derive(Debug, Serialize)]
+pub struct TaskListResponse {
+    /// All tasks matching the optional filter.
+    pub tasks: Vec<TaskListItem>,
+}
+
+/// One entry in the task list.
+#[derive(Debug, Serialize)]
+pub struct TaskListItem {
+    /// Unique task identifier.
+    pub task_id: String,
+    /// Agent that owns this task.
+    pub agent_id: String,
+    /// Current task status.
+    pub status: String,
+}
+
+/// Handler for `GET /api/v1/tasks`.
+///
+/// Returns all known tasks with their agent and status.
+/// Supports an optional `?status=<value>` query parameter to filter results.
+pub async fn list_tasks<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Query(query): Query<ListTasksQuery>,
+) -> Result<Json<TaskListResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let all = state
+        .router_handle
+        .all_tasks()
+        .await
+        .map_err(submit_error_to_response)?;
+
+    let tasks = all
+        .into_iter()
+        .filter_map(|(task_id, agent_id, status)| {
+            let status_str = serde_json::to_value(&status)
+                .ok()
+                .and_then(|v| v.as_str().map(String::from))
+                .unwrap_or_else(|| format!("{status:?}"));
+
+            if let Some(ref filter) = query.status {
+                if &status_str != filter {
+                    return None;
+                }
+            }
+
+            Some(TaskListItem {
+                task_id: task_id.to_string(),
+                agent_id: agent_id.to_string(),
+                status: status_str,
+            })
+        })
+        .collect();
+
+    Ok(Json(TaskListResponse { tasks }))
 }
 
 /// Handler for `POST /api/v1/tasks`.
