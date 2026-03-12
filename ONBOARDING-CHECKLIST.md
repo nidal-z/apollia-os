@@ -359,15 +359,23 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
 
 ## Bloc 6 — Mémoire
 
+> Prérequis : Bloc 4.1 (exécution synchrone) doit avoir été effectué.
+> La mémoire est créée lazily — le fichier SQLite n'existe qu'après au moins une tâche réussie.
+
 ```
-[ ] Mémoire enregistrée par apollia-reviewer
+[x] Mémoire enregistrée par apollia-reviewer
     ⌨  apollia-os memory inspect apollia-reviewer
     →  Entrées présentes (review enregistrée en épisodique)
     →  Namespace isolé "apollia-reviewer"
+    →  Affiche : Namespace, Fichier, Episodes > 0, Semantique, Procedures
 
-[ ] Fichier SQLite créé
-    ⌨  ls -lh ~/.apollia/memory.db
+    ℹ  Si vous obtenez "namespace not found", vérifiez que Bloc 4.1 a été exécuté
+       (le fichier est créé lors du premier appel ctx.memory.record() dans l'agent).
+
+[x] Fichier SQLite créé
+    ⌨  ls -lh ~/.apollia/memory/apollia-reviewer.db
     →  Fichier présent, taille > 0
+    →  Note : chaque agent a son propre fichier dans ~/.apollia/memory/<namespace>.db
 
 📝 Nombre d'entrées mémoire : _____
 ```
@@ -379,15 +387,15 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
 > Valider que l'API REST répond correctement (indépendamment de la CLI).
 
 ```
-[ ] GET /api/v1/health
+[x] GET /api/v1/health
     ⌨  curl -s http://localhost:7771/api/v1/health
     →  {"status":"ok"}
 
-[ ] GET /api/v1/agents
+[x] GET /api/v1/agents
     ⌨  curl -s http://localhost:7771/api/v1/agents
     →  JSON valide, liste les agents actifs
 
-[ ] POST /api/v1/tasks — champ agent_id correct
+[x] POST /api/v1/tasks — champ agent_id correct
     ⌨  curl -s -X POST http://localhost:7771/api/v1/tasks \
          -H "Content-Type: application/json" \
          -d '{"agent_id":"apollia-reviewer","input":{"parts":[{"type":"text","text":"'"$(pwd)"'"}]}}'
@@ -395,16 +403,16 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
     →  JSON avec "task_id"
     →  PAS de 422 Unprocessable Entity
 
-[ ] GET /api/v1/tasks/:id
+[x] GET /api/v1/tasks/:id
     ⌨  Utiliser le task-id récupéré ci-dessus
     ⌨  curl -s http://localhost:7771/api/v1/tasks/<task-id>
     →  JSON avec "status" (running ou completed)
 
-[ ] GET /api/v1/tools
+[x] GET /api/v1/tools
     ⌨  curl -s http://localhost:7771/api/v1/tools
     →  JSON valide, 3 outils
 
-[ ] Format d'erreur (requête invalide)
+[x] Format d'erreur (requête invalide)
     ⌨  curl -s -X POST http://localhost:7771/api/v1/tasks \
          -H "Content-Type: application/json" \
          -d '{"champ_invalide":"valeur"}'

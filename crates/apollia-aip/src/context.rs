@@ -357,7 +357,8 @@ use crate::llm::LlmProxy;
 /// - `ctx.tools` — [`ToolProxy`] si des outils sont alloués à l'agent, `None` sinon.
 /// - `ctx.llm` — [`LlmProxy`] si au moins un backend LLM est disponible,
 ///   `None` sinon (Principe #6 — l'agent choisit si l'absence est fatale).
-/// - `ctx.memory` — réservé, toujours `None` en mode direct (STORY-028 à venir).
+/// - `ctx.memory` — [`crate::memory::MemoryInterface`] isolé par namespace si
+///   `memory_namespace` est déclaré dans le manifest, `None` sinon (Principe #6).
 ///
 /// L'absence de LLM est signalée sur l'EventBus via `AgentDegraded`
 /// dès la construction (Principe #4 — fail fast).
@@ -367,7 +368,7 @@ pub struct RuntimeContext {
     tools: Option<pyo3::Py<ToolProxy>>,
     /// Proxy LLM exposé à Python — `None` si aucun backend LLM disponible.
     pub llm: Option<LlmProxy>,
-    /// Interface mémoire — réservée, toujours `None` en mode direct.
+    /// Interface mémoire isolée par namespace — `None` si `memory_namespace` absent du manifest.
     memory: Option<pyo3::Py<crate::memory::MemoryInterface>>,
 }
 
@@ -382,6 +383,20 @@ impl RuntimeContext {
     ///
     /// Le contexte ne panic jamais à la construction : la dégradation est
     /// signalée, mais l'agent décide lui-même si l'absence de LLM est fatale.
+    /// Construit le contexte avec injection LLM optionnelle, ToolProxy optionnel,
+    /// et MemoryInterface optionnelle.
+    ///
+    /// Si `llm_router` est `None` ou contient un router sans backend,
+    /// `ctx.llm` est `None` et `RuntimeEvent::AgentDegraded` est émis
+    /// fire-and-forget sur `event_bus` (erreurs `send()` silencieusement ignorées).
+    ///
+    /// Si `tool_proxy` est `Some`, `ctx.tools` expose les outils alloués à l'agent.
+    ///
+    /// Si `memory_interface` est `Some`, `ctx.memory` expose la mémoire SQLite
+    /// isolée du namespace déclaré dans le manifest (Principe #6).
+    ///
+    /// Le contexte ne panic jamais à la construction : la dégradation est
+    /// signalée, mais l'agent décide lui-même si l'absence d'une capacité est fatale.
     pub fn new_with_llm(
         llm_router: Option<Arc<LlmRouter>>,
         budget_view: Arc<StepBudgetView>,
@@ -390,6 +405,7 @@ impl RuntimeContext {
         event_bus: EventBusSender,
         agent_id: AgentId,
         tool_proxy: Option<ToolProxy>,
+        memory_interface: Option<crate::memory::MemoryInterface>,
     ) -> Self {
         let llm = llm_router.and_then(|router| {
             if router.list().is_empty() {
@@ -415,7 +431,12 @@ impl RuntimeContext {
             pyo3::Python::with_gil(|py| pyo3::Py::new(py, proxy).ok())
         });
 
-        Self { llm, tools, memory: None }
+        // Wrap MemoryInterface in a Py<> handle if provided.
+        let memory = memory_interface.and_then(|mem| {
+            pyo3::Python::with_gil(|py| pyo3::Py::new(py, mem).ok())
+        });
+
+        Self { llm, tools, memory }
     }
 }
 
@@ -447,10 +468,10 @@ impl RuntimeContext {
         }
     }
 
-    /// Interface mémoire — `None` en mode direct (accès mémoire via STORY-028).
+    /// Interface mémoire isolée par namespace.
     ///
-    /// Propriété Python `ctx.memory`. Toujours `None` tant que le MemoryManager
-    /// n'est pas injecté dans le contexte d'exécution.
+    /// Propriété Python `ctx.memory`. Retourne `None` Python si le manifest
+    /// de l'agent ne déclare pas de `memory_namespace`.
     #[getter]
     fn memory(&self, py: Python<'_>) -> PyObject {
         match &self.memory {
@@ -548,7 +569,8 @@ mod runtime_context_tests {
             Arc::new(ObservabilityConfig::default()),
             tx,
             AgentId::new_v4(),
-            None,
+            None, // tool_proxy
+            None, // memory_interface
         );
         // THEN
         assert!(ctx.llm.is_none());
@@ -569,7 +591,8 @@ mod runtime_context_tests {
             Arc::new(ObservabilityConfig::default()),
             tx,
             agent_id,
-            None,
+            None, // tool_proxy
+            None, // memory_interface
         );
         // THEN un événement AgentDegraded est présent sur le bus
         let event = rx.try_recv().expect("un événement doit être présent");
@@ -596,7 +619,8 @@ mod runtime_context_tests {
             Arc::new(ObservabilityConfig::default()),
             tx,
             AgentId::new_v4(),
-            None,
+            None, // tool_proxy
+            None, // memory_interface
         );
         // THEN
         assert!(ctx.llm.is_none());

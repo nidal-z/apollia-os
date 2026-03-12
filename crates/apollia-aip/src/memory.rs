@@ -189,12 +189,11 @@ impl MemoryInterface {
     }
 }
 
-#[allow(dead_code)]
 impl MemoryInterface {
     /// Creates a new MemoryInterface for a given agent.
     ///
     /// Returns None if the namespace is empty or absent (AC-6).
-    pub(crate) fn new(manager: MemoryManager, namespace: String, agent_id: String) -> Option<Self> {
+    pub fn new(manager: MemoryManager, namespace: String, agent_id: String) -> Option<Self> {
         if namespace.is_empty() {
             return None;
         }

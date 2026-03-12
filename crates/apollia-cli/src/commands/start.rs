@@ -11,6 +11,8 @@ use std::time::Instant;
 
 use apollia_aip::bridge::AIPBridge;
 use apollia_aip::context::{RuntimeContext, ToolExecutor, ToolProxy};
+use apollia_aip::memory::MemoryInterface;
+use apollia_memory::manager::MemoryManager;
 use apollia_core::{AIPResult, AIPTask, AgentManifest, RuntimeEvent, TaskStatus};
 use apollia_tools::{AuditTrailHandle, ToolRegistryHandle};
 use apollia_llm::{
@@ -265,6 +267,10 @@ struct AIPProductionBackend {
     event_bus: EventBusSender,
     tool_registry: Option<ToolRegistryHandle>,
     audit_trail: Option<AuditTrailHandle>,
+    /// Namespace mémoire déclaré dans le manifest (ex: "apollia-reviewer").
+    memory_namespace: Option<String>,
+    /// Répertoire racine des fichiers mémoire (ex: `~/.apollia/memory/`).
+    memory_base_dir: PathBuf,
 }
 
 impl Clone for AIPProductionBackend {
@@ -277,6 +283,8 @@ impl Clone for AIPProductionBackend {
             event_bus: self.event_bus.clone(),
             tool_registry: self.tool_registry.clone(),
             audit_trail: self.audit_trail.clone(),
+            memory_namespace: self.memory_namespace.clone(),
+            memory_base_dir: self.memory_base_dir.clone(),
         }
     }
 }
@@ -293,6 +301,9 @@ impl ExecutionBackend for AIPProductionBackend {
         let allowed_tools = self.allowed_tools.clone();
         let tool_registry = self.tool_registry.clone();
         let audit_trail = self.audit_trail.clone();
+
+        let memory_namespace = self.memory_namespace.clone();
+        let memory_base_dir = self.memory_base_dir.clone();
 
         Box::pin(async move {
             // Build the ToolCallHelper backed by the real LlmRouter (or an empty one).
@@ -330,6 +341,14 @@ impl ExecutionBackend for AIPProductionBackend {
                     }
                 };
 
+            // Build the MemoryInterface if the agent declared a memory_namespace.
+            let memory_interface: Option<MemoryInterface> =
+                memory_namespace.as_deref().and_then(|ns| {
+                    let manager =
+                        MemoryManager::new(&memory_base_dir, Some(ns.to_string()), vec![]);
+                    MemoryInterface::new(manager, ns.to_string(), agent_id.clone())
+                });
+
             // Build a RuntimeContext and wrap it as a Python object.
             let ctx: PyObject = Python::with_gil(|py| {
                 let ctx = RuntimeContext::new_with_llm(
@@ -340,13 +359,18 @@ impl ExecutionBackend for AIPProductionBackend {
                     event_bus,
                     agent_id.into(),
                     tool_proxy,
+                    memory_interface,
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
                     .expect("RuntimeContext PyObject construction failed")
             });
 
-            bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
+            let run_result = bridge.call_run(&task, ctx).await;
+            if let Err(ref e) = run_result {
+                tracing::error!(task_id = %task.task_id, error = %e, "AIPBridge::call_run failed");
+            }
+            run_result.map_err(|e| e.to_string())
         })
     }
 }
@@ -395,6 +419,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
             let validated =
                 apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
             let allowed_tools = validated.manifest.tools_required.clone();
+            let memory_namespace = validated.manifest.memory_namespace.clone();
             let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
             Ok(AIPProductionBackend {
                 bridge,
@@ -404,6 +429,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 event_bus,
                 tool_registry,
                 audit_trail,
+                memory_namespace,
+                memory_base_dir: default_memory_dir(),
             })
         })();
 
@@ -420,6 +447,14 @@ impl AgentBackendFactory for ProductionBackendFactory {
             }
         }
     }
+}
+
+/// Returns the default memory directory (`~/.apollia/memory/`).
+///
+/// Matches the path convention used by `apollia-os memory inspect` and `MemoryManager`.
+fn default_memory_dir() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    PathBuf::from(home).join(".apollia").join("memory")
 }
 
 /// Resolves `~` to `$HOME` in a path string.

@@ -1067,7 +1067,8 @@ just clean-all      # Supprimer tout y compris les SVGs
 
 ```
 ~/.apollia/
-  ├── memory.db           SQLite — mémoire épisodique/sémantique/procédurale
+  ├── memory/             Répertoire des namespaces mémoire (un .db par agent)
+  │   └── apollia-reviewer.db   SQLite — mémoire épisodique/sémantique/procédurale
   ├── plans.db            SQLite — plans ORIA Mode Orchestré
   ├── triggers.db         SQLite — état persistant des triggers
   ├── hitl.db             SQLite — approbations HITL en attente

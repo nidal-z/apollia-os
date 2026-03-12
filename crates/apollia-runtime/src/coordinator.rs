@@ -131,7 +131,15 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
             // that the TaskRouter transitions the task to `TaskStatus::Failed`.
             let is_success = match &result {
                 Ok(aip_result) => aip_result.status != TaskStatus::Failed,
-                Err(_) => false,
+                Err(e) => {
+                    tracing::error!(
+                        agent_id = %agent_id,
+                        task_id  = %task_id,
+                        error    = %e,
+                        "task execution failed"
+                    );
+                    false
+                }
             };
             let output = result.as_ref().ok().map(aip_result_to_text);
             let _ = event_bus.send(RuntimeEvent::TaskCompleted {
