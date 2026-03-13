@@ -5,9 +5,9 @@
   "identifier": "com.apollia.desktop",
   "build": {
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "cd ui && npm run dev",
-    "beforeBuildCommand": "cd ui && npm run build",
-    "frontendDist": "ui/dist"
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "dist"
   },
   "app": {
     "withGlobalTauri": true,
