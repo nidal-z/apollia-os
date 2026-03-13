@@ -65,6 +65,32 @@ pub struct TriggerStateRow {
     pub enabled: bool,
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────
+
+/// Ajoute des colonnes à une table si elles n'existent pas encore.
+///
+/// Utilise `PRAGMA table_info` pour lister les colonnes existantes,
+/// puis exécute `ALTER TABLE ADD COLUMN` uniquement pour les manquantes.
+fn add_columns_if_missing(
+    conn: &Connection,
+    table: &str,
+    columns: &[(&str, &str)],
+) -> Result<(), rusqlite::Error> {
+    let mut stmt = conn.prepare(&format!("SELECT name FROM pragma_table_info('{table}')"))?;
+    let existing: Vec<String> = stmt
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+
+    for (col_name, col_type) in columns {
+        if !existing.iter().any(|c| c == col_name) {
+            conn.execute_batch(&format!(
+                "ALTER TABLE {table} ADD COLUMN {col_name} {col_type};"
+            ))?;
+        }
+    }
+    Ok(())
+}
+
 // ─── TriggerPersistence ───────────────────────────────────────────────────
 
 /// Interface de persistance pour les triggers — wraps `rusqlite::Connection`.
@@ -88,21 +114,13 @@ impl TriggerPersistence {
         conn.execute_batch(include_str!(
             "../../apollia-tools/migrations/003_trigger_tables.sql"
         ))?;
-        // Migration STORY-130 : ajout payload_json et dispatch_ms
-        // Chaque ALTER TABLE est exécuté individuellement : si la colonne existe
-        // déjà (duplicate column name), on ignore l'erreur silencieusement.
-        for col_sql in [
-            "ALTER TABLE trigger_history ADD COLUMN payload_json TEXT",
-            "ALTER TABLE trigger_history ADD COLUMN dispatch_ms INTEGER",
-        ] {
-            match conn.execute_batch(col_sql) {
-                Ok(()) => {}
-                Err(e) if e.to_string().contains("duplicate column name") => {
-                    // Colonne déjà présente — idempotent, rien à faire.
-                }
-                Err(e) => return Err(TriggerPersistenceError::Database(e)),
-            }
-        }
+        // Migration STORY-130 : ajout payload_json et dispatch_ms.
+        // Utilise PRAGMA table_info pour vérifier l'existence (pattern cohérent workspace).
+        add_columns_if_missing(
+            &conn,
+            "trigger_history",
+            &[("payload_json", "TEXT"), ("dispatch_ms", "INTEGER")],
+        )?;
         Ok(Self { conn })
     }
 

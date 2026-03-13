@@ -631,6 +631,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         notifications,
         pipelines,
         data_dir: home.join(".apollia"),
+        obs_config: apollia_core::ObservabilityConfig::default(),
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);

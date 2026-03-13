@@ -102,6 +102,11 @@ pub struct SupervisorConfig {
     ///
     /// Utilisé pour localiser `pipelines.db`. Doit exister et être accessible en écriture.
     pub data_dir: std::path::PathBuf,
+    /// Configuration d'observabilité (limites de troncature, flags debug).
+    ///
+    /// Injectée dans `AppState`, `TriggerEngine`, et `LlmCallRepository`.
+    /// Par défaut : `ObservabilityConfig::default()` (32 KB max input/output).
+    pub obs_config: apollia_core::ObservabilityConfig,
 }
 
 /// Handles returned after successful startup.
@@ -322,15 +327,10 @@ impl Supervisor {
             match LlmCallRepository::open(&db_path) {
                 Ok(repo) => {
                     let repo = Arc::new(std::sync::Mutex::new(repo));
-                    let obs = self
-                        .config
-                        .llm_config
-                        .as_ref()
-                        .map(|c| apollia_core::ObservabilityConfig {
-                            debug_log_prompt: c.observability.debug_log_prompt,
-                            ..apollia_core::ObservabilityConfig::default()
-                        })
-                        .unwrap_or_default();
+                    let mut obs = self.config.obs_config.clone();
+                    if let Some(c) = self.config.llm_config.as_ref() {
+                        obs.debug_log_prompt = c.observability.debug_log_prompt;
+                    }
                     apollia_llm::spawn_llm_subscriber(repo, &event_sender, obs);
                     info!("Supervisor: LlmCallRepository ready (subscriber spawned)");
                 }
@@ -372,7 +372,7 @@ impl Supervisor {
             event_sender.clone(),
             trigger_persistence,
             None, // PipelineEngine injecté après son démarrage — résout dépendance circulaire
-            apollia_core::ObservabilityConfig::default(),
+            self.config.obs_config.clone(),
         )
         .await;
         tracing::info!(
@@ -490,7 +490,7 @@ impl Supervisor {
             backend_factory,
             tool_registry_handle: Some(tool_registry_handle.clone()),
             audit_trail: audit_trail_handle.clone(),
-            obs_config: apollia_core::ObservabilityConfig::default(),
+            obs_config: self.config.obs_config.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -769,6 +769,7 @@ mod tests {
             notifications: None,
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
+            obs_config: apollia_core::ObservabilityConfig::default(),
         }
     }
 
@@ -924,6 +925,7 @@ mod tests {
             notifications: None,
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -1063,6 +1065,7 @@ mod tests {
             notifications: None,
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -1151,6 +1154,7 @@ mod tests {
             notifications: None,
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -1202,6 +1206,7 @@ mod tests {
             notifications: None,
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -1265,6 +1270,7 @@ mod tests {
             notifications: None,
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -1317,6 +1323,7 @@ mod tests {
             notifications: None,
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 

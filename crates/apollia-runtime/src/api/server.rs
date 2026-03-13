@@ -237,6 +237,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     };
     use super::routes_sse::stream_task;
     use super::routes_tasks::{cancel_task, get_task, list_tasks, resume_task, submit_task};
+    use super::routes_timeline::get_task_timeline;
     use super::routes_tools::{describe_tool, list_tools};
     use super::routes_triggers::{
         disable_trigger, enable_trigger, fire_trigger, get_trigger, get_trigger_logs,
@@ -256,6 +257,8 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         )
         .route("/api/v1/tasks/:id/stream", get(stream_task::<B>))
         .route("/api/v1/tasks/:id/resume", post(resume_task::<B>))
+        // Timeline route (STORY-132)
+        .route("/api/v1/tasks/:id/timeline", get(get_task_timeline::<B>))
         // Tool routes (STORY-011 Tool Registry)
         .route("/api/v1/tools", get(list_tools::<B>))
         .route("/api/v1/tools/:name", get(describe_tool::<B>))

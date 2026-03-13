@@ -695,6 +695,13 @@ mod tests {
             error: None,
             started_at: None,
             completed_at: None,
+            input_rendered: None,
+            input_truncated: false,
+            output_text: None,
+            output_truncated: false,
+            tool_used: None,
+            error_detail: None,
+            duration_ms: None,
         }
     }
 
