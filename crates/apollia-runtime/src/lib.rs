@@ -10,6 +10,7 @@
 
 pub mod api;
 pub mod coordinator;
+pub mod embedded;
 pub mod eventbus;
 pub mod registry;
 pub mod router;
@@ -28,6 +29,9 @@ pub use supervisor::{
     SupervisorHandles,
 };
 pub use timeout_watcher::{TimeoutWatcher, TimeoutWatcherConfig, TimeoutWatcherError};
+
+// Embedded runtime (STORY-135)
+pub use embedded::{init_embedded, EmbeddedConfig, EmbeddedError, RuntimeHandle};
 
 // Re-export from apollia-tools for convenience
 pub use apollia_tools::ToolRegistryHandle;

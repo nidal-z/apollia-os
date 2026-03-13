@@ -1,0 +1,17 @@
+[package]
+name = "apollia-desktop"
+version = "0.1.0"
+edition = "2021"
+description = "Apollia OS — Desktop application (Tauri v2 + embedded runtime)"
+license = "MIT"
+
+[dependencies]
+apollia-runtime = { workspace = true }
+apollia-core   = { workspace = true }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+tokio          = { workspace = true }
+tauri          = { version = "2", features = ["devtools"] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicegui-dev/tauri-v2-schema/main/tauri.conf.schema.json",
+  "productName": "Apollia OS",
+  "version": "0.1.0",
+  "identifier": "com.apollia.desktop",
+  "build": {
+    "frontendDist": "ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Apollia OS",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/logov2.png"
+    ]
+  }
+}

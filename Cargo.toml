@@ -12,6 +12,22 @@ members = [
     "crates/apollia-notifications",
     "crates/apollia-pipelines",
     "crates/apollia-cli",
+    "crates/apollia-desktop",
+    "tests",
+]
+# apollia-desktop excluded from default builds (heavy tauri dep — use `cargo build -p apollia-desktop`)
+default-members = [
+    "crates/apollia-core",
+    "crates/apollia-runtime",
+    "crates/apollia-oria",
+    "crates/apollia-tools",
+    "crates/apollia-memory",
+    "crates/apollia-aip",
+    "crates/apollia-llm",
+    "crates/apollia-triggers",
+    "crates/apollia-notifications",
+    "crates/apollia-pipelines",
+    "crates/apollia-cli",
     "tests",
 ]
 
