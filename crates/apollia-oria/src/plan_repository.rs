@@ -11,10 +11,45 @@ use std::cell::RefCell;
 
 use rusqlite::{params, Connection};
 
+use apollia_core::observability::{truncate_with_marker, ObservabilityConfig};
+
 use crate::plan::{ExecutionPlan, PlanStep};
 
 /// SQL de migration embarqué — appliqué idempotentiellement à chaque ouverture.
 const MIGRATION_SQL: &str = include_str!("../../apollia-tools/migrations/004_execution_plans.sql");
+
+/// Colonnes d'observabilité STORY-127 à ajouter sur `plan_steps`.
+///
+/// Chaque tuple : (nom colonne, type SQL). Appliquées idempotentiellement
+/// via [`apply_observability_migration`] — les colonnes déjà existantes
+/// sont silencieusement ignorées.
+const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
+    ("input_rendered", "TEXT"),
+    ("input_truncated", "INTEGER NOT NULL DEFAULT 0"),
+    ("output_text", "TEXT"),
+    ("output_truncated", "INTEGER NOT NULL DEFAULT 0"),
+    ("tool_used", "TEXT"),
+    ("error_detail", "TEXT"),
+    ("duration_ms", "INTEGER"),
+];
+
+/// Applique la migration d'observabilité STORY-127 de façon idempotente.
+///
+/// Utilise `ALTER TABLE ADD COLUMN` individuellement et ignore l'erreur
+/// « duplicate column name » (code SQLite 1) si la colonne existe déjà.
+fn apply_observability_migration(conn: &Connection) -> Result<(), PlanRepositoryError> {
+    for (col, col_type) in OBSERVABILITY_COLUMNS {
+        let sql = format!("ALTER TABLE plan_steps ADD COLUMN {col} {col_type}");
+        match conn.execute_batch(&sql) {
+            Ok(()) => {}
+            Err(rusqlite::Error::SqliteFailure(err, _)) if err.extended_code == 1 => {
+                // « duplicate column name » — colonne déjà présente, ignoré.
+            }
+            Err(e) => return Err(PlanRepositoryError::Sqlite(e)),
+        }
+    }
+    Ok(())
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Erreurs
@@ -75,6 +110,20 @@ pub struct StepRecord {
     pub started_at: Option<String>,
     /// Horodatage de fin du step.
     pub completed_at: Option<String>,
+    /// Input rendu après interpolation template (potentiellement tronqué).
+    pub input_rendered: Option<String>,
+    /// Indique si `input_rendered` a été tronqué.
+    pub input_truncated: bool,
+    /// Texte d'output d'observabilité (potentiellement tronqué).
+    pub output_text: Option<String>,
+    /// Indique si `output_text` a été tronqué.
+    pub output_truncated: bool,
+    /// Nom de l'outil effectivement utilisé (vs `tool_hint` suggéré par le LLM).
+    pub tool_used: Option<String>,
+    /// Détail complet de l'erreur pour diagnostic (vs `error` qui est le message bref).
+    pub error_detail: Option<String>,
+    /// Durée d'exécution du step en millisecondes.
+    pub duration_ms: Option<i64>,
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -104,6 +153,7 @@ impl PlanRepository {
     pub fn new(db_path: &str) -> Result<Self, PlanRepositoryError> {
         let conn = Connection::open(db_path)?;
         conn.execute_batch(MIGRATION_SQL)?;
+        apply_observability_migration(&conn)?;
         Ok(Self {
             conn: RefCell::new(conn),
         })
@@ -274,6 +324,115 @@ impl PlanRepository {
         Ok(())
     }
 
+    /// Persiste l'input rendu d'un step avec troncature selon [`ObservabilityConfig`].
+    ///
+    /// L'input est tronqué si sa taille dépasse `config.max_input_bytes`.
+    /// Le flag `input_truncated` est positionné en conséquence.
+    ///
+    /// # Errors
+    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    pub fn save_step_input(
+        &self,
+        step_id: &str,
+        plan_id: &str,
+        rendered_input: &str,
+        config: &ObservabilityConfig,
+    ) -> Result<(), PlanRepositoryError> {
+        let (text, truncated) = truncate_with_marker(rendered_input, config.max_input_bytes);
+        self.conn.borrow().execute(
+            "UPDATE plan_steps \
+             SET input_rendered = ?1, input_truncated = ?2 \
+             WHERE plan_id = ?3 AND step_id = ?4",
+            params![text, truncated as i32, plan_id, step_id],
+        )?;
+        Ok(())
+    }
+
+    /// Persiste l'output d'observabilité d'un step avec troncature.
+    ///
+    /// Distinct de la colonne `output` (utilisée par ORIA pour le chaînage).
+    /// L'output est tronqué si sa taille dépasse `config.max_output_bytes`.
+    ///
+    /// # Errors
+    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    pub fn save_step_output(
+        &self,
+        step_id: &str,
+        plan_id: &str,
+        output: &str,
+        config: &ObservabilityConfig,
+    ) -> Result<(), PlanRepositoryError> {
+        let (text, truncated) = truncate_with_marker(output, config.max_output_bytes);
+        self.conn.borrow().execute(
+            "UPDATE plan_steps \
+             SET output_text = ?1, output_truncated = ?2 \
+             WHERE plan_id = ?3 AND step_id = ?4",
+            params![text, truncated as i32, plan_id, step_id],
+        )?;
+        Ok(())
+    }
+
+    /// Persiste le détail complet d'erreur d'un step pour diagnostic.
+    ///
+    /// Distinct de la colonne `error` (message bref utilisé par ORIA).
+    ///
+    /// # Errors
+    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    pub fn save_step_error(
+        &self,
+        step_id: &str,
+        plan_id: &str,
+        error_detail: &str,
+    ) -> Result<(), PlanRepositoryError> {
+        self.conn.borrow().execute(
+            "UPDATE plan_steps \
+             SET error_detail = ?1 \
+             WHERE plan_id = ?2 AND step_id = ?3",
+            params![error_detail, plan_id, step_id],
+        )?;
+        Ok(())
+    }
+
+    /// Persiste le nom de l'outil effectivement utilisé par le step.
+    ///
+    /// Distinct de `tool_hint` (outil suggéré par le LLM).
+    ///
+    /// # Errors
+    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    pub fn save_step_tool(
+        &self,
+        step_id: &str,
+        plan_id: &str,
+        tool_name: &str,
+    ) -> Result<(), PlanRepositoryError> {
+        self.conn.borrow().execute(
+            "UPDATE plan_steps \
+             SET tool_used = ?1 \
+             WHERE plan_id = ?2 AND step_id = ?3",
+            params![tool_name, plan_id, step_id],
+        )?;
+        Ok(())
+    }
+
+    /// Persiste la durée d'exécution du step en millisecondes.
+    ///
+    /// # Errors
+    /// Retourne [`PlanRepositoryError::Sqlite`] en cas d'erreur SQLite.
+    pub fn save_step_duration(
+        &self,
+        step_id: &str,
+        plan_id: &str,
+        duration_ms: i64,
+    ) -> Result<(), PlanRepositoryError> {
+        self.conn.borrow().execute(
+            "UPDATE plan_steps \
+             SET duration_ms = ?1 \
+             WHERE plan_id = ?2 AND step_id = ?3",
+            params![duration_ms, plan_id, step_id],
+        )?;
+        Ok(())
+    }
+
     /// Récupère le plan complet avec ses steps depuis SQLite.
     ///
     /// Utilisé par `apollia-os task inspect` (STORY-089).
@@ -310,7 +469,9 @@ impl PlanRepository {
         // ── Récupération des steps ────────────────────────────────────────────
         let mut stmt = conn.prepare(
             "SELECT step_id, description, tool_hint, depends_on, status, \
-                    output, error, started_at, completed_at \
+                    output, error, started_at, completed_at, \
+                    input_rendered, input_truncated, output_text, output_truncated, \
+                    tool_used, error_detail, duration_ms \
              FROM plan_steps WHERE plan_id = ?1",
         )?;
 
@@ -320,6 +481,8 @@ impl PlanRepository {
                 // Données insérées par notre propre code — fallback sûr si JSON malformé.
                 let depends_on: Vec<String> =
                     serde_json::from_str(&depends_on_str).unwrap_or_default();
+                let input_truncated_raw: i32 = row.get(10)?;
+                let output_truncated_raw: i32 = row.get(12)?;
                 Ok(StepRecord {
                     step_id: row.get(0)?,
                     description: row.get(1)?,
@@ -330,6 +493,13 @@ impl PlanRepository {
                     error: row.get(6)?,
                     started_at: row.get(7)?,
                     completed_at: row.get(8)?,
+                    input_rendered: row.get(9)?,
+                    input_truncated: input_truncated_raw != 0,
+                    output_text: row.get(11)?,
+                    output_truncated: output_truncated_raw != 0,
+                    tool_used: row.get(13)?,
+                    error_detail: row.get(14)?,
+                    duration_ms: row.get(15)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -472,6 +642,121 @@ mod tests {
         let (repo, _f) = make_repo();
         let result = repo.get_plan_with_steps("inexistant");
         assert!(matches!(result, Err(PlanRepositoryError::NotFound(_))));
+    }
+
+    // ── STORY-127 : observabilité step ────────────────────────────────────
+
+    // GIVEN un step dans un plan
+    // WHEN  save_step_input avec un texte court
+    // THEN  input_rendered persisté, input_truncated = false (AC-1)
+    #[test]
+    fn test_step_input_rendered_persisted() {
+        let (repo, _f) = make_repo();
+        let plan = make_plan("task-obs-1");
+        repo.insert_plan(&plan, "test-agent").unwrap();
+        repo.insert_steps(&plan.plan_id, &plan.steps).unwrap();
+
+        let config = ObservabilityConfig::default();
+        repo.save_step_input("s1", &plan.plan_id, "lire /tmp/data.json", &config)
+            .unwrap();
+
+        let result = repo.get_plan_with_steps("task-obs-1").unwrap();
+        let s1 = result.steps.iter().find(|s| s.step_id == "s1").unwrap();
+        assert_eq!(s1.input_rendered.as_deref(), Some("lire /tmp/data.json"));
+        assert!(!s1.input_truncated);
+    }
+
+    // GIVEN un step complété
+    // WHEN  save_step_output + save_step_tool + save_step_duration
+    // THEN  output_text, tool_used, duration_ms persistés (AC-2)
+    #[test]
+    fn test_step_output_on_success() {
+        let (repo, _f) = make_repo();
+        let plan = make_plan("task-obs-2");
+        repo.insert_plan(&plan, "test-agent").unwrap();
+        repo.insert_steps(&plan.plan_id, &plan.steps).unwrap();
+
+        let config = ObservabilityConfig::default();
+        repo.save_step_output("s1", &plan.plan_id, "contenu du fichier", &config)
+            .unwrap();
+        repo.save_step_tool("s1", &plan.plan_id, "file_io").unwrap();
+        repo.save_step_duration("s1", &plan.plan_id, 42).unwrap();
+
+        let result = repo.get_plan_with_steps("task-obs-2").unwrap();
+        let s1 = result.steps.iter().find(|s| s.step_id == "s1").unwrap();
+        assert_eq!(s1.output_text.as_deref(), Some("contenu du fichier"));
+        assert!(!s1.output_truncated);
+        assert_eq!(s1.tool_used.as_deref(), Some("file_io"));
+        assert_eq!(s1.duration_ms, Some(42));
+    }
+
+    // GIVEN un step échoué
+    // WHEN  save_step_error + save_step_tool + save_step_duration
+    // THEN  error_detail, tool_used, duration_ms persistés (AC-3)
+    #[test]
+    fn test_step_error_detail_on_failure() {
+        let (repo, _f) = make_repo();
+        let plan = make_plan("task-obs-3");
+        repo.insert_plan(&plan, "test-agent").unwrap();
+        repo.insert_steps(&plan.plan_id, &plan.steps).unwrap();
+
+        repo.save_step_error("s1", &plan.plan_id, "Permission denied: /etc/shadow")
+            .unwrap();
+        repo.save_step_tool("s1", &plan.plan_id, "file_io").unwrap();
+        repo.save_step_duration("s1", &plan.plan_id, 5).unwrap();
+
+        let result = repo.get_plan_with_steps("task-obs-3").unwrap();
+        let s1 = result.steps.iter().find(|s| s.step_id == "s1").unwrap();
+        assert_eq!(
+            s1.error_detail.as_deref(),
+            Some("Permission denied: /etc/shadow")
+        );
+        assert_eq!(s1.tool_used.as_deref(), Some("file_io"));
+        assert_eq!(s1.duration_ms, Some(5));
+    }
+
+    // GIVEN un step
+    // WHEN  save_step_duration avec une valeur
+    // THEN  duration_ms persisté (AC-4)
+    #[test]
+    fn test_step_duration_measured() {
+        let (repo, _f) = make_repo();
+        let plan = make_plan("task-obs-4");
+        repo.insert_plan(&plan, "test-agent").unwrap();
+        repo.insert_steps(&plan.plan_id, &plan.steps).unwrap();
+
+        repo.save_step_duration("s1", &plan.plan_id, 150).unwrap();
+
+        let result = repo.get_plan_with_steps("task-obs-4").unwrap();
+        let s1 = result.steps.iter().find(|s| s.step_id == "s1").unwrap();
+        assert_eq!(s1.duration_ms, Some(150));
+    }
+
+    // GIVEN un step avec un input > max_input_bytes
+    // WHEN  save_step_input
+    // THEN  input tronqué, input_truncated = true
+    #[test]
+    fn test_step_input_truncated_when_over_limit() {
+        let (repo, _f) = make_repo();
+        let plan = make_plan("task-obs-5");
+        repo.insert_plan(&plan, "test-agent").unwrap();
+        repo.insert_steps(&plan.plan_id, &plan.steps).unwrap();
+
+        let config = ObservabilityConfig {
+            max_input_bytes: 50,
+            ..ObservabilityConfig::default()
+        };
+        let long_input = "x".repeat(200);
+        repo.save_step_input("s1", &plan.plan_id, &long_input, &config)
+            .unwrap();
+
+        let result = repo.get_plan_with_steps("task-obs-5").unwrap();
+        let s1 = result.steps.iter().find(|s| s.step_id == "s1").unwrap();
+        assert!(s1.input_truncated);
+        assert!(s1
+            .input_rendered
+            .as_ref()
+            .map_or(false, |t| t.contains("200 octets total")));
     }
 
     // GIVEN : plan avec depends_on non vide

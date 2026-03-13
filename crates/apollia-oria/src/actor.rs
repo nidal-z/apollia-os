@@ -34,6 +34,7 @@ use std::time::Instant;
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::manifest::AgentManifest;
+use apollia_core::observability::ObservabilityConfig;
 use apollia_core::{AIPResult, PendingApprovals};
 use apollia_llm::{ChatMessage, CompletionRequest, LlmRouter};
 
@@ -149,6 +150,8 @@ pub struct ActorLoop {
     /// l'exécution et attendent la décision humaine via un oneshot channel.
     /// `None` → pas de suspension HITL (mode dégradé, steps s'exécutent normalement).
     pending_approvals: Option<Arc<PendingApprovals>>,
+    /// Configuration d'observabilité pour la troncature des inputs/outputs persistés.
+    obs_config: ObservabilityConfig,
 }
 
 impl ActorLoop {
@@ -178,6 +181,7 @@ impl ActorLoop {
             event_bus,
             manifest,
             pending_approvals: None,
+            obs_config: ObservabilityConfig::default(),
         }
     }
 
@@ -188,6 +192,14 @@ impl ActorLoop {
     /// Partagé entre l'`ActorLoop` et le `ResumeHandler` via `AppState`.
     pub fn with_pending_approvals(mut self, pending: Option<Arc<PendingApprovals>>) -> Self {
         self.pending_approvals = pending;
+        self
+    }
+
+    /// Configure l'observabilité pour la troncature des inputs/outputs persistés.
+    ///
+    /// Par défaut, utilise [`ObservabilityConfig::default()`].
+    pub fn with_obs_config(mut self, config: ObservabilityConfig) -> Self {
+        self.obs_config = config;
         self
     }
 
@@ -259,6 +271,24 @@ impl ActorLoop {
                 tracing::warn!(error = %e, step_id = %step_id, "start_step DB call failed (ignored)");
             }
 
+            // STORY-127: persist rendered input + tool name before execution.
+            let rendered_input = interpolate_outputs(&step.description, &completed_outputs);
+            if let Err(e) = self.db.save_step_input(
+                &step_id,
+                &self.plan.plan_id,
+                &rendered_input,
+                &self.obs_config,
+            ) {
+                tracing::warn!(error = %e, step_id = %step_id, "save_step_input DB call failed (ignored)");
+            }
+            let actual_tool = step.tool_hint.as_deref().unwrap_or("llm");
+            if let Err(e) = self
+                .db
+                .save_step_tool(&step_id, &self.plan.plan_id, actual_tool)
+            {
+                tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
+            }
+
             let started = Instant::now();
             let result = self
                 .execute_step(&step, &completed_outputs, tool_proxy, llm_router)
@@ -266,8 +296,25 @@ impl ActorLoop {
             let duration_ms = started.elapsed().as_millis() as u64;
             budget.increment_steps();
 
+            // STORY-127: persist duration unconditionally.
+            if let Err(e) =
+                self.db
+                    .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
+            {
+                tracing::warn!(error = %e, step_id = %step_id, "save_step_duration DB call failed (ignored)");
+            }
+
             match result {
                 Ok(output) => {
+                    // STORY-127: persist observability output.
+                    if let Err(e) = self.db.save_step_output(
+                        &step_id,
+                        &self.plan.plan_id,
+                        &output,
+                        &self.obs_config,
+                    ) {
+                        tracing::warn!(error = %e, step_id = %step_id, "save_step_output DB call failed (ignored)");
+                    }
                     if let Err(e) = self.db.complete_step(&self.plan.plan_id, &step_id, &output) {
                         tracing::warn!(error = %e, step_id = %step_id, "complete_step DB call failed (ignored)");
                     }
@@ -281,6 +328,13 @@ impl ActorLoop {
                 }
 
                 Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
+                    // STORY-127: persist error detail.
+                    if let Err(db_err) =
+                        self.db
+                            .save_step_error(&step_id, &self.plan.plan_id, &e.to_string())
+                    {
+                        tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                    }
                     if let Err(db_err) =
                         self.db
                             .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
@@ -309,6 +363,12 @@ impl ActorLoop {
 
                 Err(ref e) if e.is_retryable() => {
                     // replan_count >= max_replans : MAX_REPLAN_EXCEEDED
+                    if let Err(db_err) =
+                        self.db
+                            .save_step_error(&step_id, &self.plan.plan_id, &e.to_string())
+                    {
+                        tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                    }
                     if let Err(db_err) =
                         self.db
                             .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
@@ -340,6 +400,12 @@ impl ActorLoop {
 
                 // AC-3 : rejet humain → plan stoppé, steps suivants non exécutés.
                 Err(StepError::RejectedByUser { ref reason }) => {
+                    if let Err(db_err) =
+                        self.db
+                            .save_step_error(&step_id, &self.plan.plan_id, reason)
+                    {
+                        tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                    }
                     if let Err(db_err) = self.db.fail_step(&self.plan.plan_id, &step_id, reason) {
                         tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
                     }
@@ -356,6 +422,13 @@ impl ActorLoop {
 
                 // Fermeture du channel d'approbation → runtime en arrêt.
                 Err(StepError::ApprovalChannelClosed) => {
+                    if let Err(db_err) = self.db.save_step_error(
+                        &step_id,
+                        &self.plan.plan_id,
+                        "approval_channel_closed",
+                    ) {
+                        tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                    }
                     if let Err(db_err) =
                         self.db
                             .fail_step(&self.plan.plan_id, &step_id, "approval_channel_closed")
@@ -381,6 +454,12 @@ impl ActorLoop {
 
                 Err(e) => {
                     // Échec permanent non-retryable.
+                    if let Err(db_err) =
+                        self.db
+                            .save_step_error(&step_id, &self.plan.plan_id, &e.to_string())
+                    {
+                        tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                    }
                     if let Err(db_err) =
                         self.db
                             .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
@@ -710,6 +789,24 @@ impl ActorLoop {
                     tracing::warn!(error = %e, step_id = %step_id, "start_step DB call failed (ignored)");
                 }
 
+                // STORY-127: persist rendered input + tool name before execution.
+                let rendered_input = interpolate_outputs(&step.description, &completed_outputs);
+                if let Err(e) = self.db.save_step_input(
+                    &step_id,
+                    &self.plan.plan_id,
+                    &rendered_input,
+                    &self.obs_config,
+                ) {
+                    tracing::warn!(error = %e, step_id = %step_id, "save_step_input DB call failed (ignored)");
+                }
+                let actual_tool = step.tool_hint.as_deref().unwrap_or("llm");
+                if let Err(e) = self
+                    .db
+                    .save_step_tool(&step_id, &self.plan.plan_id, actual_tool)
+                {
+                    tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
+                }
+
                 let started = Instant::now();
                 let result = self
                     .execute_step(&step, &completed_outputs, tool_proxy, llm_router)
@@ -717,8 +814,25 @@ impl ActorLoop {
                 let duration_ms = started.elapsed().as_millis() as u64;
                 budget.increment_steps();
 
+                // STORY-127: persist duration unconditionally.
+                if let Err(e) =
+                    self.db
+                        .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
+                {
+                    tracing::warn!(error = %e, step_id = %step_id, "save_step_duration DB call failed (ignored)");
+                }
+
                 match result {
                     Ok(output) => {
+                        // STORY-127: persist observability output.
+                        if let Err(e) = self.db.save_step_output(
+                            &step_id,
+                            &self.plan.plan_id,
+                            &output,
+                            &self.obs_config,
+                        ) {
+                            tracing::warn!(error = %e, step_id = %step_id, "save_step_output DB call failed (ignored)");
+                        }
                         if let Err(e) = self.db.complete_step(&self.plan.plan_id, &step_id, &output)
                         {
                             tracing::warn!(error = %e, step_id = %step_id, "complete_step DB call failed (ignored)");
@@ -733,6 +847,12 @@ impl ActorLoop {
                     }
 
                     Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
+                        if let Err(db_err) =
+                            self.db
+                                .save_step_error(&step_id, &self.plan.plan_id, &e.to_string())
+                        {
+                            tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                        }
                         if let Err(db_err) =
                             self.db
                                 .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
@@ -761,6 +881,12 @@ impl ActorLoop {
 
                     Err(ref e) if e.is_retryable() => {
                         // replan_count >= max_replans : MAX_REPLAN_EXCEEDED.
+                        if let Err(db_err) =
+                            self.db
+                                .save_step_error(&step_id, &self.plan.plan_id, &e.to_string())
+                        {
+                            tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                        }
                         if let Err(db_err) =
                             self.db
                                 .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
@@ -792,6 +918,12 @@ impl ActorLoop {
 
                     // Rejet humain dans execute_remaining → plan stoppé.
                     Err(StepError::RejectedByUser { ref reason }) => {
+                        if let Err(db_err) =
+                            self.db
+                                .save_step_error(&step_id, &self.plan.plan_id, reason)
+                        {
+                            tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                        }
                         if let Err(db_err) = self.db.fail_step(&self.plan.plan_id, &step_id, reason)
                         {
                             tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
@@ -809,6 +941,13 @@ impl ActorLoop {
 
                     // Channel fermé dans execute_remaining → runtime en arrêt.
                     Err(StepError::ApprovalChannelClosed) => {
+                        if let Err(db_err) = self.db.save_step_error(
+                            &step_id,
+                            &self.plan.plan_id,
+                            "approval_channel_closed",
+                        ) {
+                            tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                        }
                         if let Err(db_err) = self.db.fail_step(
                             &self.plan.plan_id,
                             &step_id,
@@ -834,6 +973,12 @@ impl ActorLoop {
                     }
 
                     Err(e) => {
+                        if let Err(db_err) =
+                            self.db
+                                .save_step_error(&step_id, &self.plan.plan_id, &e.to_string())
+                        {
+                            tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                        }
                         if let Err(db_err) =
                             self.db
                                 .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
