@@ -17,6 +17,7 @@ fn main() {
         apollia_runtime::init_embedded(config).expect("failed to start embedded runtime");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(runtime_handle)
         .invoke_handler(tauri::generate_handler![
             commands::agents::list_agents,

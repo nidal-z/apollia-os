@@ -1,22 +1,25 @@
 <script lang="ts">
-  import {
-    Card,
-    CardHeader,
-    CardTitle,
-    CardDescription,
-    CardContent,
-  } from "$lib/components/ui/card";
+  import TaskList from "../components/tasks/TaskList.svelte";
+  import TaskDetail from "../components/tasks/TaskDetail.svelte";
+
+  let selectedTaskId = $state<string | null>(null);
+  let detailOpen = $state(false);
+
+  function handleSelectTask(taskId: string) {
+    selectedTaskId = taskId;
+    detailOpen = true;
+  }
+
+  function handleCloseDetail() {
+    detailOpen = false;
+  }
 </script>
 
 <div class="space-y-4">
   <h1 class="text-2xl font-bold">Tasks</h1>
-  <Card>
-    <CardHeader>
-      <CardTitle>Task Monitor</CardTitle>
-      <CardDescription>Track submitted tasks and their progress.</CardDescription>
-    </CardHeader>
-    <CardContent>
-      <p class="text-sm text-muted-foreground">Task list will appear here.</p>
-    </CardContent>
-  </Card>
+  <TaskList onSelectTask={handleSelectTask} />
 </div>
+
+{#if selectedTaskId}
+  <TaskDetail taskId={selectedTaskId} open={detailOpen} onclose={handleCloseDetail} />
+{/if}

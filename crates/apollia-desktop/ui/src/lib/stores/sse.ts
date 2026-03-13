@@ -5,20 +5,17 @@
  * reactive Svelte stores, and handles reconnection with exponential backoff.
  */
 import { writable } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
 import type {
   AgentStatus,
   TaskSummary,
   PendingApproval,
   ConnectionStatus,
-  DashboardState,
-  DashboardAgent,
-  DashboardTask,
   HitlInputRequiredPayload,
   HitlResumedPayload,
 } from "$lib/types";
 
 const SSE_URL = "http://localhost:7771/api/v1/dashboard/stream";
-const STATE_URL = "http://localhost:7771/api/v1/dashboard/state";
 const INITIAL_RECONNECT_DELAY_MS = 1_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
@@ -35,72 +32,32 @@ export const tasks = writable<TaskSummary[]>([]);
 export const pendingApprovals = writable<PendingApproval[]>([]);
 
 /**
- * Fetch the full dashboard state snapshot from the runtime REST API.
+ * Refresh the agents store using the Tauri IPC `list_agents` command.
  *
- * Updates agents and tasks stores with current data. Errors are logged
- * but do not throw — the SSE stream remains the primary data source.
+ * This provides richer data (name, uptime, task stats, degraded_reason)
+ * than the dashboard REST snapshot. Called on SSE agent events and on connect.
  */
-async function fetchDashboardState(): Promise<void> {
+async function refreshAgentsViaIpc(): Promise<void> {
   try {
-    const response = await fetch(STATE_URL);
-    if (!response.ok) {
-      return;
-    }
-    const state: DashboardState = await response.json();
-
-    agents.set(
-      state.agents.map((a: DashboardAgent): AgentStatus => ({
-        id: a.id,
-        name: a.id,
-        state: normalizeAgentState(a.status),
-        uptime_secs: 0,
-        tasks_completed: 0,
-        tasks_failed: 0,
-      })),
-    );
-
-    tasks.set(
-      state.recent_tasks.map((t: DashboardTask): TaskSummary => ({
-        id: t.id,
-        agent_id: t.agent,
-        agent_name: t.agent,
-        status: normalizeTaskStatus(t.status),
-        input_preview: "",
-        created_at: t.started_at,
-      })),
-    );
+    const result: AgentStatus[] = await invoke("list_agents");
+    agents.set(result);
   } catch {
-    // Network error — silently ignore, SSE will retry
+    // IPC not available yet — fall back to dashboard state
   }
 }
 
-/** Normalize raw agent state string to typed union. */
-function normalizeAgentState(raw: string): AgentStatus["state"] {
-  const valid: AgentStatus["state"][] = [
-    "initializing",
-    "active",
-    "degraded",
-    "stopping",
-    "stopped",
-  ];
-  return valid.includes(raw as AgentStatus["state"])
-    ? (raw as AgentStatus["state"])
-    : "stopped";
-}
-
-/** Normalize raw task status string to typed union. */
-function normalizeTaskStatus(raw: string): TaskSummary["status"] {
-  const valid: TaskSummary["status"][] = [
-    "submitted",
-    "working",
-    "completed",
-    "failed",
-    "input_required",
-    "canceled",
-  ];
-  return valid.includes(raw as TaskSummary["status"])
-    ? (raw as TaskSummary["status"])
-    : "submitted";
+/**
+ * Refresh the tasks store using the Tauri IPC `list_tasks` command.
+ *
+ * Called on SSE task events and on connect for richer data.
+ */
+async function refreshTasksViaIpc(): Promise<void> {
+  try {
+    const result: TaskSummary[] = await invoke("list_tasks", { filter: null });
+    tasks.set(result);
+  } catch {
+    // IPC not available yet — fall back to dashboard state
+  }
 }
 
 /** Handle an HITL approval event received via SSE. */
@@ -160,18 +117,19 @@ export function createSSEConnection(): () => void {
     source.onopen = () => {
       connectionStatus.set("connected");
       reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
-      // Fetch full state on (re)connect to hydrate stores
-      void fetchDashboardState();
+      // Hydrate stores via Tauri IPC for rich data
+      void refreshAgentsViaIpc();
+      void refreshTasksViaIpc();
     };
 
-    // Named event: agents channel — refetch agent list
+    // Named event: agents channel — refresh via IPC
     source.addEventListener("agents", () => {
-      void fetchDashboardState();
+      void refreshAgentsViaIpc();
     });
 
-    // Named event: tasks channel — refetch task list
+    // Named event: tasks channel — refresh via IPC
     source.addEventListener("tasks", () => {
-      void fetchDashboardState();
+      void refreshTasksViaIpc();
     });
 
     // Named event: approvals channel — parse JSON payload directly
