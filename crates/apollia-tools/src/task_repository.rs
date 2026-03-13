@@ -750,6 +750,64 @@ impl TaskRepository {
         .await
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
+
+    /// Liste les approbations résolues (approuvées ou rejetées) des `days` derniers jours.
+    ///
+    /// Retourne au plus `limit` lignes triées par `responded_at` décroissant.
+    /// Lit la table `task_approvals` joinée à `tasks` pour récupérer le `agent_name`.
+    ///
+    /// # Errors
+    ///
+    /// - [`TaskRepoError::Sqlite`] en cas d'erreur SQLite
+    /// - [`TaskRepoError::Internal`] si le `spawn_blocking` échoue
+    pub async fn list_resolved_approvals(
+        &self,
+        limit: u32,
+        days: u32,
+    ) -> Result<Vec<ResolvedApprovalRow>, TaskRepoError> {
+        let path = self.db_path.clone();
+
+        tokio::task::spawn_blocking(move || -> Result<Vec<ResolvedApprovalRow>, TaskRepoError> {
+            let conn = rusqlite::Connection::open(&path)?;
+
+            let mut stmt = conn.prepare(
+                "SELECT ta.task_id, \
+                        COALESCE(t.agent_name, ''), \
+                        ta.approved, \
+                        ta.reason, \
+                        ta.suspended_at, \
+                        ta.responded_at, \
+                        ta.wait_duration_ms \
+                 FROM task_approvals ta \
+                 LEFT JOIN tasks t ON ta.task_id = t.task_id \
+                 WHERE ta.approved IS NOT NULL \
+                   AND ta.responded_at IS NOT NULL \
+                   AND ta.responded_at >= datetime('now', ?1) \
+                 ORDER BY ta.responded_at DESC \
+                 LIMIT ?2",
+            )?;
+
+            let days_param = format!("-{days} days");
+            let rows = stmt
+                .query_map(params![&days_param, limit], |row| {
+                    let approved_int: i32 = row.get(2)?;
+                    Ok(ResolvedApprovalRow {
+                        task_id: row.get(0)?,
+                        agent_name: row.get(1)?,
+                        approved: approved_int != 0,
+                        reason: row.get(3)?,
+                        suspended_at: row.get(4)?,
+                        responded_at: row.get(5)?,
+                        wait_duration_ms: row.get(6)?,
+                    })
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+
+            Ok(rows)
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))?
+    }
 }
 
 /// Informations d'une approbation en attente, lues depuis SQLite.
@@ -763,6 +821,25 @@ pub struct ApprovalInfo {
     pub context: serde_json::Value,
     /// Timestamp ISO 8601 de la suspension.
     pub suspended_at: String,
+}
+
+/// Ligne d'une approbation résolue, lue depuis `task_approvals`.
+#[derive(Debug, Clone)]
+pub struct ResolvedApprovalRow {
+    /// Identifiant de la tâche.
+    pub task_id: String,
+    /// Nom de l'agent.
+    pub agent_name: String,
+    /// `true` si approuvée, `false` si rejetée.
+    pub approved: bool,
+    /// Raison du rejet (si applicable).
+    pub reason: Option<String>,
+    /// Timestamp ISO 8601 de la suspension.
+    pub suspended_at: Option<String>,
+    /// Timestamp ISO 8601 de la réponse.
+    pub responded_at: Option<String>,
+    /// Durée d'attente en millisecondes.
+    pub wait_duration_ms: Option<i64>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1414,5 +1491,72 @@ mod tests {
 
         // THEN l'index existe
         assert!(has_index, "idx_task_approvals_pending doit exister");
+    }
+
+    // ─── Test STORY-141 — list_resolved_approvals ─────────────────────
+
+    #[tokio::test]
+    async fn test_story141_list_resolved_approvals() {
+        // GIVEN un repo avec une approbation résolue
+        let (repo, _db_path) = open_test_repo().await;
+        let task_id = "t-141-resolved";
+        let context = serde_json::json!({"montant": 5000});
+
+        repo.save_input_required(task_id, None, "Valider le paiement ?", &context)
+            .await
+            .expect("save_input_required failed");
+
+        repo.save_suspended_at(task_id, None, "2026-03-13T10:00:00.000Z")
+            .await
+            .expect("save_suspended_at failed");
+
+        let response = InputResponseData {
+            approved: true,
+            reason: None,
+            context,
+            responded_at: "2026-03-13T10:05:00.000Z".to_string(),
+        };
+        repo.save_input_response(task_id, &response)
+            .await
+            .expect("save_input_response failed");
+
+        // WHEN list_resolved_approvals is called
+        let rows = repo
+            .list_resolved_approvals(20, 30)
+            .await
+            .expect("list_resolved_approvals failed");
+
+        // THEN one resolved approval is returned
+        assert_eq!(rows.len(), 1, "expected 1 resolved approval");
+        assert_eq!(rows[0].task_id, task_id);
+        assert!(rows[0].approved);
+        assert!(rows[0].reason.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_story141_list_resolved_excludes_pending() {
+        // GIVEN un repo avec une approbation encore en attente (pas de response)
+        let (repo, _db_path) = open_test_repo().await;
+        let task_id = "t-141-pending";
+
+        repo.save_input_required(task_id, None, "En attente", &serde_json::json!({}))
+            .await
+            .expect("save_input_required failed");
+
+        repo.save_suspended_at(task_id, None, "2026-03-13T10:00:00.000Z")
+            .await
+            .expect("save_suspended_at failed");
+
+        // WHEN list_resolved_approvals is called
+        let rows = repo
+            .list_resolved_approvals(20, 30)
+            .await
+            .expect("list_resolved_approvals failed");
+
+        // THEN no rows returned (pending is excluded)
+        assert!(
+            rows.is_empty(),
+            "pending approval should not appear in resolved list"
+        );
     }
 }

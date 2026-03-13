@@ -27,6 +27,7 @@ fn main() {
             commands::tasks::submit_task,
             commands::tasks::get_task_timeline,
             commands::hitl::list_pending_approvals,
+            commands::hitl::list_resolved_approvals,
             commands::hitl::resume_task,
         ])
         .run(tauri::generate_context!())

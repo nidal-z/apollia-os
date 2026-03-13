@@ -35,6 +35,16 @@ export interface PendingApproval {
   suspended_at: string;
 }
 
+/** Approbation résolue (approuvée ou rejetée) pour l'historique. */
+export interface ResolvedApproval {
+  task_id: string;
+  agent_name: string;
+  approved: boolean;
+  reason: string | null;
+  wait_duration_ms: number | null;
+  responded_at: string | null;
+}
+
 /** État de la connexion SSE. */
 export type ConnectionStatus =
   | "connecting"

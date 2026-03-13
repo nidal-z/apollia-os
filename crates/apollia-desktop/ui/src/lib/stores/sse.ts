@@ -71,10 +71,12 @@ function handleApprovalEvent(data: string): void {
 
   if (payload.event_type === "TaskInputRequired") {
     const req = payload as HitlInputRequiredPayload;
+    let isNew = false;
     pendingApprovals.update((current) => {
       if (current.some((a) => a.task_id === req.task_id)) {
         return current;
       }
+      isNew = true;
       return [
         ...current,
         {
@@ -85,11 +87,29 @@ function handleApprovalEvent(data: string): void {
         },
       ];
     });
+    if (isNew) {
+      sendBrowserNotification(req.task_id);
+    }
   } else if (payload.event_type === "TaskResumed") {
     const resumed = payload as HitlResumedPayload;
     pendingApprovals.update((current) =>
       current.filter((a) => a.task_id !== resumed.task_id),
     );
+  }
+}
+
+/** Send a browser notification when a new approval arrives and the window is not focused. */
+function sendBrowserNotification(taskId: string): void {
+  if (
+    typeof document !== "undefined" &&
+    document.hidden &&
+    "Notification" in window &&
+    Notification.permission === "granted"
+  ) {
+    new Notification("Action requise", {
+      body: `Tâche ${taskId.slice(0, 8)} attend une approbation`,
+      icon: "/favicon.png",
+    });
   }
 }
 

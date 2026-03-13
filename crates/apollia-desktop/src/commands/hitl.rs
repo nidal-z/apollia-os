@@ -124,6 +124,61 @@ pub async fn resume_task(
     Ok(())
 }
 
+/// Approbation résolue (approuvée ou rejetée) pour l'affichage dans l'historique UI.
+#[derive(Debug, Serialize)]
+pub struct ResolvedApproval {
+    /// Identifiant de la tâche (tronqué à 8 caractères côté UI).
+    pub task_id: String,
+    /// Nom de l'agent.
+    pub agent_name: String,
+    /// `true` si approuvée, `false` si rejetée.
+    pub approved: bool,
+    /// Raison du rejet (si applicable).
+    pub reason: Option<String>,
+    /// Durée d'attente en millisecondes.
+    pub wait_duration_ms: Option<i64>,
+    /// Timestamp ISO 8601 de la réponse.
+    pub responded_at: Option<String>,
+}
+
+/// Liste les approbations résolues des derniers `days` jours (max `limit`).
+///
+/// Lit la table `task_approvals` via `TaskRepository::list_resolved_approvals()`.
+/// Retourne une liste vide si `TaskRepository` n'est pas disponible.
+#[tauri::command]
+pub async fn list_resolved_approvals(
+    state: State<'_, RuntimeHandle>,
+    limit: Option<u32>,
+    days: Option<u32>,
+) -> Result<Vec<ResolvedApproval>, String> {
+    let repo = match state.task_repository.as_ref() {
+        Some(r) => r,
+        None => return Ok(Vec::new()),
+    };
+
+    let limit = limit.unwrap_or(20);
+    let days = days.unwrap_or(7);
+
+    let rows = repo
+        .list_resolved_approvals(limit, days)
+        .await
+        .map_err(|e| format!("failed to list resolved approvals: {e}"))?;
+
+    let approvals = rows
+        .into_iter()
+        .map(|row| ResolvedApproval {
+            task_id: row.task_id,
+            agent_name: row.agent_name,
+            approved: row.approved,
+            reason: row.reason,
+            wait_duration_ms: row.wait_duration_ms,
+            responded_at: row.responded_at,
+        })
+        .collect();
+
+    Ok(approvals)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,5 +273,51 @@ mod tests {
 
         // THEN the validation passes (reason not required for approval)
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_resolved_approval_serializes_to_json() {
+        // GIVEN a ResolvedApproval with all fields
+        let approval = ResolvedApproval {
+            task_id: "t-hist-001".to_string(),
+            agent_name: "review-agent".to_string(),
+            approved: false,
+            reason: Some("Budget insuffisant".to_string()),
+            wait_duration_ms: Some(120_000),
+            responded_at: Some("2026-03-13T15:00:00Z".to_string()),
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&approval).expect("serialize");
+
+        // THEN all fields are present
+        assert_eq!(json["task_id"], "t-hist-001");
+        assert_eq!(json["agent_name"], "review-agent");
+        assert_eq!(json["approved"], false);
+        assert_eq!(json["reason"], "Budget insuffisant");
+        assert_eq!(json["wait_duration_ms"], 120_000);
+        assert_eq!(json["responded_at"], "2026-03-13T15:00:00Z");
+    }
+
+    #[test]
+    fn test_resolved_approval_without_optional_fields() {
+        // GIVEN a ResolvedApproval with minimal fields (approved, no reason)
+        let approval = ResolvedApproval {
+            task_id: "t-hist-002".to_string(),
+            agent_name: "deploy-agent".to_string(),
+            approved: true,
+            reason: None,
+            wait_duration_ms: None,
+            responded_at: None,
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&approval).expect("serialize");
+
+        // THEN optional fields are null
+        assert_eq!(json["approved"], true);
+        assert!(json["reason"].is_null());
+        assert!(json["wait_duration_ms"].is_null());
+        assert!(json["responded_at"].is_null());
     }
 }
