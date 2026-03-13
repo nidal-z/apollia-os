@@ -168,6 +168,18 @@ pub enum ConfigError {
 pub struct AgentsConfig {
     /// Répertoire de chargement des modules Python agents.
     pub directory: Option<String>,
+    /// Liste de chemins d'agents Python démarrés automatiquement au démarrage du runtime.
+    ///
+    /// Chemins relatifs résolus depuis le répertoire courant au moment du démarrage.
+    /// Supporte le préfixe `~` (résolu vers `$HOME`).
+    ///
+    /// Exemple :
+    /// ```toml
+    /// [agents]
+    /// startup = ["agents/debug_orchestrator.py", "agents/apollia-reviewer.py"]
+    /// ```
+    #[serde(default)]
+    pub startup: Vec<String>,
 }
 
 /// Format brut TOML pour la section `[[triggers]]` avant validation sémantique.
@@ -262,6 +274,13 @@ pub struct ApolliaCConfig {
     ///
     /// `None` si la section est absente — le `NotificationEngine` ne sera pas démarré.
     pub notifications: Option<NotificationConfig>,
+
+    /// Chemins d'agents Python à démarrer automatiquement au démarrage du runtime.
+    ///
+    /// Extrait depuis `[agents] startup = [...]` dans `apollia.toml`.
+    /// Chemins déjà normalisés (`~` résolu). Vide si la section est absente.
+    #[serde(skip)]
+    pub startup_agents: Vec<String>,
 }
 
 /// Retourne `true` — valeur par défaut pour le champ `enabled` d'un trigger.
@@ -328,12 +347,34 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
     // Valide chaque pipeline déclaré dans [[pipelines]].
     let pipelines = parse_pipelines(raw.pipelines)?;
 
+    // Extraire la liste des agents à démarrer automatiquement et normaliser les chemins.
+    // Les chemins relatifs sont résolus par rapport au répertoire du fichier de config.
+    let config_dir = path.parent().unwrap_or(Path::new("."));
+    let startup_agents = raw
+        .agents
+        .as_ref()
+        .map(|a| {
+            a.startup
+                .iter()
+                .map(|p| {
+                    let expanded = expand_tilde(Path::new(p));
+                    if expanded.is_absolute() {
+                        expanded.to_string_lossy().into_owned()
+                    } else {
+                        config_dir.join(&expanded).to_string_lossy().into_owned()
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
     Ok(ApolliaCConfig {
         agents: raw.agents,
         llm: raw.llm,
         triggers,
         pipelines,
         notifications: raw.notifications,
+        startup_agents,
     })
 }
 

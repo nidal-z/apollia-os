@@ -93,6 +93,9 @@ pub struct StartAgentRequest {
 pub struct AgentResponse {
     /// Agent identifier (UUID v4).
     pub agent_id: String,
+    /// Agent name from manifest (always present).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     /// Current process state as string.
     pub state: String,
     /// Agent manifest (present in detail view).
@@ -170,6 +173,7 @@ pub async fn list_agents<B: ExecutionBackend + Clone>(
         .into_iter()
         .map(|entry| AgentResponse {
             agent_id: entry.id.to_string(),
+            name: Some(entry.manifest.name.clone()),
             state: state_to_string(&entry.process_state),
             manifest: None,
         })
@@ -252,6 +256,7 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
         StatusCode::CREATED,
         Json(AgentResponse {
             agent_id: agent_id.to_string(),
+            name: Some(manifest_for_factory.name.clone()),
             state: final_state.to_string(),
             manifest: None,
         }),
@@ -321,6 +326,7 @@ pub async fn get_agent<B: ExecutionBackend + Clone>(
     let manifest_json = serde_json::to_value(&entry.manifest).ok();
     Ok(Json(AgentResponse {
         agent_id: entry.id.to_string(),
+        name: Some(entry.manifest.name.clone()),
         state: state_to_string(&entry.process_state),
         manifest: manifest_json,
     }))
@@ -398,6 +404,7 @@ pub async fn stop_agent<B: ExecutionBackend + Clone>(
 
     Ok(Json(AgentResponse {
         agent_id: agent_id.to_string(),
+        name: None,
         state: "stopped".to_string(),
         manifest: None,
     }))

@@ -160,7 +160,7 @@ fn format_agent_list(resp: &serde_json::Value) {
         .cloned()
         .unwrap_or_default();
 
-    println!("  {:<36} {:<14}", "AGENT_ID", "STATE");
+    println!("  {:<32} {:<14} {}", "NOM", "STATE", "AGENT_ID");
 
     if agents.is_empty() {
         println!("  (no agents registered)");
@@ -170,8 +170,12 @@ fn format_agent_list(resp: &serde_json::Value) {
                 .get("agent_id")
                 .and_then(|v| v.as_str())
                 .unwrap_or("?");
+            let name = agent
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or(id);
             let state = agent.get("state").and_then(|v| v.as_str()).unwrap_or("?");
-            println!("  {:<36} {state}", id);
+            println!("  {:<32} {:<14} {}", name, state, id);
         }
     }
 }

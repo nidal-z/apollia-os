@@ -387,6 +387,9 @@ impl Supervisor {
         info!("Supervisor: starting APIServer");
         // Extract task_repository before moving state into APIServer (needed for TimeoutWatcher).
         let task_repository: Option<std::sync::Arc<apollia_tools::TaskRepository>> = None;
+        // Clone notification config so AppState can serve /api/v1/notifications/channels
+        // while the original is consumed by NotificationEngine below.
+        let notification_config_for_state = self.config.notifications.clone();
         let state = AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -398,7 +401,7 @@ impl Supervisor {
             config_path: self.config.config_path.clone(),
             task_repository: task_repository.clone(),
             pending_approvals: None,
-            notification_config: None,
+            notification_config: notification_config_for_state,
             pipeline_engine: pipeline_engine.clone(),
             backend_factory,
             tool_registry_handle: Some(tool_registry_handle.clone()),

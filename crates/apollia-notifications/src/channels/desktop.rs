@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+#[cfg(not(any(all(unix, not(target_os = "macos")), target_os = "macos")))]
 use notify_rust::Notification as OsNotif;
 
 use crate::{
@@ -115,12 +116,17 @@ fn show_os_notification(
     #[cfg(all(unix, not(target_os = "macos")))]
     show_os_notification_xdg(summary, body, severity, is_hitl, resume_url, inspect_url);
 
-    // Sur macOS et Windows, affichage simple sans gestion d'actions interactives
-    // (l'API `wait_for_action` n'est disponible que sur XDG/D-Bus).
-    #[cfg(not(all(unix, not(target_os = "macos"))))]
+    // macOS : osascript est la seule API fiable pour les binaires CLI sans bundle ID.
+    // mac-notification-sys (défaut notify-rust) nécessite un bundle identifier
+    // qui n'existe pas pour un binaire compilé directement.
+    #[cfg(target_os = "macos")]
+    show_os_notification_macos(summary, body);
+
+    // Windows et autres plateformes non-Unix : fallback notify-rust simple.
+    #[cfg(not(any(all(unix, not(target_os = "macos")), target_os = "macos")))]
     show_os_notification_fallback(summary, body);
 
-    // Les paramètres non utilisés sur certaines plateformes — silence les warnings
+    // Paramètres non utilisés sur macOS/Windows — silence les warnings.
     #[cfg(not(all(unix, not(target_os = "macos"))))]
     {
         let _ = (severity, is_hitl, resume_url, inspect_url);
@@ -231,8 +237,45 @@ fn show_os_notification_xdg(
     }
 }
 
-/// Implémentation de repli pour macOS et Windows (notification simple, sans actions).
-#[cfg(not(all(unix, not(target_os = "macos"))))]
+/// Implémentation macOS via `osascript` — fiable pour les binaires CLI sans bundle ID.
+///
+/// `mac-notification-sys` (utilisé par `notify-rust` 4 par défaut sur macOS) exige un
+/// bundle identifier CFBundleIdentifier présent dans Info.plist. Les binaires compilés
+/// directement ne l'ont pas, ce qui provoque un échec silencieux. `osascript` contourne
+/// cette contrainte et fonctionne depuis n'importe quel processus Terminal.
+#[cfg(target_os = "macos")]
+fn show_os_notification_macos(summary: String, body: String) {
+    // Échappe les guillemets internes pour l'AppleScript.
+    let body_esc = body.replace('\\', "\\\\").replace('"', "\\\"");
+    let summary_esc = summary.replace('\\', "\\\\").replace('"', "\\\"");
+    let script = format!(
+        "display notification \"{body_esc}\" with title \"{summary_esc}\""
+    );
+
+    match std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(&script)
+        .output()
+    {
+        Ok(out) if out.status.success() => {}
+        Ok(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            tracing::warn!(
+                stderr = %stderr,
+                "DesktopChannel : osascript retourné non-zéro"
+            );
+        }
+        Err(err) => {
+            tracing::warn!(
+                error = %err,
+                "DesktopChannel : impossible de lancer osascript"
+            );
+        }
+    }
+}
+
+/// Implémentation de repli pour Windows et autres plateformes non-Unix.
+#[cfg(not(any(all(unix, not(target_os = "macos")), target_os = "macos")))]
 fn show_os_notification_fallback(summary: String, body: String) {
     let mut os_notif = OsNotif::new();
     os_notif.summary(&summary).body(&body);

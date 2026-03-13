@@ -1,47 +1,58 @@
-# apollia.toml — Configuration complète pour test utilisateur final
-# Tous les chemins sont regroupés sous ~/.apollia/
+# apollia.toml — Configuration principale du runtime Apollia OS
+# Tous les chemins supportent le préfixe ~ (résolu vers $HOME au démarrage).
+
+# ─────────────────────────────────────────────
+# AGENTS — démarrage automatique
+# ─────────────────────────────────────────────
+[agents]
+startup = [
+  "agents/debug_orchestrator.py",   # Agent debug bloc 10 (ORIA Mode Orchestré) — démarré automatiquement
+  "agents/code-reviewer-moe.py",    # Code reviewer MoE — déclenché par git-commit-review trigger
+]
+# startup = liste de chemins Python (relatifs au répertoire de travail ou absolus avec ~)
+# Chaque agent est enregistré via POST /api/v1/agents dès que l'API est prête.
 
 # ─────────────────────────────────────────────
 # RUNTIME
 # ─────────────────────────────────────────────
 [runtime]
-socket                = "/tmp/apollia.sock"
-port                  = 7771
-log_level             = "info"
-drain_timeout_seconds = 30
+socket                = "/tmp/apollia.sock"  # Chemin de la socket Unix — utilisée par la CLI et les clients locaux
+port                  = 7771                 # Port TCP de l'API REST (bind sur 127.0.0.1 uniquement par défaut)
+log_level             = "info"               # Niveau de log : trace | debug | info | warn | error
+drain_timeout_seconds = 30                   # Délai max (en secondes) pour terminer les tâches en cours avant arrêt propre
 
 # ─────────────────────────────────────────────
 # MEMORY ENGINE
 # ─────────────────────────────────────────────
 [memory]
-path             = "~/.apollia/data/memory.db"
-max_size_mb      = 512
-episode_ttl_days = 90
-fts5_enabled     = true
+path             = "~/.apollia/data/memory.db"  # Chemin du fichier SQLite qui stocke toute la mémoire des agents
+max_size_mb      = 512                           # Taille max de la base SQLite en Mo avant rotation automatique
+episode_ttl_days = 90                            # Durée de vie (jours) des souvenirs épisodiques avant purge
+fts5_enabled     = true                          # Active la recherche plein texte SQLite FTS5 (BM25)
 
 # ─────────────────────────────────────────────
 # TOOLS
 # ─────────────────────────────────────────────
 [tools]
-sandbox              = false           # désactivé sur macOS (Linux namespaces indisponibles)
-venv_base_path       = "~/.apollia/data/venvs"
-bash_timeout_seconds = 30
-python_timeout_seconds = 60
+sandbox                = false  # Isolation Linux namespaces (unshare) — désactivé sur macOS (indisponible)
+venv_base_path         = "~/.apollia/data/venvs"  # Dossier racine des venvs Python isolés par agent
+bash_timeout_seconds   = 30    # Timeout en secondes pour les commandes shell (BashExecutor)
+python_timeout_seconds = 60    # Timeout en secondes pour les scripts Python (PythonExecutor)
 
 # ─────────────────────────────────────────────
 # API
 # ─────────────────────────────────────────────
 [api]
-tcp_enabled  = true
-bind_address = "127.0.0.1"
+tcp_enabled  = true          # Active l'écoute TCP en plus de la socket Unix
+bind_address = "127.0.0.1"  # Adresse d'écoute TCP — 127.0.0.1 = local uniquement (ne pas exposer sur 0.0.0.0)
 
 # ─────────────────────────────────────────────
 # BUDGET — limites par défaut par tâche
 # ─────────────────────────────────────────────
 [budget]
-max_steps               = 20
-max_tool_calls          = 50
-wall_clock_timeout_secs = 300
+max_steps               = 20   # Nombre maximum d'étapes ReAct (observe → reason → act) par tâche
+max_tool_calls          = 50   # Nombre maximum d'appels d'outils cumulés par tâche
+wall_clock_timeout_secs = 300  # Timeout absolu (secondes) : la tâche est annulée au-delà, quelle que soit l'avancement
 
 # ─────────────────────────────────────────────
 # LLM — moteur d'inférence
@@ -59,148 +70,181 @@ wall_clock_timeout_secs = 300
 # Prérequis : export ANTHROPIC_API_KEY="sk-ant-..."
 #
 # [llm]
-# default = "anthropic"
+# default = "anthropic"                   # Nom du backend LLM utilisé par défaut si plusieurs sont déclarés
 #
 # [llm.observability]
-# log_token_usage  = true
-# log_latency      = true
-# log_cost         = true
-# debug_log_prompt = false
+# log_token_usage  = true   # Logue le nombre de tokens consommés par appel
+# log_latency      = true   # Logue le temps de réponse (ms) de chaque appel LLM
+# log_cost         = true   # Calcule et logue le coût estimé en USD selon la grille de tarifs connue
+# debug_log_prompt = false  # Logue le prompt complet envoyé au LLM (DANGER : peut contenir des données sensibles)
 #
 # [[llm.backends]]
-# type        = "api"
-# name        = "anthropic"
-# api_url     = "https://api.anthropic.com/v1"
-# model       = "claude-haiku-4-5-20251001"
-# api_key_env = "ANTHROPIC_API_KEY"
+# type        = "api"                              # Type de backend : "api" (cloud) | "embedded" (local)
+# name        = "anthropic"                        # Nom du backend — doit correspondre à `default` ci-dessus
+# api_url     = "https://api.anthropic.com/v1"    # URL de base de l'API Anthropic
+# model       = "claude-haiku-4-5-20251001"        # Identifiant exact du modèle à utiliser
+# api_key_env = "ANTHROPIC_API_KEY"                # Variable d'env qui contient la clé API (jamais en dur ici)
 
 # ── Option B : backend local embarqué ───────────────────────────────────────
 # Prérequis : cargo build --release --features local
 #             + modèle .gguf dans ~/.apollia/models/
 
 [llm]
-default = "local"
+default = "local"  # Nom du backend LLM utilisé par défaut si plusieurs sont déclarés
 
 [llm.observability]
-log_token_usage  = true
-log_latency      = true
-log_cost         = false
-debug_log_prompt = false
+log_token_usage  = true   # Logue le nombre de tokens consommés par appel
+log_latency      = true   # Logue le temps de réponse (ms) de chaque appel LLM
+log_cost         = false  # Désactivé : pas de grille de coûts pertinente pour un modèle local
+debug_log_prompt = false  # Logue le prompt complet envoyé au LLM (DANGER : peut contenir des données sensibles)
 
 [[llm.backends]]
-type         = "embedded"
-name         = "local"
-model_path   = "~/.apollia/models/Qwen3-0.6B-Q8_0.gguf"
-device       = "metal"       # "cpu" (défaut) | "metal" (GPU Apple Silicon, nécessite --features local-metal)
-quantization = "q8_0"
+type         = "embedded"                              # Type de backend : "api" (cloud) | "embedded" (local GGUF)
+name         = "local"                                 # Nom du backend — doit correspondre à `default` ci-dessus
+model_path   = "~/.apollia/models/Qwen3-0.6B-Q8_0.gguf"  # Chemin absolu ou ~ vers le fichier .gguf du modèle
+device       = "metal"    # Accélérateur : "cpu" (défaut, toujours dispo) | "metal" (GPU Apple Silicon, nécessite --features local-metal)
+quantization = "q8_0"     # Quantization du modèle : doit correspondre au suffixe du fichier .gguf
 
 # ─────────────────────────────────────────────
 # TRIGGERS — déclencheurs automatiques
 # ─────────────────────────────────────────────
+# Format obligatoire : chaque [[triggers]] DOIT avoir un sous-bloc [triggers.source].
+# Les champs id, agent, input_template et source.type sont requis.
+# Les triggers avec enabled=false ne sont pas validés sémantiquement au démarrage.
 
-# Trigger 1 — Cron : rapport quotidien à 8h
+# ── Trigger principal : debug bloc 10 (ORIA Mode Orchestré) ─────────────────
+# Déclenche debug-orchestrator toutes les minutes pour tester le pipeline
+# planification → exécution bash → synthèse LLM (bloc 10 Sprint 10).
+[[triggers]]
+id             = "debug-cron-bloc10"             # Identifiant unique du trigger — visible dans les logs et `apollia-os trigger logs debug-cron-bloc10`
+agent          = "debug-orchestrator"            # Agent cible : agents/debug_orchestrator.py (execution_mode=orchestrated)
+enabled        = true                            # true = actif immédiatement au démarrage | false = déclaré mais inactif
+on_busy        = "drop"                          # "drop" = ignore si l'agent traite déjà une tâche | "queue" = met en file d'attente
+input_template = "Audit bloc 10 : liste les crates, compte les fichiers .rs et affiche les 5 derniers commits git dans /Users/nidalzoumita/Documents/apollia-v2"
+# input_template = texte passé à l'agent comme task input — supporte {{scheduled_at}}, {{date_iso}}
+# Ici : tâche concrète et déterministe → plan fallback fiable même sans LLM
+
+[triggers.source]
+type     = "cron"       # Type de déclencheur : cron | interval | oneshot | file_watch | webhook
+schedule = "* * * * *"  # Expression cron 5 champs (min heure jour mois jour_semaine) — ici : toutes les minutes
+
+# ── Trigger secondaire : apollia-reviewer (désactivé — pour référence) ───────
+# Passer enabled=true pour activer la revue automatique de code.
+[[triggers]]
+id             = "apollia-reviewer-review"       # Identifiant unique du trigger
+agent          = "apollia-reviewer"              # Agent de revue de code (execution_mode=direct)
+enabled        = false                           # Désactivé — passer à true pour activer la revue automatique
+on_busy        = "drop"                          # "drop" = ignore si l'agent est déjà occupé
+input_template = "/Users/nidalzoumita/Documents/apollia-v2"
+# input_template = chemin du repo passé comme input — apollia-reviewer attend un chemin absolu
+
+[triggers.source]
+type     = "cron"       # Type de déclencheur : cron
+schedule = "*/5 * * * *"  # Toutes les 5 minutes (éviter la surcharge pendant le debug)
+
+# ── Trigger git-commit-review — déclenche code-reviewer-moe à chaque commit ──
+# Surveille le répertoire .git pour détecter les nouveaux commits.
+# file_io est dans tools_requiring_approval → HITL automatique avant écriture du rapport.
+[[triggers]]
+id             = "git-commit-review"             # Identifiant unique du trigger
+agent          = "code-reviewer-moe"             # Agent MoE de revue de code
+enabled        = true                            # Actif immédiatement au démarrage
+on_busy        = "drop"                          # Ignore si l'agent traite déjà un commit
+input_template = "/Users/nidalzoumita/Documents/apollia-v2"
+# input_template = chemin absolu du repo — reçu par run(task, ctx) comme task["input"]["parts"][0]["text"]
+
+[triggers.source]
+type   = "file_watch"                                          # Surveille via FSEvents (macOS) / inotify (Linux)
+path   = "/Users/nidalzoumita/Documents/apollia-v2/.git"      # Répertoire .git — modifié à chaque commit
+events = ["create", "modify"]                                  # Détecte la création et modification de fichiers git
+
+# ─────────────────────────────────────────────
+# TRIGGERS — exemples commentés pour référence
+# ─────────────────────────────────────────────
+
+# Trigger interval — se déclenche toutes les heures
 # [[triggers]]
-# id      = "rapport-quotidien"
-# agent   = "hello-agent"
-# enabled = false         # passer à true pour activer
-# on_busy = "drop"
-
+# id             = "check-horaire"          # Identifiant unique du trigger
+# agent          = "hello-agent"            # Agent Python à déclencher
+# enabled        = false                    # Désactivé — passer à true pour activer
+# on_busy        = "drop"                   # Ignore le déclenchement si l'agent est occupé
+# input_template = "Vérification {{date_iso}}"  # Texte transmis à l'agent avec variable de date
+#
 # [triggers.source]
-# type     = "cron"
-# schedule = "0 8 * * *"
+# type  = "interval"  # Déclenchement périodique (durée fixe entre deux exécutions)
+# every = "1h"        # Intervalle : "30s" | "5m" | "1h" | "24h" — unités : s, m, h
 
-# [triggers.input]
-# text = "Génère un rapport pour la journée du {{date_iso}}"
-
-# Trigger 2 — Interval : vérification toutes les heures
+# Trigger file_watch — surveille l'apparition de fichiers dans un dossier
 # [[triggers]]
-# id      = "check-horaire"
-# agent   = "hello-agent"
-# enabled = false
-# on_busy = "drop"
-
+# id             = "import-fichier"          # Identifiant unique du trigger
+# agent          = "hello-agent"             # Agent Python à déclencher
+# enabled        = false                     # Désactivé — passer à true pour activer
+# on_busy        = "queue"                   # Met en file d'attente si l'agent est occupé
+# input_template = "Traite le fichier {{filename}} ({{size_bytes}} octets)"  # Variables : filename, size_bytes, path
+#
 # [triggers.source]
-# type  = "interval"
-# every = "1h"
+# type   = "file_watch"                  # Surveille un dossier via inotify/FSEvents
+# path   = "~/.apollia/imports/"         # Chemin absolu ou ~ du dossier à surveiller
+# events = ["create"]                    # Événements à surveiller : "create" | "modify" | "delete"
 
-# [triggers.input]
-# text = "Vérification automatique {{date_iso}}"
-
-# Trigger 3 — FileWatch : surveille un dossier d'imports
+# Trigger webhook — endpoint HTTP authentifié HMAC-SHA256
+# Appel : POST http://127.0.0.1:7771/webhooks/<id>
+# Header requis : X-Apollia-Signature: <hmac-sha256-hex-du-body>
 # [[triggers]]
-# id      = "import-fichier"
-# agent   = "hello-agent"
-# enabled = false
-# on_busy = "queue"
-
+# id             = "webhook-deploy"          # Identifiant unique — aussi le path du webhook : /webhooks/webhook-deploy
+# agent          = "hello-agent"             # Agent Python à déclencher
+# enabled        = false                     # Désactivé — passer à true pour activer
+# on_busy        = "error"                   # Retourne HTTP 409 si l'agent est occupé
+# input_template = "Webhook reçu : {{webhook_body}}"  # Variable : webhook_body = corps brut de la requête
+#
 # [triggers.source]
-# type   = "file_watch"
-# path   = "~/.apollia/imports/"
-# events = ["create"]
-
-# [triggers.input]
-# text = "Traite le fichier {{filename}} ({{size_bytes}} octets)"
-
-# Trigger 4 — Webhook : endpoint HTTP authentifié HMAC-SHA256
-# Appel : POST http://127.0.0.1:7771/webhooks/deploy
-# Header : X-Apollia-Signature: <hmac-sha256-hex>
-# [[triggers]]
-# id      = "webhook-deploy"
-# agent   = "hello-agent"
-# enabled = false
-# on_busy = "error"
-
-# [triggers.source]
-# type   = "webhook"
-# secret = "remplacer-par-un-secret-robuste-minimum-32-caracteres"
-
-# [triggers.input]
-# text = "Webhook reçu : {{webhook_body}}"
+# type   = "webhook"                                              # Expose un endpoint HTTP sur le port 7771
+# secret = "remplacer-par-un-secret-robuste-minimum-32-caract"   # Clé HMAC-SHA256 (min 32 chars) pour valider la signature
 
 # ─────────────────────────────────────────────
 # NOTIFICATIONS
 # ─────────────────────────────────────────────
 [notifications]
-events = [
-  "task.input_required",
-  "task.failed",
-  "task.completed",
-  "agent.degraded",
-  "pipeline.completed",
-  "pipeline.failed",
-  "pipeline.suspended",
+events = [                   # Liste des événements système qui déclenchent une notification
+  "task.input_required",     # Une tâche attend une validation humaine (HITL)
+  "task.failed",             # Une tâche s'est terminée en erreur
+  "task.completed",          # Une tâche s'est terminée avec succès
+  "agent.degraded",          # Un agent a démarré en mode dégradé (outil manquant, LLM absent)
+  "pipeline.completed",      # Un pipeline multi-agent s'est terminé avec succès
+  "pipeline.failed",         # Un pipeline multi-agent a échoué
+  "pipeline.suspended",      # Un pipeline est suspendu en attente d'approbation humaine
 ]
 
-# Canal 1 — Notification desktop native macOS
 [[notifications.channels]]
-id      = "bureau"
-type    = "desktop"
-enabled = true
+id      = "bureau"    # Identifiant du canal (utilisé dans les logs)
+type    = "desktop"   # Type de canal : "desktop" (notification native macOS/Linux) | "webhook" (HTTP POST)
+enabled = true        # true = actif | false = déclaré mais silencieux
 
-# Canal 2 — Webhook vers Slack (remplacer l'URL)
+# Canal Slack via webhook (décommenter et remplacer l'URL)
 # [[notifications.channels]]
-# id      = "slack"
-# type    = "webhook"
-# enabled = false
-# url     = "https://hooks.slack.com/services/REMPLACER"
-# events  = ["task.input_required", "task.failed", "agent.degraded"]
+# id      = "slack"                                          # Identifiant unique du canal
+# type    = "webhook"                                        # Envoi HTTP POST vers l'URL ci-dessous
+# enabled = false                                            # Désactivé — passer à true + fournir une URL valide
+# url     = "https://hooks.slack.com/services/REMPLACER"    # URL du Incoming Webhook Slack
+# events  = ["task.input_required", "task.failed", "agent.degraded"]  # Filtrer les événements si besoin
 
 # ─────────────────────────────────────────────
 # PIPELINES — orchestration multi-agent
 # ─────────────────────────────────────────────
+# Exemple commenté — décommenter et adapter pour créer un pipeline
 
 # [[pipelines]]
-# id          = "pipeline-demo"
-# description = "Pipeline de démonstration : deux agents en séquence"
-# on_failure  = "fail"
-
+# id          = "pipeline-demo"                     # Identifiant unique du pipeline
+# description = "Pipeline de démonstration"         # Description libre pour les logs et la CLI
+# on_failure  = "fail"                              # Comportement en cas d'échec : "fail" (stop) | "continue"
+#
 # [[pipelines.steps]]
-# id    = "etape-1"
-# agent = "hello-agent"
-# input = "{{trigger.payload}}"
-
+# id    = "etape-1"                  # Identifiant unique de l'étape au sein du pipeline
+# agent = "hello-agent"             # Agent Python exécuté pour cette étape
+# input = "{{trigger.payload}}"     # Entrée de l'étape — peut référencer le payload du trigger déclencheur
+#
 # [[pipelines.steps]]
-# id         = "etape-2"
-# agent      = "hello-agent"
-# input      = "Suite de l'étape 1 : {{steps.etape-1.output}}"
-# depends_on = ["etape-1"]
+# id         = "etape-2"                                     # Identifiant unique de la deuxième étape
+# agent      = "hello-agent"                                 # Agent Python exécuté pour cette étape
+# input      = "Suite de l'étape 1 : {{steps.etape-1.output}}"  # Référence la sortie de l'étape précédente
+# depends_on = ["etape-1"]                                   # Ordre d'exécution : attend etape-1 avant de démarrer

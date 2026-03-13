@@ -464,21 +464,21 @@ Cocher chaque case au fur et à mesure. Un `[ ]` non coché en fin de session = 
 > Prérequis : avoir une section `[[triggers]]` dans apollia.toml.
 
 ```
-[ ] Liste des triggers
+[x] Liste des triggers
     ⌨  apollia-os trigger list
     →  Triggers configurés visibles avec état enabled/disabled
 
-[ ] Statut d'un trigger
+[x] Statut d'un trigger
     ⌨  apollia-os trigger status <id-trigger>
     →  Informations du trigger + dernière exécution
 
-[ ] Déclenchement manuel
+[x] Déclenchement manuel
     ⌨  apollia-os trigger fire <id-trigger>
     →  Trigger déclenché
     ⌨  apollia-os task list
     →  Nouvelle tâche créée par le trigger
 
-[ ] Hot-reload
+[x] Hot-reload
     ⌨  Modifier apollia.toml (ex: changer le schedule)
     ⌨  apollia-os trigger reload
     →  Rechargement sans redémarrer le runtime
