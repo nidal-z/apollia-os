@@ -358,6 +358,9 @@ impl LlmRouter {
         if let Some(b) = bus {
             let _ = b.send(RuntimeEvent::LlmCallCompleted {
                 backend: backend_key.to_owned(),
+                model: backend.model_id().to_owned(),
+                task_id: None,
+                step_id: None,
                 prompt_tokens: response.usage.prompt_tokens,
                 completion_tokens: response.usage.completion_tokens,
                 latency_ms,

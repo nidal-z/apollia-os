@@ -39,6 +39,8 @@ thiserror      = { workspace = true }
 tracing        = { workspace = true }
 futures        = { workspace = true }
 async-trait    = { workspace = true }
+rusqlite       = { workspace = true }
+uuid           = { workspace = true }
 # cloud backends [feature = "cloud"]
 async-openai   = { workspace = true, optional = true }
 reqwest        = { workspace = true, optional = true }

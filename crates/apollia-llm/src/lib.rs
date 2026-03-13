@@ -10,10 +10,15 @@
 //! disponibles quelle que soit la feature activée.
 
 pub mod backends;
+pub mod repository;
 pub mod router;
 pub mod tool_helper;
 pub mod types;
 
+pub use repository::{
+    spawn_subscriber as spawn_llm_subscriber, LlmCallRecord, LlmCallRepository, LlmCostSummary,
+    LlmRepositoryError,
+};
 pub use router::{BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig};
 pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{

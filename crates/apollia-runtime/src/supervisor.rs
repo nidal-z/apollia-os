@@ -17,7 +17,7 @@ use tokio::sync::broadcast;
 use tracing::{error, info, warn};
 
 use apollia_core::{PendingApprovals, RuntimeEvent};
-use apollia_llm::{LlmConfig, LlmRouter};
+use apollia_llm::{LlmCallRepository, LlmConfig, LlmRouter};
 use apollia_notifications::{
     build_channels, NotificationConfig, NotificationEngine, NotificationEngineHandle,
 };
@@ -315,6 +315,30 @@ impl Supervisor {
             info!("Supervisor: no [llm] section in config — LLM disabled");
             None
         };
+
+        // Phase 4b: LlmCallRepository — subscriber EventBus pour persister les appels LLM
+        if llm_router.is_some() {
+            let db_path = self.config.data_dir.join("llm_calls.db");
+            match LlmCallRepository::open(&db_path) {
+                Ok(repo) => {
+                    let repo = Arc::new(std::sync::Mutex::new(repo));
+                    let obs = self
+                        .config
+                        .llm_config
+                        .as_ref()
+                        .map(|c| apollia_core::ObservabilityConfig {
+                            debug_log_prompt: c.observability.debug_log_prompt,
+                            ..apollia_core::ObservabilityConfig::default()
+                        })
+                        .unwrap_or_default();
+                    apollia_llm::spawn_llm_subscriber(repo, &event_sender, obs);
+                    info!("Supervisor: LlmCallRepository ready (subscriber spawned)");
+                }
+                Err(e) => {
+                    warn!(error = %e, "LlmCallRepository failed to open — LLM call persistence disabled");
+                }
+            }
+        }
 
         // Phase 5 (pos 6): TaskRouter
         info!("Supervisor: starting TaskRouter");

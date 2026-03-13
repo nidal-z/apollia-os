@@ -268,12 +268,14 @@ dependencies = [
  "mistralrs",
  "mistralrs-core",
  "reqwest 0.12.28",
+ "rusqlite",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
  "toml 0.8.23",
  "tracing",
+ "uuid 1.21.0",
 ]
 
 [[package]]

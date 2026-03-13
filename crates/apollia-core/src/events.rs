@@ -232,6 +232,12 @@ pub enum RuntimeEvent {
     LlmCallCompleted {
         /// Nom logique du backend qui a traité la requête.
         backend: String,
+        /// Identifiant du modèle utilisé (e.g. `"claude-sonnet-4-20250514"`).
+        model: String,
+        /// Identifiant de la tâche ayant déclenché l'appel (`None` hors contexte task).
+        task_id: Option<String>,
+        /// Identifiant du step ORIA ayant déclenché l'appel (`None` en mode direct).
+        step_id: Option<String>,
         /// Nombre de tokens dans le prompt.
         prompt_tokens: u32,
         /// Nombre de tokens générés.
@@ -531,6 +537,9 @@ mod tests {
             },
             RuntimeEvent::LlmCallCompleted {
                 backend: "anthropic".into(),
+                model: "claude-sonnet-4-20250514".into(),
+                task_id: Some("task-42".into()),
+                step_id: None,
                 prompt_tokens: 100,
                 completion_tokens: 50,
                 latency_ms: 250,
