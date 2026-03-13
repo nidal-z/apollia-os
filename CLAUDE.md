@@ -11,7 +11,7 @@
 
 **Auteur :** Nidal — CTO & Co-fondateur Apollia  
 **Développement :** soir/weekend, 8-10h/semaine  
-**Phase actuelle :** Sprint 0 — Fondations
+**Phase actuelle :** Sprint 16 — À planifier
 
 ---
 
@@ -122,9 +122,9 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Sprint actif :** Sprint 15 (à planifier)
-**Dernier sprint livré :** Sprint 14 — Application desktop native (8/8 stories, ADR-027, ADR-028)
+**Sprint actif :** Sprint 16 (à planifier)
+**Dernier sprint livré :** Sprint 15 — Svelte frontend complet (13/13 stories, ADR-029)
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
-**Dernière décision :** ADR-028 — Frontend Svelte : UX first, UI sprint dédié
+**Dernière décision :** ADR-029 — Settings lecture seule dans l'application desktop
 
 Pour l'état détaillé : lire `docs/internal/STORIES/sprint-index.md`.

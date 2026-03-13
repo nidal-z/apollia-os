@@ -1,6 +1,6 @@
 # Application Desktop — Tauri v2 + Runtime embarque
 
-> *L'application desktop Apollia OS embarque le runtime complet dans un processus unique. Double-clic → fenetre → agents, tasks, HITL approvals temps reel.*
+> *L'application desktop Apollia OS embarque le runtime complet dans un processus unique. Double-clic → fenetre → 10 vues temps reel couvrant 100% des capacites CLI.*
 
 ---
 
@@ -15,9 +15,13 @@ main() Tauri
   │     └── thread "apollia-runtime"
   │           └── Supervisor.start() → AllReady
   │
+  ├── setup_tray() → SystemTray (icone + menu contextuel)
+  │
   └── tauri::Builder
         ├── .manage(RuntimeHandle)     ← etat partage
-        ├── .invoke_handler(commands)  ← 9 commandes IPC
+        ├── .invoke_handler(commands)  ← 29 commandes IPC
+        ├── .plugin(dialog)            ← file picker natif
+        ├── .plugin(notification)      ← notifications natives
         └── .run()                     ← ouvre la WebView
 ```
 
@@ -25,8 +29,8 @@ main() Tauri
 
 | Type | Mecanisme | Exemples |
 |---|---|---|
-| Mutations ponctuelles | Commandes Tauri `#[tauri::command]` | `start_agent`, `submit_task`, `resume_task` |
-| Flux temps reel | SSE EventBus (`localhost:7771/api/v1/dashboard/stream`) | Agents state, tasks status, HITL pending |
+| Mutations ponctuelles | Commandes Tauri `#[tauri::command]` | `start_agent`, `submit_task`, `fire_trigger` |
+| Flux temps reel | SSE EventBus (`localhost:7771/api/v1/dashboard/stream`) | Agents, tasks, LLM, triggers, pipelines, approvals |
 
 Le CLI reste fonctionnel via le socket Unix existant (`/tmp/apollia.sock`).
 
@@ -44,27 +48,45 @@ crates/apollia-desktop/
 ├── capabilities/default.json  ← permissions Tauri v2
 ├── icons/logov2.png
 ├── src/
-│   ├── main.rs                ← entree Tauri + init_embedded()
+│   ├── main.rs                ← entree Tauri + init_embedded() + tray
+│   ├── tray.rs                ← system tray (menu, tooltip, tray-update listener)
 │   └── commands/
 │       ├── mod.rs             ← helpers HTTP (http_get_json, http_post_json)
 │       ├── agents.rs          ← list_agents, start_agent, stop_agent
 │       ├── tasks.rs           ← list_tasks, submit_task, get_task_timeline
-│       └── hitl.rs            ← list_pending_approvals, list_resolved_approvals, resume_task
+│       ├── hitl.rs            ← list_pending_approvals, list_resolved_approvals, resume_task
+│       ├── llm.rs             ← list_llm_backends, ping_llm_backend, get_llm_cost_stats
+│       ├── triggers.rs        ← list_triggers, set_trigger_enabled, fire_trigger, get_trigger_logs, reload_triggers
+│       ├── pipelines.rs       ← list_pipelines, list_pipeline_runs, list_all_pipeline_runs, run_pipeline, get_pipeline_run_detail
+│       ├── memory.rs          ← list_memory_namespaces, list_memory_entries, search_memory, delete_memory_entry
+│       ├── notifications.rs   ← list_notification_channels, test_notification_channel, get_notification_logs
+│       ├── observability.rs   ← get_global_timeline, get_tool_audit_trail, get_llm_daily_costs
+│       ├── config.rs          ← get_config, open_config_in_editor
+│       └── onboarding.rs      ← check_onboarded, mark_onboarded, reset_onboarding, check_python, check_llm_configured, check_hello_agent_exists
 └── ui/                        ← application Svelte 5
     ├── package.json
     ├── vite.config.ts
     └── src/
         ├── App.svelte
         ├── lib/
-        │   ├── types.ts       ← AgentStatus, TaskSummary, PendingApproval, TimelineEvent
-        │   └── stores/        ← sse.ts, agents.ts, tasks.ts, hitl.ts, navigation.ts
+        │   ├── types.ts       ← 35+ interfaces TypeScript
+        │   ├── stores/
+        │   │   ├── sse.ts         ← SSE connection + 7 stores reactifs + 4 derives
+        │   │   └── navigation.ts  ← currentRoute + showOnboarding
+        │   └── components/ui/     ← Button, Card, Badge, Sheet, Separator (bits-ui)
         ├── components/
         │   ├── layout/        ← Sidebar.svelte, Main.svelte
         │   ├── agents/        ← AgentCard.svelte, AgentLogs.svelte
         │   ├── tasks/         ← TaskList.svelte, TaskDetail.svelte, TaskTimeline.svelte
         │   ├── hitl/          ← ApprovalCard.svelte, ApprovalHistory.svelte
-        │   └── ui/            ← Button, Card, Badge, Sheet, Separator (bits-ui wrapped)
-        └── routes/            ← Agents.svelte, Tasks.svelte, Approvals.svelte
+        │   ├── llm/           ← LlmBackendCard.svelte, LlmStats.svelte
+        │   ├── triggers/      ← TriggerRow.svelte, TriggerLogs.svelte
+        │   ├── pipelines/     ← PipelineRunCard.svelte, PipelineRunDetail.svelte, NewPipelineDialog.svelte
+        │   ├── memory/        ← NamespaceSelector.svelte, MemorySearch.svelte, MemoryTable.svelte
+        │   ├── notifications/ ← NotificationChannelCard.svelte, NotificationLog.svelte
+        │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte
+        │   └── onboarding/    ← StepEnvironment.svelte, StepFirstAgent.svelte, StepFirstTask.svelte
+        └── routes/            ← 10 fichiers .svelte (un par route)
 ```
 
 ### 2.2 `RuntimeHandle` (apollia-runtime)
@@ -77,7 +99,6 @@ pub struct RuntimeHandle {
     pub router_handle: TaskRouterHandle<DynBackend>,
     pub api_handle: APIServerHandle,
     pub api_port: u16,
-    // Champs optionnels selon la configuration
     pub llm_router: Option<Arc<LlmRouter>>,
     pub trigger_engine: Option<TriggerEngineHandle>,
     pub pipeline_engine: Option<PipelineEngineHandle>,
@@ -113,9 +134,9 @@ pub enum EmbeddedError {
 
 ## 3. Commandes Tauri IPC
 
-9 commandes exposees au frontend Svelte via `#[tauri::command]` :
+29 commandes exposees au frontend Svelte via `#[tauri::command]` :
 
-### Agents
+### Agents (3)
 
 | Commande | Parametres | Retour |
 |---|---|---|
@@ -123,7 +144,7 @@ pub enum EmbeddedError {
 | `start_agent` | `path: String` | `Result<String, String>` (agent_id) |
 | `stop_agent` | `agent_id: String` | `Result<(), String>` |
 
-### Tasks
+### Tasks (3)
 
 | Commande | Parametres | Retour |
 |---|---|---|
@@ -131,7 +152,7 @@ pub enum EmbeddedError {
 | `submit_task` | `agent_id: String, input: String` | `Result<String, String>` (task_id) |
 | `get_task_timeline` | `task_id: String` | `Result<Vec<Value>, String>` |
 
-### HITL
+### HITL (3)
 
 | Commande | Parametres | Retour |
 |---|---|---|
@@ -139,67 +160,293 @@ pub enum EmbeddedError {
 | `list_resolved_approvals` | `limit: Option<usize>, days: Option<u64>` | `Result<Vec<ResolvedApproval>, String>` |
 | `resume_task` | `task_id, approved, reason` | `Result<(), String>` |
 
+### LLM (3)
+
+| Commande | Parametres | Retour |
+|---|---|---|
+| `list_llm_backends` | — | `Vec<LlmBackendStatus>` |
+| `ping_llm_backend` | `name: String` | `u64` (latency_ms) |
+| `get_llm_cost_stats` | `days: Option<u32>` | `LlmCostStats` |
+
+### Triggers (5)
+
+| Commande | Parametres | Retour |
+|---|---|---|
+| `list_triggers` | — | `Vec<TriggerStatus>` |
+| `set_trigger_enabled` | `id: String, enabled: bool` | `()` |
+| `fire_trigger` | `id: String` | `String` (task_id) |
+| `get_trigger_logs` | `id: String` | `Vec<TriggerLogEntry>` |
+| `reload_triggers` | — | `usize` (reloaded count) |
+
+### Pipelines (5)
+
+| Commande | Parametres | Retour |
+|---|---|---|
+| `list_pipelines` | — | `Vec<PipelineInfo>` |
+| `list_pipeline_runs` | `pipeline_id: String, limit: Option<usize>` | `Vec<PipelineRunSummary>` |
+| `list_all_pipeline_runs` | `limit: Option<usize>` | `Vec<PipelineRunSummary>` |
+| `run_pipeline` | `pipeline_id: String, inputs: Option<Value>` | `RunPipelineResult` |
+| `get_pipeline_run_detail` | `run_id: String` | `PipelineRunDetail` |
+
+### Memory (4)
+
+| Commande | Parametres | Retour |
+|---|---|---|
+| `list_memory_namespaces` | — | `Vec<String>` |
+| `list_memory_entries` | `namespace, type?, limit?` | `Vec<MemoryEntry>` |
+| `search_memory` | `namespace: String, query: String, limit?` | `Vec<MemorySearchResult>` |
+| `delete_memory_entry` | `namespace: String, id: String` | `()` |
+
+### Notifications (3)
+
+| Commande | Parametres | Retour |
+|---|---|---|
+| `list_notification_channels` | — | `Vec<NotificationChannel>` |
+| `test_notification_channel` | `channel_id: String` | `ChannelTestResult` |
+| `get_notification_logs` | `limit: Option<usize>` | `Vec<NotificationLogEntry>` |
+
+### Observability (3)
+
+| Commande | Parametres | Retour |
+|---|---|---|
+| `get_global_timeline` | `window_minutes: Option<u32>` | `Vec<GlobalTimelineEvent>` |
+| `get_tool_audit_trail` | `limit: Option<usize>` | `Vec<AuditTrailEntry>` |
+| `get_llm_daily_costs` | `days: Option<u32>` | `Vec<LlmDailyCostEntry>` |
+
+### Configuration (2)
+
+| Commande | Parametres | Retour |
+|---|---|---|
+| `get_config` | — | `ApollaConfigView` |
+| `open_config_in_editor` | — | `()` |
+
+### Onboarding (6 — commandes utilitaires)
+
+| Commande | Parametres | Retour |
+|---|---|---|
+| `check_onboarded` | — | `bool` |
+| `mark_onboarded` | — | `()` |
+| `reset_onboarding` | — | `()` |
+| `check_python` | — | `bool` |
+| `check_llm_configured` | — | `bool` |
+| `check_hello_agent_exists` | — | `Option<String>` (path) |
+
 ---
 
 ## 4. Frontend Svelte (ADR-028)
 
 ### 4.1 Stack
 
-- **Svelte 5** (runes) + **Vite 6** — framework reactif leger
+- **Svelte 5** (runes `$state`, `$effect`) + **Vite 6** — framework reactif leger
 - **bits-ui** — composants headless accessibles (Button, Card, Badge, Sheet)
 - **Tailwind CSS 3.4** — utilitaires CSS + design tokens
 - **@tauri-apps/api** — bridge IPC Tauri
+- **@tauri-apps/plugin-dialog** — file picker natif
+- **@tauri-apps/plugin-notification** — notifications natives OS
 
 ### 4.2 Navigation
 
-Store Svelte `currentRoute` (`writable<'agents' | 'tasks' | 'approvals'>`). Rendu conditionnel `{#if}` dans `App.svelte`. Pas de router externe.
+Store Svelte `currentRoute` avec 10 routes :
 
-### 4.3 SSE et stores reactifs
+```typescript
+type Route =
+  | "agents"        // Gestion agents (Sprint 14)
+  | "tasks"         // Liste et detail taches (Sprint 14)
+  | "approvals"     // Approbations HITL (Sprint 14)
+  | "llm"           // Backends LLM, ping, statistiques
+  | "triggers"      // Triggers TOML, enable/disable, fire
+  | "pipelines"     // Runs multi-agent, steps temps reel
+  | "memory"        // Namespaces, recherche FTS5, suppression
+  | "notifications" // Canaux, test, historique
+  | "observability" // Timeline, audit trail, couts LLM
+  | "settings";     // Configuration lecture seule (ADR-029)
+```
+
+Rendu conditionnel `{#if}` dans `Main.svelte`. Pas de router externe — routing par store client-side.
+
+### 4.3 Sidebar
+
+Navigation regroupee en 4 categories :
+
+| Categorie | Routes |
+|---|---|
+| **Operations** | agents, tasks, approvals |
+| **Infrastructure** | llm, triggers, pipelines |
+| **Donnees** | memory, notifications, observability |
+| **Settings** | settings (en bas, avant l'indicateur de connexion) |
+
+Badge rouge sur `approvals` affichant le nombre d'approbations en attente.
+Indicateur de connexion SSE en bas (pastille verte/rouge + label).
+Attributs `data-testid` sur chaque element de navigation pour les tests e2e.
+
+### 4.4 SSE et stores reactifs
 
 Le store `sse.ts` etablit une connexion SSE vers `localhost:7771/api/v1/dashboard/stream` avec reconnexion automatique (backoff exponentiel 1s → 30s max).
 
-5 stores reactifs mis a jour en temps reel :
+7 stores reactifs de base :
 
-| Store | Type | Source |
+| Store | Type | Source SSE |
 |---|---|---|
-| `agents` | `writable<AgentStatus[]>` | SSE channel `agents` |
-| `tasks` | `writable<TaskSummary[]>` | SSE channel `tasks` |
-| `pendingApprovals` | `writable<PendingApproval[]>` | SSE channel `hitl` |
-| `connectionStatus` | `writable<ConnectionStatus>` | SSE connection state |
-| `currentRoute` | `writable<Route>` | Navigation user |
+| `agents` | `AgentStatus[]` | channel `agents` |
+| `tasks` | `TaskSummary[]` | channel `tasks` |
+| `pendingApprovals` | `PendingApproval[]` | channel `approvals` |
+| `llmBackends` | `LlmBackendStatus[]` | channel `llm` |
+| `triggers` | `TriggerStatus[]` | channel `triggers` |
+| `pipelineRuns` | `PipelineRunSummary[]` | channel `pipeline` |
+| `connectionStatus` | `ConnectionStatus` | etat connexion SSE |
 
-3 stores derives : `activeAgentCount`, `runningTasks`, `pendingCount`.
+4 stores derives :
 
-### 4.4 Vues
+| Store derive | Calcul |
+|---|---|
+| `pendingCount` | nombre d'approbations en attente |
+| `llmBackendCount` | nombre total de backends LLM |
+| `readyLlmBackends` | backends avec statut `ready` |
+| `errorLlmBackends` | backends avec statut `error` |
+
+Pattern de rafraichissement : evenement SSE → appel IPC Tauri → mise a jour du store → re-render Svelte.
+
+Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApprovals` + notification native Tauri + emission evenement `tray-update`.
+
+### 4.5 Types TypeScript
+
+35+ interfaces definies dans `lib/types.ts` :
+
+**Agents/Tasks/HITL (Sprint 14) :**
+`AgentStatus`, `TaskSummary`, `PendingApproval`, `ResolvedApproval`, `TimelineEvent` (union discriminee par type)
+
+**LLM :**
+`LlmBackendStatus` (name, backend_type, model, status, latency_ms), `LlmPingResult`, `LlmCostStatsRow`
+
+**Triggers :**
+`TriggerStatus` (id, agent, source_kind, enabled, fire_count, skip_count, last_fired), `TriggerLogEntry`, `TriggerFireResult`
+
+**Pipelines :**
+`PipelineInfo`, `PipelineRunSummary`, `PipelineStepSummary`, `PipelineRunDetail`, `RunPipelineResult`
+
+**Memory :**
+`MemoryEntry` (episodic|semantic|procedural), `MemorySearchResult`
+
+**Notifications :**
+`NotificationChannel` (desktop|webhook|sse), `ChannelTestResult`, `NotificationLogEntry`
+
+**Observability :**
+`GlobalTimelineEvent`, `AuditTrailEntry`, `LlmDailyCostEntry`
+
+**Config :**
+`ConfigEntry`, `ConfigSection`, `ApollaConfigView`
+
+### 4.6 Vues
 
 **Agents** — Liste temps reel avec badges d'etat (ACTIVE/vert, DEGRADED/orange, STOPPED/gris). File picker natif Tauri pour enregistrer un agent `.py`. Drawer avec les 20 dernieres taches de l'agent.
 
-**Tasks** — Liste filtrable par onglets (All/Running/Completed/Failed/Pending). Detail avec input/output complets. Timeline interactive avec 5 types d'evenements (Transition, Tool, LLM, HITL, Done) — repose sur l'API Timeline Sprint 13.
+**Tasks** — Liste filtrable par onglets (All/Running/Completed/Failed/Pending). Detail avec input/output complets. Timeline interactive avec 8 types d'evenements (task_transition, step_started, step_completed, llm_call, tool_call, hitl_suspended, hitl_resolved, task_completed).
 
 **Approvals** — Cartes d'approbation avec compteur live (Xm Ys), prompt complet, contexte JSON depliable, boutons Approuver/Rejeter avec dialogs de confirmation. Historique des 20 dernieres approbations resolues (7 jours).
 
+**LLM** — Grille de backends avec cards : nom, type (embedded/api), modele, badge statut (Ready/Loading/Error), bouton Ping avec affichage latence. Section statistiques : cout USD, tokens, appels par backend sur 7 jours. Refresh 30s.
+
+**Triggers** — Tableau avec ID, type badge (Cron/FileWatch/Webhook/Interval/Oneshot), cible agent, toggle enable/disable, compteur fires/skips, boutons Fire (declenchement manuel) et Logs (sheet lateral 20 derniers evenements). Bouton Hot Reload en haut.
+
+**Pipelines** — Onglets En cours | Historique (7j). Cards par run : statut badge, progress bar N/M steps, duree. Sheet de detail : steps ordonnes avec statut/duree/input-output preview expandable. Dialog "Nouveau run" : selection pipeline + input JSON optionnel. Mise a jour temps reel via SSE canal `pipeline`.
+
+**Memory** — Selecteur de namespace en dropdown. Recherche FTS5 debounced 300ms (minimum 3 caracteres), score BM25 affiche. Table expandable : type badge (episodic/semantic/procedural), cle, preview 100 chars, TTL, timestamp. Suppression par ligne avec dialog de confirmation.
+
+**Notifications** — Cards par canal : ID, type, evenements filtres (badges), bouton Tester avec resultat inline. Logs : 50 dernieres notifications envoyees, filtrables par canal.
+
+**Observability** — 3 onglets :
+- *Timeline* : evenements des N dernieres heures (slider 30min→24h), filtres par type (Task/Tool/LLM/Trigger/HITL), liste chronologique inversee avec icones + detail expandable
+- *LLM Costs* : bar chart SVG natif Svelte (pas de lib externe), cout par jour 7j, barres colorees par backend
+- *Audit Trail* : table expandable (args_json, stdout, stderr), filtres par outil + agent
+
+**Settings** — Vue lecture seule (ADR-029). Sections affichees : [runtime], [oria], [observability], [memory], [logging]. Liens vers vues dediees : "Voir backends LLM →" /llm, "Voir triggers →" /triggers. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor()` via `open::that()`. Message info : configuration via TOML, redemarrage necessaire.
+
 ---
 
-## 5. Build et packaging (STORY-142)
+## 5. Onboarding wizard (premier lancement)
 
-### 5.1 Formats de sortie
+Wizard affiche au premier lancement si `~/.apollia/.onboarded` n'existe pas. Modal fullscreen avec stepper visible.
+
+### Etape 1 — Verification environnement
+
+Verifie automatiquement :
+- Runtime Apollia : toujours ✓ (embarque)
+- Python 3 : `check_python()` execute `python3 --version`
+- LLM configure : `check_llm_configured()` verifie via `/api/v1/llm/status`
+
+Indicateurs visuels ✓/✗ pour chaque verification. Bouton "Continuer" actif si Python OK.
+
+### Etape 2 — Premier agent
+
+File picker natif Tauri pour selectionner un fichier `.py`. Appel `start_agent(path)` → affichage etat de chargement → confirmation ACTIVE.
+
+Raccourci : `check_hello_agent_exists()` verifie si `agents/hello_agent.py` existe et propose le chemin.
+
+### Etape 3 — Premiere tache
+
+Textarea pour saisir l'input. Appel `submit_task(agentId, input)` avec l'agent de l'etape 2. Affichage progression SSE → output → bouton "Terminer".
+
+**Skip :** Bouton "Passer" sur chaque etape → appelle `mark_onboarded()` → redirige vers /agents.
+
+---
+
+## 6. System tray (STORY-151)
+
+### Menu contextuel
+
+3 items :
+1. **"Ouvrir Apollia OS"** — affiche/focus la fenetre principale
+2. **Compteur approbations** — desactive si 0, affiche "N approbations en attente" si > 0
+3. **"Quitter"** — arret graceful via `POST /api/v1/shutdown` puis `exit(0)`
+
+### Comportement fenetre
+
+- **Clic gauche sur l'icone tray** → toggle visibilite de la fenetre
+- **Fermeture fenetre** → masque la fenetre (intercepte `CloseRequested`, `prevent_close`). Le runtime continue en arriere-plan
+- **"Quitter" via tray** → arret graceful complet
+
+### Mise a jour dynamique
+
+Le frontend emet un evenement `tray-update` avec `{ active_agents, pending_approvals }` :
+- Tooltip formate en francais : "Apollia OS — 3 agents actifs, 2 approbations en attente" (singulier/pluriel)
+- Menu item approbations : texte et etat `enabled` mis a jour
+
+### Notifications natives
+
+Declenchees quand la fenetre est masquee + `TaskInputRequired` recu via SSE :
+- Titre : "Action requise — Apollia OS"
+- Corps : "Tache XXX attend votre approbation"
+- Clic → affiche la fenetre + navigue vers /approvals
+- Utilise `@tauri-apps/plugin-notification` (permission demandee au premier usage)
+
+---
+
+## 7. Build et packaging
+
+### 7.1 Formats de sortie
 
 | Plateforme | Format | Commande |
 |---|---|---|
 | macOS | `.dmg` + `.app` | `cargo tauri build` |
 | Linux | `.AppImage` + `.deb` | `cargo tauri build` |
 
-### 5.2 CI
+### 7.2 Configuration Tauri
+
+- Fenetre : 1280×800 par defaut, minimum 900×600
+- Plugins : `tauri-plugin-dialog` (file picker), `tauri-plugin-notification` (notifications natives)
+- Build : Vite dev server sur port 5173, frontend dist dans `ui/dist`
+
+### 7.3 CI
 
 Le workflow `.github/workflows/build-desktop.yml` se declenche sur les tags `v*` et produit les artefacts pour macOS (macos-latest) et Linux (ubuntu-latest).
 
-### 5.3 Installation
+### 7.4 Installation
 
 Voir la section "Installation application desktop" dans [INSTALL](./INSTALL.md).
 
 ---
 
-## 6. Coexistence CLI + Desktop
+## 8. Coexistence CLI + Desktop
 
 Les deux modes d'acces (CLI et Desktop) partagent le meme runtime :
 
@@ -211,7 +458,20 @@ Un seul processus, un seul Supervisor, un seul jeu d'acteurs Tokio. Pas de confl
 
 ---
 
-## 7. Decisions architecturales
+## 9. Attributs de test
+
+Elements `data-testid` sur les composants principaux pour les tests e2e :
+
+- Layout : `app-loading`, `app-main`, `sidebar`, `sidebar-logo`, `sidebar-nav`
+- Navigation : `nav-agents`, `nav-tasks`, `nav-approvals`, `nav-llm`, `nav-triggers`, `nav-pipelines`, `nav-memory`, `nav-notifications`, `nav-observability`, `nav-settings`
+- Groupes : `nav-group-operations`, `nav-group-infrastructure`, `nav-group-donnees`
+- Badges : `approvals-badge`, `connection-status`, `connection-dot`
+- Contenu : `agents-header`, `register-agent-btn`, `agents-grid`
+
+---
+
+## 10. Decisions architecturales
 
 - **ADR-027** — Processus unique Tauri + runtime embarque
 - **ADR-028** — Frontend Svelte : UX first, UI sprint dedie
+- **ADR-029** — Settings lecture seule (round-trip TOML detruirait les commentaires)

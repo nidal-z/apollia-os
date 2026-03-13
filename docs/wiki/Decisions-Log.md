@@ -596,5 +596,24 @@
 
 ---
 
+## ADR-029 — Settings lecture seule dans l'application desktop
+
+**Date :** 2026-03-13
+**Statut :** Accepté
+
+**Contexte :** Sprint 15 introduit la vue Settings dans l'application desktop (STORY-149). La question est de savoir si l'édition de `apollia.toml` doit être intégrée dans l'app ou déléguée à un éditeur externe.
+
+**Décision :** La vue Settings est lecture seule. L'édition est déléguée à l'éditeur natif du système via `open::that(config_path)`.
+
+**Alternatives considérées :**
+- Édition in-app avec `toml_edit` : Préserve les commentaires mais ajoute complexité, risque de bugs sur les cas edge du format TOML.
+- Édition partielle (quelques champs) : Surface de bugs, incohérence UX (certains champs éditables, d'autres non).
+
+**Conséquences :** L'utilisateur doit utiliser un éditeur externe. Redémarrage nécessaire pour appliquer les changements. Aucun risque de corruption du fichier TOML. Complexité frontend minimale.
+
+[Détail → docs/adr/ADR-029-settings-lecture-seule.md](adr/ADR-029-settings-lecture-seule.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

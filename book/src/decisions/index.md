@@ -33,3 +33,4 @@
 | ADR-026 | [ADR-026 — Observabilité complète : persistance, timeline, troncature](./adr-026-observabilite-complete-persistance-timeline-troncature.md) | Accepté |
 | ADR-027 | [ADR-027 — apollia-desktop : processus unique Tauri + runtime embarqué](./adr-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md) | Accepté |
 | ADR-028 | [ADR-028 — Frontend Svelte : UX first, UI sprint dédié](./adr-028-frontend-svelte-ux-first-ui-sprint-dedie.md) | Accepté |
+| ADR-029 | [ADR-029 — Settings lecture seule dans l'application desktop](./adr-029-settings-lecture-seule.md) | Accepté |
