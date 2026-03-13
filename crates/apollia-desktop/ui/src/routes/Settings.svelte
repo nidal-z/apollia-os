@@ -2,8 +2,9 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { currentRoute } from "$lib/stores/navigation";
+  import { showOnboarding } from "$lib/stores/onboarding";
   import { Button } from "$lib/components/ui/button";
-  import type { ApollaConfigView, ConfigSection } from "$lib/types";
+  import type { ApollaConfigView } from "$lib/types";
 
   let configView = $state<ApollaConfigView | null>(null);
   let loading = $state(true);
@@ -38,6 +39,7 @@
     resettingOnboarding = true;
     try {
       await invoke("reset_onboarding");
+      showOnboarding.set(true);
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
     } finally {

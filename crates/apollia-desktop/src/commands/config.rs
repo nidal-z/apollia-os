@@ -231,16 +231,47 @@ pub async fn open_config_in_editor() -> Result<(), String> {
     open::that(&path).map_err(|e| format!("failed to open editor: {e}"))
 }
 
+/// Résout le chemin du flag d'onboarding `~/.apollia/.onboarded`.
+fn onboarded_flag_path() -> PathBuf {
+    let home = std::env::var("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir());
+    home.join(".apollia").join(".onboarded")
+}
+
+/// Vérifie si l'onboarding a déjà été effectué.
+///
+/// Retourne `true` si le fichier `~/.apollia/.onboarded` existe.
+#[tauri::command]
+pub async fn check_onboarded() -> Result<bool, String> {
+    Ok(onboarded_flag_path().exists())
+}
+
+/// Marque l'onboarding comme terminé en créant le fichier flag.
+///
+/// Crée `~/.apollia/.onboarded` (et le répertoire parent si nécessaire).
+#[tauri::command]
+pub async fn mark_onboarded() -> Result<(), String> {
+    let flag_path = onboarded_flag_path();
+
+    if let Some(parent) = flag_path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("failed to create directory: {e}"))?;
+    }
+
+    tokio::fs::write(&flag_path, "")
+        .await
+        .map_err(|e| format!("failed to write onboarding flag: {e}"))
+}
+
 /// Supprime le flag d'onboarding complété pour permettre de revoir l'onboarding.
 ///
 /// Le flag est stocké dans `~/.apollia/.onboarded`. Sa suppression
 /// déclenche l'affichage de la modale d'onboarding au prochain lancement.
 #[tauri::command]
 pub async fn reset_onboarding() -> Result<(), String> {
-    let home = std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir());
-    let flag_path = home.join(".apollia").join(".onboarded");
+    let flag_path = onboarded_flag_path();
 
     if flag_path.exists() {
         tokio::fs::remove_file(&flag_path)
@@ -249,6 +280,63 @@ pub async fn reset_onboarding() -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Vérifie si Python 3 est disponible sur le système.
+///
+/// Exécute `python3 --version` et retourne `true` si la commande réussit.
+#[tauri::command]
+pub async fn check_python() -> Result<bool, String> {
+    let result = tokio::process::Command::new("python3")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .await;
+
+    match result {
+        Ok(status) => Ok(status.success()),
+        Err(_) => Ok(false),
+    }
+}
+
+/// Vérifie si au moins un backend LLM est configuré.
+///
+/// Délègue à `GET /api/v1/llm/status` sur l'API REST interne et
+/// retourne `true` si au moins un backend est disponible.
+#[tauri::command]
+pub async fn check_llm_configured(
+    state: tauri::State<'_, apollia_runtime::embedded::RuntimeHandle>,
+) -> Result<bool, String> {
+    let json = super::http_get_json(state.api_port, "/api/v1/llm/status").await;
+
+    match json {
+        Ok(resp) => {
+            let has_backends = resp
+                .get("backends")
+                .and_then(|v| v.as_array())
+                .map(|arr| !arr.is_empty())
+                .unwrap_or(false);
+            Ok(has_backends)
+        }
+        Err(_) => Ok(false),
+    }
+}
+
+/// Vérifie si `hello_agent.py` existe dans le répertoire `agents/`.
+///
+/// Cherche dans le répertoire de travail courant.
+/// Retourne le chemin absolu si trouvé, sinon `None`.
+#[tauri::command]
+pub async fn check_hello_agent_exists() -> Result<Option<String>, String> {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let path = cwd.join("agents").join("hello_agent.py");
+
+    if path.exists() {
+        Ok(Some(path.display().to_string()))
+    } else {
+        Ok(None)
+    }
 }
 
 #[cfg(test)]
@@ -261,6 +349,15 @@ mod tests {
         let path = default_config_path();
         // THEN it ends with apollia.toml inside .apollia directory
         assert!(path.ends_with("apollia.toml"));
+        assert!(path.to_string_lossy().contains(".apollia"));
+    }
+
+    #[test]
+    fn test_onboarded_flag_path_ends_with_onboarded() {
+        // GIVEN the onboarded flag path
+        let path = onboarded_flag_path();
+        // THEN it ends with .onboarded inside .apollia directory
+        assert!(path.ends_with(".onboarded"));
         assert!(path.to_string_lossy().contains(".apollia"));
     }
 

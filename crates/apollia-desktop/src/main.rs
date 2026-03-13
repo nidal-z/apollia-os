@@ -55,6 +55,11 @@ fn main() {
             commands::config::get_config,
             commands::config::open_config_in_editor,
             commands::config::reset_onboarding,
+            commands::config::check_onboarded,
+            commands::config::mark_onboarded,
+            commands::config::check_python,
+            commands::config::check_llm_configured,
+            commands::config::check_hello_agent_exists,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

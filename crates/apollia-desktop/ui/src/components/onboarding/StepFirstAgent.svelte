@@ -1,0 +1,131 @@
+<script lang="ts">
+  import { invoke } from "@tauri-apps/api/core";
+  import { open } from "@tauri-apps/plugin-dialog";
+  import { onMount } from "svelte";
+  import { Button } from "$lib/components/ui/button";
+
+  interface Props {
+    onAgentStarted: (agentId: string) => void;
+    onSkip: () => void;
+  }
+
+  let { onAgentStarted, onSkip }: Props = $props();
+
+  let helloAgentPath = $state<string | null>(null);
+  let selectedPath = $state<string | null>(null);
+  let loading = $state(false);
+  let error = $state<string | null>(null);
+  let started = $state(false);
+  let agentId = $state<string | null>(null);
+
+  async function checkHelloAgent() {
+    try {
+      const result = await invoke<string | null>("check_hello_agent_exists");
+      helloAgentPath = result;
+    } catch {
+      helloAgentPath = null;
+    }
+  }
+
+  async function pickFile() {
+    const file = await open({
+      title: "Select a Python agent file",
+      filters: [{ name: "Python", extensions: ["py"] }],
+      multiple: false,
+    });
+    if (file) {
+      selectedPath = file as string;
+      await startAgent(selectedPath);
+    }
+  }
+
+  async function useHelloAgent() {
+    if (helloAgentPath) {
+      selectedPath = helloAgentPath;
+      await startAgent(helloAgentPath);
+    }
+  }
+
+  async function startAgent(path: string) {
+    loading = true;
+    error = null;
+    try {
+      const id = await invoke<string>("start_agent", { path });
+      agentId = id;
+      started = true;
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : String(err);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function retry() {
+    if (selectedPath) {
+      await startAgent(selectedPath);
+    }
+  }
+
+  onMount(() => {
+    checkHelloAgent();
+  });
+</script>
+
+<div class="space-y-6">
+  <div>
+    <h2 class="text-xl font-semibold">Start your first agent</h2>
+    <p class="mt-1 text-sm text-muted-foreground">
+      An agent is a Python script with a <code class="rounded bg-muted px-1 font-mono text-xs">manifest()</code> and
+      an async <code class="rounded bg-muted px-1 font-mono text-xs">run()</code> function.
+      Select a <code class="rounded bg-muted px-1 font-mono text-xs">.py</code> file to get started.
+    </p>
+  </div>
+
+  {#if !started}
+    <div class="flex flex-col items-center gap-4 rounded-lg border border-dashed bg-card p-8">
+      <Button onclick={pickFile} disabled={loading}>
+        {loading ? "Starting..." : "Choose a .py file"}
+      </Button>
+
+      {#if helloAgentPath}
+        <div class="text-center">
+          <p class="mb-2 text-xs text-muted-foreground">or</p>
+          <Button variant="outline" size="sm" onclick={useHelloAgent} disabled={loading}>
+            Use hello_agent
+          </Button>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
+  {#if loading}
+    <div class="flex items-center gap-3 rounded-lg border bg-card p-4">
+      <span class="inline-block h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></span>
+      <p class="text-sm text-muted-foreground">Starting agent...</p>
+    </div>
+  {/if}
+
+  {#if error}
+    <div class="rounded-lg border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 p-4">
+      <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
+      <Button variant="outline" size="sm" class="mt-3" onclick={retry}>Retry</Button>
+    </div>
+  {/if}
+
+  {#if started && agentId}
+    <div class="flex items-center gap-3 rounded-lg border border-[var(--apollia-success)] bg-[var(--apollia-success)]/10 p-4">
+      <span class="text-lg text-[var(--apollia-success)]">&#10003;</span>
+      <div>
+        <p class="text-sm font-medium">Agent started successfully</p>
+        <p class="text-xs text-muted-foreground font-mono">{agentId}</p>
+      </div>
+    </div>
+  {/if}
+
+  <div class="flex justify-end gap-3">
+    <Button variant="ghost" onclick={onSkip}>Skip</Button>
+    {#if started && agentId}
+      <Button onclick={() => onAgentStarted(agentId ?? "")}>Continue</Button>
+    {/if}
+  </div>
+</div>
