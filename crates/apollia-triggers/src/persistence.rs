@@ -44,6 +44,10 @@ pub struct TriggerHistoryEntry {
     pub status: String,
     /// Raison du skip ou de l'erreur — `None` si `status` est `"fired"`.
     pub reason: Option<String>,
+    /// Payload JSON complet du trigger — `None` si absent (timer sans payload).
+    pub payload_json: Option<String>,
+    /// Temps de dispatch en millisecondes (réception trigger → soumission tâche).
+    pub dispatch_ms: Option<i64>,
 }
 
 /// État courant d'un trigger dans `trigger_state`.
@@ -84,24 +88,50 @@ impl TriggerPersistence {
         conn.execute_batch(include_str!(
             "../../apollia-tools/migrations/003_trigger_tables.sql"
         ))?;
+        // Migration STORY-130 : ajout payload_json et dispatch_ms
+        // Chaque ALTER TABLE est exécuté individuellement : si la colonne existe
+        // déjà (duplicate column name), on ignore l'erreur silencieusement.
+        for col_sql in [
+            "ALTER TABLE trigger_history ADD COLUMN payload_json TEXT",
+            "ALTER TABLE trigger_history ADD COLUMN dispatch_ms INTEGER",
+        ] {
+            match conn.execute_batch(col_sql) {
+                Ok(()) => {}
+                Err(e) if e.to_string().contains("duplicate column name") => {
+                    // Colonne déjà présente — idempotent, rien à faire.
+                }
+                Err(e) => return Err(TriggerPersistenceError::Database(e)),
+            }
+        }
         Ok(Self { conn })
     }
 
     /// Persiste un fire réussi dans `trigger_history` et incrémente `fire_count`.
     ///
     /// Met également à jour `trigger_state.last_fired` avec `fired_at`.
+    /// `payload_json` et `dispatch_ms` sont optionnels pour la rétrocompatibilité.
     pub fn record_fired(
         &mut self,
         trigger_id: &str,
         agent_name: &str,
         task_id: &str,
         fired_at: DateTime<Utc>,
+        payload_json: Option<&str>,
+        dispatch_ms: Option<i64>,
     ) -> Result<(), TriggerPersistenceError> {
         let fired_at_str = fired_at.to_rfc3339();
         self.conn.execute(
-            "INSERT INTO trigger_history (trigger_id, agent_name, fired_at, task_id, status) \
-             VALUES (?1, ?2, ?3, ?4, 'fired')",
-            params![trigger_id, agent_name, fired_at_str, task_id],
+            "INSERT INTO trigger_history \
+             (trigger_id, agent_name, fired_at, task_id, status, payload_json, dispatch_ms) \
+             VALUES (?1, ?2, ?3, ?4, 'fired', ?5, ?6)",
+            params![
+                trigger_id,
+                agent_name,
+                fired_at_str,
+                task_id,
+                payload_json,
+                dispatch_ms
+            ],
         )?;
         self.conn.execute(
             "INSERT INTO trigger_state (trigger_id, last_fired, fire_count, skip_count) \
@@ -115,18 +145,22 @@ impl TriggerPersistence {
     }
 
     /// Persiste un skip (`on_busy=drop`) dans `trigger_history` et incrémente `skip_count`.
+    ///
+    /// `payload_json` est optionnel — permet de tracer le payload même en cas de skip.
     pub fn record_skipped(
         &mut self,
         trigger_id: &str,
         agent_name: &str,
         reason: &str,
         fired_at: DateTime<Utc>,
+        payload_json: Option<&str>,
     ) -> Result<(), TriggerPersistenceError> {
         let fired_at_str = fired_at.to_rfc3339();
         self.conn.execute(
-            "INSERT INTO trigger_history (trigger_id, agent_name, fired_at, task_id, status, reason) \
-             VALUES (?1, ?2, ?3, NULL, 'skipped', ?4)",
-            params![trigger_id, agent_name, fired_at_str, reason],
+            "INSERT INTO trigger_history \
+             (trigger_id, agent_name, fired_at, task_id, status, reason, payload_json) \
+             VALUES (?1, ?2, ?3, NULL, 'skipped', ?4, ?5)",
+            params![trigger_id, agent_name, fired_at_str, reason, payload_json],
         )?;
         self.conn.execute(
             "INSERT INTO trigger_state (trigger_id, fire_count, skip_count) \
@@ -139,18 +173,22 @@ impl TriggerPersistence {
     }
 
     /// Persiste une erreur de soumission au `TaskRouter` dans `trigger_history`.
+    ///
+    /// `payload_json` est optionnel — permet de tracer le payload même en cas d'erreur.
     pub fn record_error(
         &mut self,
         trigger_id: &str,
         agent_name: &str,
         error: &str,
         fired_at: DateTime<Utc>,
+        payload_json: Option<&str>,
     ) -> Result<(), TriggerPersistenceError> {
         let fired_at_str = fired_at.to_rfc3339();
         self.conn.execute(
-            "INSERT INTO trigger_history (trigger_id, agent_name, fired_at, task_id, status, reason) \
-             VALUES (?1, ?2, ?3, NULL, 'error', ?4)",
-            params![trigger_id, agent_name, fired_at_str, error],
+            "INSERT INTO trigger_history \
+             (trigger_id, agent_name, fired_at, task_id, status, reason, payload_json) \
+             VALUES (?1, ?2, ?3, NULL, 'error', ?4, ?5)",
+            params![trigger_id, agent_name, fired_at_str, error, payload_json],
         )?;
         Ok(())
     }
@@ -162,7 +200,8 @@ impl TriggerPersistence {
         limit: usize,
     ) -> Result<Vec<TriggerHistoryEntry>, TriggerPersistenceError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, trigger_id, agent_name, fired_at, task_id, status, reason \
+            "SELECT id, trigger_id, agent_name, fired_at, task_id, status, reason, \
+                    payload_json, dispatch_ms \
              FROM trigger_history \
              WHERE trigger_id = ?1 \
              ORDER BY fired_at DESC \
@@ -179,6 +218,8 @@ impl TriggerPersistence {
                 task_id: row.get(4)?,
                 status: row.get(5)?,
                 reason: row.get(6)?,
+                payload_json: row.get(7)?,
+                dispatch_ms: row.get(8)?,
             })
         })?;
 
@@ -195,6 +236,8 @@ impl TriggerPersistence {
                 task_id: row.task_id,
                 status: row.status,
                 reason: row.reason,
+                payload_json: row.payload_json,
+                dispatch_ms: row.dispatch_ms,
             });
         }
         Ok(entries)
@@ -258,6 +301,8 @@ struct RawHistoryRow {
     task_id: Option<String>,
     status: String,
     reason: Option<String>,
+    payload_json: Option<String>,
+    dispatch_ms: Option<i64>,
 }
 
 /// Ligne brute de `trigger_state` telle que lue depuis SQLite.
@@ -302,7 +347,14 @@ mod tests {
         let (_dir, mut persistence) = open_test_db();
         // WHEN
         persistence
-            .record_fired("rapport-hebdo", "rapport-agent", "task-001", Utc::now())
+            .record_fired(
+                "rapport-hebdo",
+                "rapport-agent",
+                "task-001",
+                Utc::now(),
+                None,
+                None,
+            )
             .unwrap();
         // THEN — entrée dans trigger_history
         let entries = persistence.query_history("rapport-hebdo", 10).unwrap();
@@ -323,7 +375,7 @@ mod tests {
         let (_dir, mut persistence) = open_test_db();
         // WHEN
         persistence
-            .record_skipped("crm-sync", "crm-agent", "agent busy", Utc::now())
+            .record_skipped("crm-sync", "crm-agent", "agent busy", Utc::now(), None)
             .unwrap();
         // THEN
         let entries = persistence.query_history("crm-sync", 10).unwrap();
@@ -348,6 +400,7 @@ mod tests {
                 "facture-agent",
                 "submit failed: agent not found",
                 Utc::now(),
+                None,
             )
             .unwrap();
         // THEN
@@ -371,7 +424,14 @@ mod tests {
         for i in 0..5u64 {
             let t = base + chrono::Duration::seconds(i as i64);
             persistence
-                .record_fired("rapport-hebdo", "agent", &format!("task-{i}"), t)
+                .record_fired(
+                    "rapport-hebdo",
+                    "agent",
+                    &format!("task-{i}"),
+                    t,
+                    None,
+                    None,
+                )
                 .unwrap();
         }
         // WHEN — limit = 3
@@ -402,7 +462,14 @@ mod tests {
         // WHEN — 3 fires
         for i in 0..3u64 {
             persistence
-                .record_fired("my-trigger", "my-agent", &format!("task-{i}"), Utc::now())
+                .record_fired(
+                    "my-trigger",
+                    "my-agent",
+                    &format!("task-{i}"),
+                    Utc::now(),
+                    None,
+                    None,
+                )
                 .unwrap();
         }
         // THEN — fire_count = 3
@@ -423,5 +490,114 @@ mod tests {
         let result = TriggerPersistence::open(&path);
         // THEN
         assert!(result.is_ok());
+    }
+
+    // ── STORY-130 — payload_json + dispatch_ms ──────────────────────────────
+
+    #[test]
+    fn test_trigger_payload_persisted() {
+        // GIVEN un TriggerPersistence in-memory
+        let (_dir, mut persistence) = open_test_db();
+        // WHEN record_fired avec payload_json
+        persistence
+            .record_fired(
+                "trg-1",
+                "agent-x",
+                "t-123",
+                Utc::now(),
+                Some(r#"{"key":"val"}"#),
+                Some(45),
+            )
+            .unwrap();
+        // THEN payload_json est persisté
+        let entries = persistence.query_history("trg-1", 10).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].payload_json.as_deref(), Some(r#"{"key":"val"}"#));
+    }
+
+    #[test]
+    fn test_trigger_task_id_recorded() {
+        // GIVEN un fire réussi
+        let (_dir, mut persistence) = open_test_db();
+        // WHEN record_fired avec task_id = "t-abc"
+        persistence
+            .record_fired("trg-2", "agent-y", "t-abc", Utc::now(), None, None)
+            .unwrap();
+        // THEN task_id est persisté
+        let entries = persistence.query_history("trg-2", 10).unwrap();
+        assert_eq!(entries[0].task_id, Some("t-abc".into()));
+    }
+
+    #[test]
+    fn test_trigger_dispatch_ms_measured() {
+        // GIVEN un fire
+        let (_dir, mut persistence) = open_test_db();
+        // WHEN record_fired avec dispatch_ms = 45
+        persistence
+            .record_fired("trg-3", "agent-z", "t-456", Utc::now(), None, Some(45))
+            .unwrap();
+        // THEN dispatch_ms est persisté
+        let entries = persistence.query_history("trg-3", 10).unwrap();
+        assert_eq!(entries[0].dispatch_ms, Some(45));
+    }
+
+    #[test]
+    fn test_trigger_payload_none_when_absent() {
+        // GIVEN un fire sans payload
+        let (_dir, mut persistence) = open_test_db();
+        // WHEN record_fired sans payload_json ni dispatch_ms
+        persistence
+            .record_fired("trg-4", "agent-w", "t-789", Utc::now(), None, None)
+            .unwrap();
+        // THEN les champs sont None
+        let entries = persistence.query_history("trg-4", 10).unwrap();
+        assert!(entries[0].payload_json.is_none());
+        assert!(entries[0].dispatch_ms.is_none());
+    }
+
+    #[test]
+    fn test_skipped_with_payload() {
+        // GIVEN un skip avec payload
+        let (_dir, mut persistence) = open_test_db();
+        // WHEN record_skipped avec payload_json
+        persistence
+            .record_skipped(
+                "trg-5",
+                "agent-v",
+                "agent busy",
+                Utc::now(),
+                Some(r#"{"action":"sync"}"#),
+            )
+            .unwrap();
+        // THEN payload_json est persisté, dispatch_ms est None (pas de dispatch pour un skip)
+        let entries = persistence.query_history("trg-5", 10).unwrap();
+        assert_eq!(
+            entries[0].payload_json.as_deref(),
+            Some(r#"{"action":"sync"}"#)
+        );
+        assert!(entries[0].dispatch_ms.is_none());
+    }
+
+    #[test]
+    fn test_error_with_payload() {
+        // GIVEN une erreur avec payload
+        let (_dir, mut persistence) = open_test_db();
+        // WHEN record_error avec payload_json
+        persistence
+            .record_error(
+                "trg-6",
+                "agent-u",
+                "submit failed",
+                Utc::now(),
+                Some(r#"{"data":"test"}"#),
+            )
+            .unwrap();
+        // THEN payload_json est persisté
+        let entries = persistence.query_history("trg-6", 10).unwrap();
+        assert_eq!(
+            entries[0].payload_json.as_deref(),
+            Some(r#"{"data":"test"}"#)
+        );
+        assert!(entries[0].dispatch_ms.is_none());
     }
 }

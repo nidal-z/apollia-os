@@ -20,7 +20,7 @@ use std::time::Duration;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
-use apollia_core::{AIPInput, TaskId};
+use apollia_core::{AIPInput, ObservabilityConfig, TaskId};
 use apollia_runtime::{
     api::routes_agents::StubAgentLoader, api::APIServer, api::APIServerConfig,
     api::APIServerHandle, api::AppState, coordinator::DynBackend, coordinator::ExecutionBackend,
@@ -139,7 +139,7 @@ async fn build_webhook_state(
 
     let (mock_submitter, submit_count) = MockTaskSubmitter::new();
     let engine_handle =
-        TriggerEngineHandle::spawn(defs, mock_submitter, event_sender.clone(), None, None).await;
+        TriggerEngineHandle::spawn(defs, mock_submitter, event_sender.clone(), None, None, ObservabilityConfig::default()).await;
 
     let state = AppState {
         router_handle,

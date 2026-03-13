@@ -129,7 +129,7 @@ impl std::fmt::Display for FileEventKind {
 }
 
 /// Payload brut attaché à un [`TriggerEvent`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub enum TriggerPayload {
     /// Payload d'un déclencheur temporel (cron, interval, oneshot).
     Timer {

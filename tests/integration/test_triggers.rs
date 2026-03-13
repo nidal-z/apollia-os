@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use apollia_core::{AIPInput, EventBusSender, RuntimeEvent, TaskId};
+use apollia_core::{AIPInput, EventBusSender, ObservabilityConfig, RuntimeEvent, TaskId};
 use apollia_triggers::{
     FileEventKind, InputTemplate, OnBusyPolicy, TaskSubmitter, TriggerDefinition,
     TriggerEngineHandle, TriggerSourceConfig,
@@ -108,7 +108,7 @@ async fn test_ac1_interval_trigger_submits_tasks() {
     let (mock_router, submit_count) = MockTaskSubmitter::new();
     let bus_tx = make_bus();
     let def = interval_def("fast-trigger", "200ms", OnBusyPolicy::Queue);
-    let _handle = TriggerEngineHandle::spawn(vec![def], mock_router, bus_tx, None, None).await;
+    let _handle = TriggerEngineHandle::spawn(vec![def], mock_router, bus_tx, None, None, ObservabilityConfig::default()).await;
 
     // WHEN — attendre 700 ms (3,5× l'intervalle)
     tokio::time::sleep(Duration::from_millis(700)).await;
@@ -142,7 +142,7 @@ async fn test_ac2_file_watch_create_submits_task() {
         },
         input_template: InputTemplate("file: {{filename}}".into()),
     };
-    let _handle = TriggerEngineHandle::spawn(vec![def], mock_router, bus_tx, None, None).await;
+    let _handle = TriggerEngineHandle::spawn(vec![def], mock_router, bus_tx, None, None, ObservabilityConfig::default()).await;
 
     // Laisser le watcher s'initialiser
     tokio::time::sleep(Duration::from_millis(300)).await;
@@ -178,7 +178,7 @@ async fn test_ac5_on_busy_drop_skips_and_emits_event() {
     let bus_tx = tokio::sync::broadcast::channel::<RuntimeEvent>(64).0;
     let mut bus_rx = bus_tx.subscribe();
     let def = interval_def("drop-trigger", "1h", OnBusyPolicy::Drop);
-    let handle = TriggerEngineHandle::spawn(vec![def], mock_router, bus_tx, None, None).await;
+    let handle = TriggerEngineHandle::spawn(vec![def], mock_router, bus_tx, None, None, ObservabilityConfig::default()).await;
 
     // WHEN — fire_now force le déclenchement (ignoré car agent occupé + Drop)
     let _ = handle.fire_now("drop-trigger").await;
@@ -219,7 +219,7 @@ async fn test_ac6_on_busy_queue_submits_task_when_agent_busy() {
     let (mock_router, submit_count) = MockTaskSubmitter::new_busy();
     let bus_tx = make_bus();
     let def = interval_def("queue-trigger", "1h", OnBusyPolicy::Queue);
-    let handle = TriggerEngineHandle::spawn(vec![def], mock_router, bus_tx, None, None).await;
+    let handle = TriggerEngineHandle::spawn(vec![def], mock_router, bus_tx, None, None, ObservabilityConfig::default()).await;
 
     // WHEN — fire_now force le déclenchement
     let result = handle.fire_now("queue-trigger").await;

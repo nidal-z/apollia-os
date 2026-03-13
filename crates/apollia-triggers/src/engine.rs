@@ -15,11 +15,15 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Instant;
 
 use chrono::{DateTime, Utc};
 use tokio::sync::{mpsc, oneshot};
 
-use apollia_core::{AIPInput, AIPPart, EventBusSender, RuntimeEvent, TaskId, TextPart};
+use apollia_core::{
+    truncate_with_marker, AIPInput, AIPPart, EventBusSender, ObservabilityConfig, RuntimeEvent,
+    TaskId, TextPart,
+};
 use apollia_pipelines::engine::PipelineEngineHandle;
 
 use crate::persistence::TriggerPersistence;
@@ -194,6 +198,8 @@ struct TriggerEngine {
     last_fired: HashMap<String, DateTime<Utc>>,
     /// Persistance SQLite — `None` si non configurée (ex : tests unitaires).
     persistence: Option<TriggerPersistence>,
+    /// Configuration d'observabilité pour la troncature des payloads.
+    obs_config: ObservabilityConfig,
 }
 
 impl TriggerEngine {
@@ -202,6 +208,7 @@ impl TriggerEngine {
     /// `persistence` : `None` désactive la persistance SQLite (utile pour les tests unitaires).
     /// `pipeline_engine` : `None` désactive le dispatch vers les pipelines — un trigger
     /// avec `pipeline` émettra `TriggerSkipped` au lieu de paniquer (AC-3 STORY-117).
+    /// `obs_config` : configuration d'observabilité pour la troncature des payloads.
     /// Les sources dans `definitions` sont actuellement des stubs no-op (STORY-067/068).
     pub async fn start<S: TaskSubmitter>(
         definitions: Vec<TriggerDefinition>,
@@ -209,6 +216,7 @@ impl TriggerEngine {
         event_bus: EventBusSender,
         persistence: Option<TriggerPersistence>,
         pipeline_engine: Option<PipelineEngineHandle>,
+        obs_config: ObservabilityConfig,
     ) -> TriggerEngineHandle {
         let (event_tx, event_rx) = mpsc::channel::<TriggerEvent>(256);
         let (cmd_tx, cmd_rx) = mpsc::channel::<TriggerCommand>(64);
@@ -231,6 +239,7 @@ impl TriggerEngine {
             skip_counts: HashMap::new(),
             last_fired: HashMap::new(),
             persistence,
+            obs_config,
         };
 
         tokio::spawn(engine.run_loop(event_rx, cmd_rx));
@@ -512,15 +521,17 @@ impl TriggerEngine {
             parts: vec![AIPPart::Text(TextPart { text })],
         };
 
-        // 4. Soumettre la tâche
+        // 4. Soumettre la tâche — mesure du dispatch_ms
+        let dispatch_start = Instant::now();
         match self.task_router.submit(&def.agent, input).await {
             Ok(task_id) => {
+                let dispatch_ms = dispatch_start.elapsed().as_millis() as i64;
                 let _ = self.event_bus.send(RuntimeEvent::TriggerFired {
                     trigger_id: event.trigger_id.clone(),
                     agent: def.agent.clone(),
                     task_id: task_id.clone(),
                 });
-                self.persist_fired(&event, &task_id).await;
+                self.persist_fired(&event, &task_id, dispatch_ms).await;
                 *self
                     .fire_counts
                     .entry(event.trigger_id.clone())
@@ -632,17 +643,30 @@ impl TriggerEngine {
         }
     }
 
+    /// Sérialise le payload du trigger en JSON et tronque si nécessaire.
+    ///
+    /// Retourne `None` si la sérialisation échoue (ne devrait pas arriver,
+    /// `TriggerPayload` implémente `Serialize`).
+    fn serialize_payload(&self, payload: &TriggerPayload) -> Option<String> {
+        let json = serde_json::to_string(payload).ok()?;
+        let (truncated, _) = truncate_with_marker(&json, self.obs_config.max_input_bytes);
+        Some(truncated)
+    }
+
     /// Persiste un fire réussi dans `trigger_history` via [`TriggerPersistence`].
     ///
     /// Si la persistance n'est pas configurée ou échoue, un avertissement est loggué
     /// sans interrompre le traitement (fire-and-forget).
-    async fn persist_fired(&mut self, event: &TriggerEvent, task_id: &TaskId) {
+    async fn persist_fired(&mut self, event: &TriggerEvent, task_id: &TaskId, dispatch_ms: i64) {
+        let payload_json = self.serialize_payload(&event.payload);
         if let Some(p) = self.persistence.as_mut() {
             if let Err(e) = p.record_fired(
                 &event.trigger_id,
                 &event.agent,
                 task_id.as_ref(),
                 event.fired_at,
+                payload_json.as_deref(),
+                Some(dispatch_ms),
             ) {
                 tracing::warn!(
                     trigger = %event.trigger_id,
@@ -657,10 +681,15 @@ impl TriggerEngine {
 
     /// Persiste un skip dans `trigger_history` via [`TriggerPersistence`].
     async fn persist_skipped(&mut self, event: &TriggerEvent, reason: &str) {
+        let payload_json = self.serialize_payload(&event.payload);
         if let Some(p) = self.persistence.as_mut() {
-            if let Err(e) =
-                p.record_skipped(&event.trigger_id, &event.agent, reason, event.fired_at)
-            {
+            if let Err(e) = p.record_skipped(
+                &event.trigger_id,
+                &event.agent,
+                reason,
+                event.fired_at,
+                payload_json.as_deref(),
+            ) {
                 tracing::warn!(
                     trigger = %event.trigger_id,
                     error = %e,
@@ -717,8 +746,15 @@ impl TriggerEngine {
 
     /// Persiste une erreur de soumission dans `trigger_history` via [`TriggerPersistence`].
     async fn persist_error(&mut self, event: &TriggerEvent, error: &str) {
+        let payload_json = self.serialize_payload(&event.payload);
         if let Some(p) = self.persistence.as_mut() {
-            if let Err(e) = p.record_error(&event.trigger_id, &event.agent, error, event.fired_at) {
+            if let Err(e) = p.record_error(
+                &event.trigger_id,
+                &event.agent,
+                error,
+                event.fired_at,
+                payload_json.as_deref(),
+            ) {
                 tracing::warn!(
                     trigger = %event.trigger_id,
                     error = %e,
@@ -763,6 +799,7 @@ impl TriggerEngineHandle {
     /// `persistence` : `None` désactive la persistance SQLite (ex : tests, démonstrations).
     /// `pipeline_engine` : `None` désactive le dispatch pipeline — triggers avec `pipeline`
     /// émettront `TriggerSkipped` au lieu de paniquer (AC-3 STORY-117).
+    /// `obs_config` : configuration d'observabilité pour la troncature des payloads.
     /// Équivalent à `TriggerEngine::start` — exposé ici pour une API publique cohérente.
     pub async fn spawn<S: TaskSubmitter>(
         definitions: Vec<TriggerDefinition>,
@@ -770,6 +807,7 @@ impl TriggerEngineHandle {
         event_bus: EventBusSender,
         persistence: Option<TriggerPersistence>,
         pipeline_engine: Option<PipelineEngineHandle>,
+        obs_config: ObservabilityConfig,
     ) -> Self {
         TriggerEngine::start(
             definitions,
@@ -777,6 +815,7 @@ impl TriggerEngineHandle {
             event_bus,
             persistence,
             pipeline_engine,
+            obs_config,
         )
         .await
     }
@@ -1075,7 +1114,15 @@ mod tests {
         // GIVEN une liste vide de TriggerDefinition
         let (router, _) = MockTaskRouterHandle::new();
         // WHEN
-        let handle = TriggerEngine::start(vec![], router, make_bus(), None, None).await;
+        let handle = TriggerEngine::start(
+            vec![],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
         // THEN list() retourne un vec vide
         let list = handle.list().await;
         assert!(list.is_empty(), "liste attendue vide, got {:?}", list);
@@ -1088,7 +1135,15 @@ mod tests {
         // GIVEN un trigger avec OnBusyPolicy::Queue et un mock en succès
         let def = make_definition("test-trigger", OnBusyPolicy::Queue);
         let (router, calls) = MockTaskRouterHandle::new_with_tracking();
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
         // WHEN
         handle
             .fire_now("test-trigger")
@@ -1106,7 +1161,15 @@ mod tests {
         // GIVEN un trigger Drop et un agent occupé (pending_count = 1)
         let def = make_definition("busy-trigger", OnBusyPolicy::Drop);
         let (router, calls) = MockTaskRouterHandle::new_with_pending(1);
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
         // WHEN
         let result = handle.fire_now("busy-trigger").await;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -1131,7 +1194,15 @@ mod tests {
         // GIVEN un trigger enregistré
         let def = make_definition("rapport-hebdo", OnBusyPolicy::Queue);
         let (router, _) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
         // WHEN
         let result = handle.fire_now("rapport-hebdo").await;
         // THEN Ok(task_id)
@@ -1142,7 +1213,15 @@ mod tests {
     async fn test_ac4_fire_now_unknown_id_returns_error() {
         // GIVEN aucun trigger enregistré
         let (router, _) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(vec![], router, make_bus(), None, None).await;
+        let handle = TriggerEngine::start(
+            vec![],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
         // WHEN
         let result = handle.fire_now("unknown-trigger").await;
         // THEN NotFound
@@ -1160,7 +1239,15 @@ mod tests {
         // GIVEN un trigger actif
         let def = make_definition("factures", OnBusyPolicy::Drop);
         let (router, _) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
 
         // WHEN disable
         handle.disable("factures").await.expect("disable failed");
@@ -1182,7 +1269,15 @@ mod tests {
         // GIVEN un trigger qui échoue toujours à la soumission
         let def = make_definition("failing-trigger", OnBusyPolicy::Queue);
         let (router, _) = MockTaskRouterHandle::new_always_fail();
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
 
         // WHEN — ne doit pas paniquer
         let result = handle.fire_now("failing-trigger").await;
@@ -1206,7 +1301,15 @@ mod tests {
         // GIVEN un trigger
         let def = make_definition("compteur", OnBusyPolicy::Queue);
         let (router, _) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
 
         // WHEN fire × 2
         handle
@@ -1238,7 +1341,15 @@ mod tests {
         // GIVEN un moteur avec 1 trigger
         let def1 = make_definition("trigger-1", OnBusyPolicy::Queue);
         let (router, _) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(vec![def1], router, make_bus(), None, None).await;
+        let handle = TriggerEngine::start(
+            vec![def1],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
         assert_eq!(handle.list().await.len(), 1);
 
         // WHEN reload avec 2 nouveaux triggers
@@ -1264,7 +1375,15 @@ mod tests {
         // GIVEN un bus avec subscriber actif
         let (bus_tx, mut bus_rx) = broadcast::channel::<apollia_core::RuntimeEvent>(64);
         let (router, _) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(vec![], router, bus_tx, None, None).await;
+        let handle = TriggerEngine::start(
+            vec![],
+            router,
+            bus_tx,
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
 
         // WHEN reload avec 1 trigger activé
         let def = make_definition("new-trigger", OnBusyPolicy::Queue);
@@ -1300,7 +1419,15 @@ mod tests {
         let def = make_pipeline_definition("factures-auto", "traitement-facture");
         let (bus_tx, mut bus_rx) = broadcast::channel::<apollia_core::RuntimeEvent>(64);
         let (router, task_calls) = MockTaskRouterHandle::new();
-        let handle = TriggerEngine::start(vec![def], router, bus_tx, None, None).await;
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            bus_tx,
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
 
         // WHEN le trigger fire
         let result = handle.fire_now("factures-auto").await;
@@ -1350,7 +1477,15 @@ mod tests {
         // GIVEN trigger existant avec agent="hello-agent" (pipeline = None)
         let def = make_definition("rapport-hebdo", OnBusyPolicy::Queue);
         let (router, calls) = MockTaskRouterHandle::new_with_tracking();
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
 
         // WHEN fire
         let result = handle.fire_now("rapport-hebdo").await;
@@ -1376,7 +1511,15 @@ mod tests {
         assert!(def.pipeline.is_none());
 
         let (router, calls) = MockTaskRouterHandle::new_with_tracking();
-        let handle = TriggerEngine::start(vec![def], router, make_bus(), None, None).await;
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
 
         // WHEN fire
         handle

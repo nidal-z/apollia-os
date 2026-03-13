@@ -498,7 +498,7 @@ mod tests {
 
         let trigger_engine = if with_engine {
             Some(
-                TriggerEngineHandle::spawn(vec![], MockSubmitter, event_tx.clone(), None, None)
+                TriggerEngineHandle::spawn(vec![], MockSubmitter, event_tx.clone(), None, None, apollia_core::ObservabilityConfig::default())
                     .await,
             )
         } else {

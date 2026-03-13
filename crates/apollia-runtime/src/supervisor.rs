@@ -372,6 +372,7 @@ impl Supervisor {
             event_sender.clone(),
             trigger_persistence,
             None, // PipelineEngine injecté après son démarrage — résout dépendance circulaire
+            apollia_core::ObservabilityConfig::default(),
         )
         .await;
         tracing::info!(
