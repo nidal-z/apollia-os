@@ -247,6 +247,7 @@ name = "apollia-desktop"
 version = "0.1.0"
 dependencies = [
  "apollia-core",
+ "apollia-memory",
  "apollia-runtime",
  "apollia-tools",
  "http-body-util",

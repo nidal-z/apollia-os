@@ -8,6 +8,7 @@ license = "MIT"
 [dependencies]
 apollia-runtime = { workspace = true }
 apollia-core   = { workspace = true }
+apollia-memory = { workspace = true }
 apollia-tools  = { workspace = true }
 serde          = { workspace = true }
 serde_json     = { workspace = true }

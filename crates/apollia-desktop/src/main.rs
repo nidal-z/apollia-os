@@ -42,6 +42,10 @@ fn main() {
             commands::pipelines::list_all_pipeline_runs,
             commands::pipelines::get_pipeline_run_detail,
             commands::pipelines::run_pipeline,
+            commands::memory::list_memory_namespaces,
+            commands::memory::list_memory_entries,
+            commands::memory::search_memory,
+            commands::memory::delete_memory_entry,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

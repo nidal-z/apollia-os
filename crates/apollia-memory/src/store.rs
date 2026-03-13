@@ -194,6 +194,33 @@ impl MemoryStore {
         })
     }
 
+    /// Deletes a memory entry by its UUID across all tables.
+    ///
+    /// Tries `episodic_memories`, `semantic_memories`, and `procedural_memories`
+    /// in order. Also removes the corresponding FTS5 index entry.
+    /// Returns `true` if an entry was found and deleted, `false` otherwise.
+    pub fn delete_entry_by_id(&self, id: &str) -> Result<bool, MemoryStoreError> {
+        let tables = [
+            "episodic_memories",
+            "semantic_memories",
+            "procedural_memories",
+        ];
+
+        for table in &tables {
+            let sql = format!("DELETE FROM {table} WHERE id = ?1");
+            let deleted = self.conn.execute(&sql, rusqlite::params![id])?;
+            if deleted > 0 {
+                self.conn.execute(
+                    "DELETE FROM memory_fts WHERE source_id = ?1",
+                    rusqlite::params![id],
+                )?;
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
     /// Provides direct access to the underlying connection for backends.
     pub(crate) fn conn(&self) -> &Connection {
         &self.conn
@@ -368,6 +395,67 @@ mod tests {
         let version = store.schema_version().unwrap();
         // THEN
         assert_eq!(version, SCHEMA_VERSION);
+    }
+
+    // delete_entry_by_id — deletes episodic entry and FTS
+    #[test]
+    fn test_delete_entry_by_id_episodic() {
+        // GIVEN — an episodic entry
+        let path = temp_db_path();
+        let store = MemoryStore::open(&path).unwrap();
+        let id = "ep-test-001";
+        store
+            .conn()
+            .execute(
+                "INSERT INTO episodic_memories (id, namespace, agent_id, content, importance, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![id, "ns", "agent-1", "test content", 0.5, "2026-01-01T00:00:00Z"],
+            )
+            .unwrap();
+        store
+            .conn()
+            .execute(
+                "INSERT INTO memory_fts (content, source_table, source_id) VALUES (?1, ?2, ?3)",
+                rusqlite::params!["test content", "episodic", id],
+            )
+            .unwrap();
+
+        // WHEN
+        let deleted = store.delete_entry_by_id(id).unwrap();
+
+        // THEN
+        assert!(deleted);
+        let count: i64 = store
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM episodic_memories WHERE id = ?1",
+                [id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+        let fts_count: i64 = store
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM memory_fts WHERE source_id = ?1",
+                [id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(fts_count, 0);
+    }
+
+    // delete_entry_by_id — returns false for nonexistent entry
+    #[test]
+    fn test_delete_entry_by_id_nonexistent() {
+        // GIVEN
+        let path = temp_db_path();
+        let store = MemoryStore::open(&path).unwrap();
+
+        // WHEN
+        let deleted = store.delete_entry_by_id("nonexistent-id").unwrap();
+
+        // THEN
+        assert!(!deleted);
     }
 
     // FTS5 virtual table is listed in sqlite_master

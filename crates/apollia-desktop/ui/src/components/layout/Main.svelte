@@ -6,6 +6,7 @@
   import Llm from "../../routes/Llm.svelte";
   import Triggers from "../../routes/Triggers.svelte";
   import Pipelines from "../../routes/Pipelines.svelte";
+  import Memory from "../../routes/Memory.svelte";
 </script>
 
 <main class="flex-1 overflow-auto bg-background p-6">
@@ -21,5 +22,7 @@
     <Triggers />
   {:else if $currentRoute === "pipelines"}
     <Pipelines />
+  {:else if $currentRoute === "memory"}
+    <Memory />
   {/if}
 </main>

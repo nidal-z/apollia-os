@@ -12,6 +12,7 @@
     { route: "llm", label: "LLM", icon: "🧠" },
     { route: "triggers", label: "Triggers", icon: "⏱️" },
     { route: "pipelines", label: "Pipelines", icon: "🔗" },
+    { route: "memory", label: "Memory", icon: "💾" },
   ];
 
   function navigate(route: Route) {
