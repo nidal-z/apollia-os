@@ -19,8 +19,9 @@ hyper-util     = { workspace = true }
 http-body-util = { workspace = true }
 toml           = { workspace = true }
 open           = { workspace = true }
-tauri          = { version = "2", features = ["devtools"] }
+tauri          = { version = "2", features = ["devtools", "tray-icon"] }
 tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

@@ -7,8 +7,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+pub mod tray;
 
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
+use tauri::Manager;
 
 fn main() {
     let config = EmbeddedConfig::default();
@@ -18,7 +20,29 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(runtime_handle)
+        .setup(|app| {
+            tray::setup_tray(app)?;
+
+            // AC-3: Closing the window hides it instead of quitting.
+            // The runtime keeps running in the background and the tray icon
+            // remains visible. The user re-opens via tray menu "Ouvrir Apollia OS"
+            // or quits via "Quitter" which triggers graceful shutdown.
+            let main_window = app
+                .get_webview_window("main")
+                .expect("main window not found in tauri.conf.json");
+
+            let window_for_hide = main_window.clone();
+            main_window.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window_for_hide.hide();
+                }
+            });
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::agents::list_agents,
             commands::agents::start_agent,

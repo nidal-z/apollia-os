@@ -28,7 +28,7 @@ use tokio::net::TcpStream;
 ///
 /// Utilisé pour `get_task_timeline` et `list_pending_approvals` (enrichissement
 /// via la timeline API Sprint 13).
-async fn http_get_json(port: u16, path: &str) -> Result<serde_json::Value, String> {
+pub(crate) async fn http_get_json(port: u16, path: &str) -> Result<serde_json::Value, String> {
     let stream = TcpStream::connect(format!("127.0.0.1:{port}"))
         .await
         .map_err(|e| format!("failed to connect to runtime API: {e}"))?;
@@ -72,9 +72,9 @@ async fn http_get_json(port: u16, path: &str) -> Result<serde_json::Value, Strin
 
 /// Envoie une requête POST avec un corps JSON à l'API REST interne.
 ///
-/// Utilisé pour `start_agent` et `resume_task` qui nécessitent des opérations
-/// complexes (AgentLoader, persistance HITL) gérées par les handlers REST.
-async fn http_post_json(
+/// Utilisé pour `start_agent`, `resume_task`, et le graceful shutdown via tray
+/// qui nécessitent des opérations complexes gérées par les handlers REST.
+pub(crate) async fn http_post_json(
     port: u16,
     path: &str,
     body: &serde_json::Value,

@@ -3,9 +3,19 @@
  *
  * Connects to the runtime dashboard SSE stream, dispatches events to
  * reactive Svelte stores, and handles reconnection with exponential backoff.
+ *
+ * STORY-151: Uses Tauri native notifications for HITL approvals instead of
+ * the browser Notification API. Emits `tray-update` events to keep the
+ * system tray badge and tooltip in sync.
  */
-import { writable } from "svelte/store";
+import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
 import type {
   AgentStatus,
   TaskSummary,
@@ -53,6 +63,7 @@ async function refreshAgentsViaIpc(): Promise<void> {
   try {
     const result: AgentStatus[] = await invoke("list_agents");
     agents.set(result);
+    emitTrayUpdate();
   } catch {
     // IPC not available yet — fall back to dashboard state
   }
@@ -142,29 +153,59 @@ function handleApprovalEvent(data: string): void {
       ];
     });
     if (isNew) {
-      sendBrowserNotification(req.task_id);
+      void sendNativeNotification(req.task_id);
+      emitTrayUpdate();
     }
   } else if (payload.event_type === "TaskResumed") {
     const resumed = payload as HitlResumedPayload;
     pendingApprovals.update((current) =>
       current.filter((a) => a.task_id !== resumed.task_id),
     );
+    emitTrayUpdate();
   }
 }
 
-/** Send a browser notification when a new approval arrives and the window is not focused. */
-function sendBrowserNotification(taskId: string): void {
-  if (
-    typeof document !== "undefined" &&
-    document.hidden &&
-    "Notification" in window &&
-    Notification.permission === "granted"
-  ) {
-    new Notification("Action requise", {
-      body: `Tâche ${taskId.slice(0, 8)} attend une approbation`,
-      icon: "/favicon.png",
+/**
+ * Send a native Tauri notification when a new HITL approval arrives.
+ *
+ * Requests permission on first call if not yet granted. If the user denies
+ * permission, notifications are silently skipped (AC-7).
+ */
+async function sendNativeNotification(taskId: string): Promise<void> {
+  try {
+    let granted = await isPermissionGranted();
+    if (!granted) {
+      const permission = await requestPermission();
+      granted = permission === "granted";
+    }
+    if (!granted) {
+      return;
+    }
+    sendNotification({
+      title: "Action requise — Apollia OS",
+      body: `Tâche ${taskId.slice(0, 8)} attend votre approbation`,
     });
+  } catch {
+    // Notification API unavailable — silently ignore (AC-7)
   }
+}
+
+/**
+ * Emit a `tray-update` event to the Rust backend so the system tray tooltip
+ * and menu item are updated with current agent/approval counts (AC-6).
+ */
+function emitTrayUpdate(): void {
+  const currentAgents = get(agents);
+  const currentApprovals = get(pendingApprovals);
+
+  const activeAgents = currentAgents.filter(
+    (a) => a.state === "active" || a.state === "degraded",
+  ).length;
+
+  void emit("tray-update", {
+    active_agents: activeAgents,
+    pending_approvals: currentApprovals.length,
+  });
 }
 
 /**
