@@ -13,7 +13,9 @@ use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::router::SubmitError;
 
-use apollia_core::{AIPInput, AIPPart, DataPart, InputResponseData, RuntimeEvent, TaskId, TaskStatus};
+use apollia_core::{
+    AIPInput, AIPPart, DataPart, InputResponseData, RuntimeEvent, TaskId, TaskStatus,
+};
 
 /// Request body for `POST /api/v1/tasks`.
 #[derive(Debug, Deserialize)]
@@ -454,7 +456,9 @@ mod tests {
     struct MockBackend;
 
     impl From<crate::coordinator::DynBackend> for MockBackend {
-        fn from(_: crate::coordinator::DynBackend) -> Self { MockBackend }
+        fn from(_: crate::coordinator::DynBackend) -> Self {
+            MockBackend
+        }
     }
 
     impl ExecutionBackend for MockBackend {
@@ -535,6 +539,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -586,6 +591,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -637,6 +643,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
@@ -853,6 +860,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         Router::new()
             .route("/api/v1/tasks/:id/resume", post(resume_task::<MockBackend>))

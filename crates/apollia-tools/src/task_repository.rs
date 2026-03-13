@@ -13,11 +13,50 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use apollia_core::{AIPTask, InputResponseData};
+use apollia_core::{truncate_with_marker, AIPTask, InputResponseData, ObservabilityConfig};
 use rusqlite::params;
 
 /// SQL de migration embarqué — appliqué idempotentiellement à chaque ouverture.
 const MIGRATION_SQL: &str = include_str!("../migrations/005_hitl_tables.sql");
+
+/// Colonnes à ajouter par la migration observabilité STORY-126.
+const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
+    ("input_text", "TEXT"),
+    ("input_truncated", "INTEGER NOT NULL DEFAULT 0"),
+    ("output_text", "TEXT"),
+    ("output_truncated", "INTEGER NOT NULL DEFAULT 0"),
+    ("duration_ms", "INTEGER"),
+    ("transitions_json", "TEXT"),
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Ajoute des colonnes à une table si elles n'existent pas encore.
+///
+/// Utilise `PRAGMA table_info` pour lister les colonnes existantes,
+/// puis exécute `ALTER TABLE ADD COLUMN` uniquement pour les manquantes.
+/// Compatible avec toutes les versions de SQLite (pas de `IF NOT EXISTS`).
+fn add_columns_if_missing(
+    conn: &rusqlite::Connection,
+    table: &str,
+    columns: &[(&str, &str)],
+) -> Result<(), rusqlite::Error> {
+    let mut stmt = conn.prepare(&format!("SELECT name FROM pragma_table_info('{table}')"))?;
+    let existing: Vec<String> = stmt
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+
+    for (col_name, col_type) in columns {
+        if !existing.iter().any(|c| c == col_name) {
+            conn.execute_batch(&format!(
+                "ALTER TABLE {table} ADD COLUMN {col_name} {col_type};"
+            ))?;
+        }
+    }
+    Ok(())
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Erreurs
@@ -77,6 +116,7 @@ impl TaskRepository {
             let conn = rusqlite::Connection::open(&path)?;
             conn.execute_batch("PRAGMA journal_mode=WAL;")?;
             conn.execute_batch(MIGRATION_SQL)?;
+            add_columns_if_missing(&conn, "tasks", OBSERVABILITY_COLUMNS)?;
             Ok(())
         })
         .await
@@ -310,6 +350,176 @@ impl TaskRepository {
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
 
+    // ─── Méthodes observabilité (STORY-126) ─────────────────────────────
+
+    /// Persiste l'input texte d'une tâche avec troncature éventuelle.
+    ///
+    /// Utilise [`truncate_with_marker`] pour couper l'input si sa taille
+    /// dépasse `config.max_input_bytes`. La colonne `input_truncated` est
+    /// mise à 1 si le texte a été tronqué, 0 sinon.
+    ///
+    /// Crée la ligne dans `tasks` via `INSERT ... ON CONFLICT DO UPDATE`
+    /// pour supporter l'appel avant ou après `save_input_required`.
+    ///
+    /// # Errors
+    ///
+    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    pub async fn save_input(
+        &self,
+        task_id: &str,
+        text: &str,
+        config: &ObservabilityConfig,
+    ) -> Result<(), TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+        let (truncated_text, was_truncated) = truncate_with_marker(text, config.max_input_bytes);
+
+        tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
+            let conn = rusqlite::Connection::open(&path)?;
+            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            conn.execute(
+                "INSERT INTO tasks (task_id, input_text, input_truncated) \
+                 VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(task_id) DO UPDATE SET \
+                     input_text      = excluded.input_text, \
+                     input_truncated = excluded.input_truncated, \
+                     updated_at      = CURRENT_TIMESTAMP",
+                params![&task_id, &truncated_text, was_truncated as i32],
+            )?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))??;
+
+        Ok(())
+    }
+
+    /// Persiste l'output texte d'une tâche avec troncature éventuelle.
+    ///
+    /// Utilise [`truncate_with_marker`] pour couper l'output si sa taille
+    /// dépasse `config.max_output_bytes`. La colonne `output_truncated` est
+    /// mise à 1 si le texte a été tronqué, 0 sinon.
+    ///
+    /// # Errors
+    ///
+    /// - [`TaskRepoError::Sqlite`] en cas d'erreur SQLite
+    pub async fn save_output(
+        &self,
+        task_id: &str,
+        text: &str,
+        config: &ObservabilityConfig,
+    ) -> Result<(), TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+        let (truncated_text, was_truncated) = truncate_with_marker(text, config.max_output_bytes);
+
+        tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
+            let conn = rusqlite::Connection::open(&path)?;
+            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            conn.execute(
+                "UPDATE tasks SET \
+                     output_text      = ?2, \
+                     output_truncated = ?3, \
+                     updated_at       = CURRENT_TIMESTAMP \
+                 WHERE task_id = ?1",
+                params![&task_id, &truncated_text, was_truncated as i32],
+            )?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))??;
+
+        Ok(())
+    }
+
+    /// Ajoute une transition d'état au JSON array `transitions_json`.
+    ///
+    /// Lit le JSON existant (ou `[]` si absent), pousse
+    /// `{"status": "<status>", "ts": "<timestamp>"}`, et réécrit.
+    /// Les transitions sont ordonnées chronologiquement par ordre d'insertion.
+    ///
+    /// # Errors
+    ///
+    /// - [`TaskRepoError::Sqlite`] en cas d'erreur SQLite
+    /// - [`TaskRepoError::Json`] si le JSON existant est invalide
+    pub async fn append_transition(
+        &self,
+        task_id: &str,
+        status: &str,
+        timestamp: &str,
+    ) -> Result<(), TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+        let status = status.to_string();
+        let timestamp = timestamp.to_string();
+
+        tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
+            let conn = rusqlite::Connection::open(&path)?;
+            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+
+            let existing: Option<String> = conn
+                .query_row(
+                    "SELECT transitions_json FROM tasks WHERE task_id = ?1",
+                    params![&task_id],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .unwrap_or(None);
+
+            let mut transitions: Vec<serde_json::Value> = match existing {
+                Some(ref json) if !json.is_empty() => serde_json::from_str(json)?,
+                _ => Vec::new(),
+            };
+
+            transitions.push(serde_json::json!({
+                "status": status,
+                "ts": timestamp,
+            }));
+
+            let new_json = serde_json::to_string(&transitions)?;
+
+            conn.execute(
+                "UPDATE tasks SET \
+                     transitions_json = ?2, \
+                     updated_at       = CURRENT_TIMESTAMP \
+                 WHERE task_id = ?1",
+                params![&task_id, &new_json],
+            )?;
+
+            Ok(())
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))?
+    }
+
+    /// Enregistre la durée d'exécution en millisecondes.
+    ///
+    /// Appelé par le coordinateur à la completion de la tâche.
+    ///
+    /// # Errors
+    ///
+    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    pub async fn set_duration(&self, task_id: &str, duration_ms: i64) -> Result<(), TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+
+        tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
+            let conn = rusqlite::Connection::open(&path)?;
+            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            conn.execute(
+                "UPDATE tasks SET \
+                     duration_ms = ?2, \
+                     updated_at  = CURRENT_TIMESTAMP \
+                 WHERE task_id = ?1",
+                params![&task_id, duration_ms],
+            )?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))??;
+
+        Ok(())
+    }
+
     /// Annule une tâche en mettant son statut à `cancelled` dans la DB.
     ///
     /// Persiste `reason` dans la colonne `input_response_reason` pour la traçabilité.
@@ -394,6 +604,258 @@ mod tests {
         let repo = TaskRepository::open(&path).await.expect("open failed");
         (repo, path)
     }
+
+    // ─── Tests STORY-126 — Observabilité tasks ────────────────────────
+
+    // AC-1 — Input persisté à la soumission (non tronqué)
+
+    #[tokio::test]
+    async fn test_story126_ac1_input_persisted() {
+        // GIVEN un TaskRepository en mémoire + un task_id créé via save_input
+        let (repo, db_path) = open_test_repo().await;
+        let config = ObservabilityConfig::default();
+
+        // WHEN save_input avec un texte court
+        repo.save_input("t-126-1", "hello world", &config)
+            .await
+            .expect("save_input failed");
+
+        // THEN input_text == "hello world", input_truncated == 0
+        let (text, truncated): (String, i32) = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(&db_path).expect("open db");
+            conn.query_row(
+                "SELECT input_text, input_truncated FROM tasks WHERE task_id = ?1",
+                params!["t-126-1"],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?)),
+            )
+            .expect("query failed")
+        })
+        .await
+        .expect("join failed");
+
+        assert_eq!(text, "hello world");
+        assert_eq!(truncated, 0);
+    }
+
+    // AC-2 — Input tronqué si supérieur à la limite
+
+    #[tokio::test]
+    async fn test_story126_ac2_input_truncated_at_limit() {
+        // GIVEN config avec max_input_bytes = 100
+        let (repo, db_path) = open_test_repo().await;
+        let config = ObservabilityConfig {
+            max_input_bytes: 100,
+            ..ObservabilityConfig::default()
+        };
+        let big_text = "x".repeat(500);
+
+        // WHEN save_input avec un texte de 500 octets
+        repo.save_input("t-126-2", &big_text, &config)
+            .await
+            .expect("save_input failed");
+
+        // THEN input_truncated == 1, input_text contient le marqueur
+        let (text, truncated): (String, i32) = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(&db_path).expect("open db");
+            conn.query_row(
+                "SELECT input_text, input_truncated FROM tasks WHERE task_id = ?1",
+                params!["t-126-2"],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?)),
+            )
+            .expect("query failed")
+        })
+        .await
+        .expect("join failed");
+
+        assert_eq!(truncated, 1);
+        assert!(text.ends_with("octets total]"), "got: {text}");
+        assert!(text.contains("500"), "marker should mention 500 bytes");
+    }
+
+    // AC-3 — Output persisté à la completion
+
+    #[tokio::test]
+    async fn test_story126_ac3_output_persisted() {
+        // GIVEN une tâche existante
+        let (repo, db_path) = open_test_repo().await;
+        let config = ObservabilityConfig::default();
+        repo.save_input("t-126-3", "input", &config)
+            .await
+            .expect("save_input failed");
+
+        // WHEN save_output avec un texte court
+        repo.save_output("t-126-3", "result output", &config)
+            .await
+            .expect("save_output failed");
+
+        // THEN output_text == "result output", output_truncated == 0
+        let (text, truncated): (String, i32) = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(&db_path).expect("open db");
+            conn.query_row(
+                "SELECT output_text, output_truncated FROM tasks WHERE task_id = ?1",
+                params!["t-126-3"],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?)),
+            )
+            .expect("query failed")
+        })
+        .await
+        .expect("join failed");
+
+        assert_eq!(text, "result output");
+        assert_eq!(truncated, 0);
+    }
+
+    // AC-3 bis — Output tronqué si supérieur à la limite
+
+    #[tokio::test]
+    async fn test_story126_ac3_output_truncated_at_limit() {
+        // GIVEN config avec max_output_bytes = 100
+        let (repo, db_path) = open_test_repo().await;
+        let config = ObservabilityConfig {
+            max_output_bytes: 100,
+            ..ObservabilityConfig::default()
+        };
+        repo.save_input("t-126-3b", "input", &config)
+            .await
+            .expect("save_input failed");
+        let big_output = "y".repeat(500);
+
+        // WHEN save_output avec un texte de 500 octets
+        repo.save_output("t-126-3b", &big_output, &config)
+            .await
+            .expect("save_output failed");
+
+        // THEN output_truncated == 1
+        let truncated: i32 = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(&db_path).expect("open db");
+            conn.query_row(
+                "SELECT output_truncated FROM tasks WHERE task_id = ?1",
+                params!["t-126-3b"],
+                |row| row.get::<_, i32>(0),
+            )
+            .expect("query failed")
+        })
+        .await
+        .expect("join failed");
+
+        assert_eq!(truncated, 1);
+    }
+
+    // AC-4 — Transitions ordonnées chronologiquement
+
+    #[tokio::test]
+    async fn test_story126_ac4_transitions_ordered() {
+        // GIVEN une tâche existante
+        let (repo, db_path) = open_test_repo().await;
+        let config = ObservabilityConfig::default();
+        repo.save_input("t-126-4", "input", &config)
+            .await
+            .expect("save_input failed");
+
+        // WHEN 3 transitions ajoutées dans l'ordre
+        repo.append_transition("t-126-4", "submitted", "2026-03-13T10:00:00Z")
+            .await
+            .expect("append 1 failed");
+        repo.append_transition("t-126-4", "running", "2026-03-13T10:00:01Z")
+            .await
+            .expect("append 2 failed");
+        repo.append_transition("t-126-4", "completed", "2026-03-13T10:00:02Z")
+            .await
+            .expect("append 3 failed");
+
+        // THEN transitions_json contient 3 éléments dans l'ordre
+        let json_str: String = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(&db_path).expect("open db");
+            conn.query_row(
+                "SELECT transitions_json FROM tasks WHERE task_id = ?1",
+                params!["t-126-4"],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("query failed")
+        })
+        .await
+        .expect("join failed");
+
+        let transitions: Vec<serde_json::Value> =
+            serde_json::from_str(&json_str).expect("parse json");
+        assert_eq!(transitions.len(), 3);
+        assert_eq!(transitions[0]["status"], "submitted");
+        assert_eq!(transitions[1]["status"], "running");
+        assert_eq!(transitions[2]["status"], "completed");
+        assert_eq!(transitions[0]["ts"], "2026-03-13T10:00:00Z");
+        assert_eq!(transitions[2]["ts"], "2026-03-13T10:00:02Z");
+    }
+
+    // AC-5 — Durée mesurée
+
+    #[tokio::test]
+    async fn test_story126_ac5_duration_recorded() {
+        // GIVEN une tâche existante
+        let (repo, db_path) = open_test_repo().await;
+        let config = ObservabilityConfig::default();
+        repo.save_input("t-126-5", "input", &config)
+            .await
+            .expect("save_input failed");
+
+        // WHEN set_duration(250ms)
+        repo.set_duration("t-126-5", 250)
+            .await
+            .expect("set_duration failed");
+
+        // THEN duration_ms == 250
+        let duration: i64 = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(&db_path).expect("open db");
+            conn.query_row(
+                "SELECT duration_ms FROM tasks WHERE task_id = ?1",
+                params!["t-126-5"],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("query failed")
+        })
+        .await
+        .expect("join failed");
+
+        assert_eq!(duration, 250);
+    }
+
+    // Colonnes observabilité présentes après migration
+
+    #[tokio::test]
+    async fn test_story126_migration_columns_present() {
+        // GIVEN une DB fraîche
+        let (_, db_path) = open_test_repo().await;
+
+        // WHEN on inspecte les colonnes
+        let cols: Vec<String> = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(&db_path).expect("open");
+            let mut stmt = conn
+                .prepare("SELECT name FROM pragma_table_info('tasks')")
+                .expect("prepare");
+            stmt.query_map([], |row| row.get::<_, String>(0))
+                .expect("query")
+                .map(|r| r.expect("get"))
+                .collect()
+        })
+        .await
+        .expect("join");
+
+        // THEN les 6 colonnes observabilité sont présentes
+        for expected in &[
+            "input_text",
+            "input_truncated",
+            "output_text",
+            "output_truncated",
+            "duration_ms",
+            "transitions_json",
+        ] {
+            assert!(
+                cols.contains(&expected.to_string()),
+                "colonne manquante : {expected} ; colonnes trouvées = {cols:?}"
+            );
+        }
+    }
+
+    // ─── Tests HITL existants ────────────────────────────────────────
 
     // AC-1 — Migration appliquée au démarrage : colonnes HITL présentes dans tasks
 

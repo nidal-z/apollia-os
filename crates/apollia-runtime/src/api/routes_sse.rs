@@ -460,6 +460,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         Router::new()
             .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))

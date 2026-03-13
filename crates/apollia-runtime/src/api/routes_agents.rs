@@ -7,6 +7,7 @@
 //! `apollia-runtime` decoupled from PyO3/apollia-aip.
 
 use std::path::Path;
+use std::sync::Arc;
 
 use axum::extract::{Path as AxumPath, State};
 use axum::http::StatusCode;
@@ -235,17 +236,21 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
     // Tests: factory is None — use state.backend directly (already type B).
     let agent_backend: B = match &state.backend_factory {
         Some(factory) => {
-            let dyn_backend = factory.create_for_agent(Path::new(&req.agent_path), &manifest_for_factory);
+            let dyn_backend =
+                factory.create_for_agent(Path::new(&req.agent_path), &manifest_for_factory);
             B::from(dyn_backend)
         }
         None => state.backend.clone(),
     };
-    let coordinator = ExecutionCoordinator::new(
+    let mut coordinator = ExecutionCoordinator::new(
         agent_id.clone(),
         max_concurrent,
         state.event_sender.clone(),
         agent_backend,
     );
+    if let Some(ref repo) = state.task_repository {
+        coordinator = coordinator.with_task_repository(Arc::clone(repo), state.obs_config.clone());
+    }
     // Fire-and-forget: if registration fails the task submission will return NoCoordinator.
     let _ = state
         .router_handle
@@ -312,16 +317,14 @@ pub async fn get_agent<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     AxumPath(id_or_name): AxumPath<String>,
 ) -> Result<Json<AgentResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let entry = resolve_agent(&state, &id_or_name)
-        .await?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse {
-                    error: format!("agent not found: {id_or_name}"),
-                }),
-            )
-        })?;
+    let entry = resolve_agent(&state, &id_or_name).await?.ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("agent not found: {id_or_name}"),
+            }),
+        )
+    })?;
 
     let manifest_json = serde_json::to_value(&entry.manifest).ok();
     Ok(Json(AgentResponse {
@@ -352,16 +355,14 @@ pub async fn stop_agent<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     AxumPath(id_or_name): AxumPath<String>,
 ) -> Result<Json<AgentResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let entry = resolve_agent(&state, &id_or_name)
-        .await?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse {
-                    error: format!("agent not found: {id_or_name}"),
-                }),
-            )
-        })?;
+    let entry = resolve_agent(&state, &id_or_name).await?.ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("agent not found: {id_or_name}"),
+            }),
+        )
+    })?;
 
     if entry.process_state == ProcessState::Stopped {
         return Err((
@@ -432,7 +433,9 @@ mod tests {
     struct MockBackend;
 
     impl From<DynBackend> for MockBackend {
-        fn from(_: DynBackend) -> Self { MockBackend }
+        fn from(_: DynBackend) -> Self {
+            MockBackend
+        }
     }
 
     impl ExecutionBackend for MockBackend {
@@ -543,6 +546,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let router = Router::new()
             .route(

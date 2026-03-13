@@ -100,6 +100,7 @@ async fn test_runtime_starts_without_llm_router() {
         backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
+        obs_config: apollia_core::ObservabilityConfig::default(),
     };
 
     // WHEN l'APIServer démarre
@@ -222,6 +223,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
+        obs_config: apollia_core::ObservabilityConfig::default(),
     };
 
     let api = APIServer::new(

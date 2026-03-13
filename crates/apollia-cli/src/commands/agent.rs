@@ -170,10 +170,7 @@ fn format_agent_list(resp: &serde_json::Value) {
                 .get("agent_id")
                 .and_then(|v| v.as_str())
                 .unwrap_or("?");
-            let name = agent
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or(id);
+            let name = agent.get("name").and_then(|v| v.as_str()).unwrap_or(id);
             let state = agent.get("state").and_then(|v| v.as_str()).unwrap_or("?");
             println!("  {:<32} {:<14} {}", name, state, id);
         }

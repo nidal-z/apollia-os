@@ -185,18 +185,10 @@ fn main() {
                 stream,
                 detach,
             } => commands::run::run(&agent_id, &input, cli.socket, json, stream, detach).await,
-            Commands::Agent { command } => {
-                commands::agent::run(&command, cli.socket, json).await
-            }
-            Commands::Task { command } => {
-                commands::task::run(&command, cli.socket, json).await
-            }
-            Commands::Tools { command } => {
-                commands::tools::run(&command, cli.socket, json).await
-            }
-            Commands::Audit { command } => {
-                commands::audit::run(&command, cli.socket, json).await
-            }
+            Commands::Agent { command } => commands::agent::run(&command, cli.socket, json).await,
+            Commands::Task { command } => commands::task::run(&command, cli.socket, json).await,
+            Commands::Tools { command } => commands::tools::run(&command, cli.socket, json).await,
+            Commands::Audit { command } => commands::audit::run(&command, cli.socket, json).await,
             Commands::Memory { command } => match commands::memory::run(&command) {
                 Ok(output) => {
                     println!("{output}");
@@ -212,9 +204,7 @@ fn main() {
             Commands::Trigger { command } => {
                 commands::trigger::run(&command, cli.socket, json).await
             }
-            Commands::Notify { command } => {
-                commands::notify::run(&command, cli.socket, json).await
-            }
+            Commands::Notify { command } => commands::notify::run(&command, cli.socket, json).await,
             Commands::Pipeline { command } => {
                 commands::pipeline::run(&command, cli.socket, json).await
             }

@@ -952,8 +952,15 @@ mod tests {
             .await
             .expect("submit failed");
 
-        let cancel_result = router.cancel(task_id.as_str()).await.expect("cancel failed");
-        assert_eq!(cancel_result, Some(TaskStatus::Canceled), "cancel should return Canceled");
+        let cancel_result = router
+            .cancel(task_id.as_str())
+            .await
+            .expect("cancel failed");
+        assert_eq!(
+            cancel_result,
+            Some(TaskStatus::Canceled),
+            "cancel should return Canceled"
+        );
 
         // AND on attend que le backend envoie son TaskCompleted tardif (>100ms)
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;

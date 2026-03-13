@@ -361,10 +361,7 @@ async fn poll_task(client: &RuntimeClient, task_id: &str, json: bool, start: Ins
                                 serde_json::to_string_pretty(&task_json).unwrap_or_default()
                             );
                         } else {
-                            if let Some(text) = task_json
-                                .get("result")
-                                .and_then(|v| v.as_str())
-                            {
+                            if let Some(text) = task_json.get("result").and_then(|v| v.as_str()) {
                                 println!("{text}");
                             }
                             println!("  * Completed in {:.1}s", elapsed.as_secs_f64());
@@ -675,7 +672,10 @@ mod tests {
     #[test]
     fn test_started_event_not_terminal() {
         // GIVEN
-        let event = make_event("started", serde_json::json!({"agent_id": "apollia-reviewer"}));
+        let event = make_event(
+            "started",
+            serde_json::json!({"agent_id": "apollia-reviewer"}),
+        );
         let mut state = RunDisplayState::new(false, false);
 
         // WHEN

@@ -92,6 +92,7 @@ fn build_app_state() -> AppState<MockBackend> {
         backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
+        obs_config: apollia_core::ObservabilityConfig::default(),
     }
 }
 

@@ -360,7 +360,9 @@ mod tests {
     }
 
     impl From<crate::coordinator::DynBackend> for MockBackend {
-        fn from(_: crate::coordinator::DynBackend) -> Self { MockBackend::instant() }
+        fn from(_: crate::coordinator::DynBackend) -> Self {
+            MockBackend::instant()
+        }
     }
 
     impl ExecutionBackend for MockBackend {
@@ -390,7 +392,9 @@ mod tests {
     struct NeverBackend;
 
     impl From<crate::coordinator::DynBackend> for NeverBackend {
-        fn from(_: crate::coordinator::DynBackend) -> Self { NeverBackend }
+        fn from(_: crate::coordinator::DynBackend) -> Self {
+            NeverBackend
+        }
     }
 
     impl ExecutionBackend for NeverBackend {
@@ -468,6 +472,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -598,6 +603,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -681,6 +687,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -870,6 +877,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

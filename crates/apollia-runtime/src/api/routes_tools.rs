@@ -13,8 +13,8 @@ use axum::Json;
 use serde::Serialize;
 
 use crate::api::server::AppState;
-use crate::coordinator::ExecutionBackend;
 use crate::coordinator::DynBackend;
+use crate::coordinator::ExecutionBackend;
 
 /// Response body for `GET /api/v1/tools`.
 #[derive(Serialize)]
@@ -96,7 +96,10 @@ pub async fn describe_tool<B: ExecutionBackend + Clone + From<DynBackend>>(
     })?;
 
     match tool {
-        Some(descriptor) => Ok((StatusCode::OK, Json(ToolDetailResponse { tool: descriptor }))),
+        Some(descriptor) => Ok((
+            StatusCode::OK,
+            Json(ToolDetailResponse { tool: descriptor }),
+        )),
         None => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
@@ -181,9 +184,7 @@ mod tests {
             router_handle,
             registry_handle,
             event_sender: event_tx,
-            agent_loader: std::sync::Arc::new(
-                crate::api::routes_agents::StubAgentLoader,
-            ),
+            agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
             llm_router: None,
             trigger_engine: None,
@@ -195,6 +196,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: Some(tool_registry),
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
 
         Router::new()
@@ -214,9 +216,7 @@ mod tests {
             router_handle,
             registry_handle,
             event_sender: event_tx,
-            agent_loader: std::sync::Arc::new(
-                crate::api::routes_agents::StubAgentLoader,
-            ),
+            agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
             llm_router: None,
             trigger_engine: None,
@@ -228,6 +228,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
 
         Router::new()

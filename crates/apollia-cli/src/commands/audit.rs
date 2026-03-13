@@ -139,7 +139,10 @@ fn format_audit_list(resp: &serde_json::Value) {
                 .and_then(|v| v.as_u64())
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "-".to_string());
-            println!("  {:<24} {:<24} {:<20} {:<8} {:<8}", ts, agent, tool, status, ms);
+            println!(
+                "  {:<24} {:<24} {:<20} {:<8} {:<8}",
+                ts, agent, tool, status, ms
+            );
         }
     }
 }

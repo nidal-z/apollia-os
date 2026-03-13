@@ -1,6 +1,10 @@
 use std::sync::Arc;
+use std::time::Instant;
 
-use apollia_core::{AIPPart, AIPResult, AIPTask, AgentId, RuntimeEvent, TaskId, TaskStatus};
+use apollia_core::{
+    AIPPart, AIPResult, AIPTask, AgentId, ObservabilityConfig, RuntimeEvent, TaskId, TaskStatus,
+};
+use apollia_tools::TaskRepository;
 use tokio::sync::Semaphore;
 
 use crate::eventbus::EventBusSender;
@@ -59,11 +63,17 @@ pub enum CoordinatorError {
 ///
 /// Gere la concurrence des taches via un semaphore Tokio.
 /// Un coordinateur est cree par agent actif et possede son propre semaphore.
+/// Persiste les donnees d'observabilite (input/output/transitions/duration)
+/// dans le [`TaskRepository`] si disponible (STORY-126).
 pub struct ExecutionCoordinator<B: ExecutionBackend> {
     agent_id: AgentId,
     concurrency: Arc<Semaphore>,
     event_bus: EventBusSender,
     backend: Arc<B>,
+    /// Repository SQLite pour la persistance d'observabilité — `None` en tests.
+    task_repo: Option<Arc<TaskRepository>>,
+    /// Configuration de troncature pour l'observabilité.
+    obs_config: ObservabilityConfig,
 }
 
 impl<B: ExecutionBackend> ExecutionCoordinator<B> {
@@ -85,7 +95,23 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
             concurrency: Arc::new(Semaphore::new(max_concurrent as usize)),
             event_bus,
             backend: Arc::new(backend),
+            task_repo: None,
+            obs_config: ObservabilityConfig::default(),
         }
+    }
+
+    /// Configure le repository d'observabilité pour la persistance des données de tâche.
+    ///
+    /// Quand configuré, le coordinateur persiste automatiquement l'input, l'output,
+    /// les transitions d'état et la durée de chaque tâche (STORY-126).
+    pub fn with_task_repository(
+        mut self,
+        repo: Arc<TaskRepository>,
+        config: ObservabilityConfig,
+    ) -> Self {
+        self.task_repo = Some(repo);
+        self.obs_config = config;
+        self
     }
 
     /// Soumet une tache pour execution.
@@ -109,10 +135,34 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
         let event_bus = self.event_bus.clone();
         let task_id = TaskId::from(task.task_id.clone());
         let backend = Arc::clone(&self.backend);
+        let task_repo = self.task_repo.clone();
+        let obs_config = self.obs_config.clone();
+
+        // Extraire le texte de l'input pour la persistance d'observabilité.
+        let input_text = aip_input_to_text(&task.input);
 
         let handle = tokio::spawn(async move {
             // Le permit est move dans la closure — libere au drop
             let _permit = permit;
+
+            let started_at = Instant::now();
+            let now_str = || now_rfc3339();
+
+            // Persistance observabilité : input + transition "submitted"
+            if let Some(ref repo) = task_repo {
+                if let Err(e) = repo
+                    .save_input(task_id.as_str(), &input_text, &obs_config)
+                    .await
+                {
+                    tracing::warn!(task_id = %task_id, error = %e, "failed to persist task input");
+                }
+                if let Err(e) = repo
+                    .append_transition(task_id.as_str(), "submitted", &now_str())
+                    .await
+                {
+                    tracing::warn!(task_id = %task_id, error = %e, "failed to persist submitted transition");
+                }
+            }
 
             // Emettre TaskStarted
             let _ = event_bus.send(RuntimeEvent::TaskStarted {
@@ -120,11 +170,21 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
                 task_id: task_id.clone(),
             });
 
+            // Persistance observabilité : transition "running"
+            if let Some(ref repo) = task_repo {
+                if let Err(e) = repo
+                    .append_transition(task_id.as_str(), "running", &now_str())
+                    .await
+                {
+                    tracing::warn!(task_id = %task_id, error = %e, "failed to persist running transition");
+                }
+            }
+
             // Executer via le backend
             let result = backend.execute(task).await;
 
-            // Emettre TaskCompleted (succes ou echec) avec l'output textuel si disponible.
-            //
+            let elapsed_ms = started_at.elapsed().as_millis() as i64;
+
             // `is_success` must reflect the Python-level status, not just whether the
             // Rust call succeeded. An `Ok(AIPResult { status: Failed, .. })` means the
             // agent explicitly reported failure and must propagate as success=false so
@@ -142,6 +202,30 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
                 }
             };
             let output = result.as_ref().ok().map(aip_result_to_text);
+
+            // Persistance observabilité : output + transition terminale + durée
+            if let Some(ref repo) = task_repo {
+                let terminal_status = if is_success { "completed" } else { "failed" };
+
+                if let Some(ref output_text) = output {
+                    if let Err(e) = repo
+                        .save_output(task_id.as_str(), output_text, &obs_config)
+                        .await
+                    {
+                        tracing::warn!(task_id = %task_id, error = %e, "failed to persist task output");
+                    }
+                }
+                if let Err(e) = repo
+                    .append_transition(task_id.as_str(), terminal_status, &now_str())
+                    .await
+                {
+                    tracing::warn!(task_id = %task_id, error = %e, "failed to persist terminal transition");
+                }
+                if let Err(e) = repo.set_duration(task_id.as_str(), elapsed_ms).await {
+                    tracing::warn!(task_id = %task_id, error = %e, "failed to persist task duration");
+                }
+            }
+
             let _ = event_bus.send(RuntimeEvent::TaskCompleted {
                 agent_id,
                 task_id,
@@ -159,6 +243,56 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
     pub fn available_permits(&self) -> usize {
         self.concurrency.available_permits()
     }
+}
+
+/// Concatenates the text parts of an [`AIPInput`] into a single `String`.
+///
+/// Only [`AIPPart::Text`] parts contribute; file and data parts are ignored.
+/// Returns an empty string when the input contains no text parts.
+fn aip_input_to_text(input: &apollia_core::AIPInput) -> String {
+    input
+        .parts
+        .iter()
+        .filter_map(|part| {
+            if let AIPPart::Text(tp) = part {
+                Some(tp.text.as_str())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Retourne l'instant courant formaté RFC 3339 sans dépendance chrono.
+fn now_rfc3339() -> String {
+    let now = std::time::SystemTime::now();
+    let duration = now
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = duration.as_secs();
+    let days = secs / 86400;
+    let time_secs = secs % 86400;
+    let hours = time_secs / 3600;
+    let minutes = (time_secs % 3600) / 60;
+    let seconds = time_secs % 60;
+
+    // Calcul de la date à partir de l'epoch (algorithme civil)
+    let z = days + 719468;
+    let era = z / 146097;
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        y, m, d, hours, minutes, seconds
+    )
 }
 
 /// Concatenates the text parts of an [`AIPResult`] into a single `String`.

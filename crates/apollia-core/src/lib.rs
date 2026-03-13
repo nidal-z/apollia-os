@@ -17,6 +17,7 @@
 pub mod budget;
 pub mod events;
 pub mod manifest;
+pub mod observability;
 pub mod pending_approvals;
 pub mod process;
 pub mod result;
@@ -26,6 +27,7 @@ pub mod task;
 pub use budget::StepBudgetConfig;
 pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
 pub use manifest::{AgentManifest, AgentSkill};
+pub use observability::{truncate_with_marker, ObservabilityConfig};
 pub use pending_approvals::{PendingApprovalError, PendingApprovals};
 pub use process::ProcessState;
 pub use result::{

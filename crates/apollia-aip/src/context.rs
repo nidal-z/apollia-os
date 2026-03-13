@@ -427,14 +427,12 @@ impl RuntimeContext {
         });
 
         // Wrap ToolProxy in a Py<> handle so it can be cheaply cloned in the getter.
-        let tools = tool_proxy.and_then(|proxy| {
-            pyo3::Python::with_gil(|py| pyo3::Py::new(py, proxy).ok())
-        });
+        let tools =
+            tool_proxy.and_then(|proxy| pyo3::Python::with_gil(|py| pyo3::Py::new(py, proxy).ok()));
 
         // Wrap MemoryInterface in a Py<> handle if provided.
-        let memory = memory_interface.and_then(|mem| {
-            pyo3::Python::with_gil(|py| pyo3::Py::new(py, mem).ok())
-        });
+        let memory = memory_interface
+            .and_then(|mem| pyo3::Python::with_gil(|py| pyo3::Py::new(py, mem).ok()));
 
         Self { llm, tools, memory }
     }

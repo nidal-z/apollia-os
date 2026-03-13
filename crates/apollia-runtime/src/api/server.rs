@@ -100,6 +100,10 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` in production — opened by the Supervisor from `~/.apollia/audit.db`.
     /// `None` in tests — the `/api/v1/audit` routes return 503 when `None`.
     pub audit_trail: Option<AuditTrailHandle>,
+    /// Configuration de troncature pour l'observabilité des tâches (STORY-126).
+    ///
+    /// Passée aux `ExecutionCoordinator` pour la persistance input/output/transitions.
+    pub obs_config: apollia_core::ObservabilityConfig,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -120,6 +124,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             backend_factory: self.backend_factory.clone(),
             tool_registry_handle: self.tool_registry_handle.clone(),
             audit_trail: self.audit_trail.clone(),
+            obs_config: self.obs_config.clone(),
         }
     }
 }
@@ -222,7 +227,6 @@ async fn shutdown_handler<B: ExecutionBackend + Clone>(
 fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<B>) -> Router {
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use super::routes_audit::{get_audit_stats, list_audit};
-    use super::routes_tools::{describe_tool, list_tools};
     use super::routes_dashboard::{
         dashboard_stream, get_dashboard, get_dashboard_partial, get_dashboard_state, get_htmx_js,
     };
@@ -233,6 +237,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     };
     use super::routes_sse::stream_task;
     use super::routes_tasks::{cancel_task, get_task, list_tasks, resume_task, submit_task};
+    use super::routes_tools::{describe_tool, list_tools};
     use super::routes_triggers::{
         disable_trigger, enable_trigger, fire_trigger, get_trigger, get_trigger_logs,
         list_triggers, reload_triggers,
@@ -300,14 +305,19 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
 
 impl APIServer {
     /// Create a new APIServer with the given config and application state.
-    pub fn new<B: ExecutionBackend + Clone + From<DynBackend>>(config: APIServerConfig, state: AppState<B>) -> Self {
+    pub fn new<B: ExecutionBackend + Clone + From<DynBackend>>(
+        config: APIServerConfig,
+        state: AppState<B>,
+    ) -> Self {
         let router = build_router(state);
         Self { config, router }
     }
 
     /// Build the router from a state, for use in unit tests without starting a listener.
     #[cfg(test)]
-    pub fn build_router_for_test<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<B>) -> Router {
+    pub fn build_router_for_test<B: ExecutionBackend + Clone + From<DynBackend>>(
+        state: AppState<B>,
+    ) -> Router {
         build_router(state)
     }
 
@@ -445,7 +455,9 @@ mod tests {
     struct MockBackend;
 
     impl From<DynBackend> for MockBackend {
-        fn from(_: DynBackend) -> Self { MockBackend }
+        fn from(_: DynBackend) -> Self {
+            MockBackend
+        }
     }
 
     impl ExecutionBackend for MockBackend {
@@ -488,6 +500,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         }
     }
 

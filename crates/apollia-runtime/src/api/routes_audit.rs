@@ -147,7 +147,7 @@ pub async fn get_audit_stats<B: ExecutionBackend + Clone>(
 
 #[cfg(test)]
 mod tests {
-    use crate::api::server::{AppState, APIServer};
+    use crate::api::server::{APIServer, AppState};
     use crate::coordinator::{DynBackend, ExecutionBackend};
     use crate::eventbus::EventBus;
     use crate::registry::AgentRegistry;
@@ -218,6 +218,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: audit,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         }
     }
 

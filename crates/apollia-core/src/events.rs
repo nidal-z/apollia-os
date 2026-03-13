@@ -824,7 +824,10 @@ mod pipeline_event_tests {
         // THEN
         assert!(matches!(
             restored,
-            RuntimeEvent::PipelineCompleted { duration_ms: 9400, .. }
+            RuntimeEvent::PipelineCompleted {
+                duration_ms: 9400,
+                ..
+            }
         ));
     }
 

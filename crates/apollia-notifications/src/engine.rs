@@ -150,10 +150,7 @@ impl NotificationEngine {
     /// Utilisée par [`spawn`]. Réagit à deux sources de terminaison :
     /// - le signal oneshot envoyé par [`NotificationEngineHandle::shutdown`]
     /// - la fermeture implicite de l'EventBus (`RecvError::Closed`)
-    async fn run_with_shutdown(
-        self,
-        mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,
-    ) {
+    async fn run_with_shutdown(self, mut shutdown_rx: tokio::sync::oneshot::Receiver<()>) {
         let NotificationEngine {
             config,
             channels,
@@ -225,17 +222,12 @@ impl NotificationEngine {
             match rx.recv().await {
                 Ok(event) => {
                     if let Some(notif) = map_event_with(&config, &channels, &event) {
-                        let channel_results =
-                            dispatch_notif(&config, &channels, &notif).await;
+                        let channel_results = dispatch_notif(&config, &channels, &notif).await;
                         if let Some(ref db_path) = log_db_path {
                             let db_path = db_path.clone();
                             let notif_clone = notif.clone();
                             tokio::task::spawn_blocking(move || {
-                                write_notification_log(
-                                    &db_path,
-                                    &notif_clone,
-                                    &channel_results,
-                                );
+                                write_notification_log(&db_path, &notif_clone, &channel_results);
                             });
                         }
                     }

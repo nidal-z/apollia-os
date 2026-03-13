@@ -248,9 +248,7 @@ fn show_os_notification_macos(summary: String, body: String) {
     // Échappe les guillemets internes pour l'AppleScript.
     let body_esc = body.replace('\\', "\\\\").replace('"', "\\\"");
     let summary_esc = summary.replace('\\', "\\\\").replace('"', "\\\"");
-    let script = format!(
-        "display notification \"{body_esc}\" with title \"{summary_esc}\""
-    );
+    let script = format!("display notification \"{body_esc}\" with title \"{summary_esc}\"");
 
     match std::process::Command::new("osascript")
         .arg("-e")

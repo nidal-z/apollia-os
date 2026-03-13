@@ -157,6 +157,7 @@ async fn build_webhook_state(
         backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
+        obs_config: apollia_core::ObservabilityConfig::default(),
     };
     (state, submit_count)
 }

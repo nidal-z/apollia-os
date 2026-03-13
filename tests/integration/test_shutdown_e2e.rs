@@ -37,7 +37,9 @@ impl MockBackend {
 
 impl From<DynBackend> for MockBackend {
     fn from(_: DynBackend) -> Self {
-        MockBackend { delay: Duration::ZERO }
+        MockBackend {
+            delay: Duration::ZERO,
+        }
     }
 }
 
@@ -176,6 +178,7 @@ async fn test_shutdown_drains_active_tasks() {
         backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
+        obs_config: apollia_core::ObservabilityConfig::default(),
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -255,6 +258,7 @@ async fn test_shutdown_stops_all_agents() {
         backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
+        obs_config: apollia_core::ObservabilityConfig::default(),
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -324,6 +328,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
+        obs_config: apollia_core::ObservabilityConfig::default(),
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -415,6 +420,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         backend_factory: None,
         tool_registry_handle: None,
         audit_trail: None,
+        obs_config: apollia_core::ObservabilityConfig::default(),
     };
     let api = APIServer::new(
         APIServerConfig {

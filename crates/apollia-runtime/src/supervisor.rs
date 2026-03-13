@@ -443,8 +443,9 @@ impl Supervisor {
             }
         };
         // PendingApprovals — oneshot channel registry for HITL suspension (STORY-096).
-        let pending_approvals: Option<Arc<PendingApprovals>> =
-            task_repository.as_ref().map(|_| Arc::new(PendingApprovals::new()));
+        let pending_approvals: Option<Arc<PendingApprovals>> = task_repository
+            .as_ref()
+            .map(|_| Arc::new(PendingApprovals::new()));
         // Clone notification config so AppState can serve /api/v1/notifications/channels
         // while the original is consumed by NotificationEngine below.
         let notification_config_for_state = self.config.notifications.clone();
@@ -464,6 +465,7 @@ impl Supervisor {
             backend_factory,
             tool_registry_handle: Some(tool_registry_handle.clone()),
             audit_trail: audit_trail_handle.clone(),
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -693,7 +695,9 @@ mod tests {
     struct MockBackend;
 
     impl From<crate::coordinator::DynBackend> for MockBackend {
-        fn from(_: crate::coordinator::DynBackend) -> Self { MockBackend }
+        fn from(_: crate::coordinator::DynBackend) -> Self {
+            MockBackend
+        }
     }
 
     impl ExecutionBackend for MockBackend {
@@ -1090,6 +1094,7 @@ mod tests {
             backend_factory: None,
             tool_registry_handle: None,
             audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
         };
 
         // WHEN on clone l'AppState

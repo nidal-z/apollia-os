@@ -12,21 +12,21 @@ use std::time::Instant;
 use apollia_aip::bridge::AIPBridge;
 use apollia_aip::context::{RuntimeContext, ToolExecutor, ToolProxy};
 use apollia_aip::memory::MemoryInterface;
-use apollia_memory::manager::MemoryManager;
 use apollia_core::{AIPResult, AIPTask, AgentManifest, PendingApprovals, RuntimeEvent, TaskStatus};
-use apollia_oria::budget::StepBudget;
-use apollia_oria::engine::{AgentRunner, ORIAEngine};
-use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use apollia_llm::{
     CompletionModel, CompletionRequest, CompletionResponse, LlmError, LlmRouter,
     ObservabilityConfig, StepBudgetView, ToolCallHelper, ToolInvoker,
 };
+use apollia_memory::manager::MemoryManager;
+use apollia_oria::budget::StepBudget;
+use apollia_oria::engine::{AgentRunner, ORIAEngine};
 use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::api::APIServerConfig;
 use apollia_runtime::coordinator::{DynBackend, ExecutionBackend};
 use apollia_runtime::eventbus::EventBusSender;
 use apollia_runtime::shutdown::{ShutdownConfig, ShutdownController};
 use apollia_runtime::supervisor::{Supervisor, SupervisorConfig};
+use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use futures::stream;
 use pyo3::prelude::*;
 
@@ -118,8 +118,12 @@ impl CompletionModel for RouterModel {
     fn is_available(&self) -> bool {
         !self.0.list().is_empty()
     }
-    fn backend_name(&self) -> &str { "router" }
-    fn model_id(&self) -> &str { "router" }
+    fn backend_name(&self) -> &str {
+        "router"
+    }
+    fn model_id(&self) -> &str {
+        "router"
+    }
 }
 
 struct NoopToolInvoker;
@@ -127,7 +131,9 @@ struct NoopToolInvoker;
 #[async_trait::async_trait]
 impl ToolInvoker for NoopToolInvoker {
     async fn invoke(&self, name: &str, _args: &serde_json::Value) -> Result<String, String> {
-        Err(format!("tool '{name}' invocation via LLM loop not wired — use ctx.tools directly"))
+        Err(format!(
+            "tool '{name}' invocation via LLM loop not wired — use ctx.tools directly"
+        ))
     }
 }
 
@@ -157,7 +163,11 @@ impl NativeToolExecutor {
 }
 
 impl ToolExecutor for NativeToolExecutor {
-    fn execute(&self, tool_name: &str, input: serde_json::Value) -> Result<serde_json::Value, String> {
+    fn execute(
+        &self,
+        tool_name: &str,
+        input: serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
         let tool = tool_name.to_string();
         let home = self.home_dir.clone();
 
@@ -188,8 +198,15 @@ async fn native_exec_bash(input: serde_json::Value) -> Result<serde_json::Value,
         .and_then(|v| v.as_u64())
         .unwrap_or(30);
 
-    let bash_input = BashInput { command, timeout_secs, working_dir: None };
-    let result = BashExecutor::new().run(bash_input).await.map_err(|e| e.to_string())?;
+    let bash_input = BashInput {
+        command,
+        timeout_secs,
+        working_dir: None,
+    };
+    let result = BashExecutor::new()
+        .run(bash_input)
+        .await
+        .map_err(|e| e.to_string())?;
 
     Ok(serde_json::json!({
         "stdout": result.stdout,
@@ -235,7 +252,10 @@ async fn native_exec_file_io(
                 .get("content")
                 .and_then(|v| v.as_str())
                 .ok_or("file_io: missing 'content' field")?;
-            file_io.write(path, content.as_bytes()).await.map_err(|e| e.to_string())?;
+            file_io
+                .write(path, content.as_bytes())
+                .await
+                .map_err(|e| e.to_string())?;
             Ok(serde_json::json!({ "written": true }))
         }
         "list" => {
@@ -243,11 +263,11 @@ async fn native_exec_file_io(
                 .get("dir")
                 .and_then(|v| v.as_str())
                 .ok_or("file_io: missing 'dir' field")?;
-            let pattern = input
-                .get("pattern")
-                .and_then(|v| v.as_str())
-                .unwrap_or("*");
-            let files = file_io.list(dir, pattern).await.map_err(|e| e.to_string())?;
+            let pattern = input.get("pattern").and_then(|v| v.as_str()).unwrap_or("*");
+            let files = file_io
+                .list(dir, pattern)
+                .await
+                .map_err(|e| e.to_string())?;
             Ok(serde_json::json!({ "files": files }))
         }
         other => Err(format!("file_io: unknown action '{other}'")),
@@ -340,25 +360,25 @@ impl AgentRunner for BridgeRunner {
                 Arc::new(NoopToolInvoker),
             ));
 
-            let tool_proxy: Option<ToolProxy> =
-                match (tool_registry.as_ref(), audit_trail.as_ref()) {
-                    (Some(registry), Some(audit)) => Some(ToolProxy::new(
-                        registry.clone(),
-                        audit.clone(),
-                        Arc::new(NativeToolExecutor::new()),
-                        allowed_tools,
-                        agent_id.clone(),
-                        task.task_id.clone(),
-                    )),
-                    _ => {
-                        tracing::warn!(
-                            agent = %agent_id,
-                            "ToolProxy not available — tool registry or audit trail missing; \
-                             agent will use its own fallback for tool calls"
-                        );
-                        None
-                    }
-                };
+            let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref())
+            {
+                (Some(registry), Some(audit)) => Some(ToolProxy::new(
+                    registry.clone(),
+                    audit.clone(),
+                    Arc::new(NativeToolExecutor::new()),
+                    allowed_tools,
+                    agent_id.clone(),
+                    task.task_id.clone(),
+                )),
+                _ => {
+                    tracing::warn!(
+                        agent = %agent_id,
+                        "ToolProxy not available — tool registry or audit trail missing; \
+                         agent will use its own fallback for tool calls"
+                    );
+                    None
+                }
+            };
 
             let memory_interface: Option<MemoryInterface> =
                 memory_namespace.as_deref().and_then(|ns| {
@@ -468,8 +488,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
         let task_repository = self.task_repository.get().cloned();
 
         let result: Result<AIPProductionBackend, String> = (|| {
-            let module = apollia_aip::loader::load_agent_module(agent_path)
-                .map_err(|e| e.to_string())?;
+            let module =
+                apollia_aip::loader::load_agent_module(agent_path).map_err(|e| e.to_string())?;
             let validated =
                 apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
             let allowed_tools = validated.manifest.tools_required.clone();
@@ -559,13 +579,19 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         match find_config_file() {
             Some(path) => {
                 tracing::info!(config = %path.display(), "loading config");
-                let cfg = crate::config::parse_apollia_toml(&path).map_err(|e| {
-                    StartError::Config {
+                let cfg =
+                    crate::config::parse_apollia_toml(&path).map_err(|e| StartError::Config {
                         path: path.clone(),
                         reason: e.to_string(),
-                    }
-                })?;
-                (cfg.llm, cfg.triggers, cfg.notifications, cfg.pipelines, cfg.startup_agents, Some(path))
+                    })?;
+                (
+                    cfg.llm,
+                    cfg.triggers,
+                    cfg.notifications,
+                    cfg.pipelines,
+                    cfg.startup_agents,
+                    Some(path),
+                )
             }
             None => {
                 tracing::info!("no apollia.toml found — starting with defaults");
@@ -683,7 +709,10 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         for agent_path in &startup_agents {
             match client.start_agent(agent_path).await {
                 Ok(v) => {
-                    let name = v.get("agent_id").and_then(|n| n.as_str()).unwrap_or(agent_path);
+                    let name = v
+                        .get("agent_id")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or(agent_path);
                     println!("  * Agent auto-started: {name} ({agent_path})");
                 }
                 Err(e) => {
