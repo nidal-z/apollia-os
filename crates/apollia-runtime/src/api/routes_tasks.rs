@@ -540,6 +540,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -592,6 +593,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -644,6 +646,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
@@ -861,6 +864,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/resume", post(resume_task::<MockBackend>))

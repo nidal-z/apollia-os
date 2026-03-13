@@ -158,6 +158,11 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// Used by [`ShutdownController`] to stop the engine before the EventBus closes,
     /// preventing late notifications from being delivered after `apollia-os stop`.
     pub notification_engine: Option<NotificationEngineHandle>,
+    /// Repository des appels LLM — agrégation coûts/tokens (STORY-143).
+    ///
+    /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
+    /// Partagé entre `AppState` (route REST costs) et le subscriber EventBus.
+    pub llm_call_repository: Option<Arc<std::sync::Mutex<LlmCallRepository>>>,
 }
 
 /// Supervisor errors.
@@ -322,6 +327,7 @@ impl Supervisor {
         };
 
         // Phase 4b: LlmCallRepository — subscriber EventBus pour persister les appels LLM
+        let mut llm_call_repository: Option<Arc<std::sync::Mutex<LlmCallRepository>>> = None;
         if llm_router.is_some() {
             let db_path = self.config.data_dir.join("llm_calls.db");
             match LlmCallRepository::open(&db_path) {
@@ -331,7 +337,8 @@ impl Supervisor {
                     if let Some(c) = self.config.llm_config.as_ref() {
                         obs.debug_log_prompt = c.observability.debug_log_prompt;
                     }
-                    apollia_llm::spawn_llm_subscriber(repo, &event_sender, obs);
+                    apollia_llm::spawn_llm_subscriber(repo.clone(), &event_sender, obs);
+                    llm_call_repository = Some(repo);
                     info!("Supervisor: LlmCallRepository ready (subscriber spawned)");
                 }
                 Err(e) => {
@@ -491,6 +498,7 @@ impl Supervisor {
             tool_registry_handle: Some(tool_registry_handle.clone()),
             audit_trail: audit_trail_handle.clone(),
             obs_config: self.config.obs_config.clone(),
+            llm_call_repository: llm_call_repository.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -583,6 +591,7 @@ impl Supervisor {
             task_repository: task_repository.clone(),
             pending_approvals: pending_approvals.clone(),
             notification_engine,
+            llm_call_repository,
         })
     }
 }
@@ -1123,6 +1132,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
         };
 
         // WHEN on clone l'AppState

@@ -29,6 +29,9 @@ fn main() {
             commands::hitl::list_pending_approvals,
             commands::hitl::list_resolved_approvals,
             commands::hitl::resume_task,
+            commands::llm::list_llm_backends,
+            commands::llm::ping_llm_backend,
+            commands::llm::get_llm_cost_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

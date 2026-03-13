@@ -133,3 +133,34 @@ export interface TaskFilter {
   status?: string;
   agent_id?: string;
 }
+
+/** Statut d'un backend LLM. */
+export interface LlmBackendStatus {
+  name: string;
+  backend_type: "embedded" | "api";
+  model: string;
+  status: "ready" | "loading" | "error";
+}
+
+/** Résultat d'un ping LLM. */
+export interface LlmPingResult {
+  backend: string;
+  available: boolean;
+  latency_ms: number | null;
+  error: string | null;
+}
+
+/** Ligne de statistiques coût/tokens. */
+export interface LlmCostStatsRow {
+  backend: string;
+  model: string;
+  call_count: number;
+  total_tokens: number;
+  total_cost_usd: number;
+}
+
+/** Réponse agrégée des statistiques coût/tokens. */
+export interface LlmCostStatsResponse {
+  rows: LlmCostStatsRow[];
+  days: number;
+}

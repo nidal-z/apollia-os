@@ -197,6 +197,7 @@ mod tests {
             tool_registry_handle: Some(tool_registry),
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
         };
 
         Router::new()
@@ -229,6 +230,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
         };
 
         Router::new()

@@ -547,6 +547,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
         };
         let router = Router::new()
             .route(

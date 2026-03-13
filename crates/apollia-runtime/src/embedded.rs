@@ -63,6 +63,10 @@ pub struct RuntimeHandle {
     /// Handle vers le NotificationEngine optionnel. Wrappé dans `Arc` car
     /// `NotificationEngineHandle` n'implémente pas `Clone`.
     pub notification_engine: Option<Arc<NotificationEngineHandle>>,
+    /// Repository des appels LLM — agrégation coûts/tokens (STORY-143).
+    ///
+    /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
+    pub llm_call_repository: Option<Arc<std::sync::Mutex<apollia_llm::LlmCallRepository>>>,
     /// Port TCP de l'APIServer.
     pub api_port: u16,
 }
@@ -220,6 +224,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         task_repository: handles.task_repository,
         pending_approvals: handles.pending_approvals,
         notification_engine: handles.notification_engine.map(Arc::new),
+        llm_call_repository: handles.llm_call_repository,
         api_port: tcp_port,
     })
 }

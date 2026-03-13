@@ -3,6 +3,7 @@
   import Agents from "../../routes/Agents.svelte";
   import Tasks from "../../routes/Tasks.svelte";
   import Approvals from "../../routes/Approvals.svelte";
+  import Llm from "../../routes/Llm.svelte";
 </script>
 
 <main class="flex-1 overflow-auto bg-background p-6">
@@ -12,5 +13,7 @@
     <Tasks />
   {:else if $currentRoute === "approvals"}
     <Approvals />
+  {:else if $currentRoute === "llm"}
+    <Llm />
   {/if}
 </main>

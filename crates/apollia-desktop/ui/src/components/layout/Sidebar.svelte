@@ -9,6 +9,7 @@
     { route: "agents", label: "Agents", icon: "🤖" },
     { route: "tasks", label: "Tasks", icon: "📋" },
     { route: "approvals", label: "Approvals", icon: "✋" },
+    { route: "llm", label: "LLM", icon: "🧠" },
   ];
 
   function navigate(route: Route) {

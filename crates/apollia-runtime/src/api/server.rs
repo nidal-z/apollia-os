@@ -21,7 +21,7 @@ use tokio::sync::watch;
 use tracing::info;
 
 use apollia_core::PendingApprovals;
-use apollia_llm::LlmRouter;
+use apollia_llm::{LlmCallRepository, LlmRouter};
 use apollia_notifications::NotificationConfig;
 use apollia_pipelines::PipelineEngineHandle;
 use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
@@ -104,6 +104,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     ///
     /// Passée aux `ExecutionCoordinator` pour la persistance input/output/transitions.
     pub obs_config: apollia_core::ObservabilityConfig,
+    /// Repository des appels LLM — agrégation coûts/tokens (STORY-143).
+    ///
+    /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
+    /// `None` en tests ou quand aucun backend LLM n'est configuré.
+    pub llm_call_repository: Option<Arc<std::sync::Mutex<LlmCallRepository>>>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -125,6 +130,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             tool_registry_handle: self.tool_registry_handle.clone(),
             audit_trail: self.audit_trail.clone(),
             obs_config: self.obs_config.clone(),
+            llm_call_repository: self.llm_call_repository.clone(),
         }
     }
 }
@@ -504,6 +510,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
         }
     }
 

@@ -8,6 +8,7 @@
 
 pub mod agents;
 pub mod hitl;
+pub mod llm;
 pub mod tasks;
 
 use http_body_util::{BodyExt, Full};

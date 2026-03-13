@@ -3,6 +3,7 @@
 //! These handlers expose the `LlmRouter` state through the HTTP API so the CLI
 //! can diagnose backends without starting a full agent.
 
+use std::sync::Arc;
 use std::time::Instant;
 
 use axum::extract::State;
@@ -217,6 +218,103 @@ pub async fn llm_chat<B: ExecutionBackend + Clone>(
 }
 
 // ─────────────────────────────────────────────
+// Cost stats types & handler
+// ─────────────────────────────────────────────
+
+/// Query parameters for `GET /api/v1/llm/costs`.
+#[derive(Debug, Deserialize)]
+pub struct CostsQuery {
+    /// Number of days to aggregate costs for (default: 7).
+    #[serde(default = "default_cost_days")]
+    pub days: u32,
+}
+
+/// Default number of days for cost aggregation.
+fn default_cost_days() -> u32 {
+    7
+}
+
+/// A single backend/model cost summary row.
+#[derive(Debug, Serialize)]
+pub struct CostSummaryRow {
+    /// Backend name.
+    pub backend: String,
+    /// Model identifier.
+    pub model: String,
+    /// Number of LLM calls.
+    pub call_count: u64,
+    /// Total tokens (prompt + completion).
+    pub total_tokens: u64,
+    /// Estimated total cost in USD.
+    pub total_cost_usd: f64,
+}
+
+/// Response body for `GET /api/v1/llm/costs`.
+#[derive(Debug, Serialize)]
+pub struct CostsResponse {
+    /// Per-backend/model cost breakdown.
+    pub rows: Vec<CostSummaryRow>,
+    /// Number of days aggregated.
+    pub days: u32,
+}
+
+/// Handler for `GET /api/v1/llm/costs`.
+///
+/// Aggregates LLM call costs and token usage from `llm_calls.db` over the
+/// requested time window. Returns 503 if no `LlmCallRepository` is available.
+pub async fn get_llm_costs<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    axum::extract::Query(query): axum::extract::Query<CostsQuery>,
+) -> Result<Json<CostsResponse>, (StatusCode, Json<serde_json::Value>)> {
+    let repo = state.llm_call_repository.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error": "no LLM call repository configured"})),
+        )
+    })?;
+
+    let days = query.days;
+    let since = chrono::Utc::now() - chrono::Duration::days(i64::from(days));
+    let since_str = since.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+    let repo = Arc::clone(repo);
+    let summaries = tokio::task::spawn_blocking(move || {
+        let guard = repo
+            .lock()
+            .map_err(|e| format!("failed to lock repository: {e}"))?;
+        guard
+            .costs_by_backend_model_since(&since_str)
+            .map_err(|e| format!("query failed: {e}"))
+    })
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("join error: {e}")})),
+        )
+    })?
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e})),
+        )
+    })?;
+
+    let rows = summaries
+        .into_iter()
+        .map(|s| CostSummaryRow {
+            backend: s.backend,
+            model: s.model,
+            call_count: s.call_count,
+            total_tokens: s.total_tokens,
+            total_cost_usd: s.total_cost_usd,
+        })
+        .collect();
+
+    Ok(Json(CostsResponse { rows, days }))
+}
+
+// ─────────────────────────────────────────────
 // Sub-router builder
 // ─────────────────────────────────────────────
 
@@ -226,11 +324,13 @@ pub async fn llm_chat<B: ExecutionBackend + Clone>(
 /// - `GET  /api/v1/llm/status` — list all backends
 /// - `POST /api/v1/llm/ping`   — measure backend latency
 /// - `POST /api/v1/llm/chat`   — send a one-shot prompt
+/// - `GET  /api/v1/llm/costs`  — aggregate cost/token stats
 pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
         .route("/api/v1/llm/status", get(get_llm_status::<B>))
         .route("/api/v1/llm/ping", post(ping_llm_backend::<B>))
         .route("/api/v1/llm/chat", post(llm_chat::<B>))
+        .route("/api/v1/llm/costs", get(get_llm_costs::<B>))
 }
 
 // ─────────────────────────────────────────────
@@ -298,6 +398,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
         }
     }
 

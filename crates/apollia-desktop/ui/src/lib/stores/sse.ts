@@ -13,6 +13,7 @@ import type {
   ConnectionStatus,
   HitlInputRequiredPayload,
   HitlResumedPayload,
+  LlmBackendStatus,
 } from "$lib/types";
 
 const SSE_URL = "http://localhost:7771/api/v1/dashboard/stream";
@@ -30,6 +31,9 @@ export const tasks = writable<TaskSummary[]>([]);
 
 /** List of pending HITL approvals. */
 export const pendingApprovals = writable<PendingApproval[]>([]);
+
+/** List of LLM backends from the runtime. */
+export const llmBackends = writable<LlmBackendStatus[]>([]);
 
 /**
  * Refresh the agents store using the Tauri IPC `list_agents` command.
@@ -57,6 +61,20 @@ async function refreshTasksViaIpc(): Promise<void> {
     tasks.set(result);
   } catch {
     // IPC not available yet — fall back to dashboard state
+  }
+}
+
+/**
+ * Refresh the LLM backends store using the Tauri IPC `list_llm_backends` command.
+ *
+ * Called on SSE "llm" events and on connect for up-to-date backend status.
+ */
+async function refreshLlmBackendsViaIpc(): Promise<void> {
+  try {
+    const result: LlmBackendStatus[] = await invoke("list_llm_backends");
+    llmBackends.set(result);
+  } catch {
+    // IPC not available yet — keep current state
   }
 }
 
@@ -140,6 +158,7 @@ export function createSSEConnection(): () => void {
       // Hydrate stores via Tauri IPC for rich data
       void refreshAgentsViaIpc();
       void refreshTasksViaIpc();
+      void refreshLlmBackendsViaIpc();
     };
 
     // Named event: agents channel — refresh via IPC
@@ -150,6 +169,11 @@ export function createSSEConnection(): () => void {
     // Named event: tasks channel — refresh via IPC
     source.addEventListener("tasks", () => {
       void refreshTasksViaIpc();
+    });
+
+    // Named event: llm channel — refresh via IPC
+    source.addEventListener("llm", () => {
+      void refreshLlmBackendsViaIpc();
     });
 
     // Named event: approvals channel — parse JSON payload directly
