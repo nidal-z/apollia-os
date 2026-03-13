@@ -697,6 +697,72 @@ impl TaskRepository {
         .await
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
+    /// Retourne les informations d'approbation pour une tâche en status `input_required`.
+    ///
+    /// Lit le prompt, le contexte JSON et le `suspended_at` depuis les tables `tasks` et
+    /// `task_approvals`. Retourne `None` si la tâche n'existe pas ou n'est pas en
+    /// `input_required`.
+    pub async fn get_approval_info(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<ApprovalInfo>, TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+
+        tokio::task::spawn_blocking(move || -> Result<Option<ApprovalInfo>, TaskRepoError> {
+            let conn = rusqlite::Connection::open(&path)?;
+            let mut stmt = conn.prepare(
+                "SELECT t.agent_name, \
+                        COALESCE(t.input_required_prompt, ''), \
+                        COALESCE(t.input_required_context, '{}'), \
+                        ta.suspended_at \
+                 FROM tasks t \
+                 LEFT JOIN task_approvals ta ON t.task_id = ta.task_id AND ta.approved IS NULL \
+                 WHERE t.task_id = ?1 AND t.status = 'input_required' \
+                 LIMIT 1",
+            )?;
+
+            let result = match stmt.query_row(params![task_id], |row| {
+                let agent_name: String = row.get(0)?;
+                let prompt: String = row.get(1)?;
+                let context_str: String = row.get(2)?;
+                let suspended_at: Option<String> = row.get(3)?;
+                Ok((agent_name, prompt, context_str, suspended_at))
+            }) {
+                Ok(row) => Some(row),
+                Err(rusqlite::Error::QueryReturnedNoRows) => None,
+                Err(e) => return Err(TaskRepoError::Sqlite(e)),
+            };
+
+            match result {
+                None => Ok(None),
+                Some((agent_name, prompt, context_str, suspended_at)) => {
+                    let context = serde_json::from_str(&context_str).unwrap_or_default();
+                    Ok(Some(ApprovalInfo {
+                        agent_name,
+                        prompt,
+                        context,
+                        suspended_at: suspended_at.unwrap_or_default(),
+                    }))
+                }
+            }
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))?
+    }
+}
+
+/// Informations d'une approbation en attente, lues depuis SQLite.
+#[derive(Debug, Clone)]
+pub struct ApprovalInfo {
+    /// Nom de l'agent (depuis le manifest).
+    pub agent_name: String,
+    /// Prompt affiché à l'utilisateur.
+    pub prompt: String,
+    /// Contexte JSON sérialisé par l'agent.
+    pub context: serde_json::Value,
+    /// Timestamp ISO 8601 de la suspension.
+    pub suspended_at: String,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

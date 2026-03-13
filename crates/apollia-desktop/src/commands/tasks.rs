@@ -1,0 +1,209 @@
+//! Commandes IPC Tauri pour la gestion des tâches.
+//!
+//! `list_tasks` et `submit_task` délèguent aux handles du runtime.
+//! `get_task_timeline` appelle l'API REST interne `GET /api/v1/tasks/{id}/timeline`
+//! (Sprint 13, STORY-132) pour éviter de dupliquer la logique d'agrégation.
+
+use apollia_core::{AIPInput, AIPPart, TaskStatus, TextPart};
+use apollia_runtime::embedded::RuntimeHandle;
+use serde::{Deserialize, Serialize};
+use tauri::State;
+
+use super::http_get_json;
+
+/// Filtre optionnel pour la liste des tâches.
+#[derive(Debug, Deserialize)]
+pub struct TaskFilter {
+    /// Filtrer par statut (submitted, working, completed, failed, etc.).
+    pub status: Option<String>,
+    /// Filtrer par identifiant agent.
+    pub agent_id: Option<String>,
+}
+
+/// Résumé d'une tâche pour l'affichage dans l'UI.
+#[derive(Debug, Serialize)]
+pub struct TaskSummary {
+    /// Identifiant unique de la tâche.
+    pub id: String,
+    /// Identifiant de l'agent assigné.
+    pub agent_id: String,
+    /// Nom de l'agent assigné.
+    pub agent_name: String,
+    /// Statut courant.
+    pub status: String,
+    /// Aperçu du texte d'entrée (tronqué).
+    pub input_preview: String,
+    /// Durée d'exécution en millisecondes.
+    pub duration_ms: Option<u64>,
+    /// Date de création ISO8601.
+    pub created_at: String,
+}
+
+/// Convertit un `TaskStatus` en chaîne snake_case pour le frontend.
+fn status_to_string(status: &TaskStatus) -> String {
+    serde_json::to_value(status)
+        .ok()
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_else(|| format!("{status:?}"))
+}
+
+/// Liste toutes les tâches avec filtrage optionnel par statut ou agent.
+///
+/// Délègue à `TaskRouterHandle::all_tasks()` pour la liste brute, puis
+/// enrichit chaque entrée avec le nom de l'agent depuis le registry.
+#[tauri::command]
+pub async fn list_tasks(
+    state: State<'_, RuntimeHandle>,
+    filter: Option<TaskFilter>,
+) -> Result<Vec<TaskSummary>, String> {
+    let all = state
+        .router_handle
+        .all_tasks()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let mut summaries = Vec::with_capacity(all.len());
+
+    for (task_id, agent_id, status) in all {
+        let status_str = status_to_string(&status);
+
+        if let Some(ref f) = filter {
+            if let Some(ref filter_status) = f.status {
+                if &status_str != filter_status {
+                    continue;
+                }
+            }
+            if let Some(ref filter_agent) = f.agent_id {
+                if agent_id.as_str() != filter_agent.as_str() {
+                    continue;
+                }
+            }
+        }
+
+        let agent_name = state
+            .registry_handle
+            .get_agent(agent_id.as_str())
+            .await
+            .ok()
+            .flatten()
+            .map(|e| e.manifest.name.clone())
+            .unwrap_or_default();
+
+        summaries.push(TaskSummary {
+            id: task_id.to_string(),
+            agent_id: agent_id.to_string(),
+            agent_name,
+            status: status_str,
+            input_preview: String::new(),
+            duration_ms: None,
+            created_at: String::new(),
+        });
+    }
+
+    Ok(summaries)
+}
+
+/// Soumet une tâche à un agent et retourne le `TaskId` généré.
+///
+/// Construit un `AIPInput` à partir du texte brut fourni par le frontend
+/// et le soumet via `TaskRouterHandle::submit()`.
+#[tauri::command]
+pub async fn submit_task(
+    state: State<'_, RuntimeHandle>,
+    agent_id: String,
+    input: String,
+) -> Result<String, String> {
+    let aip_input = AIPInput {
+        parts: vec![AIPPart::Text(TextPart { text: input })],
+    };
+
+    let task_id = state
+        .router_handle
+        .submit(&agent_id, aip_input)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(task_id.to_string())
+}
+
+/// Récupère la timeline d'une tâche via l'API REST interne.
+///
+/// Appelle `GET /api/v1/tasks/{id}/timeline` (Sprint 13, STORY-132) qui
+/// agrège les événements de 5 sources SQLite (transitions, plans, LLM calls,
+/// tool calls, HITL). Le résultat est retourné tel quel au frontend.
+#[tauri::command]
+pub async fn get_task_timeline(
+    state: State<'_, RuntimeHandle>,
+    task_id: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    let path = format!("/api/v1/tasks/{task_id}/timeline");
+    let json = http_get_json(state.api_port, &path).await?;
+
+    match json.get("events").and_then(|v| v.as_array()) {
+        Some(events) => Ok(events.clone()),
+        None => {
+            if let Some(arr) = json.as_array() {
+                Ok(arr.clone())
+            } else {
+                Ok(vec![json])
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_status_to_string_all_variants() {
+        // GIVEN all TaskStatus variants
+        // WHEN converted to string
+        // THEN each produces the expected snake_case representation
+        assert_eq!(status_to_string(&TaskStatus::Submitted), "submitted");
+        assert_eq!(status_to_string(&TaskStatus::Working), "working");
+        assert_eq!(status_to_string(&TaskStatus::Completed), "completed");
+        assert_eq!(status_to_string(&TaskStatus::Failed), "failed");
+        assert_eq!(
+            status_to_string(&TaskStatus::InputRequired),
+            "input_required"
+        );
+        assert_eq!(status_to_string(&TaskStatus::Canceled), "canceled");
+    }
+
+    #[test]
+    fn test_task_summary_serializes_to_json() {
+        // GIVEN a TaskSummary struct
+        let summary = TaskSummary {
+            id: "task-001".to_string(),
+            agent_id: "agent-001".to_string(),
+            agent_name: "hello-agent".to_string(),
+            status: "completed".to_string(),
+            input_preview: "generate report".to_string(),
+            duration_ms: Some(1200),
+            created_at: "2026-03-13T10:00:00Z".to_string(),
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&summary).expect("serialize");
+
+        // THEN all fields are present
+        assert_eq!(json["id"], "task-001");
+        assert_eq!(json["agent_name"], "hello-agent");
+        assert_eq!(json["status"], "completed");
+        assert_eq!(json["duration_ms"], 1200);
+    }
+
+    #[test]
+    fn test_task_filter_deserializes() {
+        // GIVEN a JSON filter with status only
+        let json = serde_json::json!({ "status": "working" });
+
+        // WHEN deserialized
+        let filter: TaskFilter = serde_json::from_value(json).expect("deserialize");
+
+        // THEN the status field is populated
+        assert_eq!(filter.status.as_deref(), Some("working"));
+        assert!(filter.agent_id.is_none());
+    }
+}

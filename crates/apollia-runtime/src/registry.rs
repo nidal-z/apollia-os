@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Instant;
 
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
@@ -16,6 +17,8 @@ pub struct AgentEntry {
     pub manifest: AgentManifest,
     /// État courant du processus agent.
     pub process_state: ProcessState,
+    /// Instant de l'enregistrement, pour calculer l'uptime.
+    pub registered_at: Instant,
 }
 
 /// Erreurs possibles des opérations sur le registry.
@@ -137,6 +140,7 @@ impl AgentRegistry {
             id: id.clone(),
             manifest,
             process_state: ProcessState::Initializing,
+            registered_at: Instant::now(),
         };
         self.agents.insert(id.clone(), entry);
         let _ = self.bus.send(RuntimeEvent::AgentRegistered(id.clone()));

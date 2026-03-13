@@ -248,6 +248,10 @@ version = "0.1.0"
 dependencies = [
  "apollia-core",
  "apollia-runtime",
+ "apollia-tools",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "serde",
  "serde_json",
  "tauri",

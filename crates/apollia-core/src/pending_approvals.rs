@@ -65,6 +65,14 @@ impl PendingApprovals {
         rx
     }
 
+    /// Retourne les identifiants des tâches actuellement en attente d'approbation.
+    ///
+    /// Utilisé par les commandes IPC desktop pour lister les approbations en attente.
+    pub fn pending_task_ids(&self) -> Vec<String> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.keys().cloned().collect()
+    }
+
     /// Résout l'approbation en attente pour `task_id` — appelé par le `ResumeHandler`.
     ///
     /// Retire l'entrée du registre et envoie `response` sur le oneshot channel.

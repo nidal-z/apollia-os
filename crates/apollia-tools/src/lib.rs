@@ -27,5 +27,5 @@ pub use audit::{
 pub use descriptor::{McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind};
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
-pub use task_repository::{TaskRepoError, TaskRepository};
+pub use task_repository::{ApprovalInfo, TaskRepoError, TaskRepository};
 pub use tools::file_io::{FileIo, FileIoError};

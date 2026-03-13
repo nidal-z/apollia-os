@@ -6,6 +6,8 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod commands;
+
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
 
 fn main() {
@@ -16,6 +18,16 @@ fn main() {
 
     tauri::Builder::default()
         .manage(runtime_handle)
+        .invoke_handler(tauri::generate_handler![
+            commands::agents::list_agents,
+            commands::agents::start_agent,
+            commands::agents::stop_agent,
+            commands::tasks::list_tasks,
+            commands::tasks::submit_task,
+            commands::tasks::get_task_timeline,
+            commands::hitl::list_pending_approvals,
+            commands::hitl::resume_task,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
