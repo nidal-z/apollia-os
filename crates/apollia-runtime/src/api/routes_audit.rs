@@ -50,6 +50,15 @@ pub struct AuditEventResponse {
     pub exit_code: Option<i32>,
     pub success: bool,
     pub error_code: Option<String>,
+    /// Arguments JSON complets de l'invocation (STORY-128).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub args_json: Option<String>,
+    /// Sortie standard de l'outil, potentiellement tronquée (STORY-128).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stdout: Option<String>,
+    /// Sortie d'erreur de l'outil, potentiellement tronquée (STORY-128).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stderr: Option<String>,
 }
 
 impl From<ToolInvocationRecord> for AuditEventResponse {
@@ -66,6 +75,9 @@ impl From<ToolInvocationRecord> for AuditEventResponse {
             exit_code: r.exit_code,
             success: r.success,
             error_code: r.error_code,
+            args_json: r.args_json,
+            stdout: r.stdout,
+            stderr: r.stderr,
         }
     }
 }
@@ -236,6 +248,9 @@ mod tests {
             success,
             error_code: None,
             resources_used: None,
+            args_json: None,
+            stdout: None,
+            stderr: None,
         }
     }
 

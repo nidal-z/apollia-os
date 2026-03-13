@@ -212,18 +212,24 @@ async fn execute_tool(
 ) -> Result<serde_json::Value, ToolProxyError> {
     let start = Instant::now();
     let input_hash = compute_input_hash(&input);
+    let args_json = serde_json::to_string(&input).ok();
 
     // 1. Check permission BEFORE registry lookup (don't reveal tool existence)
     if !ctx.allowed_tools.iter().any(|t| t == tool_name) {
         let duration = start.elapsed();
-        record_audit(
+        emit_audit_record(
             ctx,
             tool_name,
             &input_hash,
             "unknown",
-            duration.as_millis() as u64,
-            false,
-            Some(ToolProxyError::ToolNotAllowed(tool_name.to_string()).to_string()),
+            AuditOutcome {
+                duration_ms: duration.as_millis() as u64,
+                success: false,
+                error_code: Some(ToolProxyError::ToolNotAllowed(tool_name.to_string()).to_string()),
+                args_json,
+                stdout: None,
+                stderr: None,
+            },
         );
         return Err(ToolProxyError::ToolNotAllowed(tool_name.to_string()));
     }
@@ -242,35 +248,48 @@ async fn execute_tool(
     let exec_result = ctx.executor.execute(tool_name, input);
     let duration = start.elapsed();
 
-    let (success, error_code) = match &exec_result {
-        Ok(_) => (true, None),
-        Err(e) => (false, Some(e.clone())),
+    let (success, error_code, stdout, stderr) = match &exec_result {
+        Ok(val) => (true, None, serde_json::to_string(val).ok(), None),
+        Err(e) => (false, Some(e.clone()), None, Some(e.clone())),
     };
 
     // 4. Record audit (always, success or failure)
-    record_audit(
+    emit_audit_record(
         ctx,
         tool_name,
         &input_hash,
         &sandbox_profile,
-        duration.as_millis() as u64,
-        success,
-        error_code,
+        AuditOutcome {
+            duration_ms: duration.as_millis() as u64,
+            success,
+            error_code,
+            args_json,
+            stdout,
+            stderr,
+        },
     );
 
     // 5. Return result
     exec_result.map_err(ToolProxyError::ExecutionFailed)
 }
 
+/// Outcome fields for an audit record, grouped to keep `emit_audit_record` under 7 params.
+struct AuditOutcome {
+    duration_ms: u64,
+    success: bool,
+    error_code: Option<String>,
+    args_json: Option<String>,
+    stdout: Option<String>,
+    stderr: Option<String>,
+}
+
 /// Records a tool invocation in the audit trail (fire-and-forget).
-fn record_audit(
+fn emit_audit_record(
     ctx: &ToolCallContext<'_>,
     tool_name: &str,
     input_hash: &str,
     sandbox_profile: &str,
-    duration_ms: u64,
-    success: bool,
-    error_code: Option<String>,
+    outcome: AuditOutcome,
 ) {
     ctx.audit.record(ToolInvocationRecord {
         id: uuid::Uuid::new_v4().to_string(),
@@ -280,11 +299,14 @@ fn record_audit(
         input_hash: input_hash.to_string(),
         sandbox_profile: sandbox_profile.to_string(),
         started_at: now_rfc3339(),
-        duration_ms: Some(duration_ms),
+        duration_ms: Some(outcome.duration_ms),
         exit_code: None,
-        success,
-        error_code,
+        success: outcome.success,
+        error_code: outcome.error_code,
         resources_used: None,
+        args_json: outcome.args_json,
+        stdout: outcome.stdout,
+        stderr: outcome.stderr,
     });
 }
 

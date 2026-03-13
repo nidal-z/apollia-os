@@ -37,6 +37,12 @@ pub struct ToolInvocationRecord {
     pub error_code: Option<String>,
     /// Ressources consommées (JSON brut). `null` en MVP.
     pub resources_used: Option<serde_json::Value>,
+    /// Arguments JSON complets de l'invocation.
+    pub args_json: Option<String>,
+    /// Sortie standard de l'outil (potentiellement tronquée).
+    pub stdout: Option<String>,
+    /// Sortie d'erreur de l'outil (potentiellement tronquée).
+    pub stderr: Option<String>,
 }
 
 /// Statistiques agrégées de l'audit trail.
@@ -96,6 +102,16 @@ const SCHEMA: &str = "
     CREATE INDEX IF NOT EXISTS idx_tool_invocations_started_at
         ON tool_invocations(started_at);
 ";
+
+/// Colonnes d'observabilité ajoutées par la migration Sprint 13 (STORY-128).
+///
+/// Chaque ALTER TABLE est exécuté individuellement ; l'erreur « duplicate column »
+/// est ignorée pour garantir l'idempotence sur les bases existantes.
+const MIGRATION_OBSERVABILITY_COLUMNS: &[&str] = &[
+    "ALTER TABLE tool_invocations ADD COLUMN args_json TEXT",
+    "ALTER TABLE tool_invocations ADD COLUMN stdout    TEXT",
+    "ALTER TABLE tool_invocations ADD COLUMN stderr    TEXT",
+];
 
 // ---------------------------------------------------------------------------
 // Messages internes
@@ -169,8 +185,9 @@ impl AuditTrail {
         conn.execute(
             "INSERT INTO tool_invocations \
              (id, agent_id, task_id, tool_name, input_hash, sandbox_profile, \
-              started_at, duration_ms, exit_code, success, error_code, resources_used) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+              started_at, duration_ms, exit_code, success, error_code, resources_used, \
+              args_json, stdout, stderr) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
             rusqlite::params![
                 r.id,
                 r.agent_id,
@@ -184,6 +201,9 @@ impl AuditTrail {
                 r.success as i32,
                 r.error_code,
                 resources_json,
+                r.args_json,
+                r.stdout,
+                r.stderr,
             ],
         )?;
         Ok(())
@@ -212,7 +232,8 @@ impl AuditTrail {
     ) -> rusqlite::Result<Vec<ToolInvocationRecord>> {
         let mut stmt = conn.prepare(
             "SELECT id, agent_id, task_id, tool_name, input_hash, sandbox_profile, \
-             started_at, duration_ms, exit_code, success, error_code, resources_used \
+             started_at, duration_ms, exit_code, success, error_code, resources_used, \
+             args_json, stdout, stderr \
              FROM tool_invocations \
              ORDER BY started_at DESC \
              LIMIT ?1",
@@ -233,6 +254,9 @@ impl AuditTrail {
                 success: row.get::<_, i32>(9)? != 0,
                 error_code: row.get(10)?,
                 resources_used,
+                args_json: row.get(12)?,
+                stdout: row.get(13)?,
+                stderr: row.get(14)?,
             })
         })?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
@@ -288,6 +312,18 @@ impl AuditTrailHandle {
             if let Err(e) = conn.execute_batch(SCHEMA) {
                 let _ = init_tx.send(Err(AuditTrailError::SchemaInitFailed(e.to_string())));
                 return;
+            }
+
+            // Migration Sprint 13 — colonnes d'observabilité (STORY-128).
+            for ddl in MIGRATION_OBSERVABILITY_COLUMNS {
+                if let Err(e) = conn.execute_batch(ddl) {
+                    let msg = e.to_string();
+                    // « duplicate column name » signifie que la colonne existe déjà — idempotent.
+                    if !msg.contains("duplicate column name") {
+                        let _ = init_tx.send(Err(AuditTrailError::SchemaInitFailed(msg)));
+                        return;
+                    }
+                }
             }
 
             // Signale le succès de l'initialisation avant d'entrer dans la boucle.
@@ -398,6 +434,9 @@ mod tests {
             success,
             error_code: error_code.map(|s| s.to_string()),
             resources_used: None,
+            args_json: None,
+            stdout: None,
+            stderr: None,
         }
     }
 
@@ -502,5 +541,81 @@ mod tests {
         // THEN
         assert_eq!(hash.len(), 64);
         assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    // STORY-128 AC-1 — Arguments JSON persistés
+    #[tokio::test]
+    async fn test_tool_invocation_args_persisted() {
+        // GIVEN un AuditTrail avec DB in-memory
+        let handle = open_test_audit().await;
+        let mut record = make_record(true, None);
+        record.args_json = Some(r#"{"path":"/tmp/test"}"#.to_string());
+        // WHEN record avec args_json
+        handle.record(record);
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        // THEN SELECT args_json retourne la valeur
+        let results = handle.query_last(1).await;
+        assert_eq!(results.len(), 1);
+        assert_eq!(
+            results[0].args_json.as_deref(),
+            Some(r#"{"path":"/tmp/test"}"#)
+        );
+        handle.shutdown().await;
+    }
+
+    // STORY-128 AC-2 — Stdout tronqué via truncate_with_marker
+    #[tokio::test]
+    async fn test_tool_invocation_stdout_truncated() {
+        // GIVEN config max_tool_output_bytes = 100
+        use apollia_core::truncate_with_marker;
+        let handle = open_test_audit().await;
+        let big_stdout = "x".repeat(500);
+        let (truncated_stdout, _) = truncate_with_marker(&big_stdout, 100);
+        let mut record = make_record(true, None);
+        record.stdout = Some(truncated_stdout);
+        // WHEN record avec stdout tronqué
+        handle.record(record);
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        // THEN la valeur persistée est tronquée avec marqueur
+        let results = handle.query_last(1).await;
+        assert_eq!(results.len(), 1);
+        let stored = results[0].stdout.as_ref().expect("stdout should be set");
+        assert!(stored.contains("500 octets total"));
+        assert!(stored.len() < 500);
+        handle.shutdown().await;
+    }
+
+    // STORY-128 AC-3 — Stderr persisté
+    #[tokio::test]
+    async fn test_tool_invocation_stderr_persisted() {
+        // GIVEN un AuditTrail
+        let handle = open_test_audit().await;
+        let mut record = make_record(false, Some("NotFound"));
+        record.stderr = Some("command not found".to_string());
+        // WHEN record avec stderr
+        handle.record(record);
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        // THEN SELECT stderr retourne la valeur
+        let results = handle.query_last(1).await;
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].stderr.as_deref(), Some("command not found"));
+        handle.shutdown().await;
+    }
+
+    // STORY-128 AC-4 — Duration et exit_code existants préservés après migration
+    #[tokio::test]
+    async fn test_tool_invocation_duration_preserved() {
+        // GIVEN un AuditTrail
+        let handle = open_test_audit().await;
+        let record = make_record(true, None);
+        // WHEN record avec duration_ms = 42
+        handle.record(record);
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        // THEN duration_ms et exit_code sont correctement lus
+        let results = handle.query_last(1).await;
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].duration_ms, Some(42));
+        assert_eq!(results[0].exit_code, Some(0));
+        handle.shutdown().await;
     }
 }
