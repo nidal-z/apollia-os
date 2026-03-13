@@ -4,6 +4,7 @@
   import Tasks from "../../routes/Tasks.svelte";
   import Approvals from "../../routes/Approvals.svelte";
   import Llm from "../../routes/Llm.svelte";
+  import Triggers from "../../routes/Triggers.svelte";
 </script>
 
 <main class="flex-1 overflow-auto bg-background p-6">
@@ -15,5 +16,7 @@
     <Approvals />
   {:else if $currentRoute === "llm"}
     <Llm />
+  {:else if $currentRoute === "triggers"}
+    <Triggers />
   {/if}
 </main>

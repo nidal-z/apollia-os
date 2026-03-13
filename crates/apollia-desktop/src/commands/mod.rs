@@ -10,6 +10,7 @@ pub mod agents;
 pub mod hitl;
 pub mod llm;
 pub mod tasks;
+pub mod triggers;
 
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;

@@ -14,6 +14,7 @@ import type {
   HitlInputRequiredPayload,
   HitlResumedPayload,
   LlmBackendStatus,
+  TriggerStatus,
 } from "$lib/types";
 
 const SSE_URL = "http://localhost:7771/api/v1/dashboard/stream";
@@ -34,6 +35,9 @@ export const pendingApprovals = writable<PendingApproval[]>([]);
 
 /** List of LLM backends from the runtime. */
 export const llmBackends = writable<LlmBackendStatus[]>([]);
+
+/** List of triggers from the runtime. */
+export const triggers = writable<TriggerStatus[]>([]);
 
 /**
  * Refresh the agents store using the Tauri IPC `list_agents` command.
@@ -73,6 +77,20 @@ async function refreshLlmBackendsViaIpc(): Promise<void> {
   try {
     const result: LlmBackendStatus[] = await invoke("list_llm_backends");
     llmBackends.set(result);
+  } catch {
+    // IPC not available yet — keep current state
+  }
+}
+
+/**
+ * Refresh the triggers store using the Tauri IPC `list_triggers` command.
+ *
+ * Called on SSE "triggers" events and on connect for up-to-date trigger status.
+ */
+async function refreshTriggersViaIpc(): Promise<void> {
+  try {
+    const result: TriggerStatus[] = await invoke("list_triggers");
+    triggers.set(result);
   } catch {
     // IPC not available yet — keep current state
   }
@@ -159,6 +177,7 @@ export function createSSEConnection(): () => void {
       void refreshAgentsViaIpc();
       void refreshTasksViaIpc();
       void refreshLlmBackendsViaIpc();
+      void refreshTriggersViaIpc();
     };
 
     // Named event: agents channel — refresh via IPC
@@ -174,6 +193,11 @@ export function createSSEConnection(): () => void {
     // Named event: llm channel — refresh via IPC
     source.addEventListener("llm", () => {
       void refreshLlmBackendsViaIpc();
+    });
+
+    // Named event: triggers channel — refresh via IPC
+    source.addEventListener("triggers", () => {
+      void refreshTriggersViaIpc();
     });
 
     // Named event: approvals channel — parse JSON payload directly

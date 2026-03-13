@@ -164,3 +164,35 @@ export interface LlmCostStatsResponse {
   rows: LlmCostStatsRow[];
   days: number;
 }
+
+/** Statut d'un trigger configuré. */
+export interface TriggerStatus {
+  id: string;
+  agent: string;
+  source_kind: "cron" | "interval" | "file_watch" | "webhook" | "oneshot";
+  enabled: boolean;
+  fire_count: number;
+  skip_count: number;
+  last_fired: string | null;
+}
+
+/** Entrée d'historique d'un trigger. */
+export interface TriggerLogEntry {
+  id: string;
+  trigger_id: string;
+  agent_name: string;
+  fired_at: string;
+  task_id: string | null;
+  status: "fired" | "skipped" | "error";
+  reason: string | null;
+}
+
+/** Résultat d'un fire manuel de trigger. */
+export interface TriggerFireResult {
+  task_id: string;
+}
+
+/** Résultat du rechargement de la config triggers. */
+export interface TriggerReloadResult {
+  reloaded: number;
+}

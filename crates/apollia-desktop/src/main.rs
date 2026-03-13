@@ -32,6 +32,11 @@ fn main() {
             commands::llm::list_llm_backends,
             commands::llm::ping_llm_backend,
             commands::llm::get_llm_cost_stats,
+            commands::triggers::list_triggers,
+            commands::triggers::set_trigger_enabled,
+            commands::triggers::fire_trigger,
+            commands::triggers::get_trigger_logs,
+            commands::triggers::reload_triggers,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
