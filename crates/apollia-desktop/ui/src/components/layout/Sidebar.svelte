@@ -1,5 +1,7 @@
 <script lang="ts">
   import { currentRoute, type Route } from "$lib/stores/navigation";
+  import { connectionStatus } from "$lib/stores/sse";
+  import { pendingCount } from "$lib/stores/hitl";
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
 
@@ -12,6 +14,13 @@
   function navigate(route: Route) {
     currentRoute.set(route);
   }
+
+  const STATUS_LABELS: Record<string, string> = {
+    connecting: "Connecting...",
+    connected: "Runtime connected",
+    reconnecting: "Reconnecting...",
+    error: "Connection lost",
+  };
 </script>
 
 <aside class="flex h-screen w-60 flex-col border-r bg-card">
@@ -34,8 +43,10 @@
       >
         <span>{item.icon}</span>
         <span>{item.label}</span>
-        {#if item.route === "approvals"}
-          <Badge variant="destructive" class="ml-auto text-[10px] px-1.5 py-0">0</Badge>
+        {#if item.route === "approvals" && $pendingCount > 0}
+          <Badge variant="destructive" class="ml-auto text-[10px] px-1.5 py-0"
+            >{$pendingCount}</Badge
+          >
         {/if}
       </button>
     {/each}
@@ -43,9 +54,17 @@
 
   <Separator />
 
-  <!-- Connection indicator (placeholder) -->
+  <!-- Connection indicator -->
   <div class="flex items-center gap-2 px-4 py-3">
-    <span class="h-2 w-2 rounded-full bg-[var(--apollia-success)]"></span>
-    <span class="text-xs text-muted-foreground">Runtime connected</span>
+    {#if $connectionStatus === "connected"}
+      <span class="h-2 w-2 rounded-full bg-[var(--apollia-success)]"></span>
+    {:else if $connectionStatus === "reconnecting"}
+      <span class="h-2 w-2 rounded-full bg-[var(--apollia-warning)]"></span>
+    {:else}
+      <span class="h-2 w-2 rounded-full bg-[hsl(var(--destructive))]"></span>
+    {/if}
+    <span class="text-xs text-muted-foreground"
+      >{STATUS_LABELS[$connectionStatus] ?? "Unknown"}</span
+    >
   </div>
 </aside>
