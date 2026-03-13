@@ -8,6 +8,7 @@
   import Pipelines from "../../routes/Pipelines.svelte";
   import Memory from "../../routes/Memory.svelte";
   import Notifications from "../../routes/Notifications.svelte";
+  import Observability from "../../routes/Observability.svelte";
 </script>
 
 <main class="flex-1 overflow-auto bg-background p-6">
@@ -27,5 +28,7 @@
     <Memory />
   {:else if $currentRoute === "notifications"}
     <Notifications />
+  {:else if $currentRoute === "observability"}
+    <Observability />
   {/if}
 </main>

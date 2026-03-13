@@ -17,7 +17,7 @@ pub mod types;
 
 pub use repository::{
     spawn_subscriber as spawn_llm_subscriber, LlmCallRecord, LlmCallRepository, LlmCostSummary,
-    LlmRepositoryError,
+    LlmDailyCostSummary, LlmRepositoryError,
 };
 pub use router::{BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig};
 pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};

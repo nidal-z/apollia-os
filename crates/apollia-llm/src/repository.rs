@@ -85,6 +85,17 @@ pub struct LlmCostSummary {
     pub total_cost_usd: f64,
 }
 
+/// Résumé coût journalier agrégé par backend (dashboard LLM Costs daily chart).
+#[derive(Debug, Clone)]
+pub struct LlmDailyCostSummary {
+    /// Date au format `YYYY-MM-DD`.
+    pub date: String,
+    /// Nom logique du backend.
+    pub backend: String,
+    /// Coût total estimé en USD pour ce jour et ce backend.
+    pub cost_usd: f64,
+}
+
 /// Erreurs du repository LLM.
 #[derive(Debug, thiserror::Error)]
 pub enum LlmRepositoryError {
@@ -210,6 +221,36 @@ impl LlmCallRepository {
                 call_count: row.get::<_, i64>(2)? as u64,
                 total_tokens: row.get::<_, i64>(3)? as u64,
                 total_cost_usd: row.get(4)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    /// Agrégation coût journalier par backend depuis `since` (format ISO 8601).
+    ///
+    /// Retourne un vecteur de `LlmDailyCostSummary` trié par date ASC puis backend.
+    /// Utilisé par le dashboard Observability (STORY-148, AC-3).
+    pub fn costs_by_day_backend_since(
+        &self,
+        since: &str,
+    ) -> Result<Vec<LlmDailyCostSummary>, LlmRepositoryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DATE(created_at) AS day, backend,
+                    COALESCE(SUM(cost_usd), 0.0) AS cost_usd
+             FROM llm_calls
+             WHERE created_at >= ?1
+             GROUP BY day, backend
+             ORDER BY day ASC, backend ASC",
+        )?;
+        let rows = stmt.query_map(params![since], |row| {
+            Ok(LlmDailyCostSummary {
+                date: row.get(0)?,
+                backend: row.get(1)?,
+                cost_usd: row.get(2)?,
             })
         })?;
         let mut result = Vec::new();

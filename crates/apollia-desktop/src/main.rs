@@ -49,6 +49,9 @@ fn main() {
             commands::notifications::list_notification_channels,
             commands::notifications::test_notification_channel,
             commands::notifications::get_notification_logs,
+            commands::observability::get_global_timeline,
+            commands::observability::get_tool_audit_trail,
+            commands::observability::get_llm_daily_costs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

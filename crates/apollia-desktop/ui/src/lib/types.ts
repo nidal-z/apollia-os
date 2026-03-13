@@ -285,3 +285,42 @@ export interface NotificationLogEntry {
   channels: Record<string, string>;
   error: string | null;
 }
+
+/** Événement de la timeline globale (STORY-148, AC-1/AC-2). */
+export interface GlobalTimelineEvent {
+  event_type: "task" | "tool" | "llm" | "hitl" | string;
+  timestamp: string;
+  summary: string;
+  detail: Record<string, unknown>;
+}
+
+/** Paramètres pour la commande get_global_timeline. */
+export interface TimelineParams {
+  window_minutes: number;
+}
+
+/** Entrée de l'audit trail (STORY-148, AC-4). */
+export interface AuditTrailEntry {
+  id: string;
+  tool_name: string;
+  agent_id: string;
+  timestamp: string;
+  duration_ms: number | null;
+  exit_code: number | null;
+  args_json: string | null;
+  stdout: string | null;
+  stderr: string | null;
+}
+
+/** Entrée coût journalier par backend (STORY-148, AC-3). */
+export interface LlmDailyCostEntry {
+  date: string;
+  backend: string;
+  cost_usd: number;
+}
+
+/** Réponse des coûts journaliers LLM. */
+export interface LlmDailyCostsResponse {
+  entries: LlmDailyCostEntry[];
+  days: number;
+}

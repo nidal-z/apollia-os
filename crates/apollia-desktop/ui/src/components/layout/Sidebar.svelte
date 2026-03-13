@@ -14,6 +14,7 @@
     { route: "pipelines", label: "Pipelines", icon: "🔗" },
     { route: "memory", label: "Memory", icon: "💾" },
     { route: "notifications", label: "Notifications", icon: "🔔" },
+    { route: "observability", label: "Observability", icon: "📊" },
   ];
 
   function navigate(route: Route) {

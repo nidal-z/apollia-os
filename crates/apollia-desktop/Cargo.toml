@@ -10,6 +10,7 @@ apollia-runtime = { workspace = true }
 apollia-core   = { workspace = true }
 apollia-memory = { workspace = true }
 apollia-tools  = { workspace = true }
+chrono         = { workspace = true }
 serde          = { workspace = true }
 serde_json     = { workspace = true }
 tokio          = { workspace = true }

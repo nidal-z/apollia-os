@@ -250,6 +250,7 @@ dependencies = [
  "apollia-memory",
  "apollia-runtime",
  "apollia-tools",
+ "chrono",
  "http-body-util",
  "hyper",
  "hyper-util",

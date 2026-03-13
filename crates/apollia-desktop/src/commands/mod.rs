@@ -11,6 +11,7 @@ pub mod hitl;
 pub mod llm;
 pub mod memory;
 pub mod notifications;
+pub mod observability;
 pub mod pipelines;
 pub mod tasks;
 pub mod triggers;

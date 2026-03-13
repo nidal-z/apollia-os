@@ -315,22 +315,102 @@ pub async fn get_llm_costs<B: ExecutionBackend + Clone>(
 }
 
 // ─────────────────────────────────────────────
+// Daily costs types & handler
+// ─────────────────────────────────────────────
+
+/// A single day+backend cost entry for the daily chart.
+#[derive(Debug, Serialize)]
+pub struct DailyCostEntry {
+    /// Date au format `YYYY-MM-DD`.
+    pub date: String,
+    /// Nom du backend.
+    pub backend: String,
+    /// Coût total estimé en USD pour ce jour.
+    pub cost_usd: f64,
+}
+
+/// Response body for `GET /api/v1/llm/costs/daily`.
+#[derive(Debug, Serialize)]
+pub struct DailyCostsResponse {
+    /// Per-day/backend cost entries.
+    pub entries: Vec<DailyCostEntry>,
+    /// Number of days requested.
+    pub days: u32,
+}
+
+/// Handler for `GET /api/v1/llm/costs/daily`.
+///
+/// Returns LLM costs broken down by day and backend for the requested
+/// time window. Used by the Observability LLM Costs chart (STORY-148, AC-3).
+pub async fn get_llm_daily_costs<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    axum::extract::Query(query): axum::extract::Query<CostsQuery>,
+) -> Result<Json<DailyCostsResponse>, (StatusCode, Json<serde_json::Value>)> {
+    let repo = state.llm_call_repository.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error": "no LLM call repository configured"})),
+        )
+    })?;
+
+    let days = query.days;
+    let since = chrono::Utc::now() - chrono::Duration::days(i64::from(days));
+    let since_str = since.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+    let repo = Arc::clone(repo);
+    let summaries = tokio::task::spawn_blocking(move || {
+        let guard = repo
+            .lock()
+            .map_err(|e| format!("failed to lock repository: {e}"))?;
+        guard
+            .costs_by_day_backend_since(&since_str)
+            .map_err(|e| format!("query failed: {e}"))
+    })
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": format!("join error: {e}")})),
+        )
+    })?
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e})),
+        )
+    })?;
+
+    let entries = summaries
+        .into_iter()
+        .map(|s| DailyCostEntry {
+            date: s.date,
+            backend: s.backend,
+            cost_usd: s.cost_usd,
+        })
+        .collect();
+
+    Ok(Json(DailyCostsResponse { entries, days }))
+}
+
+// ─────────────────────────────────────────────
 // Sub-router builder
 // ─────────────────────────────────────────────
 
 /// Build the axum sub-router for LLM diagnostic endpoints.
 ///
 /// Routes registered:
-/// - `GET  /api/v1/llm/status` — list all backends
-/// - `POST /api/v1/llm/ping`   — measure backend latency
-/// - `POST /api/v1/llm/chat`   — send a one-shot prompt
-/// - `GET  /api/v1/llm/costs`  — aggregate cost/token stats
+/// - `GET  /api/v1/llm/status`      — list all backends
+/// - `POST /api/v1/llm/ping`        — measure backend latency
+/// - `POST /api/v1/llm/chat`        — send a one-shot prompt
+/// - `GET  /api/v1/llm/costs`       — aggregate cost/token stats
+/// - `GET  /api/v1/llm/costs/daily`  — daily cost breakdown per backend
 pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
         .route("/api/v1/llm/status", get(get_llm_status::<B>))
         .route("/api/v1/llm/ping", post(ping_llm_backend::<B>))
         .route("/api/v1/llm/chat", post(llm_chat::<B>))
         .route("/api/v1/llm/costs", get(get_llm_costs::<B>))
+        .route("/api/v1/llm/costs/daily", get(get_llm_daily_costs::<B>))
 }
 
 // ─────────────────────────────────────────────
