@@ -15,13 +15,18 @@ Automatic trigger:
     Configured via [[triggers]] git-commit-review in apollia.toml.
     Fires on .git directory changes (file_watch source).
 
-HITL:
-    file_io is in tools_requiring_approval — the runtime suspends the task
-    and emits a desktop notification before writing the review report.
+HITL — Mode Direct pattern:
+    The agent explicitly returns input_required before writing the report.
+    The runtime suspends the task, saves context (including the report) to
+    SQLite, and emits a desktop notification + TaskInputRequired event.
+
     Approve or reject via:
         apollia-os task list --pending-approval
         apollia-os task resume <id> --approve
         apollia-os task resume <id> --reject
+
+    On resume, the agent checks task["is_resumed"] and task["input_response"]
+    to decide whether to write the report.
 
 Graceful degradation:
     - ctx.llm   is None → static analysis only (no crash)
@@ -47,12 +52,7 @@ class CodeReviewerMoe:
     """
 
     def manifest(self):
-        """Return the AIP agent manifest.
-
-        Called by the runtime at `agent start` time to register metadata and
-        validate duck-typing requirements. tools_requiring_approval triggers
-        the HITL suspension mechanism before any file_io call proceeds.
-        """
+        """Return the AIP agent manifest."""
         return {
             "name": "code-reviewer-moe",
             "version": "1.0.0",
@@ -61,27 +61,34 @@ class CodeReviewerMoe:
                 "et produit un rapport de qualité via 3 passes expertes LLM."
             ),
             "tools_required": ["bash_executor", "file_io"],
-            "tools_requiring_approval": ["file_io"],
             "memory_namespace": "code-reviewer-moe",
             "execution_mode": "direct",
         }
 
     async def run(self, task, ctx):
-        """Main entry point — called once per task by the Apollia runtime.
+        """Main entry point — called by the Apollia runtime.
 
-        Phases:
-            1. Collecte   — git diff, log, stat via bash_executor
-            2. Analyse    — 3 expert LLM passes (or static grep fallback)
-            3. Synthèse   — 4th LLM pass aggregating expert findings
-            4. Mémoire    — selective recording (Critical/High/cross-expert pattern)
-            5. HITL+Write — file_io with approval gate → .apollia/reviews/
-            6. Retour     — {"status": "completed", "output": [{"type": "text", ...}]}
+        Implements Mode Direct HITL with two phases:
+
+        Phase A — First call (is_resumed is False):
+            1. Collecte   — git diff, log, stat
+            2. Analyse    — 3 expert LLM passes (or static fallback)
+            3. Synthèse   — 4th LLM synthesis pass
+            4. Mémoire    — selective recording
+            5. HITL       — return input_required with report in context
+
+        Phase B — Resume call (is_resumed is True):
+            6. Write      — if approved, write report to disk
+            7. Retour     — completed with report text
 
         Args:
-            task: AIP task dict — input parts[0].text is the absolute repo path.
+            task: AIP task dict. input parts[0].text is the absolute repo path.
             ctx:  RuntimeContext — exposes ctx.llm, ctx.tools, ctx.memory.
-                  Any of these may be None; all phases degrade gracefully.
         """
+        # ── Phase B: resumed — check approval and write report ─────────────
+        if task.get("is_resumed"):
+            return await self._handle_resume(task, ctx)
+
         # ── Parse input ────────────────────────────────────────────────────
         parts = task["input"]["parts"]
         if not parts or not parts[0].get("text", "").strip():
@@ -103,14 +110,12 @@ class CodeReviewerMoe:
         log_line = (await self._git(ctx, repo_path, "log -1 --pretty=format:%H %s")).strip()
         stat = await self._git(ctx, repo_path, "diff HEAD~1 --stat")
 
-        # Handle first commit (no HEAD~1 parent)
         if not diff.strip():
             print("[code-reviewer-moe] Phase 1 — Premier commit détecté, git show HEAD utilisé.")
             diff = await self._git(ctx, repo_path, "show HEAD")
         if not stat.strip():
             stat = await self._git(ctx, repo_path, "show HEAD --stat")
 
-        # Parse commit hash and message — format is "<40-char-hash> <subject>"
         if log_line and len(log_line) >= 40:
             commit_hash = log_line[:40]
             commit_message = log_line[41:].strip() if len(log_line) > 40 else "no message"
@@ -131,7 +136,6 @@ class CodeReviewerMoe:
             if len(diff) > 8000:
                 diff_body += "\n\n... (diff tronqué à 8000 caractères)"
 
-            # Expert 1 — Sécurité
             print("[code-reviewer-moe] Phase 2.1 — Expert Sécurité...")
             sec_content = await self._call_expert(
                 ctx,
@@ -146,7 +150,6 @@ class CodeReviewerMoe:
             )
             expert_findings.append(("security", sec_content))
 
-            # Expert 2 — Architecture
             print("[code-reviewer-moe] Phase 2.2 — Expert Architecture...")
             arch_content = await self._call_expert(
                 ctx,
@@ -160,7 +163,6 @@ class CodeReviewerMoe:
             )
             expert_findings.append(("architecture", arch_content))
 
-            # Expert 3 — Qualité & patterns
             print("[code-reviewer-moe] Phase 2.3 — Expert Qualité...")
             quality_content = await self._call_expert(
                 ctx,
@@ -175,7 +177,6 @@ class CodeReviewerMoe:
             expert_findings.append(("quality", quality_content))
 
         else:
-            # Mode dégradé — analyse statique uniquement
             print("[code-reviewer-moe] Phase 2 — Mode dégradé: analyse statique (pas de LLM).")
             static_content = self._static_analysis(diff)
             expert_findings.append(("static", static_content))
@@ -226,19 +227,30 @@ class CodeReviewerMoe:
         report = self._build_report(
             commit_hash_short, commit_message, stat, expert_findings, synthesis
         )
-
-        # ── Phase 5 — HITL + écriture rapport ──────────────────────────────
-        print("[code-reviewer-moe] Phase 5 — HITL + écriture rapport...")
-
         review_relpath = os.path.join(".apollia", "reviews", f"review-{commit_hash_short}.md")
-        await self._write_report_hitl(ctx, repo_path, review_relpath, report)
 
-        # ── Phase 6 — Retour ───────────────────────────────────────────────
-        print("[code-reviewer-moe] Phase 6 — Terminé.")
+        # ── Phase 5 — HITL: demande d'approbation avant écriture ──────────
+        # Mode Direct HITL: return input_required so the runtime suspends the
+        # task and emits a desktop notification. The report and target path are
+        # stored in `context` (persisted to SQLite). On resume, _handle_resume()
+        # reads them back and performs the write if approved.
+        print(f"[code-reviewer-moe] Phase 5 — HITL: demande d'approbation (commit {commit_hash_short})...")
         return {
             "task_id": task["task_id"],
-            "status": "completed",
-            "output": [{"type": "text", "text": report}],
+            "status": "input_required",
+            "input_required_data": {
+                "prompt": (
+                    f"Code review prêt pour commit {commit_hash_short} "
+                    f"({commit_message[:60]}). "
+                    f"Approuver l'écriture du rapport dans {review_relpath} ?"
+                ),
+                "context": {
+                    "repo_path": repo_path,
+                    "review_relpath": review_relpath,
+                    "commit_hash_short": commit_hash_short,
+                    "report": report,
+                },
+            },
         }
 
     # ─────────────────────────────────────────────────────────── helpers ───
@@ -398,22 +410,45 @@ class CodeReviewerMoe:
         lines += ["---", "*Generated by code-reviewer-moe v1.0.0*", ""]
         return "\n".join(lines)
 
-    async def _write_report_hitl(self, ctx, repo_path, review_relpath, report):
-        """Write the report via file_io (HITL gate) or stdlib fallback.
+    async def _handle_resume(self, task, ctx):
+        """Handle the HITL resume call (Phase B).
 
-        Because file_io is listed in tools_requiring_approval, the runtime
-        suspends the task and sends a desktop notification before the write
-        proceeds. The human must approve via:
-            apollia-os task resume <id> --approve
+        Called when task["is_resumed"] is True. Reads the approval decision
+        from task["input_response"] and writes the report if approved.
 
-        If approval is rejected, the write call raises and the report is not
-        saved to disk (the task still returns "completed" with the report text).
-
-        Falls back to stdlib write when ctx.tools is None (degraded mode).
+        The report and target paths were stored in task["input_response"]["context"]
+        by the runtime when persisting the input_required data to SQLite.
         """
+        response = task.get("input_response") or {}
+        approved = response.get("approved", False)
+        context = response.get("context") or {}
+
+        repo_path = context.get("repo_path", "")
+        review_relpath = context.get("review_relpath", "review-unknown.md")
+        commit_hash_short = context.get("commit_hash_short", "unknown")
+        report = context.get("report", "")
+
+        if not approved:
+            print(f"[code-reviewer-moe] HITL rejeté — rapport NON écrit (commit {commit_hash_short}).")
+            return {
+                "task_id": task["task_id"],
+                "status": "completed",
+                "output": [{"type": "text", "text": f"Rapport rejeté pour commit {commit_hash_short}."}],
+            }
+
+        print(f"[code-reviewer-moe] HITL approuvé — écriture du rapport (commit {commit_hash_short})...")
+        await self._write_report(ctx, repo_path, review_relpath, report)
+
+        return {
+            "task_id": task["task_id"],
+            "status": "completed",
+            "output": [{"type": "text", "text": report}],
+        }
+
+    async def _write_report(self, ctx, repo_path, review_relpath, report):
+        """Write the review report to disk via file_io or stdlib fallback."""
         review_abs_dir = os.path.join(repo_path, os.path.dirname(review_relpath))
 
-        # Ensure target directory exists (bash_executor or stdlib)
         if ctx.tools is not None:
             await self._run_command(ctx, f"mkdir -p '{review_abs_dir}'", timeout_seconds=5)
         else:
@@ -421,8 +456,6 @@ class CodeReviewerMoe:
 
         if ctx.tools is not None:
             try:
-                # This call triggers the HITL suspension because file_io is in
-                # tools_requiring_approval. The runtime waits for human approval.
                 await ctx.tools.call("file_io", {
                     "action": "write",
                     "path": review_relpath,
@@ -431,16 +464,15 @@ class CodeReviewerMoe:
                 print(f"[code-reviewer-moe] Rapport écrit: {review_relpath}")
                 return
             except Exception as write_err:
-                print(f"[code-reviewer-moe] file_io write échoué (HITL rejeté ou erreur): {write_err}")
-                # Do not fall through to stdlib — HITL rejection must be respected.
+                print(f"[code-reviewer-moe] file_io write échoué: {write_err}")
                 return
 
-        # ctx.tools is None — write directly without HITL (degraded mode)
+        # ctx.tools is None — write directly (degraded mode)
         try:
             abs_path = os.path.join(repo_path, review_relpath)
             with open(abs_path, "w", encoding="utf-8") as fh:
                 fh.write(report)
-            print(f"[code-reviewer-moe] Rapport écrit (mode dégradé, sans HITL): {abs_path}")
+            print(f"[code-reviewer-moe] Rapport écrit (mode dégradé): {abs_path}")
         except Exception as file_err:
             print(f"[code-reviewer-moe] Écriture échouée: {file_err}")
 

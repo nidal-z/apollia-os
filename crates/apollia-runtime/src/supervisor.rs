@@ -16,13 +16,13 @@ use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 use tracing::{error, info, warn};
 
-use apollia_core::RuntimeEvent;
+use apollia_core::{PendingApprovals, RuntimeEvent};
 use apollia_llm::{LlmConfig, LlmRouter};
 use apollia_notifications::{build_channels, NotificationConfig, NotificationEngine};
 use apollia_pipelines::{
     PipelineDefinition, PipelineEngine, PipelineEngineHandle, PipelineRepository,
 };
-use apollia_tools::{AuditTrailHandle, ToolRegistryHandle};
+use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use apollia_triggers::{TriggerDefinition, TriggerEngineHandle};
 
 use crate::api::routes_agents::AgentLoader;
@@ -136,6 +136,15 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `None` when the data directory is unavailable or the SQLite open fails
     /// (warning logged, runtime continues without audit). `Some` in production.
     pub audit_trail: Option<AuditTrailHandle>,
+    /// HITL task repository — persists `input_required` prompts/contexts (STORY-094).
+    ///
+    /// Shared between `AppState` (resume handler) and `TimeoutWatcher`.
+    /// `None` when the SQLite open fails (warning logged, HITL disabled).
+    pub task_repository: Option<Arc<TaskRepository>>,
+    /// HITL pending approvals registry — oneshot channels for Mode Direct suspension (STORY-096).
+    ///
+    /// `None` when `task_repository` is `None` (HITL disabled).
+    pub pending_approvals: Option<Arc<apollia_core::PendingApprovals>>,
 }
 
 /// Supervisor errors.
@@ -385,8 +394,24 @@ impl Supervisor {
 
         // Phase 9 (pos 10): APIServer
         info!("Supervisor: starting APIServer");
-        // Extract task_repository before moving state into APIServer (needed for TimeoutWatcher).
-        let task_repository: Option<std::sync::Arc<apollia_tools::TaskRepository>> = None;
+        // Open TaskRepository (HITL persistence — STORY-094/095).
+        // Shared between AppState (resume handler) and TimeoutWatcher.
+        let task_repository: Option<Arc<TaskRepository>> = {
+            let db_path = self.config.data_dir.join("hitl.db");
+            match TaskRepository::open(&db_path).await {
+                Ok(repo) => {
+                    info!("Supervisor: TaskRepository ready (HITL enabled)");
+                    Some(Arc::new(repo))
+                }
+                Err(e) => {
+                    warn!(error = %e, "TaskRepository failed to open — HITL disabled");
+                    None
+                }
+            }
+        };
+        // PendingApprovals — oneshot channel registry for HITL suspension (STORY-096).
+        let pending_approvals: Option<Arc<PendingApprovals>> =
+            task_repository.as_ref().map(|_| Arc::new(PendingApprovals::new()));
         // Clone notification config so AppState can serve /api/v1/notifications/channels
         // while the original is consumed by NotificationEngine below.
         let notification_config_for_state = self.config.notifications.clone();
@@ -400,7 +425,7 @@ impl Supervisor {
             trigger_engine: Some(trigger_engine.clone()),
             config_path: self.config.config_path.clone(),
             task_repository: task_repository.clone(),
-            pending_approvals: None,
+            pending_approvals: pending_approvals.clone(),
             notification_config: notification_config_for_state,
             pipeline_engine: pipeline_engine.clone(),
             backend_factory,
@@ -439,7 +464,7 @@ impl Supervisor {
         info!("Supervisor: APIServer ready");
 
         // Phase 8 (pos 9): TimeoutWatcher — démarré si task_repository est configuré (STORY-098)
-        if let Some(repo) = task_repository {
+        if let Some(ref repo) = task_repository {
             info!("Supervisor: starting TimeoutWatcher");
             let watcher = TimeoutWatcher::new(
                 TimeoutWatcherConfig {
@@ -448,7 +473,7 @@ impl Supervisor {
                     ),
                     ..TimeoutWatcherConfig::default()
                 },
-                repo,
+                Arc::clone(repo),
                 event_sender.clone(),
             );
             tokio::spawn(watcher.run());
@@ -486,6 +511,8 @@ impl Supervisor {
             trigger_engine,
             pipeline_engine,
             audit_trail: audit_trail_handle,
+            task_repository: task_repository.clone(),
+            pending_approvals: pending_approvals.clone(),
         })
     }
 }

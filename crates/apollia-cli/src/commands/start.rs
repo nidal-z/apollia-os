@@ -13,8 +13,10 @@ use apollia_aip::bridge::AIPBridge;
 use apollia_aip::context::{RuntimeContext, ToolExecutor, ToolProxy};
 use apollia_aip::memory::MemoryInterface;
 use apollia_memory::manager::MemoryManager;
-use apollia_core::{AIPResult, AIPTask, AgentManifest, RuntimeEvent, TaskStatus};
-use apollia_tools::{AuditTrailHandle, ToolRegistryHandle};
+use apollia_core::{AIPResult, AIPTask, AgentManifest, PendingApprovals, RuntimeEvent, TaskStatus};
+use apollia_oria::budget::StepBudget;
+use apollia_oria::engine::{AgentRunner, ORIAEngine};
+use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use apollia_llm::{
     CompletionModel, CompletionRequest, CompletionResponse, LlmError, LlmRouter,
     ObservabilityConfig, StepBudgetView, ToolCallHelper, ToolInvoker,
@@ -265,6 +267,8 @@ struct AIPProductionBackend {
     allowed_tools: Vec<String>,
     llm_router: Option<Arc<LlmRouter>>,
     event_bus: EventBusSender,
+    pending_approvals: Option<Arc<PendingApprovals>>,
+    task_repository: Option<Arc<TaskRepository>>,
     tool_registry: Option<ToolRegistryHandle>,
     audit_trail: Option<AuditTrailHandle>,
     /// Namespace mémoire déclaré dans le manifest (ex: "apollia-reviewer").
@@ -285,15 +289,38 @@ impl Clone for AIPProductionBackend {
             audit_trail: self.audit_trail.clone(),
             memory_namespace: self.memory_namespace.clone(),
             memory_base_dir: self.memory_base_dir.clone(),
+            pending_approvals: self.pending_approvals.clone(),
+            task_repository: self.task_repository.clone(),
         }
     }
 }
 
-impl ExecutionBackend for AIPProductionBackend {
-    fn execute(
+// ─────────────────────────────────────────────────────────────
+// BridgeRunner — implements AgentRunner for ORIAEngine::execute_direct
+// ─────────────────────────────────────────────────────────────
+
+/// Wraps `AIPBridge` + context-building components as an `AgentRunner`.
+///
+/// Used by `AIPProductionBackend.execute()` to route tasks through
+/// `ORIAEngine::execute_direct()`, which adds HITL suspension support
+/// (STORY-096) without changing the Python contract.
+struct BridgeRunner {
+    bridge: Arc<AIPBridge>,
+    llm_router: Option<Arc<LlmRouter>>,
+    event_bus: EventBusSender,
+    agent_id: String,
+    allowed_tools: Vec<String>,
+    tool_registry: Option<ToolRegistryHandle>,
+    audit_trail: Option<AuditTrailHandle>,
+    memory_namespace: Option<String>,
+    memory_base_dir: PathBuf,
+}
+
+impl AgentRunner for BridgeRunner {
+    fn call_run(
         &self,
         task: AIPTask,
-    ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>> {
+    ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send + '_>> {
         let bridge = Arc::clone(&self.bridge);
         let llm_router = self.llm_router.clone();
         let event_bus = self.event_bus.clone();
@@ -301,12 +328,10 @@ impl ExecutionBackend for AIPProductionBackend {
         let allowed_tools = self.allowed_tools.clone();
         let tool_registry = self.tool_registry.clone();
         let audit_trail = self.audit_trail.clone();
-
         let memory_namespace = self.memory_namespace.clone();
         let memory_base_dir = self.memory_base_dir.clone();
 
         Box::pin(async move {
-            // Build the ToolCallHelper backed by the real LlmRouter (or an empty one).
             let router_for_helper = llm_router
                 .clone()
                 .unwrap_or_else(|| Arc::new(LlmRouter::empty()));
@@ -315,12 +340,6 @@ impl ExecutionBackend for AIPProductionBackend {
                 Arc::new(NoopToolInvoker),
             ));
 
-            // Build the ToolProxy when both registry and audit trail are available.
-            //
-            // The proxy gates calls to the tools listed in the agent's manifest
-            // (`allowed_tools`), records every invocation in the audit trail,
-            // and makes `ctx.tools` non-None in Python — enabling audited execution
-            // instead of the agent's subprocess fallback.
             let tool_proxy: Option<ToolProxy> =
                 match (tool_registry.as_ref(), audit_trail.as_ref()) {
                     (Some(registry), Some(audit)) => Some(ToolProxy::new(
@@ -341,7 +360,6 @@ impl ExecutionBackend for AIPProductionBackend {
                     }
                 };
 
-            // Build the MemoryInterface if the agent declared a memory_namespace.
             let memory_interface: Option<MemoryInterface> =
                 memory_namespace.as_deref().and_then(|ns| {
                     let manager =
@@ -349,7 +367,6 @@ impl ExecutionBackend for AIPProductionBackend {
                     MemoryInterface::new(manager, ns.to_string(), agent_id.clone())
                 });
 
-            // Build a RuntimeContext and wrap it as a Python object.
             let ctx: PyObject = Python::with_gil(|py| {
                 let ctx = RuntimeContext::new_with_llm(
                     llm_router,
@@ -366,11 +383,44 @@ impl ExecutionBackend for AIPProductionBackend {
                     .expect("RuntimeContext PyObject construction failed")
             });
 
-            let run_result = bridge.call_run(&task, ctx).await;
-            if let Err(ref e) = run_result {
-                tracing::error!(task_id = %task.task_id, error = %e, "AIPBridge::call_run failed");
-            }
-            run_result.map_err(|e| e.to_string())
+            bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
+        })
+    }
+}
+
+impl ExecutionBackend for AIPProductionBackend {
+    fn execute(
+        &self,
+        task: AIPTask,
+    ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>> {
+        let runner = BridgeRunner {
+            bridge: Arc::clone(&self.bridge),
+            llm_router: self.llm_router.clone(),
+            event_bus: self.event_bus.clone(),
+            agent_id: self.agent_id.clone(),
+            allowed_tools: self.allowed_tools.clone(),
+            tool_registry: self.tool_registry.clone(),
+            audit_trail: self.audit_trail.clone(),
+            memory_namespace: self.memory_namespace.clone(),
+            memory_base_dir: self.memory_base_dir.clone(),
+        };
+
+        // Build a per-task ORIAEngine wired with HITL components (execute_direct).
+        let mut engine = ORIAEngine::new().with_event_bus(self.event_bus.clone());
+        if let Some(pending) = self.pending_approvals.clone() {
+            engine = engine.with_pending_approvals(pending);
+        }
+        if let Some(repo) = self.task_repository.clone() {
+            engine = engine.with_task_repository(repo);
+        }
+
+        let budget = Arc::new(StepBudget::unlimited());
+
+        Box::pin(async move {
+            engine
+                .execute_direct(task, &runner, budget)
+                .await
+                .map_err(|e| e.to_string())
         })
     }
 }
@@ -392,6 +442,8 @@ struct ProductionBackendFactory {
     llm_router: Arc<std::sync::OnceLock<Option<Arc<LlmRouter>>>>,
     tool_registry: Arc<std::sync::OnceLock<ToolRegistryHandle>>,
     audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
+    pending_approvals: Arc<std::sync::OnceLock<Arc<PendingApprovals>>>,
+    task_repository: Arc<std::sync::OnceLock<Arc<TaskRepository>>>,
 }
 
 impl AgentBackendFactory for ProductionBackendFactory {
@@ -412,6 +464,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
         let llm_router = self.llm_router.get().cloned().flatten();
         let tool_registry = self.tool_registry.get().cloned();
         let audit_trail = self.audit_trail.get().cloned();
+        let pending_approvals = self.pending_approvals.get().cloned();
+        let task_repository = self.task_repository.get().cloned();
 
         let result: Result<AIPProductionBackend, String> = (|| {
             let module = apollia_aip::loader::load_agent_module(agent_path)
@@ -431,6 +485,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 audit_trail,
                 memory_namespace,
                 memory_base_dir: default_memory_dir(),
+                pending_approvals,
+                task_repository,
             })
         })();
 
@@ -568,12 +624,18 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         Arc::new(std::sync::OnceLock::new());
     let audit_trail_lock: Arc<std::sync::OnceLock<AuditTrailHandle>> =
         Arc::new(std::sync::OnceLock::new());
+    let pending_approvals_lock: Arc<std::sync::OnceLock<Arc<PendingApprovals>>> =
+        Arc::new(std::sync::OnceLock::new());
+    let task_repository_lock: Arc<std::sync::OnceLock<Arc<TaskRepository>>> =
+        Arc::new(std::sync::OnceLock::new());
 
     let factory: Arc<dyn AgentBackendFactory> = Arc::new(ProductionBackendFactory {
         event_bus: event_bus_lock.clone(),
         llm_router: llm_router_lock.clone(),
         tool_registry: tool_registry_lock.clone(),
         audit_trail: audit_trail_lock.clone(),
+        pending_approvals: pending_approvals_lock.clone(),
+        task_repository: task_repository_lock.clone(),
     });
 
     let handles = supervisor
@@ -586,6 +648,12 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
     let _ = tool_registry_lock.set(handles.tool_registry_handle.clone());
     if let Some(audit) = handles.audit_trail.clone() {
         let _ = audit_trail_lock.set(audit);
+    }
+    if let Some(pa) = handles.pending_approvals.clone() {
+        let _ = pending_approvals_lock.set(pa);
+    }
+    if let Some(repo) = handles.task_repository.clone() {
+        let _ = task_repository_lock.set(repo);
     }
 
     let elapsed = start.elapsed();
