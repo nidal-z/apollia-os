@@ -1,0 +1,108 @@
+name: Build Desktop
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set PYO3_PYTHON
+        run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      - name: Install frontend dependencies
+        working-directory: crates/apollia-desktop/ui
+        run: npm ci
+
+      - name: Build Tauri app
+        working-directory: crates/apollia-desktop
+        run: cargo tauri build
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: apollia-desktop-macos-dmg
+          path: target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+      - name: Upload .app bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: apollia-desktop-macos-app
+          path: target/release/bundle/macos/*.app
+          if-no-files-found: warn
+
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set PYO3_PYTHON
+        run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      - name: Install frontend dependencies
+        working-directory: crates/apollia-desktop/ui
+        run: npm ci
+
+      - name: Build Tauri app
+        working-directory: crates/apollia-desktop
+        run: cargo tauri build
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: apollia-desktop-linux-appimage
+          path: target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+
+      - name: Upload .deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: apollia-desktop-linux-deb
+          path: target/release/bundle/deb/*.deb
+          if-no-files-found: error

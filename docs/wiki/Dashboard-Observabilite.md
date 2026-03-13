@@ -16,6 +16,8 @@ $ curl http://localhost:7771/dashboard
 
 Le dashboard s'affiche dans n'importe quel navigateur moderne. Toutes les ressources (HTML, CSS, JavaScript HTMX minifié) sont servies depuis le binaire `apollia-os`.
 
+L'[application desktop](./Briques-Desktop.md) (Sprint 14) offre une interface Svelte plus riche avec gestion des agents, tasks, timeline interactive et approbations HITL temps reel. Le dashboard HTMX reste disponible pour le monitoring leger via navigateur.
+
 ---
 
 ## 2. Interface

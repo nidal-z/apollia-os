@@ -77,6 +77,52 @@ cargo install --path crates/apollia-cli
 
 ---
 
+## Installation application desktop
+
+L'application desktop Apollia embarque le runtime complet dans une fenetre native (Tauri v2). Elle coexiste avec la CLI : les deux partagent le meme socket Unix.
+
+### macOS
+
+1. Telecharger `Apollia OS_0.1.0_aarch64.dmg` depuis la page [Releases](https://github.com/nidal-z/apollia-os/releases)
+2. Ouvrir le fichier .dmg
+3. Glisser **Apollia OS** dans le dossier Applications
+4. Au premier lancement, clic droit → Ouvrir (l'application n'est pas encore signee)
+
+Prerequis : Python 3.11+ installe (`brew install python@3.13`)
+
+### Linux
+
+**AppImage :**
+
+1. Telecharger `apollia-desktop_0.1.0_amd64.AppImage` depuis la page [Releases](https://github.com/nidal-z/apollia-os/releases)
+2. Rendre executable : `chmod +x apollia-desktop_*.AppImage`
+3. Lancer : `./apollia-desktop_*.AppImage`
+
+**Debian / Ubuntu :**
+
+```bash
+sudo dpkg -i apollia-desktop_0.1.0_amd64.deb
+```
+
+Prerequis : Python 3.11+ installe (`sudo apt install python3.13`)
+
+### Build depuis les sources
+
+```bash
+# Installer le CLI Tauri
+cargo install tauri-cli --version "^2"
+
+# Installer les dependances frontend
+cd crates/apollia-desktop/ui && npm ci && cd -
+
+# Construire le package natif
+cd crates/apollia-desktop && cargo tauri build
+```
+
+Les artefacts sont produits dans `target/release/bundle/` (dmg/, appimage/, deb/).
+
+---
+
 ## Configuration macOS (PyO3)
 
 Sur macOS, PyO3 doit savoir quelle installation Python utiliser. Definir la variable d'environnement avant de compiler ou de lancer les tests :

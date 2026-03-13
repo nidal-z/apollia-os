@@ -6,12 +6,15 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title C4 Container — 11 Crates Workspace — Apollia OS
+title C4 Container — 12 Crates Workspace — Apollia OS
 
 actor "Opérateur" as ops #3a3a3a/white
 actor "Développeur" as dev #3a3a3a/white
+actor "Utilisateur Desktop" as desktop_user #3a3a3a/white
 
 rectangle "Apollia OS Workspace" as workspace #1a1a2e {
+
+  rectangle "apollia-desktop\n(Tauri v2 + Svelte 5)" as desktop #1a1a2e
 
   rectangle "apollia-cli\n(binaire clap v4)" as cli #1a1a2e
 
@@ -79,6 +82,8 @@ rectangle "API Cloud LLM\n(OpenAI / Anthropic\noptionnel [feature=cloud])" as cl
 
 ops --> cli : apollia-os [cmd]
 dev --> agent : écrit
+desktop_user --> desktop : double-clic
+desktop --> runtime : init_embedded()\nRuntimeHandle (in-process)
 cli --> runtime : RuntimeClient (HTTP Unix socket)
 runtime --> oria : dispatch tâche
 oria --> tools : ctx.tools.call()

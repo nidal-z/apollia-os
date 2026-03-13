@@ -31,6 +31,7 @@
 - [[Briques-Notifications|Notifications Engine]]
 - [[Briques-Pipelines|Pipelines Engine]]
 - [[Briques-Runtime-Core|Runtime Core]]
+- [[Briques-Desktop|Application Desktop]]
 - [[Briques-CLI|Apollia CLI]]
 
 **Installation & Config**

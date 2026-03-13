@@ -55,7 +55,19 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
 
 Chaque acteur émet un événement `RuntimeEvent::Ready(actor_id)` sur l'EventBus quand son init est terminée. Le Supervisor attend ce signal (timeout 10s) avant de démarrer le suivant. **Démarrage séquentiel strict** — pas de démarrage parallèle qui masquerait des dépendances.
 
-### 2.2 Restart policy
+### 2.2 Mode embarqué (Desktop — ADR-027)
+
+L'application desktop Tauri utilise `init_embedded()` pour démarrer le runtime dans un thread dédié :
+
+```rust
+pub fn init_embedded(config: EmbeddedConfig) -> Result<RuntimeHandle, EmbeddedError>
+```
+
+`init_embedded()` spawn un thread `"apollia-runtime"` qui crée un `tokio::Runtime`, démarre le `Supervisor`, et attend `AllReady` (timeout configurable, défaut 30s). Le `RuntimeHandle` retourné contient les handles Tokio de tous les acteurs — réutilisables directement par les commandes Tauri `#[tauri::command]` sans sérialisation HTTP.
+
+Le socket Unix et l'API TCP restent actifs : la CLI fonctionne en parallèle du desktop.
+
+### 2.3 Restart policy
 
 ```rust
 pub enum RestartPolicy {

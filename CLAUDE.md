@@ -40,6 +40,7 @@ crates/
 ├── apollia-tools/    ← Tool Registry + outils natifs + sandbox
 ├── apollia-memory/   ← Memory Engine (SQLite, FTS5)
 ├── apollia-aip/      ← Bridge PyO3 (Rust ↔ Python async)
+├── apollia-desktop/  ← Application Desktop (Tauri v2 + Svelte 5)
 └── apollia-cli/      ← Binaire final (clap)
 ```
 
@@ -121,9 +122,9 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Sprint actif :** Sprint 14 (à planifier)
-**Dernier sprint livré :** Sprint 13 — Observabilité complète (8/8 stories actives, ADR-026)
+**Sprint actif :** Sprint 15 (à planifier)
+**Dernier sprint livré :** Sprint 14 — Application desktop native (8/8 stories, ADR-027, ADR-028)
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
-**Dernière décision :** ADR-026 — Observabilité complète : persistance, timeline, troncature
+**Dernière décision :** ADR-028 — Frontend Svelte : UX first, UI sprint dédié
 
 Pour l'état détaillé : lire `docs/internal/STORIES/sprint-index.md`.

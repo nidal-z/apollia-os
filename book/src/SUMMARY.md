@@ -42,6 +42,7 @@
   - [Triggers Engine](components/triggers.md)
   - [Notifications Engine](components/notifications.md)
   - [Pipelines Engine](components/pipelines.md)
+  - [Application Desktop](components/desktop.md)
   - [CLI](components/cli.md)
 
 # API & Intégration
@@ -96,6 +97,8 @@
   - [ADR-024 — apollia-notifications : trait NotificationChannel, canaux, payload JSON fixe](decisions/adr-024-apollia-notifications-trait-channel-json-fixe.md)
   - [ADR-025 — apollia-pipelines : TOML déclaratif, topologies natives, HITL intégré](decisions/adr-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md)
   - [ADR-026 — Observabilité complète : persistance, timeline, troncature](decisions/adr-026-observabilite-complete-persistance-timeline-troncature.md)
+  - [ADR-027 — apollia-desktop : processus unique Tauri + runtime embarqué](decisions/adr-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md)
+  - [ADR-028 — Frontend Svelte : UX first, UI sprint dédié](decisions/adr-028-frontend-svelte-ux-first-ui-sprint-dedie.md)
 
 ---
 

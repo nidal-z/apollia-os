@@ -5,9 +5,9 @@
   "identifier": "com.apollia.desktop",
   "build": {
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
-    "frontendDist": "dist"
+    "beforeDevCommand": "cd ui && npm run dev",
+    "beforeBuildCommand": "cd ui && npm run build",
+    "frontendDist": "ui/dist"
   },
   "app": {
     "withGlobalTauri": true,
@@ -24,8 +24,12 @@
   },
   "bundle": {
     "active": true,
+    "targets": ["dmg", "app", "appimage", "deb"],
     "icon": [
       "icons/logov2.png"
-    ]
+    ],
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    }
   }
 }

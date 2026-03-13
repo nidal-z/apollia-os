@@ -6,10 +6,15 @@
 
 ## 1. Vue d'ensemble de l'architecture
 
-### 1.1 Les 7 briques fondamentales
+### 1.1 Les briques fondamentales
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
+┌─ APOLLIA DESKTOP (Tauri v2 + Svelte 5) ──────────────────────────┐
+│  WebView · Commandes IPC · SSE Stores (agents/tasks/hitl)         │
+│  init_embedded() → RuntimeHandle (ADR-027)                        │
+└───────────────────────────┬───────────────────────────────────────┘
+                            │ in-process
+┌───────────────────────────▼───────────────────────────────────────┐
 │                         APOLLIA OS RUNTIME                          │
 │                                                                     │
 │  ┌──────────────────────────────────────────────────────────────┐  │
@@ -67,6 +72,13 @@ apollia-os/                          ← workspace Cargo
 │   │       ├── result.rs            ← AIPResult, TaskStatus, AIPError
 │   │       ├── process.rs           ← ProcessState (lifecycle ACP-aligned)
 │   │       └── budget.rs            ← StepBudgetConfig
+│   │
+│   ├── apollia-desktop/             ← Application Desktop (Tauri v2 + Svelte 5)
+│   │   ├── src/
+│   │   │   ├── main.rs             ← entrée Tauri + init_embedded()
+│   │   │   └── commands/           ← agents.rs, tasks.rs, hitl.rs
+│   │   ├── ui/                     ← frontend Svelte (Vite)
+│   │   └── tauri.conf.json
 │   │
 │   ├── apollia-runtime/             ← Runtime Core
 │   │   └── src/

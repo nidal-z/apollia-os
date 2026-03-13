@@ -31,3 +31,5 @@
 | ADR-024 | [ADR-024 — apollia-notifications : trait NotificationChannel, canaux, payload JSON fixe](./adr-024-apollia-notifications-trait-channel-json-fixe.md) | Accepté |
 | ADR-025 | [ADR-025 — apollia-pipelines : TOML déclaratif, topologies natives, HITL intégré](./adr-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md) | Accepté |
 | ADR-026 | [ADR-026 — Observabilité complète : persistance, timeline, troncature](./adr-026-observabilite-complete-persistance-timeline-troncature.md) | Accepté |
+| ADR-027 | [ADR-027 — apollia-desktop : processus unique Tauri + runtime embarqué](./adr-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md) | Accepté |
+| ADR-028 | [ADR-028 — Frontend Svelte : UX first, UI sprint dédié](./adr-028-frontend-svelte-ux-first-ui-sprint-dedie.md) | Accepté |
