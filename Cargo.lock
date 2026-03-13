@@ -254,12 +254,14 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "open",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
  "tokio",
+ "toml 0.8.23",
 ]
 
 [[package]]

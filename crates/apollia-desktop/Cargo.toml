@@ -17,6 +17,8 @@ tokio          = { workspace = true }
 hyper          = { workspace = true }
 hyper-util     = { workspace = true }
 http-body-util = { workspace = true }
+toml           = { workspace = true }
+open           = { workspace = true }
 tauri          = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2"
 

@@ -9,6 +9,7 @@
   import Memory from "../../routes/Memory.svelte";
   import Notifications from "../../routes/Notifications.svelte";
   import Observability from "../../routes/Observability.svelte";
+  import Settings from "../../routes/Settings.svelte";
 </script>
 
 <main class="flex-1 overflow-auto bg-background p-6">
@@ -30,5 +31,7 @@
     <Notifications />
   {:else if $currentRoute === "observability"}
     <Observability />
+  {:else if $currentRoute === "settings"}
+    <Settings />
   {/if}
 </main>

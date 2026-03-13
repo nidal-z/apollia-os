@@ -87,6 +87,9 @@ mistralrs       = { version = "0.7" }
 # --- Config parsing ---
 toml = "0.8"
 
+# --- File opener (cross-platform) ---
+open = "5"
+
 # --- Regular expressions (apollia-pipelines step conditions) ---
 regex = "1"
 

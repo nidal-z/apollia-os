@@ -52,6 +52,9 @@ fn main() {
             commands::observability::get_global_timeline,
             commands::observability::get_tool_audit_trail,
             commands::observability::get_llm_daily_costs,
+            commands::config::get_config,
+            commands::config::open_config_in_editor,
+            commands::config::reset_onboarding,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -15,6 +15,7 @@
     { route: "memory", label: "Memory", icon: "💾" },
     { route: "notifications", label: "Notifications", icon: "🔔" },
     { route: "observability", label: "Observability", icon: "📊" },
+    { route: "settings", label: "Settings", icon: "⚙️" },
   ];
 
   function navigate(route: Route) {

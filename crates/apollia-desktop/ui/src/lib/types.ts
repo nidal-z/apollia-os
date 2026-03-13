@@ -324,3 +324,24 @@ export interface LlmDailyCostsResponse {
   entries: LlmDailyCostEntry[];
   days: number;
 }
+
+/** Entrée clé/valeur d'une section de configuration (STORY-149). */
+export interface ConfigEntry {
+  key: string;
+  value: string;
+}
+
+/** Section de configuration regroupée par thème (STORY-149). */
+export interface ConfigSection {
+  name: string;
+  description: string;
+  entries: ConfigEntry[];
+  redirect_route: string | null;
+}
+
+/** Vue plate de la configuration Apollia OS (STORY-149). */
+export interface ApollaConfigView {
+  config_path: string;
+  config_exists: boolean;
+  sections: ConfigSection[];
+}
