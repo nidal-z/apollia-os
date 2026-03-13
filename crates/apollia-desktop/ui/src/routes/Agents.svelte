@@ -44,8 +44,8 @@
 <div class="space-y-4">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold">Agents</h1>
-    <Button onclick={pickAndStartAgent} disabled={startingAgent}>
+    <h1 class="text-2xl font-bold" data-testid="agents-header">Agents</h1>
+    <Button onclick={pickAndStartAgent} disabled={startingAgent} data-testid="register-agent-btn">
       {startingAgent ? "Starting..." : "Register Agent"}
     </Button>
   </div>
@@ -65,7 +65,7 @@
       </Button>
     </div>
   {:else}
-    <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+    <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-grid">
       {#each $agents as agent (agent.id)}
         <AgentCard {agent} onlogs={openLogs} />
       {/each}

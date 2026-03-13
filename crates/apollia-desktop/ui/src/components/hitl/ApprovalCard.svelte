@@ -123,7 +123,7 @@
 </script>
 
 {#if !resolved}
-  <Card>
+  <Card data-testid="approval-card" data-task-id={approval.task_id}>
     <CardHeader class="pb-2">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
@@ -189,6 +189,7 @@
                 class="bg-[var(--apollia-success)] text-white hover:bg-[var(--apollia-success)]/90"
                 onclick={handleApprove}
                 disabled={approving}
+                data-testid="approval-confirm-btn"
               >
                 {approving ? "Approving..." : "Confirm"}
               </Button>
@@ -229,10 +230,11 @@
               size="sm"
               class="bg-[var(--apollia-success)] text-white hover:bg-[var(--apollia-success)]/90"
               onclick={openApproveConfirm}
+              data-testid="approval-approve-btn"
             >
               Approve
             </Button>
-            <Button size="sm" variant="destructive" onclick={openRejectDialog}>
+            <Button size="sm" variant="destructive" onclick={openRejectDialog} data-testid="approval-reject-btn">
               Reject
             </Button>
           </div>

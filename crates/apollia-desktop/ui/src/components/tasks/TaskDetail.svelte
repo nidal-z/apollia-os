@@ -61,11 +61,11 @@
 </script>
 
 <Sheet open={open} onclose={onclose} class="w-[500px]">
-  <div class="flex h-full flex-col">
+  <div class="flex h-full flex-col" data-testid="task-detail">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
-        <h2 class="text-lg font-semibold">Task Detail</h2>
+        <h2 class="text-lg font-semibold" data-testid="task-detail-title">Task Detail</h2>
         {#if task}
           <Badge
             variant={STATUS_VARIANT[task.status] ?? "secondary"}
@@ -123,7 +123,7 @@
           <Separator />
 
           <!-- Timeline section -->
-          <div>
+          <div data-testid="task-timeline-section">
             <h3 class="mb-2 text-sm font-semibold">Timeline</h3>
             <TaskTimeline taskId={taskId} isRunning={isRunning} />
           </div>

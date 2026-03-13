@@ -171,7 +171,7 @@
     </select>
 
     <div class="ml-auto">
-      <Button size="sm" onclick={openNewTaskDialog}>New Task</Button>
+      <Button size="sm" onclick={openNewTaskDialog} data-testid="new-task-btn">New Task</Button>
     </div>
   </div>
 
@@ -185,6 +185,9 @@
       {#each visibleTasks as task (task.id)}
         <button
           class="flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/50"
+          data-testid="task-row"
+          data-task-id={task.id}
+          data-task-status={task.status}
           onclick={() => onSelectTask(task.id)}
         >
           <code class="shrink-0 text-xs text-muted-foreground">{shortId(task.id)}</code>
@@ -223,6 +226,7 @@
       role="dialog"
       aria-modal="true"
       tabindex="-1"
+      data-testid="new-task-dialog"
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.key === "Escape" && closeNewTaskDialog()}
     >
@@ -234,6 +238,7 @@
           <select
             id="new-task-agent"
             class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            data-testid="new-task-agent-select"
             bind:value={newTaskAgentId}
           >
             <option value="" disabled>Select an agent...</option>
@@ -251,6 +256,7 @@
             rows="6"
             maxlength={MAX_INPUT_LENGTH}
             placeholder="Describe the task for the agent..."
+            data-testid="new-task-input"
             bind:value={newTaskInput}
           ></textarea>
           <p class="mt-1 text-xs text-muted-foreground">
@@ -268,6 +274,7 @@
             size="sm"
             onclick={handleSubmitTask}
             disabled={!newTaskAgentId || !newTaskInput.trim() || submitting}
+            data-testid="new-task-submit-btn"
           >
             {submitting ? "Submitting..." : "Submit"}
           </Button>

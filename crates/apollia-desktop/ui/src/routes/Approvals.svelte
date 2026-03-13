@@ -38,9 +38,9 @@
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex items-center gap-3">
-    <h1 class="text-2xl font-bold">Approvals</h1>
+    <h1 class="text-2xl font-bold" data-testid="approvals-header">Approvals</h1>
     {#if $pendingCount > 0}
-      <Badge variant="destructive">{$pendingCount} pending</Badge>
+      <Badge variant="destructive" data-testid="approvals-pending-count">{$pendingCount} pending</Badge>
     {/if}
   </div>
 
@@ -51,7 +51,7 @@
   {:else}
     <!-- Pending approvals section -->
     <section>
-      <h2 class="mb-3 text-lg font-semibold">Pending</h2>
+      <h2 class="mb-3 text-lg font-semibold" data-testid="approvals-pending-title">Pending</h2>
       {#if $pendingApprovals.length === 0}
         <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
           <p class="text-muted-foreground">Aucune approbation en attente</p>

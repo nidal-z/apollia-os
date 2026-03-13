@@ -32,13 +32,13 @@
 </script>
 
 {#if !ready}
-  <div class="flex h-screen w-screen items-center justify-center bg-background">
+  <div class="flex h-screen w-screen items-center justify-center bg-background" data-testid="app-loading">
     <p class="text-sm text-muted-foreground">Loading...</p>
   </div>
 {:else if $showOnboarding}
   <OnboardingWizard onComplete={handleOnboardingComplete} />
 {:else}
-  <div class="flex h-screen w-screen overflow-hidden">
+  <div class="flex h-screen w-screen overflow-hidden" data-testid="app-main">
     <Sidebar />
     <Main />
   </div>

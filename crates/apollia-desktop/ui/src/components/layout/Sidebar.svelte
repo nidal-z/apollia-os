@@ -30,10 +30,10 @@
   };
 </script>
 
-<aside class="flex h-screen w-60 flex-col border-r bg-card">
+<aside class="flex h-screen w-60 flex-col border-r bg-card" data-testid="sidebar">
   <!-- Logo -->
   <div class="flex items-center gap-2 px-4 py-5">
-    <span class="text-xl font-bold text-primary">Apollia OS</span>
+    <span class="text-xl font-bold text-primary" data-testid="sidebar-logo">Apollia OS</span>
   </div>
 
   <Separator />
@@ -46,12 +46,13 @@
         item.route
           ? 'bg-accent text-accent-foreground'
           : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}"
+        data-testid="nav-{item.route}"
         onclick={() => navigate(item.route)}
       >
         <span>{item.icon}</span>
         <span>{item.label}</span>
         {#if item.route === "approvals" && $pendingCount > 0}
-          <Badge variant="destructive" class="ml-auto text-[10px] px-1.5 py-0"
+          <Badge variant="destructive" class="ml-auto text-[10px] px-1.5 py-0" data-testid="approvals-badge"
             >{$pendingCount}</Badge
           >
         {/if}
@@ -62,15 +63,15 @@
   <Separator />
 
   <!-- Connection indicator -->
-  <div class="flex items-center gap-2 px-4 py-3">
+  <div class="flex items-center gap-2 px-4 py-3" data-testid="connection-status" data-status={$connectionStatus}>
     {#if $connectionStatus === "connected"}
-      <span class="h-2 w-2 rounded-full bg-[var(--apollia-success)]"></span>
+      <span class="h-2 w-2 rounded-full bg-[var(--apollia-success)]" data-testid="connection-dot"></span>
     {:else if $connectionStatus === "reconnecting"}
-      <span class="h-2 w-2 rounded-full bg-[var(--apollia-warning)]"></span>
+      <span class="h-2 w-2 rounded-full bg-[var(--apollia-warning)]" data-testid="connection-dot"></span>
     {:else}
-      <span class="h-2 w-2 rounded-full bg-[hsl(var(--destructive))]"></span>
+      <span class="h-2 w-2 rounded-full bg-[hsl(var(--destructive))]" data-testid="connection-dot"></span>
     {/if}
-    <span class="text-xs text-muted-foreground"
+    <span class="text-xs text-muted-foreground" data-testid="connection-label"
       >{STATUS_LABELS[$connectionStatus] ?? "Unknown"}</span
     >
   </div>

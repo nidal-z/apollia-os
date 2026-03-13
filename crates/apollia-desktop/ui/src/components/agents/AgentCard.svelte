@@ -71,7 +71,7 @@
   const config = $derived(STATUS_CONFIG[agent.state]);
 </script>
 
-<Card class="relative overflow-hidden">
+<Card class="relative overflow-hidden" data-testid="agent-card" data-agent-id={agent.id} data-agent-state={agent.state}>
   {#if agent.state === "degraded" && agent.degraded_reason}
     <div class="flex items-center gap-2 bg-[var(--apollia-warning)]/10 px-4 py-2 text-xs text-[var(--apollia-warning)]">
       <span>Warning: {agent.degraded_reason}</span>
@@ -80,8 +80,8 @@
 
   <CardHeader class="pb-2">
     <div class="flex items-center justify-between">
-      <CardTitle class="text-base font-semibold">{agent.name}</CardTitle>
-      <Badge variant={config.variant} class={config.extraClass}>
+      <CardTitle class="text-base font-semibold" data-testid="agent-name">{agent.name}</CardTitle>
+      <Badge variant={config.variant} class={config.extraClass} data-testid="agent-status">
         {config.label}
       </Badge>
     </div>
@@ -110,7 +110,7 @@
       <div class="flex items-center gap-2">
         {#if confirmVisible}
           <span class="text-xs text-muted-foreground">Stop this agent?</span>
-          <Button size="sm" variant="destructive" onclick={handleStop} disabled={stopping}>
+          <Button size="sm" variant="destructive" onclick={handleStop} disabled={stopping} data-testid="agent-stop-confirm-btn">
             {stopping ? "Stopping..." : "Confirm"}
           </Button>
           <Button size="sm" variant="outline" onclick={handleCancelStop}>
@@ -118,12 +118,12 @@
           </Button>
         {:else}
           {#if isRunning(agent.state)}
-            <Button size="sm" variant="outline" onclick={handleStopClick}>
+            <Button size="sm" variant="outline" onclick={handleStopClick} data-testid="agent-stop-btn">
               Stop
             </Button>
           {/if}
           {#if !isStopped(agent.state)}
-            <Button size="sm" variant="ghost" onclick={handleLogsClick}>
+            <Button size="sm" variant="ghost" onclick={handleLogsClick} data-testid="agent-logs-btn">
               Logs
             </Button>
           {/if}

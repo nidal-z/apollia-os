@@ -139,9 +139,9 @@
   {:else if events.length === 0}
     <p class="text-sm text-muted-foreground">No timeline events yet.</p>
   {:else}
-    <div class="relative ml-4 border-l border-border pl-6">
+    <div class="relative ml-4 border-l border-border pl-6" data-testid="task-timeline">
       {#each events as event, index (index)}
-        <div class="relative mb-4">
+        <div class="relative mb-4" data-testid="timeline-event" data-event-type={event.type}>
           <!-- Dot on the timeline -->
           <span
             class="absolute -left-[calc(1.5rem+5px)] flex h-[10px] w-[10px] items-center justify-center rounded-full border bg-background text-[8px]"
