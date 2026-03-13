@@ -184,4 +184,20 @@ Si le runtime est exposé en production sur un port public, le dashboard doit ê
 
 ---
 
-*Voir aussi : [Briques Runtime Core](./Briques-Runtime-Core) · [Briques Triggers](./Briques-Triggers) · [API HTTP Reference](./API-HTTP-Reference)*
+---
+
+## 7. Timeline API *(Sprint 13)*
+
+En complément du dashboard temps réel, l'API Timeline fournit une vue chronologique structurée de chaque tâche :
+
+```bash
+$ curl http://localhost:7771/api/v1/tasks/t-abc123/timeline
+```
+
+Cette API agrège 5 sources SQLite (hitl.db, plans.db, llm_calls.db, audit.db) et retourne une liste d'événements ordonnés par timestamp : transitions d'état, steps ORIA, appels outils, appels LLM, suspensions HITL.
+
+Voir [API HTTP Reference — Timeline](./API-HTTP-Reference#get-apiv1tasksidtimeline) pour le schéma complet de la réponse.
+
+---
+
+*Voir aussi : [Briques Runtime Core](./Briques-Runtime-Core) · [Briques Triggers](./Briques-Triggers) · [API HTTP Reference](./API-HTTP-Reference) · [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature)*

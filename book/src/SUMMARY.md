@@ -95,6 +95,7 @@
   - [ADR-023 — HITL : AIPTask.is_resumed + InputResponse + tools_requiring_approval](decisions/adr-023-hitl-is-resumed-input-response-tools-requiring-approval.md)
   - [ADR-024 — apollia-notifications : trait NotificationChannel, canaux, payload JSON fixe](decisions/adr-024-apollia-notifications-trait-channel-json-fixe.md)
   - [ADR-025 — apollia-pipelines : TOML déclaratif, topologies natives, HITL intégré](decisions/adr-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md)
+  - [ADR-026 — Observabilité complète : persistance, timeline, troncature](decisions/adr-026-observabilite-complete-persistance-timeline-troncature.md)
 
 ---
 

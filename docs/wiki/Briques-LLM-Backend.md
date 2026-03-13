@@ -272,7 +272,45 @@ Si `observability.debug_log_prompt = true` dans `apollia.toml`, le prompt comple
 
 ---
 
-## 9. ToolCallHelper — Boucle ReAct automatique
+## 9. Persistance des appels LLM *(Sprint 13)*
+
+Le `LlmCallRepository` persiste chaque appel LLM dans `~/.apollia/llm_calls.db` (SQLite) pour l'observabilité et le suivi des coûts.
+
+```sql
+CREATE TABLE llm_calls (
+    id               TEXT PRIMARY KEY,
+    task_id          TEXT,
+    step_id          TEXT,
+    backend          TEXT NOT NULL,
+    model            TEXT NOT NULL,
+    prompt_tokens    INTEGER,
+    completion_tokens INTEGER,
+    cost_usd         REAL,
+    latency_ms       INTEGER,
+    prompt_text      TEXT,          -- NULL si debug_log_prompt = false (défaut)
+    completion_text  TEXT,
+    created_at       TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+```
+
+```rust
+pub struct LlmCallRepository { /* ... */ }
+
+impl LlmCallRepository {
+    pub fn open(path: &Path) -> Result<Self, LlmRepositoryError>;
+    pub fn save(&self, record: &LlmCallRecord) -> Result<(), LlmRepositoryError>;
+    pub fn query_by_task(&self, task_id: &str) -> Result<Vec<LlmCallRecord>, LlmRepositoryError>;
+    pub fn costs_by_backend_model_since(&self, since: &str) -> Result<Vec<LlmCostSummary>, LlmRepositoryError>;
+}
+```
+
+**Intégration EventBus :** `spawn_subscriber()` souscrit à `RuntimeEvent::LlmCallCompleted` et persiste via `spawn_blocking`. Si `ObservabilityConfig.debug_log_prompt` est `false` (défaut), le champ `prompt_text` est `NULL` — conforme RGPD.
+
+**Agrégation des coûts :** `costs_by_backend_model_since()` retourne les coûts agrégés par backend et modèle depuis une date donnée, utilisé par la Timeline API et le dashboard.
+
+---
+
+## 10. ToolCallHelper — Boucle ReAct automatique
 
 `ToolCallHelper` implémente la boucle ReAct complète pour les agents qui veulent déléguer le raisonnement outil-par-outil au LLM.
 
@@ -309,7 +347,7 @@ La boucle `run_tools()` :
 
 ---
 
-## 10. Intégration dans le Supervisor
+## 11. Intégration dans le Supervisor
 
 Le `LlmRouter` est démarré à la **position 5** dans le Supervisor (avant `TaskRouter`) :
 
@@ -327,7 +365,7 @@ Si tous les backends échouent à démarrer → warning + runtime continue sans 
 
 ---
 
-## 11. Exemple de mock pour les tests
+## 12. Exemple de mock pour les tests
 
 ```rust
 use std::sync::Arc;
@@ -363,3 +401,4 @@ let router = LlmRouter::with_backends(
 - [Config apollia.toml](./Config-apollia-toml) — section `[[llm.backends]]`
 - [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) — `apollia-os llm status/ping/chat`
 - [ADR-020](../adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags) — décision feature flags
+- [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature) — observabilité complète et troncature

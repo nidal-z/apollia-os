@@ -291,13 +291,15 @@ Chaque fire/skip/error est persisté dans la base de l'`AuditTrail`.
 -- apollia-tools/migrations/003_trigger_tables.sql
 
 CREATE TABLE trigger_history (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    trigger_id  TEXT    NOT NULL,
-    status      TEXT    NOT NULL,  -- 'fired' | 'skipped' | 'error'
-    task_id     TEXT,
-    reason      TEXT,
-    error_msg   TEXT,
-    fired_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    trigger_id    TEXT    NOT NULL,
+    status        TEXT    NOT NULL,  -- 'fired' | 'skipped' | 'error'
+    task_id       TEXT,
+    reason        TEXT,
+    error_msg     TEXT,
+    fired_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    payload_json  TEXT,              -- payload JSON du trigger (Sprint 13)
+    dispatch_ms   INTEGER            -- latence fire → soumission tâche (Sprint 13)
 );
 CREATE INDEX idx_trigger_history_id  ON trigger_history(trigger_id);
 CREATE INDEX idx_trigger_history_at  ON trigger_history(fired_at DESC);

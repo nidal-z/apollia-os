@@ -206,6 +206,9 @@ GET    /dashboard                           → Dashboard HTML embarqué
 GET    /api/v1/dashboard/state              → Snapshot JSON état runtime
 GET    /api/v1/dashboard/partials/{section} → Fragment HTML (HTMX)
 GET    /api/v1/dashboard/stream             → SSE stream dashboard
+
+# Observabilité [Sprint 13]
+GET    /api/v1/tasks/{id}/timeline          → Chronologie unifiée (5 sources SQLite)
 ```
 
 ### 6.2 Streaming SSE
@@ -337,6 +340,12 @@ audit_log_path     = "~/.apollia/audit.db"
 level              = "info"
 format             = "text"
 path               = "~/.apollia/runtime.log"
+
+[observability]                              # Sprint 13
+max_input_bytes       = 32768               # troncature input tâches/steps (32 KB)
+max_output_bytes      = 32768               # troncature output tâches/steps (32 KB)
+max_tool_output_bytes = 10240               # troncature stdout/stderr outils (10 KB)
+debug_log_prompt      = false               # persister les prompts LLM (RGPD — false par défaut)
 ```
 
 ---
@@ -356,6 +365,8 @@ path               = "~/.apollia/runtime.log"
 | HITL via `oneshot` channel dans ORIA | Suspension sans polling, reprise déterministe via `ResumeHandler` (ADR-023) |
 | `TimeoutWatcher` scan 60s | Tâches orphelines nettoyées automatiquement sans intervention utilisateur |
 | `NotificationEngine` optionnel (Phase 9) | Zéro overhead si `[notifications]` absent — runtime léger par défaut |
+| Timeline API agrégée server-side (ADR-026) | 5 sources SQLite lues en parallèle, triées, retournées en JSON — pas de calcul client |
+| Troncature configurable `ObservabilityConfig` (ADR-026) | UTF-8 safe, marqueur `[TRONQUÉ — N octets total]`, jamais de rejet — observabilité partielle > aucune |
 
 ---
 
@@ -364,3 +375,4 @@ path               = "~/.apollia/runtime.log"
 - [Démarrage ordonné Supervisor](../diagrams/seq-supervisor-startup.puml) — 9 phases, TriggerEngine + NotificationEngine
 - [HITL Flow complet](../diagrams/seq-hitl-flow.puml) — suspend → notify → approve/reject → resume
 - [Task Lifecycle](../diagrams/seq-task-lifecycle.puml) — flux complet soumission → résultat
+- [Timeline Aggregation](../diagrams/seq-timeline-aggregation.puml) — agrégation 5 sources → chronologie unifiée

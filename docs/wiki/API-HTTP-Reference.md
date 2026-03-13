@@ -406,6 +406,101 @@ Initier un graceful shutdown du runtime (drain 30s).
 
 ---
 
+## Observabilité *(Sprint 13)*
+
+### GET /api/v1/tasks/:id/timeline
+
+Chronologie complète et unifiée d'une tâche : transitions d'état, appels outils, appels LLM, steps ORIA, suspensions HITL. Tous les événements sont triés par timestamp croissant.
+
+**Réponse 200 :**
+```json
+{
+  "task_id": "t-abc123",
+  "events": [
+    {
+      "type": "task_transition",
+      "status": "submitted",
+      "timestamp": "2026-03-10T10:01:32Z"
+    },
+    {
+      "type": "task_transition",
+      "status": "working",
+      "timestamp": "2026-03-10T10:01:32Z"
+    },
+    {
+      "type": "step_started",
+      "step_id": "s1",
+      "tool": "file_io",
+      "input_preview": "Lire le fichier clients/dupont_sa.json...",
+      "timestamp": "2026-03-10T10:01:33Z"
+    },
+    {
+      "type": "tool_call",
+      "tool_name": "file_io",
+      "duration_ms": 12,
+      "exit_code": 0,
+      "truncated": false,
+      "timestamp": "2026-03-10T10:01:33Z"
+    },
+    {
+      "type": "step_completed",
+      "step_id": "s1",
+      "duration_ms": 120,
+      "success": true,
+      "timestamp": "2026-03-10T10:01:33Z"
+    },
+    {
+      "type": "llm_call",
+      "backend": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "prompt_tokens": 234,
+      "completion_tokens": 89,
+      "cost_usd": 0.000123,
+      "latency_ms": 187,
+      "timestamp": "2026-03-10T10:01:34Z"
+    },
+    {
+      "type": "hitl_suspended",
+      "prompt": "Confirmer l'envoi du devis ?",
+      "timestamp": "2026-03-10T10:01:35Z"
+    },
+    {
+      "type": "hitl_resolved",
+      "approved": true,
+      "reason": null,
+      "wait_ms": 45000,
+      "timestamp": "2026-03-10T10:02:20Z"
+    },
+    {
+      "type": "task_completed",
+      "output_preview": "Devis #042 généré pour Dupont SA, 5100€...",
+      "duration_ms": 48200,
+      "timestamp": "2026-03-10T10:02:20Z"
+    }
+  ]
+}
+```
+
+**Sources de données agrégées :**
+- `hitl.db` → transitions de tâche + approbations HITL
+- `plans.db` → steps Mode Orchestré
+- `llm_calls.db` → appels LLM avec tokens et coûts
+- `audit.db` → appels outils avec args/stdout/stderr
+
+L'agrégation est faite côté serveur dans un seul `spawn_blocking` (5 lectures parallèles + tri par timestamp).
+
+**Modes supportés :**
+- **Mode Direct** : transitions + tool_calls + task_completed
+- **Mode Orchestré** : transitions + steps + tool_calls + llm_calls + task_completed
+- **HITL** : ajoute hitl_suspended + hitl_resolved avec wait_ms
+
+**Troncature des previews :** `input_preview` est limité à 200 caractères, `output_preview` à 500 caractères (avec `...` en suffixe).
+
+**Erreurs :**
+- `404` — tâche introuvable
+
+---
+
 ## Codes d'erreur HTTP
 
 | Code | Signification |
@@ -839,3 +934,4 @@ curl -N -H "Accept: text/event-stream" \
 - [ADR-023](../adr/ADR-023) — décisions architecture HITL (TaskRepository, PendingApprovals)
 - [ADR-024](../adr/ADR-024) — décisions système de notifications (canaux, événements, SQLite)
 - [ADR-025](../adr/ADR-025) — décisions pipelines multi-agents (TOML déclaratif, topologies natives)
+- [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature) — observabilité complète, timeline, troncature

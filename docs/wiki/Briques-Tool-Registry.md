@@ -280,9 +280,29 @@ CREATE TABLE tool_invocations (
     exit_code       INTEGER,
     success         BOOLEAN NOT NULL,
     error_code      TEXT,
-    resources_used  TEXT                  -- JSON : cpu_ms, memory_peak_kb
+    resources_used  TEXT,                 -- JSON : cpu_ms, memory_peak_kb
+    args_json       TEXT,                 -- paramètres complets JSON (Sprint 13)
+    stdout          TEXT,                 -- sortie standard tronquée (Sprint 13)
+    stderr          TEXT                  -- sortie erreur tronquée (Sprint 13)
 );
 ```
+
+### 7.1 Observabilité des appels outils *(Sprint 13)*
+
+Depuis le Sprint 13, chaque invocation d'outil persiste les paramètres d'entrée et les sorties stdout/stderr, tronqués selon `ObservabilityConfig` :
+
+```rust
+pub struct ObservabilityConfig {
+    pub max_input_bytes: usize,        // défaut 32768 (32 KB)
+    pub max_output_bytes: usize,       // défaut 32768 (32 KB)
+    pub max_tool_output_bytes: usize,  // défaut 10240 (10 KB)
+    pub debug_log_prompt: bool,        // défaut false
+}
+```
+
+La troncature utilise `truncate_with_marker()` qui garantit des frontières UTF-8 valides et ajoute le marqueur `[TRONQUÉ — N octets total]` si le contenu dépasse la limite. Un flag `*_truncated` accompagne chaque champ tronqué.
+
+Les colonnes `args_json`, `stdout`, `stderr` sont ajoutées par migration idempotente (`ALTER TABLE ADD COLUMN IF NOT EXISTS`). Les invocations antérieures au Sprint 13 ont ces colonnes à `NULL`.
 
 **Consultation via CLI :**
 

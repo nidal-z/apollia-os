@@ -265,10 +265,24 @@ impl PlanRepository {
     pub fn complete_plan(&self, plan_id: &str) -> Result<(), PlanRepositoryError>;
     pub fn fail_plan(&self, plan_id: &str, reason: &str) -> Result<(), PlanRepositoryError>;
     pub fn get_plan_with_steps(&self, task_id: &str) -> Result<PlanWithSteps, PlanRepositoryError>;
+
+    // Observabilité — Sprint 13
+    pub fn save_step_input(&self, step_id: &str, plan_id: &str,
+                           rendered_input: &str, config: &ObservabilityConfig) -> Result<(), PlanRepositoryError>;
+    pub fn save_step_output(&self, step_id: &str, plan_id: &str,
+                            output: &str, config: &ObservabilityConfig) -> Result<(), PlanRepositoryError>;
+    pub fn save_step_error(&self, step_id: &str, plan_id: &str,
+                           error_detail: &str) -> Result<(), PlanRepositoryError>;
+    pub fn save_step_tool(&self, step_id: &str, plan_id: &str,
+                          tool_name: &str) -> Result<(), PlanRepositoryError>;
+    pub fn save_step_duration(&self, step_id: &str, plan_id: &str,
+                              duration_ms: u64) -> Result<(), PlanRepositoryError>;
 }
 ```
 
-`get_plan_with_steps()` est utilisé par `apollia-os task inspect` pour afficher le plan post-exécution sans nécessiter un runtime démarré.
+Les colonnes d'observabilité (`input_rendered`, `input_truncated`, `output_text`, `output_truncated`, `tool_used`, `error_detail`, `duration_ms`) sont ajoutées à `plan_steps` par migration idempotente au `PlanRepository::open()`. La troncature suit `ObservabilityConfig` avec le marqueur `[TRONQUÉ — N octets total]`.
+
+`get_plan_with_steps()` est utilisé par `apollia-os task inspect` et la Timeline API pour afficher le plan post-exécution sans nécessiter un runtime démarré.
 
 ### 4.4 Hook `on_plan_complete()` (optionnel)
 
@@ -706,6 +720,7 @@ AIPResult → Runtime Core
 | Reprise HITL par re-appel `agent.run()` avec `is_resumed=True` (ADR-023) | Pas de nouveau point d'entrée — contrat minimal préservé (Principe #3) ; l'agent voit explicitement qu'il reprend via `task.is_resumed` |
 | `tools_requiring_approval` dans le manifest (ADR-023) | Déclaration décentralisée côté agent — le runtime n'a pas à connaître la sémantique métier de chaque outil |
 | `TimeoutWatcher` scan périodique (60s) | Pas de timer par tâche — un seul acteur gère tous les timeouts, O(n) SQLite au lieu de O(n) timers en mémoire |
+| Observabilité par step (ADR-026) | Input rendu, output, outil utilisé, erreur détaillée, durée — chaque step est une boîte ouverte |
 
 ---
 

@@ -25,3 +25,9 @@
 | ADR-018 | [ADR-018 — CLI Bootstrap sans Supervisor](./adr-018-cli-bootstrap-sans-supervisor.md) | Accepté |
 | ADR-019 | [ADR-019 — Trait AgentLoader pour decoupler apollia-runtime de PyO3](./adr-019-agent-loader-trait-decouplage-runtime-pyo3.md) | Accepté |
 | ADR-020 | [ADR-020 — apollia-llm : moteur d'inférence embarqué, modèles fichiers externes, feature flags](./adr-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md) | Accepté |
+| ADR-021 | [ADR-021 — apollia-triggers : TOML-only, HMAC-SHA256 webhooks, hot reload sans restart](./adr-021-apollia-triggers-toml-hmac-hot-reload.md) | Accepté |
+| ADR-022 | [ADR-022 — ORIA Mode Orchestré : Option B (exécution directe outils) + hook on_plan_complete](./adr-022-oria-mode-orchestre-option-b.md) | Accepté |
+| ADR-023 | [ADR-023 — HITL : AIPTask.is_resumed + InputResponse + tools_requiring_approval](./adr-023-hitl-is-resumed-input-response-tools-requiring-approval.md) | Accepté |
+| ADR-024 | [ADR-024 — apollia-notifications : trait NotificationChannel, canaux, payload JSON fixe](./adr-024-apollia-notifications-trait-channel-json-fixe.md) | Accepté |
+| ADR-025 | [ADR-025 — apollia-pipelines : TOML déclaratif, topologies natives, HITL intégré](./adr-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md) | Accepté |
+| ADR-026 | [ADR-026 — Observabilité complète : persistance, timeline, troncature](./adr-026-observabilite-complete-persistance-timeline-troncature.md) | Accepté |

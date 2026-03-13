@@ -66,3 +66,10 @@
 
 ## Séquence — HITL dans un pipeline (suspend / resume)
 ![Pipeline HITL](seq-pipeline-hitl.svg)
+
+---
+
+## Observabilité *(Sprint 13)*
+
+## Séquence — Timeline Aggregation (5 sources → chronologie unifiée)
+![Timeline Aggregation](seq-timeline-aggregation.svg)

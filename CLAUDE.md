@@ -121,9 +121,9 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Sprint actif :** Sprint 7 — Hardening tests + CI verte (4 stories : STORY-047→050)
-**Dernier sprint livré :** Sprint 6 — Hardening + Agent de démo (5/5 stories, 336 tests)
+**Sprint actif :** Sprint 14 (à planifier)
+**Dernier sprint livré :** Sprint 13 — Observabilité complète (8/8 stories actives, ADR-026)
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
-**Dernière décision :** ADR-019 — AgentLoader trait decouplage runtime/PyO3
+**Dernière décision :** ADR-026 — Observabilité complète : persistance, timeline, troncature
 
 Pour l'état détaillé : lire `docs/internal/STORIES/sprint-index.md`.
