@@ -138,8 +138,15 @@ async fn build_webhook_state(
         TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 64);
 
     let (mock_submitter, submit_count) = MockTaskSubmitter::new();
-    let engine_handle =
-        TriggerEngineHandle::spawn(defs, mock_submitter, event_sender.clone(), None, None, ObservabilityConfig::default()).await;
+    let engine_handle = TriggerEngineHandle::spawn(
+        defs,
+        mock_submitter,
+        event_sender.clone(),
+        None,
+        None,
+        ObservabilityConfig::default(),
+    )
+    .await;
 
     let state = AppState {
         router_handle,

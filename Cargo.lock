@@ -321,6 +321,7 @@ dependencies = [
  "apollia-memory",
  "apollia-tools",
  "async-trait",
+ "chrono",
  "futures",
  "rand 0.8.5",
  "rusqlite",

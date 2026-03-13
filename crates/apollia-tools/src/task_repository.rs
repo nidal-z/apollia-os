@@ -29,6 +29,10 @@ const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
     ("transitions_json", "TEXT"),
 ];
 
+/// Colonnes HITL timing à ajouter sur `task_approvals` (STORY-131).
+const HITL_TIMING_COLUMNS: &[(&str, &str)] =
+    &[("suspended_at", "TEXT"), ("wait_duration_ms", "INTEGER")];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -117,6 +121,11 @@ impl TaskRepository {
             conn.execute_batch("PRAGMA journal_mode=WAL;")?;
             conn.execute_batch(MIGRATION_SQL)?;
             add_columns_if_missing(&conn, "tasks", OBSERVABILITY_COLUMNS)?;
+            add_columns_if_missing(&conn, "task_approvals", HITL_TIMING_COLUMNS)?;
+            conn.execute_batch(
+                "CREATE INDEX IF NOT EXISTS idx_task_approvals_pending \
+                 ON task_approvals(task_id) WHERE approved IS NULL;",
+            )?;
             Ok(())
         })
         .await
@@ -166,6 +175,91 @@ impl TaskRepository {
                      input_required_at      = CURRENT_TIMESTAMP, \
                      updated_at             = CURRENT_TIMESTAMP",
                 params![&task_id, &step_id, &prompt, &context_json],
+            )?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))??;
+
+        Ok(())
+    }
+
+    // ─── Méthodes HITL timing (STORY-131) ──────────────────────────────
+
+    /// Enregistre le timestamp de suspension lors d'un `input_required`.
+    ///
+    /// Insère une ligne préliminaire dans `task_approvals` avec `suspended_at`
+    /// renseigné et `approved IS NULL`. Le `prompt` et `context_json` sont
+    /// lus depuis la table `tasks` (peuplée par [`save_input_required`]).
+    ///
+    /// Appelé par ORIA au moment de l'émission de `AIPResult.input_required()`.
+    ///
+    /// # Errors
+    ///
+    /// - [`TaskRepoError::Sqlite`] en cas d'erreur SQLite
+    pub async fn save_suspended_at(
+        &self,
+        task_id: &str,
+        step_id: Option<&str>,
+        suspended_at: &str,
+    ) -> Result<(), TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+        let step_id = step_id.map(|s| s.to_string());
+        let suspended_at = suspended_at.to_string();
+
+        tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
+            let conn = rusqlite::Connection::open(&path)?;
+            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            conn.execute(
+                "INSERT INTO task_approvals \
+                     (task_id, step_id, prompt, context_json, suspended_at) \
+                 SELECT ?1, ?2, \
+                        COALESCE(input_required_prompt, ''), \
+                        COALESCE(input_required_context, '{}'), \
+                        ?3 \
+                 FROM tasks WHERE task_id = ?1",
+                params![&task_id, &step_id, &suspended_at],
+            )?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))??;
+
+        Ok(())
+    }
+
+    /// Met à jour `responded_at` et calcule `wait_duration_ms` en SQL.
+    ///
+    /// La durée d'attente est calculée atomiquement en SQL comme la différence
+    /// entre `responded_at` et `suspended_at` en millisecondes, via
+    /// `julianday()`. Cible la ligne en attente (`approved IS NULL`).
+    ///
+    /// Appelé par le `ResumeHandler` au moment de la réponse humaine.
+    ///
+    /// # Errors
+    ///
+    /// - [`TaskRepoError::Sqlite`] en cas d'erreur SQLite
+    pub async fn save_response_timing(
+        &self,
+        task_id: &str,
+        responded_at: &str,
+    ) -> Result<(), TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+        let responded_at = responded_at.to_string();
+
+        tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
+            let conn = rusqlite::Connection::open(&path)?;
+            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            conn.execute(
+                "UPDATE task_approvals \
+                 SET responded_at = ?1, \
+                     wait_duration_ms = CAST( \
+                         (julianday(?1) - julianday(suspended_at)) * 86400000 AS INTEGER \
+                     ) \
+                 WHERE task_id = ?2 AND approved IS NULL",
+                params![&responded_at, &task_id],
             )?;
             Ok(())
         })
@@ -225,21 +319,36 @@ impl TaskRepository {
                 params![&task_id, approved as i32, &reason, &responded_at],
             )?;
 
-            // Insère dans l'historique task_approvals.
-            conn.execute(
-                "INSERT INTO task_approvals \
-                     (task_id, step_id, prompt, context_json, approved, reason, responded_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![
-                    &task_id,
-                    &step_id,
-                    &prompt,
-                    &context_json,
-                    approved as i32,
-                    &reason,
-                    &responded_at,
-                ],
+            // Update the pending row created by save_suspended_at (STORY-131).
+            // If no pending row exists (backward compat), fallback to INSERT.
+            let updated = conn.execute(
+                "UPDATE task_approvals \
+                 SET approved = ?2, \
+                     reason = ?3, \
+                     responded_at = ?4, \
+                     wait_duration_ms = CAST( \
+                         (julianday(?4) - julianday(suspended_at)) * 86400000 AS INTEGER \
+                     ) \
+                 WHERE task_id = ?1 AND approved IS NULL",
+                params![&task_id, approved as i32, &reason, &responded_at],
             )?;
+
+            if updated == 0 {
+                conn.execute(
+                    "INSERT INTO task_approvals \
+                         (task_id, step_id, prompt, context_json, approved, reason, responded_at) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![
+                        &task_id,
+                        &step_id,
+                        &prompt,
+                        &context_json,
+                        approved as i32,
+                        &reason,
+                        &responded_at,
+                    ],
+                )?;
+            }
 
             Ok(())
         })
@@ -1093,5 +1202,151 @@ mod tests {
             !expired.contains(&task_id.to_string()),
             "tâche récente ne doit PAS être dans les expirées ; got={expired:?}"
         );
+    }
+
+    // ─── Tests STORY-131 — HITL timing ───────────────────────────────
+
+    // AC-1 — suspended_at enregistré à la suspension
+
+    #[tokio::test]
+    async fn test_story131_ac1_suspended_at_recorded() {
+        // GIVEN un TaskRepository avec une approbation en attente
+        let (repo, db_path) = open_test_repo().await;
+        let task_id = "t-131-1";
+        repo.save_input_required(task_id, None, "Confirmer ?", &serde_json::json!({}))
+            .await
+            .expect("save_input_required failed");
+
+        // WHEN save_suspended_at est appelé
+        repo.save_suspended_at(task_id, None, "2026-03-13T14:30:00.000Z")
+            .await
+            .expect("save_suspended_at failed");
+
+        // THEN suspended_at est renseigné dans task_approvals
+        let suspended: String = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(&db_path).expect("open db");
+            conn.query_row(
+                "SELECT suspended_at FROM task_approvals WHERE task_id = ?1",
+                params!["t-131-1"],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("query failed")
+        })
+        .await
+        .expect("join failed");
+
+        assert_eq!(suspended, "2026-03-13T14:30:00.000Z");
+    }
+
+    // AC-2 — responded_at enregistré à la réponse (via save_input_response)
+
+    #[tokio::test]
+    async fn test_story131_ac2_responded_at_recorded() {
+        // GIVEN une approbation avec suspended_at renseigné
+        let (repo, db_path) = open_test_repo().await;
+        let task_id = "t-131-2";
+        repo.save_input_required(task_id, None, "Budget OK ?", &serde_json::json!({}))
+            .await
+            .expect("save_input_required failed");
+        repo.save_suspended_at(task_id, None, "2026-03-13T14:30:00.000Z")
+            .await
+            .expect("save_suspended_at failed");
+
+        // WHEN save_input_response est appelé
+        let response = InputResponseData {
+            approved: true,
+            reason: None,
+            context: serde_json::json!({}),
+            responded_at: "2026-03-13T14:35:00.000Z".into(),
+        };
+        repo.save_input_response(task_id, &response)
+            .await
+            .expect("save_input_response failed");
+
+        // THEN responded_at est bien renseigné dans task_approvals
+        let responded: String = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(&db_path).expect("open db");
+            conn.query_row(
+                "SELECT responded_at FROM task_approvals WHERE task_id = ?1",
+                params!["t-131-2"],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("query failed")
+        })
+        .await
+        .expect("join failed");
+
+        assert_eq!(responded, "2026-03-13T14:35:00.000Z");
+    }
+
+    // AC-3 — wait_duration_ms calculé automatiquement (5 min = 300000ms)
+
+    #[tokio::test]
+    async fn test_story131_ac3_wait_duration_calculated() {
+        // GIVEN suspended_at = 14:30:00, responded_at = 14:35:00
+        let (repo, db_path) = open_test_repo().await;
+        let task_id = "t-131-3";
+        repo.save_input_required(task_id, None, "Valider ?", &serde_json::json!({}))
+            .await
+            .expect("save_input_required failed");
+        repo.save_suspended_at(task_id, None, "2026-03-13T14:30:00.000Z")
+            .await
+            .expect("save_suspended_at failed");
+
+        // WHEN save_input_response est appelé 5 min plus tard
+        let response = InputResponseData {
+            approved: true,
+            reason: None,
+            context: serde_json::json!({}),
+            responded_at: "2026-03-13T14:35:00.000Z".into(),
+        };
+        repo.save_input_response(task_id, &response)
+            .await
+            .expect("save_input_response failed");
+
+        // THEN wait_duration_ms ≈ 300000 (5 min en ms, tolérance ±1000 pour arrondi julianday)
+        let wait_ms: i64 = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(&db_path).expect("open db");
+            conn.query_row(
+                "SELECT wait_duration_ms FROM task_approvals WHERE task_id = ?1",
+                params!["t-131-3"],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("query failed")
+        })
+        .await
+        .expect("join failed");
+
+        assert!(
+            (299_000..=301_000).contains(&wait_ms),
+            "wait_duration_ms should be ~300000 (5 min), got {wait_ms}"
+        );
+    }
+
+    // AC-4 — Index pending créé
+
+    #[tokio::test]
+    async fn test_story131_ac4_pending_index_exists() {
+        // GIVEN une DB fraîche
+        let (_, db_path) = open_test_repo().await;
+
+        // WHEN on vérifie les index
+        let has_index: bool = tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(&db_path).expect("open");
+            let count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master \
+                     WHERE type = 'index' AND name = 'idx_task_approvals_pending'",
+                    [],
+                    |row| row.get(0),
+                )
+                .expect("query failed");
+            count > 0
+        })
+        .await
+        .expect("join failed");
+
+        // THEN l'index existe
+        assert!(has_index, "idx_task_approvals_pending doit exister");
     }
 }

@@ -515,6 +515,20 @@ impl ORIAEngine {
                     "failed to persist input_required — continuing without DB record"
                 );
             }
+
+            // STORY-131 : record suspended_at timestamp for HITL timing
+            let suspended_at =
+                chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+            if let Err(e) = repo
+                .save_suspended_at(&task.task_id, None, &suspended_at)
+                .await
+            {
+                tracing::warn!(
+                    task_id = %task.task_id,
+                    error = %e,
+                    "failed to persist suspended_at — continuing without timing record"
+                );
+            }
         }
 
         // AC-1 : broadcast TaskInputRequired on EventBus

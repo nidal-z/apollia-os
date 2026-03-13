@@ -976,8 +976,15 @@ mod tests {
         let registry = AgentRegistry::spawn(event_tx.clone());
         let router: TaskRouterHandle<MockBackend> =
             TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 64);
-        let engine =
-            TriggerEngineHandle::spawn(vec![], MockSubmitter, event_tx.clone(), None, None, apollia_core::ObservabilityConfig::default()).await;
+        let engine = TriggerEngineHandle::spawn(
+            vec![],
+            MockSubmitter,
+            event_tx.clone(),
+            None,
+            None,
+            apollia_core::ObservabilityConfig::default(),
+        )
+        .await;
         AppState {
             router_handle: router,
             registry_handle: registry,

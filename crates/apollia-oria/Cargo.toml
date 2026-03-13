@@ -19,6 +19,7 @@ uuid           = { workspace = true }
 rand           = { workspace = true }
 rusqlite       = { workspace = true }
 async-trait    = { workspace = true }
+chrono         = { workspace = true }
 
 [dev-dependencies]
 futures        = { workspace = true }
