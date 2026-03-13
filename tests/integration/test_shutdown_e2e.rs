@@ -14,7 +14,7 @@ use apollia_core::{
 use apollia_runtime::api::routes_agents::StubAgentLoader;
 use apollia_runtime::{
     api::{APIServer, APIServerConfig, AppState},
-    coordinator::{ExecutionBackend, ExecutionCoordinator},
+    coordinator::{DynBackend, ExecutionBackend, ExecutionCoordinator},
     eventbus::EventBus,
     registry::AgentRegistry,
     router::TaskRouterHandle,
@@ -32,6 +32,12 @@ struct MockBackend {
 impl MockBackend {
     fn slow(delay: Duration) -> Self {
         Self { delay }
+    }
+}
+
+impl From<DynBackend> for MockBackend {
+    fn from(_: DynBackend) -> Self {
+        MockBackend { delay: Duration::ZERO }
     }
 }
 
@@ -60,6 +66,12 @@ impl ExecutionBackend for MockBackend {
 /// Backend that never completes (blocks forever, for drain timeout tests).
 #[derive(Clone)]
 struct NeverBackend;
+
+impl From<DynBackend> for NeverBackend {
+    fn from(_: DynBackend) -> Self {
+        NeverBackend
+    }
+}
 
 impl ExecutionBackend for NeverBackend {
     fn execute(
@@ -160,6 +172,10 @@ async fn test_shutdown_drains_active_tasks() {
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
+        pipeline_engine: None,
+        backend_factory: None,
+        tool_registry_handle: None,
+        audit_trail: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -234,6 +250,10 @@ async fn test_shutdown_stops_all_agents() {
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
+        pipeline_engine: None,
+        backend_factory: None,
+        tool_registry_handle: None,
+        audit_trail: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -298,6 +318,10 @@ async fn test_shutdown_broadcasts_requested_event() {
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
+        pipeline_engine: None,
+        backend_factory: None,
+        tool_registry_handle: None,
+        audit_trail: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -384,6 +408,10 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
+        pipeline_engine: None,
+        backend_factory: None,
+        tool_registry_handle: None,
+        audit_trail: None,
     };
     let api = APIServer::new(
         APIServerConfig {

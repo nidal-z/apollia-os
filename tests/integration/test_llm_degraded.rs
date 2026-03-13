@@ -17,7 +17,7 @@ use apollia_core::{AIPResult, AIPTask, AgentId, RuntimeEvent};
 use apollia_llm::{LlmConfig, LlmRouter, ObservabilityConfig};
 use apollia_runtime::{
     api::{routes_agents::StubAgentLoader, APIServer, APIServerConfig, AppState},
-    coordinator::ExecutionBackend,
+    coordinator::{DynBackend, ExecutionBackend},
     eventbus::EventBus,
     registry::AgentRegistry,
     router::TaskRouterHandle,
@@ -30,6 +30,12 @@ use apollia_runtime::{
 /// Backend qui ne se termine jamais — utilisé pour tester le démarrage du runtime.
 #[derive(Clone)]
 struct NeverMockBackend;
+
+impl From<DynBackend> for NeverMockBackend {
+    fn from(_: DynBackend) -> Self {
+        NeverMockBackend
+    }
+}
 
 impl ExecutionBackend for NeverMockBackend {
     fn execute(
@@ -90,6 +96,10 @@ async fn test_runtime_starts_without_llm_router() {
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
+        pipeline_engine: None,
+        backend_factory: None,
+        tool_registry_handle: None,
+        audit_trail: None,
     };
 
     // WHEN l'APIServer démarre
@@ -208,6 +218,10 @@ async fn test_runtime_continues_after_llm_init_failure() {
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
+        pipeline_engine: None,
+        backend_factory: None,
+        tool_registry_handle: None,
+        audit_trail: None,
     };
 
     let api = APIServer::new(

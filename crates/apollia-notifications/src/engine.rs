@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -84,19 +85,29 @@ pub struct NotificationEngine {
     config: NotificationConfig,
     channels: Vec<Box<dyn NotificationChannel>>,
     event_bus: EventBusSender,
+    /// Chemin vers la base SQLite `hitl.db` pour l'écriture dans `notification_logs`.
+    ///
+    /// `None` → logging désactivé (tests, dev sans data_dir). En production, le
+    /// Supervisor passe `Some(data_dir.join("hitl.db"))`.
+    log_db_path: Option<PathBuf>,
 }
 
 impl NotificationEngine {
     /// Crée un nouveau moteur de notification.
+    ///
+    /// `log_db_path` : chemin vers `hitl.db` pour écrire la table `notification_logs`.
+    /// Passer `None` pour désactiver le logging SQLite (tests).
     pub fn new(
         config: NotificationConfig,
         channels: Vec<Box<dyn NotificationChannel>>,
         event_bus: EventBusSender,
+        log_db_path: Option<PathBuf>,
     ) -> Self {
         Self {
             config,
             channels,
             event_bus,
+            log_db_path,
         }
     }
 
@@ -111,6 +122,7 @@ impl NotificationEngine {
             config,
             channels,
             event_bus,
+            log_db_path,
         } = self;
         let mut rx = event_bus.subscribe();
         // Libérer le sender pour permettre la fermeture du bus quand tous les
@@ -121,7 +133,19 @@ impl NotificationEngine {
             match rx.recv().await {
                 Ok(event) => {
                     if let Some(notif) = map_event_with(&config, &channels, &event) {
-                        dispatch_notif(&config, &channels, &notif).await;
+                        let channel_results =
+                            dispatch_notif(&config, &channels, &notif).await;
+                        if let Some(ref db_path) = log_db_path {
+                            let db_path = db_path.clone();
+                            let notif_clone = notif.clone();
+                            tokio::task::spawn_blocking(move || {
+                                write_notification_log(
+                                    &db_path,
+                                    &notif_clone,
+                                    &channel_results,
+                                );
+                            });
+                        }
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
@@ -163,22 +187,105 @@ fn map_event_with(
 /// Pour chaque canal, appelle [`NotificationChannel::accepts`] puis
 /// [`NotificationChannel::send`]. Les erreurs sont loggées en `warn!` sans
 /// interrompre le dispatch vers les canaux suivants.
+///
+/// Retourne une map `channel_id → Option<error_message>` pour les canaux
+/// qui ont accepté la notification (`None` = succès, `Some(msg)` = erreur).
 async fn dispatch_notif(
     config: &NotificationConfig,
     channels: &[Box<dyn NotificationChannel>],
     notif: &Notification,
-) {
+) -> HashMap<String, Option<String>> {
+    let mut results = HashMap::new();
     for channel in channels {
         if channel.accepts(&notif.event, config) {
-            if let Err(err) = channel.send(notif).await {
-                tracing::warn!(
-                    channel_id = channel.id(),
-                    error = %err,
-                    event = %notif.event,
-                    "Canal de notification en erreur — dispatch continue"
-                );
+            match channel.send(notif).await {
+                Ok(()) => {
+                    results.insert(channel.id().to_string(), None);
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        channel_id = channel.id(),
+                        error = %err,
+                        event = %notif.event,
+                        "Canal de notification en erreur — dispatch continue"
+                    );
+                    results.insert(channel.id().to_string(), Some(err.to_string()));
+                }
             }
         }
+    }
+    results
+}
+
+/// Écrit une entrée dans `notification_logs` (table SQLite dans `hitl.db`).
+///
+/// `channel_results` : map `channel_id → None` (succès) ou `Some(msg)` (erreur).
+/// La table est créée idempotentiellement si elle n'existe pas.
+/// Les erreurs sont loggées en `warn!` sans propagation — le logging est best-effort.
+fn write_notification_log(
+    db_path: &std::path::Path,
+    notif: &Notification,
+    channel_results: &HashMap<String, Option<String>>,
+) {
+    let conn = match rusqlite::Connection::open(db_path) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!(error = %e, "notification_logs : impossible d'ouvrir la base");
+            return;
+        }
+    };
+
+    if let Err(e) = conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS notification_logs (
+            id          TEXT    PRIMARY KEY,
+            event_name  TEXT    NOT NULL,
+            task_id     TEXT,
+            agent_id    TEXT,
+            sent_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+            channels    TEXT    NOT NULL DEFAULT '{}',
+            error       TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_notif_logs_sent_at ON notification_logs(sent_at);",
+    ) {
+        tracing::warn!(error = %e, "notification_logs : migration échouée");
+        return;
+    }
+
+    // Sérialise les résultats par canal : { "desktop": "ok" | "erreur..." }
+    let channels_json: serde_json::Map<String, serde_json::Value> = channel_results
+        .iter()
+        .map(|(id, err)| {
+            let status = match err {
+                None => serde_json::Value::String("ok".into()),
+                Some(msg) => serde_json::Value::String(msg.clone()),
+            };
+            (id.clone(), status)
+        })
+        .collect();
+
+    // Premier canal en erreur → champ `error` global
+    let global_error: Option<String> = channel_results
+        .values()
+        .find_map(|e| e.as_deref().map(str::to_string));
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let sent_at = notif.timestamp.to_rfc3339();
+    let channels_str = serde_json::to_string(&channels_json).unwrap_or_else(|_| "{}".into());
+
+    if let Err(e) = conn.execute(
+        "INSERT INTO notification_logs (id, event_name, task_id, agent_id, sent_at, channels, error)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        rusqlite::params![
+            id,
+            notif.event,
+            notif.task_id,
+            notif.agent,
+            sent_at,
+            channels_str,
+            global_error,
+        ],
+    ) {
+        tracing::warn!(error = %e, "notification_logs : INSERT échoué");
     }
 }
 
@@ -300,7 +407,7 @@ mod tests {
             }),
         ];
 
-        let engine = NotificationEngine::new(config, channels, tx.clone());
+        let engine = NotificationEngine::new(config, channels, tx.clone(), None);
         let handle = tokio::spawn(engine.run());
 
         // Laisser l'engine s'abonner au bus
@@ -328,7 +435,7 @@ mod tests {
     fn test_map_event_delegates_to_event_filter() {
         // GIVEN — NotificationEngine délègue map_event à event_filter::map_event
         let (tx, _rx) = tokio::sync::broadcast::channel(16);
-        let engine = NotificationEngine::new(make_config(vec![]), vec![], tx);
+        let engine = NotificationEngine::new(make_config(vec![]), vec![], tx, None);
 
         let event = RuntimeEvent::TaskInputRequired {
             task_id: TaskId::from("t-test"),
@@ -348,7 +455,7 @@ mod tests {
     fn test_map_event_returns_none_for_unknown_event() {
         // GIVEN
         let (tx, _rx) = tokio::sync::broadcast::channel(16);
-        let engine = NotificationEngine::new(make_config(vec![]), vec![], tx);
+        let engine = NotificationEngine::new(make_config(vec![]), vec![], tx, None);
 
         let event = RuntimeEvent::AgentRegistered(AgentId::from("agent-1"));
 

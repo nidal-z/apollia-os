@@ -23,7 +23,7 @@ use apollia_pipelines::{
     PipelineDefinition, PipelineEngine, PipelineEngineHandle, PipelineRepository,
 };
 use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
-use apollia_triggers::{TriggerDefinition, TriggerEngineHandle};
+use apollia_triggers::{TriggerDefinition, TriggerEngineHandle, TriggerPersistence};
 
 use crate::api::routes_agents::AgentLoader;
 use crate::api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
@@ -316,13 +316,30 @@ impl Supervisor {
 
         // Phase 6 (pos 7): TriggerEngine — démarré après TaskRouter (besoin du submitter)
         info!("Supervisor: starting TriggerEngine");
+        // Ouvre la persistance SQLite des triggers (historique des fires/skips).
+        let trigger_persistence: Option<TriggerPersistence> = {
+            let db_path = self.config.data_dir.join("triggers.db");
+            match TriggerPersistence::open(&db_path) {
+                Ok(p) => {
+                    info!("Supervisor: TriggerPersistence ready");
+                    Some(p)
+                }
+                Err(e) => {
+                    warn!(
+                        error = %e,
+                        "TriggerPersistence failed to open — trigger history disabled"
+                    );
+                    None
+                }
+            }
+        };
         let enabled_count = self.config.triggers.iter().filter(|t| t.enabled).count();
         let trigger_engine = TriggerEngineHandle::spawn(
             self.config.triggers.clone(),
             router_handle.clone(),
             event_sender.clone(),
-            None, // persistance SQLite désactivée en MVP — activée via STORY-070 config
-            None, // PipelineEngine injecté après démarrage — STORY-119
+            trigger_persistence,
+            None, // PipelineEngine injecté après son démarrage — résout dépendance circulaire
         )
         .await;
         tracing::info!(
@@ -375,6 +392,14 @@ impl Supervisor {
             );
             Some(handle)
         };
+
+        // Résolution de la dépendance circulaire TriggerEngine ↔ PipelineEngine :
+        // TriggerEngine a démarré sans PipelineEngine (None ci-dessus).
+        // Maintenant que PipelineEngine est prêt, on l'injecte via SetPipelineEngine.
+        if let Some(ref pe) = pipeline_engine {
+            trigger_engine.set_pipeline_engine(Some(pe.clone())).await;
+            info!("Supervisor: PipelineEngine injecté dans TriggerEngine");
+        }
 
         // Phase 8 (pos 9): AuditTrail — opened before APIServer so it's injectable into AppState.
         info!("Supervisor: opening AuditTrail");
@@ -485,7 +510,13 @@ impl Supervisor {
             let channels = build_channels(&notif_config.channels)
                 .map_err(|e| SupervisorError::NotificationConfig(e.to_string()))?;
             let active = notif_config.channels.iter().filter(|c| c.enabled).count();
-            let engine = NotificationEngine::new(notif_config, channels, event_sender.clone());
+            let notif_db_path = Some(self.config.data_dir.join("hitl.db"));
+            let engine = NotificationEngine::new(
+                notif_config,
+                channels,
+                event_sender.clone(),
+                notif_db_path,
+            );
             tokio::spawn(engine.run());
             tracing::info!(channels = active, "NotificationEngine démarré");
         } else {

@@ -23,8 +23,8 @@ use sha2::Sha256;
 use apollia_core::{AIPInput, TaskId};
 use apollia_runtime::{
     api::routes_agents::StubAgentLoader, api::APIServer, api::APIServerConfig,
-    api::APIServerHandle, api::AppState, coordinator::ExecutionBackend, eventbus::EventBus,
-    registry::AgentRegistry, router::TaskRouterHandle,
+    api::APIServerHandle, api::AppState, coordinator::DynBackend, coordinator::ExecutionBackend,
+    eventbus::EventBus, registry::AgentRegistry, router::TaskRouterHandle,
 };
 use apollia_triggers::{
     InputTemplate, OnBusyPolicy, TaskSubmitter, TriggerDefinition, TriggerEngineHandle,
@@ -76,6 +76,12 @@ impl TaskSubmitter for MockTaskSubmitter {
 /// Backend d'exécution minimal — jamais appelé dans les tests webhook.
 #[derive(Clone)]
 struct MockBackend;
+
+impl From<DynBackend> for MockBackend {
+    fn from(_: DynBackend) -> Self {
+        MockBackend
+    }
+}
 
 impl ExecutionBackend for MockBackend {
     fn execute(
@@ -147,6 +153,10 @@ async fn build_webhook_state(
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
+        pipeline_engine: None,
+        backend_factory: None,
+        tool_registry_handle: None,
+        audit_trail: None,
     };
     (state, submit_count)
 }

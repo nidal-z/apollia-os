@@ -32,6 +32,12 @@ use apollia_runtime::{
 #[derive(Clone)]
 struct MockBackend;
 
+impl From<apollia_runtime::coordinator::DynBackend> for MockBackend {
+    fn from(_: apollia_runtime::coordinator::DynBackend) -> Self {
+        MockBackend
+    }
+}
+
 impl ExecutionBackend for MockBackend {
     fn execute(
         &self,
@@ -82,6 +88,10 @@ fn build_app_state() -> AppState<MockBackend> {
         task_repository: None,
         pending_approvals: None,
         notification_config: None,
+        pipeline_engine: None,
+        backend_factory: None,
+        tool_registry_handle: None,
+        audit_trail: None,
     }
 }
 

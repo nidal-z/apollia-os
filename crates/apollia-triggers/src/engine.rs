@@ -106,6 +106,11 @@ enum TriggerCommand {
         definitions: Vec<TriggerDefinition>,
         reply: oneshot::Sender<()>,
     },
+    /// Injecte (ou retire) le `PipelineEngine` après le démarrage — résout la
+    /// dépendance circulaire TriggerEngine ↔ PipelineEngine (STORY-119).
+    SetPipelineEngine {
+        handle: Option<PipelineEngineHandle>,
+    },
     /// Arrête l'acteur proprement.
     Shutdown,
 }
@@ -421,6 +426,15 @@ impl TriggerEngine {
             TriggerCommand::Reload { definitions, reply } => {
                 self.do_reload(definitions).await;
                 let _ = reply.send(());
+                false
+            }
+
+            TriggerCommand::SetPipelineEngine { handle } => {
+                self.pipeline_engine = handle;
+                tracing::info!(
+                    has_pipeline_engine = self.pipeline_engine.is_some(),
+                    "TriggerEngine: pipeline_engine mis à jour"
+                );
                 false
             }
 
@@ -905,6 +919,18 @@ impl TriggerEngineHandle {
             })
             .await;
         let _ = reply_rx.await;
+    }
+
+    /// Injecte (ou retire) le `PipelineEngine` après le démarrage du moteur.
+    ///
+    /// Résout la dépendance circulaire TriggerEngine ↔ PipelineEngine (STORY-119) :
+    /// le TriggerEngine démarre sans PipelineEngine, puis reçoit le handle dès que
+    /// le PipelineEngine est prêt. Fire-and-forget — pas de réponse attendue.
+    pub async fn set_pipeline_engine(&self, handle: Option<PipelineEngineHandle>) {
+        let _ = self
+            .tx
+            .send(TriggerCommand::SetPipelineEngine { handle })
+            .await;
     }
 
     /// Arrête l'acteur `TriggerEngine` proprement.
