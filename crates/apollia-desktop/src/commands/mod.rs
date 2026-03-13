@@ -10,6 +10,7 @@ pub mod agents;
 pub mod hitl;
 pub mod llm;
 pub mod memory;
+pub mod notifications;
 pub mod pipelines;
 pub mod tasks;
 pub mod triggers;

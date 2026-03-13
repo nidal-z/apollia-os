@@ -259,3 +259,29 @@ export interface MemorySearchResult {
   relevance: number | null;
   created_at: string;
 }
+
+/** Canal de notification configuré. */
+export interface NotificationChannel {
+  channel_id: string;
+  type: "desktop" | "webhook" | "sse";
+  enabled: boolean;
+  events: string[];
+}
+
+/** Résultat du test d'un canal de notification. */
+export interface ChannelTestResult {
+  channel_id: string;
+  status: "ok" | "error" | "disabled";
+  error: string | null;
+  latency_ms: number | null;
+}
+
+/** Entrée de l'historique des notifications. */
+export interface NotificationLogEntry {
+  id: string;
+  event_name: string;
+  task_id: string | null;
+  sent_at: string;
+  channels: Record<string, string>;
+  error: string | null;
+}

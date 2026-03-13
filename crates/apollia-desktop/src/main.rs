@@ -46,6 +46,9 @@ fn main() {
             commands::memory::list_memory_entries,
             commands::memory::search_memory,
             commands::memory::delete_memory_entry,
+            commands::notifications::list_notification_channels,
+            commands::notifications::test_notification_channel,
+            commands::notifications::get_notification_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

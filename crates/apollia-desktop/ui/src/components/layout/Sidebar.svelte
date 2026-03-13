@@ -13,6 +13,7 @@
     { route: "triggers", label: "Triggers", icon: "⏱️" },
     { route: "pipelines", label: "Pipelines", icon: "🔗" },
     { route: "memory", label: "Memory", icon: "💾" },
+    { route: "notifications", label: "Notifications", icon: "🔔" },
   ];
 
   function navigate(route: Route) {
