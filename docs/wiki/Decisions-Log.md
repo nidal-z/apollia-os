@@ -550,5 +550,51 @@
 
 ---
 
+## ADR-027 — apollia-desktop : processus unique Tauri + runtime embarqué
+
+**Date :** 2026-03-13
+**Statut :** Accepté
+
+**Contexte :** Apollia OS est mature fonctionnellement (13 sprints livrés) mais accessible uniquement via CLI. Les utilisateurs non-techniques (PME) ont besoin d'une application desktop native — double-clic → fenêtre → agents visibles. La question : comment le frontend Tauri communique-t-il avec le runtime Rust ?
+
+**Décision :** Processus unique — `apollia-desktop` (Tauri v2) démarre le runtime en interne via `init_embedded()`. Commandes Tauri `#[tauri::command]` pour les mutations ponctuelles (wrappent les handles Tokio). SSE EventBus existant (`localhost:7771/api/v1/dashboard/stream`) pour les flux temps réel. Pas de canal Tauri events en doublon. Le CLI reste fonctionnel via le Unix socket existant.
+
+**Alternatives considérées :** Deux processus séparés (rejetée : synchronisation démarrage complexe, deux binaires à distribuer, sérialisation HTTP inutile alors que les handles Tokio sont disponibles en mémoire), WebView navigateur sans Tauri (rejetée : friction inacceptable pour utilisateur non-technique, pas de packaging natif, pas de tray icon, pas de file picker)
+
+**Conséquences :**
+- Distribution simplifiée : un seul `.dmg` / `.AppImage`
+- Handles Tokio réutilisés sans modification architecturale
+- Binaire plus gros (~50MB avec Tauri + WebView engine)
+- Risque de conflit linker PyO3 + Tauri sur macOS — à diagnostiquer dès STORY-135
+
+**Principes impactés :** Principe #1 — Local-first (renforcé), Principe #2 — Zéro dépendance externe (respecté), Principe #4 — Fail fast (respecté), Principe #8 — CLI humaine, API machine (étendu au desktop)
+
+[Détail complet → docs/adr/ADR-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md](adr/ADR-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md)
+
+---
+
+## ADR-028 — Frontend Svelte : UX first, UI sprint dédié
+
+**Date :** 2026-03-13
+**Statut :** Accepté
+
+**Contexte :** Le Sprint 14 introduit une app desktop (ADR-027). Le dashboard HTMX existant est insuffisant pour les interactions complexes (HITL real-time, timeline interactive, file picker natif). Choix de la stack frontend et stratégie de design à définir.
+
+**Décision :** Svelte 5 (runes) + Vite + shadcn-svelte (headless). Pour Sprint 14-15, aucune customisation visuelle — shadcn par défaut. La patte visuelle Apollia sera appliquée dans un sprint UI dédié après validation des parcours utilisateurs sur des utilisateurs réels.
+
+**Alternatives considérées :** React/Next.js (rejetée : overhead, pas d'expérience récente, bundle lourd, framework SSR inadapté à Tauri), HTMX étendu (rejetée : insuffisant pour HITL compteur live, timeline interactive, file picker natif, pas de typage TS), design custom immédiat (rejetée : risque de bikeshedding, budget solo)
+
+**Conséquences :**
+- Stack légère, rapide à développer, composants accessibles out-of-the-box
+- Look "shadcn générique" pendant 2-3 sprints — acceptable en phase validation
+- Migration vers thème custom = uniquement surcharge CSS, zéro refactoring composants
+- Navigation par store Svelte (pas de deep linking — acceptable pour app desktop)
+
+**Principes impactés :** Principe #1 — Local-first (respecté : assets compilés embarqués), Principe #2 — Zéro dépendance externe (respecté : composants shadcn copiés localement), Principe #8 — CLI humaine, API machine (étendu au desktop Svelte)
+
+[Détail complet → docs/adr/ADR-028-frontend-svelte-ux-first-ui-sprint-dedie.md](adr/ADR-028-frontend-svelte-ux-first-ui-sprint-dedie.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
