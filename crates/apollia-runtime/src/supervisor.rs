@@ -18,7 +18,9 @@ use tracing::{error, info, warn};
 
 use apollia_core::{PendingApprovals, RuntimeEvent};
 use apollia_llm::{LlmConfig, LlmRouter};
-use apollia_notifications::{build_channels, NotificationConfig, NotificationEngine};
+use apollia_notifications::{
+    build_channels, NotificationConfig, NotificationEngine, NotificationEngineHandle,
+};
 use apollia_pipelines::{
     PipelineDefinition, PipelineEngine, PipelineEngineHandle, PipelineRepository,
 };
@@ -145,6 +147,12 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     ///
     /// `None` when `task_repository` is `None` (HITL disabled).
     pub pending_approvals: Option<Arc<apollia_core::PendingApprovals>>,
+    /// Handle to the NotificationEngine actor (STORY-102).
+    ///
+    /// `None` when no `[notifications]` section is present in `apollia.toml`.
+    /// Used by [`ShutdownController`] to stop the engine before the EventBus closes,
+    /// preventing late notifications from being delivered after `apollia-os stop`.
+    pub notification_engine: Option<NotificationEngineHandle>,
 }
 
 /// Supervisor errors.
@@ -506,24 +514,27 @@ impl Supervisor {
         }
 
         // Phase 9: NotificationEngine — démarré si [notifications] présent dans la config
-        if let Some(notif_config) = self.config.notifications {
-            let channels = build_channels(&notif_config.channels)
-                .map_err(|e| SupervisorError::NotificationConfig(e.to_string()))?;
-            let active = notif_config.channels.iter().filter(|c| c.enabled).count();
-            let notif_db_path = Some(self.config.data_dir.join("hitl.db"));
-            let engine = NotificationEngine::new(
-                notif_config,
-                channels,
-                event_sender.clone(),
-                notif_db_path,
-            );
-            tokio::spawn(engine.run());
-            tracing::info!(channels = active, "NotificationEngine démarré");
-        } else {
-            tracing::info!(
-                "Supervisor: aucune section [notifications] — NotificationEngine désactivé"
-            );
-        }
+        let notification_engine: Option<NotificationEngineHandle> =
+            if let Some(notif_config) = self.config.notifications {
+                let channels = build_channels(&notif_config.channels)
+                    .map_err(|e| SupervisorError::NotificationConfig(e.to_string()))?;
+                let active = notif_config.channels.iter().filter(|c| c.enabled).count();
+                let notif_db_path = Some(self.config.data_dir.join("hitl.db"));
+                let engine = NotificationEngine::new(
+                    notif_config,
+                    channels,
+                    event_sender.clone(),
+                    notif_db_path,
+                );
+                let handle = engine.spawn();
+                tracing::info!(channels = active, "NotificationEngine démarré");
+                Some(handle)
+            } else {
+                tracing::info!(
+                    "Supervisor: aucune section [notifications] — NotificationEngine désactivé"
+                );
+                None
+            };
 
         // Emit AllReady
         let _ = event_sender.send(RuntimeEvent::AllReady);
@@ -544,6 +555,7 @@ impl Supervisor {
             audit_trail: audit_trail_handle,
             task_repository: task_repository.clone(),
             pending_approvals: pending_approvals.clone(),
+            notification_engine,
         })
     }
 }

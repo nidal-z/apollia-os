@@ -18,4 +18,6 @@ pub use channels::{DesktopChannel, WebhookChannel};
 pub use config::{
     build_channels, ChannelConfig, ChannelKind, NotifConfigError, NotificationConfig, Severity,
 };
-pub use engine::{NotifError, Notification, NotificationChannel, NotificationEngine};
+pub use engine::{
+    NotifError, Notification, NotificationChannel, NotificationEngine, NotificationEngineHandle,
+};

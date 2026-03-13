@@ -196,6 +196,7 @@ async fn test_shutdown_drains_active_tasks() {
         api_handle,
         router,
         registry,
+        None,
     );
 
     let start = tokio::time::Instant::now();
@@ -276,6 +277,7 @@ async fn test_shutdown_stops_all_agents() {
         api_handle,
         router,
         registry,
+        None,
     );
     let _ = controller.shutdown().await;
 
@@ -344,6 +346,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         api_handle,
         router,
         registry,
+        None,
     );
     let _ = controller.shutdown().await;
 
@@ -432,6 +435,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         api_handle,
         router,
         registry,
+        None,
     );
 
     let result = controller.shutdown().await;

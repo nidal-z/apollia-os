@@ -72,10 +72,30 @@ pub trait NotificationChannel: Send + Sync {
     async fn send(&self, notif: &Notification) -> Result<(), NotifError>;
 }
 
+/// Handle returned by [`NotificationEngine::spawn`] to stop the engine gracefully.
+///
+/// Call [`NotificationEngineHandle::shutdown`] to signal the engine to stop and
+/// wait for its task to finish. Dropping the handle without calling `shutdown`
+/// sends the stop signal but does not wait for completion.
+pub struct NotificationEngineHandle {
+    shutdown_tx: tokio::sync::oneshot::Sender<()>,
+    join_handle: tokio::task::JoinHandle<()>,
+}
+
+impl NotificationEngineHandle {
+    /// Signal the engine to stop and wait for it to finish.
+    ///
+    /// Idempotent — if the engine already stopped (bus closed), this returns immediately.
+    pub async fn shutdown(self) {
+        let _ = self.shutdown_tx.send(());
+        let _ = self.join_handle.await;
+    }
+}
+
 /// Moteur de notification : s'abonne à l'EventBus et dispatche les événements
 /// aux canaux configurés.
 ///
-/// Démarré par le Supervisor en tâche background (STORY-102).
+/// Démarré par le Supervisor via [`NotificationEngine::spawn`] (STORY-102).
 /// Chaque événement reçu est transformé en [`Notification`] via
 /// [`map_event`], puis dispatché à chaque canal dont [`NotificationChannel::accepts`]
 /// retourne `true`.
@@ -111,12 +131,84 @@ impl NotificationEngine {
         }
     }
 
-    /// Boucle principale de l'engine.
+    /// Spawns the engine as a Tokio task and returns a [`NotificationEngineHandle`].
     ///
-    /// S'abonne à l'EventBus, libère immédiatement le handle sender (pour ne pas
-    /// empêcher la fermeture du bus), puis traite chaque événement jusqu'à la
-    /// fermeture. Les erreurs `Lagged` (buffer saturé) sont loggées en `warn!`
-    /// sans interrompre la boucle. La boucle se termine proprement sur `RecvError::Closed`.
+    /// Preferred over [`run`] in production — the handle allows the Supervisor to
+    /// stop the engine gracefully before the EventBus closes (fixes race condition
+    /// where late notifications are delivered after `apollia-os stop`).
+    pub fn spawn(self) -> NotificationEngineHandle {
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+        let join_handle = tokio::spawn(self.run_with_shutdown(shutdown_rx));
+        NotificationEngineHandle {
+            shutdown_tx,
+            join_handle,
+        }
+    }
+
+    /// Boucle principale de l'engine (variante avec signal d'arrêt explicite).
+    ///
+    /// Utilisée par [`spawn`]. Réagit à deux sources de terminaison :
+    /// - le signal oneshot envoyé par [`NotificationEngineHandle::shutdown`]
+    /// - la fermeture implicite de l'EventBus (`RecvError::Closed`)
+    async fn run_with_shutdown(
+        self,
+        mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,
+    ) {
+        let NotificationEngine {
+            config,
+            channels,
+            event_bus,
+            log_db_path,
+        } = self;
+        let mut rx = event_bus.subscribe();
+        drop(event_bus);
+
+        loop {
+            tokio::select! {
+                biased;
+                _ = &mut shutdown_rx => {
+                    tracing::info!("NotificationEngine : signal d'arrêt reçu — arrêt propre");
+                    break;
+                }
+                result = rx.recv() => {
+                    match result {
+                        Ok(event) => {
+                            if let Some(notif) = map_event_with(&config, &channels, &event) {
+                                let channel_results =
+                                    dispatch_notif(&config, &channels, &notif).await;
+                                if let Some(ref db_path) = log_db_path {
+                                    let db_path = db_path.clone();
+                                    let notif_clone = notif.clone();
+                                    tokio::task::spawn_blocking(move || {
+                                        write_notification_log(
+                                            &db_path,
+                                            &notif_clone,
+                                            &channel_results,
+                                        );
+                                    });
+                                }
+                            }
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            tracing::warn!(
+                                skipped = n,
+                                "NotificationEngine a raté des événements (bus saturé)"
+                            );
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            tracing::info!("NotificationEngine : bus fermé — arrêt propre");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Boucle principale de l'engine (variante sans signal d'arrêt).
+    ///
+    /// Conservée pour la compatibilité des tests unitaires. En production,
+    /// préférer [`spawn`] qui retourne un [`NotificationEngineHandle`].
     pub async fn run(self) {
         let NotificationEngine {
             config,

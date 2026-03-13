@@ -71,6 +71,11 @@ pub struct ShutdownController<B: ExecutionBackend> {
     api_handle: APIServerHandle,
     router_handle: TaskRouterHandle<B>,
     registry_handle: AgentRegistryHandle,
+    /// Handle to the NotificationEngine, if started.
+    ///
+    /// Stopped explicitly *before* the EventBus closes so no late notifications
+    /// are delivered after `apollia-os stop` returns.
+    notification_engine: Option<apollia_notifications::NotificationEngineHandle>,
 }
 
 impl<B: ExecutionBackend> ShutdownController<B> {
@@ -81,6 +86,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
         api_handle: APIServerHandle,
         router_handle: TaskRouterHandle<B>,
         registry_handle: AgentRegistryHandle,
+        notification_engine: Option<apollia_notifications::NotificationEngineHandle>,
     ) -> Self {
         Self {
             config,
@@ -88,6 +94,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
             api_handle,
             router_handle,
             registry_handle,
+            notification_engine,
         }
     }
 
@@ -120,7 +127,15 @@ impl<B: ExecutionBackend> ShutdownController<B> {
         // Step 4: Transition agents to Stopped
         self.stop_agents().await;
 
-        // Step 5: Stop actors in reverse startup order
+        // Step 5: Stop NotificationEngine before the EventBus closes.
+        // This prevents late notifications from firing after the process exits
+        // (macOS Notification Center buffers osascript calls asynchronously).
+        if let Some(notif_handle) = self.notification_engine {
+            notif_handle.shutdown().await;
+            info!("NotificationEngine stopped");
+        }
+
+        // Step 6: Stop actors in reverse startup order
         // APIServer already stopped in step 2
         // TaskRouter
         self.router_handle.shutdown();
@@ -473,6 +488,7 @@ mod tests {
             api_handle,
             router_handle,
             registry_handle,
+            None,
         );
 
         (controller, event_sender, socket_path)
@@ -600,6 +616,7 @@ mod tests {
             api_handle,
             router_handle,
             registry_handle,
+            None,
         );
 
         // WHEN shutdown() est appele
@@ -685,6 +702,7 @@ mod tests {
             api_handle,
             router_handle,
             registry_handle,
+            None,
         );
 
         let result = controller.shutdown().await;
@@ -872,6 +890,7 @@ mod tests {
             api_handle,
             router_handle.clone(),
             registry_handle.clone(),
+            None,
         );
 
         // WHEN shutdown

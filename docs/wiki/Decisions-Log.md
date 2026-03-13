@@ -527,5 +527,28 @@
 
 ---
 
+## ADR-026 — Observabilité complète : persistance input/output SQLite, timeline unifiée, troncature configurable
+
+**Date :** 2026-03-13
+**Statut :** Accepté
+
+**Contexte :** Après 12 sprints, les données d'exécution sont fragmentées : inputs/outputs non persistés, appels LLM éphémères, durées non mesurées. L'opérateur ne peut pas diagnostiquer a posteriori ce qui s'est passé lors de l'exécution d'un agent.
+
+**Décision :** (1) Extensions de schéma SQLite dans les fonctions d'initialisation Rust existantes (`ALTER TABLE ADD COLUMN IF NOT EXISTS`), pas d'outil de migration externe. (2) Persistance input/output avec troncature configurable (`max_input_bytes = 32KB` défaut) + marqueur `[TRONQUÉ]` + flag `*_truncated`. (3) Timeline API côté serveur (`GET /api/v1/tasks/{id}/timeline`) agrège 5 sources SQLite en un seul appel. (4) `prompt_text` LLM nullable, `debug_log_prompt = false` par défaut (RGPD). (5) Troncature avec marqueur plutôt que rejet (observabilité partielle > absence).
+
+**Alternatives considérées :** Fichiers `.sql` séparés + outil migration (rejetée : paradigme non établi dans le projet), stockage fichier pour volumes (rejetée : fragmente l'audit trail), client agrège N requêtes (rejetée : cohérence temporelle impossible), toujours persister prompts LLM (rejetée : risque RGPD données personnelles en clair)
+
+**Conséquences :**
+- Zéro boîte noire : chaque action traçable via Timeline API
+- `apollia-llm` acquiert `rusqlite` (nouvelle table `llm_calls`)
+- Taille DB augmente mais bornée par troncature 32KB/champ
+- Rotation/archivage des données à prévoir dans un sprint futur
+
+**Principes impactés :** Principe #1 — Local-first (respecté), Principe #2 — Zéro dépendance externe (respecté), Principe #4 — Fail fast (respecté), Principe #8 — CLI humaine, API machine (respecté)
+
+[Détail complet → docs/adr/ADR-026-observabilite-complete-persistance-timeline-troncature.md](adr/ADR-026-observabilite-complete-persistance-timeline-troncature.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
