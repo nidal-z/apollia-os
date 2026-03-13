@@ -196,3 +196,45 @@ export interface TriggerFireResult {
 export interface TriggerReloadResult {
   reloaded: number;
 }
+
+/** Résumé d'un pipeline run pour l'affichage. */
+export interface PipelineRunSummary {
+  run_id: string;
+  pipeline_id: string;
+  status: "running" | "waiting_approval" | "completed" | "failed";
+  started_at: string | null;
+  ended_at: string | null;
+}
+
+/** Step d'un pipeline run. */
+export interface PipelineStepSummary {
+  step_id: string;
+  status: "pending" | "running" | "completed" | "failed";
+  output: string | null;
+  error: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+}
+
+/** Détail complet d'un pipeline run avec ses steps. */
+export interface PipelineRunDetail {
+  run_id: string;
+  pipeline_id: string;
+  status: string;
+  step_runs: PipelineStepSummary[];
+  started_at: string;
+  ended_at: string | null;
+}
+
+/** Pipeline disponible pour lancement. */
+export interface PipelineInfo {
+  id: string;
+  description: string;
+}
+
+/** Résultat du lancement d'un pipeline run. */
+export interface RunPipelineResult {
+  run_id: string;
+  pipeline_id: string;
+  status: string;
+}

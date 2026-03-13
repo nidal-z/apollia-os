@@ -5,6 +5,7 @@
   import Approvals from "../../routes/Approvals.svelte";
   import Llm from "../../routes/Llm.svelte";
   import Triggers from "../../routes/Triggers.svelte";
+  import Pipelines from "../../routes/Pipelines.svelte";
 </script>
 
 <main class="flex-1 overflow-auto bg-background p-6">
@@ -18,5 +19,7 @@
     <Llm />
   {:else if $currentRoute === "triggers"}
     <Triggers />
+  {:else if $currentRoute === "pipelines"}
+    <Pipelines />
   {/if}
 </main>

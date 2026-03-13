@@ -11,6 +11,7 @@
     { route: "approvals", label: "Approvals", icon: "✋" },
     { route: "llm", label: "LLM", icon: "🧠" },
     { route: "triggers", label: "Triggers", icon: "⏱️" },
+    { route: "pipelines", label: "Pipelines", icon: "🔗" },
   ];
 
   function navigate(route: Route) {

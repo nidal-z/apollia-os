@@ -37,6 +37,11 @@ fn main() {
             commands::triggers::fire_trigger,
             commands::triggers::get_trigger_logs,
             commands::triggers::reload_triggers,
+            commands::pipelines::list_pipelines,
+            commands::pipelines::list_pipeline_runs,
+            commands::pipelines::list_all_pipeline_runs,
+            commands::pipelines::get_pipeline_run_detail,
+            commands::pipelines::run_pipeline,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

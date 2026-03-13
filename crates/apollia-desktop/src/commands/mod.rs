@@ -9,6 +9,7 @@
 pub mod agents;
 pub mod hitl;
 pub mod llm;
+pub mod pipelines;
 pub mod tasks;
 pub mod triggers;
 
