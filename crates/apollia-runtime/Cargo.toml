@@ -5,6 +5,20 @@ edition = "2021"
 description = "Apollia OS — Runtime Core (Supervisor, AgentRegistry, TaskRouter, EventBus, APIServer axum)"
 license = "MIT"
 
+[features]
+## Active le backend cloud (Anthropic, OpenAI-compatible) — activé par défaut.
+cloud = ["apollia-llm/cloud"]
+## Active le backend embarqué in-process (inférence .gguf via mistralrs) — CPU seul.
+local = ["apollia-llm/local"]
+## CPU explicite (alias de local pour la lisibilité).
+local-cpu = ["local", "apollia-llm/local-cpu"]
+## GPU Apple Silicon via Metal.
+local-metal = ["local", "apollia-llm/local-metal"]
+## CPU + Accelerate.framework Apple (BLAS vectorisé, macOS uniquement).
+local-accelerate = ["local", "apollia-llm/local-accelerate"]
+## GPU NVIDIA CUDA.
+local-cuda = ["local", "apollia-llm/local-cuda"]
+
 [dependencies]
 apollia-core          = { workspace = true }
 apollia-llm           = { workspace = true, features = ["cloud"] }

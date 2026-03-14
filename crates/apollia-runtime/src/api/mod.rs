@@ -3,8 +3,8 @@
 //! Provides the external API surface for the runtime (CLI, SDK, integrations).
 
 pub mod routes_agents;
+pub mod routes_approvals;
 pub mod routes_audit;
-pub mod routes_dashboard;
 pub mod routes_llm;
 pub mod routes_notifications;
 pub mod routes_pipelines;

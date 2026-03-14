@@ -5,6 +5,20 @@ edition = "2021"
 description = "Apollia OS — Desktop application (Tauri v2 + embedded runtime)"
 license = "MIT"
 
+[features]
+## Active le backend cloud (Anthropic, OpenAI-compatible) — activé par défaut.
+cloud = ["apollia-runtime/cloud"]
+## Active le backend embarqué in-process (inférence .gguf via mistralrs) — CPU seul.
+local = ["apollia-runtime/local"]
+## CPU explicite (alias de local pour la lisibilité).
+local-cpu = ["local", "apollia-runtime/local-cpu"]
+## GPU Apple Silicon via Metal.
+local-metal = ["local", "apollia-runtime/local-metal"]
+## CPU + Accelerate.framework Apple (BLAS vectorisé, macOS uniquement).
+local-accelerate = ["local", "apollia-runtime/local-accelerate"]
+## GPU NVIDIA CUDA.
+local-cuda = ["local", "apollia-runtime/local-cuda"]
+
 [dependencies]
 apollia-runtime = { workspace = true }
 apollia-core   = { workspace = true }

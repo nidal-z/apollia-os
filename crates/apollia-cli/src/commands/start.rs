@@ -44,6 +44,9 @@ pub enum StartError {
         path: std::path::PathBuf,
         reason: String,
     },
+    /// A runtime is already listening on the requested port or socket.
+    #[error("runtime already running on {address} — use `apollia-os stop` first")]
+    AlreadyRunning { address: String },
 }
 
 /// Real agent loader using AIPLoader + validate_agent (ADR-019).
@@ -560,6 +563,18 @@ fn find_config_file() -> Option<PathBuf> {
     None
 }
 
+/// Returns `true` if a TCP listener is already bound on `port`.
+async fn port_is_in_use(port: u16) -> bool {
+    tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .is_ok()
+}
+
+/// Returns `true` if a Unix socket file exists at `path`.
+fn socket_is_in_use(path: &std::path::Path) -> bool {
+    path.exists()
+}
+
 /// Bootstrap and run the runtime in foreground.
 ///
 /// Uses the Supervisor for ordered startup with timeout and rollback.
@@ -569,6 +584,19 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
     let start = Instant::now();
     let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
     let tcp_port = port.unwrap_or(DEFAULT_TCP_PORT);
+
+    // Detect an already-running runtime before attempting to bind, so the user
+    // gets a clear message instead of a low-level "Address already in use" error.
+    if port_is_in_use(tcp_port).await {
+        return Err(StartError::AlreadyRunning {
+            address: format!("localhost:{tcp_port}"),
+        });
+    }
+    if socket_is_in_use(&socket_path) {
+        return Err(StartError::AlreadyRunning {
+            address: socket_path.display().to_string(),
+        });
+    }
 
     let home = std::env::var("HOME")
         .map(PathBuf::from)

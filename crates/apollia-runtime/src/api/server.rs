@@ -10,7 +10,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::extract::State;
-use axum::response::Redirect;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Serialize;
@@ -232,10 +231,8 @@ async fn shutdown_handler<B: ExecutionBackend + Clone>(
 /// Build the axum Router with all routes and shared state.
 fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<B>) -> Router {
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
+    use super::routes_approvals::{list_pending_approvals, list_resolved_approvals};
     use super::routes_audit::{get_audit_stats, list_audit};
-    use super::routes_dashboard::{
-        dashboard_stream, get_dashboard, get_dashboard_partial, get_dashboard_state, get_htmx_js,
-    };
     use super::routes_llm::llm_routes;
     use super::routes_notifications::{list_channels, notification_logs, test_channels};
     use super::routes_pipelines::{
@@ -252,8 +249,6 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     use super::routes_webhooks::handle_webhook;
 
     Router::new()
-        // Redirect root to the dashboard (browser convenience)
-        .route("/", get(|| async { Redirect::permanent("/dashboard") }))
         .route("/api/v1/health", get(health_handler))
         .route("/api/v1/shutdown", post(shutdown_handler::<B>))
         .route("/api/v1/tasks", get(list_tasks::<B>).post(submit_task::<B>))
@@ -280,6 +275,12 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             get(get_agent::<B>).delete(stop_agent::<B>),
         )
         .route("/webhooks/:id", post(handle_webhook::<B>))
+        // HITL approval routes
+        .route("/api/v1/approvals/pending", get(list_pending_approvals::<B>))
+        .route(
+            "/api/v1/approvals/resolved",
+            get(list_resolved_approvals::<B>),
+        )
         // Trigger routes (STORY-073 reload + STORY-074 CRUD)
         .route("/api/v1/triggers", get(list_triggers::<B>))
         .route("/api/v1/triggers/reload", post(reload_triggers::<B>))
@@ -288,16 +289,6 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route("/api/v1/triggers/:id/enable", post(enable_trigger::<B>))
         .route("/api/v1/triggers/:id/disable", post(disable_trigger::<B>))
         .route("/api/v1/triggers/:id/logs", get(get_trigger_logs::<B>))
-        // Static assets — HTMX served from binary (STORY-077, Principle #2)
-        .route("/static/htmx.min.js", get(get_htmx_js))
-        // Dashboard routes (STORY-075/076/077) — /dashboard has no /api/v1 prefix (browser navigation)
-        .route("/dashboard", get(get_dashboard))
-        .route("/api/v1/dashboard/state", get(get_dashboard_state::<B>))
-        .route(
-            "/api/v1/dashboard/partials/:section",
-            get(get_dashboard_partial::<B>),
-        )
-        .route("/api/v1/dashboard/stream", get(dashboard_stream::<B>))
         // Notification routes (STORY-104)
         .route("/api/v1/notifications/channels", get(list_channels::<B>))
         .route("/api/v1/notifications/test", post(test_channels::<B>))
