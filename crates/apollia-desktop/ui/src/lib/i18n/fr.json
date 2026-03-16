@@ -365,6 +365,28 @@
     "finish_setup": "Terminer la configuration",
     "continue_anyway": "Continuer quand même"
   },
+  "agent_detail": {
+    "activity_title": "Activité récente",
+    "no_activity": "Aucune activité récente pour cet agent.",
+    "triggers_title": "Déclencheurs",
+    "no_triggers": "Aucun déclencheur configuré pour cet agent.",
+    "trigger_cron": "Exécution planifiée (cron)",
+    "trigger_interval": "Exécution à intervalles réguliers",
+    "trigger_file_watch": "Exécution quand un fichier change",
+    "trigger_webhook": "Exécution via webhook",
+    "trigger_oneshot": "Déclencheur unique",
+    "trigger_disabled": "Désactivé",
+    "llm_title": "Modèle IA",
+    "no_llm": "Aucun backend LLM configuré.",
+    "llm_local": "IA locale",
+    "llm_cloud": "IA cloud",
+    "llm_free": "Gratuit",
+    "llm_backend": "Backend",
+    "llm_model": "Modèle",
+    "llm_more_backends": "backends supplémentaires",
+    "memory_title": "Mémoire",
+    "memory_link": "Voir la mémoire du namespace \"{namespace}\""
+  },
   "mac_sandbox": {
     "title": "macOS — les outils s'exécutent sans sandbox.",
     "body": "L'isolation par namespaces Linux n'est pas disponible sur macOS. Les appels d'outils des agents (bash, fichiers) s'exécutent directement dans votre session utilisateur. N'exécutez que des agents de confiance et vérifiez leurs permissions d'outils dans le manifest."

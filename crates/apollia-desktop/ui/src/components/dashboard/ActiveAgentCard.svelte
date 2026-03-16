@@ -1,16 +1,16 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import type { AgentStatus } from "$lib/types";
-  import { currentRoute } from "$lib/stores/navigation";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import { Bot } from "lucide-svelte";
 
   interface Props {
     agent: AgentStatus;
+    ondetail: (agent: AgentStatus) => void;
   }
 
-  let { agent }: Props = $props();
+  let { agent, ondetail }: Props = $props();
 
   const STATUS_BADGE: Record<
     "active" | "degraded",
@@ -32,12 +32,12 @@
     STATUS_BADGE[agent.state as "active" | "degraded"] ?? STATUS_BADGE.active,
   );
 
-  function navigateToAgents() {
-    currentRoute.set("agents");
+  function handleClick() {
+    ondetail(agent);
   }
 </script>
 
-<button class="w-full text-left" onclick={navigateToAgents} data-testid="active-agent-card" data-agent-id={agent.id}>
+<button class="w-full text-left" onclick={handleClick} data-testid="active-agent-card" data-agent-id={agent.id}>
   <Card class="transition-colors hover:bg-accent/30">
     <CardHeader class="pb-2">
       <div class="flex items-center justify-between">

@@ -365,6 +365,28 @@
     "finish_setup": "Finish setup",
     "continue_anyway": "Continue anyway"
   },
+  "agent_detail": {
+    "activity_title": "Recent activity",
+    "no_activity": "No recent activity for this agent.",
+    "triggers_title": "Triggers",
+    "no_triggers": "No triggers configured for this agent.",
+    "trigger_cron": "Runs on a schedule (cron)",
+    "trigger_interval": "Runs at regular intervals",
+    "trigger_file_watch": "Runs when a file changes",
+    "trigger_webhook": "Runs via webhook",
+    "trigger_oneshot": "One-time trigger",
+    "trigger_disabled": "Disabled",
+    "llm_title": "AI Model",
+    "no_llm": "No LLM backend configured.",
+    "llm_local": "Local AI",
+    "llm_cloud": "Cloud AI",
+    "llm_free": "Free",
+    "llm_backend": "Backend",
+    "llm_model": "Model",
+    "llm_more_backends": "more backends",
+    "memory_title": "Memory",
+    "memory_link": "View memory for namespace \"{namespace}\""
+  },
   "mac_sandbox": {
     "title": "macOS — tools run without sandbox.",
     "body": "Linux namespace isolation is not available on macOS. Agent tool calls (bash, file I/O) execute directly in your user session. Only run agents you trust, and review their tool permissions in the manifest."

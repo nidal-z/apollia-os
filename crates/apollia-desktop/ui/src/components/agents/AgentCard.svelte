@@ -9,9 +9,10 @@
   interface Props {
     agent: AgentStatus;
     onlogs: (agentId: string) => void;
+    ondetail: (agent: AgentStatus) => void;
   }
 
-  let { agent, onlogs }: Props = $props();
+  let { agent, onlogs, ondetail }: Props = $props();
 
   const STATUS_CONFIG: Record<
     AgentStatus["state"],
@@ -72,14 +73,14 @@
   const config = $derived(STATUS_CONFIG[agent.state]);
 </script>
 
-<Card class="relative overflow-hidden" data-testid="agent-card" data-agent-id={agent.id} data-agent-state={agent.state}>
+<Card class="relative overflow-hidden transition-colors hover:bg-accent/30" data-testid="agent-card" data-agent-id={agent.id} data-agent-state={agent.state}>
   {#if agent.state === "degraded" && agent.degraded_reason}
     <div class="flex items-center gap-2 bg-[var(--apollia-warning)]/10 px-4 py-2 text-xs text-[var(--apollia-warning)]">
       <span>{$t('common.warning')}: {agent.degraded_reason}</span>
     </div>
   {/if}
 
-  <CardHeader class="pb-2">
+  <CardHeader class="cursor-pointer pb-2" onclick={() => ondetail(agent)}>
     <div class="flex items-center justify-between">
       <CardTitle class="text-base font-semibold" data-testid="agent-name">{agent.name}</CardTitle>
       <Badge variant={config.variant} class={config.extraClass} data-testid="agent-status">

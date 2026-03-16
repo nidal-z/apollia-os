@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
+  import type { AgentStatus } from "$lib/types";
   import { agents } from "$lib/stores/agents";
   import { tasks } from "$lib/stores/tasks";
   import { pendingCount } from "$lib/stores/hitl";
@@ -10,8 +11,34 @@
   import ActiveAgentCard from "../components/dashboard/ActiveAgentCard.svelte";
   import RecentActivity from "../components/dashboard/RecentActivity.svelte";
   import PendingActions from "../components/dashboard/PendingActions.svelte";
+  import AgentDetail from "../components/agents/AgentDetail.svelte";
+  import AgentLogs from "../components/agents/AgentLogs.svelte";
 
   const RECENT_TASK_LIMIT = 5;
+
+  let detailAgent = $state<AgentStatus | null>(null);
+  let detailOpen = $state(false);
+  let logsAgentId = $state<string | null>(null);
+  let logsOpen = $state(false);
+
+  function openDetail(agent: AgentStatus) {
+    detailAgent = agent;
+    detailOpen = true;
+  }
+
+  function closeDetail() {
+    detailOpen = false;
+  }
+
+  function openLogsFromDetail(agentId: string) {
+    closeDetail();
+    logsAgentId = agentId;
+    logsOpen = true;
+  }
+
+  function closeLogs() {
+    logsOpen = false;
+  }
 
   let activeAgents = $derived(
     $agents.filter((a) => a.state === "active" || a.state === "degraded"),
@@ -53,7 +80,7 @@
     {:else}
       <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="dashboard-agents-grid">
         {#each activeAgents as agent (agent.id)}
-          <ActiveAgentCard {agent} />
+          <ActiveAgentCard {agent} ondetail={openDetail} />
         {/each}
       </div>
     {/if}
@@ -65,3 +92,13 @@
     <RecentActivity tasks={recentTasks} />
   </section>
 </div>
+
+<!-- Agent detail sheet -->
+{#if detailAgent}
+  <AgentDetail agent={detailAgent} open={detailOpen} onclose={closeDetail} onlogs={openLogsFromDetail} />
+{/if}
+
+<!-- Logs drawer -->
+{#if logsAgentId}
+  <AgentLogs agentId={logsAgentId} open={logsOpen} onclose={closeLogs} />
+{/if}
