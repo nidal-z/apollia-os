@@ -4,9 +4,11 @@
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
+  import { agents as agentsStore } from "$lib/stores/sse";
+  import type { AgentStatus } from "$lib/types";
 
   interface Props {
-    onAgentStarted: (agentId: string) => void;
+    onAgentStarted: (agentId: string, agentName: string) => void;
     onSkip: () => void;
   }
 
@@ -18,6 +20,17 @@
   let error = $state<string | null>(null);
   let started = $state(false);
   let agentId = $state<string | null>(null);
+  let agentName = $state<string | null>(null);
+
+  /** Resolve agent display name from the agents store, falling back to path stem. */
+  function resolveAgentName(id: string, path: string): string {
+    const fromStore = $agentsStore.find((a: AgentStatus) => a.id === id);
+    if (fromStore?.name) return fromStore.name;
+    const stem = path.split("/").pop()?.replace(".py", "") ?? "agent";
+    return stem
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
 
   async function checkHelloAgent() {
     try {
@@ -53,6 +66,7 @@
     try {
       const id = await invoke<string>("start_agent", { path });
       agentId = id;
+      agentName = resolveAgentName(id, path);
       started = true;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
@@ -72,7 +86,7 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="space-y-6" data-testid="step-first-agent">
   <div>
     <h2 class="text-xl font-semibold">{$t('onboarding.agent_title')}</h2>
     <p class="mt-1 text-sm text-muted-foreground">
@@ -116,6 +130,7 @@
       <span class="text-lg text-[var(--apollia-success)]">&#10003;</span>
       <div>
         <p class="text-sm font-medium">{$t('onboarding.agent_started')}</p>
+        <p class="text-sm font-semibold text-foreground">{agentName}</p>
         <p class="text-xs text-muted-foreground font-mono">{agentId}</p>
       </div>
     </div>
@@ -123,8 +138,8 @@
 
   <div class="flex justify-end gap-3">
     <Button variant="ghost" onclick={onSkip}>{$t('common.skip')}</Button>
-    {#if started && agentId}
-      <Button onclick={() => onAgentStarted(agentId ?? "")}>{$t('common.continue')}</Button>
+    {#if started && agentId && agentName}
+      <Button onclick={() => onAgentStarted(agentId ?? "", agentName ?? "")}>{$t('common.continue')}</Button>
     {/if}
   </div>
 </div>

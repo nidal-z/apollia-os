@@ -339,6 +339,70 @@ pub async fn check_hello_agent_exists() -> Result<Option<String>, String> {
     }
 }
 
+/// Information about a pre-installed agent discovered in the `agents/` directory.
+#[derive(Debug, Serialize)]
+pub struct AvailableAgent {
+    /// File name without extension (e.g. `"document-analyst"`).
+    pub id: String,
+    /// Absolute path to the `.py` file.
+    pub path: String,
+}
+
+/// Scans the `agents/` directory for Python agent files.
+///
+/// Returns all `.py` files found, excluding `__init__.py` and base classes
+/// (files whose name contains `_base`). Each entry includes the stem as `id`
+/// and the absolute path.
+#[tauri::command]
+pub async fn list_available_agents() -> Result<Vec<AvailableAgent>, String> {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let agents_dir = cwd.join("agents");
+
+    if !agents_dir.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    let mut entries = tokio::fs::read_dir(&agents_dir)
+        .await
+        .map_err(|e| format!("failed to read agents directory: {e}"))?;
+
+    let mut agents = Vec::new();
+
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .map_err(|e| format!("failed to read directory entry: {e}"))?
+    {
+        let path = entry.path();
+        let Some(ext) = path.extension() else {
+            continue;
+        };
+        if ext != "py" {
+            continue;
+        }
+
+        let file_name = entry.file_name();
+        let name = file_name.to_string_lossy();
+
+        if name == "__init__.py" || name.contains("_base") {
+            continue;
+        }
+
+        let stem = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
+
+        agents.push(AvailableAgent {
+            id: stem,
+            path: path.display().to_string(),
+        });
+    }
+
+    agents.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(agents)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -427,6 +491,38 @@ mod tests {
             .expect("triggers section");
         assert_eq!(triggers.redirect_route, Some("triggers".to_string()));
         assert!(triggers.entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_list_available_agents_returns_sorted_results() {
+        // GIVEN the agents/ directory exists in the workspace
+        // WHEN listing available agents
+        let result = list_available_agents().await;
+
+        // THEN the command succeeds
+        assert!(result.is_ok());
+        let agents = result.expect("list_available_agents should succeed");
+
+        // AND results are sorted alphabetically by id
+        for window in agents.windows(2) {
+            assert!(
+                window[0].id <= window[1].id,
+                "agents should be sorted: {} <= {}",
+                window[0].id,
+                window[1].id
+            );
+        }
+
+        // AND base class files are excluded
+        assert!(
+            !agents.iter().any(|a| a.id.contains("_base")),
+            "base class files should be excluded"
+        );
+
+        // AND all paths are absolute and end with .py
+        for agent in &agents {
+            assert!(agent.path.ends_with(".py"), "path should end with .py");
+        }
     }
 
     #[test]

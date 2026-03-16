@@ -1,3 +1,9 @@
+/** Agent pré-installé découvert dans le répertoire agents/. */
+export interface AvailableAgent {
+  id: string;
+  path: string;
+}
+
 /** Statut d'un agent dans le runtime. */
 export interface AgentStatus {
   id: string;

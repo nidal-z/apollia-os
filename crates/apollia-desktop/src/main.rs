@@ -185,6 +185,7 @@ fn main() {
             commands::config::check_python,
             commands::config::check_llm_configured,
             commands::config::check_hello_agent_exists,
+            commands::config::list_available_agents,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

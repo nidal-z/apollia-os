@@ -3,13 +3,17 @@
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
+  import type { UIMode } from "$lib/stores/mode";
 
   interface Props {
+    mode: UIMode;
     onContinue: () => void;
     onSkip: () => void;
   }
 
-  let { onContinue, onSkip }: Props = $props();
+  let { mode, onContinue, onSkip }: Props = $props();
+
+  let isOperator = $derived(mode === "operator");
 
   interface CheckResult {
     labelKey: string;
@@ -22,6 +26,28 @@
     { labelKey: "onboarding.check_python", passed: null },
     { labelKey: "onboarding.check_llm", passed: null },
   ]);
+
+  let displayChecks = $derived(
+    checks.map((c) => {
+      if (!isOperator) return c;
+      const operatorLabels: Record<string, string> = {
+        "onboarding.check_runtime": "onboarding.check_runtime_operator",
+        "onboarding.check_python": "onboarding.check_python_operator",
+        "onboarding.check_llm": "onboarding.check_llm_operator",
+      };
+      const operatorHelp: Record<string, string> = {
+        "onboarding.python_help": "onboarding.python_help_operator",
+        "onboarding.llm_help": "onboarding.llm_help_operator",
+      };
+      return {
+        ...c,
+        labelKey: operatorLabels[c.labelKey] ?? c.labelKey,
+        helpTextKey: c.helpTextKey
+          ? (operatorHelp[c.helpTextKey] ?? c.helpTextKey)
+          : undefined,
+      };
+    })
+  );
 
   let allChecked = $derived(checks.every((c) => c.passed !== null));
   let pythonOk = $derived(checks[1].passed === true);
@@ -57,16 +83,18 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="space-y-6" data-testid="step-environment">
   <div>
-    <h2 class="text-xl font-semibold">{$t('onboarding.env_check_title')}</h2>
+    <h2 class="text-xl font-semibold">
+      {$t(isOperator ? 'onboarding.env_check_title_operator' : 'onboarding.env_check_title')}
+    </h2>
     <p class="mt-1 text-sm text-muted-foreground">
-      {$t('onboarding.env_check_subtitle')}
+      {$t(isOperator ? 'onboarding.env_check_subtitle_operator' : 'onboarding.env_check_subtitle')}
     </p>
   </div>
 
   <div class="space-y-3">
-    {#each checks as check}
+    {#each displayChecks as check}
       <div class="flex items-start gap-3 rounded-lg border bg-card p-4">
         <span class="mt-0.5 text-lg">
           {#if check.passed === null}
