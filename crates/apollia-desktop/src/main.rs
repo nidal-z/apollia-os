@@ -182,6 +182,7 @@ fn main() {
             commands::config::reset_onboarding,
             commands::config::check_onboarded,
             commands::config::mark_onboarded,
+            commands::config::get_system_info,
             commands::config::check_python,
             commands::config::check_llm_configured,
             commands::config::check_hello_agent_exists,

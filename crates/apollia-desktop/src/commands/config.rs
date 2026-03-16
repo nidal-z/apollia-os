@@ -282,6 +282,51 @@ pub async fn reset_onboarding() -> Result<(), String> {
     Ok(())
 }
 
+/// Informations système affichées dans la section Avancé de Settings.
+#[derive(Debug, Serialize)]
+pub struct SystemInfo {
+    /// Version d'Apollia OS (ex: `"0.1.0"`).
+    pub version: String,
+    /// Système d'exploitation et architecture (ex: `"macos aarch64"`).
+    pub os: String,
+    /// Chemin absolu vers l'interpréteur Python 3, si détecté.
+    pub python_path: Option<String>,
+}
+
+/// Retourne les informations système pour la section Avancé de Settings.
+///
+/// Détecte la version d'Apollia, l'OS, et le chemin Python 3 via
+/// `python3 -c "import sys; print(sys.executable)"`.
+#[tauri::command]
+pub async fn get_system_info() -> Result<SystemInfo, String> {
+    let version = env!("CARGO_PKG_VERSION").to_string();
+    let os = format!("{} {}", std::env::consts::OS, std::env::consts::ARCH);
+
+    let python_path = match tokio::process::Command::new("python3")
+        .args(["-c", "import sys; print(sys.executable)"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .await
+    {
+        Ok(output) if output.status.success() => {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if path.is_empty() {
+                None
+            } else {
+                Some(path)
+            }
+        }
+        _ => None,
+    };
+
+    Ok(SystemInfo {
+        version,
+        os,
+        python_path,
+    })
+}
+
 /// Vérifie si Python 3 est disponible sur le système.
 ///
 /// Exécute `python3 --version` et retourne `true` si la commande réussit.
@@ -523,6 +568,26 @@ mod tests {
         for agent in &agents {
             assert!(agent.path.ends_with(".py"), "path should end with .py");
         }
+    }
+
+    #[tokio::test]
+    async fn test_get_system_info_returns_valid_data() {
+        // GIVEN the get_system_info command
+        // WHEN called
+        let result = get_system_info().await;
+
+        // THEN it succeeds with valid fields
+        let info = result.expect("get_system_info should succeed");
+        assert!(!info.version.is_empty(), "version should not be empty");
+        assert!(!info.os.is_empty(), "os should not be empty");
+        assert!(
+            info.os.contains(std::env::consts::OS),
+            "os should contain the current OS"
+        );
+        assert!(
+            info.os.contains(std::env::consts::ARCH),
+            "os should contain the current architecture"
+        );
     }
 
     #[test]

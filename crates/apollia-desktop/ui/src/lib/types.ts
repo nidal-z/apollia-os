@@ -355,3 +355,10 @@ export interface ApollaConfigView {
   config_exists: boolean;
   sections: ConfigSection[];
 }
+
+/** Informations système pour la section Avancé de Settings. */
+export interface SystemInfo {
+  version: string;
+  os: string;
+  python_path: string | null;
+}
