@@ -65,6 +65,58 @@ _HISTORY_MEMORY_KEY_PREFIX: str = "react_history:"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# AIPResult — helper that builds the dicts expected by the Rust AIP bridge
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AIPResult:
+    """Factory for the result dicts returned by agent run() methods.
+
+    The Rust bridge deserialises the dict into apollia_core::AIPResult.
+    All fields are optional on the Rust side (serde default), so only the
+    relevant fields need to be set per status.
+
+    Usage:
+        return AIPResult.completed("Final answer text")
+        return AIPResult.failed("ERROR_CODE", "Human-readable message")
+        return AIPResult.input_required("Approve X?", {"tool": "bash", "args": {}})
+    """
+
+    @staticmethod
+    def completed(text: str) -> dict:
+        """Return a successful result with a plain-text output."""
+        return {
+            "status": "completed",
+            "output": [{"type": "text", "text": str(text)}],
+        }
+
+    @staticmethod
+    def failed(code: str, message: str, details: dict = None) -> dict:
+        """Return a failed result with an error code and message."""
+        error: dict = {"code": str(code), "message": str(message)}
+        if details is not None:
+            error["details"] = details
+        return {
+            "status": "failed",
+            "error": error,
+        }
+
+    @staticmethod
+    def input_required(prompt: str, context: dict = None) -> dict:
+        """Suspend the task and request human approval (HITL).
+
+        The runtime delivers the approval decision back via
+        task["is_resumed"] and task["input_response"] on the next call.
+        """
+        return {
+            "status": "input_required",
+            "input_required_data": {
+                "prompt": str(prompt),
+                "context": context or {},
+            },
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Native tool catalogue
 # ─────────────────────────────────────────────────────────────────────────────
 

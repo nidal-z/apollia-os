@@ -246,15 +246,21 @@ dependencies = [
 name = "apollia-desktop"
 version = "0.1.0"
 dependencies = [
+ "apollia-aip",
  "apollia-core",
+ "apollia-llm",
  "apollia-memory",
+ "apollia-oria",
  "apollia-runtime",
  "apollia-tools",
+ "async-trait",
  "chrono",
+ "futures",
  "http-body-util",
  "hyper",
  "hyper-util",
  "open",
+ "pyo3",
  "serde",
  "serde_json",
  "tauri",
@@ -263,6 +269,8 @@ dependencies = [
  "tauri-plugin-notification",
  "tokio",
  "toml 0.8.23",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -415,6 +423,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
+ "toml 0.8.23",
  "tower 0.4.13",
  "tower-http 0.5.2",
  "tracing",

@@ -45,7 +45,7 @@
 //! `GgufModelBuilder` charge le `.gguf` en mémoire — principe #1 local-first.
 
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Instant;
@@ -190,6 +190,21 @@ impl fmt::Debug for EmbeddedBackend {
     }
 }
 
+/// Expands a leading `~` to `$HOME`.
+///
+/// Rust's `PathBuf` and `std::fs` do not perform shell tilde expansion.
+/// Any `model_path` value coming from `apollia.toml` like `~/...` must be
+/// resolved before calling `canonicalize()`.
+fn expand_tilde(path: &Path) -> PathBuf {
+    let s = path.to_string_lossy();
+    if s.starts_with("~/") {
+        let home = std::env::var("HOME").unwrap_or_default();
+        PathBuf::from(format!("{}{}", home, &s[1..]))
+    } else {
+        path.to_path_buf()
+    }
+}
+
 impl EmbeddedBackend {
     /// Charge le modèle depuis le fichier `.gguf` indiqué dans la config.
     ///
@@ -214,12 +229,14 @@ impl EmbeddedBackend {
             "chargement du modèle local"
         );
 
+        // Expansion du préfixe `~` — PathBuf ne l'expand pas automatiquement.
+        let expanded_path = expand_tilde(&config.model_path);
+
         // Résolution canonique — échoue si le fichier n'existe pas (AC-2).
-        let canonical = config
-            .model_path
+        let canonical = expanded_path
             .canonicalize()
             .map_err(|_| LlmError::ModelNotFound {
-                path: config.model_path.clone(),
+                path: expanded_path.clone(),
             })?;
 
         // Décomposition : dossier parent + nom de fichier pour GgufModelBuilder.

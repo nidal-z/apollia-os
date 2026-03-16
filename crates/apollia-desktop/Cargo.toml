@@ -20,19 +20,27 @@ local-accelerate = ["local", "apollia-runtime/local-accelerate"]
 local-cuda = ["local", "apollia-runtime/local-cuda"]
 
 [dependencies]
-apollia-runtime = { workspace = true }
-apollia-core   = { workspace = true }
-apollia-memory = { workspace = true }
-apollia-tools  = { workspace = true }
-chrono         = { workspace = true }
-serde          = { workspace = true }
-serde_json     = { workspace = true }
-tokio          = { workspace = true }
-hyper          = { workspace = true }
-hyper-util     = { workspace = true }
-http-body-util = { workspace = true }
-toml           = { workspace = true }
-open           = { workspace = true }
+apollia-runtime  = { workspace = true }
+apollia-llm      = { workspace = true, default-features = false }
+apollia-core     = { workspace = true }
+apollia-memory   = { workspace = true }
+apollia-tools    = { workspace = true }
+apollia-aip      = { workspace = true }
+apollia-oria     = { workspace = true }
+async-trait      = { workspace = true }
+futures          = { workspace = true }
+pyo3             = { workspace = true }
+chrono           = { workspace = true }
+serde            = { workspace = true }
+serde_json       = { workspace = true }
+tokio            = { workspace = true }
+hyper            = { workspace = true }
+hyper-util       = { workspace = true }
+http-body-util   = { workspace = true }
+toml             = { workspace = true }
+open             = { workspace = true }
+tracing          = { workspace = true }
+tracing-subscriber = { workspace = true }
 tauri          = { version = "2", features = ["devtools", "tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"

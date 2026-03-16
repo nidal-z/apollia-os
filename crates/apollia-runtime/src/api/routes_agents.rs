@@ -198,7 +198,20 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
 ) -> Result<(StatusCode, Json<AgentResponse>), (StatusCode, Json<ErrorResponse>)> {
     let manifest = load_manifest(state.agent_loader.as_ref(), &req.agent_path)?;
 
-    let has_missing_optional = !manifest.tools_optional.is_empty();
+    let has_missing_optional = match &state.tool_registry_handle {
+        Some(registry) => {
+            let mut missing = false;
+            for name in &manifest.tools_optional {
+                if registry.get(name).await.ok().flatten().is_none() {
+                    missing = true;
+                    break;
+                }
+            }
+            missing
+        }
+        // No registry available — treat all optional tools as missing.
+        None => !manifest.tools_optional.is_empty(),
+    };
     let max_concurrent = manifest.max_concurrent_tasks;
     // Clone manifest before consuming it in register() — needed for factory below.
     let manifest_for_factory = manifest.clone();

@@ -43,14 +43,19 @@ class InputResponse:
     """Réponse humaine reçue après une suspension input_required.
 
     Accessible via task["input_response"] dans run().
-    Les attributs (.approved, .reason, .context, .responded_at) permettent
-    l'accès Python naturel à la décision humaine.
+    Supporte l'accès par attribut (ir.approved) ET par clé (ir.get("approved")).
     """
     def __init__(self, data):
         self.approved     = data.get("approved", False)
         self.reason       = data.get("reason")
         self.context      = data.get("context", {})
         self.responded_at = data.get("responded_at", "")
+
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+
+    def __getitem__(self, key):
+        return getattr(self, key)
 
 
 class AIPResult:

@@ -39,3 +39,5 @@ docs/specs/
 # Claude
 .claude/
 CLAUDE.md
+# Dossier de démonstration — fichiers locaux non versionnés
+demo/

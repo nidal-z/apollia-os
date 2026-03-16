@@ -64,6 +64,17 @@ pub async fn get_global_timeline(
             Err(_) => continue,
         };
 
+        // Resolve human-readable agent name once per task to avoid repeated
+        // registry lookups in the inner event loop.
+        let agent_label = state
+            .registry_handle
+            .get_agent(agent_id.as_str())
+            .await
+            .ok()
+            .flatten()
+            .map(|e| e.manifest.name.clone())
+            .unwrap_or_else(|| agent_id.to_string());
+
         let events = json
             .get("events")
             .and_then(|v| v.as_array())
@@ -87,7 +98,7 @@ pub async fn get_global_timeline(
                 .unwrap_or("unknown");
 
             let event_type = classify_event_type(event_type_raw);
-            let summary = build_event_summary(event_type_raw, &event, agent_id.as_str());
+            let summary = build_event_summary(event_type_raw, &event, &agent_label);
 
             all_events.push(GlobalTimelineEvent {
                 event_type,
@@ -208,8 +219,11 @@ pub struct AuditTrailEntry {
     pub id: String,
     /// Nom de l'outil invoqué.
     pub tool_name: String,
-    /// Identifiant de l'agent.
+    /// Identifiant UUID de l'agent (utilisé pour le filtrage).
     pub agent_id: String,
+    /// Nom lisible de l'agent, résolu depuis le registre (ex: "standup-scribe").
+    /// Retombe sur agent_id si l'agent n'est plus enregistré.
+    pub agent_name: String,
     /// Horodatage ISO 8601.
     pub timestamp: String,
     /// Durée d'exécution en millisecondes.
@@ -243,9 +257,27 @@ pub async fn get_tool_audit_trail(
         .cloned()
         .unwrap_or_default();
 
-    let entries = events
-        .into_iter()
-        .map(|e| AuditTrailEntry {
+    // Resolve agent names asynchronously from the registry so the UI shows
+    // "standup-scribe" instead of a raw UUID. Falls back to the UUID when the
+    // agent is no longer registered (e.g. stopped between runs).
+    let mut entries: Vec<AuditTrailEntry> = Vec::with_capacity(events.len());
+    for e in events {
+        let agent_id = e
+            .get("agent_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        let agent_name = state
+            .registry_handle
+            .get_agent(&agent_id)
+            .await
+            .ok()
+            .flatten()
+            .map(|entry| entry.manifest.name.clone())
+            .unwrap_or_else(|| agent_id.clone()); // agent_id is already String here
+
+        entries.push(AuditTrailEntry {
             id: e
                 .get("id")
                 .and_then(|v| v.as_str())
@@ -256,11 +288,8 @@ pub async fn get_tool_audit_trail(
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string(),
-            agent_id: e
-                .get("agent_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
+            agent_id,
+            agent_name,
             timestamp: e
                 .get("started_at")
                 .and_then(|v| v.as_str())
@@ -277,8 +306,8 @@ pub async fn get_tool_audit_trail(
                 .map(String::from),
             stdout: e.get("stdout").and_then(|v| v.as_str()).map(String::from),
             stderr: e.get("stderr").and_then(|v| v.as_str()).map(String::from),
-        })
-        .collect();
+        });
+    }
 
     Ok(entries)
 }
@@ -455,11 +484,12 @@ mod tests {
 
     #[test]
     fn test_audit_trail_entry_serializes() {
-        // GIVEN an AuditTrailEntry
+        // GIVEN an AuditTrailEntry with both agent_id (UUID) and agent_name
         let entry = AuditTrailEntry {
             id: "inv-001".to_string(),
             tool_name: "file_io".to_string(),
-            agent_id: "agent-1".to_string(),
+            agent_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
+            agent_name: "standup-scribe".to_string(),
             timestamp: "2026-03-13T10:00:00Z".to_string(),
             duration_ms: Some(42),
             exit_code: Some(0),
@@ -471,8 +501,9 @@ mod tests {
         // WHEN serialized to JSON
         let json = serde_json::to_value(&entry).expect("serialize");
 
-        // THEN all fields are present
+        // THEN all fields are present including agent_name
         assert_eq!(json["tool_name"], "file_io");
+        assert_eq!(json["agent_name"], "standup-scribe");
         assert_eq!(json["duration_ms"], 42);
         assert_eq!(json["exit_code"], 0);
         assert!(json["stderr"].is_null());

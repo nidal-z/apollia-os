@@ -45,6 +45,10 @@
     task?.input_preview?.includes(TRUNCATION_MARKER) ?? false,
   );
 
+  let outputTruncated = $derived(
+    task?.output_text?.includes(TRUNCATION_MARKER) ?? false,
+  );
+
   function formatDuration(ms: number | undefined): string {
     if (ms === undefined || ms === null) return "-";
     if (ms < 1000) return `${ms}ms`;
@@ -119,6 +123,23 @@
               <p class="whitespace-pre-wrap text-sm">{task.input_preview || "No input"}</p>
             </div>
           </div>
+
+          {#if task.output_text}
+            <Separator />
+
+            <!-- Output section -->
+            <div>
+              <h3 class="mb-1 text-sm font-semibold">
+                Output
+                {#if outputTruncated}
+                  <Badge variant="outline" class="ml-2 text-[10px]">[TRONQUE]</Badge>
+                {/if}
+              </h3>
+              <div class="rounded border bg-muted/30 p-3">
+                <p class="whitespace-pre-wrap text-sm">{task.output_text}</p>
+              </div>
+            </div>
+          {/if}
 
           <Separator />
 

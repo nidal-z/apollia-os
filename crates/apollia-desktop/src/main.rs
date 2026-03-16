@@ -6,17 +6,117 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod backend;
 mod commands;
 pub mod tray;
 
+use std::sync::Arc;
+
+use apollia_core::PendingApprovals;
+use apollia_llm::LlmRouter;
+use apollia_runtime::api::routes_agents::AgentBackendFactory;
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
+use apollia_runtime::eventbus::EventBusSender;
+use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use tauri::Manager;
 
+/// Resolves `~` prefix to `$HOME` in a path string.
+fn expand_tilde(s: &str) -> std::path::PathBuf {
+    if s.starts_with("~/") {
+        let home = std::env::var("HOME").unwrap_or_default();
+        std::path::PathBuf::from(format!("{}{}", home, &s[1..]))
+    } else {
+        std::path::PathBuf::from(s)
+    }
+}
+
+/// Searches for `apollia.toml` in priority order and applies all parsable sections
+/// (llm, triggers, notifications) to the provided `EmbeddedConfig`.
+///
+/// Search order (first match wins):
+///   1. `~/.apollia/apollia.toml`        — standard user config
+///   2. `./apollia.toml`                 — CWD (useful when running from workspace root)
+///   3. `~/.config/apollia/apollia.toml` — XDG fallback
+///
+/// Returns the config unchanged if no file is found.
+fn load_toml_config(config: EmbeddedConfig) -> EmbeddedConfig {
+    let candidates = [
+        Some(expand_tilde("~/.apollia/apollia.toml")),
+        std::env::current_dir()
+            .ok()
+            .map(|d| d.join("apollia.toml")),
+        Some(expand_tilde("~/.config/apollia/apollia.toml")),
+    ];
+
+    for maybe_path in candidates.into_iter().flatten() {
+        if maybe_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&maybe_path) {
+                let mut updated = config.apply_toml(&content);
+                updated.config_path = Some(maybe_path);
+                return updated;
+            }
+        }
+    }
+    config
+}
+
 fn main() {
-    let config = EmbeddedConfig::default();
+    // Initialize tracing so Rust logs appear in the terminal during development.
+    // RUST_LOG controls verbosity (e.g. RUST_LOG=apollia=debug); defaults to info.
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("apollia=info,warn")),
+        )
+        .init();
+
+    // OnceLocks shared between ProductionBackendFactory and main().
+    // Populated after init_embedded() returns, before any HTTP request arrives.
+    let event_bus_lock: Arc<std::sync::OnceLock<EventBusSender>> =
+        Arc::new(std::sync::OnceLock::new());
+    let llm_router_lock: Arc<std::sync::OnceLock<Option<Arc<LlmRouter>>>> =
+        Arc::new(std::sync::OnceLock::new());
+    let tool_registry_lock: Arc<std::sync::OnceLock<ToolRegistryHandle>> =
+        Arc::new(std::sync::OnceLock::new());
+    let audit_trail_lock: Arc<std::sync::OnceLock<AuditTrailHandle>> =
+        Arc::new(std::sync::OnceLock::new());
+    let pending_approvals_lock: Arc<std::sync::OnceLock<Arc<PendingApprovals>>> =
+        Arc::new(std::sync::OnceLock::new());
+    let task_repository_lock: Arc<std::sync::OnceLock<Arc<TaskRepository>>> =
+        Arc::new(std::sync::OnceLock::new());
+
+    let factory: Arc<dyn AgentBackendFactory> =
+        Arc::new(backend::ProductionBackendFactory {
+            event_bus: event_bus_lock.clone(),
+            llm_router: llm_router_lock.clone(),
+            tool_registry: tool_registry_lock.clone(),
+            audit_trail: audit_trail_lock.clone(),
+            pending_approvals: pending_approvals_lock.clone(),
+            task_repository: task_repository_lock.clone(),
+        });
+
+    let config = load_toml_config(EmbeddedConfig {
+        agent_loader: Arc::new(backend::AIPAgentLoader),
+        backend_factory: Some(factory),
+        ..EmbeddedConfig::default()
+    });
 
     let runtime_handle: RuntimeHandle =
         apollia_runtime::init_embedded(config).expect("failed to start embedded runtime");
+
+    // Populate OnceLocks now that the supervisor is fully running.
+    let _ = event_bus_lock.set(runtime_handle.event_sender.clone());
+    let _ = llm_router_lock.set(runtime_handle.llm_router.clone());
+    let _ = tool_registry_lock.set(runtime_handle.tool_registry_handle.clone());
+    if let Some(audit) = runtime_handle.audit_trail.clone() {
+        let _ = audit_trail_lock.set(audit);
+    }
+    if let Some(pa) = runtime_handle.pending_approvals.clone() {
+        let _ = pending_approvals_lock.set(pa);
+    }
+    if let Some(repo) = runtime_handle.task_repository.clone() {
+        let _ = task_repository_lock.set(repo);
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())

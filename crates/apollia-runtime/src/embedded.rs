@@ -105,6 +105,14 @@ pub struct EmbeddedConfig {
     pub agent_loader: Arc<dyn AgentLoader>,
     /// Backend factory pour créer les backends d'exécution par agent.
     pub backend_factory: Option<Arc<dyn AgentBackendFactory>>,
+    /// Configuration LLM optionnelle parsée depuis `apollia.toml`.
+    pub llm_config: Option<apollia_llm::LlmConfig>,
+    /// Triggers validés depuis `[[triggers]]` dans `apollia.toml`.
+    pub triggers: Vec<apollia_triggers::TriggerDefinition>,
+    /// Configuration des notifications depuis `[notifications]` dans `apollia.toml`.
+    pub notifications: Option<apollia_notifications::config::NotificationConfig>,
+    /// Chemin du fichier `apollia.toml` chargé — requis pour le hot reload des triggers.
+    pub config_path: Option<PathBuf>,
 }
 
 impl Default for EmbeddedConfig {
@@ -120,7 +128,42 @@ impl Default for EmbeddedConfig {
             obs_config: ObservabilityConfig::default(),
             agent_loader: Arc::new(StubAgentLoader),
             backend_factory: None,
+            llm_config: None,
+            triggers: vec![],
+            notifications: None,
+            config_path: None,
         }
+    }
+}
+
+impl EmbeddedConfig {
+    /// Applique toutes les sections parsables de `apollia.toml` à cette config.
+    ///
+    /// Parse `[llm]`, `[[triggers]]` et `[notifications]` en une seule passe.
+    /// Les erreurs de parsing sont ignorées silencieusement — le runtime démarre
+    /// avec les valeurs par défaut si une section est absente ou invalide.
+    pub fn apply_toml(mut self, content: &str) -> Self {
+        #[derive(serde::Deserialize)]
+        struct LlmSection {
+            llm: Option<apollia_llm::LlmConfig>,
+        }
+        if let Ok(s) = toml::from_str::<LlmSection>(content) {
+            self.llm_config = s.llm;
+        }
+
+        if let Ok(triggers) = apollia_triggers::parse_triggers_from_toml_str(content) {
+            self.triggers = triggers;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct NotifSection {
+            notifications: Option<apollia_notifications::config::NotificationConfig>,
+        }
+        if let Ok(s) = toml::from_str::<NotifSection>(content) {
+            self.notifications = s.notifications;
+        }
+
+        self
     }
 }
 
@@ -194,11 +237,11 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
             tcp_port,
         },
         startup_timeout_secs: config.startup_timeout_secs,
-        llm_config: None,
-        triggers: vec![],
-        config_path: None,
+        llm_config: config.llm_config,
+        triggers: config.triggers,
+        config_path: config.config_path,
         input_required_timeout_hours: 24,
-        notifications: None,
+        notifications: config.notifications,
         pipelines: vec![],
         data_dir: config.data_dir,
         obs_config: config.obs_config,

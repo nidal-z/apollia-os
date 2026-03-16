@@ -22,6 +22,7 @@ export interface TaskSummary {
     | "input_required"
     | "canceled";
   input_preview: string;
+  output_text?: string;
   duration_ms?: number;
   created_at: string;
 }
@@ -304,6 +305,8 @@ export interface AuditTrailEntry {
   id: string;
   tool_name: string;
   agent_id: string;
+  /** Nom lisible de l'agent résolu depuis le registre (ex: "standup-scribe"). */
+  agent_name: string;
   timestamp: string;
   duration_ms: number | null;
   exit_code: number | null;

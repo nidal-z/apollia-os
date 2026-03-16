@@ -5,8 +5,8 @@
   "identifier": "com.apollia.desktop",
   "build": {
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm run dev --prefix apollia-desktop/ui",
-    "beforeBuildCommand": "npm run build --prefix apollia-desktop/ui",
+    "beforeDevCommand": { "script": "npm run dev", "cwd": "ui" },
+    "beforeBuildCommand": { "script": "npm run build", "cwd": "ui" },
     "frontendDist": "ui/dist"
   },
   "app": {

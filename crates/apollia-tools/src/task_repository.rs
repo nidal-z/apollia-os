@@ -87,6 +87,23 @@ pub enum TaskRepoError {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Types de retour
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Détail observabilité d'une tâche retourné par [`TaskRepository::get_task_detail`].
+#[derive(Debug, Clone)]
+pub struct TaskDetail {
+    /// Texte d'entrée de la tâche (possiblement tronqué).
+    pub input_text: Option<String>,
+    /// Texte de sortie de la tâche (possiblement tronqué).
+    pub output_text: Option<String>,
+    /// Durée d'exécution en millisecondes.
+    pub duration_ms: Option<i64>,
+    /// Horodatage de création ISO8601.
+    pub created_at: String,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Repository
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -451,6 +468,48 @@ impl TaskRepository {
             );
             match result {
                 Ok(status) => Ok(Some(status)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(TaskRepoError::Sqlite(e)),
+            }
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))?
+    }
+
+    /// Retourne le détail observabilité d'une tâche : input, output, durée, date de création.
+    ///
+    /// Retourne `None` si la tâche n'existe pas dans la DB (tâche récente non encore
+    /// persistée, ou tâche soumise avant la migration observabilité).
+    ///
+    /// # Errors
+    ///
+    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    pub async fn get_task_detail(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<TaskDetail>, TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+
+        tokio::task::spawn_blocking(move || -> Result<Option<TaskDetail>, TaskRepoError> {
+            let conn = rusqlite::Connection::open(&path)?;
+            let result = conn.query_row(
+                "SELECT input_text, output_text, duration_ms, created_at \
+                 FROM tasks WHERE task_id = ?1",
+                params![&task_id],
+                |row| {
+                    Ok(TaskDetail {
+                        input_text: row.get::<_, Option<String>>(0)?,
+                        output_text: row.get::<_, Option<String>>(1)?,
+                        duration_ms: row.get::<_, Option<i64>>(2)?,
+                        created_at: row
+                            .get::<_, Option<String>>(3)?
+                            .unwrap_or_default(),
+                    })
+                },
+            );
+            match result {
+                Ok(detail) => Ok(Some(detail)),
                 Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
                 Err(e) => Err(TaskRepoError::Sqlite(e)),
             }

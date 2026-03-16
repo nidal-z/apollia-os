@@ -22,16 +22,16 @@
     [...new Set(entries.map((e) => e.tool_name))].sort(),
   );
 
-  /** Unique agent IDs from loaded entries. */
+  /** Unique agent names from loaded entries (for the filter dropdown). */
   let uniqueAgents = $derived(
-    [...new Set(entries.map((e) => e.agent_id))].sort(),
+    [...new Set(entries.map((e) => e.agent_name))].sort(),
   );
 
   /** Filtered entries based on dropdown selections. */
   let filteredEntries = $derived(
     entries.filter((e) => {
       if (filterTool !== "all" && e.tool_name !== filterTool) return false;
-      if (filterAgent !== "all" && e.agent_id !== filterAgent) return false;
+      if (filterAgent !== "all" && e.agent_name !== filterAgent) return false;
       return true;
     }),
   );
@@ -118,8 +118,8 @@
         bind:value={filterAgent}
       >
         <option value="all">All agents</option>
-        {#each uniqueAgents as agent (agent)}
-          <option value={agent}>{agent}</option>
+        {#each uniqueAgents as agentName (agentName)}
+          <option value={agentName}>{agentName}</option>
         {/each}
       </select>
     </div>
@@ -155,7 +155,7 @@
             >
               <td class="py-2 pr-4 text-xs">{formatTimestamp(entry.timestamp)}</td>
               <td class="py-2 pr-4">{entry.tool_name}</td>
-              <td class="py-2 pr-4 text-muted-foreground">{entry.agent_id}</td>
+              <td class="py-2 pr-4 text-muted-foreground">{entry.agent_name}</td>
               <td class="py-2 pr-4 text-right">{formatDuration(entry.duration_ms)}</td>
               <td class="py-2 text-right">
                 {#if entry.exit_code !== null}

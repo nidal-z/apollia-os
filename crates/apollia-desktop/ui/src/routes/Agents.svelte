@@ -5,6 +5,7 @@
   import { Button } from "$lib/components/ui/button";
   import AgentCard from "../components/agents/AgentCard.svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
+  import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
 
   let startingAgent = $state(false);
   let startError = $state<string | null>(null);
@@ -49,6 +50,8 @@
       {startingAgent ? "Starting..." : "Register Agent"}
     </Button>
   </div>
+
+  <MacSandboxBanner />
 
   {#if startError}
     <div class="rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 px-4 py-2 text-sm text-[hsl(var(--destructive))]">

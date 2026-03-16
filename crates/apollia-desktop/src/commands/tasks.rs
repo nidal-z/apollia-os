@@ -33,6 +33,8 @@ pub struct TaskSummary {
     pub status: String,
     /// Aperçu du texte d'entrée (tronqué).
     pub input_preview: String,
+    /// Texte de sortie complet (possiblement tronqué par l'observabilité).
+    pub output_text: Option<String>,
     /// Durée d'exécution en millisecondes.
     pub duration_ms: Option<u64>,
     /// Date de création ISO8601.
@@ -89,14 +91,35 @@ pub async fn list_tasks(
             .map(|e| e.manifest.name.clone())
             .unwrap_or_default();
 
+        let (input_preview, output_text, duration_ms, created_at) =
+            if let Some(repo) = state.task_repository.as_ref() {
+                match repo.get_task_detail(task_id.as_str()).await {
+                    Ok(Some(detail)) => {
+                        let preview = detail
+                            .input_text
+                            .as_deref()
+                            .unwrap_or("")
+                            .chars()
+                            .take(120)
+                            .collect::<String>();
+                        let dur = detail.duration_ms.map(|ms| ms as u64);
+                        (preview, detail.output_text, dur, detail.created_at)
+                    }
+                    _ => (String::new(), None, None, String::new()),
+                }
+            } else {
+                (String::new(), None, None, String::new())
+            };
+
         summaries.push(TaskSummary {
             id: task_id.to_string(),
             agent_id: agent_id.to_string(),
             agent_name,
             status: status_str,
-            input_preview: String::new(),
-            duration_ms: None,
-            created_at: String::new(),
+            input_preview,
+            output_text,
+            duration_ms,
+            created_at,
         });
     }
 
@@ -180,6 +203,7 @@ mod tests {
             agent_name: "hello-agent".to_string(),
             status: "completed".to_string(),
             input_preview: "generate report".to_string(),
+            output_text: Some("Report generated.".to_string()),
             duration_ms: Some(1200),
             created_at: "2026-03-13T10:00:00Z".to_string(),
         };
