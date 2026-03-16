@@ -8,6 +8,7 @@
 
 mod backend;
 mod commands;
+mod events;
 pub mod tray;
 
 use std::sync::Arc;
@@ -42,9 +43,7 @@ fn expand_tilde(s: &str) -> std::path::PathBuf {
 fn load_toml_config(config: EmbeddedConfig) -> EmbeddedConfig {
     let candidates = [
         Some(expand_tilde("~/.apollia/apollia.toml")),
-        std::env::current_dir()
-            .ok()
-            .map(|d| d.join("apollia.toml")),
+        std::env::current_dir().ok().map(|d| d.join("apollia.toml")),
         Some(expand_tilde("~/.config/apollia/apollia.toml")),
     ];
 
@@ -85,15 +84,14 @@ fn main() {
     let task_repository_lock: Arc<std::sync::OnceLock<Arc<TaskRepository>>> =
         Arc::new(std::sync::OnceLock::new());
 
-    let factory: Arc<dyn AgentBackendFactory> =
-        Arc::new(backend::ProductionBackendFactory {
-            event_bus: event_bus_lock.clone(),
-            llm_router: llm_router_lock.clone(),
-            tool_registry: tool_registry_lock.clone(),
-            audit_trail: audit_trail_lock.clone(),
-            pending_approvals: pending_approvals_lock.clone(),
-            task_repository: task_repository_lock.clone(),
-        });
+    let factory: Arc<dyn AgentBackendFactory> = Arc::new(backend::ProductionBackendFactory {
+        event_bus: event_bus_lock.clone(),
+        llm_router: llm_router_lock.clone(),
+        tool_registry: tool_registry_lock.clone(),
+        audit_trail: audit_trail_lock.clone(),
+        pending_approvals: pending_approvals_lock.clone(),
+        task_repository: task_repository_lock.clone(),
+    });
 
     let config = load_toml_config(EmbeddedConfig {
         agent_loader: Arc::new(backend::AIPAgentLoader),
@@ -121,9 +119,12 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
-        .manage(runtime_handle)
-        .setup(|app| {
+        .manage(runtime_handle.clone())
+        .setup(move |app| {
             tray::setup_tray(app)?;
+
+            // STORY-156: bridge EventBus → Tauri events (replaces polling).
+            events::spawn_event_bridge(app.handle().clone(), runtime_handle.event_sender.clone());
 
             // AC-3: Closing the window hides it instead of quitting.
             // The runtime keeps running in the background and the tray icon

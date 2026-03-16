@@ -130,8 +130,15 @@ async fn native_exec_bash(input: serde_json::Value) -> Result<serde_json::Value,
         .or_else(|| input.get("timeout_secs"))
         .and_then(|v| v.as_u64())
         .unwrap_or(30);
-    let bash_input = BashInput { command, timeout_secs, working_dir: None };
-    let result = BashExecutor::new().run(bash_input).await.map_err(|e| e.to_string())?;
+    let bash_input = BashInput {
+        command,
+        timeout_secs,
+        working_dir: None,
+    };
+    let result = BashExecutor::new()
+        .run(bash_input)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({
         "stdout": result.stdout,
         "stderr": result.stderr,
@@ -169,7 +176,10 @@ async fn native_exec_file_io(
                 .get("content")
                 .and_then(|v| v.as_str())
                 .ok_or("file_io: missing 'content' field")?;
-            file_io.write(path, content.as_bytes()).await.map_err(|e| e.to_string())?;
+            file_io
+                .write(path, content.as_bytes())
+                .await
+                .map_err(|e| e.to_string())?;
             Ok(serde_json::json!({ "written": true }))
         }
         "list" => {
@@ -178,7 +188,10 @@ async fn native_exec_file_io(
                 .and_then(|v| v.as_str())
                 .ok_or("file_io: missing 'dir' field")?;
             let pattern = input.get("pattern").and_then(|v| v.as_str()).unwrap_or("*");
-            let files = file_io.list(dir, pattern).await.map_err(|e| e.to_string())?;
+            let files = file_io
+                .list(dir, pattern)
+                .await
+                .map_err(|e| e.to_string())?;
             Ok(serde_json::json!({ "files": files }))
         }
         other => Err(format!("file_io: unknown action '{other}'")),
@@ -274,8 +287,9 @@ impl AgentRunner for BridgeRunner {
         let memory_base_dir = self.memory_base_dir.clone();
 
         Box::pin(async move {
-            let router_for_helper =
-                llm_router.clone().unwrap_or_else(|| Arc::new(LlmRouter::empty()));
+            let router_for_helper = llm_router
+                .clone()
+                .unwrap_or_else(|| Arc::new(LlmRouter::empty()));
             let tool_helper = Arc::new(ToolCallHelper::new(
                 Arc::new(RouterModel(router_for_helper)),
                 Arc::new(NoopToolInvoker),
@@ -300,8 +314,7 @@ impl AgentRunner for BridgeRunner {
             };
 
             let memory_interface = memory_namespace.as_deref().and_then(|ns| {
-                let manager =
-                    MemoryManager::new(&memory_base_dir, Some(ns.to_string()), vec![]);
+                let manager = MemoryManager::new(&memory_base_dir, Some(ns.to_string()), vec![]);
                 MemoryInterface::new(manager, ns.to_string(), agent_id.clone())
             });
 
