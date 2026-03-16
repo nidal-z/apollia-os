@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import type { TimelineEvent } from "$lib/types";
+  import { formatRelativeTime } from "$lib/utils";
   import { Badge } from "$lib/components/ui/badge";
 
   interface Props {
@@ -53,20 +54,6 @@
       next.add(index);
     }
     expandedTools = next;
-  }
-
-  function formatRelativeTimestamp(iso: string): string {
-    if (!iso) return "";
-    const now = Date.now();
-    const then = new Date(iso).getTime();
-    const diffSecs = Math.floor((now - then) / 1000);
-    if (diffSecs < 0) return "just now";
-    if (diffSecs < 60) return `${diffSecs}s ago`;
-    const diffMins = Math.floor(diffSecs / 60);
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return new Date(iso).toLocaleString();
   }
 
   function formatDurationMs(ms: number | undefined): string {
@@ -161,7 +148,7 @@
                 {/if}
               </div>
               <span class="text-xs text-muted-foreground">
-                {formatRelativeTimestamp(event.timestamp)}
+                {formatRelativeTime(event.timestamp)}
               </span>
 
               {#if event.type === "tool_call"}
