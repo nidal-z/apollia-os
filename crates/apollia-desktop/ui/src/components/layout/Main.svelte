@@ -1,5 +1,6 @@
 <script lang="ts">
   import { currentRoute } from "$lib/stores/navigation";
+  import Dashboard from "../../routes/Dashboard.svelte";
   import Agents from "../../routes/Agents.svelte";
   import Tasks from "../../routes/Tasks.svelte";
   import Approvals from "../../routes/Approvals.svelte";
@@ -13,7 +14,9 @@
 </script>
 
 <main class="flex-1 overflow-auto bg-background p-6">
-  {#if $currentRoute === "agents"}
+  {#if $currentRoute === "dashboard"}
+    <Dashboard />
+  {:else if $currentRoute === "agents"}
     <Agents />
   {:else if $currentRoute === "tasks"}
     <Tasks />

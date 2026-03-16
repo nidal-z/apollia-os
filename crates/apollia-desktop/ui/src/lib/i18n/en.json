@@ -31,6 +31,7 @@
     }
   },
   "nav": {
+    "dashboard": "Dashboard",
     "operations": "Operations",
     "infrastructure": "Infrastructure",
     "data": "Data",
@@ -50,6 +51,21 @@
       "reconnecting": "Reconnecting...",
       "error": "Connection lost"
     }
+  },
+  "dashboard": {
+    "greeting_morning": "Good morning",
+    "greeting_afternoon": "Good afternoon",
+    "greeting_evening": "Good evening",
+    "summary": "{agents} assistants active, {tasks} tasks today",
+    "active_assistants": "Active assistants",
+    "recent_activity": "Recent activity",
+    "no_recent_activity": "No recent activity.",
+    "no_assistants": "No assistants active",
+    "discover_assistants": "Discover assistants",
+    "register_agent": "Register an agent",
+    "approvals_waiting": "{count} approvals waiting",
+    "approvals_subtitle": "These tasks need your attention before they can proceed.",
+    "review": "Review"
   },
   "agents": {
     "title": "Agents",

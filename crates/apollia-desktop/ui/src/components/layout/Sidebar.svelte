@@ -6,6 +6,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
   import {
+    LayoutDashboard,
     Bot,
     ListChecks,
     ShieldCheck,
@@ -28,6 +29,7 @@
     {
       labelKey: "nav.operations",
       items: [
+        { route: "dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
         { route: "agents", labelKey: "nav.agents", icon: Bot },
         { route: "tasks", labelKey: "nav.tasks", icon: ListChecks },
         { route: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
