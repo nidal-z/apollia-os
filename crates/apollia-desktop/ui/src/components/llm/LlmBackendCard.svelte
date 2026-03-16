@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import type { LlmBackendStatus, LlmPingResult } from "$lib/types";
+  import { uiMode } from "$lib/stores/mode";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -51,42 +52,82 @@
     }
   }
 
+  const isOperator = $derived($uiMode === "operator");
   const statusConfig = $derived(STATUS_CONFIG[backend.status]);
   const typeConfig = $derived(TYPE_CONFIG[backend.backend_type]);
+
+  function prettifyModelName(model: string): string {
+    return model
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  const humanizedTitle = $derived(() => {
+    const isLocal = backend.backend_type === "embedded";
+    const modelName = prettifyModelName(backend.model || backend.name);
+    const status = backend.status === "ready"
+      ? $t("llm.running")
+      : $t("llm.status_error");
+    return isLocal
+      ? `${$t("llm.local_ai")} (${modelName}) — ${status}`
+      : `${modelName} — ${status}`;
+  });
+
+  const humanizedCost = $derived(() => {
+    return backend.backend_type === "embedded"
+      ? $t("llm.free_local")
+      : $t("llm.pay_per_use");
+  });
 </script>
 
-<Card class="relative overflow-hidden">
-  <CardHeader class="pb-2">
-    <div class="flex items-center justify-between">
-      <CardTitle class="text-base font-semibold">{backend.name}</CardTitle>
-      <div class="flex items-center gap-2">
-        <Badge variant="outline" class={typeConfig.extraClass}>
-          {typeConfig.label}
-        </Badge>
-        <Badge variant={statusConfig.variant} class={statusConfig.extraClass}>
-          {$t(statusConfig.labelKey)}
-        </Badge>
-      </div>
-    </div>
-  </CardHeader>
+{#if isOperator}
+  <!-- Operator mode: humanized card -->
+  <Card class="relative overflow-hidden">
+    <CardHeader class="pb-2">
+      <CardTitle class="text-base font-semibold">{humanizedTitle()}</CardTitle>
+    </CardHeader>
 
-  <CardContent>
-    <div class="space-y-3">
-      <div class="flex items-center gap-4 text-xs text-muted-foreground">
-        <span>{$t('llm.model')}: {backend.model}</span>
+    <CardContent>
+      <Badge variant="outline" class="text-xs {backend.backend_type === 'embedded' ? 'border-green-500 text-green-600' : 'border-purple-500 text-purple-500'}">
+        {humanizedCost()}
+      </Badge>
+    </CardContent>
+  </Card>
+{:else}
+  <!-- Builder mode: full technical card -->
+  <Card class="relative overflow-hidden">
+    <CardHeader class="pb-2">
+      <div class="flex items-center justify-between">
+        <CardTitle class="text-base font-semibold">{backend.name}</CardTitle>
+        <div class="flex items-center gap-2">
+          <Badge variant="outline" class={typeConfig.extraClass}>
+            {typeConfig.label}
+          </Badge>
+          <Badge variant={statusConfig.variant} class={statusConfig.extraClass}>
+            {$t(statusConfig.labelKey)}
+          </Badge>
+        </div>
       </div>
+    </CardHeader>
 
-      <div class="flex items-center gap-2">
-        <Button size="sm" variant="outline" onclick={handlePing} disabled={pinging}>
-          {pinging ? $t('llm.pinging') : $t('llm.ping')}
-        </Button>
-        {#if pingResult !== null}
-          <span class="text-xs font-medium text-[var(--apollia-success)]">{pingResult}ms</span>
-        {/if}
-        {#if pingError}
-          <span class="text-xs text-[hsl(var(--destructive))]">{pingError}</span>
-        {/if}
+    <CardContent>
+      <div class="space-y-3">
+        <div class="flex items-center gap-4 text-xs text-muted-foreground">
+          <span>{$t('llm.model')}: {backend.model}</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <Button size="sm" variant="outline" onclick={handlePing} disabled={pinging}>
+            {pinging ? $t('llm.pinging') : $t('llm.ping')}
+          </Button>
+          {#if pingResult !== null}
+            <span class="text-xs font-medium text-[var(--apollia-success)]">{pingResult}ms</span>
+          {/if}
+          {#if pingError}
+            <span class="text-xs text-[hsl(var(--destructive))]">{pingError}</span>
+          {/if}
+        </div>
       </div>
-    </div>
-  </CardContent>
-</Card>
+    </CardContent>
+  </Card>
+{/if}

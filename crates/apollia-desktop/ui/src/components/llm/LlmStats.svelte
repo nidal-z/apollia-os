@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import type { LlmCostStatsResponse, LlmCostStatsRow } from "$lib/types";
+  import { uiMode } from "$lib/stores/mode";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
 
   const REFRESH_INTERVAL_MS = 30_000;
@@ -36,6 +37,7 @@
     return value.toString();
   }
 
+  const isOperator = $derived($uiMode === "operator");
   const totalCalls = $derived(rows.reduce((sum, r) => sum + r.call_count, 0));
   const totalTokens = $derived(rows.reduce((sum, r) => sum + r.total_tokens, 0));
   const totalCost = $derived(rows.reduce((sum, r) => sum + r.total_cost_usd, 0));
@@ -66,8 +68,16 @@
     {:else if error}
       <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
     {:else if rows.length === 0}
-      <p class="text-sm text-muted-foreground">{$t('llm.no_calls')}</p>
+      <p class="text-sm text-muted-foreground">
+        {isOperator ? $t('llm.no_calls_operator') : $t('llm.no_calls')}
+      </p>
+    {:else if isOperator}
+      <!-- Operator mode: single summary line, no table -->
+      <p class="text-sm text-muted-foreground">
+        {$t('llm.used_today', { values: { count: totalCalls, cost: formatCost(totalCost) } })}
+      </p>
     {:else}
+      <!-- Builder mode: full table with all columns -->
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
