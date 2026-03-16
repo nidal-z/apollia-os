@@ -26,6 +26,8 @@
     --info-foreground: 213 80% 30%;
     --warning: 38 92% 50%;
     --warning-foreground: 32 80% 30%;
+    --success: 142 71% 45%;
+    --success-foreground: 144 60% 22%;
   }
 
   .dark {
@@ -50,6 +52,8 @@
     --info-foreground: 213 90% 80%;
     --warning: 38 92% 50%;
     --warning-foreground: 45 90% 80%;
+    --success: 142 71% 55%;
+    --success-foreground: 142 80% 80%;
   }
 }
 
@@ -73,9 +77,10 @@
   --apollia-text: hsl(var(--foreground));
   --apollia-accent: hsl(var(--primary));
   --apollia-danger: hsl(var(--destructive));
-  --apollia-success: #16a34a;
-  --apollia-warning: #d97706;
+  --apollia-success: hsl(var(--success));
+  --apollia-warning: hsl(var(--warning));
   --apollia-info: hsl(var(--info));
   --apollia-info-foreground: hsl(var(--info-foreground));
   --apollia-warning-foreground: hsl(var(--warning-foreground));
+  --apollia-success-foreground: hsl(var(--success-foreground));
 }

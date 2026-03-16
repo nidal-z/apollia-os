@@ -10,7 +10,7 @@
 </script>
 
 <div
-  class={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)}
+  class={cn("rounded-lg border bg-card text-card-foreground shadow-sm transition-shadow duration-200 hover:shadow-md", className)}
   {...restProps}
 >
   {@render children?.()}
