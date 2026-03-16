@@ -1,9 +1,17 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Apollia OS</title>
+  <script>
+    (function() {
+      var mode = localStorage.getItem("apollia-theme") || "system";
+      var isDark = mode === "dark" ||
+        (mode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      if (isDark) document.documentElement.classList.add("dark");
+    })();
+  </script>
 </head>
 <body>
   <div id="app"></div>

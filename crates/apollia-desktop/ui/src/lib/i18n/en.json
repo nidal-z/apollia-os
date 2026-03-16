@@ -304,7 +304,11 @@
     "review_onboarding": "Review onboarding",
     "review_onboarding_desc": "Reset the onboarding flag and restart to see the welcome wizard.",
     "reset_onboarding": "Reset Onboarding",
-    "resetting": "Resetting..."
+    "resetting": "Resetting...",
+    "theme_title": "Theme",
+    "theme_light": "Light",
+    "theme_dark": "Dark",
+    "theme_system": "System"
   },
   "onboarding": {
     "welcome_title": "Welcome to Apollia OS",

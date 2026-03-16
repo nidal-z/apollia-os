@@ -8,10 +8,12 @@
   import OnboardingWizard from "./components/onboarding/OnboardingWizard.svelte";
   import { createSSEConnection } from "$lib/stores/sse";
   import { showOnboarding } from "$lib/stores/onboarding";
+  import { initTheme } from "$lib/stores/theme";
 
   let ready = $state(false);
 
   onMount(() => {
+    initTheme();
     const cleanup = createSSEConnection();
 
     invoke<boolean>("check_onboarded")

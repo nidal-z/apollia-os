@@ -304,7 +304,11 @@
     "review_onboarding": "Revoir l'onboarding",
     "review_onboarding_desc": "Réinitialisez le flag d'onboarding et redémarrez pour revoir l'assistant de bienvenue.",
     "reset_onboarding": "Réinitialiser l'onboarding",
-    "resetting": "Réinitialisation..."
+    "resetting": "Réinitialisation...",
+    "theme_title": "Thème",
+    "theme_light": "Clair",
+    "theme_dark": "Sombre",
+    "theme_system": "Système"
   },
   "onboarding": {
     "welcome_title": "Bienvenue sur Apollia OS",

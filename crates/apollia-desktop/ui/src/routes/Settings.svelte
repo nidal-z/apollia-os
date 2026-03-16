@@ -4,6 +4,7 @@
   import { t } from "svelte-i18n";
   import { currentRoute } from "$lib/stores/navigation";
   import { showOnboarding } from "$lib/stores/onboarding";
+  import { themeMode, applyTheme, type ThemeMode } from "$lib/stores/theme";
   import { Button } from "$lib/components/ui/button";
   import type { ApollaConfigView } from "$lib/types";
 
@@ -52,6 +53,17 @@
     currentRoute.set(route as "llm" | "triggers");
   }
 
+  const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
+    { value: "light", labelKey: "settings.theme_light" },
+    { value: "dark", labelKey: "settings.theme_dark" },
+    { value: "system", labelKey: "settings.theme_system" },
+  ];
+
+  function setTheme(mode: ThemeMode) {
+    themeMode.set(mode);
+    applyTheme(mode);
+  }
+
   onMount(() => {
     loadConfig();
   });
@@ -70,7 +82,7 @@
   </div>
 
   <!-- Info banner (AC-4) -->
-  <div class="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200">
+  <div class="rounded-md border border-info/30 bg-info/10 px-4 py-3 text-sm text-info-foreground">
     {$t('settings.readonly_banner', { values: { file: 'apollia.toml' } })}
   </div>
 
@@ -89,7 +101,7 @@
     <div class="text-xs text-muted-foreground">
       <span class="font-mono">{configView.config_path}</span>
       {#if !configView.config_exists}
-        <span class="ml-2 rounded bg-yellow-100 px-1.5 py-0.5 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200">{$t('settings.file_not_found')}</span>
+        <span class="ml-2 rounded bg-warning/10 px-1.5 py-0.5 text-warning-foreground">{$t('settings.file_not_found')}</span>
       {/if}
     </div>
 
@@ -132,6 +144,22 @@
           {/if}
         </div>
       {/each}
+    </div>
+
+    <!-- Theme section -->
+    <div class="rounded-lg border bg-card p-4" data-testid="theme-section">
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{$t('settings.theme_title')}</h2>
+      <div class="flex items-center gap-2">
+        {#each THEME_OPTIONS as option (option.value)}
+          <button
+            class="rounded-md border px-3 py-1.5 text-sm transition-colors {$themeMode === option.value ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-card-foreground border-border hover:bg-accent hover:text-accent-foreground'}"
+            onclick={() => setTheme(option.value)}
+            data-testid="theme-{option.value}"
+          >
+            {$t(option.labelKey)}
+          </button>
+        {/each}
+      </div>
     </div>
 
     <!-- Advanced section (AC-5) -->

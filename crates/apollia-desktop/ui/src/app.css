@@ -22,6 +22,10 @@
     --input: 240 5.9% 90%;
     --ring: 240 5.9% 10%;
     --radius: 0.5rem;
+    --info: 213 94% 47%;
+    --info-foreground: 213 80% 30%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 32 80% 30%;
   }
 
   .dark {
@@ -42,6 +46,10 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
+    --info: 213 94% 58%;
+    --info-foreground: 213 90% 80%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 45 90% 80%;
   }
 }
 
@@ -67,4 +75,7 @@
   --apollia-danger: hsl(var(--destructive));
   --apollia-success: #16a34a;
   --apollia-warning: #d97706;
+  --apollia-info: hsl(var(--info));
+  --apollia-info-foreground: hsl(var(--info-foreground));
+  --apollia-warning-foreground: hsl(var(--warning-foreground));
 }
