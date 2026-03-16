@@ -119,6 +119,8 @@
     "created": "Created",
     "input": "Input",
     "output": "Output",
+    "result": "Result",
+    "technical_details": "Technical details",
     "timeline": "Timeline",
     "loading_timeline": "Loading timeline...",
     "no_timeline": "No timeline events yet.",
