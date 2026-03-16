@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { fly } from "svelte/transition";
+  import { flip } from "svelte/animate";
   import { t } from "svelte-i18n";
   import { activePipelineRuns, historicPipelineRuns, pipelineRuns } from "$lib/stores/pipelines";
   import { Button } from "$lib/components/ui/button";
@@ -119,7 +121,9 @@
   {:else}
     <div class="space-y-2">
       {#each displayedRuns as run (run.run_id)}
-        <PipelineRunCard {run} ondetail={handleDetail} />
+        <div animate:flip={{ duration: 300 }} in:fly={{ y: 10, duration: 200 }}>
+          <PipelineRunCard {run} ondetail={handleDetail} />
+        </div>
       {/each}
     </div>
   {/if}

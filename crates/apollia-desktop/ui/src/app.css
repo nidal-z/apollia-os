@@ -69,6 +69,14 @@
   }
 }
 
+/* Micro-interaction: subtle press feedback on interactive elements */
+@layer components {
+  button:not([disabled]):active,
+  [role="button"]:not([disabled]):active {
+    transform: scale(0.98);
+  }
+}
+
 /* Apollia design tokens — aliases for use in custom styles */
 :root {
   --apollia-bg: hsl(var(--background));

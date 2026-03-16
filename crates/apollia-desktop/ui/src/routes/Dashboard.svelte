@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { fly } from "svelte/transition";
+  import { flip } from "svelte/animate";
   import { t } from "svelte-i18n";
   import type { AgentStatus } from "$lib/types";
   import { agents } from "$lib/stores/agents";
@@ -78,7 +80,9 @@
     {:else}
       <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="dashboard-agents-grid">
         {#each activeAgents as agent (agent.id)}
-          <ActiveAgentCard {agent} ondetail={openDetail} />
+          <div animate:flip={{ duration: 300 }} in:fly={{ y: 10, duration: 200 }}>
+            <ActiveAgentCard {agent} ondetail={openDetail} />
+          </div>
         {/each}
       </div>
     {/if}

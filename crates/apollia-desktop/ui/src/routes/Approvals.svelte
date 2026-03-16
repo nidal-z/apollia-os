@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { fly } from "svelte/transition";
+  import { flip } from "svelte/animate";
   import { t } from "svelte-i18n";
   import type { PendingApproval, ResolvedApproval } from "$lib/types";
   import { pendingApprovals, pendingCount, requestNotificationPermission } from "$lib/stores/hitl";
@@ -69,7 +71,9 @@
       {:else}
         <div class="space-y-3">
           {#each $pendingApprovals as approval (approval.task_id)}
-            <ApprovalCard {approval} />
+            <div animate:flip={{ duration: 300 }} in:fly={{ y: 10, duration: 200 }}>
+              <ApprovalCard {approval} />
+            </div>
           {/each}
         </div>
       {/if}

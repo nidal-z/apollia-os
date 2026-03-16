@@ -1,5 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { fly } from "svelte/transition";
+  import { flip } from "svelte/animate";
   import { t, locale } from "svelte-i18n";
   import { triggers } from "$lib/stores/triggers";
   import { uiMode } from "$lib/stores/mode";
@@ -124,7 +126,7 @@
   {:else}
     <div class="space-y-6" data-testid="triggers-grouped">
       {#each [...triggersByAgent.entries()] as [agentName, agentTriggers] (agentName)}
-        <section data-testid="trigger-group-{agentName}">
+        <section animate:flip={{ duration: 300 }} in:fly={{ y: 10, duration: 200 }} data-testid="trigger-group-{agentName}">
           <!-- Agent group header -->
           <button
             class="mb-3 flex items-center gap-2 text-left"
@@ -139,6 +141,7 @@
 
           <div class="space-y-3">
             {#each agentTriggers as trigger (trigger.id)}
+              <div animate:flip={{ duration: 300 }} in:fly={{ y: 10, duration: 200 }}>
               <TriggerRow
                 {trigger}
                 locale={$locale ?? "en"}
@@ -146,6 +149,7 @@
                 onfire={handleFire}
                 onlogs={handleOpenLogs}
               />
+              </div>
             {/each}
           </div>
         </section>

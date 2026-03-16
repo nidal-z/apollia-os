@@ -1,10 +1,14 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
+  import { fly } from "svelte/transition";
+  import { flip } from "svelte/animate";
   import { t } from "svelte-i18n";
   import type { AgentStatus } from "$lib/types";
   import { agents } from "$lib/stores/agents";
+  import { connectionStatus } from "$lib/stores/sse";
   import { Button } from "$lib/components/ui/button";
+  import { Skeleton } from "$lib/components/ui/skeleton";
   import { Bot } from "lucide-svelte";
   import { uiMode } from "$lib/stores/mode";
   import AgentCard from "../components/agents/AgentCard.svelte";
@@ -12,6 +16,8 @@
   import AgentDetail from "../components/agents/AgentDetail.svelte";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import EmptyState from "../components/common/EmptyState.svelte";
+
+  const SKELETON_COUNT = 3;
 
   let startingAgent = $state(false);
   let startError = $state<string | null>(null);
@@ -82,8 +88,25 @@
     </div>
   {/if}
 
-  <!-- Agent list or empty state -->
-  {#if $agents.length === 0}
+  <!-- Agent list, skeleton loaders, or empty state -->
+  {#if $connectionStatus === "connecting"}
+    <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-skeleton">
+      {#each { length: SKELETON_COUNT } as _}
+        <div class="space-y-3 rounded-lg border p-4">
+          <div class="flex items-center justify-between">
+            <Skeleton class="h-5 w-[60%]" />
+            <Skeleton class="h-5 w-16 rounded-full" />
+          </div>
+          <Skeleton class="h-3 w-[40%]" />
+          <Skeleton class="h-3 w-[80%]" />
+          <div class="flex gap-2 pt-1">
+            <Skeleton class="h-8 w-16 rounded-md" />
+            <Skeleton class="h-8 w-14 rounded-md" />
+          </div>
+        </div>
+      {/each}
+    </div>
+  {:else if $agents.length === 0}
     <EmptyState
       icon={Bot}
       title={$t('agents.empty_title')}
@@ -93,7 +116,9 @@
   {:else}
     <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-grid">
       {#each $agents as agent (agent.id)}
-        <AgentCard {agent} onlogs={openLogs} ondetail={openDetail} />
+        <div animate:flip={{ duration: 300 }} in:fly={{ y: 10, duration: 200 }}>
+          <AgentCard {agent} onlogs={openLogs} ondetail={openDetail} />
+        </div>
       {/each}
     </div>
   {/if}

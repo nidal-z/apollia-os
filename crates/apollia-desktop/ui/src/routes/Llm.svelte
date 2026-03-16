@@ -1,12 +1,17 @@
 <script lang="ts">
+  import { fly } from "svelte/transition";
+  import { flip } from "svelte/animate";
   import { t } from "svelte-i18n";
-  import { llmBackends } from "$lib/stores/sse";
+  import { llmBackends, connectionStatus } from "$lib/stores/sse";
   import { uiMode } from "$lib/stores/mode";
   import { currentRoute } from "$lib/stores/navigation";
   import { Brain } from "lucide-svelte";
+  import { Skeleton } from "$lib/components/ui/skeleton";
   import LlmBackendCard from "../components/llm/LlmBackendCard.svelte";
   import LlmStats from "../components/llm/LlmStats.svelte";
   import EmptyState from "../components/common/EmptyState.svelte";
+
+  const SKELETON_COUNT = 2;
 
   const isOperator = $derived($uiMode === "operator");
 </script>
@@ -17,8 +22,21 @@
     {isOperator ? $t('llm.title_operator') : $t('llm.title')}
   </h1>
 
-  <!-- Backend cards or empty state -->
-  {#if $llmBackends.length === 0}
+  <!-- Backend cards, skeleton loaders, or empty state -->
+  {#if $connectionStatus === "connecting"}
+    <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2" data-testid="llm-skeleton">
+      {#each { length: SKELETON_COUNT } as _}
+        <div class="space-y-3 rounded-lg border p-4">
+          <div class="flex items-center justify-between">
+            <Skeleton class="h-5 w-[50%]" />
+            <Skeleton class="h-5 w-14 rounded-full" />
+          </div>
+          <Skeleton class="h-3 w-[70%]" />
+          <Skeleton class="h-3 w-[40%]" />
+        </div>
+      {/each}
+    </div>
+  {:else if $llmBackends.length === 0}
     <EmptyState
       icon={Brain}
       title={isOperator ? $t('llm.empty_operator') : $t('llm.empty_title')}
@@ -29,7 +47,9 @@
   {:else}
     <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
       {#each $llmBackends as backend (backend.name)}
-        <LlmBackendCard {backend} />
+        <div animate:flip={{ duration: 300 }} in:fly={{ y: 10, duration: 200 }}>
+          <LlmBackendCard {backend} />
+        </div>
       {/each}
     </div>
 

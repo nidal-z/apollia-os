@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fly } from "svelte/transition";
   import { currentRoute } from "$lib/stores/navigation";
   import Dashboard from "../../routes/Dashboard.svelte";
   import Agents from "../../routes/Agents.svelte";
@@ -14,27 +15,31 @@
 </script>
 
 <main class="flex-1 overflow-auto bg-background p-6">
-  {#if $currentRoute === "dashboard"}
-    <Dashboard />
-  {:else if $currentRoute === "agents"}
-    <Agents />
-  {:else if $currentRoute === "tasks"}
-    <Tasks />
-  {:else if $currentRoute === "approvals"}
-    <Approvals />
-  {:else if $currentRoute === "llm"}
-    <Llm />
-  {:else if $currentRoute === "triggers"}
-    <Triggers />
-  {:else if $currentRoute === "pipelines"}
-    <Pipelines />
-  {:else if $currentRoute === "memory"}
-    <Memory />
-  {:else if $currentRoute === "notifications"}
-    <Notifications />
-  {:else if $currentRoute === "observability"}
-    <Observability />
-  {:else if $currentRoute === "settings"}
-    <Settings />
-  {/if}
+  {#key $currentRoute}
+    <div in:fly={{ y: 6, duration: 150 }}>
+      {#if $currentRoute === "dashboard"}
+        <Dashboard />
+      {:else if $currentRoute === "agents"}
+        <Agents />
+      {:else if $currentRoute === "tasks"}
+        <Tasks />
+      {:else if $currentRoute === "approvals"}
+        <Approvals />
+      {:else if $currentRoute === "llm"}
+        <Llm />
+      {:else if $currentRoute === "triggers"}
+        <Triggers />
+      {:else if $currentRoute === "pipelines"}
+        <Pipelines />
+      {:else if $currentRoute === "memory"}
+        <Memory />
+      {:else if $currentRoute === "notifications"}
+        <Notifications />
+      {:else if $currentRoute === "observability"}
+        <Observability />
+      {:else if $currentRoute === "settings"}
+        <Settings />
+      {/if}
+    </div>
+  {/key}
 </main>

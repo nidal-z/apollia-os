@@ -98,7 +98,7 @@
           <item.icon size={18} />
           <span>{$t(item.labelKey)}</span>
           {#if item.route === "approvals" && $pendingCount > 0}
-            <Badge variant="destructive" class="ml-auto text-[10px] px-1.5 py-0" data-testid="approvals-badge"
+            <Badge variant="destructive" class="ml-auto animate-pulse text-[10px] px-1.5 py-0" data-testid="approvals-badge"
               >{$pendingCount}</Badge
             >
           {/if}
@@ -135,7 +135,7 @@
     {#if $connectionStatus === "connected"}
       <span class="h-2 w-2 rounded-full bg-[var(--apollia-success)]" data-testid="connection-dot"></span>
     {:else if $connectionStatus === "reconnecting"}
-      <span class="h-2 w-2 rounded-full bg-[var(--apollia-warning)]" data-testid="connection-dot"></span>
+      <span class="h-2 w-2 animate-pulse rounded-full bg-[var(--apollia-warning)]" data-testid="connection-dot"></span>
     {:else}
       <span class="h-2 w-2 rounded-full bg-[hsl(var(--destructive))]" data-testid="connection-dot"></span>
     {/if}

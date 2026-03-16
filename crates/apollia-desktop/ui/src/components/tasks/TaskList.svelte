@@ -1,17 +1,23 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { fly } from "svelte/transition";
+  import { flip } from "svelte/animate";
   import { t } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
   import { tasks } from "$lib/stores/tasks";
   import { agents } from "$lib/stores/agents";
+  import { connectionStatus } from "$lib/stores/sse";
   import { uiMode } from "$lib/stores/mode";
   import { currentRoute } from "$lib/stores/navigation";
   import { formatRelativeTime, formatDuration } from "$lib/utils";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { Skeleton } from "$lib/components/ui/skeleton";
   import { ListChecks } from "lucide-svelte";
   import SmartOutputPreview from "../common/SmartOutputPreview.svelte";
   import EmptyState from "../common/EmptyState.svelte";
+
+  const SKELETON_ROW_COUNT = 5;
 
   interface Props {
     onSelectTask: (taskId: string) => void;
@@ -188,8 +194,27 @@
     </div>
   </div>
 
-  <!-- Task list -->
-  {#if !hasAnyTasks}
+  <!-- Task list, skeleton loaders, or empty state -->
+  {#if $connectionStatus === "connecting"}
+    <div class="space-y-1" data-testid="task-list-skeleton">
+      <div class="flex items-center gap-3 px-3 py-1">
+        <Skeleton class="h-3 w-[140px]" />
+        <Skeleton class="h-3 w-[100px]" />
+        <Skeleton class="h-3 flex-1" />
+        <Skeleton class="h-3 w-[70px]" />
+        <Skeleton class="h-3 w-[80px]" />
+      </div>
+      {#each { length: SKELETON_ROW_COUNT } as _}
+        <div class="flex items-center gap-3 rounded-md border px-3 py-2">
+          <Skeleton class="h-4 w-[140px]" />
+          <Skeleton class="h-5 w-[70px] rounded-full" />
+          <Skeleton class="h-3 flex-1" />
+          <Skeleton class="h-3 w-[50px]" />
+          <Skeleton class="h-3 w-[60px]" />
+        </div>
+      {/each}
+    </div>
+  {:else if !hasAnyTasks}
     <EmptyState
       icon={ListChecks}
       title={$t('tasks.empty_title')}
@@ -214,6 +239,8 @@
 
       {#each visibleTasks as task (task.id)}
         <button
+          animate:flip={{ duration: 300 }}
+          in:fly={{ y: 10, duration: 200 }}
           class="flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/50"
           data-testid="task-row"
           data-task-id={task.id}
