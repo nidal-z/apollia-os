@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import type { PipelineRunSummary } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -55,5 +56,5 @@
     {run.status === "waiting_approval" ? "WAITING" : run.status.toUpperCase()}
   </Badge>
   <span class="shrink-0 text-xs text-muted-foreground">{formatElapsed(run.started_at)}</span>
-  <Button size="sm" variant="outline" onclick={() => ondetail(run.run_id)}>Detail</Button>
+  <Button size="sm" variant="outline" onclick={() => ondetail(run.run_id)}>{$t('pipelines.detail_button')}</Button>
 </div>

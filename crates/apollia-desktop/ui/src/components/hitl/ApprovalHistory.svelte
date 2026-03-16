@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import type { ResolvedApproval } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
 
@@ -32,18 +33,18 @@
 </script>
 
 {#if history.length === 0}
-  <p class="text-sm text-muted-foreground">No resolved approvals in the last 7 days.</p>
+  <p class="text-sm text-muted-foreground">{$t('approvals.no_history')}</p>
 {:else}
   <div class="overflow-auto rounded border">
     <table class="w-full text-sm">
       <thead>
         <tr class="border-b bg-muted/30 text-left text-xs text-muted-foreground">
-          <th class="px-3 py-2">Task</th>
-          <th class="px-3 py-2">Agent</th>
-          <th class="px-3 py-2">Result</th>
-          <th class="px-3 py-2">Wait</th>
-          <th class="px-3 py-2">Reason</th>
-          <th class="px-3 py-2">Date</th>
+          <th class="px-3 py-2">{$t('approvals.table.task')}</th>
+          <th class="px-3 py-2">{$t('approvals.table.agent')}</th>
+          <th class="px-3 py-2">{$t('approvals.table.result')}</th>
+          <th class="px-3 py-2">{$t('approvals.table.wait')}</th>
+          <th class="px-3 py-2">{$t('approvals.table.reason')}</th>
+          <th class="px-3 py-2">{$t('approvals.table.date')}</th>
         </tr>
       </thead>
       <tbody>
@@ -59,11 +60,11 @@
                   variant="default"
                   class="bg-[var(--apollia-success)] text-white text-[10px]"
                 >
-                  Approved
+                  {$t('common.approved')}
                 </Badge>
               {:else}
                 <Badge variant="destructive" class="text-[10px]">
-                  Rejected
+                  {$t('common.rejected')}
                 </Badge>
               {/if}
             </td>

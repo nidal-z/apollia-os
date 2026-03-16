@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
   import { Sheet } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
@@ -77,8 +78,8 @@
   <div class="flex h-full flex-col">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3">
-      <h2 class="text-lg font-semibold">Agent Logs</h2>
-      <Button size="sm" variant="ghost" onclick={onclose}>Close</Button>
+      <h2 class="text-lg font-semibold">{$t('agents.logs_title')}</h2>
+      <Button size="sm" variant="ghost" onclick={onclose}>{$t('common.close')}</Button>
     </div>
 
     <Separator />
@@ -86,11 +87,11 @@
     <!-- Content -->
     <div class="flex-1 overflow-auto p-4">
       {#if loading}
-        <p class="text-sm text-muted-foreground">Loading tasks...</p>
+        <p class="text-sm text-muted-foreground">{$t('agents.loading_tasks')}</p>
       {:else if error}
         <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
       {:else if taskList.length === 0}
-        <p class="text-sm text-muted-foreground">No tasks found for this agent.</p>
+        <p class="text-sm text-muted-foreground">{$t('agents.no_tasks')}</p>
       {:else}
         <div class="space-y-2">
           {#each taskList as task (task.id)}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { AgentStatus } from "$lib/types";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
@@ -14,13 +15,13 @@
 
   const STATUS_CONFIG: Record<
     AgentStatus["state"],
-    { label: string; variant: "default" | "secondary" | "destructive" | "outline"; extraClass: string }
+    { labelKey: string; variant: "default" | "secondary" | "destructive" | "outline"; extraClass: string }
   > = {
-    active: { label: "ACTIVE", variant: "default", extraClass: "bg-[var(--apollia-success)] text-white" },
-    degraded: { label: "DEGRADED", variant: "outline", extraClass: "border-[var(--apollia-warning)] text-[var(--apollia-warning)]" },
-    stopped: { label: "STOPPED", variant: "secondary", extraClass: "" },
-    initializing: { label: "INITIALIZING", variant: "outline", extraClass: "animate-pulse border-blue-500 text-blue-500" },
-    stopping: { label: "STOPPING", variant: "outline", extraClass: "border-orange-300 text-orange-300" },
+    active: { labelKey: "common.status.active", variant: "default", extraClass: "bg-[var(--apollia-success)] text-white" },
+    degraded: { labelKey: "common.status.degraded", variant: "outline", extraClass: "border-[var(--apollia-warning)] text-[var(--apollia-warning)]" },
+    stopped: { labelKey: "common.status.stopped", variant: "secondary", extraClass: "" },
+    initializing: { labelKey: "common.status.initializing", variant: "outline", extraClass: "animate-pulse border-blue-500 text-blue-500" },
+    stopping: { labelKey: "common.status.stopping", variant: "outline", extraClass: "border-orange-300 text-orange-300" },
   };
 
   let stopping = $state(false);
@@ -74,7 +75,7 @@
 <Card class="relative overflow-hidden" data-testid="agent-card" data-agent-id={agent.id} data-agent-state={agent.state}>
   {#if agent.state === "degraded" && agent.degraded_reason}
     <div class="flex items-center gap-2 bg-[var(--apollia-warning)]/10 px-4 py-2 text-xs text-[var(--apollia-warning)]">
-      <span>Warning: {agent.degraded_reason}</span>
+      <span>{$t('common.warning')}: {agent.degraded_reason}</span>
     </div>
   {/if}
 
@@ -82,7 +83,7 @@
     <div class="flex items-center justify-between">
       <CardTitle class="text-base font-semibold" data-testid="agent-name">{agent.name}</CardTitle>
       <Badge variant={config.variant} class={config.extraClass} data-testid="agent-status">
-        {config.label}
+        {$t(config.labelKey)}
       </Badge>
     </div>
   </CardHeader>
@@ -92,13 +93,13 @@
       <!-- Stats row -->
       <div class="flex items-center gap-4 text-xs text-muted-foreground">
         {#if !isStopped(agent.state)}
-          <span>Uptime: {formatUptime(agent.uptime_secs)}</span>
+          <span>{$t('agents.uptime')}: {formatUptime(agent.uptime_secs)}</span>
         {/if}
-        <span>Completed: {agent.tasks_completed}</span>
+        <span>{$t('agents.completed')}: {agent.tasks_completed}</span>
         {#if agent.tasks_failed > 0}
-          <span class="text-[hsl(var(--destructive))]">Failed: {agent.tasks_failed}</span>
+          <span class="text-[hsl(var(--destructive))]">{$t('agents.failed')}: {agent.tasks_failed}</span>
         {:else}
-          <span>Failed: {agent.tasks_failed}</span>
+          <span>{$t('agents.failed')}: {agent.tasks_failed}</span>
         {/if}
       </div>
 
@@ -109,22 +110,22 @@
       <!-- Actions row -->
       <div class="flex items-center gap-2">
         {#if confirmVisible}
-          <span class="text-xs text-muted-foreground">Stop this agent?</span>
+          <span class="text-xs text-muted-foreground">{$t('agents.stop_confirm')}</span>
           <Button size="sm" variant="destructive" onclick={handleStop} disabled={stopping} data-testid="agent-stop-confirm-btn">
-            {stopping ? "Stopping..." : "Confirm"}
+            {stopping ? $t('agents.stopping') : $t('common.confirm')}
           </Button>
           <Button size="sm" variant="outline" onclick={handleCancelStop}>
-            Cancel
+            {$t('common.cancel')}
           </Button>
         {:else}
           {#if isRunning(agent.state)}
             <Button size="sm" variant="outline" onclick={handleStopClick} data-testid="agent-stop-btn">
-              Stop
+              {$t('agents.stop')}
             </Button>
           {/if}
           {#if !isStopped(agent.state)}
             <Button size="sm" variant="ghost" onclick={handleLogsClick} data-testid="agent-logs-btn">
-              Logs
+              {$t('agents.logs')}
             </Button>
           {/if}
         {/if}

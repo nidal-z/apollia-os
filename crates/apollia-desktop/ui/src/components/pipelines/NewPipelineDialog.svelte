@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { PipelineInfo, RunPipelineResult } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
 
@@ -33,7 +34,7 @@
       jsonError = null;
       return true;
     } catch {
-      jsonError = "Invalid JSON";
+      jsonError = $t('pipelines.invalid_json');
       return false;
     }
   }
@@ -92,14 +93,14 @@
       onclick={(e) => e.stopPropagation()}
       onkeydown={handleKeydown}
     >
-      <h3 class="mb-4 text-lg font-semibold">Run Pipeline</h3>
+      <h3 class="mb-4 text-lg font-semibold">{$t('pipelines.run_pipeline')}</h3>
 
       <div class="space-y-4">
         <div>
-          <label class="mb-1 block text-sm font-medium" for="pipeline-select">Pipeline</label>
+          <label class="mb-1 block text-sm font-medium" for="pipeline-select">{$t('pipelines.pipeline')}</label>
           {#if pipelines.length === 0}
             <p class="text-sm text-muted-foreground">
-              No pipelines available. Configure [[pipelines]] in apollia.toml.
+              {$t('pipelines.no_pipelines')}
             </p>
           {:else}
             <select
@@ -107,7 +108,7 @@
               class="w-full rounded-md border bg-background px-3 py-2 text-sm"
               bind:value={selectedPipelineId}
             >
-              <option value="" disabled>Select a pipeline...</option>
+              <option value="" disabled>{$t('pipelines.select_pipeline')}</option>
               {#each pipelines as pipeline}
                 <option value={pipeline.id}>
                   {pipeline.id}{pipeline.description ? ` — ${pipeline.description}` : ""}
@@ -119,7 +120,7 @@
 
         <div>
           <label class="mb-1 block text-sm font-medium" for="pipeline-input">
-            Input JSON <span class="font-normal text-muted-foreground">(optional)</span>
+            {$t('pipelines.input_json')} <span class="font-normal text-muted-foreground">{$t('pipelines.input_json_optional')}</span>
           </label>
           <textarea
             id="pipeline-input"
@@ -141,13 +142,13 @@
         {/if}
 
         <div class="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onclick={onclose}>Cancel</Button>
+          <Button variant="outline" size="sm" onclick={onclose}>{$t('common.cancel')}</Button>
           <Button
             size="sm"
             onclick={handleSubmit}
             disabled={!selectedPipelineId || submitting || !!jsonError}
           >
-            {submitting ? "Launching..." : "Launch"}
+            {submitting ? $t('pipelines.launching') : $t('pipelines.launch')}
           </Button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { TimelineEvent } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
 
@@ -85,9 +86,9 @@
       case "task_transition":
         return event.status;
       case "step_started":
-        return event.tool ? `Step ${event.step_id} \u2014 ${event.tool}` : `Step ${event.step_id}`;
+        return event.tool ? `${$t('tasks.step')} ${event.step_id} \u2014 ${event.tool}` : `${$t('tasks.step')} ${event.step_id}`;
       case "step_completed":
-        return `Step ${event.step_id} ${event.success ? "completed" : "failed"} ${formatDurationMs(event.duration_ms)}`;
+        return `${$t('tasks.step')} ${event.step_id} ${event.success ? "completed" : "failed"} ${formatDurationMs(event.duration_ms)}`;
       case "llm_call": {
         const tokens =
           event.prompt_tokens !== undefined && event.completion_tokens !== undefined
@@ -102,15 +103,15 @@
         return [event.tool_name, dur, exit].filter(Boolean).join(" \u2014 ");
       }
       case "hitl_suspended":
-        return `Waiting for approval \u2014 ${event.prompt.slice(0, 80)}`;
+        return `${$t('tasks.waiting_approval')} \u2014 ${event.prompt.slice(0, 80)}`;
       case "hitl_resolved": {
-        const verdict = event.approved ? "Approved" : "Rejected";
+        const verdict = event.approved ? $t('common.approved') : $t('common.rejected');
         const wait = event.wait_ms !== undefined ? `wait ${formatDurationMs(event.wait_ms)}` : "";
         return [verdict, wait].filter(Boolean).join(" \u2014 ");
       }
       case "task_completed": {
         const dur = formatDurationMs(event.duration_ms);
-        return dur ? `Completed in ${dur}` : "Completed";
+        return dur ? $t('tasks.completed_in', { values: { duration: dur } }) : $t('tasks.tab_completed');
       }
     }
   }
@@ -133,11 +134,11 @@
 
 <div class="space-y-1">
   {#if loading}
-    <p class="text-sm text-muted-foreground">Loading timeline...</p>
+    <p class="text-sm text-muted-foreground">{$t('tasks.loading_timeline')}</p>
   {:else if error}
     <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
   {:else if events.length === 0}
-    <p class="text-sm text-muted-foreground">No timeline events yet.</p>
+    <p class="text-sm text-muted-foreground">{$t('tasks.no_timeline')}</p>
   {:else}
     <div class="relative ml-4 border-l border-border pl-6" data-testid="task-timeline">
       {#each events as event, index (index)}
@@ -168,19 +169,19 @@
                   class="mt-1 text-xs text-muted-foreground underline"
                   onclick={() => toggleToolExpand(index)}
                 >
-                  {expandedTools.has(index) ? "Hide details" : "Show details"}
+                  {expandedTools.has(index) ? $t('tasks.hide_details') : $t('tasks.show_details')}
                 </button>
                 {#if expandedTools.has(index)}
                   <div class="mt-1 rounded border bg-muted/30 p-2 text-xs">
-                    <p>Tool: {event.tool_name}</p>
+                    <p>{$t('tasks.tool_label')}: {event.tool_name}</p>
                     {#if event.duration_ms !== undefined}
-                      <p>Duration: {formatDurationMs(event.duration_ms)}</p>
+                      <p>{$t('tasks.duration_label')}: {formatDurationMs(event.duration_ms)}</p>
                     {/if}
                     {#if event.exit_code !== undefined && event.exit_code !== null}
-                      <p>Exit code: {event.exit_code}</p>
+                      <p>{$t('tasks.exit_code_label')}: {event.exit_code}</p>
                     {/if}
                     {#if event.truncated}
-                      <p class="text-[var(--apollia-warning)]">[Output truncated]</p>
+                      <p class="text-[var(--apollia-warning)]">{$t('tasks.output_truncated')}</p>
                     {/if}
                   </div>
                 {/if}
@@ -188,7 +189,7 @@
 
               {#if event.type === "llm_call" && event.latency_ms !== undefined}
                 <span class="text-xs text-muted-foreground">
-                  Latency: {formatDurationMs(event.latency_ms)}
+                  {$t('tasks.latency')}: {formatDurationMs(event.latency_ms)}
                 </span>
               {/if}
             </div>

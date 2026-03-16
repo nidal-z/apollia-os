@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { NotificationChannel, ChannelTestResult } from "$lib/types";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
@@ -69,10 +70,10 @@
         </Badge>
         {#if channel.enabled}
           <Badge variant="default" class="bg-[var(--apollia-success)] text-white">
-            Enabled
+            {$t('notifications.enabled')}
           </Badge>
         {:else}
-          <Badge variant="secondary">Disabled</Badge>
+          <Badge variant="secondary">{$t('notifications.disabled')}</Badge>
         {/if}
       </div>
     </div>
@@ -90,7 +91,7 @@
           {/each}
         </div>
       {:else}
-        <p class="text-xs text-muted-foreground">All events</p>
+        <p class="text-xs text-muted-foreground">{$t('notifications.all_events')}</p>
       {/if}
 
       <!-- Test button + feedback -->
@@ -101,7 +102,7 @@
           onclick={handleTest}
           disabled={testing || !channel.enabled}
         >
-          {testing ? "Testing..." : "Tester"}
+          {testing ? $t('notifications.testing') : $t('notifications.test')}
         </Button>
 
         {#if testResult}
@@ -114,7 +115,7 @@
             </Badge>
           {:else}
             <Badge variant="destructive">
-              Erreur{testResult.error ? `: ${testResult.error}` : ""}
+              {$t('common.status.error')}{testResult.error ? `: ${testResult.error}` : ""}
             </Badge>
           {/if}
         {/if}

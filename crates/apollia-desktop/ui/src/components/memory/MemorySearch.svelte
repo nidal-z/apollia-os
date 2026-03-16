@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
+
   interface Props {
     value: string;
     onsearch: (query: string) => void;
@@ -50,7 +52,7 @@
   </span>
   <input
     type="text"
-    placeholder="Rechercher... (min. 3 caractères)"
+    placeholder={$t('memory.search_placeholder')}
     class="w-64 rounded-md border bg-background py-1.5 pl-9 pr-8 text-sm shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
     value={internalValue}
     oninput={handleInput}

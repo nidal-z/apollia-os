@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
   import { tasks } from "$lib/stores/tasks";
   import { Sheet } from "$lib/components/ui/sheet";
@@ -69,7 +70,7 @@
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
-        <h2 class="text-lg font-semibold" data-testid="task-detail-title">Task Detail</h2>
+        <h2 class="text-lg font-semibold" data-testid="task-detail-title">{$t('tasks.detail_title')}</h2>
         {#if task}
           <Badge
             variant={STATUS_VARIANT[task.status] ?? "secondary"}
@@ -79,32 +80,32 @@
           </Badge>
         {/if}
       </div>
-      <Button size="sm" variant="ghost" onclick={onclose}>Close</Button>
+      <Button size="sm" variant="ghost" onclick={onclose}>{$t('common.close')}</Button>
     </div>
 
     <Separator />
 
     <div class="flex-1 overflow-auto p-4">
       {#if !task}
-        <p class="text-sm text-muted-foreground">Task not found.</p>
+        <p class="text-sm text-muted-foreground">{$t('tasks.not_found')}</p>
       {:else}
         <div class="space-y-4">
           <!-- Metadata -->
           <div class="space-y-1 text-sm">
             <div class="flex items-center gap-2">
-              <span class="text-muted-foreground">ID:</span>
+              <span class="text-muted-foreground">{$t('tasks.id_label')}:</span>
               <code class="text-xs">{task.id}</code>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-muted-foreground">Agent:</span>
+              <span class="text-muted-foreground">{$t('tasks.agent')}:</span>
               <span>{task.agent_name || task.agent_id}</span>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-muted-foreground">Duration:</span>
+              <span class="text-muted-foreground">{$t('tasks.duration')}:</span>
               <span>{formatDuration(task.duration_ms)}</span>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-muted-foreground">Created:</span>
+              <span class="text-muted-foreground">{$t('tasks.created')}:</span>
               <span>{formatDate(task.created_at)}</span>
             </div>
           </div>
@@ -114,13 +115,13 @@
           <!-- Input section -->
           <div>
             <h3 class="mb-1 text-sm font-semibold">
-              Input
+              {$t('tasks.input')}
               {#if inputTruncated}
                 <Badge variant="outline" class="ml-2 text-[10px]">[TRONQUE]</Badge>
               {/if}
             </h3>
             <div class="rounded border bg-muted/30 p-3">
-              <p class="whitespace-pre-wrap text-sm">{task.input_preview || "No input"}</p>
+              <p class="whitespace-pre-wrap text-sm">{task.input_preview || $t('common.no_input')}</p>
             </div>
           </div>
 
@@ -130,7 +131,7 @@
             <!-- Output section -->
             <div>
               <h3 class="mb-1 text-sm font-semibold">
-                Output
+                {$t('tasks.output')}
                 {#if outputTruncated}
                   <Badge variant="outline" class="ml-2 text-[10px]">[TRONQUE]</Badge>
                 {/if}
@@ -145,7 +146,7 @@
 
           <!-- Timeline section -->
           <div data-testid="task-timeline-section">
-            <h3 class="mb-2 text-sm font-semibold">Timeline</h3>
+            <h3 class="mb-2 text-sm font-semibold">{$t('tasks.timeline')}</h3>
             <TaskTimeline taskId={taskId} isRunning={isRunning} />
           </div>
         </div>

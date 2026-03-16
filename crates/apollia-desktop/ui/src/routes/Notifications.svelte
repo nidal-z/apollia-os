@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { NotificationChannel, NotificationLogEntry } from "$lib/types";
   import { Separator } from "$lib/components/ui/separator";
   import NotificationChannelCard from "../components/notifications/NotificationChannelCard.svelte";
@@ -35,11 +36,11 @@
 
 <div class="space-y-6">
   <!-- Header -->
-  <h1 class="text-2xl font-bold">Notifications</h1>
+  <h1 class="text-2xl font-bold">{$t('notifications.title')}</h1>
 
   <!-- Loading -->
   {#if loading}
-    <p class="text-sm text-muted-foreground">Loading...</p>
+    <p class="text-sm text-muted-foreground">{$t('common.loading')}</p>
   {:else if error}
     <div
       class="rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 px-4 py-2 text-sm text-[hsl(var(--destructive))]"
@@ -52,13 +53,13 @@
       class="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-16"
     >
       <p class="text-muted-foreground">
-        Aucun canal de notification configuré. Ajoutez des [[notifications.channels]] dans apollia.toml.
+        {$t('notifications.empty_channels')}
       </p>
     </div>
   {:else}
     <!-- AC-1 — Channels section -->
     <section>
-      <h2 class="mb-3 text-lg font-semibold">Canaux</h2>
+      <h2 class="mb-3 text-lg font-semibold">{$t('notifications.channels_title')}</h2>
       <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
         {#each channels as channel (channel.channel_id)}
           <NotificationChannelCard {channel} />
@@ -70,7 +71,7 @@
 
     <!-- AC-3 — History section -->
     <section>
-      <h2 class="mb-3 text-lg font-semibold">Historique</h2>
+      <h2 class="mb-3 text-lg font-semibold">{$t('notifications.history_title')}</h2>
       <NotificationLog {logs} />
     </section>
   {/if}

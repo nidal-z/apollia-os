@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { LlmDailyCostsResponse, LlmDailyCostEntry } from "$lib/types";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
 
@@ -27,17 +28,14 @@
   let error = $state<string | null>(null);
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-  /** Unique backends in stable order. */
   let backends = $derived(
     [...new Set(entries.map((e) => e.backend))].sort(),
   );
 
-  /** Color assigned to each backend. */
   let backendColorMap = $derived(
     Object.fromEntries(backends.map((b, i) => [b, BACKEND_COLORS[i % BACKEND_COLORS.length]])),
   );
 
-  /** Generate the 7 dates for the x-axis (last 7 days). */
   let dateLabels = $derived((() => {
     const dates: string[] = [];
     const now = new Date();
@@ -49,13 +47,11 @@
     return dates;
   })());
 
-  /** Short day label for x-axis. */
   function shortDayLabel(dateStr: string): string {
     const d = new Date(dateStr + "T12:00:00");
     return d.toLocaleDateString(undefined, { weekday: "short" });
   }
 
-  /** Per-day stacked bar data. */
   let barData = $derived(
     dateLabels.map((date) => {
       const dayEntries = entries.filter((e) => e.date === date);
@@ -73,12 +69,10 @@
     }),
   );
 
-  /** Max cost across all days (for y-axis scaling). */
   let maxCost = $derived(
     Math.max(0.01, ...barData.map((d) => d.total)),
   );
 
-  /** Total cost over the period. */
   let totalCost = $derived(
     entries.reduce((sum, e) => sum + e.cost_usd, 0),
   );
@@ -89,7 +83,6 @@
     return `$${value.toFixed(2)}`;
   }
 
-  /** Y-axis ticks (3-5 evenly spaced). */
   let yTicks = $derived((() => {
     const tickCount = 4;
     const step = maxCost / tickCount;
@@ -125,20 +118,19 @@
 
 <Card>
   <CardHeader>
-    <CardTitle class="text-base font-semibold">LLM Costs (7 days)</CardTitle>
+    <CardTitle class="text-base font-semibold">{$t('observability.llm_costs_title')}</CardTitle>
   </CardHeader>
 
   <CardContent>
     {#if loading}
-      <p class="text-sm text-muted-foreground">Loading cost data...</p>
+      <p class="text-sm text-muted-foreground">{$t('observability.loading_costs')}</p>
     {:else if error}
       <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
     {:else if entries.length === 0}
       <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
-        <p class="text-muted-foreground">No LLM calls recorded in the last 7 days.</p>
+        <p class="text-muted-foreground">{$t('observability.no_llm_calls')}</p>
       </div>
     {:else}
-      <!-- SVG Bar Chart -->
       <div class="overflow-x-auto">
         <svg
           viewBox="0 0 {CHART_WIDTH} {CHART_HEIGHT}"
@@ -146,7 +138,6 @@
           role="img"
           aria-label="LLM daily cost bar chart"
         >
-          <!-- Y-axis gridlines and labels -->
           {#each yTicks as tick (tick)}
             {@const y = MARGIN.top + INNER_HEIGHT - (tick / maxCost) * INNER_HEIGHT}
             <line
@@ -168,13 +159,11 @@
             </text>
           {/each}
 
-          <!-- Bars -->
           {#each barData as day, dayIndex (day.date)}
             {@const barWidth = (INNER_WIDTH / dateLabels.length) * 0.6}
             {@const gap = (INNER_WIDTH / dateLabels.length) * 0.4}
             {@const barX = MARGIN.left + dayIndex * (barWidth + gap) + gap / 2}
 
-            <!-- Stacked segments -->
             {#each day.segments as segment, segIdx (segment.backend)}
               {@const segmentsBefore = day.segments.slice(0, segIdx)}
               {@const yOffset = segmentsBefore.reduce((s, seg) => s + seg.cost, 0)}
@@ -195,7 +184,6 @@
               {/if}
             {/each}
 
-            <!-- X-axis label -->
             <text
               x={barX + barWidth / 2}
               y={CHART_HEIGHT - 8}
@@ -207,7 +195,6 @@
             </text>
           {/each}
 
-          <!-- Axes -->
           <line
             x1={MARGIN.left}
             y1={MARGIN.top}
@@ -227,7 +214,6 @@
         </svg>
       </div>
 
-      <!-- Legend -->
       <div class="mt-4 flex flex-wrap gap-3">
         {#each backends as backend (backend)}
           <div class="flex items-center gap-1.5">
@@ -240,9 +226,8 @@
         {/each}
       </div>
 
-      <!-- Total -->
       <div class="mt-3 text-center">
-        <span class="text-lg font-bold">Total 7j : {formatCost(totalCost)}</span>
+        <span class="text-lg font-bold">{$t('observability.total_7d', { values: { cost: formatCost(totalCost) } })}</span>
       </div>
     {/if}
   </CardContent>

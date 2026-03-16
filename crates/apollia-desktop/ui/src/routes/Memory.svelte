@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { MemoryEntry, MemorySearchResult } from "$lib/types";
   import NamespaceSelector from "../components/memory/NamespaceSelector.svelte";
   import MemorySearch from "../components/memory/MemorySearch.svelte";
@@ -34,7 +35,7 @@
         selectedNamespace = namespaces[0];
       }
     } catch (e) {
-      showToast(`Failed to load namespaces: ${e}`, "error");
+      showToast(`${$t('memory.load_namespaces_failed')}: ${e}`, "error");
     }
   }
 
@@ -45,7 +46,7 @@
       entries = await invoke("list_memory_entries", { namespace: selectedNamespace });
       searching = false;
     } catch (e) {
-      showToast(`Failed to load entries: ${e}`, "error");
+      showToast(`${$t('memory.load_entries_failed')}: ${e}`, "error");
     } finally {
       loading = false;
     }
@@ -77,7 +78,7 @@
       }));
       searching = true;
     } catch (e) {
-      showToast(`Search failed: ${e}`, "error");
+      showToast(`${$t('memory.search_failed')}: ${e}`, "error");
     } finally {
       loading = false;
     }
@@ -98,12 +99,12 @@
       });
       if (deleted) {
         entries = entries.filter((e) => e.id !== entryId);
-        showToast("Entry deleted.", "success");
+        showToast($t('memory.entry_deleted'), "success");
       } else {
-        showToast("Entry not found.", "error");
+        showToast($t('memory.entry_not_found'), "error");
       }
     } catch (e) {
-      showToast(`Delete failed: ${e}`, "error");
+      showToast(`${$t('memory.delete_failed')}: ${e}`, "error");
     }
   }
 
@@ -120,7 +121,7 @@
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold">Memory</h1>
+    <h1 class="text-2xl font-bold">{$t('memory.title')}</h1>
   </div>
 
   <!-- Toast -->
@@ -140,7 +141,7 @@
       class="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-16"
     >
       <p class="text-muted-foreground">
-        Aucun namespace mémoire. Les agents créent des namespaces automatiquement.
+        {$t('memory.empty_namespaces')}
       </p>
     </div>
   {:else}
@@ -157,7 +158,7 @@
     <!-- Table -->
     {#if loading}
       <div class="flex items-center justify-center py-12">
-        <p class="text-muted-foreground">Loading...</p>
+        <p class="text-muted-foreground">{$t('common.loading')}</p>
       </div>
     {:else}
       <MemoryTable {entries} {searching} ondelete={handleDelete} />

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import { triggers } from "$lib/stores/triggers";
   import type { TriggerReloadResult } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
@@ -32,18 +33,18 @@
     reloadError = null;
     try {
       const result: TriggerReloadResult = await invoke("reload_triggers");
-      showToast(`Configuration rechargée (${result.reloaded} triggers actifs)`, "success");
+      showToast($t('triggers.reload_success', { values: { count: result.reloaded } }), "success");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       reloadError = msg;
-      showToast(`Erreur rechargement : ${msg}`, "error");
+      showToast($t('triggers.reload_error', { values: { message: msg } }), "error");
     } finally {
       reloading = false;
     }
   }
 
   function handleFire(taskId: string) {
-    showToast(`Trigger déclenché — tâche ${taskId.slice(0, 8)}`, "success");
+    showToast($t('triggers.fired_toast', { values: { taskId: taskId.slice(0, 8) } }), "success");
   }
 
   function handleOpenLogs(triggerId: string) {
@@ -58,14 +59,14 @@
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold">Triggers</h1>
+    <h1 class="text-2xl font-bold">{$t('triggers.title')}</h1>
     <Button
       size="sm"
       variant="outline"
       onclick={handleReload}
       disabled={reloading}
     >
-      {reloading ? "Reloading..." : "Reload config"}
+      {reloading ? $t('triggers.reloading') : $t('triggers.reload')}
     </Button>
   </div>
 
@@ -95,7 +96,7 @@
       class="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-16"
     >
       <p class="text-muted-foreground">
-        Aucun trigger configuré. Ajoutez des [[triggers]] dans apollia.toml.
+        {$t('triggers.empty')}
       </p>
     </div>
   {:else}

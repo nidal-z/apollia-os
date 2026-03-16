@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import type { MemoryEntry } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -17,12 +18,6 @@
     episodic: "default",
     semantic: "secondary",
     procedural: "outline",
-  };
-
-  const TYPE_LABEL: Record<string, string> = {
-    episodic: "Episodic",
-    semantic: "Semantic",
-    procedural: "Procedural",
   };
 
   function truncate(text: string, max: number): string {
@@ -56,7 +51,7 @@
     const exp = new Date(expiresAt).getTime();
     const diffMs = exp - now;
 
-    if (diffMs <= 0) return "expired";
+    if (diffMs <= 0) return $t('memory.expired');
 
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     if (hours < 24) return `${hours}h`;
@@ -87,8 +82,8 @@
   >
     <p class="text-muted-foreground">
       {searching
-        ? "Aucun résultat pour cette recherche."
-        : "Aucune entrée mémoire dans ce namespace."}
+        ? $t('memory.no_search_results')
+        : $t('memory.empty_entries')}
     </p>
   </div>
 {:else}
@@ -96,15 +91,15 @@
     <table class="w-full text-sm">
       <thead class="border-b bg-muted/50">
         <tr>
-          <th class="px-4 py-2 text-left font-medium text-muted-foreground">Type</th>
-          <th class="px-4 py-2 text-left font-medium text-muted-foreground">Clé</th>
-          <th class="px-4 py-2 text-left font-medium text-muted-foreground">Valeur</th>
+          <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.type')}</th>
+          <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.key')}</th>
+          <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.value')}</th>
           {#if searching}
-            <th class="px-4 py-2 text-left font-medium text-muted-foreground">Score</th>
+            <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.score')}</th>
           {/if}
-          <th class="px-4 py-2 text-left font-medium text-muted-foreground">Date</th>
-          <th class="px-4 py-2 text-left font-medium text-muted-foreground">TTL</th>
-          <th class="px-4 py-2 text-right font-medium text-muted-foreground">Actions</th>
+          <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.date')}</th>
+          <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.ttl')}</th>
+          <th class="px-4 py-2 text-right font-medium text-muted-foreground">{$t('memory.table.actions')}</th>
         </tr>
       </thead>
       <tbody>
@@ -112,7 +107,7 @@
           <tr class="border-b last:border-b-0 hover:bg-muted/30">
             <td class="px-4 py-2">
               <Badge variant={TYPE_VARIANT[entry.entry_type] ?? "secondary"}>
-                {TYPE_LABEL[entry.entry_type] ?? entry.entry_type}
+                {$t(`memory.type.${entry.entry_type}`, { default: entry.entry_type })}
               </Badge>
             </td>
             <td class="max-w-[160px] truncate px-4 py-2 font-mono text-xs" title={entry.key}>
@@ -136,10 +131,10 @@
               {#if confirmingId === entry.id}
                 <div class="inline-flex items-center gap-1">
                   <Button size="sm" variant="destructive" onclick={handleConfirmDelete}>
-                    Confirmer
+                    {$t('common.confirm')}
                   </Button>
                   <Button size="sm" variant="outline" onclick={handleCancelDelete}>
-                    Annuler
+                    {$t('common.cancel')}
                   </Button>
                 </div>
               {:else}
@@ -147,7 +142,7 @@
                   size="sm"
                   variant="ghost"
                   onclick={() => handleDeleteClick(entry.id)}
-                  aria-label="Supprimer"
+                  aria-label={$t('memory.delete_label')}
                 >
                   &#x1F5D1;
                 </Button>

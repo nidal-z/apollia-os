@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { LlmBackendStatus, LlmPingResult } from "$lib/types";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
@@ -17,11 +18,11 @@
 
   const STATUS_CONFIG: Record<
     LlmBackendStatus["status"],
-    { label: string; variant: "default" | "secondary" | "destructive" | "outline"; extraClass: string }
+    { labelKey: string; variant: "default" | "secondary" | "destructive" | "outline"; extraClass: string }
   > = {
-    ready: { label: "READY", variant: "default", extraClass: "bg-[var(--apollia-success)] text-white" },
-    loading: { label: "LOADING", variant: "outline", extraClass: "animate-pulse border-blue-500 text-blue-500" },
-    error: { label: "ERROR", variant: "destructive", extraClass: "" },
+    ready: { labelKey: "common.status.ready", variant: "default", extraClass: "bg-[var(--apollia-success)] text-white" },
+    loading: { labelKey: "common.status.loading", variant: "outline", extraClass: "animate-pulse border-blue-500 text-blue-500" },
+    error: { labelKey: "common.status.error", variant: "destructive", extraClass: "" },
   };
 
   const TYPE_CONFIG: Record<
@@ -63,7 +64,7 @@
           {typeConfig.label}
         </Badge>
         <Badge variant={statusConfig.variant} class={statusConfig.extraClass}>
-          {statusConfig.label}
+          {$t(statusConfig.labelKey)}
         </Badge>
       </div>
     </div>
@@ -72,12 +73,12 @@
   <CardContent>
     <div class="space-y-3">
       <div class="flex items-center gap-4 text-xs text-muted-foreground">
-        <span>Model: {backend.model}</span>
+        <span>{$t('llm.model')}: {backend.model}</span>
       </div>
 
       <div class="flex items-center gap-2">
         <Button size="sm" variant="outline" onclick={handlePing} disabled={pinging}>
-          {pinging ? "Pinging..." : "Ping"}
+          {pinging ? $t('llm.pinging') : $t('llm.ping')}
         </Button>
         {#if pingResult !== null}
           <span class="text-xs font-medium text-[var(--apollia-success)]">{pingResult}ms</span>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
+  import { t } from "svelte-i18n";
   import { currentRoute } from "$lib/stores/navigation";
   import { showOnboarding } from "$lib/stores/onboarding";
   import { Button } from "$lib/components/ui/button";
@@ -61,16 +62,16 @@
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
       <span class="text-2xl">⚙️</span>
-      <h1 class="text-2xl font-bold">Settings</h1>
+      <h1 class="text-2xl font-bold">{$t('settings.title')}</h1>
     </div>
     <Button onclick={openEditor} disabled={openingEditor}>
-      {openingEditor ? "Opening..." : "Open in Editor"}
+      {openingEditor ? $t('settings.opening') : $t('settings.open_editor')}
     </Button>
   </div>
 
   <!-- Info banner (AC-4) -->
   <div class="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200">
-    Configuration en lecture seule. Pour modifier, éditez <code class="rounded bg-blue-100 px-1 font-mono text-xs dark:bg-blue-900">apollia.toml</code> et redémarrez le runtime.
+    {$t('settings.readonly_banner', { values: { file: 'apollia.toml' } })}
   </div>
 
   {#if error}
@@ -81,14 +82,14 @@
 
   {#if loading}
     <div class="flex items-center justify-center py-16">
-      <p class="text-muted-foreground">Loading configuration...</p>
+      <p class="text-muted-foreground">{$t('settings.loading_config')}</p>
     </div>
   {:else if configView}
     <!-- Config file path -->
     <div class="text-xs text-muted-foreground">
       <span class="font-mono">{configView.config_path}</span>
       {#if !configView.config_exists}
-        <span class="ml-2 rounded bg-yellow-100 px-1.5 py-0.5 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200">file not found — showing defaults</span>
+        <span class="ml-2 rounded bg-yellow-100 px-1.5 py-0.5 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200">{$t('settings.file_not_found')}</span>
       {/if}
     </div>
 
@@ -109,11 +110,11 @@
             >
               <span>
                 {#if section.name === "llm"}
-                  See LLM backends
+                  {$t('settings.see_llm')}
                 {:else if section.name === "triggers"}
-                  See triggers
+                  {$t('settings.see_triggers')}
                 {:else}
-                  See details
+                  {$t('settings.see_details')}
                 {/if}
               </span>
               <span>&rarr;</span>
@@ -135,14 +136,14 @@
 
     <!-- Advanced section (AC-5) -->
     <div class="rounded-lg border bg-card p-4">
-      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Advanced</h2>
+      <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{$t('settings.advanced')}</h2>
       <div class="flex items-center justify-between">
         <div>
-          <p class="text-sm">Review onboarding</p>
-          <p class="text-xs text-muted-foreground">Reset the onboarding flag and restart to see the welcome wizard.</p>
+          <p class="text-sm">{$t('settings.review_onboarding')}</p>
+          <p class="text-xs text-muted-foreground">{$t('settings.review_onboarding_desc')}</p>
         </div>
         <Button variant="outline" size="sm" onclick={resetOnboarding} disabled={resettingOnboarding}>
-          {resettingOnboarding ? "Resetting..." : "Reset Onboarding"}
+          {resettingOnboarding ? $t('settings.resetting') : $t('settings.reset_onboarding')}
         </Button>
       </div>
     </div>

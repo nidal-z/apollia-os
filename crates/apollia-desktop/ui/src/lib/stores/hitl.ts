@@ -7,8 +7,11 @@
  * Includes browser notification support for new approvals when the
  * window is not focused (AC-7).
  */
-import { derived } from "svelte/store";
+import { derived, get } from "svelte/store";
+import { locale } from "svelte-i18n";
 import { pendingApprovals } from "./sse";
+import en from "$lib/i18n/en.json";
+import fr from "$lib/i18n/fr.json";
 
 export { pendingApprovals } from "./sse";
 
@@ -25,11 +28,22 @@ export function requestNotificationPermission(): void {
   }
 }
 
+/** Resolve the i18n translations for native notifications. */
+function getNotificationStrings(): { title: string; bodyTemplate: string } {
+  const currentLocale = get(locale) ?? "en";
+  const messages = currentLocale.startsWith("fr") ? fr : en;
+  return {
+    title: messages.notifications.native.approval_title,
+    bodyTemplate: messages.notifications.native.approval_body,
+  };
+}
+
 /** Send a browser notification for a new approval when the window is not focused. */
 export function notifyNewApproval(agentName: string): void {
   if (document.hidden && Notification.permission === "granted") {
-    new Notification("Action requise", {
-      body: `Agent ${agentName} attend une approbation`,
+    const { title, bodyTemplate } = getNotificationStrings();
+    new Notification(title, {
+      body: bodyTemplate.replace("{agentName}", agentName),
       icon: "/favicon.png",
     });
   }

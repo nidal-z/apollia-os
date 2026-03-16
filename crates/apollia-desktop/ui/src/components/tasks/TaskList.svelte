@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
   import { tasks } from "$lib/stores/tasks";
   import { agents } from "$lib/stores/agents";
@@ -14,13 +15,17 @@
 
   type StatusTab = "all" | "working" | "completed" | "failed" | "input_required";
 
-  const TABS: { key: StatusTab; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "working", label: "Running" },
-    { key: "completed", label: "Completed" },
-    { key: "failed", label: "Failed" },
-    { key: "input_required", label: "Pending Approval" },
-  ];
+  const PAGE_SIZE = 50;
+
+  let activeTab = $state<StatusTab>("all");
+  let filterAgentId = $state<string>("");
+  let visibleCount = $state(PAGE_SIZE);
+
+  let showNewTaskDialog = $state(false);
+  let newTaskAgentId = $state("");
+  let newTaskInput = $state("");
+  let submitting = $state(false);
+  let submitError = $state<string | null>(null);
 
   const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
     completed: "default",
@@ -36,18 +41,6 @@
     working: "animate-pulse border-blue-500 text-blue-500",
     input_required: "border-[var(--apollia-warning)] text-[var(--apollia-warning)]",
   };
-
-  const PAGE_SIZE = 50;
-
-  let activeTab = $state<StatusTab>("all");
-  let filterAgentId = $state<string>("");
-  let visibleCount = $state(PAGE_SIZE);
-
-  let showNewTaskDialog = $state(false);
-  let newTaskAgentId = $state("");
-  let newTaskInput = $state("");
-  let submitting = $state(false);
-  let submitError = $state<string | null>(null);
 
   let filteredTasks = $derived.by<TaskSummary[]>(() => {
     let result = $tasks;
@@ -142,20 +135,28 @@
 
   const MAX_INPUT_LENGTH = 4000;
   let inputCharCount = $derived(newTaskInput.length);
+
+  const TAB_KEYS: { key: StatusTab; labelKey: string }[] = [
+    { key: "all", labelKey: "tasks.tab_all" },
+    { key: "working", labelKey: "tasks.tab_running" },
+    { key: "completed", labelKey: "tasks.tab_completed" },
+    { key: "failed", labelKey: "tasks.tab_failed" },
+    { key: "input_required", labelKey: "tasks.tab_pending_approval" },
+  ];
 </script>
 
 <div class="space-y-4">
   <!-- Tabs + agent filter + New Task button -->
   <div class="flex flex-wrap items-center gap-3">
     <div class="flex gap-1 rounded-md border bg-muted/30 p-1">
-      {#each TABS as tab}
+      {#each TAB_KEYS as tab}
         <button
           class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === tab.key
             ? 'bg-background text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground'}"
           onclick={() => handleTabChange(tab.key)}
         >
-          {tab.label}
+          {$t(tab.labelKey)}
         </button>
       {/each}
     </div>
@@ -164,21 +165,21 @@
       class="rounded-md border bg-background px-3 py-1.5 text-sm"
       bind:value={filterAgentId}
     >
-      <option value="">All agents</option>
+      <option value="">{$t('tasks.all_agents')}</option>
       {#each uniqueAgents as agent}
         <option value={agent.id}>{agent.name}</option>
       {/each}
     </select>
 
     <div class="ml-auto">
-      <Button size="sm" onclick={openNewTaskDialog} data-testid="new-task-btn">New Task</Button>
+      <Button size="sm" onclick={openNewTaskDialog} data-testid="new-task-btn">{$t('tasks.new_task')}</Button>
     </div>
   </div>
 
   <!-- Task list -->
   {#if visibleTasks.length === 0}
     <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
-      <p class="text-muted-foreground">No tasks match the current filters.</p>
+      <p class="text-muted-foreground">{$t('tasks.no_match')}</p>
     </div>
   {:else}
     <div class="space-y-1">
@@ -206,7 +207,7 @@
 
     {#if hasMore}
       <div class="flex justify-center pt-2">
-        <Button size="sm" variant="outline" onclick={loadMore}>Load more</Button>
+        <Button size="sm" variant="outline" onclick={loadMore}>{$t('common.load_more')}</Button>
       </div>
     {/if}
   {/if}
@@ -230,18 +231,18 @@
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.key === "Escape" && closeNewTaskDialog()}
     >
-      <h3 class="mb-4 text-lg font-semibold">New Task</h3>
+      <h3 class="mb-4 text-lg font-semibold">{$t('tasks.new_task')}</h3>
 
       <div class="space-y-4">
         <div>
-          <label class="mb-1 block text-sm font-medium" for="new-task-agent">Agent</label>
+          <label class="mb-1 block text-sm font-medium" for="new-task-agent">{$t('tasks.agent_label')}</label>
           <select
             id="new-task-agent"
             class="w-full rounded-md border bg-background px-3 py-2 text-sm"
             data-testid="new-task-agent-select"
             bind:value={newTaskAgentId}
           >
-            <option value="" disabled>Select an agent...</option>
+            <option value="" disabled>{$t('tasks.select_agent')}</option>
             {#each activeAgents as agent}
               <option value={agent.id}>{agent.name}</option>
             {/each}
@@ -249,13 +250,13 @@
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium" for="new-task-input">Input</label>
+          <label class="mb-1 block text-sm font-medium" for="new-task-input">{$t('tasks.input_label')}</label>
           <textarea
             id="new-task-input"
             class="w-full rounded-md border bg-background px-3 py-2 text-sm"
             rows="6"
             maxlength={MAX_INPUT_LENGTH}
-            placeholder="Describe the task for the agent..."
+            placeholder={$t('tasks.input_placeholder')}
             data-testid="new-task-input"
             bind:value={newTaskInput}
           ></textarea>
@@ -269,14 +270,14 @@
         {/if}
 
         <div class="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onclick={closeNewTaskDialog}>Cancel</Button>
+          <Button variant="outline" size="sm" onclick={closeNewTaskDialog}>{$t('common.cancel')}</Button>
           <Button
             size="sm"
             onclick={handleSubmitTask}
             disabled={!newTaskAgentId || !newTaskInput.trim() || submitting}
             data-testid="new-task-submit-btn"
           >
-            {submitting ? "Submitting..." : "Submit"}
+            {submitting ? $t('common.submitting') : $t('common.submit')}
           </Button>
         </div>
       </div>

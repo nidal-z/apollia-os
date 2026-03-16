@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
+  import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
 
   interface Props {
@@ -11,15 +12,15 @@
   let { onContinue, onSkip }: Props = $props();
 
   interface CheckResult {
-    label: string;
+    labelKey: string;
     passed: boolean | null;
-    helpText?: string;
+    helpTextKey?: string;
   }
 
   let checks = $state<CheckResult[]>([
-    { label: "Runtime started", passed: null },
-    { label: "Python 3 detected", passed: null },
-    { label: "LLM backend configured", passed: null },
+    { labelKey: "onboarding.check_runtime", passed: null },
+    { labelKey: "onboarding.check_python", passed: null },
+    { labelKey: "onboarding.check_llm", passed: null },
   ]);
 
   let allChecked = $derived(checks.every((c) => c.passed !== null));
@@ -39,9 +40,7 @@
     checks[1] = {
       ...checks[1],
       passed: hasPython,
-      helpText: hasPython
-        ? undefined
-        : "Python 3 is required to run agents. Install it from python.org or via your package manager.",
+      helpTextKey: hasPython ? undefined : "onboarding.python_help",
     };
 
     const hasLlm =
@@ -49,9 +48,7 @@
     checks[2] = {
       ...checks[2],
       passed: hasLlm,
-      helpText: hasLlm
-        ? undefined
-        : "No LLM backend configured. Add one in apollia.toml to enable AI capabilities.",
+      helpTextKey: hasLlm ? undefined : "onboarding.llm_help",
     };
   }
 
@@ -62,9 +59,9 @@
 
 <div class="space-y-6">
   <div>
-    <h2 class="text-xl font-semibold">Environment check</h2>
+    <h2 class="text-xl font-semibold">{$t('onboarding.env_check_title')}</h2>
     <p class="mt-1 text-sm text-muted-foreground">
-      Verifying that your system is ready to run Apollia OS agents.
+      {$t('onboarding.env_check_subtitle')}
     </p>
   </div>
 
@@ -83,10 +80,10 @@
           {/if}
         </span>
         <div class="flex-1">
-          <p class="text-sm font-medium">{check.label}</p>
-          {#if check.helpText}
+          <p class="text-sm font-medium">{$t(check.labelKey)}</p>
+          {#if check.helpTextKey}
             <p class="mt-1 text-xs text-[hsl(var(--destructive))]">
-              {check.helpText}
+              {$t(check.helpTextKey)}
             </p>
           {/if}
         </div>
@@ -95,7 +92,7 @@
   </div>
 
   <div class="flex justify-end gap-3">
-    <Button variant="ghost" onclick={onSkip}>Skip</Button>
-    <Button disabled={!canContinue} onclick={onContinue}>Continue</Button>
+    <Button variant="ghost" onclick={onSkip}>{$t('common.skip')}</Button>
+    <Button disabled={!canContinue} onclick={onContinue}>{$t('common.continue')}</Button>
   </div>
 </div>

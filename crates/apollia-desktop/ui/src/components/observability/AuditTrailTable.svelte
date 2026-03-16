@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { AuditTrailEntry } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
 
@@ -13,21 +14,17 @@
   let hasMore = $state(false);
   let loadingMore = $state(false);
 
-  /** Filter state. */
   let filterTool = $state<string>("all");
   let filterAgent = $state<string>("all");
 
-  /** Unique tool names from loaded entries. */
   let uniqueTools = $derived(
     [...new Set(entries.map((e) => e.tool_name))].sort(),
   );
 
-  /** Unique agent names from loaded entries (for the filter dropdown). */
   let uniqueAgents = $derived(
     [...new Set(entries.map((e) => e.agent_name))].sort(),
   );
 
-  /** Filtered entries based on dropdown selections. */
   let filteredEntries = $derived(
     entries.filter((e) => {
       if (filterTool !== "all" && e.tool_name !== filterTool) return false;
@@ -97,13 +94,13 @@
   <!-- Filters -->
   <div class="flex flex-wrap items-center gap-4">
     <div class="flex items-center gap-2">
-      <label for="filter-tool" class="text-sm text-muted-foreground">Tool:</label>
+      <label for="filter-tool" class="text-sm text-muted-foreground">{$t('observability.tool_filter')}</label>
       <select
         id="filter-tool"
         class="rounded-md border bg-background px-2 py-1 text-sm"
         bind:value={filterTool}
       >
-        <option value="all">All tools</option>
+        <option value="all">{$t('observability.all_tools')}</option>
         {#each uniqueTools as tool (tool)}
           <option value={tool}>{tool}</option>
         {/each}
@@ -111,13 +108,13 @@
     </div>
 
     <div class="flex items-center gap-2">
-      <label for="filter-agent" class="text-sm text-muted-foreground">Agent:</label>
+      <label for="filter-agent" class="text-sm text-muted-foreground">{$t('observability.agent_filter')}</label>
       <select
         id="filter-agent"
         class="rounded-md border bg-background px-2 py-1 text-sm"
         bind:value={filterAgent}
       >
-        <option value="all">All agents</option>
+        <option value="all">{$t('observability.all_agents')}</option>
         {#each uniqueAgents as agentName (agentName)}
           <option value={agentName}>{agentName}</option>
         {/each}
@@ -127,28 +124,27 @@
 
   <!-- Table -->
   {#if loading}
-    <p class="text-sm text-muted-foreground">Loading audit trail...</p>
+    <p class="text-sm text-muted-foreground">{$t('observability.loading_audit')}</p>
   {:else if error}
     <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
   {:else if filteredEntries.length === 0}
     <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
-      <p class="text-muted-foreground">Aucune invocation d'outil enregistrée.</p>
+      <p class="text-muted-foreground">{$t('observability.empty_audit')}</p>
     </div>
   {:else}
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
         <thead>
           <tr class="border-b text-left text-xs text-muted-foreground">
-            <th class="pb-2 pr-4 font-medium">Timestamp</th>
-            <th class="pb-2 pr-4 font-medium">Tool</th>
-            <th class="pb-2 pr-4 font-medium">Agent</th>
-            <th class="pb-2 pr-4 text-right font-medium">Duration</th>
-            <th class="pb-2 text-right font-medium">Exit</th>
+            <th class="pb-2 pr-4 font-medium">{$t('observability.table.timestamp')}</th>
+            <th class="pb-2 pr-4 font-medium">{$t('observability.table.tool')}</th>
+            <th class="pb-2 pr-4 font-medium">{$t('observability.table.agent')}</th>
+            <th class="pb-2 pr-4 text-right font-medium">{$t('observability.table.duration')}</th>
+            <th class="pb-2 text-right font-medium">{$t('observability.table.exit')}</th>
           </tr>
         </thead>
         <tbody>
           {#each filteredEntries as entry (entry.id)}
-            <!-- Main row -->
             <tr
               class="cursor-pointer border-b border-dashed transition-colors hover:bg-accent/30"
               onclick={() => toggleRow(entry.id)}
@@ -168,14 +164,13 @@
               </td>
             </tr>
 
-            <!-- Expanded detail -->
             {#if expandedRows.has(entry.id)}
               <tr>
                 <td colspan="5" class="px-4 pb-3 pt-1">
                   <div class="space-y-2 rounded border bg-muted/20 p-3">
                     {#if entry.args_json}
                       <div>
-                        <span class="text-xs font-medium text-muted-foreground">Arguments:</span>
+                        <span class="text-xs font-medium text-muted-foreground">{$t('observability.table.arguments')}:</span>
                         <pre class="mt-1 overflow-x-auto rounded bg-muted/30 p-2 text-xs">{entry.args_json}</pre>
                       </div>
                     {/if}
@@ -192,7 +187,7 @@
                       </div>
                     {/if}
                     {#if !entry.args_json && !entry.stdout && !entry.stderr}
-                      <p class="text-xs text-muted-foreground">No detailed data available.</p>
+                      <p class="text-xs text-muted-foreground">{$t('observability.table.no_details')}</p>
                     {/if}
                   </div>
                 </td>
@@ -203,7 +198,6 @@
       </table>
     </div>
 
-    <!-- Load more -->
     {#if hasMore}
       <div class="flex justify-center">
         <Button
@@ -212,7 +206,7 @@
           disabled={loadingMore}
           onclick={() => void loadMore()}
         >
-          {loadingMore ? "Loading..." : "Load 50 more"}
+          {loadingMore ? $t('common.loading') : $t('observability.load_more_audit', { values: { count: PAGE_SIZE } })}
         </Button>
       </div>
     {/if}

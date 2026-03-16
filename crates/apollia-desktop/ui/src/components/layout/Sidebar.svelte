@@ -1,46 +1,47 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import { currentRoute, type Route } from "$lib/stores/navigation";
   import { connectionStatus } from "$lib/stores/sse";
   import { pendingCount } from "$lib/stores/hitl";
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
 
-  /** Groupe de navigation avec label et items. */
+  /** Groupe de navigation avec clé i18n et items. */
   type NavGroup = {
-    label: string;
-    items: { route: Route; label: string; icon: string }[];
+    labelKey: string;
+    items: { route: Route; labelKey: string; icon: string }[];
   };
 
   const navGroups: NavGroup[] = [
     {
-      label: "Operations",
+      labelKey: "nav.operations",
       items: [
-        { route: "agents", label: "Agents", icon: "🤖" },
-        { route: "tasks", label: "Tasks", icon: "📋" },
-        { route: "approvals", label: "Approvals", icon: "✋" },
+        { route: "agents", labelKey: "nav.agents", icon: "🤖" },
+        { route: "tasks", labelKey: "nav.tasks", icon: "📋" },
+        { route: "approvals", labelKey: "nav.approvals", icon: "✋" },
       ],
     },
     {
-      label: "Infrastructure",
+      labelKey: "nav.infrastructure",
       items: [
-        { route: "llm", label: "LLM", icon: "🧠" },
-        { route: "triggers", label: "Triggers", icon: "⏱️" },
-        { route: "pipelines", label: "Pipelines", icon: "🔗" },
+        { route: "llm", labelKey: "nav.llm", icon: "🧠" },
+        { route: "triggers", labelKey: "nav.triggers", icon: "⏱️" },
+        { route: "pipelines", labelKey: "nav.pipelines", icon: "🔗" },
       ],
     },
     {
-      label: "Data",
+      labelKey: "nav.data",
       items: [
-        { route: "memory", label: "Memory", icon: "💾" },
-        { route: "notifications", label: "Notifications", icon: "🔔" },
-        { route: "observability", label: "Observability", icon: "📊" },
+        { route: "memory", labelKey: "nav.memory", icon: "💾" },
+        { route: "notifications", labelKey: "nav.notifications", icon: "🔔" },
+        { route: "observability", labelKey: "nav.observability", icon: "📊" },
       ],
     },
   ];
 
-  const settingsItem: { route: Route; label: string; icon: string } = {
+  const settingsItem: { route: Route; labelKey: string; icon: string } = {
     route: "settings",
-    label: "Settings",
+    labelKey: "nav.settings",
     icon: "⚙️",
   };
 
@@ -48,11 +49,11 @@
     currentRoute.set(route);
   }
 
-  const STATUS_LABELS: Record<string, string> = {
-    connecting: "Connecting...",
-    connected: "Runtime connected",
-    reconnecting: "Reconnecting...",
-    error: "Connection lost",
+  const CONNECTION_KEYS: Record<string, string> = {
+    connecting: "nav.connection.connecting",
+    connected: "nav.connection.connected",
+    reconnecting: "nav.connection.reconnecting",
+    error: "nav.connection.error",
   };
 </script>
 
@@ -67,8 +68,8 @@
   <!-- Navigation groups -->
   <nav class="flex flex-1 flex-col p-3" data-testid="sidebar-nav">
     {#each navGroups as group, groupIndex}
-      <span class="mb-1 mt-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60" data-testid="nav-group-{group.label.toLowerCase()}"
-        >{group.label}</span
+      <span class="mb-1 mt-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60" data-testid="nav-group-{group.labelKey.split('.')[1]}"
+        >{$t(group.labelKey)}</span
       >
       {#each group.items as item}
         <button
@@ -80,7 +81,7 @@
           onclick={() => navigate(item.route)}
         >
           <span>{item.icon}</span>
-          <span>{item.label}</span>
+          <span>{$t(item.labelKey)}</span>
           {#if item.route === "approvals" && $pendingCount > 0}
             <Badge variant="destructive" class="ml-auto text-[10px] px-1.5 py-0" data-testid="approvals-badge"
               >{$pendingCount}</Badge
@@ -108,7 +109,7 @@
       onclick={() => navigate(settingsItem.route)}
     >
       <span>{settingsItem.icon}</span>
-      <span>{settingsItem.label}</span>
+      <span>{$t(settingsItem.labelKey)}</span>
     </button>
   </nav>
 
@@ -124,7 +125,7 @@
       <span class="h-2 w-2 rounded-full bg-[hsl(var(--destructive))]" data-testid="connection-dot"></span>
     {/if}
     <span class="text-xs text-muted-foreground" data-testid="connection-label"
-      >{STATUS_LABELS[$connectionStatus] ?? "Unknown"}</span
+      >{$t(CONNECTION_KEYS[$connectionStatus] ?? 'common.unknown')}</span
     >
   </div>
 </aside>

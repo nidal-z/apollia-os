@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { PendingApproval, ResolvedApproval } from "$lib/types";
   import { pendingApprovals, pendingCount, requestNotificationPermission } from "$lib/stores/hitl";
   import { Badge } from "$lib/components/ui/badge";
@@ -38,23 +39,23 @@
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex items-center gap-3">
-    <h1 class="text-2xl font-bold" data-testid="approvals-header">Approvals</h1>
+    <h1 class="text-2xl font-bold" data-testid="approvals-header">{$t('approvals.title')}</h1>
     {#if $pendingCount > 0}
-      <Badge variant="destructive" data-testid="approvals-pending-count">{$pendingCount} pending</Badge>
+      <Badge variant="destructive" data-testid="approvals-pending-count">{$t('approvals.pending_count', { values: { count: $pendingCount } })}</Badge>
     {/if}
   </div>
 
   {#if loading}
-    <p class="text-sm text-muted-foreground">Loading approvals...</p>
+    <p class="text-sm text-muted-foreground">{$t('approvals.loading')}</p>
   {:else if error}
     <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
   {:else}
     <!-- Pending approvals section -->
     <section>
-      <h2 class="mb-3 text-lg font-semibold" data-testid="approvals-pending-title">Pending</h2>
+      <h2 class="mb-3 text-lg font-semibold" data-testid="approvals-pending-title">{$t('approvals.pending_title')}</h2>
       {#if $pendingApprovals.length === 0}
         <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
-          <p class="text-muted-foreground">Aucune approbation en attente</p>
+          <p class="text-muted-foreground">{$t('approvals.no_pending')}</p>
         </div>
       {:else}
         <div class="space-y-3">
@@ -69,7 +70,7 @@
 
     <!-- History section -->
     <section>
-      <h2 class="mb-3 text-lg font-semibold">History (last 7 days)</h2>
+      <h2 class="mb-3 text-lg font-semibold">{$t('approvals.history_title')}</h2>
       <ApprovalHistory {history} />
     </section>
   {/if}

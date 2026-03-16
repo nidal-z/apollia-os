@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { LlmCostStatsResponse, LlmCostStatsRow } from "$lib/types";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
 
@@ -56,26 +57,26 @@
 
 <Card>
   <CardHeader>
-    <CardTitle class="text-base font-semibold">Session Statistics (7 days)</CardTitle>
+    <CardTitle class="text-base font-semibold">{$t('llm.session_stats_title')}</CardTitle>
   </CardHeader>
 
   <CardContent>
     {#if loading}
-      <p class="text-sm text-muted-foreground">Loading statistics...</p>
+      <p class="text-sm text-muted-foreground">{$t('llm.loading_stats')}</p>
     {:else if error}
       <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
     {:else if rows.length === 0}
-      <p class="text-sm text-muted-foreground">No LLM calls recorded in the last 7 days.</p>
+      <p class="text-sm text-muted-foreground">{$t('llm.no_calls')}</p>
     {:else}
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b text-left text-xs text-muted-foreground">
-              <th class="pb-2 pr-4 font-medium">Backend</th>
-              <th class="pb-2 pr-4 font-medium">Model</th>
-              <th class="pb-2 pr-4 text-right font-medium">Calls</th>
-              <th class="pb-2 pr-4 text-right font-medium">Tokens</th>
-              <th class="pb-2 text-right font-medium">Cost USD</th>
+              <th class="pb-2 pr-4 font-medium">{$t('llm.table.backend')}</th>
+              <th class="pb-2 pr-4 font-medium">{$t('llm.table.model')}</th>
+              <th class="pb-2 pr-4 text-right font-medium">{$t('llm.table.calls')}</th>
+              <th class="pb-2 pr-4 text-right font-medium">{$t('llm.table.tokens')}</th>
+              <th class="pb-2 text-right font-medium">{$t('llm.table.cost_usd')}</th>
             </tr>
           </thead>
           <tbody>
@@ -89,7 +90,7 @@
               </tr>
             {/each}
             <tr class="font-bold">
-              <td class="pt-2" colspan="2">Total</td>
+              <td class="pt-2" colspan="2">{$t('llm.table.total')}</td>
               <td class="pt-2 text-right">{totalCalls}</td>
               <td class="pt-2 text-right">{formatTokens(totalTokens)}</td>
               <td class="pt-2 text-right">{formatCost(totalCost)}</td>

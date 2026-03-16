@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { TriggerLogEntry } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -57,7 +58,7 @@
 
   function formatTimestamp(iso: string): string {
     const date = new Date(iso);
-    return date.toLocaleString("fr-FR", {
+    return date.toLocaleString(undefined, {
       month: "short",
       day: "numeric",
       hour: "2-digit",
@@ -97,14 +98,14 @@
       <!-- Header -->
       <div class="mb-4 flex items-center justify-between">
         <h2 class="text-lg font-semibold">
-          Logs — <code class="text-sm">{triggerId}</code>
+          {$t('triggers.logs_title')} — <code class="text-sm">{triggerId}</code>
         </h2>
         <Button size="sm" variant="ghost" onclick={onclose}>✕</Button>
       </div>
 
       <!-- Content -->
       {#if loading}
-        <p class="text-sm text-muted-foreground">Loading...</p>
+        <p class="text-sm text-muted-foreground">{$t('common.loading')}</p>
       {:else if error}
         <div
           class="rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 px-4 py-2 text-sm text-[hsl(var(--destructive))]"
@@ -113,7 +114,7 @@
         </div>
       {:else if entries.length === 0}
         <p class="text-sm text-muted-foreground">
-          No log entries for this trigger.
+          {$t('triggers.no_logs')}
         </p>
       {:else}
         <div class="space-y-2">
@@ -132,10 +133,10 @@
                 </span>
               </div>
               <div class="mt-1 text-xs text-muted-foreground">
-                Agent: {entry.agent_name}
+                {$t('triggers.agent_label')}: {entry.agent_name}
                 {#if entry.task_id}
                   <span class="ml-2">
-                    Task: <code>{entry.task_id.slice(0, 8)}</code>
+                    {$t('triggers.task_label')}: <code>{entry.task_id.slice(0, 8)}</code>
                   </span>
                 {/if}
               </div>
@@ -157,7 +158,7 @@
           onclick={loadLogs}
           disabled={loading}
         >
-          {loading ? "Loading..." : "Refresh"}
+          {loading ? $t('common.loading') : $t('common.refresh')}
         </Button>
       </div>
     </div>

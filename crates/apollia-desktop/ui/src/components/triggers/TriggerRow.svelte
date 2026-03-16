@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { TriggerStatus, TriggerFireResult } from "$lib/types";
   import { Card, CardContent } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
@@ -104,7 +105,7 @@
             </Badge>
           </div>
           <div class="mt-0.5 text-xs text-muted-foreground">
-            Agent: {trigger.agent}
+            {$t('triggers.agent_label')}: {trigger.agent}
           </div>
         </div>
       </div>
@@ -113,18 +114,18 @@
       <div class="flex items-center gap-4 text-xs text-muted-foreground">
         <div class="text-center">
           <div class="font-medium text-foreground">{trigger.fire_count}</div>
-          <div>fires</div>
+          <div>{$t('triggers.fires')}</div>
         </div>
         <div class="text-center">
           <div class="font-medium text-foreground">{trigger.skip_count}</div>
-          <div>skips</div>
+          <div>{$t('triggers.skips')}</div>
         </div>
         {#if trigger.last_fired}
           <div class="min-w-[60px] text-center">
             <div class="font-medium text-foreground">
               {formatRelativeTime(trigger.last_fired)}
             </div>
-            <div>last fire</div>
+            <div>{$t('triggers.last_fire')}</div>
           </div>
         {/if}
       </div>
@@ -136,7 +137,7 @@
           : 'bg-muted'}"
         onclick={handleToggle}
         disabled={toggling}
-        aria-label={trigger.enabled ? "Disable trigger" : "Enable trigger"}
+        aria-label={trigger.enabled ? $t('triggers.disable_trigger') : $t('triggers.enable_trigger')}
       >
         <span
           class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform {trigger.enabled
@@ -153,14 +154,14 @@
           onclick={handleFire}
           disabled={firing || !trigger.enabled}
         >
-          {firing ? "..." : "Fire"}
+          {firing ? "..." : $t('triggers.fire')}
         </Button>
         <Button
           size="sm"
           variant="ghost"
           onclick={() => onlogs(trigger.id)}
         >
-          Logs
+          {$t('triggers.logs')}
         </Button>
       </div>
     </div>

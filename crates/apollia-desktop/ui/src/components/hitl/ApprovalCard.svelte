@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { onDestroy } from "svelte";
+  import { t } from "svelte-i18n";
   import type { PendingApproval } from "$lib/types";
   import {
     Card,
@@ -20,7 +21,6 @@
   const WARNING_THRESHOLD_MS = 1_800_000;
   const MIN_REASON_LENGTH = 10;
 
-  // Live elapsed counter
   let elapsedMs = $state(computeElapsed());
   const timer = setInterval(() => {
     elapsedMs = computeElapsed();
@@ -45,22 +45,18 @@
 
   let isOverThreshold = $derived(elapsedMs > WARNING_THRESHOLD_MS);
 
-  // Approve flow
   let showApproveConfirm = $state(false);
   let approving = $state(false);
   let approveError = $state<string | null>(null);
 
-  // Reject flow
   let showRejectDialog = $state(false);
   let rejectReason = $state("");
   let rejecting = $state(false);
   let rejectError = $state<string | null>(null);
   let reasonValid = $derived(rejectReason.trim().length >= MIN_REASON_LENGTH);
 
-  // Context JSON toggle
   let showContext = $state(false);
 
-  // Resolved state — hide card after action
   let resolved = $state(false);
 
   async function handleApprove() {
@@ -128,7 +124,7 @@
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
           <CardTitle class="text-base font-semibold">
-            {approval.agent_name || "Unknown agent"}
+            {approval.agent_name || $t('approvals.unknown_agent')}
           </CardTitle>
           <code class="text-xs text-muted-foreground">{shortId(approval.task_id)}</code>
         </div>
@@ -147,9 +143,9 @@
       <div class="space-y-3">
         <!-- Prompt -->
         <div>
-          <h4 class="mb-1 text-xs font-semibold text-muted-foreground">Prompt</h4>
+          <h4 class="mb-1 text-xs font-semibold text-muted-foreground">{$t('approvals.prompt_label')}</h4>
           <div class="max-h-[400px] overflow-auto rounded border bg-muted/30 p-3">
-            <p class="whitespace-pre-wrap text-sm">{approval.prompt || "No prompt"}</p>
+            <p class="whitespace-pre-wrap text-sm">{approval.prompt || $t('approvals.no_prompt')}</p>
           </div>
         </div>
 
@@ -160,7 +156,7 @@
               class="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
               onclick={() => (showContext = !showContext)}
             >
-              <span>{showContext ? "Hide" : "Show"} context</span>
+              <span>{showContext ? $t('approvals.hide_context') : $t('approvals.show_context')}</span>
               <span class="text-[10px]">{showContext ? "▲" : "▼"}</span>
             </button>
             {#if showContext}
@@ -182,7 +178,7 @@
         <!-- Action buttons / dialogs -->
         {#if showApproveConfirm}
           <div class="rounded border border-[var(--apollia-success)] bg-[var(--apollia-success)]/5 p-3">
-            <p class="mb-2 text-sm">Confirm approval for this task?</p>
+            <p class="mb-2 text-sm">{$t('approvals.confirm_approval')}</p>
             <div class="flex gap-2">
               <Button
                 size="sm"
@@ -191,20 +187,20 @@
                 disabled={approving}
                 data-testid="approval-confirm-btn"
               >
-                {approving ? "Approving..." : "Confirm"}
+                {approving ? $t('approvals.approving') : $t('common.confirm')}
               </Button>
               <Button size="sm" variant="outline" onclick={cancelDialogs}>
-                Cancel
+                {$t('common.cancel')}
               </Button>
             </div>
           </div>
         {:else if showRejectDialog}
           <div class="rounded border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/5 p-3">
-            <p class="mb-2 text-sm">Reason for rejection (min {MIN_REASON_LENGTH} characters):</p>
+            <p class="mb-2 text-sm">{$t('approvals.reject_reason', { values: { min: MIN_REASON_LENGTH } })}</p>
             <textarea
               class="mb-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
               rows="3"
-              placeholder="Describe why you are rejecting this action..."
+              placeholder={$t('approvals.reject_placeholder')}
               bind:value={rejectReason}
             ></textarea>
             <p class="mb-2 text-xs text-muted-foreground">
@@ -217,10 +213,10 @@
                 onclick={handleReject}
                 disabled={!reasonValid || rejecting}
               >
-                {rejecting ? "Rejecting..." : "Reject"}
+                {rejecting ? $t('approvals.rejecting') : $t('approvals.reject')}
               </Button>
               <Button size="sm" variant="outline" onclick={cancelDialogs}>
-                Cancel
+                {$t('common.cancel')}
               </Button>
             </div>
           </div>
@@ -232,10 +228,10 @@
               onclick={openApproveConfirm}
               data-testid="approval-approve-btn"
             >
-              Approve
+              {$t('approvals.approve')}
             </Button>
             <Button size="sm" variant="destructive" onclick={openRejectDialog} data-testid="approval-reject-btn">
-              Reject
+              {$t('approvals.reject')}
             </Button>
           </div>
         {/if}

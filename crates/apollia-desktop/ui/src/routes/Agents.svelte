@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
+  import { t } from "svelte-i18n";
   import { agents } from "$lib/stores/agents";
   import { Button } from "$lib/components/ui/button";
   import AgentCard from "../components/agents/AgentCard.svelte";
@@ -45,9 +46,9 @@
 <div class="space-y-4">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold" data-testid="agents-header">Agents</h1>
+    <h1 class="text-2xl font-bold" data-testid="agents-header">{$t('agents.title')}</h1>
     <Button onclick={pickAndStartAgent} disabled={startingAgent} data-testid="register-agent-btn">
-      {startingAgent ? "Starting..." : "Register Agent"}
+      {startingAgent ? $t('agents.starting') : $t('agents.register')}
     </Button>
   </div>
 
@@ -62,9 +63,9 @@
   <!-- Agent list or empty state -->
   {#if $agents.length === 0}
     <div class="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-16">
-      <p class="text-muted-foreground">No agents registered yet.</p>
+      <p class="text-muted-foreground">{$t('agents.empty')}</p>
       <Button variant="outline" onclick={pickAndStartAgent} disabled={startingAgent}>
-        Register your first agent
+        {$t('agents.empty_cta')}
       </Button>
     </div>
   {:else}

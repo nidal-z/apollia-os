@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import StepEnvironment from "./StepEnvironment.svelte";
   import StepFirstAgent from "./StepFirstAgent.svelte";
   import StepFirstTask from "./StepFirstTask.svelte";
@@ -13,17 +14,17 @@
   let currentStep = $state<1 | 2 | 3>(1);
   let agentId = $state<string | null>(null);
 
-  const steps = [
-    { number: 1, label: "Environment" },
-    { number: 2, label: "First agent" },
-    { number: 3, label: "First task" },
+  const STEP_KEYS = [
+    { number: 1, labelKey: "onboarding.step_environment" },
+    { number: 2, labelKey: "onboarding.step_first_agent" },
+    { number: 3, labelKey: "onboarding.step_first_task" },
   ] as const;
 
   async function skip() {
     try {
       await invoke("mark_onboarded");
     } catch {
-      // Best effort — skip regardless
+      // Best effort
     }
     onComplete();
   }
@@ -32,7 +33,7 @@
     try {
       await invoke("mark_onboarded");
     } catch {
-      // Best effort — finish regardless
+      // Best effort
     }
     onComplete();
   }
@@ -47,15 +48,15 @@
   <div class="flex w-full max-w-xl flex-col px-6 py-10">
     <!-- Header -->
     <div class="mb-8 text-center">
-      <h1 class="text-3xl font-bold text-primary">Welcome to Apollia OS</h1>
+      <h1 class="text-3xl font-bold text-primary">{$t('onboarding.welcome_title')}</h1>
       <p class="mt-2 text-sm text-muted-foreground">
-        Let's make sure everything is set up correctly.
+        {$t('onboarding.welcome_subtitle')}
       </p>
     </div>
 
     <!-- Stepper -->
     <div class="mb-10 flex items-center justify-center gap-8">
-      {#each steps as step}
+      {#each STEP_KEYS as step}
         <div class="flex items-center gap-2">
           <span
             class="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold
@@ -76,7 +77,7 @@
               ? 'font-medium'
               : 'text-muted-foreground'}"
           >
-            {step.label}
+            {$t(step.labelKey)}
           </span>
         </div>
       {/each}
@@ -88,7 +89,7 @@
         class="text-sm text-muted-foreground underline-offset-4 hover:underline"
         onclick={skip}
       >
-        Skip setup
+        {$t('onboarding.skip_setup')}
       </button>
     </div>
 

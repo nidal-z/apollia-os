@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import type { NotificationLogEntry } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
 
@@ -10,7 +11,6 @@
 
   let filterChannel = $state("all");
 
-  /** Unique channel IDs extracted from the per-entry `channels` map. */
   const channelIds = $derived(
     [...new Set(logs.flatMap((entry) => Object.keys(entry.channels)))].sort(),
   );
@@ -33,7 +33,6 @@
     return `${days}d ago`;
   }
 
-  /** Determine overall status for a log entry from per-channel results. */
   function entryStatus(
     entry: NotificationLogEntry,
   ): "sent" | "failed" {
@@ -43,7 +42,6 @@
     return "sent";
   }
 
-  /** Return the list of channel IDs displayed for a given entry. */
   function entryChannelIds(entry: NotificationLogEntry): string[] {
     return Object.keys(entry.channels);
   }
@@ -54,14 +52,14 @@
   {#if channelIds.length > 0}
     <div class="flex items-center gap-2">
       <label for="channel-filter" class="text-sm text-muted-foreground">
-        Filter by channel:
+        {$t('notifications.filter_by_channel')}
       </label>
       <select
         id="channel-filter"
         class="rounded-md border bg-background px-3 py-1.5 text-sm"
         bind:value={filterChannel}
       >
-        <option value="all">All channels</option>
+        <option value="all">{$t('notifications.all_channels')}</option>
         {#each channelIds as cid}
           <option value={cid}>{cid}</option>
         {/each}
@@ -74,7 +72,7 @@
     <div
       class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12"
     >
-      <p class="text-muted-foreground">Aucune notification dans l'historique.</p>
+      <p class="text-muted-foreground">{$t('notifications.empty_history')}</p>
     </div>
   {:else}
     <div class="overflow-auto rounded-md border">
@@ -82,16 +80,16 @@
         <thead>
           <tr class="border-b bg-muted/50">
             <th class="px-3 py-2 text-left font-medium text-muted-foreground">
-              Timestamp
+              {$t('notifications.table.timestamp')}
             </th>
             <th class="px-3 py-2 text-left font-medium text-muted-foreground">
-              Canal
+              {$t('notifications.table.channel')}
             </th>
             <th class="px-3 py-2 text-left font-medium text-muted-foreground">
-              Event
+              {$t('notifications.table.event')}
             </th>
             <th class="px-3 py-2 text-left font-medium text-muted-foreground">
-              Statut
+              {$t('notifications.table.status')}
             </th>
           </tr>
         </thead>
@@ -116,10 +114,10 @@
                     variant="default"
                     class="bg-[var(--apollia-success)] text-white"
                   >
-                    sent
+                    {$t('notifications.status.sent')}
                   </Badge>
                 {:else}
-                  <Badge variant="destructive">failed</Badge>
+                  <Badge variant="destructive">{$t('notifications.status.failed')}</Badge>
                 {/if}
               </td>
             </tr>

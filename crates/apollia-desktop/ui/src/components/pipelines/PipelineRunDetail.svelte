@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { PipelineRunDetail as RunDetail } from "$lib/types";
   import { currentRoute } from "$lib/stores/navigation";
   import { Sheet } from "$lib/components/ui/sheet";
@@ -130,7 +131,7 @@
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
-        <h2 class="text-lg font-semibold">Pipeline Run</h2>
+        <h2 class="text-lg font-semibold">{$t('pipelines.detail_title')}</h2>
         {#if detail}
           <Badge
             variant={STEP_STATUS_VARIANT[detail.status] ?? "secondary"}
@@ -140,41 +141,41 @@
           </Badge>
         {/if}
       </div>
-      <Button size="sm" variant="ghost" onclick={onclose}>Close</Button>
+      <Button size="sm" variant="ghost" onclick={onclose}>{$t('common.close')}</Button>
     </div>
 
     <Separator />
 
     <div class="flex-1 overflow-auto p-4">
       {#if loading && !detail}
-        <p class="text-sm text-muted-foreground">Loading...</p>
+        <p class="text-sm text-muted-foreground">{$t('common.loading')}</p>
       {:else if error}
         <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
       {:else if !detail}
-        <p class="text-sm text-muted-foreground">Run not found.</p>
+        <p class="text-sm text-muted-foreground">{$t('pipelines.not_found')}</p>
       {:else}
         <div class="space-y-4">
           <!-- Metadata -->
           <div class="space-y-1 text-sm">
             <div class="flex items-center gap-2">
-              <span class="text-muted-foreground">Run ID:</span>
+              <span class="text-muted-foreground">{$t('pipelines.run_id')}:</span>
               <code class="text-xs">{detail.run_id}</code>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-muted-foreground">Pipeline:</span>
+              <span class="text-muted-foreground">{$t('pipelines.pipeline')}:</span>
               <span>{detail.pipeline_id}</span>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-muted-foreground">Duration:</span>
+              <span class="text-muted-foreground">{$t('pipelines.duration')}:</span>
               <span>{formatDuration(detail.started_at, detail.ended_at)}</span>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-muted-foreground">Started:</span>
+              <span class="text-muted-foreground">{$t('pipelines.started')}:</span>
               <span>{formatDate(detail.started_at)}</span>
             </div>
             {#if detail.ended_at}
               <div class="flex items-center gap-2">
-                <span class="text-muted-foreground">Ended:</span>
+                <span class="text-muted-foreground">{$t('pipelines.ended')}:</span>
                 <span>{formatDate(detail.ended_at)}</span>
               </div>
             {/if}
@@ -185,7 +186,7 @@
           <!-- Progress bar -->
           <div class="space-y-1">
             <div class="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Steps</span>
+              <span>{$t('pipelines.steps')}</span>
               <span>{completedStepCount} / {totalStepCount}</span>
             </div>
             <div class="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -200,7 +201,7 @@
 
           <!-- Steps timeline -->
           <div>
-            <h3 class="mb-3 text-sm font-semibold">Steps</h3>
+            <h3 class="mb-3 text-sm font-semibold">{$t('pipelines.steps')}</h3>
             <div class="relative space-y-0">
               {#each detail.step_runs as step, i (step.step_id)}
                 <div class="relative flex gap-3 pb-4">
@@ -254,7 +255,7 @@
                           class="ml-auto text-xs text-[var(--apollia-warning)] underline"
                           onclick={(e) => { e.stopPropagation(); navigateToApprovals(); }}
                         >
-                          View in Approvals
+                          {$t('pipelines.view_approvals')}
                         </button>
                       {/if}
                     </div>
@@ -264,7 +265,7 @@
                       <div class="mt-2 space-y-2">
                         {#if step.output}
                           <div>
-                            <p class="mb-1 text-xs font-medium text-muted-foreground">Output</p>
+                            <p class="mb-1 text-xs font-medium text-muted-foreground">{$t('pipelines.step_output')}</p>
                             <div class="rounded border bg-muted/30 p-2">
                               <p class="whitespace-pre-wrap text-xs">{step.output}</p>
                             </div>
@@ -272,7 +273,7 @@
                         {/if}
                         {#if step.error}
                           <div>
-                            <p class="mb-1 text-xs font-medium text-muted-foreground">Error</p>
+                            <p class="mb-1 text-xs font-medium text-muted-foreground">{$t('pipelines.step_error')}</p>
                             <div class="rounded border border-[hsl(var(--destructive))]/30 bg-[hsl(var(--destructive))]/5 p-2">
                               <p class="whitespace-pre-wrap text-xs text-[hsl(var(--destructive))]">
                                 {step.error}
@@ -281,7 +282,7 @@
                           </div>
                         {/if}
                         {#if !step.output && !step.error}
-                          <p class="text-xs text-muted-foreground">No details available yet.</p>
+                          <p class="text-xs text-muted-foreground">{$t('pipelines.no_details')}</p>
                         {/if}
                       </div>
                     {/if}

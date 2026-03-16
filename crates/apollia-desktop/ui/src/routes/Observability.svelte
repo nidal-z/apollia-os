@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import TimelineGlobal from "../components/observability/TimelineGlobal.svelte";
   import LlmCostChart from "../components/observability/LlmCostChart.svelte";
   import AuditTrailTable from "../components/observability/AuditTrailTable.svelte";
@@ -24,7 +25,7 @@
 
 <div class="space-y-6">
   <!-- Header -->
-  <h1 class="text-2xl font-bold">Observability</h1>
+  <h1 class="text-2xl font-bold">{$t('observability.title')}</h1>
 
   <!-- Tabs -->
   <div class="flex gap-1 rounded-md border bg-muted/30 p-1">
@@ -34,7 +35,7 @@
         : 'text-muted-foreground hover:text-foreground'}"
       onclick={() => handleTabChange("timeline")}
     >
-      Timeline
+      {$t('observability.tab_timeline')}
     </button>
     <button
       class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === 'llm-costs'
@@ -42,7 +43,7 @@
         : 'text-muted-foreground hover:text-foreground'}"
       onclick={() => handleTabChange("llm-costs")}
     >
-      LLM Costs
+      {$t('observability.tab_llm_costs')}
     </button>
     <button
       class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === 'audit-trail'
@@ -50,7 +51,7 @@
         : 'text-muted-foreground hover:text-foreground'}"
       onclick={() => handleTabChange("audit-trail")}
     >
-      Audit Trail
+      {$t('observability.tab_audit_trail')}
     </button>
   </div>
 

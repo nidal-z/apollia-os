@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import { activePipelineRuns, historicPipelineRuns, pipelineRuns } from "$lib/stores/pipelines";
   import { Button } from "$lib/components/ui/button";
   import PipelineRunCard from "../components/pipelines/PipelineRunCard.svelte";
@@ -40,7 +41,7 @@
   }
 
   function handleRunCreated(runId: string, pipelineId: string) {
-    showToast(`Pipeline run ${runId.slice(0, 8)} launched for ${pipelineId}`, "success");
+    showToast($t('pipelines.run_launched', { values: { runId: runId.slice(0, 8), pipelineId } }), "success");
     activeTab = "active";
     handleDetail(runId);
   }
@@ -53,8 +54,8 @@
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold">Pipelines</h1>
-    <Button size="sm" onclick={() => (showNewRunDialog = true)}>Run Pipeline</Button>
+    <h1 class="text-2xl font-bold">{$t('pipelines.title')}</h1>
+    <Button size="sm" onclick={() => (showNewRunDialog = true)}>{$t('pipelines.run_pipeline')}</Button>
   </div>
 
   <!-- Toast -->
@@ -76,7 +77,7 @@
         : 'text-muted-foreground hover:text-foreground'}"
       onclick={() => handleTabChange("active")}
     >
-      Active
+      {$t('pipelines.tab_active')}
       {#if $activePipelineRuns.length > 0}
         <span class="ml-1 text-xs text-muted-foreground">({$activePipelineRuns.length})</span>
       {/if}
@@ -87,7 +88,7 @@
         : 'text-muted-foreground hover:text-foreground'}"
       onclick={() => handleTabChange("history")}
     >
-      History
+      {$t('pipelines.tab_history')}
       {#if $historicPipelineRuns.length > 0}
         <span class="ml-1 text-xs text-muted-foreground">({$historicPipelineRuns.length})</span>
       {/if}
@@ -100,7 +101,7 @@
       class="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-16"
     >
       <p class="text-muted-foreground">
-        Aucun pipeline run. Configurez des pipelines dans apollia.toml et lancez votre premier run.
+        {$t('pipelines.empty')}
       </p>
     </div>
   {:else if displayedRuns.length === 0}
@@ -109,8 +110,8 @@
     >
       <p class="text-muted-foreground">
         {activeTab === "active"
-          ? "No active pipeline runs."
-          : "No completed runs in history."}
+          ? $t('pipelines.no_active')
+          : $t('pipelines.no_history')}
       </p>
     </div>
   {:else}
