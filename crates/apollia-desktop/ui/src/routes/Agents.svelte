@@ -5,10 +5,13 @@
   import type { AgentStatus } from "$lib/types";
   import { agents } from "$lib/stores/agents";
   import { Button } from "$lib/components/ui/button";
+  import { Bot } from "lucide-svelte";
+  import { uiMode } from "$lib/stores/mode";
   import AgentCard from "../components/agents/AgentCard.svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
   import AgentDetail from "../components/agents/AgentDetail.svelte";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
+  import EmptyState from "../components/common/EmptyState.svelte";
 
   let startingAgent = $state(false);
   let startError = $state<string | null>(null);
@@ -81,12 +84,12 @@
 
   <!-- Agent list or empty state -->
   {#if $agents.length === 0}
-    <div class="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-16">
-      <p class="text-muted-foreground">{$t('agents.empty')}</p>
-      <Button variant="outline" onclick={pickAndStartAgent} disabled={startingAgent}>
-        {$t('agents.empty_cta')}
-      </Button>
-    </div>
+    <EmptyState
+      icon={Bot}
+      title={$t('agents.empty_title')}
+      ctaLabel={$uiMode === "operator" ? $t('agents.empty_cta_operator') : $t('agents.empty_cta_builder')}
+      ctaAction={pickAndStartAgent}
+    />
   {:else}
     <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-grid">
       {#each $agents as agent (agent.id)}

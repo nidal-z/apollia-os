@@ -7,8 +7,10 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
   import { Skeleton } from "$lib/components/ui/skeleton";
+  import { ShieldCheck } from "lucide-svelte";
   import ApprovalCard from "../components/hitl/ApprovalCard.svelte";
   import ApprovalHistory from "../components/hitl/ApprovalHistory.svelte";
+  import EmptyState from "../components/common/EmptyState.svelte";
 
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -59,9 +61,11 @@
     <section>
       <h2 class="mb-3 text-lg font-semibold" data-testid="approvals-pending-title">{$t('approvals.pending_title')}</h2>
       {#if $pendingApprovals.length === 0}
-        <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
-          <p class="text-muted-foreground">{$t('approvals.no_pending')}</p>
-        </div>
+        <EmptyState
+          icon={ShieldCheck}
+          title={$t('approvals.no_pending')}
+          subtitle={$t('approvals.empty_subtitle')}
+        />
       {:else}
         <div class="space-y-3">
           {#each $pendingApprovals as approval (approval.task_id)}

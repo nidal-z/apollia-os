@@ -6,8 +6,10 @@
   import { currentRoute } from "$lib/stores/navigation";
   import type { TriggerReloadResult, TriggerStatus } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
+  import { Timer } from "lucide-svelte";
   import TriggerRow from "../components/triggers/TriggerRow.svelte";
   import TriggerLogs from "../components/triggers/TriggerLogs.svelte";
+  import EmptyState from "../components/common/EmptyState.svelte";
 
   let reloading = $state(false);
   let reloadError = $state<string | null>(null);
@@ -114,17 +116,11 @@
 
   <!-- Trigger list grouped by agent, or empty state -->
   {#if $triggers.length === 0}
-    <div
-      class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16"
-      data-testid="triggers-empty"
-    >
-      <p class="font-medium text-foreground">
-        {$t('triggers.empty_title')}
-      </p>
-      <p class="text-sm text-muted-foreground">
-        {$t('triggers.empty_subtitle')}
-      </p>
-    </div>
+    <EmptyState
+      icon={Timer}
+      title={$t('triggers.empty_title')}
+      subtitle={$t('triggers.empty_subtitle')}
+    />
   {:else}
     <div class="space-y-6" data-testid="triggers-grouped">
       {#each [...triggersByAgent.entries()] as [agentName, agentTriggers] (agentName)}

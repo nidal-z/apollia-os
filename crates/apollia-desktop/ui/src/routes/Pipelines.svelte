@@ -2,9 +2,11 @@
   import { t } from "svelte-i18n";
   import { activePipelineRuns, historicPipelineRuns, pipelineRuns } from "$lib/stores/pipelines";
   import { Button } from "$lib/components/ui/button";
+  import { GitBranch } from "lucide-svelte";
   import PipelineRunCard from "../components/pipelines/PipelineRunCard.svelte";
   import PipelineRunDetail from "../components/pipelines/PipelineRunDetail.svelte";
   import NewPipelineDialog from "../components/pipelines/NewPipelineDialog.svelte";
+  import EmptyState from "../components/common/EmptyState.svelte";
 
   type PipelineTab = "active" | "history";
 
@@ -97,13 +99,13 @@
 
   <!-- Run list or empty state -->
   {#if $pipelineRuns.length === 0}
-    <div
-      class="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-16"
-    >
-      <p class="text-muted-foreground">
-        {$t('pipelines.empty')}
-      </p>
-    </div>
+    <EmptyState
+      icon={GitBranch}
+      title={$t('pipelines.empty_title')}
+      subtitle={$t('pipelines.empty_subtitle')}
+      ctaLabel={$t('pipelines.run_pipeline')}
+      ctaAction={() => (showNewRunDialog = true)}
+    />
   {:else if displayedRuns.length === 0}
     <div
       class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12"

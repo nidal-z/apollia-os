@@ -3,8 +3,10 @@
   import { llmBackends } from "$lib/stores/sse";
   import { uiMode } from "$lib/stores/mode";
   import { currentRoute } from "$lib/stores/navigation";
+  import { Brain } from "lucide-svelte";
   import LlmBackendCard from "../components/llm/LlmBackendCard.svelte";
   import LlmStats from "../components/llm/LlmStats.svelte";
+  import EmptyState from "../components/common/EmptyState.svelte";
 
   const isOperator = $derived($uiMode === "operator");
 </script>
@@ -17,27 +19,13 @@
 
   <!-- Backend cards or empty state -->
   {#if $llmBackends.length === 0}
-    <div class="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-16">
-      {#if isOperator}
-        <p class="text-muted-foreground font-medium">
-          {$t('llm.empty_operator')}
-        </p>
-        <p class="text-sm text-muted-foreground">
-          {$t('llm.empty_operator_hint')}
-        </p>
-      {:else}
-        <p class="text-muted-foreground">
-          {$t('llm.empty')}
-        </p>
-      {/if}
-      <button
-        type="button"
-        class="text-sm text-primary underline-offset-4 hover:underline"
-        onclick={() => currentRoute.set("settings")}
-      >
-        {$t('llm.open_settings')}
-      </button>
-    </div>
+    <EmptyState
+      icon={Brain}
+      title={isOperator ? $t('llm.empty_operator') : $t('llm.empty_title')}
+      subtitle={isOperator ? $t('llm.empty_operator_hint') : $t('llm.empty_subtitle')}
+      ctaLabel={$t('llm.open_settings')}
+      ctaAction={() => currentRoute.set("settings")}
+    />
   {:else}
     <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
       {#each $llmBackends as backend (backend.name)}

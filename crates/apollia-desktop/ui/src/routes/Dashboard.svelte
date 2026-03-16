@@ -5,14 +5,14 @@
   import { tasks } from "$lib/stores/tasks";
   import { pendingCount } from "$lib/stores/hitl";
   import { currentRoute } from "$lib/stores/navigation";
-  import { Button } from "$lib/components/ui/button";
-  import { Bot } from "lucide-svelte";
+  import { LayoutDashboard } from "lucide-svelte";
   import DashboardHeader from "../components/dashboard/DashboardHeader.svelte";
   import ActiveAgentCard from "../components/dashboard/ActiveAgentCard.svelte";
   import RecentActivity from "../components/dashboard/RecentActivity.svelte";
   import PendingActions from "../components/dashboard/PendingActions.svelte";
   import AgentDetail from "../components/agents/AgentDetail.svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
+  import EmptyState from "../components/common/EmptyState.svelte";
 
   const RECENT_TASK_LIMIT = 5;
 
@@ -69,14 +69,12 @@
   <section data-testid="dashboard-agents-section">
     <h2 class="mb-3 text-lg font-semibold">{$t('dashboard.active_assistants')}</h2>
     {#if activeAgents.length === 0}
-      <!-- AC-5: Empty state -->
-      <div class="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-12" data-testid="dashboard-empty-state">
-        <Bot size={32} class="text-muted-foreground/50" />
-        <p class="text-sm text-muted-foreground">{$t('dashboard.no_assistants')}</p>
-        <Button variant="outline" onclick={navigateToAgents} data-testid="dashboard-discover-btn">
-          {$t('dashboard.discover_assistants')}
-        </Button>
-      </div>
+      <EmptyState
+        icon={LayoutDashboard}
+        title={$t('dashboard.no_assistants')}
+        ctaLabel={$t('dashboard.discover_assistants')}
+        ctaAction={navigateToAgents}
+      />
     {:else}
       <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="dashboard-agents-grid">
         {#each activeAgents as agent (agent.id)}

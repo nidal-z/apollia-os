@@ -9,7 +9,9 @@
   import { formatRelativeTime, formatDuration } from "$lib/utils";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { ListChecks } from "lucide-svelte";
   import SmartOutputPreview from "../common/SmartOutputPreview.svelte";
+  import EmptyState from "../common/EmptyState.svelte";
 
   interface Props {
     onSelectTask: (taskId: string) => void;
@@ -188,23 +190,13 @@
 
   <!-- Task list -->
   {#if !hasAnyTasks}
-    <!-- AC-5: Enriched empty state when there are no tasks at all -->
-    <div class="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16" data-testid="tasks-empty-state">
-      <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground/60">
-        <path d="M11 12H3" /><path d="M16 6H3" /><path d="M16 18H3" /><path d="m19 10-4 4" /><path d="m15 10 4 4" />
-      </svg>
-      <p class="text-lg font-medium text-muted-foreground">{$t('tasks.empty_title')}</p>
-      <p class="max-w-sm text-center text-sm text-muted-foreground/80">{$t('tasks.empty_subtitle')}</p>
-      {#if mode === "operator"}
-        <Button size="sm" variant="outline" onclick={navigateToAgents} data-testid="tasks-empty-cta">
-          {$t('tasks.empty_cta_operator')}
-        </Button>
-      {:else}
-        <Button size="sm" onclick={openNewTaskDialog} data-testid="tasks-empty-cta">
-          {$t('tasks.empty_cta_builder')}
-        </Button>
-      {/if}
-    </div>
+    <EmptyState
+      icon={ListChecks}
+      title={$t('tasks.empty_title')}
+      subtitle={$t('tasks.empty_subtitle')}
+      ctaLabel={mode === "operator" ? $t('tasks.empty_cta_operator') : $t('tasks.empty_cta_builder')}
+      ctaAction={mode === "operator" ? navigateToAgents : openNewTaskDialog}
+    />
   {:else if visibleTasks.length === 0}
     <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
       <p class="text-muted-foreground">{$t('tasks.no_match')}</p>

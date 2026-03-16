@@ -5,8 +5,10 @@
   import type { MemoryEntry, MemorySearchResult } from "$lib/types";
   import NamespaceSelector from "../components/memory/NamespaceSelector.svelte";
   import MemorySearch from "../components/memory/MemorySearch.svelte";
+  import { Database } from "lucide-svelte";
   import MemoryTable from "../components/memory/MemoryTable.svelte";
   import { Skeleton } from "$lib/components/ui/skeleton";
+  import EmptyState from "../components/common/EmptyState.svelte";
 
   let namespaces = $state<string[]>([]);
   let selectedNamespace = $state<string>("");
@@ -138,13 +140,11 @@
 
   <!-- AC-6: No namespaces -->
   {#if !loading && namespaces.length === 0}
-    <div
-      class="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-16"
-    >
-      <p class="text-muted-foreground">
-        {$t('memory.empty_namespaces')}
-      </p>
-    </div>
+    <EmptyState
+      icon={Database}
+      title={$t('memory.empty_title')}
+      subtitle={$t('memory.empty_subtitle')}
+    />
   {:else}
     <!-- Controls: Namespace selector + Search -->
     <div class="flex items-center gap-4">
