@@ -8,6 +8,7 @@ export interface AvailableAgent {
 export interface AgentStatus {
   id: string;
   name: string;
+  description: string;
   state: "initializing" | "active" | "degraded" | "stopping" | "stopped";
   uptime_secs: number;
   tasks_completed: number;

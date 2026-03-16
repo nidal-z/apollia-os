@@ -18,6 +18,8 @@ pub struct AgentInfo {
     pub id: String,
     /// Nom de l'agent (depuis le manifest).
     pub name: String,
+    /// Description métier de l'agent (depuis le manifest).
+    pub description: String,
     /// État courant (initializing, active, degraded, stopping, stopped).
     pub state: String,
     /// Durée depuis le démarrage en secondes.
@@ -81,6 +83,7 @@ pub async fn list_agents(state: State<'_, RuntimeHandle>) -> Result<Vec<AgentInf
             AgentInfo {
                 id: agent_id_str,
                 name: entry.manifest.name.clone(),
+                description: entry.manifest.description.clone(),
                 state: state_to_string(&entry.process_state),
                 uptime_secs,
                 tasks_completed,
@@ -174,6 +177,7 @@ mod tests {
         let info = AgentInfo {
             id: "abc-123".to_string(),
             name: "hello-agent".to_string(),
+            description: "A simple greeting agent".to_string(),
             state: "active".to_string(),
             uptime_secs: 3600,
             tasks_completed: 5,
@@ -187,6 +191,7 @@ mod tests {
         // THEN all fields are present with correct values
         assert_eq!(json["id"], "abc-123");
         assert_eq!(json["name"], "hello-agent");
+        assert_eq!(json["description"], "A simple greeting agent");
         assert_eq!(json["state"], "active");
         assert_eq!(json["uptime_secs"], 3600);
         assert_eq!(json["tasks_completed"], 5);
@@ -200,6 +205,7 @@ mod tests {
         let info = AgentInfo {
             id: "def-456".to_string(),
             name: "crm-agent".to_string(),
+            description: "Manages CRM data".to_string(),
             state: "degraded".to_string(),
             uptime_secs: 120,
             tasks_completed: 0,

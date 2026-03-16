@@ -92,16 +92,27 @@
   {#if $connectionStatus === "connecting"}
     <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-skeleton">
       {#each { length: SKELETON_COUNT } as _}
-        <div class="space-y-3 rounded-lg border p-4">
-          <div class="flex items-center justify-between">
-            <Skeleton class="h-5 w-[60%]" />
-            <Skeleton class="h-5 w-16 rounded-full" />
+        <div class="rounded-lg border shadow-sm">
+          <div class="px-4 pt-4 pb-3">
+            <div class="flex items-start gap-3">
+              <Skeleton class="h-10 w-10 shrink-0 rounded-full" />
+              <div class="flex-1 space-y-2">
+                <div class="flex items-center justify-between">
+                  <Skeleton class="h-5 w-[50%]" />
+                  <Skeleton class="h-5 w-16 rounded-full" />
+                </div>
+                <Skeleton class="h-3 w-[80%]" />
+              </div>
+            </div>
           </div>
-          <Skeleton class="h-3 w-[40%]" />
-          <Skeleton class="h-3 w-[80%]" />
-          <div class="flex gap-2 pt-1">
-            <Skeleton class="h-8 w-16 rounded-md" />
-            <Skeleton class="h-8 w-14 rounded-md" />
+          <div class="border-t px-4 py-2.5">
+            <Skeleton class="h-3 w-[40%]" />
+          </div>
+          <div class="border-t px-4 py-2">
+            <div class="flex gap-2">
+              <Skeleton class="h-8 w-16 rounded-md" />
+              <Skeleton class="h-8 w-14 rounded-md" />
+            </div>
           </div>
         </div>
       {/each}

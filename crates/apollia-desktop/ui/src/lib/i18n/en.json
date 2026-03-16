@@ -85,7 +85,9 @@
     "logs": "Logs",
     "logs_title": "Agent Logs",
     "loading_tasks": "Loading tasks...",
-    "no_tasks": "No tasks found for this agent."
+    "no_tasks": "No tasks found for this agent.",
+    "no_description": "No description available",
+    "tasks_completed_count": "{count} tasks completed"
   },
   "tasks": {
     "title": "Tasks",
