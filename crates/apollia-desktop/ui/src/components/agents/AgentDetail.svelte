@@ -29,8 +29,8 @@
     active: { labelKey: "common.status.active", variant: "default", extraClass: "bg-[var(--apollia-success)] text-white" },
     degraded: { labelKey: "common.status.degraded", variant: "outline", extraClass: "border-[var(--apollia-warning)] text-[var(--apollia-warning)]" },
     stopped: { labelKey: "common.status.stopped", variant: "secondary", extraClass: "" },
-    initializing: { labelKey: "common.status.initializing", variant: "outline", extraClass: "animate-pulse border-blue-500 text-blue-500" },
-    stopping: { labelKey: "common.status.stopping", variant: "outline", extraClass: "border-orange-300 text-orange-300" },
+    initializing: { labelKey: "common.status.initializing", variant: "outline", extraClass: "animate-pulse border-info text-info" },
+    stopping: { labelKey: "common.status.stopping", variant: "outline", extraClass: "border-warning text-warning" },
   };
 
   let stopping = $state(false);

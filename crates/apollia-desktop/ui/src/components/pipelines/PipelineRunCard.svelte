@@ -19,7 +19,7 @@
   };
 
   const STATUS_EXTRA_CLASS: Record<string, string> = {
-    running: "animate-pulse border-blue-500 text-blue-500",
+    running: "animate-pulse border-info text-info",
     waiting_approval: "border-[var(--apollia-warning)] text-[var(--apollia-warning)]",
     completed: "bg-[var(--apollia-success)] text-white",
     failed: "",

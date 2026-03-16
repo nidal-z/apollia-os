@@ -25,11 +25,11 @@
   };
 
   const SOURCE_BADGE_CLASS: Record<TriggerStatus["source_kind"], string> = {
-    cron: "border-blue-500 text-blue-500",
-    interval: "border-cyan-500 text-cyan-500",
-    file_watch: "border-green-500 text-green-500",
-    webhook: "border-purple-500 text-purple-500",
-    oneshot: "border-orange-500 text-orange-500",
+    cron: "border-info text-info",
+    interval: "border-info text-info-foreground",
+    file_watch: "border-success text-success",
+    webhook: "border-accent text-accent-foreground",
+    oneshot: "border-warning text-warning",
   };
 
   /** Translate a trigger's source_kind into human-readable text. */

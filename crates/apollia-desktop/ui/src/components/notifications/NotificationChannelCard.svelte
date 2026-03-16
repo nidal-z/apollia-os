@@ -19,9 +19,9 @@
   let feedbackTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 
   const TYPE_BADGE: Record<string, { label: string; extraClass: string }> = {
-    desktop: { label: "Desktop", extraClass: "border-blue-500 text-blue-500" },
-    webhook: { label: "Webhook", extraClass: "border-purple-500 text-purple-500" },
-    sse: { label: "SSE", extraClass: "border-cyan-500 text-cyan-500" },
+    desktop: { label: "Desktop", extraClass: "border-info text-info" },
+    webhook: { label: "Webhook", extraClass: "border-accent text-accent-foreground" },
+    sse: { label: "SSE", extraClass: "border-info text-info-foreground" },
   };
 
   const badgeConfig = $derived(

@@ -4,6 +4,7 @@
   import { t } from "svelte-i18n";
   import type { NotificationChannel, NotificationLogEntry } from "$lib/types";
   import { Separator } from "$lib/components/ui/separator";
+  import { Skeleton } from "$lib/components/ui/skeleton";
   import NotificationChannelCard from "../components/notifications/NotificationChannelCard.svelte";
   import NotificationLog from "../components/notifications/NotificationLog.svelte";
 
@@ -40,7 +41,10 @@
 
   <!-- Loading -->
   {#if loading}
-    <p class="text-sm text-muted-foreground">{$t('common.loading')}</p>
+    <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
+      <Skeleton width="100%" height="6rem" />
+      <Skeleton width="100%" height="6rem" />
+    </div>
   {:else if error}
     <div
       class="rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 px-4 py-2 text-sm text-[hsl(var(--destructive))]"

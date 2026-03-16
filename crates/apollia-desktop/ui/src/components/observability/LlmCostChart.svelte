@@ -4,6 +4,7 @@
   import { t } from "svelte-i18n";
   import type { LlmDailyCostsResponse, LlmDailyCostEntry } from "$lib/types";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
+  import { Skeleton } from "$lib/components/ui/skeleton";
 
   const REFRESH_INTERVAL_MS = 60_000;
   const CHART_WIDTH = 600;
@@ -123,7 +124,7 @@
 
   <CardContent>
     {#if loading}
-      <p class="text-sm text-muted-foreground">{$t('observability.loading_costs')}</p>
+      <Skeleton width="100%" height="250px" />
     {:else if error}
       <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
     {:else if entries.length === 0}

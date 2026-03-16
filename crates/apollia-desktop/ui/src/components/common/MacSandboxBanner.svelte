@@ -33,16 +33,16 @@
 
 {#if isMacOS && !dismissed}
   <div
-    class="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/8 px-4 py-3 text-sm"
+    class="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm"
     role="alert"
   >
-    <span class="mt-0.5 shrink-0 text-base leading-none text-amber-400">⚠</span>
-    <div class="flex-1 text-amber-200/90">
-      <span class="font-semibold text-amber-300">{$t('mac_sandbox.title')}</span>
+    <span class="mt-0.5 shrink-0 text-base leading-none text-warning">⚠</span>
+    <div class="flex-1 text-warning-foreground">
+      <span class="font-semibold text-warning">{$t('mac_sandbox.title')}</span>
       {" "}{$t('mac_sandbox.body')}
     </div>
     <button
-      class="shrink-0 text-amber-400/60 hover:text-amber-300 transition-colors"
+      class="shrink-0 text-warning/60 hover:text-warning transition-colors"
       onclick={dismiss}
       aria-label="Dismiss warning"
     >

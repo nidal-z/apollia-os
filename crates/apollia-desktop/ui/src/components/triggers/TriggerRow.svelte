@@ -26,22 +26,22 @@
     TriggerStatus["source_kind"],
     { label: string; extraClass: string }
   > = {
-    cron: { label: "CRON", extraClass: "border-blue-500 text-blue-500" },
+    cron: { label: "CRON", extraClass: "border-info text-info" },
     interval: {
       label: "INTERVAL",
-      extraClass: "border-cyan-500 text-cyan-500",
+      extraClass: "border-info text-info-foreground",
     },
     file_watch: {
       label: "FILE",
-      extraClass: "border-green-500 text-green-500",
+      extraClass: "border-success text-success",
     },
     webhook: {
       label: "WEBHOOK",
-      extraClass: "border-purple-500 text-purple-500",
+      extraClass: "border-accent text-accent-foreground",
     },
     oneshot: {
       label: "ONESHOT",
-      extraClass: "border-orange-500 text-orange-500",
+      extraClass: "border-warning text-warning",
     },
   };
 

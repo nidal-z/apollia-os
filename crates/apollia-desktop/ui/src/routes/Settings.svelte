@@ -6,6 +6,7 @@
   import { showOnboarding } from "$lib/stores/onboarding";
   import { themeMode, applyTheme, type ThemeMode } from "$lib/stores/theme";
   import { Button } from "$lib/components/ui/button";
+  import { Skeleton } from "$lib/components/ui/skeleton";
   import { Settings as SettingsIcon } from "lucide-svelte";
   import type { ApollaConfigView } from "$lib/types";
 
@@ -94,8 +95,13 @@
   {/if}
 
   {#if loading}
-    <div class="flex items-center justify-center py-16">
-      <p class="text-muted-foreground">{$t('settings.loading_config')}</p>
+    <div class="space-y-4 py-4">
+      <Skeleton width="100%" height="3rem" />
+      <div class="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
+        <Skeleton width="100%" height="8rem" />
+        <Skeleton width="100%" height="8rem" />
+      </div>
+      <Skeleton width="100%" height="3rem" />
     </div>
   {:else if configView}
     <!-- Config file path -->

@@ -80,11 +80,11 @@
   }
 
   const TOKEN_CLASSES: Record<TokenType, string> = {
-    key: "text-blue-400",
-    string: "text-green-400",
-    number: "text-amber-400",
-    boolean: "text-purple-400",
-    null: "text-red-400/70",
+    key: "text-info",
+    string: "text-success",
+    number: "text-warning",
+    boolean: "text-accent-foreground",
+    null: "text-destructive/70",
     punctuation: "text-muted-foreground/60",
     plain: "",
   };

@@ -6,6 +6,7 @@
   import NamespaceSelector from "../components/memory/NamespaceSelector.svelte";
   import MemorySearch from "../components/memory/MemorySearch.svelte";
   import MemoryTable from "../components/memory/MemoryTable.svelte";
+  import { Skeleton } from "$lib/components/ui/skeleton";
 
   let namespaces = $state<string[]>([]);
   let selectedNamespace = $state<string>("");
@@ -157,8 +158,11 @@
 
     <!-- Table -->
     {#if loading}
-      <div class="flex items-center justify-center py-12">
-        <p class="text-muted-foreground">{$t('common.loading')}</p>
+      <div class="space-y-2 py-4">
+        <Skeleton width="100%" height="2.5rem" />
+        <Skeleton width="100%" height="2.5rem" />
+        <Skeleton width="100%" height="2.5rem" />
+        <Skeleton width="80%" height="2.5rem" />
       </div>
     {:else}
       <MemoryTable {entries} {searching} ondelete={handleDelete} />

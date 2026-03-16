@@ -7,6 +7,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Separator } from "$lib/components/ui/separator";
+  import { Skeleton } from "$lib/components/ui/skeleton";
 
   interface Props {
     runId: string;
@@ -30,7 +31,7 @@
   };
 
   const STEP_STATUS_EXTRA: Record<string, string> = {
-    running: "animate-pulse border-blue-500 text-blue-500",
+    running: "animate-pulse border-info text-info",
     completed: "bg-[var(--apollia-success)] text-white",
     waiting_approval: "border-[var(--apollia-warning)] text-[var(--apollia-warning)]",
   };
@@ -148,7 +149,11 @@
 
     <div class="flex-1 overflow-auto p-4">
       {#if loading && !detail}
-        <p class="text-sm text-muted-foreground">{$t('common.loading')}</p>
+        <div class="space-y-3">
+          <Skeleton width="100%" height="2rem" />
+          <Skeleton width="80%" height="1.5rem" />
+          <Skeleton width="100%" height="4rem" />
+        </div>
       {:else if error}
         <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
       {:else if !detail}
@@ -220,7 +225,7 @@
                       class="{step.status === 'completed'
                         ? 'text-[var(--apollia-success)]'
                         : step.status === 'running'
-                          ? 'text-blue-500 animate-pulse'
+                          ? 'text-info animate-pulse'
                           : step.status === 'failed'
                             ? 'text-[hsl(var(--destructive))]'
                             : 'text-muted-foreground'}"

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
+  import { Input } from "$lib/components/ui/input";
 
   interface Props {
     value: string;
@@ -50,10 +51,10 @@
   <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
     &#x1F50D;
   </span>
-  <input
+  <Input
     type="text"
     placeholder={$t('memory.search_placeholder')}
-    class="w-64 rounded-md border bg-background py-1.5 pl-9 pr-8 text-sm shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+    class="w-64 pl-9 pr-8"
     value={internalValue}
     oninput={handleInput}
   />

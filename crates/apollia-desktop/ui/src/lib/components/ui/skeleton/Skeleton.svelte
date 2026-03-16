@@ -16,4 +16,4 @@
   style:width={width}
   style:height={height}
   {...restProps}
-/>
+></div>

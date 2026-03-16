@@ -17,7 +17,7 @@
   > = {
     completed: { variant: "default", extraClass: "bg-[var(--apollia-success)] text-white" },
     failed: { variant: "destructive", extraClass: "" },
-    working: { variant: "outline", extraClass: "animate-pulse border-blue-500 text-blue-500" },
+    working: { variant: "outline", extraClass: "animate-pulse border-info text-info" },
     input_required: { variant: "outline", extraClass: "border-[var(--apollia-warning)] text-[var(--apollia-warning)]" },
     submitted: { variant: "secondary", extraClass: "" },
     canceled: { variant: "secondary", extraClass: "" },

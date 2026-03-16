@@ -22,7 +22,7 @@
     { labelKey: string; variant: "default" | "secondary" | "destructive" | "outline"; extraClass: string }
   > = {
     ready: { labelKey: "common.status.ready", variant: "default", extraClass: "bg-[var(--apollia-success)] text-white" },
-    loading: { labelKey: "common.status.loading", variant: "outline", extraClass: "animate-pulse border-blue-500 text-blue-500" },
+    loading: { labelKey: "common.status.loading", variant: "outline", extraClass: "animate-pulse border-info text-info" },
     error: { labelKey: "common.status.error", variant: "destructive", extraClass: "" },
   };
 
@@ -30,8 +30,8 @@
     LlmBackendStatus["backend_type"],
     { label: string; extraClass: string }
   > = {
-    embedded: { label: "EMBEDDED", extraClass: "border-blue-500 text-blue-500" },
-    api: { label: "API", extraClass: "border-purple-500 text-purple-500" },
+    embedded: { label: "EMBEDDED", extraClass: "border-info text-info" },
+    api: { label: "API", extraClass: "border-accent text-accent-foreground" },
   };
 
   async function handlePing() {
@@ -88,7 +88,7 @@
     </CardHeader>
 
     <CardContent>
-      <Badge variant="outline" class="text-xs {backend.backend_type === 'embedded' ? 'border-green-500 text-green-600' : 'border-purple-500 text-purple-500'}">
+      <Badge variant="outline" class="text-xs {backend.backend_type === 'embedded' ? 'border-success text-success' : 'border-accent text-accent-foreground'}">
         {humanizedCost()}
       </Badge>
     </CardContent>

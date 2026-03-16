@@ -142,7 +142,7 @@
     <div class="flex items-center gap-3 rounded-lg border bg-card p-4">
       {#if isInputRequired && pendingApproval}
         <div class="flex-1 space-y-3">
-          <p class="text-sm font-semibold text-amber-300">{$t('onboarding.approval_required')}</p>
+          <p class="text-sm font-semibold text-warning-foreground">{$t('onboarding.approval_required')}</p>
           <p class="text-sm text-muted-foreground">{pendingApproval.prompt}</p>
           <Button size="sm" onclick={approve} disabled={resuming}>
             {resuming ? $t('approvals.approving') : $t('approvals.approve')}

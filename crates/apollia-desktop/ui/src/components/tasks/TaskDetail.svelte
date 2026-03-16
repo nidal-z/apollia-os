@@ -41,7 +41,7 @@
 
   const STATUS_EXTRA_CLASS: Record<string, string> = {
     completed: "bg-[var(--apollia-success)] text-white",
-    working: "animate-pulse border-blue-500 text-blue-500",
+    working: "animate-pulse border-info text-info",
     failed: "",
     input_required: "border-[var(--apollia-warning)] text-[var(--apollia-warning)]",
   };

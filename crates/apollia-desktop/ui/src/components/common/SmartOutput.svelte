@@ -267,11 +267,11 @@
           </div>
         {:else if renderer === "alert"}
           <div
-            class="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200/90"
+            class="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground"
             role="alert"
             data-testid="smart-output-alert"
           >
-            <span class="font-semibold text-amber-300">{humanizeKey(key)}</span>
+            <span class="font-semibold text-warning">{humanizeKey(key)}</span>
             <ul class="mt-1 space-y-0.5">
               {#each toStringArray(value) as item}
                 <li>— {item}</li>
@@ -280,11 +280,11 @@
           </div>
         {:else if renderer === "error"}
           <div
-            class="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200/90"
+            class="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
             role="alert"
             data-testid="smart-output-error"
           >
-            <span class="font-semibold text-red-300">{humanizeKey(key)}</span>
+            <span class="font-semibold text-destructive">{humanizeKey(key)}</span>
             <ul class="mt-1 space-y-0.5">
               {#each toStringArray(value) as item}
                 <li>— {item}</li>

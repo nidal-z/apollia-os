@@ -4,6 +4,7 @@
   import { t } from "svelte-i18n";
   import type { GlobalTimelineEvent } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
+  import { Skeleton } from "$lib/components/ui/skeleton";
 
   const WINDOW_OPTIONS: { label: string; minutes: number }[] = [
     { label: "30min", minutes: 30 },
@@ -24,10 +25,10 @@
   };
 
   const TYPE_COLORS: Record<string, string> = {
-    task: "bg-blue-500/10 text-blue-400 border-blue-500/30",
-    tool: "bg-amber-500/10 text-amber-400 border-amber-500/30",
-    llm: "bg-purple-500/10 text-purple-400 border-purple-500/30",
-    hitl: "bg-red-500/10 text-red-400 border-red-500/30",
+    task: "bg-info/10 text-info border-info/30",
+    tool: "bg-warning/10 text-warning border-warning/30",
+    llm: "bg-accent/10 text-accent-foreground border-accent/30",
+    hitl: "bg-destructive/10 text-destructive border-destructive/30",
   };
 
   const REFRESH_INTERVAL_MS = 15_000;
@@ -149,7 +150,11 @@
 
   <!-- Events list -->
   {#if loading}
-    <p class="text-sm text-muted-foreground">{$t('observability.loading_timeline')}</p>
+    <div class="space-y-2">
+      <Skeleton width="100%" height="2.5rem" />
+      <Skeleton width="100%" height="2.5rem" />
+      <Skeleton width="100%" height="2.5rem" />
+    </div>
   {:else if error}
     <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
   {:else if filteredEvents.length === 0}

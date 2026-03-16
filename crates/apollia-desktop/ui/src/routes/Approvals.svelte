@@ -6,6 +6,7 @@
   import { pendingApprovals, pendingCount, requestNotificationPermission } from "$lib/stores/hitl";
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
+  import { Skeleton } from "$lib/components/ui/skeleton";
   import ApprovalCard from "../components/hitl/ApprovalCard.svelte";
   import ApprovalHistory from "../components/hitl/ApprovalHistory.svelte";
 
@@ -46,7 +47,11 @@
   </div>
 
   {#if loading}
-    <p class="text-sm text-muted-foreground">{$t('approvals.loading')}</p>
+    <div class="space-y-3">
+      <Skeleton width="100%" height="4rem" />
+      <Skeleton width="100%" height="4rem" />
+      <Skeleton width="60%" height="1rem" />
+    </div>
   {:else if error}
     <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
   {:else}

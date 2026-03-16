@@ -163,10 +163,10 @@
 
   function eventColor(type: string): string {
     switch (type) {
-      case "llm_call":        return "text-blue-400";
-      case "tool_call":       return "text-amber-400";
-      case "hitl_suspended":  return "text-orange-400";
-      case "hitl_resolved":   return "text-green-400";
+      case "llm_call":        return "text-info";
+      case "tool_call":       return "text-warning";
+      case "hitl_suspended":  return "text-warning";
+      case "hitl_resolved":   return "text-success";
       case "task_completed":  return "text-[var(--apollia-success)]";
       case "task_transition": return "text-muted-foreground";
       default:                return "text-muted-foreground";
@@ -274,12 +274,12 @@
       </div>
 
       {#if isInputRequired && pendingApproval}
-        <div class="px-4 py-4 border-b bg-amber-500/5 border-amber-500/20">
+        <div class="px-4 py-4 border-b bg-warning/5 border-warning/20">
           <div class="flex items-start gap-3">
-            <span class="text-amber-400 leading-none mt-0.5"><Pause size={20} /></span>
+            <span class="text-warning leading-none mt-0.5"><Pause size={20} /></span>
             <div class="flex-1 space-y-3">
               <div>
-                <p class="text-sm font-semibold text-amber-300">{$t('onboarding.approval_required')}</p>
+                <p class="text-sm font-semibold text-warning-foreground">{$t('onboarding.approval_required')}</p>
                 <p class="mt-1 text-sm text-muted-foreground">{pendingApproval.prompt}</p>
               </div>
               {#if showRejectInput}
@@ -328,10 +328,10 @@
           </div>
         </div>
       {:else if isInputRequired}
-        <div class="px-4 py-3 border-b bg-amber-500/5">
+        <div class="px-4 py-3 border-b bg-warning/5">
           <div class="flex items-center gap-2">
-            <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-amber-400 border-t-transparent"></span>
-            <span class="text-xs text-amber-300">{$t('onboarding.loading_approval')}</span>
+            <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-warning border-t-transparent"></span>
+            <span class="text-xs text-warning-foreground">{$t('onboarding.loading_approval')}</span>
           </div>
         </div>
       {/if}
