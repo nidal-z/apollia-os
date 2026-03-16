@@ -6,7 +6,6 @@ reason and act: classify the document, extract structured intelligence, write
 a Markdown report, and return a one-line summary.
 
 No hardcoded parsing logic — the LLM plans every step.
-Falls back to deterministic extraction when no LLM is configured.
 
 APOLLIA FEATURES DEMONSTRATED
   • File watch trigger  Fires the instant a file lands in the watched folder
@@ -18,7 +17,6 @@ APOLLIA FEATURES DEMONSTRATED
 
 import json
 import os
-import re
 from datetime import datetime
 
 from apollia_base import AIPResult, BaseReActAgent
@@ -48,8 +46,6 @@ class DocumentAnalystAgent(BaseReActAgent):
       4. The LLM reasons about the content, extracts intelligence, and
          calls file_io to write the structured analysis report.
       5. Persists a memory entry for future cross-document search.
-
-    Falls back to deterministic analysis if no LLM is configured.
     """
 
     MAX_STEPS = 6
@@ -133,12 +129,18 @@ RULES:
 
         1. Extract the document path from the trigger input.
         2. Read the file content via bash_executor.
-        3. Delegate to the LLM ReAct loop (or deterministic fallback).
+        3. Delegate to the LLM ReAct loop.
         4. Record insights to memory.
         """
         doc_path = _extract_document_path(task)
         if not doc_path:
             return AIPResult.failed("NO_PATH", "Could not extract document path from task input.")
+
+        if ctx.llm is None:
+            return AIPResult.failed(
+                "NO_LLM",
+                "DocumentAnalystAgent requires an LLM for ReAct execution (no deterministic fallback).",
+            )
 
         doc_name = os.path.basename(doc_path)
         report_path = f"{REPORTS_DIR}/{os.path.splitext(doc_name)[0]}.analysis.md"
@@ -152,11 +154,17 @@ RULES:
         truncated = content[:MAX_CONTENT_CHARS]
         was_truncated = len(content) > MAX_CONTENT_CHARS
 
-        # ── Run ReAct or fallback ─────────────────────────────────────────────
-        if ctx.llm is not None:
-            result = await self._run_llm(task, ctx, doc_name, doc_path, report_path, today, truncated, was_truncated)
-        else:
-            result = await self._run_deterministic(ctx, doc_name, doc_path, report_path, today, truncated)
+        # ── Run ReAct ──────────────────────────────────────────────────────────
+        result = await self._run_llm(
+            task,
+            ctx,
+            doc_name,
+            doc_path,
+            report_path,
+            today,
+            truncated,
+            was_truncated,
+        )
 
         if isinstance(result, dict):
             return result  # AIPResult.failed / AIPResult.input_required
@@ -197,27 +205,6 @@ RULES:
         )
         return await self.react(task, ctx, user_msg, extra_context=extra_context)
 
-    # ── Deterministic fallback ────────────────────────────────────────────────
-
-    async def _run_deterministic(self, ctx, doc_name, doc_path, report_path, today, content):
-        """Heuristic analysis used when no LLM is configured (graceful degradation)."""
-        analysis = _analyze_heuristic(doc_name, content)
-        report = _render_report(doc_name, doc_path, today, analysis)
-
-        if ctx.tools:
-            try:
-                await ctx.tools.call("file_io", {"action": "write", "path": report_path, "content": report})
-            except Exception:
-                pass
-
-        flags_count = len(analysis["flags"])
-        actions_count = len(analysis["action_items"])
-        return (
-            f"[no-llm] {analysis['category']}: {doc_name} "
-            f"— {actions_count} action items, {flags_count} flags. "
-            f"Report: ~/{report_path}"
-        )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -257,90 +244,6 @@ def _extract_document_path(task: dict) -> str:
             if token.startswith("/") or token.startswith("~"):
                 return os.path.expanduser(token)
     return ""
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Deterministic fallback analysis (used when ctx.llm is None)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _analyze_heuristic(filename: str, content: str) -> dict:
-    cl = content.lower()
-    fn = filename.lower()
-
-    if any(k in fn for k in ("facture", "invoice", "receipt")):
-        category = "Invoice"
-    elif any(k in fn for k in ("contrat", "contract", "prestation")):
-        category = "Contract"
-    elif any(k in fn for k in ("cr-", "cr_", "compte-rendu", "meeting", "standup")):
-        category = "Meeting Notes"
-    else:
-        scores = {
-            "Invoice": sum(1 for k in ("facture", "invoice", "tva", "iban", "total ttc") if k in cl),
-            "Contract": sum(1 for k in ("contrat", "prestataire", "obligation", "pénalité", "article ") if k in cl),
-            "Meeting Notes": sum(1 for k in ("ordre du jour", "participants", "décision", "standup") if k in cl),
-        }
-        category = max(scores, key=scores.get) if max(scores.values()) > 0 else "Document"
-
-    entities = []
-    for m in re.finditer(r'\b([A-Z][a-zÀ-ÿ]+(?:\s+[A-Z][a-zÀ-ÿ]+)*\s+(?:SAS|SARL|SA|Ltd|Inc|Labs))\b', content):
-        e = m.group(1).strip()
-        if e not in entities:
-            entities.append(e)
-    for m in re.finditer(r'\b[\w.+-]+@[\w.-]+\.\w+\b', content):
-        if m.group(0) not in entities:
-            entities.append(m.group(0))
-
-    figures = []
-    for m in re.finditer(r'[\d\s]+[,.]?\d*\s*(?:€|EUR)', content):
-        f = re.sub(r'\s+', ' ', m.group(0).strip())
-        if f not in figures:
-            figures.append(f)
-    for m in re.finditer(r'\b[A-Z]{2}\d{2}[\s\d]{10,}', content):
-        iban = re.sub(r'\s+', ' ', m.group(0).strip())
-        if len(iban) >= 14:
-            figures.append(f"IBAN: {iban}")
-
-    flags = []
-    for kw, msg in [("pénalité", "Penalty clause"), ("résiliation", "Termination clause"),
-                    ("échéance", "Payment deadline"), ("contestation", "Contestation window"),
-                    ("urgent", "Urgent item"), ("30 jours nets", "Net-30 terms")]:
-        if kw in cl and msg not in flags:
-            flags.append(msg)
-
-    return {
-        "category": category,
-        "entities": entities[:8],
-        "figures": figures[:6],
-        "action_items": [],
-        "flags": flags[:5],
-    }
-
-
-def _render_report(doc_name, doc_path, today, a) -> str:
-    def bullets(items, empty="None identified."):
-        return "\n".join(f"- {i}" for i in items) if items else f"- {empty}"
-
-    return f"""# Document Analysis: {doc_name}
-**Date:** {today}
-**Source:** `{doc_path}`
-**Category:** {a['category']}
-*(Generated without LLM — heuristic extraction)*
-
-## Key Entities
-{bullets(a['entities'])}
-
-## Key Figures
-{bullets(a['figures'])}
-
-## Action Items
-{bullets(a['action_items'])}
-
-## Flags
-{bullets(a['flags'])}
-
----
-*Apollia OS — document-analyst v2.0.0 (degraded mode)*
-"""
 
 
 # ─────────────────────────────────────────────────────────────────────────────

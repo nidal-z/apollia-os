@@ -11,7 +11,7 @@
 
 **Auteur :** Nidal — CTO & Co-fondateur Apollia  
 **Développement :** soir/weekend, 8-10h/semaine  
-**Phase actuelle :** Sprint 16 — À planifier
+**Phase actuelle :** Sprint 16 — MVP Demo-Ready : UI/UX bimodale (STORY-156 → STORY-175)
 
 ---
 
