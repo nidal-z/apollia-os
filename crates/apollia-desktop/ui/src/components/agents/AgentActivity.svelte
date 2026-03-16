@@ -3,6 +3,7 @@
   import { t } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
+  import SmartOutputPreview from "../common/SmartOutputPreview.svelte";
 
   interface Props {
     agentId: string;
@@ -44,12 +45,6 @@
     if (diffHours < 24) return `${diffHours}h ago`;
     const diffDays = Math.floor(diffHours / 24);
     return `${diffDays}d ago`;
-  }
-
-  function truncateOutput(text: string | undefined, maxLen: number): string {
-    if (!text) return "-";
-    if (text.length <= maxLen) return text;
-    return text.slice(0, maxLen) + "…";
   }
 
   async function fetchTasks() {
@@ -98,9 +93,11 @@
           <Badge variant={TASK_STATUS_VARIANT[task.status] ?? "secondary"} class="shrink-0 text-[10px]">
             {task.status}
           </Badge>
-          <span class="min-w-0 flex-1 truncate text-xs">
-            {truncateOutput(task.output_text ?? task.input_preview, 80)}
-          </span>
+          <SmartOutputPreview
+            output={task.output_text ?? task.input_preview ?? "-"}
+            maxLength={80}
+            class="min-w-0 flex-1 text-xs"
+          />
           <span class="shrink-0 text-xs text-muted-foreground">{formatDuration(task.duration_ms)}</span>
           <span class="shrink-0 text-xs text-muted-foreground">{formatRelativeTime(task.created_at)}</span>
         </button>

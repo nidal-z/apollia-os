@@ -424,6 +424,10 @@
     "memory_title": "Mémoire",
     "memory_link": "Voir la mémoire du namespace \"{namespace}\""
   },
+  "smart_output": {
+    "show_raw": "Afficher la sortie brute",
+    "show_formatted": "Afficher formaté"
+  },
   "mac_sandbox": {
     "title": "macOS — les outils s'exécutent sans sandbox.",
     "body": "L'isolation par namespaces Linux n'est pas disponible sur macOS. Les appels d'outils des agents (bash, fichiers) s'exécutent directement dans votre session utilisateur. N'exécutez que des agents de confiance et vérifiez leurs permissions d'outils dans le manifest."

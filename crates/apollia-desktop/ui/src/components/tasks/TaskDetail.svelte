@@ -7,6 +7,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Separator } from "$lib/components/ui/separator";
   import TaskTimeline from "./TaskTimeline.svelte";
+  import SmartOutput from "../common/SmartOutput.svelte";
 
   interface Props {
     taskId: string;
@@ -128,7 +129,7 @@
           {#if task.output_text}
             <Separator />
 
-            <!-- Output section -->
+            <!-- Output section — smart formatted view (STORY-164) -->
             <div>
               <h3 class="mb-1 text-sm font-semibold">
                 {$t('tasks.output')}
@@ -136,9 +137,7 @@
                   <Badge variant="outline" class="ml-2 text-[10px]">[TRONQUE]</Badge>
                 {/if}
               </h3>
-              <div class="rounded border bg-muted/30 p-3">
-                <p class="whitespace-pre-wrap text-sm">{task.output_text}</p>
-              </div>
+              <SmartOutput output={task.output_text} />
             </div>
           {/if}
 

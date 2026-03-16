@@ -424,6 +424,10 @@
     "memory_title": "Memory",
     "memory_link": "View memory for namespace \"{namespace}\""
   },
+  "smart_output": {
+    "show_raw": "Show raw output",
+    "show_formatted": "Show formatted"
+  },
   "mac_sandbox": {
     "title": "macOS — tools run without sandbox.",
     "body": "Linux namespace isolation is not available on macOS. Agent tool calls (bash, file I/O) execute directly in your user session. Only run agents you trust, and review their tool permissions in the manifest."

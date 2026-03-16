@@ -3,14 +3,13 @@
   import type { TaskSummary } from "$lib/types";
   import { currentRoute } from "$lib/stores/navigation";
   import { Badge } from "$lib/components/ui/badge";
+  import SmartOutputPreview from "../common/SmartOutputPreview.svelte";
 
   interface Props {
     tasks: TaskSummary[];
   }
 
   let { tasks: recentTasks }: Props = $props();
-
-  const MAX_PREVIEW_LENGTH = 80;
 
   const STATUS_BADGE: Record<
     string,
@@ -26,15 +25,6 @@
 
   function badgeFor(status: string) {
     return STATUS_BADGE[status] ?? { variant: "secondary" as const, extraClass: "" };
-  }
-
-  /** Truncate output text to a single-line preview. */
-  function preview(task: TaskSummary): string {
-    const text = task.output_text ?? task.input_preview;
-    if (!text) return "";
-    const firstLine = text.split("\n")[0];
-    if (firstLine.length <= MAX_PREVIEW_LENGTH) return firstLine;
-    return firstLine.slice(0, MAX_PREVIEW_LENGTH) + "…";
   }
 
   /** Format a timestamp to a relative string (e.g. "2m ago", "1h ago"). */
@@ -68,8 +58,9 @@
       >
         <span class="min-w-0 flex-1">
           <span class="font-medium">{task.agent_name}</span>
-          {#if preview(task)}
-            <span class="text-muted-foreground"> — {preview(task)}</span>
+          {#if task.output_text || task.input_preview}
+            <span class="text-muted-foreground"> — </span>
+            <SmartOutputPreview output={task.output_text ?? task.input_preview ?? ""} maxLength={80} class="inline text-muted-foreground" />
           {/if}
         </span>
         <Badge variant={badgeFor(task.status).variant} class="{badgeFor(task.status).extraClass} shrink-0 text-[10px]">
