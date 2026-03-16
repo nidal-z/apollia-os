@@ -4,6 +4,16 @@
   import { Button } from "$lib/components/ui/button";
   import { tasks, refreshAll } from "$lib/stores/sse";
   import MacSandboxBanner from "../common/MacSandboxBanner.svelte";
+  import {
+    ArrowRight,
+    Sparkles,
+    Cog,
+    Play,
+    Check,
+    Pause,
+    Circle,
+  } from "lucide-svelte";
+  import type { ComponentType } from "svelte";
   import type { TaskSummary, PendingApproval } from "$lib/types";
 
   interface Props {
@@ -137,17 +147,17 @@
     }
   }
 
-  function eventIcon(type: string): string {
+  function eventIcon(type: string): ComponentType {
     switch (type) {
-      case "task_transition": return "↪";
-      case "llm_call":        return "✦";
-      case "tool_call":       return "⚙";
-      case "step_started":    return "▶";
-      case "step_completed":  return "✓";
-      case "hitl_suspended":  return "⏸";
-      case "hitl_resolved":   return "▶";
-      case "task_completed":  return "✓";
-      default:                return "·";
+      case "task_transition": return ArrowRight;
+      case "llm_call":        return Sparkles;
+      case "tool_call":       return Cog;
+      case "step_started":    return Play;
+      case "step_completed":  return Check;
+      case "hitl_suspended":  return Pause;
+      case "hitl_resolved":   return Play;
+      case "task_completed":  return Check;
+      default:                return Circle;
     }
   }
 
@@ -266,7 +276,7 @@
       {#if isInputRequired && pendingApproval}
         <div class="px-4 py-4 border-b bg-amber-500/5 border-amber-500/20">
           <div class="flex items-start gap-3">
-            <span class="text-xl text-amber-400 leading-none mt-0.5">⏸</span>
+            <span class="text-amber-400 leading-none mt-0.5"><Pause size={20} /></span>
             <div class="flex-1 space-y-3">
               <div>
                 <p class="text-sm font-semibold text-amber-300">{$t('onboarding.approval_required')}</p>
@@ -335,8 +345,9 @@
         {:else}
           <ul class="py-1">
             {#each events as ev, i (i)}
+              {@const Icon = eventIcon(ev.type)}
               <li class="flex items-start gap-3 px-4 py-1.5 hover:bg-muted/20 transition-colors">
-                <span class="mt-0.5 shrink-0 text-xs font-mono {eventColor(ev.type)}">{eventIcon(ev.type)}</span>
+                <span class="mt-0.5 shrink-0 {eventColor(ev.type)}"><Icon size={14} /></span>
                 <div class="flex-1 min-w-0">
                   <p class="text-xs leading-relaxed text-foreground truncate">
                     {eventSummary(ev)}
@@ -355,8 +366,8 @@
 
   <div class="flex items-center justify-between">
     {#if isCompleted}
-      <p class="text-sm text-[var(--apollia-success)] font-medium">
-        ✓ {$t('onboarding.task_completed')}
+      <p class="flex items-center gap-1.5 text-sm text-[var(--apollia-success)] font-medium">
+        <Check size={16} /> {$t('onboarding.task_completed')}
       </p>
       <Button onclick={onFinish}>{$t('onboarding.finish_setup')}</Button>
     {:else if isFailed}

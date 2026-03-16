@@ -5,44 +5,56 @@
   import { pendingCount } from "$lib/stores/hitl";
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
+  import {
+    Bot,
+    ListChecks,
+    ShieldCheck,
+    Brain,
+    Timer,
+    GitBranch,
+    Database,
+    Bell,
+    Activity,
+    Settings,
+    Hexagon,
+  } from "lucide-svelte";
+  import type { ComponentType } from "svelte";
 
-  /** Groupe de navigation avec clé i18n et items. */
-  type NavGroup = {
-    labelKey: string;
-    items: { route: Route; labelKey: string; icon: string }[];
-  };
+  /** Groupe de navigation avec clé i18n et icône Lucide. */
+  type NavItem = { route: Route; labelKey: string; icon: ComponentType };
+  type NavGroup = { labelKey: string; items: NavItem[] };
 
   const navGroups: NavGroup[] = [
     {
       labelKey: "nav.operations",
       items: [
-        { route: "agents", labelKey: "nav.agents", icon: "🤖" },
-        { route: "tasks", labelKey: "nav.tasks", icon: "📋" },
-        { route: "approvals", labelKey: "nav.approvals", icon: "✋" },
+        { route: "agents", labelKey: "nav.agents", icon: Bot },
+        { route: "tasks", labelKey: "nav.tasks", icon: ListChecks },
+        { route: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
       ],
     },
     {
       labelKey: "nav.infrastructure",
       items: [
-        { route: "llm", labelKey: "nav.llm", icon: "🧠" },
-        { route: "triggers", labelKey: "nav.triggers", icon: "⏱️" },
-        { route: "pipelines", labelKey: "nav.pipelines", icon: "🔗" },
+        { route: "llm", labelKey: "nav.llm", icon: Brain },
+        { route: "triggers", labelKey: "nav.triggers", icon: Timer },
+        { route: "pipelines", labelKey: "nav.pipelines", icon: GitBranch },
       ],
     },
     {
       labelKey: "nav.data",
       items: [
-        { route: "memory", labelKey: "nav.memory", icon: "💾" },
-        { route: "notifications", labelKey: "nav.notifications", icon: "🔔" },
-        { route: "observability", labelKey: "nav.observability", icon: "📊" },
+        { route: "memory", labelKey: "nav.memory", icon: Database },
+        { route: "notifications", labelKey: "nav.notifications", icon: Bell },
+        { route: "observability", labelKey: "nav.observability", icon: Activity },
       ],
     },
   ];
 
-  const settingsItem: { route: Route; labelKey: string; icon: string } = {
+  const settingsItem: NavItem = {
     route: "settings",
     labelKey: "nav.settings",
-    icon: "⚙️",
+    icon: Settings,
   };
 
   function navigate(route: Route) {
@@ -59,7 +71,8 @@
 
 <aside class="flex h-screen w-60 flex-col border-r bg-card" data-testid="sidebar">
   <!-- Logo -->
-  <div class="flex items-center gap-2 px-4 py-5">
+  <div class="flex items-center gap-2.5 px-4 py-5">
+    <Hexagon size={22} class="text-primary" />
     <span class="text-xl font-bold text-primary" data-testid="sidebar-logo">Apollia OS</span>
   </div>
 
@@ -80,7 +93,7 @@
           data-testid="nav-{item.route}"
           onclick={() => navigate(item.route)}
         >
-          <span>{item.icon}</span>
+          <item.icon size={18} />
           <span>{$t(item.labelKey)}</span>
           {#if item.route === "approvals" && $pendingCount > 0}
             <Badge variant="destructive" class="ml-auto text-[10px] px-1.5 py-0" data-testid="approvals-badge"
@@ -108,7 +121,7 @@
       data-testid="nav-{settingsItem.route}"
       onclick={() => navigate(settingsItem.route)}
     >
-      <span>{settingsItem.icon}</span>
+      <settingsItem.icon size={18} />
       <span>{$t(settingsItem.labelKey)}</span>
     </button>
   </nav>

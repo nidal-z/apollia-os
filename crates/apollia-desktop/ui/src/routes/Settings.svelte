@@ -6,6 +6,7 @@
   import { showOnboarding } from "$lib/stores/onboarding";
   import { themeMode, applyTheme, type ThemeMode } from "$lib/stores/theme";
   import { Button } from "$lib/components/ui/button";
+  import { Settings as SettingsIcon } from "lucide-svelte";
   import type { ApollaConfigView } from "$lib/types";
 
   let configView = $state<ApollaConfigView | null>(null);
@@ -73,7 +74,7 @@
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <span class="text-2xl">⚙️</span>
+      <SettingsIcon size={24} class="text-muted-foreground" />
       <h1 class="text-2xl font-bold">{$t('settings.title')}</h1>
     </div>
     <Button onclick={openEditor} disabled={openingEditor}>
