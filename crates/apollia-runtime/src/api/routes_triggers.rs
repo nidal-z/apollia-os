@@ -164,6 +164,7 @@ pub async fn get_trigger<B: ExecutionBackend + Clone>(
             id: def.id.clone(),
             agent: def.agent.clone(),
             source_kind: source_detail_kind(&def.source),
+            source_config: source_kind_and_detail(&def.source).1,
             enabled: def.enabled,
             fire_count: 0,
             skip_count: 0,

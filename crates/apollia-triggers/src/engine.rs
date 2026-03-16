@@ -130,6 +130,8 @@ pub struct TriggerStatus {
     pub agent: String,
     /// Type de source (`"cron"` | `"interval"` | `"file_watch"` | `"webhook"` | `"oneshot"`).
     pub source_kind: String,
+    /// Détail de la configuration source (ex : expression cron, intervalle, chemin).
+    pub source_config: String,
     /// Indique si le trigger est actif.
     pub enabled: bool,
     /// Nombre total de fires réussis depuis le démarrage.
@@ -403,6 +405,7 @@ impl TriggerEngine {
                         id: d.id.clone(),
                         agent: d.agent.clone(),
                         source_kind: source_kind_str(&d.source),
+                        source_config: source_config_str(&d.source),
                         enabled: d.enabled,
                         fire_count: self.fire_counts.get(&d.id).copied().unwrap_or(0),
                         skip_count: self.skip_counts.get(&d.id).copied().unwrap_or(0),
@@ -779,6 +782,17 @@ fn source_kind_str(source: &TriggerSourceConfig) -> String {
         TriggerSourceConfig::Webhook { .. } => "webhook",
     }
     .to_string()
+}
+
+/// Retourne le détail de configuration d'une source (expression cron, intervalle, chemin, etc.).
+fn source_config_str(source: &TriggerSourceConfig) -> String {
+    match source {
+        TriggerSourceConfig::Cron { schedule } => schedule.clone(),
+        TriggerSourceConfig::Interval { every } => every.clone(),
+        TriggerSourceConfig::Oneshot { fire_at } => fire_at.to_rfc3339(),
+        TriggerSourceConfig::FileWatch { path, .. } => path.display().to_string(),
+        TriggerSourceConfig::Webhook { .. } => String::new(),
+    }
 }
 
 // ─── TriggerEngineHandle ──────────────────────────────────────────────────

@@ -200,7 +200,8 @@
     "reload_success": "Configuration rechargée ({count} triggers actifs)",
     "reload_error": "Erreur de rechargement : {message}",
     "fired_toast": "Trigger déclenché — tâche {taskId}",
-    "empty": "Aucun trigger configuré. Ajoutez des [[triggers]] dans apollia.toml.",
+    "empty_title": "Aucun trigger configuré",
+    "empty_subtitle": "Les triggers permettent à vos assistants de s'exécuter automatiquement. Configurez-les dans apollia.toml.",
     "agent_label": "Agent",
     "fires": "déclench.",
     "skips": "ignorés",
@@ -211,7 +212,8 @@
     "no_logs": "Aucune entrée de log pour ce trigger.",
     "task_label": "Tâche",
     "disable_trigger": "Désactiver le trigger",
-    "enable_trigger": "Activer le trigger"
+    "enable_trigger": "Activer le trigger",
+    "view_agent": "Voir l'agent"
   },
   "pipelines": {
     "title": "Pipelines",

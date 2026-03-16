@@ -1,8 +1,10 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { triggers } from "$lib/stores/triggers";
-  import type { TriggerReloadResult } from "$lib/types";
+  import { uiMode } from "$lib/stores/mode";
+  import { currentRoute } from "$lib/stores/navigation";
+  import type { TriggerReloadResult, TriggerStatus } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
   import TriggerRow from "../components/triggers/TriggerRow.svelte";
   import TriggerLogs from "../components/triggers/TriggerLogs.svelte";
@@ -16,6 +18,20 @@
 
   let logsTriggerId = $state<string | null>(null);
   let logsOpen = $derived(logsTriggerId !== null);
+
+  /** Group triggers by agent name, preserving insertion order. */
+  const triggersByAgent = $derived.by(() => {
+    const groups = new Map<string, TriggerStatus[]>();
+    for (const trigger of $triggers) {
+      const existing = groups.get(trigger.agent);
+      if (existing) {
+        existing.push(trigger);
+      } else {
+        groups.set(trigger.agent, [trigger]);
+      }
+    }
+    return groups;
+  });
 
   function showToast(message: string, type: "success" | "error") {
     if (toastTimer !== null) {
@@ -54,17 +70,22 @@
   function handleCloseLogs() {
     logsTriggerId = null;
   }
+
+  function navigateToAgents() {
+    currentRoute.set("agents");
+  }
 </script>
 
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold">{$t('triggers.title')}</h1>
+    <h1 class="text-2xl font-bold" data-testid="triggers-header">{$t('triggers.title')}</h1>
     <Button
       size="sm"
       variant="outline"
       onclick={handleReload}
       disabled={reloading}
+      data-testid="triggers-reload-btn"
     >
       {reloading ? $t('triggers.reloading') : $t('triggers.reload')}
     </Button>
@@ -76,6 +97,7 @@
       class="rounded-md border px-4 py-2 text-sm {toast.type === 'success'
         ? 'border-[var(--apollia-success)] bg-[var(--apollia-success)]/10 text-[var(--apollia-success)]'
         : 'border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 text-[hsl(var(--destructive))]'}"
+      data-testid="triggers-toast"
     >
       {toast.message}
     </div>
@@ -90,23 +112,47 @@
     </div>
   {/if}
 
-  <!-- Trigger list or empty state -->
+  <!-- Trigger list grouped by agent, or empty state -->
   {#if $triggers.length === 0}
     <div
-      class="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-16"
+      class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16"
+      data-testid="triggers-empty"
     >
-      <p class="text-muted-foreground">
-        {$t('triggers.empty')}
+      <p class="font-medium text-foreground">
+        {$t('triggers.empty_title')}
+      </p>
+      <p class="text-sm text-muted-foreground">
+        {$t('triggers.empty_subtitle')}
       </p>
     </div>
   {:else}
-    <div class="space-y-3">
-      {#each $triggers as trigger (trigger.id)}
-        <TriggerRow
-          {trigger}
-          onfire={handleFire}
-          onlogs={handleOpenLogs}
-        />
+    <div class="space-y-6" data-testid="triggers-grouped">
+      {#each [...triggersByAgent.entries()] as [agentName, agentTriggers] (agentName)}
+        <section data-testid="trigger-group-{agentName}">
+          <!-- Agent group header -->
+          <button
+            class="mb-3 flex items-center gap-2 text-left"
+            onclick={navigateToAgents}
+            data-testid="trigger-agent-link-{agentName}"
+          >
+            <h2 class="text-lg font-semibold">{agentName}</h2>
+            <span class="text-xs text-muted-foreground hover:underline">
+              {$t('triggers.view_agent')} &rarr;
+            </span>
+          </button>
+
+          <div class="space-y-3">
+            {#each agentTriggers as trigger (trigger.id)}
+              <TriggerRow
+                {trigger}
+                locale={$locale ?? "en"}
+                isBuilder={$uiMode === "builder"}
+                onfire={handleFire}
+                onlogs={handleOpenLogs}
+              />
+            {/each}
+          </div>
+        </section>
       {/each}
     </div>
   {/if}

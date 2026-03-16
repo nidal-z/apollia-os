@@ -20,6 +20,8 @@ pub struct TriggerStatus {
     pub agent: String,
     /// Type de source : `"cron"` | `"interval"` | `"file_watch"` | `"webhook"` | `"oneshot"`.
     pub source_kind: String,
+    /// Détail de la configuration source (ex : expression cron, intervalle, chemin).
+    pub source_config: String,
     /// Trigger actif ou non.
     pub enabled: bool,
     /// Nombre de fires réussis.
@@ -91,6 +93,11 @@ pub async fn list_triggers(state: State<'_, RuntimeHandle>) -> Result<Vec<Trigge
                 .to_string(),
             source_kind: t
                 .get("source_kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            source_config: t
+                .get("source_config")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string(),
@@ -227,6 +234,7 @@ mod tests {
             id: "daily-report".to_string(),
             agent: "report-agent".to_string(),
             source_kind: "cron".to_string(),
+            source_config: "0 8 * * MON".to_string(),
             enabled: true,
             fire_count: 42,
             skip_count: 3,
@@ -240,6 +248,7 @@ mod tests {
         assert_eq!(json["id"], "daily-report");
         assert_eq!(json["agent"], "report-agent");
         assert_eq!(json["source_kind"], "cron");
+        assert_eq!(json["source_config"], "0 8 * * MON");
         assert_eq!(json["enabled"], true);
         assert_eq!(json["fire_count"], 42);
         assert_eq!(json["skip_count"], 3);
@@ -253,6 +262,7 @@ mod tests {
             id: "watcher".to_string(),
             agent: "file-agent".to_string(),
             source_kind: "file_watch".to_string(),
+            source_config: "/home/user/docs".to_string(),
             enabled: false,
             fire_count: 0,
             skip_count: 0,

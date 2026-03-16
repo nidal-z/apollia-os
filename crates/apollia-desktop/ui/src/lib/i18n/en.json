@@ -200,7 +200,8 @@
     "reload_success": "Configuration reloaded ({count} active triggers)",
     "reload_error": "Reload error: {message}",
     "fired_toast": "Trigger fired — task {taskId}",
-    "empty": "No triggers configured. Add [[triggers]] in apollia.toml.",
+    "empty_title": "No triggers configured",
+    "empty_subtitle": "Triggers let your assistants run automatically. Configure them in apollia.toml.",
     "agent_label": "Agent",
     "fires": "fires",
     "skips": "skips",
@@ -211,7 +212,8 @@
     "no_logs": "No log entries for this trigger.",
     "task_label": "Task",
     "disable_trigger": "Disable trigger",
-    "enable_trigger": "Enable trigger"
+    "enable_trigger": "Enable trigger",
+    "view_agent": "View agent"
   },
   "pipelines": {
     "title": "Pipelines",

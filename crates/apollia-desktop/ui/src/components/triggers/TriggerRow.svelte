@@ -2,17 +2,20 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import type { TriggerStatus, TriggerFireResult } from "$lib/types";
+  import { humanizeTrigger } from "$lib/utils/humanize-trigger";
   import { Card, CardContent } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
 
   interface Props {
     trigger: TriggerStatus;
+    locale: string;
+    isBuilder: boolean;
     onfire: (taskId: string) => void;
     onlogs: (triggerId: string) => void;
   }
 
-  let { trigger, onfire, onlogs }: Props = $props();
+  let { trigger, locale, isBuilder, onfire, onlogs }: Props = $props();
 
   let toggling = $state(false);
   let firing = $state(false);
@@ -47,6 +50,10 @@
       label: trigger.source_kind.toUpperCase(),
       extraClass: "",
     },
+  );
+
+  const humanDescription = $derived(
+    humanizeTrigger(trigger.source_kind, trigger.source_config, locale),
   );
 
   function formatRelativeTime(iso: string): string {
@@ -92,21 +99,25 @@
   }
 </script>
 
-<Card class="relative overflow-hidden">
+<Card class="relative overflow-hidden" data-testid="trigger-row-{trigger.id}">
   <CardContent class="py-3">
     <div class="flex items-center gap-4">
-      <!-- Trigger ID and source badge -->
+      <!-- Trigger description and source badge -->
       <div class="flex min-w-0 flex-1 items-center gap-3">
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
-            <span class="truncate text-sm font-semibold">{trigger.id}</span>
+            <span class="text-sm font-medium" data-testid="trigger-description-{trigger.id}">
+              {humanDescription}
+            </span>
             <Badge variant="outline" class={badgeConfig.extraClass}>
               {badgeConfig.label}
             </Badge>
           </div>
-          <div class="mt-0.5 text-xs text-muted-foreground">
-            {$t('triggers.agent_label')}: {trigger.agent}
-          </div>
+          {#if isBuilder && trigger.source_config}
+            <div class="mt-0.5 text-xs text-muted-foreground" data-testid="trigger-raw-{trigger.id}">
+              {trigger.source_config}
+            </div>
+          {/if}
         </div>
       </div>
 
@@ -138,6 +149,7 @@
         onclick={handleToggle}
         disabled={toggling}
         aria-label={trigger.enabled ? $t('triggers.disable_trigger') : $t('triggers.enable_trigger')}
+        data-testid="trigger-toggle-{trigger.id}"
       >
         <span
           class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform {trigger.enabled
@@ -153,6 +165,7 @@
           variant="outline"
           onclick={handleFire}
           disabled={firing || !trigger.enabled}
+          data-testid="trigger-fire-{trigger.id}"
         >
           {firing ? "..." : $t('triggers.fire')}
         </Button>
@@ -160,6 +173,7 @@
           size="sm"
           variant="ghost"
           onclick={() => onlogs(trigger.id)}
+          data-testid="trigger-logs-{trigger.id}"
         >
           {$t('triggers.logs')}
         </Button>

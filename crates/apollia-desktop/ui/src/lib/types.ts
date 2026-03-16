@@ -177,6 +177,7 @@ export interface TriggerStatus {
   id: string;
   agent: string;
   source_kind: "cron" | "interval" | "file_watch" | "webhook" | "oneshot";
+  source_config: string;
   enabled: boolean;
   fire_count: number;
   skip_count: number;
