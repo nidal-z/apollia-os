@@ -645,6 +645,22 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         format!("{} pipeline(s)", pipelines.len())
     };
 
+    // Open AgentRepository for auto-load at boot (STORY-179).
+    let data_dir = home.join(".apollia");
+    let agent_repository: Option<apollia_tools::AgentRepository> = {
+        let db_path = data_dir.join("agents.db");
+        match apollia_tools::AgentRepository::open(&db_path) {
+            Ok(repo) => {
+                tracing::info!("AgentRepository opened for auto-load");
+                Some(repo)
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "AgentRepository failed to open — auto-load disabled");
+                None
+            }
+        }
+    };
+
     // Start all actors via Supervisor (ordered, with timeout + rollback)
     let config = SupervisorConfig {
         api_config: APIServerConfig {
@@ -658,8 +674,9 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         input_required_timeout_hours: 24,
         notifications,
         pipelines,
-        data_dir: home.join(".apollia"),
+        data_dir,
         obs_config: apollia_core::ObservabilityConfig::default(),
+        agent_repository,
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);

@@ -245,6 +245,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         pipelines: vec![],
         data_dir: config.data_dir,
         obs_config: config.obs_config,
+        agent_repository: None,
     };
 
     let supervisor = Supervisor::new(supervisor_config);

@@ -24,7 +24,7 @@ use apollia_notifications::{
 use apollia_pipelines::{
     PipelineDefinition, PipelineEngine, PipelineEngineHandle, PipelineRepository,
 };
-use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
+use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use apollia_triggers::{TriggerDefinition, TriggerEngineHandle, TriggerPersistence};
 
 use crate::api::routes_agents::AgentLoader;
@@ -107,6 +107,12 @@ pub struct SupervisorConfig {
     /// Injectée dans `AppState`, `TriggerEngine`, et `LlmCallRepository`.
     /// Par défaut : `ObservabilityConfig::default()` (32 KB max input/output).
     pub obs_config: apollia_core::ObservabilityConfig,
+    /// Repository des agents installés (STORY-179).
+    ///
+    /// `Some` → l'auto-load est activé au boot : les agents `enabled` sont
+    /// chargés via `AgentLoader`, validés et enregistrés dans `AgentRegistry`.
+    /// `None` → l'auto-load est désactivé (compatibilité tests existants).
+    pub agent_repository: Option<AgentRepository>,
 }
 
 /// Handles returned after successful startup.
@@ -481,6 +487,8 @@ impl Supervisor {
         // Clone notification config so AppState can serve /api/v1/notifications/channels
         // while the original is consumed by NotificationEngine below.
         let notification_config_for_state = self.config.notifications.clone();
+        // Clone agent_loader before moving into AppState — needed for auto-load (STORY-179).
+        let agent_loader_for_autoload = agent_loader.clone();
         let state = AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -577,6 +585,59 @@ impl Supervisor {
 
         // Drain the AllReady event from the startup receiver
         drain_until_all_ready(&mut startup_rx, timeout).await;
+
+        // Phase 11: Auto-load installed agents (STORY-179)
+        //
+        // After AllReady, load all enabled agents from the repository,
+        // validate via AgentLoader, and register in AgentRegistry.
+        // Errors are logged but never block the boot (graceful degradation).
+        if let Some(ref repo) = self.config.agent_repository {
+            match repo.list_enabled() {
+                Ok(agents) => {
+                    if agents.is_empty() {
+                        info!("No installed agents to load");
+                    }
+                    for agent in &agents {
+                        if !agent.enabled {
+                            warn!(name = %agent.name, "Skipping disabled installed agent");
+                            continue;
+                        }
+                        match agent_loader_for_autoload.load_and_validate(&agent.install_path) {
+                            Ok(manifest) => match registry_handle.register(manifest).await {
+                                Ok(id) => {
+                                    info!(
+                                        name = %agent.name,
+                                        id = %id,
+                                        "Auto-loaded installed agent"
+                                    );
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        name = %agent.name,
+                                        error = %e,
+                                        "Failed to register installed agent"
+                                    );
+                                }
+                            },
+                            Err(e) => {
+                                warn!(
+                                    name = %agent.name,
+                                    error = %e,
+                                    "Failed to load installed agent"
+                                );
+                                let _ = event_sender.send(RuntimeEvent::AgentLoadFailed {
+                                    name: agent.name.clone(),
+                                    error: e.to_string(),
+                                });
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!(error = %e, "Failed to list installed agents — skipping auto-load");
+                }
+            }
+        }
 
         Ok(SupervisorHandles {
             event_sender,
@@ -779,6 +840,7 @@ mod tests {
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            agent_repository: None,
         }
     }
 
@@ -935,6 +997,7 @@ mod tests {
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            agent_repository: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1075,6 +1138,7 @@ mod tests {
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            agent_repository: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1165,6 +1229,7 @@ mod tests {
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            agent_repository: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1217,6 +1282,7 @@ mod tests {
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            agent_repository: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1281,6 +1347,7 @@ mod tests {
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            agent_repository: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1334,6 +1401,7 @@ mod tests {
             pipelines: vec![],
             data_dir: std::env::temp_dir(),
             obs_config: apollia_core::ObservabilityConfig::default(),
+            agent_repository: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1366,5 +1434,269 @@ mod tests {
         handles.registry_handle.shutdown();
         tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = std::fs::remove_file(&socket_path);
+    }
+
+    // ── STORY-179 — Auto-load installed agents at boot ──────────────────────
+
+    /// Creates a test [`AgentManifest`] with minimal fields.
+    fn test_manifest(name: &str) -> apollia_core::AgentManifest {
+        apollia_core::AgentManifest {
+            name: name.to_string(),
+            version: "1.0.0".to_string(),
+            description: format!("Test agent {name}"),
+            tools_required: vec![],
+            tools_optional: vec![],
+            supports_streaming: false,
+            supports_a2a: false,
+            memory_namespace: None,
+            shared_memory_namespaces: vec![],
+            max_concurrent_tasks: 1,
+            step_budget: None,
+            network_allowlist: None,
+            dangerous_tools_allowed: false,
+            tags: vec![],
+            skills: vec![],
+            execution_mode: "auto".to_string(),
+            system_prompt: None,
+            tools_requiring_approval: vec![],
+        }
+    }
+
+    /// Creates a test [`InstalledAgent`].
+    fn test_installed_agent(name: &str, enabled: bool) -> apollia_tools::InstalledAgent {
+        apollia_tools::InstalledAgent {
+            name: name.to_string(),
+            version: "1.0.0".to_string(),
+            install_path: PathBuf::from(format!("/tmp/agents/{name}/agent.py")),
+            source_path: PathBuf::from(format!("/tmp/{name}.py")),
+            manifest: test_manifest(name),
+            enabled,
+            installed_at: "2026-03-17T10:00:00Z".to_string(),
+            updated_at: "2026-03-17T10:00:00Z".to_string(),
+        }
+    }
+
+    /// Opens an in-memory [`AgentRepository`] for testing.
+    fn open_test_repo() -> AgentRepository {
+        AgentRepository::open(std::path::Path::new(":memory:")).expect("in-memory repo should open")
+    }
+
+    /// An [`AgentLoader`] that fails for agents whose path contains "corrupted".
+    struct FailingAgentLoader;
+
+    impl AgentLoader for FailingAgentLoader {
+        fn load_and_validate(
+            &self,
+            path: &std::path::Path,
+        ) -> Result<apollia_core::AgentManifest, String> {
+            let path_str = path.to_string_lossy();
+            if path_str.contains("corrupted") {
+                return Err("Python syntax error: invalid syntax".to_string());
+            }
+            // Delegate to StubAgentLoader for valid agents
+            crate::api::routes_agents::StubAgentLoader.load_and_validate(path)
+        }
+    }
+
+    /// Helper to shutdown handles cleanly.
+    async fn shutdown_handles(
+        handles: SupervisorHandles<MockBackend>,
+        socket_path: &std::path::Path,
+    ) {
+        handles.trigger_engine.shutdown().await;
+        handles.api_handle.shutdown();
+        handles.router_handle.shutdown();
+        handles.tool_registry_handle.shutdown().await;
+        handles.registry_handle.shutdown();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _ = std::fs::remove_file(socket_path);
+    }
+
+    // AC-1 — Les agents enabled sont chargés au boot
+    #[tokio::test]
+    async fn test_autoload_enabled_agents() {
+        // GIVEN 3 agents installés dont 2 enabled
+        let repo = open_test_repo();
+        repo.save(&test_installed_agent("agent-a", true))
+            .expect("save a");
+        repo.save(&test_installed_agent("agent-b", true))
+            .expect("save b");
+        repo.save(&test_installed_agent("agent-c", false))
+            .expect("save c (disabled)");
+
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let mut config = test_config(port, socket_path.clone());
+        config.agent_repository = Some(repo);
+
+        let supervisor = Supervisor::new(config);
+
+        // WHEN le Supervisor démarre
+        let handles = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
+            )
+            .await
+            .expect("start() should succeed");
+
+        // THEN les 2 agents enabled sont enregistrés dans AgentRegistry
+        let agents = handles
+            .registry_handle
+            .list_agents()
+            .await
+            .expect("list_agents should succeed");
+        assert_eq!(agents.len(), 2, "2 enabled agents should be registered");
+
+        shutdown_handles(handles, &socket_path).await;
+    }
+
+    // AC-1 — Les agents disabled sont ignorés
+    #[tokio::test]
+    async fn test_autoload_skips_disabled() {
+        // GIVEN 2 agents dont 1 disabled
+        let repo = open_test_repo();
+        repo.save(&test_installed_agent("enabled-agent", true))
+            .expect("save enabled");
+        repo.save(&test_installed_agent("disabled-agent", false))
+            .expect("save disabled");
+
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let mut config = test_config(port, socket_path.clone());
+        config.agent_repository = Some(repo);
+
+        let supervisor = Supervisor::new(config);
+
+        // WHEN le Supervisor démarre
+        let handles = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
+            )
+            .await
+            .expect("start() should succeed");
+
+        // THEN seul l'agent enabled est enregistré
+        let agents = handles
+            .registry_handle
+            .list_agents()
+            .await
+            .expect("list_agents should succeed");
+        assert_eq!(agents.len(), 1, "only 1 enabled agent should be registered");
+
+        shutdown_handles(handles, &socket_path).await;
+    }
+
+    // AC-2 — Un agent en erreur ne bloque pas le boot
+    #[tokio::test]
+    async fn test_autoload_corrupted_agent_continues() {
+        // GIVEN 2 agents enabled dont 1 avec un fichier "corrompu"
+        let repo = open_test_repo();
+        let mut valid = test_installed_agent("valid-agent", true);
+        valid.install_path = PathBuf::from("/tmp/agents/valid-agent/agent.py");
+        repo.save(&valid).expect("save valid");
+
+        let mut corrupted = test_installed_agent("corrupted-agent", true);
+        corrupted.install_path = PathBuf::from("/tmp/agents/corrupted/agent.py");
+        repo.save(&corrupted).expect("save corrupted");
+
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let mut config = test_config(port, socket_path.clone());
+        config.agent_repository = Some(repo);
+
+        let supervisor = Supervisor::new(config);
+
+        // Subscribe avant start() pour capturer AgentLoadFailed
+        // (impossible ici car event_sender est créé dans start())
+        // On vérifie plutôt que le boot réussit et que l'agent valide est chargé
+
+        // WHEN le Supervisor démarre avec un loader qui échoue pour "corrupted"
+        let handles = supervisor
+            .start(MockBackend, Arc::new(FailingAgentLoader), None)
+            .await
+            .expect("start() should succeed despite corrupted agent");
+
+        // THEN l'agent valide est enregistré
+        let agents = handles
+            .registry_handle
+            .list_agents()
+            .await
+            .expect("list_agents should succeed");
+        assert_eq!(agents.len(), 1, "only the valid agent should be registered");
+
+        shutdown_handles(handles, &socket_path).await;
+    }
+
+    // AC-3 — Aucun agent installé = boot normal
+    #[tokio::test]
+    async fn test_autoload_no_agents_no_error() {
+        // GIVEN une base vide
+        let repo = open_test_repo();
+
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let mut config = test_config(port, socket_path.clone());
+        config.agent_repository = Some(repo);
+
+        let supervisor = Supervisor::new(config);
+
+        // WHEN le Supervisor démarre
+        let handles = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
+            )
+            .await
+            .expect("start() should succeed with no agents");
+
+        // THEN aucun agent enregistré, pas d'erreur
+        let agents = handles
+            .registry_handle
+            .list_agents()
+            .await
+            .expect("list_agents should succeed");
+        assert!(agents.is_empty(), "no agents should be registered");
+
+        shutdown_handles(handles, &socket_path).await;
+    }
+
+    // AC-4 — agent_repository = None → auto-load skippé
+    #[tokio::test]
+    async fn test_autoload_none_repository_skips() {
+        // GIVEN une config sans agent_repository
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let config = test_config(port, socket_path.clone());
+        // agent_repository is already None in test_config
+
+        let supervisor = Supervisor::new(config);
+
+        // WHEN le Supervisor démarre
+        let handles = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
+            )
+            .await
+            .expect("start() should succeed without agent_repository");
+
+        // THEN pas d'agent enregistré, boot normal
+        let agents = handles
+            .registry_handle
+            .list_agents()
+            .await
+            .expect("list_agents should succeed");
+        assert!(
+            agents.is_empty(),
+            "no agents should be registered when agent_repository is None"
+        );
+
+        shutdown_handles(handles, &socket_path).await;
     }
 }

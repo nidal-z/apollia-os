@@ -276,7 +276,10 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         )
         .route("/webhooks/:id", post(handle_webhook::<B>))
         // HITL approval routes
-        .route("/api/v1/approvals/pending", get(list_pending_approvals::<B>))
+        .route(
+            "/api/v1/approvals/pending",
+            get(list_pending_approvals::<B>),
+        )
         .route(
             "/api/v1/approvals/resolved",
             get(list_resolved_approvals::<B>),

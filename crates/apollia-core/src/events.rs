@@ -168,6 +168,17 @@ pub enum RuntimeEvent {
     /// Erreur fatale non récupérable.
     FatalError(String),
 
+    /// Le chargement d'un agent installé a échoué au boot (STORY-179).
+    ///
+    /// Émis par le Supervisor lors de l'auto-load des agents installés.
+    /// L'agent est ignoré mais le runtime continue (dégradation gracieuse).
+    AgentLoadFailed {
+        /// Nom de l'agent dont le chargement a échoué.
+        name: String,
+        /// Message d'erreur détaillant la cause de l'échec.
+        error: String,
+    },
+
     /// Un trigger a été déclenché — tâche soumise au runtime.
     TriggerFired {
         /// Identifiant du trigger qui a produit l'événement.
@@ -523,6 +534,10 @@ mod tests {
             RuntimeEvent::AllReady,
             RuntimeEvent::ShutdownRequested,
             RuntimeEvent::FatalError("out of memory".into()),
+            RuntimeEvent::AgentLoadFailed {
+                name: "broken-agent".into(),
+                error: "module not found".into(),
+            },
             RuntimeEvent::LlmModelLoading {
                 backend: "local".into(),
                 model_path: "/tmp/model.gguf".into(),
