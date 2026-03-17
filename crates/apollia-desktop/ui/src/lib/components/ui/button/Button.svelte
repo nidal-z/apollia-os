@@ -17,7 +17,7 @@
   }: Props = $props();
 
   const variantClasses: Record<string, string> = {
-    default: "bg-[rgba(52,53,245,0.10)] text-primary border border-primary/20 backdrop-blur-sm shadow-[0_2px_12px_-2px_rgba(52,53,245,0.15)] hover:bg-[rgba(52,53,245,0.16)] hover:shadow-[0_4px_20px_-2px_rgba(52,53,245,0.25)] hover:border-primary/30",
+    default: "bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--secondary))] text-white shadow-[0_4px_16px_-2px_rgba(52,53,245,0.35)] hover:brightness-110 hover:shadow-[0_6px_24px_-2px_rgba(52,53,245,0.45)]",
     destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
     outline: "glass-border glass-surface text-foreground hover:bg-[rgba(52,53,245,0.05)]",
     secondary: "bg-secondary/10 text-secondary border border-secondary/20 hover:bg-secondary/15",

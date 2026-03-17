@@ -89,7 +89,7 @@
 <aside class="flex h-screen w-60 flex-col glass-panel border-r border-[rgba(52,53,245,0.08)] dark:border-[rgba(124,95,214,0.10)]" data-testid="sidebar">
   <!-- Logo -->
   <div class="flex items-center gap-2.5 px-4 py-5">
-    <img src="/logo.png" alt="Apollia" width="32" height="32" class="h-8 w-8" style="image-rendering: -webkit-optimize-contrast;" />
+    <img src="/logo.svg" alt="Apollia" width="32" height="32" class="h-8 w-8" />
     <span class="text-lg font-bold bg-gradient-to-r from-apollia-blue to-apollia-violet bg-clip-text text-transparent" data-testid="sidebar-logo">Apollia OS</span>
   </div>
 
