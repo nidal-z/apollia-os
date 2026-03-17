@@ -100,6 +100,8 @@
   - [ADR-027 — apollia-desktop : processus unique Tauri + runtime embarqué](decisions/adr-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md)
   - [ADR-028 — Frontend Svelte : UX first, UI sprint dédié](decisions/adr-028-frontend-svelte-ux-first-ui-sprint-dedie.md)
   - [ADR-029 — Settings lecture seule dans l'application desktop](decisions/adr-029-settings-lecture-seule.md)
+  - [ADR-030 — EventBus → Tauri events remplace le polling IPC](decisions/adr-030-eventbus-tauri-events-remplace-polling.md)
+  - [ADR-031 — Stratégie i18n : svelte-i18n avec fichiers JSON FR/EN](decisions/adr-031-i18n-svelte-i18n-fr-en.md)
 
 ---
 
