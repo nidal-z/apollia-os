@@ -2,6 +2,9 @@
 # force = false : shell env vars take precedence — CI overrides via $GITHUB_ENV.
 [env]
 PYO3_PYTHON = { value = "/opt/homebrew/bin/python3.13", force = false }
+# Aligne la cible macOS sur la version système réelle (Python 3.13 + Rust 1.89
+# via Homebrew ciblent 15.0 — sans cette valeur le linker avertit en permanence).
+MACOSX_DEPLOYMENT_TARGET = { value = "15.0", force = false }
 # Désactive la précompilation des shaders Metal au build — pas besoin de Xcode complet.
 # Les shaders sont compilés JIT par le driver Metal au premier appel d'inférence.
 # Pour activer la précompilation (Xcode requis) : export MISTRALRS_METAL_PRECOMPILE=1

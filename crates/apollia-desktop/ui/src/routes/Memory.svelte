@@ -145,6 +145,7 @@
       icon={Database}
       title={$t('memory.empty_title')}
       subtitle={$t('memory.empty_subtitle')}
+      page="memory"
     />
   {:else}
     <!-- Controls: Namespace selector + Search -->

@@ -2,7 +2,6 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { isLoading } from "svelte-i18n";
-  import { t } from "svelte-i18n";
   import Sidebar from "./components/layout/Sidebar.svelte";
   import Main from "./components/layout/Main.svelte";
   import OnboardingWizard from "./components/onboarding/OnboardingWizard.svelte";
@@ -36,7 +35,7 @@
 
 {#if $isLoading || !ready}
   <div class="flex h-screen w-screen items-center justify-center bg-background" data-testid="app-loading">
-    <p class="text-sm text-muted-foreground">{$t('common.loading')}</p>
+    <p class="text-sm text-muted-foreground">Loading…</p>
   </div>
 {:else if $showOnboarding}
   <OnboardingWizard onComplete={handleOnboardingComplete} />

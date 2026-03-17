@@ -33,7 +33,7 @@
   let firstBackend = $derived($llmBackends[0] ?? null);
 </script>
 
-<section data-testid="agent-detail-llm">
+<section data-testid="agent-llm-section">
   <h3 class="mb-3 text-sm font-semibold">{$t('agent_detail.llm_title')}</h3>
 
   {#if !firstBackend}

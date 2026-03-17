@@ -110,6 +110,7 @@
       subtitle={$t('pipelines.empty_subtitle')}
       ctaLabel={$t('pipelines.run_pipeline')}
       ctaAction={() => (showNewRunDialog = true)}
+      page="pipelines"
     />
   {:else if displayedRuns.length === 0}
     <div

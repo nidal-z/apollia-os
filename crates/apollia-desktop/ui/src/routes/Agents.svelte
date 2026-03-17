@@ -126,6 +126,7 @@
       title={$t('agents.empty_title')}
       ctaLabel={$uiMode === "operator" ? $t('agents.empty_cta_operator') : $t('agents.empty_cta_builder')}
       ctaAction={pickAndStartAgent}
+      page="agents"
     />
   {:else}
     <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-grid">

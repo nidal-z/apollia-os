@@ -70,6 +70,7 @@
           icon={ShieldCheck}
           title={$t('approvals.no_pending')}
           subtitle={$t('approvals.empty_subtitle')}
+          page="approvals"
         />
       {:else}
         <div class="space-y-3">

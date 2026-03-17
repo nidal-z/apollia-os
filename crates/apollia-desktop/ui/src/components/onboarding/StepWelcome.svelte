@@ -10,7 +10,7 @@
   let { onChoose }: Props = $props();
 </script>
 
-<div class="space-y-8 text-center" data-testid="step-welcome">
+<div class="space-y-8 text-center" data-testid="onboarding-welcome">
   <div>
     <h1 class="text-3xl font-bold text-primary">{$t('onboarding.welcome_title')}</h1>
     <p class="mt-2 text-base text-muted-foreground">
@@ -25,7 +25,7 @@
     <button
       class="group flex flex-col items-center gap-3 rounded-xl border-2 border-muted bg-card p-6 transition-all hover:border-primary hover:shadow-md"
       onclick={() => onChoose("builder")}
-      data-testid="profile-builder"
+      data-testid="onboarding-path-builder"
     >
       <span class="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
         <Code size={24} />
@@ -37,7 +37,7 @@
     <button
       class="group flex flex-col items-center gap-3 rounded-xl border-2 border-muted bg-card p-6 transition-all hover:border-primary hover:shadow-md"
       onclick={() => onChoose("operator")}
-      data-testid="profile-operator"
+      data-testid="onboarding-path-operator"
     >
       <span class="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
         <Sparkles size={24} />

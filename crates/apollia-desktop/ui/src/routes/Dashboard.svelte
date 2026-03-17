@@ -76,6 +76,7 @@
         title={$t('dashboard.no_assistants')}
         ctaLabel={$t('dashboard.discover_assistants')}
         ctaAction={navigateToAgents}
+        page="dashboard"
       />
     {:else}
       <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="dashboard-agents-grid">

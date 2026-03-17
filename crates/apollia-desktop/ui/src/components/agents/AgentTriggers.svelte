@@ -51,7 +51,7 @@
   }
 </script>
 
-<section data-testid="agent-detail-triggers">
+<section data-testid="agent-triggers-section">
   <h3 class="mb-3 text-sm font-semibold">{$t('agent_detail.triggers_title')}</h3>
 
   {#if agentTriggers.length === 0}

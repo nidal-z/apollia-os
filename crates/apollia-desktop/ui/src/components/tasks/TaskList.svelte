@@ -221,6 +221,7 @@
       subtitle={$t('tasks.empty_subtitle')}
       ctaLabel={mode === "operator" ? $t('tasks.empty_cta_operator') : $t('tasks.empty_cta_builder')}
       ctaAction={mode === "operator" ? navigateToAgents : openNewTaskDialog}
+      page="tasks"
     />
   {:else if visibleTasks.length === 0}
     <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">

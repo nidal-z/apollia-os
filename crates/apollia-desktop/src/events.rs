@@ -36,7 +36,7 @@ pub struct TauriRuntimeEvent {
 /// broadcast channel is closed (runtime shutdown).
 pub fn spawn_event_bridge(app: AppHandle, event_bus: EventBusSender) {
     let mut rx = event_bus.subscribe();
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         loop {
             match rx.recv().await {
                 Ok(event) => {

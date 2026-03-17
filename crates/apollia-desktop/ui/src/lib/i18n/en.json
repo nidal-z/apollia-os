@@ -32,6 +32,9 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "home": "Home",
+    "my_assistants": "My Assistants",
+    "activity": "Activity",
     "operations": "Operations",
     "infrastructure": "Infrastructure",
     "data": "Data",
@@ -45,6 +48,8 @@
     "notifications": "Notifications",
     "observability": "Observability",
     "settings": "Settings",
+    "switch_to_builder": "Switch to Builder",
+    "switch_to_operator": "Switch to Operator",
     "connection": {
       "connecting": "Connecting...",
       "connected": "Runtime connected",

@@ -128,7 +128,7 @@
       <h2 class="text-lg font-semibold">{$t('settings.preferences')}</h2>
 
       <!-- Language selector -->
-      <div class="rounded-lg border bg-card p-4" data-testid="language-section">
+      <div class="rounded-lg border bg-card p-4" data-testid="language-selector">
         <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{$t('settings.language_title')}</h3>
         <div class="flex items-center gap-2">
           {#each LANGUAGE_OPTIONS as option (option.value)}
@@ -144,7 +144,7 @@
       </div>
 
       <!-- Theme selector -->
-      <div class="rounded-lg border bg-card p-4" data-testid="theme-section">
+      <div class="rounded-lg border bg-card p-4" data-testid="theme-toggle">
         <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{$t('settings.theme_title')}</h3>
         <div class="flex items-center gap-2">
           {#each THEME_OPTIONS as option (option.value)}
@@ -160,7 +160,7 @@
       </div>
 
       <!-- Mode selector -->
-      <div class="rounded-lg border bg-card p-4" data-testid="mode-section">
+      <div class="rounded-lg border bg-card p-4" data-testid="mode-toggle">
         <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{$t('settings.mode_title')}</h3>
         <div class="flex items-center gap-3">
           {#each MODE_OPTIONS as option (option.value)}

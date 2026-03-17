@@ -125,6 +125,7 @@
       icon={Timer}
       title={$t('triggers.empty_title')}
       subtitle={$t('triggers.empty_subtitle')}
+      page="triggers"
     />
   {:else}
     <div class="space-y-6" data-testid="triggers-grouped">

@@ -202,7 +202,7 @@
     {/if}
   {:else if parsed.type === "object"}
     <!-- Structured view for JSON objects -->
-    <div class="space-y-3" data-testid="smart-output-structured">
+    <div class="space-y-3" data-testid="smart-output-formatted">
       {#each sortedKeys(parsed.data) as key (key)}
         {@const renderer = getFieldRenderer(key)}
         {@const value = parsed.data[key]}
@@ -349,7 +349,7 @@
             : "rounded border px-2 py-1 text-muted-foreground hover:bg-accent/50"
         )}
         onclick={() => (showRaw = !showRaw)}
-        data-testid="smart-output-toggle"
+        data-testid="smart-output-raw-toggle"
       >
         {showRaw ? $t("smart_output.show_formatted") : $t("smart_output.show_raw")}
       </button>

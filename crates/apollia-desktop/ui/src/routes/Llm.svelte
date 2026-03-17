@@ -46,6 +46,7 @@
       subtitle={isOperator ? $t('llm.empty_operator_hint') : $t('llm.empty_subtitle')}
       ctaLabel={$t('llm.open_settings')}
       ctaAction={() => currentRoute.set("settings")}
+      page="llm"
     />
   {:else}
     <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2">

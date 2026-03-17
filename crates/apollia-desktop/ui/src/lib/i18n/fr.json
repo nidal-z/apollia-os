@@ -32,6 +32,9 @@
   },
   "nav": {
     "dashboard": "Tableau de bord",
+    "home": "Accueil",
+    "my_assistants": "Mes Assistants",
+    "activity": "Activité",
     "operations": "Opérations",
     "infrastructure": "Infrastructure",
     "data": "Données",
@@ -45,6 +48,8 @@
     "notifications": "Notifications",
     "observability": "Observabilité",
     "settings": "Paramètres",
+    "switch_to_builder": "Passer en mode Builder",
+    "switch_to_operator": "Passer en mode Opérateur",
     "connection": {
       "connecting": "Connexion...",
       "connected": "Runtime connecté",
