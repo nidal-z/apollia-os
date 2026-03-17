@@ -25,7 +25,10 @@
 
 <div class="space-y-6">
   <!-- Header -->
-  <h1 class="text-2xl font-bold">{$t('observability.title')}</h1>
+  <div class="space-y-1">
+    <h1 class="text-2xl font-bold">{$t('observability.title')}</h1>
+    <p class="text-sm text-muted-foreground" data-testid="observability-subtitle">{$t('observability.subtitle')}</p>
+  </div>
 
   <!-- Tabs -->
   <div class="flex gap-1 rounded-md border bg-muted/30 p-1">

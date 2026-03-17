@@ -27,7 +27,10 @@
   <h1 class="text-2xl font-bold" data-testid="dashboard-greeting">
     {$t(greetingKey())}
   </h1>
-  <p class="text-sm text-muted-foreground" data-testid="dashboard-summary">
+  <p class="text-sm text-muted-foreground" data-testid="dashboard-subtitle">
+    {$t('dashboard.subtitle')}
+  </p>
+  <p class="text-xs text-muted-foreground" data-testid="dashboard-summary">
     {$t('dashboard.summary', { values: { agents: activeCount, tasks: todayTaskCount() } })}
   </p>
 </div>

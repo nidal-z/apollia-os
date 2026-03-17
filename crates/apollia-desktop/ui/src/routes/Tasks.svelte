@@ -17,7 +17,10 @@
 </script>
 
 <div class="space-y-4">
-  <h1 class="text-2xl font-bold" data-testid="tasks-header">{$t('tasks.title')}</h1>
+  <div class="space-y-1">
+    <h1 class="text-2xl font-bold" data-testid="tasks-header">{$t('tasks.title')}</h1>
+    <p class="text-sm text-muted-foreground" data-testid="tasks-subtitle">{$t('tasks.subtitle')}</p>
+  </div>
   <TaskList onSelectTask={handleSelectTask} />
 </div>
 

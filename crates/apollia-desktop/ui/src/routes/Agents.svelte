@@ -74,7 +74,10 @@
 <div class="space-y-4">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold" data-testid="agents-header">{$t('agents.title')}</h1>
+    <div class="space-y-1">
+      <h1 class="text-2xl font-bold" data-testid="agents-header">{$t('agents.title')}</h1>
+      <p class="text-sm text-muted-foreground" data-testid="agents-subtitle">{$t('agents.subtitle')}</p>
+    </div>
     <Button onclick={pickAndStartAgent} disabled={startingAgent} data-testid="register-agent-btn">
       {startingAgent ? $t('agents.starting') : $t('agents.register')}
     </Button>

@@ -43,11 +43,14 @@
 
 <div class="space-y-6">
   <!-- Header -->
-  <div class="flex items-center gap-3">
-    <h1 class="text-2xl font-bold" data-testid="approvals-header">{$t('approvals.title')}</h1>
-    {#if $pendingCount > 0}
-      <Badge variant="destructive" data-testid="approvals-pending-count">{$t('approvals.pending_count', { values: { count: $pendingCount } })}</Badge>
-    {/if}
+  <div>
+    <div class="flex items-center gap-3">
+      <h1 class="text-2xl font-bold" data-testid="approvals-header">{$t('approvals.title')}</h1>
+      {#if $pendingCount > 0}
+        <Badge variant="destructive" data-testid="approvals-pending-count">{$t('approvals.pending_count', { values: { count: $pendingCount } })}</Badge>
+      {/if}
+    </div>
+    <p class="mt-1 text-sm text-muted-foreground" data-testid="approvals-subtitle">{$t('approvals.subtitle')}</p>
   </div>
 
   {#if loading}

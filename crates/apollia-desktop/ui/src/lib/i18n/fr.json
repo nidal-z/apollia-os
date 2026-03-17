@@ -53,6 +53,7 @@
     }
   },
   "dashboard": {
+    "subtitle": "Vue d'ensemble de vos assistants et de l'activité récente",
     "greeting_morning": "Bonjour",
     "greeting_afternoon": "Bon après-midi",
     "greeting_evening": "Bonsoir",
@@ -69,6 +70,7 @@
   },
   "agents": {
     "title": "Agents",
+    "subtitle": "Gérez et surveillez vos assistants IA",
     "register": "Enregistrer un agent",
     "starting": "Démarrage...",
     "empty": "Aucun agent enregistré.",
@@ -91,6 +93,7 @@
   },
   "tasks": {
     "title": "Tâches",
+    "subtitle": "Suivez les requêtes envoyées à vos assistants et leurs résultats",
     "tab_all": "Toutes",
     "tab_running": "En cours",
     "tab_completed": "Terminées",
@@ -142,6 +145,7 @@
   },
   "approvals": {
     "title": "Approbations",
+    "subtitle": "Examinez et répondez aux demandes de vos assistants",
     "pending_count": "{count} en attente",
     "loading": "Chargement des approbations...",
     "pending_title": "En attente",
@@ -173,6 +177,7 @@
   "llm": {
     "title": "Backends LLM",
     "title_operator": "Modèles IA",
+    "subtitle": "Les modèles IA qui alimentent vos assistants",
     "empty": "Aucun backend LLM configuré. Éditez apollia.toml pour ajouter un backend.",
     "empty_title": "Aucun backend LLM configuré",
     "empty_subtitle": "Éditez apollia.toml pour ajouter un backend.",
@@ -203,6 +208,7 @@
   },
   "triggers": {
     "title": "Triggers",
+    "subtitle": "Règles automatiques qui démarrent vos assistants",
     "reload": "Recharger la config",
     "reloading": "Rechargement...",
     "reload_success": "Configuration rechargée ({count} triggers actifs)",
@@ -225,6 +231,7 @@
   },
   "pipelines": {
     "title": "Pipelines",
+    "subtitle": "Workflows multi-étapes combinant plusieurs assistants",
     "run_pipeline": "Lancer un pipeline",
     "tab_active": "Actifs",
     "tab_history": "Historique",
@@ -257,6 +264,7 @@
   },
   "memory": {
     "title": "Mémoire",
+    "subtitle": "Ce que vos assistants retiennent entre les sessions",
     "empty_namespaces": "Aucun namespace mémoire. Les agents créent des namespaces automatiquement.",
     "empty_title": "Aucune donnée mémoire",
     "empty_subtitle": "Vos assistants stockeront des données ici.",
@@ -289,6 +297,7 @@
   },
   "notifications": {
     "title": "Notifications",
+    "subtitle": "Canaux d'alerte et historique des notifications",
     "channels_title": "Canaux",
     "history_title": "Historique",
     "empty_channels": "Aucun canal de notification configuré. Ajoutez des [[notifications.channels]] dans apollia.toml.",
@@ -317,6 +326,7 @@
   },
   "observability": {
     "title": "Observabilité",
+    "subtitle": "Journaux d'exécution détaillés et suivi des coûts",
     "tab_timeline": "Chronologie",
     "tab_llm_costs": "Coûts LLM",
     "tab_audit_trail": "Piste d'audit",
@@ -347,6 +357,7 @@
   },
   "settings": {
     "title": "Paramètres",
+    "subtitle": "Préférences de l'application et configuration du runtime",
     "preferences": "Préférences",
     "runtime_config": "Configuration du runtime",
     "advanced": "Avancé",
@@ -482,6 +493,14 @@
   "smart_output": {
     "show_raw": "Afficher la sortie brute",
     "show_formatted": "Afficher formaté"
+  },
+  "glossary": {
+    "tokens": "Unités de texte traitées par le modèle IA",
+    "fts5": "Moteur de recherche plein texte pour une recherche rapide par mots-clés",
+    "episodic": "Souvenirs à court terme avec expiration optionnelle",
+    "semantic": "Connaissances à long terme stockées sous forme de paires clé-valeur",
+    "procedural": "Schémas et procédures appris",
+    "bm25": "Algorithme de scoring de pertinence pour les résultats de recherche"
   },
   "mac_sandbox": {
     "title": "macOS — les outils s'exécutent sans sandbox.",

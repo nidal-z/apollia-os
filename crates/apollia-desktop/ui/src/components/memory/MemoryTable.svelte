@@ -3,6 +3,7 @@
   import type { MemoryEntry } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { GlossaryTerm } from "$lib/components/ui/tooltip";
 
   interface Props {
     entries: MemoryEntry[];
@@ -95,7 +96,7 @@
           <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.key')}</th>
           <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.value')}</th>
           {#if searching}
-            <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.score')}</th>
+            <th class="px-4 py-2 text-left font-medium text-muted-foreground"><GlossaryTerm term="bm25" label={$t('memory.table.score')} /></th>
           {/if}
           <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.date')}</th>
           <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.ttl')}</th>
@@ -107,7 +108,7 @@
           <tr class="border-b last:border-b-0 hover:bg-muted/30">
             <td class="px-4 py-2">
               <Badge variant={TYPE_VARIANT[entry.entry_type] ?? "secondary"}>
-                {$t(`memory.type.${entry.entry_type}`, { default: entry.entry_type })}
+                <GlossaryTerm term={entry.entry_type} label={$t(`memory.type.${entry.entry_type}`, { default: entry.entry_type })} />
               </Badge>
             </td>
             <td class="max-w-[160px] truncate px-4 py-2 font-mono text-xs" title={entry.key}>

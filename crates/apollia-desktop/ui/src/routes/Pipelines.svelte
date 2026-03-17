@@ -58,7 +58,10 @@
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold">{$t('pipelines.title')}</h1>
+    <div class="space-y-1">
+      <h1 class="text-2xl font-bold">{$t('pipelines.title')}</h1>
+      <p class="text-sm text-muted-foreground" data-testid="pipelines-subtitle">{$t('pipelines.subtitle')}</p>
+    </div>
     <Button size="sm" onclick={() => (showNewRunDialog = true)}>{$t('pipelines.run_pipeline')}</Button>
   </div>
 

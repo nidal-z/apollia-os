@@ -102,7 +102,10 @@
   <!-- Header -->
   <div class="flex items-center gap-3">
     <SettingsIcon size={24} class="text-muted-foreground" />
-    <h1 class="text-2xl font-bold">{$t('settings.title')}</h1>
+    <div class="space-y-1">
+      <h1 class="text-2xl font-bold">{$t('settings.title')}</h1>
+      <p class="text-sm text-muted-foreground" data-testid="settings-subtitle">{$t('settings.subtitle')}</p>
+    </div>
   </div>
 
   {#if error}

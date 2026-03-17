@@ -123,8 +123,9 @@
 
 <div class="space-y-6">
   <!-- Header -->
-  <div class="flex items-center justify-between">
+  <div class="space-y-1">
     <h1 class="text-2xl font-bold">{$t('memory.title')}</h1>
+    <p class="text-sm text-muted-foreground" data-testid="memory-subtitle">{$t('memory.subtitle')}</p>
   </div>
 
   <!-- Toast -->

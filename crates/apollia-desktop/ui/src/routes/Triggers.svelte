@@ -83,7 +83,10 @@
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold" data-testid="triggers-header">{$t('triggers.title')}</h1>
+    <div class="space-y-1">
+      <h1 class="text-2xl font-bold" data-testid="triggers-header">{$t('triggers.title')}</h1>
+      <p class="text-sm text-muted-foreground" data-testid="triggers-subtitle">{$t('triggers.subtitle')}</p>
+    </div>
     <Button
       size="sm"
       variant="outline"

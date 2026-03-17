@@ -37,7 +37,10 @@
 
 <div class="space-y-6">
   <!-- Header -->
-  <h1 class="text-2xl font-bold">{$t('notifications.title')}</h1>
+  <div class="space-y-1">
+    <h1 class="text-2xl font-bold">{$t('notifications.title')}</h1>
+    <p class="text-sm text-muted-foreground" data-testid="notifications-subtitle">{$t('notifications.subtitle')}</p>
+  </div>
 
   <!-- Loading -->
   {#if loading}

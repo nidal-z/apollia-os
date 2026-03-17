@@ -5,6 +5,7 @@
   import type { LlmCostStatsResponse, LlmCostStatsRow } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
+  import { GlossaryTerm } from "$lib/components/ui/tooltip";
 
   const REFRESH_INTERVAL_MS = 30_000;
 
@@ -85,7 +86,7 @@
               <th class="pb-2 pr-4 font-medium">{$t('llm.table.backend')}</th>
               <th class="pb-2 pr-4 font-medium">{$t('llm.table.model')}</th>
               <th class="pb-2 pr-4 text-right font-medium">{$t('llm.table.calls')}</th>
-              <th class="pb-2 pr-4 text-right font-medium">{$t('llm.table.tokens')}</th>
+              <th class="pb-2 pr-4 text-right font-medium"><GlossaryTerm term="tokens" label={$t('llm.table.tokens')} /></th>
               <th class="pb-2 text-right font-medium">{$t('llm.table.cost_usd')}</th>
             </tr>
           </thead>
