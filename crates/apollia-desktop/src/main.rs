@@ -15,10 +15,10 @@ use std::sync::Arc;
 
 use apollia_core::PendingApprovals;
 use apollia_llm::LlmRouter;
-use apollia_runtime::api::routes_agents::AgentBackendFactory;
+use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
 use apollia_runtime::eventbus::EventBusSender;
-use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
+use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use tauri::Manager;
 
 /// Resolves `~` prefix to `$HOME` in a path string.
@@ -116,10 +116,27 @@ fn main() {
         let _ = task_repository_lock.set(repo);
     }
 
+    // Open (or create) the agent repository for installed agent persistence.
+    let apollia_data_dir = {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        std::path::PathBuf::from(home).join(".apollia")
+    };
+    let agent_repo: Arc<std::sync::Mutex<AgentRepository>> = {
+        let _ = std::fs::create_dir_all(&apollia_data_dir);
+        let db_path = apollia_data_dir.join("agents.db");
+        Arc::new(std::sync::Mutex::new(
+            AgentRepository::open(&db_path).expect("failed to open agents.db for desktop app"),
+        ))
+    };
+    let agent_loader: Arc<dyn AgentLoader> = Arc::new(backend::AIPAgentLoader);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .manage(runtime_handle.clone())
+        .manage(agent_repo)
+        .manage(agent_loader)
+        .manage(runtime_handle.event_sender.clone())
         .setup(move |app| {
             tray::setup_tray(app)?;
 
@@ -148,6 +165,11 @@ fn main() {
             commands::agents::list_agents,
             commands::agents::start_agent,
             commands::agents::stop_agent,
+            commands::agents::install_agent,
+            commands::agents::uninstall_agent,
+            commands::agents::enable_agent,
+            commands::agents::disable_agent,
+            commands::agents::update_agent,
             commands::tasks::list_tasks,
             commands::tasks::submit_task,
             commands::tasks::get_task_timeline,

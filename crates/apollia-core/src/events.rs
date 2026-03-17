@@ -179,6 +179,29 @@ pub enum RuntimeEvent {
         error: String,
     },
 
+    /// Un agent a été installé de façon permanente (ADR-032, STORY-180).
+    AgentInstalled {
+        /// Nom unique de l'agent installé.
+        name: String,
+        /// Version semver de l'agent.
+        version: String,
+    },
+    /// Un agent installé a été supprimé (ADR-032, STORY-180).
+    AgentUninstalled {
+        /// Nom de l'agent désinstallé.
+        name: String,
+    },
+    /// Un agent installé a été activé pour l'auto-start au boot (ADR-032, STORY-180).
+    AgentEnabled {
+        /// Nom de l'agent activé.
+        name: String,
+    },
+    /// Un agent installé a été désactivé (ne sera plus chargé au boot) (ADR-032, STORY-180).
+    AgentDisabled {
+        /// Nom de l'agent désactivé.
+        name: String,
+    },
+
     /// Un trigger a été déclenché — tâche soumise au runtime.
     TriggerFired {
         /// Identifiant du trigger qui a produit l'événement.
@@ -537,6 +560,19 @@ mod tests {
             RuntimeEvent::AgentLoadFailed {
                 name: "broken-agent".into(),
                 error: "module not found".into(),
+            },
+            RuntimeEvent::AgentInstalled {
+                name: "mon-agent".into(),
+                version: "0.1.0".into(),
+            },
+            RuntimeEvent::AgentUninstalled {
+                name: "mon-agent".into(),
+            },
+            RuntimeEvent::AgentEnabled {
+                name: "mon-agent".into(),
+            },
+            RuntimeEvent::AgentDisabled {
+                name: "mon-agent".into(),
             },
             RuntimeEvent::LlmModelLoading {
                 backend: "local".into(),

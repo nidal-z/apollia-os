@@ -82,7 +82,7 @@ enum Commands {
         detach: bool,
     },
 
-    /// Agent management (list, start, stop, info).
+    /// Agent management (list, start, stop, info, install, uninstall, enable, disable, update).
     Agent {
         /// Agent subcommand.
         #[command(subcommand)]
@@ -451,6 +451,88 @@ mod tests {
                     assert_eq!(agent_id, "hello-agent");
                 }
                 other => panic!("expected AgentCommand::Info, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_install() {
+        // GIVEN "apollia-os agent install ./agents/mon-agent.py"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "agent", "install", "./agents/mon-agent.py"]);
+        // THEN Commands::Agent { command: AgentCommand::Install { path } }
+        match &cli.command {
+            Commands::Agent { command } => match command {
+                AgentCommand::Install { path } => {
+                    assert_eq!(path, &PathBuf::from("./agents/mon-agent.py"));
+                }
+                other => panic!("expected AgentCommand::Install, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_uninstall() {
+        // GIVEN "apollia-os agent uninstall mon-agent"
+        // WHEN parse
+        let cli = parse(&["apollia-os", "agent", "uninstall", "mon-agent"]);
+        // THEN Commands::Agent { command: AgentCommand::Uninstall { name } }
+        match &cli.command {
+            Commands::Agent { command } => match command {
+                AgentCommand::Uninstall { name } => {
+                    assert_eq!(name, "mon-agent");
+                }
+                other => panic!("expected AgentCommand::Uninstall, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_enable() {
+        // GIVEN "apollia-os agent enable mon-agent"
+        let cli = parse(&["apollia-os", "agent", "enable", "mon-agent"]);
+        match &cli.command {
+            Commands::Agent { command } => match command {
+                AgentCommand::Enable { name } => assert_eq!(name, "mon-agent"),
+                other => panic!("expected AgentCommand::Enable, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_disable() {
+        // GIVEN "apollia-os agent disable mon-agent"
+        let cli = parse(&["apollia-os", "agent", "disable", "mon-agent"]);
+        match &cli.command {
+            Commands::Agent { command } => match command {
+                AgentCommand::Disable { name } => assert_eq!(name, "mon-agent"),
+                other => panic!("expected AgentCommand::Disable, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_update() {
+        // GIVEN "apollia-os agent update mon-agent ./agents/v2.py"
+        let cli = parse(&[
+            "apollia-os",
+            "agent",
+            "update",
+            "mon-agent",
+            "./agents/v2.py",
+        ]);
+        match &cli.command {
+            Commands::Agent { command } => match command {
+                AgentCommand::Update { name, path } => {
+                    assert_eq!(name, "mon-agent");
+                    assert_eq!(path, &PathBuf::from("./agents/v2.py"));
+                }
+                other => panic!("expected AgentCommand::Update, got {other:?}"),
             },
             other => panic!("expected Commands::Agent, got {other:?}"),
         }

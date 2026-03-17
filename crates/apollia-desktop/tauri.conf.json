@@ -26,7 +26,7 @@
     "active": true,
     "targets": ["dmg", "app", "appimage", "deb"],
     "icon": [
-      "icons/logov2.png"
+      "icons/logo.png"
     ],
     "macOS": {
       "minimumSystemVersion": "13.0"
