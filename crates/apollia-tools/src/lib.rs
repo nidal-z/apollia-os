@@ -6,6 +6,7 @@
 //! - `SandboxProfile` — Linux namespace isolation profiles (STORY-013)
 //! - `AuditTrail` — SQLite-persisted tool invocation log (STORY-016)
 //! - `TaskRepository` — SQLite-persisted HITL task state (STORY-094)
+//! - `AgentRepository` — SQLite-persisted installed agents (STORY-177)
 //!
 //! Native tools (Sprint 2):
 //! - `bash_executor` — sandboxed shell execution via unshare(1) (STORY-013)
@@ -14,6 +15,7 @@
 //! - `http_client` — network-restricted HTTP client
 //! - `mcp_consumer` — MCP server protocol consumer
 
+pub mod agent_repository;
 pub mod audit;
 pub mod descriptor;
 pub mod registry;
@@ -21,11 +23,14 @@ pub mod resolver;
 pub mod task_repository;
 pub mod tools;
 
+pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent};
 pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
 };
 pub use descriptor::{McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind};
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
-pub use task_repository::{ApprovalInfo, ResolvedApprovalRow, TaskDetail, TaskRepoError, TaskRepository};
+pub use task_repository::{
+    ApprovalInfo, ResolvedApprovalRow, TaskDetail, TaskRepoError, TaskRepository,
+};
 pub use tools::file_io::{FileIo, FileIoError};

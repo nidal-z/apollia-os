@@ -502,9 +502,7 @@ impl TaskRepository {
                         input_text: row.get::<_, Option<String>>(0)?,
                         output_text: row.get::<_, Option<String>>(1)?,
                         duration_ms: row.get::<_, Option<i64>>(2)?,
-                        created_at: row
-                            .get::<_, Option<String>>(3)?
-                            .unwrap_or_default(),
+                        created_at: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
                     })
                 },
             );
