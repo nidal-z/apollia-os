@@ -117,5 +117,9 @@ name = "test_webhook_notification"
 path = "integration/test_webhook_notification.rs"
 
 [[test]]
+name = "test_agent_persistence"
+path = "integration/test_agent_persistence.rs"
+
+[[test]]
 name = "test_pipelines"
 path = "integration/test_pipelines.rs"

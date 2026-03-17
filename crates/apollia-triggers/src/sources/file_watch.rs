@@ -83,9 +83,9 @@ impl FileWatchTrigger {
 
             tokio::task::spawn_blocking(move || {
                 let _watcher = watcher; // maintenu en vie jusqu'à la fin de la closure
-                // Deduplication: macOS FSEvents emits multiple Create events per `cp`
-                // (fd allocation + data flush). Suppress repeated fires for the same
-                // path within a 1-second window.
+                                        // Deduplication: macOS FSEvents emits multiple Create events per `cp`
+                                        // (fd allocation + data flush). Suppress repeated fires for the same
+                                        // path within a 1-second window.
                 let mut dedup: std::collections::HashMap<std::path::PathBuf, std::time::Instant> =
                     std::collections::HashMap::new();
                 loop {
@@ -93,17 +93,22 @@ impl FileWatchTrigger {
                         Ok(Ok(event)) => {
                             if let Some(payload) = map_notify_event(event, &source) {
                                 // Dedup check for File payloads
-                                if let TriggerPayload::File { path: ref file_path, .. } = payload {
+                                if let TriggerPayload::File {
+                                    path: ref file_path,
+                                    ..
+                                } = payload
+                                {
                                     let now = std::time::Instant::now();
-                                    if dedup
-                                        .get(file_path)
-                                        .is_some_and(|last| last.elapsed() < std::time::Duration::from_secs(1))
-                                    {
+                                    if dedup.get(file_path).is_some_and(|last| {
+                                        last.elapsed() < std::time::Duration::from_secs(1)
+                                    }) {
                                         continue;
                                     }
                                     dedup.insert(file_path.clone(), now);
                                     // Keep map bounded — prune entries older than 10s
-                                    dedup.retain(|_, t| t.elapsed() < std::time::Duration::from_secs(10));
+                                    dedup.retain(|_, t| {
+                                        t.elapsed() < std::time::Duration::from_secs(10)
+                                    });
                                 }
                                 let trigger_event = TriggerEvent {
                                     trigger_id: trigger_id.clone(),
