@@ -95,7 +95,7 @@
 
   <div class="space-y-3">
     {#each displayChecks as check}
-      <div class="flex items-start gap-3 rounded-lg border bg-card p-4">
+      <div class="flex items-start gap-3 rounded-lg glass-border glass-card p-4">
         <span class="mt-0.5 text-lg">
           {#if check.passed === null}
             <span

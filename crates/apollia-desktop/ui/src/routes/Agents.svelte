@@ -95,7 +95,7 @@
   {#if $connectionStatus === "connecting"}
     <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-skeleton">
       {#each { length: SKELETON_COUNT } as _}
-        <div class="rounded-lg border shadow-sm">
+        <div class="rounded-xl glass-card glass-border">
           <div class="px-4 pt-4 pb-3">
             <div class="flex items-start gap-3">
               <Skeleton class="h-10 w-10 shrink-0 rounded-full" />

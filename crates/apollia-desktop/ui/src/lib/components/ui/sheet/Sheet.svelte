@@ -24,7 +24,7 @@
 {#if open}
   <!-- Backdrop -->
   <div
-    class="fixed inset-0 z-50 bg-black/50"
+    class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
     role="button"
     tabindex="-1"
     onclick={handleBackdropClick}
@@ -34,7 +34,7 @@
   <!-- Panel -->
   <div
     class={cn(
-      "fixed inset-y-0 right-0 z-50 flex w-[400px] flex-col border-l bg-background shadow-lg transition-transform",
+      "fixed inset-y-0 right-0 z-50 flex w-[400px] flex-col glass-panel glass-border border-l shadow-lg transition-transform",
       className,
     )}
     role="dialog"

@@ -86,13 +86,13 @@
   <!-- Backdrop -->
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div
-    class="fixed inset-0 z-50 flex justify-end bg-black/50"
+    class="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm"
     onclick={handleBackdropClick}
   >
     <!-- Sheet panel -->
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div
-      class="h-full w-full max-w-md overflow-auto border-l bg-background p-6 shadow-lg"
+      class="h-full w-full max-w-md overflow-auto border-l glass-panel glass-border p-6 shadow-lg"
       onclick={handlePanelClick}
     >
       <!-- Header -->

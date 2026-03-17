@@ -159,7 +159,7 @@
                   {expandedTools.has(index) ? $t('tasks.hide_details') : $t('tasks.show_details')}
                 </button>
                 {#if expandedTools.has(index)}
-                  <div class="mt-1 rounded border bg-muted/30 p-2 text-xs">
+                  <div class="mt-1 rounded glass-border glass-surface p-2 text-xs">
                     <p>{$t('tasks.tool_label')}: {event.tool_name}</p>
                     {#if event.duration_ms !== undefined}
                       <p>{$t('tasks.duration_label')}: {formatDurationMs(event.duration_ms)}</p>

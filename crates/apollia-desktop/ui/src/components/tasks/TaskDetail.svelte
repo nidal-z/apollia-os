@@ -128,7 +128,7 @@
                 <Badge variant="outline" class="ml-2 text-[10px]">[TRONQUE]</Badge>
               {/if}
             </h3>
-            <div class="rounded border bg-muted/30 p-3">
+            <div class="rounded glass-border glass-surface p-3">
               {#if inputNeedsCollapse && !inputExpanded}
                 <p class="line-clamp-3 whitespace-pre-wrap text-sm">
                   {task.input_preview || $t('common.no_input')}

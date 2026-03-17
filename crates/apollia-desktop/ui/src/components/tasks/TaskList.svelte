@@ -166,11 +166,11 @@
 <div class="space-y-4">
   <!-- Tabs + agent filter + New Task button -->
   <div class="flex flex-wrap items-center gap-3">
-    <div class="flex gap-1 rounded-md border bg-muted/30 p-1">
+    <div class="flex gap-1 rounded-md glass-border glass-surface p-1">
       {#each visibleTabs as tab}
         <button
           class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === tab.key
-            ? 'bg-background text-foreground shadow-sm'
+            ? 'glass-inset text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground'}"
           onclick={() => handleTabChange(tab.key)}
         >
@@ -180,7 +180,7 @@
     </div>
 
     <select
-      class="rounded-md border bg-background px-3 py-1.5 text-sm"
+      class="rounded-md glass-border glass-surface px-3 py-1.5 text-sm"
       bind:value={filterAgentId}
     >
       <option value="">{$t('tasks.all_agents')}</option>
@@ -205,7 +205,7 @@
         <Skeleton class="h-3 w-[80px]" />
       </div>
       {#each { length: SKELETON_ROW_COUNT } as _}
-        <div class="flex items-center gap-3 rounded-md border px-3 py-2">
+        <div class="flex items-center gap-3 rounded-md glass-border glass-surface px-3 py-2">
           <Skeleton class="h-4 w-[140px]" />
           <Skeleton class="h-5 w-[70px] rounded-full" />
           <Skeleton class="h-3 flex-1" />
@@ -224,7 +224,7 @@
       page="tasks"
     />
   {:else if visibleTasks.length === 0}
-    <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
+    <div class="flex flex-col items-center justify-center gap-2 rounded-xl glass-surface glass-border border-dashed py-12">
       <p class="text-muted-foreground">{$t('tasks.no_match')}</p>
     </div>
   {:else}
@@ -242,7 +242,7 @@
         <button
           animate:flip={{ duration: 300 }}
           in:fly={{ y: 10, duration: 200 }}
-          class="flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/50"
+          class="flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]"
           data-testid="task-row"
           data-task-id={task.id}
           data-task-status={task.status}
@@ -295,14 +295,14 @@
 <!-- New Task Dialog -->
 {#if showNewTaskDialog}
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
     role="button"
     tabindex="-1"
     onclick={closeNewTaskDialog}
     onkeydown={(e) => e.key === "Escape" && closeNewTaskDialog()}
   >
     <div
-      class="w-[480px] rounded-lg border bg-background p-6 shadow-lg"
+      class="w-[480px] rounded-xl glass-card glass-border p-6 shadow-lg"
       role="dialog"
       aria-modal="true"
       tabindex="-1"
@@ -317,7 +317,7 @@
           <label class="mb-1 block text-sm font-medium" for="new-task-agent">{$t('tasks.agent_label')}</label>
           <select
             id="new-task-agent"
-            class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            class="w-full rounded-md glass-border glass-surface px-3 py-2 text-sm"
             data-testid="new-task-agent-select"
             bind:value={newTaskAgentId}
           >
@@ -332,7 +332,7 @@
           <label class="mb-1 block text-sm font-medium" for="new-task-input">{$t('tasks.input_label')}</label>
           <textarea
             id="new-task-input"
-            class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            class="w-full rounded-md glass-border glass-surface px-3 py-2 text-sm"
             rows="6"
             maxlength={MAX_INPUT_LENGTH}
             placeholder={$t('tasks.input_placeholder')}

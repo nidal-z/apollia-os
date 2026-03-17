@@ -132,7 +132,7 @@
       <span class="inline-block h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></span>
     </div>
   {:else if agents.length === 0}
-    <div class="rounded-lg border border-dashed bg-card p-6 text-center">
+    <div class="rounded-lg glass-border border-dashed glass-card p-6 text-center">
       <p class="text-sm text-muted-foreground">{$t('onboarding.no_agents_found')}</p>
     </div>
   {:else}
@@ -140,7 +140,7 @@
       {#each agents as entry (entry.id)}
         {@const Icon = entry.icon}
         <button
-          class="flex items-center gap-4 rounded-lg border bg-card p-4 text-left transition-all hover:border-primary hover:shadow-sm
+          class="flex items-center gap-4 rounded-lg glass-border glass-card p-4 text-left transition-all hover:border-primary hover:shadow-sm
             {selectedId === entry.id ? 'border-primary ring-2 ring-primary/20' : ''}"
           onclick={() => selectAgent(entry)}
           disabled={starting}

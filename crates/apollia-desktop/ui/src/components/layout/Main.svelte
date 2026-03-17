@@ -16,7 +16,7 @@
 
 <main class="flex-1 overflow-auto bg-background p-6">
   {#key $currentRoute}
-    <div in:fly={{ y: 6, duration: 150 }}>
+    <div in:fly={{ y: 12, duration: 250, delay: 50 }} class="animate-fade-in">
       {#if $currentRoute === "dashboard"}
         <Dashboard />
       {:else if $currentRoute === "agents"}

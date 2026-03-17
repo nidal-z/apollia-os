@@ -271,7 +271,7 @@
                         {#if step.output}
                           <div>
                             <p class="mb-1 text-xs font-medium text-muted-foreground">{$t('pipelines.step_output')}</p>
-                            <div class="rounded border bg-muted/30 p-2">
+                            <div class="rounded glass-border glass-surface p-2">
                               <p class="whitespace-pre-wrap text-xs">{step.output}</p>
                             </div>
                           </div>

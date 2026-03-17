@@ -250,8 +250,8 @@
   {/if}
 
   {#if taskId}
-    <div class="rounded-lg border bg-card overflow-hidden">
-      <div class="flex items-center justify-between gap-3 px-4 py-3 border-b bg-muted/30">
+    <div class="rounded-lg glass-border glass-card overflow-hidden">
+      <div class="flex items-center justify-between gap-3 px-4 py-3 border-b glass-border-subtle glass-surface">
         <div class="flex items-center gap-2">
           {#if !isTerminal}
             <span class="inline-block h-2 w-2 animate-pulse rounded-full bg-primary"></span>
@@ -346,7 +346,7 @@
           <ul class="py-1">
             {#each events as ev, i (i)}
               {@const Icon = eventIcon(ev.type)}
-              <li class="flex items-start gap-3 px-4 py-1.5 hover:bg-muted/20 transition-colors">
+              <li class="flex items-start gap-3 px-4 py-1.5 hover:bg-[rgba(52,53,245,0.04)] transition-colors">
                 <span class="mt-0.5 shrink-0 {eventColor(ev.type)}"><Icon size={14} /></span>
                 <div class="flex-1 min-w-0">
                   <p class="text-xs leading-relaxed text-foreground truncate">

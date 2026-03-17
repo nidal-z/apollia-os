@@ -37,7 +37,7 @@
   <div class="grid gap-3">
     {#each LINKS as link (link.route)}
       {@const Icon = link.icon}
-      <div class="flex items-center gap-4 rounded-lg border bg-card p-4">
+      <div class="flex items-center gap-4 rounded-lg glass-border glass-card p-4">
         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Icon size={18} />
         </span>

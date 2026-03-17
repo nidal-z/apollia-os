@@ -20,7 +20,7 @@
   </Tooltip.Trigger>
   <Tooltip.Portal>
     <Tooltip.Content
-      class="z-50 max-w-xs rounded-md bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md border"
+      class="z-50 max-w-xs rounded-md glass-card glass-border px-3 py-1.5 text-sm text-card-foreground shadow-md"
       sideOffset={4}
     >
       {$t(`glossary.${term}`)}

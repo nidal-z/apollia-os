@@ -95,7 +95,7 @@
   </div>
 
   {#if !started}
-    <div class="flex flex-col items-center gap-4 rounded-lg border border-dashed bg-card p-8">
+    <div class="flex flex-col items-center gap-4 rounded-lg glass-border border-dashed glass-card p-8">
       <Button onclick={pickFile} disabled={loading}>
         {loading ? $t('onboarding.starting_agent') : $t('onboarding.choose_file')}
       </Button>
@@ -112,7 +112,7 @@
   {/if}
 
   {#if loading}
-    <div class="flex items-center gap-3 rounded-lg border bg-card p-4">
+    <div class="flex items-center gap-3 rounded-lg glass-border glass-card p-4">
       <span class="inline-block h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></span>
       <p class="text-sm text-muted-foreground">{$t('onboarding.starting_agent')}</p>
     </div>

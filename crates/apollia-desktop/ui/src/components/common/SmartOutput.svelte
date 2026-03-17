@@ -194,7 +194,7 @@
     <!-- Raw / plain text view -->
     {#if parsed.type === "text"}
       <pre
-        class="whitespace-pre-wrap rounded border bg-muted/30 p-3 font-mono text-sm"
+        class="whitespace-pre-wrap rounded glass-border glass-surface p-3 font-mono text-sm"
         data-testid="smart-output-text"
       >{output}</pre>
     {:else}
@@ -235,7 +235,7 @@
             <span class="text-xs font-medium text-muted-foreground">{humanizeKey(key)}</span>
             <div class="flex flex-wrap gap-1.5">
               {#each toStringArray(value) as item}
-                <span class="inline-flex items-center rounded-md bg-accent/50 px-2 py-0.5 text-xs">
+                <span class="inline-flex items-center rounded-md glass-inset px-2 py-0.5 text-xs">
                   {item}
                 </span>
               {/each}
@@ -296,7 +296,7 @@
           <div class="text-sm" data-testid="smart-output-generic">
             <span class="text-muted-foreground">{humanizeKey(key)}:</span>
             {#if typeof value === "object" && value !== null}
-              <pre class="mt-1 whitespace-pre-wrap rounded bg-muted/20 p-2 font-mono text-xs">{formatGenericValue(value)}</pre>
+              <pre class="mt-1 whitespace-pre-wrap rounded glass-inset p-2 font-mono text-xs">{formatGenericValue(value)}</pre>
             {:else}
               <span class="ml-1">{formatGenericValue(value)}</span>
             {/if}
@@ -308,10 +308,10 @@
     <!-- Table view for JSON arrays -->
     {@const columns = detectColumns(parsed.data)}
     {#if columns.length > 0}
-      <div class="overflow-x-auto rounded border" data-testid="smart-output-table">
+      <div class="overflow-x-auto rounded glass-border glass-surface" data-testid="smart-output-table">
         <table class="w-full text-sm">
           <thead>
-            <tr class="border-b bg-muted/30">
+            <tr class="border-b glass-border-subtle glass-surface">
               {#each columns as col}
                 <th class="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                   {humanizeKey(col)}
@@ -321,7 +321,7 @@
           </thead>
           <tbody>
             {#each parsed.data as row, i}
-              <tr class={cn("border-b last:border-b-0", i % 2 === 1 && "bg-muted/10")}>
+              <tr class={cn("border-b last:border-b-0", i % 2 === 1 && "bg-[rgba(52,53,245,0.02)] dark:bg-[rgba(124,95,214,0.03)]")}>
                 {#each columns as col}
                   <td class="px-3 py-2">{cellValue(row, col)}</td>
                 {/each}
@@ -333,7 +333,7 @@
     {:else}
       <!-- Array of primitives — render as list -->
       <pre
-        class="whitespace-pre-wrap rounded border bg-muted/30 p-3 font-mono text-sm"
+        class="whitespace-pre-wrap rounded glass-border glass-surface p-3 font-mono text-sm"
       >{output}</pre>
     {/if}
   {/if}
@@ -346,7 +346,7 @@
           "text-xs transition-colors",
           mode === "operator"
             ? "text-muted-foreground/60 hover:text-muted-foreground"
-            : "rounded border px-2 py-1 text-muted-foreground hover:bg-accent/50"
+            : "rounded border px-2 py-1 text-muted-foreground hover:glass-inset"
         )}
         onclick={() => (showRaw = !showRaw)}
         data-testid="smart-output-raw-toggle"

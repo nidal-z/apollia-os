@@ -29,7 +29,7 @@
   {#if $connectionStatus === "connecting"}
     <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2" data-testid="llm-skeleton">
       {#each { length: SKELETON_COUNT } as _}
-        <div class="space-y-3 rounded-lg border p-4">
+        <div class="space-y-3 rounded-xl glass-card glass-border p-4">
           <div class="flex items-center justify-between">
             <Skeleton class="h-5 w-[50%]" />
             <Skeleton class="h-5 w-14 rounded-full" />

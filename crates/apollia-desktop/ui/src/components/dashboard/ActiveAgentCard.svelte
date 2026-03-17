@@ -38,7 +38,7 @@
 </script>
 
 <button class="w-full text-left" onclick={handleClick} data-testid="active-agent-card" data-agent-id={agent.id}>
-  <Card class="transition-colors hover:bg-accent/30">
+  <Card class="transition-colors hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]">
     <CardHeader class="pb-2">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">

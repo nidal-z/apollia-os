@@ -45,7 +45,7 @@
 </script>
 
 <div
-  class="flex items-center gap-3 rounded-md border px-4 py-3 text-sm transition-colors hover:bg-accent/50"
+  class="flex items-center gap-3 rounded-md border px-4 py-3 text-sm transition-colors hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]"
 >
   <code class="shrink-0 text-xs text-muted-foreground">{shortId(run.run_id)}</code>
   <span class="min-w-0 flex-1 truncate font-medium">{run.pipeline_id}</span>

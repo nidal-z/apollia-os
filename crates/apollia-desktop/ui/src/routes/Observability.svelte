@@ -31,10 +31,10 @@
   </div>
 
   <!-- Tabs -->
-  <div class="flex gap-1 rounded-md border bg-muted/30 p-1">
+  <div class="flex gap-1 rounded-md glass-border glass-surface p-1">
     <button
       class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === 'timeline'
-        ? 'bg-background text-foreground shadow-sm'
+        ? 'glass-inset text-foreground shadow-sm'
         : 'text-muted-foreground hover:text-foreground'}"
       onclick={() => handleTabChange("timeline")}
     >
@@ -42,7 +42,7 @@
     </button>
     <button
       class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === 'llm-costs'
-        ? 'bg-background text-foreground shadow-sm'
+        ? 'glass-inset text-foreground shadow-sm'
         : 'text-muted-foreground hover:text-foreground'}"
       onclick={() => handleTabChange("llm-costs")}
     >
@@ -50,7 +50,7 @@
     </button>
     <button
       class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === 'audit-trail'
-        ? 'bg-background text-foreground shadow-sm'
+        ? 'glass-inset text-foreground shadow-sm'
         : 'text-muted-foreground hover:text-foreground'}"
       onclick={() => handleTabChange("audit-trail")}
     >

@@ -146,7 +146,7 @@
         <tbody>
           {#each filteredEntries as entry (entry.id)}
             <tr
-              class="cursor-pointer border-b border-dashed transition-colors hover:bg-accent/30"
+              class="cursor-pointer border-b border-dashed border-primary/8 transition-colors hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]"
               onclick={() => toggleRow(entry.id)}
             >
               <td class="py-2 pr-4 text-xs">{formatTimestamp(entry.timestamp)}</td>
@@ -167,23 +167,23 @@
             {#if expandedRows.has(entry.id)}
               <tr>
                 <td colspan="5" class="px-4 pb-3 pt-1">
-                  <div class="space-y-2 rounded border bg-muted/20 p-3">
+                  <div class="space-y-2 rounded glass-border glass-inset p-3">
                     {#if entry.args_json}
                       <div>
                         <span class="text-xs font-medium text-muted-foreground">{$t('observability.table.arguments')}:</span>
-                        <pre class="mt-1 overflow-x-auto rounded bg-muted/30 p-2 text-xs">{entry.args_json}</pre>
+                        <pre class="mt-1 overflow-x-auto rounded glass-surface p-2 text-xs">{entry.args_json}</pre>
                       </div>
                     {/if}
                     {#if entry.stdout}
                       <div>
                         <span class="text-xs font-medium text-muted-foreground">stdout:</span>
-                        <pre class="mt-1 overflow-x-auto rounded bg-muted/30 p-2 text-xs">{entry.stdout}</pre>
+                        <pre class="mt-1 overflow-x-auto rounded glass-surface p-2 text-xs">{entry.stdout}</pre>
                       </div>
                     {/if}
                     {#if entry.stderr}
                       <div>
                         <span class="text-xs font-medium text-muted-foreground">stderr:</span>
-                        <pre class="mt-1 overflow-x-auto rounded bg-muted/30 p-2 text-xs text-[hsl(var(--destructive))]">{entry.stderr}</pre>
+                        <pre class="mt-1 overflow-x-auto rounded glass-surface p-2 text-xs text-[hsl(var(--destructive))]">{entry.stderr}</pre>
                       </div>
                     {/if}
                     {#if !entry.args_json && !entry.stdout && !entry.stderr}

@@ -128,12 +128,12 @@
       <h2 class="text-lg font-semibold">{$t('settings.preferences')}</h2>
 
       <!-- Language selector -->
-      <div class="rounded-lg border bg-card p-4" data-testid="language-selector">
+      <div class="rounded-lg glass-card glass-border p-4" data-testid="language-selector">
         <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{$t('settings.language_title')}</h3>
         <div class="flex items-center gap-2">
           {#each LANGUAGE_OPTIONS as option (option.value)}
             <button
-              class="rounded-md border px-3 py-1.5 text-sm transition-colors {$locale?.startsWith(option.value) ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-card-foreground border-border hover:bg-accent hover:text-accent-foreground'}"
+              class="rounded-md border px-3 py-1.5 text-sm transition-colors {$locale?.startsWith(option.value) ? 'bg-primary text-primary-foreground border-primary' : 'glass-surface text-foreground glass-border hover:bg-[rgba(52,53,245,0.05)]'}"
               onclick={() => changeLocale(option.value)}
               data-testid="language-{option.value}"
             >
@@ -144,12 +144,12 @@
       </div>
 
       <!-- Theme selector -->
-      <div class="rounded-lg border bg-card p-4" data-testid="theme-toggle">
+      <div class="rounded-lg glass-card glass-border p-4" data-testid="theme-toggle">
         <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{$t('settings.theme_title')}</h3>
         <div class="flex items-center gap-2">
           {#each THEME_OPTIONS as option (option.value)}
             <button
-              class="rounded-md border px-3 py-1.5 text-sm transition-colors {$themeMode === option.value ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-card-foreground border-border hover:bg-accent hover:text-accent-foreground'}"
+              class="rounded-md border px-3 py-1.5 text-sm transition-colors {$themeMode === option.value ? 'bg-primary text-primary-foreground border-primary' : 'glass-surface text-foreground glass-border hover:bg-[rgba(52,53,245,0.05)]'}"
               onclick={() => setTheme(option.value)}
               data-testid="theme-{option.value}"
             >
@@ -160,12 +160,12 @@
       </div>
 
       <!-- Mode selector -->
-      <div class="rounded-lg border bg-card p-4" data-testid="mode-toggle">
+      <div class="rounded-lg glass-card glass-border p-4" data-testid="mode-toggle">
         <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{$t('settings.mode_title')}</h3>
         <div class="flex items-center gap-3">
           {#each MODE_OPTIONS as option (option.value)}
             <button
-              class="flex flex-col items-start rounded-md border px-4 py-3 text-left transition-colors {$uiMode === option.value ? 'bg-primary/10 text-primary border-primary' : 'bg-card text-card-foreground border-border hover:bg-accent hover:text-accent-foreground'}"
+              class="flex flex-col items-start rounded-md border px-4 py-3 text-left transition-colors {$uiMode === option.value ? 'bg-primary/10 text-primary border-primary' : 'glass-surface text-foreground glass-border hover:bg-[rgba(52,53,245,0.05)]'}"
               onclick={() => changeMode(option.value)}
               data-testid="mode-{option.value}"
             >
@@ -205,7 +205,7 @@
         <!-- Config sections grid -->
         <div class="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
           {#each configView.sections as section (section.name)}
-            <div class="rounded-lg border bg-card p-4">
+            <div class="rounded-lg glass-card glass-border p-4">
               <div class="mb-3 flex items-center justify-between">
                 <h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{section.name}</h3>
                 <span class="text-xs text-muted-foreground">{section.description}</span>
@@ -213,7 +213,7 @@
 
               {#if section.redirect_route}
                 <button
-                  class="flex w-full items-center justify-between rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-accent-foreground"
+                  class="flex w-full items-center justify-between rounded-md border border-dashed border-primary/15 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)] hover:text-foreground"
                   onclick={() => navigateTo(section.redirect_route ?? "")}
                 >
                   <span>
@@ -250,7 +250,7 @@
       <h2 class="text-lg font-semibold">{$t('settings.advanced')}</h2>
 
       <!-- Reset onboarding -->
-      <div class="rounded-lg border bg-card p-4">
+      <div class="rounded-lg glass-card glass-border p-4">
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm">{$t('settings.review_onboarding')}</p>
@@ -264,7 +264,7 @@
 
       <!-- System information -->
       {#if systemInfo}
-        <div class="rounded-lg border bg-card p-4" data-testid="system-info-section">
+        <div class="rounded-lg glass-card glass-border p-4" data-testid="system-info-section">
           <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{$t('settings.system_info')}</h3>
           <div class="space-y-2">
             <div class="grid grid-cols-2 gap-2">

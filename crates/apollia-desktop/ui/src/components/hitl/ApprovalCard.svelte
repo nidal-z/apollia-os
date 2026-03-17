@@ -144,7 +144,7 @@
         <!-- Prompt -->
         <div>
           <h4 class="mb-1 text-xs font-semibold text-muted-foreground">{$t('approvals.prompt_label')}</h4>
-          <div class="max-h-[400px] overflow-auto rounded border bg-muted/30 p-3">
+          <div class="max-h-[400px] overflow-auto rounded glass-border glass-surface p-3">
             <p class="whitespace-pre-wrap text-sm">{approval.prompt || $t('approvals.no_prompt')}</p>
           </div>
         </div>
@@ -160,7 +160,7 @@
               <span class="text-[10px]">{showContext ? "▲" : "▼"}</span>
             </button>
             {#if showContext}
-              <div class="mt-1 max-h-[300px] overflow-auto rounded border bg-muted/30 p-3">
+              <div class="mt-1 max-h-[300px] overflow-auto rounded glass-border glass-surface p-3">
                 <pre class="text-xs">{JSON.stringify(approval.context, null, 2)}</pre>
               </div>
             {/if}

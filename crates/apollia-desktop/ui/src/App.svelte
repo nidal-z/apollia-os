@@ -34,7 +34,7 @@
 </script>
 
 {#if $isLoading || !ready}
-  <div class="flex h-screen w-screen items-center justify-center bg-background" data-testid="app-loading">
+  <div class="flex h-screen w-screen items-center justify-center bg-background text-foreground" data-testid="app-loading">
     <p class="text-sm text-muted-foreground">Loading…</p>
   </div>
 {:else if $showOnboarding}

@@ -57,7 +57,7 @@
   {:else if channels.length === 0}
     <!-- AC-4 — Empty state -->
     <div
-      class="flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed py-16"
+      class="flex flex-col items-center justify-center gap-4 rounded-xl glass-surface glass-border border-dashed py-16"
     >
       <p class="text-muted-foreground">
         {$t('notifications.empty_channels')}

@@ -17,11 +17,11 @@
   }: Props = $props();
 
   const variantClasses: Record<string, string> = {
-    default: "bg-primary text-primary-foreground hover:bg-primary/90",
+    default: "bg-[rgba(52,53,245,0.10)] text-primary border border-primary/20 backdrop-blur-sm shadow-[0_2px_12px_-2px_rgba(52,53,245,0.15)] hover:bg-[rgba(52,53,245,0.16)] hover:shadow-[0_4px_20px_-2px_rgba(52,53,245,0.25)] hover:border-primary/30",
     destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-    outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-    secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-    ghost: "hover:bg-accent hover:text-accent-foreground",
+    outline: "glass-border glass-surface text-foreground hover:bg-[rgba(52,53,245,0.05)]",
+    secondary: "bg-secondary/10 text-secondary border border-secondary/20 hover:bg-secondary/15",
+    ghost: "text-foreground hover:bg-[rgba(52,53,245,0.04)]",
     link: "text-primary underline-offset-4 hover:underline",
   };
 

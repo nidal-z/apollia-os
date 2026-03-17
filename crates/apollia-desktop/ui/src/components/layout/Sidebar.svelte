@@ -18,7 +18,6 @@
     Bell,
     Activity,
     Settings,
-    Hexagon,
     Layers,
   } from "lucide-svelte";
   import type { ComponentType } from "svelte";
@@ -87,11 +86,11 @@
   const isOperator = $derived($uiMode === "operator");
 </script>
 
-<aside class="flex h-screen w-60 flex-col border-r bg-card" data-testid="sidebar">
+<aside class="flex h-screen w-60 flex-col glass-panel border-r border-[rgba(52,53,245,0.08)] dark:border-[rgba(124,95,214,0.10)]" data-testid="sidebar">
   <!-- Logo -->
   <div class="flex items-center gap-2.5 px-4 py-5">
-    <Hexagon size={22} class="text-primary" />
-    <span class="text-xl font-bold text-primary" data-testid="sidebar-logo">Apollia OS</span>
+    <img src="/logo.png" alt="Apollia" width="32" height="32" class="h-8 w-8" style="image-rendering: -webkit-optimize-contrast;" />
+    <span class="text-lg font-bold bg-gradient-to-r from-apollia-blue to-apollia-violet bg-clip-text text-transparent" data-testid="sidebar-logo">Apollia OS</span>
   </div>
 
   <Separator />
@@ -103,8 +102,8 @@
       {#each operatorNav as item}
         <button
           class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {$currentRoute === item.route
-            ? 'bg-accent text-accent-foreground'
-            : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}"
+            ? 'bg-primary/10 text-primary'
+            : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground'}"
           data-testid="nav-{item.route}"
           onclick={() => navigate(item.route)}
         >
@@ -128,8 +127,8 @@
         {#each group.items as item}
           <button
             class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {$currentRoute === item.route
-              ? 'bg-accent text-accent-foreground'
-              : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}"
+              ? 'bg-primary/10 text-primary'
+              : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground'}"
             data-testid="nav-{item.route}"
             onclick={() => navigate(item.route)}
           >
@@ -156,8 +155,8 @@
     <!-- Settings -->
     <button
       class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {$currentRoute === settingsItem.route
-        ? 'bg-accent text-accent-foreground'
-        : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}"
+        ? 'bg-primary/10 text-primary'
+        : 'text-muted-foreground hover:bg-primary/5 hover:text-foreground'}"
       data-testid="nav-{settingsItem.route}"
       onclick={() => navigate(settingsItem.route)}
     >
@@ -167,7 +166,7 @@
 
     <!-- Mode toggle -->
     <button
-      class="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-accent-foreground"
+      class="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-primary/5 hover:text-foreground"
       data-testid="mode-toggle"
       onclick={toggleMode}
       title={isOperator ? $t("nav.switch_to_builder") : $t("nav.switch_to_operator")}

@@ -139,7 +139,7 @@
   {/if}
 
   {#if taskId && !isTerminal}
-    <div class="flex items-center gap-3 rounded-lg border bg-card p-4">
+    <div class="flex items-center gap-3 rounded-lg glass-border glass-card p-4">
       {#if isInputRequired && pendingApproval}
         <div class="flex-1 space-y-3">
           <p class="text-sm font-semibold text-warning-foreground">{$t('onboarding.approval_required')}</p>
@@ -162,7 +162,7 @@
         {$t('onboarding.task_completed_operator')}
       </div>
       {#if outputText}
-        <div class="rounded-lg border bg-card p-4">
+        <div class="rounded-lg glass-border glass-card p-4">
           <p class="mb-2 text-xs font-semibold uppercase text-muted-foreground">{$t('onboarding.see_it_work_result_title')}</p>
           <p class="whitespace-pre-wrap text-sm">{outputText}</p>
         </div>

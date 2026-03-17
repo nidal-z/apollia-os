@@ -1,6 +1,5 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { Button } from "$lib/components/ui/button";
   import { Code, Sparkles } from "lucide-svelte";
 
   interface Props {
@@ -23,7 +22,7 @@
 
   <div class="mx-auto grid max-w-lg grid-cols-2 gap-4">
     <button
-      class="group flex flex-col items-center gap-3 rounded-xl border-2 border-muted bg-card p-6 transition-all hover:border-primary hover:shadow-md"
+      class="group flex flex-col items-center gap-3 rounded-xl glass-border glass-card p-6 transition-all hover:border-primary hover:shadow-md"
       onclick={() => onChoose("builder")}
       data-testid="onboarding-path-builder"
     >
@@ -35,7 +34,7 @@
     </button>
 
     <button
-      class="group flex flex-col items-center gap-3 rounded-xl border-2 border-muted bg-card p-6 transition-all hover:border-primary hover:shadow-md"
+      class="group flex flex-col items-center gap-3 rounded-xl glass-border glass-card p-6 transition-all hover:border-primary hover:shadow-md"
       onclick={() => onChoose("operator")}
       data-testid="onboarding-path-operator"
     >

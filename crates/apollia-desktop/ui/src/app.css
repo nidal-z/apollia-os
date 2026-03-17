@@ -4,56 +4,70 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    /* Apollia brand palette */
+    --primary: 240 91% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 260 60% 61%;
+    --secondary-foreground: 0 0% 100%;
+    --accent: 260 60% 61%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Surfaces — warm cream foundation */
+    --background: 48 33% 95%;
+    --foreground: 240 10% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 72.2% 50.6%;
+    --card-foreground: 240 10% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 10%;
+    --muted: 48 20% 90%;
+    --muted-foreground: 240 5% 45%;
+
+    /* Borders & inputs */
+    --border: 240 10% 85%;
+    --input: 240 5% 88%;
+    --ring: 240 91% 58%;
+    --radius: 0.75rem;
+
+    /* Semantic colors */
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
     --info: 213 94% 47%;
     --info-foreground: 213 80% 30%;
     --warning: 38 92% 50%;
     --warning-foreground: 32 80% 30%;
-    --success: 142 71% 45%;
-    --success-foreground: 144 60% 22%;
+    --success: 130 58% 62%;
+    --success-foreground: 130 58% 25%;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --background: 240 15% 8%;
+    --foreground: 0 0% 95%;
+    --card: 240 10% 12%;
+    --card-foreground: 0 0% 95%;
+    --popover: 240 10% 12%;
+    --popover-foreground: 0 0% 95%;
+    --muted: 240 10% 15%;
+    --muted-foreground: 240 5% 60%;
+
+    --border: 240 5% 20%;
+    --input: 240 5% 18%;
+    --ring: 240 91% 58%;
+
+    --primary: 240 91% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 260 60% 61%;
+    --secondary-foreground: 0 0% 100%;
+    --accent: 260 60% 61%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 63% 31%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
     --info: 213 94% 58%;
     --info-foreground: 213 90% 80%;
     --warning: 38 92% 50%;
     --warning-foreground: 45 90% 80%;
-    --success: 142 71% 55%;
-    --success-foreground: 142 80% 80%;
+    --success: 130 58% 62%;
+    --success-foreground: 130 58% 80%;
   }
 }
 
@@ -63,21 +77,137 @@
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-      "Helvetica Neue", Arial, sans-serif;
+    @apply bg-background text-foreground font-sans;
   }
 }
 
-/* Micro-interaction: subtle press feedback on interactive elements */
+/* ═══════════════════════════════════════════════════════════
+   Warm Glassmorphism — primary-tinted layers with colored shadows.
+   Each layer uses a subtle primary wash instead of cold white.
+   ═══════════════════════════════════════════════════════════ */
 @layer components {
+  /* ── Panel layer — sidebar, sheets, overlays (heaviest blur) ── */
+  .glass-panel {
+    background: linear-gradient(
+      135deg,
+      rgba(52, 53, 245, 0.03) 0%,
+      rgba(124, 95, 214, 0.02) 100%
+    ), rgba(245, 244, 237, 0.75);
+    @apply backdrop-blur-2xl;
+  }
+  .dark .glass-panel {
+    background: linear-gradient(
+      135deg,
+      rgba(52, 53, 245, 0.06) 0%,
+      rgba(124, 95, 214, 0.04) 100%
+    ), rgba(15, 15, 26, 0.80);
+    @apply backdrop-blur-2xl;
+  }
+
+  /* ── Card layer — elevated containers, content boxes ── */
+  .glass-card {
+    background: linear-gradient(
+      135deg,
+      rgba(52, 53, 245, 0.025) 0%,
+      rgba(124, 95, 214, 0.015) 100%
+    ), rgba(255, 255, 255, 0.65);
+    @apply backdrop-blur-xl;
+    box-shadow:
+      0 4px 24px -4px rgba(52, 53, 245, 0.07),
+      0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+  .dark .glass-card {
+    background: linear-gradient(
+      135deg,
+      rgba(52, 53, 245, 0.06) 0%,
+      rgba(124, 95, 214, 0.04) 100%
+    ), rgba(15, 15, 26, 0.60);
+    box-shadow:
+      0 4px 24px -4px rgba(52, 53, 245, 0.12),
+      0 1px 3px rgba(0, 0, 0, 0.20);
+  }
+
+  /* ── Surface layer — tab bars, tables, code blocks ── */
+  .glass-surface {
+    background: linear-gradient(
+      135deg,
+      rgba(52, 53, 245, 0.02) 0%,
+      rgba(124, 95, 214, 0.01) 100%
+    ), rgba(255, 255, 255, 0.45);
+    @apply backdrop-blur-md;
+  }
+  .dark .glass-surface {
+    background: rgba(15, 15, 26, 0.35);
+    @apply backdrop-blur-md;
+  }
+
+  /* ── Inset layer — hover states, nested elements ── */
+  .glass-inset {
+    background: rgba(52, 53, 245, 0.04);
+    @apply backdrop-blur-sm;
+  }
+  .dark .glass-inset {
+    background: rgba(255, 255, 255, 0.04);
+    @apply backdrop-blur-sm;
+  }
+
+  /* ── Borders — primary-tinted ── */
+  .glass-border {
+    @apply border;
+    border-color: rgba(52, 53, 245, 0.10);
+  }
+  .dark .glass-border {
+    border-color: rgba(124, 95, 214, 0.12);
+  }
+
+  .glass-border-subtle {
+    @apply border;
+    border-color: rgba(52, 53, 245, 0.06);
+  }
+  .dark .glass-border-subtle {
+    border-color: rgba(124, 95, 214, 0.06);
+  }
+
+  /* ── Interactive press feedback ── */
   button:not([disabled]):active,
   [role="button"]:not([disabled]):active {
     transform: scale(0.98);
   }
 }
 
-/* Apollia design tokens — aliases for use in custom styles */
+/* ═══════════════════════════════════════════════════════════
+   Animations — smooth entrance and hover effects
+   ═══════════════════════════════════════════════════════════ */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Apollia resolved color aliases — for inline style and var() usage */
 :root {
   --apollia-bg: hsl(var(--background));
   --apollia-surface: hsl(var(--card));

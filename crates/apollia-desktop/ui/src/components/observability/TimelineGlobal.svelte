@@ -117,7 +117,7 @@
     <!-- Window selector -->
     <div class="flex items-center gap-2">
       <span class="text-sm text-muted-foreground">{$t('observability.window')}:</span>
-      <div class="flex gap-1 rounded-md border bg-muted/30 p-0.5">
+      <div class="flex gap-1 rounded-md glass-border glass-surface p-0.5">
         {#each WINDOW_OPTIONS as opt (opt.minutes)}
           <button
             class="rounded px-2 py-0.5 text-xs font-medium transition-colors {windowMinutes === opt.minutes
@@ -138,7 +138,7 @@
         <button
           class="flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs transition-colors {enabledTypes.has(tf)
             ? TYPE_COLORS[tf]
-            : 'border-muted bg-muted/20 text-muted-foreground/50'}"
+            : 'glass-border-subtle glass-inset text-muted-foreground/50'}"
           onclick={() => toggleType(tf)}
         >
           <span>{TYPE_ICONS[tf]}</span>
@@ -165,7 +165,7 @@
     <div class="space-y-1">
       {#each filteredEvents as event, index (event.timestamp + "-" + index)}
         <button
-          class="flex w-full items-start gap-3 rounded-md border bg-card px-3 py-2 text-left transition-colors hover:bg-accent/30"
+          class="flex w-full items-start gap-3 rounded-md glass-border glass-card px-3 py-2 text-left transition-colors hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]"
           onclick={() => toggleExpand(index)}
         >
           <span class="mt-0.5 text-sm">{TYPE_ICONS[event.event_type] ?? "\u{2022}"}</span>
@@ -184,7 +184,7 @@
         </button>
 
         {#if expandedIndices.has(index)}
-          <div class="ml-8 rounded border bg-muted/20 p-3">
+          <div class="ml-8 rounded glass-border glass-inset p-3">
             <pre class="overflow-x-auto text-xs text-muted-foreground">{JSON.stringify(event.detail, null, 2)}</pre>
           </div>
         {/if}

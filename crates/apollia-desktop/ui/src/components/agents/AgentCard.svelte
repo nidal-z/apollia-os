@@ -86,7 +86,7 @@
 </script>
 
 <Card
-  class="relative cursor-pointer overflow-hidden transition-all duration-200 hover:bg-accent/30 hover:shadow-md"
+  class="relative cursor-pointer overflow-hidden transition-all duration-200 hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)] hover:shadow-md"
   data-testid="agent-card"
   data-agent-id={agent.id}
   data-agent-state={agent.state}

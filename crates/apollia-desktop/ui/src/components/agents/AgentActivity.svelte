@@ -85,7 +85,7 @@
     <div class="space-y-1.5">
       {#each taskList as task (task.id)}
         <button
-          class="flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent/30"
+          class="flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]"
           onclick={() => onTaskClick(task.id)}
           data-testid="agent-detail-task-row"
           data-task-id={task.id}

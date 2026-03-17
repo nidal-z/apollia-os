@@ -38,7 +38,7 @@
   <div class="overflow-auto rounded border">
     <table class="w-full text-sm">
       <thead>
-        <tr class="border-b bg-muted/30 text-left text-xs text-muted-foreground">
+        <tr class="border-b glass-border-subtle glass-surface text-left text-xs text-muted-foreground">
           <th class="px-3 py-2">{$t('approvals.table.task')}</th>
           <th class="px-3 py-2">{$t('approvals.table.agent')}</th>
           <th class="px-3 py-2">{$t('approvals.table.result')}</th>

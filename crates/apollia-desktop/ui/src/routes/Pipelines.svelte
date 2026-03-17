@@ -77,10 +77,10 @@
   {/if}
 
   <!-- Tabs -->
-  <div class="flex gap-1 rounded-md border bg-muted/30 p-1">
+  <div class="flex gap-1 rounded-md glass-border glass-surface p-1">
     <button
       class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === 'active'
-        ? 'bg-background text-foreground shadow-sm'
+        ? 'glass-inset text-foreground shadow-sm'
         : 'text-muted-foreground hover:text-foreground'}"
       onclick={() => handleTabChange("active")}
     >
@@ -91,7 +91,7 @@
     </button>
     <button
       class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === 'history'
-        ? 'bg-background text-foreground shadow-sm'
+        ? 'glass-inset text-foreground shadow-sm'
         : 'text-muted-foreground hover:text-foreground'}"
       onclick={() => handleTabChange("history")}
     >
@@ -114,7 +114,7 @@
     />
   {:else if displayedRuns.length === 0}
     <div
-      class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12"
+      class="flex flex-col items-center justify-center gap-2 rounded-xl glass-surface glass-border border-dashed py-12"
     >
       <p class="text-muted-foreground">
         {activeTab === "active"

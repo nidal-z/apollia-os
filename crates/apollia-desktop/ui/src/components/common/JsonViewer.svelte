@@ -92,7 +92,7 @@
 
 <pre
   class={cn(
-    "overflow-x-auto whitespace-pre-wrap rounded border bg-muted/30 p-3 font-mono text-sm",
+    "overflow-x-auto whitespace-pre-wrap rounded glass-border glass-surface p-3 font-mono text-sm",
     className,
   )}
   data-testid="json-viewer"

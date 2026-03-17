@@ -78,7 +78,7 @@
     <div class="overflow-auto rounded-md border">
       <table class="w-full text-sm">
         <thead>
-          <tr class="border-b bg-muted/50">
+          <tr class="border-b glass-border-subtle glass-surface">
             <th class="px-3 py-2 text-left font-medium text-muted-foreground">
               {$t('notifications.table.timestamp')}
             </th>

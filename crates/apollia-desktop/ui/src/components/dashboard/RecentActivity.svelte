@@ -51,7 +51,7 @@
   <div class="space-y-2" data-testid="recent-activity-list">
     {#each recentTasks as task (task.id)}
       <button
-        class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent/30"
+        class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]"
         onclick={navigateToTasks}
         data-testid="recent-activity-item"
         data-task-id={task.id}
