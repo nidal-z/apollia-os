@@ -560,6 +560,39 @@ impl TaskRepository {
         Ok(())
     }
 
+    /// Met à jour le nom de l'agent pour une tâche.
+    ///
+    /// Appelé par le coordinateur juste après `save_input` pour renseigner
+    /// le champ `agent_name` (non disponible lors du `INSERT` initial).
+    ///
+    /// # Errors
+    ///
+    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    pub async fn set_agent_name(
+        &self,
+        task_id: &str,
+        agent_name: &str,
+    ) -> Result<(), TaskRepoError> {
+        let path = self.db_path.clone();
+        let task_id = task_id.to_string();
+        let agent_name = agent_name.to_string();
+
+        tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
+            let conn = rusqlite::Connection::open(&path)?;
+            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            conn.execute(
+                "UPDATE tasks SET agent_name = ?2, updated_at = CURRENT_TIMESTAMP \
+                 WHERE task_id = ?1",
+                params![&task_id, &agent_name],
+            )?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))??;
+
+        Ok(())
+    }
+
     /// Persiste l'output texte d'une tâche avec troncature éventuelle.
     ///
     /// Utilise [`truncate_with_marker`] pour couper l'output si sa taille
@@ -865,6 +898,121 @@ impl TaskRepository {
         .await
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
+
+    /// Retourne les tâches récentes persistées dans SQLite.
+    ///
+    /// Ordonnées par `created_at DESC`, limitées à `limit` entrées.
+    /// Le statut est déduit de `transitions_json` (dernière transition).
+    /// Utilisé pour afficher l'historique des tâches après un redémarrage
+    /// du runtime (quand le `TaskRouter` en mémoire est vide).
+    ///
+    /// # Errors
+    ///
+    /// Retourne [`TaskRepoError::Sqlite`] en cas d'erreur SQLite.
+    pub async fn list_recent_tasks(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<PersistedTaskSummary>, TaskRepoError> {
+        let path = self.db_path.clone();
+
+        tokio::task::spawn_blocking(move || -> Result<Vec<PersistedTaskSummary>, TaskRepoError> {
+            let conn = rusqlite::Connection::open(&path)?;
+
+            let mut stmt = conn.prepare(
+                "SELECT task_id, agent_name, input_text, output_text, \
+                        duration_ms, transitions_json, created_at \
+                 FROM tasks \
+                 ORDER BY created_at DESC \
+                 LIMIT ?1",
+            )?;
+
+            let rows = stmt
+                .query_map(params![limit as i64], |row| {
+                    let task_id: String = row.get(0)?;
+                    let agent_name: String = row.get(1)?;
+                    let input_text: Option<String> = row.get(2)?;
+                    let output_text: Option<String> = row.get(3)?;
+                    let duration_ms: Option<i64> = row.get(4)?;
+                    let transitions_json: Option<String> = row.get(5)?;
+                    let created_at: String =
+                        row.get::<_, Option<String>>(6)?.unwrap_or_default();
+
+                    let status = derive_status(&transitions_json, duration_ms);
+                    let input_preview = input_text
+                        .as_deref()
+                        .unwrap_or("")
+                        .chars()
+                        .take(120)
+                        .collect::<String>();
+
+                    Ok(PersistedTaskSummary {
+                        task_id,
+                        agent_name,
+                        status,
+                        input_preview,
+                        output_text,
+                        duration_ms,
+                        created_at,
+                    })
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+
+            Ok(rows)
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))?
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers internes
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Déduit le statut final d'une tâche depuis `transitions_json`.
+///
+/// Lit la dernière entrée `{"status": "<status>", "ts": "<timestamp>"}` et
+/// retourne le statut. Retourne `"completed"` si la durée est renseignée et
+/// qu'aucune transition n'est disponible (cas des anciennes tâches).
+fn derive_status(transitions_json: &Option<String>, duration_ms: Option<i64>) -> String {
+    if let Some(ref json) = transitions_json {
+        if !json.is_empty() {
+            if let Ok(transitions) = serde_json::from_str::<Vec<serde_json::Value>>(json) {
+                if let Some(last) = transitions.last() {
+                    if let Some(status) = last.get("status").and_then(|s| s.as_str()) {
+                        return status.to_string();
+                    }
+                }
+            }
+        }
+    }
+    // Fallback: if we have duration, it was completed; otherwise unknown
+    if duration_ms.is_some() {
+        "completed".to_string()
+    } else {
+        "unknown".to_string()
+    }
+}
+
+/// Résumé d'une tâche persistée, lue depuis SQLite.
+///
+/// Utilisé par `list_recent_tasks` pour fournir l'historique des tâches
+/// après un redémarrage du runtime (les tâches terminées ne sont plus en mémoire).
+#[derive(Debug, Clone)]
+pub struct PersistedTaskSummary {
+    /// Identifiant unique de la tâche.
+    pub task_id: String,
+    /// Nom de l'agent.
+    pub agent_name: String,
+    /// Statut déduit de `transitions_json` (dernière transition).
+    pub status: String,
+    /// Aperçu du texte d'entrée (tronqué à 120 chars).
+    pub input_preview: String,
+    /// Texte de sortie.
+    pub output_text: Option<String>,
+    /// Durée d'exécution en millisecondes.
+    pub duration_ms: Option<i64>,
+    /// Date de création ISO 8601.
+    pub created_at: String,
 }
 
 /// Informations d'une approbation en attente, lues depuis SQLite.

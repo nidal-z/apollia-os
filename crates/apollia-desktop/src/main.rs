@@ -93,9 +93,31 @@ fn main() {
         task_repository: task_repository_lock.clone(),
     });
 
+    // Open AgentRepository for auto-load at boot (passed to Supervisor).
+    // A separate instance is created later for Tauri IPC commands.
+    let apollia_data_dir = {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        std::path::PathBuf::from(home).join(".apollia")
+    };
+    let _ = std::fs::create_dir_all(&apollia_data_dir);
+    let boot_agent_repo = {
+        let db_path = apollia_data_dir.join("agents.db");
+        match AgentRepository::open(&db_path) {
+            Ok(repo) => {
+                tracing::info!("AgentRepository opened for auto-load at boot");
+                Some(repo)
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "AgentRepository failed to open — auto-load disabled");
+                None
+            }
+        }
+    };
+
     let config = load_toml_config(EmbeddedConfig {
         agent_loader: Arc::new(backend::AIPAgentLoader),
         backend_factory: Some(factory),
+        agent_repository: boot_agent_repo,
         ..EmbeddedConfig::default()
     });
 
@@ -116,13 +138,9 @@ fn main() {
         let _ = task_repository_lock.set(repo);
     }
 
-    // Open (or create) the agent repository for installed agent persistence.
-    let apollia_data_dir = {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-        std::path::PathBuf::from(home).join(".apollia")
-    };
+    // Open a second AgentRepository instance for Tauri IPC commands.
+    // SQLite WAL mode supports concurrent readers.
     let agent_repo: Arc<std::sync::Mutex<AgentRepository>> = {
-        let _ = std::fs::create_dir_all(&apollia_data_dir);
         let db_path = apollia_data_dir.join("agents.db");
         Arc::new(std::sync::Mutex::new(
             AgentRepository::open(&db_path).expect("failed to open agents.db for desktop app"),

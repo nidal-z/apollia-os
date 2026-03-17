@@ -31,6 +31,7 @@ pub use descriptor::{McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
 pub use task_repository::{
-    ApprovalInfo, ResolvedApprovalRow, TaskDetail, TaskRepoError, TaskRepository,
+    ApprovalInfo, PersistedTaskSummary, ResolvedApprovalRow, TaskDetail, TaskRepoError,
+    TaskRepository,
 };
 pub use tools::file_io::{FileIo, FileIoError};

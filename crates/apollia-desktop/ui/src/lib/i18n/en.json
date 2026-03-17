@@ -71,7 +71,16 @@
     "register_agent": "Register an agent",
     "approvals_waiting": "{count} approvals waiting",
     "approvals_subtitle": "These tasks need your attention before they can proceed.",
-    "review": "Review"
+    "review": "Review",
+    "in_progress_short": "in progress",
+    "just_now": "just now",
+    "task_in_progress": "Processing...",
+    "status_working": "WORKING",
+    "status_submitted": "SUBMITTED",
+    "status_completed": "COMPLETED",
+    "status_failed": "FAILED",
+    "status_approval": "APPROVAL",
+    "status_canceled": "CANCELED"
   },
   "agents": {
     "title": "Agents",

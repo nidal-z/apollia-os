@@ -67,6 +67,8 @@ pub enum CoordinatorError {
 /// dans le [`TaskRepository`] si disponible (STORY-126).
 pub struct ExecutionCoordinator<B: ExecutionBackend> {
     agent_id: AgentId,
+    /// Nom humain de l'agent (manifest.name), persisté dans la DB d'observabilité.
+    agent_name: String,
     concurrency: Arc<Semaphore>,
     event_bus: EventBusSender,
     backend: Arc<B>,
@@ -92,6 +94,7 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
     ) -> Self {
         Self {
             agent_id,
+            agent_name: String::new(),
             concurrency: Arc::new(Semaphore::new(max_concurrent as usize)),
             event_bus,
             backend: Arc::new(backend),
@@ -114,6 +117,15 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
         self
     }
 
+    /// Configure le nom humain de l'agent (manifest.name).
+    ///
+    /// Persisté dans la colonne `agent_name` de la table `tasks` pour
+    /// permettre l'affichage de l'historique après un redémarrage du runtime.
+    pub fn with_agent_name(mut self, name: String) -> Self {
+        self.agent_name = name;
+        self
+    }
+
     /// Soumet une tache pour execution.
     ///
     /// Tente d'acquerir un permit sur le semaphore :
@@ -132,6 +144,7 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
             .map_err(|_| CoordinatorError::ConcurrencyLimitReached(self.agent_id.clone()))?;
 
         let agent_id = self.agent_id.clone();
+        let agent_name_for_db = self.agent_name.clone();
         let event_bus = self.event_bus.clone();
         let task_id = TaskId::from(task.task_id.clone());
         let backend = Arc::clone(&self.backend);
@@ -148,13 +161,21 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
             let started_at = Instant::now();
             let now_str = || now_rfc3339();
 
-            // Persistance observabilité : input + transition "submitted"
+            // Persistance observabilité : input + agent_name + transition "submitted"
             if let Some(ref repo) = task_repo {
                 if let Err(e) = repo
                     .save_input(task_id.as_str(), &input_text, &obs_config)
                     .await
                 {
                     tracing::warn!(task_id = %task_id, error = %e, "failed to persist task input");
+                }
+                if !agent_name_for_db.is_empty() {
+                    if let Err(e) = repo
+                        .set_agent_name(task_id.as_str(), &agent_name_for_db)
+                        .await
+                    {
+                        tracing::warn!(task_id = %task_id, error = %e, "failed to persist agent_name");
+                    }
                 }
                 if let Err(e) = repo
                     .append_transition(task_id.as_str(), "submitted", &now_str())

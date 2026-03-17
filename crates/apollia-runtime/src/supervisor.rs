@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 use tracing::{error, info, warn};
 
-use apollia_core::{PendingApprovals, RuntimeEvent};
+use apollia_core::{PendingApprovals, ProcessState, RuntimeEvent};
 use apollia_llm::{LlmCallRepository, LlmConfig, LlmRouter};
 use apollia_notifications::{
     build_channels, NotificationConfig, NotificationEngine, NotificationEngineHandle,
@@ -29,7 +29,7 @@ use apollia_triggers::{TriggerDefinition, TriggerEngineHandle, TriggerPersistenc
 
 use crate::api::routes_agents::AgentLoader;
 use crate::api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
-use crate::coordinator::ExecutionBackend;
+use crate::coordinator::{ExecutionBackend, ExecutionCoordinator};
 use crate::eventbus::{EventBus, EventBusSender};
 use crate::registry::{AgentRegistry, AgentRegistryHandle};
 use crate::router::TaskRouterHandle;
@@ -487,8 +487,10 @@ impl Supervisor {
         // Clone notification config so AppState can serve /api/v1/notifications/channels
         // while the original is consumed by NotificationEngine below.
         let notification_config_for_state = self.config.notifications.clone();
-        // Clone agent_loader before moving into AppState — needed for auto-load (STORY-179).
+        // Clone handles before moving into AppState — needed for auto-load (STORY-179).
         let agent_loader_for_autoload = agent_loader.clone();
+        let backend_factory_for_autoload = backend_factory.clone();
+        let backend_for_autoload = backend.clone();
         let state = AppState {
             router_handle: router_handle.clone(),
             registry_handle: registry_handle.clone(),
@@ -589,7 +591,9 @@ impl Supervisor {
         // Phase 11: Auto-load installed agents (STORY-179)
         //
         // After AllReady, load all enabled agents from the repository,
-        // validate via AgentLoader, and register in AgentRegistry.
+        // validate via AgentLoader, register in AgentRegistry, transition to
+        // Active, create an ExecutionCoordinator, and register in TaskRouter.
+        // This mirrors the full start_agent flow from routes_agents.rs.
         // Errors are logged but never block the boot (graceful degradation).
         if let Some(ref repo) = self.config.agent_repository {
             match repo.list_enabled() {
@@ -602,23 +606,10 @@ impl Supervisor {
                             warn!(name = %agent.name, "Skipping disabled installed agent");
                             continue;
                         }
-                        match agent_loader_for_autoload.load_and_validate(&agent.install_path) {
-                            Ok(manifest) => match registry_handle.register(manifest).await {
-                                Ok(id) => {
-                                    info!(
-                                        name = %agent.name,
-                                        id = %id,
-                                        "Auto-loaded installed agent"
-                                    );
-                                }
-                                Err(e) => {
-                                    warn!(
-                                        name = %agent.name,
-                                        error = %e,
-                                        "Failed to register installed agent"
-                                    );
-                                }
-                            },
+                        let manifest = match agent_loader_for_autoload
+                            .load_and_validate(&agent.install_path)
+                        {
+                            Ok(m) => m,
                             Err(e) => {
                                 warn!(
                                     name = %agent.name,
@@ -629,8 +620,70 @@ impl Supervisor {
                                     name: agent.name.clone(),
                                     error: e.to_string(),
                                 });
+                                continue;
                             }
+                        };
+
+                        let max_concurrent = manifest.max_concurrent_tasks;
+                        let agent_name = manifest.name.clone();
+
+                        // Register in AgentRegistry (state = Initializing).
+                        let agent_id = match registry_handle.register(manifest).await {
+                            Ok(id) => id,
+                            Err(e) => {
+                                warn!(
+                                    name = %agent_name,
+                                    error = %e,
+                                    "Failed to register installed agent"
+                                );
+                                continue;
+                            }
+                        };
+
+                        // Transition to Active.
+                        if let Err(e) = registry_handle
+                            .update_state(agent_id.as_str(), ProcessState::Active)
+                            .await
+                        {
+                            warn!(name = %agent_name, error = %e, "Failed to activate agent");
+                            continue;
                         }
+
+                        // Create ExecutionCoordinator with backend factory.
+                        let agent_backend: B = match &backend_factory_for_autoload {
+                            Some(factory) => {
+                                let dyn_backend = factory.create_for_agent(
+                                    &agent.install_path,
+                                    &agent.manifest,
+                                );
+                                B::from(dyn_backend)
+                            }
+                            None => backend_for_autoload.clone(),
+                        };
+                        let mut coordinator = ExecutionCoordinator::new(
+                            agent_id.clone(),
+                            max_concurrent,
+                            event_sender.clone(),
+                            agent_backend,
+                        )
+                        .with_agent_name(agent_name.clone());
+                        if let Some(ref repo) = task_repository {
+                            coordinator = coordinator.with_task_repository(
+                                Arc::clone(repo),
+                                self.config.obs_config.clone(),
+                            );
+                        }
+
+                        // Register coordinator in TaskRouter.
+                        let _ = router_handle
+                            .register_coordinator(agent_id.clone(), coordinator)
+                            .await;
+
+                        info!(
+                            name = %agent_name,
+                            id = %agent_id,
+                            "Auto-loaded installed agent"
+                        );
                     }
                 }
                 Err(e) => {

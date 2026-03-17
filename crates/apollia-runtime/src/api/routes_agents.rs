@@ -260,7 +260,8 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
         max_concurrent,
         state.event_sender.clone(),
         agent_backend,
-    );
+    )
+    .with_agent_name(manifest_for_factory.name.clone());
     if let Some(ref repo) = state.task_repository {
         coordinator = coordinator.with_task_repository(Arc::clone(repo), state.obs_config.clone());
     }

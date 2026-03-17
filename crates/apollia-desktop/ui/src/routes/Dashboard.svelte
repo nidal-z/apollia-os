@@ -48,8 +48,13 @@
 
   let recentTasks = $derived(
     [...$tasks]
-      .filter((t) => t.status === "completed" || t.status === "failed")
-      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .sort((a, b) => {
+        // Working tasks first, then by date
+        const aWorking = a.status === "working" || a.status === "submitted" ? 0 : 1;
+        const bWorking = b.status === "working" || b.status === "submitted" ? 0 : 1;
+        if (aWorking !== bWorking) return aWorking - bWorking;
+        return b.created_at.localeCompare(a.created_at);
+      })
       .slice(0, RECENT_TASK_LIMIT),
   );
 

@@ -33,7 +33,7 @@
   "nav": {
     "dashboard": "Tableau de bord",
     "home": "Accueil",
-    "my_assistants": "Mes Assistants",
+    "my_assistants": "Mes assistants",
     "activity": "Activité",
     "operations": "Opérations",
     "infrastructure": "Infrastructure",
@@ -71,7 +71,16 @@
     "register_agent": "Enregistrer un agent",
     "approvals_waiting": "{count} approbations en attente",
     "approvals_subtitle": "Ces tâches nécessitent votre attention pour poursuivre.",
-    "review": "Examiner"
+    "review": "Examiner",
+    "in_progress_short": "en cours",
+    "just_now": "à l'instant",
+    "task_in_progress": "Traitement en cours...",
+    "status_working": "EN COURS",
+    "status_submitted": "SOUMISE",
+    "status_completed": "TERMINÉE",
+    "status_failed": "ÉCHOUÉE",
+    "status_approval": "APPROBATION",
+    "status_canceled": "ANNULÉE"
   },
   "agents": {
     "title": "Agents",

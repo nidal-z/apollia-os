@@ -15,7 +15,7 @@ use apollia_core::{ObservabilityConfig, PendingApprovals};
 use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationEngineHandle;
 use apollia_pipelines::PipelineEngineHandle;
-use apollia_tools::{AuditTrailHandle, TaskRepository};
+use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository};
 
 use crate::api::routes_agents::{AgentBackendFactory, AgentLoader, StubAgentLoader};
 use crate::api::{APIServerConfig, APIServerHandle};
@@ -113,6 +113,8 @@ pub struct EmbeddedConfig {
     pub notifications: Option<apollia_notifications::config::NotificationConfig>,
     /// Chemin du fichier `apollia.toml` chargé — requis pour le hot reload des triggers.
     pub config_path: Option<PathBuf>,
+    /// Repository des agents installés — requis pour l'auto-load au boot.
+    pub agent_repository: Option<AgentRepository>,
 }
 
 impl Default for EmbeddedConfig {
@@ -132,6 +134,7 @@ impl Default for EmbeddedConfig {
             triggers: vec![],
             notifications: None,
             config_path: None,
+            agent_repository: None,
         }
     }
 }
@@ -245,7 +248,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         pipelines: vec![],
         data_dir: config.data_dir,
         obs_config: config.obs_config,
-        agent_repository: None,
+        agent_repository: config.agent_repository,
     };
 
     let supervisor = Supervisor::new(supervisor_config);

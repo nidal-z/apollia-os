@@ -49,10 +49,17 @@ fn status_to_string(status: &TaskStatus) -> String {
         .unwrap_or_else(|| format!("{status:?}"))
 }
 
+/// Nombre maximum de tâches historiques à charger depuis SQLite.
+const PERSISTED_TASK_LIMIT: usize = 50;
+
 /// Liste toutes les tâches avec filtrage optionnel par statut ou agent.
 ///
-/// Délègue à `TaskRouterHandle::all_tasks()` pour la liste brute, puis
-/// enrichit chaque entrée avec le nom de l'agent depuis le registry.
+/// Fusionne deux sources :
+/// 1. **Runtime** (TaskRouter en mémoire) — tâches actives de la session courante.
+/// 2. **SQLite** (TaskRepository) — tâches historiques persistées à travers les redémarrages.
+///
+/// Les tâches runtime sont prioritaires : si une tâche existe dans les deux sources,
+/// seule la version runtime est conservée.
 #[tauri::command]
 pub async fn list_tasks(
     state: State<'_, RuntimeHandle>,
@@ -65,9 +72,11 @@ pub async fn list_tasks(
         .map_err(|e| e.to_string())?;
 
     let mut summaries = Vec::with_capacity(all.len());
+    let mut seen_task_ids = std::collections::HashSet::new();
 
-    for (task_id, agent_id, status) in all {
-        let status_str = status_to_string(&status);
+    // 1. Runtime tasks (current session, in-memory).
+    for (task_id, agent_id, status) in &all {
+        let status_str = status_to_string(status);
 
         if let Some(ref f) = filter {
             if let Some(ref filter_status) = f.status {
@@ -111,6 +120,8 @@ pub async fn list_tasks(
                 (String::new(), None, None, String::new())
             };
 
+        seen_task_ids.insert(task_id.to_string());
+
         summaries.push(TaskSummary {
             id: task_id.to_string(),
             agent_id: agent_id.to_string(),
@@ -121,6 +132,41 @@ pub async fn list_tasks(
             duration_ms,
             created_at,
         });
+    }
+
+    // 2. Persisted tasks from SQLite (historical, survived restart).
+    if let Some(repo) = state.task_repository.as_ref() {
+        if let Ok(persisted) = repo.list_recent_tasks(PERSISTED_TASK_LIMIT).await {
+            for row in persisted {
+                if seen_task_ids.contains(&row.task_id) {
+                    continue;
+                }
+
+                let status_str = &row.status;
+
+                if let Some(ref f) = filter {
+                    if let Some(ref filter_status) = f.status {
+                        if status_str != filter_status {
+                            continue;
+                        }
+                    }
+                    // agent_id filter doesn't apply to persisted tasks (no UUID).
+                }
+
+                seen_task_ids.insert(row.task_id.clone());
+
+                summaries.push(TaskSummary {
+                    id: row.task_id,
+                    agent_id: String::new(),
+                    agent_name: row.agent_name,
+                    status: row.status,
+                    input_preview: row.input_preview,
+                    output_text: row.output_text,
+                    duration_ms: row.duration_ms.map(|ms| ms as u64),
+                    created_at: row.created_at,
+                });
+            }
+        }
     }
 
     Ok(summaries)
