@@ -101,7 +101,7 @@
   let hasMore = $derived(filteredTasks.length > visibleCount);
   let hasAnyTasks = $derived($tasks.length > 0);
 
-  let activeAgents = $derived($agents.filter((a) => a.state === "active" || a.state === "degraded"));
+  let activeAgents = $derived($agents.filter((a) => a.runtime_status === "active" || a.runtime_status === "degraded"));
 
   let uniqueAgents = $derived.by<{ id: string; name: string }[]>(() => {
     const seen = new Map<string, string>();

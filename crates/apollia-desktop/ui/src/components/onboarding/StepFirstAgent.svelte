@@ -5,7 +5,7 @@
   import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
   import { agents as agentsStore } from "$lib/stores/sse";
-  import type { AgentStatus } from "$lib/types";
+  import type { AgentListItem } from "$lib/types";
 
   interface Props {
     onAgentStarted: (agentId: string, agentName: string) => void;
@@ -24,7 +24,7 @@
 
   /** Resolve agent display name from the agents store, falling back to path stem. */
   function resolveAgentName(id: string, path: string): string {
-    const fromStore = $agentsStore.find((a: AgentStatus) => a.id === id);
+    const fromStore = $agentsStore.find((a: AgentListItem) => a.id === id);
     if (fromStore?.name) return fromStore.name;
     const stem = path.split("/").pop()?.replace(".py", "") ?? "agent";
     return stem

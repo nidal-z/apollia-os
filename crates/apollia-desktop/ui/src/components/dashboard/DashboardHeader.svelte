@@ -12,7 +12,7 @@
   }
 
   let activeCount = $derived(
-    $agents.filter((a) => a.state === "active" || a.state === "degraded").length,
+    $agents.filter((a) => a.runtime_status === "active" || a.runtime_status === "degraded").length,
   );
 
   let todayTaskCount = $derived(() => {

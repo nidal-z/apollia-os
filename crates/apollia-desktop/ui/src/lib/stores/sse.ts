@@ -16,7 +16,7 @@ import {
   sendNotification,
 } from "@tauri-apps/plugin-notification";
 import type {
-  AgentStatus,
+  AgentListItem,
   TaskSummary,
   PendingApproval,
   ConnectionStatus,
@@ -31,8 +31,8 @@ const WATCHDOG_TIMEOUT_MS = 10_000;
 /** Current connection status (reflects event bridge health). */
 export const connectionStatus = writable<ConnectionStatus>("connecting");
 
-/** List of all agents from the runtime. */
-export const agents = writable<AgentStatus[]>([]);
+/** List of all agents (installed + runtime). */
+export const agents = writable<AgentListItem[]>([]);
 
 /** List of recent tasks from the runtime. */
 export const tasks = writable<TaskSummary[]>([]);
@@ -53,7 +53,7 @@ export const pipelineRuns = writable<PipelineRunSummary[]>([]);
 
 async function refreshAgentsViaIpc(): Promise<void> {
   try {
-    const result: AgentStatus[] = await invoke("list_agents");
+    const result: AgentListItem[] = await invoke("list_agents");
     agents.set(result);
     emitTrayUpdate();
   } catch {
@@ -126,7 +126,7 @@ function emitTrayUpdate(): void {
   const currentApprovals = get(pendingApprovals);
 
   const activeAgents = currentAgents.filter(
-    (a) => a.state === "active" || a.state === "degraded",
+    (a) => a.runtime_status === "active" || a.runtime_status === "degraded",
   ).length;
 
   void emit("tray-update", {

@@ -16,6 +16,29 @@ export interface AgentStatus {
   degraded_reason?: string;
 }
 
+/** Élément de la liste unifiée agents (installés + runtime). */
+export interface AgentListItem {
+  /** UUID runtime (`null` si installé mais pas chargé). */
+  id: string | null;
+  /** Nom unique de l'agent. */
+  name: string;
+  /** Version semver. */
+  version: string;
+  /** Activé pour l'auto-start au boot. */
+  enabled: boolean;
+  /** État runtime (`null` si non chargé). */
+  runtime_status: "active" | "degraded" | "stopped" | "initializing" | "stopping" | null;
+  /** Horodatage d'installation RFC 3339 (`null` pour les agents session-only). */
+  installed_at: string | null;
+}
+
+/** Réponse d'une installation ou mise à jour d'agent. */
+export interface InstallAgentResponse {
+  name: string;
+  version: string;
+  install_path: string;
+}
+
 /** Résumé d'une tâche pour l'affichage. */
 export interface TaskSummary {
   id: string;

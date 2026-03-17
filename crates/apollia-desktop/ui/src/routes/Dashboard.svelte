@@ -2,7 +2,7 @@
   import { fly } from "svelte/transition";
   import { flip } from "svelte/animate";
   import { t } from "svelte-i18n";
-  import type { AgentStatus } from "$lib/types";
+  import type { AgentListItem } from "$lib/types";
   import { agents } from "$lib/stores/agents";
   import { tasks } from "$lib/stores/tasks";
   import { pendingCount } from "$lib/stores/hitl";
@@ -18,12 +18,12 @@
 
   const RECENT_TASK_LIMIT = 5;
 
-  let detailAgent = $state<AgentStatus | null>(null);
+  let detailAgent = $state<AgentListItem | null>(null);
   let detailOpen = $state(false);
   let logsAgentId = $state<string | null>(null);
   let logsOpen = $state(false);
 
-  function openDetail(agent: AgentStatus) {
+  function openDetail(agent: AgentListItem) {
     detailAgent = agent;
     detailOpen = true;
   }
@@ -43,7 +43,7 @@
   }
 
   let activeAgents = $derived(
-    $agents.filter((a) => a.state === "active" || a.state === "degraded"),
+    $agents.filter((a) => a.runtime_status === "active" || a.runtime_status === "degraded"),
   );
 
   let recentTasks = $derived(
@@ -80,7 +80,7 @@
       />
     {:else}
       <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="dashboard-agents-grid">
-        {#each activeAgents as agent (agent.id)}
+        {#each activeAgents as agent (agent.name)}
           <div animate:flip={{ duration: 300 }} in:fly={{ y: 10, duration: 200 }}>
             <ActiveAgentCard {agent} ondetail={openDetail} />
           </div>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import type { AgentStatus } from "$lib/types";
+  import type { AgentListItem } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
   import { currentRoute } from "$lib/stores/navigation";
   import { Sheet } from "$lib/components/ui/sheet";
@@ -14,7 +14,7 @@
   import AgentLlmInfo from "./AgentLlmInfo.svelte";
 
   interface Props {
-    agent: AgentStatus;
+    agent: AgentListItem;
     open: boolean;
     onclose: () => void;
     onlogs: (agentId: string) => void;
@@ -22,8 +22,10 @@
 
   let { agent, open, onclose, onlogs }: Props = $props();
 
+  type RuntimeState = "active" | "degraded" | "stopped" | "initializing" | "stopping";
+
   const STATUS_CONFIG: Record<
-    AgentStatus["state"],
+    RuntimeState,
     { labelKey: string; variant: "default" | "secondary" | "destructive" | "outline"; extraClass: string }
   > = {
     active: { labelKey: "common.status.active", variant: "default", extraClass: "bg-[var(--apollia-success)] text-white" },
@@ -37,21 +39,13 @@
   let confirmVisible = $state(false);
   let stopError = $state<string | null>(null);
 
-  const config = $derived(STATUS_CONFIG[agent.state]);
-
-  function isRunning(state: AgentStatus["state"]): boolean {
-    return state === "active" || state === "degraded";
-  }
-
-  function formatUptime(totalSeconds: number): string {
-    if (totalSeconds < 60) return `${totalSeconds}s`;
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  }
+  const runtimeStatus = $derived(agent.runtime_status as RuntimeState | null);
+  const config = $derived(runtimeStatus ? STATUS_CONFIG[runtimeStatus] : null);
+  const isInstalled = $derived(agent.installed_at !== null);
+  const isRunning = $derived(runtimeStatus === "active" || runtimeStatus === "degraded");
 
   async function handleStop() {
+    if (!agent.id) return;
     confirmVisible = false;
     stopping = true;
     stopError = null;
@@ -75,13 +69,15 @@
   }
 
   function handleLogsClick() {
-    onlogs(agent.id);
+    if (agent.id) {
+      onlogs(agent.id);
+    }
   }
 </script>
 
 <Sheet {open} {onclose} class="w-[600px]">
-  <div class="flex h-full flex-col" data-testid="agent-detail-sheet" data-agent-id={agent.id}>
-    <!-- AC-1: Header with agent identity -->
+  <div class="flex h-full flex-col" data-testid="agent-detail-sheet" data-agent-name={agent.name}>
+    <!-- Header with agent identity -->
     <div class="px-5 py-4">
       <div class="flex items-center gap-3">
         <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
@@ -90,27 +86,29 @@
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
             <h2 class="truncate text-lg font-semibold" data-testid="agent-detail-name">{agent.name}</h2>
-            <Badge variant={config.variant} class={config.extraClass} data-testid="agent-detail-status">
-              {$t(config.labelKey)}
-            </Badge>
+            {#if !isInstalled}
+              <Badge variant="outline" class="text-[10px]">
+                {$t("agents.session_only")}
+              </Badge>
+            {/if}
+            {#if config}
+              <Badge variant={config.variant} class={config.extraClass} data-testid="agent-detail-status">
+                {$t(config.labelKey)}
+              </Badge>
+            {:else}
+              <Badge variant="secondary" data-testid="agent-detail-status">
+                {$t("agents.not_loaded")}
+              </Badge>
+            {/if}
           </div>
-          {#if agent.state !== "stopped"}
-            <p class="text-xs text-muted-foreground">
-              {$t('agents.uptime')}: {formatUptime(agent.uptime_secs)}
-              · {$t('agents.completed')}: {agent.tasks_completed}
-              {#if agent.tasks_failed > 0}
-                · <span class="text-[hsl(var(--destructive))]">{$t('agents.failed')}: {agent.tasks_failed}</span>
-              {/if}
-            </p>
-          {/if}
+          <p class="text-xs text-muted-foreground">
+            v{agent.version}
+            {#if isInstalled}
+              · {agent.enabled ? $t("agents.auto_start_enabled") : $t("agents.auto_start_disabled")}
+            {/if}
+          </p>
         </div>
       </div>
-
-      {#if agent.state === "degraded" && agent.degraded_reason}
-        <div class="mt-2 rounded-md bg-[var(--apollia-warning)]/10 px-3 py-1.5 text-xs text-[var(--apollia-warning)]">
-          {$t('common.warning')}: {agent.degraded_reason}
-        </div>
-      {/if}
 
       {#if stopError}
         <div class="mt-2 rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 px-3 py-1.5 text-xs text-[hsl(var(--destructive))]">
@@ -129,14 +127,16 @@
             {$t('common.cancel')}
           </Button>
         {:else}
-          {#if isRunning(agent.state)}
+          {#if isRunning && agent.id}
             <Button size="sm" variant="outline" onclick={() => { confirmVisible = true; }} data-testid="agent-detail-stop-btn">
               {$t('agents.stop')}
             </Button>
           {/if}
-          <Button size="sm" variant="ghost" onclick={handleLogsClick} data-testid="agent-detail-logs-btn">
-            {$t('agents.logs')}
-          </Button>
+          {#if agent.id}
+            <Button size="sm" variant="ghost" onclick={handleLogsClick} data-testid="agent-detail-logs-btn">
+              {$t('agents.logs')}
+            </Button>
+          {/if}
           <Button size="sm" variant="ghost" onclick={onclose}>
             {$t('common.close')}
           </Button>
@@ -148,20 +148,21 @@
 
     <!-- Scrollable content with all sections -->
     <div class="flex-1 space-y-6 overflow-auto px-5 py-4">
-      <!-- AC-2: Recent activity -->
-      <AgentActivity agentId={agent.id} onTaskClick={handleTaskClick} />
+      <!-- Recent activity (only if agent is loaded in runtime) -->
+      {#if agent.id}
+        <AgentActivity agentId={agent.id} onTaskClick={handleTaskClick} />
+        <Separator />
+      {/if}
 
-      <Separator />
-
-      <!-- AC-3: Triggers in natural language -->
+      <!-- Triggers in natural language -->
       <AgentTriggers agentName={agent.name} />
 
       <Separator />
 
-      <!-- AC-4: AI Model -->
+      <!-- AI Model -->
       <AgentLlmInfo />
 
-      <!-- AC-5: Memory (builder only) -->
+      <!-- Memory (builder only) -->
       {#if $uiMode === "builder"}
         <Separator />
         <section data-testid="agent-detail-memory">

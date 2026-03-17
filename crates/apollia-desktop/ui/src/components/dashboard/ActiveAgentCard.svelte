@@ -1,13 +1,13 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import type { AgentStatus } from "$lib/types";
+  import type { AgentListItem } from "$lib/types";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import { Bot } from "lucide-svelte";
 
   interface Props {
-    agent: AgentStatus;
-    ondetail: (agent: AgentStatus) => void;
+    agent: AgentListItem;
+    ondetail: (agent: AgentListItem) => void;
   }
 
   let { agent, ondetail }: Props = $props();
@@ -29,7 +29,7 @@
   };
 
   let badgeConfig = $derived(
-    STATUS_BADGE[agent.state as "active" | "degraded"] ?? STATUS_BADGE.active,
+    STATUS_BADGE[agent.runtime_status as "active" | "degraded"] ?? STATUS_BADGE.active,
   );
 
   function handleClick() {
@@ -37,7 +37,7 @@
   }
 </script>
 
-<button class="w-full text-left" onclick={handleClick} data-testid="active-agent-card" data-agent-id={agent.id}>
+<button class="w-full text-left" onclick={handleClick} data-testid="active-agent-card" data-agent-name={agent.name}>
   <Card class="transition-colors hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]">
     <CardHeader class="pb-2">
       <div class="flex items-center justify-between">
@@ -51,12 +51,7 @@
       </div>
     </CardHeader>
     <CardContent>
-      <div class="flex items-center gap-4 text-xs text-muted-foreground">
-        <span>{$t('agents.completed')}: {agent.tasks_completed}</span>
-        {#if agent.tasks_failed > 0}
-          <span class="text-[hsl(var(--destructive))]">{$t('agents.failed')}: {agent.tasks_failed}</span>
-        {/if}
-      </div>
+      <p class="text-xs text-muted-foreground">v{agent.version}</p>
     </CardContent>
   </Card>
 </button>

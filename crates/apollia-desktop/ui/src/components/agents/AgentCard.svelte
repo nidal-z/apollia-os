@@ -1,22 +1,24 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { open as openDialog } from "@tauri-apps/plugin-dialog";
+  import { confirm } from "@tauri-apps/plugin-dialog";
   import { t } from "svelte-i18n";
-  import type { AgentStatus } from "$lib/types";
+  import type { AgentListItem } from "$lib/types";
   import { Card } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { uiMode } from "$lib/stores/mode";
-
   interface Props {
-    agent: AgentStatus;
+    agent: AgentListItem;
     onlogs: (agentId: string) => void;
-    ondetail: (agent: AgentStatus) => void;
+    ondetail: (agent: AgentListItem) => void;
   }
 
   let { agent, onlogs, ondetail }: Props = $props();
 
+  type RuntimeState = "active" | "degraded" | "stopped" | "initializing" | "stopping";
+
   const STATUS_CONFIG: Record<
-    AgentStatus["state"],
+    RuntimeState,
     { labelKey: string; variant: "default" | "secondary" | "destructive" | "outline" | "success" | "warning"; extraClass: string }
   > = {
     active: { labelKey: "common.status.active", variant: "success", extraClass: "" },
@@ -29,6 +31,11 @@
   let stopping = $state(false);
   let confirmVisible = $state(false);
   let stopError = $state<string | null>(null);
+  let toggleLoading = $state(false);
+  let uninstallLoading = $state(false);
+  let updateLoading = $state(false);
+  let installLoading = $state(false);
+  let actionError = $state<string | null>(null);
 
   function agentColor(name: string): string {
     const hash = name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -40,23 +47,13 @@
     return name.charAt(0).toUpperCase();
   }
 
-  function formatUptime(totalSeconds: number): string {
-    if (totalSeconds < 60) return `${totalSeconds}s`;
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  }
-
-  function isRunning(state: AgentStatus["state"]): boolean {
-    return state === "active" || state === "degraded";
-  }
-
-  function isStopped(state: AgentStatus["state"]): boolean {
-    return state === "stopped";
-  }
+  const isInstalled = $derived(agent.installed_at !== null);
+  const runtimeStatus = $derived(agent.runtime_status as RuntimeState | null);
+  const isRunning = $derived(runtimeStatus === "active" || runtimeStatus === "degraded");
+  const config = $derived(runtimeStatus ? STATUS_CONFIG[runtimeStatus] : null);
 
   async function handleStop() {
+    if (!agent.id) return;
     confirmVisible = false;
     stopping = true;
     stopError = null;
@@ -78,21 +75,84 @@
   }
 
   function handleLogsClick() {
-    onlogs(agent.id);
+    if (agent.id) {
+      onlogs(agent.id);
+    }
   }
 
-  const config = $derived(STATUS_CONFIG[agent.state]);
-  const displayDescription = $derived(agent.description || $t("agents.no_description"));
+  async function handleToggleEnabled() {
+    toggleLoading = true;
+    actionError = null;
+    try {
+      if (agent.enabled) {
+        await invoke("disable_agent", { name: agent.name });
+      } else {
+        await invoke("enable_agent", { name: agent.name });
+      }
+    } catch (err: unknown) {
+      actionError = err instanceof Error ? err.message : String(err);
+    } finally {
+      toggleLoading = false;
+    }
+  }
+
+  async function handleUninstall() {
+    const confirmed = await confirm(
+      $t("agents.uninstall_confirm_message", { values: { name: agent.name } }),
+      { title: $t("agents.uninstall_confirm_title"), kind: "warning" },
+    );
+    if (!confirmed) return;
+
+    uninstallLoading = true;
+    actionError = null;
+    try {
+      await invoke("uninstall_agent", { name: agent.name });
+    } catch (err: unknown) {
+      actionError = err instanceof Error ? err.message : String(err);
+    } finally {
+      uninstallLoading = false;
+    }
+  }
+
+  async function handleUpdate() {
+    const path = await openDialog({
+      filters: [{ name: "Python Agent", extensions: ["py"] }],
+      multiple: false,
+    });
+    if (!path) return;
+
+    updateLoading = true;
+    actionError = null;
+    try {
+      await invoke("update_agent", { name: agent.name, path });
+    } catch (err: unknown) {
+      actionError = err instanceof Error ? err.message : String(err);
+    } finally {
+      updateLoading = false;
+    }
+  }
+
+  async function handleInstallPermanently() {
+    installLoading = true;
+    actionError = null;
+    try {
+      await invoke("install_agent", { path: agent.name });
+    } catch (err: unknown) {
+      actionError = err instanceof Error ? err.message : String(err);
+    } finally {
+      installLoading = false;
+    }
+  }
 </script>
 
 <Card
   class="relative cursor-pointer overflow-hidden transition-all duration-200 hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)] hover:shadow-md"
   data-testid="agent-card"
-  data-agent-id={agent.id}
-  data-agent-state={agent.state}
+  data-agent-name={agent.name}
+  data-agent-state={agent.runtime_status ?? "not-loaded"}
   onclick={() => ondetail(agent)}
 >
-  <!-- AC-1: Avatar + Name + Description + Badge -->
+  <!-- Avatar + Name + Version + Badge -->
   <div class="px-4 pt-4 pb-3">
     <div class="flex items-start gap-3">
       <!-- Avatar -->
@@ -110,60 +170,67 @@
           <h3 class="truncate text-base font-semibold" data-testid="agent-name">
             {agent.name}
           </h3>
-          <Badge variant={config.variant} class={config.extraClass} data-testid="agent-status">
-            {$t(config.labelKey)}
-          </Badge>
+          <div class="flex items-center gap-1.5">
+            {#if !isInstalled}
+              <Badge variant="outline" class="text-[10px]" data-testid="agent-session-badge">
+                {$t("agents.session_only")}
+              </Badge>
+            {/if}
+            {#if config}
+              <Badge variant={config.variant} class={config.extraClass} data-testid="agent-status">
+                {$t(config.labelKey)}
+              </Badge>
+            {:else}
+              <Badge variant="secondary" data-testid="agent-status">
+                {$t("agents.not_loaded")}
+              </Badge>
+            {/if}
+          </div>
         </div>
 
-        <!-- Description (1-2 lines) -->
-        <p class="mt-1 line-clamp-2 text-sm text-muted-foreground" data-testid="agent-description">
-          {displayDescription}
+        <!-- Version -->
+        <p class="mt-1 text-sm text-muted-foreground" data-testid="agent-version">
+          v{agent.version}
         </p>
       </div>
     </div>
   </div>
 
-  <!-- AC-2: Metrics adapted to mode -->
-  <div class="border-t px-4 py-2.5">
-    {#if $uiMode === "operator"}
-      <span class="text-xs text-muted-foreground">
-        {$t("agents.tasks_completed_count", { values: { count: agent.tasks_completed } })}
-      </span>
-    {:else}
-      <div class="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-        <span>{$t("agents.completed")}: {agent.tasks_completed}</span>
-        {#if agent.tasks_failed > 0}
-          <span class="text-[hsl(var(--destructive))]">{$t("agents.failed")}: {agent.tasks_failed}</span>
-        {:else}
-          <span>{$t("agents.failed")}: {agent.tasks_failed}</span>
-        {/if}
-        {#if !isStopped(agent.state)}
-          <span>{$t("agents.uptime")}: {formatUptime(agent.uptime_secs)}</span>
-        {/if}
-        {#if agent.degraded_reason}
-          <span class="text-[var(--apollia-warning)]">{agent.degraded_reason}</span>
-        {/if}
+  <!-- Enabled / Disabled info for installed agents -->
+  {#if isInstalled}
+    <div class="border-t px-4 py-2.5">
+      <div class="flex items-center justify-between">
+        <span class="text-xs text-muted-foreground">
+          {#if agent.enabled}
+            {$t("agents.auto_start_enabled")}
+          {:else}
+            {$t("agents.auto_start_disabled")}
+          {/if}
+        </span>
+        <!-- Toggle -->
+        <button
+          class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors {agent.enabled ? 'bg-primary' : 'bg-muted-foreground/30'}"
+          onclick={(e) => { e.stopPropagation(); handleToggleEnabled(); }}
+          disabled={toggleLoading}
+          title={agent.enabled ? $t("agents.disable_tooltip") : $t("agents.enable_tooltip")}
+          data-testid="agent-enabled-toggle"
+        >
+          <span
+            class="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform {agent.enabled ? 'translate-x-[18px]' : 'translate-x-[3px]'}"
+          ></span>
+        </button>
       </div>
-    {/if}
-  </div>
-
-  <!-- AC-4: Degraded warning bar -->
-  {#if agent.state === "degraded" && agent.degraded_reason}
-    <div
-      class="flex items-center gap-2 border-t border-[var(--apollia-warning)]/30 bg-[var(--apollia-warning)]/10 px-4 py-2 text-xs text-[var(--apollia-warning)]"
-      data-testid="agent-degraded-warning"
-    >
-      <span>{$t("common.warning")}: {agent.degraded_reason}</span>
     </div>
   {/if}
 
-  <!-- Actions (stop on click to prevent card navigation) -->
-  {#if stopError}
+  <!-- Error display -->
+  {#if stopError || actionError}
     <div class="border-t px-4 py-2">
-      <p class="text-xs text-[hsl(var(--destructive))]">{stopError}</p>
+      <p class="text-xs text-[hsl(var(--destructive))]">{stopError || actionError}</p>
     </div>
   {/if}
 
+  <!-- Actions -->
   <div class="border-t px-4 py-2" onclick={(e) => e.stopPropagation()}>
     {#if confirmVisible}
       <div class="flex items-center gap-2">
@@ -177,14 +244,26 @@
       </div>
     {:else}
       <div class="flex items-center gap-2">
-        {#if isRunning(agent.state)}
+        {#if isRunning && agent.id}
           <Button size="sm" variant="outline" onclick={handleStopClick} data-testid="agent-stop-btn">
             {$t("agents.stop")}
           </Button>
         {/if}
-        {#if !isStopped(agent.state)}
+        {#if agent.id}
           <Button size="sm" variant="ghost" onclick={handleLogsClick} data-testid="agent-logs-btn">
             {$t("agents.logs")}
+          </Button>
+        {/if}
+        {#if isInstalled}
+          <Button size="sm" variant="ghost" onclick={handleUpdate} disabled={updateLoading} data-testid="agent-update-button">
+            {updateLoading ? $t("common.loading") : $t("agents.update")}
+          </Button>
+          <Button size="sm" variant="ghost" class="text-[hsl(var(--destructive))]" onclick={handleUninstall} disabled={uninstallLoading} data-testid="agent-uninstall-button">
+            {uninstallLoading ? $t("common.loading") : $t("agents.uninstall")}
+          </Button>
+        {:else}
+          <Button size="sm" variant="outline" onclick={handleInstallPermanently} disabled={installLoading} data-testid="install-permanently-btn">
+            {installLoading ? $t("common.loading") : $t("agents.install_permanently")}
           </Button>
         {/if}
       </div>
