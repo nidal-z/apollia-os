@@ -49,6 +49,18 @@ pub struct AgentListItem {
     pub runtime_status: Option<String>,
     /// Horodatage d'installation (RFC 3339, `None` pour les agents runtime-only).
     pub installed_at: Option<String>,
+    /// Description humaine de l'agent (du manifest).
+    pub description: Option<String>,
+    /// Tags libres pour le routing/découverte.
+    pub tags: Vec<String>,
+    /// Outils requis par l'agent.
+    pub tools_required: Vec<String>,
+    /// Outils optionnels de l'agent.
+    pub tools_optional: Vec<String>,
+    /// Mode d'exécution (`"auto"`, `"direct"`, `"orchestrated"`).
+    pub execution_mode: Option<String>,
+    /// Chemin d'installation sur disque (`None` pour les agents runtime-only).
+    pub install_path: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -117,6 +129,7 @@ pub async fn list_agents(
             .iter()
             .find(|e| e.manifest.name == agent.name);
 
+        let manifest = &agent.manifest;
         items.push(AgentListItem {
             id: runtime_entry.map(|e| e.id.to_string()),
             name: agent.name.clone(),
@@ -124,6 +137,16 @@ pub async fn list_agents(
             enabled: agent.enabled,
             runtime_status: runtime_entry.map(|e| state_to_string(&e.process_state)),
             installed_at: Some(agent.installed_at.clone()),
+            description: if manifest.description.is_empty() {
+                None
+            } else {
+                Some(manifest.description.clone())
+            },
+            tags: manifest.tags.clone(),
+            tools_required: manifest.tools_required.clone(),
+            tools_optional: manifest.tools_optional.clone(),
+            execution_mode: Some(manifest.execution_mode.clone()),
+            install_path: Some(agent.install_path.to_string_lossy().to_string()),
         });
     }
 
@@ -131,13 +154,24 @@ pub async fn list_agents(
     for entry in &runtime_entries {
         let already_listed = installed.iter().any(|i| i.name == entry.manifest.name);
         if !already_listed {
+            let manifest = &entry.manifest;
             items.push(AgentListItem {
                 id: Some(entry.id.to_string()),
-                name: entry.manifest.name.clone(),
-                version: entry.manifest.version.clone(),
+                name: manifest.name.clone(),
+                version: manifest.version.clone(),
                 enabled: true,
                 runtime_status: Some(state_to_string(&entry.process_state)),
                 installed_at: None,
+                description: if manifest.description.is_empty() {
+                    None
+                } else {
+                    Some(manifest.description.clone())
+                },
+                tags: manifest.tags.clone(),
+                tools_required: manifest.tools_required.clone(),
+                tools_optional: manifest.tools_optional.clone(),
+                execution_mode: Some(manifest.execution_mode.clone()),
+                install_path: None,
             });
         }
     }
@@ -248,6 +282,25 @@ pub async fn install_agent(
             install_path.display()
         )
     })?;
+
+    // Copy sibling .py files from the source directory so local imports
+    // (e.g. `from apollia_base import ...`) resolve at runtime.
+    if let Some(source_dir) = canonical.parent() {
+        if let Ok(entries) = std::fs::read_dir(source_dir) {
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+                if entry_path == canonical {
+                    continue;
+                }
+                if entry_path.extension().and_then(|e| e.to_str()) == Some("py") {
+                    if let Some(file_name) = entry_path.file_name() {
+                        let dest = agents_dir.join(file_name);
+                        let _ = std::fs::copy(&entry_path, &dest);
+                    }
+                }
+            }
+        }
+    }
 
     let now = now_rfc3339();
     let agent = InstalledAgent {
@@ -438,6 +491,26 @@ pub async fn update_agent(
         )
     })?;
 
+    // Copy sibling .py files from the source directory so local imports resolve.
+    if let Some(source_dir) = canonical.parent() {
+        if let Some(install_dir) = existing.install_path.parent() {
+            if let Ok(entries) = std::fs::read_dir(source_dir) {
+                for entry in entries.flatten() {
+                    let entry_path = entry.path();
+                    if entry_path == canonical {
+                        continue;
+                    }
+                    if entry_path.extension().and_then(|e| e.to_str()) == Some("py") {
+                        if let Some(file_name) = entry_path.file_name() {
+                            let dest = install_dir.join(file_name);
+                            let _ = std::fs::copy(&entry_path, &dest);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     let updated = InstalledAgent {
         name: existing.name.clone(),
         version: manifest.version.clone(),
@@ -525,6 +598,12 @@ mod tests {
             enabled: true,
             runtime_status: Some("active".to_string()),
             installed_at: Some("2026-03-17T10:00:00Z".to_string()),
+            description: Some("A test agent".to_string()),
+            tags: vec!["test".to_string(), "demo".to_string()],
+            tools_required: vec!["bash".to_string()],
+            tools_optional: vec!["file_io".to_string()],
+            execution_mode: Some("auto".to_string()),
+            install_path: Some("/home/user/.apollia/agents/hello-agent/agent.py".to_string()),
         };
 
         // WHEN serialized to JSON
@@ -537,6 +616,10 @@ mod tests {
         assert_eq!(json["enabled"], true);
         assert_eq!(json["runtime_status"], "active");
         assert_eq!(json["installed_at"], "2026-03-17T10:00:00Z");
+        assert_eq!(json["description"], "A test agent");
+        assert_eq!(json["tags"], serde_json::json!(["test", "demo"]));
+        assert_eq!(json["tools_required"], serde_json::json!(["bash"]));
+        assert_eq!(json["execution_mode"], "auto");
     }
 
     // AC-5 — AgentListItem with no runtime (installed but not loaded)
@@ -550,6 +633,12 @@ mod tests {
             enabled: false,
             runtime_status: None,
             installed_at: Some("2026-03-17T09:00:00Z".to_string()),
+            description: None,
+            tags: vec![],
+            tools_required: vec![],
+            tools_optional: vec![],
+            execution_mode: Some("direct".to_string()),
+            install_path: Some("/home/user/.apollia/agents/disabled-agent/agent.py".to_string()),
         };
 
         // WHEN serialized to JSON
@@ -559,6 +648,8 @@ mod tests {
         assert!(json["id"].is_null());
         assert!(json["runtime_status"].is_null());
         assert_eq!(json["enabled"], false);
+        assert!(json["description"].is_null());
+        assert_eq!(json["tags"], serde_json::json!([]));
     }
 
     // AC-5 — Runtime-only agent (not installed)
@@ -572,6 +663,12 @@ mod tests {
             enabled: true,
             runtime_status: Some("active".to_string()),
             installed_at: None,
+            description: Some("Ephemeral agent".to_string()),
+            tags: vec![],
+            tools_required: vec![],
+            tools_optional: vec![],
+            execution_mode: Some("auto".to_string()),
+            install_path: None,
         };
 
         // WHEN serialized to JSON
@@ -580,5 +677,6 @@ mod tests {
         // THEN installed_at is null
         assert!(json["installed_at"].is_null());
         assert_eq!(json["runtime_status"], "active");
+        assert!(json["install_path"].is_null());
     }
 }

@@ -109,7 +109,10 @@
     "uninstall": "Désinstaller",
     "uninstall_confirm_title": "Désinstaller l'agent",
     "uninstall_confirm_message": "Êtes-vous sûr de vouloir désinstaller l'agent « {name} » ? Cette action est définitive.",
-    "install_permanently": "Installer définitivement"
+    "install_permanently": "Installer définitivement",
+    "start": "Démarrer",
+    "start_tooltip": "Charger et démarrer cet agent",
+    "starting_agent": "Démarrage..."
   },
   "tasks": {
     "title": "Tâches",
@@ -508,7 +511,25 @@
     "llm_model": "Modèle",
     "llm_more_backends": "backends supplémentaires",
     "memory_title": "Mémoire",
-    "memory_link": "Voir la mémoire du namespace \"{namespace}\""
+    "memory_link": "Voir la mémoire du namespace \"{namespace}\"",
+    "description_title": "Description",
+    "tools_title": "Outils",
+    "tools_required_label": "Requis",
+    "tools_optional_label": "Optionnel",
+    "no_tools": "Aucun outil configuré.",
+    "tags_title": "Tags",
+    "execution_mode_title": "Mode d'exécution",
+    "execution_mode_auto": "Automatique",
+    "execution_mode_direct": "Direct",
+    "execution_mode_orchestrated": "Orchestré",
+    "install_path_title": "Emplacement",
+    "trigger_config_cron": "Expression : {config}",
+    "trigger_config_interval": "Toutes les {config}",
+    "trigger_config_file_watch": "Surveille : {config}",
+    "trigger_config_webhook": "Endpoint : {config}",
+    "trigger_config_oneshot": "Déclenchement unique",
+    "trigger_enabled": "Actif",
+    "trigger_last_fired": "Dernier déclenchement : {date}"
   },
   "smart_output": {
     "show_raw": "Afficher la sortie brute",

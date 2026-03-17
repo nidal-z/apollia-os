@@ -109,7 +109,10 @@
     "uninstall": "Uninstall",
     "uninstall_confirm_title": "Uninstall agent",
     "uninstall_confirm_message": "Are you sure you want to uninstall agent '{name}'? This will remove it permanently.",
-    "install_permanently": "Install permanently"
+    "install_permanently": "Install permanently",
+    "start": "Start",
+    "start_tooltip": "Load and start this agent",
+    "starting_agent": "Starting..."
   },
   "tasks": {
     "title": "Tasks",
@@ -508,7 +511,25 @@
     "llm_model": "Model",
     "llm_more_backends": "more backends",
     "memory_title": "Memory",
-    "memory_link": "View memory for namespace \"{namespace}\""
+    "memory_link": "View memory for namespace \"{namespace}\"",
+    "description_title": "Description",
+    "tools_title": "Tools",
+    "tools_required_label": "Required",
+    "tools_optional_label": "Optional",
+    "no_tools": "No tools configured.",
+    "tags_title": "Tags",
+    "execution_mode_title": "Execution mode",
+    "execution_mode_auto": "Automatic",
+    "execution_mode_direct": "Direct",
+    "execution_mode_orchestrated": "Orchestrated",
+    "install_path_title": "Location",
+    "trigger_config_cron": "Expression: {config}",
+    "trigger_config_interval": "Every {config}",
+    "trigger_config_file_watch": "Watches: {config}",
+    "trigger_config_webhook": "Endpoint: {config}",
+    "trigger_config_oneshot": "One-time trigger",
+    "trigger_enabled": "Active",
+    "trigger_last_fired": "Last fired: {date}"
   },
   "smart_output": {
     "show_raw": "Show raw output",

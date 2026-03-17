@@ -30,6 +30,18 @@ export interface AgentListItem {
   runtime_status: "active" | "degraded" | "stopped" | "initializing" | "stopping" | null;
   /** Horodatage d'installation RFC 3339 (`null` pour les agents session-only). */
   installed_at: string | null;
+  /** Description humaine de l'agent (du manifest). */
+  description: string | null;
+  /** Tags libres pour le routing/découverte. */
+  tags: string[];
+  /** Outils requis par l'agent. */
+  tools_required: string[];
+  /** Outils optionnels de l'agent. */
+  tools_optional: string[];
+  /** Mode d'exécution (`"auto"`, `"direct"`, `"orchestrated"`). */
+  execution_mode: string | null;
+  /** Chemin d'installation sur disque (`null` pour les agents runtime-only). */
+  install_path: string | null;
 }
 
 /** Réponse d'une installation ou mise à jour d'agent. */
