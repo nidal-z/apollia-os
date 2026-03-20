@@ -10,6 +10,7 @@
 
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::StreamExt;
 use tracing::{info, warn};
@@ -27,6 +28,9 @@ use super::types::{
     ToolDecision,
 };
 use crate::eventbus::EventBusSender;
+
+/// Default timeout for chat tool approval requests (5 minutes).
+const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
 
 // ─────────────────────────────────────────────
 // NativeChatToolInvoker — production tool execution
@@ -333,7 +337,15 @@ impl BuiltInChatAgent {
                                 ),
                             });
 
-                            let rx = pending_approvals.register(key);
+                            let rx = pending_approvals.register(key.clone());
+                            pending_approvals.start_timeout(
+                                key,
+                                CHAT_APPROVAL_TIMEOUT,
+                                self.event_bus.clone(),
+                                session_id.to_string(),
+                                message_id.to_string(),
+                                call.name.clone(),
+                            );
                             let decision = rx.await.unwrap_or(ToolDecision::Refuse);
 
                             match decision {

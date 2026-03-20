@@ -9,6 +9,7 @@
 
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::Duration;
 
 use tracing::{error, info};
 
@@ -21,6 +22,9 @@ use super::types::{
     ChatError, ChatMode, ChatRole, ChatSession, PendingChatApprovals, ToolDecision,
 };
 use crate::eventbus::EventBusSender;
+
+/// Default timeout for chat tool approval requests (5 minutes).
+const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
 
 // ─────────────────────────────────────────────
 // ChatAgentRunner — trait for Python agent execution
@@ -205,7 +209,15 @@ impl AgentChatExecutor {
         });
 
         let key = format!("{}::{}::agent_action", session.id, message_id);
-        let rx = pending_approvals.register(key);
+        let rx = pending_approvals.register(key.clone());
+        pending_approvals.start_timeout(
+            key,
+            CHAT_APPROVAL_TIMEOUT,
+            self.event_bus.clone(),
+            session.id.clone(),
+            message_id.to_string(),
+            "agent_action".to_string(),
+        );
 
         let decision = rx.await.unwrap_or(ToolDecision::Refuse);
 

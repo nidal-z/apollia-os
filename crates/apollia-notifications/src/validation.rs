@@ -21,6 +21,7 @@ pub const KNOWN_EVENTS: &[&str] = &[
     "pipeline.failed",
     "pipeline.suspended",
     "llm.backend_down",
+    "chat.approval_required",
 ];
 
 /// Erreur retournée par les opérations du [`NotificationConfigRepository`](crate::repository::NotificationConfigRepository).
@@ -129,6 +130,14 @@ mod tests {
     #[test]
     fn test_validate_events_all_known_ok() {
         let events = vec!["task.completed".into(), "task.failed".into()];
+        assert!(validate_events(&events).is_ok());
+    }
+
+    #[test]
+    fn test_validate_events_chat_approval_required_ok() {
+        // GIVEN the new chat.approval_required event (STORY-203)
+        let events = vec!["chat.approval_required".into()];
+        // WHEN / THEN validation passes
         assert!(validate_events(&events).is_ok());
     }
 

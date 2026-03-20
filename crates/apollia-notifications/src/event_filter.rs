@@ -181,6 +181,27 @@ pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
             })
         }
 
+        // ── Chat events (STORY-203) ─────────────────────────────────────
+        RuntimeEvent::ChatApprovalRequired {
+            session_id,
+            tool_name,
+            ..
+        } => {
+            let mut metadata = HashMap::new();
+            metadata.insert("session_id".into(), session_id.clone());
+            metadata.insert("tool_name".into(), tool_name.clone());
+            metadata.insert("action_url".into(), format!("/chat/{session_id}"));
+            Some(Notification {
+                event: "chat.approval_required".into(),
+                timestamp: Utc::now(),
+                task_id: None,
+                agent: None,
+                message: format!("Approbation requise pour {tool_name}"),
+                metadata,
+                severity: Severity::Warning,
+            })
+        }
+
         _ => None,
     }
 }
@@ -395,6 +416,49 @@ mod tests {
         let approve_cmd = notif.metadata.get("resume_approve").expect("clé présente");
         assert!(approve_cmd.contains("--approve"));
         assert_eq!(notif.task_id.as_deref(), Some("t-0051"));
+    }
+
+    // ── STORY-203 : Chat approval notification ─────────────────────────
+
+    #[test]
+    fn test_chat_approval_required_maps_to_warning_notification() {
+        // GIVEN a ChatApprovalRequired event
+        let event = RuntimeEvent::ChatApprovalRequired {
+            session_id: "sess-001".into(),
+            message_id: "msg-005".into(),
+            tool_name: "bash_executor".into(),
+            prompt: "L'outil 'bash_executor' demande à être exécuté".into(),
+        };
+        // WHEN
+        let notif = map_event(&event).expect("doit retourner Some");
+        // THEN
+        assert_eq!(notif.event, "chat.approval_required");
+        assert_eq!(notif.severity, Severity::Warning);
+        assert!(notif.message.contains("bash_executor"));
+        assert_eq!(
+            notif.metadata.get("session_id").map(String::as_str),
+            Some("sess-001")
+        );
+        assert_eq!(
+            notif.metadata.get("tool_name").map(String::as_str),
+            Some("bash_executor")
+        );
+        assert_eq!(
+            notif.metadata.get("action_url").map(String::as_str),
+            Some("/chat/sess-001")
+        );
+    }
+
+    #[test]
+    fn test_chat_approval_timeout_returns_none() {
+        // GIVEN a ChatApprovalTimeout event (not mapped to notification)
+        let event = RuntimeEvent::ChatApprovalTimeout {
+            session_id: "sess-001".into(),
+            message_id: "msg-005".into(),
+            tool_name: "bash_executor".into(),
+        };
+        // WHEN / THEN — no notification produced
+        assert!(map_event(&event).is_none());
     }
 
     #[test]

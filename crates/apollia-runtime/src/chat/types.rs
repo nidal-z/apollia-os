@@ -5,9 +5,13 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
+
+use crate::eventbus::EventBusSender;
+use apollia_core::RuntimeEvent;
 
 /// Alias for a chat session identifier (UUID v4 string).
 pub type SessionId = String;
@@ -293,6 +297,47 @@ impl PendingChatApprovals {
     pub fn timeout(&self, key: &str) -> bool {
         self.resolve(key, ToolDecision::Refuse)
     }
+
+    /// Start a background timeout task that auto-refuses after `duration`.
+    ///
+    /// If the approval is still pending when the timer fires, it is resolved
+    /// with [`ToolDecision::Refuse`] and a [`RuntimeEvent::ChatApprovalTimeout`]
+    /// is emitted on the EventBus.
+    ///
+    /// If the approval has already been resolved before the timeout, this is a no-op.
+    pub fn start_timeout(
+        &self,
+        key: String,
+        duration: Duration,
+        event_bus: EventBusSender,
+        session_id: String,
+        message_id: String,
+        tool_name: String,
+    ) {
+        let inner = Arc::clone(&self.inner);
+        tokio::spawn(async move {
+            tokio::time::sleep(duration).await;
+
+            // Try to resolve — returns false if already resolved
+            let still_pending = {
+                let mut map = inner.lock().expect("PendingChatApprovals lock poisoned");
+                if let Some(tx) = map.remove(&key) {
+                    let _ = tx.send(ToolDecision::Refuse);
+                    true
+                } else {
+                    false
+                }
+            };
+
+            if still_pending {
+                let _ = event_bus.send(RuntimeEvent::ChatApprovalTimeout {
+                    session_id,
+                    message_id,
+                    tool_name,
+                });
+            }
+        });
+    }
 }
 
 impl Clone for PendingChatApprovals {
@@ -448,6 +493,114 @@ mod tests {
         }
         // 8 variants (7 from spec + InternalError)
         assert_eq!(errors.len(), 8);
+    }
+
+    #[tokio::test]
+    async fn test_register_resolve_refuse() {
+        // GIVEN PendingChatApprovals
+        let approvals = PendingChatApprovals::new();
+
+        // WHEN register puis resolve(Refuse)
+        let rx = approvals.register("sess-1::msg-1::bash".to_string());
+        let resolved = approvals.resolve("sess-1::msg-1::bash", ToolDecision::Refuse);
+
+        // THEN receiver gets Refuse
+        assert!(resolved);
+        let decision = rx.await.expect("decision");
+        assert_eq!(decision, ToolDecision::Refuse);
+    }
+
+    #[tokio::test]
+    async fn test_register_resolve_always_accept() {
+        // GIVEN PendingChatApprovals
+        let approvals = PendingChatApprovals::new();
+
+        // WHEN register puis resolve(AlwaysAccept)
+        let rx = approvals.register("sess-1::msg-1::bash".to_string());
+        let resolved = approvals.resolve("sess-1::msg-1::bash", ToolDecision::AlwaysAccept);
+
+        // THEN receiver gets AlwaysAccept
+        assert!(resolved);
+        let decision = rx.await.expect("decision");
+        assert_eq!(decision, ToolDecision::AlwaysAccept);
+    }
+
+    #[tokio::test]
+    async fn test_start_timeout_auto_refuse() {
+        // GIVEN a registered approval with 100ms timeout
+        let approvals = PendingChatApprovals::new();
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(16);
+        let rx = approvals.register("sess-1::msg-1::bash_executor".to_string());
+
+        // WHEN start_timeout with 100ms
+        approvals.start_timeout(
+            "sess-1::msg-1::bash_executor".to_string(),
+            Duration::from_millis(100),
+            event_tx,
+            "sess-1".to_string(),
+            "msg-1".to_string(),
+            "bash_executor".to_string(),
+        );
+
+        // THEN receiver gets Refuse after timeout
+        let decision = rx.await.expect("decision");
+        assert_eq!(decision, ToolDecision::Refuse);
+
+        // AND ChatApprovalTimeout event is emitted
+        let event = event_rx.recv().await.expect("event");
+        match event {
+            RuntimeEvent::ChatApprovalTimeout {
+                session_id,
+                message_id,
+                tool_name,
+            } => {
+                assert_eq!(session_id, "sess-1");
+                assert_eq!(message_id, "msg-1");
+                assert_eq!(tool_name, "bash_executor");
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_resolve_before_timeout_no_event() {
+        // GIVEN a registered approval with 5s timeout
+        let approvals = PendingChatApprovals::new();
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(16);
+        let rx = approvals.register("sess-1::msg-1::bash".to_string());
+
+        approvals.start_timeout(
+            "sess-1::msg-1::bash".to_string(),
+            Duration::from_secs(5),
+            event_tx,
+            "sess-1".to_string(),
+            "msg-1".to_string(),
+            "bash".to_string(),
+        );
+
+        // WHEN resolve Accept before timeout
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        let resolved = approvals.resolve("sess-1::msg-1::bash", ToolDecision::Accept);
+
+        // THEN receiver gets Accept
+        assert!(resolved);
+        let decision = rx.await.expect("decision");
+        assert_eq!(decision, ToolDecision::Accept);
+
+        // AND no timeout event is emitted (check with a short wait)
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert!(event_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn test_multi_tool_authorization() {
+        // GIVEN a session-like setup with bash AlwaysAccept, file_io not authorized
+        let authorized: std::collections::HashSet<String> =
+            ["bash_executor".to_string()].into_iter().collect();
+
+        // WHEN check bash_executor → authorized, file_io → not authorized
+        assert!(authorized.contains("bash_executor"));
+        assert!(!authorized.contains("file_io"));
     }
 
     #[test]

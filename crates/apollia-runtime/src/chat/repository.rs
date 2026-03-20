@@ -648,6 +648,33 @@ mod tests {
     }
 
     #[test]
+    fn test_restore_authorizations_from_db() {
+        // GIVEN a session with 2 authorized tools persisted
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        repo.create_session(
+            "s1",
+            &ChatMode::Agent,
+            Some("agent"),
+            "",
+            &["bash_executor".into(), "file_io".into()],
+            "2026-03-20T10:00:00Z",
+        )
+        .expect("create");
+        repo.authorize_tool("s1", "bash_executor", "2026-03-20T10:01:00Z")
+            .expect("authorize bash");
+        repo.authorize_tool("s1", "file_io", "2026-03-20T10:02:00Z")
+            .expect("authorize file_io");
+
+        // WHEN get_authorized_tools("s1")
+        let tools = repo.get_authorized_tools("s1").expect("get");
+
+        // THEN HashSet contains both tools
+        assert_eq!(tools.len(), 2);
+        assert!(tools.contains("bash_executor"));
+        assert!(tools.contains("file_io"));
+    }
+
+    #[test]
     fn test_get_session_nonexistent() {
         // GIVEN an empty repository
         let repo = ChatSessionRepository::open_in_memory().expect("open");
