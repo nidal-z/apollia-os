@@ -6,10 +6,10 @@
 //! Rust déjà définis dans `apollia-triggers`.
 
 use apollia_runtime::embedded::RuntimeHandle;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use super::{http_get_json, http_post_json};
+use super::{http_delete_json, http_get_json, http_post_json, http_put_json};
 
 /// Statut d'un trigger pour l'affichage dans l'UI.
 #[derive(Debug, Serialize)]
@@ -223,6 +223,167 @@ pub async fn reload_triggers(state: State<'_, RuntimeHandle>) -> Result<ReloadRe
     Ok(ReloadResult { reloaded })
 }
 
+// ─── CRUD types & commands (STORY-192) ──────────────────────────────────────
+
+/// Définition complète d'un trigger retournée par les opérations CRUD.
+#[derive(Debug, Serialize)]
+pub struct TriggerDefinitionView {
+    /// Identifiant unique du trigger.
+    pub id: String,
+    /// Agent cible (exclusif avec `pipeline`).
+    pub agent: Option<String>,
+    /// Pipeline cible (exclusif avec `agent`).
+    pub pipeline: Option<String>,
+    /// Indique si le trigger est actif.
+    pub enabled: bool,
+    /// Politique quand l'agent est occupé : `"queue"` ou `"drop"`.
+    pub on_busy: String,
+    /// Type de source : `"cron"`, `"interval"`, etc.
+    pub source_type: String,
+    /// Configuration JSON de la source.
+    pub source_config: serde_json::Value,
+    /// Template du message d'entrée.
+    pub input_template: Option<String>,
+    /// Horodatage de création (ISO 8601).
+    pub created_at: String,
+    /// Horodatage de dernière modification (ISO 8601).
+    pub updated_at: String,
+}
+
+/// Configuration de la source de déclenchement dans les requêtes CRUD.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TriggerSourceInput {
+    /// Type de source : `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`.
+    pub r#type: String,
+    /// Configuration spécifique à la source.
+    #[serde(flatten)]
+    pub config: serde_json::Value,
+}
+
+/// Corps de requête pour la création d'un trigger via `create_trigger`.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateTriggerRequest {
+    /// Identifiant unique du trigger.
+    pub id: String,
+    /// Agent cible — exclusif avec `pipeline`.
+    pub agent: Option<String>,
+    /// Pipeline cible — exclusif avec `agent`.
+    pub pipeline: Option<String>,
+    /// Indique si le trigger est actif (défaut : `true`).
+    pub enabled: Option<bool>,
+    /// Politique quand l'agent est occupé (défaut : `"queue"`).
+    pub on_busy: Option<String>,
+    /// Configuration de la source de déclenchement.
+    pub source: TriggerSourceInput,
+    /// Template du message d'entrée.
+    pub input_template: Option<String>,
+}
+
+/// Corps de requête pour la mise à jour d'un trigger via `update_trigger`.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateTriggerRequest {
+    /// Agent cible — exclusif avec `pipeline`.
+    pub agent: Option<String>,
+    /// Pipeline cible — exclusif avec `agent`.
+    pub pipeline: Option<String>,
+    /// Indique si le trigger est actif.
+    pub enabled: Option<bool>,
+    /// Politique quand l'agent est occupé.
+    pub on_busy: Option<String>,
+    /// Configuration de la source de déclenchement.
+    pub source: TriggerSourceInput,
+    /// Template du message d'entrée.
+    pub input_template: Option<String>,
+}
+
+/// Parse un JSON de réponse API en `TriggerDefinitionView`.
+fn parse_trigger_definition(json: &serde_json::Value) -> TriggerDefinitionView {
+    TriggerDefinitionView {
+        id: json
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        agent: json.get("agent").and_then(|v| v.as_str()).map(String::from),
+        pipeline: json
+            .get("pipeline")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        enabled: json
+            .get("enabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        on_busy: json
+            .get("on_busy")
+            .and_then(|v| v.as_str())
+            .unwrap_or("queue")
+            .to_string(),
+        source_type: json
+            .get("source_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        source_config: json
+            .get("source_config")
+            .cloned()
+            .unwrap_or(serde_json::Value::Object(serde_json::Map::new())),
+        input_template: json
+            .get("input_template")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        created_at: json
+            .get("created_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        updated_at: json
+            .get("updated_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+    }
+}
+
+/// Crée un nouveau trigger.
+///
+/// Délègue à `POST /api/v1/triggers`.
+#[tauri::command]
+pub async fn create_trigger(
+    state: State<'_, RuntimeHandle>,
+    definition: CreateTriggerRequest,
+) -> Result<TriggerDefinitionView, String> {
+    let body = serde_json::to_value(&definition)
+        .map_err(|e| format!("failed to serialize request: {e}"))?;
+    let json = http_post_json(state.api_port, "/api/v1/triggers", &body).await?;
+    Ok(parse_trigger_definition(&json))
+}
+
+/// Met à jour un trigger existant.
+///
+/// Délègue à `PUT /api/v1/triggers/:id`.
+#[tauri::command]
+pub async fn update_trigger(
+    state: State<'_, RuntimeHandle>,
+    id: String,
+    definition: UpdateTriggerRequest,
+) -> Result<TriggerDefinitionView, String> {
+    let body = serde_json::to_value(&definition)
+        .map_err(|e| format!("failed to serialize request: {e}"))?;
+    let path = format!("/api/v1/triggers/{id}");
+    let json = http_put_json(state.api_port, &path, &body).await?;
+    Ok(parse_trigger_definition(&json))
+}
+
+/// Supprime un trigger.
+///
+/// Délègue à `DELETE /api/v1/triggers/:id`.
+#[tauri::command]
+pub async fn delete_trigger(state: State<'_, RuntimeHandle>, id: String) -> Result<(), String> {
+    let path = format!("/api/v1/triggers/{id}");
+    http_delete_json(state.api_port, &path).await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -344,5 +505,119 @@ mod tests {
 
         // THEN reloaded count is correct
         assert_eq!(json["reloaded"], 5);
+    }
+
+    #[test]
+    fn test_trigger_definition_view_serializes() {
+        // GIVEN a TriggerDefinitionView with an agent target
+        let view = TriggerDefinitionView {
+            id: "daily-cron".to_string(),
+            agent: Some("report-agent".to_string()),
+            pipeline: None,
+            enabled: true,
+            on_busy: "queue".to_string(),
+            source_type: "cron".to_string(),
+            source_config: serde_json::json!({"expression": "0 8 * * MON"}),
+            input_template: Some("Generate weekly report".to_string()),
+            created_at: "2026-03-20T10:00:00Z".to_string(),
+            updated_at: "2026-03-20T10:00:00Z".to_string(),
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&view).expect("serialize");
+
+        // THEN all fields are present and correct
+        assert_eq!(json["id"], "daily-cron");
+        assert_eq!(json["agent"], "report-agent");
+        assert!(json["pipeline"].is_null());
+        assert_eq!(json["enabled"], true);
+        assert_eq!(json["on_busy"], "queue");
+        assert_eq!(json["source_type"], "cron");
+        assert_eq!(json["source_config"]["expression"], "0 8 * * MON");
+        assert_eq!(json["input_template"], "Generate weekly report");
+        assert_eq!(json["created_at"], "2026-03-20T10:00:00Z");
+    }
+
+    #[test]
+    fn test_trigger_definition_view_serializes_pipeline_target() {
+        // GIVEN a TriggerDefinitionView with a pipeline target
+        let view = TriggerDefinitionView {
+            id: "file-watcher".to_string(),
+            agent: None,
+            pipeline: Some("ingestion-pipeline".to_string()),
+            enabled: false,
+            on_busy: "drop".to_string(),
+            source_type: "file_watch".to_string(),
+            source_config: serde_json::json!({"path": "/data/inbox"}),
+            input_template: None,
+            created_at: "2026-03-20T08:00:00Z".to_string(),
+            updated_at: "2026-03-20T09:00:00Z".to_string(),
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&view).expect("serialize");
+
+        // THEN pipeline is set, agent is null
+        assert!(json["agent"].is_null());
+        assert_eq!(json["pipeline"], "ingestion-pipeline");
+        assert_eq!(json["enabled"], false);
+        assert!(json["input_template"].is_null());
+    }
+
+    #[test]
+    fn test_create_trigger_request_serializes() {
+        // GIVEN a CreateTriggerRequest
+        let req = CreateTriggerRequest {
+            id: "new-trigger".to_string(),
+            agent: Some("my-agent".to_string()),
+            pipeline: None,
+            enabled: Some(true),
+            on_busy: Some("queue".to_string()),
+            source: TriggerSourceInput {
+                r#type: "interval".to_string(),
+                config: serde_json::json!({"seconds": 60}),
+            },
+            input_template: None,
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&req).expect("serialize");
+
+        // THEN required fields are present
+        assert_eq!(json["id"], "new-trigger");
+        assert_eq!(json["agent"], "my-agent");
+        assert_eq!(json["source"]["type"], "interval");
+    }
+
+    #[test]
+    fn test_parse_trigger_definition_from_api_response() {
+        // GIVEN a JSON response matching API TriggerDefinitionResponse
+        let api_json = serde_json::json!({
+            "id": "t-abc",
+            "agent": "test-agent",
+            "pipeline": null,
+            "enabled": true,
+            "on_busy": "drop",
+            "source_type": "webhook",
+            "source_config": {"secret": "abc"},
+            "input_template": "payload: {{trigger.payload}}",
+            "created_at": "2026-03-20T10:00:00Z",
+            "updated_at": "2026-03-20T11:00:00Z"
+        });
+
+        // WHEN parsed
+        let view = parse_trigger_definition(&api_json);
+
+        // THEN all fields are correctly mapped
+        assert_eq!(view.id, "t-abc");
+        assert_eq!(view.agent.as_deref(), Some("test-agent"));
+        assert!(view.pipeline.is_none());
+        assert!(view.enabled);
+        assert_eq!(view.on_busy, "drop");
+        assert_eq!(view.source_type, "webhook");
+        assert_eq!(
+            view.input_template.as_deref(),
+            Some("payload: {{trigger.payload}}")
+        );
     }
 }

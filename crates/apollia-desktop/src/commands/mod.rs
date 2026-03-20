@@ -79,6 +79,42 @@ pub(crate) async fn http_post_json(
     path: &str,
     body: &serde_json::Value,
 ) -> Result<serde_json::Value, String> {
+    http_request_json(port, "POST", path, Some(body)).await
+}
+
+/// Envoie une requête PUT avec un corps JSON à l'API REST interne.
+///
+/// Utilisé pour les opérations de mise à jour CRUD (triggers, pipelines,
+/// notifications).
+pub(crate) async fn http_put_json(
+    port: u16,
+    path: &str,
+    body: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    http_request_json(port, "PUT", path, Some(body)).await
+}
+
+/// Envoie une requête DELETE à l'API REST interne et retourne le corps JSON
+/// parsé.
+///
+/// Utilisé pour les opérations de suppression CRUD (triggers, pipelines,
+/// notifications).
+pub(crate) async fn http_delete_json(port: u16, path: &str) -> Result<serde_json::Value, String> {
+    http_request_json(port, "DELETE", path, None).await
+}
+
+/// Fonction interne partagée par `http_post_json`, `http_put_json` et
+/// `http_delete_json`.
+///
+/// Ouvre une connexion HTTP/1.1 vers `localhost:{port}`, envoie la requête avec
+/// la méthode et le corps optionnel, et retourne le JSON de réponse ou une
+/// erreur descriptive.
+async fn http_request_json(
+    port: u16,
+    method: &str,
+    path: &str,
+    body: Option<&serde_json::Value>,
+) -> Result<serde_json::Value, String> {
     let stream = TcpStream::connect(format!("127.0.0.1:{port}"))
         .await
         .map_err(|e| format!("failed to connect to runtime API: {e}"))?;
@@ -92,16 +128,24 @@ pub(crate) async fn http_post_json(
         let _ = conn.await;
     });
 
-    let body_bytes =
-        serde_json::to_vec(body).map_err(|e| format!("failed to serialize body: {e}"))?;
-
-    let req = hyper::Request::builder()
-        .method("POST")
-        .uri(path)
-        .header("host", "localhost")
-        .header("content-type", "application/json")
-        .body(Full::new(Bytes::from(body_bytes)))
-        .map_err(|e| format!("failed to build request: {e}"))?;
+    let req = if let Some(json_body) = body {
+        let body_bytes =
+            serde_json::to_vec(json_body).map_err(|e| format!("failed to serialize body: {e}"))?;
+        hyper::Request::builder()
+            .method(method)
+            .uri(path)
+            .header("host", "localhost")
+            .header("content-type", "application/json")
+            .body(Full::new(Bytes::from(body_bytes)))
+            .map_err(|e| format!("failed to build request: {e}"))?
+    } else {
+        hyper::Request::builder()
+            .method(method)
+            .uri(path)
+            .header("host", "localhost")
+            .body(Full::new(Bytes::new()))
+            .map_err(|e| format!("failed to build request: {e}"))?
+    };
 
     let resp = sender
         .send_request(req)
@@ -109,13 +153,13 @@ pub(crate) async fn http_post_json(
         .map_err(|e| format!("request failed: {e}"))?;
 
     let status = resp.status();
-    let body_bytes = resp
+    let resp_bytes = resp
         .into_body()
         .collect()
         .await
         .map_err(|e| format!("failed to read response body: {e}"))?
         .to_bytes();
-    let body_str = String::from_utf8_lossy(&body_bytes);
+    let body_str = String::from_utf8_lossy(&resp_bytes);
 
     if !status.is_success() {
         let error_msg = serde_json::from_str::<serde_json::Value>(&body_str)

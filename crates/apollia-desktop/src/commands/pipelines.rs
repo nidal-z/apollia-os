@@ -6,10 +6,10 @@
 //! Rust déjà définis dans `apollia-pipelines`.
 
 use apollia_runtime::embedded::RuntimeHandle;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use super::{http_get_json, http_post_json};
+use super::{http_delete_json, http_get_json, http_post_json, http_put_json};
 
 /// Résumé d'un pipeline run pour l'affichage dans l'UI.
 #[derive(Debug, Serialize)]
@@ -287,6 +287,253 @@ pub async fn get_pipeline_run_detail(
     })
 }
 
+// ─── CRUD types & commands (STORY-192) ──────────────────────────────────────
+
+/// Définition complète d'un pipeline retournée par les opérations CRUD.
+#[derive(Debug, Serialize)]
+pub struct PipelineDefinitionView {
+    /// Identifiant du pipeline.
+    pub id: String,
+    /// Description du pipeline.
+    pub description: String,
+    /// Politique de gestion d'erreur globale : `"fail"` ou `"continue"`.
+    pub on_failure: String,
+    /// Liste ordonnée des steps.
+    pub steps: Vec<PipelineStepView>,
+    /// Indique si le pipeline est actif.
+    pub enabled: bool,
+    /// Horodatage de création (ISO 8601).
+    pub created_at: String,
+    /// Horodatage de dernière modification (ISO 8601).
+    pub updated_at: String,
+}
+
+/// Step d'un pipeline dans les réponses CRUD.
+#[derive(Debug, Serialize)]
+pub struct PipelineStepView {
+    /// Identifiant du step.
+    pub id: String,
+    /// Agent cible.
+    pub agent: String,
+    /// Template d'entrée.
+    pub input: String,
+    /// Dépendances sur d'autres steps.
+    pub depends_on: Vec<String>,
+    /// Politique d'erreur du step.
+    pub on_failure: String,
+    /// Condition d'exécution optionnelle.
+    pub condition: Option<StepConditionView>,
+    /// Step auquel celui-ci sert de fallback.
+    pub fallback_for: Option<String>,
+}
+
+/// Condition d'exécution d'un step.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StepConditionView {
+    /// Opérateur de comparaison.
+    pub when: String,
+    /// Chemin vers la valeur à inspecter (dot-path).
+    pub field: String,
+    /// Valeur de référence.
+    pub value: String,
+}
+
+/// Step dans les requêtes de création/mise à jour de pipeline.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PipelineStepInput {
+    /// Identifiant du step.
+    pub id: String,
+    /// Agent cible.
+    pub agent: String,
+    /// Template d'entrée.
+    pub input: String,
+    /// Dépendances sur d'autres steps.
+    pub depends_on: Option<Vec<String>>,
+    /// Politique d'erreur du step.
+    pub on_failure: Option<String>,
+    /// Condition d'exécution optionnelle.
+    pub condition: Option<StepConditionView>,
+    /// Step auquel celui-ci sert de fallback.
+    pub fallback_for: Option<String>,
+}
+
+/// Corps de requête pour la création d'un pipeline via `create_pipeline`.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreatePipelineRequest {
+    /// Identifiant unique du pipeline.
+    pub id: String,
+    /// Description du pipeline.
+    pub description: Option<String>,
+    /// Politique de gestion d'erreur globale.
+    pub on_failure: Option<String>,
+    /// Indique si le pipeline est actif (défaut : `true`).
+    pub enabled: Option<bool>,
+    /// Liste ordonnée des steps.
+    pub steps: Vec<PipelineStepInput>,
+}
+
+/// Corps de requête pour la mise à jour d'un pipeline via `update_pipeline`.
+///
+/// Même structure que `CreatePipelineRequest` — l'ID est passé dans l'URL.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdatePipelineRequest {
+    /// Identifiant du pipeline (requis par l'API PUT, même si dans l'URL).
+    pub id: String,
+    /// Description du pipeline.
+    pub description: Option<String>,
+    /// Politique de gestion d'erreur globale.
+    pub on_failure: Option<String>,
+    /// Indique si le pipeline est actif.
+    pub enabled: Option<bool>,
+    /// Liste ordonnée des steps.
+    pub steps: Vec<PipelineStepInput>,
+}
+
+/// Parse un step JSON en `PipelineStepView`.
+fn parse_step(s: &serde_json::Value) -> PipelineStepView {
+    let condition = s.get("condition").and_then(|c| {
+        if c.is_null() {
+            return None;
+        }
+        Some(StepConditionView {
+            when: c
+                .get("when")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            field: c
+                .get("field")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            value: c
+                .get("value")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+        })
+    });
+
+    PipelineStepView {
+        id: s
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        agent: s
+            .get("agent")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        input: s
+            .get("input")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        depends_on: s
+            .get("depends_on")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|e| e.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        on_failure: s
+            .get("on_failure")
+            .and_then(|v| v.as_str())
+            .unwrap_or("fail")
+            .to_string(),
+        condition,
+        fallback_for: s
+            .get("fallback_for")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+    }
+}
+
+/// Parse un JSON de réponse API en `PipelineDefinitionView`.
+fn parse_pipeline_definition(json: &serde_json::Value) -> PipelineDefinitionView {
+    let steps = json
+        .get("steps")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().map(parse_step).collect())
+        .unwrap_or_default();
+
+    PipelineDefinitionView {
+        id: json
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        description: json
+            .get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        on_failure: json
+            .get("on_failure")
+            .and_then(|v| v.as_str())
+            .unwrap_or("fail")
+            .to_string(),
+        steps,
+        enabled: json
+            .get("enabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        created_at: json
+            .get("created_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        updated_at: json
+            .get("updated_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+    }
+}
+
+/// Crée un nouveau pipeline.
+///
+/// Délègue à `POST /api/v1/pipelines`.
+#[tauri::command]
+pub async fn create_pipeline(
+    state: State<'_, RuntimeHandle>,
+    definition: CreatePipelineRequest,
+) -> Result<PipelineDefinitionView, String> {
+    let body = serde_json::to_value(&definition)
+        .map_err(|e| format!("failed to serialize request: {e}"))?;
+    let json = http_post_json(state.api_port, "/api/v1/pipelines", &body).await?;
+    Ok(parse_pipeline_definition(&json))
+}
+
+/// Met à jour un pipeline existant.
+///
+/// Délègue à `PUT /api/v1/pipelines/:id`.
+#[tauri::command]
+pub async fn update_pipeline(
+    state: State<'_, RuntimeHandle>,
+    id: String,
+    definition: UpdatePipelineRequest,
+) -> Result<PipelineDefinitionView, String> {
+    let body = serde_json::to_value(&definition)
+        .map_err(|e| format!("failed to serialize request: {e}"))?;
+    let path = format!("/api/v1/pipelines/{id}");
+    let json = http_put_json(state.api_port, &path, &body).await?;
+    Ok(parse_pipeline_definition(&json))
+}
+
+/// Supprime un pipeline.
+///
+/// Délègue à `DELETE /api/v1/pipelines/:id`.
+#[tauri::command]
+pub async fn delete_pipeline(state: State<'_, RuntimeHandle>, id: String) -> Result<(), String> {
+    let path = format!("/api/v1/pipelines/{id}");
+    http_delete_json(state.api_port, &path).await?;
+    Ok(())
+}
+
 /// Lance un nouveau pipeline run.
 ///
 /// Délègue à `POST /api/v1/pipelines/:id/run`.
@@ -478,5 +725,119 @@ mod tests {
         assert_eq!(json["run_id"], "r-new123");
         assert_eq!(json["pipeline_id"], "test-pipe");
         assert_eq!(json["status"], "running");
+    }
+
+    #[test]
+    fn test_pipeline_definition_view_serializes() {
+        // GIVEN a PipelineDefinitionView with steps
+        let view = PipelineDefinitionView {
+            id: "devis-pipeline".to_string(),
+            description: "Generate devis from specs".to_string(),
+            on_failure: "fail".to_string(),
+            steps: vec![
+                PipelineStepView {
+                    id: "extract".to_string(),
+                    agent: "extractor".to_string(),
+                    input: "Extract specs from {{trigger.payload}}".to_string(),
+                    depends_on: vec![],
+                    on_failure: "fail".to_string(),
+                    condition: None,
+                    fallback_for: None,
+                },
+                PipelineStepView {
+                    id: "generate".to_string(),
+                    agent: "devis-agent".to_string(),
+                    input: "{{steps.extract.output}}".to_string(),
+                    depends_on: vec!["extract".to_string()],
+                    on_failure: "fallback".to_string(),
+                    condition: Some(StepConditionView {
+                        when: "contains".to_string(),
+                        field: "steps.extract.output".to_string(),
+                        value: "specs_found".to_string(),
+                    }),
+                    fallback_for: None,
+                },
+            ],
+            enabled: true,
+            created_at: "2026-03-20T10:00:00Z".to_string(),
+            updated_at: "2026-03-20T10:00:00Z".to_string(),
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&view).expect("serialize");
+
+        // THEN all fields are present
+        assert_eq!(json["id"], "devis-pipeline");
+        assert_eq!(json["on_failure"], "fail");
+        assert_eq!(json["enabled"], true);
+        let steps = json["steps"].as_array().expect("array");
+        assert_eq!(steps.len(), 2);
+        assert_eq!(steps[0]["id"], "extract");
+        assert_eq!(steps[1]["depends_on"][0], "extract");
+        assert_eq!(steps[1]["condition"]["when"], "contains");
+    }
+
+    #[test]
+    fn test_parse_pipeline_definition_from_api_response() {
+        // GIVEN a JSON response matching API PipelineDefinitionResponse
+        let api_json = serde_json::json!({
+            "id": "p-test",
+            "description": "Test pipeline",
+            "on_failure": "continue",
+            "steps": [
+                {
+                    "id": "step1",
+                    "agent": "agent-a",
+                    "input": "hello",
+                    "depends_on": [],
+                    "on_failure": "skip",
+                    "condition": null,
+                    "fallback_for": null
+                }
+            ],
+            "enabled": true,
+            "created_at": "2026-03-20T10:00:00Z",
+            "updated_at": "2026-03-20T11:00:00Z"
+        });
+
+        // WHEN parsed
+        let view = parse_pipeline_definition(&api_json);
+
+        // THEN all fields are correctly mapped
+        assert_eq!(view.id, "p-test");
+        assert_eq!(view.description, "Test pipeline");
+        assert_eq!(view.on_failure, "continue");
+        assert!(view.enabled);
+        assert_eq!(view.steps.len(), 1);
+        assert_eq!(view.steps[0].id, "step1");
+        assert_eq!(view.steps[0].on_failure, "skip");
+        assert!(view.steps[0].condition.is_none());
+    }
+
+    #[test]
+    fn test_create_pipeline_request_serializes() {
+        // GIVEN a CreatePipelineRequest
+        let req = CreatePipelineRequest {
+            id: "new-pipe".to_string(),
+            description: Some("A new pipeline".to_string()),
+            on_failure: None,
+            enabled: Some(true),
+            steps: vec![PipelineStepInput {
+                id: "s1".to_string(),
+                agent: "agent-x".to_string(),
+                input: "do something".to_string(),
+                depends_on: None,
+                on_failure: None,
+                condition: None,
+                fallback_for: None,
+            }],
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&req).expect("serialize");
+
+        // THEN required fields are present
+        assert_eq!(json["id"], "new-pipe");
+        assert_eq!(json["steps"][0]["agent"], "agent-x");
     }
 }

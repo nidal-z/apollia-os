@@ -6,10 +6,10 @@
 //! Rust déjà définis dans `apollia-notifications`.
 
 use apollia_runtime::embedded::RuntimeHandle;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use super::{http_get_json, http_post_json};
+use super::{http_delete_json, http_get_json, http_post_json, http_put_json};
 
 /// Description publique d'un canal de notification pour l'UI.
 #[derive(Debug, Serialize)]
@@ -190,6 +190,176 @@ pub async fn get_notification_logs(
     Ok(result)
 }
 
+// ─── CRUD types & commands (STORY-192) ──────────────────────────────────────
+
+/// Définition complète d'un canal de notification retournée par les opérations
+/// CRUD.
+#[derive(Debug, Serialize)]
+pub struct NotificationChannelView {
+    /// Identifiant unique du canal.
+    pub id: String,
+    /// Type de canal : `"desktop"` ou `"webhook"`.
+    pub channel_type: String,
+    /// `true` si le canal est activé.
+    pub enabled: bool,
+    /// Configuration spécifique au type.
+    pub config: serde_json::Value,
+    /// Événements spécifiques au canal. `null` = utilise les événements globaux.
+    pub events: Option<Vec<String>>,
+    /// Horodatage de création (ISO 8601).
+    pub created_at: String,
+    /// Horodatage de dernière modification (ISO 8601).
+    pub updated_at: String,
+}
+
+/// Corps de requête pour la création d'un canal via `create_notification_channel`.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateChannelRequest {
+    /// Identifiant unique du canal.
+    pub id: String,
+    /// Type de canal : `"desktop"` ou `"webhook"`.
+    pub channel_type: String,
+    /// Indique si le canal est actif (défaut : `true`).
+    pub enabled: Option<bool>,
+    /// Configuration spécifique au type (ex: `{"url": "..."}` pour webhook).
+    pub config: serde_json::Value,
+    /// Liste d'événements spécifiques. `null` = utilise les événements globaux.
+    pub events: Option<Vec<String>>,
+}
+
+/// Corps de requête pour la mise à jour d'un canal via
+/// `update_notification_channel`.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateChannelRequest {
+    /// Type de canal (optionnel — conserve l'existant si absent).
+    pub channel_type: Option<String>,
+    /// Indique si le canal est actif.
+    pub enabled: Option<bool>,
+    /// Configuration spécifique au type.
+    pub config: Option<serde_json::Value>,
+    /// Liste d'événements spécifiques.
+    pub events: Option<Vec<String>>,
+}
+
+/// Parse un JSON de réponse API en `NotificationChannelView`.
+fn parse_channel_view(json: &serde_json::Value) -> NotificationChannelView {
+    NotificationChannelView {
+        id: json
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        channel_type: json
+            .get("channel_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        enabled: json
+            .get("enabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        config: json
+            .get("config")
+            .cloned()
+            .unwrap_or(serde_json::Value::Object(serde_json::Map::new())),
+        events: json.get("events").and_then(|v| {
+            v.as_array().map(|arr| {
+                arr.iter()
+                    .filter_map(|e| e.as_str().map(String::from))
+                    .collect()
+            })
+        }),
+        created_at: json
+            .get("created_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+        updated_at: json
+            .get("updated_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string(),
+    }
+}
+
+/// Crée un nouveau canal de notification.
+///
+/// Délègue à `POST /api/v1/notifications/channels`.
+#[tauri::command]
+pub async fn create_notification_channel(
+    state: State<'_, RuntimeHandle>,
+    channel: CreateChannelRequest,
+) -> Result<NotificationChannelView, String> {
+    let body =
+        serde_json::to_value(&channel).map_err(|e| format!("failed to serialize request: {e}"))?;
+    let json = http_post_json(state.api_port, "/api/v1/notifications/channels", &body).await?;
+    Ok(parse_channel_view(&json))
+}
+
+/// Met à jour un canal de notification existant.
+///
+/// Délègue à `PUT /api/v1/notifications/channels/:id`.
+#[tauri::command]
+pub async fn update_notification_channel(
+    state: State<'_, RuntimeHandle>,
+    id: String,
+    channel: UpdateChannelRequest,
+) -> Result<NotificationChannelView, String> {
+    let body =
+        serde_json::to_value(&channel).map_err(|e| format!("failed to serialize request: {e}"))?;
+    let path = format!("/api/v1/notifications/channels/{id}");
+    let json = http_put_json(state.api_port, &path, &body).await?;
+    Ok(parse_channel_view(&json))
+}
+
+/// Supprime un canal de notification.
+///
+/// Délègue à `DELETE /api/v1/notifications/channels/:id`.
+#[tauri::command]
+pub async fn delete_notification_channel(
+    state: State<'_, RuntimeHandle>,
+    id: String,
+) -> Result<(), String> {
+    let path = format!("/api/v1/notifications/channels/{id}");
+    http_delete_json(state.api_port, &path).await?;
+    Ok(())
+}
+
+/// Récupère la liste des événements globaux de notification.
+///
+/// Délègue à `GET /api/v1/notifications/events`.
+#[tauri::command]
+pub async fn get_notification_events(
+    state: State<'_, RuntimeHandle>,
+) -> Result<Vec<String>, String> {
+    let json = http_get_json(state.api_port, "/api/v1/notifications/events").await?;
+
+    let events = json
+        .get("events")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|e| e.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(events)
+}
+
+/// Remplace la liste des événements globaux de notification.
+///
+/// Délègue à `PUT /api/v1/notifications/events`.
+#[tauri::command]
+pub async fn set_notification_events(
+    state: State<'_, RuntimeHandle>,
+    events: Vec<String>,
+) -> Result<(), String> {
+    let body = serde_json::json!({ "events": events });
+    http_put_json(state.api_port, "/api/v1/notifications/events", &body).await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,5 +481,96 @@ mod tests {
         // THEN task_id is null and error is present
         assert!(json["task_id"].is_null());
         assert_eq!(json["error"], "all channels down");
+    }
+
+    #[test]
+    fn test_notification_channel_view_serializes() {
+        // GIVEN a NotificationChannelView with specific events
+        let view = NotificationChannelView {
+            id: "slack-ops".to_string(),
+            channel_type: "webhook".to_string(),
+            enabled: true,
+            config: serde_json::json!({"url": "https://hooks.slack.com/xxx"}),
+            events: Some(vec![
+                "task.completed".to_string(),
+                "pipeline.failed".to_string(),
+            ]),
+            created_at: "2026-03-20T10:00:00Z".to_string(),
+            updated_at: "2026-03-20T10:00:00Z".to_string(),
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&view).expect("serialize");
+
+        // THEN all fields are present
+        assert_eq!(json["id"], "slack-ops");
+        assert_eq!(json["channel_type"], "webhook");
+        assert_eq!(json["enabled"], true);
+        assert_eq!(json["config"]["url"], "https://hooks.slack.com/xxx");
+        assert_eq!(json["events"][0], "task.completed");
+        assert_eq!(json["created_at"], "2026-03-20T10:00:00Z");
+    }
+
+    #[test]
+    fn test_notification_channel_view_serializes_no_events() {
+        // GIVEN a NotificationChannelView using global events
+        let view = NotificationChannelView {
+            id: "desktop".to_string(),
+            channel_type: "desktop".to_string(),
+            enabled: true,
+            config: serde_json::json!({}),
+            events: None,
+            created_at: "2026-03-20T10:00:00Z".to_string(),
+            updated_at: "2026-03-20T10:00:00Z".to_string(),
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&view).expect("serialize");
+
+        // THEN events is null
+        assert!(json["events"].is_null());
+    }
+
+    #[test]
+    fn test_parse_channel_view_from_api_response() {
+        // GIVEN a JSON response matching API ChannelResponse
+        let api_json = serde_json::json!({
+            "id": "ch-test",
+            "channel_type": "desktop",
+            "enabled": true,
+            "config": {},
+            "events": ["task.completed"],
+            "created_at": "2026-03-20T10:00:00Z",
+            "updated_at": "2026-03-20T11:00:00Z"
+        });
+
+        // WHEN parsed
+        let view = parse_channel_view(&api_json);
+
+        // THEN all fields are correctly mapped
+        assert_eq!(view.id, "ch-test");
+        assert_eq!(view.channel_type, "desktop");
+        assert!(view.enabled);
+        assert_eq!(view.events.as_ref().map(|e| e.len()), Some(1));
+    }
+
+    #[test]
+    fn test_create_channel_request_serializes() {
+        // GIVEN a CreateChannelRequest
+        let req = CreateChannelRequest {
+            id: "new-channel".to_string(),
+            channel_type: "webhook".to_string(),
+            enabled: Some(true),
+            config: serde_json::json!({"url": "https://example.com/hook"}),
+            events: None,
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&req).expect("serialize");
+
+        // THEN required fields are present
+        assert_eq!(json["id"], "new-channel");
+        assert_eq!(json["channel_type"], "webhook");
+        assert_eq!(json["config"]["url"], "https://example.com/hook");
     }
 }
