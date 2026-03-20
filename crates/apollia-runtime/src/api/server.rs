@@ -264,8 +264,8 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     use super::routes_timeline::get_task_timeline;
     use super::routes_tools::{describe_tool, list_tools};
     use super::routes_triggers::{
-        disable_trigger, enable_trigger, fire_trigger, get_trigger, get_trigger_logs,
-        list_triggers, reload_triggers,
+        create_trigger, delete_trigger, disable_trigger, enable_trigger, fire_trigger,
+        get_trigger_by_id, get_trigger_logs, list_triggers, reload_triggers, update_trigger,
     };
     use super::routes_webhooks::handle_webhook;
 
@@ -305,10 +305,18 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             "/api/v1/approvals/resolved",
             get(list_resolved_approvals::<B>),
         )
-        // Trigger routes (STORY-073 reload + STORY-074 CRUD)
-        .route("/api/v1/triggers", get(list_triggers::<B>))
+        // Trigger routes (STORY-073 reload + STORY-074 status + STORY-189 CRUD)
+        .route(
+            "/api/v1/triggers",
+            get(list_triggers::<B>).post(create_trigger::<B>),
+        )
         .route("/api/v1/triggers/reload", post(reload_triggers::<B>))
-        .route("/api/v1/triggers/:id", get(get_trigger::<B>))
+        .route(
+            "/api/v1/triggers/:id",
+            get(get_trigger_by_id::<B>)
+                .put(update_trigger::<B>)
+                .delete(delete_trigger::<B>),
+        )
         .route("/api/v1/triggers/:id/fire", post(fire_trigger::<B>))
         .route("/api/v1/triggers/:id/enable", post(enable_trigger::<B>))
         .route("/api/v1/triggers/:id/disable", post(disable_trigger::<B>))

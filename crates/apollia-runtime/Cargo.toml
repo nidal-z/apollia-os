@@ -50,3 +50,4 @@ toml               = { workspace = true }
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 tempfile = "3"
+http-body-util = { workspace = true }

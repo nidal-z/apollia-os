@@ -1,18 +1,23 @@
 //! Routes REST pour la gestion des triggers.
 //!
 //! Expose les opérations CRUD sur les triggers via l'API REST du runtime :
-//! - `GET  /api/v1/triggers`          — liste de tous les triggers (STORY-074)
-//! - `GET  /api/v1/triggers/:id`       — statut détaillé d'un trigger (STORY-074)
-//! - `POST /api/v1/triggers/:id/fire`  — déclenchement immédiat (STORY-074)
-//! - `POST /api/v1/triggers/:id/enable`  — activation (STORY-074)
-//! - `POST /api/v1/triggers/:id/disable` — désactivation (STORY-074)
-//! - `GET  /api/v1/triggers/:id/logs`  — historique SQLite (STORY-074)
-//! - `POST /api/v1/triggers/reload`    — hot reload (STORY-073)
+//! - `GET    /api/v1/triggers`              — liste de tous les triggers
+//! - `GET    /api/v1/triggers/:id`          — définition complète + statut runtime
+//! - `POST   /api/v1/triggers`              — créer un trigger (STORY-189)
+//! - `PUT    /api/v1/triggers/:id`          — modifier un trigger (STORY-189)
+//! - `DELETE /api/v1/triggers/:id`          — supprimer un trigger (STORY-189)
+//! - `POST   /api/v1/triggers/:id/fire`     — déclenchement immédiat (STORY-074)
+//! - `POST   /api/v1/triggers/:id/enable`   — activation (STORY-074)
+//! - `POST   /api/v1/triggers/:id/disable`  — désactivation (STORY-074)
+//! - `GET    /api/v1/triggers/:id/logs`     — historique SQLite (STORY-074)
+//! - `POST   /api/v1/triggers/reload`       — hot reload depuis SQLite (STORY-189)
 //!
 //! **Codes de retour partagés :**
-//! - `503` — `TriggerEngine` non disponible.
+//! - `503` — `TriggerEngine` ou repository non disponible.
 //! - `404` — trigger inconnu.
-//! - `200` — succès.
+//! - `409` — identifiant déjà existant.
+//! - `422` — erreur de validation.
+//! - `200` / `201` — succès.
 
 use axum::{
     extract::{Path, Query, State},
@@ -23,13 +28,94 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use apollia_triggers::{
-    parse_triggers_from_toml_str, TriggerEngineError, TriggerHistoryEntry, TriggerTomlError,
+    DefinitionRepositoryError, OnBusy, TriggerDefinitionRepository, TriggerDefinitionRow,
+    TriggerEngineError, TriggerHistoryEntry,
 };
 
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 
-// ─── Response types ────────────────────────────────────────────────────────
+// ─── Request types (STORY-189) ───────────────────────────────────────────
+
+/// Corps de requête pour `POST /api/v1/triggers` — création d'un trigger.
+#[derive(Debug, Deserialize)]
+pub struct CreateTriggerRequest {
+    /// Identifiant unique du trigger.
+    pub id: String,
+    /// Agent cible — exclusif avec `pipeline`.
+    pub agent: Option<String>,
+    /// Pipeline cible — exclusif avec `agent`.
+    pub pipeline: Option<String>,
+    /// Indique si le trigger est actif (défaut : `true`).
+    pub enabled: Option<bool>,
+    /// Politique quand l'agent est occupé (défaut : `"queue"`).
+    pub on_busy: Option<String>,
+    /// Configuration de la source de déclenchement.
+    pub source: TriggerSourceInput,
+    /// Template du message d'entrée.
+    pub input_template: Option<String>,
+}
+
+/// Description de la source de déclenchement dans les requêtes create/update.
+#[derive(Debug, Deserialize)]
+pub struct TriggerSourceInput {
+    /// Type de source : `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`.
+    pub r#type: String,
+    /// Configuration spécifique à la source (champs aplatis via `serde(flatten)`).
+    #[serde(flatten)]
+    pub config: serde_json::Value,
+}
+
+/// Corps de requête pour `PUT /api/v1/triggers/:id` — modification d'un trigger.
+#[derive(Debug, Deserialize)]
+pub struct UpdateTriggerRequest {
+    /// Agent cible — exclusif avec `pipeline`.
+    pub agent: Option<String>,
+    /// Pipeline cible — exclusif avec `agent`.
+    pub pipeline: Option<String>,
+    /// Indique si le trigger est actif.
+    pub enabled: Option<bool>,
+    /// Politique quand l'agent est occupé.
+    pub on_busy: Option<String>,
+    /// Configuration de la source de déclenchement.
+    pub source: TriggerSourceInput,
+    /// Template du message d'entrée.
+    pub input_template: Option<String>,
+}
+
+// ─── Response types ──────────────────────────────────────────────────────
+
+/// Réponse pour les opérations CRUD retournant une définition complète.
+#[derive(Debug, Serialize)]
+pub struct TriggerDefinitionResponse {
+    /// Identifiant unique du trigger.
+    pub id: String,
+    /// Agent cible.
+    pub agent: Option<String>,
+    /// Pipeline cible.
+    pub pipeline: Option<String>,
+    /// Indique si le trigger est actif.
+    pub enabled: bool,
+    /// Politique quand l'agent est occupé.
+    pub on_busy: String,
+    /// Type de source.
+    pub source_type: String,
+    /// Configuration JSON de la source.
+    pub source_config: serde_json::Value,
+    /// Template du message d'entrée.
+    pub input_template: Option<String>,
+    /// Horodatage de création (ISO 8601).
+    pub created_at: String,
+    /// Horodatage de dernière modification (ISO 8601).
+    pub updated_at: String,
+}
+
+/// Réponse pour `DELETE /api/v1/triggers/:id`.
+#[derive(Debug, Serialize)]
+pub struct DeleteResponse {
+    /// Identifiant du trigger supprimé.
+    pub deleted: String,
+}
 
 /// Corps de réponse en cas de succès pour le rechargement.
 #[derive(Serialize)]
@@ -39,13 +125,13 @@ pub struct ReloadResponse {
 }
 
 /// Corps de réponse en cas d'erreur.
-#[derive(Serialize)]
-struct ErrorResponse {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ErrorResponse {
     /// Description de l'erreur.
-    error: String,
+    pub error: String,
 }
 
-/// Réponse pour `GET /api/v1/triggers/:id` — statut détaillé.
+/// Réponse pour `GET /api/v1/triggers/:id` — statut détaillé (legacy).
 #[derive(Serialize)]
 pub struct TriggerDetailResponse {
     /// Identifiant du trigger.
@@ -101,7 +187,299 @@ fn default_last() -> usize {
     20
 }
 
-// ─── Handlers STORY-074 ────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────
+
+/// Convertit une [`TriggerDefinitionRow`] en [`TriggerDefinitionResponse`].
+fn row_to_response(row: TriggerDefinitionRow) -> TriggerDefinitionResponse {
+    let on_busy = match row.on_busy {
+        OnBusy::Queue => "queue".to_string(),
+        OnBusy::Drop => "drop".to_string(),
+    };
+    TriggerDefinitionResponse {
+        id: row.id,
+        agent: row.agent,
+        pipeline: row.pipeline,
+        enabled: row.enabled,
+        on_busy,
+        source_type: row.source_type,
+        source_config: row.source_config,
+        input_template: row.input_template,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
+}
+
+/// Parse le champ `on_busy` depuis la requête (défaut : `"queue"`).
+fn parse_on_busy(value: Option<&str>) -> Result<OnBusy, (StatusCode, Json<ErrorResponse>)> {
+    match value {
+        None | Some("queue") => Ok(OnBusy::Queue),
+        Some("drop") => Ok(OnBusy::Drop),
+        Some(other) => Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse {
+                error: format!("validation error: invalid on_busy value: {other}"),
+            }),
+        )),
+    }
+}
+
+/// Mappe une [`DefinitionRepositoryError`] vers un tuple `(StatusCode, Json<ErrorResponse>)`.
+fn map_repo_error(err: DefinitionRepositoryError) -> (StatusCode, Json<ErrorResponse>) {
+    let (status, msg) = match &err {
+        DefinitionRepositoryError::NotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
+        DefinitionRepositoryError::DuplicateId(_) => (StatusCode::CONFLICT, err.to_string()),
+        DefinitionRepositoryError::ValidationError(_) => {
+            (StatusCode::UNPROCESSABLE_ENTITY, err.to_string())
+        }
+        DefinitionRepositoryError::Database(_) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
+        }
+    };
+    (status, Json(ErrorResponse { error: msg }))
+}
+
+/// Extrait le repository depuis l'état, retourne 503 si absent.
+fn require_repo<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+) -> Result<
+    &std::sync::Arc<std::sync::Mutex<TriggerDefinitionRepository>>,
+    (StatusCode, Json<ErrorResponse>),
+> {
+    state.trigger_def_repo.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse {
+                error: "trigger definition repository not available".into(),
+            }),
+        )
+    })
+}
+
+/// Recharge le `TriggerEngine` depuis les définitions du repository (fire-and-forget).
+///
+/// Lit toutes les définitions, les convertit en types riches, et envoie au moteur.
+/// Les erreurs de conversion sont ignorées silencieusement (le trigger reste tel quel
+/// dans la DB, mais ne sera pas chargé en runtime).
+async fn reload_engine_from_repo<B: ExecutionBackend + Clone>(state: &AppState<B>) {
+    let engine = match &state.trigger_engine {
+        Some(e) => e.clone(),
+        None => return,
+    };
+    let repo = match &state.trigger_def_repo {
+        Some(r) => r.clone(),
+        None => return,
+    };
+
+    let definitions = {
+        let guard = match repo.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        match guard.list() {
+            Ok(rows) => rows,
+            Err(_) => return,
+        }
+    };
+
+    let rich_defs: Vec<_> = definitions
+        .into_iter()
+        .filter_map(|row| apollia_triggers::TriggerDefinition::try_from(row).ok())
+        .collect();
+
+    engine.reload(rich_defs).await;
+}
+
+/// Retourne la chaîne de type de source pour usage dans `TriggerStatus` fallback.
+fn source_detail_kind(source: &apollia_triggers::TriggerSourceConfig) -> String {
+    source_kind_and_detail(source).0
+}
+
+/// Retourne `(kind, detail)` depuis une [`TriggerSourceConfig`].
+fn source_kind_and_detail(source: &apollia_triggers::TriggerSourceConfig) -> (String, String) {
+    use apollia_triggers::TriggerSourceConfig;
+    match source {
+        TriggerSourceConfig::Cron { schedule } => ("cron".into(), schedule.clone()),
+        TriggerSourceConfig::Interval { every } => ("interval".into(), every.clone()),
+        TriggerSourceConfig::Oneshot { fire_at } => ("oneshot".into(), fire_at.to_rfc3339()),
+        TriggerSourceConfig::FileWatch { path, events } => {
+            let evts: Vec<_> = events.iter().map(|e| e.to_string()).collect();
+            (
+                "file_watch".into(),
+                format!("{} [{}]", path.display(), evts.join(",")),
+            )
+        }
+        TriggerSourceConfig::Webhook { .. } => ("webhook".into(), String::new()),
+    }
+}
+
+// ─── CRUD Handlers (STORY-189) ───────────────────────────────────────────
+
+/// `POST /api/v1/triggers` — créer une nouvelle définition de trigger.
+///
+/// Valide la définition, l'insère dans `triggers.db`, recharge le moteur,
+/// et retourne `201` avec la définition complète (y compris `created_at`).
+pub async fn create_trigger<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Json(body): Json<CreateTriggerRequest>,
+) -> Result<(StatusCode, Json<TriggerDefinitionResponse>), (StatusCode, Json<ErrorResponse>)> {
+    let repo = require_repo(&state)?;
+
+    let on_busy = parse_on_busy(body.on_busy.as_deref())?;
+
+    let row = TriggerDefinitionRow {
+        id: body.id.clone(),
+        agent: body.agent,
+        pipeline: body.pipeline,
+        enabled: body.enabled.unwrap_or(true),
+        on_busy,
+        source_type: body.source.r#type,
+        source_config: body.source.config,
+        input_template: body.input_template,
+        created_at: String::new(),
+        updated_at: String::new(),
+    };
+
+    let created = {
+        let guard = repo.lock().map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "repository lock poisoned".into(),
+                }),
+            )
+        })?;
+
+        guard.insert(&row).map_err(map_repo_error)?;
+
+        guard
+            .get(&body.id)
+            .map_err(map_repo_error)?
+            .ok_or_else(|| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: "trigger inserted but not found".into(),
+                    }),
+                )
+            })?
+    };
+
+    reload_engine_from_repo(&state).await;
+
+    Ok((StatusCode::CREATED, Json(row_to_response(created))))
+}
+
+/// `PUT /api/v1/triggers/:id` — modifier une définition de trigger existante.
+///
+/// Valide la nouvelle définition, la met à jour dans `triggers.db`,
+/// recharge le moteur, et retourne `200` avec la définition mise à jour.
+pub async fn update_trigger<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+    Json(body): Json<UpdateTriggerRequest>,
+) -> Result<Json<TriggerDefinitionResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let repo = require_repo(&state)?;
+
+    let on_busy = parse_on_busy(body.on_busy.as_deref())?;
+
+    let row = TriggerDefinitionRow {
+        id: id.clone(),
+        agent: body.agent,
+        pipeline: body.pipeline,
+        enabled: body.enabled.unwrap_or(true),
+        on_busy,
+        source_type: body.source.r#type,
+        source_config: body.source.config,
+        input_template: body.input_template,
+        created_at: String::new(),
+        updated_at: String::new(),
+    };
+
+    let updated = {
+        let guard = repo.lock().map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "repository lock poisoned".into(),
+                }),
+            )
+        })?;
+
+        guard.update(&id, &row).map_err(map_repo_error)?;
+
+        guard.get(&id).map_err(map_repo_error)?.ok_or_else(|| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "trigger updated but not found".into(),
+                }),
+            )
+        })?
+    };
+
+    reload_engine_from_repo(&state).await;
+
+    Ok(Json(row_to_response(updated)))
+}
+
+/// `DELETE /api/v1/triggers/:id` — supprimer une définition de trigger.
+///
+/// Supprime de `triggers.db`, recharge le moteur, et retourne `200`.
+pub async fn delete_trigger<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> Result<Json<DeleteResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let repo = require_repo(&state)?;
+
+    {
+        let guard = repo.lock().map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "repository lock poisoned".into(),
+                }),
+            )
+        })?;
+        guard.delete(&id).map_err(map_repo_error)?;
+    }
+
+    reload_engine_from_repo(&state).await;
+
+    Ok(Json(DeleteResponse { deleted: id }))
+}
+
+/// `GET /api/v1/triggers/:id` — définition complète + statut runtime.
+pub async fn get_trigger_by_id<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> Result<Json<TriggerDefinitionResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let repo = require_repo(&state)?;
+
+    let row = {
+        let guard = repo.lock().map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "repository lock poisoned".into(),
+                }),
+            )
+        })?;
+        guard.get(&id).map_err(map_repo_error)?
+    };
+
+    let row = row.ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("trigger not found: {id}"),
+            }),
+        )
+    })?;
+
+    Ok(Json(row_to_response(row)))
+}
+
+// ─── Handlers STORY-074 (existants) ──────────────────────────────────────
 
 /// `GET /api/v1/triggers` — liste de tous les triggers avec leur statut.
 pub async fn list_triggers<B: ExecutionBackend + Clone>(
@@ -122,7 +500,7 @@ pub async fn list_triggers<B: ExecutionBackend + Clone>(
     Json(serde_json::json!({ "triggers": statuses })).into_response()
 }
 
-/// `GET /api/v1/triggers/:id` — statut détaillé d'un trigger.
+/// `GET /api/v1/triggers/:id` — statut détaillé d'un trigger (legacy, via TriggerEngine).
 pub async fn get_trigger<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -140,7 +518,6 @@ pub async fn get_trigger<B: ExecutionBackend + Clone>(
         }
     };
 
-    // Récupère la définition complète pour les champs non présents dans TriggerStatus.
     let def = match engine.get_definition(&id).await {
         Some(d) => d,
         None => {
@@ -154,7 +531,6 @@ pub async fn get_trigger<B: ExecutionBackend + Clone>(
         }
     };
 
-    // Récupère le statut (fire_count, skip_count, last_fired) depuis la liste.
     let status = engine
         .list()
         .await
@@ -331,103 +707,66 @@ pub async fn get_trigger_logs<B: ExecutionBackend + Clone>(
     Json(LogsResponse { entries }).into_response()
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-
-/// Retourne la chaîne de type de source pour usage dans `TriggerStatus` fallback.
-fn source_detail_kind(source: &apollia_triggers::TriggerSourceConfig) -> String {
-    source_kind_and_detail(source).0
-}
-
-/// Retourne `(kind, detail)` depuis une [`TriggerSourceConfig`].
-fn source_kind_and_detail(source: &apollia_triggers::TriggerSourceConfig) -> (String, String) {
-    use apollia_triggers::TriggerSourceConfig;
-    match source {
-        TriggerSourceConfig::Cron { schedule } => ("cron".into(), schedule.clone()),
-        TriggerSourceConfig::Interval { every } => ("interval".into(), every.clone()),
-        TriggerSourceConfig::Oneshot { fire_at } => ("oneshot".into(), fire_at.to_rfc3339()),
-        TriggerSourceConfig::FileWatch { path, events } => {
-            let evts: Vec<_> = events.iter().map(|e| e.to_string()).collect();
-            (
-                "file_watch".into(),
-                format!("{} [{}]", path.display(), evts.join(",")),
-            )
-        }
-        TriggerSourceConfig::Webhook { .. } => ("webhook".into(), String::new()),
-    }
-}
-
-// ─── Handler ──────────────────────────────────────────────────────────────
+// ─── Reload Handler (STORY-189 — modifié pour lire depuis SQLite) ────────
 
 /// Handler axum pour `POST /api/v1/triggers/reload`.
 ///
-/// 1. Vérifie que le `TriggerEngine` est disponible (`503` sinon).
-/// 2. Vérifie que `config_path` est connu dans [`AppState`] (`503` sinon).
-/// 3. Relit `apollia.toml` depuis le disque (`422` si illisible).
-/// 4. Parse et valide la section `[[triggers]]` (`422` si invalide).
-/// 5. Appelle [`TriggerEngineHandle::reload`] — les compteurs SQLite sont préservés (AC-2).
-/// 6. Retourne `200 { "reloaded": N }`.
+/// Relit les définitions depuis le repository SQLite (plus de TOML),
+/// convertit en types riches, et recharge le `TriggerEngine`.
+/// Émet `TriggersReloaded` sur l'EventBus via le moteur.
 pub async fn reload_triggers<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> impl IntoResponse {
-    // 0. TriggerEngine disponible ?
     let engine = match &state.trigger_engine {
         Some(e) => e.clone(),
         None => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
     };
 
-    // 1. config_path connu ?
-    let config_path = match &state.config_path {
-        Some(p) => p.clone(),
+    let repo = match &state.trigger_def_repo {
+        Some(r) => r.clone(),
         None => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
     };
 
-    // 2. Lire apollia.toml depuis le disque (AC-3).
-    let content = match std::fs::read_to_string(&config_path) {
-        Ok(s) => s,
-        Err(e) => {
-            return (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(ErrorResponse {
-                    error: format!("cannot read config file: {e}"),
-                }),
-            )
-                .into_response();
+    let rows = {
+        let guard = match repo.lock() {
+            Ok(g) => g,
+            Err(_) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: "repository lock poisoned".into(),
+                    }),
+                )
+                    .into_response();
+            }
+        };
+        match guard.list() {
+            Ok(rows) => rows,
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: format!("failed to list triggers: {e}"),
+                    }),
+                )
+                    .into_response();
+            }
         }
     };
 
-    // 3. Parser et valider — 422 si invalide, triggers actuels non interrompus (AC-5).
-    let definitions = match parse_triggers_from_toml_str(&content) {
-        Ok(defs) => defs,
-        Err(TriggerTomlError::Parse(e)) => {
-            return (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(ErrorResponse {
-                    error: format!("invalid TOML: {e}"),
-                }),
-            )
-                .into_response();
-        }
-        Err(TriggerTomlError::InvalidTrigger { id, reason }) => {
-            return (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(ErrorResponse {
-                    error: format!("invalid trigger '{id}': {reason}"),
-                }),
-            )
-                .into_response();
-        }
-    };
+    let definitions: Vec<_> = rows
+        .into_iter()
+        .filter_map(|row| apollia_triggers::TriggerDefinition::try_from(row).ok())
+        .collect();
 
     let count = definitions.iter().filter(|d| d.enabled).count();
 
-    // 4. Recharger le moteur — compteurs SQLite préservés (AC-2).
     engine.reload(definitions).await;
 
-    // 5. Répondre 200 avec le nombre de triggers actifs (AC-3).
     Json(ReloadResponse { reloaded: count }).into_response()
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────
+// ─── Tests ───────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -438,11 +777,12 @@ mod tests {
     use crate::registry::AgentRegistry;
     use crate::router::TaskRouterHandle;
     use apollia_core::{AIPInput, AIPResult, AIPTask, TaskId, TaskStatus};
-    use apollia_triggers::{TaskSubmitter, TriggerEngineHandle};
+    use apollia_triggers::{TaskSubmitter, TriggerDefinitionRepository, TriggerEngineHandle};
     use axum::body::Body;
-    use axum::http::{Request, StatusCode};
-    use axum::routing::post;
+    use axum::http::Request;
+    use axum::routing::{delete, get, post, put};
     use axum::Router;
+    use http_body_util::BodyExt;
     use std::future::Future;
     use std::path::PathBuf;
     use std::pin::Pin;
@@ -490,28 +830,24 @@ mod tests {
         }
     }
 
-    /// Construit un `AppState` minimal pour les tests.
-    async fn make_state(with_engine: bool, config_path: Option<PathBuf>) -> AppState<MockBackend> {
+    /// Construit un `AppState` minimal pour les tests CRUD.
+    async fn make_state_with_repo(trigger_db_path: &std::path::Path) -> AppState<MockBackend> {
         let (event_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(event_tx.clone());
         let router: TaskRouterHandle<MockBackend> =
             TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 64);
 
-        let trigger_engine = if with_engine {
-            Some(
-                TriggerEngineHandle::spawn(
-                    vec![],
-                    MockSubmitter,
-                    event_tx.clone(),
-                    None,
-                    None,
-                    apollia_core::ObservabilityConfig::default(),
-                )
-                .await,
-            )
-        } else {
-            None
-        };
+        let trigger_engine = TriggerEngineHandle::spawn(
+            vec![],
+            MockSubmitter,
+            event_tx.clone(),
+            None,
+            None,
+            apollia_core::ObservabilityConfig::default(),
+        )
+        .await;
+
+        let repo = TriggerDefinitionRepository::open(trigger_db_path).expect("open test repo");
 
         AppState {
             router_handle: router,
@@ -520,8 +856,371 @@ mod tests {
             agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
             backend: MockBackend,
             llm_router: None,
-            trigger_engine,
-            config_path,
+            trigger_engine: Some(trigger_engine),
+            config_path: None,
+            task_repository: None,
+            pending_approvals: None,
+            notification_config: None,
+            pipeline_engine: None,
+            backend_factory: None,
+            tool_registry_handle: None,
+            audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
+            trigger_def_repo: Some(Arc::new(std::sync::Mutex::new(repo))),
+            pipeline_def_repo: None,
+            notification_repo: None,
+        }
+    }
+
+    /// Construit un router avec toutes les routes CRUD.
+    fn make_crud_router(state: AppState<MockBackend>) -> Router {
+        Router::new()
+            .route(
+                "/api/v1/triggers",
+                get(list_triggers::<MockBackend>).post(create_trigger::<MockBackend>),
+            )
+            .route(
+                "/api/v1/triggers/reload",
+                post(reload_triggers::<MockBackend>),
+            )
+            .route(
+                "/api/v1/triggers/:id",
+                get(get_trigger_by_id::<MockBackend>)
+                    .put(update_trigger::<MockBackend>)
+                    .delete(delete_trigger::<MockBackend>),
+            )
+            .with_state(state)
+    }
+
+    /// Crée un body JSON pour un trigger cron valide.
+    fn cron_trigger_body(id: &str, agent: &str, schedule: &str) -> String {
+        serde_json::json!({
+            "id": id,
+            "agent": agent,
+            "source": {
+                "type": "cron",
+                "schedule": schedule
+            }
+        })
+        .to_string()
+    }
+
+    /// Lit le body de la réponse en tant que `serde_json::Value`.
+    async fn read_body(resp: axum::http::Response<Body>) -> serde_json::Value {
+        let bytes = resp
+            .into_body()
+            .collect()
+            .await
+            .expect("read body")
+            .to_bytes();
+        serde_json::from_slice(&bytes).expect("parse JSON")
+    }
+
+    // ── AC-1 — POST /api/v1/triggers → 201 ─────────────────────────────
+
+    #[tokio::test]
+    async fn test_create_trigger_201() {
+        // GIVEN un repository vide
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
+        let router = make_crud_router(state);
+
+        // WHEN POST /api/v1/triggers avec un trigger cron valide
+        let body = cron_trigger_body("rapport-hebdo", "rapport-agent", "0 0 8 * * MON *");
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/triggers")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("oneshot");
+
+        // THEN 201 avec la définition complète
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let json = read_body(resp).await;
+        assert_eq!(json["id"], "rapport-hebdo");
+        assert_eq!(json["agent"], "rapport-agent");
+        assert_eq!(json["source_type"], "cron");
+        assert!(json["created_at"].as_str().is_some_and(|s| !s.is_empty()));
+    }
+
+    // ── AC-2 — PUT /api/v1/triggers/:id → 200 ──────────────────────────
+
+    #[tokio::test]
+    async fn test_update_trigger_200() {
+        // GIVEN un trigger "rapport-hebdo" existant
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
+        let router = make_crud_router(state);
+
+        let create_body = cron_trigger_body("rapport-hebdo", "rapport-agent", "0 0 8 * * MON *");
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/triggers")
+            .header("content-type", "application/json")
+            .body(Body::from(create_body))
+            .expect("build request");
+        let resp = router.clone().oneshot(req).await.expect("oneshot");
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // WHEN PUT /api/v1/triggers/rapport-hebdo avec une nouvelle schedule
+        let update_body = serde_json::json!({
+            "agent": "rapport-agent",
+            "source": {
+                "type": "cron",
+                "schedule": "0 0 9 * * MON *"
+            }
+        })
+        .to_string();
+
+        let req = Request::builder()
+            .method("PUT")
+            .uri("/api/v1/triggers/rapport-hebdo")
+            .header("content-type", "application/json")
+            .body(Body::from(update_body))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("oneshot");
+
+        // THEN 200 avec la définition mise à jour
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = read_body(resp).await;
+        assert_eq!(json["id"], "rapport-hebdo");
+        assert_eq!(
+            json["source_config"]["schedule"].as_str(),
+            Some("0 0 9 * * MON *")
+        );
+    }
+
+    // ── AC-3 — DELETE /api/v1/triggers/:id → 200 ────────────────────────
+
+    #[tokio::test]
+    async fn test_delete_trigger_200() {
+        // GIVEN un trigger "rapport-hebdo" existant
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
+        let router = make_crud_router(state);
+
+        let create_body = cron_trigger_body("rapport-hebdo", "rapport-agent", "0 0 8 * * MON *");
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/triggers")
+            .header("content-type", "application/json")
+            .body(Body::from(create_body))
+            .expect("build request");
+        let resp = router.clone().oneshot(req).await.expect("oneshot");
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // WHEN DELETE /api/v1/triggers/rapport-hebdo
+        let req = Request::builder()
+            .method("DELETE")
+            .uri("/api/v1/triggers/rapport-hebdo")
+            .body(Body::empty())
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("oneshot");
+
+        // THEN 200 avec {"deleted": "rapport-hebdo"}
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = read_body(resp).await;
+        assert_eq!(json["deleted"], "rapport-hebdo");
+    }
+
+    // ── AC-4 — GET /api/v1/triggers/:id → 200 ──────────────────────────
+
+    #[tokio::test]
+    async fn test_get_trigger_200() {
+        // GIVEN un trigger "rapport-hebdo" existant
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
+        let router = make_crud_router(state);
+
+        let create_body = cron_trigger_body("rapport-hebdo", "rapport-agent", "0 0 8 * * MON *");
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/triggers")
+            .header("content-type", "application/json")
+            .body(Body::from(create_body))
+            .expect("build request");
+        let resp = router.clone().oneshot(req).await.expect("oneshot");
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // WHEN GET /api/v1/triggers/rapport-hebdo
+        let req = Request::builder()
+            .method("GET")
+            .uri("/api/v1/triggers/rapport-hebdo")
+            .body(Body::empty())
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("oneshot");
+
+        // THEN 200 avec la définition complète
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = read_body(resp).await;
+        assert_eq!(json["id"], "rapport-hebdo");
+        assert_eq!(json["agent"], "rapport-agent");
+        assert_eq!(json["source_type"], "cron");
+        assert_eq!(json["enabled"], true);
+        assert_eq!(json["on_busy"], "queue");
+    }
+
+    // ── AC-5 — Cron invalide → 422 ─────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_create_invalid_cron_422() {
+        // GIVEN un repository vide
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
+        let router = make_crud_router(state);
+
+        // WHEN POST avec un cron invalide
+        let body = cron_trigger_body("bad-cron", "agent", "not-a-cron");
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/triggers")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("oneshot");
+
+        // THEN 422 avec message de validation
+        assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let json = read_body(resp).await;
+        let error = json["error"].as_str().expect("error field");
+        assert!(
+            error.contains("invalid cron expression"),
+            "expected 'invalid cron expression' in: {error}"
+        );
+    }
+
+    // ── AC-6 — Duplicate ID → 409 ──────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_create_duplicate_409() {
+        // GIVEN un trigger "rapport-hebdo" existant
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
+        let router = make_crud_router(state);
+
+        let body = cron_trigger_body("rapport-hebdo", "agent", "0 0 8 * * MON *");
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/triggers")
+            .header("content-type", "application/json")
+            .body(Body::from(body.clone()))
+            .expect("build request");
+        let resp = router.clone().oneshot(req).await.expect("oneshot");
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // WHEN POST avec le même ID
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/triggers")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("oneshot");
+
+        // THEN 409 avec message "duplicate trigger id"
+        assert_eq!(resp.status(), StatusCode::CONFLICT);
+        let json = read_body(resp).await;
+        let error = json["error"].as_str().expect("error field");
+        assert!(
+            error.contains("duplicate trigger id"),
+            "expected 'duplicate trigger id' in: {error}"
+        );
+    }
+
+    // ── AC-7 — ID inexistant → 404 ─────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_update_not_found_404() {
+        // GIVEN un repository vide
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
+        let router = make_crud_router(state);
+
+        // WHEN PUT /api/v1/triggers/inconnu
+        let update_body = serde_json::json!({
+            "agent": "agent",
+            "source": {
+                "type": "cron",
+                "schedule": "0 0 8 * * MON *"
+            }
+        })
+        .to_string();
+
+        let req = Request::builder()
+            .method("PUT")
+            .uri("/api/v1/triggers/inconnu")
+            .header("content-type", "application/json")
+            .body(Body::from(update_body))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("oneshot");
+
+        // THEN 404 avec message "trigger not found"
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        let json = read_body(resp).await;
+        let error = json["error"].as_str().expect("error field");
+        assert!(
+            error.contains("trigger not found"),
+            "expected 'trigger not found' in: {error}"
+        );
+    }
+
+    // ── AC-8 — Reload depuis SQLite ─────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_reload_from_sqlite() {
+        // GIVEN un trigger dans la DB
+        let dir = tempfile::TempDir::new().expect("tempdir");
+        let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
+        let router = make_crud_router(state);
+
+        let body = cron_trigger_body("reload-test", "agent", "0 0 8 * * MON *");
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/triggers")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .expect("build request");
+        let resp = router.clone().oneshot(req).await.expect("oneshot");
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // WHEN POST /api/v1/triggers/reload
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/triggers/reload")
+            .body(Body::empty())
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("oneshot");
+
+        // THEN 200 avec reloaded >= 1
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = read_body(resp).await;
+        assert!(
+            json["reloaded"].as_u64().is_some_and(|n| n >= 1),
+            "expected reloaded >= 1, got: {json}"
+        );
+    }
+
+    // ── Ancien test — 503 si TriggerEngine absent ───────────────────────
+
+    #[tokio::test]
+    async fn test_reload_503_when_no_trigger_engine() {
+        // GIVEN state sans TriggerEngine ni repo
+        let (event_tx, _) = EventBus::new();
+        let registry = AgentRegistry::spawn(event_tx.clone());
+        let router_handle: TaskRouterHandle<MockBackend> =
+            TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 64);
+
+        let state = AppState {
+            router_handle,
+            registry_handle: registry,
+            event_sender: event_tx,
+            agent_loader: Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend: MockBackend,
+            llm_router: None,
+            trigger_engine: None,
+            config_path: None,
             task_repository: None,
             pending_approvals: None,
             notification_config: None,
@@ -534,54 +1233,24 @@ mod tests {
             trigger_def_repo: None,
             pipeline_def_repo: None,
             notification_repo: None,
-        }
-    }
+        };
 
-    fn make_router(state: AppState<MockBackend>) -> Router {
-        Router::new()
+        let router = Router::new()
             .route(
                 "/api/v1/triggers/reload",
                 post(reload_triggers::<MockBackend>),
             )
-            .with_state(state)
-    }
-
-    /// AC : 503 si TriggerEngine absent.
-    #[tokio::test]
-    async fn test_reload_503_when_no_trigger_engine() {
-        // GIVEN state sans TriggerEngine
-        let state = make_state(false, None).await;
-        let router = make_router(state);
+            .with_state(state);
 
         // WHEN POST /api/v1/triggers/reload
         let req = Request::builder()
             .method("POST")
             .uri("/api/v1/triggers/reload")
             .body(Body::empty())
-            .unwrap();
-        let resp = router.oneshot(req).await.unwrap();
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("oneshot");
 
         // THEN 503
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
-    }
-
-    /// AC-5 : 422 si le fichier de config est introuvable — triggers actuels non interrompus.
-    #[tokio::test]
-    async fn test_reload_422_when_config_file_not_found() {
-        // GIVEN TriggerEngine actif mais config_path inexistant
-        let bad_path = PathBuf::from("/tmp/apollia-test-nonexistent-73.toml");
-        let state = make_state(true, Some(bad_path)).await;
-        let router = make_router(state);
-
-        // WHEN POST /api/v1/triggers/reload
-        let req = Request::builder()
-            .method("POST")
-            .uri("/api/v1/triggers/reload")
-            .body(Body::empty())
-            .unwrap();
-        let resp = router.oneshot(req).await.unwrap();
-
-        // THEN 422
-        assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
     }
 }

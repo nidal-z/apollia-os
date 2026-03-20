@@ -410,6 +410,7 @@ dependencies = [
  "constant_time_eq",
  "hex",
  "hmac",
+ "http-body-util",
  "hyper-util",
  "rusqlite",
  "serde",
