@@ -47,6 +47,7 @@
     "memory": "Memory",
     "notifications": "Notifications",
     "observability": "Observability",
+    "chat": "Chat",
     "settings": "Settings",
     "switch_to_builder": "Switch to Builder",
     "switch_to_operator": "Switch to Operator",
@@ -690,5 +691,33 @@
   "mac_sandbox": {
     "title": "macOS — tools run without sandbox.",
     "body": "Linux namespace isolation is not available on macOS. Agent tool calls (bash, file I/O) execute directly in your user session. Only run agents you trust, and review their tool permissions in the manifest."
+  },
+  "chat": {
+    "title": "Chat",
+    "subtitle": "Conversations with your agents and the LLM",
+    "new_chat": "New chat",
+    "empty_title": "No conversations",
+    "empty_subtitle": "Start a new conversation with an agent or in free mode.",
+    "active_sessions": "Active sessions",
+    "closed_sessions": "Closed sessions",
+    "mode_agent": "Agent Chat",
+    "mode_libre": "Free Chat",
+    "status_active": "Active",
+    "status_closed": "Closed",
+    "no_messages": "No messages",
+    "message_count": "{n, plural, =0 {no messages} one {# message} other {# messages}}",
+    "just_now": "just now",
+    "minutes_ago": "{n} min ago",
+    "hours_ago": "{n}h ago",
+    "days_ago": "{n}d ago",
+    "select_mode": "Mode",
+    "select_agent": "Agent",
+    "select_tools": "Available tools",
+    "tools_optional": "Optional — select tools to make available",
+    "system_prompt": "System prompt",
+    "system_prompt_placeholder": "Instructions for the LLM...",
+    "optional": "optional",
+    "start": "Start",
+    "no_active_agents": "No active agents available"
   }
 }

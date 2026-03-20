@@ -527,3 +527,70 @@ export interface SystemInfo {
   os: string;
   python_path: string | null;
 }
+
+// ─── Chat (STORY-205) ──────────────────────────────────────────────────────
+
+/** Résumé d'une session de chat pour la liste. */
+export interface ChatSessionSummary {
+  id: string;
+  mode: 'libre' | 'agent';
+  agent_name: string | null;
+  status: 'active' | 'processing' | 'closed';
+  last_message_preview: string | null;
+  message_count: number;
+  created_at: string;
+  closed_at: string | null;
+}
+
+/** Détail complet d'une session de chat avec messages. */
+export interface ChatSessionDetail {
+  id: string;
+  mode: 'libre' | 'agent';
+  agent_name: string | null;
+  system_prompt: string;
+  status: 'active' | 'processing' | 'closed';
+  available_tools: string[];
+  authorized_tools: string[];
+  messages: ChatMessageView[];
+  created_at: string;
+  closed_at: string | null;
+}
+
+/** Message individuel dans une session de chat. */
+export interface ChatMessageView {
+  id: string;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  tool_calls: ToolCallView[] | null;
+  tool_name: string | null;
+  seq: number;
+  created_at: string;
+}
+
+/** Appel d'outil dans un message de chat. */
+export interface ToolCallView {
+  tool_name: string;
+  input: Record<string, unknown>;
+  output: string | null;
+  status: 'pending' | 'authorized' | 'executed' | 'refused';
+}
+
+/** Requête de création d'une session de chat. */
+export interface CreateSessionRequest {
+  mode: 'libre' | 'agent';
+  agent_name?: string;
+  system_prompt?: string;
+  tools?: string[];
+}
+
+/** Requête d'envoi de message dans une session de chat. */
+export interface SendMessageRequest {
+  content: string;
+}
+
+/** Requête d'autorisation d'un appel d'outil. */
+export interface ToolAuthorizationRequest {
+  message_id: string;
+  tool_name: string;
+  decision: 'accept' | 'refuse' | 'always_accept';
+}

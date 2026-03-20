@@ -10,6 +10,7 @@
     LayoutDashboard,
     Bot,
     ListChecks,
+    MessageSquare,
     ShieldCheck,
     Brain,
     Timer,
@@ -30,6 +31,7 @@
     { route: "dashboard", labelKey: "nav.home", icon: LayoutDashboard },
     { route: "agents", labelKey: "nav.my_assistants", icon: Bot },
     { route: "tasks", labelKey: "nav.activity", icon: ListChecks },
+    { route: "chat", labelKey: "nav.chat", icon: MessageSquare },
     { route: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
   ];
 
@@ -41,6 +43,7 @@
         { route: "dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
         { route: "agents", labelKey: "nav.agents", icon: Bot },
         { route: "tasks", labelKey: "nav.tasks", icon: ListChecks },
+        { route: "chat", labelKey: "nav.chat", icon: MessageSquare },
         { route: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
       ],
     },

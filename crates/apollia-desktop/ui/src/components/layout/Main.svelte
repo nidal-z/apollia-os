@@ -11,6 +11,7 @@
   import Memory from "../../routes/Memory.svelte";
   import Notifications from "../../routes/Notifications.svelte";
   import Observability from "../../routes/Observability.svelte";
+  import Chat from "../../routes/Chat.svelte";
   import Settings from "../../routes/Settings.svelte";
 </script>
 
@@ -23,6 +24,8 @@
         <Agents />
       {:else if $currentRoute === "tasks"}
         <Tasks />
+      {:else if $currentRoute === "chat"}
+        <Chat />
       {:else if $currentRoute === "approvals"}
         <Approvals />
       {:else if $currentRoute === "llm"}

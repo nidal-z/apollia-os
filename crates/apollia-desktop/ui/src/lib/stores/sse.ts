@@ -23,6 +23,7 @@ import type {
   LlmBackendStatus,
   TriggerStatus,
   PipelineRunSummary,
+  ChatSessionSummary,
 } from "$lib/types";
 
 /** Watchdog timeout — triggers a single IPC refresh if no event received. */
@@ -48,6 +49,9 @@ export const triggers = writable<TriggerStatus[]>([]);
 
 /** List of pipeline runs from the runtime. */
 export const pipelineRuns = writable<PipelineRunSummary[]>([]);
+
+/** List of chat sessions from the runtime. */
+export const chatSessions = writable<ChatSessionSummary[]>([]);
 
 // ─── IPC refresh helpers ──────────────────────────────────────────────────────
 
@@ -114,6 +118,15 @@ async function refreshPendingApprovalsViaIpc(): Promise<void> {
 
     pendingApprovals.set(result);
     emitTrayUpdate();
+  } catch {
+    // runtime not ready yet — keep current state
+  }
+}
+
+async function refreshChatSessionsViaIpc(): Promise<void> {
+  try {
+    const result: ChatSessionSummary[] = await invoke("list_chat_sessions");
+    chatSessions.set(result);
   } catch {
     // runtime not ready yet — keep current state
   }
@@ -189,6 +202,9 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
     case "pipeline-changed":
       void refreshPipelineRunsViaIpc();
       break;
+    case "chat-changed":
+      void refreshChatSessionsViaIpc();
+      break;
     case "system":
       // AllReady / ShutdownRequested / FatalError — refresh everything
       void refreshAll();
@@ -210,6 +226,7 @@ export async function refreshAll(): Promise<void> {
     refreshTriggersViaIpc(),
     refreshPipelineRunsViaIpc(),
     refreshPendingApprovalsViaIpc(),
+    refreshChatSessionsViaIpc(),
   ]);
 }
 
