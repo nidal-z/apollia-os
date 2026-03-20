@@ -183,6 +183,8 @@ async fn test_shutdown_drains_active_tasks() {
         trigger_def_repo: None,
         pipeline_def_repo: None,
         notification_repo: None,
+        notification_engine_handle: None,
+        chat_manager: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -267,6 +269,8 @@ async fn test_shutdown_stops_all_agents() {
         trigger_def_repo: None,
         pipeline_def_repo: None,
         notification_repo: None,
+        notification_engine_handle: None,
+        chat_manager: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -341,6 +345,8 @@ async fn test_shutdown_broadcasts_requested_event() {
         trigger_def_repo: None,
         pipeline_def_repo: None,
         notification_repo: None,
+        notification_engine_handle: None,
+        chat_manager: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -437,6 +443,8 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         trigger_def_repo: None,
         pipeline_def_repo: None,
         notification_repo: None,
+        notification_engine_handle: None,
+        chat_manager: None,
     };
     let api = APIServer::new(
         APIServerConfig {

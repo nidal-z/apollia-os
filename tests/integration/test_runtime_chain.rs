@@ -97,6 +97,8 @@ fn build_app_state() -> AppState<MockBackend> {
         trigger_def_repo: None,
         pipeline_def_repo: None,
         notification_repo: None,
+        notification_engine_handle: None,
+        chat_manager: None,
     }
 }
 

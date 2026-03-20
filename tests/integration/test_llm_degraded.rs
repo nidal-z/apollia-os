@@ -105,6 +105,8 @@ async fn test_runtime_starts_without_llm_router() {
         trigger_def_repo: None,
         pipeline_def_repo: None,
         notification_repo: None,
+        notification_engine_handle: None,
+        chat_manager: None,
     };
 
     // WHEN l'APIServer démarre
@@ -232,6 +234,8 @@ async fn test_runtime_continues_after_llm_init_failure() {
         trigger_def_repo: None,
         pipeline_def_repo: None,
         notification_repo: None,
+        notification_engine_handle: None,
+        chat_manager: None,
     };
 
     let api = APIServer::new(

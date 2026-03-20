@@ -161,6 +161,7 @@ async fn build_app_state_with_repos(
         pipeline_def_repo: Some(pipeline_def_repo),
         notification_repo: Some(notification_repo),
         notification_engine_handle: None,
+        chat_manager: None,
     }
 }
 

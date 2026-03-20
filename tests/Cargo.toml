@@ -127,3 +127,7 @@ path = "integration/test_pipelines.rs"
 [[test]]
 name = "test_config_crud"
 path = "integration/test_config_crud.rs"
+
+[[test]]
+name = "test_chat"
+path = "integration/test_chat.rs"
