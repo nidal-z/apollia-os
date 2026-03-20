@@ -36,3 +36,6 @@ pub use embedded::{init_embedded, EmbeddedConfig, EmbeddedError, RuntimeHandle};
 
 // Re-export from apollia-tools for convenience
 pub use apollia_tools::ToolRegistryHandle;
+
+// Chat subsystem (Sprint 18 — STORY-199)
+pub use chat::ChatSessionManagerHandle;

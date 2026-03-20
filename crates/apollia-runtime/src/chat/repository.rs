@@ -197,6 +197,24 @@ impl ChatSessionRepository {
         Ok(result)
     }
 
+    /// Update session status (e.g. Active → Processing or Processing → Active).
+    ///
+    /// Returns `Err(ChatError::SessionNotFound)` if the session does not exist.
+    pub fn update_status(&self, id: &str, status: &SessionStatus) -> Result<(), ChatError> {
+        let updated = self
+            .conn
+            .execute(
+                "UPDATE chat_sessions SET status = ?1 WHERE id = ?2",
+                params![status.as_sql(), id],
+            )
+            .map_err(|e| ChatError::InternalError(format!("update_status: {e}")))?;
+
+        if updated == 0 {
+            return Err(ChatError::SessionNotFound(id.to_string()));
+        }
+        Ok(())
+    }
+
     /// Close a session — sets `status='closed'` and records `closed_at`.
     ///
     /// Returns `Err(ChatError::SessionNotFound)` if the session does not exist.

@@ -545,6 +545,7 @@ mod tests {
             pipeline_def_repo: None,
             notification_repo: None,
             notification_engine_handle: None,
+            chat_manager: None,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -602,6 +603,7 @@ mod tests {
             pipeline_def_repo: None,
             notification_repo: None,
             notification_engine_handle: None,
+            chat_manager: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -659,6 +661,7 @@ mod tests {
             pipeline_def_repo: None,
             notification_repo: None,
             notification_engine_handle: None,
+            chat_manager: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
@@ -881,6 +884,7 @@ mod tests {
             pipeline_def_repo: None,
             notification_repo: None,
             notification_engine_handle: None,
+            chat_manager: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/resume", post(resume_task::<MockBackend>))

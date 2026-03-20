@@ -578,6 +578,28 @@ impl Supervisor {
                 None
             };
 
+        // Phase 13: ChatSessionManager — spawned before APIServer to inject handle into AppState.
+        info!("Supervisor: starting ChatSessionManager");
+        let chat_db_path = self.config.data_dir.join("chat.db");
+        let chat_manager: Option<crate::chat::ChatSessionManagerHandle> =
+            match crate::chat::ChatSessionManagerHandle::spawn(
+                &chat_db_path,
+                llm_router.clone(),
+                tool_registry_handle.clone(),
+                agent_loader.clone(),
+                event_sender.clone(),
+                apollia_core::StepBudgetConfig::default(),
+            ) {
+                Ok(handle) => {
+                    info!("Supervisor: ChatSessionManager ready");
+                    Some(handle)
+                }
+                Err(e) => {
+                    warn!(error = %e, "ChatSessionManager failed to start — chat disabled");
+                    None
+                }
+            };
+
         // Clone handles before moving into AppState — needed for auto-load (STORY-179).
         let agent_loader_for_autoload = agent_loader.clone();
         let backend_factory_for_autoload = backend_factory.clone();
@@ -604,6 +626,7 @@ impl Supervisor {
             pipeline_def_repo: Some(pipeline_def_repo.clone()),
             notification_repo: Some(notification_repo.clone()),
             notification_engine_handle: notification_engine.clone(),
+            chat_manager: chat_manager.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -1329,6 +1352,7 @@ mod tests {
             pipeline_def_repo: None,
             notification_repo: None,
             notification_engine_handle: None,
+            chat_manager: None,
         };
 
         // WHEN on clone l'AppState

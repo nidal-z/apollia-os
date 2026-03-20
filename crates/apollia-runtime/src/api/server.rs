@@ -29,6 +29,7 @@ use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use apollia_triggers::{TriggerDefinitionRepository, TriggerEngineHandle};
 
 use crate::api::routes_agents::{AgentBackendFactory, AgentLoader};
+use crate::chat::ChatSessionManagerHandle;
 use crate::coordinator::{DynBackend, ExecutionBackend};
 use crate::eventbus::EventBusSender;
 use crate::registry::AgentRegistryHandle;
@@ -133,6 +134,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// Permet aux routes REST de déclencher un rechargement des canaux après
     /// une mutation dans `notifications.db`. `None` en tests unitaires.
     pub notification_engine_handle: Option<NotificationEngineHandle>,
+    /// Handle to the [`ChatSessionManager`] actor (STORY-199).
+    ///
+    /// `Some` after Phase 13 of the Supervisor startup sequence.
+    /// `None` in tests or when the chat subsystem is not configured.
+    pub chat_manager: Option<ChatSessionManagerHandle>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -159,6 +165,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             pipeline_def_repo: self.pipeline_def_repo.clone(),
             notification_repo: self.notification_repo.clone(),
             notification_engine_handle: self.notification_engine_handle.clone(),
+            chat_manager: self.chat_manager.clone(),
         }
     }
 }
@@ -262,6 +269,10 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use super::routes_approvals::{list_pending_approvals, list_resolved_approvals};
     use super::routes_audit::{get_audit_stats, list_audit};
+    use super::routes_chat::{
+        authorize_tool as chat_authorize_tool, close_session, create_session,
+        get_session as chat_get_session, list_sessions, send_message, stream_session,
+    };
     use super::routes_llm::llm_routes;
     use super::routes_notifications::{
         create_channel, delete_channel, get_events, list_channels, notification_logs, set_events,
@@ -368,6 +379,21 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route("/api/v1/pipelines/:id/runs", get(list_runs::<B>))
         .route("/api/v1/pipelines/:id/runs/:run_id", get(get_run::<B>))
         .route("/api/v1/runs/:run_id", get(get_run_by_id::<B>))
+        // Chat session routes (STORY-199)
+        .route(
+            "/api/v1/sessions",
+            get(list_sessions::<B>).post(create_session::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id",
+            get(chat_get_session::<B>).delete(close_session::<B>),
+        )
+        .route("/api/v1/sessions/:id/messages", post(send_message::<B>))
+        .route(
+            "/api/v1/sessions/:id/authorize",
+            post(chat_authorize_tool::<B>),
+        )
+        .route("/api/v1/sessions/:id/stream", get(stream_session::<B>))
         .with_state(state)
 }
 
@@ -574,6 +600,7 @@ mod tests {
             pipeline_def_repo: None,
             notification_repo: None,
             notification_engine_handle: None,
+            chat_manager: None,
         }
     }
 

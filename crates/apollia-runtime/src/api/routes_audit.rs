@@ -236,6 +236,7 @@ mod tests {
             pipeline_def_repo: None,
             notification_repo: None,
             notification_engine_handle: None,
+            chat_manager: None,
         }
     }
 

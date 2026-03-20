@@ -1,0 +1,804 @@
+//! REST routes for the chat subsystem — `POST/GET/DELETE /api/v1/sessions`.
+//!
+//! Seven endpoints wrapping the [`ChatSessionManagerHandle`]:
+//! - `POST   /api/v1/sessions`                 — create session (AC-7)
+//! - `GET    /api/v1/sessions`                 — list sessions (AC-8)
+//! - `GET    /api/v1/sessions/:id`             — session detail (AC-9)
+//! - `DELETE /api/v1/sessions/:id`             — close session (AC-10)
+//! - `POST   /api/v1/sessions/:id/messages`    — send message (AC-11)
+//! - `POST   /api/v1/sessions/:id/authorize`   — resolve approval (AC-12)
+//! - `GET    /api/v1/sessions/:id/stream`      — SSE stream (AC-13)
+
+use std::convert::Infallible;
+
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
+use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::response::IntoResponse;
+use axum::Json;
+use serde::{Deserialize, Serialize};
+use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::StreamExt;
+
+use apollia_core::RuntimeEvent;
+
+use crate::api::server::AppState;
+use crate::chat::types::{ChatMode, SessionStatus, ToolDecision};
+use crate::coordinator::ExecutionBackend;
+
+/// Request body for `POST /api/v1/sessions`.
+#[derive(Debug, Deserialize)]
+pub struct CreateSessionRequest {
+    /// Session mode: `"libre"` or `"agent"`.
+    pub mode: String,
+    /// Agent name (required when `mode == "agent"`).
+    pub agent_name: Option<String>,
+    /// Custom system prompt.
+    pub system_prompt: Option<String>,
+    /// List of tool names available in this session.
+    #[serde(default)]
+    pub tools: Vec<String>,
+}
+
+/// Request body for `POST /api/v1/sessions/:id/messages`.
+#[derive(Debug, Deserialize)]
+pub struct SendMessageRequest {
+    /// Text content of the user message.
+    pub content: String,
+}
+
+/// Response body for `POST /api/v1/sessions/:id/messages`.
+#[derive(Debug, Serialize)]
+pub struct SendMessageResponse {
+    /// Unique message identifier.
+    pub message_id: String,
+    /// Processing status.
+    pub status: String,
+}
+
+/// Request body for `POST /api/v1/sessions/:id/authorize`.
+#[derive(Debug, Deserialize)]
+pub struct AuthorizeToolRequest {
+    /// ID of the message that triggered the tool call.
+    pub message_id: String,
+    /// Name of the tool.
+    pub tool_name: String,
+    /// Decision: `"accept"`, `"refuse"`, or `"always_accept"`.
+    pub decision: String,
+}
+
+/// Standard error response body.
+#[derive(Debug, Serialize)]
+struct ErrorResponse {
+    /// Human-readable error description.
+    error: String,
+}
+
+/// Query params for `GET /api/v1/sessions`.
+#[derive(Debug, Deserialize)]
+pub struct ListSessionsQuery {
+    /// Optional status filter: `"active"`, `"processing"`, `"closed"`.
+    pub status: Option<String>,
+}
+
+/// Handler for `POST /api/v1/sessions` — create a new chat session (AC-7).
+pub async fn create_session<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Json(body): Json<CreateSessionRequest>,
+) -> impl IntoResponse {
+    let manager = match &state.chat_manager {
+        Some(m) => m,
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "chat subsystem not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    let mode = match body.mode.as_str() {
+        "libre" => ChatMode::Libre,
+        "agent" => ChatMode::Agent,
+        other => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: format!("invalid mode: {other}"),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    match manager
+        .create_session(mode, body.agent_name, body.system_prompt, body.tools)
+        .await
+    {
+        Ok(info) => (StatusCode::CREATED, Json(info)).into_response(),
+        Err(e) => chat_error_to_response(e).into_response(),
+    }
+}
+
+/// Handler for `GET /api/v1/sessions` — list sessions (AC-8).
+pub async fn list_sessions<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Query(query): Query<ListSessionsQuery>,
+) -> impl IntoResponse {
+    let manager = match &state.chat_manager {
+        Some(m) => m,
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "chat subsystem not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    let status_filter = query.status.as_deref().and_then(SessionStatus::from_sql);
+
+    let sessions = manager.list_sessions(status_filter).await;
+    (StatusCode::OK, Json(sessions)).into_response()
+}
+
+/// Handler for `GET /api/v1/sessions/:id` — session detail (AC-9).
+pub async fn get_session<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let manager = match &state.chat_manager {
+        Some(m) => m,
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "chat subsystem not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    match manager.get_session(id).await {
+        Some(detail) => (StatusCode::OK, Json(detail)).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "session not found".into(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+/// Handler for `DELETE /api/v1/sessions/:id` — close session (AC-10).
+pub async fn close_session<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let manager = match &state.chat_manager {
+        Some(m) => m,
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "chat subsystem not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    match manager.close_session(id).await {
+        Ok(()) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "status": "closed" })),
+        )
+            .into_response(),
+        Err(e) => chat_error_to_response(e).into_response(),
+    }
+}
+
+/// Handler for `POST /api/v1/sessions/:id/messages` — send message (AC-11).
+pub async fn send_message<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+    Json(body): Json<SendMessageRequest>,
+) -> impl IntoResponse {
+    let manager = match &state.chat_manager {
+        Some(m) => m,
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "chat subsystem not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    match manager.send_message(id, body.content).await {
+        Ok(message_id) => (
+            StatusCode::ACCEPTED,
+            Json(SendMessageResponse {
+                message_id,
+                status: "processing".into(),
+            }),
+        )
+            .into_response(),
+        Err(e) => chat_error_to_response(e).into_response(),
+    }
+}
+
+/// Handler for `POST /api/v1/sessions/:id/authorize` — resolve tool approval (AC-12).
+pub async fn authorize_tool<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+    Json(body): Json<AuthorizeToolRequest>,
+) -> impl IntoResponse {
+    let manager = match &state.chat_manager {
+        Some(m) => m,
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "chat subsystem not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    let decision = match body.decision.as_str() {
+        "accept" => ToolDecision::Accept,
+        "refuse" => ToolDecision::Refuse,
+        "always_accept" => ToolDecision::AlwaysAccept,
+        other => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: format!("invalid decision: {other}"),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    match manager
+        .resolve_tool(id, body.message_id, body.tool_name, decision)
+        .await
+    {
+        Ok(()) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "status": "resolved" })),
+        )
+            .into_response(),
+        Err(e) => chat_error_to_response(e).into_response(),
+    }
+}
+
+/// Handler for `GET /api/v1/sessions/:id/stream` — SSE streaming (AC-13).
+///
+/// Opens a persistent SSE stream filtering `ChatXxx` [`RuntimeEvent`]s by `session_id`.
+/// The stream closes when `ChatSessionClosed` is emitted.
+pub async fn stream_session<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let rx = state.event_sender.subscribe();
+    let stream = BroadcastStream::new(rx);
+    let session_id = id;
+
+    let event_stream = stream.filter_map(move |result| {
+        let sid = session_id.clone();
+        match result {
+            Ok(event) => chat_event_to_sse(&event, &sid),
+            Err(_) => None,
+        }
+    });
+
+    Sse::new(event_stream).keep_alive(KeepAlive::default())
+}
+
+/// SSE event payload for chat events.
+#[derive(Debug, Serialize)]
+struct SseChatEvent {
+    /// Event type discriminator.
+    event: String,
+    /// Additional event data.
+    #[serde(flatten)]
+    data: serde_json::Value,
+}
+
+/// Convert a [`RuntimeEvent`] to an SSE frame if it matches the session.
+///
+/// Returns `None` for events not relevant to this session.
+fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<Result<Event, Infallible>> {
+    let (sse_event, is_terminal) = match event {
+        RuntimeEvent::ChatMessageSent {
+            session_id: sid,
+            message_id,
+        } if sid == session_id => (
+            SseChatEvent {
+                event: "message_sent".into(),
+                data: serde_json::json!({ "message_id": message_id }),
+            },
+            false,
+        ),
+        RuntimeEvent::ChatResponseStarted {
+            session_id: sid,
+            message_id,
+        } if sid == session_id => (
+            SseChatEvent {
+                event: "response_started".into(),
+                data: serde_json::json!({ "message_id": message_id }),
+            },
+            false,
+        ),
+        RuntimeEvent::ChatToken {
+            session_id: sid,
+            message_id,
+            token,
+        } if sid == session_id => (
+            SseChatEvent {
+                event: "token".into(),
+                data: serde_json::json!({ "message_id": message_id, "token": token }),
+            },
+            false,
+        ),
+        RuntimeEvent::ChatResponseCompleted {
+            session_id: sid,
+            message_id,
+            content,
+        } if sid == session_id => (
+            SseChatEvent {
+                event: "response_completed".into(),
+                data: serde_json::json!({ "message_id": message_id, "content": content }),
+            },
+            false,
+        ),
+        RuntimeEvent::ChatError {
+            session_id: sid,
+            message_id,
+            error,
+        } if sid == session_id => (
+            SseChatEvent {
+                event: "error".into(),
+                data: serde_json::json!({ "message_id": message_id, "error": error }),
+            },
+            false,
+        ),
+        RuntimeEvent::ChatToolCallStarted {
+            session_id: sid,
+            message_id,
+            tool_name,
+            input_preview,
+        } if sid == session_id => (
+            SseChatEvent {
+                event: "tool_call_started".into(),
+                data: serde_json::json!({
+                    "message_id": message_id,
+                    "tool_name": tool_name,
+                    "input_preview": input_preview,
+                }),
+            },
+            false,
+        ),
+        RuntimeEvent::ChatToolCallCompleted {
+            session_id: sid,
+            message_id,
+            tool_name,
+            success,
+            output_preview,
+        } if sid == session_id => (
+            SseChatEvent {
+                event: "tool_call_completed".into(),
+                data: serde_json::json!({
+                    "message_id": message_id,
+                    "tool_name": tool_name,
+                    "success": success,
+                    "output_preview": output_preview,
+                }),
+            },
+            false,
+        ),
+        RuntimeEvent::ChatApprovalRequired {
+            session_id: sid,
+            message_id,
+            tool_name,
+            prompt,
+        } if sid == session_id => (
+            SseChatEvent {
+                event: "approval_required".into(),
+                data: serde_json::json!({
+                    "message_id": message_id,
+                    "tool_name": tool_name,
+                    "prompt": prompt,
+                }),
+            },
+            false,
+        ),
+        RuntimeEvent::ChatApprovalResolved {
+            session_id: sid,
+            message_id,
+            tool_name,
+            decision,
+        } if sid == session_id => (
+            SseChatEvent {
+                event: "approval_resolved".into(),
+                data: serde_json::json!({
+                    "message_id": message_id,
+                    "tool_name": tool_name,
+                    "decision": decision,
+                }),
+            },
+            false,
+        ),
+        RuntimeEvent::ChatSessionClosed { session_id: sid } if sid == session_id => (
+            SseChatEvent {
+                event: "session_closed".into(),
+                data: serde_json::json!({}),
+            },
+            true,
+        ),
+        _ => return None,
+    };
+
+    let json = serde_json::to_string(&sse_event).ok()?;
+    let mut event_builder = Event::default().data(json);
+    event_builder = event_builder.event(&sse_event.event);
+
+    // For terminal events, return the SSE frame; the client should close after receiving it.
+    let _ = is_terminal; // Terminal flag available for future TakeWhileInclusive usage.
+
+    Some(Ok(event_builder))
+}
+
+/// Map [`ChatError`] to an HTTP response.
+fn chat_error_to_response(err: crate::chat::types::ChatError) -> (StatusCode, Json<ErrorResponse>) {
+    use crate::chat::types::ChatError;
+    let (status, msg) = match &err {
+        ChatError::SessionNotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
+        ChatError::SessionClosed(_) => (StatusCode::CONFLICT, err.to_string()),
+        ChatError::SessionBusy(_) => (StatusCode::CONFLICT, err.to_string()),
+        ChatError::AgentNotFound(_) => (StatusCode::BAD_REQUEST, err.to_string()),
+        ChatError::AgentLoadFailed(_) => (StatusCode::BAD_REQUEST, err.to_string()),
+        ChatError::NoLlmConfigured => (StatusCode::BAD_REQUEST, err.to_string()),
+        ChatError::BudgetExhausted => (StatusCode::TOO_MANY_REQUESTS, err.to_string()),
+        ChatError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+    };
+    (status, Json(ErrorResponse { error: msg }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::server::{APIServer, AppState};
+    use crate::chat::manager::ChatSessionManagerHandle;
+    use crate::coordinator::{DynBackend, ExecutionBackend};
+    use crate::eventbus::EventBus;
+    use crate::registry::AgentRegistry;
+    use crate::router::TaskRouterHandle;
+    use apollia_core::{AIPResult, AIPTask, AgentManifest, StepBudgetConfig, TaskStatus};
+    use apollia_llm::LlmRouter;
+    use apollia_tools::ToolRegistryHandle;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use std::future::Future;
+    use std::path::Path;
+    use std::pin::Pin;
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    #[derive(Clone)]
+    struct MockBackend;
+
+    impl From<DynBackend> for MockBackend {
+        fn from(_: DynBackend) -> Self {
+            MockBackend
+        }
+    }
+
+    impl ExecutionBackend for MockBackend {
+        fn execute(
+            &self,
+            _task: AIPTask,
+        ) -> Pin<Box<dyn Future<Output = Result<AIPResult, String>> + Send>> {
+            Box::pin(async {
+                Ok(AIPResult {
+                    task_id: String::new(),
+                    status: TaskStatus::Completed,
+                    output: Vec::new(),
+                    error: None,
+                    artifacts: Vec::new(),
+                    input_required_data: None,
+                })
+            })
+        }
+    }
+
+    struct AlwaysOkLoader;
+    impl crate::api::routes_agents::AgentLoader for AlwaysOkLoader {
+        fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
+            Ok(AgentManifest {
+                name: "test-agent".into(),
+                version: "0.1.0".into(),
+                description: "test".into(),
+                tools_required: vec![],
+                tools_optional: vec![],
+                supports_streaming: false,
+                supports_a2a: false,
+                memory_namespace: None,
+                shared_memory_namespaces: vec![],
+                max_concurrent_tasks: 1,
+                step_budget: None,
+                network_allowlist: None,
+                dangerous_tools_allowed: false,
+                tags: vec![],
+                skills: vec![],
+                execution_mode: "auto".into(),
+                system_prompt: None,
+                tools_requiring_approval: vec![],
+            })
+        }
+    }
+
+    fn test_router_with_chat(dir: &tempfile::TempDir) -> axum::Router {
+        let (event_tx, _) = EventBus::new();
+        let registry_handle = AgentRegistry::spawn(event_tx.clone());
+        let router_handle: TaskRouterHandle<MockBackend> =
+            TaskRouterHandle::spawn(registry_handle.clone(), event_tx.clone(), 64);
+        let tool_registry = ToolRegistryHandle::start();
+
+        let db_path = dir.path().join("chat.db");
+        let chat_manager = ChatSessionManagerHandle::spawn(
+            &db_path,
+            Some(Arc::new(LlmRouter::empty())),
+            tool_registry.clone(),
+            Arc::new(AlwaysOkLoader),
+            event_tx.clone(),
+            StepBudgetConfig::default(),
+        )
+        .expect("spawn chat manager");
+
+        let state: AppState<MockBackend> = AppState {
+            router_handle,
+            registry_handle,
+            event_sender: event_tx,
+            agent_loader: Arc::new(AlwaysOkLoader),
+            backend: MockBackend,
+            llm_router: Some(Arc::new(LlmRouter::empty())),
+            trigger_engine: None,
+            config_path: None,
+            task_repository: None,
+            pending_approvals: None,
+            notification_config: None,
+            pipeline_engine: None,
+            backend_factory: None,
+            tool_registry_handle: Some(tool_registry),
+            audit_trail: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
+            trigger_def_repo: None,
+            pipeline_def_repo: None,
+            notification_repo: None,
+            notification_engine_handle: None,
+            chat_manager: Some(chat_manager),
+        };
+
+        APIServer::build_router_for_test(state)
+    }
+
+    #[tokio::test]
+    async fn test_post_sessions_creates_session() {
+        // GIVEN a router with chat enabled
+        let dir = tempfile::tempdir().expect("tempdir");
+        let router = test_router_with_chat(&dir);
+
+        // WHEN POST /api/v1/sessions
+        let body = serde_json::json!({ "mode": "libre", "tools": ["bash_executor"] });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/sessions")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN 201 Created
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["mode"], "Libre");
+        assert_eq!(json["status"], "Active");
+    }
+
+    #[tokio::test]
+    async fn test_post_sessions_agent_without_name_returns_400() {
+        // GIVEN a router
+        let dir = tempfile::tempdir().expect("tempdir");
+        let router = test_router_with_chat(&dir);
+
+        // WHEN POST with mode=agent but no agent_name
+        let body = serde_json::json!({ "mode": "agent" });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/sessions")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN 400
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_get_sessions_returns_list() {
+        // GIVEN 2 sessions
+        let dir = tempfile::tempdir().expect("tempdir");
+        let router = test_router_with_chat(&dir);
+
+        // Create 2 sessions
+        for _ in 0..2 {
+            let body = serde_json::json!({ "mode": "libre" });
+            let req = Request::builder()
+                .method("POST")
+                .uri("/api/v1/sessions")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap();
+            let _ = router.clone().oneshot(req).await.unwrap();
+        }
+
+        // WHEN GET /api/v1/sessions
+        let req = Request::builder()
+            .uri("/api/v1/sessions")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN 200 with 2 sessions
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: Vec<serde_json::Value> = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_get_session_not_found_returns_404() {
+        // GIVEN a router
+        let dir = tempfile::tempdir().expect("tempdir");
+        let router = test_router_with_chat(&dir);
+
+        // WHEN GET /api/v1/sessions/nonexistent
+        let req = Request::builder()
+            .uri("/api/v1/sessions/nonexistent")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN 404
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_delete_session_closes_it() {
+        // GIVEN an active session
+        let dir = tempfile::tempdir().expect("tempdir");
+        let router = test_router_with_chat(&dir);
+
+        let body = serde_json::json!({ "mode": "libre" });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/sessions")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let session_id = json["id"].as_str().unwrap();
+
+        // WHEN DELETE /api/v1/sessions/:id
+        let req = Request::builder()
+            .method("DELETE")
+            .uri(format!("/api/v1/sessions/{session_id}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+
+        // THEN 200
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // AND GET returns Closed status
+        let req = Request::builder()
+            .uri(format!("/api/v1/sessions/{session_id}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["session"]["status"], "Closed");
+    }
+
+    #[tokio::test]
+    async fn test_delete_closed_session_returns_409() {
+        // GIVEN a closed session
+        let dir = tempfile::tempdir().expect("tempdir");
+        let router = test_router_with_chat(&dir);
+
+        let body = serde_json::json!({ "mode": "libre" });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/sessions")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let session_id = json["id"].as_str().unwrap();
+
+        // Close it
+        let req = Request::builder()
+            .method("DELETE")
+            .uri(format!("/api/v1/sessions/{session_id}"))
+            .body(Body::empty())
+            .unwrap();
+        let _ = router.clone().oneshot(req).await.unwrap();
+
+        // WHEN DELETE again
+        let req = Request::builder()
+            .method("DELETE")
+            .uri(format!("/api/v1/sessions/{session_id}"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN 409 Conflict
+        assert_eq!(resp.status(), StatusCode::CONFLICT);
+    }
+
+    #[tokio::test]
+    async fn test_post_message_returns_202() {
+        // GIVEN an active session
+        let dir = tempfile::tempdir().expect("tempdir");
+        let router = test_router_with_chat(&dir);
+
+        let body = serde_json::json!({ "mode": "libre" });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/sessions")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let session_id = json["id"].as_str().unwrap();
+
+        // WHEN POST /api/v1/sessions/:id/messages
+        let body = serde_json::json!({ "content": "Bonjour" });
+        let req = Request::builder()
+            .method("POST")
+            .uri(format!("/api/v1/sessions/{session_id}/messages"))
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN 202 Accepted
+        assert_eq!(resp.status(), StatusCode::ACCEPTED);
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["status"], "processing");
+        assert!(json["message_id"].is_string());
+    }
+}

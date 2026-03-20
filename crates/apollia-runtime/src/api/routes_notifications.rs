@@ -805,6 +805,7 @@ mod tests {
             pipeline_def_repo: None,
             notification_repo: Some(Arc::new(std::sync::Mutex::new(repo))),
             notification_engine_handle: None,
+            chat_manager: None,
         }
     }
 
