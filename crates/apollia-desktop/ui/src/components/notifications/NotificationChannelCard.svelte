@@ -8,9 +8,11 @@
 
   interface Props {
     channel: NotificationChannel;
+    onedit: () => void;
+    ondelete: () => void;
   }
 
-  let { channel }: Props = $props();
+  let { channel, onedit, ondelete }: Props = $props();
 
   const FEEDBACK_DURATION_MS = 5_000;
 
@@ -94,15 +96,35 @@
         <p class="text-xs text-muted-foreground">{$t('notifications.all_events')}</p>
       {/if}
 
-      <!-- Test button + feedback -->
+      <!-- Actions row -->
       <div class="flex items-center gap-2">
         <Button
           size="sm"
           variant="outline"
           onclick={handleTest}
           disabled={testing || !channel.enabled}
+          data-testid="channel-test-btn-{channel.channel_id}"
         >
           {testing ? $t('notifications.testing') : $t('notifications.test')}
+        </Button>
+
+        <Button
+          size="sm"
+          variant="outline"
+          onclick={onedit}
+          data-testid="channel-edit-btn-{channel.channel_id}"
+        >
+          {$t('notifications.edit')}
+        </Button>
+
+        <Button
+          size="sm"
+          variant="outline"
+          class="text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive))]/10"
+          onclick={ondelete}
+          data-testid="channel-delete-btn-{channel.channel_id}"
+        >
+          {$t('notifications.delete')}
         </Button>
 
         {#if testResult}

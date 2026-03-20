@@ -413,6 +413,34 @@ export interface NotificationChannel {
   events: string[];
 }
 
+/** Définition complète d'un canal retournée par les opérations CRUD. */
+export interface NotificationChannelView {
+  id: string;
+  channel_type: "desktop" | "webhook";
+  enabled: boolean;
+  config: Record<string, unknown>;
+  events: string[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Corps de requête pour la création d'un canal de notification. */
+export interface CreateChannelRequest {
+  id: string;
+  channel_type: "desktop" | "webhook";
+  enabled: boolean;
+  config: Record<string, unknown>;
+  events?: string[];
+}
+
+/** Corps de requête pour la mise à jour d'un canal de notification. */
+export interface UpdateChannelRequest {
+  channel_type?: "desktop" | "webhook";
+  enabled?: boolean;
+  config?: Record<string, unknown>;
+  events?: string[];
+}
+
 /** Résultat du test d'un canal de notification. */
 export interface ChannelTestResult {
   channel_id: string;
