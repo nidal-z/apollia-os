@@ -915,50 +915,52 @@ impl TaskRepository {
     ) -> Result<Vec<PersistedTaskSummary>, TaskRepoError> {
         let path = self.db_path.clone();
 
-        tokio::task::spawn_blocking(move || -> Result<Vec<PersistedTaskSummary>, TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
+        tokio::task::spawn_blocking(
+            move || -> Result<Vec<PersistedTaskSummary>, TaskRepoError> {
+                let conn = rusqlite::Connection::open(&path)?;
 
-            let mut stmt = conn.prepare(
-                "SELECT task_id, agent_name, input_text, output_text, \
+                let mut stmt = conn.prepare(
+                    "SELECT task_id, agent_name, input_text, output_text, \
                         duration_ms, transitions_json, created_at \
                  FROM tasks \
                  ORDER BY created_at DESC \
                  LIMIT ?1",
-            )?;
+                )?;
 
-            let rows = stmt
-                .query_map(params![limit as i64], |row| {
-                    let task_id: String = row.get(0)?;
-                    let agent_name: String = row.get(1)?;
-                    let input_text: Option<String> = row.get(2)?;
-                    let output_text: Option<String> = row.get(3)?;
-                    let duration_ms: Option<i64> = row.get(4)?;
-                    let transitions_json: Option<String> = row.get(5)?;
-                    let created_at: String =
-                        row.get::<_, Option<String>>(6)?.unwrap_or_default();
+                let rows = stmt
+                    .query_map(params![limit as i64], |row| {
+                        let task_id: String = row.get(0)?;
+                        let agent_name: String = row.get(1)?;
+                        let input_text: Option<String> = row.get(2)?;
+                        let output_text: Option<String> = row.get(3)?;
+                        let duration_ms: Option<i64> = row.get(4)?;
+                        let transitions_json: Option<String> = row.get(5)?;
+                        let created_at: String =
+                            row.get::<_, Option<String>>(6)?.unwrap_or_default();
 
-                    let status = derive_status(&transitions_json, duration_ms);
-                    let input_preview = input_text
-                        .as_deref()
-                        .unwrap_or("")
-                        .chars()
-                        .take(120)
-                        .collect::<String>();
+                        let status = derive_status(&transitions_json, duration_ms);
+                        let input_preview = input_text
+                            .as_deref()
+                            .unwrap_or("")
+                            .chars()
+                            .take(120)
+                            .collect::<String>();
 
-                    Ok(PersistedTaskSummary {
-                        task_id,
-                        agent_name,
-                        status,
-                        input_preview,
-                        output_text,
-                        duration_ms,
-                        created_at,
-                    })
-                })?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
+                        Ok(PersistedTaskSummary {
+                            task_id,
+                            agent_name,
+                            status,
+                            input_preview,
+                            output_text,
+                            duration_ms,
+                            created_at,
+                        })
+                    })?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
 
-            Ok(rows)
-        })
+                Ok(rows)
+            },
+        )
         .await
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }

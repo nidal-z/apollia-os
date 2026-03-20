@@ -602,48 +602,27 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         .map(PathBuf::from)
         .unwrap_or_else(|_| std::env::temp_dir());
 
-    // Load apollia.toml if found.
-    let (llm_config, triggers, notifications, pipelines, startup_agents, config_path) =
-        match find_config_file() {
-            Some(path) => {
-                tracing::info!(config = %path.display(), "loading config");
-                let cfg =
-                    crate::config::parse_apollia_toml(&path).map_err(|e| StartError::Config {
-                        path: path.clone(),
-                        reason: e.to_string(),
-                    })?;
-                (
-                    cfg.llm,
-                    cfg.triggers,
-                    cfg.notifications,
-                    cfg.pipelines,
-                    cfg.startup_agents,
-                    Some(path),
-                )
-            }
-            None => {
-                tracing::info!("no apollia.toml found — starting with defaults");
-                (None, vec![], None, vec![], vec![], None)
-            }
-        };
+    // Load apollia.toml if found (LLM config and startup_agents only — triggers,
+    // pipelines, notifications are now loaded from SQLite by the Supervisor, STORY-187).
+    let (llm_config, startup_agents, config_path) = match find_config_file() {
+        Some(path) => {
+            tracing::info!(config = %path.display(), "loading config");
+            let cfg = crate::config::parse_apollia_toml(&path).map_err(|e| StartError::Config {
+                path: path.clone(),
+                reason: e.to_string(),
+            })?;
+            (cfg.llm, cfg.startup_agents, Some(path))
+        }
+        None => {
+            tracing::info!("no apollia.toml found — starting with defaults");
+            (None, vec![], None)
+        }
+    };
 
-    let trigger_count = triggers.len();
     let llm_label = llm_config
         .as_ref()
         .map(|l| format!("backend \"{}\"", l.default))
         .unwrap_or_else(|| "disabled".to_string());
-    let notification_label = notifications
-        .as_ref()
-        .map(|n| {
-            let count = n.channels.iter().filter(|c| c.enabled).count();
-            format!("{count} channel(s)")
-        })
-        .unwrap_or_else(|| "disabled".to_string());
-    let pipeline_label = if pipelines.is_empty() {
-        "disabled (no [[pipelines]] defined)".to_string()
-    } else {
-        format!("{} pipeline(s)", pipelines.len())
-    };
 
     // Open AgentRepository for auto-load at boot (STORY-179).
     let data_dir = home.join(".apollia");
@@ -669,11 +648,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         },
         startup_timeout_secs: 10,
         llm_config,
-        triggers,
         config_path,
         input_required_timeout_hours: 24,
-        notifications,
-        pipelines,
         data_dir,
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository,
@@ -734,14 +710,14 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
     println!("  * ToolRegistry        ready (3 native tools)");
     println!("  * LlmRouter           {llm_label}");
     println!("  * TaskRouter          ready");
-    println!("  * TriggerEngine       ready ({trigger_count} trigger(s))");
-    println!("  * PipelineEngine      {pipeline_label}");
+    println!("  * TriggerEngine       ready (loaded from SQLite)");
+    println!("  * PipelineEngine      ready (loaded from SQLite)");
     println!(
         "  * APIServer           listening on {} + localhost:{}",
         socket_path.display(),
         tcp_port
     );
-    println!("  * NotificationEngine  {notification_label}");
+    println!("  * NotificationEngine  ready (loaded from SQLite)");
     println!("  -------------------------------------------------");
     println!("  * Runtime ready in {:.1}s", elapsed.as_secs_f64());
     println!();

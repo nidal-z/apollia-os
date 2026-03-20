@@ -297,6 +297,34 @@ impl NotificationConfigRepository {
     }
 }
 
+// ─── Conversion Row → ChannelConfig ─────────────────────────────────────────
+
+impl NotificationChannelRow {
+    /// Convertit une [`NotificationChannelRow`] en [`crate::config::ChannelConfig`].
+    ///
+    /// Utilisé par le boot Supervisor (STORY-187) pour reconstruire la configuration
+    /// de notification depuis SQLite.
+    pub fn to_channel_config(&self) -> crate::config::ChannelConfig {
+        let kind = match self.channel_type.as_str() {
+            "webhook" => crate::config::ChannelKind::Webhook,
+            "sse" => crate::config::ChannelKind::Sse,
+            _ => crate::config::ChannelKind::Desktop,
+        };
+        let url = self
+            .config_json
+            .get("url")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        crate::config::ChannelConfig {
+            id: self.id.clone(),
+            kind,
+            enabled: self.enabled,
+            events: self.events_json.clone(),
+            url,
+        }
+    }
+}
+
 /// Convertit une ligne SQLite en [`NotificationChannelRow`].
 fn row_to_channel(row: &rusqlite::Row<'_>) -> rusqlite::Result<NotificationChannelRow> {
     let config_str: String = row.get(3)?;

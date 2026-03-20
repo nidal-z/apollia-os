@@ -474,6 +474,9 @@ mod tests {
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
+            trigger_def_repo: None,
+            pipeline_def_repo: None,
+            notification_repo: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -606,6 +609,9 @@ mod tests {
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
+            trigger_def_repo: None,
+            pipeline_def_repo: None,
+            notification_repo: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -691,6 +697,9 @@ mod tests {
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
+            trigger_def_repo: None,
+            pipeline_def_repo: None,
+            notification_repo: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -882,6 +891,9 @@ mod tests {
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
+            trigger_def_repo: None,
+            pipeline_def_repo: None,
+            notification_repo: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

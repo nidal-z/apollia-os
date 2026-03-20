@@ -101,6 +101,10 @@ async fn test_runtime_starts_without_llm_router() {
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
+        llm_call_repository: None,
+        trigger_def_repo: None,
+        pipeline_def_repo: None,
+        notification_repo: None,
     };
 
     // WHEN l'APIServer démarre
@@ -224,6 +228,10 @@ async fn test_runtime_continues_after_llm_init_failure() {
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
+        llm_call_repository: None,
+        trigger_def_repo: None,
+        pipeline_def_repo: None,
+        notification_repo: None,
     };
 
     let api = APIServer::new(

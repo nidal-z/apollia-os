@@ -58,6 +58,20 @@ pub struct PipelineDefinitionRow {
     pub updated_at: String,
 }
 
+// ── Conversion Row → PipelineDefinition ─────────────────────────────────────
+
+impl From<PipelineDefinitionRow> for crate::types::PipelineDefinition {
+    /// Convertit une [`PipelineDefinitionRow`] persistée en [`PipelineDefinition`] en mémoire.
+    fn from(row: PipelineDefinitionRow) -> Self {
+        crate::types::PipelineDefinition {
+            id: crate::types::PipelineId(row.id),
+            description: row.description,
+            on_failure: row.on_failure,
+            steps: row.steps,
+        }
+    }
+}
+
 // ── Erreurs ─────────────────────────────────────────────────────────────────
 
 /// Erreurs du repository de definitions de pipelines.

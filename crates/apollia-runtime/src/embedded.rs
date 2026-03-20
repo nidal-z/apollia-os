@@ -107,10 +107,6 @@ pub struct EmbeddedConfig {
     pub backend_factory: Option<Arc<dyn AgentBackendFactory>>,
     /// Configuration LLM optionnelle parsée depuis `apollia.toml`.
     pub llm_config: Option<apollia_llm::LlmConfig>,
-    /// Triggers validés depuis `[[triggers]]` dans `apollia.toml`.
-    pub triggers: Vec<apollia_triggers::TriggerDefinition>,
-    /// Configuration des notifications depuis `[notifications]` dans `apollia.toml`.
-    pub notifications: Option<apollia_notifications::config::NotificationConfig>,
     /// Chemin du fichier `apollia.toml` chargé — requis pour le hot reload des triggers.
     pub config_path: Option<PathBuf>,
     /// Repository des agents installés — requis pour l'auto-load au boot.
@@ -131,8 +127,6 @@ impl Default for EmbeddedConfig {
             agent_loader: Arc::new(StubAgentLoader),
             backend_factory: None,
             llm_config: None,
-            triggers: vec![],
-            notifications: None,
             config_path: None,
             agent_repository: None,
         }
@@ -154,17 +148,8 @@ impl EmbeddedConfig {
             self.llm_config = s.llm;
         }
 
-        if let Ok(triggers) = apollia_triggers::parse_triggers_from_toml_str(content) {
-            self.triggers = triggers;
-        }
-
-        #[derive(serde::Deserialize)]
-        struct NotifSection {
-            notifications: Option<apollia_notifications::config::NotificationConfig>,
-        }
-        if let Ok(s) = toml::from_str::<NotifSection>(content) {
-            self.notifications = s.notifications;
-        }
+        // NOTE(STORY-187): triggers, pipelines, and notifications are now loaded
+        // from SQLite by the Supervisor. TOML sections for these are ignored.
 
         self
     }
@@ -241,11 +226,8 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         },
         startup_timeout_secs: config.startup_timeout_secs,
         llm_config: config.llm_config,
-        triggers: config.triggers,
         config_path: config.config_path,
         input_required_timeout_hours: 24,
-        notifications: config.notifications,
-        pipelines: vec![],
         data_dir: config.data_dir,
         obs_config: config.obs_config,
         agent_repository: config.agent_repository,

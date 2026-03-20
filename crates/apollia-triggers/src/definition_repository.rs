@@ -13,6 +13,9 @@ use std::path::Path;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
+use crate::types::{
+    FileEventKind, InputTemplate, OnBusyPolicy, TriggerDefinition, TriggerSourceConfig,
+};
 use crate::validation;
 
 // ─── Migration ───────────────────────────────────────────────────────────────
@@ -93,6 +96,97 @@ impl OnBusy {
             "drop" => OnBusy::Drop,
             _ => OnBusy::Queue,
         }
+    }
+}
+
+// ─── Conversion Row → TriggerDefinition ─────────────────────────────────────
+
+impl TryFrom<TriggerDefinitionRow> for TriggerDefinition {
+    type Error = TriggerDefinitionError;
+
+    /// Convertit une [`TriggerDefinitionRow`] persistée en [`TriggerDefinition`] riche.
+    ///
+    /// Parse `source_type` + `source_config` JSON en [`TriggerSourceConfig`] typé.
+    /// Retourne [`TriggerDefinitionError::ValidationError`] si la conversion échoue.
+    fn try_from(row: TriggerDefinitionRow) -> Result<Self, Self::Error> {
+        let source = parse_source_config(&row.source_type, &row.source_config)?;
+        let on_busy = match row.on_busy {
+            OnBusy::Queue => OnBusyPolicy::Queue,
+            OnBusy::Drop => OnBusyPolicy::Drop,
+        };
+        Ok(TriggerDefinition {
+            id: row.id,
+            agent: row.agent.unwrap_or_default(),
+            pipeline: row.pipeline,
+            enabled: row.enabled,
+            on_busy,
+            source,
+            input_template: InputTemplate(row.input_template.unwrap_or_default()),
+        })
+    }
+}
+
+/// Parse `source_type` et `source_config` JSON en [`TriggerSourceConfig`].
+fn parse_source_config(
+    source_type: &str,
+    source_config: &serde_json::Value,
+) -> Result<TriggerSourceConfig, TriggerDefinitionError> {
+    match source_type {
+        "cron" => {
+            let schedule = source_config
+                .get("schedule")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            Ok(TriggerSourceConfig::Cron { schedule })
+        }
+        "interval" => {
+            let every = source_config
+                .get("every")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            Ok(TriggerSourceConfig::Interval { every })
+        }
+        "oneshot" => {
+            let fire_at_str = source_config
+                .get("fire_at")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| {
+                    TriggerDefinitionError::ValidationError(
+                        "oneshot source requires 'fire_at' field".into(),
+                    )
+                })?;
+            let fire_at = fire_at_str.parse().map_err(|e| {
+                TriggerDefinitionError::ValidationError(format!("invalid fire_at datetime: {e}"))
+            })?;
+            Ok(TriggerSourceConfig::Oneshot { fire_at })
+        }
+        "file_watch" => {
+            let path = source_config
+                .get("path")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            let events: Vec<FileEventKind> = source_config
+                .get("events")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_else(|| vec![FileEventKind::Any]);
+            Ok(TriggerSourceConfig::FileWatch {
+                path: std::path::PathBuf::from(path),
+                events,
+            })
+        }
+        "webhook" => {
+            let secret = source_config
+                .get("secret")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            Ok(TriggerSourceConfig::Webhook { secret })
+        }
+        other => Err(TriggerDefinitionError::ValidationError(format!(
+            "unknown source_type: {other}"
+        ))),
     }
 }
 

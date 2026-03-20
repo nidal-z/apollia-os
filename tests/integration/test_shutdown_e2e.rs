@@ -179,6 +179,10 @@ async fn test_shutdown_drains_active_tasks() {
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
+        llm_call_repository: None,
+        trigger_def_repo: None,
+        pipeline_def_repo: None,
+        notification_repo: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -259,6 +263,10 @@ async fn test_shutdown_stops_all_agents() {
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
+        llm_call_repository: None,
+        trigger_def_repo: None,
+        pipeline_def_repo: None,
+        notification_repo: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -329,6 +337,10 @@ async fn test_shutdown_broadcasts_requested_event() {
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
+        llm_call_repository: None,
+        trigger_def_repo: None,
+        pipeline_def_repo: None,
+        notification_repo: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -421,6 +433,10 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         tool_registry_handle: None,
         audit_trail: None,
         obs_config: apollia_core::ObservabilityConfig::default(),
+        llm_call_repository: None,
+        trigger_def_repo: None,
+        pipeline_def_repo: None,
+        notification_repo: None,
     };
     let api = APIServer::new(
         APIServerConfig {

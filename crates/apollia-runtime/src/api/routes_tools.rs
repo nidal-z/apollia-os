@@ -198,6 +198,9 @@ mod tests {
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
+            trigger_def_repo: None,
+            pipeline_def_repo: None,
+            notification_repo: None,
         };
 
         Router::new()
@@ -231,6 +234,9 @@ mod tests {
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
+            trigger_def_repo: None,
+            pipeline_def_repo: None,
+            notification_repo: None,
         };
 
         Router::new()

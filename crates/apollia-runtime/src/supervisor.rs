@@ -19,13 +19,15 @@ use tracing::{error, info, warn};
 use apollia_core::{PendingApprovals, ProcessState, RuntimeEvent};
 use apollia_llm::{LlmCallRepository, LlmConfig, LlmRouter};
 use apollia_notifications::{
-    build_channels, NotificationConfig, NotificationEngine, NotificationEngineHandle,
+    build_channels, NotificationConfig, NotificationConfigRepository, NotificationEngine,
+    NotificationEngineHandle,
 };
 use apollia_pipelines::{
-    PipelineDefinition, PipelineEngine, PipelineEngineHandle, PipelineRepository,
+    PipelineDefinition, PipelineDefinitionRepository, PipelineEngine, PipelineEngineHandle,
+    PipelineRepository,
 };
 use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
-use apollia_triggers::{TriggerDefinition, TriggerEngineHandle, TriggerPersistence};
+use apollia_triggers::{TriggerDefinitionRepository, TriggerEngineHandle, TriggerPersistence};
 
 use crate::api::routes_agents::AgentLoader;
 use crate::api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
@@ -70,11 +72,6 @@ pub struct SupervisorConfig {
     /// `None` disables the LLM layer entirely — the runtime starts normally and
     /// agents receive `ctx.llm = None` (see STORY-059). No error is raised.
     pub llm_config: Option<LlmConfig>,
-    /// Trigger definitions parsed from `[[triggers]]` blocks in `apollia.toml`.
-    ///
-    /// An empty `Vec` starts the `TriggerEngine` with no active sources (AC-3).
-    /// Populated by `apollia-cli` from `ApolliaConfig.triggers` (STORY-071).
-    pub triggers: Vec<TriggerDefinition>,
     /// Path to `apollia.toml` — injected into [`AppState`] for hot reload (STORY-073).
     ///
     /// `None` when the runtime starts without a config file (e.g. tests, `apollia-os start`
@@ -86,21 +83,11 @@ pub struct SupervisorConfig {
     /// Le `TimeoutWatcher` (STORY-098) utilise cette valeur. Défaut : 24 heures.
     /// Ignoré si `AppState.task_repository` est `None`.
     pub input_required_timeout_hours: u64,
-    /// Configuration optionnelle du système de notifications (section `[notifications]`
-    /// dans `apollia.toml`).
-    ///
-    /// `None` → le `NotificationEngine` n'est pas démarré (pas d'erreur).
-    /// `Some` → `build_channels()` est appelé et le moteur est spawné en position 9
-    /// du Supervisor. Un crash du moteur n'affecte pas le runtime (tâche détachée).
-    pub notifications: Option<NotificationConfig>,
-    /// Définitions de pipelines parsées depuis `[[pipelines]]` dans `apollia.toml`.
-    ///
-    /// Un `Vec` vide (ou absent) → `PipelineEngine` non démarré, `AppState.pipeline_engine == None`.
-    /// Peuplé par `apollia-cli` depuis `ApolliaConfig.pipelines` (STORY-118).
-    pub pipelines: Vec<PipelineDefinition>,
     /// Répertoire de données du runtime (ex: `~/.apollia/`).
     ///
-    /// Utilisé pour localiser `pipelines.db`. Doit exister et être accessible en écriture.
+    /// Utilisé pour localiser les bases SQLite (`triggers.db`, `pipelines.db`,
+    /// `notifications.db`, etc.). Doit exister et être accessible en écriture.
+    /// Sert de `base_dir` pour l'ouverture des repositories au boot (STORY-187).
     pub data_dir: std::path::PathBuf,
     /// Configuration d'observabilité (limites de troncature, flags debug).
     ///
@@ -361,6 +348,34 @@ impl Supervisor {
 
         // Phase 6 (pos 7): TriggerEngine — démarré après TaskRouter (besoin du submitter)
         info!("Supervisor: starting TriggerEngine");
+        // Ouvre le repository de définitions de triggers depuis SQLite (STORY-187).
+        let trigger_def_db_path = self.config.data_dir.join("triggers_def.db");
+        let trigger_def_repo =
+            TriggerDefinitionRepository::open(&trigger_def_db_path).map_err(|e| {
+                SupervisorError::ActorStartFailed {
+                    actor: "trigger_engine".to_string(),
+                    reason: format!("failed to open triggers_def.db: {e}"),
+                }
+            })?;
+        let trigger_definitions: Vec<apollia_triggers::TriggerDefinition> = {
+            let rows = trigger_def_repo
+                .list()
+                .map_err(|e| SupervisorError::ActorStartFailed {
+                    actor: "trigger_engine".to_string(),
+                    reason: format!("failed to list trigger definitions: {e}"),
+                })?;
+            let mut defs = Vec::with_capacity(rows.len());
+            for row in rows {
+                match apollia_triggers::TriggerDefinition::try_from(row) {
+                    Ok(def) => defs.push(def),
+                    Err(e) => {
+                        warn!(error = %e, "Skipping invalid trigger definition");
+                    }
+                }
+            }
+            defs
+        };
+        let trigger_def_repo = Arc::new(std::sync::Mutex::new(trigger_def_repo));
         // Ouvre la persistance SQLite des triggers (historique des fires/skips).
         let trigger_persistence: Option<TriggerPersistence> = {
             let db_path = self.config.data_dir.join("triggers.db");
@@ -378,9 +393,9 @@ impl Supervisor {
                 }
             }
         };
-        let enabled_count = self.config.triggers.iter().filter(|t| t.enabled).count();
+        let enabled_count = trigger_definitions.iter().filter(|t| t.enabled).count();
         let trigger_engine = TriggerEngineHandle::spawn(
-            self.config.triggers.clone(),
+            trigger_definitions,
             router_handle.clone(),
             event_sender.clone(),
             trigger_persistence,
@@ -397,17 +412,37 @@ impl Supervisor {
             count: enabled_count,
         });
 
-        // Phase 7 (pos 8): PipelineEngine (si pipelines définis)
+        // Phase 7 (pos 8): PipelineEngine — chargement depuis SQLite (STORY-187).
         //
         // NOTE(STORY-119): PipelineEngine démarre APRÈS TaskRouter (et non en position 8
         // théorique de la spec) pour résoudre la dépendance circulaire :
         // PipelineEngine → TaskSubmitter → TaskRouterHandle.
-        // Décision documentée dans les Notes de la story.
-        let pipeline_engine: Option<PipelineEngineHandle> = if self.config.pipelines.is_empty() {
-            info!("Supervisor: no [[pipelines]] defined — PipelineEngine not started");
+        info!("Supervisor: starting PipelineEngine");
+        let pipeline_def_db_path = self.config.data_dir.join("pipelines_def.db");
+        let pipeline_def_repo =
+            PipelineDefinitionRepository::open(&pipeline_def_db_path).map_err(|e| {
+                SupervisorError::ActorStartFailed {
+                    actor: "pipeline_engine".to_string(),
+                    reason: format!("failed to open pipelines_def.db: {e}"),
+                }
+            })?;
+        let pipeline_definitions: Vec<PipelineDefinition> = {
+            let rows = pipeline_def_repo
+                .list()
+                .map_err(|e| SupervisorError::ActorStartFailed {
+                    actor: "pipeline_engine".to_string(),
+                    reason: format!("failed to list pipeline definitions: {e}"),
+                })?;
+            rows.into_iter()
+                .filter(|r| r.enabled)
+                .map(PipelineDefinition::from)
+                .collect()
+        };
+        let pipeline_def_repo = Arc::new(std::sync::Mutex::new(pipeline_def_repo));
+        let pipeline_engine: Option<PipelineEngineHandle> = if pipeline_definitions.is_empty() {
+            info!("Supervisor: no pipeline definitions in SQLite — PipelineEngine not started");
             None
         } else {
-            info!("Supervisor: starting PipelineEngine");
             let db_path = self.config.data_dir.join("pipelines.db");
             let db_path_str = db_path.to_string_lossy().into_owned();
             let mut repo = PipelineRepository::open(&db_path_str).map_err(|e| {
@@ -424,13 +459,9 @@ impl Supervisor {
             let repo = std::sync::Arc::new(std::sync::Mutex::new(repo));
             let submitter: std::sync::Arc<dyn apollia_pipelines::TaskSubmitter> =
                 std::sync::Arc::new(router_handle.clone());
-            let handle = PipelineEngine::spawn(
-                self.config.pipelines.clone(),
-                repo,
-                submitter,
-                event_sender.clone(),
-            );
-            let pipeline_count = self.config.pipelines.len();
+            let pipeline_count = pipeline_definitions.len();
+            let handle =
+                PipelineEngine::spawn(pipeline_definitions, repo, submitter, event_sender.clone());
             tracing::info!(
                 count = pipeline_count,
                 "✔ PipelineEngine — {} pipeline(s) chargé(s)",
@@ -484,9 +515,44 @@ impl Supervisor {
         let pending_approvals: Option<Arc<PendingApprovals>> = task_repository
             .as_ref()
             .map(|_| Arc::new(PendingApprovals::new()));
-        // Clone notification config so AppState can serve /api/v1/notifications/channels
-        // while the original is consumed by NotificationEngine below.
-        let notification_config_for_state = self.config.notifications.clone();
+        // Phase 11-prep: open NotificationConfigRepository from SQLite (STORY-187).
+        let notif_db_path = self.config.data_dir.join("notifications.db");
+        let notification_repo =
+            NotificationConfigRepository::open(&notif_db_path).map_err(|e| {
+                SupervisorError::ActorStartFailed {
+                    actor: "notification_engine".to_string(),
+                    reason: format!("failed to open notifications.db: {e}"),
+                }
+            })?;
+        // Read channels and global events from SQLite to build NotificationConfig.
+        let notif_channel_rows =
+            notification_repo
+                .list_channels()
+                .map_err(|e| SupervisorError::ActorStartFailed {
+                    actor: "notification_engine".to_string(),
+                    reason: format!("failed to list notification channels: {e}"),
+                })?;
+        let notif_global_events = notification_repo.get_global_events().map_err(|e| {
+            SupervisorError::ActorStartFailed {
+                actor: "notification_engine".to_string(),
+                reason: format!("failed to get global events: {e}"),
+            }
+        })?;
+        let notif_channel_configs: Vec<apollia_notifications::ChannelConfig> = notif_channel_rows
+            .iter()
+            .map(|row| row.to_channel_config())
+            .collect();
+        let notification_config_from_db =
+            if notif_channel_configs.is_empty() && notif_global_events.is_empty() {
+                None
+            } else {
+                Some(NotificationConfig {
+                    events: notif_global_events,
+                    channels: notif_channel_configs,
+                })
+            };
+        let notification_config_for_state = notification_config_from_db.clone();
+        let notification_repo = Arc::new(std::sync::Mutex::new(notification_repo));
         // Clone handles before moving into AppState — needed for auto-load (STORY-179).
         let agent_loader_for_autoload = agent_loader.clone();
         let backend_factory_for_autoload = backend_factory.clone();
@@ -509,6 +575,9 @@ impl Supervisor {
             audit_trail: audit_trail_handle.clone(),
             obs_config: self.config.obs_config.clone(),
             llm_call_repository: llm_call_repository.clone(),
+            trigger_def_repo: Some(trigger_def_repo.clone()),
+            pipeline_def_repo: Some(pipeline_def_repo.clone()),
+            notification_repo: Some(notification_repo.clone()),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -558,25 +627,25 @@ impl Supervisor {
             info!("Supervisor: TimeoutWatcher started");
         }
 
-        // Phase 9: NotificationEngine — démarré si [notifications] présent dans la config
+        // Phase 11: NotificationEngine — démarré depuis SQLite (STORY-187)
         let notification_engine: Option<NotificationEngineHandle> =
-            if let Some(notif_config) = self.config.notifications {
+            if let Some(notif_config) = notification_config_from_db {
                 let channels = build_channels(&notif_config.channels)
                     .map_err(|e| SupervisorError::NotificationConfig(e.to_string()))?;
                 let active = notif_config.channels.iter().filter(|c| c.enabled).count();
-                let notif_db_path = Some(self.config.data_dir.join("hitl.db"));
+                let notif_log_db_path = Some(self.config.data_dir.join("hitl.db"));
                 let engine = NotificationEngine::new(
                     notif_config,
                     channels,
                     event_sender.clone(),
-                    notif_db_path,
+                    notif_log_db_path,
                 );
                 let handle = engine.spawn();
                 tracing::info!(channels = active, "NotificationEngine démarré");
                 Some(handle)
             } else {
                 tracing::info!(
-                    "Supervisor: aucune section [notifications] — NotificationEngine désactivé"
+                    "Supervisor: aucun canal de notification en base — NotificationEngine désactivé"
                 );
                 None
             };
@@ -652,10 +721,8 @@ impl Supervisor {
                         // Create ExecutionCoordinator with backend factory.
                         let agent_backend: B = match &backend_factory_for_autoload {
                             Some(factory) => {
-                                let dyn_backend = factory.create_for_agent(
-                                    &agent.install_path,
-                                    &agent.manifest,
-                                );
+                                let dyn_backend =
+                                    factory.create_for_agent(&agent.install_path, &agent.manifest);
                                 B::from(dyn_backend)
                             }
                             None => backend_for_autoload.clone(),
@@ -878,23 +945,24 @@ mod tests {
         PathBuf::from(format!("/tmp/ap-{}.sock", id))
     }
 
-    fn test_config(port: u16, socket_path: PathBuf) -> SupervisorConfig {
-        SupervisorConfig {
+    /// Returns `(SupervisorConfig, TempDir)` — the caller must hold `TempDir`
+    /// alive until the test completes so the data_dir path remains valid.
+    fn test_config(port: u16, socket_path: PathBuf) -> (SupervisorConfig, tempfile::TempDir) {
+        let temp_dir = tempfile::tempdir().expect("tempdir");
+        let config = SupervisorConfig {
             api_config: APIServerConfig {
                 socket_path,
                 tcp_port: port,
             },
             startup_timeout_secs: 10,
             llm_config: None,
-            triggers: vec![],
             config_path: None,
             input_required_timeout_hours: 24,
-            notifications: None,
-            pipelines: vec![],
-            data_dir: std::env::temp_dir(),
+            data_dir: temp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
-        }
+        };
+        (config, temp_dir)
     }
 
     #[tokio::test]
@@ -902,7 +970,7 @@ mod tests {
         // GIVEN un Supervisor configure
         let port = free_port().await;
         let socket_path = temp_socket_path();
-        let config = test_config(port, socket_path.clone());
+        let (config, _tmp_dir) = test_config(port, socket_path.clone());
         let supervisor = Supervisor::new(config);
 
         // WHEN start() est appele
@@ -932,7 +1000,7 @@ mod tests {
         // GIVEN un Supervisor configure
         let port = free_port().await;
         let socket_path = temp_socket_path();
-        let config = test_config(port, socket_path.clone());
+        let (config, _tmp_dir) = test_config(port, socket_path.clone());
         let supervisor = Supervisor::new(config);
 
         // WHEN start() est appele
@@ -973,7 +1041,7 @@ mod tests {
         // GIVEN un Supervisor demarre avec succes
         let port = free_port().await;
         let socket_path = temp_socket_path();
-        let config = test_config(port, socket_path.clone());
+        let (config, _tmp_dir) = test_config(port, socket_path.clone());
         let supervisor = Supervisor::new(config);
         let handles = supervisor
             .start(
@@ -1043,12 +1111,14 @@ mod tests {
             },
             startup_timeout_secs: 1,
             llm_config: None,
-            triggers: vec![],
             config_path: None,
             input_required_timeout_hours: 24,
-            notifications: None,
-            pipelines: vec![],
-            data_dir: std::env::temp_dir(),
+            data_dir: {
+                let d = tempfile::tempdir().expect("tempdir");
+                let p = d.path().to_path_buf();
+                std::mem::forget(d);
+                p
+            },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
         };
@@ -1184,12 +1254,14 @@ mod tests {
             },
             startup_timeout_secs: 10,
             llm_config: None,
-            triggers: vec![],
             config_path: None,
             input_required_timeout_hours: 24,
-            notifications: None,
-            pipelines: vec![],
-            data_dir: std::env::temp_dir(),
+            data_dir: {
+                let d = tempfile::tempdir().expect("tempdir");
+                let p = d.path().to_path_buf();
+                std::mem::forget(d);
+                p
+            },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
         };
@@ -1250,6 +1322,9 @@ mod tests {
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
+            trigger_def_repo: None,
+            pipeline_def_repo: None,
+            notification_repo: None,
         };
 
         // WHEN on clone l'AppState
@@ -1275,12 +1350,14 @@ mod tests {
             },
             startup_timeout_secs: 10,
             llm_config: None,
-            triggers: vec![],
             config_path: None,
             input_required_timeout_hours: 24,
-            notifications: None,
-            pipelines: vec![],
-            data_dir: std::env::temp_dir(),
+            data_dir: {
+                let d = tempfile::tempdir().expect("tempdir");
+                let p = d.path().to_path_buf();
+                std::mem::forget(d);
+                p
+            },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
         };
@@ -1328,12 +1405,14 @@ mod tests {
             },
             startup_timeout_secs: 10,
             llm_config: None,
-            triggers: vec![],
             config_path: None,
             input_required_timeout_hours: 24,
-            notifications: None,
-            pipelines: vec![],
-            data_dir: std::env::temp_dir(),
+            data_dir: {
+                let d = tempfile::tempdir().expect("tempdir");
+                let p = d.path().to_path_buf();
+                std::mem::forget(d);
+                p
+            },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
         };
@@ -1365,27 +1444,32 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    // AC-4 (STORY-072) — AppState.trigger_engine est Some après démarrage
+    // AC-4 (STORY-072 / STORY-187) — Triggers chargés depuis SQLite au boot
     #[tokio::test]
-    async fn test_ac4_trigger_engine_handle_in_app_state() {
-        use apollia_triggers::{
-            InputTemplate, OnBusyPolicy, TriggerDefinition, TriggerSourceConfig,
-        };
+    async fn test_ac4_trigger_engine_loads_from_sqlite() {
+        use apollia_triggers::{TriggerDefinitionRepository, TriggerDefinitionRow};
 
-        // GIVEN une config avec 1 trigger activé
+        // GIVEN une DB triggers_def.db pré-remplie avec 1 trigger
         let port = free_port().await;
         let socket_path = temp_socket_path();
-        let def = TriggerDefinition {
+        let tmp_dir = tempfile::tempdir().expect("tempdir");
+        let db_path = tmp_dir.path().join("triggers_def.db");
+        let repo = TriggerDefinitionRepository::open(&db_path).expect("open repo");
+        repo.insert(&TriggerDefinitionRow {
             id: "test-trigger".into(),
-            agent: "test-agent".into(),
+            agent: Some("test-agent".into()),
             pipeline: None,
             enabled: true,
-            on_busy: OnBusyPolicy::Queue,
-            source: TriggerSourceConfig::Cron {
-                schedule: "0 8 * * MON".into(),
-            },
-            input_template: InputTemplate("hello".into()),
-        };
+            on_busy: apollia_triggers::OnBusy::Queue,
+            source_type: "cron".into(),
+            source_config: serde_json::json!({ "schedule": "0 8 * * MON" }),
+            input_template: Some("hello".into()),
+            created_at: String::new(),
+            updated_at: String::new(),
+        })
+        .expect("insert trigger def");
+        drop(repo);
+
         let config = SupervisorConfig {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
@@ -1393,18 +1477,15 @@ mod tests {
             },
             startup_timeout_secs: 10,
             llm_config: None,
-            triggers: vec![def],
             config_path: None,
             input_required_timeout_hours: 24,
-            notifications: None,
-            pipelines: vec![],
-            data_dir: std::env::temp_dir(),
+            data_dir: tmp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
         };
         let supervisor = Supervisor::new(config);
 
-        // WHEN start() est appele
+        // WHEN start() est appelé
         let handles = supervisor
             .start(
                 MockBackend,
@@ -1414,7 +1495,7 @@ mod tests {
             .await
             .expect("start() doit reussir");
 
-        // THEN trigger_engine contient 1 trigger
+        // THEN trigger_engine contient 1 trigger chargé depuis SQLite
         let trigger_list = handles.trigger_engine.list().await;
         assert_eq!(
             trigger_list.len(),
@@ -1423,6 +1504,103 @@ mod tests {
             trigger_list
         );
         assert_eq!(trigger_list[0].id, "test-trigger");
+
+        // Cleanup
+        handles.trigger_engine.shutdown().await;
+        handles.api_handle.shutdown();
+        handles.router_handle.shutdown();
+        handles.tool_registry_handle.shutdown().await;
+        handles.registry_handle.shutdown();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    // AC-9 (STORY-187) — Boot avec DBs vides crée les bases et démarre sans erreur
+    #[tokio::test]
+    async fn test_story187_boot_empty_dbs() {
+        // GIVEN un répertoire vide (aucune DB pré-existante)
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let (config, _tmp_dir) = test_config(port, socket_path.clone());
+        let supervisor = Supervisor::new(config);
+
+        // WHEN start() est appelé
+        let handles = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
+            )
+            .await
+            .expect("boot with empty DBs should succeed");
+
+        // THEN AllReady est émis, 0 triggers, pas de pipeline engine, pas de notification engine
+        let trigger_list = handles.trigger_engine.list().await;
+        assert!(trigger_list.is_empty(), "empty DB should yield 0 triggers");
+        assert!(
+            handles.pipeline_engine.is_none(),
+            "empty DB should yield no PipelineEngine"
+        );
+        assert!(
+            handles.notification_engine.is_none(),
+            "empty DB should yield no NotificationEngine"
+        );
+
+        // Cleanup
+        handles.trigger_engine.shutdown().await;
+        handles.api_handle.shutdown();
+        handles.router_handle.shutdown();
+        handles.tool_registry_handle.shutdown().await;
+        handles.registry_handle.shutdown();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    // AC-7 (STORY-187) — AppState contient les 3 repositories après boot
+    #[tokio::test]
+    async fn test_story187_appstate_contains_repos() {
+        // GIVEN un Supervisor avec répertoire vide
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let tmp_dir = tempfile::tempdir().expect("tempdir");
+        let config = SupervisorConfig {
+            api_config: APIServerConfig {
+                socket_path: socket_path.clone(),
+                tcp_port: port,
+            },
+            startup_timeout_secs: 10,
+            llm_config: None,
+            config_path: None,
+            input_required_timeout_hours: 24,
+            data_dir: tmp_dir.path().to_path_buf(),
+            obs_config: apollia_core::ObservabilityConfig::default(),
+            agent_repository: None,
+        };
+        let supervisor = Supervisor::new(config);
+
+        // WHEN start() réussit
+        let handles = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
+            )
+            .await
+            .expect("start should succeed");
+
+        // THEN les 3 fichiers DB sont créés dans data_dir
+        assert!(
+            tmp_dir.path().join("triggers_def.db").exists(),
+            "triggers_def.db should be created"
+        );
+        assert!(
+            tmp_dir.path().join("pipelines_def.db").exists(),
+            "pipelines_def.db should be created"
+        );
+        assert!(
+            tmp_dir.path().join("notifications.db").exists(),
+            "notifications.db should be created"
+        );
 
         // Cleanup
         handles.trigger_engine.shutdown().await;
@@ -1447,12 +1625,14 @@ mod tests {
             },
             startup_timeout_secs: 10,
             llm_config: None,
-            triggers: vec![],
             config_path: None,
             input_required_timeout_hours: 24,
-            notifications: None,
-            pipelines: vec![],
-            data_dir: std::env::temp_dir(),
+            data_dir: {
+                let d = tempfile::tempdir().expect("tempdir");
+                let p = d.path().to_path_buf();
+                std::mem::forget(d);
+                p
+            },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
         };
@@ -1579,7 +1759,7 @@ mod tests {
 
         let port = free_port().await;
         let socket_path = temp_socket_path();
-        let mut config = test_config(port, socket_path.clone());
+        let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
         config.agent_repository = Some(repo);
 
         let supervisor = Supervisor::new(config);
@@ -1617,7 +1797,7 @@ mod tests {
 
         let port = free_port().await;
         let socket_path = temp_socket_path();
-        let mut config = test_config(port, socket_path.clone());
+        let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
         config.agent_repository = Some(repo);
 
         let supervisor = Supervisor::new(config);
@@ -1658,7 +1838,7 @@ mod tests {
 
         let port = free_port().await;
         let socket_path = temp_socket_path();
-        let mut config = test_config(port, socket_path.clone());
+        let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
         config.agent_repository = Some(repo);
 
         let supervisor = Supervisor::new(config);
@@ -1692,7 +1872,7 @@ mod tests {
 
         let port = free_port().await;
         let socket_path = temp_socket_path();
-        let mut config = test_config(port, socket_path.clone());
+        let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
         config.agent_repository = Some(repo);
 
         let supervisor = Supervisor::new(config);
@@ -1724,7 +1904,7 @@ mod tests {
         // GIVEN une config sans agent_repository
         let port = free_port().await;
         let socket_path = temp_socket_path();
-        let config = test_config(port, socket_path.clone());
+        let (config, _tmp_dir) = test_config(port, socket_path.clone());
         // agent_repository is already None in test_config
 
         let supervisor = Supervisor::new(config);

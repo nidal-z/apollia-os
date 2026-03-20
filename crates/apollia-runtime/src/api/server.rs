@@ -21,10 +21,10 @@ use tracing::info;
 
 use apollia_core::PendingApprovals;
 use apollia_llm::{LlmCallRepository, LlmRouter};
-use apollia_notifications::NotificationConfig;
-use apollia_pipelines::PipelineEngineHandle;
+use apollia_notifications::{NotificationConfig, NotificationConfigRepository};
+use apollia_pipelines::{PipelineDefinitionRepository, PipelineEngineHandle};
 use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
-use apollia_triggers::TriggerEngineHandle;
+use apollia_triggers::{TriggerDefinitionRepository, TriggerEngineHandle};
 
 use crate::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use crate::coordinator::{DynBackend, ExecutionBackend};
@@ -108,6 +108,24 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
     /// `None` en tests ou quand aucun backend LLM n'est configuré.
     pub llm_call_repository: Option<Arc<std::sync::Mutex<LlmCallRepository>>>,
+    /// Repository CRUD des définitions de triggers (STORY-187).
+    ///
+    /// Ouvert par le Supervisor depuis `data_dir/triggers.db`.
+    /// Partagé entre le boot (lecture initiale) et les routes REST CRUD (STORY-189).
+    /// `None` en tests unitaires.
+    pub trigger_def_repo: Option<Arc<std::sync::Mutex<TriggerDefinitionRepository>>>,
+    /// Repository CRUD des définitions de pipelines (STORY-187).
+    ///
+    /// Ouvert par le Supervisor depuis `data_dir/pipelines.db`.
+    /// Partagé entre le boot (lecture initiale) et les routes REST CRUD (STORY-190).
+    /// `None` en tests unitaires.
+    pub pipeline_def_repo: Option<Arc<std::sync::Mutex<PipelineDefinitionRepository>>>,
+    /// Repository CRUD de la configuration des notifications (STORY-187).
+    ///
+    /// Ouvert par le Supervisor depuis `data_dir/notifications.db`.
+    /// Partagé entre le boot (lecture initiale) et les routes REST CRUD (STORY-191).
+    /// `None` en tests unitaires.
+    pub notification_repo: Option<Arc<std::sync::Mutex<NotificationConfigRepository>>>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -130,6 +148,9 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             audit_trail: self.audit_trail.clone(),
             obs_config: self.obs_config.clone(),
             llm_call_repository: self.llm_call_repository.clone(),
+            trigger_def_repo: self.trigger_def_repo.clone(),
+            pipeline_def_repo: self.pipeline_def_repo.clone(),
+            notification_repo: self.notification_repo.clone(),
         }
     }
 }
@@ -505,6 +526,9 @@ mod tests {
             audit_trail: None,
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
+            trigger_def_repo: None,
+            pipeline_def_repo: None,
+            notification_repo: None,
         }
     }
 
