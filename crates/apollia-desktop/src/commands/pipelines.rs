@@ -534,6 +534,40 @@ pub async fn delete_pipeline(state: State<'_, RuntimeHandle>, id: String) -> Res
     Ok(())
 }
 
+/// Liste toutes les définitions de pipelines avec leurs steps.
+///
+/// Délègue à `GET /api/v1/pipelines` qui retourne les définitions complètes.
+#[tauri::command]
+pub async fn list_pipeline_definitions(
+    state: State<'_, RuntimeHandle>,
+) -> Result<Vec<PipelineDefinitionView>, String> {
+    let json = http_get_json(state.api_port, "/api/v1/pipelines").await?;
+
+    let items = match json {
+        serde_json::Value::Array(arr) => arr,
+        _ => json
+            .get("pipelines")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default(),
+    };
+
+    Ok(items.iter().map(parse_pipeline_definition).collect())
+}
+
+/// Récupère la définition complète d'un pipeline par son identifiant.
+///
+/// Délègue à `GET /api/v1/pipelines/:id`.
+#[tauri::command]
+pub async fn get_pipeline_definition(
+    state: State<'_, RuntimeHandle>,
+    id: String,
+) -> Result<PipelineDefinitionView, String> {
+    let path = format!("/api/v1/pipelines/{id}");
+    let json = http_get_json(state.api_port, &path).await?;
+    Ok(parse_pipeline_definition(&json))
+}
+
 /// Lance un nouveau pipeline run.
 ///
 /// Délègue à `POST /api/v1/pipelines/:id/run`.

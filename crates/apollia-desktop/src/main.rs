@@ -214,6 +214,8 @@ fn main() {
             commands::pipelines::create_pipeline,
             commands::pipelines::update_pipeline,
             commands::pipelines::delete_pipeline,
+            commands::pipelines::list_pipeline_definitions,
+            commands::pipelines::get_pipeline_definition,
             commands::memory::list_memory_namespaces,
             commands::memory::list_memory_entries,
             commands::memory::search_memory,

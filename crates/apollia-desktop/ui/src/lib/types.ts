@@ -319,6 +319,64 @@ export interface PipelineInfo {
   description: string;
 }
 
+/** Définition complète d'un pipeline retournée par les opérations CRUD. */
+export interface PipelineDefinitionView {
+  id: string;
+  description: string;
+  on_failure: 'fail' | 'continue';
+  steps: PipelineStepView[];
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Step d'un pipeline dans les réponses CRUD. */
+export interface PipelineStepView {
+  id: string;
+  agent: string;
+  input: string;
+  depends_on: string[];
+  on_failure: 'fail' | 'skip' | 'fallback';
+  condition: StepConditionView | null;
+  fallback_for: string | null;
+}
+
+/** Condition d'exécution d'un step. */
+export interface StepConditionView {
+  when: 'contains' | 'equals' | 'starts_with' | 'ends_with' | 'regex';
+  field: string;
+  value: string;
+}
+
+/** Corps de requête pour la création d'un pipeline. */
+export interface CreatePipelineRequest {
+  id: string;
+  description?: string;
+  on_failure?: 'fail' | 'continue';
+  enabled?: boolean;
+  steps: PipelineStepInput[];
+}
+
+/** Corps de requête pour la mise à jour d'un pipeline. */
+export interface UpdatePipelineRequest {
+  id: string;
+  description?: string;
+  on_failure?: 'fail' | 'continue';
+  enabled?: boolean;
+  steps: PipelineStepInput[];
+}
+
+/** Step dans les requêtes de création/mise à jour de pipeline. */
+export interface PipelineStepInput {
+  id: string;
+  agent: string;
+  input: string;
+  depends_on?: string[];
+  on_failure?: 'fail' | 'skip' | 'fallback';
+  condition?: StepConditionView;
+  fallback_for?: string;
+}
+
 /** Résultat du lancement d'un pipeline run. */
 export interface RunPipelineResult {
   run_id: string;
