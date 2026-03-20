@@ -288,8 +288,12 @@ impl LlmProxy {
                             let mut collected: Vec<String> = Vec::new();
                             while let Some(chunk) = stream.next().await {
                                 match chunk {
-                                    Ok(text) => collected.push(text),
-                                    // Stop on first error, return what we have
+                                    Ok(apollia_llm::StreamChunk::Text(text)) => {
+                                        collected.push(text);
+                                    }
+                                    Ok(apollia_llm::StreamChunk::ToolCall(_)) => {
+                                        // Tool calls in stream not handled in Python bridge
+                                    }
                                     Err(_) => break,
                                 }
                             }

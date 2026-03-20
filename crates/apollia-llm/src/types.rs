@@ -23,11 +23,11 @@ pub trait CompletionModel: Send + Sync {
     /// Envoie une requête d'inférence et retourne la réponse complète.
     async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError>;
 
-    /// Retourne un stream de chunks texte (mode streaming SSE ou équivalent).
+    /// Retourne un stream de [`StreamChunk`]s (tokens texte et/ou appels d'outils).
     async fn stream(
         &self,
         req: CompletionRequest,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError>;
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>;
 
     /// Indique si le backend est prêt à accepter des requêtes.
     fn is_available(&self) -> bool;
@@ -229,6 +229,23 @@ pub struct ToolCall {
     pub name: String,
     /// Arguments passés à l'outil (objet JSON).
     pub arguments: serde_json::Value,
+}
+
+// ─────────────────────────────────────────────
+// Streaming
+// ─────────────────────────────────────────────
+
+/// A chunk emitted by a streaming LLM response.
+///
+/// The stream yields a sequence of `Text` chunks (tokens), optionally
+/// followed by one or more `ToolCall` chunks if the model requests
+/// tool invocations.
+#[derive(Debug, Clone)]
+pub enum StreamChunk {
+    /// Incremental text token for progressive display.
+    Text(String),
+    /// Tool call requested by the LLM (emitted when tool calling is detected in the stream).
+    ToolCall(ToolCall),
 }
 
 // ─────────────────────────────────────────────

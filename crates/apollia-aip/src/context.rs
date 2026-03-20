@@ -512,7 +512,7 @@ mod runtime_context_tests {
 
     use apollia_llm::{
         CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, LlmRouter,
-        TokenUsage,
+        StreamChunk, TokenUsage,
     };
     use futures::Stream;
 
@@ -539,7 +539,7 @@ mod runtime_context_tests {
         async fn stream(
             &self,
             _req: CompletionRequest,
-        ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
+        ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
         {
             Ok(Box::pin(futures::stream::empty()))
         }

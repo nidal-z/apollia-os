@@ -23,5 +23,5 @@ pub use router::{BackendConfig, BackendKind, LlmConfig, LlmRouter, Observability
 pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{
     BackendInfo, ChatMessage, CompletionModel, CompletionRequest, CompletionResponse, FinishReason,
-    LlmError, MessageContent, Role, TokenUsage, ToolCall, ToolSpec,
+    LlmError, MessageContent, Role, StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };

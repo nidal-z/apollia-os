@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 use apollia_core::{AgentManifest, InputResponseData, PendingApprovals, RuntimeEvent, TaskStatus};
 use apollia_llm::{
     CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, LlmRouter,
-    TokenUsage,
+    StreamChunk, TokenUsage,
 };
 use apollia_oria::{
     actor::{ActorLoop, ToolProxyTrait},
@@ -52,7 +52,7 @@ impl CompletionModel for StubLlm {
     async fn stream(
         &self,
         _req: CompletionRequest,
-    ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
+    ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
     {
         Err(LlmError::InferenceError(
             "stub does not support streaming".into(),

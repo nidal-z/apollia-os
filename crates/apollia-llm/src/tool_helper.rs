@@ -169,7 +169,7 @@ impl ToolCallHelper {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{CompletionResponse, TokenUsage, ToolCall, ToolSpec};
+    use crate::types::{CompletionResponse, StreamChunk, TokenUsage, ToolCall, ToolSpec};
     use std::pin::Pin;
     use std::sync::atomic::AtomicU32;
 
@@ -244,7 +244,7 @@ mod tests {
         async fn stream(
             &self,
             _req: CompletionRequest,
-        ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
+        ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
         {
             unimplemented!("not used in tests")
         }
@@ -292,7 +292,7 @@ mod tests {
         async fn stream(
             &self,
             _req: CompletionRequest,
-        ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
+        ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
         {
             unimplemented!("not used in tests")
         }
@@ -321,7 +321,7 @@ mod tests {
         async fn stream(
             &self,
             _req: CompletionRequest,
-        ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
+        ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
         {
             unimplemented!("not used in tests")
         }

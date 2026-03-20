@@ -54,7 +54,7 @@ use futures::Stream;
 
 use crate::types::{
     CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, MessageContent,
-    Role, TokenUsage, ToolCall,
+    Role, StreamChunk, TokenUsage, ToolCall,
 };
 
 use mistralrs::{GgufModelBuilder, Model, TextMessageRole, TextMessages, ToolCallResponse};
@@ -395,10 +395,10 @@ impl CompletionModel for EmbeddedBackend {
     async fn stream(
         &self,
         req: CompletionRequest,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
         let response = self.complete(req).await?;
         let content = response.content;
-        let stream = futures::stream::once(async move { Ok(content) });
+        let stream = futures::stream::once(async move { Ok(StreamChunk::Text(content)) });
         Ok(Box::pin(stream))
     }
 

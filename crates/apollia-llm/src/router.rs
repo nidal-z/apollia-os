@@ -388,6 +388,45 @@ impl LlmRouter {
         Ok(response)
     }
 
+    /// Ouvre un stream de [`StreamChunk`]s depuis le backend résolu.
+    ///
+    /// Résout le backend (par nom ou défaut), appelle `backend.stream(req)`,
+    /// et retourne le stream brut. L'appelant est responsable de l'émission
+    /// de l'événement `LlmCallCompleted` une fois le stream consommé.
+    ///
+    /// # Erreurs
+    ///
+    /// - [`LlmError::BackendUnavailable`] — le backend demandé n'est pas dans le router.
+    /// - Toute erreur propagée par `backend.stream()`.
+    pub async fn stream_with_observability(
+        &self,
+        backend_name: Option<&str>,
+        req: CompletionRequest,
+        obs: &ObservabilityConfig,
+    ) -> Result<
+        std::pin::Pin<
+            Box<dyn futures::Stream<Item = Result<crate::types::StreamChunk, LlmError>> + Send>,
+        >,
+        LlmError,
+    > {
+        let backend_key = backend_name.unwrap_or(&self.default);
+
+        let backend =
+            self.backends
+                .get(backend_key)
+                .ok_or_else(|| LlmError::BackendUnavailable {
+                    backend: backend_key.to_owned(),
+                    reason: "not found in router".to_owned(),
+                })?;
+
+        if obs.debug_log_prompt {
+            tracing::trace!(prompt = ?req.messages, "llm stream prompt");
+        }
+
+        let stream = backend.stream(req).await?;
+        Ok(stream)
+    }
+
     /// Retourne le backend par nom, ou le backend défaut si `name` est `None`.
     ///
     /// Retourne `None` si le backend demandé n'est pas dans le router.
@@ -457,7 +496,9 @@ mod tests {
 
     use futures::Stream;
 
-    use crate::types::{CompletionRequest, CompletionResponse, FinishReason, TokenUsage};
+    use crate::types::{
+        CompletionRequest, CompletionResponse, FinishReason, StreamChunk, TokenUsage,
+    };
 
     // ── Mock ─────────────────────────────────────────────────────────────────
 
@@ -492,10 +533,10 @@ mod tests {
         async fn stream(
             &self,
             _req: CompletionRequest,
-        ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
+        ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
         {
             Ok(Box::pin(futures::stream::once(async {
-                Ok("mock chunk".to_owned())
+                Ok(StreamChunk::Text("mock chunk".to_owned()))
             })))
         }
 

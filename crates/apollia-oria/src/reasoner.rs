@@ -350,7 +350,9 @@ impl Reasoner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apollia_llm::{CompletionRequest, CompletionResponse, FinishReason, LlmError, TokenUsage};
+    use apollia_llm::{
+        CompletionRequest, CompletionResponse, FinishReason, LlmError, StreamChunk, TokenUsage,
+    };
     use std::collections::VecDeque;
     use std::pin::Pin;
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -406,8 +408,10 @@ mod tests {
         async fn stream(
             &self,
             _req: CompletionRequest,
-        ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
-        {
+        ) -> Result<
+            Pin<Box<dyn futures::Stream<Item = Result<StreamChunk, LlmError>> + Send>>,
+            LlmError,
+        > {
             Err(LlmError::InferenceError(
                 "mock does not support streaming".into(),
             ))

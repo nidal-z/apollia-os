@@ -111,10 +111,13 @@ impl CompletionModel for RouterModel {
     async fn stream(
         &self,
         _req: CompletionRequest,
-    ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
-    {
-        let s: Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>> =
-            Box::pin(stream::empty());
+    ) -> Result<
+        Pin<Box<dyn futures::Stream<Item = Result<apollia_llm::StreamChunk, LlmError>> + Send>>,
+        LlmError,
+    > {
+        let s: Pin<
+            Box<dyn futures::Stream<Item = Result<apollia_llm::StreamChunk, LlmError>> + Send>,
+        > = Box::pin(stream::empty());
         Ok(s)
     }
 

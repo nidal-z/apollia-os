@@ -19,7 +19,7 @@ use futures::Stream;
 
 use apollia_llm::{
     ChatMessage, CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError,
-    StepBudgetView, TokenUsage, ToolCall, ToolCallHelper, ToolInvoker, ToolSpec,
+    StepBudgetView, StreamChunk, TokenUsage, ToolCall, ToolCallHelper, ToolInvoker, ToolSpec,
 };
 
 // ─────────────────────────────────────────────
@@ -65,9 +65,11 @@ impl CompletionModel for MockStopModel {
     async fn stream(
         &self,
         _req: CompletionRequest,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
         let content = self.response.clone();
-        Ok(Box::pin(futures::stream::once(async move { Ok(content) })))
+        Ok(Box::pin(futures::stream::once(async move {
+            Ok(StreamChunk::Text(content))
+        })))
     }
 
     fn is_available(&self) -> bool {
@@ -147,7 +149,7 @@ impl CompletionModel for MockReActModel {
     async fn stream(
         &self,
         _req: CompletionRequest,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
         unimplemented!("non utilisé dans ce test")
     }
 
@@ -207,7 +209,7 @@ impl CompletionModel for MockInfiniteToolCallModel {
     async fn stream(
         &self,
         _req: CompletionRequest,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
         unimplemented!("non utilisé dans ce test")
     }
 

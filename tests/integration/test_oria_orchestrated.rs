@@ -21,7 +21,7 @@ use apollia_core::{
 };
 use apollia_llm::{
     CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, LlmRouter,
-    TokenUsage,
+    StreamChunk, TokenUsage,
 };
 use apollia_oria::{
     actor::{ActorLoop, ToolProxyTrait},
@@ -90,7 +90,7 @@ impl CompletionModel for MockCompletionModel {
     async fn stream(
         &self,
         _req: CompletionRequest,
-    ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
+    ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
     {
         Err(LlmError::InferenceError(
             "MockCompletionModel does not support streaming".into(),

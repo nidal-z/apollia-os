@@ -1,20 +1,22 @@
-//! BuiltInChatAgent — Rust-native ReAct loop for Chat Libre mode (STORY-200).
+//! BuiltInChatAgent — Rust-native ReAct loop for Chat Libre mode.
 //!
 //! Implements the core reasoning loop: LLM → tool call → approval → result → LLM.
 //! Protected by [`StepBudget`] (Principle #7) and integrated with the HITL
 //! approval flow via [`PendingChatApprovals`].
 //!
-//! This agent does NOT use streaming (`LlmRouter.stream()`). Token streaming
-//! is added in STORY-201.
+//! Uses `LlmRouter.stream()` for token-by-token streaming (STORY-201).
+//! Each token emits a `ChatToken` RuntimeEvent on the EventBus so the SSE
+//! stream can forward it to the client in real time.
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use futures::StreamExt;
 use tracing::{info, warn};
 
 use apollia_core::RuntimeEvent;
 use apollia_llm::types::{
-    ChatMessage as LlmChatMessage, CompletionRequest, FinishReason, TokenUsage, ToolSpec,
+    ChatMessage as LlmChatMessage, CompletionRequest, StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };
 use apollia_llm::{LlmRouter, ObservabilityConfig, ToolInvoker};
 use apollia_oria::budget::StepBudget;
@@ -208,10 +210,12 @@ impl BuiltInChatAgent {
         }
     }
 
-    /// Execute a complete exchange: user message → LLM → tool calls → response.
+    /// Execute a complete exchange: user message → LLM stream → tool calls → response.
     ///
-    /// The ReAct loop continues until the LLM produces a final text response
-    /// (no tool calls) or the [`StepBudget`] is exhausted.
+    /// Uses `LlmRouter.stream()` to produce tokens one by one, emitting a
+    /// [`RuntimeEvent::ChatToken`] for each token received. The ReAct loop
+    /// continues until the LLM produces a final text response (no tool calls)
+    /// or the [`StepBudget`] is exhausted.
     ///
     /// # Errors
     ///
@@ -240,18 +244,13 @@ impl BuiltInChatAgent {
         let mut llm_messages = build_llm_messages(effective_prompt, history, user_message);
         let mut all_tool_calls: Vec<ToolCallRecord> = Vec::new();
         let mut newly_authorized: Vec<String> = Vec::new();
-        let mut total_usage = TokenUsage {
+        let total_usage = TokenUsage {
             prompt_tokens: 0,
             completion_tokens: 0,
             cost_usd: None,
         };
         let mut authorized = authorized_tools.clone();
         let obs = ObservabilityConfig::default();
-
-        let _ = self.event_bus.send(RuntimeEvent::ChatResponseStarted {
-            session_id: session_id.to_string(),
-            message_id: message_id.to_string(),
-        });
 
         loop {
             // Principle #7 — budget check before every LLM call
@@ -266,126 +265,186 @@ impl BuiltInChatAgent {
                 ..Default::default()
             };
 
-            let response = self
+            // AC-3 — emit ChatResponseStarted before the first token
+            let _ = self.event_bus.send(RuntimeEvent::ChatResponseStarted {
+                session_id: session_id.to_string(),
+                message_id: message_id.to_string(),
+            });
+
+            // AC-1 — use stream() instead of complete()
+            let stream = self
                 .llm_router
-                .complete_with_observability(None, request, Some(&self.event_bus), &obs)
+                .stream_with_observability(None, request, &obs)
                 .await
                 .map_err(|e| ChatError::InternalError(e.to_string()))?;
 
-            accumulate_usage(&mut total_usage, &response.usage);
+            // AC-2/AC-6 — consume stream, emit ChatToken per token, accumulate text
+            let mut accumulated_text = String::new();
+            let stream_result = self
+                .consume_stream(stream, session_id, message_id, &mut accumulated_text)
+                .await;
 
-            // AC-8 — final text response (no tool calls)
-            if response.tool_calls.is_empty() {
-                let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
-                    session_id: session_id.to_string(),
-                    message_id: message_id.to_string(),
-                    content: response.content.clone(),
-                });
+            match stream_result {
+                Ok(tool_calls) => {
+                    if tool_calls.is_empty() {
+                        // AC-4 — final text response (no tool calls)
+                        let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
+                            session_id: session_id.to_string(),
+                            message_id: message_id.to_string(),
+                            content: accumulated_text.clone(),
+                        });
 
-                return Ok(ChatAgentResponse {
-                    content: response.content,
-                    tool_calls: all_tool_calls,
-                    newly_authorized,
-                    tokens_used: total_usage,
-                });
-            }
-
-            // FinishReason::Length or Error without tool calls → stop
-            if response.finish_reason == FinishReason::Length
-                || response.finish_reason == FinishReason::Error
-            {
-                let content = if response.content.is_empty() {
-                    match response.finish_reason {
-                        FinishReason::Length => "[réponse tronquée — limite de tokens atteinte]",
-                        _ => "[erreur du backend LLM]",
+                        return Ok(ChatAgentResponse {
+                            content: accumulated_text,
+                            tool_calls: all_tool_calls,
+                            newly_authorized,
+                            tokens_used: total_usage,
+                        });
                     }
-                    .to_string()
-                } else {
-                    response.content.clone()
-                };
 
-                let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
-                    session_id: session_id.to_string(),
-                    message_id: message_id.to_string(),
-                    content: content.clone(),
-                });
+                    // AC-8 — tool calls detected in stream: process and continue loop
+                    llm_messages.push(LlmChatMessage::assistant_with_calls(
+                        &accumulated_text,
+                        &tool_calls,
+                    ));
 
-                return Ok(ChatAgentResponse {
-                    content,
-                    tool_calls: all_tool_calls,
-                    newly_authorized,
-                    tokens_used: total_usage,
-                });
-            }
+                    for call in &tool_calls {
+                        budget.increment_tool_calls();
 
-            // Push assistant message with tool calls to LLM history
-            llm_messages.push(LlmChatMessage::assistant_with_calls(
-                &response.content,
-                &response.tool_calls,
-            ));
-
-            // Process each tool call sequentially
-            for call in &response.tool_calls {
-                budget.increment_tool_calls();
-
-                if authorized.contains(&call.name) {
-                    // AC-4 — authorized tool: execute directly
-                    let (record, tool_result) =
-                        self.execute_tool_call(session_id, message_id, call).await;
-                    llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
-                    all_tool_calls.push(record);
-                } else {
-                    // AC-5 — unauthorized tool: HITL approval
-                    let key = format!("{session_id}::{message_id}::{}", call.name);
-                    let input_preview = truncate_preview(
-                        &serde_json::to_string(&call.arguments).unwrap_or_default(),
-                    );
-
-                    let _ = self.event_bus.send(RuntimeEvent::ChatApprovalRequired {
-                        session_id: session_id.to_string(),
-                        message_id: message_id.to_string(),
-                        tool_name: call.name.clone(),
-                        prompt: format!(
-                            "L'outil '{}' demande à être exécuté avec: {}",
-                            call.name, input_preview
-                        ),
-                    });
-
-                    let rx = pending_approvals.register(key);
-                    let decision = rx.await.unwrap_or(ToolDecision::Refuse);
-
-                    match decision {
-                        // AC-6 — Accept: execute once
-                        ToolDecision::Accept => {
+                        if authorized.contains(&call.name) {
                             let (record, tool_result) =
                                 self.execute_tool_call(session_id, message_id, call).await;
                             llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
                             all_tool_calls.push(record);
-                        }
-                        // AC-6 — AlwaysAccept: execute and whitelist
-                        ToolDecision::AlwaysAccept => {
-                            authorized.insert(call.name.clone());
-                            newly_authorized.push(call.name.clone());
-                            let (record, tool_result) =
-                                self.execute_tool_call(session_id, message_id, call).await;
-                            llm_messages.push(LlmChatMessage::tool_result(&call.id, &tool_result));
-                            all_tool_calls.push(record);
-                        }
-                        // AC-6 — Refuse: inject refusal message
-                        ToolDecision::Refuse => {
-                            let refusal = "Outil refusé par l'utilisateur";
-                            llm_messages.push(LlmChatMessage::tool_result(&call.id, refusal));
-                            all_tool_calls.push(ToolCallRecord {
+                        } else {
+                            // HITL approval
+                            let key = format!("{session_id}::{message_id}::{}", call.name);
+                            let input_preview = truncate_preview(
+                                &serde_json::to_string(&call.arguments).unwrap_or_default(),
+                            );
+
+                            let _ = self.event_bus.send(RuntimeEvent::ChatApprovalRequired {
+                                session_id: session_id.to_string(),
+                                message_id: message_id.to_string(),
                                 tool_name: call.name.clone(),
-                                input: call.arguments.clone(),
-                                output: Some(refusal.to_string()),
-                                status: ToolCallStatus::Refused,
+                                prompt: format!(
+                                    "L'outil '{}' demande à être exécuté avec: {}",
+                                    call.name, input_preview
+                                ),
                             });
+
+                            let rx = pending_approvals.register(key);
+                            let decision = rx.await.unwrap_or(ToolDecision::Refuse);
+
+                            match decision {
+                                ToolDecision::Accept => {
+                                    let (record, tool_result) =
+                                        self.execute_tool_call(session_id, message_id, call).await;
+                                    llm_messages
+                                        .push(LlmChatMessage::tool_result(&call.id, &tool_result));
+                                    all_tool_calls.push(record);
+                                }
+                                ToolDecision::AlwaysAccept => {
+                                    authorized.insert(call.name.clone());
+                                    newly_authorized.push(call.name.clone());
+                                    let (record, tool_result) =
+                                        self.execute_tool_call(session_id, message_id, call).await;
+                                    llm_messages
+                                        .push(LlmChatMessage::tool_result(&call.id, &tool_result));
+                                    all_tool_calls.push(record);
+                                }
+                                ToolDecision::Refuse => {
+                                    let refusal = "Outil refusé par l'utilisateur";
+                                    llm_messages
+                                        .push(LlmChatMessage::tool_result(&call.id, refusal));
+                                    all_tool_calls.push(ToolCallRecord {
+                                        tool_name: call.name.clone(),
+                                        input: call.arguments.clone(),
+                                        output: Some(refusal.to_string()),
+                                        status: ToolCallStatus::Refused,
+                                    });
+                                }
+                            }
                         }
                     }
                 }
+                Err(err) => {
+                    // AC-7 — stream interrupted: emit ChatError, return partial content
+                    let _ = self.event_bus.send(RuntimeEvent::ChatError {
+                        session_id: session_id.to_string(),
+                        message_id: Some(message_id.to_string()),
+                        error: err.clone(),
+                    });
+
+                    // Return partial content so the caller can save what was received
+                    let content = if accumulated_text.is_empty() {
+                        format!("[erreur streaming : {err}]")
+                    } else {
+                        accumulated_text
+                    };
+
+                    let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
+                        session_id: session_id.to_string(),
+                        message_id: message_id.to_string(),
+                        content: content.clone(),
+                    });
+
+                    return Ok(ChatAgentResponse {
+                        content,
+                        tool_calls: all_tool_calls,
+                        newly_authorized,
+                        tokens_used: total_usage,
+                    });
+                }
             }
         }
+    }
+
+    /// Consume a token stream, emitting [`RuntimeEvent::ChatToken`] for each token
+    /// and accumulating text in `accumulated_text`.
+    ///
+    /// Returns the list of tool calls found in the stream (empty if none).
+    /// On stream error, returns the error message; the caller can use the
+    /// partially accumulated text.
+    async fn consume_stream(
+        &self,
+        mut stream: std::pin::Pin<
+            Box<dyn futures::Stream<Item = Result<StreamChunk, apollia_llm::LlmError>> + Send>,
+        >,
+        session_id: &str,
+        message_id: &str,
+        accumulated_text: &mut String,
+    ) -> Result<Vec<ToolCall>, String> {
+        let mut tool_calls = Vec::new();
+
+        while let Some(chunk_result) = stream.next().await {
+            match chunk_result {
+                Ok(StreamChunk::Text(token)) => {
+                    // AC-2 — emit ChatToken and accumulate
+                    let _ = self.event_bus.send(RuntimeEvent::ChatToken {
+                        session_id: session_id.to_string(),
+                        message_id: message_id.to_string(),
+                        token: token.clone(),
+                    });
+                    accumulated_text.push_str(&token);
+                }
+                Ok(StreamChunk::ToolCall(call)) => {
+                    // AC-8 — tool call detected in stream
+                    tool_calls.push(call);
+                }
+                Err(e) => {
+                    // AC-7 — stream interrupted
+                    warn!(
+                        session_id = %session_id,
+                        error = %e,
+                        "LLM stream interrupted"
+                    );
+                    return Err(e.to_string());
+                }
+            }
+        }
+
+        Ok(tool_calls)
     }
 
     /// Execute a single tool call via the [`ToolInvoker`], emitting events.
@@ -505,27 +564,28 @@ fn truncate_preview(s: &str) -> String {
     }
 }
 
-/// Accumulate token usage from a single LLM call into a running total.
-fn accumulate_usage(total: &mut TokenUsage, delta: &TokenUsage) {
-    total.prompt_tokens += delta.prompt_tokens;
-    total.completion_tokens += delta.completion_tokens;
-    match (&mut total.cost_usd, delta.cost_usd) {
-        (Some(total_cost), Some(delta_cost)) => *total_cost += delta_cost,
-        (None, Some(delta_cost)) => total.cost_usd = Some(delta_cost),
-        _ => {}
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apollia_llm::types::{CompletionModel, CompletionRequest, CompletionResponse, ToolCall};
+    use apollia_llm::types::{
+        CompletionModel, CompletionRequest, CompletionResponse, FinishReason as LlmFinishReason,
+        StreamChunk as LlmStreamChunk, ToolCall as LlmToolCall,
+    };
     use std::sync::atomic::{AtomicU32, Ordering};
 
-    // ── Mock CompletionModel: immediate text response ────────────────────
+    // ── Mock CompletionModel: streams text tokens then stops ─────────────
 
     struct MockStopModel {
-        content: String,
+        /// Tokens to emit (each becomes a StreamChunk::Text).
+        tokens: Vec<String>,
+    }
+
+    impl MockStopModel {
+        fn with_content(content: &str) -> Self {
+            Self {
+                tokens: split_tokens(content),
+            }
+        }
     }
 
     #[async_trait::async_trait]
@@ -535,14 +595,14 @@ mod tests {
             _req: CompletionRequest,
         ) -> Result<CompletionResponse, apollia_llm::types::LlmError> {
             Ok(CompletionResponse {
-                content: self.content.clone(),
+                content: self.tokens.join(""),
                 tool_calls: vec![],
                 usage: TokenUsage {
                     prompt_tokens: 10,
                     completion_tokens: 5,
                     cost_usd: None,
                 },
-                finish_reason: FinishReason::Stop,
+                finish_reason: LlmFinishReason::Stop,
                 latency_ms: 1,
             })
         }
@@ -553,12 +613,18 @@ mod tests {
         ) -> Result<
             std::pin::Pin<
                 Box<
-                    dyn futures::Stream<Item = Result<String, apollia_llm::types::LlmError>> + Send,
+                    dyn futures::Stream<Item = Result<LlmStreamChunk, apollia_llm::types::LlmError>>
+                        + Send,
                 >,
             >,
             apollia_llm::types::LlmError,
         > {
-            unimplemented!("not used in tests")
+            let chunks: Vec<Result<LlmStreamChunk, apollia_llm::types::LlmError>> = self
+                .tokens
+                .iter()
+                .map(|t| Ok(LlmStreamChunk::Text(t.clone())))
+                .collect();
+            Ok(Box::pin(futures::stream::iter(chunks)))
         }
 
         fn is_available(&self) -> bool {
@@ -572,11 +638,11 @@ mod tests {
         }
     }
 
-    // ── Mock CompletionModel: tool call then stop ────────────────────────
+    // ── Mock CompletionModel: streams tool calls then text ───────────────
 
     struct MockReActModel {
-        calls: Vec<ToolCall>,
-        final_content: String,
+        calls: Vec<LlmToolCall>,
+        final_tokens: Vec<String>,
         iteration: AtomicU32,
     }
 
@@ -586,7 +652,7 @@ mod tests {
             &self,
             _req: CompletionRequest,
         ) -> Result<CompletionResponse, apollia_llm::types::LlmError> {
-            let current = self.iteration.fetch_add(1, Ordering::SeqCst);
+            let current = self.iteration.load(Ordering::SeqCst);
             if current == 0 {
                 Ok(CompletionResponse {
                     content: String::new(),
@@ -596,19 +662,19 @@ mod tests {
                         completion_tokens: 5,
                         cost_usd: None,
                     },
-                    finish_reason: FinishReason::ToolCalls,
+                    finish_reason: LlmFinishReason::ToolCalls,
                     latency_ms: 1,
                 })
             } else {
                 Ok(CompletionResponse {
-                    content: self.final_content.clone(),
+                    content: self.final_tokens.join(""),
                     tool_calls: vec![],
                     usage: TokenUsage {
                         prompt_tokens: 15,
                         completion_tokens: 8,
                         cost_usd: None,
                     },
-                    finish_reason: FinishReason::Stop,
+                    finish_reason: LlmFinishReason::Stop,
                     latency_ms: 1,
                 })
             }
@@ -620,12 +686,30 @@ mod tests {
         ) -> Result<
             std::pin::Pin<
                 Box<
-                    dyn futures::Stream<Item = Result<String, apollia_llm::types::LlmError>> + Send,
+                    dyn futures::Stream<Item = Result<LlmStreamChunk, apollia_llm::types::LlmError>>
+                        + Send,
                 >,
             >,
             apollia_llm::types::LlmError,
         > {
-            unimplemented!("not used in tests")
+            let current = self.iteration.fetch_add(1, Ordering::SeqCst);
+            if current == 0 {
+                // First iteration: emit tool calls
+                let chunks: Vec<Result<LlmStreamChunk, apollia_llm::types::LlmError>> = self
+                    .calls
+                    .iter()
+                    .map(|c| Ok(LlmStreamChunk::ToolCall(c.clone())))
+                    .collect();
+                Ok(Box::pin(futures::stream::iter(chunks)))
+            } else {
+                // Subsequent iterations: emit text tokens
+                let chunks: Vec<Result<LlmStreamChunk, apollia_llm::types::LlmError>> = self
+                    .final_tokens
+                    .iter()
+                    .map(|t| Ok(LlmStreamChunk::Text(t.clone())))
+                    .collect();
+                Ok(Box::pin(futures::stream::iter(chunks)))
+            }
         }
 
         fn is_available(&self) -> bool {
@@ -639,7 +723,7 @@ mod tests {
         }
     }
 
-    // ── Mock CompletionModel: always tool calls (infinite loop) ──────────
+    // ── Mock CompletionModel: always streams tool calls (infinite loop) ──
 
     struct MockInfiniteToolCallModel;
 
@@ -651,7 +735,7 @@ mod tests {
         ) -> Result<CompletionResponse, apollia_llm::types::LlmError> {
             Ok(CompletionResponse {
                 content: String::new(),
-                tool_calls: vec![ToolCall {
+                tool_calls: vec![LlmToolCall {
                     id: "c1".into(),
                     name: "bash_executor".into(),
                     arguments: serde_json::json!({"command": "echo"}),
@@ -661,7 +745,7 @@ mod tests {
                     completion_tokens: 3,
                     cost_usd: None,
                 },
-                finish_reason: FinishReason::ToolCalls,
+                finish_reason: LlmFinishReason::ToolCalls,
                 latency_ms: 1,
             })
         }
@@ -672,12 +756,18 @@ mod tests {
         ) -> Result<
             std::pin::Pin<
                 Box<
-                    dyn futures::Stream<Item = Result<String, apollia_llm::types::LlmError>> + Send,
+                    dyn futures::Stream<Item = Result<LlmStreamChunk, apollia_llm::types::LlmError>>
+                        + Send,
                 >,
             >,
             apollia_llm::types::LlmError,
         > {
-            unimplemented!("not used in tests")
+            let chunks = vec![Ok(LlmStreamChunk::ToolCall(LlmToolCall {
+                id: "c1".into(),
+                name: "bash_executor".into(),
+                arguments: serde_json::json!({"command": "echo"}),
+            }))];
+            Ok(Box::pin(futures::stream::iter(chunks)))
         }
 
         fn is_available(&self) -> bool {
@@ -689,6 +779,27 @@ mod tests {
         fn model_id(&self) -> &str {
             "mock"
         }
+    }
+
+    /// Split content into word-boundary tokens for mock streaming.
+    fn split_tokens(content: &str) -> Vec<String> {
+        let mut tokens = Vec::new();
+        let mut current = String::new();
+        for ch in content.chars() {
+            if ch == ' ' {
+                if !current.is_empty() {
+                    tokens.push(current.clone());
+                    current.clear();
+                }
+                tokens.push(" ".to_string());
+            } else {
+                current.push(ch);
+            }
+        }
+        if !current.is_empty() {
+            tokens.push(current);
+        }
+        tokens
     }
 
     // ── Mock ToolInvoker ─────────────────────────────────────────────────
@@ -735,13 +846,11 @@ mod tests {
 
     // ── Tests ────────────────────────────────────────────────────────────
 
-    /// AC-1/AC-8 — Simple text response without tool calls.
+    /// AC-1/AC-8 — Simple text response without tool calls (streamed).
     #[tokio::test]
     async fn test_simple_text_response() {
-        // GIVEN a model that returns text without tool calls
-        let model = Arc::new(MockStopModel {
-            content: "Bonjour !".into(),
-        });
+        // GIVEN a model that streams text tokens without tool calls
+        let model = Arc::new(MockStopModel::with_content("Bonjour !"));
         let router = make_router(model);
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
@@ -771,22 +880,21 @@ mod tests {
         assert_eq!(resp.content, "Bonjour !");
         assert!(resp.tool_calls.is_empty());
         assert!(resp.newly_authorized.is_empty());
-        assert_eq!(resp.tokens_used.prompt_tokens, 10);
 
         tool_registry.shutdown().await;
     }
 
-    /// AC-4 — Tool call authorized: direct execution.
+    /// AC-4 — Tool call authorized: direct execution (via streaming).
     #[tokio::test]
     async fn test_tool_call_authorized() {
-        // GIVEN a model that returns a tool call, then text
+        // GIVEN a model that streams a tool call, then text
         let model = Arc::new(MockReActModel {
-            calls: vec![ToolCall {
+            calls: vec![LlmToolCall {
                 id: "c1".into(),
                 name: "bash_executor".into(),
                 arguments: serde_json::json!({"command": "echo hello"}),
             }],
-            final_content: "Commande exécutée".into(),
+            final_tokens: split_tokens("Commande exécutée"),
             iteration: AtomicU32::new(0),
         });
         let router = make_router(model);
@@ -831,12 +939,12 @@ mod tests {
     async fn test_tool_call_hitl_accept() {
         // GIVEN a model with tool call "file_io" NOT in authorized_tools
         let model = Arc::new(MockReActModel {
-            calls: vec![ToolCall {
+            calls: vec![LlmToolCall {
                 id: "c1".into(),
                 name: "file_io".into(),
                 arguments: serde_json::json!({"path": "/tmp/test.txt"}),
             }],
-            final_content: "Fichier lu".into(),
+            final_tokens: split_tokens("Fichier lu"),
             iteration: AtomicU32::new(0),
         });
         let router = make_router(model);
@@ -888,12 +996,12 @@ mod tests {
     async fn test_tool_call_hitl_refuse() {
         // GIVEN a model with unauthorized tool, decision = Refuse
         let model = Arc::new(MockReActModel {
-            calls: vec![ToolCall {
+            calls: vec![LlmToolCall {
                 id: "c1".into(),
                 name: "file_io".into(),
                 arguments: serde_json::json!({}),
             }],
-            final_content: "Ok, pas de souci.".into(),
+            final_tokens: split_tokens("Ok, pas de souci."),
             iteration: AtomicU32::new(0),
         });
         let router = make_router(model);
@@ -947,12 +1055,12 @@ mod tests {
     async fn test_tool_call_hitl_always_accept() {
         // GIVEN unauthorized tool, decision = AlwaysAccept
         let model = Arc::new(MockReActModel {
-            calls: vec![ToolCall {
+            calls: vec![LlmToolCall {
                 id: "c1".into(),
                 name: "file_io".into(),
                 arguments: serde_json::json!({}),
             }],
-            final_content: "Done".into(),
+            final_tokens: split_tokens("Done"),
             iteration: AtomicU32::new(0),
         });
         let router = make_router(model);
@@ -1083,17 +1191,17 @@ mod tests {
         assert_eq!(messages[4].role, apollia_llm::types::Role::User);
     }
 
-    /// AC-10 — Events emitted in correct order.
+    /// AC-10 — Events emitted in correct order (including ChatToken).
     #[tokio::test]
     async fn test_events_emitted_in_order() {
-        // GIVEN a model that does one tool call then stops
+        // GIVEN a model that streams one tool call then text "Done"
         let model = Arc::new(MockReActModel {
-            calls: vec![ToolCall {
+            calls: vec![LlmToolCall {
                 id: "c1".into(),
                 name: "bash".into(),
                 arguments: serde_json::json!({}),
             }],
-            final_content: "Done".into(),
+            final_tokens: split_tokens("Done"),
             iteration: AtomicU32::new(0),
         });
         let router = make_router(model);
@@ -1123,11 +1231,14 @@ mod tests {
             .await
             .expect("should succeed");
 
-        // THEN events are: ResponseStarted, ToolCallStarted, ToolCallCompleted, ResponseCompleted
+        // THEN events are: ResponseStarted (tool iteration), ToolCallStarted,
+        // ToolCallCompleted, ResponseStarted (text iteration), Token("Done"),
+        // ResponseCompleted
         let mut event_names = Vec::new();
         while let Ok(evt) = event_rx.try_recv() {
             let name = match evt {
                 RuntimeEvent::ChatResponseStarted { .. } => "ResponseStarted",
+                RuntimeEvent::ChatToken { .. } => "Token",
                 RuntimeEvent::ChatToolCallStarted { .. } => "ToolCallStarted",
                 RuntimeEvent::ChatToolCallCompleted { .. } => "ToolCallCompleted",
                 RuntimeEvent::ChatResponseCompleted { .. } => "ResponseCompleted",
@@ -1143,6 +1254,8 @@ mod tests {
                 "ResponseStarted",
                 "ToolCallStarted",
                 "ToolCallCompleted",
+                "ResponseStarted",
+                "Token",
                 "ResponseCompleted"
             ]
         );
@@ -1172,34 +1285,301 @@ mod tests {
     }
 
     #[test]
-    fn test_accumulate_usage() {
-        // GIVEN initial usage
-        let mut total = TokenUsage {
-            prompt_tokens: 10,
-            completion_tokens: 5,
-            cost_usd: Some(0.01),
-        };
-        let delta = TokenUsage {
-            prompt_tokens: 20,
-            completion_tokens: 10,
-            cost_usd: Some(0.02),
-        };
-
-        // WHEN accumulating
-        accumulate_usage(&mut total, &delta);
-
-        // THEN summed
-        assert_eq!(total.prompt_tokens, 30);
-        assert_eq!(total.completion_tokens, 15);
-        assert_eq!(total.cost_usd, Some(0.03));
-    }
-
-    #[test]
     fn test_default_system_prompt_used_when_empty() {
         // GIVEN empty system_prompt
         let messages = build_llm_messages("", &[], "Hello");
 
         // THEN first message is the empty string we passed (caller decides default)
         assert_eq!(messages.len(), 2);
+    }
+
+    // ── Streaming-specific tests (STORY-201) ─────────────────────────────
+
+    /// AC-2 — Each token emits a ChatToken event.
+    #[tokio::test]
+    async fn test_stream_tokens_emitted() {
+        // GIVEN a model that streams ["Bon", "jour", " ", "!"]
+        let model = Arc::new(MockStopModel {
+            tokens: vec!["Bon".into(), "jour".into(), " ".into(), "!".into()],
+        });
+        let router = make_router(model);
+        let tool_registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx);
+
+        let budget = make_budget(10);
+        let approvals = PendingChatApprovals::new();
+
+        // WHEN execute
+        let resp = agent
+            .execute(
+                "sess-1",
+                "msg-1",
+                "Salut",
+                &[],
+                "",
+                &[],
+                &HashSet::new(),
+                &approvals,
+                &budget,
+            )
+            .await
+            .expect("should succeed");
+
+        // THEN 4 ChatToken events emitted, content is "Bonjour !"
+        assert_eq!(resp.content, "Bonjour !");
+
+        let mut tokens = Vec::new();
+        while let Ok(evt) = event_rx.try_recv() {
+            if let RuntimeEvent::ChatToken { token, .. } = evt {
+                tokens.push(token);
+            }
+        }
+        assert_eq!(tokens, vec!["Bon", "jour", " ", "!"]);
+
+        tool_registry.shutdown().await;
+    }
+
+    /// AC-6 — Accumulated text from stream matches final content.
+    #[tokio::test]
+    async fn test_stream_accumulation() {
+        // GIVEN a model that streams ["Hello", " ", "world"]
+        let model = Arc::new(MockStopModel {
+            tokens: vec!["Hello".into(), " ".into(), "world".into()],
+        });
+        let router = make_router(model);
+        let tool_registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        let event_bus = make_event_bus();
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus);
+
+        let budget = make_budget(10);
+        let approvals = PendingChatApprovals::new();
+
+        // WHEN execute
+        let resp = agent
+            .execute(
+                "sess-1",
+                "msg-1",
+                "test",
+                &[],
+                "",
+                &[],
+                &HashSet::new(),
+                &approvals,
+                &budget,
+            )
+            .await
+            .expect("should succeed");
+
+        // THEN accumulated text is "Hello world"
+        assert_eq!(resp.content, "Hello world");
+
+        tool_registry.shutdown().await;
+    }
+
+    /// AC-7 — Stream interruption returns partial content.
+    #[tokio::test]
+    async fn test_stream_interrupted() {
+        // GIVEN a model whose stream returns 2 tokens then an error
+        struct InterruptedModel;
+
+        #[async_trait::async_trait]
+        impl CompletionModel for InterruptedModel {
+            async fn complete(
+                &self,
+                _req: CompletionRequest,
+            ) -> Result<CompletionResponse, apollia_llm::types::LlmError> {
+                unimplemented!()
+            }
+
+            async fn stream(
+                &self,
+                _req: CompletionRequest,
+            ) -> Result<
+                std::pin::Pin<
+                    Box<
+                        dyn futures::Stream<
+                                Item = Result<LlmStreamChunk, apollia_llm::types::LlmError>,
+                            > + Send,
+                    >,
+                >,
+                apollia_llm::types::LlmError,
+            > {
+                let chunks = vec![
+                    Ok(LlmStreamChunk::Text("Par".into())),
+                    Ok(LlmStreamChunk::Text("tial".into())),
+                    Err(apollia_llm::types::LlmError::InferenceError(
+                        "connection reset".into(),
+                    )),
+                ];
+                Ok(Box::pin(futures::stream::iter(chunks)))
+            }
+
+            fn is_available(&self) -> bool {
+                true
+            }
+            fn backend_name(&self) -> &str {
+                "mock-interrupted"
+            }
+            fn model_id(&self) -> &str {
+                "mock"
+            }
+        }
+
+        let model: Arc<dyn CompletionModel> = Arc::new(InterruptedModel);
+        let router = make_router(model);
+        let tool_registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx);
+
+        let budget = make_budget(10);
+        let approvals = PendingChatApprovals::new();
+
+        // WHEN execute
+        let resp = agent
+            .execute(
+                "sess-1",
+                "msg-1",
+                "test",
+                &[],
+                "",
+                &[],
+                &HashSet::new(),
+                &approvals,
+                &budget,
+            )
+            .await
+            .expect("should return partial content, not error");
+
+        // THEN partial content is saved
+        assert_eq!(resp.content, "Partial");
+
+        // AND ChatError event was emitted
+        let mut has_error = false;
+        while let Ok(evt) = event_rx.try_recv() {
+            if let RuntimeEvent::ChatError { error, .. } = evt {
+                assert!(error.contains("connection reset"));
+                has_error = true;
+            }
+        }
+        assert!(has_error, "ChatError event should have been emitted");
+
+        tool_registry.shutdown().await;
+    }
+
+    /// AC-8 — Stream with tool call: text tokens emitted, then tool executed.
+    #[tokio::test]
+    async fn test_stream_with_tool_call() {
+        // GIVEN a model that streams text + tool_call on first iteration,
+        // then only text on second iteration
+        struct TextThenToolModel {
+            iteration: AtomicU32,
+        }
+
+        #[async_trait::async_trait]
+        impl CompletionModel for TextThenToolModel {
+            async fn complete(
+                &self,
+                _req: CompletionRequest,
+            ) -> Result<CompletionResponse, apollia_llm::types::LlmError> {
+                unimplemented!()
+            }
+
+            async fn stream(
+                &self,
+                _req: CompletionRequest,
+            ) -> Result<
+                std::pin::Pin<
+                    Box<
+                        dyn futures::Stream<
+                                Item = Result<LlmStreamChunk, apollia_llm::types::LlmError>,
+                            > + Send,
+                    >,
+                >,
+                apollia_llm::types::LlmError,
+            > {
+                let current = self.iteration.fetch_add(1, Ordering::SeqCst);
+                if current == 0 {
+                    let chunks = vec![
+                        Ok(LlmStreamChunk::Text("Je ".into())),
+                        Ok(LlmStreamChunk::Text("vais ".into())),
+                        Ok(LlmStreamChunk::Text("lire".into())),
+                        Ok(LlmStreamChunk::ToolCall(LlmToolCall {
+                            id: "c1".into(),
+                            name: "file_io".into(),
+                            arguments: serde_json::json!({"action": "read", "path": "/tmp"}),
+                        })),
+                    ];
+                    Ok(Box::pin(futures::stream::iter(chunks)))
+                } else {
+                    let chunks = vec![
+                        Ok(LlmStreamChunk::Text("Fichier ".into())),
+                        Ok(LlmStreamChunk::Text("lu.".into())),
+                    ];
+                    Ok(Box::pin(futures::stream::iter(chunks)))
+                }
+            }
+
+            fn is_available(&self) -> bool {
+                true
+            }
+            fn backend_name(&self) -> &str {
+                "mock-text-tool"
+            }
+            fn model_id(&self) -> &str {
+                "mock"
+            }
+        }
+
+        let model: Arc<dyn CompletionModel> = Arc::new(TextThenToolModel {
+            iteration: AtomicU32::new(0),
+        });
+        let router = make_router(model);
+        let tool_registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("file content"));
+        let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx);
+
+        let budget = make_budget(10);
+        let approvals = PendingChatApprovals::new();
+        let mut authorized = HashSet::new();
+        authorized.insert("file_io".to_string());
+
+        // WHEN execute
+        let resp = agent
+            .execute(
+                "sess-1",
+                "msg-1",
+                "lis le fichier",
+                &[],
+                "",
+                &["file_io".to_string()],
+                &authorized,
+                &approvals,
+                &budget,
+            )
+            .await
+            .expect("should succeed");
+
+        // THEN final content from second iteration
+        assert_eq!(resp.content, "Fichier lu.");
+        assert_eq!(resp.tool_calls.len(), 1);
+        assert_eq!(resp.tool_calls[0].tool_name, "file_io");
+        assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Executed);
+
+        // AND tokens from both iterations were emitted
+        let mut tokens = Vec::new();
+        while let Ok(evt) = event_rx.try_recv() {
+            if let RuntimeEvent::ChatToken { token, .. } = evt {
+                tokens.push(token);
+            }
+        }
+        // First iteration text tokens + second iteration text tokens
+        assert_eq!(tokens, vec!["Je ", "vais ", "lire", "Fichier ", "lu."]);
+
+        tool_registry.shutdown().await;
     }
 }

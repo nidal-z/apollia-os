@@ -134,6 +134,20 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
             "system"
         }
 
+        // ── Chat ────────────────────────────────────────────────────────
+        RuntimeEvent::ChatSessionCreated { .. }
+        | RuntimeEvent::ChatSessionClosed { .. }
+        | RuntimeEvent::ChatMessageSent { .. }
+        | RuntimeEvent::ChatResponseStarted { .. }
+        | RuntimeEvent::ChatToken { .. }
+        | RuntimeEvent::ChatResponseCompleted { .. }
+        | RuntimeEvent::ChatError { .. }
+        | RuntimeEvent::ChatToolCallStarted { .. }
+        | RuntimeEvent::ChatToolCallCompleted { .. }
+        | RuntimeEvent::ChatApprovalRequired { .. }
+        | RuntimeEvent::ChatApprovalResolved { .. }
+        | RuntimeEvent::ChatApprovalTimeout { .. } => "chat-changed",
+
         // ── System-level ─────────────────────────────────────────────────
         RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested | RuntimeEvent::FatalError(_) => {
             "system"

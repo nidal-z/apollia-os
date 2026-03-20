@@ -28,6 +28,7 @@ apollia-oria          = { workspace = true }
 apollia-tools         = { workspace = true }
 apollia-triggers      = { path = "../apollia-triggers" }
 async-trait           = { workspace = true }
+futures            = { workspace = true }
 chrono             = { workspace = true }
 hmac               = "0.12"
 sha2               = "0.10"
@@ -51,5 +52,4 @@ toml               = { workspace = true }
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 tempfile = "3"
-futures = { workspace = true }
 http-body-util = { workspace = true }

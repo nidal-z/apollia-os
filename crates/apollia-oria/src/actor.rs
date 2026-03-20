@@ -1144,8 +1144,10 @@ mod tests {
         async fn stream(
             &self,
             _req: CompletionRequest,
-        ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
-        {
+        ) -> Result<
+            Pin<Box<dyn futures::Stream<Item = Result<apollia_llm::StreamChunk, LlmError>> + Send>>,
+            LlmError,
+        > {
             Err(LlmError::InferenceError("mock does not stream".into()))
         }
 

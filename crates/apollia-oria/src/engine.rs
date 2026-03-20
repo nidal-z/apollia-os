@@ -1028,7 +1028,9 @@ mod tests {
 mod orchestrated_tests {
     use super::*;
     use apollia_core::{AgentManifest, StepBudgetConfig, TaskStatus};
-    use apollia_llm::{CompletionRequest, CompletionResponse, FinishReason, LlmError, TokenUsage};
+    use apollia_llm::{
+        CompletionRequest, CompletionResponse, FinishReason, LlmError, StreamChunk, TokenUsage,
+    };
     use std::pin::Pin;
 
     // ── Mock LLM model ──────────────────────────────────────────────────
@@ -1056,8 +1058,10 @@ mod orchestrated_tests {
         async fn stream(
             &self,
             _req: CompletionRequest,
-        ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
-        {
+        ) -> Result<
+            Pin<Box<dyn futures::Stream<Item = Result<StreamChunk, LlmError>> + Send>>,
+            LlmError,
+        > {
             Err(LlmError::InferenceError(
                 "mock does not support streaming".into(),
             ))
@@ -1089,8 +1093,10 @@ mod orchestrated_tests {
         async fn stream(
             &self,
             _req: CompletionRequest,
-        ) -> Result<Pin<Box<dyn futures::Stream<Item = Result<String, LlmError>> + Send>>, LlmError>
-        {
+        ) -> Result<
+            Pin<Box<dyn futures::Stream<Item = Result<StreamChunk, LlmError>> + Send>>,
+            LlmError,
+        > {
             Err(LlmError::InferenceError(
                 "mock does not support streaming".into(),
             ))

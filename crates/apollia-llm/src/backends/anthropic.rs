@@ -24,7 +24,7 @@ use reqwest::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 
 use crate::types::{
     CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, MessageContent,
-    Role, TokenUsage, ToolCall,
+    Role, StreamChunk, TokenUsage, ToolCall,
 };
 
 use super::openai::ApiBackendConfig;
@@ -407,7 +407,7 @@ impl CompletionModel for AnthropicClient {
     async fn stream(
         &self,
         req: CompletionRequest,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
         let body = self.build_request(&req, true);
         let url = format!("{}/v1/messages", self.config.api_url);
 
@@ -561,7 +561,7 @@ fn estimate_cost_usd(model: &str, prompt_tokens: u32, completion_tokens: u32) ->
 /// - Tous les autres événements sont silencieusement ignorés
 fn parse_sse_stream(
     byte_stream: Pin<Box<dyn Stream<Item = Result<Vec<u8>, LlmError>> + Send>>,
-) -> impl Stream<Item = Result<String, LlmError>> + Send {
+) -> impl Stream<Item = Result<StreamChunk, LlmError>> + Send {
     struct SseState {
         stream: Pin<Box<dyn Stream<Item = Result<Vec<u8>, LlmError>> + Send>>,
         buffer: Vec<u8>,
@@ -598,7 +598,10 @@ fn parse_sse_stream(
                                             json.pointer("/delta/text").and_then(|t| t.as_str())
                                         {
                                             if !text.is_empty() {
-                                                return Some((Ok(text.to_owned()), state));
+                                                return Some((
+                                                    Ok(StreamChunk::Text(text.to_owned())),
+                                                    state,
+                                                ));
                                             }
                                         }
                                     }

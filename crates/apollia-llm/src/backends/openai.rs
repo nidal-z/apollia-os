@@ -24,7 +24,7 @@ use futures::{Stream, StreamExt};
 
 use crate::types::{
     CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, MessageContent,
-    Role, TokenUsage, ToolCall,
+    Role, StreamChunk, TokenUsage, ToolCall,
 };
 
 // ─────────────────────────────────────────────
@@ -228,7 +228,7 @@ impl CompletionModel for OpenAICompatibleClient {
     async fn stream(
         &self,
         req: CompletionRequest,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
         let model = req
             .model
             .as_deref()
@@ -274,7 +274,7 @@ impl CompletionModel for OpenAICompatibleClient {
                     if chunk.is_empty() {
                         None
                     } else {
-                        Some(Ok(chunk))
+                        Some(Ok(StreamChunk::Text(chunk)))
                     }
                 }
                 Err(e) => Some(Err(map_openai_error(e))),

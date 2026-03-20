@@ -26,7 +26,7 @@ use apollia_aip::{bridge::AIPBridge, loader::load_agent_module, validator::valid
 use apollia_core::{AIPTask, RuntimeEvent, TaskStatus};
 use apollia_llm::{
     CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, LlmRouter,
-    ObservabilityConfig, TokenUsage,
+    ObservabilityConfig, StreamChunk, TokenUsage,
 };
 use apollia_runtime::eventbus::EventBus;
 
@@ -73,8 +73,11 @@ impl CompletionModel for MockLlmBackend {
     async fn stream(
         &self,
         _req: CompletionRequest,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<String, LlmError>> + Send>>, LlmError> {
-        let chunks = vec!["chunk1".to_owned(), "chunk2".to_owned()];
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
+        let chunks = vec![
+            StreamChunk::Text("chunk1".to_owned()),
+            StreamChunk::Text("chunk2".to_owned()),
+        ];
         let stream = futures::stream::iter(chunks.into_iter().map(Ok));
         Ok(Box::pin(stream))
     }
@@ -260,15 +263,15 @@ async fn test_llm_stream_yields_chunks() {
     // WHEN stream() est appelé
     let stream = backend.stream(req).await.expect("stream() doit réussir");
 
-    let chunks: Vec<String> = stream
+    let chunks: Vec<StreamChunk> = stream
         .map(|r| r.expect("chunk doit être Ok"))
         .collect()
         .await;
 
     // THEN 2 chunks sont retournés dans l'ordre
     assert_eq!(chunks.len(), 2, "2 chunks attendus");
-    assert_eq!(chunks[0], "chunk1");
-    assert_eq!(chunks[1], "chunk2");
+    assert!(matches!(&chunks[0], StreamChunk::Text(t) if t == "chunk1"));
+    assert!(matches!(&chunks[1], StreamChunk::Text(t) if t == "chunk2"));
 }
 
 /// AC-2 — agent Python appelant `ctx.llm.run_tools()` sur un mock Python → Completed.
