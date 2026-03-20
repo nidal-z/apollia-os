@@ -12,6 +12,8 @@ pub mod channels;
 pub mod config;
 pub mod engine;
 pub mod event_filter;
+pub mod repository;
+pub mod validation;
 
 pub use channels::webhook::WebhookChannelConfig;
 pub use channels::{DesktopChannel, WebhookChannel};
@@ -21,3 +23,5 @@ pub use config::{
 pub use engine::{
     NotifError, Notification, NotificationChannel, NotificationEngine, NotificationEngineHandle,
 };
+pub use repository::{NotificationChannelRow, NotificationConfigRepository, NotificationLogRow};
+pub use validation::{NotificationConfigError, KNOWN_EVENTS};
