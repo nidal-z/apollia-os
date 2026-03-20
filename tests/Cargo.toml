@@ -123,3 +123,7 @@ path = "integration/test_agent_persistence.rs"
 [[test]]
 name = "test_pipelines"
 path = "integration/test_pipelines.rs"
+
+[[test]]
+name = "test_config_crud"
+path = "integration/test_config_crud.rs"
