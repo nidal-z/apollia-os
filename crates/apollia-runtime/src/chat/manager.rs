@@ -16,9 +16,11 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{error, info, warn};
 
 use apollia_core::{RuntimeEvent, StepBudgetConfig};
-use apollia_llm::LlmRouter;
+use apollia_llm::{LlmRouter, ToolInvoker};
+use apollia_oria::budget::StepBudget;
 use apollia_tools::ToolRegistryHandle;
 
+use super::builtin_agent::{BuiltInChatAgent, ChatAgentResponse};
 use super::repository::{AppendMessageParams, ChatSessionRepository};
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId,
@@ -86,6 +88,24 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
+    /// Internal: ReAct exchange completed successfully (sent by spawned task).
+    ExchangeComplete {
+        /// Target session.
+        session_id: SessionId,
+        /// User message that triggered the exchange.
+        message_id: MessageId,
+        /// Agent response.
+        response: ChatAgentResponse,
+    },
+    /// Internal: ReAct exchange failed (sent by spawned task).
+    ExchangeError {
+        /// Target session.
+        session_id: SessionId,
+        /// User message that triggered the exchange.
+        message_id: MessageId,
+        /// Error description.
+        error: String,
+    },
     /// Shut down the actor.
     Shutdown,
 }
@@ -98,16 +118,20 @@ struct ChatSessionManager {
     repository: ChatSessionRepository,
     /// LLM router for free-form / agent conversations.
     llm_router: Option<Arc<LlmRouter>>,
-    /// Tool registry for tool resolution.
-    _tool_registry: ToolRegistryHandle,
+    /// Tool registry for tool descriptor resolution.
+    tool_registry: ToolRegistryHandle,
+    /// Tool invoker for actual tool execution (ADR-015).
+    tool_invoker: Arc<dyn ToolInvoker>,
     /// Agent loader for validating agent names.
     agent_loader: Arc<dyn AgentLoader>,
     /// Event bus sender for runtime events.
     event_bus: EventBusSender,
     /// Runtime-level step budget configuration.
-    _runtime_budget: StepBudgetConfig,
+    runtime_budget: StepBudgetConfig,
     /// Pending tool approval channels.
     pending_chat_approvals: PendingChatApprovals,
+    /// Sender clone for spawned tasks to send commands back to the actor.
+    tx: mpsc::Sender<ChatCommand>,
 }
 
 impl ChatSessionManager {
@@ -158,6 +182,20 @@ impl ChatSessionManager {
                 ChatCommand::CloseSession { session_id, reply } => {
                     let result = self.handle_close_session(&session_id);
                     let _ = reply.send(result);
+                }
+                ChatCommand::ExchangeComplete {
+                    session_id,
+                    message_id,
+                    response,
+                } => {
+                    self.handle_exchange_complete(&session_id, &message_id, response);
+                }
+                ChatCommand::ExchangeError {
+                    session_id,
+                    message_id,
+                    error,
+                } => {
+                    self.handle_exchange_error(&session_id, &message_id, &error);
                 }
                 ChatCommand::Shutdown => {
                     info!("ChatSessionManager: shutting down");
@@ -303,12 +341,150 @@ impl ChatSessionManager {
             message_id: message_id.clone(),
         });
 
-        // Stub: async processing would be launched here (STORY-200/202).
-        // For now, immediately reset to Active so the session isn't stuck.
-        if let Some(s) = self.sessions.get_mut(session_id) {
-            s.status = SessionStatus::Active;
-            s.active_exchange = None;
+        // STORY-200: Launch BuiltInChatAgent in a background task for Libre mode.
+        // For Agent mode (STORY-202), a different path will be used.
+        let session = self
+            .sessions
+            .get(session_id)
+            .ok_or_else(|| ChatError::InternalError("session vanished".into()))?;
+
+        if session.mode == ChatMode::Libre {
+            let llm_router = self.llm_router.clone().ok_or(ChatError::NoLlmConfigured)?;
+
+            let agent = BuiltInChatAgent::new(
+                llm_router,
+                self.tool_registry.clone(),
+                Arc::clone(&self.tool_invoker),
+                self.event_bus.clone(),
+            );
+
+            let history = session.history.clone();
+            let system_prompt = session.system_prompt.clone();
+            let available_tools = session.available_tools.clone();
+            let authorized_tools = session.authorized_tools.clone();
+            let pending_approvals = self.pending_chat_approvals.clone();
+            let budget = StepBudget::new(&self.runtime_budget);
+            let sid = session_id.to_string();
+            let mid = message_id.clone();
+            let user_msg = content.to_string();
+            let tx = self.tx.clone();
+
+            tokio::spawn(async move {
+                let result = agent
+                    .execute(
+                        &sid,
+                        &mid,
+                        &user_msg,
+                        &history,
+                        &system_prompt,
+                        &available_tools,
+                        &authorized_tools,
+                        &pending_approvals,
+                        &budget,
+                    )
+                    .await;
+
+                let cmd = match result {
+                    Ok(response) => ChatCommand::ExchangeComplete {
+                        session_id: sid,
+                        message_id: mid,
+                        response,
+                    },
+                    Err(err) => ChatCommand::ExchangeError {
+                        session_id: sid,
+                        message_id: mid,
+                        error: err.to_string(),
+                    },
+                };
+                let _ = tx.send(cmd).await;
+            });
+        } else {
+            // Agent mode not yet implemented (STORY-202) — reset to Active
+            if let Some(s) = self.sessions.get_mut(session_id) {
+                s.status = SessionStatus::Active;
+                s.active_exchange = None;
+            }
+            if let Err(e) = self
+                .repository
+                .update_status(session_id, &SessionStatus::Active)
+            {
+                warn!(error = %e, "Failed to reset session status to Active in SQLite");
+            }
         }
+
+        Ok(message_id)
+    }
+
+    /// Handle successful completion of a ReAct exchange (AC-11).
+    fn handle_exchange_complete(
+        &mut self,
+        session_id: &str,
+        _message_id: &str,
+        response: ChatAgentResponse,
+    ) {
+        let session = match self.sessions.get_mut(session_id) {
+            Some(s) => s,
+            None => {
+                warn!(session_id = %session_id, "ExchangeComplete for unknown session");
+                return;
+            }
+        };
+
+        let now = now_rfc3339();
+        let assistant_msg_id = uuid::Uuid::new_v4().to_string();
+
+        // Serialize tool calls for SQLite
+        let tool_calls_json = if response.tool_calls.is_empty() {
+            None
+        } else {
+            serde_json::to_string(&response.tool_calls).ok()
+        };
+
+        // Persist assistant response message
+        match self.repository.append_message(&AppendMessageParams {
+            id: &assistant_msg_id,
+            session_id,
+            role: &ChatRole::Assistant,
+            content: &response.content,
+            tool_calls_json: tool_calls_json.as_deref(),
+            tool_name: None,
+            created_at: &now,
+        }) {
+            Ok(seq) => {
+                session.history.push(ChatMessage {
+                    id: assistant_msg_id,
+                    role: ChatRole::Assistant,
+                    content: response.content,
+                    tool_calls: if response.tool_calls.is_empty() {
+                        None
+                    } else {
+                        Some(response.tool_calls)
+                    },
+                    tool_name: None,
+                    created_at: now,
+                    seq,
+                });
+            }
+            Err(e) => {
+                error!(error = %e, "Failed to persist assistant message to SQLite");
+            }
+        }
+
+        // Persist newly authorized tools
+        for tool_name in &response.newly_authorized {
+            let auth_now = now_rfc3339();
+            if let Err(e) = self
+                .repository
+                .authorize_tool(session_id, tool_name, &auth_now)
+            {
+                warn!(error = %e, tool = %tool_name, "Failed to persist tool authorization");
+            }
+            session.authorized_tools.insert(tool_name.clone());
+        }
+
+        // Reset session to Active
+        session.status = SessionStatus::Active;
+        session.active_exchange = None;
         if let Err(e) = self
             .repository
             .update_status(session_id, &SessionStatus::Active)
@@ -316,7 +492,39 @@ impl ChatSessionManager {
             warn!(error = %e, "Failed to reset session status to Active in SQLite");
         }
 
-        Ok(message_id)
+        info!(
+            session_id = %session_id,
+            tokens = response.tokens_used.prompt_tokens + response.tokens_used.completion_tokens,
+            "Chat exchange complete"
+        );
+    }
+
+    /// Handle a failed ReAct exchange.
+    fn handle_exchange_error(&mut self, session_id: &str, message_id: &str, error: &str) {
+        error!(
+            session_id = %session_id,
+            message_id = %message_id,
+            error = %error,
+            "Chat exchange failed"
+        );
+
+        let _ = self.event_bus.send(RuntimeEvent::ChatError {
+            session_id: session_id.to_string(),
+            message_id: Some(message_id.to_string()),
+            error: error.to_string(),
+        });
+
+        // Reset session to Active so it can accept new messages
+        if let Some(session) = self.sessions.get_mut(session_id) {
+            session.status = SessionStatus::Active;
+            session.active_exchange = None;
+        }
+        if let Err(e) = self
+            .repository
+            .update_status(session_id, &SessionStatus::Active)
+        {
+            warn!(error = %e, "Failed to reset session status to Active after error");
+        }
     }
 
     /// Resolve a pending tool approval (AC-12).
@@ -578,6 +786,7 @@ impl ChatSessionManagerHandle {
         db_path: &Path,
         llm_router: Option<Arc<LlmRouter>>,
         tool_registry: ToolRegistryHandle,
+        tool_invoker: Arc<dyn ToolInvoker>,
         agent_loader: Arc<dyn AgentLoader>,
         event_bus: EventBusSender,
         runtime_budget: StepBudgetConfig,
@@ -591,11 +800,13 @@ impl ChatSessionManagerHandle {
             sessions: HashMap::new(),
             repository,
             llm_router,
-            _tool_registry: tool_registry,
+            tool_registry,
+            tool_invoker,
             agent_loader,
             event_bus,
-            _runtime_budget: runtime_budget,
+            runtime_budget,
             pending_chat_approvals,
+            tx: tx.clone(),
         };
 
         // Restore active sessions from SQLite before entering the actor loop
@@ -792,6 +1003,20 @@ mod tests {
         }
     }
 
+    /// Stub ToolInvoker for manager tests (tool execution tested in builtin_agent).
+    struct NoopTestInvoker;
+
+    #[async_trait::async_trait]
+    impl ToolInvoker for NoopTestInvoker {
+        async fn invoke(
+            &self,
+            _tool_name: &str,
+            _arguments: &serde_json::Value,
+        ) -> Result<String, String> {
+            Ok("ok".into())
+        }
+    }
+
     /// Spawn a ChatSessionManager backed by a temp SQLite database.
     fn spawn_test_manager(
         dir: &tempfile::TempDir,
@@ -801,10 +1026,12 @@ mod tests {
         let db_path = dir.path().join("chat.db");
         let (event_tx, _) = tokio::sync::broadcast::channel(128);
         let tool_registry = ToolRegistryHandle::start();
+        let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
         ChatSessionManagerHandle::spawn(
             &db_path,
             llm_router,
             tool_registry,
+            tool_invoker,
             agent_loader,
             event_tx,
             StepBudgetConfig::default(),
@@ -930,10 +1157,12 @@ mod tests {
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
         let db_path = dir.path().join("chat.db");
         let tool_registry = ToolRegistryHandle::start();
+        let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
         let handle = ChatSessionManagerHandle::spawn(
             &db_path,
             fake_llm_router(),
             tool_registry,
+            tool_invoker,
             Arc::new(AlwaysOkLoader),
             event_tx,
             StepBudgetConfig::default(),
@@ -1017,16 +1246,20 @@ mod tests {
         let pending = PendingChatApprovals::new();
         let rx = pending.register("sess-1::msg-1::bash".to_string());
 
+        let (tx, _rx) = mpsc::channel(256);
+        let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
         // Manually build manager to inject pending_chat_approvals
         let mut manager = ChatSessionManager {
             sessions: HashMap::new(),
             repository,
             llm_router: fake_llm_router(),
-            _tool_registry: tool_registry,
+            tool_registry,
+            tool_invoker,
             agent_loader: Arc::new(AlwaysOkLoader),
             event_bus: event_tx,
-            _runtime_budget: StepBudgetConfig::default(),
+            runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: pending,
+            tx,
         };
 
         // Insert a dummy session so the lookup succeeds

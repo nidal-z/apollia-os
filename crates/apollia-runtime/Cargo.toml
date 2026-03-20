@@ -24,6 +24,7 @@ apollia-core          = { workspace = true }
 apollia-llm           = { workspace = true, features = ["cloud"] }
 apollia-notifications = { workspace = true }
 apollia-pipelines     = { path = "../apollia-pipelines" }
+apollia-oria          = { workspace = true }
 apollia-tools         = { workspace = true }
 apollia-triggers      = { path = "../apollia-triggers" }
 async-trait           = { workspace = true }
@@ -50,4 +51,5 @@ toml               = { workspace = true }
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 tempfile = "3"
+futures = { workspace = true }
 http-body-util = { workspace = true }

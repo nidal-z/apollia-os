@@ -581,11 +581,14 @@ impl Supervisor {
         // Phase 13: ChatSessionManager — spawned before APIServer to inject handle into AppState.
         info!("Supervisor: starting ChatSessionManager");
         let chat_db_path = self.config.data_dir.join("chat.db");
+        let chat_tool_invoker: std::sync::Arc<dyn apollia_llm::ToolInvoker> =
+            std::sync::Arc::new(crate::chat::NativeChatToolInvoker::new());
         let chat_manager: Option<crate::chat::ChatSessionManagerHandle> =
             match crate::chat::ChatSessionManagerHandle::spawn(
                 &chat_db_path,
                 llm_router.clone(),
                 tool_registry_handle.clone(),
+                chat_tool_invoker,
                 agent_loader.clone(),
                 event_sender.clone(),
                 apollia_core::StepBudgetConfig::default(),

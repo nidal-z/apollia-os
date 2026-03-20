@@ -557,10 +557,13 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
 
         let db_path = dir.path().join("chat.db");
+        let noop_invoker: Arc<dyn apollia_llm::ToolInvoker> =
+            Arc::new(crate::chat::NativeChatToolInvoker::new());
         let chat_manager = ChatSessionManagerHandle::spawn(
             &db_path,
             Some(Arc::new(LlmRouter::empty())),
             tool_registry.clone(),
+            noop_invoker,
             Arc::new(AlwaysOkLoader),
             event_tx.clone(),
             StepBudgetConfig::default(),

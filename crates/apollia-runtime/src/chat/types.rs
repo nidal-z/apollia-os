@@ -295,6 +295,14 @@ impl PendingChatApprovals {
     }
 }
 
+impl Clone for PendingChatApprovals {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+        }
+    }
+}
+
 impl Default for PendingChatApprovals {
     fn default() -> Self {
         Self::new()

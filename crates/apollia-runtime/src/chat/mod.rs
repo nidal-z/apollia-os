@@ -4,10 +4,14 @@
 //! chat hybride feature. The `ChatSessionManager` actor (STORY-199) and
 //! `BuiltInChatAgent` (STORY-200) build on top of these primitives.
 
+pub mod builtin_agent;
 pub mod manager;
 pub mod repository;
 pub mod types;
 
+pub use builtin_agent::{
+    BuiltInChatAgent, ChatAgentResponse, NativeChatToolInvoker, DEFAULT_SYSTEM_PROMPT,
+};
 pub use manager::ChatSessionManagerHandle;
 pub use repository::{AppendMessageParams, ChatSessionRepository, MessageRow, SessionRow};
 pub use types::{
