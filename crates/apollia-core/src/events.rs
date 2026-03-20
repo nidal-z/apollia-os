@@ -512,6 +512,118 @@ pub enum RuntimeEvent {
         /// Raison de l'échec.
         reason: String,
     },
+
+    // ── Chat events (Sprint 18 — STORY-198) ────────────────────────────────
+    /// Une session de chat a été créée.
+    ChatSessionCreated {
+        /// Identifiant unique de la session.
+        session_id: String,
+        /// Mode de la session (`"libre"` ou `"agent"`).
+        mode: String,
+        /// Nom de l'agent associé (mode agent uniquement).
+        agent_name: Option<String>,
+    },
+    /// Une session de chat a été fermée.
+    ChatSessionClosed {
+        /// Identifiant de la session fermée.
+        session_id: String,
+    },
+    /// Un message utilisateur a été envoyé dans une session.
+    ChatMessageSent {
+        /// Identifiant de la session.
+        session_id: String,
+        /// Identifiant unique du message.
+        message_id: String,
+    },
+    /// Le runtime a commencé à générer une réponse.
+    ChatResponseStarted {
+        /// Identifiant de la session.
+        session_id: String,
+        /// Identifiant du message de réponse.
+        message_id: String,
+    },
+    /// Un token de streaming a été produit par le LLM.
+    ChatToken {
+        /// Identifiant de la session.
+        session_id: String,
+        /// Identifiant du message de réponse en cours.
+        message_id: String,
+        /// Token textuel produit.
+        token: String,
+    },
+    /// La réponse complète a été générée.
+    ChatResponseCompleted {
+        /// Identifiant de la session.
+        session_id: String,
+        /// Identifiant du message de réponse.
+        message_id: String,
+        /// Contenu complet de la réponse.
+        content: String,
+    },
+    /// Une erreur s'est produite dans une session de chat.
+    ChatError {
+        /// Identifiant de la session.
+        session_id: String,
+        /// Identifiant du message ayant causé l'erreur (si applicable).
+        message_id: Option<String>,
+        /// Description de l'erreur.
+        error: String,
+    },
+    /// Un appel outil a démarré dans une session de chat.
+    ChatToolCallStarted {
+        /// Identifiant de la session.
+        session_id: String,
+        /// Identifiant du message contenant l'appel outil.
+        message_id: String,
+        /// Nom de l'outil invoqué.
+        tool_name: String,
+        /// Aperçu tronqué des arguments d'entrée.
+        input_preview: String,
+    },
+    /// Un appel outil s'est terminé dans une session de chat.
+    ChatToolCallCompleted {
+        /// Identifiant de la session.
+        session_id: String,
+        /// Identifiant du message contenant l'appel outil.
+        message_id: String,
+        /// Nom de l'outil invoqué.
+        tool_name: String,
+        /// `true` si l'exécution a réussi.
+        success: bool,
+        /// Aperçu tronqué de la sortie (si disponible).
+        output_preview: Option<String>,
+    },
+    /// Une approbation humaine est requise pour un appel outil dans le chat.
+    ChatApprovalRequired {
+        /// Identifiant de la session.
+        session_id: String,
+        /// Identifiant du message contenant l'appel outil.
+        message_id: String,
+        /// Nom de l'outil nécessitant une approbation.
+        tool_name: String,
+        /// Prompt affiché à l'utilisateur.
+        prompt: String,
+    },
+    /// L'approbation d'un appel outil a été résolue par l'utilisateur.
+    ChatApprovalResolved {
+        /// Identifiant de la session.
+        session_id: String,
+        /// Identifiant du message contenant l'appel outil.
+        message_id: String,
+        /// Nom de l'outil concerné.
+        tool_name: String,
+        /// Décision prise (`"accept"`, `"refuse"`, `"always_accept"`).
+        decision: String,
+    },
+    /// L'approbation d'un appel outil a expiré (timeout).
+    ChatApprovalTimeout {
+        /// Identifiant de la session.
+        session_id: String,
+        /// Identifiant du message contenant l'appel outil.
+        message_id: String,
+        /// Nom de l'outil concerné.
+        tool_name: String,
+    },
 }
 
 #[cfg(test)]
@@ -723,6 +835,68 @@ mod tests {
                 pipeline_id: "traitement-facture".into(),
                 step_id: "validation".into(),
                 reason: "timeout".into(),
+            },
+            // ── Chat (Sprint 18 — STORY-198) ────────────────────────────────
+            RuntimeEvent::ChatSessionCreated {
+                session_id: "sess-001".into(),
+                mode: "libre".into(),
+                agent_name: None,
+            },
+            RuntimeEvent::ChatSessionClosed {
+                session_id: "sess-001".into(),
+            },
+            RuntimeEvent::ChatMessageSent {
+                session_id: "sess-001".into(),
+                message_id: "msg-001".into(),
+            },
+            RuntimeEvent::ChatResponseStarted {
+                session_id: "sess-001".into(),
+                message_id: "msg-002".into(),
+            },
+            RuntimeEvent::ChatToken {
+                session_id: "sess-001".into(),
+                message_id: "msg-002".into(),
+                token: "Hello".into(),
+            },
+            RuntimeEvent::ChatResponseCompleted {
+                session_id: "sess-001".into(),
+                message_id: "msg-002".into(),
+                content: "Hello, world!".into(),
+            },
+            RuntimeEvent::ChatError {
+                session_id: "sess-001".into(),
+                message_id: Some("msg-003".into()),
+                error: "LLM timeout".into(),
+            },
+            RuntimeEvent::ChatToolCallStarted {
+                session_id: "sess-001".into(),
+                message_id: "msg-004".into(),
+                tool_name: "bash_executor".into(),
+                input_preview: "ls -la".into(),
+            },
+            RuntimeEvent::ChatToolCallCompleted {
+                session_id: "sess-001".into(),
+                message_id: "msg-004".into(),
+                tool_name: "bash_executor".into(),
+                success: true,
+                output_preview: Some("file.txt".into()),
+            },
+            RuntimeEvent::ChatApprovalRequired {
+                session_id: "sess-001".into(),
+                message_id: "msg-005".into(),
+                tool_name: "bash_executor".into(),
+                prompt: "Allow bash execution?".into(),
+            },
+            RuntimeEvent::ChatApprovalResolved {
+                session_id: "sess-001".into(),
+                message_id: "msg-005".into(),
+                tool_name: "bash_executor".into(),
+                decision: "accept".into(),
+            },
+            RuntimeEvent::ChatApprovalTimeout {
+                session_id: "sess-001".into(),
+                message_id: "msg-005".into(),
+                tool_name: "bash_executor".into(),
             },
         ];
 

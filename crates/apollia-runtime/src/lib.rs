@@ -9,6 +9,7 @@
 //! - `Supervisor` — ordered startup + watchdog (STORY-039)
 
 pub mod api;
+pub mod chat;
 pub mod coordinator;
 pub mod embedded;
 pub mod eventbus;
