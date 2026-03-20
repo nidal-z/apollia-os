@@ -241,6 +241,12 @@ fn main() {
             commands::config::check_llm_configured,
             commands::config::check_hello_agent_exists,
             commands::config::list_available_agents,
+            commands::chat::create_chat_session,
+            commands::chat::list_chat_sessions,
+            commands::chat::get_chat_session,
+            commands::chat::close_chat_session,
+            commands::chat::send_chat_message,
+            commands::chat::authorize_chat_tool,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

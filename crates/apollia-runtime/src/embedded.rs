@@ -67,6 +67,11 @@ pub struct RuntimeHandle {
     ///
     /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
     pub llm_call_repository: Option<Arc<std::sync::Mutex<apollia_llm::LlmCallRepository>>>,
+    /// Handle to the [`ChatSessionManager`] actor (STORY-204).
+    ///
+    /// `Some` after Phase 13 of the Supervisor startup sequence.
+    /// `None` when the chat subsystem failed to start.
+    pub chat_manager: Option<crate::chat::ChatSessionManagerHandle>,
     /// Port TCP de l'APIServer.
     pub api_port: u16,
 }
@@ -254,6 +259,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         pending_approvals: handles.pending_approvals,
         notification_engine: handles.notification_engine.map(Arc::new),
         llm_call_repository: handles.llm_call_repository,
+        chat_manager: handles.chat_manager,
         api_port: tcp_port,
     })
 }

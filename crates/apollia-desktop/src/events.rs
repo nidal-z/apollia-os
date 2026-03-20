@@ -9,6 +9,20 @@ use apollia_core::EventBusSender;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
+/// Payload emitted to the Svelte frontend via `app.emit("chat-token", …)`.
+///
+/// Dedicated fast-path for token streaming — avoids the generic `"runtime-event"`
+/// envelope so the frontend can append tokens without a full IPC refresh.
+#[derive(Debug, Clone, Serialize)]
+pub struct ChatTokenPayload {
+    /// Chat session that owns this token.
+    pub session_id: String,
+    /// Assistant message being streamed.
+    pub message_id: String,
+    /// Streamed token text.
+    pub token: String,
+}
+
 /// Payload emitted to the Svelte frontend via `app.emit("runtime-event", …)`.
 ///
 /// The `category` groups events by domain so the frontend can dispatch to the
@@ -40,6 +54,25 @@ pub fn spawn_event_bridge(app: AppHandle, event_bus: EventBusSender) {
         loop {
             match rx.recv().await {
                 Ok(event) => {
+                    // ChatToken uses a dedicated "chat-token" Tauri event for
+                    // real-time streaming without triggering a full IPC refresh.
+                    if let RuntimeEvent::ChatToken {
+                        ref session_id,
+                        ref message_id,
+                        ref token,
+                    } = event
+                    {
+                        let payload = ChatTokenPayload {
+                            session_id: session_id.clone(),
+                            message_id: message_id.clone(),
+                            token: token.clone(),
+                        };
+                        if let Err(e) = app.emit("chat-token", &payload) {
+                            tracing::warn!(error = %e, "failed to emit chat-token event");
+                        }
+                        continue;
+                    }
+
                     let tauri_event = map_runtime_event(&event);
                     if let Err(e) = app.emit("runtime-event", &tauri_event) {
                         tracing::warn!(error = %e, "failed to emit Tauri event");
@@ -139,7 +172,6 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::ChatSessionClosed { .. }
         | RuntimeEvent::ChatMessageSent { .. }
         | RuntimeEvent::ChatResponseStarted { .. }
-        | RuntimeEvent::ChatToken { .. }
         | RuntimeEvent::ChatResponseCompleted { .. }
         | RuntimeEvent::ChatError { .. }
         | RuntimeEvent::ChatToolCallStarted { .. }
@@ -147,6 +179,10 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::ChatApprovalRequired { .. }
         | RuntimeEvent::ChatApprovalResolved { .. }
         | RuntimeEvent::ChatApprovalTimeout { .. } => "chat-changed",
+
+        // ChatToken uses a dedicated fast path — not "chat-changed" to avoid
+        // triggering a full IPC refresh on every streamed token (STORY-204 AC-9).
+        RuntimeEvent::ChatToken { .. } => "chat-token",
 
         // ── System-level ─────────────────────────────────────────────────
         RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested | RuntimeEvent::FatalError(_) => {
@@ -498,6 +534,68 @@ mod tests {
                 step_id: "s".into(),
                 reason: "r".into(),
             },
+            // ── Chat events ────────────────────────────────────────────
+            RuntimeEvent::ChatSessionCreated {
+                session_id: "s".into(),
+                mode: "libre".into(),
+                agent_name: None,
+            },
+            RuntimeEvent::ChatSessionClosed {
+                session_id: "s".into(),
+            },
+            RuntimeEvent::ChatMessageSent {
+                session_id: "s".into(),
+                message_id: "m".into(),
+            },
+            RuntimeEvent::ChatResponseStarted {
+                session_id: "s".into(),
+                message_id: "m".into(),
+            },
+            RuntimeEvent::ChatToken {
+                session_id: "s".into(),
+                message_id: "m".into(),
+                token: "t".into(),
+            },
+            RuntimeEvent::ChatResponseCompleted {
+                session_id: "s".into(),
+                message_id: "m".into(),
+                content: "c".into(),
+            },
+            RuntimeEvent::ChatError {
+                session_id: "s".into(),
+                message_id: None,
+                error: "e".into(),
+            },
+            RuntimeEvent::ChatToolCallStarted {
+                session_id: "s".into(),
+                message_id: "m".into(),
+                tool_name: "t".into(),
+                input_preview: "i".into(),
+            },
+            RuntimeEvent::ChatToolCallCompleted {
+                session_id: "s".into(),
+                message_id: "m".into(),
+                tool_name: "t".into(),
+                success: true,
+                output_preview: None,
+            },
+            RuntimeEvent::ChatApprovalRequired {
+                session_id: "s".into(),
+                message_id: "m".into(),
+                tool_name: "t".into(),
+                prompt: "p".into(),
+            },
+            RuntimeEvent::ChatApprovalResolved {
+                session_id: "s".into(),
+                message_id: "m".into(),
+                tool_name: "t".into(),
+                decision: "accept".into(),
+            },
+            RuntimeEvent::ChatApprovalTimeout {
+                session_id: "s".into(),
+                message_id: "m".into(),
+                tool_name: "t".into(),
+            },
         ];
 
         let valid_categories = [
@@ -507,6 +605,8 @@ mod tests {
             "llm-changed",
             "trigger-fired",
             "pipeline-changed",
+            "chat-changed",
+            "chat-token",
             "system",
         ];
 
@@ -526,6 +626,75 @@ mod tests {
             );
             assert!(!mapped.payload.is_null(), "null payload for {:?}", event);
         }
+    }
+
+    #[test]
+    fn test_categorize_chat_events_are_chat_changed() {
+        // GIVEN chat lifecycle events (not ChatToken)
+        let events = vec![
+            RuntimeEvent::ChatSessionCreated {
+                session_id: "s".into(),
+                mode: "libre".into(),
+                agent_name: None,
+            },
+            RuntimeEvent::ChatSessionClosed {
+                session_id: "s".into(),
+            },
+            RuntimeEvent::ChatMessageSent {
+                session_id: "s".into(),
+                message_id: "m".into(),
+            },
+            RuntimeEvent::ChatResponseCompleted {
+                session_id: "s".into(),
+                message_id: "m".into(),
+                content: "c".into(),
+            },
+            RuntimeEvent::ChatError {
+                session_id: "s".into(),
+                message_id: None,
+                error: "e".into(),
+            },
+        ];
+        // WHEN / THEN all are categorized as "chat-changed"
+        for event in &events {
+            let mapped = map_runtime_event(event);
+            assert_eq!(
+                mapped.category, "chat-changed",
+                "expected chat-changed for {:?}",
+                event
+            );
+        }
+    }
+
+    #[test]
+    fn test_categorize_chat_token_is_chat_token() {
+        // GIVEN a ChatToken event
+        let event = RuntimeEvent::ChatToken {
+            session_id: "sess-1".into(),
+            message_id: "msg-1".into(),
+            token: "Hello".into(),
+        };
+        // WHEN categorized
+        let mapped = map_runtime_event(&event);
+        // THEN category is "chat-token" (not "chat-changed")
+        assert_eq!(mapped.category, "chat-token");
+        assert_eq!(mapped.event_type, "ChatToken");
+    }
+
+    #[test]
+    fn test_chat_token_payload_serialization() {
+        // GIVEN a ChatTokenPayload
+        let payload = ChatTokenPayload {
+            session_id: "sess-42".into(),
+            message_id: "msg-7".into(),
+            token: "world".into(),
+        };
+        // WHEN serialized
+        let json = serde_json::to_value(&payload).expect("serialize");
+        // THEN all fields are present
+        assert_eq!(json["session_id"], "sess-42");
+        assert_eq!(json["message_id"], "msg-7");
+        assert_eq!(json["token"], "world");
     }
 
     #[test]

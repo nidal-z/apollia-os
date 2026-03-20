@@ -156,6 +156,11 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
     /// Partagé entre `AppState` (route REST costs) et le subscriber EventBus.
     pub llm_call_repository: Option<Arc<std::sync::Mutex<LlmCallRepository>>>,
+    /// Handle to the [`ChatSessionManager`] actor (STORY-199).
+    ///
+    /// `Some` after Phase 13 of the Supervisor startup sequence.
+    /// `None` when the chat subsystem failed to start (warning logged).
+    pub chat_manager: Option<crate::chat::ChatSessionManagerHandle>,
 }
 
 /// Supervisor errors.
@@ -804,6 +809,7 @@ impl Supervisor {
             pending_approvals: pending_approvals.clone(),
             notification_engine,
             llm_call_repository,
+            chat_manager,
         })
     }
 }

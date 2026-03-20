@@ -7,6 +7,7 @@
 //! resume task).
 
 pub mod agents;
+pub mod chat;
 pub mod config;
 pub mod hitl;
 pub mod llm;
