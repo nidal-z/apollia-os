@@ -32,6 +32,7 @@
 - [[Briques-Pipelines|Pipelines Engine]]
 - [[Briques-Runtime-Core|Runtime Core]]
 - [[Briques-Desktop|Application Desktop]]
+- [[Briques-Chat|Chat]]
 - [[Briques-CLI|Apollia CLI]]
 
 **Installation & Config**

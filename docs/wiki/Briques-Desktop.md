@@ -134,7 +134,7 @@ pub enum EmbeddedError {
 
 ## 3. Commandes Tauri IPC
 
-40 commandes exposees au frontend Svelte via `#[tauri::command]` (29 Sprint 15 + 11 Sprint 17) :
+46 commandes exposees au frontend Svelte via `#[tauri::command]` (29 Sprint 15 + 11 Sprint 17 + 6 Sprint 18) :
 
 ### Agents (3)
 
@@ -233,6 +233,17 @@ pub enum EmbeddedError {
 | `get_config` | — | `ApollaConfigView` |
 | `open_config_in_editor` | — | `()` |
 
+### Chat (6 — Sprint 18)
+
+| Commande | Parametres | Retour |
+|---|---|---|
+| `create_chat_session` | `request: CreateSessionRequest` | `Result<ChatSessionSummary, String>` |
+| `list_chat_sessions` | `status: Option<String>` | `Result<Vec<ChatSessionSummary>, String>` |
+| `get_chat_session` | `session_id: String` | `Result<ChatSessionDetail, String>` |
+| `close_chat_session` | `session_id: String` | `Result<(), String>` |
+| `send_chat_message` | `session_id: String, content: String` | `Result<String, String>` (message_id) |
+| `authorize_chat_tool` | `session_id, message_id, tool_name, decision` | `Result<(), String>` |
+
 ### Onboarding (6 — commandes utilitaires)
 
 | Commande | Parametres | Retour |
@@ -259,13 +270,14 @@ pub enum EmbeddedError {
 
 ### 4.2 Navigation
 
-Store Svelte `currentRoute` avec 10 routes :
+Store Svelte `currentRoute` avec 11 routes :
 
 ```typescript
 type Route =
   | "agents"        // Gestion agents (Sprint 14)
   | "tasks"         // Liste et detail taches (Sprint 14)
   | "approvals"     // Approbations HITL (Sprint 14)
+  | "chat"          // Sessions de chat interactif (Sprint 18)
   | "llm"           // Backends LLM, ping, statistiques
   | "triggers"      // Triggers TOML, enable/disable, fire
   | "pipelines"     // Runs multi-agent, steps temps reel
@@ -283,7 +295,7 @@ Navigation regroupee en 4 categories :
 
 | Categorie | Routes |
 |---|---|
-| **Operations** | agents, tasks, approvals |
+| **Operations** | agents, tasks, approvals, chat |
 | **Infrastructure** | llm, triggers, pipelines |
 | **Donnees** | memory, notifications, observability |
 | **Settings** | settings (en bas, avant l'indicateur de connexion) |
@@ -307,6 +319,9 @@ Le store `sse.ts` etablit une connexion SSE vers `localhost:7771/api/v1/dashboar
 | `triggers` | `TriggerStatus[]` | channel `triggers` |
 | `pipelineRuns` | `PipelineRunSummary[]` | channel `pipeline` |
 | `connectionStatus` | `ConnectionStatus` | etat connexion SSE |
+| `chatSessions` | `ChatSessionSummary[]` | evenement `chat-changed` |
+| `currentSession` | `ChatSessionDetail \| null` | — |
+| `chatTokenBuffer` | `string` | evenement `chat-token` (fast path) |
 
 4 stores derives :
 
@@ -345,6 +360,9 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 
 **Observability :**
 `GlobalTimelineEvent`, `AuditTrailEntry`, `LlmDailyCostEntry`
+
+**Chat (Sprint 18) :**
+`ChatSessionSummary`, `ChatSessionDetail`, `ChatMessageView`, `ToolCallView`, `CreateSessionRequest`, `SendMessageRequest`, `ToolAuthorizationRequest`
 
 **Config :**
 `ConfigEntry`, `ConfigSection`, `ApollaConfigView`

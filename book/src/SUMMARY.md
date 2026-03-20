@@ -43,6 +43,7 @@
   - [Notifications Engine](components/notifications.md)
   - [Pipelines Engine](components/pipelines.md)
   - [Application Desktop](components/desktop.md)
+  - [Chat](components/chat.md)
   - [CLI](components/cli.md)
 
 # API & Intégration
@@ -104,6 +105,7 @@
   - [ADR-031 — Stratégie i18n : svelte-i18n avec fichiers JSON FR/EN](decisions/adr-031-i18n-svelte-i18n-fr-en.md)
   - [ADR-032 — Agent Install & Persistence dans ~/.apollia/agents/](decisions/adr-032-agent-install-persistence.md)
   - [ADR-033 — Config opérateur SQLite : séparation structurel / opérationnel](decisions/adr-033-config-operateur-sqlite.md)
+  - [ADR-034 — Chat hybride : sessions, streaming, HITL inline](decisions/adr-034-chat-hybride-sessions-streaming-hitl-inline.md)
 
 ---
 

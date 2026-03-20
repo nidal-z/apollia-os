@@ -1,0 +1,102 @@
+@startuml seq-chat-libre
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+skinparam SequenceGroupBorderColor #888888
+
+title Séquence — Chat Libre (boucle ReAct + streaming) — Apollia OS
+
+actor "User / Browser" as user #3a3a3a/white
+participant "APIServer\n(axum)" as api #1a1a2e/e0e0ff
+participant "ChatSessionManager" as csm #1a1a2e/e0e0ff
+participant "BuiltInChatAgent" as agent #1a1a2e/e0e0ff
+participant "LlmRouter" as llm #4a3728/f5e6d3
+participant "ToolRegistry" as tools #1a1a2e/e0e0ff
+participant "EventBus" as bus #2a3a4a/cce5ff
+database "chat.db" as db #2a3a4a/cce5ff
+
+== Phase 1 — Création de session ==
+
+user -> api : POST /api/v1/sessions\n{mode: "libre", tools: [...]}
+api -> csm : CreateSession
+csm -> db : INSERT chat_sessions
+csm -> bus : publish(ChatSessionCreated {\n  session_id, mode: "libre"\n})
+csm --> api : SessionInfo {id, mode, status: Active}
+api --> user : 201 {session_id}
+
+== Phase 2 — Envoi de message ==
+
+user -> api : POST /api/v1/sessions/:id/messages\n{content: "..."}
+api -> csm : SendMessage {session_id, content}
+csm -> db : INSERT chat_messages\n(role=user)
+csm -> bus : publish(ChatMessageSent {\n  session_id, message_id\n})
+csm -> agent : execute(session, message)
+
+loop Boucle ReAct (max StepBudget iterations)
+
+  agent -> agent : build_llm_messages(\n  history + tool_specs\n)
+  agent -> llm : stream(CompletionRequest)
+  llm --> agent : token stream
+  agent -> bus : publish(ChatResponseStarted {\n  session_id\n})
+
+  loop Token par token
+    agent -> bus : publish(ChatToken {\n  session_id, token\n})
+  end
+
+  alt Réponse texte (pas de tool_call)
+    agent -> bus : publish(ChatResponseCompleted {\n  session_id, content\n})
+    note right of agent
+      Pas de tool_call dans la réponse LLM.
+      La boucle ReAct se termine.
+    end note
+
+  else Tool call détecté
+
+    alt Outil autorisé (dans session.authorized_tools)
+      agent -> tools : execute(tool_name, input)
+      tools --> agent : result
+      agent -> bus : publish(ChatToolCallCompleted {\n  session_id, tool_name, success\n})
+      note right of agent
+        Le résultat est injecté dans
+        l'historique comme message tool.
+        La boucle ReAct continue.
+      end note
+
+    else Outil non autorisé — HITL
+      agent -> bus : publish(ChatApprovalRequired {\n  session_id, tool_name, args\n})
+      agent -> agent : await PendingChatApprovals\n.register(session_id, tool_name)
+      note right of agent
+        L'agent se bloque en attente.
+        L'utilisateur répond via
+        POST /sessions/:id/authorize
+      end note
+
+      alt Accept
+        agent -> tools : execute(tool_name, input)
+        tools --> agent : result
+        agent -> bus : publish(ChatToolCallCompleted {\n  session_id, tool_name, success\n})
+        note right of agent : Résultat injecté, boucle continue
+
+      else AlwaysAccept
+        agent -> agent : session.authorized_tools\n.insert(tool_name)
+        agent -> tools : execute(tool_name, input)
+        tools --> agent : result
+        agent -> bus : publish(ChatToolCallCompleted {\n  session_id, tool_name, success\n})
+        note right of agent : Outil ajouté aux autorisés,\nplus de demande pour cet outil
+
+      else Refuse
+        agent -> agent : inject refusal message\ninto history
+        note right of agent : Message de refus injecté,\nboucle continue sans exécution
+      end
+    end
+  end
+end
+
+agent -> db : INSERT chat_messages\n(role=assistant, content)
+csm --> api : Ok(message_id)
+api --> user : 200 {message_id}
+
+@enduml

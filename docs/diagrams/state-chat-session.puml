@@ -1,0 +1,43 @@
+@startuml state-chat-session
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+
+title Machine d'état — ChatSession — Apollia OS
+
+[*] --> Active : CreateSession\nPOST /api/v1/sessions
+
+Active --> Processing : SendMessage received\nPOST /api/v1/sessions/:id/messages
+
+Processing --> Active : Response completed\n(ChatResponseCompleted)
+Processing --> Active : Error occurred\n(ChatError)
+
+Active --> Closed : CloseSession\nDELETE /api/v1/sessions/:id
+Processing --> Closed : CloseSession forced\nDELETE /api/v1/sessions/:id
+
+Closed --> [*]
+
+note right of Active
+  La session accepte de nouveaux messages.
+  L'utilisateur peut envoyer du texte
+  ou fermer la session.
+end note
+
+note right of Processing
+  Un échange est en cours :
+  boucle ReAct active, streaming tokens.
+  L'input est désactivé côté UI
+  jusqu'à ChatResponseCompleted.
+end note
+
+note right of Closed
+  État terminal — lecture seule.
+  L'historique reste accessible
+  dans chat.db mais aucun nouveau
+  message n'est accepté.
+end note
+
+@enduml

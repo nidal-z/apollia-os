@@ -1067,6 +1067,153 @@ curl -N -H "Accept: text/event-stream" \
 
 ---
 
+## Chat *(Sprint 18)*
+
+7 endpoints pour la gestion des sessions de chat interactif. Chemin d'exécution séparé du TaskRouter (ADR-034).
+
+### Créer une session
+
+```
+POST /api/v1/sessions
+```
+
+**Body :**
+```json
+{
+  "mode": "libre",
+  "agent_name": null,
+  "system_prompt": "Tu es un assistant technique.",
+  "tools": ["bash_executor", "file_io"]
+}
+```
+
+| Champ | Type | Requis | Description |
+|---|---|---|---|
+| `mode` | `"libre"` \| `"agent"` | ✅ | Mode de chat |
+| `agent_name` | `string \| null` | Agent mode | Nom de l'agent installé |
+| `system_prompt` | `string \| null` | — | Prompt système personnalisé |
+| `tools` | `string[]` | Libre mode | Outils disponibles |
+
+**Réponse (201) :**
+```json
+{
+  "id": "chat_abc123",
+  "mode": "libre",
+  "status": "active",
+  "created_at": "2026-03-20T10:30:00Z"
+}
+```
+
+### Lister les sessions
+
+```
+GET /api/v1/sessions
+```
+
+**Réponse (200) :**
+```json
+[
+  {
+    "id": "chat_abc123",
+    "mode": "libre",
+    "agent_name": null,
+    "status": "active",
+    "message_count": 5,
+    "last_message_preview": "Analyse le fichier...",
+    "created_at": "2026-03-20T10:30:00Z"
+  }
+]
+```
+
+### Détail d'une session
+
+```
+GET /api/v1/sessions/:id
+```
+
+**Réponse (200) :** session complète avec `messages`, `authorized_tools`, `available_tools`.
+
+### Fermer une session
+
+```
+DELETE /api/v1/sessions/:id
+```
+
+**Réponse (200) :** `{ "status": "closed" }`
+
+### Envoyer un message
+
+```
+POST /api/v1/sessions/:id/messages
+```
+
+**Body :**
+```json
+{
+  "content": "Liste les fichiers du répertoire courant"
+}
+```
+
+**Réponse (202) :**
+```json
+{
+  "message_id": "msg_xyz789",
+  "status": "processing"
+}
+```
+
+La réponse de l'assistant arrive via SSE (voir stream ci-dessous).
+
+### Résoudre une approbation d'outil
+
+```
+POST /api/v1/sessions/:id/authorize
+```
+
+**Body :**
+```json
+{
+  "message_id": "msg_xyz789",
+  "tool_name": "bash_executor",
+  "decision": "accept"
+}
+```
+
+| Valeur `decision` | Comportement |
+|---|---|
+| `"accept"` | Exécuter l'outil une fois |
+| `"refuse"` | Refuser, injecter message de refus |
+| `"always_accept"` | Ajouter à la whitelist session, exécuter |
+
+**Réponse (200) :** `{ "resolved": true }`
+
+### SSE stream d'une session
+
+```
+GET /api/v1/sessions/:id/stream
+```
+
+Événements SSE nommés :
+
+| Événement | Données | Fréquence |
+|---|---|---|
+| `message_sent` | `{ message_id }` | 1 par message utilisateur |
+| `response_started` | `{ message_id }` | 1 par réponse assistant |
+| `token` | `{ message_id, token }` | 1 par token LLM (Chat Libre) |
+| `response_completed` | `{ message_id, content }` | 1 par réponse complète |
+| `tool_call_started` | `{ tool_name }` | Par appel d'outil |
+| `tool_call_completed` | `{ tool_name, success }` | Par appel d'outil |
+| `approval_required` | `{ message_id, tool_name }` | Quand HITL requis |
+| `approval_resolved` | `{ tool_name, decision }` | Après décision utilisateur |
+| `error` | `{ error }` | En cas d'erreur |
+
+```bash
+curl -N -H "Accept: text/event-stream" \
+  http://localhost:7771/api/v1/sessions/chat_abc123/stream
+```
+
+---
+
 ## Voir aussi
 
 - [Briques CLI](./Briques-CLI) — wrapper CLI sur cette API
@@ -1082,3 +1229,5 @@ curl -N -H "Accept: text/event-stream" \
 - [ADR-025](../adr/ADR-025) — décisions pipelines multi-agents (TOML déclaratif, topologies natives)
 - [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature) — observabilité complète, timeline, troncature
 - [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) — config opérateur SQLite (CRUD triggers/pipelines/notifications)
+- [ADR-034](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md) — chat hybride : sessions, streaming, HITL inline
+- [Briques Chat](./Briques-Chat) — sous-système de chat complet

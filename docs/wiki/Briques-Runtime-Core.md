@@ -56,6 +56,8 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
 8. APIServer         → accepte les connexions externes
 9. NotificationEngine → alertes desktop / webhook [Sprint 11]
    └── ouvre NotificationConfigRepository (notifications.db) [Sprint 17]
+13. ChatSessionManager → sessions de chat interactif [Sprint 18]
+    └── ouvre ChatSessionRepository (chat.db), restaure autorisations
 ```
 
 Depuis le Sprint 17 (ADR-033), le Supervisor ouvre les repositories SQLite pour les triggers, pipelines et notifications au démarrage. Les définitions sont chargées depuis SQLite (plus depuis `apollia.toml`). Chaque repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
@@ -399,6 +401,7 @@ debug_log_prompt      = false               # persister les prompts LLM (RGPD �
 | `apollia.toml` structurel + SQLite opérationnel | TOML pour la config immuable, SQLite pour les triggers/pipelines/notifications CRUD (ADR-033) |
 | HITL via `oneshot` channel dans ORIA | Suspension sans polling, reprise déterministe via `ResumeHandler` (ADR-023) |
 | `TimeoutWatcher` scan 60s | Tâches orphelines nettoyées automatiquement sans intervention utilisateur |
+| `ChatSessionManager` séparé du `TaskRouter` (Phase 13) | Chat = sessions longues stateful, TaskRouter = fire-and-forget stateless. Sémantiques incompatibles (ADR-034) |
 | `NotificationEngine` optionnel (Phase 9) | Zéro overhead si `[notifications]` absent — runtime léger par défaut |
 | Timeline API agrégée server-side (ADR-026) | 5 sources SQLite lues en parallèle, triées, retournées en JSON — pas de calcul client |
 | Troncature configurable `ObservabilityConfig` (ADR-026) | UTF-8 safe, marqueur `[TRONQUÉ — N octets total]`, jamais de rejet — observabilité partielle > aucune |
@@ -407,8 +410,10 @@ debug_log_prompt      = false               # persister les prompts LLM (RGPD �
 
 ## 11. Diagrammes de référence
 
-- [Démarrage ordonné Supervisor](../diagrams/seq-supervisor-startup.puml) — 9 phases, TriggerEngine + NotificationEngine
+- [Démarrage ordonné Supervisor](../diagrams/seq-supervisor-startup.puml) — 13 phases, TriggerEngine → NotificationEngine → ChatSessionManager
 - [CRUD Config opérationnelle](../diagrams/seq-config-crud.puml) — POST → SQLite → Engine.reload() (Sprint 17, ADR-033)
 - [HITL Flow complet](../diagrams/seq-hitl-flow.puml) — suspend → notify → approve/reject → resume
 - [Task Lifecycle](../diagrams/seq-task-lifecycle.puml) — flux complet soumission → résultat
 - [Timeline Aggregation](../diagrams/seq-timeline-aggregation.puml) — agrégation 5 sources → chronologie unifiée
+- [Chat Libre sequence](../diagrams/seq-chat-libre.puml) — boucle ReAct + streaming token-by-token (Sprint 18)
+- [Chat session state machine](../diagrams/state-chat-session.puml) — Active → Processing → Closed (Sprint 18)

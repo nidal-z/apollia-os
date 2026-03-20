@@ -252,7 +252,7 @@ pub enum NotifConfigError {
 
 ## 3. Événements mappés
 
-La fonction `event_filter::map_event()` est pure : mêmes entrées, mêmes sorties, sans effet de bord. Elle reconnaît exactement **6 événements critiques** et retourne `None` pour tous les autres.
+La fonction `event_filter::map_event()` est pure : mêmes entrées, mêmes sorties, sans effet de bord. Elle reconnaît exactement **7 événements critiques** et retourne `None` pour tous les autres.
 
 | `RuntimeEvent` | Nom de notification | Sévérité | Métadonnées clés |
 |---|---|---|---|
@@ -262,12 +262,18 @@ La fonction `event_filter::map_event()` est pure : mêmes entrées, mêmes sorti
 | `AgentDegraded { agent_id, reason }` | `agent.degraded` | `Warning` | — |
 | `LlmModelFailed { backend, reason }` | `llm.backend_down` | `Error` | `backend` |
 | `TriggerError { trigger_id, error }` | `trigger.error` | `Error` | `trigger_id` |
+| `ChatApprovalRequired { session_id, tool_name, .. }` | `chat.approval_required` | `Warning` | `session_id`, `tool_name` |
 
 **Tous les autres `RuntimeEvent`** (`AgentRegistered`, `TaskStarted`, `AllReady`, etc.) retournent `None` — aucune notification n'est émise.
 
 Les métadonnées HITL de `task.input_required` contiennent :
 - `resume_url` : `http://localhost:7771/api/v1/tasks/{id}/resume`
 - `inspect_url` : `http://localhost:7771/dashboard#tasks/{id}`
+
+Les métadonnées de `chat.approval_required` contiennent :
+- `session_id` : identifiant de la session de chat
+- `tool_name` : nom de l'outil demandant approbation
+- Deep link : `apollia://chat/{session_id}` (notification desktop cliquable)
 
 ### Logique de filtrage par canal
 

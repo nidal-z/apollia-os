@@ -7,7 +7,7 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — Démarrage ordonné Supervisor (9 phases) — Apollia OS
+title Séquence — Démarrage ordonné Supervisor (13 phases) — Apollia OS
 
 participant "CLI\n(apollia-os start)" as cli #3a3a3a/ffffff
 participant "Supervisor" as sup #1a1a2e/e0e0ff
@@ -19,6 +19,7 @@ participant "TaskRouter" as router #1a1a2e/e0e0ff
 participant "APIServer" as api #1a1a2e/e0e0ff
 participant "TriggerEngine" as trig #2d4a22/d4edda
 participant "NotificationEngine" as notif #4a3728/f5e6d3
+participant "ChatSessionManager" as chat #1a1a2e/e0e0ff
 
 cli -> sup : Supervisor::start(config, agent_loader)
 
@@ -102,6 +103,13 @@ alt canaux configurés dans SQLite
 else base SQLite vide
   note right of sup : ⚠ Phase 9 — NotificationEngine absent\naucune notification envoyée
 end
+
+' Phase 13 — Chat (Sprint 18, ADR-034)
+sup -> chat : ChatSessionManager::spawn(\n  event_sender, llm_router,\n  tool_registry, agent_loader,\n  runtime_budget\n)
+chat -> chat : ChatSessionRepository::open(\n  data_dir/chat.db\n)
+chat -> chat : restore authorized_tools\nfrom SQLite
+chat --> sup : ChatSessionManagerHandle
+note right of sup : ✔ Phase 13 — ChatSessionManager prêt\n(chat.db ouvert, autorisations restaurées)
 
 ' AllReady
 sup -> bus : send(RuntimeEvent::AllReady)

@@ -7,13 +7,13 @@
 
 ## Vue d'ensemble
 
-Le Runtime Core d'Apollia OS est composé de six acteurs Tokio. Un acteur est une tâche Tokio qui possède exclusivement son état interne et communique avec l'extérieur uniquement via des messages sur un canal `mpsc`. Zéro `Arc<Mutex<T>>` entre acteurs.
+Le Runtime Core d'Apollia OS est composé de sept acteurs Tokio. Un acteur est une tâche Tokio qui possède exclusivement son état interne et communique avec l'extérieur uniquement via des messages sur un canal `mpsc`. Zéro `Arc<Mutex<T>>` entre acteurs.
 
 Ce modèle s'inspire du pattern acteur documenté par Alice Ryhl (blog Tokio). Il force la séparation des responsabilités par construction : il est architecturalement impossible pour un acteur de modifier l'état d'un autre sans passer par un message.
 
 ---
 
-## Les 6 acteurs
+## Les 7 acteurs
 
 ### 1. EventBus
 
@@ -108,6 +108,21 @@ EventBus → AgentRegistry → TaskRouter → APIServer
 
 **Rollback :** si l'APIServer échoue au démarrage, tous les acteurs précédemment démarrés sont arrêtés en ordre inverse.
 
+### 7. ChatSessionManager *(Sprint 18)*
+
+**Rôle :** gérer les sessions de chat interactif (Chat Libre et Chat Agent).
+
+**État interne :** `HashMap<String, ChatSession>` + `ChatSessionRepository` (SQLite) + `PendingChatApprovals`.
+
+**Messages entrants :** `CreateSession`, `SendMessage`, `ResolveTool`, `ListSessions`, `GetSession`, `CloseSession`, `Shutdown`.
+
+**Comportement :**
+- Chat Libre : boucle ReAct Rust native via `BuiltInChatAgent` avec streaming token-by-token
+- Chat Agent : délègue à `AIPBridge.call_run()` (agent Python installé)
+- HITL inline : tous les outils requièrent approbation (Accept/Refuse/AlwaysAccept)
+- Persistance `chat.db` SQLite (sessions, messages, autorisations)
+- Chemin d'exécution séparé du `TaskRouter` (ADR-034)
+
 ---
 
 ## Pattern Handle
@@ -172,6 +187,12 @@ Supervisor::start()
     └── 4. APIServer::start(state, config) → APIServerHandle
              └── bind TCP 7771 + Unix socket
              └── axum::serve() + boucle accept hyper-util
+    │
+    └── … 5-12. (LlmRouter, TriggerEngine, PipelineEngine,
+    │        NotificationEngine…)
+    │
+    └── 13. ChatSessionManager::spawn(event_tx, llm, tools)
+             └── ouvre chat.db, restaure autorisations
 
 Supervisor::watch() → attend ShutdownRequested ou FatalError
 ```
@@ -202,3 +223,5 @@ Cette règle est vérifiable à la compilation : `AgentRegistry` (l'acteur) n'es
 - [Briques Runtime Core](./Briques-Runtime-Core) — détail des composants Runtime
 - [ADR-011](../adr/ADR-011-agentid-taskid-string-aliases-dans-core) — AgentId / TaskId comme string aliases
 - [ADR-017](../adr/ADR-017-hyper-util-unix-socket-serving) — Unix socket avec hyper-util
+- [Briques Chat](./Briques-Chat) — détail du sous-système de chat
+- [ADR-034](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline) — Chat hybride : sessions, streaming, HITL inline
