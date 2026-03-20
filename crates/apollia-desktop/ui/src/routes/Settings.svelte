@@ -60,7 +60,7 @@
   }
 
   function navigateTo(route: string) {
-    currentRoute.set(route as "llm" | "triggers");
+    currentRoute.set(route as "llm");
   }
 
   const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
@@ -188,9 +188,14 @@
         </Button>
       </div>
 
-      <!-- Info banner (AC-4: i18n, no hard-coded French) -->
+      <!-- Info banner: read-only notice -->
       <div class="rounded-md border border-info/30 bg-info/10 px-4 py-3 text-sm text-info-foreground">
         {$t('settings.readonly_banner', { values: { file: 'apollia.toml' } })}
+      </div>
+
+      <!-- Info banner: operational config redirect (AC-2) -->
+      <div class="rounded-md border border-info/30 bg-info/10 px-4 py-3 text-sm text-info-foreground" data-testid="settings-operational-redirect-banner">
+        {$t('settings.operational_redirect_banner')}
       </div>
 
       {#if configView}
@@ -219,8 +224,6 @@
                   <span>
                     {#if section.name === "llm"}
                       {$t('settings.see_llm')}
-                    {:else if section.name === "triggers"}
-                      {$t('settings.see_triggers')}
                     {:else}
                       {$t('settings.see_details')}
                     {/if}

@@ -166,12 +166,6 @@ fn build_config_view(
             entries: vec![],
             redirect_route: Some("llm".to_string()),
         },
-        ConfigSection {
-            name: "triggers".to_string(),
-            description: "Trigger configuration".to_string(),
-            entries: vec![],
-            redirect_route: Some("triggers".to_string()),
-        },
     ];
 
     ApollaConfigView {
@@ -478,7 +472,7 @@ mod tests {
 
         // THEN all sections are present with defaults
         assert!(!view.config_exists);
-        assert_eq!(view.sections.len(), 7);
+        assert_eq!(view.sections.len(), 6);
 
         let runtime = &view.sections[0];
         assert_eq!(runtime.name, "runtime");
@@ -516,11 +510,11 @@ mod tests {
     }
 
     #[test]
-    fn test_build_config_view_llm_and_triggers_redirect() {
+    fn test_build_config_view_llm_redirect() {
         // GIVEN a config view
         let view = build_config_view(None, "/fake.toml", false);
 
-        // THEN llm and triggers sections redirect to dedicated views
+        // THEN llm section redirects to dedicated view
         let llm = view
             .sections
             .iter()
@@ -529,13 +523,9 @@ mod tests {
         assert_eq!(llm.redirect_route, Some("llm".to_string()));
         assert!(llm.entries.is_empty());
 
-        let triggers = view
-            .sections
-            .iter()
-            .find(|s| s.name == "triggers")
-            .expect("triggers section");
-        assert_eq!(triggers.redirect_route, Some("triggers".to_string()));
-        assert!(triggers.entries.is_empty());
+        // AND triggers section is absent (migrated to SQLite CRUD)
+        let triggers = view.sections.iter().find(|s| s.name == "triggers");
+        assert!(triggers.is_none());
     }
 
     #[tokio::test]
