@@ -718,6 +718,10 @@
     "system_prompt_placeholder": "Instructions pour le LLM...",
     "optional": "optionnel",
     "start": "Démarrer",
-    "no_active_agents": "Aucun agent actif disponible"
+    "no_active_agents": "Aucun agent actif disponible",
+    "input_placeholder": "Tapez votre message...",
+    "first_message_placeholder": "Envoyez votre premier message...",
+    "agent_processing": "Agent en cours...",
+    "thinking": "Réflexion en cours..."
   }
 }
