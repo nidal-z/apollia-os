@@ -870,6 +870,7 @@ mod tests {
             trigger_def_repo: Some(Arc::new(std::sync::Mutex::new(repo))),
             pipeline_def_repo: None,
             notification_repo: None,
+            notification_engine_handle: None,
         }
     }
 
@@ -1233,6 +1234,7 @@ mod tests {
             trigger_def_repo: None,
             pipeline_def_repo: None,
             notification_repo: None,
+            notification_engine_handle: None,
         };
 
         let router = Router::new()

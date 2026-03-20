@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use tokio::sync::mpsc;
 
 use apollia_core::{EventBusSender, RuntimeEvent};
 
@@ -72,23 +73,57 @@ pub trait NotificationChannel: Send + Sync {
     async fn send(&self, notif: &Notification) -> Result<(), NotifError>;
 }
 
-/// Handle returned by [`NotificationEngine::spawn`] to stop the engine gracefully.
+/// Commande interne envoyée au [`NotificationEngine`] via son handle.
+enum NotifEngineCommand {
+    /// Remplace la configuration et les canaux actifs (hot-reload).
+    Reload {
+        config: NotificationConfig,
+        channels: Vec<Box<dyn NotificationChannel>>,
+    },
+    /// Demande un arrêt propre du moteur.
+    Shutdown,
+}
+
+/// Handle returned by [`NotificationEngine::spawn`] to control the engine.
 ///
-/// Call [`NotificationEngineHandle::shutdown`] to signal the engine to stop and
-/// wait for its task to finish. Dropping the handle without calling `shutdown`
-/// sends the stop signal but does not wait for completion.
+/// Cloneable — stockable dans `AppState` (routes REST) et `SupervisorHandles`
+/// (shutdown gracieux) simultanément.
+///
+/// Call [`NotificationEngineHandle::shutdown`] to signal the engine to stop.
+/// Call [`NotificationEngineHandle::reload`] to hot-reload configuration.
 pub struct NotificationEngineHandle {
-    shutdown_tx: tokio::sync::oneshot::Sender<()>,
-    join_handle: tokio::task::JoinHandle<()>,
+    tx: mpsc::Sender<NotifEngineCommand>,
+}
+
+impl Clone for NotificationEngineHandle {
+    fn clone(&self) -> Self {
+        Self {
+            tx: self.tx.clone(),
+        }
+    }
 }
 
 impl NotificationEngineHandle {
-    /// Signal the engine to stop and wait for it to finish.
+    /// Hot-reload la configuration et les canaux du moteur.
     ///
-    /// Idempotent — if the engine already stopped (bus closed), this returns immediately.
-    pub async fn shutdown(self) {
-        let _ = self.shutdown_tx.send(());
-        let _ = self.join_handle.await;
+    /// Le moteur remplace immédiatement ses canaux internes. Les événements
+    /// reçus après le reload utiliseront la nouvelle configuration.
+    pub async fn reload(
+        &self,
+        config: NotificationConfig,
+        channels: Vec<Box<dyn NotificationChannel>>,
+    ) {
+        let _ = self
+            .tx
+            .send(NotifEngineCommand::Reload { config, channels })
+            .await;
+    }
+
+    /// Signal the engine to stop gracefully.
+    ///
+    /// Fire-and-forget — the engine arrête sa boucle dès réception.
+    pub async fn shutdown(&self) {
+        let _ = self.tx.send(NotifEngineCommand::Shutdown).await;
     }
 }
 
@@ -133,117 +168,25 @@ impl NotificationEngine {
 
     /// Spawns the engine as a Tokio task and returns a [`NotificationEngineHandle`].
     ///
-    /// Preferred over [`run`] in production — the handle allows the Supervisor to
-    /// stop the engine gracefully before the EventBus closes (fixes race condition
-    /// where late notifications are delivered after `apollia-os stop`).
+    /// The handle allows the Supervisor to stop the engine gracefully before the
+    /// EventBus closes, and REST routes to hot-reload configuration after CRUD
+    /// mutations (STORY-191).
     pub fn spawn(self) -> NotificationEngineHandle {
-        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
-        let join_handle = tokio::spawn(self.run_with_shutdown(shutdown_rx));
-        NotificationEngineHandle {
-            shutdown_tx,
-            join_handle,
-        }
-    }
-
-    /// Boucle principale de l'engine (variante avec signal d'arrêt explicite).
-    ///
-    /// Utilisée par [`spawn`]. Réagit à deux sources de terminaison :
-    /// - le signal oneshot envoyé par [`NotificationEngineHandle::shutdown`]
-    /// - la fermeture implicite de l'EventBus (`RecvError::Closed`)
-    async fn run_with_shutdown(self, mut shutdown_rx: tokio::sync::oneshot::Receiver<()>) {
+        let (cmd_tx, cmd_rx) = mpsc::channel(8);
         let NotificationEngine {
             config,
             channels,
             event_bus,
             log_db_path,
         } = self;
-        let mut rx = event_bus.subscribe();
-        drop(event_bus);
-
-        loop {
-            tokio::select! {
-                biased;
-                _ = &mut shutdown_rx => {
-                    tracing::info!("NotificationEngine : signal d'arrêt reçu — arrêt propre");
-                    break;
-                }
-                result = rx.recv() => {
-                    match result {
-                        Ok(event) => {
-                            if let Some(notif) = map_event_with(&config, &channels, &event) {
-                                let channel_results =
-                                    dispatch_notif(&config, &channels, &notif).await;
-                                if let Some(ref db_path) = log_db_path {
-                                    let db_path = db_path.clone();
-                                    let notif_clone = notif.clone();
-                                    tokio::task::spawn_blocking(move || {
-                                        write_notification_log(
-                                            &db_path,
-                                            &notif_clone,
-                                            &channel_results,
-                                        );
-                                    });
-                                }
-                            }
-                        }
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                            tracing::warn!(
-                                skipped = n,
-                                "NotificationEngine a raté des événements (bus saturé)"
-                            );
-                        }
-                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                            tracing::info!("NotificationEngine : bus fermé — arrêt propre");
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// Boucle principale de l'engine (variante sans signal d'arrêt).
-    ///
-    /// Conservée pour la compatibilité des tests unitaires. En production,
-    /// préférer [`spawn`] qui retourne un [`NotificationEngineHandle`].
-    pub async fn run(self) {
-        let NotificationEngine {
+        tokio::spawn(run_engine_loop(
             config,
             channels,
             event_bus,
             log_db_path,
-        } = self;
-        let mut rx = event_bus.subscribe();
-        // Libérer le sender pour permettre la fermeture du bus quand tous les
-        // senders externes sont également droppés.
-        drop(event_bus);
-
-        loop {
-            match rx.recv().await {
-                Ok(event) => {
-                    if let Some(notif) = map_event_with(&config, &channels, &event) {
-                        let channel_results = dispatch_notif(&config, &channels, &notif).await;
-                        if let Some(ref db_path) = log_db_path {
-                            let db_path = db_path.clone();
-                            let notif_clone = notif.clone();
-                            tokio::task::spawn_blocking(move || {
-                                write_notification_log(&db_path, &notif_clone, &channel_results);
-                            });
-                        }
-                    }
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                    tracing::warn!(
-                        skipped = n,
-                        "NotificationEngine a raté des événements (bus saturé)"
-                    );
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                    tracing::info!("NotificationEngine : bus fermé — arrêt propre");
-                    break;
-                }
-            }
-        }
+            cmd_rx,
+        ));
+        NotificationEngineHandle { tx: cmd_tx }
     }
 
     /// Transforme un [`RuntimeEvent`] en [`Notification`].
@@ -252,6 +195,73 @@ impl NotificationEngine {
     /// Testable sans infrastructure.
     pub fn map_event(&self, event: &RuntimeEvent) -> Option<Notification> {
         event_filter::map_event(event)
+    }
+}
+
+/// Boucle principale du moteur de notification (fonction libre).
+///
+/// Écoute simultanément l'EventBus (événements runtime) et le canal de commande
+/// (reload / shutdown). Le reload remplace la config et les canaux à chaud,
+/// sans interrompre l'écoute de l'EventBus.
+async fn run_engine_loop(
+    mut config: NotificationConfig,
+    mut channels: Vec<Box<dyn NotificationChannel>>,
+    event_bus: EventBusSender,
+    log_db_path: Option<PathBuf>,
+    mut cmd_rx: mpsc::Receiver<NotifEngineCommand>,
+) {
+    let mut rx = event_bus.subscribe();
+    drop(event_bus);
+
+    loop {
+        tokio::select! {
+            biased;
+            cmd = cmd_rx.recv() => {
+                match cmd {
+                    Some(NotifEngineCommand::Reload { config: new_config, channels: new_channels }) => {
+                        let count = new_channels.len();
+                        config = new_config;
+                        channels = new_channels;
+                        tracing::info!(channels = count, "NotificationEngine : configuration rechargée");
+                    }
+                    Some(NotifEngineCommand::Shutdown) | None => {
+                        tracing::info!("NotificationEngine : signal d'arrêt reçu — arrêt propre");
+                        break;
+                    }
+                }
+            }
+            result = rx.recv() => {
+                match result {
+                    Ok(event) => {
+                        if let Some(notif) = map_event_with(&config, &channels, &event) {
+                            let channel_results =
+                                dispatch_notif(&config, &channels, &notif).await;
+                            if let Some(ref db_path) = log_db_path {
+                                let db_path = db_path.clone();
+                                let notif_clone = notif.clone();
+                                tokio::task::spawn_blocking(move || {
+                                    write_notification_log(
+                                        &db_path,
+                                        &notif_clone,
+                                        &channel_results,
+                                    );
+                                });
+                            }
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!(
+                            skipped = n,
+                            "NotificationEngine a raté des événements (bus saturé)"
+                        );
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                        tracing::info!("NotificationEngine : bus fermé — arrêt propre");
+                        break;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -492,7 +502,7 @@ mod tests {
         ];
 
         let engine = NotificationEngine::new(config, channels, tx.clone(), None);
-        let handle = tokio::spawn(engine.run());
+        let handle = engine.spawn();
 
         // Laisser l'engine s'abonner au bus
         tokio::task::yield_now().await;
@@ -505,11 +515,12 @@ mod tests {
         })
         .expect("envoi échoue");
 
-        // Fermer le bus → engine.run() se termine proprement
-        drop(tx);
+        // Laisser le dispatch s'exécuter
+        tokio::task::yield_now().await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
-        // Attendre la fin de la tâche engine — pas de panic
-        handle.await.expect("engine a paniqué");
+        // Arrêter proprement via handle
+        handle.shutdown().await;
 
         // THEN — desktop a bien reçu la notification malgré l'erreur slack
         assert_eq!(desktop_count.load(Ordering::SeqCst), 1);

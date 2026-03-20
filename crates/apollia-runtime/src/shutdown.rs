@@ -130,7 +130,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
         // Step 5: Stop NotificationEngine before the EventBus closes.
         // This prevents late notifications from firing after the process exits
         // (macOS Notification Center buffers osascript calls asynchronously).
-        if let Some(notif_handle) = self.notification_engine {
+        if let Some(ref notif_handle) = self.notification_engine {
             notif_handle.shutdown().await;
             info!("NotificationEngine stopped");
         }
@@ -477,6 +477,7 @@ mod tests {
             trigger_def_repo: None,
             pipeline_def_repo: None,
             notification_repo: None,
+            notification_engine_handle: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -612,6 +613,7 @@ mod tests {
             trigger_def_repo: None,
             pipeline_def_repo: None,
             notification_repo: None,
+            notification_engine_handle: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -700,6 +702,7 @@ mod tests {
             trigger_def_repo: None,
             pipeline_def_repo: None,
             notification_repo: None,
+            notification_engine_handle: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -894,6 +897,7 @@ mod tests {
             trigger_def_repo: None,
             pipeline_def_repo: None,
             notification_repo: None,
+            notification_engine_handle: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

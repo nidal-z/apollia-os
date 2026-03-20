@@ -552,7 +552,32 @@ impl Supervisor {
                 })
             };
         let notification_config_for_state = notification_config_from_db.clone();
+        let notification_config_for_engine = notification_config_from_db.clone();
         let notification_repo = Arc::new(std::sync::Mutex::new(notification_repo));
+
+        // Phase 11-early: NotificationEngine — spawné avant AppState pour passer le handle (STORY-191).
+        let notification_engine: Option<NotificationEngineHandle> =
+            if let Some(ref notif_config) = notification_config_for_engine {
+                let channels = build_channels(&notif_config.channels)
+                    .map_err(|e| SupervisorError::NotificationConfig(e.to_string()))?;
+                let active = notif_config.channels.iter().filter(|c| c.enabled).count();
+                let notif_log_db_path = Some(self.config.data_dir.join("hitl.db"));
+                let engine = NotificationEngine::new(
+                    notif_config.clone(),
+                    channels,
+                    event_sender.clone(),
+                    notif_log_db_path,
+                );
+                let handle = engine.spawn();
+                tracing::info!(channels = active, "NotificationEngine démarré");
+                Some(handle)
+            } else {
+                tracing::info!(
+                    "Supervisor: aucun canal de notification en base — NotificationEngine désactivé"
+                );
+                None
+            };
+
         // Clone handles before moving into AppState — needed for auto-load (STORY-179).
         let agent_loader_for_autoload = agent_loader.clone();
         let backend_factory_for_autoload = backend_factory.clone();
@@ -578,6 +603,7 @@ impl Supervisor {
             trigger_def_repo: Some(trigger_def_repo.clone()),
             pipeline_def_repo: Some(pipeline_def_repo.clone()),
             notification_repo: Some(notification_repo.clone()),
+            notification_engine_handle: notification_engine.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -626,29 +652,6 @@ impl Supervisor {
             tokio::spawn(watcher.run());
             info!("Supervisor: TimeoutWatcher started");
         }
-
-        // Phase 11: NotificationEngine — démarré depuis SQLite (STORY-187)
-        let notification_engine: Option<NotificationEngineHandle> =
-            if let Some(notif_config) = notification_config_from_db {
-                let channels = build_channels(&notif_config.channels)
-                    .map_err(|e| SupervisorError::NotificationConfig(e.to_string()))?;
-                let active = notif_config.channels.iter().filter(|c| c.enabled).count();
-                let notif_log_db_path = Some(self.config.data_dir.join("hitl.db"));
-                let engine = NotificationEngine::new(
-                    notif_config,
-                    channels,
-                    event_sender.clone(),
-                    notif_log_db_path,
-                );
-                let handle = engine.spawn();
-                tracing::info!(channels = active, "NotificationEngine démarré");
-                Some(handle)
-            } else {
-                tracing::info!(
-                    "Supervisor: aucun canal de notification en base — NotificationEngine désactivé"
-                );
-                None
-            };
 
         // Emit AllReady
         let _ = event_sender.send(RuntimeEvent::AllReady);
@@ -1325,6 +1328,7 @@ mod tests {
             trigger_def_repo: None,
             pipeline_def_repo: None,
             notification_repo: None,
+            notification_engine_handle: None,
         };
 
         // WHEN on clone l'AppState

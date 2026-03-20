@@ -21,7 +21,9 @@ use tracing::info;
 
 use apollia_core::PendingApprovals;
 use apollia_llm::{LlmCallRepository, LlmRouter};
-use apollia_notifications::{NotificationConfig, NotificationConfigRepository};
+use apollia_notifications::{
+    NotificationConfig, NotificationConfigRepository, NotificationEngineHandle,
+};
 use apollia_pipelines::{PipelineDefinitionRepository, PipelineEngineHandle};
 use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use apollia_triggers::{TriggerDefinitionRepository, TriggerEngineHandle};
@@ -126,6 +128,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// Partagé entre le boot (lecture initiale) et les routes REST CRUD (STORY-191).
     /// `None` en tests unitaires.
     pub notification_repo: Option<Arc<std::sync::Mutex<NotificationConfigRepository>>>,
+    /// Handle vers le [`NotificationEngine`] pour hot-reload après CRUD (STORY-191).
+    ///
+    /// Permet aux routes REST de déclencher un rechargement des canaux après
+    /// une mutation dans `notifications.db`. `None` en tests unitaires.
+    pub notification_engine_handle: Option<NotificationEngineHandle>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -151,6 +158,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             trigger_def_repo: self.trigger_def_repo.clone(),
             pipeline_def_repo: self.pipeline_def_repo.clone(),
             notification_repo: self.notification_repo.clone(),
+            notification_engine_handle: self.notification_engine_handle.clone(),
         }
     }
 }
@@ -255,7 +263,10 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     use super::routes_approvals::{list_pending_approvals, list_resolved_approvals};
     use super::routes_audit::{get_audit_stats, list_audit};
     use super::routes_llm::llm_routes;
-    use super::routes_notifications::{list_channels, notification_logs, test_channels};
+    use super::routes_notifications::{
+        create_channel, delete_channel, get_events, list_channels, notification_logs, set_events,
+        test_channels, update_channel,
+    };
     use super::routes_pipelines::{
         create_pipeline, delete_pipeline, get_pipeline, get_run, get_run_by_id, list_pipelines,
         list_runs, run_pipeline, update_pipeline,
@@ -322,8 +333,23 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route("/api/v1/triggers/:id/enable", post(enable_trigger::<B>))
         .route("/api/v1/triggers/:id/disable", post(disable_trigger::<B>))
         .route("/api/v1/triggers/:id/logs", get(get_trigger_logs::<B>))
-        // Notification routes (STORY-104)
-        .route("/api/v1/notifications/channels", get(list_channels::<B>))
+        // Notification routes (STORY-104 + STORY-191 CRUD)
+        .route(
+            "/api/v1/notifications/channels",
+            get(list_channels::<B>).post(create_channel::<B>),
+        )
+        .route(
+            "/api/v1/notifications/channels/:id",
+            axum::routing::put(update_channel::<B>).delete(delete_channel::<B>),
+        )
+        .route(
+            "/api/v1/notifications/events",
+            get(get_events::<B>).put(set_events::<B>),
+        )
+        .route(
+            "/api/v1/notifications/channels/:id/test",
+            post(test_channels::<B>),
+        )
         .route("/api/v1/notifications/test", post(test_channels::<B>))
         .route("/api/v1/notifications/logs", get(notification_logs::<B>))
         .merge(llm_routes::<B>())
@@ -547,6 +573,7 @@ mod tests {
             trigger_def_repo: None,
             pipeline_def_repo: None,
             notification_repo: None,
+            notification_engine_handle: None,
         }
     }
 
