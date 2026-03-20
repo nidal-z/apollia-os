@@ -11,7 +11,7 @@
 
 **Auteur :** Nidal — CTO & Co-fondateur Apollia  
 **Développement :** soir/weekend, 8-10h/semaine  
-**Phase actuelle :** Sprint 16 — MVP Demo-Ready : UI/UX bimodale (STORY-156 → STORY-175)
+**Phase actuelle :** Sprint 18 — Chat hybride (à planifier). Sprint 17 livré (Config opérateur SQLite CRUD). Sprint 16 à planifier (UI/UX bimodale).
 
 ---
 
@@ -122,9 +122,9 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Sprint actif :** Sprint 16 (à planifier)
-**Dernier sprint livré :** Sprint 15 — Svelte frontend complet (13/13 stories, ADR-029)
+**Sprint actif :** Sprint 18 — Chat hybride (à planifier)
+**Dernier sprint livré :** Sprint 17 — Config opérateur SQLite CRUD (14/14 stories, ADR-033)
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
-**Dernière décision :** ADR-029 — Settings lecture seule dans l'application desktop
+**Dernière décision :** ADR-033 — Config opérateur SQLite : séparation structurel (TOML) / opérationnel (SQLite)
 
 Pour l'état détaillé : lire `docs/internal/STORIES/sprint-index.md`.

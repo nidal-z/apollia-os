@@ -1,6 +1,6 @@
 # Notifications Engine — Alertes découplées pour les agents
 
-> *La crate `apollia-notifications` centralise la logique de notification d'Apollia OS : un `NotificationEngine` s'abonne à l'EventBus et dispatche 6 événements critiques vers des canaux configurables (desktop natif OS, webhooks HTTP), sans jamais bloquer le runtime.*
+> *La crate `apollia-notifications` centralise la logique de notification d'Apollia OS : un `NotificationEngine` s'abonne à l'EventBus et dispatche 6 événements critiques vers des canaux configurables (desktop natif OS, webhooks HTTP), sans jamais bloquer le runtime. Depuis le Sprint 17 (ADR-033), les canaux et événements se gèrent via API REST CRUD et application desktop.*
 
 ---
 
@@ -43,7 +43,7 @@ apollia.toml [notifications]
 - **Découplé** : le `NotificationEngine` consomme l'EventBus en lecture seule. Aucun autre acteur ne dépend de lui. Une notification ratée ne perturbe jamais l'exécution d'une tâche agent.
 - **Non-bloquant** : `send()` retourne `Ok(())` immédiatement. L'attente d'une action utilisateur desktop tourne dans un `spawn_blocking` indépendant.
 - **Dégradation gracieuse** : canal en erreur → `warn!` + dispatch continue. Desktop headless (Linux sans `DISPLAY` ni `DBUS_SESSION_BUS_ADDRESS`) → `Ok(())` silencieux. Webhook timeout → `Err(WebhookFailed(_))` loggé en `warn!`.
-- **Pas de section = pas de démarrage** : si `[notifications]` est absent de `apollia.toml`, le Supervisor n'instancie pas d'engine (aucun coût).
+- **Base vide = pas de démarrage** : si `notifications.db` est vide (aucun canal, aucun événement global), le Supervisor n'instancie pas d'engine (aucun coût). Les canaux se créent via l'API REST CRUD (Sprint 17).
 
 ---
 
@@ -160,12 +160,53 @@ impl NotificationEngine {
 }
 ```
 
-### 2.6 Types de configuration
+### 2.6 `NotificationConfigRepository` *(Sprint 17)*
+
+```rust
+// apollia-notifications/src/repository.rs
+
+pub struct NotificationConfigRepository { /* ... rusqlite::Connection */ }
+
+impl NotificationConfigRepository {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, NotificationConfigError>;
+    pub fn insert_channel(&self, ch: &NotificationChannelRow) -> Result<(), NotificationConfigError>;
+    pub fn update_channel(&self, id: &str, ch: &NotificationChannelRow) -> Result<(), NotificationConfigError>;
+    pub fn delete_channel(&self, id: &str) -> Result<(), NotificationConfigError>;
+    pub fn get_channel(&self, id: &str) -> Result<Option<NotificationChannelRow>, NotificationConfigError>;
+    pub fn list_channels(&self) -> Result<Vec<NotificationChannelRow>, NotificationConfigError>;
+    pub fn set_global_events(&self, events: &[String]) -> Result<(), NotificationConfigError>;
+    pub fn get_global_events(&self) -> Result<Vec<String>, NotificationConfigError>;
+    pub fn write_log(&self, log: &NotificationLogRow) -> Result<(), NotificationConfigError>;
+    pub fn query_logs(&self, limit: usize) -> Result<Vec<NotificationLogRow>, NotificationConfigError>;
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum NotificationConfigError {
+    NotFound { id: String },
+    DuplicateId { id: String },
+    ValidationError(String),
+    Database(rusqlite::Error),
+}
+```
+
+**Schema SQLite** (`~/.apollia/notifications.db` — 3 tables) :
+- `notification_channels` (id, channel_type, enabled, config_json, events_json, created_at, updated_at)
+- `notification_global_events` (event_name TEXT PK)
+- `notification_logs` (id, event_name, task_id, agent_id, sent_at, channels, error) + index sur `sent_at`
+
+**Validation avant écriture** (`apollia-notifications/src/validation.rs`) :
+- Type de canal : `desktop` ou `webhook`
+- Webhook doit avoir un champ `url` dans la config
+- Noms d'événements validés contre la liste `KNOWN_EVENTS`
+
+**Conversion vers runtime** : `NotificationChannelRow::to_channel_config()` convertit une ligne SQLite en `ChannelConfig` pour reconstruire le `NotificationEngine` au boot.
+
+### 2.7 Types de configuration
 
 ```rust
 // apollia-notifications/src/config.rs
 
-/// Configuration globale chargée depuis [notifications] dans apollia.toml.
+/// Configuration globale reconstruite depuis SQLite au démarrage.
 #[derive(Debug, Clone, Deserialize)]
 pub struct NotificationConfig {
     /// Événements activés globalement.
@@ -241,86 +282,69 @@ Les métadonnées HITL de `task.input_required` contiennent :
 
 ---
 
-## 4. Configuration `apollia.toml`
+## 4. Gestion des notifications — CRUD SQLite (Sprint 17)
 
-### 4.1 Structure minimale
+Depuis le Sprint 17 (ADR-033), les canaux de notification et les événements globaux sont persistés en SQLite (`~/.apollia/notifications.db`) et se gèrent via l'API REST ou l'application desktop. La section `[notifications]` de `apollia.toml` n'est plus utilisée.
 
-```toml
-[notifications]
-events = [
-    "task.input_required",
-    "task.failed",
-    "agent.degraded",
-]
+### 4.1 Créer un canal via API
 
-[[notifications.channels]]
-id      = "desktop"
-type    = "desktop"
-enabled = true
+```bash
+# Canal desktop
+$ curl -X POST http://localhost:7771/api/v1/notifications/channels \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "desktop",
+    "channel_type": "desktop",
+    "enabled": true,
+    "events": ["task.input_required", "task.failed"]
+  }'
+
+# Canal webhook
+$ curl -X POST http://localhost:7771/api/v1/notifications/channels \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "slack-erreurs",
+    "channel_type": "webhook",
+    "enabled": true,
+    "config": { "url": "https://hooks.slack.com/services/..." },
+    "events": ["task.failed", "agent.degraded"]
+  }'
 ```
 
-### 4.2 Canal desktop — tous les événements
+### 4.2 Modifier / supprimer un canal
 
-```toml
-[notifications]
-events = [
-    "task.input_required",
-    "task.failed",
-    "task.completed",
-    "agent.degraded",
-    "llm.backend_down",
-    "trigger.error",
-]
+```bash
+# Modifier
+$ curl -X PUT http://localhost:7771/api/v1/notifications/channels/slack-erreurs \
+  -H "Content-Type: application/json" \
+  -d '{ "enabled": false }'
 
-[[notifications.channels]]
-id      = "desktop"
-type    = "desktop"
-enabled = true
-# Sans champ events → hérite de la liste globale
+# Supprimer
+$ curl -X DELETE http://localhost:7771/api/v1/notifications/channels/slack-erreurs
 ```
 
-### 4.3 Canal webhook — sous-ensemble d'événements
+### 4.3 Gérer les événements globaux
 
-```toml
-[[notifications.channels]]
-id      = "monitoring"
-type    = "webhook"
-enabled = true
-url     = "https://hooks.exemple.com/services/XXX/YYY/ZZZ"
-events  = ["task.failed", "agent.degraded", "llm.backend_down"]
+```bash
+# Lire les événements globaux
+$ curl http://localhost:7771/api/v1/notifications/events
+
+# Définir les événements globaux (remplacement atomique)
+$ curl -X PUT http://localhost:7771/api/v1/notifications/events \
+  -H "Content-Type: application/json" \
+  -d '{ "events": ["task.input_required", "task.failed", "agent.degraded"] }'
 ```
 
-### 4.4 Canal webhook — wildcard (tous les événements globaux)
+### 4.4 Tester un canal
 
-```toml
-[[notifications.channels]]
-id      = "audit-complet"
-type    = "webhook"
-enabled = true
-url     = "https://interne.exemple.com/apollia-events"
-events  = ["*"]
+```bash
+$ curl -X POST http://localhost:7771/api/v1/notifications/channels/desktop/test
 ```
 
-### 4.5 Plusieurs canaux combinés
+### 4.5 Consulter les logs
 
-```toml
-[notifications]
-events = ["task.input_required", "task.failed", "agent.degraded"]
-
-# Canal desktop pour les alertes HITL uniquement
-[[notifications.channels]]
-id      = "desktop"
-type    = "desktop"
-enabled = true
-events  = ["task.input_required"]
-
-# Webhook pour toutes les erreurs
-[[notifications.channels]]
-id      = "slack-erreurs"
-type    = "webhook"
-enabled = true
-url     = "https://hooks.slack.com/services/..."
-events  = ["task.failed", "agent.degraded"]
+```bash
+$ curl http://localhost:7771/api/v1/notifications/logs?last=20
 ```
 
 ---
@@ -466,18 +490,9 @@ Le `NotificationEngine` est démarré en **position 9** dans la séquence du Sup
 9. NotifEngine     → alertes desktop / webhook  ← SPRINT 11
 ```
 
-Le Supervisor passe une `Option<NotificationConfig>` : si `None` (section absente de `apollia.toml`), aucun engine n'est démarré. Si `Some(config)`, `build_channels()` est appelé au démarrage — une `NotifConfigError` est une erreur fatale (webhook sans `url`).
+Au démarrage, le Supervisor ouvre le `NotificationConfigRepository` depuis `data_dir/notifications.db` *(Sprint 17)*, reconstruit la `NotificationConfig` depuis les lignes SQLite, et instancie le `NotificationEngine` si des canaux sont configurés. Le repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
 
-**Pattern d'instanciation dans le Supervisor :**
-
-```rust
-if let Some(notif_config) = config.notifications {
-    let channels = build_channels(&notif_config.channels)?;
-    let engine = NotificationEngine::new(notif_config, channels, event_bus.clone());
-    tokio::spawn(engine.run());
-    tracing::info!("NotificationEngine démarré");
-}
-```
+Si la base est vide (aucun canal), aucun engine n'est démarré. Si un canal webhook n'a pas d'URL, la validation rejette l'écriture au moment du CRUD (pas au boot).
 
 ---
 
@@ -492,9 +507,9 @@ if let Some(notif_config) = config.notifications {
 | Webhook réponse non-2xx | `Err(NotifError::WebhookFailed("HTTP NNN"))` → `warn!` |
 | EventBus saturé (Lagged) | `warn!(skipped = N, ...)`, boucle continue sans interruption |
 | EventBus fermé (arrêt runtime) | `break` — engine se termine proprement, aucun panic |
-| Section `[notifications]` absente | Engine non démarré — aucun coût, aucune erreur |
-| Webhook actif sans `url` | `NotifConfigError::MissingWebhookUrl` → erreur fatale au démarrage |
+| Base SQLite vide (aucun canal) | Engine non démarré — aucun coût, aucune erreur |
+| Webhook sans `url` en CRUD | `NotificationConfigError::ValidationError` → HTTP 422 |
 
 ---
 
-*Voir aussi : [Configuration apollia.toml](./Config-apollia-toml) · [ADR-024](./Decisions-Log) · [Briques-Runtime-Core](./Briques-Runtime-Core) · [Briques-Triggers](./Briques-Triggers)*
+*Voir aussi : [API HTTP Reference](./API-HTTP-Reference) · [ADR-024](./Decisions-Log) · [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) · [Briques-Runtime-Core](./Briques-Runtime-Core) · [Briques-Triggers](./Briques-Triggers)*

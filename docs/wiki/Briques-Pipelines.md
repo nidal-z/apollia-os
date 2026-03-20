@@ -1,36 +1,31 @@
 # Pipelines Engine — Orchestration Multi-Agent
 
-> *Coordinatez plusieurs agents indépendants via un pipeline TOML déclaratif. Fan-out, fan-in, conditions, fallback, HITL intégré — sans une ligne de code.*
+> *Coordinatez plusieurs agents indépendants via un pipeline déclaratif persisté en SQLite. Fan-out, fan-in, conditions, fallback, HITL intégré — gérables via API REST ou application desktop (Sprint 17 — ADR-033).*
 
 ---
 
 ## 1. Vue d'ensemble
 
-La crate `apollia-pipelines` (Sprint 12) permet de décrire un workflow multi-agent directement dans `apollia.toml`. Un **pipeline** est un graphe orienté acyclique (DAG) de **steps**, où chaque step soumet une tâche à un agent déjà démarré dans le runtime.
+La crate `apollia-pipelines` (Sprint 12, CRUD Sprint 17) permet de décrire un workflow multi-agent comme un graphe orienté acyclique (DAG) de **steps**, où chaque step soumet une tâche à un agent déjà démarré dans le runtime. Les pipelines sont persistés en SQLite (`~/.apollia/pipelines_def.db`) et se gèrent via l'API REST ou l'application desktop (ADR-033).
 
-```
-[[pipelines]]
-id = "traitement-facture"
-description = "OCR → validation → comptabilisation → archivage"
-
-[[pipelines.steps]]
-id    = "ocr"
-agent = "ocr-agent"
-input = "{{trigger.payload}}"
-
-[[pipelines.steps]]
-id         = "validation"
-agent      = "validation-agent"
-input      = "{{steps.ocr.output}}"
-depends_on = ["ocr"]
-on_failure = "fallback"
-condition  = { when = "contains", field = "steps.ocr.output", value = "PDF" }
-
-[[pipelines.steps]]
-id           = "validation-fallback"
-agent        = "fallback-agent"
-input        = "{{steps.ocr.output}}"
-fallback_for = "validation"
+```bash
+# Créer un pipeline via API REST
+$ curl -X POST http://localhost:7771/api/v1/pipelines \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "traitement-facture",
+    "description": "OCR → validation → comptabilisation",
+    "on_failure": "fail",
+    "steps": [
+      { "id": "ocr", "agent": "ocr-agent", "input": "{{trigger.payload}}" },
+      { "id": "validation", "agent": "validation-agent",
+        "input": "{{steps.ocr.output}}", "depends_on": ["ocr"],
+        "on_failure": "fallback" },
+      { "id": "validation-fallback", "agent": "fallback-agent",
+        "input": "{{steps.ocr.output}}", "depends_on": ["ocr"],
+        "fallback_for": "validation" }
+    ]
+  }'
 ```
 
 ---
@@ -121,13 +116,15 @@ pub struct PipelineRun {
 
 ```
 apollia-pipelines crate
-├── types.rs         — PipelineDefinition, PipelineRun, StepRun, enums
-├── repository.rs    — PipelineRepository (SQLite sync, migration 006)
-├── template.rs      — TemplateContext, render() — {{steps.x.output}}
-├── topo.rs          — topological_layers() via Kahn BFS
-├── condition.rs     — evaluate_condition() — 5 opérateurs
-├── executor.rs      — PipelineExecutor, StepResult, TaskSubmitter trait
-└── engine.rs        — PipelineEngine acteur Tokio, PipelineEngineHandle
+├── types.rs                    — PipelineDefinition, PipelineRun, StepRun, enums
+├── repository.rs               — PipelineRepository (runs SQLite, migration 006)
+├── definition_repository.rs    — PipelineDefinitionRepository (définitions, Sprint 17)
+├── validation.rs               — validate_pipeline() (DAG, step IDs, depends_on)
+├── template.rs                 — TemplateContext, render() — {{steps.x.output}}
+├── topo.rs                     — topological_layers() via Kahn BFS
+├── condition.rs                — evaluate_condition() — 5 opérateurs
+├── executor.rs                 — PipelineExecutor, StepResult, TaskSubmitter trait
+└── engine.rs                   — PipelineEngine acteur Tokio, PipelineEngineHandle
 ```
 
 ### 3.2 Acteur Tokio
@@ -137,15 +134,15 @@ PipelineEngineHandle (Clone + Send + Sync)
   │  mpsc::channel(256)
   ▼
 PipelineEngine (Tokio task)
-  ├── pipelines: HashMap<PipelineId, PipelineDefinition>  — chargées depuis apollia.toml
-  ├── repo: Arc<Mutex<PipelineRepository>>               — SQLite pipelines.db
+  ├── pipelines: HashMap<PipelineId, PipelineDefinition>  — chargées depuis SQLite (Sprint 17)
+  ├── repo: Arc<Mutex<PipelineRepository>>               — SQLite pipelines.db (runs)
   ├── submitter: Arc<dyn TaskSubmitter>                  — injecté (ADR-015)
   └── event_bus: EventBusSender                          — observe ShutdownRequested
         │
         └── spawn PipelineExecutor (détaché) par run
 ```
 
-`PipelineEngine` est démarré en **position 8** dans le `Supervisor` (après `NotificationEngine`). Au démarrage, il reprend automatiquement les runs dont le statut SQLite était `running`.
+`PipelineEngine` est démarré en **position 8** dans le `Supervisor` (après `NotificationEngine`). Au démarrage, le Supervisor ouvre le `PipelineDefinitionRepository` depuis `data_dir/pipelines_def.db`, charge les définitions `enabled=true`, et les injecte dans l'engine. Les runs interrompus (statut `running` en SQLite) sont repris automatiquement.
 
 ### 3.3 Exécuteur et topologie
 
@@ -183,33 +180,56 @@ Nouveaux variants `RuntimeEvent` ajoutés dans `apollia-core` (STORY-116) :
 
 ---
 
-## 4. Configuration `apollia.toml`
+## 4. Gestion des pipelines — CRUD SQLite (Sprint 17)
 
-### 4.1 Syntaxe de base
+Depuis le Sprint 17 (ADR-033), les pipelines sont persistés en SQLite (`~/.apollia/pipelines_def.db`) et se gèrent via l'API REST ou l'application desktop. La section `[[pipelines]]` de `apollia.toml` n'est plus utilisée.
 
-```toml
-[[pipelines]]
-id          = "mon-pipeline"
-description = "Description courte affichée dans pipeline list"
+### 4.1 Créer / modifier / supprimer via API
 
-# Politique globale si un step échoue sans on_failure local
-# "fail" (défaut) | "continue"
-on_failure = "fail"
+```bash
+# Créer
+$ curl -X POST http://localhost:7771/api/v1/pipelines \
+  -H "Content-Type: application/json" \
+  -d '{ "id": "mon-pipeline", "description": "...", "on_failure": "fail",
+        "steps": [{ "id": "s1", "agent": "agent-a", "input": "..." }] }'
 
-[[pipelines.steps]]
-id    = "step-1"
-agent = "nom-agent-enregistre"
-input = "{{trigger.payload}}"
+# Modifier (re-valide le DAG avant écriture)
+$ curl -X PUT http://localhost:7771/api/v1/pipelines/mon-pipeline \
+  -H "Content-Type: application/json" \
+  -d '{ "steps": [...] }'
 
-[[pipelines.steps]]
-id         = "step-2"
-agent      = "autre-agent"
-input      = "Traite : {{steps.step-1.output}}"
-depends_on = ["step-1"]
-on_failure = "skip"   # "fail" | "skip" | "fallback"
+# Supprimer
+$ curl -X DELETE http://localhost:7771/api/v1/pipelines/mon-pipeline
+
+# Lire une définition
+$ curl http://localhost:7771/api/v1/pipelines/mon-pipeline
 ```
 
-### 4.2 Conditions de step
+### 4.2 `PipelineDefinitionRepository` *(Sprint 17)*
+
+```rust
+// apollia-pipelines/src/definition_repository.rs
+
+pub struct PipelineDefinitionRepository { /* ... rusqlite::Connection */ }
+
+impl PipelineDefinitionRepository {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, PipelineDefinitionError>;
+    pub fn insert(&self, def: &PipelineDefinitionRow) -> Result<(), PipelineDefinitionError>;
+    pub fn update(&self, id: &str, def: &PipelineDefinitionRow) -> Result<(), PipelineDefinitionError>;
+    pub fn delete(&self, id: &str) -> Result<(), PipelineDefinitionError>;
+    pub fn get(&self, id: &str) -> Result<Option<PipelineDefinitionRow>, PipelineDefinitionError>;
+    pub fn list(&self) -> Result<Vec<PipelineDefinitionRow>, PipelineDefinitionError>;
+}
+```
+
+**Validation avant écriture** (`apollia-pipelines/src/validation.rs`) :
+- DAG acyclique (tri topologique Kahn BFS)
+- Identifiants de step uniques
+- Toutes les références `depends_on` existent
+- `fallback_for` uniquement sur les steps avec `on_failure=fallback`
+- Au moins 1 step (pas de pipeline vide)
+
+### 4.3 Conditions de step
 
 Un step peut être conditionnel — il est **skipped** si la condition est fausse :
 
@@ -234,49 +254,40 @@ value = "VALIDE"
 | `ends_with` | Le champ se termine par la valeur |
 | `regex` | La valeur est un regex interprété sur le champ |
 
-### 4.3 Fallback de step
+### 4.4 Fallback de step
 
 Quand `on_failure = "fallback"`, le step désigne un autre step comme repli. Le fallback est inactif par défaut et s'active si son référent échoue :
 
-```toml
-[[pipelines.steps]]
-id         = "validation"
-agent      = "validation-agent"
-input      = "{{steps.ocr.output}}"
-depends_on = ["ocr"]
-on_failure = "fallback"
-
-[[pipelines.steps]]
-id           = "validation-fallback"
-agent        = "manual-review-agent"
-input        = "Validation manuelle requise : {{steps.ocr.output}}"
-depends_on   = ["ocr"]
-fallback_for = "validation"   # sera activé si "validation" échoue
+```json
+{
+  "steps": [
+    { "id": "validation", "agent": "validation-agent",
+      "input": "{{steps.ocr.output}}", "depends_on": ["ocr"],
+      "on_failure": "fallback" },
+    { "id": "validation-fallback", "agent": "manual-review-agent",
+      "input": "Validation manuelle requise : {{steps.ocr.output}}",
+      "depends_on": ["ocr"], "fallback_for": "validation" }
+  ]
+}
 ```
 
-### 4.4 Triggers → Pipelines
+### 4.5 Triggers → Pipelines
 
-Un trigger peut déclencher un pipeline plutôt qu'un agent individuel :
+Un trigger peut déclencher un pipeline plutôt qu'un agent individuel. Le champ `pipeline` est exclusif avec `agent` (l'un ou l'autre, jamais les deux — validé par `apollia-triggers/src/validation.rs`) :
 
-```toml
-[[triggers]]
-id      = "import-factures"
-enabled = true
-on_busy = "queue"
-
-[triggers.source]
-type   = "file_watch"
-path   = "~/factures/entrant/"
-events = ["create"]
-
-# Champ exclusif avec "agent" — l'un ou l'autre, jamais les deux
-pipeline = "traitement-facture"
-
-[triggers.input]
-text = "{{filepath}}"   # transmis comme trigger_payload au pipeline
+```bash
+$ curl -X POST http://localhost:7771/api/v1/triggers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "import-factures",
+    "pipeline": "traitement-facture",
+    "enabled": true, "on_busy": "queue",
+    "source": { "type": "file_watch", "path": "~/factures/entrant/", "events": ["create"] },
+    "input_template": "{{filepath}}"
+  }'
 ```
 
-### 4.5 Variables de template
+### 4.6 Variables de template
 
 | Variable | Disponible | Description |
 |---|---|---|
@@ -287,15 +298,16 @@ text = "{{filepath}}"   # transmis comme trigger_payload au pipeline
 
 Les variables non résolues (step non encore terminé, variable inconnue) sont remplacées par une chaîne vide — le pipeline ne s'arrête pas.
 
-### 4.6 Validation au démarrage
+### 4.7 Validation
 
-À chaque `apollia-os start`, Apollia valide chaque pipeline défini :
+Chaque opération CRUD (insertion, modification) valide le pipeline avant écriture SQLite :
 
 - `step_id` unique dans le pipeline
 - Tous les `depends_on` référencent des steps existants
 - Tout `fallback_for` référence un step existant
-- Pas de cycle dans le graphe de dépendances (DFS)
-- Les agents référencés existent dans la configuration (warning si absent)
+- Pas de cycle dans le graphe de dépendances (Kahn BFS)
+- Au moins 1 step (pas de pipeline vide)
+- Les agents référencés n'ont pas besoin d'être installés à la création — l'erreur se produit au moment du run
 
 ---
 
@@ -407,7 +419,11 @@ Voir [API HTTP Reference](./API-HTTP-Reference) — section Pipelines pour la r�
 
 | Méthode | Route | Description |
 |---|---|---|
-| `GET` | `/api/v1/pipelines` | Liste tous les pipelines configurés |
+| `POST` | `/api/v1/pipelines` | Créer un pipeline *(Sprint 17)* |
+| `PUT` | `/api/v1/pipelines/{id}` | Modifier un pipeline *(Sprint 17)* |
+| `DELETE` | `/api/v1/pipelines/{id}` | Supprimer un pipeline *(Sprint 17)* |
+| `GET` | `/api/v1/pipelines/{id}` | Lire une définition *(Sprint 17)* |
+| `GET` | `/api/v1/pipelines` | Liste tous les pipelines |
 | `POST` | `/api/v1/pipelines/{id}/run` | Démarre un run |
 | `GET` | `/api/v1/pipelines/{id}/runs` | Historique des runs |
 | `GET` | `/api/v1/pipelines/{id}/runs/{run_id}` | État d'un run |
@@ -416,7 +432,7 @@ Voir [API HTTP Reference](./API-HTTP-Reference) — section Pipelines pour la r�
 
 ## 9. Notifications
 
-Trois événements pipeline sont mappés vers le système de notifications (configurable) :
+Trois événements pipeline sont mappés vers le système de notifications (configurable via `NotificationConfigRepository` — Sprint 17) :
 
 | Événement notification | RuntimeEvent | Sévérité |
 |---|---|---|
@@ -424,14 +440,7 @@ Trois événements pipeline sont mappés vers le système de notifications (conf
 | `pipeline.failed` | `PipelineFailed` | Error |
 | `pipeline.suspended` | `PipelineSuspended` | Warning |
 
-```toml
-[notifications]
-events = ["pipeline.suspended", "pipeline.failed", "task.input_required"]
-
-[[notifications.channels]]
-id   = "desktop"
-type = "desktop"
-```
+Les canaux de notification se configurent via l'API REST CRUD (voir [Briques-Notifications](./Briques-Notifications)).
 
 ---
 
@@ -467,10 +476,10 @@ while let Some(result) = futures.next().await {
 
 ## Voir aussi
 
-- [Config apollia.toml](./Config-apollia-toml) — section `[[pipelines]]` complète
-- [API HTTP Reference](./API-HTTP-Reference) — endpoints `/api/v1/pipelines`
+- [API HTTP Reference](./API-HTTP-Reference) — endpoints CRUD `/api/v1/pipelines`
 - [Briques Triggers](./Briques-Triggers) — déclenchement automatique de pipelines
 - [Briques Notifications](./Briques-Notifications) — canal `pipeline.suspended`
 - [Briques Runtime Core](./Briques-Runtime-Core) — acteur `PipelineEngine` dans le Supervisor
 - [Architecture Modèle Acteur](./Architecture-Modele-Acteur) — pattern Handle + mpsc
 - [ADR-025](../adr/ADR-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md) — décision architecture pipelines
+- [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) — migration TOML → SQLite pour la config opérationnelle

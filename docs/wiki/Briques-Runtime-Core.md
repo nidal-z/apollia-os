@@ -44,14 +44,21 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
 ### 2.1 Séquence de démarrage (ordre strict)
 
 ```
-1. EventBus        → bus interne (premier, tout le monde en dépend)
-2. AgentRegistry   → registre d'état
-3. Tool Registry   → catalogue outils + résolution MCP
-4. Memory Engine   → ouverture connexions SQLite
-5. LlmRouter       → backends LLM (embedded + cloud) [Sprint 8]
-6. TriggerEngine   → moteur de déclenchement automatique [Sprint 9]
-7. APIServer       → accepte les connexions externes en dernier
+1. EventBus          → bus interne (premier, tout le monde en dépend)
+2. AgentRegistry     → registre d'état
+3. Tool Registry     → catalogue outils + résolution MCP
+4. Memory Engine     → ouverture connexions SQLite
+5. LlmRouter         → backends LLM (embedded + cloud) [Sprint 8]
+6. TriggerEngine     → moteur de déclenchement automatique [Sprint 9]
+   └── ouvre TriggerDefinitionRepository (triggers_def.db) [Sprint 17]
+7. PipelineEngine    → orchestration multi-agent [Sprint 12]
+   └── ouvre PipelineDefinitionRepository (pipelines_def.db) [Sprint 17]
+8. APIServer         → accepte les connexions externes
+9. NotificationEngine → alertes desktop / webhook [Sprint 11]
+   └── ouvre NotificationConfigRepository (notifications.db) [Sprint 17]
 ```
+
+Depuis le Sprint 17 (ADR-033), le Supervisor ouvre les repositories SQLite pour les triggers, pipelines et notifications au démarrage. Les définitions sont chargées depuis SQLite (plus depuis `apollia.toml`). Chaque repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
 
 Chaque acteur émet un événement `RuntimeEvent::Ready(actor_id)` sur l'EventBus quand son init est terminée. Le Supervisor attend ce signal (timeout 10s) avant de démarrer le suivant. **Démarrage séquentiel strict** — pas de démarrage parallèle qui masquerait des dépendances.
 
@@ -201,14 +208,17 @@ GET    /api/v1/llm/status                   → Statut backends LLM
 POST   /api/v1/llm/ping                     → Test de connectivité
 POST   /api/v1/llm/chat                     → Appel LLM direct
 
-# Triggers [Sprint 9]
+# Triggers [Sprint 9, CRUD Sprint 17]
+POST   /api/v1/triggers                     → Créer un trigger [Sprint 17]
+PUT    /api/v1/triggers/{id}                → Modifier un trigger [Sprint 17]
+DELETE /api/v1/triggers/{id}                → Supprimer un trigger [Sprint 17]
 GET    /api/v1/triggers                     → Lister les triggers
-GET    /api/v1/triggers/{id}                → Statut d'un trigger
+GET    /api/v1/triggers/{id}                → Définition/statut d'un trigger
 POST   /api/v1/triggers/{id}/fire           → Déclencher immédiatement
 POST   /api/v1/triggers/{id}/enable         → Activer
 POST   /api/v1/triggers/{id}/disable        → Désactiver
 GET    /api/v1/triggers/{id}/logs           → Historique SQLite
-POST   /api/v1/triggers/reload              → Hot reload depuis apollia.toml
+POST   /api/v1/triggers/reload              → Hot reload depuis SQLite
 
 # Webhook [Sprint 9]
 POST   /webhooks/:trigger_id                → Endpoint webhook HMAC-SHA256
@@ -218,6 +228,19 @@ GET    /dashboard                           → Dashboard HTML embarqué
 GET    /api/v1/dashboard/state              → Snapshot JSON état runtime
 GET    /api/v1/dashboard/partials/{section} → Fragment HTML (HTMX)
 GET    /api/v1/dashboard/stream             → SSE stream dashboard
+
+# Pipelines CRUD [Sprint 17]
+POST   /api/v1/pipelines                    → Créer un pipeline
+PUT    /api/v1/pipelines/{id}               → Modifier un pipeline
+DELETE /api/v1/pipelines/{id}               → Supprimer un pipeline
+GET    /api/v1/pipelines/{id}               → Définition d'un pipeline
+
+# Notifications CRUD [Sprint 17]
+POST   /api/v1/notifications/channels       → Créer un canal
+PUT    /api/v1/notifications/channels/{id}  → Modifier un canal
+DELETE /api/v1/notifications/channels/{id}  → Supprimer un canal
+GET    /api/v1/notifications/events         → Événements globaux
+PUT    /api/v1/notifications/events         → Définir événements globaux
 
 # Observabilité [Sprint 13]
 GET    /api/v1/tasks/{id}/timeline          → Chronologie unifiée (5 sources SQLite)
@@ -373,7 +396,7 @@ debug_log_prompt      = false               # persister les prompts LLM (RGPD �
 | REST JSON (pas gRPC) | Debuggable avec curl, pas de génération protobuf, CLI simple |
 | SSE pour streaming | Unidirectionnel suffisant, compatible tout client HTTP |
 | Graceful shutdown avec drain 30s | Jamais de tâche perdue silencieusement |
-| `apollia.toml` unique | Zéro surprise opérationnelle |
+| `apollia.toml` structurel + SQLite opérationnel | TOML pour la config immuable, SQLite pour les triggers/pipelines/notifications CRUD (ADR-033) |
 | HITL via `oneshot` channel dans ORIA | Suspension sans polling, reprise déterministe via `ResumeHandler` (ADR-023) |
 | `TimeoutWatcher` scan 60s | Tâches orphelines nettoyées automatiquement sans intervention utilisateur |
 | `NotificationEngine` optionnel (Phase 9) | Zéro overhead si `[notifications]` absent — runtime léger par défaut |
@@ -385,6 +408,7 @@ debug_log_prompt      = false               # persister les prompts LLM (RGPD �
 ## 11. Diagrammes de référence
 
 - [Démarrage ordonné Supervisor](../diagrams/seq-supervisor-startup.puml) — 9 phases, TriggerEngine + NotificationEngine
+- [CRUD Config opérationnelle](../diagrams/seq-config-crud.puml) — POST → SQLite → Engine.reload() (Sprint 17, ADR-033)
 - [HITL Flow complet](../diagrams/seq-hitl-flow.puml) — suspend → notify → approve/reject → resume
 - [Task Lifecycle](../diagrams/seq-task-lifecycle.puml) — flux complet soumission → résultat
 - [Timeline Aggregation](../diagrams/seq-timeline-aggregation.puml) — agrégation 5 sources → chronologie unifiée

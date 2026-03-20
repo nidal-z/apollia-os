@@ -634,5 +634,24 @@
 
 ---
 
+## ADR-034 — Chat hybride : sessions, streaming, HITL inline
+
+**Date :** 2026-03-20
+**Statut :** Accepté
+
+**Contexte :** Les agents Apollia OS sont exclusivement programmés (triggers, pipelines, tasks fire-and-forget). Il manque un mode interactif conversationnel. Le TaskRouter existant est stateless et fire-and-forget — incompatible avec les sémantiques du chat (sessions longues, état mutable, streaming token-by-token, HITL inline avec AlwaysAccept).
+
+**Décision :** Chemin d'exécution séparé du TaskRouter. Nouvel acteur `ChatSessionManager` (position 13 Supervisor) avec deux modes : Chat Libre (BuiltInChatAgent Rust, boucle ReAct, streaming token-by-token) et Chat Agent (AIPBridge.call_run() direct, réponse en bloc). POST + SSE (pas de WebSocket). Tous les outils requièrent approbation HITL en mode chat (Accept/Refuse/AlwaysAccept per-session). Persistance dans `chat.db` SQLite séparé.
+
+**Alternatives considérées :** WebSocket (rejetée — aucune infra existante, POST+SSE suffit), Session = single long-running task (rejetée — incompatible modèle stateless, semaphore bloquant), Chat via TaskRouter avec extensions (rejetée — dénaturerait le TaskRouter, Principe #5 violé).
+
+**Conséquences :** `ChatSessionManager` acteur dédié. `BuiltInChatAgent` en Rust (Chat Libre sans Python). 12 nouveaux RuntimeEvent variants `Chat*`. `chat.db` SQLite supplémentaire. HITL plus restrictif qu'en mode background. TaskRouter inchangé (zéro régression). Concurrence Chat vs Tasks pour agent Python non thread-safe à surveiller.
+
+**Principes impactés :** Principe #5 (un acteur, une responsabilité) respecté, Principe #7 (garde-fous) renforcé (HITL systématique + StepBudget par échange).
+
+[Détail → docs/adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md](adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

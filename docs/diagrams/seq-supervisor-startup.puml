@@ -81,26 +81,25 @@ api -> api : bind Unix socket\nbind TCP :7771
 api --> sup : APIServerHandle
 note right of sup : ✔ Phase 6 — APIServer prêt\n/tmp/apollia.sock · :7771
 
-' Phase 7 — optionnelle (Sprint 9)
-alt [[triggers]] configuré dans apollia.toml
-  sup -> trig : TriggerEngine::start(\n  triggers_config, event_sender\n)
-  trig -> trig : charger sources TOML\n(cron, interval, oneshot,\nfile_watch, webhook)
-  trig --> sup : TriggerEngineHandle
-  note right of sup : ✔ Phase 7 — TriggerEngine prêt\n(N triggers actifs)
-else aucun [[triggers]]
-  note right of sup : ⚠ Phase 7 — TriggerEngine absent
-end
+' Phase 7 — triggers depuis SQLite (Sprint 17, ADR-033)
+sup -> sup : TriggerDefinitionRepository::open(\n  data_dir/triggers_def.db\n)
+sup -> sup : charger définitions SQLite\n(defs invalides → warn!, skip)
+sup -> trig : TriggerEngine::start(\n  defs_from_sqlite, event_sender\n)
+trig -> trig : spawn sources\n(cron, interval, oneshot,\nfile_watch, webhook)
+trig --> sup : TriggerEngineHandle
+note right of sup : ✔ Phase 7 — TriggerEngine prêt\n(N triggers actifs)\nRepository → Arc<Mutex<>> dans AppState
 
 ' Phase 8 — optionnelle (Sprint 9 Dashboard, géré via APIServer)
 note right of sup : ✔ Phase 8 — Dashboard HTMX\nembarqué dans APIServer\n(GET /dashboard)
 
-' Phase 9 — optionnelle (Sprint 11)
-alt [notifications] configuré dans apollia.toml
-  sup -> notif : NotificationEngine::new(\n  notif_config, channels, event_sender\n)
+' Phase 9 — notifications depuis SQLite (Sprint 17, ADR-033)
+sup -> sup : NotificationConfigRepository::open(\n  data_dir/notifications.db\n)
+alt canaux configurés dans SQLite
+  sup -> notif : NotificationEngine::new(\n  config_from_sqlite, channels, event_sender\n)
   notif -> notif : build_channels()\n(desktop, webhook)
   notif -> bus : subscribe()
-  note right of sup : ✔ Phase 9 — NotificationEngine prêt\n(M canaux actifs)
-else aucun [notifications]
+  note right of sup : ✔ Phase 9 — NotificationEngine prêt\n(M canaux actifs)\nRepository → Arc<Mutex<>> dans AppState
+else base SQLite vide
   note right of sup : ⚠ Phase 9 — NotificationEngine absent\naucune notification envoyée
 end
 

@@ -562,7 +562,51 @@ curl --unix-socket /tmp/apollia.sock http://localhost/api/v1/health
 
 ---
 
-## Triggers *(Sprint 9)*
+## Triggers *(Sprint 9, CRUD Sprint 17)*
+
+### POST /api/v1/triggers *(Sprint 17)*
+
+Créer un nouveau trigger.
+
+**Corps de requête :**
+```json
+{
+  "id": "rapport-hebdomadaire",
+  "agent": "rapport-agent",
+  "enabled": true,
+  "on_busy": "queue",
+  "source": { "type": "cron", "schedule": "0 8 * * MON" },
+  "input_template": "Génère le rapport de la semaine"
+}
+```
+
+**Réponse 201 :** définition complète avec `created_at`.
+
+**Erreurs :** `409` DuplicateId, `422` ValidationError.
+
+### PUT /api/v1/triggers/:id *(Sprint 17)*
+
+Modifier un trigger existant. Tous les champs sont modifiables.
+
+**Réponse 200 :** définition mise à jour avec `updated_at`.
+
+**Erreurs :** `404` NotFound, `422` ValidationError.
+
+### DELETE /api/v1/triggers/:id *(Sprint 17)*
+
+Supprimer un trigger.
+
+**Réponse 200 :** `{ "deleted": true }`
+
+**Erreurs :** `404` NotFound.
+
+### GET /api/v1/triggers/:id *(Sprint 17)*
+
+Lire la définition complète d'un trigger.
+
+**Réponse 200 :** définition complète (id, agent/pipeline, source, enabled, on_busy, input_template, created_at, updated_at).
+
+**Erreurs :** `404` NotFound.
 
 ### GET /api/v1/triggers
 
@@ -675,7 +719,62 @@ curl -X POST http://localhost:7771/webhooks/github-push \
 
 ---
 
-## Notifications *(Sprint 11)*
+## Notifications *(Sprint 11, CRUD Sprint 17)*
+
+### POST /api/v1/notifications/channels *(Sprint 17)*
+
+Créer un canal de notification.
+
+**Corps de requête :**
+```json
+{
+  "id": "slack-erreurs",
+  "channel_type": "webhook",
+  "enabled": true,
+  "config": { "url": "https://hooks.slack.com/services/..." },
+  "events": ["task.failed", "agent.degraded"]
+}
+```
+
+**Réponse 201 :** canal complet avec timestamps.
+
+**Erreurs :** `409` DuplicateId, `422` ValidationError (type inconnu, webhook sans URL).
+
+### PUT /api/v1/notifications/channels/:id *(Sprint 17)*
+
+Modifier un canal existant. Champs optionnels.
+
+**Réponse 200 :** canal mis à jour avec `updated_at`.
+
+**Erreurs :** `404` NotFound, `422` ValidationError.
+
+### DELETE /api/v1/notifications/channels/:id *(Sprint 17)*
+
+Supprimer un canal.
+
+**Réponse 200 :** `{ "deleted": true }`
+
+**Erreurs :** `404` NotFound.
+
+### GET /api/v1/notifications/events *(Sprint 17)*
+
+Lire les événements globaux configurés.
+
+**Réponse 200 :**
+```json
+{ "events": ["task.input_required", "task.failed", "agent.degraded"] }
+```
+
+### PUT /api/v1/notifications/events *(Sprint 17)*
+
+Définir les événements globaux (remplacement atomique via transaction SQLite).
+
+**Corps de requête :**
+```json
+{ "events": ["task.input_required", "task.failed"] }
+```
+
+**Réponse 200 :** `{ "events": [...] }`
 
 ### GET /api/v1/notifications/channels
 
@@ -767,11 +866,58 @@ La table `notification_logs` est créée de manière idempotente si elle n'exist
 
 ---
 
-## Pipelines *(Sprint 12)*
+## Pipelines *(Sprint 12, CRUD Sprint 17)*
+
+### POST /api/v1/pipelines *(Sprint 17)*
+
+Créer un pipeline.
+
+**Corps de requête :**
+```json
+{
+  "id": "traitement-facture",
+  "description": "OCR → validation → comptabilisation",
+  "on_failure": "fail",
+  "enabled": true,
+  "steps": [
+    { "id": "ocr", "agent": "ocr-agent", "input": "{{trigger.payload}}" },
+    { "id": "validation", "agent": "validation-agent",
+      "input": "{{steps.ocr.output}}", "depends_on": ["ocr"] }
+  ]
+}
+```
+
+**Réponse 201 :** définition complète avec timestamps.
+
+**Erreurs :** `409` DuplicateId, `422` ValidationError (cycle DAG, step ID dupliqué, depends_on invalide).
+
+### PUT /api/v1/pipelines/:id *(Sprint 17)*
+
+Modifier un pipeline existant (re-valide le DAG avant écriture).
+
+**Réponse 200 :** définition mise à jour.
+
+**Erreurs :** `404` NotFound, `422` ValidationError.
+
+### DELETE /api/v1/pipelines/:id *(Sprint 17)*
+
+Supprimer un pipeline.
+
+**Réponse 200 :** `{ "deleted": true }`
+
+**Erreurs :** `404` NotFound.
+
+### GET /api/v1/pipelines/:id *(Sprint 17)*
+
+Lire la définition complète d'un pipeline (steps inclus en JSON).
+
+**Réponse 200 :** définition complète avec steps, on_failure, timestamps.
+
+**Erreurs :** `404` NotFound.
 
 ### GET /api/v1/pipelines
 
-Liste tous les pipelines déclarés dans `apollia.toml`.
+Liste tous les pipelines.
 
 **Réponse 200 :**
 ```json
@@ -935,3 +1081,4 @@ curl -N -H "Accept: text/event-stream" \
 - [ADR-024](../adr/ADR-024) — décisions système de notifications (canaux, événements, SQLite)
 - [ADR-025](../adr/ADR-025) — décisions pipelines multi-agents (TOML déclaratif, topologies natives)
 - [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature) — observabilité complète, timeline, troncature
+- [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) — config opérateur SQLite (CRUD triggers/pipelines/notifications)

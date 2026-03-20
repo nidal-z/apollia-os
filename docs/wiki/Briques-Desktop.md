@@ -80,10 +80,10 @@ crates/apollia-desktop/
         │   ├── tasks/         ← TaskList.svelte, TaskDetail.svelte, TaskTimeline.svelte
         │   ├── hitl/          ← ApprovalCard.svelte, ApprovalHistory.svelte
         │   ├── llm/           ← LlmBackendCard.svelte, LlmStats.svelte
-        │   ├── triggers/      ← TriggerRow.svelte, TriggerLogs.svelte
-        │   ├── pipelines/     ← PipelineRunCard.svelte, PipelineRunDetail.svelte, NewPipelineDialog.svelte
+        │   ├── triggers/      ← TriggerRow, TriggerLogs, CreateTriggerDialog, EditTriggerDialog
+        │   ├── pipelines/     ← PipelineRunCard, PipelineRunDetail, PipelineDefinitionCard, CreatePipelineDialog, EditPipelineDialog
         │   ├── memory/        ← NamespaceSelector.svelte, MemorySearch.svelte, MemoryTable.svelte
-        │   ├── notifications/ ← NotificationChannelCard.svelte, NotificationLog.svelte
+        │   ├── notifications/ ← NotificationChannelCard, NotificationLog, CreateChannelDialog, EditChannelDialog, GlobalEventsEditor
         │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte
         │   └── onboarding/    ← StepEnvironment.svelte, StepFirstAgent.svelte, StepFirstTask.svelte
         └── routes/            ← 10 fichiers .svelte (un par route)
@@ -134,7 +134,7 @@ pub enum EmbeddedError {
 
 ## 3. Commandes Tauri IPC
 
-29 commandes exposees au frontend Svelte via `#[tauri::command]` :
+40 commandes exposees au frontend Svelte via `#[tauri::command]` (29 Sprint 15 + 11 Sprint 17) :
 
 ### Agents (3)
 
@@ -168,23 +168,31 @@ pub enum EmbeddedError {
 | `ping_llm_backend` | `name: String` | `u64` (latency_ms) |
 | `get_llm_cost_stats` | `days: Option<u32>` | `LlmCostStats` |
 
-### Triggers (5)
+### Triggers (8 — 5 Sprint 15 + 3 Sprint 17)
 
 | Commande | Parametres | Retour |
 |---|---|---|
 | `list_triggers` | — | `Vec<TriggerStatus>` |
+| `list_trigger_definitions` | — | `Vec<TriggerDefinitionView>` |
+| `get_trigger_definition` | `id: String` | `TriggerDefinitionView` |
+| `create_trigger` | `definition: CreateTriggerRequest` | `TriggerDefinitionView` *(Sprint 17)* |
+| `update_trigger` | `id: String, definition: UpdateTriggerRequest` | `TriggerDefinitionView` *(Sprint 17)* |
+| `delete_trigger` | `id: String` | `()` *(Sprint 17)* |
 | `set_trigger_enabled` | `id: String, enabled: bool` | `()` |
 | `fire_trigger` | `id: String` | `String` (task_id) |
 | `get_trigger_logs` | `id: String` | `Vec<TriggerLogEntry>` |
-| `reload_triggers` | — | `usize` (reloaded count) |
 
-### Pipelines (5)
+### Pipelines (8 — 5 Sprint 15 + 3 Sprint 17)
 
 | Commande | Parametres | Retour |
 |---|---|---|
 | `list_pipelines` | — | `Vec<PipelineInfo>` |
+| `list_pipeline_definitions` | — | `Vec<PipelineDefinitionView>` |
+| `get_pipeline_definition` | `id: String` | `PipelineDefinitionView` |
+| `create_pipeline` | `definition: CreatePipelineRequest` | `PipelineDefinitionView` *(Sprint 17)* |
+| `update_pipeline` | `id: String, definition: UpdatePipelineRequest` | `PipelineDefinitionView` *(Sprint 17)* |
+| `delete_pipeline` | `id: String` | `()` *(Sprint 17)* |
 | `list_pipeline_runs` | `pipeline_id: String, limit: Option<usize>` | `Vec<PipelineRunSummary>` |
-| `list_all_pipeline_runs` | `limit: Option<usize>` | `Vec<PipelineRunSummary>` |
 | `run_pipeline` | `pipeline_id: String, inputs: Option<Value>` | `RunPipelineResult` |
 | `get_pipeline_run_detail` | `run_id: String` | `PipelineRunDetail` |
 
@@ -197,11 +205,16 @@ pub enum EmbeddedError {
 | `search_memory` | `namespace: String, query: String, limit?` | `Vec<MemorySearchResult>` |
 | `delete_memory_entry` | `namespace: String, id: String` | `()` |
 
-### Notifications (3)
+### Notifications (8 — 3 Sprint 15 + 5 Sprint 17)
 
 | Commande | Parametres | Retour |
 |---|---|---|
-| `list_notification_channels` | — | `Vec<NotificationChannel>` |
+| `list_notification_channels` | — | `Vec<NotificationChannelView>` |
+| `create_notification_channel` | `channel: CreateChannelRequest` | `NotificationChannelView` *(Sprint 17)* |
+| `update_notification_channel` | `id: String, channel: UpdateChannelRequest` | `NotificationChannelView` *(Sprint 17)* |
+| `delete_notification_channel` | `id: String` | `()` *(Sprint 17)* |
+| `get_notification_events` | — | `Vec<String>` *(Sprint 17)* |
+| `set_notification_events` | `events: Vec<String>` | `()` *(Sprint 17)* |
 | `test_notification_channel` | `channel_id: String` | `ChannelTestResult` |
 | `get_notification_logs` | `limit: Option<usize>` | `Vec<NotificationLogEntry>` |
 
@@ -346,20 +359,20 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 
 **LLM** — Grille de backends avec cards : nom, type (embedded/api), modele, badge statut (Ready/Loading/Error), bouton Ping avec affichage latence. Section statistiques : cout USD, tokens, appels par backend sur 7 jours. Refresh 30s.
 
-**Triggers** — Tableau avec ID, type badge (Cron/FileWatch/Webhook/Interval/Oneshot), cible agent, toggle enable/disable, compteur fires/skips, boutons Fire (declenchement manuel) et Logs (sheet lateral 20 derniers evenements). Bouton Hot Reload en haut.
+**Triggers** — Vue editeur CRUD (Sprint 17). Tableau avec ID, type badge (Cron/FileWatch/Webhook/Interval/Oneshot), cible agent, toggle enable/disable, compteur fires/skips. Boutons Fire et Logs. Dialogs `CreateTriggerDialog` et `EditTriggerDialog` avec champs dynamiques selon le type de source. Bouton Hot Reload. Suppression avec confirmation.
 
-**Pipelines** — Onglets En cours | Historique (7j). Cards par run : statut badge, progress bar N/M steps, duree. Sheet de detail : steps ordonnes avec statut/duree/input-output preview expandable. Dialog "Nouveau run" : selection pipeline + input JSON optionnel. Mise a jour temps reel via SSE canal `pipeline`.
+**Pipelines** — Vue editeur CRUD (Sprint 17). Onglet Definitions (liste des pipelines, creation/edition/suppression) + Onglet Runs. `CreatePipelineDialog` et `EditPipelineDialog` avec gestion dynamique des steps, validation DAG live, sections conditions depliables. `PipelineDefinitionCard` affiche la topologie. Dialog "Nouveau run" : selection pipeline + input JSON optionnel. Mise a jour temps reel via SSE canal `pipeline`.
 
 **Memory** — Selecteur de namespace en dropdown. Recherche FTS5 debounced 300ms (minimum 3 caracteres), score BM25 affiche. Table expandable : type badge (episodic/semantic/procedural), cle, preview 100 chars, TTL, timestamp. Suppression par ligne avec dialog de confirmation.
 
-**Notifications** — Cards par canal : ID, type, evenements filtres (badges), bouton Tester avec resultat inline. Logs : 50 dernieres notifications envoyees, filtrables par canal.
+**Notifications** — Vue editeur CRUD (Sprint 17). Onglet Canaux : creation/edition/suppression canaux (`CreateChannelDialog`, `EditChannelDialog`), type webhook config URL/headers. Onglet Evenements Globaux : checkboxes des evenements reconnus (`GlobalEventsEditor`). Bouton Tester avec resultat inline. Logs : 50 dernieres notifications envoyees.
 
 **Observability** — 3 onglets :
 - *Timeline* : evenements des N dernieres heures (slider 30min→24h), filtres par type (Task/Tool/LLM/Trigger/HITL), liste chronologique inversee avec icones + detail expandable
 - *LLM Costs* : bar chart SVG natif Svelte (pas de lib externe), cout par jour 7j, barres colorees par backend
 - *Audit Trail* : table expandable (args_json, stdout, stderr), filtres par outil + agent
 
-**Settings** — Vue lecture seule (ADR-029). Sections affichees : [runtime], [oria], [observability], [memory], [logging]. Liens vers vues dediees : "Voir backends LLM →" /llm, "Voir triggers →" /triggers. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor()` via `open::that()`. Message info : configuration via TOML, redemarrage necessaire.
+**Settings** — Vue lecture seule nettoyee (ADR-029, Sprint 17). Affiche uniquement les sections structurelles TOML : [runtime], [llm], [budget], [memory], [tools]. Les sections operationnelles (triggers, pipelines, notifications) ont ete retirees — un bandeau info redirige vers les vues dediees. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor()` via `open::that()`.
 
 ---
 
@@ -475,3 +488,4 @@ Elements `data-testid` sur les composants principaux pour les tests e2e :
 - **ADR-027** — Processus unique Tauri + runtime embarque
 - **ADR-028** — Frontend Svelte : UX first, UI sprint dedie
 - **ADR-029** — Settings lecture seule (round-trip TOML detruirait les commentaires)
+- **ADR-033** — Config operateur SQLite : separation structurel (TOML) / operationnel (SQLite)

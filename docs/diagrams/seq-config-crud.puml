@@ -1,0 +1,74 @@
+@startuml seq-config-crud
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 11
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+skinparam SequenceGroupBorderColor #888888
+
+title Séquence — CRUD Config opérationnelle (ADR-033, Sprint 17) — Apollia OS
+
+participant "Opérateur\n(Desktop / curl)" as op #3a3a3a/ffffff
+participant "APIServer\n(routes CRUD)" as api #1a1a2e/e0e0ff
+participant "Repository\n(Arc<Mutex<>>)" as repo #2a3a4a/cce5ff
+participant "SQLite\n(triggers_def.db /\npipelines_def.db /\nnotifications.db)" as db #2a3a4a/cce5ff
+participant "Engine\n(TriggerEngine /\nPipelineEngine /\nNotificationEngine)" as engine #2d4a22/d4edda
+participant "EventBus" as bus #2a3a4a/cce5ff
+
+== Création (POST) ==
+
+op -> api : POST /api/v1/triggers\n{ id, agent, source, ... }
+api -> api : désérialiser + valider payload
+api -> repo : lock() → insert(def)
+repo -> repo : validate_trigger(def)\n(XOR agent/pipeline,\ncron syntax, webhook secret)
+repo -> db : INSERT INTO trigger_definitions
+db --> repo : Ok
+repo --> api : Ok(row)
+api -> engine : reload()
+engine -> repo : lock() → list()
+repo -> db : SELECT * FROM trigger_definitions
+db --> repo : Vec<Row>
+engine -> engine : diff + restart sources\nmodifiées
+engine -> bus : send(TriggersReloaded { count })
+api --> op : 201 Created\n{ id, source, created_at, ... }
+
+== Modification (PUT) ==
+
+op -> api : PUT /api/v1/triggers/:id\n{ source: { schedule: "..." } }
+api -> repo : lock() → update(id, def)
+repo -> repo : validate_trigger(def)
+repo -> db : UPDATE trigger_definitions\nSET ... WHERE id = ?
+db --> repo : Ok
+repo --> api : Ok(row)
+api -> engine : reload()
+engine -> bus : send(TriggersReloaded { count })
+api --> op : 200 OK
+
+== Suppression (DELETE) ==
+
+op -> api : DELETE /api/v1/triggers/:id
+api -> repo : lock() → delete(id)
+repo -> db : DELETE FROM trigger_definitions\nWHERE id = ?
+alt id trouvé
+  db --> repo : Ok
+  repo --> api : Ok
+  api -> engine : reload()
+  engine -> bus : send(TriggersReloaded { count })
+  api --> op : 200 OK
+else id introuvable
+  db --> repo : Ok (0 rows)
+  repo --> api : Err(NotFound)
+  api --> op : 404 Not Found
+end
+
+== Erreur de validation ==
+
+op -> api : POST /api/v1/triggers\n{ source: { type: "cron",\nschedule: "INVALIDE" } }
+api -> repo : lock() → insert(def)
+repo -> repo : validate_trigger(def)\n→ Err(ValidationError)
+repo --> api : Err(ValidationError)
+api --> op : 422 Unprocessable Entity\n{ "error": "invalid cron expression" }
+note right : Aucune écriture SQLite\nAucun reload engine
+
+@enduml

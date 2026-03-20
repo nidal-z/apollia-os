@@ -1,17 +1,19 @@
 # Triggers Engine — Déclenchement automatique des agents
 
-> *La crate `apollia-triggers` expose un moteur déclaratif pour déclencher des agents automatiquement via des règles TOML : cron, interval, file watch, webhooks HMAC-SHA256.*
+> *La crate `apollia-triggers` expose un moteur déclaratif pour déclencher des agents automatiquement via des règles persistées en SQLite : cron, interval, file watch, webhooks HMAC-SHA256. Les triggers se créent, modifient et suppriment via l'API REST ou l'application desktop (Sprint 17 — ADR-033).*
 
 ---
 
 ## 1. Vue d'ensemble
 
-Le `TriggerEngine` est un acteur Tokio positionné en **position 6** dans la séquence de démarrage du Supervisor (après le `LlmRouter`). Il gère un ensemble de `TriggerDefinition` chargées depuis `apollia.toml` et déclenche des tâches vers le `TaskRouter` selon les événements reçus.
+Le `TriggerEngine` est un acteur Tokio positionné en **position 6** dans la séquence de démarrage du Supervisor (après le `LlmRouter`). Il gère un ensemble de `TriggerDefinition` persistées en SQLite (`~/.apollia/triggers_def.db`) et déclenche des tâches vers le `TaskRouter` selon les événements reçus.
+
+Depuis le Sprint 17, les triggers ne sont plus déclarés dans `apollia.toml` — ils sont gérés exclusivement via SQLite + API REST CRUD (ADR-033). L'opérateur crée, modifie et supprime ses triggers depuis l'application desktop ou via `curl`.
 
 ```
-apollia.toml [[triggers]]
+triggers_def.db (SQLite)
          │
-         ▼ parsing + validation au démarrage
+         ▼ chargement au démarrage
  ┌──────────────────┐
  │  TriggerEngine   │ ← acteur Tokio, position 6 Supervisor
  │  (acteur Tokio)  │
@@ -48,74 +50,58 @@ apollia.toml [[triggers]]
 
 ---
 
-## 2. Configuration `apollia.toml`
+## 2. Gestion des triggers — CRUD SQLite (Sprint 17)
 
-Les triggers sont déclarés comme un tableau TOML `[[triggers]]`. Chaque entrée peut être de type `cron`, `interval`, `oneshot`, `file_watch`, ou `webhook`.
+Depuis le Sprint 17 (ADR-033), les triggers sont persistés en SQLite (`~/.apollia/triggers_def.db`) et se gèrent via l'API REST ou l'application desktop. La section `[[triggers]]` de `apollia.toml` n'est plus utilisée.
 
-### 2.1 Trigger Cron
+### 2.1 Créer un trigger via API
 
-```toml
-[[triggers]]
-id          = "rapport-hebdomadaire"
-agent       = "rapport-agent"
-enabled     = true
-on_busy     = "queue"       # queue | drop | error
-
-[triggers.source]
-type        = "cron"
-schedule    = "0 8 * * MON" # Chaque lundi à 8h
-
-[triggers.input]
-text        = "Génère le rapport de la semaine {{week_iso}}"
+```bash
+# Créer un trigger cron
+$ curl -X POST http://localhost:7771/api/v1/triggers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "rapport-hebdomadaire",
+    "agent": "rapport-agent",
+    "enabled": true,
+    "on_busy": "queue",
+    "source": {
+      "type": "cron",
+      "schedule": "0 8 * * MON"
+    },
+    "input_template": "Génère le rapport de la semaine"
+  }'
 ```
 
-### 2.2 Trigger Interval
+### 2.2 Modifier un trigger
 
-```toml
-[[triggers]]
-id      = "check-inbox"
-agent   = "mail-agent"
-enabled = true
-on_busy = "drop"
-
-[triggers.source]
-type     = "interval"
-every    = "30m"      # 30m | 1h | 6h | 1d
+```bash
+$ curl -X PUT http://localhost:7771/api/v1/triggers/rapport-hebdomadaire \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": { "type": "cron", "schedule": "0 9 * * MON" },
+    "on_busy": "drop"
+  }'
 ```
 
-### 2.3 Trigger FileWatch
+### 2.3 Supprimer un trigger
 
-```toml
-[[triggers]]
-id      = "import-csv"
-agent   = "import-agent"
-enabled = true
-on_busy = "queue"
-
-[triggers.source]
-type   = "file_watch"
-path   = "~/imports/"
-events = ["create"]   # create | modify | delete | any
-
-[triggers.input]
-text = "Importe le fichier {{filename}} ({{size_bytes}} octets)"
+```bash
+$ curl -X DELETE http://localhost:7771/api/v1/triggers/rapport-hebdomadaire
 ```
 
-### 2.4 Trigger Webhook
+### 2.4 Types de source supportés
 
-```toml
-[[triggers]]
-id      = "github-push"
-agent   = "deploy-agent"
-enabled = true
-on_busy = "error"
+| Type | Champs requis | Exemple |
+|---|---|---|
+| `cron` | `schedule` (expression cron) | `"0 8 * * MON"` |
+| `interval` | `every` (durée) | `"30m"`, `"1h"`, `"6h"` |
+| `oneshot` | `at` (datetime ISO) | `"2026-04-01T10:00:00Z"` |
+| `file_watch` | `path`, `events` | `"~/imports/"`, `["create"]` |
+| `webhook` | `secret` (min 32 chars) | `"un-secret-robuste..."` |
 
-[triggers.source]
-type   = "webhook"
-secret = "un-secret-robuste-min-32-caracteres"
-```
+### 2.5 Webhook — appel externe
 
-Appel depuis l'extérieur :
 ```bash
 $ curl -X POST http://localhost:7771/webhooks/github-push \
   -H "X-Apollia-Signature: sha256=<hmac_hex>" \
@@ -285,6 +271,42 @@ Séquence de validation :
 
 ## 6. Persistance SQLite
 
+### 6.1 Définitions — `TriggerDefinitionRepository` *(Sprint 17)*
+
+Les définitions de triggers sont persistées dans `~/.apollia/triggers_def.db` via le `TriggerDefinitionRepository` :
+
+```rust
+// apollia-triggers/src/definition_repository.rs
+
+pub struct TriggerDefinitionRepository { /* ... rusqlite::Connection */ }
+
+impl TriggerDefinitionRepository {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, TriggerDefinitionError>;
+    pub fn insert(&self, def: &TriggerDefinitionRow) -> Result<(), TriggerDefinitionError>;
+    pub fn update(&self, id: &str, def: &TriggerDefinitionRow) -> Result<(), TriggerDefinitionError>;
+    pub fn delete(&self, id: &str) -> Result<(), TriggerDefinitionError>;
+    pub fn get(&self, id: &str) -> Result<Option<TriggerDefinitionRow>, TriggerDefinitionError>;
+    pub fn list(&self) -> Result<Vec<TriggerDefinitionRow>, TriggerDefinitionError>;
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TriggerDefinitionError {
+    NotFound { id: String },
+    DuplicateId { id: String },
+    ValidationError(String),
+    Database(rusqlite::Error),
+}
+```
+
+Le repository est wrappé dans `Arc<Mutex<TriggerDefinitionRepository>>` dans `AppState` (ADR-033). Les mutations sont rares (opérateur humain), pas de contention en pratique.
+
+**Validation avant écriture** (`apollia-triggers/src/validation.rs`) :
+- XOR : `agent` ou `pipeline` (jamais les deux, jamais aucun)
+- Expression cron syntaxiquement valide
+- Secret webhook ≥ 32 caractères
+
+### 6.2 Historique — `trigger_history`
+
 Chaque fire/skip/error est persisté dans la base de l'`AuditTrail`.
 
 ```sql
@@ -382,15 +404,18 @@ github-push           deploy-agent    webhook   ✓        8      1      2026-03
 
 ## 9. Hot Reload
 
-Le hot reload permet de modifier `apollia.toml` et de recharger les triggers **sans redémarrer le runtime**.
+Le hot reload est déclenché automatiquement après chaque opération CRUD via l'API REST. Le pattern est : **écriture SQLite → engine.reload()** (ADR-033, Option A).
 
 ```bash
-# 1. Modifier apollia.toml (ajouter/modifier/supprimer un [[triggers]])
-$ vim apollia.toml
+# Créer un trigger via API → reload automatique
+$ curl -X POST http://localhost:7771/api/v1/triggers \
+  -H "Content-Type: application/json" \
+  -d '{"id": "nouveau-trigger", "agent": "mon-agent", ...}'
+# → Le TriggerEngine recharge automatiquement depuis SQLite
 
-# 2. Recharger sans restart
+# Reload manuel (relit triggers_def.db)
 $ apollia-os trigger reload
-✔ 3 triggers rechargés (1 ajouté, 1 modifié, 0 supprimé)
+✔ 3 triggers rechargés
 ```
 
 Comportement interne :
@@ -415,13 +440,14 @@ Comportement interne :
 7. APIServer       → connexions externes
 ```
 
-Au démarrage, le Supervisor affiche :
-```
-✔ TriggerEngine — 3 trigger(s) actif(s)
-```
+Au démarrage, le Supervisor :
+1. Ouvre `TriggerDefinitionRepository` depuis `data_dir/triggers_def.db` *(Sprint 17)*
+2. Charge toutes les lignes, convertit en `TriggerDefinition` (les définitions invalides sont ignorées avec un `warn!`)
+3. Wraps le repository dans `Arc<Mutex<>>` → stocké dans `AppState`
+4. Affiche : `✔ TriggerEngine — 3 trigger(s) actif(s)`
 
-Si `apollia.toml` ne contient aucun `[[triggers]]`, `TriggerEngine` démarre avec 0 définitions (comportement no-op, pas d'erreur).
+Si la base est vide, `TriggerEngine` démarre avec 0 définitions (comportement no-op, pas d'erreur).
 
 ---
 
-*Voir aussi : [Configuration apollia.toml](./Config-apollia-toml) · [Dashboard Observabilité](./Dashboard-Observabilite) · [ADR-021](./Decisions-Log)*
+*Voir aussi : [Configuration apollia.toml](./Config-apollia-toml) · [Dashboard Observabilité](./Dashboard-Observabilite) · [ADR-021](./Decisions-Log) · [ADR-033](../adr/ADR-033-config-operateur-sqlite.md)*

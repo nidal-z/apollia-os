@@ -27,9 +27,9 @@ participant "NotificationEngine\n(pos 9)" as notif #1a1a2e/e0e0ff
 
 toml -> cfg : std::fs::read_to_string(path)
 cfg -> cfg : toml::from_str::<RawApolliaCConfig>(content)
-note right : ApolliaCConfig { llm, triggers, pipelines }\n[agents] section optionnelle\n[[triggers]] validés par parse_triggers()\n[[pipelines]] validés par validate_pipeline()
+note right : ApolliaCConfig { llm, budget, runtime }\n[agents] section optionnelle\nTriggers/pipelines/notifications → SQLite (Sprint 17)
 
-cfg --> sup : ApolliaCConfig →\nSupervisorConfig {\n  llm_config: Option<LlmConfig>,\n  triggers: Vec<TriggerDefinition>,\n  pipelines: Vec<PipelineDefinition>,\n  notifications: Option<NotificationConfig>,\n  data_dir, startup_timeout_secs, ...\n}
+cfg --> sup : ApolliaCConfig →\nSupervisorConfig {\n  llm_config: Option<LlmConfig>,\n  data_dir, startup_timeout_secs, ...\n}\nNote: triggers/pipelines/notifications\nlus depuis SQLite (ADR-033, Sprint 17)
 
 == Supervisor::start() — Démarrage séquentiel ==
 
@@ -53,24 +53,27 @@ end
 sup -> router : TaskRouterHandle::spawn(\n  registry_handle,\n  event_sender,\n  capacity=256\n)
 note right : Position 5 — dépend de AgentRegistry\nreçoit event_bus pour observer ShutdownRequested
 
-sup -> trig : TriggerEngineHandle::spawn(\n  triggers: Vec<TriggerDefinition>,\n  router_handle,\n  event_sender,\n  ...\n)
-note right : Position 6 — section [[triggers]]\nDémarré avec les triggers validés\n(vide = 0 actif, pas d'erreur)
+sup -> sup : TriggerDefinitionRepository::open(\n  data_dir/triggers_def.db\n)
+sup -> trig : TriggerEngineHandle::spawn(\n  defs_from_sqlite,\n  router_handle,\n  event_sender,\n  ...\n)
+note right : Position 6 — définitions depuis SQLite\n(Sprint 17, ADR-033)\nRepository → Arc<Mutex<>> dans AppState
 
-alt [[pipelines]] non vide
-  sup -> pipe : PipelineEngine::spawn(\n  pipelines,\n  repo (SQLite pipelines.db),\n  submitter (router_handle),\n  event_sender\n)
-  note right : Position 7 — section [[pipelines]]\nOuvre data_dir/pipelines.db\nExécute migrations SQL\nReprend les runs interrompus au démarrage\n(find_running_runs)
+sup -> sup : PipelineDefinitionRepository::open(\n  data_dir/pipelines_def.db\n)
+alt définitions enabled dans SQLite
+  sup -> pipe : PipelineEngine::spawn(\n  defs_from_sqlite,\n  repo (SQLite pipelines.db),\n  submitter (router_handle),\n  event_sender\n)
+  note right : Position 7 — définitions depuis SQLite\n(Sprint 17, ADR-033)\nReprend runs interrompus\n(find_running_runs)
   pipe --> sup : PipelineEngineHandle
-else [[pipelines]] vide ou absent
+else base SQLite vide
   sup -> sup : pipeline_engine = None
 end
 
 sup -> api : APIServer::bind(\n  api_config (socket_path + tcp_port),\n  AppState { registry, router, tools,\n    llm_router, trigger_engine,\n    pipeline_engine, ... }\n)
 note right : Position 8 — écoute sur :\n- Unix socket (/tmp/apollia.sock)\n- TCP localhost:7771\nRoutes : /api/v1/{agents,tasks,pipelines,\ntriggers,llm,dashboard,runs,health,shutdown}
 
-alt [notifications] présent dans apollia.toml
-  sup -> notif : build_channels(notification_config)\n→ NotificationEngine::spawn(\n  channels, event_bus\n)
-  note right : Position 9 — section [notifications]\nCanaux : desktop (notify-rust),\ne-mail, webhook (HTTP)\nCrash non fatal — runtime continue
-else [notifications] absent
+sup -> sup : NotificationConfigRepository::open(\n  data_dir/notifications.db\n)
+alt canaux dans SQLite
+  sup -> notif : build_channels(config_from_sqlite)\n→ NotificationEngine::spawn(\n  channels, event_bus\n)
+  note right : Position 9 — config depuis SQLite\n(Sprint 17, ADR-033)\nCanaux : desktop (notify-rust),\nwebhook (HTTP)\nRepository → Arc<Mutex<>> dans AppState
+else base SQLite vide
   sup -> sup : notification_engine = None
 end
 
