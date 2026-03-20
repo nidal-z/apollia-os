@@ -8,9 +8,11 @@
     open: boolean;
     onclose: () => void;
     oncreated: (sessionId: string) => void;
+    initialMode?: "libre" | "agent";
+    initialAgent?: string;
   }
 
-  let { open, onclose, oncreated }: Props = $props();
+  let { open, onclose, oncreated, initialMode, initialAgent }: Props = $props();
 
   type ChatMode = "libre" | "agent";
 
@@ -71,8 +73,8 @@
   }
 
   function resetForm() {
-    mode = "libre";
-    selectedAgent = "";
+    mode = initialMode ?? "libre";
+    selectedAgent = initialAgent ?? "";
     systemPrompt = "";
     toolBash = false;
     toolFileIo = false;

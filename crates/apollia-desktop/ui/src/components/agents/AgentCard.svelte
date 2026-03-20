@@ -7,14 +7,15 @@
   import { Card } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { Play, Square } from "lucide-svelte";
+  import { Play, Square, MessageSquare } from "lucide-svelte";
   interface Props {
     agent: AgentListItem;
     onlogs: (agentId: string) => void;
     ondetail: (agent: AgentListItem) => void;
+    onchat?: (agentName: string) => void;
   }
 
-  let { agent, onlogs, ondetail }: Props = $props();
+  let { agent, onlogs, ondetail, onchat }: Props = $props();
 
   type RuntimeState = "active" | "degraded" | "stopped" | "initializing" | "stopping";
 
@@ -292,6 +293,12 @@
     {:else}
       <div class="flex flex-wrap items-center gap-1">
         {#if isRunning && agent.id}
+          {#if onchat}
+            <Button size="sm" variant="outline" class="h-7 px-2 text-xs" onclick={() => onchat(agent.name)} data-testid="agent-chat-button-{agent.name}">
+              <MessageSquare size={10} class="mr-1" />
+              {$t("nav.chat")}
+            </Button>
+          {/if}
           <Button size="sm" variant="outline" class="h-7 px-2 text-xs" onclick={handleStopClick} data-testid="agent-stop-btn">
             <Square size={10} class="mr-1" />
             {$t("agents.stop")}

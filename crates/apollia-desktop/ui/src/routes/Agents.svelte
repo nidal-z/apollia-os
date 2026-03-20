@@ -7,6 +7,7 @@
   import type { AgentListItem } from "$lib/types";
   import { agents } from "$lib/stores/agents";
   import { connectionStatus } from "$lib/stores/sse";
+  import { currentRoute } from "$lib/stores/navigation";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { Bot } from "lucide-svelte";
@@ -15,6 +16,7 @@
   import AgentDetail from "../components/agents/AgentDetail.svelte";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import EmptyState from "../components/common/EmptyState.svelte";
+  import NewChatDialog from "../components/chat/NewChatDialog.svelte";
 
   const SKELETON_COUNT = 3;
 
@@ -67,6 +69,22 @@
   function openLogsFromDetail(agentId: string) {
     closeDetail();
     openLogs(agentId);
+  }
+
+  let chatDialogOpen = $state(false);
+  let chatAgentName = $state<string | undefined>(undefined);
+
+  function openChatDialog(agentName: string) {
+    chatAgentName = agentName;
+    chatDialogOpen = true;
+  }
+
+  function closeChatDialog() {
+    chatDialogOpen = false;
+  }
+
+  function handleChatCreated(_sessionId: string) {
+    currentRoute.set("chat");
   }
 </script>
 
@@ -132,7 +150,7 @@
     <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-grid">
       {#each $agents as agent (agent.name)}
         <div animate:flip={{ duration: 300 }} in:fly={{ y: 10, duration: 200 }}>
-          <AgentCard {agent} onlogs={openLogs} ondetail={openDetail} />
+          <AgentCard {agent} onlogs={openLogs} ondetail={openDetail} onchat={openChatDialog} />
         </div>
       {/each}
     </div>
@@ -148,3 +166,12 @@
 {#if detailAgent}
   <AgentDetail agent={detailAgent} open={detailOpen} onclose={closeDetail} onlogs={openLogsFromDetail} />
 {/if}
+
+<!-- Chat dialog (pre-filled with agent mode) -->
+<NewChatDialog
+  open={chatDialogOpen}
+  onclose={closeChatDialog}
+  oncreated={handleChatCreated}
+  initialMode="agent"
+  initialAgent={chatAgentName}
+/>

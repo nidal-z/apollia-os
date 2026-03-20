@@ -3,6 +3,7 @@
   import { currentRoute, type Route } from "$lib/stores/navigation";
   import { connectionStatus } from "$lib/stores/sse";
   import { pendingCount } from "$lib/stores/hitl";
+  import { activeChatCount } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
@@ -117,6 +118,11 @@
               >{$pendingCount}</Badge
             >
           {/if}
+          {#if item.route === "chat" && $activeChatCount > 0}
+            <Badge variant="secondary" class="ml-auto text-[10px] px-1.5 py-0" data-testid="chat-badge"
+              >{$activeChatCount}</Badge
+            >
+          {/if}
         </button>
       {/each}
     {:else}
@@ -140,6 +146,11 @@
             {#if item.route === "approvals" && $pendingCount > 0}
               <Badge variant="destructive" class="ml-auto animate-pulse text-[10px] px-1.5 py-0" data-testid="approvals-badge"
                 >{$pendingCount}</Badge
+              >
+            {/if}
+            {#if item.route === "chat" && $activeChatCount > 0}
+              <Badge variant="secondary" class="ml-auto text-[10px] px-1.5 py-0" data-testid="chat-badge"
+                >{$activeChatCount}</Badge
               >
             {/if}
           </button>
