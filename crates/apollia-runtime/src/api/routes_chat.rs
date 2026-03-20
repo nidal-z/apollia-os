@@ -565,6 +565,7 @@ mod tests {
             tool_registry.clone(),
             noop_invoker,
             Arc::new(AlwaysOkLoader),
+            None,
             event_tx.clone(),
             StepBudgetConfig::default(),
         )

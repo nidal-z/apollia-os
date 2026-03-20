@@ -223,7 +223,12 @@ async fn test_install_persist_reload_cycle() {
     let supervisor = Supervisor::new(config);
 
     let handles = supervisor
-        .start::<InstantBackend>(InstantBackend, Arc::new(FileCheckingAgentLoader), None)
+        .start::<InstantBackend>(
+            InstantBackend,
+            Arc::new(FileCheckingAgentLoader),
+            None,
+            None,
+        )
         .await
         .expect("supervisor start");
 
@@ -262,7 +267,12 @@ async fn test_disabled_agent_not_loaded_at_boot() {
     let supervisor = Supervisor::new(config);
 
     let handles = supervisor
-        .start::<InstantBackend>(InstantBackend, Arc::new(FileCheckingAgentLoader), None)
+        .start::<InstantBackend>(
+            InstantBackend,
+            Arc::new(FileCheckingAgentLoader),
+            None,
+            None,
+        )
         .await
         .expect("supervisor start");
 
@@ -323,7 +333,12 @@ async fn test_uninstall_removes_files_and_db() {
     let supervisor = Supervisor::new(config);
 
     let handles = supervisor
-        .start::<InstantBackend>(InstantBackend, Arc::new(FileCheckingAgentLoader), None)
+        .start::<InstantBackend>(
+            InstantBackend,
+            Arc::new(FileCheckingAgentLoader),
+            None,
+            None,
+        )
         .await
         .expect("supervisor start");
 
@@ -364,7 +379,12 @@ async fn test_corrupted_agent_graceful_degradation() {
     let supervisor = Supervisor::new(config);
 
     let handles = supervisor
-        .start::<InstantBackend>(InstantBackend, Arc::new(FileCheckingAgentLoader), None)
+        .start::<InstantBackend>(
+            InstantBackend,
+            Arc::new(FileCheckingAgentLoader),
+            None,
+            None,
+        )
         .await
         .expect("supervisor start — should not fail despite corrupted agent");
 
@@ -462,7 +482,12 @@ async fn test_update_replaces_file_and_manifest() {
     let supervisor = Supervisor::new(config);
 
     let handles = supervisor
-        .start::<InstantBackend>(InstantBackend, Arc::new(VersionAwareAgentLoader), None)
+        .start::<InstantBackend>(
+            InstantBackend,
+            Arc::new(VersionAwareAgentLoader),
+            None,
+            None,
+        )
         .await
         .expect("supervisor start with updated agent");
 

@@ -271,6 +271,7 @@ impl Supervisor {
         backend: B,
         agent_loader: Arc<dyn AgentLoader>,
         backend_factory: Option<Arc<dyn crate::api::routes_agents::AgentBackendFactory>>,
+        agent_runner: Option<Arc<dyn crate::chat::ChatAgentRunner>>,
     ) -> Result<SupervisorHandles<B>, SupervisorError> {
         let timeout = Duration::from_secs(self.config.startup_timeout_secs);
 
@@ -590,6 +591,7 @@ impl Supervisor {
                 tool_registry_handle.clone(),
                 chat_tool_invoker,
                 agent_loader.clone(),
+                agent_runner.clone(),
                 event_sender.clone(),
                 apollia_core::StepBudgetConfig::default(),
             ) {
@@ -1008,6 +1010,7 @@ mod tests {
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
                 None,
+                None,
             )
             .await;
 
@@ -1037,6 +1040,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
                 None,
             )
             .await
@@ -1076,6 +1080,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
                 None,
             )
             .await
@@ -1158,6 +1163,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
                 None,
             )
             .await;
@@ -1302,6 +1308,7 @@ mod tests {
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
                 None,
+                None,
             )
             .await
             .expect("start() doit reussir sans config LLM");
@@ -1400,6 +1407,7 @@ mod tests {
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
                 None,
+                None,
             )
             .await;
 
@@ -1454,6 +1462,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
                 None,
             )
             .await;
@@ -1522,6 +1531,7 @@ mod tests {
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
                 None,
+                None,
             )
             .await
             .expect("start() doit reussir");
@@ -1560,6 +1570,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
                 None,
             )
             .await
@@ -1614,6 +1625,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
                 None,
             )
             .await
@@ -1674,6 +1686,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
                 None,
             )
             .await;
@@ -1801,6 +1814,7 @@ mod tests {
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
                 None,
+                None,
             )
             .await
             .expect("start() should succeed");
@@ -1838,6 +1852,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
                 None,
             )
             .await
@@ -1880,7 +1895,7 @@ mod tests {
 
         // WHEN le Supervisor démarre avec un loader qui échoue pour "corrupted"
         let handles = supervisor
-            .start(MockBackend, Arc::new(FailingAgentLoader), None)
+            .start(MockBackend, Arc::new(FailingAgentLoader), None, None)
             .await
             .expect("start() should succeed despite corrupted agent");
 
@@ -1914,6 +1929,7 @@ mod tests {
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
                 None,
+                None,
             )
             .await
             .expect("start() should succeed with no agents");
@@ -1945,6 +1961,7 @@ mod tests {
             .start(
                 MockBackend,
                 Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
                 None,
             )
             .await

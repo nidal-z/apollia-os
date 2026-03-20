@@ -64,6 +64,108 @@ impl AgentLoader for AIPAgentLoader {
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+// AIPChatAgentRunner — concrete ChatAgentRunner for Chat Agent mode (STORY-202)
+// ─────────────────────────────────────────────────────────────
+
+/// Concrete [`ChatAgentRunner`] implementation using PyO3 + AIPBridge.
+///
+/// Loads the Python agent from `data_dir/agents/<name>/`, validates AIP duck
+/// typing, builds a `RuntimeContext` with tools/memory/LLM, and calls `run()`.
+///
+/// Uses the same `OnceLock` pattern as [`ProductionBackendFactory`] to access
+/// runtime handles created inside `supervisor.start()`.
+struct AIPChatAgentRunner {
+    /// EventBus sender — populated after supervisor.start().
+    event_bus: Arc<std::sync::OnceLock<EventBusSender>>,
+    /// LLM router — populated after supervisor.start().
+    llm_router: Arc<std::sync::OnceLock<Option<Arc<LlmRouter>>>>,
+    /// Tool registry — populated after supervisor.start().
+    tool_registry: Arc<std::sync::OnceLock<ToolRegistryHandle>>,
+    /// Audit trail — populated after supervisor.start().
+    audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
+    /// Base data directory (e.g. `~/.apollia/`).
+    data_dir: PathBuf,
+}
+
+#[async_trait::async_trait]
+impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
+    async fn run_agent(&self, agent_name: &str, task: AIPTask) -> Result<AIPResult, String> {
+        let agent_path = self.data_dir.join("agents").join(agent_name);
+
+        // Load and validate agent via PyO3
+        let module =
+            apollia_aip::loader::load_agent_module(&agent_path).map_err(|e| e.to_string())?;
+        let validated =
+            apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
+        let manifest = validated.manifest.clone();
+        let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
+
+        // Get runtime handles from OnceLocks
+        let event_bus = self
+            .event_bus
+            .get()
+            .cloned()
+            .ok_or("event bus not initialized — chat agent called before runtime ready")?;
+        let llm_router = self.llm_router.get().cloned().flatten();
+        let tool_registry = self.tool_registry.get().cloned();
+        let audit_trail = self.audit_trail.get().cloned();
+
+        // Build RuntimeContext components
+        let router_for_helper = llm_router
+            .clone()
+            .unwrap_or_else(|| Arc::new(LlmRouter::empty()));
+        let tool_helper = Arc::new(ToolCallHelper::new(
+            Arc::new(RouterModel(router_for_helper)),
+            Arc::new(NoopToolInvoker),
+        ));
+
+        let allowed_tools: Vec<String> = manifest
+            .tools_required
+            .iter()
+            .chain(manifest.tools_optional.iter())
+            .cloned()
+            .collect();
+
+        let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref()) {
+            (Some(registry), Some(audit)) => Some(ToolProxy::new(
+                registry.clone(),
+                audit.clone(),
+                Arc::new(NativeToolExecutor::new()),
+                allowed_tools,
+                agent_name.to_string(),
+                task.task_id.clone(),
+            )),
+            _ => None,
+        };
+
+        let memory_base_dir = self.data_dir.join("memory");
+        let memory_interface: Option<MemoryInterface> =
+            manifest.memory_namespace.as_deref().and_then(|ns| {
+                let manager = MemoryManager::new(&memory_base_dir, Some(ns.to_string()), vec![]);
+                MemoryInterface::new(manager, ns.to_string(), agent_name.to_string())
+            });
+
+        let ctx: PyObject = Python::with_gil(|py| {
+            let ctx = RuntimeContext::new_with_llm(
+                llm_router,
+                Arc::new(StepBudgetView::unlimited()),
+                tool_helper,
+                Arc::new(ObservabilityConfig::default()),
+                event_bus,
+                agent_name.to_string().into(),
+                tool_proxy,
+                memory_interface,
+            );
+            Py::new(py, ctx)
+                .map(|p| p.into_any())
+                .expect("RuntimeContext PyObject construction failed")
+        });
+
+        bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
+    }
+}
+
 /// Fallback backend — only used when agent loading fails at start time.
 ///
 /// Returns a `Failed` result immediately without calling Python.
@@ -629,6 +731,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
 
     // Open AgentRepository for auto-load at boot (STORY-179).
     let data_dir = home.join(".apollia");
+    let data_dir_for_chat = data_dir.clone();
     let agent_repository: Option<apollia_tools::AgentRepository> = {
         let db_path = data_dir.join("agents.db");
         match apollia_tools::AgentRepository::open(&db_path) {
@@ -689,8 +792,23 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         task_repository: task_repository_lock.clone(),
     });
 
+    // STORY-202: Concrete ChatAgentRunner for Chat Agent mode.
+    let chat_agent_runner: Option<Arc<dyn apollia_runtime::chat::ChatAgentRunner>> =
+        Some(Arc::new(AIPChatAgentRunner {
+            event_bus: event_bus_lock.clone(),
+            llm_router: llm_router_lock.clone(),
+            tool_registry: tool_registry_lock.clone(),
+            audit_trail: audit_trail_lock.clone(),
+            data_dir: data_dir_for_chat,
+        }));
+
     let handles = supervisor
-        .start(DynBackend::new(NoopBackend), agent_loader, Some(factory))
+        .start(
+            DynBackend::new(NoopBackend),
+            agent_loader,
+            Some(factory),
+            chat_agent_runner,
+        )
         .await?;
 
     // Populate the OnceLocks now that the supervisor is running.

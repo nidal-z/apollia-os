@@ -20,6 +20,7 @@ use apollia_llm::{LlmRouter, ToolInvoker};
 use apollia_oria::budget::StepBudget;
 use apollia_tools::ToolRegistryHandle;
 
+use super::agent_chat::{AgentChatExecutor, ChatAgentRunner};
 use super::builtin_agent::{BuiltInChatAgent, ChatAgentResponse};
 use super::repository::{AppendMessageParams, ChatSessionRepository};
 use super::types::{
@@ -124,6 +125,8 @@ struct ChatSessionManager {
     tool_invoker: Arc<dyn ToolInvoker>,
     /// Agent loader for validating agent names.
     agent_loader: Arc<dyn AgentLoader>,
+    /// Agent runner for Chat Agent mode (STORY-202). `None` disables Agent mode.
+    agent_runner: Option<Arc<dyn ChatAgentRunner>>,
     /// Event bus sender for runtime events.
     event_bus: EventBusSender,
     /// Runtime-level step budget configuration.
@@ -399,17 +402,55 @@ impl ChatSessionManager {
                 let _ = tx.send(cmd).await;
             });
         } else {
-            // Agent mode not yet implemented (STORY-202) — reset to Active
-            if let Some(s) = self.sessions.get_mut(session_id) {
-                s.status = SessionStatus::Active;
-                s.active_exchange = None;
-            }
-            if let Err(e) = self
-                .repository
-                .update_status(session_id, &SessionStatus::Active)
-            {
-                warn!(error = %e, "Failed to reset session status to Active in SQLite");
-            }
+            // Agent mode (STORY-202): dispatch to AgentChatExecutor.
+            let agent_runner = match self.agent_runner.clone() {
+                Some(r) => r,
+                None => {
+                    warn!(session_id = %session_id, "Agent mode requested but no ChatAgentRunner configured");
+                    if let Some(s) = self.sessions.get_mut(session_id) {
+                        s.status = SessionStatus::Active;
+                        s.active_exchange = None;
+                    }
+                    if let Err(e) = self
+                        .repository
+                        .update_status(session_id, &SessionStatus::Active)
+                    {
+                        warn!(error = %e, "Failed to reset session status to Active in SQLite");
+                    }
+                    return Err(ChatError::AgentLoadFailed(
+                        "no ChatAgentRunner configured — Agent mode unavailable".into(),
+                    ));
+                }
+            };
+
+            let executor = AgentChatExecutor::new(agent_runner, self.event_bus.clone());
+            let session_clone = session.clone();
+            let authorized = session.authorized_tools.clone();
+            let pending = self.pending_chat_approvals.clone();
+            let sid = session_id.to_string();
+            let mid = message_id.clone();
+            let user_msg = content.to_string();
+            let tx = self.tx.clone();
+
+            tokio::spawn(async move {
+                let result = executor
+                    .execute(&session_clone, &user_msg, &mid, &authorized, &pending)
+                    .await;
+
+                let cmd = match result {
+                    Ok(response) => ChatCommand::ExchangeComplete {
+                        session_id: sid,
+                        message_id: mid,
+                        response,
+                    },
+                    Err(err) => ChatCommand::ExchangeError {
+                        session_id: sid,
+                        message_id: mid,
+                        error: err.to_string(),
+                    },
+                };
+                let _ = tx.send(cmd).await;
+            });
         }
 
         Ok(message_id)
@@ -782,12 +823,17 @@ impl ChatSessionManagerHandle {
     ///
     /// Opens the SQLite database at `db_path`, restores active sessions,
     /// and starts the actor loop in a background `tokio::spawn`.
+    ///
+    /// `agent_runner` enables Chat Agent mode (STORY-202). When `None`,
+    /// Agent mode sessions will return an error at message time.
+    #[allow(clippy::too_many_arguments)]
     pub fn spawn(
         db_path: &Path,
         llm_router: Option<Arc<LlmRouter>>,
         tool_registry: ToolRegistryHandle,
         tool_invoker: Arc<dyn ToolInvoker>,
         agent_loader: Arc<dyn AgentLoader>,
+        agent_runner: Option<Arc<dyn ChatAgentRunner>>,
         event_bus: EventBusSender,
         runtime_budget: StepBudgetConfig,
     ) -> Result<Self, ChatError> {
@@ -803,6 +849,7 @@ impl ChatSessionManagerHandle {
             tool_registry,
             tool_invoker,
             agent_loader,
+            agent_runner,
             event_bus,
             runtime_budget,
             pending_chat_approvals,
@@ -1033,6 +1080,7 @@ mod tests {
             tool_registry,
             tool_invoker,
             agent_loader,
+            None, // no agent runner in basic tests
             event_tx,
             StepBudgetConfig::default(),
         )
@@ -1164,6 +1212,7 @@ mod tests {
             tool_registry,
             tool_invoker,
             Arc::new(AlwaysOkLoader),
+            None,
             event_tx,
             StepBudgetConfig::default(),
         )
@@ -1256,6 +1305,7 @@ mod tests {
             tool_registry,
             tool_invoker,
             agent_loader: Arc::new(AlwaysOkLoader),
+            agent_runner: None,
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: pending,

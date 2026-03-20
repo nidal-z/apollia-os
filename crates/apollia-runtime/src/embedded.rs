@@ -237,7 +237,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
 
     let noop = DynBackend::new(NoopBackend);
     let handles = supervisor
-        .start(noop, config.agent_loader, config.backend_factory)
+        .start(noop, config.agent_loader, config.backend_factory, None)
         .await?;
 
     Ok(RuntimeHandle {
