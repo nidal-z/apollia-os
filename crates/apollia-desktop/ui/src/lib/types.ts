@@ -241,6 +241,49 @@ export interface TriggerReloadResult {
   reloaded: number;
 }
 
+/** Vue complète d'un trigger retournée par les opérations CRUD. */
+export interface TriggerDefinitionView {
+  id: string;
+  agent: string | null;
+  pipeline: string | null;
+  enabled: boolean;
+  on_busy: "queue" | "drop";
+  source_type: "cron" | "interval" | "oneshot" | "file_watch" | "webhook";
+  source_config: Record<string, unknown>;
+  input_template: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Configuration source dans les requêtes CRUD trigger. */
+export type TriggerSourceInput =
+  | { type: "cron"; schedule: string }
+  | { type: "interval"; every: string }
+  | { type: "oneshot"; fire_at: string }
+  | { type: "file_watch"; path: string; events: string[] }
+  | { type: "webhook"; secret: string };
+
+/** Corps de requête pour la création d'un trigger. */
+export interface CreateTriggerRequest {
+  id: string;
+  agent?: string;
+  pipeline?: string;
+  enabled: boolean;
+  on_busy: "queue" | "drop";
+  source: TriggerSourceInput;
+  input_template?: string;
+}
+
+/** Corps de requête pour la mise à jour d'un trigger. */
+export interface UpdateTriggerRequest {
+  agent?: string;
+  pipeline?: string;
+  enabled?: boolean;
+  on_busy?: "queue" | "drop";
+  source: TriggerSourceInput;
+  input_template?: string;
+}
+
 /** Résumé d'un pipeline run pour l'affichage. */
 export interface PipelineRunSummary {
   run_id: string;

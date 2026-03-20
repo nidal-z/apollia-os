@@ -11,6 +11,8 @@
   import { Timer } from "lucide-svelte";
   import TriggerRow from "../components/triggers/TriggerRow.svelte";
   import TriggerLogs from "../components/triggers/TriggerLogs.svelte";
+  import CreateTriggerDialog from "../components/triggers/CreateTriggerDialog.svelte";
+  import EditTriggerDialog from "../components/triggers/EditTriggerDialog.svelte";
   import EmptyState from "../components/common/EmptyState.svelte";
 
   let reloading = $state(false);
@@ -22,6 +24,11 @@
 
   let logsTriggerId = $state<string | null>(null);
   let logsOpen = $derived(logsTriggerId !== null);
+
+  let showCreateDialog = $state(false);
+  let editTriggerId = $state<string | null>(null);
+  let deleteTriggerId = $state<string | null>(null);
+  let deleting = $state(false);
 
   /** Group triggers by agent name, preserving insertion order. */
   const triggersByAgent = $derived.by(() => {
@@ -75,6 +82,50 @@
     logsTriggerId = null;
   }
 
+  function handleEdit(triggerId: string) {
+    editTriggerId = triggerId;
+  }
+
+  function handleCloseEdit() {
+    editTriggerId = null;
+  }
+
+  function handleTriggerCreated(id: string) {
+    showToast($t('triggers.created_toast', { values: { id } }), "success");
+    void handleReload();
+  }
+
+  function handleTriggerUpdated(id: string) {
+    showToast($t('triggers.updated_toast', { values: { id } }), "success");
+    void handleReload();
+  }
+
+  function handleRequestDelete(triggerId: string) {
+    deleteTriggerId = triggerId;
+  }
+
+  function handleCancelDelete() {
+    deleteTriggerId = null;
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTriggerId) return;
+    const id = deleteTriggerId;
+    deleting = true;
+    try {
+      await invoke("delete_trigger", { id });
+      deleteTriggerId = null;
+      showToast($t('triggers.deleted_toast', { values: { id } }), "success");
+      void handleReload();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast($t('triggers.delete_error', { values: { message: msg } }), "error");
+      deleteTriggerId = null;
+    } finally {
+      deleting = false;
+    }
+  }
+
   function navigateToAgents() {
     currentRoute.set("agents");
   }
@@ -87,15 +138,26 @@
       <h1 class="text-2xl font-bold" data-testid="triggers-header">{$t('triggers.title')}</h1>
       <p class="text-sm text-muted-foreground" data-testid="triggers-subtitle">{$t('triggers.subtitle')}</p>
     </div>
-    <Button
-      size="sm"
-      variant="outline"
-      onclick={handleReload}
-      disabled={reloading}
-      data-testid="triggers-reload-btn"
-    >
-      {reloading ? $t('triggers.reloading') : $t('triggers.reload')}
-    </Button>
+    <div class="flex items-center gap-2">
+      {#if $uiMode === "builder"}
+        <Button
+          size="sm"
+          onclick={() => (showCreateDialog = true)}
+          data-testid="create-trigger-btn"
+        >
+          {$t('triggers.new_trigger')}
+        </Button>
+      {/if}
+      <Button
+        size="sm"
+        variant="outline"
+        onclick={handleReload}
+        disabled={reloading}
+        data-testid="triggers-reload-btn"
+      >
+        {reloading ? $t('triggers.reloading') : $t('triggers.reload')}
+      </Button>
+    </div>
   </div>
 
   <!-- Toast -->
@@ -152,6 +214,8 @@
                 isBuilder={$uiMode === "builder"}
                 onfire={handleFire}
                 onlogs={handleOpenLogs}
+                onedit={handleEdit}
+                ondelete={handleRequestDelete}
               />
               </div>
             {/each}
@@ -169,4 +233,61 @@
     open={logsOpen}
     onclose={handleCloseLogs}
   />
+{/if}
+
+<!-- Create trigger dialog -->
+<CreateTriggerDialog
+  open={showCreateDialog}
+  onclose={() => (showCreateDialog = false)}
+  oncreated={handleTriggerCreated}
+/>
+
+<!-- Edit trigger dialog -->
+{#if editTriggerId}
+  <EditTriggerDialog
+    open={editTriggerId !== null}
+    triggerId={editTriggerId}
+    onclose={handleCloseEdit}
+    onupdated={handleTriggerUpdated}
+  />
+{/if}
+
+<!-- Delete confirmation dialog -->
+{#if deleteTriggerId}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+    role="button"
+    tabindex="-1"
+    onclick={handleCancelDelete}
+    onkeydown={(e) => e.key === "Escape" && handleCancelDelete()}
+  >
+    <div
+      class="w-[400px] rounded-lg border bg-background p-6 shadow-lg"
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.key === "Escape" && handleCancelDelete()}
+      data-testid="delete-trigger-dialog"
+    >
+      <h3 class="mb-2 text-lg font-semibold">{$t('triggers.delete_confirm_title')}</h3>
+      <p class="mb-4 text-sm text-muted-foreground">
+        {$t('triggers.delete_confirm_message', { values: { id: deleteTriggerId } })}
+      </p>
+      <div class="flex justify-end gap-2">
+        <Button variant="outline" size="sm" onclick={handleCancelDelete} data-testid="delete-trigger-cancel-btn">
+          {$t('common.cancel')}
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          onclick={handleConfirmDelete}
+          disabled={deleting}
+          data-testid="delete-trigger-confirm-btn"
+        >
+          {deleting ? $t('triggers.deleting') : $t('triggers.delete_confirm_yes')}
+        </Button>
+      </div>
+    </div>
+  </div>
 {/if}

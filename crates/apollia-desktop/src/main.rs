@@ -205,6 +205,7 @@ fn main() {
             commands::triggers::create_trigger,
             commands::triggers::update_trigger,
             commands::triggers::delete_trigger,
+            commands::triggers::get_trigger_definition,
             commands::pipelines::list_pipelines,
             commands::pipelines::list_pipeline_runs,
             commands::pipelines::list_all_pipeline_runs,

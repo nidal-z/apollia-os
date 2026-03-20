@@ -374,6 +374,19 @@ pub async fn update_trigger(
     Ok(parse_trigger_definition(&json))
 }
 
+/// Récupère la définition complète d'un trigger par son identifiant.
+///
+/// Délègue à `GET /api/v1/triggers/:id` (route CRUD STORY-192).
+#[tauri::command]
+pub async fn get_trigger_definition(
+    state: State<'_, RuntimeHandle>,
+    id: String,
+) -> Result<TriggerDefinitionView, String> {
+    let path = format!("/api/v1/triggers/{id}");
+    let json = http_get_json(state.api_port, &path).await?;
+    Ok(parse_trigger_definition(&json))
+}
+
 /// Supprime un trigger.
 ///
 /// Délègue à `DELETE /api/v1/triggers/:id`.

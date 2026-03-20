@@ -13,9 +13,11 @@
     isBuilder: boolean;
     onfire: (taskId: string) => void;
     onlogs: (triggerId: string) => void;
+    onedit: (triggerId: string) => void;
+    ondelete: (triggerId: string) => void;
   }
 
-  let { trigger, locale, isBuilder, onfire, onlogs }: Props = $props();
+  let { trigger, locale, isBuilder, onfire, onlogs, onedit, ondelete }: Props = $props();
 
   let toggling = $state(false);
   let firing = $state(false);
@@ -177,6 +179,25 @@
         >
           {$t('triggers.logs')}
         </Button>
+        {#if isBuilder}
+          <Button
+            size="sm"
+            variant="ghost"
+            onclick={() => onedit(trigger.id)}
+            data-testid="trigger-edit-{trigger.id}"
+          >
+            {$t('triggers.edit')}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            class="text-[hsl(var(--destructive))]"
+            onclick={() => ondelete(trigger.id)}
+            data-testid="trigger-delete-{trigger.id}"
+          >
+            {$t('triggers.delete')}
+          </Button>
+        {/if}
       </div>
     </div>
 
