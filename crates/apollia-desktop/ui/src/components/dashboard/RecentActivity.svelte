@@ -8,9 +8,10 @@
 
   interface Props {
     tasks: TaskSummary[];
+    onagentclick?: (agentId: string) => void;
   }
 
-  let { tasks: recentTasks }: Props = $props();
+  let { tasks: recentTasks, onagentclick }: Props = $props();
 
   const STATUS_CONFIG: Record<
     string,
@@ -77,8 +78,12 @@
     return `${(ms / 1000).toFixed(1)}s`;
   }
 
-  function navigateToTasks() {
-    currentRoute.set("tasks");
+  function handleTaskClick(task: TaskSummary) {
+    if (task.agent_id && onagentclick) {
+      onagentclick(task.agent_id);
+    } else {
+      currentRoute.set("tasks");
+    }
   }
 </script>
 
@@ -91,7 +96,7 @@
       {@const IconComponent = cfg.icon}
       <button
         class="flex w-full items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-left text-sm transition-all hover:border-border hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]"
-        onclick={navigateToTasks}
+        onclick={() => handleTaskClick(task)}
         data-testid="recent-activity-item"
         data-task-id={task.id}
       >

@@ -71,6 +71,24 @@ pub async fn list_tasks(
         .await
         .map_err(|e| e.to_string())?;
 
+    // Résoudre le nom de l'agent une seule fois pour filtrer les tâches
+    // persistées (qui n'ont pas l'UUID runtime mais ont le nom de l'agent).
+    let filter_agent_name: Option<String> = if let Some(ref f) = filter {
+        if let Some(ref agent_id) = f.agent_id {
+            state
+                .registry_handle
+                .get_agent(agent_id.as_str())
+                .await
+                .ok()
+                .flatten()
+                .map(|e| e.manifest.name.clone())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     let mut summaries = Vec::with_capacity(all.len());
     let mut seen_task_ids = std::collections::HashSet::new();
 
@@ -150,7 +168,11 @@ pub async fn list_tasks(
                             continue;
                         }
                     }
-                    // agent_id filter doesn't apply to persisted tasks (no UUID).
+                    if let Some(ref name) = filter_agent_name {
+                        if &row.agent_name != name {
+                            continue;
+                        }
+                    }
                 }
 
                 seen_task_ids.insert(row.task_id.clone());

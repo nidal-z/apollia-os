@@ -32,10 +32,14 @@
     detailOpen = false;
   }
 
-  function openLogsFromDetail(agentId: string) {
-    closeDetail();
+  function openLogs(agentId: string) {
     logsAgentId = agentId;
     logsOpen = true;
+  }
+
+  function openLogsFromDetail(agentId: string) {
+    closeDetail();
+    openLogs(agentId);
   }
 
   function closeLogs() {
@@ -97,7 +101,7 @@
   <!-- AC-3: Recent activity -->
   <section data-testid="dashboard-activity-section">
     <h2 class="mb-3 text-lg font-semibold">{$t('dashboard.recent_activity')}</h2>
-    <RecentActivity tasks={recentTasks} />
+    <RecentActivity tasks={recentTasks} onagentclick={openLogs} />
   </section>
 </div>
 

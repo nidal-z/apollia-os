@@ -1,7 +1,7 @@
 # ADR-021 — apollia-triggers : configuration TOML-only, authentification HMAC-SHA256 webhooks, hot reload sans restart
 
 **Date :** 2026-03-08
-**Statut :** Accepté
+**Statut :** Partiellement remplacé par ADR-033 (triggers migrent de TOML vers SQLite ; HMAC-SHA256 webhooks reste valide)
 **Décideur :** Nidal (solo)
 **Sprint :** 9
 

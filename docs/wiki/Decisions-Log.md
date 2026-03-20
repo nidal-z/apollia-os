@@ -615,5 +615,24 @@
 
 ---
 
+## ADR-033 — Config opérateur SQLite : séparation structurel (TOML) / opérationnel (SQLite)
+
+**Date :** 2026-03-20
+**Statut :** Accepté
+
+**Contexte :** `apollia.toml` mélange config structurelle (ports, chemins, LLM) et config opérationnelle (triggers, pipelines, notifications). Un non-développeur ne peut pas configurer ces éléments sans éditer du TOML. Le hot-reload TOML est fragile et sans validation interactive.
+
+**Décision :** Triggers, pipelines et notifications migrent de `apollia.toml` vers SQLite (une DB par sous-système). Le TOML ne contient plus que la config structurelle. Le pattern de modification est : API handler → SQLite write → Handle.reload() synchrone. L'app desktop devient read-write pour la config opérationnelle.
+
+**Alternatives considérées :** TOML reste source de vérité avec hot-reload amélioré (rejetée — ne résout pas le problème opérateur), EventBus pour notifier les acteurs (rejetée — complexité sans feedback synchrone), Watch file SQLite (rejetée — fragile avec WAL).
+
+**Conséquences :** CRUD depuis l'API REST et l'app desktop avec validation interactive (422). ADR-029 (Settings lecture seule) reste valide pour le TOML structurel. ADR-021 (triggers TOML-only) partiellement remplacé. `Arc<Mutex<>>` pour les repositories dans AppState (rusqlite Connection non-Sync, mutations rares).
+
+**Principes impactés :** Principe #1 (Local-first) renforcé, Principe #4 (Fail fast) renforcé, Principe #8 (CLI humaine, API machine) renforcé.
+
+[Détail → docs/adr/ADR-033-config-operateur-sqlite.md](adr/ADR-033-config-operateur-sqlite.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

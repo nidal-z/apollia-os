@@ -102,6 +102,8 @@
   - [ADR-029 — Settings lecture seule dans l'application desktop](decisions/adr-029-settings-lecture-seule.md)
   - [ADR-030 — EventBus → Tauri events remplace le polling IPC](decisions/adr-030-eventbus-tauri-events-remplace-polling.md)
   - [ADR-031 — Stratégie i18n : svelte-i18n avec fichiers JSON FR/EN](decisions/adr-031-i18n-svelte-i18n-fr-en.md)
+  - [ADR-032 — Agent Install & Persistence dans ~/.apollia/agents/](decisions/adr-032-agent-install-persistence.md)
+  - [ADR-033 — Config opérateur SQLite : séparation structurel / opérationnel](decisions/adr-033-config-operateur-sqlite.md)
 
 ---
 

@@ -25,7 +25,7 @@
 | ADR-018 | [ADR-018 — CLI Bootstrap sans Supervisor](./adr-018-cli-bootstrap-sans-supervisor.md) | Accepté |
 | ADR-019 | [ADR-019 — Trait AgentLoader pour decoupler apollia-runtime de PyO3](./adr-019-agent-loader-trait-decouplage-runtime-pyo3.md) | Accepté |
 | ADR-020 | [ADR-020 — apollia-llm : moteur d'inférence embarqué, modèles fichiers externes, feature flags](./adr-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md) | Accepté |
-| ADR-021 | [ADR-021 — apollia-triggers : TOML-only, HMAC-SHA256 webhooks, hot reload sans restart](./adr-021-apollia-triggers-toml-hmac-hot-reload.md) | Accepté |
+| ADR-021 | [ADR-021 — apollia-triggers : TOML-only, HMAC-SHA256 webhooks, hot reload sans restart](./adr-021-apollia-triggers-toml-hmac-hot-reload.md) | Partiellement remplacé par ADR-033 |
 | ADR-022 | [ADR-022 — ORIA Mode Orchestré : Option B (exécution directe outils) + hook on_plan_complete](./adr-022-oria-mode-orchestre-option-b.md) | Accepté |
 | ADR-023 | [ADR-023 — HITL : AIPTask.is_resumed + InputResponse + tools_requiring_approval](./adr-023-hitl-is-resumed-input-response-tools-requiring-approval.md) | Accepté |
 | ADR-024 | [ADR-024 — apollia-notifications : trait NotificationChannel, canaux, payload JSON fixe](./adr-024-apollia-notifications-trait-channel-json-fixe.md) | Accepté |
@@ -36,3 +36,5 @@
 | ADR-029 | [ADR-029 — Settings lecture seule dans l'application desktop](./adr-029-settings-lecture-seule.md) | Accepté |
 | ADR-030 | [ADR-030 — EventBus → Tauri events remplace le polling IPC](./adr-030-eventbus-tauri-events-remplace-polling.md) | Accepté |
 | ADR-031 | [ADR-031 — Stratégie i18n : svelte-i18n avec fichiers JSON FR/EN](./adr-031-i18n-svelte-i18n-fr-en.md) | Accepté |
+| ADR-032 | [ADR-032 — Agent Install & Persistence dans ~/.apollia/agents/](./adr-032-agent-install-persistence.md) | Accepté |
+| ADR-033 | [ADR-033 — Config opérateur SQLite : séparation structurel / opérationnel](./adr-033-config-operateur-sqlite.md) | Accepté |

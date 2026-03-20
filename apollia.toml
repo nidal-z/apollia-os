@@ -8,6 +8,7 @@
 startup = [
   "agents/debug_orchestrator.py",   # Agent debug bloc 10 (ORIA Mode Orchestré) — démarré automatiquement
   "agents/code-reviewer-moe.py",    # Code reviewer MoE — déclenché par git-commit-review trigger
+  "agents/web-watcher.py",          # Web page change monitoring — déclenché par watch-hn trigger
 ]
 # startup = liste de chemins Python (relatifs au répertoire de travail ou absolus avec ~)
 # Chaque agent est enregistré via POST /api/v1/agents dès que l'API est prête.
@@ -157,6 +158,18 @@ quantization = "q8_0"     # Quantization du modèle : doit correspondre au suffi
 # type   = "file_watch"                                          # Surveille via FSEvents (macOS) / inotify (Linux)
 # path   = "/Users/nidalzoumita/Documents/apollia-v2/.git"      # Répertoire .git — modifié à chaque commit
 # events = ["create", "modify"]                                  # Détecte la création et modification de fichiers git
+
+# ── Trigger web-watcher — surveille Hacker News toutes les 5 minutes ──────────
+[[triggers]]
+id             = "watch-hn"                          # Identifiant unique du trigger
+agent          = "web-watcher"                       # Agent de veille web
+enabled        = true                                # Actif immédiatement au démarrage
+on_busy        = "drop"                              # Ignore si l'agent traite déjà une page
+input_template = "Verifie https://news.ycombinator.com/"
+
+[triggers.source]
+type  = "interval"   # Déclenchement périodique
+every = "5m"         # Toutes les 5 minutes
 
 # ─────────────────────────────────────────────
 # TRIGGERS — exemples commentés pour référence
