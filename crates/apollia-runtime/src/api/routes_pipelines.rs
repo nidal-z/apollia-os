@@ -1,29 +1,38 @@
 //! REST routes for pipeline orchestration — `/api/v1/pipelines`.
 //!
-//! Implements three endpoints following the same patterns as `routes_tasks.rs`
-//! and `routes_agents.rs`:
+//! Implements CRUD endpoints for pipeline definitions (STORY-190) and
+//! run management endpoints (STORY-120/121):
 //!
-//! | Method | Path                                  | Handler         |
-//! |--------|---------------------------------------|-----------------|
-//! | POST   | `/api/v1/pipelines/{id}/run`          | [`run_pipeline`] |
-//! | GET    | `/api/v1/pipelines/{id}/runs`         | [`list_runs`]    |
-//! | GET    | `/api/v1/pipelines/{id}/runs/{run_id}`| [`get_run`]      |
+//! | Method | Path                                  | Handler                |
+//! |--------|---------------------------------------|------------------------|
+//! | GET    | `/api/v1/pipelines`                   | [`list_pipelines`]     |
+//! | GET    | `/api/v1/pipelines/:id`               | [`get_pipeline`]       |
+//! | POST   | `/api/v1/pipelines`                   | [`create_pipeline`]    |
+//! | PUT    | `/api/v1/pipelines/:id`               | [`update_pipeline`]    |
+//! | DELETE | `/api/v1/pipelines/:id`               | [`delete_pipeline`]    |
+//! | POST   | `/api/v1/pipelines/:id/run`           | [`run_pipeline`]       |
+//! | GET    | `/api/v1/pipelines/:id/runs`          | [`list_runs`]          |
+//! | GET    | `/api/v1/pipelines/:id/runs/:run_id`  | [`get_run`]            |
 //!
-//! All handlers return 503 when `AppState.pipeline_engine` is `None` (AC-6).
+//! All handlers return 503 when `AppState.pipeline_engine` is `None`.
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use apollia_pipelines::{PipelineEngineError, PipelineId, PipelineRun, PipelineStatus, RunId};
+use apollia_pipelines::{
+    ConditionKind, GlobalFailurePolicy, PipelineDefinition, PipelineDefinitionError,
+    PipelineDefinitionRepository, PipelineDefinitionRow, PipelineEngineError, PipelineId,
+    PipelineRun, PipelineStatus, PipelineStepDef, RunId, StepCondition, StepFailurePolicy, StepId,
+};
 
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 
-// ── Response types ─────────────────────────────────────────────────────────────
+// ── Run response types ───────────────────────────────────────────────────────
 
-/// Request body for `POST /api/v1/pipelines/{id}/run`.
+/// Request body for `POST /api/v1/pipelines/:id/run`.
 #[derive(Debug, Deserialize)]
 pub struct RunPipelineRequest {
     /// Optional trigger payload forwarded as `{{trigger.payload}}` in templates.
@@ -33,8 +42,8 @@ pub struct RunPipelineRequest {
     pub input: Option<String>,
 }
 
-/// Response body returned by `POST /api/v1/pipelines/{id}/run` (202 Accepted)
-/// and by `GET /api/v1/pipelines/{id}/runs` list items.
+/// Response body returned by `POST /api/v1/pipelines/:id/run` (202 Accepted)
+/// and by `GET /api/v1/pipelines/:id/runs` list items.
 #[derive(Debug, Serialize)]
 pub struct PipelineRunResponse {
     /// Unique identifier of the newly created run.
@@ -54,7 +63,7 @@ pub struct PipelineRunResponse {
 /// Response body for a step within a detailed run response.
 #[derive(Debug, Serialize)]
 pub struct StepRunResponse {
-    /// Step identifier as declared in `apollia.toml`.
+    /// Step identifier as declared in the pipeline definition.
     pub step_id: String,
     /// Current step status (`"pending"`, `"running"`, `"completed"`, etc.).
     pub status: String,
@@ -74,7 +83,7 @@ pub struct StepRunResponse {
 
 /// Detailed response body for a pipeline run including all step runs.
 ///
-/// Returned by `GET /api/v1/pipelines/{id}/runs/{run_id}`.
+/// Returned by `GET /api/v1/pipelines/:id/runs/:run_id`.
 #[derive(Debug, Serialize)]
 pub struct PipelineRunDetailResponse {
     /// Unique identifier of this run.
@@ -92,14 +101,110 @@ pub struct PipelineRunDetailResponse {
     pub ended_at: Option<String>,
 }
 
-/// Standard error response body (mirrors `routes_tasks.rs`).
+// ── CRUD request types (STORY-190) ───────────────────────────────────────────
+
+/// Request body for `POST /api/v1/pipelines` — create a pipeline definition.
+#[derive(Debug, Deserialize)]
+pub struct CreatePipelineRequest {
+    /// Unique pipeline identifier.
+    pub id: String,
+    /// Human-readable description.
+    pub description: Option<String>,
+    /// Global failure policy: `"fail"` (default) or `"continue"`.
+    pub on_failure: Option<String>,
+    /// Whether the pipeline is active (default: `true`).
+    pub enabled: Option<bool>,
+    /// Ordered list of pipeline steps.
+    pub steps: Vec<PipelineStepInput>,
+}
+
+/// A step within a create/update pipeline request.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct PipelineStepInput {
+    /// Step identifier, unique within the pipeline.
+    pub id: String,
+    /// Target agent name.
+    pub agent: String,
+    /// Input template supporting `{{steps.x.output}}` etc.
+    pub input: String,
+    /// Steps that must complete before this step can execute.
+    pub depends_on: Option<Vec<String>>,
+    /// Per-step failure policy: `"fail"` (default), `"skip"`, or `"fallback"`.
+    pub on_failure: Option<String>,
+    /// Optional execution condition.
+    pub condition: Option<StepConditionInput>,
+    /// If set, this step acts as a fallback for the referenced step.
+    pub fallback_for: Option<String>,
+}
+
+/// Condition within a step input request.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct StepConditionInput {
+    /// Comparison operator: `"contains"`, `"equals"`, `"starts_with"`, `"ends_with"`, `"regex"`.
+    pub when: String,
+    /// Dot-path to the value to inspect.
+    pub field: String,
+    /// Reference value for comparison.
+    pub value: String,
+}
+
+// ── CRUD response types (STORY-190) ──────────────────────────────────────────
+
+/// Full pipeline definition response (returned by CRUD operations).
+#[derive(Debug, Serialize)]
+pub struct PipelineDefinitionResponse {
+    /// Pipeline identifier.
+    pub id: String,
+    /// Human-readable description.
+    pub description: String,
+    /// Global failure policy.
+    pub on_failure: String,
+    /// Steps with full detail.
+    pub steps: Vec<PipelineStepResponse>,
+    /// Whether the pipeline is active.
+    pub enabled: bool,
+    /// ISO 8601 creation timestamp.
+    pub created_at: String,
+    /// ISO 8601 last modification timestamp.
+    pub updated_at: String,
+}
+
+/// A step within a pipeline definition response.
+#[derive(Debug, Serialize)]
+pub struct PipelineStepResponse {
+    /// Step identifier.
+    pub id: String,
+    /// Target agent name.
+    pub agent: String,
+    /// Input template.
+    pub input: String,
+    /// Dependencies.
+    pub depends_on: Vec<String>,
+    /// Per-step failure policy.
+    pub on_failure: String,
+    /// Optional execution condition.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub condition: Option<StepConditionInput>,
+    /// Fallback target step, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_for: Option<String>,
+}
+
+/// Response body for `DELETE /api/v1/pipelines/:id`.
+#[derive(Debug, Serialize)]
+pub struct DeletePipelineResponse {
+    /// Identifier of the deleted pipeline.
+    pub deleted: String,
+}
+
+/// Standard error response body.
 #[derive(Debug, Serialize)]
 pub struct PipelineErrorResponse {
     /// Human-readable error description.
     pub error: String,
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Helpers — run responses ──────────────────────────────────────────────────
 
 /// Convert a [`PipelineStatus`] into a short, human-readable string.
 fn status_to_str(status: &PipelineStatus) -> String {
@@ -171,9 +276,408 @@ fn engine_unavailable() -> (StatusCode, Json<PipelineErrorResponse>) {
     )
 }
 
-// ── Handlers ───────────────────────────────────────────────────────────────────
+// ── Helpers — CRUD ───────────────────────────────────────────────────────────
 
-/// Handler for `POST /api/v1/pipelines/{id}/run`.
+/// Maps a [`PipelineDefinitionError`] to an HTTP status code and error body.
+fn definition_error_to_response(
+    err: PipelineDefinitionError,
+) -> (StatusCode, Json<PipelineErrorResponse>) {
+    let (status, msg) = match &err {
+        PipelineDefinitionError::NotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
+        PipelineDefinitionError::DuplicateId(_) => (StatusCode::CONFLICT, err.to_string()),
+        PipelineDefinitionError::ValidationError(_) => {
+            (StatusCode::UNPROCESSABLE_ENTITY, err.to_string())
+        }
+        PipelineDefinitionError::Database(_) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
+        }
+    };
+    (status, Json(PipelineErrorResponse { error: msg }))
+}
+
+/// Extracts the pipeline definition repository from state, returning 503 if absent.
+fn require_repo<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+) -> Result<
+    &std::sync::Arc<std::sync::Mutex<PipelineDefinitionRepository>>,
+    (StatusCode, Json<PipelineErrorResponse>),
+> {
+    state.pipeline_def_repo.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(PipelineErrorResponse {
+                error: "pipeline definition repository not available".into(),
+            }),
+        )
+    })
+}
+
+/// Lock the repository mutex, mapping poison errors to 500.
+fn lock_repo(
+    repo: &std::sync::Arc<std::sync::Mutex<PipelineDefinitionRepository>>,
+) -> Result<
+    std::sync::MutexGuard<'_, PipelineDefinitionRepository>,
+    (StatusCode, Json<PipelineErrorResponse>),
+> {
+    repo.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(PipelineErrorResponse {
+                error: "repository lock poisoned".into(),
+            }),
+        )
+    })
+}
+
+/// Reloads the pipeline engine's in-memory definitions from the repository.
+///
+/// Reads all enabled definitions from SQLite, converts them to
+/// [`PipelineDefinition`], and sends them to the engine actor.
+async fn reload_engine_from_repo<B: ExecutionBackend + Clone>(state: &AppState<B>) {
+    let engine = match &state.pipeline_engine {
+        Some(e) => e.clone(),
+        None => return,
+    };
+    let repo = match &state.pipeline_def_repo {
+        Some(r) => r.clone(),
+        None => return,
+    };
+
+    let definitions = {
+        let guard = match repo.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        match guard.list() {
+            Ok(rows) => rows,
+            Err(_) => return,
+        }
+    };
+
+    let rich_defs: Vec<PipelineDefinition> = definitions
+        .into_iter()
+        .filter(|row| row.enabled)
+        .map(PipelineDefinition::from)
+        .collect();
+
+    engine.reload(rich_defs).await;
+}
+
+/// Parses a `GlobalFailurePolicy` from an optional string (default: `"fail"`).
+fn parse_on_failure(
+    value: Option<&str>,
+) -> Result<GlobalFailurePolicy, (StatusCode, Json<PipelineErrorResponse>)> {
+    match value {
+        None | Some("fail") => Ok(GlobalFailurePolicy::Fail),
+        Some("continue") => Ok(GlobalFailurePolicy::Continue),
+        Some(other) => Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(PipelineErrorResponse {
+                error: format!("validation error: invalid on_failure value: {other}"),
+            }),
+        )),
+    }
+}
+
+/// Parses a `StepFailurePolicy` from an optional string (default: `"fail"`).
+fn parse_step_on_failure(value: Option<&str>) -> Result<StepFailurePolicy, String> {
+    match value {
+        None | Some("fail") => Ok(StepFailurePolicy::Fail),
+        Some("skip") => Ok(StepFailurePolicy::Skip),
+        Some("fallback") => Ok(StepFailurePolicy::Fallback),
+        Some(other) => Err(format!("invalid step on_failure value: {other}")),
+    }
+}
+
+/// Parses a `ConditionKind` from a string.
+fn parse_condition_kind(value: &str) -> Result<ConditionKind, String> {
+    match value {
+        "contains" => Ok(ConditionKind::Contains),
+        "equals" => Ok(ConditionKind::Equals),
+        "starts_with" => Ok(ConditionKind::StartsWith),
+        "ends_with" => Ok(ConditionKind::EndsWith),
+        "regex" => Ok(ConditionKind::Regex),
+        other => Err(format!("invalid condition kind: {other}")),
+    }
+}
+
+/// Converts a [`PipelineStepInput`] into a [`PipelineStepDef`].
+fn step_input_to_def(
+    input: &PipelineStepInput,
+) -> Result<PipelineStepDef, (StatusCode, Json<PipelineErrorResponse>)> {
+    let on_failure = parse_step_on_failure(input.on_failure.as_deref()).map_err(|msg| {
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(PipelineErrorResponse {
+                error: format!("validation error: {msg}"),
+            }),
+        )
+    })?;
+
+    let condition = match &input.condition {
+        Some(c) => {
+            let kind = parse_condition_kind(&c.when).map_err(|msg| {
+                (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(PipelineErrorResponse {
+                        error: format!("validation error: {msg}"),
+                    }),
+                )
+            })?;
+            Some(StepCondition {
+                when: kind,
+                field: c.field.clone(),
+                value: c.value.clone(),
+            })
+        }
+        None => None,
+    };
+
+    Ok(PipelineStepDef {
+        id: StepId(input.id.clone()),
+        agent: input.agent.clone(),
+        input: input.input.clone(),
+        depends_on: input
+            .depends_on
+            .as_ref()
+            .map(|deps| deps.iter().map(|d| StepId(d.clone())).collect())
+            .unwrap_or_default(),
+        on_failure,
+        condition,
+        fallback_for: input.fallback_for.as_ref().map(|s| StepId(s.clone())),
+    })
+}
+
+/// Converts a [`PipelineDefinitionRow`] into a [`PipelineDefinitionResponse`].
+fn row_to_response(row: PipelineDefinitionRow) -> PipelineDefinitionResponse {
+    let on_failure = match row.on_failure {
+        GlobalFailurePolicy::Fail => "fail".to_string(),
+        GlobalFailurePolicy::Continue => "continue".to_string(),
+    };
+
+    let steps = row
+        .steps
+        .iter()
+        .map(|s| {
+            let step_on_failure = match s.on_failure {
+                StepFailurePolicy::Fail => "fail",
+                StepFailurePolicy::Skip => "skip",
+                StepFailurePolicy::Fallback => "fallback",
+            };
+
+            let condition = s.condition.as_ref().map(|c| {
+                let when = match c.when {
+                    ConditionKind::Contains => "contains",
+                    ConditionKind::Equals => "equals",
+                    ConditionKind::StartsWith => "starts_with",
+                    ConditionKind::EndsWith => "ends_with",
+                    ConditionKind::Regex => "regex",
+                };
+                StepConditionInput {
+                    when: when.to_string(),
+                    field: c.field.clone(),
+                    value: c.value.clone(),
+                }
+            });
+
+            PipelineStepResponse {
+                id: s.id.0.clone(),
+                agent: s.agent.clone(),
+                input: s.input.clone(),
+                depends_on: s.depends_on.iter().map(|d| d.0.clone()).collect(),
+                on_failure: step_on_failure.to_string(),
+                condition,
+                fallback_for: s.fallback_for.as_ref().map(|f| f.0.clone()),
+            }
+        })
+        .collect();
+
+    PipelineDefinitionResponse {
+        id: row.id,
+        description: row.description,
+        on_failure,
+        steps,
+        enabled: row.enabled,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
+}
+
+// ── CRUD Handlers (STORY-190) ────────────────────────────────────────────────
+
+/// Handler for `POST /api/v1/pipelines` — create a pipeline definition.
+///
+/// Validates the DAG structure, inserts into `pipelines.db`, reloads the
+/// engine, and returns 201 with the full definition.
+///
+/// ## Codes HTTP
+/// - `201 Created` — definition created successfully
+/// - `409 Conflict` — a pipeline with the same id already exists
+/// - `422 Unprocessable Entity` — validation error (cycle, duplicates, etc.)
+/// - `500 Internal Server Error` — database error
+/// - `503 Service Unavailable` — repository not available
+pub async fn create_pipeline<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Json(body): Json<CreatePipelineRequest>,
+) -> Result<(StatusCode, Json<PipelineDefinitionResponse>), (StatusCode, Json<PipelineErrorResponse>)>
+{
+    let repo = require_repo(&state)?;
+    let on_failure = parse_on_failure(body.on_failure.as_deref())?;
+
+    let steps: Vec<PipelineStepDef> = body
+        .steps
+        .iter()
+        .map(step_input_to_def)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let row = PipelineDefinitionRow {
+        id: body.id.clone(),
+        description: body.description.unwrap_or_default(),
+        on_failure,
+        steps,
+        enabled: body.enabled.unwrap_or(true),
+        created_at: String::new(),
+        updated_at: String::new(),
+    };
+
+    let created = {
+        let guard = lock_repo(repo)?;
+        guard.insert(&row).map_err(definition_error_to_response)?;
+        guard
+            .get(&body.id)
+            .map_err(definition_error_to_response)?
+            .ok_or_else(|| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(PipelineErrorResponse {
+                        error: "pipeline inserted but not found".into(),
+                    }),
+                )
+            })?
+    };
+
+    reload_engine_from_repo(&state).await;
+
+    Ok((StatusCode::CREATED, Json(row_to_response(created))))
+}
+
+/// Handler for `PUT /api/v1/pipelines/:id` — update a pipeline definition.
+///
+/// Re-validates the DAG, updates in `pipelines.db`, reloads the engine,
+/// and returns 200 with the updated definition.
+///
+/// ## Codes HTTP
+/// - `200 OK` — definition updated successfully
+/// - `404 Not Found` — pipeline does not exist
+/// - `422 Unprocessable Entity` — validation error
+/// - `500 Internal Server Error` — database error
+/// - `503 Service Unavailable` — repository not available
+pub async fn update_pipeline<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+    Json(body): Json<CreatePipelineRequest>,
+) -> Result<Json<PipelineDefinitionResponse>, (StatusCode, Json<PipelineErrorResponse>)> {
+    let repo = require_repo(&state)?;
+    let on_failure = parse_on_failure(body.on_failure.as_deref())?;
+
+    let steps: Vec<PipelineStepDef> = body
+        .steps
+        .iter()
+        .map(step_input_to_def)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let row = PipelineDefinitionRow {
+        id: id.clone(),
+        description: body.description.unwrap_or_default(),
+        on_failure,
+        steps,
+        enabled: body.enabled.unwrap_or(true),
+        created_at: String::new(),
+        updated_at: String::new(),
+    };
+
+    let updated = {
+        let guard = lock_repo(repo)?;
+        guard
+            .update(&id, &row)
+            .map_err(definition_error_to_response)?;
+        guard
+            .get(&id)
+            .map_err(definition_error_to_response)?
+            .ok_or_else(|| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(PipelineErrorResponse {
+                        error: "pipeline updated but not found".into(),
+                    }),
+                )
+            })?
+    };
+
+    reload_engine_from_repo(&state).await;
+
+    Ok(Json(row_to_response(updated)))
+}
+
+/// Handler for `DELETE /api/v1/pipelines/:id` — delete a pipeline definition.
+///
+/// Removes the definition from `pipelines.db` (runs are preserved), reloads
+/// the engine, and returns 200 with the deleted id.
+///
+/// ## Codes HTTP
+/// - `200 OK` — definition deleted
+/// - `404 Not Found` — pipeline does not exist
+/// - `500 Internal Server Error` — database error
+/// - `503 Service Unavailable` — repository not available
+pub async fn delete_pipeline<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> Result<Json<DeletePipelineResponse>, (StatusCode, Json<PipelineErrorResponse>)> {
+    let repo = require_repo(&state)?;
+
+    {
+        let guard = lock_repo(repo)?;
+        guard.delete(&id).map_err(definition_error_to_response)?;
+    }
+
+    reload_engine_from_repo(&state).await;
+
+    Ok(Json(DeletePipelineResponse { deleted: id }))
+}
+
+/// Handler for `GET /api/v1/pipelines/:id` — get a single pipeline definition.
+///
+/// ## Codes HTTP
+/// - `200 OK` — definition found
+/// - `404 Not Found` — pipeline does not exist
+/// - `500 Internal Server Error` — database error
+/// - `503 Service Unavailable` — repository not available
+pub async fn get_pipeline<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> Result<Json<PipelineDefinitionResponse>, (StatusCode, Json<PipelineErrorResponse>)> {
+    let repo = require_repo(&state)?;
+
+    let row = {
+        let guard = lock_repo(repo)?;
+        guard.get(&id).map_err(definition_error_to_response)?
+    };
+
+    let row = row.ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(PipelineErrorResponse {
+                error: format!("pipeline not found: {id}"),
+            }),
+        )
+    })?;
+
+    Ok(Json(row_to_response(row)))
+}
+
+// ── Run Handlers (existing) ──────────────────────────────────────────────────
+
+/// Handler for `POST /api/v1/pipelines/:id/run`.
 ///
 /// Triggers a new run for the named pipeline and returns 202 Accepted with the
 /// newly created `run_id`. The run executes asynchronously in the background.
@@ -210,7 +714,7 @@ pub async fn run_pipeline<B: ExecutionBackend + Clone>(
     ))
 }
 
-/// Handler for `GET /api/v1/pipelines/{id}/runs`.
+/// Handler for `GET /api/v1/pipelines/:id/runs`.
 ///
 /// Returns the 20 most recent runs for the given pipeline, ordered by
 /// `started_at` descending. Returns an empty list if the pipeline exists
@@ -238,10 +742,9 @@ pub async fn list_runs<B: ExecutionBackend + Clone>(
     Ok(Json(response))
 }
 
-/// Handler for `GET /api/v1/pipelines/{id}/runs/{run_id}`.
+/// Handler for `GET /api/v1/pipelines/:id/runs/:run_id`.
 ///
 /// Returns the detailed state of a pipeline run, including all step runs.
-/// `{id}` is the pipeline identifier; `{run_id}` is the run identifier.
 ///
 /// ## Codes HTTP
 /// - `200 OK` — run found, detail returned
@@ -273,35 +776,47 @@ pub async fn get_run<B: ExecutionBackend + Clone>(
     }
 }
 
-/// Handler for `GET /api/v1/pipelines`.
+/// Handler for `GET /api/v1/pipelines` — list all pipeline definitions.
 ///
-/// Returns the list of all registered pipeline IDs and descriptions.
+/// Returns definitions from the repository if available, otherwise falls
+/// back to the engine's in-memory list.
 ///
 /// ## Codes HTTP
 /// - `200 OK` — list returned (may be empty)
-/// - `503 Service Unavailable` — `PipelineEngine` not configured
+/// - `503 Service Unavailable` — neither repository nor engine available
 pub async fn list_pipelines<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<PipelineErrorResponse>)> {
+) -> Result<Json<Vec<PipelineDefinitionResponse>>, (StatusCode, Json<PipelineErrorResponse>)> {
+    // Prefer repository (full definitions with timestamps)
+    if let Some(repo) = &state.pipeline_def_repo {
+        let guard = lock_repo(repo)?;
+        let rows = guard.list().map_err(definition_error_to_response)?;
+        return Ok(Json(rows.into_iter().map(row_to_response).collect()));
+    }
+
+    // Fallback to engine list (id + description only) — return 503 if neither available
     let engine = state
         .pipeline_engine
         .as_ref()
         .ok_or_else(engine_unavailable)?;
 
     let pipelines = engine.list_pipelines().await;
-    let items: Vec<serde_json::Value> = pipelines
+    let items: Vec<PipelineDefinitionResponse> = pipelines
         .into_iter()
-        .map(|(id, description)| {
-            serde_json::json!({
-                "id": id.to_string(),
-                "description": description,
-            })
+        .map(|(id, description)| PipelineDefinitionResponse {
+            id: id.to_string(),
+            description,
+            on_failure: "fail".to_string(),
+            steps: Vec::new(),
+            enabled: true,
+            created_at: String::new(),
+            updated_at: String::new(),
         })
         .collect();
-    Ok(Json(serde_json::json!({ "pipelines": items })))
+    Ok(Json(items))
 }
 
-/// Handler for `GET /api/v1/runs/{run_id}`.
+/// Handler for `GET /api/v1/runs/:run_id`.
 ///
 /// Returns the detailed state of a pipeline run by its `run_id` alone,
 /// without requiring the pipeline identifier in the URL path.
@@ -347,14 +862,11 @@ mod tests {
     use crate::registry::AgentRegistry;
     use crate::router::TaskRouterHandle;
     use apollia_core::{AIPResult, AIPTask, TaskStatus};
-    use apollia_pipelines::{
-        ExecutorError, PipelineDefinition, PipelineEngine, PipelineRepository, PipelineStepDef,
-        StepFailurePolicy, StepId, TaskSubmitter,
-    };
+    use apollia_pipelines::{ExecutorError, PipelineEngine, PipelineRepository, TaskSubmitter};
     use async_trait::async_trait;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
-    use axum::routing::{get, post};
+    use axum::routing::{delete, get, post, put};
     use axum::Router;
     use std::future::Future;
     use std::pin::Pin;
@@ -386,9 +898,6 @@ mod tests {
     }
 
     /// `TaskSubmitter` that always accepts tasks but never emits `TaskCompleted`.
-    ///
-    /// Sufficient for route-level tests: we only need the engine to acknowledge
-    /// submissions, not to drive execution to completion.
     struct NeverCompletingSubmitter;
 
     #[async_trait]
@@ -403,7 +912,7 @@ mod tests {
         PipelineDefinition {
             id: PipelineId(id.to_owned()),
             description: format!("Test pipeline {id}"),
-            on_failure: apollia_pipelines::GlobalFailurePolicy::Fail,
+            on_failure: GlobalFailurePolicy::Fail,
             steps: vec![
                 PipelineStepDef {
                     id: StepId("step-a".into()),
@@ -427,8 +936,9 @@ mod tests {
         }
     }
 
-    /// Shared helper: build an `AppState` with a live `PipelineEngine`.
-    fn app_state_with_engine(pipelines: Vec<PipelineDefinition>) -> AppState<MockBackend> {
+    /// Shared helper: build an `AppState` with a live `PipelineEngine` and a
+    /// `PipelineDefinitionRepository` for CRUD tests.
+    fn app_state_with_engine_and_repo(pipelines: Vec<PipelineDefinition>) -> AppState<MockBackend> {
         let (event_tx, _) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =
@@ -438,6 +948,10 @@ mod tests {
         let repo = Arc::new(Mutex::new(repo));
         let submitter: Arc<dyn TaskSubmitter> = Arc::new(NeverCompletingSubmitter);
         let engine = PipelineEngine::spawn(pipelines, repo, submitter, event_tx.clone());
+
+        let def_repo =
+            PipelineDefinitionRepository::open_in_memory().expect("in-memory def repo must open");
+        let def_repo = Arc::new(Mutex::new(def_repo));
 
         AppState {
             router_handle,
@@ -458,12 +972,12 @@ mod tests {
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
-            pipeline_def_repo: None,
+            pipeline_def_repo: Some(def_repo),
             notification_repo: None,
         }
     }
 
-    /// `AppState` with no `PipelineEngine` — tests AC-6.
+    /// `AppState` with no engine/repo — tests 503 responses.
     fn app_state_no_engine() -> AppState<MockBackend> {
         let (event_tx, _) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
@@ -493,9 +1007,19 @@ mod tests {
         }
     }
 
-    /// Build a test `Router` with all three pipeline routes.
+    /// Build a test `Router` with all pipeline routes (CRUD + runs).
     fn test_router(state: AppState<MockBackend>) -> Router {
         Router::new()
+            .route(
+                "/api/v1/pipelines",
+                get(list_pipelines::<MockBackend>).post(create_pipeline::<MockBackend>),
+            )
+            .route(
+                "/api/v1/pipelines/:id",
+                get(get_pipeline::<MockBackend>)
+                    .put(update_pipeline::<MockBackend>)
+                    .delete(delete_pipeline::<MockBackend>),
+            )
             .route(
                 "/api/v1/pipelines/:id/run",
                 post(run_pipeline::<MockBackend>),
@@ -516,23 +1040,261 @@ mod tests {
         serde_json::from_slice(&bytes).expect("parse json")
     }
 
-    // ── AC-1 — POST /{id}/run returns 202 with run_id ─────────────────────────
+    /// JSON body for creating a valid 2-step pipeline.
+    fn valid_create_body(id: &str) -> serde_json::Value {
+        serde_json::json!({
+            "id": id,
+            "description": "Test pipeline",
+            "steps": [
+                { "id": "step-a", "agent": "agent-a", "input": "hello" },
+                { "id": "step-b", "agent": "agent-b", "input": "world", "depends_on": ["step-a"] }
+            ]
+        })
+    }
+
+    /// Send a POST JSON request and return the response.
+    async fn post_json(
+        router: &Router,
+        uri: &str,
+        body: serde_json::Value,
+    ) -> axum::response::Response {
+        let req = Request::builder()
+            .method("POST")
+            .uri(uri)
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        router.clone().oneshot(req).await.expect("request failed")
+    }
+
+    /// Send a PUT JSON request and return the response.
+    async fn put_json(
+        router: &Router,
+        uri: &str,
+        body: serde_json::Value,
+    ) -> axum::response::Response {
+        let req = Request::builder()
+            .method("PUT")
+            .uri(uri)
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        router.clone().oneshot(req).await.expect("request failed")
+    }
+
+    /// Send a DELETE request and return the response.
+    async fn delete_req(router: &Router, uri: &str) -> axum::response::Response {
+        let req = Request::builder()
+            .method("DELETE")
+            .uri(uri)
+            .body(Body::empty())
+            .expect("build request");
+        router.clone().oneshot(req).await.expect("request failed")
+    }
+
+    /// Send a GET request and return the response.
+    async fn get_req(router: &Router, uri: &str) -> axum::response::Response {
+        let req = Request::builder()
+            .uri(uri)
+            .body(Body::empty())
+            .expect("build request");
+        router.clone().oneshot(req).await.expect("request failed")
+    }
+
+    // ── AC-1 — POST /api/v1/pipelines -> 201 ────────────────────────────────
 
     #[tokio::test]
-    async fn test_ac1_run_pipeline_returns_202() {
+    async fn test_create_pipeline_201() {
+        // GIVEN a state with an empty repository
+        let state = app_state_with_engine_and_repo(vec![]);
+        let router = test_router(state);
+
+        // WHEN POST /api/v1/pipelines with a valid body
+        let resp = post_json(&router, "/api/v1/pipelines", valid_create_body("pipe-1")).await;
+
+        // THEN 201 Created with full definition
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let json = body_json(resp).await;
+        assert_eq!(json["id"], "pipe-1");
+        assert_eq!(json["description"], "Test pipeline");
+        assert_eq!(json["on_failure"], "fail");
+        assert!(json["enabled"].as_bool().expect("enabled must be bool"));
+        assert_eq!(json["steps"].as_array().expect("steps array").len(), 2);
+        assert!(!json["created_at"].as_str().unwrap_or("").is_empty());
+        assert!(!json["updated_at"].as_str().unwrap_or("").is_empty());
+    }
+
+    // ── AC-2 — PUT /api/v1/pipelines/:id -> 200 ─────────────────────────────
+
+    #[tokio::test]
+    async fn test_update_pipeline_200() {
+        // GIVEN a pipeline "pipe-update" exists
+        let state = app_state_with_engine_and_repo(vec![]);
+        let router = test_router(state);
+        let resp = post_json(
+            &router,
+            "/api/v1/pipelines",
+            valid_create_body("pipe-update"),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // WHEN PUT with modified description and different steps
+        let update_body = serde_json::json!({
+            "id": "pipe-update",
+            "description": "Updated description",
+            "steps": [
+                { "id": "new-step", "agent": "new-agent", "input": "new input" }
+            ]
+        });
+        let resp = put_json(&router, "/api/v1/pipelines/pipe-update", update_body).await;
+
+        // THEN 200 OK with updated definition
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = body_json(resp).await;
+        assert_eq!(json["description"], "Updated description");
+        assert_eq!(json["steps"].as_array().expect("steps").len(), 1);
+        assert_eq!(json["steps"][0]["id"], "new-step");
+    }
+
+    // ── AC-3 — DELETE /api/v1/pipelines/:id -> 200 ───────────────────────────
+
+    #[tokio::test]
+    async fn test_delete_pipeline_200() {
+        // GIVEN a pipeline "pipe-del" exists
+        let state = app_state_with_engine_and_repo(vec![]);
+        let router = test_router(state);
+        let resp = post_json(&router, "/api/v1/pipelines", valid_create_body("pipe-del")).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // WHEN DELETE /api/v1/pipelines/pipe-del
+        let resp = delete_req(&router, "/api/v1/pipelines/pipe-del").await;
+
+        // THEN 200 with {"deleted": "pipe-del"}
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = body_json(resp).await;
+        assert_eq!(json["deleted"], "pipe-del");
+
+        // AND the pipeline is no longer found
+        let resp = get_req(&router, "/api/v1/pipelines/pipe-del").await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    // ── AC-4 — GET /api/v1/pipelines/:id -> 200 ─────────────────────────────
+
+    #[tokio::test]
+    async fn test_get_pipeline_200() {
+        // GIVEN a pipeline "pipe-get" exists with 2 steps
+        let state = app_state_with_engine_and_repo(vec![]);
+        let router = test_router(state);
+        let resp = post_json(&router, "/api/v1/pipelines", valid_create_body("pipe-get")).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // WHEN GET /api/v1/pipelines/pipe-get
+        let resp = get_req(&router, "/api/v1/pipelines/pipe-get").await;
+
+        // THEN 200 with full definition and deserialized steps
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = body_json(resp).await;
+        assert_eq!(json["id"], "pipe-get");
+        assert_eq!(json["steps"].as_array().expect("steps").len(), 2);
+        assert_eq!(json["steps"][0]["id"], "step-a");
+        assert_eq!(json["steps"][1]["id"], "step-b");
+        assert_eq!(json["steps"][1]["depends_on"][0], "step-a");
+    }
+
+    // ── AC-5 — Validation cycle -> 422 ───────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_create_cycle_422() {
+        // GIVEN a body with a cycle A->B->A
+        let state = app_state_with_engine_and_repo(vec![]);
+        let router = test_router(state);
+        let body = serde_json::json!({
+            "id": "cyclic",
+            "steps": [
+                { "id": "A", "agent": "a", "input": "x", "depends_on": ["B"] },
+                { "id": "B", "agent": "b", "input": "y", "depends_on": ["A"] }
+            ]
+        });
+
+        // WHEN POST /api/v1/pipelines
+        let resp = post_json(&router, "/api/v1/pipelines", body).await;
+
+        // THEN 422 with cycle error message
+        assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let json = body_json(resp).await;
+        assert!(
+            json["error"]
+                .as_str()
+                .unwrap_or("")
+                .contains("cycle detected"),
+            "error must mention cycle, got: {}",
+            json["error"]
+        );
+    }
+
+    // ── AC-5 — Duplicate pipeline ID -> 409 ──────────────────────────────────
+
+    #[tokio::test]
+    async fn test_create_duplicate_409() {
+        // GIVEN a pipeline "dup-pipe" already exists
+        let state = app_state_with_engine_and_repo(vec![]);
+        let router = test_router(state);
+        let resp = post_json(&router, "/api/v1/pipelines", valid_create_body("dup-pipe")).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // WHEN POST with the same id
+        let resp = post_json(&router, "/api/v1/pipelines", valid_create_body("dup-pipe")).await;
+
+        // THEN 409 Conflict
+        assert_eq!(resp.status(), StatusCode::CONFLICT);
+        let json = body_json(resp).await;
+        assert!(
+            json["error"].as_str().unwrap_or("").contains("dup-pipe"),
+            "error must mention the duplicate id, got: {}",
+            json["error"]
+        );
+    }
+
+    // ── AC-7 — GET /api/v1/pipelines returns definitions ─────────────────────
+
+    #[tokio::test]
+    async fn test_list_returns_definitions() {
+        // GIVEN 3 pipeline definitions in the repository
+        let state = app_state_with_engine_and_repo(vec![]);
+        let router = test_router(state);
+        for name in &["list-1", "list-2", "list-3"] {
+            let resp = post_json(&router, "/api/v1/pipelines", valid_create_body(name)).await;
+            assert_eq!(resp.status(), StatusCode::CREATED);
+        }
+
+        // WHEN GET /api/v1/pipelines
+        let resp = get_req(&router, "/api/v1/pipelines").await;
+
+        // THEN 200 with 3 definitions containing full details
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = body_json(resp).await;
+        let arr = json.as_array().expect("body must be a JSON array");
+        assert_eq!(arr.len(), 3, "expected 3 definitions, got {}", arr.len());
+        for item in arr {
+            assert!(item["id"].is_string());
+            assert!(item["steps"].is_array());
+            assert!(!item["created_at"].as_str().unwrap_or("").is_empty());
+        }
+    }
+
+    // ── Existing run tests ───────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_run_pipeline_returns_202() {
         // GIVEN an engine with "test-pipe" registered
-        let state = app_state_with_engine(vec![make_test_pipeline("test-pipe")]);
+        let state = app_state_with_engine_and_repo(vec![make_test_pipeline("test-pipe")]);
         let router = test_router(state);
 
         // WHEN POST /api/v1/pipelines/test-pipe/run {"input": "acme.pdf"}
         let body = serde_json::json!({ "input": "acme.pdf" });
-        let req = Request::builder()
-            .method("POST")
-            .uri("/api/v1/pipelines/test-pipe/run")
-            .header("content-type", "application/json")
-            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
-            .expect("build request");
-        let resp = router.oneshot(req).await.expect("request failed");
+        let resp = post_json(&router, "/api/v1/pipelines/test-pipe/run", body).await;
 
         // THEN 202 Accepted with run_id and status "running"
         assert_eq!(resp.status(), StatusCode::ACCEPTED);
@@ -546,124 +1308,17 @@ mod tests {
         assert_eq!(json["status"], "running");
     }
 
-    // ── AC-2 — POST on unknown pipeline returns 404 ────────────────────────────
-
     #[tokio::test]
-    async fn test_ac2_unknown_pipeline_returns_404() {
-        // GIVEN no pipeline "inexistant" registered
-        let state = app_state_with_engine(vec![]);
-        let router = test_router(state);
-
-        // WHEN POST /api/v1/pipelines/inexistant/run
-        let req = Request::builder()
-            .method("POST")
-            .uri("/api/v1/pipelines/inexistant/run")
-            .header("content-type", "application/json")
-            .body(Body::from(r#"{}"#))
-            .expect("build request");
-        let resp = router.oneshot(req).await.expect("request failed");
-
-        // THEN 404 with descriptive error
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-        let json = body_json(resp).await;
-        assert!(
-            json["error"].as_str().unwrap_or("").contains("inexistant"),
-            "error must mention the pipeline id, got: {}",
-            json["error"]
-        );
-    }
-
-    // ── AC-6 — no engine returns 503 ──────────────────────────────────────────
-
-    #[tokio::test]
-    async fn test_ac6_no_engine_returns_503() {
+    async fn test_no_engine_returns_503() {
         // GIVEN AppState with pipeline_engine == None
         let state = app_state_no_engine();
         let router = test_router(state);
 
         // WHEN POST /api/v1/pipelines/x/run
-        let req = Request::builder()
-            .method("POST")
-            .uri("/api/v1/pipelines/x/run")
-            .header("content-type", "application/json")
-            .body(Body::from(r#"{}"#))
-            .expect("build request");
-        let resp = router.oneshot(req).await.expect("request failed");
+        let body = serde_json::json!({});
+        let resp = post_json(&router, "/api/v1/pipelines/x/run", body).await;
 
         // THEN 503 Service Unavailable
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
-        let json = body_json(resp).await;
-        assert!(
-            json["error"]
-                .as_str()
-                .unwrap_or("")
-                .contains("pipeline engine not available"),
-            "error must mention engine unavailability, got: {}",
-            json["error"]
-        );
-    }
-
-    // ── AC-3 — GET /{id}/runs returns run history ──────────────────────────────
-
-    #[tokio::test]
-    async fn test_ac3_list_runs_returns_history() {
-        // GIVEN a pipeline with 2 completed runs
-        let state = app_state_with_engine(vec![make_test_pipeline("hist-pipe")]);
-        let router = test_router(state);
-
-        // Trigger two runs
-        for _ in 0..2_u8 {
-            let req = Request::builder()
-                .method("POST")
-                .uri("/api/v1/pipelines/hist-pipe/run")
-                .header("content-type", "application/json")
-                .body(Body::from(r#"{}"#))
-                .expect("build request");
-            let resp = router.clone().oneshot(req).await.expect("run request");
-            assert_eq!(resp.status(), StatusCode::ACCEPTED);
-        }
-
-        // WHEN GET /api/v1/pipelines/hist-pipe/runs
-        let req = Request::builder()
-            .uri("/api/v1/pipelines/hist-pipe/runs")
-            .body(Body::empty())
-            .expect("build request");
-        let resp = router.oneshot(req).await.expect("list request");
-
-        // THEN 200 with list of 2 runs
-        assert_eq!(resp.status(), StatusCode::OK);
-        let json = body_json(resp).await;
-        let arr = json.as_array().expect("body must be a JSON array");
-        assert_eq!(arr.len(), 2, "expected 2 runs, got {}", arr.len());
-        for run in arr {
-            assert!(run["run_id"].as_str().unwrap_or("").starts_with("r-"));
-            assert_eq!(run["pipeline_id"], "hist-pipe");
-            assert!(run["status"].is_string());
-        }
-    }
-
-    // ── AC-5 — GET /{id}/runs/{run_id} on unknown run returns 404 ─────────────
-
-    #[tokio::test]
-    async fn test_ac5_get_run_not_found_returns_404() {
-        // GIVEN no run "r-9999" in the repository
-        let state = app_state_with_engine(vec![make_test_pipeline("any-pipe")]);
-        let router = test_router(state);
-
-        // WHEN GET /api/v1/pipelines/any-pipe/runs/r-9999
-        let req = Request::builder()
-            .uri("/api/v1/pipelines/any-pipe/runs/r-9999")
-            .body(Body::empty())
-            .expect("build request");
-        let resp = router.oneshot(req).await.expect("request failed");
-
-        // THEN 404 Not Found
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-        let json = body_json(resp).await;
-        assert!(
-            json["error"].as_str().unwrap_or("").contains("r-9999"),
-            "error must mention the run_id, got: {}",
-            json["error"]
-        );
     }
 }

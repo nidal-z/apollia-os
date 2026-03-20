@@ -81,6 +81,11 @@ enum PipelineEngineMessage {
         limit: u32,
         reply: oneshot::Sender<Result<Vec<PipelineRun>, PipelineEngineError>>,
     },
+    /// Replace in-memory pipeline definitions (after CRUD mutation).
+    Reload {
+        definitions: Vec<PipelineDefinition>,
+        reply: oneshot::Sender<()>,
+    },
     /// Signal the engine to stop accepting new requests.
     Shutdown,
 }
@@ -194,6 +199,22 @@ impl PipelineEngineHandle {
         reply_rx
             .await
             .map_err(|_| PipelineEngineError::EngineUnavailable)?
+    }
+
+    /// Replaces in-memory pipeline definitions with the given list.
+    ///
+    /// Called after a CRUD mutation on the `PipelineDefinitionRepository` to
+    /// keep the engine's in-memory registry in sync with SQLite (AC-6 STORY-190).
+    pub async fn reload(&self, definitions: Vec<PipelineDefinition>) {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let _ = self
+            .tx
+            .send(PipelineEngineMessage::Reload {
+                definitions,
+                reply: reply_tx,
+            })
+            .await;
+        let _ = reply_rx.await;
     }
 
     /// Signals the engine to stop accepting new requests.
@@ -314,6 +335,16 @@ impl PipelineEngine {
                         }) => {
                             let result = self.handle_list_runs(&pipeline_id, limit);
                             let _ = reply.send(result);
+                        }
+
+                        Some(PipelineEngineMessage::Reload { definitions, reply }) => {
+                            let count = definitions.len();
+                            self.pipelines = definitions
+                                .into_iter()
+                                .map(|d| (d.id.clone(), d))
+                                .collect();
+                            info!(count, "PipelineEngine reloaded definitions");
+                            let _ = reply.send(());
                         }
 
                         Some(PipelineEngineMessage::Shutdown) => {

@@ -132,9 +132,11 @@ impl PipelineDefinitionRepository {
         Ok(Self { conn })
     }
 
-    /// Ouvre un repository en memoire (pour les tests unitaires).
-    #[cfg(test)]
-    fn open_in_memory() -> Result<Self, PipelineDefinitionError> {
+    /// Ouvre un repository en memoire (pour les tests).
+    ///
+    /// Utilisé par les tests unitaires de cette crate et par les tests
+    /// des routes REST dans `apollia-runtime` (STORY-190).
+    pub fn open_in_memory() -> Result<Self, PipelineDefinitionError> {
         let conn = Connection::open_in_memory()?;
         conn.execute_batch(MIGRATION_008)?;
         Ok(Self { conn })
