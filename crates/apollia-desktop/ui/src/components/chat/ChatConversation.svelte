@@ -204,7 +204,7 @@
         </div>
       {:else}
         {#each messages as message (message.id)}
-          <ChatMessageBubble {message} />
+          <ChatMessageBubble {message} {sessionId} />
         {/each}
 
         <!-- Streaming indicator (Chat Libre) -->
