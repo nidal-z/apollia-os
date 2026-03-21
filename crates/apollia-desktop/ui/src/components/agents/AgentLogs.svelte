@@ -20,6 +20,15 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
 
+  const STATUS_I18N: Record<string, string> = {
+    working: "dashboard.status_working",
+    submitted: "dashboard.status_submitted",
+    completed: "dashboard.status_completed",
+    failed: "dashboard.status_failed",
+    input_required: "dashboard.status_approval",
+    canceled: "dashboard.status_canceled",
+  };
+
   const STATUS_CONFIG: Record<string, { variant: "success" | "destructive" | "warning" | "info" | "secondary"; icon: typeof Activity }> = {
     completed: { variant: "success", icon: CheckCircle },
     working: { variant: "info", icon: Activity },
@@ -132,7 +141,7 @@
               <code class="text-[10px] text-muted-foreground/50 font-mono shrink-0 w-14">{shortId(task.id)}</code>
 
               <!-- Status badge -->
-              <Badge variant={cfg.variant} class="text-[9px] px-1.5 py-0 shrink-0">{task.status}</Badge>
+              <Badge variant={cfg.variant} class="text-[9px] px-1.5 py-0 shrink-0">{$t(STATUS_I18N[task.status] ?? "dashboard.status_submitted")}</Badge>
 
               <!-- Output preview -->
               {#if task.output_text || task.input_preview}

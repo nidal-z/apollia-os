@@ -150,6 +150,8 @@
     "all_agents": "All agents",
     "new_task": "New Task",
     "no_match": "No tasks match the current filters.",
+    "count_suffix": "tasks",
+    "truncated": "TRUNCATED",
     "empty_title": "No tasks yet",
     "empty_subtitle": "Tasks appear when your assistants process requests.",
     "empty_cta_operator": "Go to My Assistants",

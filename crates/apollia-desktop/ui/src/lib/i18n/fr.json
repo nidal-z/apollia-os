@@ -150,6 +150,8 @@
     "all_agents": "Tous les agents",
     "new_task": "Nouvelle tâche",
     "no_match": "Aucune tâche ne correspond aux filtres actuels.",
+    "count_suffix": "tâches",
+    "truncated": "TRONQUÉ",
     "empty_title": "Aucune tâche",
     "empty_subtitle": "Les tâches apparaissent quand vos assistants traitent des requêtes.",
     "empty_cta_operator": "Voir mes assistants",

@@ -8,16 +8,18 @@
   import { agents } from "$lib/stores/agents";
   import { connectionStatus } from "$lib/stores/sse";
   import { uiMode } from "$lib/stores/mode";
-  import { currentRoute } from "$lib/stores/navigation";
+  import { navigateTo } from "$lib/stores/navigation";
   import { formatRelativeTime, formatDuration } from "$lib/utils";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import { ListChecks } from "lucide-svelte";
-  import SmartOutputPreview from "../common/SmartOutputPreview.svelte";
+  import { Select } from "$lib/components/ui/select";
+  import { Textarea } from "$lib/components/ui/textarea";
+  import { Dialog } from "$lib/components/ui/dialog";
+  import { ListChecks, Plus, Activity, CheckCircle, XCircle, Clock, AlertTriangle, Ban } from "lucide-svelte";
   import EmptyState from "../common/EmptyState.svelte";
 
-  const SKELETON_ROW_COUNT = 5;
+  const SKELETON_ROW_COUNT = 6;
 
   interface Props {
     onSelectTask: (taskId: string) => void;
@@ -44,22 +46,24 @@
 
   let mode = $derived($uiMode);
 
-  const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    completed: "default",
-    working: "outline",
-    submitted: "secondary",
-    failed: "destructive",
-    input_required: "outline",
-    canceled: "secondary",
+  const STATUS_ICON: Record<string, { icon: typeof Activity; color: string }> = {
+    working: { icon: Activity, color: "text-primary" },
+    submitted: { icon: Clock, color: "text-muted-foreground" },
+    completed: { icon: CheckCircle, color: "text-success" },
+    failed: { icon: XCircle, color: "text-destructive" },
+    input_required: { icon: AlertTriangle, color: "text-warning" },
+    canceled: { icon: Ban, color: "text-muted-foreground" },
   };
 
-  const STATUS_EXTRA_CLASS: Record<string, string> = {
-    completed: "bg-[var(--apollia-success)] text-white",
-    working: "animate-pulse border-info text-info",
-    input_required: "border-[var(--apollia-warning)] text-[var(--apollia-warning)]",
+  const STATUS_BADGE: Record<string, { variant: "success" | "destructive" | "warning" | "info" | "secondary" }> = {
+    completed: { variant: "success" },
+    working: { variant: "info" },
+    submitted: { variant: "secondary" },
+    failed: { variant: "destructive" },
+    input_required: { variant: "warning" },
+    canceled: { variant: "secondary" },
   };
 
-  /** Tab definitions — filtered by mode in the derived below. */
   const ALL_TABS: { key: StatusTab; labelKey: string; operatorLabelKey?: string; operatorHidden?: boolean }[] = [
     { key: "all", labelKey: "tasks.tab_all" },
     { key: "submitted", labelKey: "tasks.tab_submitted", operatorHidden: true },
@@ -71,82 +75,59 @@
   ];
 
   let visibleTabs = $derived.by(() => {
-    if (mode === "operator") {
-      return ALL_TABS.filter((tab) => !tab.operatorHidden);
-    }
-    return ALL_TABS;
+    return mode === "operator" ? ALL_TABS.filter((tab) => !tab.operatorHidden) : ALL_TABS;
   });
 
-  /** Status display label — mode-aware (AC-6). */
+  const STATUS_I18N: Record<string, string> = {
+    working: "dashboard.status_working",
+    submitted: "dashboard.status_submitted",
+    completed: "dashboard.status_completed",
+    failed: "dashboard.status_failed",
+    input_required: "dashboard.status_approval",
+    canceled: "dashboard.status_canceled",
+  };
+
   function statusLabel(status: string): string {
     if (mode === "operator") {
       if (status === "working") return $t("tasks.tab_in_progress");
       if (status === "input_required") return $t("tasks.tab_needs_approval");
     }
-    return status;
+    return $t(STATUS_I18N[status] ?? "dashboard.status_submitted");
   }
 
   let filteredTasks = $derived.by<TaskSummary[]>(() => {
     let result = $tasks;
-    if (activeTab !== "all") {
-      result = result.filter((task) => task.status === activeTab);
-    }
-    if (filterAgentId) {
-      result = result.filter((task) => task.agent_id === filterAgentId);
-    }
+    if (activeTab !== "all") result = result.filter((task) => task.status === activeTab);
+    if (filterAgentId) result = result.filter((task) => task.agent_id === filterAgentId);
     return result;
   });
 
   let visibleTasks = $derived<TaskSummary[]>(filteredTasks.slice(0, visibleCount));
   let hasMore = $derived(filteredTasks.length > visibleCount);
   let hasAnyTasks = $derived($tasks.length > 0);
-
   let activeAgents = $derived($agents.filter((a) => a.runtime_status === "active" || a.runtime_status === "degraded"));
 
   let uniqueAgents = $derived.by<{ id: string; name: string }[]>(() => {
     const seen = new Map<string, string>();
     for (const task of $tasks) {
-      if (!seen.has(task.agent_id)) {
-        seen.set(task.agent_id, task.agent_name || task.agent_id);
-      }
+      if (!seen.has(task.agent_id)) seen.set(task.agent_id, task.agent_name || task.agent_id);
     }
     return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
   });
 
-  function shortId(id: string): string {
-    return id.slice(0, SHORT_ID_LENGTH);
-  }
-
-  function handleTabChange(tab: StatusTab) {
-    activeTab = tab;
-    visibleCount = PAGE_SIZE;
-  }
-
-  function loadMore() {
-    visibleCount += PAGE_SIZE;
-  }
+  function shortId(id: string): string { return id.slice(0, SHORT_ID_LENGTH); }
+  function handleTabChange(tab: StatusTab) { activeTab = tab; visibleCount = PAGE_SIZE; }
+  function loadMore() { visibleCount += PAGE_SIZE; }
 
   function openNewTaskDialog() {
-    showNewTaskDialog = true;
-    newTaskAgentId = "";
-    newTaskInput = "";
-    submitError = null;
-  }
-
-  function closeNewTaskDialog() {
-    showNewTaskDialog = false;
+    showNewTaskDialog = true; newTaskAgentId = ""; newTaskInput = ""; submitError = null;
   }
 
   async function handleSubmitTask() {
     if (!newTaskAgentId || !newTaskInput.trim()) return;
-
-    submitting = true;
-    submitError = null;
+    submitting = true; submitError = null;
     try {
-      const taskId: string = await invoke("submit_task", {
-        agentId: newTaskAgentId,
-        input: newTaskInput.trim(),
-      });
+      const taskId: string = await invoke("submit_task", { agentId: newTaskAgentId, input: newTaskInput.trim() });
       showNewTaskDialog = false;
       onSelectTask(taskId);
     } catch (err: unknown) {
@@ -156,61 +137,57 @@
     }
   }
 
-  function navigateToAgents() {
-    $currentRoute = "agents";
-  }
-
   let inputCharCount = $derived(newTaskInput.length);
 </script>
 
-<div class="space-y-4">
-  <!-- Tabs + agent filter + New Task button -->
-  <div class="flex flex-wrap items-center gap-3">
-    <div class="flex gap-1 rounded-md glass-border glass-surface p-1">
-      {#each visibleTabs as tab}
-        <button
-          class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === tab.key
-            ? 'glass-inset text-foreground shadow-sm'
-            : 'text-muted-foreground hover:text-foreground'}"
-          onclick={() => handleTabChange(tab.key)}
-        >
-          {$t(mode === "operator" && tab.operatorLabelKey ? tab.operatorLabelKey : tab.labelKey)}
-        </button>
-      {/each}
-    </div>
-
-    <select
-      class="rounded-md glass-border glass-surface px-3 py-1.5 text-sm"
-      bind:value={filterAgentId}
-    >
-      <option value="">{$t('tasks.all_agents')}</option>
-      {#each uniqueAgents as agent}
-        <option value={agent.id}>{agent.name}</option>
-      {/each}
-    </select>
-
-    <div class="ml-auto">
-      <Button size="sm" onclick={openNewTaskDialog} data-testid="new-task-btn">{$t('tasks.new_task')}</Button>
-    </div>
+<!-- Toolbar: tabs + filter + new task -->
+<div class="flex flex-wrap items-center gap-3">
+  <!-- Segmented tabs -->
+  <div class="inline-flex rounded-lg bg-muted p-0.5">
+    {#each visibleTabs as tab (tab.key)}
+      <button
+        class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {activeTab === tab.key
+          ? 'bg-card text-foreground shadow-sm'
+          : 'text-muted-foreground hover:text-foreground'}"
+        onclick={() => handleTabChange(tab.key)}
+      >
+        {$t(mode === "operator" && tab.operatorLabelKey ? tab.operatorLabelKey : tab.labelKey)}
+      </button>
+    {/each}
   </div>
 
-  <!-- Task list, skeleton loaders, or empty state -->
+  <!-- Agent filter -->
+  <Select class="h-8 w-auto text-xs" bind:value={filterAgentId}>
+    <option value="">{$t('tasks.all_agents')}</option>
+    {#each uniqueAgents as agent}
+      <option value={agent.id}>{agent.name}</option>
+    {/each}
+  </Select>
+
+  <!-- Counter -->
+  <span class="text-[11px] text-muted-foreground/50">{filteredTasks.length} {$t('tasks.count_suffix')}</span>
+
+  <!-- New task button -->
+  <div class="ml-auto">
+    <Button size="sm" onclick={openNewTaskDialog} data-testid="new-task-btn" class="gap-1 text-xs h-8">
+      <Plus size={12} />
+      {$t('tasks.new_task')}
+    </Button>
+  </div>
+</div>
+
+<!-- Task list -->
+<div class="mt-4">
   {#if $connectionStatus === "connecting"}
-    <div class="space-y-1" data-testid="task-list-skeleton">
-      <div class="flex items-center gap-3 px-3 py-1">
-        <Skeleton class="h-3 w-[140px]" />
-        <Skeleton class="h-3 w-[100px]" />
-        <Skeleton class="h-3 flex-1" />
-        <Skeleton class="h-3 w-[70px]" />
-        <Skeleton class="h-3 w-[80px]" />
-      </div>
-      {#each { length: SKELETON_ROW_COUNT } as _}
-        <div class="flex items-center gap-3 rounded-md glass-border glass-surface px-3 py-2">
-          <Skeleton class="h-4 w-[140px]" />
-          <Skeleton class="h-5 w-[70px] rounded-full" />
+    <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="task-list-skeleton">
+      {#each { length: SKELETON_ROW_COUNT } as _, i}
+        <div class="flex items-center gap-3 px-4 py-3 {i > 0 ? 'border-t border-border/40' : ''}">
+          <Skeleton class="h-3 w-3 rounded-full" />
+          <Skeleton class="h-3 w-24" />
+          <Skeleton class="h-4 w-16 rounded-full" />
           <Skeleton class="h-3 flex-1" />
-          <Skeleton class="h-3 w-[50px]" />
-          <Skeleton class="h-3 w-[60px]" />
+          <Skeleton class="h-3 w-12" />
+          <Skeleton class="h-3 w-14" />
         </div>
       {/each}
     </div>
@@ -220,146 +197,118 @@
       title={$t('tasks.empty_title')}
       subtitle={$t('tasks.empty_subtitle')}
       ctaLabel={mode === "operator" ? $t('tasks.empty_cta_operator') : $t('tasks.empty_cta_builder')}
-      ctaAction={mode === "operator" ? navigateToAgents : openNewTaskDialog}
+      ctaAction={mode === "operator" ? () => navigateTo("agents") : openNewTaskDialog}
       page="tasks"
     />
   {:else if visibleTasks.length === 0}
-    <div class="flex flex-col items-center justify-center gap-2 rounded-xl glass-surface glass-border border-dashed py-12">
-      <p class="text-muted-foreground">{$t('tasks.no_match')}</p>
+    <div class="glass-card glass-border rounded-lg px-4 py-10 text-center">
+      <p class="text-xs text-muted-foreground">{$t('tasks.no_match')}</p>
     </div>
   {:else}
-    <!-- AC-1: Column headers -->
-    <div class="space-y-1">
-      <div class="flex items-center gap-3 px-3 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground" data-testid="task-list-header">
-        <span class="w-[140px] shrink-0">{$t('tasks.header_agent')}</span>
-        <span class="w-[100px] shrink-0">{$t('tasks.header_status')}</span>
-        <span class="min-w-0 flex-1">{$t('tasks.header_summary')}</span>
-        <span class="w-[70px] shrink-0 text-right">{$t('tasks.header_duration')}</span>
-        <span class="w-[80px] shrink-0 text-right">{$t('tasks.header_time')}</span>
-      </div>
+    <!-- Column headers -->
+    <div class="flex items-center gap-3 px-4 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50" data-testid="task-list-header">
+      <span class="w-4 shrink-0"></span>
+      <span class="w-32 shrink-0">{$t('tasks.header_agent')}</span>
+      <span class="w-20 shrink-0">{$t('tasks.header_status')}</span>
+      <span class="min-w-0 flex-1">{$t('tasks.header_summary')}</span>
+      <span class="w-14 shrink-0 text-right">{$t('tasks.header_duration')}</span>
+      <span class="w-16 shrink-0 text-right">{$t('tasks.header_time')}</span>
+    </div>
 
-      {#each visibleTasks as task (task.id)}
+    <!-- Rows -->
+    <div class="glass-card glass-border rounded-lg overflow-hidden divide-y divide-border/40">
+      {#each visibleTasks as task, i (task.id)}
+        {@const iconCfg = STATUS_ICON[task.status] ?? STATUS_ICON.submitted}
+        {@const badgeCfg = STATUS_BADGE[task.status] ?? STATUS_BADGE.submitted}
+        {@const IconComponent = iconCfg.icon}
         <button
-          animate:flip={{ duration: 300 }}
-          in:fly={{ y: 10, duration: 200 }}
-          class="flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
+          animate:flip={{ duration: 250 }}
+          in:fly={{ y: 4, duration: 150, delay: Math.min(i, 10) * 20 }}
+          class="group flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors duration-150 hover:bg-primary/5"
           data-testid="task-row"
           data-task-id={task.id}
           data-task-status={task.status}
           onclick={() => onSelectTask(task.id)}
         >
-          <!-- AC-2: Agent name primary, task short ID secondary -->
-          <span class="w-[140px] shrink-0 truncate" title={task.agent_name || task.agent_id}>
-            <span class="font-medium">{task.agent_name || task.agent_id}</span>
-            <code class="ml-1 text-[10px] text-muted-foreground">{shortId(task.id)}</code>
+          <!-- Status icon -->
+          <IconComponent size={13} class="{iconCfg.color} shrink-0 {task.status === 'working' ? 'animate-spin' : ''}" />
+
+          <!-- Agent name + short ID -->
+          <span class="w-32 shrink-0 truncate">
+            <span class="text-xs font-medium">{task.agent_name || task.agent_id}</span>
+            <code class="ml-1 text-[9px] text-muted-foreground/40">{shortId(task.id)}</code>
           </span>
 
-          <!-- Status badge with mode-aware label (AC-6) -->
-          <span class="w-[100px] shrink-0">
-            <Badge
-              variant={STATUS_VARIANT[task.status] ?? "secondary"}
-              class="text-[10px] {STATUS_EXTRA_CLASS[task.status] ?? ''}"
-            >
+          <!-- Status badge -->
+          <span class="w-20 shrink-0">
+            <Badge variant={badgeCfg.variant} class="text-[9px] px-1.5 py-0">
               {statusLabel(task.status)}
             </Badge>
           </span>
 
-          <!-- AC-4: Summary via SmartOutputPreview -->
-          <span class="min-w-0 flex-1 truncate">
+          <!-- Summary -->
+          <span class="min-w-0 flex-1 truncate text-xs text-muted-foreground/60">
             {#if task.output_text}
-              <SmartOutputPreview output={task.output_text} maxLength={MAX_SUMMARY_LENGTH} class="text-xs" />
+              {task.output_text.slice(0, MAX_SUMMARY_LENGTH)}
             {:else if task.input_preview}
-              <span class="text-xs text-muted-foreground/70 italic">{task.input_preview}</span>
+              <span class="italic">{task.input_preview.slice(0, MAX_SUMMARY_LENGTH)}</span>
             {:else}
-              <span class="text-xs text-muted-foreground/50">-</span>
+              -
             {/if}
           </span>
 
           <!-- Duration -->
-          <span class="w-[70px] shrink-0 text-right text-xs text-muted-foreground">{formatDuration(task.duration_ms)}</span>
+          <span class="w-14 shrink-0 text-right text-[11px] text-muted-foreground/50">{formatDuration(task.duration_ms)}</span>
 
-          <!-- AC-3: Correct relative timestamp -->
-          <span class="w-[80px] shrink-0 text-right text-xs text-muted-foreground">{formatRelativeTime(task.created_at)}</span>
+          <!-- Time -->
+          <span class="w-16 shrink-0 text-right text-[11px] text-muted-foreground/50">{formatRelativeTime(task.created_at)}</span>
         </button>
       {/each}
     </div>
 
     {#if hasMore}
-      <div class="flex justify-center pt-2">
-        <Button size="sm" variant="outline" onclick={loadMore}>{$t('common.load_more')}</Button>
+      <div class="flex justify-center pt-3">
+        <Button size="sm" variant="ghost" onclick={loadMore} class="text-xs">{$t('common.load_more')}</Button>
       </div>
     {/if}
   {/if}
 </div>
 
 <!-- New Task Dialog -->
-{#if showNewTaskDialog}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-    role="button"
-    tabindex="-1"
-    onclick={closeNewTaskDialog}
-    onkeydown={(e) => e.key === "Escape" && closeNewTaskDialog()}
-  >
-    <div
-      class="w-[480px] rounded-xl glass-card glass-border p-6 shadow-lg"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      data-testid="new-task-dialog"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.key === "Escape" && closeNewTaskDialog()}
-    >
-      <h3 class="mb-4 text-lg font-medium">{$t('tasks.new_task')}</h3>
+<Dialog open={showNewTaskDialog} onclose={() => { showNewTaskDialog = false; }} size="sm" title={$t('tasks.new_task')} data-testid="new-task-dialog">
+  <div class="space-y-4">
+    <div>
+      <label class="mb-1.5 block text-xs font-medium text-muted-foreground" for="new-task-agent">{$t('tasks.agent_label')}</label>
+      <Select id="new-task-agent" data-testid="new-task-agent-select" bind:value={newTaskAgentId}>
+        <option value="" disabled>{$t('tasks.select_agent')}</option>
+        {#each activeAgents as agent}
+          <option value={agent.id}>{agent.name}</option>
+        {/each}
+      </Select>
+    </div>
 
-      <div class="space-y-4">
-        <div>
-          <label class="mb-1 block text-sm font-medium" for="new-task-agent">{$t('tasks.agent_label')}</label>
-          <select
-            id="new-task-agent"
-            class="w-full rounded-md glass-border glass-surface px-3 py-2 text-sm"
-            data-testid="new-task-agent-select"
-            bind:value={newTaskAgentId}
-          >
-            <option value="" disabled>{$t('tasks.select_agent')}</option>
-            {#each activeAgents as agent}
-              <option value={agent.id}>{agent.name}</option>
-            {/each}
-          </select>
-        </div>
+    <div>
+      <label class="mb-1.5 block text-xs font-medium text-muted-foreground" for="new-task-input">{$t('tasks.input_label')}</label>
+      <Textarea
+        id="new-task-input"
+        rows={5}
+        maxlength={MAX_INPUT_LENGTH}
+        placeholder={$t('tasks.input_placeholder')}
+        data-testid="new-task-input"
+        bind:value={newTaskInput}
+      />
+      <p class="mt-1 text-[10px] text-muted-foreground/50">{inputCharCount} / {MAX_INPUT_LENGTH}</p>
+    </div>
 
-        <div>
-          <label class="mb-1 block text-sm font-medium" for="new-task-input">{$t('tasks.input_label')}</label>
-          <textarea
-            id="new-task-input"
-            class="w-full rounded-md glass-border glass-surface px-3 py-2 text-sm"
-            rows="6"
-            maxlength={MAX_INPUT_LENGTH}
-            placeholder={$t('tasks.input_placeholder')}
-            data-testid="new-task-input"
-            bind:value={newTaskInput}
-          ></textarea>
-          <p class="mt-1 text-xs text-muted-foreground">
-            {inputCharCount} / {MAX_INPUT_LENGTH}
-          </p>
-        </div>
+    {#if submitError}
+      <p class="text-xs text-destructive">{submitError}</p>
+    {/if}
 
-        {#if submitError}
-          <p class="text-sm text-destructive">{submitError}</p>
-        {/if}
-
-        <div class="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onclick={closeNewTaskDialog}>{$t('common.cancel')}</Button>
-          <Button
-            size="sm"
-            onclick={handleSubmitTask}
-            disabled={!newTaskAgentId || !newTaskInput.trim() || submitting}
-            data-testid="new-task-submit-btn"
-          >
-            {submitting ? $t('common.submitting') : $t('common.submit')}
-          </Button>
-        </div>
-      </div>
+    <div class="flex justify-end gap-2">
+      <Button variant="outline" size="sm" onclick={() => { showNewTaskDialog = false; }}>{$t('common.cancel')}</Button>
+      <Button size="sm" onclick={handleSubmitTask} disabled={!newTaskAgentId || !newTaskInput.trim() || submitting} data-testid="new-task-submit-btn">
+        {submitting ? $t('common.submitting') : $t('common.submit')}
+      </Button>
     </div>
   </div>
-{/if}
+</Dialog>
