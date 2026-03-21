@@ -85,7 +85,7 @@
 
 <div class="space-y-6" data-testid="step-environment">
   <div>
-    <h2 class="text-xl font-semibold">
+    <h2 class="text-xl font-medium">
       {$t(isOperator ? 'onboarding.env_check_title_operator' : 'onboarding.env_check_title')}
     </h2>
     <p class="mt-1 text-sm text-muted-foreground">
@@ -104,13 +104,13 @@
           {:else if check.passed}
             <span class="text-[var(--apollia-success)]">&#10003;</span>
           {:else}
-            <span class="text-[hsl(var(--destructive))]">&#10007;</span>
+            <span class="text-destructive">&#10007;</span>
           {/if}
         </span>
         <div class="flex-1">
           <p class="text-sm font-medium">{$t(check.labelKey)}</p>
           {#if check.helpTextKey}
-            <p class="mt-1 text-xs text-[hsl(var(--destructive))]">
+            <p class="mt-1 text-xs text-destructive">
               {$t(check.helpTextKey)}
             </p>
           {/if}

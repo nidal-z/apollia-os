@@ -17,11 +17,11 @@
   }: Props = $props();
 
   const variantClasses: Record<string, string> = {
-    default: "bg-gradient-to-r from-[hsl(var(--primary))] to-[hsl(var(--secondary))] text-white shadow-[0_4px_16px_-2px_rgba(52,53,245,0.35)] hover:brightness-110 hover:shadow-[0_6px_24px_-2px_rgba(52,53,245,0.45)]",
-    destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-    outline: "glass-border glass-surface text-foreground hover:bg-[rgba(52,53,245,0.05)]",
-    secondary: "bg-secondary/10 text-secondary border border-secondary/20 hover:bg-secondary/15",
-    ghost: "text-foreground hover:bg-[rgba(52,53,245,0.04)]",
+    default: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
+    destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+    outline: "border border-border bg-transparent text-foreground hover:bg-muted",
+    secondary: "bg-muted text-foreground hover:bg-muted/80",
+    ghost: "text-foreground hover:bg-muted",
     link: "text-primary underline-offset-4 hover:underline",
   };
 
@@ -35,7 +35,7 @@
 
 <button
   class={cn(
-    "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]",
+    "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
     variantClasses[variant],
     sizeClasses[size],
     className

@@ -218,7 +218,7 @@
 
 <div class="space-y-6">
   <div>
-    <h2 class="text-xl font-semibold">{$t('onboarding.task_title')}</h2>
+    <h2 class="text-xl font-medium">{$t('onboarding.task_title')}</h2>
     <p class="mt-1 text-sm text-muted-foreground">
       {$t('onboarding.task_subtitle')}
     </p>
@@ -244,8 +244,8 @@
   {/if}
 
   {#if error}
-    <div class="rounded-lg border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 p-4">
-      <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
+    <div class="rounded-lg border border-destructive bg-destructive/10 p-4">
+      <p class="text-sm text-destructive">{error}</p>
     </div>
   {/if}
 
@@ -258,7 +258,7 @@
           {:else if isCompleted}
             <span class="h-2 w-2 rounded-full bg-[var(--apollia-success)]"></span>
           {:else}
-            <span class="h-2 w-2 rounded-full bg-[hsl(var(--destructive))]"></span>
+            <span class="h-2 w-2 rounded-full bg-destructive"></span>
           {/if}
           <span class="text-xs font-medium">
             {#if isInputRequired}
@@ -346,7 +346,7 @@
           <ul class="py-1">
             {#each events as ev, i (i)}
               {@const Icon = eventIcon(ev.type)}
-              <li class="flex items-start gap-3 px-4 py-1.5 hover:bg-[rgba(52,53,245,0.04)] transition-colors">
+              <li class="flex items-start gap-3 px-4 py-1.5 hover:bg-muted/50 transition-colors">
                 <span class="mt-0.5 shrink-0 {eventColor(ev.type)}"><Icon size={14} /></span>
                 <div class="flex-1 min-w-0">
                   <p class="text-xs leading-relaxed text-foreground truncate">
@@ -371,7 +371,7 @@
       </p>
       <Button onclick={onFinish}>{$t('onboarding.finish_setup')}</Button>
     {:else if isFailed}
-      <p class="text-sm text-[hsl(var(--destructive))] font-medium">
+      <p class="text-sm text-destructive font-medium">
         {$t('onboarding.task_failed')}
       </p>
       <Button variant="outline" onclick={onFinish}>{$t('onboarding.continue_anyway')}</Button>

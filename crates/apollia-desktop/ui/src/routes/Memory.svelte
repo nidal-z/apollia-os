@@ -124,7 +124,7 @@
 <div class="space-y-6">
   <!-- Header -->
   <div class="space-y-1">
-    <h1 class="text-2xl font-bold">{$t('memory.title')}</h1>
+    <h1 class="text-2xl font-semibold">{$t('memory.title')}</h1>
     <p class="text-sm text-muted-foreground" data-testid="memory-subtitle">{$t('memory.subtitle')}</p>
   </div>
 
@@ -133,7 +133,7 @@
     <div
       class="rounded-md border px-4 py-2 text-sm {toast.type === 'success'
         ? 'border-[var(--apollia-success)] bg-[var(--apollia-success)]/10 text-[var(--apollia-success)]'
-        : 'border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 text-[hsl(var(--destructive))]'}"
+        : 'border-destructive bg-destructive/10 text-destructive'}"
     >
       {toast.message}
     </div>

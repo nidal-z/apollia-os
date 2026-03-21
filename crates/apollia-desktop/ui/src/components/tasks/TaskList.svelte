@@ -242,7 +242,7 @@
         <button
           animate:flip={{ duration: 300 }}
           in:fly={{ y: 10, duration: 200 }}
-          class="flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]"
+          class="flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
           data-testid="task-row"
           data-task-id={task.id}
           data-task-status={task.status}
@@ -310,7 +310,7 @@
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.key === "Escape" && closeNewTaskDialog()}
     >
-      <h3 class="mb-4 text-lg font-semibold">{$t('tasks.new_task')}</h3>
+      <h3 class="mb-4 text-lg font-medium">{$t('tasks.new_task')}</h3>
 
       <div class="space-y-4">
         <div>
@@ -345,7 +345,7 @@
         </div>
 
         {#if submitError}
-          <p class="text-sm text-[hsl(var(--destructive))]">{submitError}</p>
+          <p class="text-sm text-destructive">{submitError}</p>
         {/if}
 
         <div class="flex justify-end gap-2">

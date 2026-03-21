@@ -225,7 +225,7 @@
 
 <div class="flex h-full flex-col" data-testid="chat-conversation">
   <!-- Header -->
-  <div class="flex items-center justify-between glass-surface border-b glass-border-subtle px-4 py-3">
+  <div class="flex items-center justify-between bg-muted/30 border-b border-border px-4 py-3">
     <div class="flex items-center gap-3">
       <div class="flex h-8 w-8 items-center justify-center rounded-lg glass-inset">
         <svelte:component this={headerIcon} class="h-4 w-4 text-primary" />
@@ -248,7 +248,7 @@
     <div class="flex items-center gap-1">
       <button
         onclick={() => (configOpen = true)}
-        class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-all hover:glass-inset hover:text-foreground hover:scale-105 active:scale-95"
+        class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
         title={$t("chat.config_title")}
         data-testid="chat-config-button"
       >
@@ -256,7 +256,7 @@
       </button>
       <button
         onclick={onclose}
-        class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-all hover:glass-inset hover:text-foreground hover:scale-105 active:scale-95"
+        class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
         data-testid="chat-close-button"
       >
         <X class="h-4 w-4" />
@@ -272,7 +272,7 @@
   {:else if loadError}
     <div class="flex flex-1 items-center justify-center px-4">
       <div class="rounded-xl border border-destructive/30 bg-destructive/5 px-6 py-4">
-        <p class="text-sm text-[hsl(var(--destructive))]">{loadError}</p>
+        <p class="text-sm text-destructive">{loadError}</p>
       </div>
     </div>
   {:else}

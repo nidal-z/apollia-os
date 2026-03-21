@@ -1,32 +1,25 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { currentRoute } from "$lib/stores/navigation";
-  import { Card, CardContent } from "$lib/components/ui/card";
-  import { Button } from "$lib/components/ui/button";
-  import { ShieldCheck } from "lucide-svelte";
+  import { navigateTo } from "$lib/stores/navigation";
+  import { ShieldCheck, ChevronRight } from "lucide-svelte";
 
   interface Props {
     count: number;
   }
 
   let { count }: Props = $props();
-
-  function navigateToApprovals() {
-    currentRoute.set("approvals");
-  }
 </script>
 
-<Card class="border-[var(--apollia-warning)] bg-[var(--apollia-warning)]/5" data-testid="pending-actions">
-  <CardContent class="flex items-center gap-4 py-4">
-    <ShieldCheck size={24} class="shrink-0 text-[var(--apollia-warning)]" />
-    <div class="flex-1">
-      <p class="text-sm font-semibold">
-        {$t('dashboard.approvals_waiting', { values: { count } })}
-      </p>
-      <p class="text-xs text-muted-foreground">{$t('dashboard.approvals_subtitle')}</p>
-    </div>
-    <Button size="sm" variant="outline" onclick={navigateToApprovals} data-testid="pending-actions-review-btn">
-      {$t('dashboard.review')}
-    </Button>
-  </CardContent>
-</Card>
+<button
+  class="group flex w-full items-center gap-3 rounded-lg glass-card glass-border px-4 py-3 transition-all duration-200 hover:bg-warning/5"
+  onclick={() => navigateTo("approvals")}
+  data-testid="pending-actions"
+>
+  <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-warning/10">
+    <ShieldCheck size={14} class="text-warning" />
+  </div>
+  <div class="flex-1 text-left">
+    <span class="text-xs font-medium">{$t('dashboard.approvals_waiting', { values: { count } })}</span>
+  </div>
+  <ChevronRight size={14} class="text-muted-foreground/40 group-hover:text-foreground transition-colors" />
+</button>

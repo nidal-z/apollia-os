@@ -121,7 +121,7 @@
 
 <div class="space-y-6" data-testid="step-choose-assistant">
   <div>
-    <h2 class="text-xl font-semibold">{$t('onboarding.choose_assistant_title')}</h2>
+    <h2 class="text-xl font-medium">{$t('onboarding.choose_assistant_title')}</h2>
     <p class="mt-1 text-sm text-muted-foreground">
       {$t('onboarding.choose_assistant_subtitle')}
     </p>
@@ -150,7 +150,7 @@
             <Icon size={20} />
           </span>
           <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold">{entry.name}</p>
+            <p class="text-sm font-medium">{entry.name}</p>
             {#if entry.description}
               <p class="text-xs text-muted-foreground">{entry.description}</p>
             {/if}
@@ -164,8 +164,8 @@
   {/if}
 
   {#if error}
-    <div class="rounded-lg border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 p-4">
-      <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
+    <div class="rounded-lg border border-destructive bg-destructive/10 p-4">
+      <p class="text-sm text-destructive">{error}</p>
     </div>
   {/if}
 

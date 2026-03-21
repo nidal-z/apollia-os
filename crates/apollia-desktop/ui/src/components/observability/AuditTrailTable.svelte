@@ -4,6 +4,7 @@
   import { t } from "svelte-i18n";
   import type { AuditTrailEntry } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
+  import { Select } from "$lib/components/ui/select";
 
   const PAGE_SIZE = 50;
 
@@ -95,30 +96,30 @@
   <div class="flex flex-wrap items-center gap-4">
     <div class="flex items-center gap-2">
       <label for="filter-tool" class="text-sm text-muted-foreground">{$t('observability.tool_filter')}</label>
-      <select
+      <Select
         id="filter-tool"
-        class="rounded-md border bg-background px-2 py-1 text-sm"
+        class="h-8 w-auto"
         bind:value={filterTool}
       >
         <option value="all">{$t('observability.all_tools')}</option>
         {#each uniqueTools as tool (tool)}
           <option value={tool}>{tool}</option>
         {/each}
-      </select>
+      </Select>
     </div>
 
     <div class="flex items-center gap-2">
       <label for="filter-agent" class="text-sm text-muted-foreground">{$t('observability.agent_filter')}</label>
-      <select
+      <Select
         id="filter-agent"
-        class="rounded-md border bg-background px-2 py-1 text-sm"
+        class="h-8 w-auto"
         bind:value={filterAgent}
       >
         <option value="all">{$t('observability.all_agents')}</option>
         {#each uniqueAgents as agentName (agentName)}
           <option value={agentName}>{agentName}</option>
         {/each}
-      </select>
+      </Select>
     </div>
   </div>
 
@@ -126,7 +127,7 @@
   {#if loading}
     <p class="text-sm text-muted-foreground">{$t('observability.loading_audit')}</p>
   {:else if error}
-    <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
+    <p class="text-sm text-destructive">{error}</p>
   {:else if filteredEntries.length === 0}
     <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
       <p class="text-muted-foreground">{$t('observability.empty_audit')}</p>
@@ -146,7 +147,7 @@
         <tbody>
           {#each filteredEntries as entry (entry.id)}
             <tr
-              class="cursor-pointer border-b border-dashed border-primary/8 transition-colors hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]"
+              class="cursor-pointer border-b border-dashed border-primary/8 transition-colors hover:bg-muted"
               onclick={() => toggleRow(entry.id)}
             >
               <td class="py-2 pr-4 text-xs">{formatTimestamp(entry.timestamp)}</td>
@@ -155,7 +156,7 @@
               <td class="py-2 pr-4 text-right">{formatDuration(entry.duration_ms)}</td>
               <td class="py-2 text-right">
                 {#if entry.exit_code !== null}
-                  <span class={entry.exit_code === 0 ? "text-[var(--apollia-success)]" : "text-[hsl(var(--destructive))]"}>
+                  <span class={entry.exit_code === 0 ? "text-[var(--apollia-success)]" : "text-destructive"}>
                     {entry.exit_code}
                   </span>
                 {:else}
@@ -183,7 +184,7 @@
                     {#if entry.stderr}
                       <div>
                         <span class="text-xs font-medium text-muted-foreground">stderr:</span>
-                        <pre class="mt-1 overflow-x-auto rounded glass-surface p-2 text-xs text-[hsl(var(--destructive))]">{entry.stderr}</pre>
+                        <pre class="mt-1 overflow-x-auto rounded glass-surface p-2 text-xs text-destructive">{entry.stderr}</pre>
                       </div>
                     {/if}
                     {#if !entry.args_json && !entry.stdout && !entry.stderr}

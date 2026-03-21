@@ -43,7 +43,7 @@
 </script>
 
 <div class="px-4 pb-4 pt-2" data-testid="chat-input">
-  <div class="flex items-end gap-2.5 rounded-2xl glass-card glass-border border px-3 py-2.5 shadow-lg">
+  <div class="flex items-end gap-2.5 rounded-2xl border border-border bg-card px-3 py-2.5 shadow-sm">
     <textarea
       bind:this={textareaEl}
       bind:value
@@ -60,9 +60,9 @@
       onclick={send}
       disabled={disabled || !value.trim()}
       class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl
-        bg-gradient-to-br from-primary to-secondary text-white shadow-md
-        transition-all hover:shadow-lg hover:scale-105 active:scale-95
-        disabled:pointer-events-none disabled:opacity-40 disabled:shadow-none"
+        bg-primary text-primary-foreground shadow-sm
+        transition-colors hover:bg-primary/90 active:scale-[0.98]
+        disabled:pointer-events-none disabled:opacity-40"
       data-testid="chat-send-button"
     >
       <Send class="h-4 w-4" />

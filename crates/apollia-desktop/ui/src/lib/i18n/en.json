@@ -81,7 +81,10 @@
     "status_completed": "COMPLETED",
     "status_failed": "FAILED",
     "status_approval": "APPROVAL",
-    "status_canceled": "CANCELED"
+    "status_canceled": "CANCELED",
+    "active_count_suffix": "active",
+    "see_all": "See all",
+    "ready": "Ready"
   },
   "agents": {
     "title": "Agents",

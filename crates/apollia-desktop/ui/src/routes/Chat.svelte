@@ -130,7 +130,7 @@
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div class="space-y-1">
-        <h1 class="text-2xl font-bold" data-testid="chat-header">{$t("chat.title")}</h1>
+        <h1 class="text-2xl font-semibold" data-testid="chat-header">{$t("chat.title")}</h1>
         <p class="text-sm text-muted-foreground" data-testid="chat-subtitle">{$t("chat.subtitle")}</p>
       </div>
       <Button onclick={openNewChatPicker} disabled={creating} data-testid="new-chat-button">
@@ -147,7 +147,7 @@
     {#if showNewChatPicker}
       <div class="rounded-xl glass-card glass-border border p-4 space-y-3 animate-fade-in" data-testid="new-chat-picker">
         <div class="flex items-center justify-between">
-          <h3 class="text-sm font-semibold">{$t("chat.pick_type")}</h3>
+          <h3 class="text-sm font-medium">{$t("chat.pick_type")}</h3>
           <button
             onclick={closeNewChatPicker}
             class="inline-flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:glass-inset transition-all"
@@ -181,8 +181,8 @@
             </label>
             <!-- Start button -->
             <button
-              class="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary text-white px-4 py-2 text-xs font-medium
-                shadow-sm transition-all hover:shadow-md hover:scale-[1.02] active:scale-95
+              class="flex items-center gap-2 rounded-xl bg-primary text-primary-foreground px-4 py-2 text-xs font-medium
+                shadow-sm transition-colors hover:bg-primary/90 active:scale-[0.98]
                 disabled:opacity-50 disabled:pointer-events-none"
               onclick={createLibreChat}
               disabled={creating}

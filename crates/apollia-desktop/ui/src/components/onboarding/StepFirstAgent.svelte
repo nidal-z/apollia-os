@@ -88,7 +88,7 @@
 
 <div class="space-y-6" data-testid="step-first-agent">
   <div>
-    <h2 class="text-xl font-semibold">{$t('onboarding.agent_title')}</h2>
+    <h2 class="text-xl font-medium">{$t('onboarding.agent_title')}</h2>
     <p class="mt-1 text-sm text-muted-foreground">
       {$t('onboarding.agent_subtitle', { values: { manifest: 'manifest()', run: 'run()', py: '.py' } })}
     </p>
@@ -119,8 +119,8 @@
   {/if}
 
   {#if error}
-    <div class="rounded-lg border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 p-4">
-      <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
+    <div class="rounded-lg border border-destructive bg-destructive/10 p-4">
+      <p class="text-sm text-destructive">{error}</p>
       <Button variant="outline" size="sm" class="mt-3" onclick={retry}>{$t('common.retry')}</Button>
     </div>
   {/if}
@@ -130,7 +130,7 @@
       <span class="text-lg text-[var(--apollia-success)]">&#10003;</span>
       <div>
         <p class="text-sm font-medium">{$t('onboarding.agent_started')}</p>
-        <p class="text-sm font-semibold text-foreground">{agentName}</p>
+        <p class="text-sm font-medium text-foreground">{agentName}</p>
         <p class="text-xs text-muted-foreground font-mono">{agentId}</p>
       </div>
     </div>

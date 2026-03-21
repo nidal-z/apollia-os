@@ -26,7 +26,7 @@
 <div class="space-y-6">
   <!-- Header -->
   <div class="space-y-1">
-    <h1 class="text-2xl font-bold">{$t('observability.title')}</h1>
+    <h1 class="text-2xl font-semibold">{$t('observability.title')}</h1>
     <p class="text-sm text-muted-foreground" data-testid="observability-subtitle">{$t('observability.subtitle')}</p>
   </div>
 

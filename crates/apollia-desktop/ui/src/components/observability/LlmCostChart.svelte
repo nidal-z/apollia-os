@@ -119,14 +119,14 @@
 
 <Card>
   <CardHeader>
-    <CardTitle class="text-base font-semibold">{$t('observability.llm_costs_title')}</CardTitle>
+    <CardTitle class="text-base font-medium">{$t('observability.llm_costs_title')}</CardTitle>
   </CardHeader>
 
   <CardContent>
     {#if loading}
       <Skeleton width="100%" height="250px" />
     {:else if error}
-      <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
+      <p class="text-sm text-destructive">{error}</p>
     {:else if entries.length === 0}
       <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
         <p class="text-muted-foreground">{$t('observability.no_llm_calls')}</p>
@@ -228,7 +228,7 @@
       </div>
 
       <div class="mt-3 text-center">
-        <span class="text-lg font-bold">{$t('observability.total_7d', { values: { cost: formatCost(totalCost) } })}</span>
+        <span class="text-lg font-semibold">{$t('observability.total_7d', { values: { cost: formatCost(totalCost) } })}</span>
       </div>
     {/if}
   </CardContent>

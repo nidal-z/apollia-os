@@ -56,7 +56,7 @@
         <Button
           size="sm"
           variant="ghost"
-          class="text-[hsl(var(--destructive))]"
+          class="text-destructive"
           onclick={() => ondelete(definition.id)}
           data-testid="pipeline-def-delete-{definition.id}"
         >

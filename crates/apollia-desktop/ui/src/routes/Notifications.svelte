@@ -125,7 +125,7 @@
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div class="space-y-1">
-      <h1 class="text-2xl font-bold">{$t('notifications.title')}</h1>
+      <h1 class="text-2xl font-semibold">{$t('notifications.title')}</h1>
       <p class="text-sm text-muted-foreground" data-testid="notifications-subtitle">{$t('notifications.subtitle')}</p>
     </div>
     <Button size="sm" onclick={() => (createDialogOpen = true)} data-testid="create-channel-btn">
@@ -138,7 +138,7 @@
     <div
       class="rounded-md px-4 py-2 text-sm {toast.type === 'success'
         ? 'border border-[var(--apollia-success)] bg-[var(--apollia-success)]/10 text-[var(--apollia-success)]'
-        : 'border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 text-[hsl(var(--destructive))]'}"
+        : 'border border-destructive bg-destructive/10 text-destructive'}"
       data-testid="notifications-toast"
     >
       {toast.message}
@@ -153,7 +153,7 @@
     </div>
   {:else if error}
     <div
-      class="rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 px-4 py-2 text-sm text-[hsl(var(--destructive))]"
+      class="rounded-md border border-destructive bg-destructive/10 px-4 py-2 text-sm text-destructive"
     >
       {error}
     </div>
@@ -165,7 +165,7 @@
 
     <!-- AC-2 / AC-6 — Channels section -->
     <section>
-      <h2 class="mb-3 text-lg font-semibold">{$t('notifications.channels_title')}</h2>
+      <h2 class="mb-3 text-lg font-medium">{$t('notifications.channels_title')}</h2>
       {#if channels.length === 0}
         <div
           class="flex flex-col items-center justify-center gap-4 rounded-xl glass-surface glass-border border-dashed py-16"
@@ -194,7 +194,7 @@
 
     <!-- History section -->
     <section>
-      <h2 class="mb-3 text-lg font-semibold">{$t('notifications.history_title')}</h2>
+      <h2 class="mb-3 text-lg font-medium">{$t('notifications.history_title')}</h2>
       <NotificationLog {logs} />
     </section>
   {/if}
@@ -234,7 +234,7 @@
       onkeydown={handleDeleteKeydown}
       data-testid="delete-channel-dialog"
     >
-      <h3 class="mb-2 text-lg font-semibold">{$t("notifications.delete_confirm_title")}</h3>
+      <h3 class="mb-2 text-lg font-medium">{$t("notifications.delete_confirm_title")}</h3>
       <p class="mb-4 text-sm text-muted-foreground">
         {$t("notifications.delete_confirm_message", { values: { id: deleteConfirmId } })}
       </p>

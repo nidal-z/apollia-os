@@ -191,7 +191,7 @@
           <Button
             size="sm"
             variant="ghost"
-            class="text-[hsl(var(--destructive))]"
+            class="text-destructive"
             onclick={() => ondelete(trigger.id)}
             data-testid="trigger-delete-{trigger.id}"
           >
@@ -204,14 +204,14 @@
     <!-- Error display -->
     {#if toggleError}
       <div
-        class="mt-2 rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 px-3 py-1 text-xs text-[hsl(var(--destructive))]"
+        class="mt-2 rounded-md border border-destructive bg-destructive/10 px-3 py-1 text-xs text-destructive"
       >
         {toggleError}
       </div>
     {/if}
     {#if fireError}
       <div
-        class="mt-2 rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 px-3 py-1 text-xs text-[hsl(var(--destructive))]"
+        class="mt-2 rounded-md border border-destructive bg-destructive/10 px-3 py-1 text-xs text-destructive"
       >
         {fireError}
       </div>

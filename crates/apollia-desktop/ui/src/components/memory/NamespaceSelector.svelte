@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
+  import { Select } from "$lib/components/ui/select";
 
   interface Props {
     namespaces: string[];
@@ -12,14 +13,14 @@
 
 <div class="flex items-center gap-2">
   <label for="ns-select" class="text-sm font-medium text-muted-foreground">{$t('memory.namespace_label')}</label>
-  <select
+  <Select
     id="ns-select"
-    class="rounded-md glass-border glass-surface px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+    class="h-8 w-auto"
     value={selected}
     onchange={(e) => onselect((e.target as HTMLSelectElement).value)}
   >
     {#each namespaces as ns}
       <option value={ns}>{ns}</option>
     {/each}
-  </select>
+  </Select>
 </div>

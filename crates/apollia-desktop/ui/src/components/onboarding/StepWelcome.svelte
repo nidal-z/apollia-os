@@ -11,7 +11,7 @@
 
 <div class="space-y-8 text-center" data-testid="onboarding-welcome">
   <div>
-    <h1 class="text-3xl font-bold text-primary">{$t('onboarding.welcome_title')}</h1>
+    <h1 class="text-3xl font-semibold text-primary">{$t('onboarding.welcome_title')}</h1>
     <p class="mt-2 text-base text-muted-foreground">
       {$t('onboarding.welcome_subtitle')}
     </p>

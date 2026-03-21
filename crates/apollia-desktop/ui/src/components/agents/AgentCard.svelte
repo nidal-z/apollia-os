@@ -163,7 +163,7 @@
 </script>
 
 <Card
-  class="relative cursor-pointer overflow-hidden transition-all duration-200 hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)] hover:shadow-md"
+  class="relative cursor-pointer overflow-hidden transition-all duration-200 hover:bg-muted/50 hover:shadow-md"
   data-testid="agent-card"
   data-agent-name={agent.name}
   data-agent-state={agent.runtime_status ?? "not-loaded"}
@@ -184,7 +184,7 @@
       <!-- Name + Badge -->
       <div class="min-w-0 flex-1">
         <div class="flex items-center justify-between gap-2">
-          <h3 class="truncate text-base font-semibold" data-testid="agent-name">
+          <h3 class="truncate text-base font-medium" data-testid="agent-name">
             {agent.name}
           </h3>
           <div class="flex shrink-0 items-center gap-1.5">
@@ -274,7 +274,7 @@
   <!-- Error display -->
   {#if stopError || actionError}
     <div class="border-t px-4 py-2">
-      <p class="text-xs text-[hsl(var(--destructive))]">{stopError || actionError}</p>
+      <p class="text-xs text-destructive">{stopError || actionError}</p>
     </div>
   {/if}
 
@@ -313,7 +313,7 @@
           <Button size="sm" variant="ghost" class="h-7 px-2 text-xs" onclick={handleUpdate} disabled={updateLoading} data-testid="agent-update-button">
             {updateLoading ? $t("common.loading") : $t("agents.update")}
           </Button>
-          <Button size="sm" variant="ghost" class="h-7 px-2 text-xs text-[hsl(var(--destructive))]" onclick={handleUninstall} disabled={uninstallLoading} data-testid="agent-uninstall-button">
+          <Button size="sm" variant="ghost" class="h-7 px-2 text-xs text-destructive" onclick={handleUninstall} disabled={uninstallLoading} data-testid="agent-uninstall-button">
             {uninstallLoading ? $t("common.loading") : $t("agents.uninstall")}
           </Button>
         {:else}

@@ -78,7 +78,7 @@
   <div class="flex h-full flex-col">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3">
-      <h2 class="text-lg font-semibold">{$t('agents.logs_title')}</h2>
+      <h2 class="text-lg font-medium">{$t('agents.logs_title')}</h2>
       <Button size="sm" variant="ghost" onclick={onclose}>{$t('common.close')}</Button>
     </div>
 
@@ -89,7 +89,7 @@
       {#if loading}
         <p class="text-sm text-muted-foreground">{$t('agents.loading_tasks')}</p>
       {:else if error}
-        <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
+        <p class="text-sm text-destructive">{error}</p>
       {:else if taskList.length === 0}
         <p class="text-sm text-muted-foreground">{$t('agents.no_tasks')}</p>
       {:else}

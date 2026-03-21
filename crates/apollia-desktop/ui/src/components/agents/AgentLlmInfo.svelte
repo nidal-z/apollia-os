@@ -34,7 +34,7 @@
 </script>
 
 <section data-testid="agent-llm-section">
-  <h3 class="mb-3 text-sm font-semibold">{$t('agent_detail.llm_title')}</h3>
+  <h3 class="mb-3 text-sm font-medium">{$t('agent_detail.llm_title')}</h3>
 
   {#if !firstBackend}
     <p class="text-xs text-muted-foreground">{$t('agent_detail.no_llm')}</p>

@@ -3,12 +3,12 @@
   import { t } from "svelte-i18n";
   import type { AgentListItem } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
-  import { currentRoute } from "$lib/stores/navigation";
+  import { navigateTo } from "$lib/stores/navigation";
   import { Sheet } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { Separator } from "$lib/components/ui/separator";
-  import { Bot, ExternalLink, Play, Square, Wrench, Tag } from "lucide-svelte";
+  import { Toggle } from "$lib/components/ui/toggle";
+  import { ExternalLink, Play, Square, Wrench, Tag, Cpu, Terminal } from "lucide-svelte";
   import AgentActivity from "./AgentActivity.svelte";
   import AgentTriggers from "./AgentTriggers.svelte";
   import AgentLlmInfo from "./AgentLlmInfo.svelte";
@@ -26,13 +26,13 @@
 
   const STATUS_CONFIG: Record<
     RuntimeState,
-    { labelKey: string; variant: "default" | "secondary" | "destructive" | "outline"; extraClass: string }
+    { labelKey: string; variant: "success" | "warning" | "secondary" | "info" | "outline" }
   > = {
-    active: { labelKey: "common.status.active", variant: "default", extraClass: "bg-[var(--apollia-success)] text-white" },
-    degraded: { labelKey: "common.status.degraded", variant: "outline", extraClass: "border-[var(--apollia-warning)] text-[var(--apollia-warning)]" },
-    stopped: { labelKey: "common.status.stopped", variant: "secondary", extraClass: "" },
-    initializing: { labelKey: "common.status.initializing", variant: "outline", extraClass: "animate-pulse border-info text-info" },
-    stopping: { labelKey: "common.status.stopping", variant: "outline", extraClass: "border-warning text-warning" },
+    active: { labelKey: "common.status.active", variant: "success" },
+    degraded: { labelKey: "common.status.degraded", variant: "warning" },
+    stopped: { labelKey: "common.status.stopped", variant: "secondary" },
+    initializing: { labelKey: "common.status.initializing", variant: "info" },
+    stopping: { labelKey: "common.status.stopping", variant: "warning" },
   };
 
   let stopping = $state(false);
@@ -52,14 +52,16 @@
     ...agent.tools_optional.map((t) => ({ name: t, required: false })),
   ]);
 
+  function avatarHue(name: string): number {
+    return name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
+  }
+  const hue = $derived(avatarHue(agent.name));
+
   function executionModeLabel(mode: string | null): string {
     switch (mode) {
-      case "direct":
-        return $t("agent_detail.execution_mode_direct");
-      case "orchestrated":
-        return $t("agent_detail.execution_mode_orchestrated");
-      default:
-        return $t("agent_detail.execution_mode_auto");
+      case "direct": return $t("agent_detail.execution_mode_direct");
+      case "orchestrated": return $t("agent_detail.execution_mode_orchestrated");
+      default: return $t("agent_detail.execution_mode_auto");
     }
   }
 
@@ -68,251 +70,205 @@
     confirmVisible = false;
     stopping = true;
     stopError = null;
-    try {
-      await invoke("stop_agent", { agentId: agent.id });
-    } catch (err: unknown) {
-      stopError = err instanceof Error ? err.message : String(err);
-    } finally {
-      stopping = false;
-    }
+    try { await invoke("stop_agent", { agentId: agent.id }); }
+    catch (err: unknown) { stopError = err instanceof Error ? err.message : String(err); }
+    finally { stopping = false; }
   }
 
   async function handleStart() {
     if (!agent.install_path) return;
     startLoading = true;
     actionError = null;
-    try {
-      await invoke("start_agent", { path: agent.install_path });
-    } catch (err: unknown) {
-      actionError = err instanceof Error ? err.message : String(err);
-    } finally {
-      startLoading = false;
-    }
+    try { await invoke("start_agent", { path: agent.install_path }); }
+    catch (err: unknown) { actionError = err instanceof Error ? err.message : String(err); }
+    finally { startLoading = false; }
   }
 
   async function handleToggleEnabled() {
     toggleLoading = true;
     actionError = null;
     try {
-      if (agent.enabled) {
-        await invoke("disable_agent", { name: agent.name });
-      } else {
-        await invoke("enable_agent", { name: agent.name });
-      }
-    } catch (err: unknown) {
-      actionError = err instanceof Error ? err.message : String(err);
-    } finally {
-      toggleLoading = false;
+      if (agent.enabled) { await invoke("disable_agent", { name: agent.name }); }
+      else { await invoke("enable_agent", { name: agent.name }); }
     }
+    catch (err: unknown) { actionError = err instanceof Error ? err.message : String(err); }
+    finally { toggleLoading = false; }
   }
 
-  function handleTaskClick(_taskId: string) {
-    onclose();
-    currentRoute.set("tasks");
-  }
-
-  function handleMemoryLink() {
-    onclose();
-    currentRoute.set("memory");
-  }
-
-  function handleLogsClick() {
-    if (agent.id) {
-      onlogs(agent.id);
-    }
-  }
+  function handleTaskClick(_taskId: string) { onclose(); navigateTo("tasks"); }
+  function handleMemoryLink() { onclose(); navigateTo("memory"); }
+  function handleLogsClick() { if (agent.id) { onlogs(agent.id); } }
 </script>
 
-<Sheet {open} {onclose} class="w-[600px]">
+<Sheet {open} {onclose} class="w-[560px]">
   <div class="flex h-full flex-col" data-testid="agent-detail-sheet" data-agent-name={agent.name}>
-    <!-- Header with agent identity -->
-    <div class="px-5 py-4">
-      <div class="flex items-center gap-3">
-        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-          <Bot size={20} class="text-primary" />
-        </div>
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <h2 class="truncate text-lg font-semibold" data-testid="agent-detail-name">{agent.name}</h2>
-            {#if !isInstalled}
-              <Badge variant="outline" class="whitespace-nowrap text-[10px] px-1.5 py-0">
-                {$t("agents.session_only")}
-              </Badge>
-            {/if}
-            {#if config}
-              <Badge variant={config.variant} class="whitespace-nowrap text-[10px] px-1.5 py-0 {config.extraClass}" data-testid="agent-detail-status">
-                {$t(config.labelKey)}
-              </Badge>
-            {:else}
-              <Badge variant="secondary" class="whitespace-nowrap text-[10px] px-1.5 py-0" data-testid="agent-detail-status">
-                {$t("agents.not_loaded")}
-              </Badge>
-            {/if}
+
+    <!-- ═══ HEADER — glass card with brand wash ═══ -->
+    <div class="mx-4 mt-6 rounded-xl glass-card glass-border overflow-hidden">
+      <!-- Accent bar -->
+      <div class="h-0.5 w-full {isRunning ? 'bg-primary' : 'bg-muted'}"></div>
+
+      <div class="px-4 py-4">
+        <div class="flex items-center gap-3">
+          <!-- Colored avatar matching dashboard -->
+          <div
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white"
+            style="background: hsl({hue}, 60%, 48%); box-shadow: 0 3px 10px -2px hsla({hue}, 60%, 38%, 0.35);"
+          >
+            {agent.name.charAt(0).toUpperCase()}
           </div>
-          <p class="text-xs text-muted-foreground">
-            v{agent.version}
-            {#if isInstalled}
-              · {agent.enabled ? $t("agents.auto_start_enabled") : $t("agents.auto_start_disabled")}
-            {/if}
-          </p>
-        </div>
-      </div>
-
-      {#if stopError || actionError}
-        <div class="mt-2 rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 px-3 py-1.5 text-xs text-[hsl(var(--destructive))]">
-          {stopError || actionError}
-        </div>
-      {/if}
-
-      <!-- Action buttons -->
-      <div class="mt-3 flex items-center gap-2">
-        {#if confirmVisible}
-          <span class="text-xs text-muted-foreground">{$t('agents.stop_confirm')}</span>
-          <Button size="sm" variant="destructive" onclick={handleStop} disabled={stopping} data-testid="agent-detail-stop-confirm">
-            {stopping ? $t('agents.stopping') : $t('common.confirm')}
-          </Button>
-          <Button size="sm" variant="outline" onclick={() => { confirmVisible = false; }}>
-            {$t('common.cancel')}
-          </Button>
-        {:else}
-          <!-- Start button for installed but not loaded agents -->
-          {#if !isLoaded && isInstalled && agent.install_path}
-            <Button size="sm" variant="default" onclick={handleStart} disabled={startLoading} data-testid="agent-detail-start-btn">
-              <Play size={14} class="mr-1" />
-              {startLoading ? $t('agents.starting_agent') : $t('agents.start')}
-            </Button>
-          {/if}
-          {#if isRunning && agent.id}
-            <Button size="sm" variant="outline" onclick={() => { confirmVisible = true; }} data-testid="agent-detail-stop-btn">
-              <Square size={14} class="mr-1" />
-              {$t('agents.stop')}
-            </Button>
-          {/if}
-          {#if agent.id}
-            <Button size="sm" variant="ghost" onclick={handleLogsClick} data-testid="agent-detail-logs-btn">
-              {$t('agents.logs')}
-            </Button>
-          {/if}
-          <!-- Enabled toggle for installed agents -->
-          {#if isInstalled}
-            <div class="ml-auto flex items-center gap-2">
-              <span class="text-xs text-muted-foreground">
-                {agent.enabled ? $t("agents.auto_start_enabled") : $t("agents.auto_start_disabled")}
-              </span>
-              <button
-                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors {agent.enabled ? 'bg-primary' : 'bg-muted-foreground/30'}"
-                onclick={handleToggleEnabled}
-                disabled={toggleLoading}
-                title={agent.enabled ? $t("agents.disable_tooltip") : $t("agents.enable_tooltip")}
-                data-testid="agent-detail-enabled-toggle"
-              >
-                <span
-                  class="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform {agent.enabled ? 'translate-x-[18px]' : 'translate-x-[3px]'}"
-                ></span>
-              </button>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <h2 class="truncate text-base font-medium" data-testid="agent-detail-name">{agent.name}</h2>
+              {#if config}
+                <Badge variant={config.variant} class="text-[9px] px-1.5 py-0" data-testid="agent-detail-status">{$t(config.labelKey)}</Badge>
+              {:else}
+                <Badge variant="secondary" class="text-[9px] px-1.5 py-0" data-testid="agent-detail-status">{$t("agents.not_loaded")}</Badge>
+              {/if}
             </div>
+            <p class="mt-0.5 text-xs text-muted-foreground">
+              v{agent.version}
+              {#if isInstalled}
+                · {agent.enabled ? $t("agents.auto_start_enabled") : $t("agents.auto_start_disabled")}
+              {/if}
+            </p>
+          </div>
+        </div>
+
+        <!-- Actions row -->
+        <div class="mt-3 flex items-center gap-2">
+          {#if confirmVisible}
+            <span class="text-xs text-muted-foreground">{$t('agents.stop_confirm')}</span>
+            <Button size="sm" variant="destructive" onclick={handleStop} disabled={stopping} data-testid="agent-detail-stop-confirm">
+              {stopping ? $t('agents.stopping') : $t('common.confirm')}
+            </Button>
+            <Button size="sm" variant="outline" onclick={() => { confirmVisible = false; }}>{$t('common.cancel')}</Button>
+          {:else}
+            {#if !isLoaded && isInstalled && agent.install_path}
+              <Button size="sm" onclick={handleStart} disabled={startLoading} data-testid="agent-detail-start-btn" class="gap-1">
+                <Play size={12} /> {startLoading ? $t('agents.starting_agent') : $t('agents.start')}
+              </Button>
+            {/if}
+            {#if isRunning && agent.id}
+              <Button size="sm" variant="outline" onclick={() => { confirmVisible = true; }} data-testid="agent-detail-stop-btn" class="gap-1">
+                <Square size={12} /> {$t('agents.stop')}
+              </Button>
+            {/if}
+            {#if agent.id}
+              <Button size="sm" variant="ghost" onclick={handleLogsClick} data-testid="agent-detail-logs-btn">{$t('agents.logs')}</Button>
+            {/if}
+            {#if isInstalled}
+              <div class="ml-auto flex items-center gap-2">
+                <span class="text-[11px] text-muted-foreground">{$t("agents.auto_start_enabled")}</span>
+                <Toggle checked={agent.enabled} onchange={handleToggleEnabled} disabled={toggleLoading} size="sm" data-testid="agent-detail-enabled-toggle" />
+              </div>
+            {/if}
           {/if}
-          <Button size="sm" variant="ghost" onclick={onclose}>
-            {$t('common.close')}
-          </Button>
-        {/if}
+        </div>
       </div>
     </div>
 
-    <Separator />
+    {#if stopError || actionError}
+      <div class="mx-4 mt-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+        {stopError || actionError}
+      </div>
+    {/if}
 
-    <!-- Scrollable content with all sections -->
-    <div class="flex-1 space-y-6 overflow-auto px-5 py-4">
-      <!-- Description -->
+    <!-- ═══ SCROLLABLE CONTENT ═══ -->
+    <div class="flex-1 overflow-auto px-4 pt-4 pb-6 space-y-3">
+
+      <!-- Description card -->
       {#if agent.description}
-        <section data-testid="agent-detail-description">
-          <h3 class="mb-2 text-sm font-semibold">{$t('agent_detail.description_title')}</h3>
-          <p class="text-sm text-muted-foreground leading-relaxed">{agent.description}</p>
-        </section>
-        <Separator />
+        <div class="glass-card glass-border rounded-lg px-4 py-3.5" data-testid="agent-detail-description">
+          <p class="text-[13px] text-foreground/85 leading-relaxed">{agent.description}</p>
+        </div>
       {/if}
+
+      <!-- Info grid: mode + version details -->
+      <div class="grid grid-cols-2 gap-3">
+        {#if agent.execution_mode}
+          <div class="glass-card glass-border rounded-lg px-3.5 py-3" data-testid="agent-detail-execution-mode">
+            <div class="flex items-center gap-2 mb-1.5">
+              <Cpu size={12} class="text-muted-foreground/50" />
+              <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.execution_mode_title')}</span>
+            </div>
+            <p class="text-sm text-foreground/80">{executionModeLabel(agent.execution_mode)}</p>
+          </div>
+        {/if}
+        {#if agent.install_path}
+          <div class="glass-card glass-border rounded-lg px-3.5 py-3" data-testid="agent-detail-install-path">
+            <div class="flex items-center gap-2 mb-1.5">
+              <Terminal size={12} class="text-muted-foreground/50" />
+              <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.install_path_title')}</span>
+            </div>
+            <p class="text-xs text-muted-foreground font-mono truncate" title={agent.install_path}>{agent.install_path}</p>
+          </div>
+        {/if}
+      </div>
 
       <!-- Tags -->
       {#if agent.tags.length > 0}
-        <section data-testid="agent-detail-tags">
-          <h3 class="mb-2 text-sm font-semibold">{$t('agent_detail.tags_title')}</h3>
+        <div class="glass-card glass-border rounded-lg px-4 py-3.5" data-testid="agent-detail-tags">
+          <div class="flex items-center gap-2 mb-2.5">
+            <Tag size={12} class="text-muted-foreground/50" />
+            <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.tags_title')}</span>
+          </div>
           <div class="flex flex-wrap gap-1.5">
             {#each agent.tags as tag}
-              <Badge variant="outline" class="gap-1 text-xs">
-                <Tag size={10} />
-                {tag}
-              </Badge>
+              <span class="rounded-md bg-muted/50 px-2 py-0.5 text-[11px] text-foreground/65">{tag}</span>
             {/each}
           </div>
-        </section>
-        <Separator />
-      {/if}
-
-      <!-- Execution mode -->
-      {#if agent.execution_mode}
-        <section data-testid="agent-detail-execution-mode">
-          <h3 class="mb-2 text-sm font-semibold">{$t('agent_detail.execution_mode_title')}</h3>
-          <p class="text-sm text-muted-foreground">{executionModeLabel(agent.execution_mode)}</p>
-        </section>
-        <Separator />
+        </div>
       {/if}
 
       <!-- Tools -->
       {#if allTools.length > 0}
-        <section data-testid="agent-detail-tools">
-          <h3 class="mb-2 text-sm font-semibold">{$t('agent_detail.tools_title')}</h3>
-          <div class="space-y-1.5">
+        <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="agent-detail-tools">
+          <div class="flex items-center gap-2 px-4 pt-3.5 pb-2">
+            <Wrench size={12} class="text-muted-foreground/50" />
+            <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.tools_title')}</span>
+            <span class="text-[10px] text-muted-foreground/30 ml-auto">{allTools.length}</span>
+          </div>
+          <div class="divide-y divide-border/40">
             {#each allTools as tool}
-              <div class="flex items-center gap-2 rounded-md border px-3 py-1.5">
-                <Wrench size={12} class="shrink-0 text-muted-foreground" />
-                <span class="text-sm">{tool.name}</span>
-                <Badge variant={tool.required ? "default" : "outline"} class="ml-auto text-[10px] px-1.5 py-0">
+              <div class="flex items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-primary/5">
+                <span class="flex-1 text-[13px] text-foreground/80">{tool.name}</span>
+                <Badge variant={tool.required ? "destructive" : "outline"} class="text-[9px] px-1.5 py-0">
                   {tool.required ? $t('agent_detail.tools_required_label') : $t('agent_detail.tools_optional_label')}
                 </Badge>
               </div>
             {/each}
           </div>
-        </section>
-        <Separator />
+        </div>
       {/if}
 
-      <!-- Recent activity (only if agent is loaded in runtime) -->
+      <!-- Activity -->
       {#if agent.id}
-        <AgentActivity agentId={agent.id} onTaskClick={handleTaskClick} />
-        <Separator />
+        <div class="glass-card glass-border rounded-lg px-4 py-3.5">
+          <AgentActivity agentId={agent.id} onTaskClick={handleTaskClick} />
+        </div>
       {/if}
 
-      <!-- Triggers in natural language -->
-      <AgentTriggers agentName={agent.name} />
+      <!-- Triggers -->
+      <div class="glass-card glass-border rounded-lg px-4 py-3.5">
+        <AgentTriggers agentName={agent.name} />
+      </div>
 
-      <Separator />
+      <!-- LLM info -->
+      <div class="glass-card glass-border rounded-lg px-4 py-3.5">
+        <AgentLlmInfo />
+      </div>
 
-      <!-- AI Model -->
-      <AgentLlmInfo />
-
-      <!-- Install path (operator mode — useful context) -->
-      {#if agent.install_path}
-        <Separator />
-        <section data-testid="agent-detail-install-path">
-          <h3 class="mb-2 text-sm font-semibold">{$t('agent_detail.install_path_title')}</h3>
-          <code class="block rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground break-all">{agent.install_path}</code>
-        </section>
-      {/if}
-
-      <!-- Memory (builder only) -->
+      <!-- Memory link (builder only) -->
       {#if $uiMode === "builder"}
-        <Separator />
-        <section data-testid="agent-detail-memory">
-          <h3 class="mb-3 text-sm font-semibold">{$t('agent_detail.memory_title')}</h3>
-          <button
-            class="flex items-center gap-2 text-sm text-primary hover:underline"
-            onclick={handleMemoryLink}
-            data-testid="agent-detail-memory-link"
-          >
-            <ExternalLink size={14} />
-            {$t('agent_detail.memory_link', { values: { namespace: agent.name } })}
-          </button>
-        </section>
+        <button
+          class="flex w-full items-center gap-2 rounded-lg glass-card glass-border px-4 py-3 text-sm text-primary hover:bg-primary/5 transition-colors"
+          onclick={handleMemoryLink}
+          data-testid="agent-detail-memory-link"
+        >
+          <ExternalLink size={13} />
+          {$t('agent_detail.memory_link', { values: { namespace: agent.name } })}
+        </button>
       {/if}
     </div>
   </div>

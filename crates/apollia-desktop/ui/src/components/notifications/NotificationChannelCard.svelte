@@ -65,7 +65,7 @@
 <Card class="relative overflow-hidden">
   <CardHeader class="pb-2">
     <div class="flex items-center justify-between">
-      <CardTitle class="text-base font-semibold">{channel.channel_id}</CardTitle>
+      <CardTitle class="text-base font-medium">{channel.channel_id}</CardTitle>
       <div class="flex items-center gap-2">
         <Badge variant="outline" class={badgeConfig.extraClass}>
           {badgeConfig.label}
@@ -120,7 +120,7 @@
         <Button
           size="sm"
           variant="outline"
-          class="text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive))]/10"
+          class="text-destructive hover:bg-destructive/10"
           onclick={ondelete}
           data-testid="channel-delete-btn-{channel.channel_id}"
         >

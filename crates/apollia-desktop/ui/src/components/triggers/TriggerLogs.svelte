@@ -97,7 +97,7 @@
     >
       <!-- Header -->
       <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-lg font-semibold">
+        <h2 class="text-lg font-medium">
           {$t('triggers.logs_title')} — <code class="text-sm">{triggerId}</code>
         </h2>
         <Button size="sm" variant="ghost" onclick={onclose}>✕</Button>
@@ -108,7 +108,7 @@
         <p class="text-sm text-muted-foreground">{$t('common.loading')}</p>
       {:else if error}
         <div
-          class="rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 px-4 py-2 text-sm text-[hsl(var(--destructive))]"
+          class="rounded-md border border-destructive bg-destructive/10 px-4 py-2 text-sm text-destructive"
         >
           {error}
         </div>
@@ -141,7 +141,7 @@
                 {/if}
               </div>
               {#if entry.reason}
-                <div class="mt-1 text-xs text-[hsl(var(--destructive))]">
+                <div class="mt-1 text-xs text-destructive">
                   {entry.reason}
                 </div>
               {/if}

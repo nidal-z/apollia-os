@@ -122,7 +122,7 @@
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div class="space-y-1">
-      <h1 class="text-2xl font-bold">{$t('pipelines.title')}</h1>
+      <h1 class="text-2xl font-semibold">{$t('pipelines.title')}</h1>
       <p class="text-sm text-muted-foreground" data-testid="pipelines-subtitle">{$t('pipelines.subtitle')}</p>
     </div>
     <div class="flex gap-2">
@@ -139,7 +139,7 @@
     <div
       class="rounded-md border px-4 py-2 text-sm {toast.type === 'success'
         ? 'border-[var(--apollia-success)] bg-[var(--apollia-success)]/10 text-[var(--apollia-success)]'
-        : 'border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 text-[hsl(var(--destructive))]'}"
+        : 'border-destructive bg-destructive/10 text-destructive'}"
     >
       {toast.message}
     </div>
@@ -291,7 +291,7 @@
       onkeydown={(e) => { if (e.key === "Escape") showDeleteConfirm = false; }}
       data-testid="delete-pipeline-confirm-dialog"
     >
-      <h3 class="mb-2 text-lg font-semibold">{$t("pipelines.delete_confirm_title")}</h3>
+      <h3 class="mb-2 text-lg font-medium">{$t("pipelines.delete_confirm_title")}</h3>
       <p class="mb-4 text-sm text-muted-foreground">
         {$t("pipelines.delete_confirm_message", { values: { id: deletePipelineId } })}
       </p>

@@ -81,7 +81,7 @@
 </script>
 
 <section data-testid="agent-triggers-section">
-  <h3 class="mb-3 text-sm font-semibold">{$t('agent_detail.triggers_title')}</h3>
+  <h3 class="mb-3 text-sm font-medium">{$t('agent_detail.triggers_title')}</h3>
 
   {#if agentTriggers.length === 0}
     <p class="text-xs text-muted-foreground">{$t('agent_detail.no_triggers')}</p>
@@ -103,7 +103,7 @@
 
             <div class="flex shrink-0 items-center gap-2">
               {#if trigger.enabled}
-                <Badge variant="outline" class="text-[10px] px-1.5 py-0 border-green-500/50 text-green-600 dark:text-green-400">
+                <Badge variant="outline" class="text-[10px] px-1.5 py-0 border-success/50 text-success">
                   {$t('agent_detail.trigger_enabled')}
                 </Badge>
               {:else}

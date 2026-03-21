@@ -8,6 +8,10 @@
     PipelineDefinitionView,
   } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
+  import { Select } from "$lib/components/ui/select";
+  import { Checkbox } from "$lib/components/ui/checkbox";
+  import { Textarea } from "$lib/components/ui/textarea";
+  import { Dialog } from "$lib/components/ui/dialog";
 
   interface Props {
     open: boolean;
@@ -246,12 +250,6 @@
     }
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      onclose();
-    }
-  }
-
   $effect(() => {
     if (open) {
       resetForm();
@@ -266,277 +264,255 @@
   }
 </script>
 
-{#if open}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-    role="button"
-    tabindex="-1"
-    onclick={onclose}
-    onkeydown={handleKeydown}
-  >
-    <div
-      class="max-h-[85vh] w-[560px] overflow-y-auto rounded-lg border bg-background p-6 shadow-lg"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={handleKeydown}
-      data-testid="create-pipeline-dialog"
-    >
-      <h3 class="mb-4 text-lg font-semibold">{$t("pipelines.create_pipeline")}</h3>
+<Dialog open={open} onclose={onclose} size="lg" title={$t("pipelines.create_pipeline")} data-testid="create-pipeline-dialog">
+  <div class="space-y-4">
+    <!-- ID -->
+    <div>
+      <label class="mb-1 block text-sm font-medium" for="pipeline-id">{$t("pipelines.field_id")}</label>
+      <input
+        id="pipeline-id"
+        type="text"
+        class="w-full rounded-md border bg-background px-3 py-2 text-sm {idError ? 'border-destructive' : ''}"
+        placeholder={$t("pipelines.field_id_placeholder")}
+        bind:value={pipelineId}
+        data-testid="pipeline-id-input"
+      />
+      <p class="mt-0.5 text-xs text-muted-foreground">{$t("pipelines.field_id_help")}</p>
+      {#if idError}
+        <p class="mt-0.5 text-xs text-destructive" data-testid="pipeline-id-error">{idError}</p>
+      {/if}
+    </div>
 
-      <div class="space-y-4">
-        <!-- ID -->
-        <div>
-          <label class="mb-1 block text-sm font-medium" for="pipeline-id">{$t("pipelines.field_id")}</label>
-          <input
-            id="pipeline-id"
-            type="text"
-            class="w-full rounded-md border bg-background px-3 py-2 text-sm {idError ? 'border-[hsl(var(--destructive))]' : ''}"
-            placeholder={$t("pipelines.field_id_placeholder")}
-            bind:value={pipelineId}
-            data-testid="pipeline-id-input"
-          />
-          <p class="mt-0.5 text-xs text-muted-foreground">{$t("pipelines.field_id_help")}</p>
-          {#if idError}
-            <p class="mt-0.5 text-xs text-[hsl(var(--destructive))]" data-testid="pipeline-id-error">{idError}</p>
-          {/if}
-        </div>
+    <!-- Description -->
+    <div>
+      <label class="mb-1 block text-sm font-medium" for="pipeline-description">
+        {$t("pipelines.field_description")}
+        <span class="font-normal text-muted-foreground">({$t("pipelines.input_json_optional")})</span>
+      </label>
+      <input
+        id="pipeline-description"
+        type="text"
+        class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+        bind:value={description}
+        data-testid="pipeline-description-input"
+      />
+    </div>
 
-        <!-- Description -->
-        <div>
-          <label class="mb-1 block text-sm font-medium" for="pipeline-description">
-            {$t("pipelines.field_description")}
-            <span class="font-normal text-muted-foreground">({$t("pipelines.input_json_optional")})</span>
-          </label>
-          <input
-            id="pipeline-description"
-            type="text"
-            class="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            bind:value={description}
-            data-testid="pipeline-description-input"
-          />
-        </div>
+    <!-- On failure + Enabled -->
+    <div class="flex items-center gap-6">
+      <div>
+        <label class="mb-1 block text-sm font-medium" for="pipeline-on-failure">{$t("pipelines.def_on_failure")}</label>
+        <Select
+          id="pipeline-on-failure"
+          bind:value={onFailure}
+          data-testid="pipeline-on-failure-select"
+        >
+          <option value="fail">fail</option>
+          <option value="continue">continue</option>
+        </Select>
+      </div>
+      <label class="flex items-center gap-2 text-sm">
+        <Checkbox bind:checked={enabled} data-testid="pipeline-enabled-toggle" />
+        {$t("pipelines.def_enabled")}
+      </label>
+    </div>
 
-        <!-- On failure + Enabled -->
-        <div class="flex items-center gap-6">
-          <div>
-            <label class="mb-1 block text-sm font-medium" for="pipeline-on-failure">{$t("pipelines.def_on_failure")}</label>
-            <select
-              id="pipeline-on-failure"
-              class="rounded-md border bg-background px-3 py-2 text-sm"
-              bind:value={onFailure}
-              data-testid="pipeline-on-failure-select"
-            >
-              <option value="fail">fail</option>
-              <option value="continue">continue</option>
-            </select>
-          </div>
-          <label class="flex items-center gap-2 text-sm">
-            <input type="checkbox" bind:checked={enabled} data-testid="pipeline-enabled-toggle" />
-            {$t("pipelines.def_enabled")}
-          </label>
-        </div>
+    <!-- Steps section -->
+    <div>
+      <div class="mb-2 flex items-center justify-between">
+        <label class="block text-sm font-medium">{$t("pipelines.field_steps_label")}</label>
+        <Button size="sm" variant="outline" onclick={addStep} data-testid="add-step-btn">
+          {$t("pipelines.add_step")}
+        </Button>
+      </div>
 
-        <!-- Steps section -->
-        <div>
-          <div class="mb-2 flex items-center justify-between">
-            <label class="block text-sm font-medium">{$t("pipelines.field_steps_label")}</label>
-            <Button size="sm" variant="outline" onclick={addStep} data-testid="add-step-btn">
-              {$t("pipelines.add_step")}
-            </Button>
-          </div>
+      {#if stepsError}
+        <p class="mb-2 text-xs text-destructive" data-testid="pipeline-steps-error">{stepsError}</p>
+      {/if}
 
-          {#if stepsError}
-            <p class="mb-2 text-xs text-[hsl(var(--destructive))]" data-testid="pipeline-steps-error">{stepsError}</p>
-          {/if}
+      {#if cycleError}
+        <p class="mb-2 text-xs text-destructive" data-testid="pipeline-cycle-error">{cycleError}</p>
+      {/if}
 
-          {#if cycleError}
-            <p class="mb-2 text-xs text-[hsl(var(--destructive))]" data-testid="pipeline-cycle-error">{cycleError}</p>
-          {/if}
+      {#if dependsOnError}
+        <p class="mb-2 text-xs text-destructive" data-testid="pipeline-depends-error">{dependsOnError}</p>
+      {/if}
 
-          {#if dependsOnError}
-            <p class="mb-2 text-xs text-[hsl(var(--destructive))]" data-testid="pipeline-depends-error">{dependsOnError}</p>
-          {/if}
+      <div class="space-y-3">
+        {#each steps as step, index}
+          <div class="rounded-md border bg-muted/30 p-3" data-testid="pipeline-step-{index}">
+            <div class="mb-2 flex items-center justify-between">
+              <span class="text-xs font-medium text-muted-foreground">{$t("pipelines.step_label")} {index + 1}</span>
+              <button
+                class="text-xs text-destructive hover:underline"
+                onclick={() => removeStep(index)}
+                data-testid="pipeline-step-{index}-remove"
+              >
+                {$t("pipelines.remove_step")}
+              </button>
+            </div>
 
-          <div class="space-y-3">
-            {#each steps as step, index}
-              <div class="rounded-md border bg-muted/30 p-3" data-testid="pipeline-step-{index}">
-                <div class="mb-2 flex items-center justify-between">
-                  <span class="text-xs font-medium text-muted-foreground">{$t("pipelines.step_label")} {index + 1}</span>
-                  <button
-                    class="text-xs text-[hsl(var(--destructive))] hover:underline"
-                    onclick={() => removeStep(index)}
-                    data-testid="pipeline-step-{index}-remove"
-                  >
-                    {$t("pipelines.remove_step")}
-                  </button>
-                </div>
-
-                <div class="space-y-2">
-                  <!-- Step ID -->
-                  <div>
-                    <label class="mb-0.5 block text-xs font-medium" for="step-{index}-id">{$t("pipelines.field_step_id")}</label>
-                    <input
-                      id="step-{index}-id"
-                      type="text"
-                      class="w-full rounded-md border bg-background px-2 py-1.5 text-xs {stepIdErrors[index] ? 'border-[hsl(var(--destructive))]' : ''}"
-                      placeholder="extract, validate, generate..."
-                      bind:value={step.id}
-                      data-testid="pipeline-step-{index}-id"
-                    />
-                    {#if stepIdErrors[index]}
-                      <p class="mt-0.5 text-xs text-[hsl(var(--destructive))]">{stepIdErrors[index]}</p>
-                    {/if}
-                  </div>
-
-                  <!-- Agent select -->
-                  <div>
-                    <label class="mb-0.5 block text-xs font-medium" for="step-{index}-agent">{$t("pipelines.field_step_agent")}</label>
-                    <select
-                      id="step-{index}-agent"
-                      class="w-full rounded-md border bg-background px-2 py-1.5 text-xs"
-                      bind:value={step.agent}
-                      data-testid="pipeline-step-{index}-agent"
-                    >
-                      <option value="" disabled>— {$t("pipelines.field_step_agent")} —</option>
-                      {#each agents as agent}
-                        <option value={agent.name}>{agent.name}</option>
-                      {/each}
-                    </select>
-                  </div>
-
-                  <!-- Input -->
-                  <div>
-                    <label class="mb-0.5 block text-xs font-medium" for="step-{index}-input">{$t("pipelines.field_step_input")}</label>
-                    <textarea
-                      id="step-{index}-input"
-                      class="w-full rounded-md border bg-background px-2 py-1.5 text-xs"
-                      rows="2"
-                      bind:value={step.input}
-                      data-testid="pipeline-step-{index}-input"
-                    ></textarea>
-                  </div>
-
-                  <!-- Depends on (multi-select checkboxes) -->
-                  {#if otherStepIds(index).length > 0}
-                    <div>
-                      <label class="mb-0.5 block text-xs font-medium">{$t("pipelines.field_depends_on")}</label>
-                      <div class="flex flex-wrap gap-2">
-                        {#each otherStepIds(index) as depId}
-                          <label class="flex items-center gap-1 text-xs">
-                            <input
-                              type="checkbox"
-                              checked={step.dependsOn.includes(depId)}
-                              onchange={() => toggleDependency(index, depId)}
-                              data-testid="pipeline-step-{index}-dep-{depId}"
-                            />
-                            {depId}
-                          </label>
-                        {/each}
-                      </div>
-                    </div>
-                  {/if}
-
-                  <!-- On failure -->
-                  <div class="flex items-center gap-4">
-                    <div>
-                      <label class="mb-0.5 block text-xs font-medium" for="step-{index}-on-failure">{$t("pipelines.def_on_failure")}</label>
-                      <select
-                        id="step-{index}-on-failure"
-                        class="rounded-md border bg-background px-2 py-1.5 text-xs"
-                        bind:value={step.onFailure}
-                        data-testid="pipeline-step-{index}-on-failure"
-                      >
-                        <option value="fail">fail</option>
-                        <option value="skip">skip</option>
-                        <option value="fallback">fallback</option>
-                      </select>
-                    </div>
-
-                    {#if step.onFailure === "fallback"}
-                      <div>
-                        <label class="mb-0.5 block text-xs font-medium" for="step-{index}-fallback-for">{$t("pipelines.field_fallback_for")}</label>
-                        <select
-                          id="step-{index}-fallback-for"
-                          class="rounded-md border bg-background px-2 py-1.5 text-xs"
-                          bind:value={step.fallbackFor}
-                          data-testid="pipeline-step-{index}-fallback-for"
-                        >
-                          <option value="" disabled>—</option>
-                          {#each otherStepIds(index) as sid}
-                            <option value={sid}>{sid}</option>
-                          {/each}
-                        </select>
-                      </div>
-                    {/if}
-                  </div>
-
-                  <!-- Condition (collapsible) -->
-                  <div>
-                    <button
-                      class="text-xs text-muted-foreground hover:text-foreground"
-                      onclick={() => { step.conditionOpen = !step.conditionOpen; steps = [...steps]; }}
-                      data-testid="pipeline-step-{index}-condition-toggle"
-                    >
-                      {step.conditionOpen ? "▾" : "▸"} {$t("pipelines.field_condition")}
-                    </button>
-                    {#if step.conditionOpen}
-                      <div class="mt-1 flex gap-2">
-                        <select
-                          class="rounded-md border bg-background px-2 py-1 text-xs"
-                          bind:value={step.conditionWhen}
-                          data-testid="pipeline-step-{index}-condition-when"
-                        >
-                          <option value="contains">contains</option>
-                          <option value="equals">equals</option>
-                          <option value="starts_with">starts_with</option>
-                          <option value="ends_with">ends_with</option>
-                          <option value="regex">regex</option>
-                        </select>
-                        <input
-                          type="text"
-                          class="flex-1 rounded-md border bg-background px-2 py-1 text-xs"
-                          placeholder="field"
-                          bind:value={step.conditionField}
-                          data-testid="pipeline-step-{index}-condition-field"
-                        />
-                        <input
-                          type="text"
-                          class="flex-1 rounded-md border bg-background px-2 py-1 text-xs"
-                          placeholder="value"
-                          bind:value={step.conditionValue}
-                          data-testid="pipeline-step-{index}-condition-value"
-                        />
-                      </div>
-                    {/if}
-                  </div>
-                </div>
+            <div class="space-y-2">
+              <!-- Step ID -->
+              <div>
+                <label class="mb-0.5 block text-xs font-medium" for="step-{index}-id">{$t("pipelines.field_step_id")}</label>
+                <input
+                  id="step-{index}-id"
+                  type="text"
+                  class="w-full rounded-md border bg-background px-2 py-1.5 text-xs {stepIdErrors[index] ? 'border-destructive' : ''}"
+                  placeholder="extract, validate, generate..."
+                  bind:value={step.id}
+                  data-testid="pipeline-step-{index}-id"
+                />
+                {#if stepIdErrors[index]}
+                  <p class="mt-0.5 text-xs text-destructive">{stepIdErrors[index]}</p>
+                {/if}
               </div>
-            {/each}
+
+              <!-- Agent select -->
+              <div>
+                <label class="mb-0.5 block text-xs font-medium" for="step-{index}-agent">{$t("pipelines.field_step_agent")}</label>
+                <Select
+                  id="step-{index}-agent"
+                  class="w-full px-2 py-1.5 text-xs"
+                  bind:value={step.agent}
+                  data-testid="pipeline-step-{index}-agent"
+                >
+                  <option value="" disabled>— {$t("pipelines.field_step_agent")} —</option>
+                  {#each agents as agent}
+                    <option value={agent.name}>{agent.name}</option>
+                  {/each}
+                </Select>
+              </div>
+
+              <!-- Input -->
+              <div>
+                <label class="mb-0.5 block text-xs font-medium" for="step-{index}-input">{$t("pipelines.field_step_input")}</label>
+                <Textarea
+                  id="step-{index}-input"
+                  class="px-2 py-1.5 text-xs"
+                  rows={2}
+                  bind:value={step.input}
+                  data-testid="pipeline-step-{index}-input"
+                />
+              </div>
+
+              <!-- Depends on (multi-select checkboxes) -->
+              {#if otherStepIds(index).length > 0}
+                <div>
+                  <label class="mb-0.5 block text-xs font-medium">{$t("pipelines.field_depends_on")}</label>
+                  <div class="flex flex-wrap gap-2">
+                    {#each otherStepIds(index) as depId}
+                      <label class="flex items-center gap-1 text-xs">
+                        <Checkbox
+                          checked={step.dependsOn.includes(depId)}
+                          onchange={() => toggleDependency(index, depId)}
+                          data-testid="pipeline-step-{index}-dep-{depId}"
+                        />
+                        {depId}
+                      </label>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+
+              <!-- On failure -->
+              <div class="flex items-center gap-4">
+                <div>
+                  <label class="mb-0.5 block text-xs font-medium" for="step-{index}-on-failure">{$t("pipelines.def_on_failure")}</label>
+                  <Select
+                    id="step-{index}-on-failure"
+                    class="px-2 py-1.5 text-xs"
+                    bind:value={step.onFailure}
+                    data-testid="pipeline-step-{index}-on-failure"
+                  >
+                    <option value="fail">fail</option>
+                    <option value="skip">skip</option>
+                    <option value="fallback">fallback</option>
+                  </Select>
+                </div>
+
+                {#if step.onFailure === "fallback"}
+                  <div>
+                    <label class="mb-0.5 block text-xs font-medium" for="step-{index}-fallback-for">{$t("pipelines.field_fallback_for")}</label>
+                    <Select
+                      id="step-{index}-fallback-for"
+                      class="px-2 py-1.5 text-xs"
+                      bind:value={step.fallbackFor}
+                      data-testid="pipeline-step-{index}-fallback-for"
+                    >
+                      <option value="" disabled>—</option>
+                      {#each otherStepIds(index) as sid}
+                        <option value={sid}>{sid}</option>
+                      {/each}
+                    </Select>
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Condition (collapsible) -->
+              <div>
+                <button
+                  class="text-xs text-muted-foreground hover:text-foreground"
+                  onclick={() => { step.conditionOpen = !step.conditionOpen; steps = [...steps]; }}
+                  data-testid="pipeline-step-{index}-condition-toggle"
+                >
+                  {step.conditionOpen ? "▾" : "▸"} {$t("pipelines.field_condition")}
+                </button>
+                {#if step.conditionOpen}
+                  <div class="mt-1 flex gap-2">
+                    <Select
+                      class="px-2 py-1 text-xs"
+                      bind:value={step.conditionWhen}
+                      data-testid="pipeline-step-{index}-condition-when"
+                    >
+                      <option value="contains">contains</option>
+                      <option value="equals">equals</option>
+                      <option value="starts_with">starts_with</option>
+                      <option value="ends_with">ends_with</option>
+                      <option value="regex">regex</option>
+                    </Select>
+                    <input
+                      type="text"
+                      class="flex-1 rounded-md border bg-background px-2 py-1 text-xs"
+                      placeholder="field"
+                      bind:value={step.conditionField}
+                      data-testid="pipeline-step-{index}-condition-field"
+                    />
+                    <input
+                      type="text"
+                      class="flex-1 rounded-md border bg-background px-2 py-1 text-xs"
+                      placeholder="value"
+                      bind:value={step.conditionValue}
+                      data-testid="pipeline-step-{index}-condition-value"
+                    />
+                  </div>
+                {/if}
+              </div>
+            </div>
           </div>
-        </div>
-
-        <!-- Submit error -->
-        {#if submitError}
-          <p class="text-sm text-[hsl(var(--destructive))]" data-testid="create-pipeline-error">{submitError}</p>
-        {/if}
-
-        <!-- Actions -->
-        <div class="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onclick={onclose} data-testid="create-pipeline-cancel-btn">
-            {$t("common.cancel")}
-          </Button>
-          <Button
-            size="sm"
-            onclick={handleSubmit}
-            disabled={submitting || (touched && !isValid) || !!cycleError}
-            data-testid="create-pipeline-submit-btn"
-          >
-            {submitting ? $t("pipelines.creating") : $t("pipelines.create_pipeline")}
-          </Button>
-        </div>
+        {/each}
       </div>
     </div>
+
+    <!-- Submit error -->
+    {#if submitError}
+      <p class="text-sm text-destructive" data-testid="create-pipeline-error">{submitError}</p>
+    {/if}
+
+    <!-- Actions -->
+    <div class="flex justify-end gap-2">
+      <Button variant="outline" size="sm" onclick={onclose} data-testid="create-pipeline-cancel-btn">
+        {$t("common.cancel")}
+      </Button>
+      <Button
+        size="sm"
+        onclick={handleSubmit}
+        disabled={submitting || (touched && !isValid) || !!cycleError}
+        data-testid="create-pipeline-submit-btn"
+      >
+        {submitting ? $t("pipelines.creating") : $t("pipelines.create_pipeline")}
+      </Button>
+    </div>
   </div>
-{/if}
+</Dialog>

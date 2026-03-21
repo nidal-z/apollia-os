@@ -90,7 +90,7 @@
 {:else}
   <div class="overflow-x-auto rounded-md glass-border glass-surface">
     <table class="w-full text-sm">
-      <thead class="border-b glass-border-subtle glass-surface">
+      <thead class="border-b border-border bg-muted/50">
         <tr>
           <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.type')}</th>
           <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.key')}</th>
@@ -105,7 +105,7 @@
       </thead>
       <tbody>
         {#each entries as entry (entry.id)}
-          <tr class="border-b last:border-b-0 hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]">
+          <tr class="border-b last:border-b-0 hover:bg-muted">
             <td class="px-4 py-2">
               <Badge variant={TYPE_VARIANT[entry.entry_type] ?? "secondary"}>
                 <GlossaryTerm term={entry.entry_type} label={$t(`memory.type.${entry.entry_type}`, { default: entry.entry_type })} />

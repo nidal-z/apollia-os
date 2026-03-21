@@ -156,7 +156,7 @@
       <Skeleton width="100%" height="2.5rem" />
     </div>
   {:else if error}
-    <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
+    <p class="text-sm text-destructive">{error}</p>
   {:else if filteredEvents.length === 0}
     <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
       <p class="text-muted-foreground">{$t('observability.empty_timeline')}</p>
@@ -165,7 +165,7 @@
     <div class="space-y-1">
       {#each filteredEvents as event, index (event.timestamp + "-" + index)}
         <button
-          class="flex w-full items-start gap-3 rounded-md glass-border glass-card px-3 py-2 text-left transition-colors hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]"
+          class="flex w-full items-start gap-3 rounded-md glass-border glass-card px-3 py-2 text-left transition-colors hover:bg-muted/50"
           onclick={() => toggleExpand(index)}
         >
           <span class="mt-0.5 text-sm">{TYPE_ICONS[event.event_type] ?? "\u{2022}"}</span>

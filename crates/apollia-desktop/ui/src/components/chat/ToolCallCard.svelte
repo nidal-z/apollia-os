@@ -30,9 +30,9 @@
 
 <div
   class="my-1.5 rounded-xl border px-3 py-2 text-xs backdrop-blur-sm {isRefused
-    ? 'border-[hsl(var(--destructive))]/30 bg-[hsl(var(--destructive))]/5'
+    ? 'border-destructive/30 bg-destructive/5'
     : isExecuted
-      ? 'border-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/5'
+      ? 'border-success/30 bg-success/5'
       : 'glass-border glass-inset'}"
   data-testid="tool-call-card-{toolCall.tool_name}"
   transition:slide={{ duration: 200 }}
@@ -40,9 +40,9 @@
   <!-- Header -->
   <div class="flex items-center gap-1.5">
     <div class="flex h-5 w-5 items-center justify-center rounded-md {isRefused
-      ? 'bg-[hsl(var(--destructive))]/10'
+      ? 'bg-destructive/10'
       : isExecuted
-        ? 'bg-[hsl(var(--success))]/10'
+        ? 'bg-success/10'
         : 'glass-inset'}">
       <Wrench class="h-2.5 w-2.5 text-muted-foreground" />
     </div>
@@ -51,9 +51,9 @@
       {#if isPending}
         <Loader2 class="h-3 w-3 animate-spin text-muted-foreground" />
       {:else if isExecuted}
-        <Check class="h-3 w-3 text-[hsl(var(--success))]" />
+        <Check class="h-3 w-3 text-success" />
       {:else if isRefused}
-        <X class="h-3 w-3 text-[hsl(var(--destructive))]" />
+        <X class="h-3 w-3 text-destructive" />
       {/if}
     </span>
   </div>

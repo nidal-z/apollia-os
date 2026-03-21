@@ -73,19 +73,19 @@
 </script>
 
 <section data-testid="agent-detail-activity">
-  <h3 class="mb-3 text-sm font-semibold">{$t('agent_detail.activity_title')}</h3>
+  <h3 class="mb-3 text-sm font-medium">{$t('agent_detail.activity_title')}</h3>
 
   {#if loading}
     <p class="text-xs text-muted-foreground">{$t('common.loading')}</p>
   {:else if error}
-    <p class="text-xs text-[hsl(var(--destructive))]">{error}</p>
+    <p class="text-xs text-destructive">{error}</p>
   {:else if taskList.length === 0}
     <p class="text-xs text-muted-foreground">{$t('agent_detail.no_activity')}</p>
   {:else}
     <div class="space-y-1.5">
       {#each taskList as task (task.id)}
         <button
-          class="flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-[rgba(52,53,245,0.04)] dark:hover:bg-[rgba(124,95,214,0.06)]"
+          class="flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50"
           onclick={() => onTaskClick(task.id)}
           data-testid="agent-detail-task-row"
           data-task-id={task.id}

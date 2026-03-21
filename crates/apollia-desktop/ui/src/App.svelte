@@ -5,6 +5,7 @@
   import Sidebar from "./components/layout/Sidebar.svelte";
   import Main from "./components/layout/Main.svelte";
   import OnboardingWizard from "./components/onboarding/OnboardingWizard.svelte";
+  import { ToastContainer } from "$lib/components/ui/toast";
   import { createSSEConnection } from "$lib/stores/sse";
   import { showOnboarding } from "$lib/stores/onboarding";
   import { initTheme } from "$lib/stores/theme";
@@ -44,4 +45,5 @@
     <Sidebar />
     <Main />
   </div>
+  <ToastContainer />
 {/if}

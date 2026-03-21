@@ -28,7 +28,7 @@
 
 <div class="space-y-6" data-testid="step-explore">
   <div>
-    <h2 class="text-xl font-semibold">{$t('onboarding.explore_title')}</h2>
+    <h2 class="text-xl font-medium">{$t('onboarding.explore_title')}</h2>
     <p class="mt-1 text-sm text-muted-foreground">
       {$t('onboarding.explore_subtitle')}
     </p>
@@ -42,7 +42,7 @@
           <Icon size={18} />
         </span>
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-semibold">{$t(link.labelKey)}</p>
+          <p class="text-sm font-medium">{$t(link.labelKey)}</p>
           <p class="text-xs text-muted-foreground">{$t(link.descKey)}</p>
         </div>
       </div>

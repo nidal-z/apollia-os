@@ -60,14 +60,14 @@
 
 <Card>
   <CardHeader>
-    <CardTitle class="text-base font-semibold">{$t('llm.session_stats_title')}</CardTitle>
+    <CardTitle class="text-base font-medium">{$t('llm.session_stats_title')}</CardTitle>
   </CardHeader>
 
   <CardContent>
     {#if loading}
       <p class="text-sm text-muted-foreground">{$t('llm.loading_stats')}</p>
     {:else if error}
-      <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
+      <p class="text-sm text-destructive">{error}</p>
     {:else if rows.length === 0}
       <p class="text-sm text-muted-foreground">
         {isOperator ? $t('llm.no_calls_operator') : $t('llm.no_calls')}
@@ -100,7 +100,7 @@
                 <td class="py-2 text-right">{formatCost(row.total_cost_usd)}</td>
               </tr>
             {/each}
-            <tr class="font-bold">
+            <tr class="font-semibold">
               <td class="pt-2" colspan="2">{$t('llm.table.total')}</td>
               <td class="pt-2 text-right">{totalCalls}</td>
               <td class="pt-2 text-right">{formatTokens(totalTokens)}</td>

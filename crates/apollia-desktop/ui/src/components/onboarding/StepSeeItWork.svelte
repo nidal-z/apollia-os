@@ -106,7 +106,7 @@
 
 <div class="space-y-6" data-testid="step-see-it-work">
   <div>
-    <h2 class="text-xl font-semibold">{$t('onboarding.see_it_work_title')}</h2>
+    <h2 class="text-xl font-medium">{$t('onboarding.see_it_work_title')}</h2>
     <p class="mt-1 text-sm text-muted-foreground">
       {$t('onboarding.see_it_work_subtitle')}
     </p>
@@ -133,8 +133,8 @@
   {/if}
 
   {#if error}
-    <div class="rounded-lg border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 p-4">
-      <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
+    <div class="rounded-lg border border-destructive bg-destructive/10 p-4">
+      <p class="text-sm text-destructive">{error}</p>
     </div>
   {/if}
 
@@ -173,7 +173,7 @@
   {/if}
 
   {#if isFailed}
-    <p class="text-sm font-medium text-[hsl(var(--destructive))]">
+    <p class="text-sm font-medium text-destructive">
       {$t('onboarding.task_failed_operator')}
     </p>
   {/if}

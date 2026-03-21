@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
+  import { Checkbox } from "$lib/components/ui/checkbox";
 
   interface Props {
     onsaved: () => void;
@@ -72,7 +73,7 @@
 </script>
 
 <section data-testid="global-events-section">
-  <h2 class="mb-1 text-lg font-semibold">{$t("notifications.global_events_title")}</h2>
+  <h2 class="mb-1 text-lg font-medium">{$t("notifications.global_events_title")}</h2>
   <p class="mb-3 text-sm text-muted-foreground">{$t("notifications.global_events_desc")}</p>
 
   {#if loading}
@@ -81,8 +82,7 @@
     <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
       {#each ALL_EVENT_TYPES as event}
         <label class="flex items-center gap-2 text-sm" data-testid="global-event-{event}">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={checkedEvents.has(event)}
             onchange={() => toggleEvent(event)}
           />
@@ -107,7 +107,7 @@
             {toast.message}
           </span>
         {:else}
-          <span class="text-sm text-[hsl(var(--destructive))]" data-testid="global-events-toast-error">
+          <span class="text-sm text-destructive" data-testid="global-events-toast-error">
             {toast.message}
           </span>
         {/if}

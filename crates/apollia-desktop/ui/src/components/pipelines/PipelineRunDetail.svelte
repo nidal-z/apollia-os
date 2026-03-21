@@ -132,7 +132,7 @@
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3">
       <div class="flex items-center gap-2">
-        <h2 class="text-lg font-semibold">{$t('pipelines.detail_title')}</h2>
+        <h2 class="text-lg font-medium">{$t('pipelines.detail_title')}</h2>
         {#if detail}
           <Badge
             variant={STEP_STATUS_VARIANT[detail.status] ?? "secondary"}
@@ -155,7 +155,7 @@
           <Skeleton width="100%" height="4rem" />
         </div>
       {:else if error}
-        <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
+        <p class="text-sm text-destructive">{error}</p>
       {:else if !detail}
         <p class="text-sm text-muted-foreground">{$t('pipelines.not_found')}</p>
       {:else}
@@ -206,7 +206,7 @@
 
           <!-- Steps timeline -->
           <div>
-            <h3 class="mb-3 text-sm font-semibold">{$t('pipelines.steps')}</h3>
+            <h3 class="mb-3 text-sm font-medium">{$t('pipelines.steps')}</h3>
             <div class="relative space-y-0">
               {#each detail.step_runs as step, i (step.step_id)}
                 <div class="relative flex gap-3 pb-4">
@@ -227,7 +227,7 @@
                         : step.status === 'running'
                           ? 'text-info animate-pulse'
                           : step.status === 'failed'
-                            ? 'text-[hsl(var(--destructive))]'
+                            ? 'text-destructive'
                             : 'text-muted-foreground'}"
                     >
                       {STEP_STATUS_ICON[step.status] ?? "○"}
@@ -279,8 +279,8 @@
                         {#if step.error}
                           <div>
                             <p class="mb-1 text-xs font-medium text-muted-foreground">{$t('pipelines.step_error')}</p>
-                            <div class="rounded border border-[hsl(var(--destructive))]/30 bg-[hsl(var(--destructive))]/5 p-2">
-                              <p class="whitespace-pre-wrap text-xs text-[hsl(var(--destructive))]">
+                            <div class="rounded border border-destructive/30 bg-destructive/5 p-2">
+                              <p class="whitespace-pre-wrap text-xs text-destructive">
                                 {step.error}
                               </p>
                             </div>

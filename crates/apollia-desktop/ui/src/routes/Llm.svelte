@@ -19,7 +19,7 @@
 <div class="space-y-6">
   <!-- Header -->
   <div class="space-y-1">
-    <h1 class="text-2xl font-bold">
+    <h1 class="text-2xl font-semibold">
       {isOperator ? $t('llm.title_operator') : $t('llm.title')}
     </h1>
     <p class="text-sm text-muted-foreground" data-testid="llm-subtitle">{$t('llm.subtitle')}</p>

@@ -10,13 +10,13 @@
   }
 
   const variantClasses: Record<Variant, string> = {
-    default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-    secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-    destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-    outline: "text-foreground",
-    success: "border-transparent bg-apollia-green text-white hover:bg-apollia-green/80",
-    warning: "border-transparent bg-warning text-white hover:bg-warning/80",
-    info: "border-transparent bg-info text-white hover:bg-info/80",
+    default: "bg-primary/10 text-primary dark:bg-primary/20",
+    secondary: "bg-muted text-muted-foreground",
+    destructive: "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300",
+    outline: "border border-border text-foreground",
+    success: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300",
+    warning: "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300",
+    info: "bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-300",
   };
 
   let { class: className = "", variant = "default", children, ...restProps }: Props = $props();
@@ -24,7 +24,7 @@
 
 <div
   class={cn(
-    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+    "inline-flex items-center rounded-full border border-transparent px-2.5 py-0.5 text-xs font-medium transition-colors",
     variantClasses[variant],
     className,
   )}

@@ -123,7 +123,7 @@
     <CardHeader class="pb-2">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <CardTitle class="text-base font-semibold">
+          <CardTitle class="text-base font-medium">
             {approval.agent_name || $t('approvals.unknown_agent')}
           </CardTitle>
           <code class="text-xs text-muted-foreground">{shortId(approval.task_id)}</code>
@@ -131,7 +131,7 @@
         <Badge
           variant="outline"
           class={isOverThreshold
-            ? "border-[hsl(var(--destructive))] text-[hsl(var(--destructive))]"
+            ? "border-destructive text-destructive"
             : "border-[var(--apollia-warning)] text-[var(--apollia-warning)]"}
         >
           {formatElapsed(elapsedMs)}
@@ -169,10 +169,10 @@
 
         <!-- Error messages -->
         {#if approveError}
-          <p class="text-xs text-[hsl(var(--destructive))]">{approveError}</p>
+          <p class="text-xs text-destructive">{approveError}</p>
         {/if}
         {#if rejectError}
-          <p class="text-xs text-[hsl(var(--destructive))]">{rejectError}</p>
+          <p class="text-xs text-destructive">{rejectError}</p>
         {/if}
 
         <!-- Action buttons / dialogs -->
@@ -195,7 +195,7 @@
             </div>
           </div>
         {:else if showRejectDialog}
-          <div class="rounded border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/5 p-3">
+          <div class="rounded border border-destructive bg-destructive/5 p-3">
             <p class="mb-2 text-sm">{$t('approvals.reject_reason', { values: { min: MIN_REASON_LENGTH } })}</p>
             <textarea
               class="mb-2 w-full rounded-md border bg-background px-3 py-2 text-sm"

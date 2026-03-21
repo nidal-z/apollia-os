@@ -84,7 +84,7 @@
   <!-- Operator mode: humanized card -->
   <Card class="relative overflow-hidden">
     <CardHeader class="pb-2">
-      <CardTitle class="text-base font-semibold">{humanizedTitle()}</CardTitle>
+      <CardTitle class="text-base font-medium">{humanizedTitle()}</CardTitle>
     </CardHeader>
 
     <CardContent>
@@ -98,7 +98,7 @@
   <Card class="relative overflow-hidden">
     <CardHeader class="pb-2">
       <div class="flex items-center justify-between">
-        <CardTitle class="text-base font-semibold">{backend.name}</CardTitle>
+        <CardTitle class="text-base font-medium">{backend.name}</CardTitle>
         <div class="flex items-center gap-2">
           <Badge variant="outline" class={typeConfig.extraClass}>
             {typeConfig.label}
@@ -124,7 +124,7 @@
             <span class="text-xs font-medium text-[var(--apollia-success)]">{pingResult}ms</span>
           {/if}
           {#if pingError}
-            <span class="text-xs text-[hsl(var(--destructive))]">{pingError}</span>
+            <span class="text-xs text-destructive">{pingError}</span>
           {/if}
         </div>
       </div>

@@ -3,7 +3,6 @@
   import { agents } from "$lib/stores/agents";
   import { tasks } from "$lib/stores/tasks";
 
-  /** Return a time-of-day i18n key based on current hour. */
   function greetingKey(): string {
     const hour = new Date().getHours();
     if (hour < 12) return "dashboard.greeting_morning";
@@ -23,14 +22,19 @@
   });
 </script>
 
-<div class="space-y-1" data-testid="dashboard-header">
-  <h1 class="text-2xl font-bold" data-testid="dashboard-greeting">
-    {$t(greetingKey())}
-  </h1>
-  <p class="text-sm text-muted-foreground" data-testid="dashboard-subtitle">
-    {$t('dashboard.subtitle')}
-  </p>
-  <p class="text-xs text-muted-foreground" data-testid="dashboard-summary">
-    {$t('dashboard.summary', { values: { agents: activeCount, tasks: todayTaskCount() } })}
-  </p>
+<div class="flex items-end justify-between" data-testid="dashboard-header">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight" data-testid="dashboard-greeting">
+      {$t(greetingKey())}
+    </h1>
+    <p class="mt-1 text-sm text-muted-foreground" data-testid="dashboard-subtitle">
+      {$t('dashboard.subtitle')}
+    </p>
+  </div>
+  <div class="flex items-center gap-1.5 rounded-full glass-surface glass-border-subtle px-3 py-1.5">
+    <span class="inline-flex h-1.5 w-1.5 rounded-full bg-success"></span>
+    <span class="text-xs text-muted-foreground" data-testid="dashboard-summary">
+      {$t('dashboard.summary', { values: { agents: activeCount, tasks: todayTaskCount() } })}
+    </span>
+  </div>
 </div>

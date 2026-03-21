@@ -135,7 +135,7 @@
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div class="space-y-1">
-      <h1 class="text-2xl font-bold" data-testid="triggers-header">{$t('triggers.title')}</h1>
+      <h1 class="text-2xl font-semibold" data-testid="triggers-header">{$t('triggers.title')}</h1>
       <p class="text-sm text-muted-foreground" data-testid="triggers-subtitle">{$t('triggers.subtitle')}</p>
     </div>
     <div class="flex items-center gap-2">
@@ -165,7 +165,7 @@
     <div
       class="rounded-md border px-4 py-2 text-sm {toast.type === 'success'
         ? 'border-[var(--apollia-success)] bg-[var(--apollia-success)]/10 text-[var(--apollia-success)]'
-        : 'border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 text-[hsl(var(--destructive))]'}"
+        : 'border-destructive bg-destructive/10 text-destructive'}"
       data-testid="triggers-toast"
     >
       {toast.message}
@@ -175,7 +175,7 @@
   <!-- Reload error -->
   {#if reloadError && !toast}
     <div
-      class="rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 px-4 py-2 text-sm text-[hsl(var(--destructive))]"
+      class="rounded-md border border-destructive bg-destructive/10 px-4 py-2 text-sm text-destructive"
     >
       {reloadError}
     </div>
@@ -199,7 +199,7 @@
             onclick={navigateToAgents}
             data-testid="trigger-agent-link-{agentName}"
           >
-            <h2 class="text-lg font-semibold">{agentName}</h2>
+            <h2 class="text-lg font-medium">{agentName}</h2>
             <span class="text-xs text-muted-foreground hover:underline">
               {$t('triggers.view_agent')} &rarr;
             </span>
@@ -270,7 +270,7 @@
       onkeydown={(e) => e.key === "Escape" && handleCancelDelete()}
       data-testid="delete-trigger-dialog"
     >
-      <h3 class="mb-2 text-lg font-semibold">{$t('triggers.delete_confirm_title')}</h3>
+      <h3 class="mb-2 text-lg font-medium">{$t('triggers.delete_confirm_title')}</h3>
       <p class="mb-4 text-sm text-muted-foreground">
         {$t('triggers.delete_confirm_message', { values: { id: deleteTriggerId } })}
       </p>

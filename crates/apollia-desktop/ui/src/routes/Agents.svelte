@@ -88,7 +88,7 @@
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div class="space-y-1">
-      <h1 class="text-2xl font-bold" data-testid="agents-header">{$t('agents.title')}</h1>
+      <h1 class="text-2xl font-semibold" data-testid="agents-header">{$t('agents.title')}</h1>
       <p class="text-sm text-muted-foreground" data-testid="agents-subtitle">{$t('agents.subtitle')}</p>
     </div>
     <Button onclick={pickAndInstallAgent} disabled={installingAgent} data-testid="install-agent-button">
@@ -99,7 +99,7 @@
   <MacSandboxBanner />
 
   {#if installError}
-    <div class="rounded-md border border-[hsl(var(--destructive))] bg-[hsl(var(--destructive))]/10 px-4 py-2 text-sm text-[hsl(var(--destructive))]">
+    <div class="rounded-md border border-destructive bg-destructive/10 px-4 py-2 text-sm text-destructive">
       {installError}
     </div>
   {/if}

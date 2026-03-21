@@ -34,13 +34,13 @@
 </script>
 
 <div
-  class="my-1.5 rounded-xl border border-[hsl(var(--warning))]/40 bg-[hsl(var(--warning))]/5 backdrop-blur-sm px-3 py-2.5 text-xs"
+  class="my-1.5 rounded-xl border border-warning/40 bg-warning/5 backdrop-blur-sm px-3 py-2.5 text-xs"
   data-testid="approval-card-{toolName}"
   transition:slide={{ duration: 200 }}
 >
   <div class="flex items-center gap-2 font-medium text-foreground">
-    <div class="flex h-6 w-6 items-center justify-center rounded-lg bg-[hsl(var(--warning))]/10">
-      <ShieldAlert class="h-3.5 w-3.5 text-[hsl(var(--warning))]" />
+    <div class="flex h-6 w-6 items-center justify-center rounded-lg bg-warning/10">
+      <ShieldAlert class="h-3.5 w-3.5 text-warning" />
     </div>
     <span>{$t("chat.authorize_tool")} <strong>{toolName}</strong> ?</span>
   </div>
@@ -48,13 +48,13 @@
   <pre class="mt-2 whitespace-pre-wrap break-all rounded-lg glass-inset p-2 font-mono text-[10px] text-muted-foreground">{inputPreview}</pre>
 
   {#if error}
-    <p class="mt-1.5 text-[10px] text-[hsl(var(--destructive))]">{error}</p>
+    <p class="mt-1.5 text-[10px] text-destructive">{error}</p>
   {/if}
 
   <div class="mt-2.5 flex gap-2">
     <button
       class="rounded-lg px-3 py-1.5 text-[11px] font-medium text-white transition-all
-        bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/80 hover:shadow-sm
+        bg-success hover:bg-success/80 hover:shadow-sm
         active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
       disabled={isProcessing}
       onclick={() => handleDecision("accept")}
@@ -64,7 +64,7 @@
     </button>
     <button
       class="rounded-lg px-3 py-1.5 text-[11px] font-medium text-white transition-all
-        bg-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive))]/80 hover:shadow-sm
+        bg-destructive hover:bg-destructive/80 hover:shadow-sm
         active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
       disabled={isProcessing}
       onclick={() => handleDecision("refuse")}
@@ -74,7 +74,7 @@
     </button>
     <button
       class="rounded-lg px-3 py-1.5 text-[11px] font-medium text-white transition-all
-        bg-gradient-to-r from-primary to-secondary hover:shadow-sm
+        bg-primary hover:bg-primary/90
         active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
       disabled={isProcessing}
       onclick={() => handleDecision("always_accept")}

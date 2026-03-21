@@ -133,19 +133,19 @@
                 data-testid="config-backend-{backend.name}"
               >
                 <div class="flex h-7 w-7 items-center justify-center rounded-lg
-                  {backend.backend_type === 'embedded' ? 'bg-[hsl(var(--success))]/10' : 'bg-primary/10'}">
-                  <Cpu class="h-3.5 w-3.5 {backend.backend_type === 'embedded' ? 'text-[hsl(var(--success))]' : 'text-primary'}" />
+                  {backend.backend_type === 'embedded' ? 'bg-success/10' : 'bg-primary/10'}">
+                  <Cpu class="h-3.5 w-3.5 {backend.backend_type === 'embedded' ? 'text-success' : 'text-primary'}" />
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-medium truncate">{backend.name}</p>
                   <p class="text-[10px] text-muted-foreground/60 truncate">{backend.model}</p>
                 </div>
                 {#if backend.status === "ready"}
-                  <span class="h-2 w-2 rounded-full bg-[hsl(var(--success))]"></span>
+                  <span class="h-2 w-2 rounded-full bg-success"></span>
                 {:else if backend.status === "loading"}
-                  <span class="h-2 w-2 rounded-full bg-[hsl(var(--warning))] animate-pulse"></span>
+                  <span class="h-2 w-2 rounded-full bg-warning animate-pulse"></span>
                 {:else}
-                  <span class="h-2 w-2 rounded-full bg-[hsl(var(--destructive))]"></span>
+                  <span class="h-2 w-2 rounded-full bg-destructive"></span>
                 {/if}
               </button>
             {/each}
@@ -221,7 +221,7 @@
       <!-- Save error -->
       {#if saveError}
         <div class="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 animate-fade-in">
-          <p class="text-sm text-[hsl(var(--destructive))]" data-testid="config-error">{saveError}</p>
+          <p class="text-sm text-destructive" data-testid="config-error">{saveError}</p>
         </div>
       {/if}
     </div>

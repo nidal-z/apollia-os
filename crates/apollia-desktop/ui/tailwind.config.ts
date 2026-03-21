@@ -51,12 +51,6 @@ const config: Config = {
           DEFAULT: "hsl(var(--success))",
           foreground: "hsl(var(--success-foreground))",
         },
-        apollia: {
-          blue: "#3435f5",
-          violet: "#7c5fd6",
-          green: "#64d971",
-          cream: "#f5f4ed",
-        },
       },
       backdropBlur: {
         xs: "2px",
@@ -65,6 +59,9 @@ const config: Config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      transitionTimingFunction: {
+        apple: "cubic-bezier(0.2, 0, 0, 1)",
       },
     },
   },

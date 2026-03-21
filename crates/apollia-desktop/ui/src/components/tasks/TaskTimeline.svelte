@@ -123,7 +123,7 @@
   {#if loading}
     <p class="text-sm text-muted-foreground">{$t('tasks.loading_timeline')}</p>
   {:else if error}
-    <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
+    <p class="text-sm text-destructive">{error}</p>
   {:else if events.length === 0}
     <p class="text-sm text-muted-foreground">{$t('tasks.no_timeline')}</p>
   {:else}

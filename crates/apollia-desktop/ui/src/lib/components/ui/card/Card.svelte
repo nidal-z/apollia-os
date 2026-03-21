@@ -4,13 +4,18 @@
 
   interface Props extends HTMLAttributes<HTMLDivElement> {
     class?: string;
+    interactive?: boolean;
   }
 
-  let { class: className = "", children, ...restProps }: Props = $props();
+  let { class: className = "", interactive = false, children, ...restProps }: Props = $props();
 </script>
 
 <div
-  class={cn("glass-card glass-border rounded-xl text-card-foreground transition-all duration-300 hover:shadow-[0_8px_40px_-8px_rgba(52,53,245,0.13)] hover:-translate-y-0.5", className)}
+  class={cn(
+    interactive ? "glass-card-hover" : "glass-card",
+    "glass-border rounded-xl text-card-foreground",
+    className
+  )}
   {...restProps}
 >
   {@render children?.()}

@@ -95,7 +95,7 @@
       <!-- 1. Header: agent name + badge + duration + timestamp -->
       <div class="flex items-center justify-between px-4 py-3" data-testid="task-detail-header">
         <div class="flex items-center gap-2 min-w-0">
-          <h2 class="truncate text-lg font-semibold" data-testid="task-detail-title">
+          <h2 class="truncate text-lg font-medium" data-testid="task-detail-title">
             {task.agent_name || task.agent_id}
           </h2>
           <Badge
@@ -122,7 +122,7 @@
         <div class="space-y-4">
           <!-- 2. Input section (collapse if > 3 lines) -->
           <section data-testid="task-detail-input">
-            <h3 class="mb-1 text-sm font-semibold">
+            <h3 class="mb-1 text-sm font-medium">
               {$t('tasks.input')}
               {#if inputTruncated}
                 <Badge variant="outline" class="ml-2 text-[10px]">[TRONQUE]</Badge>
@@ -160,7 +160,7 @@
             <Separator />
 
             <section class="flex-1" data-testid="task-detail-result">
-              <h3 class="mb-1 text-sm font-semibold">
+              <h3 class="mb-1 text-sm font-medium">
                 {$t('tasks.result')}
                 {#if outputTruncated}
                   <Badge variant="outline" class="ml-2 text-[10px]">[TRONQUE]</Badge>
@@ -186,7 +186,7 @@
               </div>
 
               <div data-testid="task-timeline-section">
-                <h4 class="mb-2 text-sm font-semibold">{$t('tasks.timeline')}</h4>
+                <h4 class="mb-2 text-sm font-medium">{$t('tasks.timeline')}</h4>
                 <TaskTimeline taskId={taskId} isRunning={isRunning} />
               </div>
             </div>

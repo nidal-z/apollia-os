@@ -208,7 +208,7 @@
         {@const value = parsed.data[key]}
 
         {#if renderer === "heading"}
-          <h2 class="text-lg font-semibold" data-testid="smart-output-heading">
+          <h2 class="text-lg font-medium" data-testid="smart-output-heading">
             {String(value)}
           </h2>
         {:else if renderer === "paragraph"}
@@ -321,7 +321,7 @@
           </thead>
           <tbody>
             {#each parsed.data as row, i}
-              <tr class={cn("border-b last:border-b-0", i % 2 === 1 && "bg-[rgba(52,53,245,0.02)] dark:bg-[rgba(124,95,214,0.03)]")}>
+              <tr class={cn("border-b last:border-b-0", i % 2 === 1 && "bg-muted/30")}>
                 {#each columns as col}
                   <td class="px-3 py-2">{cellValue(row, col)}</td>
                 {/each}

@@ -45,7 +45,7 @@
   <!-- Header -->
   <div>
     <div class="flex items-center gap-3">
-      <h1 class="text-2xl font-bold" data-testid="approvals-header">{$t('approvals.title')}</h1>
+      <h1 class="text-2xl font-semibold" data-testid="approvals-header">{$t('approvals.title')}</h1>
       {#if $pendingCount > 0}
         <Badge variant="destructive" data-testid="approvals-pending-count">{$t('approvals.pending_count', { values: { count: $pendingCount } })}</Badge>
       {/if}
@@ -60,11 +60,11 @@
       <Skeleton width="60%" height="1rem" />
     </div>
   {:else if error}
-    <p class="text-sm text-[hsl(var(--destructive))]">{error}</p>
+    <p class="text-sm text-destructive">{error}</p>
   {:else}
     <!-- Pending approvals section -->
     <section>
-      <h2 class="mb-3 text-lg font-semibold" data-testid="approvals-pending-title">{$t('approvals.pending_title')}</h2>
+      <h2 class="mb-3 text-lg font-medium" data-testid="approvals-pending-title">{$t('approvals.pending_title')}</h2>
       {#if $pendingApprovals.length === 0}
         <EmptyState
           icon={ShieldCheck}
@@ -87,7 +87,7 @@
 
     <!-- History section -->
     <section>
-      <h2 class="mb-3 text-lg font-semibold">{$t('approvals.history_title')}</h2>
+      <h2 class="mb-3 text-lg font-medium">{$t('approvals.history_title')}</h2>
       <ApprovalHistory {history} />
     </section>
   {/if}

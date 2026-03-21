@@ -1,15 +1,16 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { Bot, MessageSquare } from "lucide-svelte";
+  import { Bot, MessageSquare, Trash2 } from "lucide-svelte";
   import type { ChatSessionSummary } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
 
   interface Props {
     session: ChatSessionSummary;
     onclick: (id: string) => void;
+    ondelete?: (id: string) => void;
   }
 
-  let { session, onclick }: Props = $props();
+  let { session, onclick, ondelete }: Props = $props();
 
   const isClosed = $derived(session.status === "closed");
 
@@ -51,22 +52,38 @@
         : session.last_message_preview
       : $t("chat.no_messages"),
   );
+
+  function handleDelete(event: MouseEvent) {
+    event.stopPropagation();
+    ondelete?.(session.id);
+  }
 </script>
 
 <button
-  class="group w-full rounded-xl glass-card glass-border border p-4 text-left
-    transition-all hover:shadow-lg hover:scale-[1.01] active:scale-[0.99]
+  class="group relative w-full rounded-lg border border-border bg-card p-4 text-left
+    transition-shadow duration-200 hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-[0.99]
     {isClosed ? 'opacity-55' : ''}"
   data-testid="chat-session-card-{session.id}"
   onclick={() => onclick(session.id)}
 >
+  {#if ondelete}
+    <button
+      class="absolute right-3 top-3 hidden rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors group-hover:block"
+      onclick={handleDelete}
+      title={$t("common.delete")}
+      data-testid="chat-session-delete-{session.id}"
+    >
+      <Trash2 size={14} />
+    </button>
+  {/if}
+
   <div class="flex items-start justify-between gap-2">
     <div class="flex items-center gap-2.5">
-      <div class="flex h-7 w-7 items-center justify-center rounded-lg glass-inset">
+      <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-muted">
         {#if session.mode === "agent"}
           <Bot class="h-3.5 w-3.5 text-primary" />
         {:else}
-          <MessageSquare class="h-3.5 w-3.5 text-secondary" />
+          <MessageSquare class="h-3.5 w-3.5 text-muted-foreground" />
         {/if}
       </div>
       <div class="flex items-center gap-2">
@@ -83,7 +100,7 @@
 
   <p class="mt-2.5 text-xs text-muted-foreground line-clamp-2">{preview}</p>
 
-  <div class="mt-2.5 flex items-center justify-between text-[11px] text-muted-foreground/60">
+  <div class="mt-2.5 flex items-center justify-between text-[11px] text-muted-foreground/50">
     <span>{$t("chat.message_count", { values: { n: session.message_count ?? 0 } })}</span>
     <span>{relativeTime}</span>
   </div>
