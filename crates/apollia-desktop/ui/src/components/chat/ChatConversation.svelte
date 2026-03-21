@@ -48,6 +48,9 @@
   let unlistenToken: UnlistenFn | undefined;
   let unlistenChanged: UnlistenFn | undefined;
 
+  /** Name of the tool currently being executed (null = no tool running). */
+  let activeToolName = $state<string | null>(null);
+
   onMount(async () => {
     await loadSession();
 
@@ -55,6 +58,7 @@
       "chat-token",
       (event) => {
         if (event.payload.session_id !== sessionId) return;
+        activeToolName = null;
         tokenBuffer += event.payload.token;
         isStreaming = true;
         isProcessing = false;
@@ -62,12 +66,39 @@
       },
     );
 
-    unlistenChanged = await listen<{ category: string }>(
+    unlistenChanged = await listen<{ category: string; event_type: string; payload: Record<string, unknown> }>(
       "runtime-event",
       (event) => {
-        if (event.payload.category === "chat-changed") {
-          void refreshSession();
+        if (event.payload.category !== "chat-changed") return;
+
+        const evt = event.payload;
+
+        // Tool call lifecycle — show/hide tool indicator during ReAct loop
+        if (evt.event_type === "ChatToolCallStarted") {
+          const p = evt.payload as { session_id?: string; tool_name?: string };
+          if (p.session_id === sessionId) {
+            activeToolName = p.tool_name ?? null;
+            scrollToBottom();
+          }
+          return;
         }
+        if (evt.event_type === "ChatToolCallCompleted") {
+          const p = evt.payload as { session_id?: string };
+          if (p.session_id === sessionId) {
+            activeToolName = null;
+          }
+          return;
+        }
+
+        // ChatResponseCompleted signals the end of streaming — transition
+        // gracefully from streamed tokens to persisted message.
+        if (evt.event_type === "ChatResponseCompleted") {
+          void finalizeStreaming();
+          return;
+        }
+
+        // Other chat-changed events (session created/closed, approval, etc.)
+        void refreshSession();
       },
     );
   });
@@ -98,14 +129,30 @@
     try {
       const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
       applySessionDetail(detail);
-      if (isStreaming) {
-        isStreaming = false;
-        tokenBuffer = "";
-        chatTokenBuffer.set("");
-      }
       scrollToBottom();
     } catch {
       // Session may have been deleted — close view
+    }
+  }
+
+  /// Graceful transition from streaming to persisted state.
+  /// Waits a short tick so the last streamed tokens render, then
+  /// refreshes the session from SQLite (which now has the full message).
+  async function finalizeStreaming(): Promise<void> {
+    // Small delay so the user sees the last tokens before the UI swaps
+    // from the streaming bubble to the persisted message bubble.
+    await new Promise((r) => setTimeout(r, 80));
+    isStreaming = false;
+    isProcessing = false;
+    tokenBuffer = "";
+    chatTokenBuffer.set("");
+
+    try {
+      const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
+      applySessionDetail(detail);
+      scrollToBottom();
+    } catch {
+      // Session may have been deleted
     }
   }
 
@@ -251,6 +298,16 @@
           <div class="flex justify-start" data-testid="chat-message-streaming">
             <div class="max-w-[75%] rounded-xl glass-card px-4 py-2.5 text-sm text-foreground">
               <StreamingText text={tokenBuffer} />
+            </div>
+          </div>
+        {/if}
+
+        <!-- Tool execution indicator (visible during ReAct loop tool calls) -->
+        {#if activeToolName}
+          <div class="flex justify-start" data-testid="chat-tool-executing">
+            <div class="flex items-center gap-2 rounded-xl glass-inset px-3 py-1.5 text-xs text-muted-foreground">
+              <Loader2 class="h-3 w-3 animate-spin" />
+              <span>{$t("chat.tool_executing", { values: { tool: activeToolName } })}</span>
             </div>
           </div>
         {/if}

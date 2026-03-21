@@ -245,6 +245,13 @@ impl BuiltInChatAgent {
         };
 
         let tool_specs = build_tool_specs(available_tools, &self.tool_registry).await;
+        info!(
+            session_id = %session_id,
+            available = available_tools.len(),
+            resolved = tool_specs.len(),
+            tool_names = ?tool_specs.iter().map(|s| &s.name).collect::<Vec<_>>(),
+            "Chat ReAct loop: tool specs resolved"
+        );
         let mut llm_messages = build_llm_messages(effective_prompt, history, user_message);
         let mut all_tool_calls: Vec<ToolCallRecord> = Vec::new();
         let mut newly_authorized: Vec<String> = Vec::new();

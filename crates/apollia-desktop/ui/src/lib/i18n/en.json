@@ -725,6 +725,7 @@
     "first_message_placeholder": "Send your first message...",
     "agent_processing": "Agent processing...",
     "thinking": "Thinking...",
+    "tool_executing": "Executing {tool}...",
     "config_title": "Configuration",
     "config_save": "Apply",
     "config_hint": "Configure tools and instructions",

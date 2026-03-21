@@ -9,14 +9,16 @@
 use std::pin::Pin;
 use std::time::Instant;
 
+use std::collections::HashMap;
+
 use async_openai::{
     config::OpenAIConfig,
     types::{
         ChatCompletionMessageToolCall, ChatCompletionRequestAssistantMessageArgs,
         ChatCompletionRequestMessage, ChatCompletionRequestSystemMessageArgs,
         ChatCompletionRequestToolMessageArgs, ChatCompletionRequestUserMessageArgs,
-        ChatCompletionTool, ChatCompletionToolType, CreateChatCompletionRequestArgs, FunctionCall,
-        FunctionObject,
+        ChatCompletionResponseStream, ChatCompletionTool, ChatCompletionToolType,
+        CreateChatCompletionRequestArgs, FunctionCall, FunctionObject,
     },
     Client,
 };
@@ -262,22 +264,116 @@ impl CompletionModel for OpenAICompatibleClient {
             .await
             .map_err(map_openai_error)?;
 
-        let mapped = sse_stream.filter_map(|result| async move {
-            match result {
-                Ok(response) => {
-                    let chunk = response
-                        .choices
-                        .into_iter()
-                        .next()
-                        .and_then(|c| c.delta.content)
-                        .unwrap_or_default();
-                    if chunk.is_empty() {
-                        None
+        // OpenAI streams tool calls as fragments across multiple SSE chunks,
+        // keyed by `index`.  Text tokens are emitted immediately.  Tool call
+        // fragments are accumulated and flushed when the SSE stream ends.
+        //
+        // State transitions: Streaming → Flushing → Done.
+        let state = OpenAIStreamState::Streaming {
+            inner: sse_stream,
+            pending: HashMap::new(),
+        };
+
+        let mapped = futures::stream::unfold(state, |state| async move {
+            match state {
+                OpenAIStreamState::Done => None,
+                OpenAIStreamState::Flushing { mut remaining } => {
+                    if let Some(call) = remaining.pop() {
+                        Some((Ok(StreamChunk::ToolCall(call)), OpenAIStreamState::Flushing { remaining }))
                     } else {
-                        Some(Ok(StreamChunk::Text(chunk)))
+                        None
                     }
                 }
-                Err(e) => Some(Err(map_openai_error(e))),
+                OpenAIStreamState::Streaming {
+                    mut inner,
+                    mut pending,
+                } => {
+                    loop {
+                        match inner.next().await {
+                            Some(Ok(response)) => {
+                                let choice = match response.choices.into_iter().next() {
+                                    Some(c) => c,
+                                    None => continue,
+                                };
+
+                                // Accumulate tool call fragments
+                                if let Some(tc_chunks) = choice.delta.tool_calls {
+                                    for tc in tc_chunks {
+                                        let entry = pending
+                                            .entry(tc.index)
+                                            .or_insert_with(PartialToolCall::default);
+                                        if let Some(id) = tc.id {
+                                            entry.id = id;
+                                        }
+                                        if let Some(func) = tc.function {
+                                            if let Some(name) = func.name {
+                                                entry.name = name;
+                                            }
+                                            if let Some(args) = func.arguments {
+                                                entry.arguments.push_str(&args);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Emit text tokens immediately
+                                let text = choice.delta.content.unwrap_or_default();
+                                if !text.is_empty() {
+                                    return Some((
+                                        Ok(StreamChunk::Text(text)),
+                                        OpenAIStreamState::Streaming { inner, pending },
+                                    ));
+                                }
+
+                                continue;
+                            }
+                            Some(Err(e)) => {
+                                return Some((
+                                    Err(map_openai_error(e)),
+                                    OpenAIStreamState::Done,
+                                ));
+                            }
+                            None => {
+                                // SSE stream ended — flush accumulated tool calls
+                                if pending.is_empty() {
+                                    return None;
+                                }
+                                let mut calls: Vec<(u32, PartialToolCall)> =
+                                    pending.into_iter().collect();
+                                calls.sort_by_key(|(idx, _)| *idx);
+
+                                let mut tool_calls: Vec<ToolCall> = calls
+                                    .into_iter()
+                                    .map(|(_, partial)| {
+                                        let arguments =
+                                            serde_json::from_str(&partial.arguments)
+                                                .unwrap_or(serde_json::Value::Null);
+                                        ToolCall {
+                                            id: partial.id,
+                                            name: partial.name,
+                                            arguments,
+                                        }
+                                    })
+                                    .collect();
+
+                                // Reverse so we can pop from the end in order
+                                tool_calls.reverse();
+                                let first = tool_calls.pop();
+                                match first {
+                                    Some(call) => {
+                                        return Some((
+                                            Ok(StreamChunk::ToolCall(call)),
+                                            OpenAIStreamState::Flushing {
+                                                remaining: tool_calls,
+                                            },
+                                        ));
+                                    }
+                                    None => return None,
+                                }
+                            }
+                        }
+                    }
+                }
             }
         });
 
@@ -419,6 +515,32 @@ fn map_openai_error(err: async_openai::error::OpenAIError) -> LlmError {
         },
         other => LlmError::InferenceError(other.to_string()),
     }
+}
+
+/// State machine for the OpenAI streaming response.
+///
+/// Tool call fragments are accumulated during `Streaming` and flushed as
+/// `StreamChunk::ToolCall` items during `Flushing`.
+enum OpenAIStreamState {
+    /// Reading SSE chunks from the inner stream.
+    Streaming {
+        inner: ChatCompletionResponseStream,
+        pending: HashMap<u32, PartialToolCall>,
+    },
+    /// SSE stream ended — emitting accumulated tool calls one by one.
+    Flushing {
+        remaining: Vec<ToolCall>,
+    },
+    /// Fully consumed.
+    Done,
+}
+
+/// Accumulated fragments for a single tool call during OpenAI streaming.
+#[derive(Default)]
+struct PartialToolCall {
+    id: String,
+    name: String,
+    arguments: String,
 }
 
 /// Estime le coût en USD à partir du nombre de tokens consommés.

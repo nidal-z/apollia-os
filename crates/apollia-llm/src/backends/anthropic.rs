@@ -553,24 +553,36 @@ fn estimate_cost_usd(model: &str, prompt_tokens: u32, completion_tokens: u32) ->
     Some(prompt_tokens as f64 * prompt_rate + completion_tokens as f64 * completion_rate)
 }
 
-/// Convertit un stream de bytes en stream de chunks texte SSE Anthropic.
+/// Convertit un stream de bytes en stream de chunks SSE Anthropic.
 ///
 /// Parse les événements SSE ligne par ligne :
-/// - `content_block_delta` avec `delta.type = "text_delta"` → émet `delta.text`
+/// - `content_block_delta` avec `delta.type = "text_delta"` → émet `StreamChunk::Text`
+/// - `content_block_start` avec `type = "tool_use"` → enregistre id + name
+/// - `content_block_delta` avec `delta.type = "input_json_delta"` → accumule les arguments JSON
+/// - `content_block_stop` → émet `StreamChunk::ToolCall` si un outil était en cours
 /// - `message_stop` → termine le stream
-/// - Tous les autres événements sont silencieusement ignorés
 fn parse_sse_stream(
     byte_stream: Pin<Box<dyn Stream<Item = Result<Vec<u8>, LlmError>> + Send>>,
 ) -> impl Stream<Item = Result<StreamChunk, LlmError>> + Send {
+    /// In-progress tool call being assembled from SSE fragments.
+    struct PendingToolCall {
+        id: String,
+        name: String,
+        arguments_json: String,
+    }
+
     struct SseState {
         stream: Pin<Box<dyn Stream<Item = Result<Vec<u8>, LlmError>> + Send>>,
         buffer: Vec<u8>,
+        /// Tool call currently being accumulated (one at a time).
+        pending_tool: Option<PendingToolCall>,
     }
 
     futures::stream::unfold(
         SseState {
             stream: byte_stream,
             buffer: Vec::new(),
+            pending_tool: None,
         },
         |mut state| async move {
             loop {
@@ -589,23 +601,83 @@ fn parse_sse_stream(
                         if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
                             match json.get("type").and_then(|t| t.as_str()) {
                                 Some("message_stop") => return None,
+
+                                // Text token — emit immediately
                                 Some("content_block_delta") => {
-                                    let is_text_delta =
-                                        json.pointer("/delta/type").and_then(|t| t.as_str())
-                                            == Some("text_delta");
-                                    if is_text_delta {
-                                        if let Some(text) =
-                                            json.pointer("/delta/text").and_then(|t| t.as_str())
-                                        {
-                                            if !text.is_empty() {
-                                                return Some((
-                                                    Ok(StreamChunk::Text(text.to_owned())),
-                                                    state,
-                                                ));
+                                    let delta_type =
+                                        json.pointer("/delta/type").and_then(|t| t.as_str());
+
+                                    match delta_type {
+                                        Some("text_delta") => {
+                                            if let Some(text) = json
+                                                .pointer("/delta/text")
+                                                .and_then(|t| t.as_str())
+                                            {
+                                                if !text.is_empty() {
+                                                    return Some((
+                                                        Ok(StreamChunk::Text(text.to_owned())),
+                                                        state,
+                                                    ));
+                                                }
                                             }
                                         }
+                                        // Tool call arguments arrive as JSON fragments
+                                        Some("input_json_delta") => {
+                                            if let Some(partial) =
+                                                json.pointer("/delta/partial_json")
+                                                    .and_then(|t| t.as_str())
+                                            {
+                                                if let Some(ref mut pending) = state.pending_tool {
+                                                    pending.arguments_json.push_str(partial);
+                                                }
+                                            }
+                                        }
+                                        _ => {}
                                     }
                                 }
+
+                                // Tool call starts — record id and name
+                                Some("content_block_start") => {
+                                    let block_type = json
+                                        .pointer("/content_block/type")
+                                        .and_then(|t| t.as_str());
+                                    if block_type == Some("tool_use") {
+                                        let id = json
+                                            .pointer("/content_block/id")
+                                            .and_then(|t| t.as_str())
+                                            .unwrap_or("")
+                                            .to_owned();
+                                        let name = json
+                                            .pointer("/content_block/name")
+                                            .and_then(|t| t.as_str())
+                                            .unwrap_or("")
+                                            .to_owned();
+                                        state.pending_tool = Some(PendingToolCall {
+                                            id,
+                                            name,
+                                            arguments_json: String::new(),
+                                        });
+                                    }
+                                }
+
+                                // Content block ends — emit tool call if one was pending
+                                Some("content_block_stop") => {
+                                    if let Some(pending) = state.pending_tool.take() {
+                                        let arguments = serde_json::from_str(
+                                            &pending.arguments_json,
+                                        )
+                                        .unwrap_or(serde_json::Value::Null);
+                                        return Some((
+                                            Ok(StreamChunk::ToolCall(ToolCall {
+                                                id: pending.id,
+                                                name: pending.name,
+                                                arguments,
+                                            })),
+                                            state,
+                                        ));
+                                    }
+                                }
+
                                 _ => {}
                             }
                         }
