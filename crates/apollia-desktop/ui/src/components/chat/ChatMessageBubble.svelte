@@ -27,9 +27,9 @@
   data-testid="chat-message-{message.id}"
 >
   <div
-    class="max-w-[75%] rounded-lg px-4 py-2.5 text-sm {isUser
-      ? 'glass-surface text-foreground'
-      : 'bg-background text-foreground border'}"
+    class="max-w-[75%] rounded-xl px-4 py-2.5 text-sm {isUser
+      ? 'bg-gradient-to-br from-primary/90 to-secondary/80 text-white shadow-md'
+      : 'glass-card glass-border border text-foreground'}"
   >
     {#if message.content}
       <p class="whitespace-pre-wrap break-words">{message.content}</p>
@@ -52,7 +52,7 @@
       </div>
     {/if}
 
-    <p class="mt-1 text-[10px] text-muted-foreground/60 {isUser ? 'text-right' : 'text-left'}">
+    <p class="mt-1 text-[10px] {isUser ? 'text-white/60 text-right' : 'text-muted-foreground/60 text-left'}">
       {formattedTime}
     </p>
   </div>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
+  import { Bot, MessageSquare } from "lucide-svelte";
   import type { ChatSessionSummary } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
 
@@ -53,26 +54,37 @@
 </script>
 
 <button
-  class="w-full rounded-lg border bg-background p-4 text-left transition-colors hover:bg-primary/5 {isClosed ? 'opacity-60' : ''}"
+  class="group w-full rounded-xl glass-card glass-border border p-4 text-left
+    transition-all hover:shadow-lg hover:scale-[1.01] active:scale-[0.99]
+    {isClosed ? 'opacity-55' : ''}"
   data-testid="chat-session-card-{session.id}"
   onclick={() => onclick(session.id)}
 >
   <div class="flex items-start justify-between gap-2">
-    <div class="flex items-center gap-2">
-      <Badge variant={modeBadgeVariant} class="text-[10px] px-1.5 py-0">
-        {session.mode === "agent" ? $t("chat.mode_agent") : $t("chat.mode_libre")}
-      </Badge>
-      <span class="text-sm font-medium">{subtitle}</span>
+    <div class="flex items-center gap-2.5">
+      <div class="flex h-7 w-7 items-center justify-center rounded-lg glass-inset">
+        {#if session.mode === "agent"}
+          <Bot class="h-3.5 w-3.5 text-primary" />
+        {:else}
+          <MessageSquare class="h-3.5 w-3.5 text-secondary" />
+        {/if}
+      </div>
+      <div class="flex items-center gap-2">
+        <Badge variant={modeBadgeVariant} class="text-[10px] px-1.5 py-0">
+          {session.mode === "agent" ? $t("chat.mode_agent") : $t("chat.mode_libre")}
+        </Badge>
+        <span class="text-sm font-medium">{subtitle}</span>
+      </div>
     </div>
     <Badge variant={statusBadgeVariant} class="text-[10px] px-1.5 py-0">
       {isClosed ? $t("chat.status_closed") : $t("chat.status_active")}
     </Badge>
   </div>
 
-  <p class="mt-2 text-xs text-muted-foreground line-clamp-2">{preview}</p>
+  <p class="mt-2.5 text-xs text-muted-foreground line-clamp-2">{preview}</p>
 
-  <div class="mt-2 flex items-center justify-between text-[11px] text-muted-foreground/60">
-    <span>{$t("chat.message_count", { values: { n: session.message_count } })}</span>
+  <div class="mt-2.5 flex items-center justify-between text-[11px] text-muted-foreground/60">
+    <span>{$t("chat.message_count", { values: { n: session.message_count ?? 0 } })}</span>
     <span>{relativeTime}</span>
   </div>
 </button>

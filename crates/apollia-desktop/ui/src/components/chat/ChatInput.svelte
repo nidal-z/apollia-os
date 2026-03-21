@@ -42,23 +42,30 @@
   });
 </script>
 
-<div class="flex items-end gap-2 border-t bg-background px-4 py-3" data-testid="chat-input">
-  <textarea
-    bind:this={textareaEl}
-    bind:value
-    oninput={autoResize}
-    onkeydown={handleKeydown}
-    {disabled}
-    rows="1"
-    placeholder={$t("chat.input_placeholder")}
-    class="flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
-  ></textarea>
-  <button
-    onclick={send}
-    disabled={disabled || !value.trim()}
-    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-white transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
-    data-testid="chat-send-button"
-  >
-    <Send class="h-4 w-4" />
-  </button>
+<div class="px-4 pb-4 pt-2" data-testid="chat-input">
+  <div class="flex items-end gap-2.5 rounded-2xl glass-card glass-border border px-3 py-2.5 shadow-lg">
+    <textarea
+      bind:this={textareaEl}
+      bind:value
+      oninput={autoResize}
+      onkeydown={handleKeydown}
+      {disabled}
+      rows="1"
+      placeholder={$t("chat.input_placeholder")}
+      class="flex-1 resize-none bg-transparent px-1.5 py-1 text-sm text-foreground
+        outline-none placeholder:text-muted-foreground/50
+        disabled:cursor-not-allowed disabled:opacity-50"
+    ></textarea>
+    <button
+      onclick={send}
+      disabled={disabled || !value.trim()}
+      class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl
+        bg-gradient-to-br from-primary to-secondary text-white shadow-md
+        transition-all hover:shadow-lg hover:scale-105 active:scale-95
+        disabled:pointer-events-none disabled:opacity-40 disabled:shadow-none"
+      data-testid="chat-send-button"
+    >
+      <Send class="h-4 w-4" />
+    </button>
+  </div>
 </div>

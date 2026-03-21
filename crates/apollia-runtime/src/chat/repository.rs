@@ -33,6 +33,8 @@ pub struct SessionRow {
     pub created_at: String,
     /// ISO-8601 close timestamp (nullable).
     pub closed_at: Option<String>,
+    /// Preferred LLM backend name (nullable — uses runtime default when None).
+    pub llm_backend: Option<String>,
 }
 
 /// Raw row from the `chat_messages` table.
@@ -94,6 +96,9 @@ impl ChatSessionRepository {
         conn.execute_batch(MIGRATION_SQL)
             .map_err(|e| ChatError::InternalError(format!("migration failed: {e}")))?;
 
+        // v2 migration: add llm_backend column for existing databases.
+        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN llm_backend TEXT");
+
         Ok(Self { conn })
     }
 
@@ -118,18 +123,67 @@ impl ChatSessionRepository {
         system_prompt: &str,
         available_tools: &[String],
         created_at: &str,
+        llm_backend: Option<&str>,
     ) -> Result<(), ChatError> {
         let tools_json = serde_json::to_string(available_tools)
             .map_err(|e| ChatError::InternalError(format!("tools serialization: {e}")))?;
 
         self.conn
             .execute(
-                "INSERT INTO chat_sessions (id, mode, agent_name, system_prompt, available_tools, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![id, mode.as_sql(), agent_name, system_prompt, tools_json, created_at],
+                "INSERT INTO chat_sessions (id, mode, agent_name, system_prompt, available_tools, created_at, llm_backend)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![id, mode.as_sql(), agent_name, system_prompt, tools_json, created_at, llm_backend],
             )
             .map_err(|e| ChatError::InternalError(format!("create_session: {e}")))?;
 
+        Ok(())
+    }
+
+    /// Update session configuration (system_prompt, available_tools, llm_backend).
+    ///
+    /// Only updates fields that are `Some`.
+    pub fn update_session_config(
+        &self,
+        id: &str,
+        system_prompt: Option<&str>,
+        available_tools: Option<&[String]>,
+        llm_backend: Option<Option<&str>>,
+    ) -> Result<(), ChatError> {
+        let mut parts = Vec::new();
+        let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+        if let Some(prompt) = system_prompt {
+            parts.push("system_prompt = ?");
+            values.push(Box::new(prompt.to_string()));
+        }
+        if let Some(tools) = available_tools {
+            let tools_json = serde_json::to_string(tools)
+                .map_err(|e| ChatError::InternalError(format!("tools serialization: {e}")))?;
+            parts.push("available_tools = ?");
+            values.push(Box::new(tools_json));
+        }
+        if let Some(backend) = llm_backend {
+            parts.push("llm_backend = ?");
+            values.push(Box::new(backend.map(|s| s.to_string())));
+        }
+
+        if parts.is_empty() {
+            return Ok(());
+        }
+
+        let set_clause = parts.join(", ");
+        let sql = format!("UPDATE chat_sessions SET {set_clause} WHERE id = ?");
+        values.push(Box::new(id.to_string()));
+
+        let params: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|v| v.as_ref()).collect();
+        let updated = self
+            .conn
+            .execute(&sql, params.as_slice())
+            .map_err(|e| ChatError::InternalError(format!("update_session_config: {e}")))?;
+
+        if updated == 0 {
+            return Err(ChatError::SessionNotFound(id.to_string()));
+        }
         Ok(())
     }
 
@@ -138,7 +192,7 @@ impl ChatSessionRepository {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend
                  FROM chat_sessions WHERE id = ?1",
             )
             .map_err(|e| ChatError::InternalError(format!("get_session prepare: {e}")))?;
@@ -154,6 +208,7 @@ impl ChatSessionRepository {
                     available_tools: row.get(5)?,
                     created_at: row.get(6)?,
                     closed_at: row.get(7)?,
+                    llm_backend: row.get(8)?,
                 })
             })
             .optional()
@@ -166,12 +221,12 @@ impl ChatSessionRepository {
     pub fn list_sessions(&self, status: Option<&str>) -> Result<Vec<SessionRow>, ChatError> {
         let (sql, param): (&str, Option<&str>) = match status {
             Some(s) => (
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend
                  FROM chat_sessions WHERE status = ?1 ORDER BY created_at DESC",
                 Some(s),
             ),
             None => (
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend
                  FROM chat_sessions ORDER BY created_at DESC",
                 None,
             ),
@@ -379,6 +434,7 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
         available_tools: row.get(5)?,
         created_at: row.get(6)?,
         closed_at: row.get(7)?,
+        llm_backend: row.get(8)?,
     })
 }
 
@@ -429,6 +485,7 @@ mod tests {
             "You are helpful.",
             &[],
             "2026-03-20T10:00:00Z",
+            None,
         )
         .expect("create");
 
@@ -456,6 +513,7 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
+            None,
         )
         .expect("create s1");
         repo.create_session(
@@ -465,6 +523,7 @@ mod tests {
             "",
             &[],
             "2026-03-20T11:00:00Z",
+            None,
         )
         .expect("create s2");
         repo.close_session("s2", "2026-03-20T12:00:00Z")
@@ -493,6 +552,7 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
+            None,
         )
         .expect("create");
 
@@ -529,6 +589,7 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
+            None,
         )
         .expect("create");
 
@@ -570,6 +631,7 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
+            None,
         )
         .expect("create");
 
@@ -609,6 +671,7 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
+            None,
         )
         .expect("create");
 
@@ -633,6 +696,7 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
+            None,
         )
         .expect("create");
         repo.authorize_tool("s1", "bash_executor", "2026-03-20T10:01:00Z")
@@ -658,6 +722,7 @@ mod tests {
             "",
             &["bash_executor".into(), "file_io".into()],
             "2026-03-20T10:00:00Z",
+            None,
         )
         .expect("create");
         repo.authorize_tool("s1", "bash_executor", "2026-03-20T10:01:00Z")
@@ -699,6 +764,7 @@ mod tests {
             "Review code.",
             &["bash_executor".to_string(), "file_io".to_string()],
             "2026-03-20T10:00:00Z",
+            None,
         )
         .expect("create");
 

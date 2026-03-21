@@ -245,6 +245,7 @@ fn main() {
             commands::chat::list_chat_sessions,
             commands::chat::get_chat_session,
             commands::chat::close_chat_session,
+            commands::chat::update_chat_session,
             commands::chat::send_chat_message,
             commands::chat::authorize_chat_tool,
         ])

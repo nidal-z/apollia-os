@@ -89,6 +89,19 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
+    /// Update session configuration (system_prompt, tools, llm_backend).
+    UpdateSession {
+        /// Target session.
+        session_id: SessionId,
+        /// New system prompt (if Some).
+        system_prompt: Option<String>,
+        /// New available tools (if Some).
+        available_tools: Option<Vec<String>>,
+        /// New LLM backend (if Some — inner None means "use default").
+        llm_backend: Option<Option<String>>,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
     /// Internal: ReAct exchange completed successfully (sent by spawned task).
     ExchangeComplete {
         /// Target session.
@@ -186,6 +199,21 @@ impl ChatSessionManager {
                     let result = self.handle_close_session(&session_id);
                     let _ = reply.send(result);
                 }
+                ChatCommand::UpdateSession {
+                    session_id,
+                    system_prompt,
+                    available_tools,
+                    llm_backend,
+                    reply,
+                } => {
+                    let result = self.handle_update_session(
+                        &session_id,
+                        system_prompt.as_deref(),
+                        available_tools.as_deref(),
+                        llm_backend.as_ref(),
+                    );
+                    let _ = reply.send(result);
+                }
                 ChatCommand::ExchangeComplete {
                     session_id,
                     message_id,
@@ -251,6 +279,7 @@ impl ChatSessionManager {
             &prompt,
             &tools,
             &now,
+            None,
         )?;
 
         // Build in-memory session
@@ -265,6 +294,7 @@ impl ChatSessionManager {
             available_tools: tools,
             created_at: now.clone(),
             active_exchange: None,
+            llm_backend: None,
         };
 
         let info = session_to_info(&session);
@@ -278,6 +308,50 @@ impl ChatSessionManager {
         });
 
         Ok(info)
+    }
+
+    /// Update session configuration.
+    fn handle_update_session(
+        &mut self,
+        session_id: &str,
+        system_prompt: Option<&str>,
+        available_tools: Option<&[String]>,
+        llm_backend: Option<&Option<String>>,
+    ) -> Result<(), ChatError> {
+        let session = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or_else(|| ChatError::SessionNotFound(session_id.to_string()))?;
+
+        if session.status == SessionStatus::Closed {
+            return Err(ChatError::SessionClosed(session_id.to_string()));
+        }
+
+        if session.status == SessionStatus::Processing {
+            return Err(ChatError::SessionBusy(session_id.to_string()));
+        }
+
+        // Persist to SQLite
+        self.repository.update_session_config(
+            session_id,
+            system_prompt,
+            available_tools,
+            llm_backend.map(|b| b.as_deref()),
+        )?;
+
+        // Update in-memory session
+        if let Some(prompt) = system_prompt {
+            session.system_prompt = prompt.to_string();
+        }
+        if let Some(tools) = available_tools {
+            session.available_tools = tools.to_vec();
+        }
+        if let Some(backend) = llm_backend {
+            session.llm_backend = backend.clone();
+        }
+
+        info!(session_id = %session_id, "chat session config updated");
+        Ok(())
     }
 
     /// Send a user message in a session (AC-4).
@@ -702,6 +776,7 @@ impl ChatSessionManager {
             available_tools,
             created_at: row.created_at,
             active_exchange: None,
+            llm_backend: row.llm_backend,
         };
 
         Some(SessionDetail {
@@ -796,6 +871,7 @@ impl ChatSessionManager {
                 available_tools,
                 created_at: row.created_at,
                 active_exchange: None,
+                llm_backend: row.llm_backend,
             };
             self.sessions.insert(row.id, session);
         }
@@ -925,6 +1001,31 @@ impl ChatSessionManagerHandle {
                 message_id,
                 tool_name,
                 decision,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// Update session configuration (system_prompt, tools, llm_backend).
+    pub async fn update_session(
+        &self,
+        session_id: SessionId,
+        system_prompt: Option<String>,
+        available_tools: Option<Vec<String>>,
+        llm_backend: Option<Option<String>>,
+    ) -> Result<(), ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::UpdateSession {
+                session_id,
+                system_prompt,
+                available_tools,
+                llm_backend,
                 reply: reply_tx,
             })
             .await
@@ -1324,6 +1425,7 @@ mod tests {
             available_tools: vec!["bash".into()],
             created_at: "2026-03-20T10:00:00Z".into(),
             active_exchange: None,
+            llm_backend: None,
         };
         manager.sessions.insert("sess-1".into(), session);
 

@@ -444,6 +444,7 @@ mod tests {
             available_tools: vec!["bash_executor".into()],
             created_at: "2026-03-20T10:00:00Z".into(),
             active_exchange: None,
+            llm_backend: None,
         }
     }
 
@@ -505,6 +506,7 @@ mod tests {
             available_tools: vec![],
             created_at: "2026-03-20T09:59:00Z".into(),
             active_exchange: None,
+            llm_backend: None,
         }
     }
 

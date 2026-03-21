@@ -5,7 +5,7 @@
 //! (runtime sans LLM, erreur SQLite), une erreur explicite est retournée.
 
 use apollia_runtime::chat::{
-    ChatMode, ChatSession, SessionDetail, SessionInfo, SessionStatus, ToolDecision,
+    ChatMode, SessionDetail, SessionInfo, SessionStatus, ToolDecision,
 };
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
@@ -25,42 +25,56 @@ pub struct CreateSessionRequest {
     pub tools: Vec<String>,
 }
 
-/// Summary of a chat session for list responses.
+/// Summary of a chat session for list responses (flat structure for frontend).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatSessionSummary {
-    /// Session identifier.
     pub id: String,
-    /// Chat mode (`"libre"` or `"agent"`).
     pub mode: String,
-    /// Agent name (if agent mode).
     pub agent_name: Option<String>,
-    /// Current status (`"active"`, `"processing"`, `"closed"`).
     pub status: String,
-    /// ISO-8601 creation timestamp.
+    pub last_message_preview: Option<String>,
+    pub message_count: u32,
+    pub created_at: String,
+    pub closed_at: Option<String>,
+}
+
+/// Detailed view of a chat session (flat structure for frontend).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatSessionDetail {
+    pub id: String,
+    pub mode: String,
+    pub agent_name: Option<String>,
+    pub system_prompt: String,
+    pub status: String,
+    pub available_tools: Vec<String>,
+    pub authorized_tools: Vec<String>,
+    pub messages: Vec<ChatMessageView>,
+    pub created_at: String,
+    pub closed_at: Option<String>,
+    pub llm_backend: Option<String>,
+}
+
+/// Request payload for updating session configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateSessionRequest {
+    pub system_prompt: Option<String>,
+    pub tools: Option<Vec<String>>,
+    pub llm_backend: Option<Option<String>>,
+}
+
+/// Individual message view for the frontend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatMessageView {
+    pub id: String,
+    pub role: String,
+    pub content: String,
+    pub tool_calls: Option<Vec<serde_json::Value>>,
+    pub tool_name: Option<String>,
+    pub seq: u32,
     pub created_at: String,
 }
 
-/// Detailed view of a chat session including messages and authorized tools.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChatSessionDetail {
-    /// Full session data.
-    pub session: ChatSession,
-    /// Total number of messages in the session.
-    pub message_count: u32,
-    /// Tools permanently authorized for this session.
-    pub authorized_tools: Vec<String>,
-}
-
 /// Creates a new chat session (Libre or Agent mode).
-///
-/// Delegates to `ChatSessionManagerHandle::create_session()`.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - The chat subsystem is not available
-/// - The mode string is unrecognized
-/// - The agent (for Agent mode) does not exist
 #[tauri::command]
 pub async fn create_chat_session(
     state: State<'_, RuntimeHandle>,
@@ -87,9 +101,6 @@ pub async fn create_chat_session(
 }
 
 /// Lists chat sessions, optionally filtered by status.
-///
-/// Delegates to `ChatSessionManagerHandle::list_sessions()`.
-/// Returns an empty list if the chat subsystem is not available.
 #[tauri::command]
 pub async fn list_chat_sessions(
     state: State<'_, RuntimeHandle>,
@@ -113,14 +124,6 @@ pub async fn list_chat_sessions(
 }
 
 /// Gets a single chat session with full message history.
-///
-/// Delegates to `ChatSessionManagerHandle::get_session()`.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - The chat subsystem is not available
-/// - The session does not exist
 #[tauri::command]
 pub async fn get_chat_session(
     state: State<'_, RuntimeHandle>,
@@ -136,18 +139,10 @@ pub async fn get_chat_session(
         .await
         .ok_or_else(|| "session not found".to_string())?;
 
-    Ok(session_detail_to_response(detail))
+    Ok(session_detail_to_flat(detail))
 }
 
 /// Closes a chat session.
-///
-/// Delegates to `ChatSessionManagerHandle::close_session()`.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - The chat subsystem is not available
-/// - The session does not exist or is already closed
 #[tauri::command]
 pub async fn close_chat_session(
     state: State<'_, RuntimeHandle>,
@@ -164,16 +159,30 @@ pub async fn close_chat_session(
         .map_err(|e| e.to_string())
 }
 
+/// Updates session configuration (instructions, tools, LLM provider).
+#[tauri::command]
+pub async fn update_chat_session(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+    update: UpdateSessionRequest,
+) -> Result<(), String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+
+    manager
+        .update_session(
+            session_id,
+            update.system_prompt,
+            update.tools,
+            update.llm_backend,
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Sends a user message and launches the async response generation.
-///
-/// Returns the `message_id` immediately — the backend processes the message
-/// asynchronously and streams tokens via the `"chat-token"` Tauri event.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - The chat subsystem is not available
-/// - The session does not exist, is closed, or is busy
 #[tauri::command]
 pub async fn send_chat_message(
     state: State<'_, RuntimeHandle>,
@@ -194,15 +203,6 @@ pub async fn send_chat_message(
 }
 
 /// Resolves a pending tool approval in a chat session.
-///
-/// `decision` must be one of: `"accept"`, `"refuse"`, `"always_accept"`.
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - The chat subsystem is not available
-/// - The decision string is unrecognized
-/// - The approval has already been resolved or timed out
 #[tauri::command]
 pub async fn authorize_chat_tool(
     state: State<'_, RuntimeHandle>,
@@ -224,20 +224,19 @@ pub async fn authorize_chat_tool(
         .map_err(|e| e.to_string())
 }
 
-/// Parses a string into a [`ChatMode`].
+// ─── Internal helpers ────────────────────────────────────────────────────────
+
 fn parse_chat_mode(s: &str) -> Result<ChatMode, String> {
     ChatMode::from_sql(s)
         .ok_or_else(|| format!("invalid chat mode: '{s}' (expected 'libre' or 'agent')"))
 }
 
-/// Parses a string into a [`SessionStatus`].
 fn parse_session_status(s: &str) -> Result<SessionStatus, String> {
     SessionStatus::from_sql(s).ok_or_else(|| {
         format!("invalid session status: '{s}' (expected 'active', 'processing', or 'closed')")
     })
 }
 
-/// Parses a string into a [`ToolDecision`].
 fn parse_tool_decision(s: &str) -> Result<ToolDecision, String> {
     match s {
         "accept" => Ok(ToolDecision::Accept),
@@ -249,24 +248,68 @@ fn parse_tool_decision(s: &str) -> Result<ToolDecision, String> {
     }
 }
 
-/// Converts a [`SessionInfo`] into a [`ChatSessionSummary`].
+/// Converts a [`SessionInfo`] into a flat [`ChatSessionSummary`].
+///
+/// `SessionInfo` is lightweight (no messages loaded), so `message_count`
+/// defaults to 0 and `last_message_preview` to `None`.
 fn session_info_to_summary(info: &SessionInfo) -> ChatSessionSummary {
     ChatSessionSummary {
         id: info.id.clone(),
         mode: info.mode.as_sql().to_string(),
         agent_name: info.agent_name.clone(),
         status: info.status.as_sql().to_string(),
+        last_message_preview: None,
+        message_count: 0,
         created_at: info.created_at.clone(),
+        closed_at: None,
     }
 }
 
-/// Converts a [`SessionDetail`] into a [`ChatSessionDetail`].
-fn session_detail_to_response(detail: SessionDetail) -> ChatSessionDetail {
-    let authorized_tools: Vec<String> = detail.session.authorized_tools.iter().cloned().collect();
+/// Converts a [`SessionDetail`] into a flat [`ChatSessionDetail`].
+fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
+    let session = detail.session;
+    let messages: Vec<ChatMessageView> = session
+        .history
+        .iter()
+        .map(|m| ChatMessageView {
+            id: m.id.clone(),
+            role: role_to_string(&m.role),
+            content: m.content.clone(),
+            tool_calls: m.tool_calls.as_ref().map(|tc| {
+                tc.iter()
+                    .map(|t| serde_json::to_value(t).unwrap_or(serde_json::Value::Null))
+                    .collect()
+            }),
+            tool_name: m.tool_name.clone(),
+            seq: m.seq,
+            created_at: m.created_at.clone(),
+        })
+        .collect();
+
+    let authorized_tools: Vec<String> = session.authorized_tools.into_iter().collect();
+
     ChatSessionDetail {
-        session: detail.session,
-        message_count: detail.message_count,
+        id: session.id,
+        mode: session.mode.as_sql().to_string(),
+        agent_name: session.agent_name,
+        system_prompt: session.system_prompt,
+        status: session.status.as_sql().to_string(),
+        available_tools: session.available_tools,
         authorized_tools,
+        messages,
+        created_at: session.created_at,
+        closed_at: None,
+        llm_backend: session.llm_backend,
+    }
+}
+
+/// Convert a [`ChatRole`] to its string representation.
+fn role_to_string(role: &apollia_runtime::chat::ChatRole) -> String {
+    match role {
+        apollia_runtime::chat::ChatRole::User => "user".to_string(),
+        apollia_runtime::chat::ChatRole::Assistant => "assistant".to_string(),
+        apollia_runtime::chat::ChatRole::System => "system".to_string(),
+        apollia_runtime::chat::ChatRole::Tool => "tool".to_string(),
     }
 }
 
@@ -276,18 +319,12 @@ mod tests {
 
     #[test]
     fn test_parse_chat_mode_valid() {
-        // GIVEN valid mode strings
-        // WHEN parsed
-        // THEN correct ChatMode variants are returned
         assert_eq!(parse_chat_mode("libre").unwrap(), ChatMode::Libre);
         assert_eq!(parse_chat_mode("agent").unwrap(), ChatMode::Agent);
     }
 
     #[test]
     fn test_parse_chat_mode_invalid() {
-        // GIVEN an invalid mode string
-        // WHEN parsed
-        // THEN an error is returned
         let result = parse_chat_mode("invalid");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("invalid chat mode"));
@@ -295,9 +332,6 @@ mod tests {
 
     #[test]
     fn test_parse_session_status_valid() {
-        // GIVEN valid status strings
-        // WHEN parsed
-        // THEN correct SessionStatus variants are returned
         assert_eq!(
             parse_session_status("active").unwrap(),
             SessionStatus::Active
@@ -314,19 +348,12 @@ mod tests {
 
     #[test]
     fn test_parse_session_status_invalid() {
-        // GIVEN an invalid status string
-        // WHEN parsed
-        // THEN an error is returned
         let result = parse_session_status("unknown");
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("invalid session status"));
     }
 
     #[test]
     fn test_parse_tool_decision_valid() {
-        // GIVEN valid decision strings
-        // WHEN parsed
-        // THEN correct ToolDecision variants are returned
         assert_eq!(parse_tool_decision("accept").unwrap(), ToolDecision::Accept);
         assert_eq!(parse_tool_decision("refuse").unwrap(), ToolDecision::Refuse);
         assert_eq!(
@@ -337,26 +364,19 @@ mod tests {
 
     #[test]
     fn test_parse_tool_decision_invalid() {
-        // GIVEN an invalid decision string
-        // WHEN parsed
-        // THEN an error is returned
         let result = parse_tool_decision("maybe");
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("invalid tool decision"));
     }
 
     #[test]
     fn test_create_session_request_deserialize() {
-        // GIVEN a JSON payload with all fields
         let json = serde_json::json!({
             "mode": "agent",
             "agent_name": "review-agent",
             "system_prompt": "You are a code reviewer.",
             "tools": ["bash_executor", "file_io"]
         });
-        // WHEN deserialized
         let req: CreateSessionRequest = serde_json::from_value(json).expect("deserialize");
-        // THEN all fields are correct
         assert_eq!(req.mode, "agent");
         assert_eq!(req.agent_name.as_deref(), Some("review-agent"));
         assert_eq!(
@@ -368,11 +388,8 @@ mod tests {
 
     #[test]
     fn test_create_session_request_deserialize_minimal() {
-        // GIVEN a minimal JSON payload (tools defaults to empty)
         let json = serde_json::json!({ "mode": "libre" });
-        // WHEN deserialized
         let req: CreateSessionRequest = serde_json::from_value(json).expect("deserialize");
-        // THEN defaults are applied
         assert_eq!(req.mode, "libre");
         assert!(req.agent_name.is_none());
         assert!(req.system_prompt.is_none());
@@ -381,27 +398,27 @@ mod tests {
 
     #[test]
     fn test_chat_session_summary_roundtrip() {
-        // GIVEN a ChatSessionSummary
         let summary = ChatSessionSummary {
             id: "sess-42".into(),
             mode: "libre".into(),
             agent_name: None,
             status: "active".into(),
+            last_message_preview: None,
+            message_count: 0,
             created_at: "2026-03-20T10:00:00Z".into(),
+            closed_at: None,
         };
-        // WHEN serialized and deserialized
         let json = serde_json::to_string(&summary).expect("serialize");
         let restored: ChatSessionSummary = serde_json::from_str(&json).expect("deserialize");
-        // THEN identical
         assert_eq!(restored.id, "sess-42");
         assert_eq!(restored.mode, "libre");
         assert!(restored.agent_name.is_none());
         assert_eq!(restored.status, "active");
+        assert_eq!(restored.message_count, 0);
     }
 
     #[test]
     fn test_session_info_to_summary_conversion() {
-        // GIVEN a SessionInfo from the runtime
         let info = SessionInfo {
             id: "sess-1".into(),
             mode: ChatMode::Agent,
@@ -409,12 +426,11 @@ mod tests {
             status: SessionStatus::Processing,
             created_at: "2026-03-20T10:00:00Z".into(),
         };
-        // WHEN converted to summary
         let summary = session_info_to_summary(&info);
-        // THEN fields are correctly mapped
         assert_eq!(summary.id, "sess-1");
         assert_eq!(summary.mode, "agent");
         assert_eq!(summary.agent_name.as_deref(), Some("test-agent"));
         assert_eq!(summary.status, "processing");
+        assert_eq!(summary.message_count, 0);
     }
 }

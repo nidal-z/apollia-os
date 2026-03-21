@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     status     TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'processing', 'closed')),
     available_tools TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
-    closed_at  TEXT
+    closed_at  TEXT,
+    llm_backend TEXT
 );
 
 CREATE TABLE IF NOT EXISTS chat_messages (

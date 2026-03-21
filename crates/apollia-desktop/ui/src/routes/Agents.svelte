@@ -8,6 +8,7 @@
   import { agents } from "$lib/stores/agents";
   import { connectionStatus } from "$lib/stores/sse";
   import { currentRoute } from "$lib/stores/navigation";
+  import { pendingChatSessionId } from "$lib/stores/chat";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { Bot } from "lucide-svelte";
@@ -16,7 +17,7 @@
   import AgentDetail from "../components/agents/AgentDetail.svelte";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import EmptyState from "../components/common/EmptyState.svelte";
-  import NewChatDialog from "../components/chat/NewChatDialog.svelte";
+  import type { ChatSessionSummary, CreateSessionRequest } from "$lib/types";
 
   const SKELETON_COUNT = 3;
 
@@ -71,20 +72,15 @@
     openLogs(agentId);
   }
 
-  let chatDialogOpen = $state(false);
-  let chatAgentName = $state<string | undefined>(undefined);
-
-  function openChatDialog(agentName: string) {
-    chatAgentName = agentName;
-    chatDialogOpen = true;
-  }
-
-  function closeChatDialog() {
-    chatDialogOpen = false;
-  }
-
-  function handleChatCreated(_sessionId: string) {
-    currentRoute.set("chat");
+  async function startChatWithAgent(agentName: string): Promise<void> {
+    try {
+      const request: CreateSessionRequest = { mode: "agent", agent_name: agentName };
+      const session = await invoke<ChatSessionSummary>("create_chat_session", { request });
+      pendingChatSessionId.set(session.id);
+      currentRoute.set("chat");
+    } catch {
+      currentRoute.set("chat");
+    }
   }
 </script>
 
@@ -150,7 +146,7 @@
     <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-grid">
       {#each $agents as agent (agent.name)}
         <div animate:flip={{ duration: 300 }} in:fly={{ y: 10, duration: 200 }}>
-          <AgentCard {agent} onlogs={openLogs} ondetail={openDetail} onchat={openChatDialog} />
+          <AgentCard {agent} onlogs={openLogs} ondetail={openDetail} onchat={startChatWithAgent} />
         </div>
       {/each}
     </div>
@@ -167,11 +163,3 @@
   <AgentDetail agent={detailAgent} open={detailOpen} onclose={closeDetail} onlogs={openLogsFromDetail} />
 {/if}
 
-<!-- Chat dialog (pre-filled with agent mode) -->
-<NewChatDialog
-  open={chatDialogOpen}
-  onclose={closeChatDialog}
-  oncreated={handleChatCreated}
-  initialMode="agent"
-  initialAgent={chatAgentName}
-/>

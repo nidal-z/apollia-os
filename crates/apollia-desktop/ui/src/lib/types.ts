@@ -554,6 +554,14 @@ export interface ChatSessionDetail {
   messages: ChatMessageView[];
   created_at: string;
   closed_at: string | null;
+  llm_backend: string | null;
+}
+
+/** Payload pour mettre à jour la configuration d'une session. */
+export interface UpdateSessionRequest {
+  system_prompt?: string;
+  tools?: string[];
+  llm_backend?: string | null;
 }
 
 /** Message individuel dans une session de chat. */

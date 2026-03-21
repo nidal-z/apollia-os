@@ -42,6 +42,8 @@ pub struct ChatSession {
     pub created_at: String,
     /// Active exchange state (set while an LLM response is being generated).
     pub active_exchange: Option<ExchangeState>,
+    /// Preferred LLM backend name (None = runtime default).
+    pub llm_backend: Option<String>,
 }
 
 /// Chat mode — free-form LLM conversation or agent-backed.
@@ -617,6 +619,7 @@ mod tests {
             available_tools: vec!["bash_executor".into()],
             created_at: "2026-03-20T10:00:00Z".into(),
             active_exchange: None,
+            llm_backend: None,
         };
 
         // WHEN we serialize and deserialize
