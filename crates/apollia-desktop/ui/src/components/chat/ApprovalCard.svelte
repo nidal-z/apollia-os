@@ -3,6 +3,7 @@
   import { t } from "svelte-i18n";
   import { slide } from "svelte/transition";
   import { ShieldAlert } from "lucide-svelte";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     sessionId: string;
@@ -34,7 +35,7 @@
 </script>
 
 <div
-  class="my-1.5 rounded-xl border border-warning/40 bg-warning/5 backdrop-blur-sm px-3 py-2.5 text-xs"
+  class="my-1.5 glass-card glass-border rounded-lg border-l-2 border-l-warning px-3 py-2.5 text-xs"
   data-testid="approval-card-{toolName}"
   transition:slide={{ duration: 200 }}
 >
@@ -45,42 +46,42 @@
     <span>{$t("chat.authorize_tool")} <strong>{toolName}</strong> ?</span>
   </div>
 
-  <pre class="mt-2 whitespace-pre-wrap break-all rounded-lg glass-inset p-2 font-mono text-[10px] text-muted-foreground">{inputPreview}</pre>
+  <pre class="mt-2 whitespace-pre-wrap break-all rounded-lg glass-surface p-2 font-mono text-[10px] text-muted-foreground">{inputPreview}</pre>
 
   {#if error}
     <p class="mt-1.5 text-[10px] text-destructive">{error}</p>
   {/if}
 
   <div class="mt-2.5 flex gap-2">
-    <button
-      class="rounded-lg px-3 py-1.5 text-[11px] font-medium text-white transition-all
-        bg-success hover:bg-success/80 hover:shadow-sm
-        active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+    <Button
+      variant="outline"
+      size="sm"
+      class="text-[11px] h-7 px-3"
       disabled={isProcessing}
       onclick={() => handleDecision("accept")}
       data-testid="approval-accept-{toolName}"
     >
       {$t("chat.approve_accept")}
-    </button>
-    <button
-      class="rounded-lg px-3 py-1.5 text-[11px] font-medium text-white transition-all
-        bg-destructive hover:bg-destructive/80 hover:shadow-sm
-        active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+    </Button>
+    <Button
+      variant="ghost"
+      size="sm"
+      class="text-[11px] h-7 px-3 text-destructive hover:text-destructive hover:bg-destructive/10"
       disabled={isProcessing}
       onclick={() => handleDecision("refuse")}
       data-testid="approval-refuse-{toolName}"
     >
       {$t("chat.approve_refuse")}
-    </button>
-    <button
-      class="rounded-lg px-3 py-1.5 text-[11px] font-medium text-white transition-all
-        bg-primary hover:bg-primary/90
-        active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+    </Button>
+    <Button
+      variant="ghost"
+      size="sm"
+      class="text-[11px] h-7 px-3 text-primary"
       disabled={isProcessing}
       onclick={() => handleDecision("always_accept")}
       data-testid="approval-always-{toolName}"
     >
       {$t("chat.approve_always")}
-    </button>
+    </Button>
   </div>
 </div>

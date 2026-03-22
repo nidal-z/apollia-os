@@ -713,6 +713,7 @@
     "status_active": "Active",
     "status_closed": "Closed",
     "no_messages": "No messages",
+    "messages_suffix": "messages",
     "message_count": "{n, plural, =0 {no messages} one {# message} other {# messages}}",
     "just_now": "just now",
     "minutes_ago": "{n} min ago",
@@ -750,6 +751,13 @@
     "config_authorized": "authorized",
     "config_available": "available",
     "config_provider": "AI Model",
-    "config_no_providers": "No models loaded"
+    "config_no_providers": "No models loaded",
+    "close_session": "Close session",
+    "delete_session": "Delete",
+    "delete_confirm": "Delete this conversation?",
+    "copy_message": "Copy",
+    "send_hint": "Enter to send",
+    "no_sessions": "No conversations",
+    "close_confirm": "Close this session?"
   }
 }

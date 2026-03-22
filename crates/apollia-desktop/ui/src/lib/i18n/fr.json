@@ -713,6 +713,7 @@
     "status_active": "Active",
     "status_closed": "Fermée",
     "no_messages": "Aucun message",
+    "messages_suffix": "messages",
     "message_count": "{n, plural, =0 {aucun message} one {# message} other {# messages}}",
     "just_now": "à l'instant",
     "minutes_ago": "il y a {n} min",
@@ -750,6 +751,13 @@
     "config_authorized": "autorisé",
     "config_available": "disponible",
     "config_provider": "Modèle IA",
-    "config_no_providers": "Aucun modèle chargé"
+    "config_no_providers": "Aucun modèle chargé",
+    "close_session": "Fermer la session",
+    "delete_session": "Supprimer",
+    "delete_confirm": "Supprimer cette conversation ?",
+    "copy_message": "Copier",
+    "send_hint": "Entrée pour envoyer",
+    "no_sessions": "Aucune conversation",
+    "close_confirm": "Clôturer cette session ?"
   }
 }

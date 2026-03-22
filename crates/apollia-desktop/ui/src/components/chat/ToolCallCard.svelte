@@ -16,24 +16,26 @@
   const isRefused = $derived(toolCall.status === "refused");
   const isPending = $derived(toolCall.status === "pending" || toolCall.status === "authorized");
 
+  const INPUT_THRESHOLD = 200;
+
   const inputPreview = $derived.by(() => {
     const raw = JSON.stringify(toolCall.input);
-    if (raw.length <= 100) return raw;
-    return raw.slice(0, 100) + "\u2026";
+    if (raw.length <= INPUT_THRESHOLD) return raw;
+    return raw.slice(0, INPUT_THRESHOLD) + "\u2026";
   });
 
   const inputFull = $derived(JSON.stringify(toolCall.input, null, 2));
-  const isInputTruncated = $derived(JSON.stringify(toolCall.input).length > 100);
+  const isInputTruncated = $derived(JSON.stringify(toolCall.input).length > INPUT_THRESHOLD);
 
   let showFullInput = $state(false);
 </script>
 
 <div
-  class="my-1.5 rounded-xl border px-3 py-2 text-xs backdrop-blur-sm {isRefused
-    ? 'border-destructive/30 bg-destructive/5'
+  class="my-1.5 rounded-lg glass-surface glass-border-subtle px-3 py-2 text-xs {isRefused
+    ? 'border-l-2 border-l-destructive'
     : isExecuted
-      ? 'border-success/30 bg-success/5'
-      : 'glass-border glass-inset'}"
+      ? 'border-l-2 border-l-success'
+      : ''}"
   data-testid="tool-call-card-{toolCall.tool_name}"
   transition:slide={{ duration: 200 }}
 >
@@ -58,7 +60,7 @@
     </span>
   </div>
 
-  <!-- Input preview -->
+  <!-- Input preview / full -->
   <div class="mt-1.5 text-muted-foreground">
     {#if showFullInput}
       <pre class="whitespace-pre-wrap break-all rounded-lg glass-inset p-2 font-mono text-[10px]">{inputFull}</pre>

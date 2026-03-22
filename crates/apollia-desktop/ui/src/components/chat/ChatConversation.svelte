@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
-  import { X, Loader2, Bot, MessageSquare, Settings2 } from "lucide-svelte";
+  import { X, Loader2, Bot, MessageSquare, Settings2, XCircle } from "lucide-svelte";
   import { currentSession, chatTokenBuffer } from "$lib/stores/chat";
   import { Badge } from "$lib/components/ui/badge";
   import type { ChatSessionDetail, ChatMessageView } from "$lib/types";
@@ -39,16 +39,21 @@
       : $t("chat.mode_libre"),
   );
 
-  const headerIcon = $derived(sessionMode === "agent" ? Bot : MessageSquare);
-
   const inputDisabled = $derived(
     isProcessing || isStreaming || sessionStatus === "closed",
   );
 
+  const avatarHue = $derived.by(() => {
+    if (!sessionAgentName) return 220;
+    let hash = 0;
+    for (let i = 0; i < sessionAgentName.length; i++) {
+      hash = sessionAgentName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return Math.abs(hash) % 360;
+  });
+
   let unlistenToken: UnlistenFn | undefined;
   let unlistenChanged: UnlistenFn | undefined;
-
-  /** Name of the tool currently being executed (null = no tool running). */
   let activeToolName = $state<string | null>(null);
 
   onMount(async () => {
@@ -70,10 +75,8 @@
       "runtime-event",
       (event) => {
         if (event.payload.category !== "chat-changed") return;
-
         const evt = event.payload;
 
-        // Tool call lifecycle — show/hide tool indicator during ReAct loop
         if (evt.event_type === "ChatToolCallStarted") {
           const p = evt.payload as { session_id?: string; tool_name?: string };
           if (p.session_id === sessionId) {
@@ -84,23 +87,30 @@
         }
         if (evt.event_type === "ChatToolCallCompleted") {
           const p = evt.payload as { session_id?: string };
-          if (p.session_id === sessionId) {
-            activeToolName = null;
-          }
+          if (p.session_id === sessionId) activeToolName = null;
           return;
         }
-
-        // ChatResponseCompleted signals the end of streaming — transition
-        // gracefully from streamed tokens to persisted message.
         if (evt.event_type === "ChatResponseCompleted") {
           void finalizeStreaming();
           return;
         }
-
-        // Other chat-changed events (session created/closed, approval, etc.)
         void refreshSession();
       },
     );
+  });
+
+  // Re-load when sessionId prop changes (switching conversations)
+  let previousSessionId = $state(sessionId);
+  $effect(() => {
+    if (sessionId !== previousSessionId) {
+      previousSessionId = sessionId;
+      isStreaming = false;
+      isProcessing = false;
+      tokenBuffer = "";
+      activeToolName = null;
+      messages = [];
+      void loadSession();
+    }
   });
 
   onDestroy(() => {
@@ -111,49 +121,28 @@
   });
 
   async function loadSession(): Promise<void> {
-    loading = true;
-    loadError = null;
+    loading = true; loadError = null;
     try {
       const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
       applySessionDetail(detail);
-    } catch (err: unknown) {
-      loadError = err instanceof Error ? err.message : String(err);
-    } finally {
-      loading = false;
-      await tick();
-      scrollToBottom(true);
-    }
+    } catch (err: unknown) { loadError = err instanceof Error ? err.message : String(err); }
+    finally { loading = false; await tick(); scrollToBottom(true); }
   }
 
   async function refreshSession(): Promise<void> {
     try {
       const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
-      applySessionDetail(detail);
-      scrollToBottom();
-    } catch {
-      // Session may have been deleted — close view
-    }
+      applySessionDetail(detail); scrollToBottom();
+    } catch { /* Session may have been deleted */ }
   }
 
-  /// Graceful transition from streaming to persisted state.
-  /// Waits a short tick so the last streamed tokens render, then
-  /// refreshes the session from SQLite (which now has the full message).
   async function finalizeStreaming(): Promise<void> {
-    // Small delay so the user sees the last tokens before the UI swaps
-    // from the streaming bubble to the persisted message bubble.
     await new Promise((r) => setTimeout(r, 80));
-    isStreaming = false;
-    isProcessing = false;
-    tokenBuffer = "";
-    chatTokenBuffer.set("");
-
+    isStreaming = false; isProcessing = false; tokenBuffer = ""; chatTokenBuffer.set("");
     try {
       const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
-      applySessionDetail(detail);
-      scrollToBottom();
-    } catch {
-      // Session may have been deleted
-    }
+      applySessionDetail(detail); scrollToBottom();
+    } catch { /* Session may have been deleted */ }
   }
 
   function applySessionDetail(detail: ChatSessionDetail): void {
@@ -170,10 +159,7 @@
     if (!force && userScrolledUp) return;
     requestAnimationFrame(() => {
       if (messagesContainer) {
-        messagesContainer.scrollTo({
-          top: messagesContainer.scrollHeight,
-          behavior: force ? "instant" : "smooth",
-        });
+        messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: force ? "instant" : "smooth" });
       }
     });
   }
@@ -181,152 +167,143 @@
   function handleScroll(): void {
     if (!messagesContainer) return;
     const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
-    const threshold = 60;
-    userScrolledUp = scrollHeight - scrollTop - clientHeight > threshold;
+    userScrolledUp = scrollHeight - scrollTop - clientHeight > 60;
   }
 
   async function handleSend(content: string): Promise<void> {
     const tempMsg: ChatMessageView = {
-      id: `temp-${Date.now()}`,
-      role: "user",
-      content,
-      tool_calls: null,
-      tool_name: null,
-      seq: (messages ?? []).length,
-      created_at: new Date().toISOString(),
+      id: `temp-${Date.now()}`, role: "user", content,
+      tool_calls: null, tool_name: null,
+      seq: (messages ?? []).length, created_at: new Date().toISOString(),
     };
     messages = [...(messages ?? []), tempMsg];
-    isProcessing = true;
-    tokenBuffer = "";
-    chatTokenBuffer.set("");
-
-    await tick();
-    scrollToBottom(true);
+    isProcessing = true; tokenBuffer = ""; chatTokenBuffer.set("");
+    await tick(); scrollToBottom(true);
 
     try {
       await invoke<string>("send_chat_message", { sessionId, content });
     } catch (err: unknown) {
       isProcessing = false;
-      const errContent = err instanceof Error ? err.message : String(err);
       const errMsg: ChatMessageView = {
-        id: `error-${Date.now()}`,
-        role: "system",
-        content: errContent,
-        tool_calls: null,
-        tool_name: null,
-        seq: (messages ?? []).length,
-        created_at: new Date().toISOString(),
+        id: `error-${Date.now()}`, role: "system",
+        content: err instanceof Error ? err.message : String(err),
+        tool_calls: null, tool_name: null,
+        seq: (messages ?? []).length, created_at: new Date().toISOString(),
       };
-      messages = [...(messages ?? []), errMsg];
-      scrollToBottom();
+      messages = [...(messages ?? []), errMsg]; scrollToBottom();
     }
+  }
+
+  async function handleCloseSession(): Promise<void> {
+    try { await invoke("close_chat_session", { sessionId }); }
+    catch (err: unknown) { console.warn("close_chat_session IPC not available:", err); }
+    void refreshSession();
   }
 </script>
 
 <div class="flex h-full flex-col" data-testid="chat-conversation">
-  <!-- Header -->
-  <div class="flex items-center justify-between bg-muted/30 border-b border-border px-4 py-3">
-    <div class="flex items-center gap-3">
-      <div class="flex h-8 w-8 items-center justify-center rounded-lg glass-inset">
-        <svelte:component this={headerIcon} class="h-4 w-4 text-primary" />
-      </div>
-      <div class="flex items-center gap-2">
-        <h2 class="text-sm font-semibold">{headerTitle}</h2>
-        <Badge
-          variant={sessionMode === "agent" ? "default" : "secondary"}
-          class="text-[10px] px-1.5 py-0"
-        >
-          {sessionMode === "agent" ? $t("chat.mode_agent") : $t("chat.mode_libre")}
-        </Badge>
-        {#if sessionStatus === "closed"}
-          <Badge variant="outline" class="text-[10px] px-1.5 py-0">
-            {$t("chat.status_closed")}
-          </Badge>
-        {/if}
-      </div>
+  <!-- Header — slim bar -->
+  <div class="flex items-center justify-between border-b border-border/30 px-4 py-2.5">
+    <div class="flex items-center gap-2.5">
+      {#if sessionMode === "agent"}
+        <Bot size={15} class="text-primary" />
+      {:else}
+        <MessageSquare size={15} class="text-muted-foreground" />
+      {/if}
+      <span class="text-[13px] font-medium">{headerTitle}</span>
+      {#if sessionStatus === "closed"}
+        <Badge variant="secondary" class="text-[9px] px-1.5 py-0">{$t("chat.status_closed")}</Badge>
+      {:else if sessionStatus === "processing"}
+        <span class="flex items-center gap-1 text-[11px] text-primary/70">
+          <Loader2 size={11} class="animate-spin" />
+          {$t("chat.thinking")}
+        </span>
+      {/if}
     </div>
-    <div class="flex items-center gap-1">
+    <div class="flex items-center gap-0.5">
       <button
         onclick={() => (configOpen = true)}
-        class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
+        class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
         title={$t("chat.config_title")}
         data-testid="chat-config-button"
       >
-        <Settings2 class="h-4 w-4" />
+        <Settings2 size={14} />
       </button>
+      {#if sessionStatus !== "closed"}
+        <button
+          onclick={handleCloseSession}
+          class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-warning hover:bg-warning/10 transition-colors"
+          title={$t("chat.close_session")}
+          data-testid="chat-close-session-button"
+        >
+          <XCircle size={14} />
+        </button>
+      {/if}
       <button
         onclick={onclose}
-        class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
+        class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
         data-testid="chat-close-button"
       >
-        <X class="h-4 w-4" />
+        <X size={14} />
       </button>
     </div>
   </div>
 
-  <!-- Messages area -->
+  <!-- Messages -->
   {#if loading}
     <div class="flex flex-1 items-center justify-center">
-      <Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
+      <Loader2 size={16} class="animate-spin text-muted-foreground" />
     </div>
   {:else if loadError}
-    <div class="flex flex-1 items-center justify-center px-4">
-      <div class="rounded-xl border border-destructive/30 bg-destructive/5 px-6 py-4">
-        <p class="text-sm text-destructive">{loadError}</p>
-      </div>
+    <div class="flex flex-1 items-center justify-center px-6">
+      <p class="text-xs text-destructive">{loadError}</p>
     </div>
   {:else}
     <div
       bind:this={messagesContainer}
       onscroll={handleScroll}
-      class="flex-1 space-y-3 overflow-y-auto px-4 py-4"
+      class="flex-1 overflow-y-auto px-4 py-4 space-y-3"
     >
       {#if (messages ?? []).length === 0 && !isStreaming && !isProcessing}
-        <div class="flex h-full flex-col items-center justify-center gap-3">
-          <div class="flex h-12 w-12 items-center justify-center rounded-2xl glass-card">
-            <MessageSquare class="h-6 w-6 text-primary/60" />
-          </div>
-          <p class="text-sm text-muted-foreground">{$t("chat.first_message_placeholder")}</p>
+        <div class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
+          <MessageSquare size={28} />
+          <p class="text-xs">{$t("chat.first_message_placeholder")}</p>
         </div>
       {:else}
         {#each messages ?? [] as message (message.id)}
           <ChatMessageBubble {message} {sessionId} />
         {/each}
 
-        <!-- Streaming indicator (Chat Libre) -->
         {#if isStreaming && sessionMode === "libre"}
           <div class="flex justify-start" data-testid="chat-message-streaming">
-            <div class="max-w-[75%] rounded-xl glass-card px-4 py-2.5 text-sm text-foreground">
+            <div class="max-w-[72%] rounded-2xl rounded-bl-sm bg-card/80 border border-border/30 px-3.5 py-2.5 text-[13px] text-foreground">
               <StreamingText text={tokenBuffer} />
             </div>
           </div>
         {/if}
 
-        <!-- Tool execution indicator (visible during ReAct loop tool calls) -->
         {#if activeToolName}
           <div class="flex justify-start" data-testid="chat-tool-executing">
-            <div class="flex items-center gap-2 rounded-xl glass-inset px-3 py-1.5 text-xs text-muted-foreground">
-              <Loader2 class="h-3 w-3 animate-spin" />
+            <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
+              <Loader2 size={11} class="animate-spin" />
               <span>{$t("chat.tool_executing", { values: { tool: activeToolName } })}</span>
             </div>
           </div>
         {/if}
 
-        <!-- Agent processing indicator -->
         {#if isProcessing && sessionMode === "agent"}
           <div class="flex justify-start" data-testid="chat-agent-loading">
-            <div class="flex items-center gap-2 rounded-xl glass-card px-4 py-2.5 text-sm text-muted-foreground">
-              <Loader2 class="h-3.5 w-3.5 animate-spin" />
+            <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
+              <Loader2 size={11} class="animate-spin" />
               <span>{$t("chat.agent_processing")}</span>
             </div>
           </div>
         {/if}
 
-        <!-- Generic processing indicator (Chat Libre, before tokens arrive) -->
         {#if isProcessing && sessionMode === "libre"}
           <div class="flex justify-start">
-            <div class="flex items-center gap-2 rounded-xl glass-card px-4 py-2.5 text-sm text-muted-foreground">
-              <Loader2 class="h-3.5 w-3.5 animate-spin" />
+            <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
+              <Loader2 size={11} class="animate-spin" />
               <span>{$t("chat.thinking")}</span>
             </div>
           </div>
@@ -335,11 +312,9 @@
     </div>
   {/if}
 
-  <!-- Input -->
   <ChatInput disabled={inputDisabled} onsend={handleSend} />
 </div>
 
-<!-- Config side panel -->
 <ChatConfigPanel
   open={configOpen}
   session={sessionDetail}

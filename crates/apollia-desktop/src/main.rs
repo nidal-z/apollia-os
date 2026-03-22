@@ -114,10 +114,13 @@ fn main() {
         }
     };
 
+    // Do NOT pass agent_repository here — auto-load inside the Supervisor
+    // happens before OnceLocks are populated, causing "event bus not initialized"
+    // errors. Instead, we auto-load manually after OnceLocks are set below.
     let config = load_toml_config(EmbeddedConfig {
         agent_loader: Arc::new(backend::AIPAgentLoader),
-        backend_factory: Some(factory),
-        agent_repository: boot_agent_repo,
+        backend_factory: Some(factory.clone()),
+        agent_repository: None,
         ..EmbeddedConfig::default()
     });
 
@@ -136,6 +139,102 @@ fn main() {
     }
     if let Some(repo) = runtime_handle.task_repository.clone() {
         let _ = task_repository_lock.set(repo);
+    }
+
+    // Auto-load installed agents NOW — OnceLocks are populated so the
+    // ProductionBackendFactory can create real backends.
+    if let Some(repo) = boot_agent_repo {
+        let agent_loader_for_boot: Arc<dyn AgentLoader> = Arc::new(backend::AIPAgentLoader);
+        match repo.list_enabled() {
+            Ok(agents) => {
+                for agent in &agents {
+                    if !agent.enabled {
+                        continue;
+                    }
+                    let manifest = match agent_loader_for_boot.load_and_validate(&agent.install_path) {
+                        Ok(m) => m,
+                        Err(e) => {
+                            tracing::warn!(name = %agent.name, error = %e, "Failed to load installed agent at boot");
+                            let _ = runtime_handle.event_sender.send(
+                                apollia_core::events::RuntimeEvent::AgentLoadFailed {
+                                    name: agent.name.clone(),
+                                    error: e.to_string(),
+                                },
+                            );
+                            continue;
+                        }
+                    };
+
+                    let max_concurrent = manifest.max_concurrent_tasks;
+                    let agent_name = manifest.name.clone();
+
+                    // Register in AgentRegistry.
+                    let rt = tokio::runtime::Handle::try_current()
+                        .or_else(|_| {
+                            // We're on the main thread (not inside Tokio) — use the
+                            // runtime handle from the embedded runtime thread.
+                            // Since init_embedded() is blocking, we need a small
+                            // runtime to send async messages.
+                            Ok::<_, std::io::Error>(
+                                tokio::runtime::Builder::new_current_thread()
+                                    .enable_all()
+                                    .build()?
+                                    .handle()
+                                    .clone(),
+                            )
+                        })
+                        .expect("failed to get tokio handle for agent auto-load");
+
+                    let registry_handle = runtime_handle.registry_handle.clone();
+                    let router_handle = runtime_handle.router_handle.clone();
+                    let event_sender = runtime_handle.event_sender.clone();
+                    let task_repository = runtime_handle.task_repository.clone();
+                    let factory_ref = factory.clone();
+                    let install_path = agent.install_path.clone();
+                    let agent_manifest = agent.manifest.clone();
+
+                    rt.block_on(async {
+                        let agent_id = match registry_handle.register(manifest).await {
+                            Ok(id) => id,
+                            Err(e) => {
+                                tracing::warn!(name = %agent_name, error = %e, "Failed to register agent at boot");
+                                return;
+                            }
+                        };
+
+                        if let Err(e) = registry_handle
+                            .update_state(agent_id.as_str(), apollia_core::process::ProcessState::Active)
+                            .await
+                        {
+                            tracing::warn!(name = %agent_name, error = %e, "Failed to activate agent at boot");
+                            return;
+                        }
+
+                        let dyn_backend = factory_ref.create_for_agent(&install_path, &agent_manifest);
+                        let agent_backend = apollia_runtime::coordinator::DynBackend::from(dyn_backend);
+                        let mut coordinator = apollia_runtime::coordinator::ExecutionCoordinator::new(
+                            agent_id.clone(),
+                            max_concurrent,
+                            event_sender,
+                            agent_backend,
+                        )
+                        .with_agent_name(agent_name.clone());
+                        if let Some(ref repo) = task_repository {
+                            coordinator = coordinator.with_task_repository(
+                                Arc::clone(repo),
+                                apollia_core::observability::ObservabilityConfig::default(),
+                            );
+                        }
+
+                        let _ = router_handle.register_coordinator(agent_id.clone(), coordinator).await;
+                        tracing::info!(name = %agent_name, id = %agent_id, "Auto-loaded installed agent (post-init)");
+                    });
+                }
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to list installed agents — skipping auto-load");
+            }
+        }
     }
 
     // Open a second AgentRepository instance for Tauri IPC commands.
