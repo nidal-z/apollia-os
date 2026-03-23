@@ -9,6 +9,7 @@
     TriggerDefinitionView,
   } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
   import { Select } from "$lib/components/ui/select";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { RadioItem } from "$lib/components/ui/radio";
@@ -189,18 +190,17 @@
   });
 </script>
 
-<Dialog open={open} onclose={onclose} size="md" title={$t("triggers.create_trigger")} data-testid="create-trigger-dialog">
+<Dialog open={open} onclose={onclose} size="md" title={$t("triggers.create_trigger")} data-testid="trigger-create-dialog">
   <div class="space-y-4">
     <!-- ID -->
     <div>
-      <label class="mb-1 block text-sm font-medium" for="trigger-id">{$t("triggers.field_id")}</label>
-      <input
+      <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-id">{$t("triggers.field_id")}</label>
+      <Input
         id="trigger-id"
-        type="text"
-        class="w-full rounded-md border bg-background px-3 py-2 text-sm {idError ? 'border-destructive' : ''}"
+        class={idError ? 'border-destructive' : ''}
         placeholder={$t("triggers.field_id_placeholder")}
         bind:value={triggerId}
-        data-testid="trigger-id-input"
+        data-testid="trigger-input-name"
       />
       <p class="mt-0.5 text-xs text-muted-foreground">{$t("triggers.field_id_help")}</p>
       {#if idError}
@@ -210,7 +210,7 @@
 
     <!-- Target: Agent / Pipeline -->
     <div>
-      <label class="mb-1 block text-sm font-medium">{$t("triggers.field_target")}</label>
+      <label class="mb-1 block text-[11px] text-muted-foreground">{$t("triggers.field_target")}</label>
       <div class="mb-2 flex gap-3">
         <RadioItem
           value="agent"
@@ -232,7 +232,7 @@
       {#if targetKind === "agent"}
         <Select
           bind:value={selectedAgent}
-          data-testid="trigger-agent-select"
+          data-testid="trigger-input-agent"
         >
           <option value="" disabled>— {$t("triggers.field_target_agent")} —</option>
           {#each agents as agent}
@@ -257,7 +257,7 @@
 
     <!-- Source type -->
     <div>
-      <label class="mb-1 block text-sm font-medium" for="trigger-source-type">{$t("triggers.field_source_type")}</label>
+      <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-source-type">{$t("triggers.field_source_type")}</label>
       <Select
         id="trigger-source-type"
         bind:value={sourceType}
@@ -274,55 +274,52 @@
     <!-- Dynamic source fields -->
     {#if sourceType === "cron"}
       <div>
-        <label class="mb-1 block text-sm font-medium" for="trigger-schedule">{$t("triggers.field_schedule")}</label>
-        <input
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-schedule">{$t("triggers.field_schedule")}</label>
+        <Input
           id="trigger-schedule"
-          type="text"
-          class="w-full rounded-md border bg-background px-3 py-2 font-mono text-sm {sourceError && sourceType === 'cron' ? 'border-destructive' : ''}"
+          class="font-mono {sourceError && sourceType === 'cron' ? 'border-destructive' : ''}"
           placeholder={$t("triggers.field_schedule_placeholder")}
           bind:value={cronSchedule}
-          data-testid="trigger-schedule-input"
+          data-testid="trigger-input-cron"
         />
         <p class="mt-0.5 text-xs text-muted-foreground">{$t("triggers.field_schedule_help")}</p>
       </div>
     {:else if sourceType === "interval"}
       <div>
-        <label class="mb-1 block text-sm font-medium" for="trigger-every">{$t("triggers.field_every")}</label>
-        <input
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-every">{$t("triggers.field_every")}</label>
+        <Input
           id="trigger-every"
-          type="text"
-          class="w-full rounded-md border bg-background px-3 py-2 font-mono text-sm {sourceError && sourceType === 'interval' ? 'border-destructive' : ''}"
+          class="font-mono {sourceError && sourceType === 'interval' ? 'border-destructive' : ''}"
           placeholder={$t("triggers.field_every_placeholder")}
           bind:value={intervalEvery}
-          data-testid="trigger-every-input"
+          data-testid="trigger-input-interval"
         />
         <p class="mt-0.5 text-xs text-muted-foreground">{$t("triggers.field_every_help")}</p>
       </div>
     {:else if sourceType === "oneshot"}
       <div>
-        <label class="mb-1 block text-sm font-medium" for="trigger-fire-at">{$t("triggers.field_fire_at")}</label>
-        <input
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-fire-at">{$t("triggers.field_fire_at")}</label>
+        <Input
           id="trigger-fire-at"
           type="datetime-local"
-          class="w-full rounded-md border bg-background px-3 py-2 text-sm {sourceError && sourceType === 'oneshot' ? 'border-destructive' : ''}"
+          class={sourceError && sourceType === 'oneshot' ? 'border-destructive' : ''}
           bind:value={oneshotFireAt}
           data-testid="trigger-fire-at-input"
         />
       </div>
     {:else if sourceType === "file_watch"}
       <div>
-        <label class="mb-1 block text-sm font-medium" for="trigger-watch-path">{$t("triggers.field_path")}</label>
-        <input
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-watch-path">{$t("triggers.field_path")}</label>
+        <Input
           id="trigger-watch-path"
-          type="text"
-          class="w-full rounded-md border bg-background px-3 py-2 text-sm {sourceError && sourceType === 'file_watch' && !fileWatchPath.trim() ? 'border-destructive' : ''}"
+          class={sourceError && sourceType === 'file_watch' && !fileWatchPath.trim() ? 'border-destructive' : ''}
           placeholder={$t("triggers.field_path_placeholder")}
           bind:value={fileWatchPath}
-          data-testid="trigger-path-input"
+          data-testid="trigger-input-filepath"
         />
       </div>
       <div>
-        <label class="mb-1 block text-sm font-medium">{$t("triggers.field_events")}</label>
+        <label class="mb-1 block text-[11px] text-muted-foreground">{$t("triggers.field_events")}</label>
         <div class="flex gap-4">
           <label class="flex items-center gap-1.5 text-sm">
             <Checkbox bind:checked={fileWatchCreate} data-testid="trigger-event-create" />
@@ -343,15 +340,14 @@
       </div>
     {:else if sourceType === "webhook"}
       <div>
-        <label class="mb-1 block text-sm font-medium" for="trigger-secret">{$t("triggers.field_secret")}</label>
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-secret">{$t("triggers.field_secret")}</label>
         <div class="flex gap-2">
-          <input
+          <Input
             id="trigger-secret"
-            type="text"
-            class="flex-1 rounded-md border bg-background px-3 py-2 font-mono text-sm {sourceError && sourceType === 'webhook' ? 'border-destructive' : ''}"
+            class="flex-1 font-mono {sourceError && sourceType === 'webhook' ? 'border-destructive' : ''}"
             placeholder={$t("triggers.field_secret_placeholder")}
             bind:value={webhookSecret}
-            data-testid="trigger-secret-input"
+            data-testid="trigger-input-webhook-path"
           />
           <Button size="sm" variant="outline" onclick={generateSecret} data-testid="trigger-secret-generate-btn">
             {$t("triggers.field_secret_generate")}
@@ -366,7 +362,7 @@
 
     <!-- Input template -->
     <div>
-      <label class="mb-1 block text-sm font-medium" for="trigger-input-template">
+      <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-input-template">
         {$t("triggers.field_input_template")}
         <span class="font-normal text-muted-foreground">({$t("pipelines.input_json_optional")})</span>
       </label>
@@ -382,7 +378,7 @@
     <!-- On busy + Enabled -->
     <div class="flex items-center gap-6">
       <div>
-        <label class="mb-1 block text-sm font-medium" for="trigger-on-busy">{$t("triggers.field_on_busy")}</label>
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-on-busy">{$t("triggers.field_on_busy")}</label>
         <Select
           id="trigger-on-busy"
           bind:value={onBusy}

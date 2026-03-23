@@ -72,27 +72,35 @@ pub async fn list_notification_channels(
 
     let result = channels
         .into_iter()
-        .map(|ch| NotificationChannel {
-            channel_id: ch
-                .get("channel_id")
+        .map(|ch| {
+            // The REST API returns "id" (SQLite CRUD) or "channel_id" (legacy in-memory).
+            let id = ch
+                .get("id")
+                .or_else(|| ch.get("channel_id"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
-                .to_string(),
-            kind: ch
-                .get("type")
+                .to_string();
+            // Similarly, "channel_type" (SQLite) or "type" (legacy).
+            let kind = ch
+                .get("channel_type")
+                .or_else(|| ch.get("type"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
-                .to_string(),
-            enabled: ch.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false),
-            events: ch
-                .get("events")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|e| e.as_str().map(String::from))
-                        .collect()
-                })
-                .unwrap_or_default(),
+                .to_string();
+            NotificationChannel {
+                channel_id: id,
+                kind,
+                enabled: ch.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false),
+                events: ch
+                    .get("events")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|e| e.as_str().map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            }
         })
         .collect();
 

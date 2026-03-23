@@ -13,7 +13,10 @@
   import PipelineDefinitionCard from "../components/pipelines/PipelineDefinitionCard.svelte";
   import CreatePipelineDialog from "../components/pipelines/CreatePipelineDialog.svelte";
   import EditPipelineDialog from "../components/pipelines/EditPipelineDialog.svelte";
+  import { addToast } from "$lib/components/ui/toast/store";
+  import { TabBar } from "$lib/components/ui/tabs";
   import EmptyState from "../components/common/EmptyState.svelte";
+  import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
 
   type PipelineTab = "active" | "history" | "definitions";
 
@@ -31,23 +34,9 @@
   let definitions = $state<PipelineDefinitionView[]>([]);
   let loadingDefs = $state(false);
 
-  let toast = $state<{ message: string; type: "success" | "error" } | null>(null);
-  let toastTimer = $state<ReturnType<typeof setTimeout> | null>(null);
-
   let displayedRuns = $derived(
     activeTab === "active" ? $activePipelineRuns : $historicPipelineRuns,
   );
-
-  function showToast(message: string, type: "success" | "error") {
-    if (toastTimer !== null) {
-      clearTimeout(toastTimer);
-    }
-    toast = { message, type };
-    toastTimer = setTimeout(() => {
-      toast = null;
-      toastTimer = null;
-    }, 4000);
-  }
 
   function handleDetail(runId: string) {
     detailRunId = runId;
@@ -59,7 +48,7 @@
   }
 
   function handleRunCreated(runId: string, pipelineId: string) {
-    showToast($t('pipelines.run_launched', { values: { runId: runId.slice(0, 8), pipelineId } }), "success");
+    addToast($t('pipelines.run_launched', { values: { runId: runId.slice(0, 8), pipelineId } }), "success");
     activeTab = "active";
     handleDetail(runId);
   }
@@ -77,19 +66,19 @@
       definitions = await invoke("list_pipeline_definitions");
     } catch (err: unknown) {
       definitions = [];
-      showToast(err instanceof Error ? err.message : String(err), "error");
+      addToast(err instanceof Error ? err.message : String(err), "error");
     } finally {
       loadingDefs = false;
     }
   }
 
   function handlePipelineCreated(id: string) {
-    showToast($t("pipelines.created_toast", { values: { id } }), "success");
+    addToast($t("pipelines.created_toast", { values: { id } }), "success");
     void loadDefinitions();
   }
 
   function handlePipelineUpdated(id: string) {
-    showToast($t("pipelines.updated_toast", { values: { id } }), "success");
+    addToast($t("pipelines.updated_toast", { values: { id } }), "success");
     void loadDefinitions();
   }
 
@@ -107,23 +96,23 @@
     deleting = true;
     try {
       await invoke("delete_pipeline", { id: deletePipelineId });
-      showToast($t("pipelines.deleted_toast", { values: { id: deletePipelineId } }), "success");
+      addToast($t("pipelines.deleted_toast", { values: { id: deletePipelineId } }), "success");
       showDeleteConfirm = false;
       void loadDefinitions();
     } catch (err: unknown) {
-      showToast($t("pipelines.delete_error", { values: { message: err instanceof Error ? err.message : String(err) } }), "error");
+      addToast($t("pipelines.delete_error", { values: { message: err instanceof Error ? err.message : String(err) } }), "error");
     } finally {
       deleting = false;
     }
   }
 </script>
 
-<div class="space-y-6">
+<div class="max-w-6xl space-y-6" data-testid="pipelines-page">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <div class="space-y-1">
+    <div>
       <h1 class="text-2xl font-semibold">{$t('pipelines.title')}</h1>
-      <p class="text-sm text-muted-foreground" data-testid="pipelines-subtitle">{$t('pipelines.subtitle')}</p>
+      <p class="text-xs text-muted-foreground" data-testid="pipelines-subtitle">{$t('pipelines.subtitle')}</p>
     </div>
     <div class="flex gap-2">
       {#if activeTab === "definitions"}
@@ -134,56 +123,17 @@
     </div>
   </div>
 
-  <!-- Toast -->
-  {#if toast}
-    <div
-      class="rounded-md border px-4 py-2 text-sm {toast.type === 'success'
-        ? 'border-[var(--apollia-success)] bg-[var(--apollia-success)]/10 text-[var(--apollia-success)]'
-        : 'border-destructive bg-destructive/10 text-destructive'}"
-    >
-      {toast.message}
-    </div>
-  {/if}
-
-  <!-- Tabs -->
-  <div class="flex gap-1 rounded-md glass-border glass-surface p-1">
-    <button
-      class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === 'active'
-        ? 'glass-inset text-foreground shadow-sm'
-        : 'text-muted-foreground hover:text-foreground'}"
-      onclick={() => handleTabChange("active")}
-      data-testid="pipelines-tab-active"
-    >
-      {$t('pipelines.tab_active')}
-      {#if $activePipelineRuns.length > 0}
-        <span class="ml-1 text-xs text-muted-foreground">({$activePipelineRuns.length})</span>
-      {/if}
-    </button>
-    <button
-      class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === 'history'
-        ? 'glass-inset text-foreground shadow-sm'
-        : 'text-muted-foreground hover:text-foreground'}"
-      onclick={() => handleTabChange("history")}
-      data-testid="pipelines-tab-history"
-    >
-      {$t('pipelines.tab_history')}
-      {#if $historicPipelineRuns.length > 0}
-        <span class="ml-1 text-xs text-muted-foreground">({$historicPipelineRuns.length})</span>
-      {/if}
-    </button>
-    <button
-      class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === 'definitions'
-        ? 'glass-inset text-foreground shadow-sm'
-        : 'text-muted-foreground hover:text-foreground'}"
-      onclick={() => handleTabChange("definitions")}
-      data-testid="pipelines-tab-definitions"
-    >
-      {$t('pipelines.tab_definitions')}
-      {#if definitions.length > 0}
-        <span class="ml-1 text-xs text-muted-foreground">({definitions.length})</span>
-      {/if}
-    </button>
-  </div>
+  <!-- Tabs (AC-1) -->
+  <TabBar
+    items={[
+      { key: "active", label: $t("pipelines.tab_active"), count: $activePipelineRuns.length > 0 ? $activePipelineRuns.length : undefined },
+      { key: "history", label: $t("pipelines.tab_history"), count: $historicPipelineRuns.length > 0 ? $historicPipelineRuns.length : undefined },
+      { key: "definitions", label: $t("pipelines.tab_definitions"), count: definitions.length > 0 ? definitions.length : undefined },
+    ]}
+    activeTab={activeTab}
+    ontabchange={(key) => handleTabChange(key as PipelineTab)}
+    testidPrefix="pipeline"
+  />
 
   <!-- Content based on active tab -->
   {#if activeTab === "definitions"}
@@ -274,41 +224,14 @@
 />
 
 <!-- Delete confirmation dialog -->
-{#if showDeleteConfirm}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-    role="button"
-    tabindex="-1"
-    onclick={() => (showDeleteConfirm = false)}
-    onkeydown={(e) => { if (e.key === "Escape") showDeleteConfirm = false; }}
-  >
-    <div
-      class="w-[400px] rounded-lg border bg-background p-6 shadow-lg"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => { if (e.key === "Escape") showDeleteConfirm = false; }}
-      data-testid="delete-pipeline-confirm-dialog"
-    >
-      <h3 class="mb-2 text-lg font-medium">{$t("pipelines.delete_confirm_title")}</h3>
-      <p class="mb-4 text-sm text-muted-foreground">
-        {$t("pipelines.delete_confirm_message", { values: { id: deletePipelineId } })}
-      </p>
-      <div class="flex justify-end gap-2">
-        <Button variant="outline" size="sm" onclick={() => (showDeleteConfirm = false)} data-testid="delete-pipeline-cancel-btn">
-          {$t("common.cancel")}
-        </Button>
-        <Button
-          size="sm"
-          variant="destructive"
-          onclick={handleDeleteConfirm}
-          disabled={deleting}
-          data-testid="delete-pipeline-confirm-btn"
-        >
-          {deleting ? $t("pipelines.deleting") : $t("pipelines.delete_confirm_yes")}
-        </Button>
-      </div>
-    </div>
-  </div>
-{/if}
+<ConfirmDialog
+  open={showDeleteConfirm}
+  onclose={() => { showDeleteConfirm = false; }}
+  onconfirm={handleDeleteConfirm}
+  title={$t("pipelines.delete_confirm_title")}
+  message={$t("pipelines.delete_confirm_message", { values: { id: deletePipelineId } })}
+  confirmLabel={$t("pipelines.delete_confirm_yes")}
+  cancelLabel={$t("common.cancel")}
+  loading={deleting}
+  data-testid="delete-pipeline-confirm"
+/>

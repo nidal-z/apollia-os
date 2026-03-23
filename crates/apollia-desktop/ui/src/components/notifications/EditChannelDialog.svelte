@@ -3,6 +3,7 @@
   import { t } from "svelte-i18n";
   import type { NotificationChannelView, UpdateChannelRequest } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
   import { Dialog } from "$lib/components/ui/dialog";
   import { Select } from "$lib/components/ui/select";
   import { Checkbox } from "$lib/components/ui/checkbox";
@@ -138,11 +139,10 @@
     <div class="space-y-4">
       <!-- ID (readonly) -->
       <div>
-        <label class="mb-1 block text-sm font-medium" for="edit-channel-id">{$t("notifications.field_id")}</label>
-        <input
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-id">{$t("notifications.field_id")}</label>
+        <Input
           id="edit-channel-id"
-          type="text"
-          class="w-full rounded-md border bg-muted px-3 py-2 text-sm"
+          class="bg-muted"
           value={channel.id}
           readonly
           data-testid="edit-channel-id-input"
@@ -151,7 +151,7 @@
 
       <!-- Type -->
       <div>
-        <label class="mb-1 block text-sm font-medium" for="edit-channel-type">{$t("notifications.field_type")}</label>
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-type">{$t("notifications.field_type")}</label>
         <Select
           id="edit-channel-type"
           bind:value={channelType}
@@ -165,11 +165,11 @@
       <!-- Dynamic webhook fields -->
       {#if channelType === "webhook"}
         <div>
-          <label class="mb-1 block text-sm font-medium" for="edit-channel-url">{$t("notifications.field_url")}</label>
-          <input
+          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-url">{$t("notifications.field_url")}</label>
+          <Input
             id="edit-channel-url"
             type="url"
-            class="w-full rounded-md border bg-background px-3 py-2 text-sm {urlError ? 'border-destructive' : ''}"
+            class={urlError ? 'border-destructive' : ''}
             placeholder={$t("notifications.field_url_placeholder")}
             bind:value={webhookUrl}
             data-testid="edit-channel-url-input"
@@ -180,7 +180,7 @@
         </div>
 
         <div>
-          <label class="mb-1 block text-sm font-medium" for="edit-channel-headers">
+          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-channel-headers">
             {$t("notifications.field_headers")}
             <span class="font-normal text-muted-foreground">({$t("pipelines.input_json_optional")})</span>
           </label>
@@ -201,7 +201,7 @@
       <!-- Events per-channel -->
       {#if globalEvents.length > 0}
         <div>
-          <label class="mb-1 block text-sm font-medium">{$t("notifications.field_events")}</label>
+          <label class="mb-1 block text-[11px] text-muted-foreground">{$t("notifications.field_events")}</label>
           <p class="mb-2 text-xs text-muted-foreground">{$t("notifications.field_events_hint")}</p>
           <div class="grid grid-cols-2 gap-x-4 gap-y-1.5">
             {#each globalEvents as event}

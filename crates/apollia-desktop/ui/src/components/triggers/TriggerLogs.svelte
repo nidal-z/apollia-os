@@ -22,21 +22,12 @@
     string,
     {
       label: string;
-      variant: "default" | "secondary" | "destructive" | "outline";
-      extraClass: string;
+      variant: "success" | "warning" | "destructive" | "secondary";
     }
   > = {
-    fired: {
-      label: "FIRED",
-      variant: "default",
-      extraClass: "bg-[var(--apollia-success)] text-white",
-    },
-    skipped: {
-      label: "SKIPPED",
-      variant: "outline",
-      extraClass: "border-[var(--apollia-warning)] text-[var(--apollia-warning)]",
-    },
-    error: { label: "ERROR", variant: "destructive", extraClass: "" },
+    fired: { label: "FIRED", variant: "success" },
+    skipped: { label: "SKIPPED", variant: "warning" },
+    error: { label: "ERROR", variant: "destructive" },
   };
 
   async function loadLogs() {
@@ -97,56 +88,63 @@
     >
       <!-- Header -->
       <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-lg font-medium">
-          {$t('triggers.logs_title')} — <code class="text-sm">{triggerId}</code>
+        <h2 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+          {$t('triggers.logs_title')} — <code class="text-[11px] normal-case">{triggerId}</code>
         </h2>
         <Button size="sm" variant="ghost" onclick={onclose}>✕</Button>
       </div>
 
       <!-- Content -->
       {#if loading}
-        <p class="text-sm text-muted-foreground">{$t('common.loading')}</p>
+        <p class="text-[11px] text-muted-foreground">{$t('common.loading')}</p>
       {:else if error}
         <div
-          class="rounded-md border border-destructive bg-destructive/10 px-4 py-2 text-sm text-destructive"
+          class="rounded-md border border-destructive bg-destructive/10 px-4 py-2 text-[11px] text-destructive"
         >
           {error}
         </div>
       {:else if entries.length === 0}
-        <p class="text-sm text-muted-foreground">
+        <p class="text-[11px] text-muted-foreground">
           {$t('triggers.no_logs')}
         </p>
       {:else}
-        <div class="space-y-2">
-          {#each entries as entry (entry.id)}
-            {@const statusConfig = STATUS_CONFIG[entry.status] ?? STATUS_CONFIG["error"]}
-            <div class="rounded-md border px-3 py-2">
-              <div class="flex items-center justify-between">
-                <Badge
-                  variant={statusConfig.variant}
-                  class={statusConfig.extraClass}
-                >
-                  {statusConfig.label}
-                </Badge>
-                <span class="text-xs text-muted-foreground">
-                  {formatTimestamp(entry.fired_at)}
-                </span>
-              </div>
-              <div class="mt-1 text-xs text-muted-foreground">
-                {$t('triggers.agent_label')}: {entry.agent_name}
-                {#if entry.task_id}
-                  <span class="ml-2">
-                    {$t('triggers.task_label')}: <code>{entry.task_id.slice(0, 8)}</code>
-                  </span>
+        <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="trigger-logs-table">
+          <table class="w-full text-[13px]">
+            <thead class="border-b border-border bg-muted/50">
+              <tr>
+                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.status')}</th>
+                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.agent_label')}</th>
+                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.task_label')}</th>
+                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.time')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each entries as entry (entry.id)}
+                {@const statusConfig = STATUS_CONFIG[entry.status] ?? STATUS_CONFIG["error"]}
+                <tr class="border-b border-border last:border-0 hover:bg-muted/50">
+                  <td class="px-3 py-2">
+                    <Badge variant={statusConfig.variant}>
+                      {statusConfig.label}
+                    </Badge>
+                  </td>
+                  <td class="px-3 py-2 text-[11px] text-muted-foreground">{entry.agent_name}</td>
+                  <td class="px-3 py-2 text-[11px] text-muted-foreground">
+                    {#if entry.task_id}
+                      <code>{entry.task_id.slice(0, 8)}</code>
+                    {:else}
+                      —
+                    {/if}
+                  </td>
+                  <td class="px-3 py-2 text-[11px] text-muted-foreground">{formatTimestamp(entry.fired_at)}</td>
+                </tr>
+                {#if entry.reason}
+                  <tr class="border-b border-border last:border-0">
+                    <td colspan="4" class="px-3 pb-2 text-[11px] text-destructive">{entry.reason}</td>
+                  </tr>
                 {/if}
-              </div>
-              {#if entry.reason}
-                <div class="mt-1 text-xs text-destructive">
-                  {entry.reason}
-                </div>
-              {/if}
-            </div>
-          {/each}
+              {/each}
+            </tbody>
+          </table>
         </div>
       {/if}
 

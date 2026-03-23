@@ -8,6 +8,7 @@
   import { Database } from "lucide-svelte";
   import MemoryTable from "../components/memory/MemoryTable.svelte";
   import { Skeleton } from "$lib/components/ui/skeleton";
+  import { addToast } from "$lib/components/ui/toast/store";
   import EmptyState from "../components/common/EmptyState.svelte";
 
   let namespaces = $state<string[]>([]);
@@ -17,20 +18,6 @@
   let searching = $state(false);
   let loading = $state(true);
 
-  let toast = $state<{ message: string; type: "success" | "error" } | null>(null);
-  let toastTimer = $state<ReturnType<typeof setTimeout> | null>(null);
-
-  function showToast(message: string, type: "success" | "error") {
-    if (toastTimer !== null) {
-      clearTimeout(toastTimer);
-    }
-    toast = { message, type };
-    toastTimer = setTimeout(() => {
-      toast = null;
-      toastTimer = null;
-    }, 4000);
-  }
-
   async function loadNamespaces(): Promise<void> {
     try {
       namespaces = await invoke("list_memory_namespaces");
@@ -38,7 +25,7 @@
         selectedNamespace = namespaces[0];
       }
     } catch (e) {
-      showToast(`${$t('memory.load_namespaces_failed')}: ${e}`, "error");
+      addToast(`${$t('memory.load_namespaces_failed')}: ${e}`, "error");
     }
   }
 
@@ -49,7 +36,7 @@
       entries = await invoke("list_memory_entries", { namespace: selectedNamespace });
       searching = false;
     } catch (e) {
-      showToast(`${$t('memory.load_entries_failed')}: ${e}`, "error");
+      addToast(`${$t('memory.load_entries_failed')}: ${e}`, "error");
     } finally {
       loading = false;
     }
@@ -81,7 +68,7 @@
       }));
       searching = true;
     } catch (e) {
-      showToast(`${$t('memory.search_failed')}: ${e}`, "error");
+      addToast(`${$t('memory.search_failed')}: ${e}`, "error");
     } finally {
       loading = false;
     }
@@ -102,12 +89,12 @@
       });
       if (deleted) {
         entries = entries.filter((e) => e.id !== entryId);
-        showToast($t('memory.entry_deleted'), "success");
+        addToast($t('memory.entry_deleted'), "success");
       } else {
-        showToast($t('memory.entry_not_found'), "error");
+        addToast($t('memory.entry_not_found'), "error");
       }
     } catch (e) {
-      showToast(`${$t('memory.delete_failed')}: ${e}`, "error");
+      addToast(`${$t('memory.delete_failed')}: ${e}`, "error");
     }
   }
 
@@ -121,23 +108,14 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="max-w-6xl space-y-6" data-testid="memory-page">
   <!-- Header -->
-  <div class="space-y-1">
-    <h1 class="text-2xl font-semibold">{$t('memory.title')}</h1>
-    <p class="text-sm text-muted-foreground" data-testid="memory-subtitle">{$t('memory.subtitle')}</p>
-  </div>
-
-  <!-- Toast -->
-  {#if toast}
-    <div
-      class="rounded-md border px-4 py-2 text-sm {toast.type === 'success'
-        ? 'border-[var(--apollia-success)] bg-[var(--apollia-success)]/10 text-[var(--apollia-success)]'
-        : 'border-destructive bg-destructive/10 text-destructive'}"
-    >
-      {toast.message}
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold">{$t('memory.title')}</h1>
+      <p class="text-xs text-muted-foreground" data-testid="memory-subtitle">{$t('memory.subtitle')}</p>
     </div>
-  {/if}
+  </div>
 
   <!-- AC-6: No namespaces -->
   {#if !loading && namespaces.length === 0}

@@ -102,7 +102,7 @@
               class="inline-block h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"
             ></span>
           {:else if check.passed}
-            <span class="text-[var(--apollia-success)]">&#10003;</span>
+            <span class="text-success">&#10003;</span>
           {:else}
             <span class="text-destructive">&#10007;</span>
           {/if}

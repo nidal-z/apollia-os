@@ -41,16 +41,18 @@
   }
 </script>
 
-<div class="space-y-6">
+<div class="max-w-6xl space-y-6" data-testid="approvals-page">
   <!-- Header -->
-  <div>
-    <div class="flex items-center gap-3">
-      <h1 class="text-2xl font-semibold" data-testid="approvals-header">{$t('approvals.title')}</h1>
-      {#if $pendingCount > 0}
-        <Badge variant="destructive" data-testid="approvals-pending-count">{$t('approvals.pending_count', { values: { count: $pendingCount } })}</Badge>
-      {/if}
+  <div class="flex items-center justify-between">
+    <div>
+      <div class="flex items-center gap-3">
+        <h1 class="text-2xl font-semibold" data-testid="approvals-header">{$t('approvals.title')}</h1>
+        {#if $pendingCount > 0}
+          <Badge variant="destructive" data-testid="approvals-pending-count">{$t('approvals.pending_count', { values: { count: $pendingCount } })}</Badge>
+        {/if}
+      </div>
+      <p class="mt-1 text-xs text-muted-foreground" data-testid="approvals-subtitle">{$t('approvals.subtitle')}</p>
     </div>
-    <p class="mt-1 text-sm text-muted-foreground" data-testid="approvals-subtitle">{$t('approvals.subtitle')}</p>
   </div>
 
   {#if loading}
@@ -64,7 +66,7 @@
   {:else}
     <!-- Pending approvals section -->
     <section>
-      <h2 class="mb-3 text-lg font-medium" data-testid="approvals-pending-title">{$t('approvals.pending_title')}</h2>
+      <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground" data-testid="approvals-pending-title">{$t('approvals.pending_title')}</h2>
       {#if $pendingApprovals.length === 0}
         <EmptyState
           icon={ShieldCheck}
@@ -87,7 +89,7 @@
 
     <!-- History section -->
     <section>
-      <h2 class="mb-3 text-lg font-medium">{$t('approvals.history_title')}</h2>
+      <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('approvals.history_title')}</h2>
       <ApprovalHistory {history} />
     </section>
   {/if}

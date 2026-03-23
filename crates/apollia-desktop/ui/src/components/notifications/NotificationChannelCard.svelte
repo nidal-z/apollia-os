@@ -2,9 +2,9 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import type { NotificationChannel, ChannelTestResult } from "$lib/types";
-  import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { addToast } from "$lib/components/ui/toast/store";
 
   interface Props {
     channel: NotificationChannel;
@@ -45,6 +45,11 @@
         channelId: channel.channel_id,
       });
       testResult = result;
+      if (result.status === "ok") {
+        addToast($t("notifications.test_success"), "success");
+      } else {
+        addToast(result.error ?? $t("common.status.error"), "error");
+      }
     } catch (err: unknown) {
       testResult = {
         channel_id: channel.channel_id,
@@ -52,6 +57,7 @@
         error: err instanceof Error ? err.message : String(err),
         latency_ms: null,
       };
+      addToast(testResult.error ?? $t("common.status.error"), "error");
     } finally {
       testing = false;
       feedbackTimer = setTimeout(() => {
@@ -62,86 +68,83 @@
   }
 </script>
 
-<Card class="relative overflow-hidden">
-  <CardHeader class="pb-2">
+<div class="glass-card-hover glass-border rounded-lg relative overflow-hidden" data-testid="channel-card-{channel.channel_id}">
+  <!-- Accent bar left -->
+  <div class="absolute left-0 top-0 bottom-0 w-1 {channel.enabled ? 'bg-primary' : 'bg-muted-foreground/20'}" />
+
+  <div class="pl-4 pr-3.5 pt-3 pb-2.5">
+    <!-- Header -->
     <div class="flex items-center justify-between">
-      <CardTitle class="text-base font-medium">{channel.channel_id}</CardTitle>
       <div class="flex items-center gap-2">
+        <h3 class="text-[13px] font-medium">{channel.channel_id}</h3>
         <Badge variant="outline" class={badgeConfig.extraClass}>
           {badgeConfig.label}
         </Badge>
+      </div>
+      <div class="flex items-center gap-1.5">
         {#if channel.enabled}
-          <Badge variant="default" class="bg-[var(--apollia-success)] text-white">
-            {$t('notifications.enabled')}
-          </Badge>
+          <Badge variant="success">{$t('notifications.enabled')}</Badge>
         {:else}
           <Badge variant="secondary">{$t('notifications.disabled')}</Badge>
         {/if}
       </div>
     </div>
-  </CardHeader>
 
-  <CardContent>
-    <div class="space-y-3">
-      <!-- Event filters -->
-      {#if channel.events.length > 0}
-        <div class="flex flex-wrap gap-1">
-          {#each channel.events as event}
-            <Badge variant="outline" class="text-xs">
-              {event}
-            </Badge>
-          {/each}
-        </div>
-      {:else}
-        <p class="text-xs text-muted-foreground">{$t('notifications.all_events')}</p>
-      {/if}
-
-      <!-- Actions row -->
-      <div class="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onclick={handleTest}
-          disabled={testing || !channel.enabled}
-          data-testid="channel-test-btn-{channel.channel_id}"
-        >
-          {testing ? $t('notifications.testing') : $t('notifications.test')}
-        </Button>
-
-        <Button
-          size="sm"
-          variant="outline"
-          onclick={onedit}
-          data-testid="channel-edit-btn-{channel.channel_id}"
-        >
-          {$t('notifications.edit')}
-        </Button>
-
-        <Button
-          size="sm"
-          variant="outline"
-          class="text-destructive hover:bg-destructive/10"
-          onclick={ondelete}
-          data-testid="channel-delete-btn-{channel.channel_id}"
-        >
-          {$t('notifications.delete')}
-        </Button>
-
-        {#if testResult}
-          {#if testResult.status === "ok"}
-            <Badge
-              variant="default"
-              class="bg-[var(--apollia-success)] text-white"
-            >
-              OK{testResult.latency_ms !== null ? ` (${testResult.latency_ms}ms)` : ""}
-            </Badge>
-          {:else}
-            <Badge variant="destructive">
-              {$t('common.status.error')}{testResult.error ? `: ${testResult.error}` : ""}
-            </Badge>
-          {/if}
-        {/if}
+    <!-- Event filters -->
+    {#if channel.events.length > 0}
+      <div class="mt-2 flex flex-wrap gap-1">
+        {#each channel.events as event}
+          <Badge variant="outline" class="text-[11px]">
+            {event}
+          </Badge>
+        {/each}
       </div>
+    {:else}
+      <p class="mt-1 text-[11px] text-muted-foreground">{$t('notifications.all_events')}</p>
+    {/if}
+
+    <!-- Actions row -->
+    <div class="mt-3 flex items-center gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        onclick={handleTest}
+        disabled={testing || !channel.enabled}
+        data-testid="channel-test-btn-{channel.channel_id}"
+      >
+        {testing ? $t('notifications.testing') : $t('notifications.test')}
+      </Button>
+
+      <Button
+        size="sm"
+        variant="outline"
+        onclick={onedit}
+        data-testid="channel-edit-btn-{channel.channel_id}"
+      >
+        {$t('notifications.edit')}
+      </Button>
+
+      <Button
+        size="sm"
+        variant="outline"
+        class="text-destructive hover:bg-destructive/10"
+        onclick={ondelete}
+        data-testid="channel-delete-btn-{channel.channel_id}"
+      >
+        {$t('notifications.delete')}
+      </Button>
+
+      {#if testResult}
+        {#if testResult.status === "ok"}
+          <Badge variant="success">
+            OK{testResult.latency_ms !== null ? ` (${testResult.latency_ms}ms)` : ""}
+          </Badge>
+        {:else}
+          <Badge variant="destructive">
+            {$t('common.status.error')}{testResult.error ? `: ${testResult.error}` : ""}
+          </Badge>
+        {/if}
+      {/if}
     </div>
-  </CardContent>
-</Card>
+  </div>
+</div>

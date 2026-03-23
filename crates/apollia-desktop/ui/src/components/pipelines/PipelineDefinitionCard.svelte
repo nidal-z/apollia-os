@@ -1,7 +1,6 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import type { PipelineDefinitionView } from "$lib/types";
-  import { Card, CardContent } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
 
@@ -12,57 +11,53 @@
   }
 
   let { definition, onedit, ondelete }: Props = $props();
+
+  let agentNames = $derived(
+    definition.steps.map((s) => s.agent).join(", "),
+  );
 </script>
 
-<Card class="relative overflow-hidden" data-testid="pipeline-def-card-{definition.id}">
-  <CardContent class="py-3">
-    <div class="flex items-center gap-4">
-      <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-2">
-          <span class="text-sm font-medium" data-testid="pipeline-def-id-{definition.id}">
-            {definition.id}
-          </span>
-          <Badge variant="outline" class={definition.enabled ? 'border-[var(--apollia-success)] text-[var(--apollia-success)]' : 'border-muted-foreground text-muted-foreground'}>
-            {definition.enabled ? $t("pipelines.def_enabled") : $t("pipelines.def_disabled")}
-          </Badge>
-        </div>
-        {#if definition.description}
-          <p class="mt-0.5 text-xs text-muted-foreground" data-testid="pipeline-def-desc-{definition.id}">
-            {definition.description}
-          </p>
-        {/if}
-      </div>
+<div class="glass-card-hover relative overflow-hidden" data-testid="pipeline-def-card">
+  <!-- Status accent bar (AC-3) -->
+  <div
+    class="h-0.5 w-full {definition.enabled ? 'bg-primary' : 'bg-muted-foreground/20'}"
+    data-testid="pipeline-def-status-bar"
+  ></div>
 
-      <div class="flex items-center gap-4 text-xs text-muted-foreground">
-        <div class="text-center">
-          <div class="font-medium text-foreground">{definition.steps.length}</div>
-          <div>{$t("pipelines.steps")}</div>
-        </div>
-        <div class="text-center">
-          <div class="font-medium text-foreground">{definition.on_failure}</div>
-          <div>{$t("pipelines.def_on_failure")}</div>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-1">
-        <Button
-          size="sm"
-          variant="ghost"
-          onclick={() => onedit(definition.id)}
-          data-testid="pipeline-def-edit-{definition.id}"
-        >
-          {$t("pipelines.def_edit")}
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          class="text-destructive"
-          onclick={() => ondelete(definition.id)}
-          data-testid="pipeline-def-delete-{definition.id}"
-        >
-          {$t("pipelines.def_delete")}
-        </Button>
-      </div>
+  <div class="px-3.5 pt-3 pb-2.5">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+      <h3 class="text-[13px] font-medium">{definition.id}</h3>
+      <Badge variant={definition.enabled ? "default" : "secondary"}>
+        {definition.enabled ? $t("pipelines.def_enabled") : $t("pipelines.def_disabled")}
+      </Badge>
     </div>
-  </CardContent>
-</Card>
+
+    <!-- Info -->
+    <p class="text-[11px] text-muted-foreground mt-1">
+      {definition.steps.length} {$t("pipelines.steps")} — {agentNames}
+    </p>
+
+    {#if definition.description}
+      <p class="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
+        {definition.description}
+      </p>
+    {/if}
+
+    <!-- Actions -->
+    <div class="flex gap-2 mt-3">
+      <Button size="sm" variant="outline" onclick={() => onedit(definition.id)} data-testid="pipeline-def-edit-btn">
+        {$t("pipelines.def_edit")}
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        class="text-destructive"
+        onclick={() => ondelete(definition.id)}
+        data-testid="pipeline-def-delete-btn"
+      >
+        {$t("pipelines.def_delete")}
+      </Button>
+    </div>
+  </div>
+</div>

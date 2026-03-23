@@ -9,6 +9,7 @@
     class?: string;
     id?: string;
     "data-testid"?: string;
+    "aria-label"?: string;
   }
 
   let {

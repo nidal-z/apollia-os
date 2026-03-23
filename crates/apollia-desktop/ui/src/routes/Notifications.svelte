@@ -10,7 +10,9 @@
   import NotificationLog from "../components/notifications/NotificationLog.svelte";
   import GlobalEventsEditor from "../components/notifications/GlobalEventsEditor.svelte";
   import CreateChannelDialog from "../components/notifications/CreateChannelDialog.svelte";
+  import { addToast } from "$lib/components/ui/toast/store";
   import EditChannelDialog from "../components/notifications/EditChannelDialog.svelte";
+  import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
 
   let channels = $state<NotificationChannel[]>([]);
   let logs = $state<NotificationLogEntry[]>([]);
@@ -24,20 +26,6 @@
 
   let deleteConfirmId = $state<string | null>(null);
   let deleting = $state(false);
-
-  let toast = $state<{ type: "success" | "error"; message: string } | null>(null);
-  let toastTimer = $state<ReturnType<typeof setTimeout> | null>(null);
-
-  function showToast(type: "success" | "error", message: string) {
-    if (toastTimer !== null) {
-      clearTimeout(toastTimer);
-    }
-    toast = { type, message };
-    toastTimer = setTimeout(() => {
-      toast = null;
-      toastTimer = null;
-    }, 4_000);
-  }
 
   async function loadData() {
     loading = true;
@@ -59,12 +47,12 @@
   }
 
   function handleChannelCreated(id: string) {
-    showToast("success", $t("notifications.created_toast", { values: { id } }));
+    addToast($t("notifications.created_toast", { values: { id } }), "success");
     void loadData();
   }
 
   function handleChannelUpdated(id: string) {
-    showToast("success", $t("notifications.updated_toast", { values: { id } }));
+    addToast($t("notifications.updated_toast", { values: { id } }), "success");
     void loadData();
   }
 
@@ -91,12 +79,12 @@
     deleting = true;
     try {
       await invoke("delete_notification_channel", { id });
-      showToast("success", $t("notifications.deleted_toast", { values: { id } }));
+      addToast($t("notifications.deleted_toast", { values: { id } }), "success");
       deleteConfirmId = null;
       void loadData();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      showToast("error", $t("notifications.delete_error", { values: { message } }));
+      addToast($t("notifications.delete_error", { values: { message } }), "error");
     } finally {
       deleting = false;
     }
@@ -110,40 +98,22 @@
     void loadData();
   }
 
-  function handleDeleteKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      cancelDelete();
-    }
-  }
-
   onMount(() => {
     void loadData();
   });
 </script>
 
-<div class="space-y-6">
+<div class="max-w-6xl space-y-6" data-testid="notifications-page">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <div class="space-y-1">
+    <div>
       <h1 class="text-2xl font-semibold">{$t('notifications.title')}</h1>
-      <p class="text-sm text-muted-foreground" data-testid="notifications-subtitle">{$t('notifications.subtitle')}</p>
+      <p class="text-xs text-muted-foreground" data-testid="notifications-subtitle">{$t('notifications.subtitle')}</p>
     </div>
     <Button size="sm" onclick={() => (createDialogOpen = true)} data-testid="create-channel-btn">
       {$t('notifications.new_channel')}
     </Button>
   </div>
-
-  <!-- Toast -->
-  {#if toast}
-    <div
-      class="rounded-md px-4 py-2 text-sm {toast.type === 'success'
-        ? 'border border-[var(--apollia-success)] bg-[var(--apollia-success)]/10 text-[var(--apollia-success)]'
-        : 'border border-destructive bg-destructive/10 text-destructive'}"
-      data-testid="notifications-toast"
-    >
-      {toast.message}
-    </div>
-  {/if}
 
   <!-- Loading -->
   {#if loading}
@@ -165,7 +135,7 @@
 
     <!-- AC-2 / AC-6 — Channels section -->
     <section>
-      <h2 class="mb-3 text-lg font-medium">{$t('notifications.channels_title')}</h2>
+      <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('notifications.channels_title')}</h2>
       {#if channels.length === 0}
         <div
           class="flex flex-col items-center justify-center gap-4 rounded-xl glass-surface glass-border border-dashed py-16"
@@ -194,7 +164,7 @@
 
     <!-- History section -->
     <section>
-      <h2 class="mb-3 text-lg font-medium">{$t('notifications.history_title')}</h2>
+      <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('notifications.history_title')}</h2>
       <NotificationLog {logs} />
     </section>
   {/if}
@@ -217,41 +187,14 @@
 />
 
 <!-- Delete confirmation dialog (AC-6) -->
-{#if deleteConfirmId}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-    role="button"
-    tabindex="-1"
-    onclick={cancelDelete}
-    onkeydown={handleDeleteKeydown}
-  >
-    <div
-      class="w-[400px] rounded-lg border bg-background p-6 shadow-lg"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={handleDeleteKeydown}
-      data-testid="delete-channel-dialog"
-    >
-      <h3 class="mb-2 text-lg font-medium">{$t("notifications.delete_confirm_title")}</h3>
-      <p class="mb-4 text-sm text-muted-foreground">
-        {$t("notifications.delete_confirm_message", { values: { id: deleteConfirmId } })}
-      </p>
-      <div class="flex justify-end gap-2">
-        <Button variant="outline" size="sm" onclick={cancelDelete} data-testid="delete-channel-cancel-btn">
-          {$t("common.cancel")}
-        </Button>
-        <Button
-          size="sm"
-          variant="destructive"
-          onclick={confirmDelete}
-          disabled={deleting}
-          data-testid="delete-channel-confirm-btn"
-        >
-          {deleting ? $t("notifications.deleting") : $t("notifications.delete_confirm_yes")}
-        </Button>
-      </div>
-    </div>
-  </div>
-{/if}
+<ConfirmDialog
+  open={deleteConfirmId !== null}
+  onclose={cancelDelete}
+  onconfirm={confirmDelete}
+  title={$t("notifications.delete_confirm_title")}
+  message={$t("notifications.delete_confirm_message", { values: { id: deleteConfirmId ?? '' } })}
+  confirmLabel={$t("notifications.delete_confirm_yes")}
+  cancelLabel={$t("common.cancel")}
+  loading={deleting}
+  data-testid="delete-channel-confirm"
+/>

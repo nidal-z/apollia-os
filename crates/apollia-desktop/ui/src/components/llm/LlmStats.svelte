@@ -4,8 +4,6 @@
   import { t } from "svelte-i18n";
   import type { LlmCostStatsResponse, LlmCostStatsRow } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
-  import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
-  import { GlossaryTerm } from "$lib/components/ui/tooltip";
 
   const REFRESH_INTERVAL_MS = 30_000;
 
@@ -58,57 +56,52 @@
   });
 </script>
 
-<Card>
-  <CardHeader>
-    <CardTitle class="text-base font-medium">{$t('llm.session_stats_title')}</CardTitle>
-  </CardHeader>
-
-  <CardContent>
-    {#if loading}
-      <p class="text-sm text-muted-foreground">{$t('llm.loading_stats')}</p>
-    {:else if error}
-      <p class="text-sm text-destructive">{error}</p>
-    {:else if rows.length === 0}
-      <p class="text-sm text-muted-foreground">
-        {isOperator ? $t('llm.no_calls_operator') : $t('llm.no_calls')}
-      </p>
-    {:else if isOperator}
-      <!-- Operator mode: single summary line, no table -->
-      <p class="text-sm text-muted-foreground">
-        {$t('llm.used_today', { values: { count: totalCalls, cost: formatCost(totalCost) } })}
-      </p>
-    {:else}
-      <!-- Builder mode: full table with all columns -->
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b text-left text-xs text-muted-foreground">
-              <th class="pb-2 pr-4 font-medium">{$t('llm.table.backend')}</th>
-              <th class="pb-2 pr-4 font-medium">{$t('llm.table.model')}</th>
-              <th class="pb-2 pr-4 text-right font-medium">{$t('llm.table.calls')}</th>
-              <th class="pb-2 pr-4 text-right font-medium"><GlossaryTerm term="tokens" label={$t('llm.table.tokens')} /></th>
-              <th class="pb-2 text-right font-medium">{$t('llm.table.cost_usd')}</th>
+<div>
+  {#if loading}
+    <p class="text-sm text-muted-foreground">{$t('llm.loading_stats')}</p>
+  {:else if error}
+    <p class="text-sm text-destructive">{error}</p>
+  {:else if rows.length === 0}
+    <p class="text-sm text-muted-foreground">
+      {isOperator ? $t('llm.no_calls_operator') : $t('llm.no_calls')}
+    </p>
+  {:else if isOperator}
+    <!-- Operator mode: single summary line -->
+    <p class="text-sm text-muted-foreground">
+      {$t('llm.used_today', { values: { count: totalCalls, cost: formatCost(totalCost) } })}
+    </p>
+  {:else}
+    <!-- Builder mode: full table with standard glass-card pattern -->
+    <div class="glass-card glass-border overflow-hidden rounded-lg" data-testid="llm-stats-table">
+      <table class="w-full text-[13px]">
+        <thead class="border-b border-border bg-muted/50">
+          <tr>
+            <th class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">{$t('llm.table.backend')}</th>
+            <th class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">{$t('llm.table.model')}</th>
+            <th class="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground">{$t('llm.table.calls')}</th>
+            <th class="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground">{$t('llm.table.tokens')}</th>
+            <th class="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground">{$t('llm.table.cost_usd')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each rows as row (row.backend + row.model)}
+            <tr class="border-b border-border last:border-0 hover:bg-muted">
+              <td class="px-3 py-2">{row.backend}</td>
+              <td class="px-3 py-2 text-muted-foreground">{row.model}</td>
+              <td class="px-3 py-2 text-right tabular-nums">{row.call_count}</td>
+              <td class="px-3 py-2 text-right tabular-nums">{formatTokens(row.total_tokens)}</td>
+              <td class="px-3 py-2 text-right tabular-nums">{formatCost(row.total_cost_usd)}</td>
             </tr>
-          </thead>
-          <tbody>
-            {#each rows as row (row.backend + row.model)}
-              <tr class="border-b border-dashed">
-                <td class="py-2 pr-4">{row.backend}</td>
-                <td class="py-2 pr-4 text-muted-foreground">{row.model}</td>
-                <td class="py-2 pr-4 text-right">{row.call_count}</td>
-                <td class="py-2 pr-4 text-right">{formatTokens(row.total_tokens)}</td>
-                <td class="py-2 text-right">{formatCost(row.total_cost_usd)}</td>
-              </tr>
-            {/each}
-            <tr class="font-semibold">
-              <td class="pt-2" colspan="2">{$t('llm.table.total')}</td>
-              <td class="pt-2 text-right">{totalCalls}</td>
-              <td class="pt-2 text-right">{formatTokens(totalTokens)}</td>
-              <td class="pt-2 text-right">{formatCost(totalCost)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    {/if}
-  </CardContent>
-</Card>
+          {/each}
+          <!-- Total row -->
+          <tr class="border-t border-border" data-testid="llm-stats-total-row">
+            <td class="px-3 py-2 font-medium" colspan="2">{$t('llm.table.total')}</td>
+            <td class="px-3 py-2 text-right font-medium tabular-nums">{totalCalls}</td>
+            <td class="px-3 py-2 text-right font-medium tabular-nums">{formatTokens(totalTokens)}</td>
+            <td class="px-3 py-2 text-right font-medium tabular-nums">{formatCost(totalCost)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  {/if}
+</div>

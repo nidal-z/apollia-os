@@ -23,17 +23,12 @@
   let expandedSteps = $state<Set<string>>(new Set());
   let pollTimer = $state<ReturnType<typeof setInterval> | null>(null);
 
-  const STEP_STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  const STEP_STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "info" | "success" | "warning"> = {
     pending: "secondary",
-    running: "outline",
-    completed: "default",
+    running: "info",
+    completed: "success",
     failed: "destructive",
-  };
-
-  const STEP_STATUS_EXTRA: Record<string, string> = {
-    running: "animate-pulse border-info text-info",
-    completed: "bg-[var(--apollia-success)] text-white",
-    waiting_approval: "border-[var(--apollia-warning)] text-[var(--apollia-warning)]",
+    waiting_approval: "warning",
   };
 
   const STEP_STATUS_ICON: Record<string, string> = {
@@ -136,7 +131,6 @@
         {#if detail}
           <Badge
             variant={STEP_STATUS_VARIANT[detail.status] ?? "secondary"}
-            class={STEP_STATUS_EXTRA[detail.status] ?? ""}
           >
             {detail.status.toUpperCase()}
           </Badge>
@@ -196,7 +190,7 @@
             </div>
             <div class="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
-                class="h-full rounded-full bg-[var(--apollia-success)] transition-all"
+                class="h-full rounded-full bg-emerald-500 transition-all"
                 style="width: {totalStepCount > 0 ? (completedStepCount / totalStepCount) * 100 : 0}%"
               ></div>
             </div>
@@ -214,7 +208,7 @@
                   {#if i < detail.step_runs.length - 1}
                     <div
                       class="absolute left-[7px] top-5 h-full w-px {step.status === 'completed'
-                        ? 'bg-[var(--apollia-success)]'
+                        ? 'bg-emerald-500'
                         : 'bg-border'}"
                     ></div>
                   {/if}
@@ -223,9 +217,9 @@
                   <div class="relative z-10 flex h-4 w-4 shrink-0 items-center justify-center text-xs">
                     <span
                       class="{step.status === 'completed'
-                        ? 'text-[var(--apollia-success)]'
+                        ? 'text-emerald-500'
                         : step.status === 'running'
-                          ? 'text-info animate-pulse'
+                          ? 'text-primary animate-pulse'
                           : step.status === 'failed'
                             ? 'text-destructive'
                             : 'text-muted-foreground'}"
@@ -246,7 +240,7 @@
                       <span class="font-medium">{step.step_id}</span>
                       <Badge
                         variant={STEP_STATUS_VARIANT[step.status] ?? "secondary"}
-                        class="text-[10px] {STEP_STATUS_EXTRA[step.status] ?? ''}"
+                        class="text-[10px]"
                       >
                         {step.status}
                       </Badge>
@@ -257,7 +251,7 @@
                       {/if}
                       {#if detail?.status === "waiting_approval"}
                         <button
-                          class="ml-auto text-xs text-[var(--apollia-warning)] underline"
+                          class="ml-auto text-xs text-amber-600 underline dark:text-amber-400"
                           onclick={(e) => { e.stopPropagation(); navigateToApprovals(); }}
                         >
                           {$t('pipelines.view_approvals')}

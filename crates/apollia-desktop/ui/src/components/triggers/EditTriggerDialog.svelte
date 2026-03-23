@@ -9,6 +9,7 @@
     TriggerDefinitionView,
   } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
   import { Select } from "$lib/components/ui/select";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { RadioItem } from "$lib/components/ui/radio";
@@ -215,7 +216,7 @@
   });
 </script>
 
-<Dialog {open} {onclose} size="md" title={$t("triggers.edit_trigger")} data-testid="edit-trigger-dialog">
+<Dialog {open} {onclose} size="md" title={$t("triggers.edit_trigger")} data-testid="trigger-edit-dialog">
   {#if loading}
     <p class="py-8 text-center text-sm text-muted-foreground">{$t("triggers.saving")}…</p>
   {:else if loadError}
@@ -229,11 +230,10 @@
     <div class="space-y-4">
       <!-- ID (readonly) -->
       <div>
-        <label class="mb-1 block text-sm font-medium" for="edit-trigger-id">{$t("triggers.field_id")}</label>
-        <input
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-id">{$t("triggers.field_id")}</label>
+        <Input
           id="edit-trigger-id"
-          type="text"
-          class="w-full rounded-md border bg-muted px-3 py-2 text-sm"
+          class="bg-muted"
           value={triggerId}
           readonly
           data-testid="edit-trigger-id-input"
@@ -242,7 +242,7 @@
 
       <!-- Target: Agent / Pipeline -->
       <div>
-        <label class="mb-1 block text-sm font-medium">{$t("triggers.field_target")}</label>
+        <label class="mb-1 block text-[11px] text-muted-foreground">{$t("triggers.field_target")}</label>
         <div class="mb-2 flex gap-3">
           <RadioItem
             value="agent"
@@ -289,7 +289,7 @@
 
       <!-- Source type -->
       <div>
-        <label class="mb-1 block text-sm font-medium" for="edit-trigger-source-type">{$t("triggers.field_source_type")}</label>
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-source-type">{$t("triggers.field_source_type")}</label>
         <Select
           id="edit-trigger-source-type"
           bind:value={sourceType}
@@ -306,11 +306,10 @@
       <!-- Dynamic source fields -->
       {#if sourceType === "cron"}
         <div>
-          <label class="mb-1 block text-sm font-medium" for="edit-trigger-schedule">{$t("triggers.field_schedule")}</label>
-          <input
+          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-schedule">{$t("triggers.field_schedule")}</label>
+          <Input
             id="edit-trigger-schedule"
-            type="text"
-            class="w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
+            class="font-mono"
             placeholder={$t("triggers.field_schedule_placeholder")}
             bind:value={cronSchedule}
             data-testid="edit-trigger-schedule-input"
@@ -319,11 +318,10 @@
         </div>
       {:else if sourceType === "interval"}
         <div>
-          <label class="mb-1 block text-sm font-medium" for="edit-trigger-every">{$t("triggers.field_every")}</label>
-          <input
+          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-every">{$t("triggers.field_every")}</label>
+          <Input
             id="edit-trigger-every"
-            type="text"
-            class="w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
+            class="font-mono"
             placeholder={$t("triggers.field_every_placeholder")}
             bind:value={intervalEvery}
             data-testid="edit-trigger-every-input"
@@ -332,29 +330,26 @@
         </div>
       {:else if sourceType === "oneshot"}
         <div>
-          <label class="mb-1 block text-sm font-medium" for="edit-trigger-fire-at">{$t("triggers.field_fire_at")}</label>
-          <input
+          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-fire-at">{$t("triggers.field_fire_at")}</label>
+          <Input
             id="edit-trigger-fire-at"
             type="datetime-local"
-            class="w-full rounded-md border bg-background px-3 py-2 text-sm"
             bind:value={oneshotFireAt}
             data-testid="edit-trigger-fire-at-input"
           />
         </div>
       {:else if sourceType === "file_watch"}
         <div>
-          <label class="mb-1 block text-sm font-medium" for="edit-trigger-watch-path">{$t("triggers.field_path")}</label>
-          <input
+          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-watch-path">{$t("triggers.field_path")}</label>
+          <Input
             id="edit-trigger-watch-path"
-            type="text"
-            class="w-full rounded-md border bg-background px-3 py-2 text-sm"
             placeholder={$t("triggers.field_path_placeholder")}
             bind:value={fileWatchPath}
             data-testid="edit-trigger-path-input"
           />
         </div>
         <div>
-          <label class="mb-1 block text-sm font-medium">{$t("triggers.field_events")}</label>
+          <label class="mb-1 block text-[11px] text-muted-foreground">{$t("triggers.field_events")}</label>
           <div class="flex gap-4">
             <label class="flex items-center gap-1.5 text-sm">
               <Checkbox bind:checked={fileWatchCreate} data-testid="edit-trigger-event-create" />
@@ -372,12 +367,11 @@
         </div>
       {:else if sourceType === "webhook"}
         <div>
-          <label class="mb-1 block text-sm font-medium" for="edit-trigger-secret">{$t("triggers.field_secret")}</label>
+          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-secret">{$t("triggers.field_secret")}</label>
           <div class="flex gap-2">
-            <input
+            <Input
               id="edit-trigger-secret"
-              type="text"
-              class="flex-1 rounded-md border bg-background px-3 py-2 font-mono text-sm"
+              class="flex-1 font-mono"
               placeholder={$t("triggers.field_secret_placeholder")}
               bind:value={webhookSecret}
               data-testid="edit-trigger-secret-input"
@@ -395,7 +389,7 @@
 
       <!-- Input template -->
       <div>
-        <label class="mb-1 block text-sm font-medium" for="edit-trigger-input-template">
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-input-template">
           {$t("triggers.field_input_template")}
           <span class="font-normal text-muted-foreground">({$t("pipelines.input_json_optional")})</span>
         </label>
@@ -411,7 +405,7 @@
       <!-- On busy + Enabled -->
       <div class="flex items-center gap-6">
         <div>
-          <label class="mb-1 block text-sm font-medium" for="edit-trigger-on-busy">{$t("triggers.field_on_busy")}</label>
+          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-on-busy">{$t("triggers.field_on_busy")}</label>
           <Select
             id="edit-trigger-on-busy"
             bind:value={onBusy}

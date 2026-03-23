@@ -173,7 +173,7 @@
       <span class="text-[11px] text-muted-foreground">
         {agent.enabled ? $t("agents.auto_start_enabled") : $t("agents.auto_start_disabled")}
       </span>
-      <Toggle checked={agent.enabled} onchange={handleToggleEnabled} disabled={toggleLoading} size="sm" data-testid="agent-enabled-toggle" />
+      <Toggle checked={agent.enabled} onchange={handleToggleEnabled} disabled={toggleLoading} size="sm" aria-label={agent.enabled ? $t("agents.auto_start_enabled") : $t("agents.auto_start_disabled")} data-testid="agent-enabled-toggle" />
     </div>
   {/if}
 
@@ -220,10 +220,10 @@
       <!-- Secondary actions -->
       <div class="ml-auto flex items-center gap-0.5">
         {#if isInstalled}
-          <Button size="sm" variant="ghost" class="h-6 w-6 p-0" onclick={handleUpdate} disabled={updateLoading} title={$t("agents.update")} data-testid="agent-update-button">
+          <Button size="sm" variant="ghost" class="h-6 w-6 p-0" onclick={handleUpdate} disabled={updateLoading} aria-label={$t("agents.update")} data-testid="agent-update-button">
             <RefreshCw size={11} class="text-muted-foreground" />
           </Button>
-          <Button size="sm" variant="ghost" class="h-6 w-6 p-0" onclick={handleUninstall} disabled={uninstallLoading} title={$t("agents.uninstall")} data-testid="agent-uninstall-button">
+          <Button size="sm" variant="ghost" class="h-6 w-6 p-0" onclick={handleUninstall} disabled={uninstallLoading} aria-label={$t("agents.uninstall")} data-testid="agent-uninstall-button">
             <Trash2 size={11} class="text-destructive/60" />
           </Button>
         {:else}

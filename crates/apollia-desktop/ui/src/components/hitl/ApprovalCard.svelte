@@ -3,14 +3,11 @@
   import { onDestroy } from "svelte";
   import { t } from "svelte-i18n";
   import type { PendingApproval } from "$lib/types";
-  import {
-    Card,
-    CardHeader,
-    CardTitle,
-    CardContent,
-  } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { Dialog } from "$lib/components/ui/dialog";
+  import { Textarea } from "$lib/components/ui/textarea";
+  import { addToast } from "$lib/components/ui/toast/store";
 
   interface Props {
     approval: PendingApproval;
@@ -45,23 +42,18 @@
 
   let isOverThreshold = $derived(elapsedMs > WARNING_THRESHOLD_MS);
 
-  let showApproveConfirm = $state(false);
+  let showApproveDialog = $state(false);
   let approving = $state(false);
-  let approveError = $state<string | null>(null);
 
   let showRejectDialog = $state(false);
   let rejectReason = $state("");
   let rejecting = $state(false);
-  let rejectError = $state<string | null>(null);
   let reasonValid = $derived(rejectReason.trim().length >= MIN_REASON_LENGTH);
-
-  let showContext = $state(false);
 
   let resolved = $state(false);
 
   async function handleApprove() {
     approving = true;
-    approveError = null;
     try {
       await invoke("resume_task", {
         taskId: approval.task_id,
@@ -69,18 +61,19 @@
         reason: null,
       });
       resolved = true;
+      showApproveDialog = false;
+      addToast($t("approvals.approved_toast"), "success");
     } catch (err: unknown) {
-      approveError = err instanceof Error ? err.message : String(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast(msg, "error");
     } finally {
       approving = false;
-      showApproveConfirm = false;
     }
   }
 
   async function handleReject() {
     if (!reasonValid) return;
     rejecting = true;
-    rejectError = null;
     try {
       await invoke("resume_task", {
         taskId: approval.task_id,
@@ -88,28 +81,22 @@
         reason: rejectReason.trim(),
       });
       resolved = true;
+      showRejectDialog = false;
+      addToast($t("approvals.rejected_toast"), "success");
     } catch (err: unknown) {
-      rejectError = err instanceof Error ? err.message : String(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast(msg, "error");
     } finally {
       rejecting = false;
     }
   }
 
-  function openApproveConfirm() {
-    showApproveConfirm = true;
-    showRejectDialog = false;
+  function openApproveDialog() {
+    showApproveDialog = true;
   }
 
   function openRejectDialog() {
     showRejectDialog = true;
-    showApproveConfirm = false;
-    rejectReason = "";
-    rejectError = null;
-  }
-
-  function cancelDialogs() {
-    showApproveConfirm = false;
-    showRejectDialog = false;
     rejectReason = "";
   }
 
@@ -119,123 +106,124 @@
 </script>
 
 {#if !resolved}
-  <Card data-testid="approval-card" data-task-id={approval.task_id}>
-    <CardHeader class="pb-2">
+  <div class="glass-card-hover relative overflow-hidden" data-testid="approval-card" data-task-id={approval.task_id}>
+    <!-- Status accent bar (AC-1) -->
+    <div
+      class="h-0.5 w-full {isOverThreshold ? 'bg-destructive' : 'bg-warning'}"
+      data-testid="approval-status-bar"
+    ></div>
+
+    <div class="px-3.5 pt-3 pb-2.5">
+      <!-- Header -->
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <CardTitle class="text-base font-medium">
-            {approval.agent_name || $t('approvals.unknown_agent')}
-          </CardTitle>
-          <code class="text-xs text-muted-foreground">{shortId(approval.task_id)}</code>
+          <h3 class="text-[13px] font-medium">
+            {approval.agent_name || $t("approvals.unknown_agent")}
+          </h3>
+          <code class="text-[11px] text-muted-foreground">{shortId(approval.task_id)}</code>
         </div>
-        <Badge
-          variant="outline"
-          class={isOverThreshold
-            ? "border-destructive text-destructive"
-            : "border-[var(--apollia-warning)] text-[var(--apollia-warning)]"}
-        >
+        <Badge variant={isOverThreshold ? "destructive" : "warning"}>
           {formatElapsed(elapsedMs)}
         </Badge>
       </div>
-    </CardHeader>
 
-    <CardContent>
-      <div class="space-y-3">
-        <!-- Prompt -->
-        <div>
-          <h4 class="mb-1 text-xs font-semibold text-muted-foreground">{$t('approvals.prompt_label')}</h4>
-          <div class="max-h-[400px] overflow-auto rounded glass-border glass-surface p-3">
-            <p class="whitespace-pre-wrap text-sm">{approval.prompt || $t('approvals.no_prompt')}</p>
-          </div>
+      <!-- Prompt -->
+      <div class="mt-2">
+        <p class="text-[11px] text-muted-foreground mb-1">{$t("approvals.prompt_label")}</p>
+        <div class="max-h-[400px] overflow-auto rounded glass-border glass-inset p-2.5">
+          <p class="whitespace-pre-wrap text-[13px]">{approval.prompt || $t("approvals.no_prompt")}</p>
         </div>
-
-        <!-- Context JSON (collapsible) -->
-        {#if approval.context}
-          <div>
-            <button
-              class="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
-              onclick={() => (showContext = !showContext)}
-            >
-              <span>{showContext ? $t('approvals.hide_context') : $t('approvals.show_context')}</span>
-              <span class="text-[10px]">{showContext ? "▲" : "▼"}</span>
-            </button>
-            {#if showContext}
-              <div class="mt-1 max-h-[300px] overflow-auto rounded glass-border glass-surface p-3">
-                <pre class="text-xs">{JSON.stringify(approval.context, null, 2)}</pre>
-              </div>
-            {/if}
-          </div>
-        {/if}
-
-        <!-- Error messages -->
-        {#if approveError}
-          <p class="text-xs text-destructive">{approveError}</p>
-        {/if}
-        {#if rejectError}
-          <p class="text-xs text-destructive">{rejectError}</p>
-        {/if}
-
-        <!-- Action buttons / dialogs -->
-        {#if showApproveConfirm}
-          <div class="rounded border border-[var(--apollia-success)] bg-[var(--apollia-success)]/5 p-3">
-            <p class="mb-2 text-sm">{$t('approvals.confirm_approval')}</p>
-            <div class="flex gap-2">
-              <Button
-                size="sm"
-                class="bg-[var(--apollia-success)] text-white hover:bg-[var(--apollia-success)]/90"
-                onclick={handleApprove}
-                disabled={approving}
-                data-testid="approval-confirm-btn"
-              >
-                {approving ? $t('approvals.approving') : $t('common.confirm')}
-              </Button>
-              <Button size="sm" variant="outline" onclick={cancelDialogs}>
-                {$t('common.cancel')}
-              </Button>
-            </div>
-          </div>
-        {:else if showRejectDialog}
-          <div class="rounded border border-destructive bg-destructive/5 p-3">
-            <p class="mb-2 text-sm">{$t('approvals.reject_reason', { values: { min: MIN_REASON_LENGTH } })}</p>
-            <textarea
-              class="mb-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
-              rows="3"
-              placeholder={$t('approvals.reject_placeholder')}
-              bind:value={rejectReason}
-            ></textarea>
-            <p class="mb-2 text-xs text-muted-foreground">
-              {rejectReason.trim().length} / {MIN_REASON_LENGTH} min
-            </p>
-            <div class="flex gap-2">
-              <Button
-                size="sm"
-                variant="destructive"
-                onclick={handleReject}
-                disabled={!reasonValid || rejecting}
-              >
-                {rejecting ? $t('approvals.rejecting') : $t('approvals.reject')}
-              </Button>
-              <Button size="sm" variant="outline" onclick={cancelDialogs}>
-                {$t('common.cancel')}
-              </Button>
-            </div>
-          </div>
-        {:else}
-          <div class="flex gap-2">
-            <Button
-              size="sm"
-              class="bg-[var(--apollia-success)] text-white hover:bg-[var(--apollia-success)]/90"
-              onclick={openApproveConfirm}
-              data-testid="approval-approve-btn"
-            >
-              {$t('approvals.approve')}
-            </Button>
-            <Button size="sm" variant="destructive" onclick={openRejectDialog} data-testid="approval-reject-btn">
-              {$t('approvals.reject')}
-            </Button>
-          </div>
-        {/if}
       </div>
-    </CardContent>
-  </Card>
+
+      <!-- Context JSON collapsible -->
+      {#if approval.context}
+        <details class="mt-2 glass-border glass-inset rounded-md" data-testid="approval-context-details">
+          <summary class="text-[11px] text-muted-foreground px-2 py-1 cursor-pointer">
+            {$t("approvals.show_context")}
+          </summary>
+          <pre class="text-[11px] px-2 py-1 overflow-x-auto">{JSON.stringify(approval.context, null, 2)}</pre>
+        </details>
+      {/if}
+
+      <!-- Actions (AC-2) -->
+      <div class="flex gap-2 mt-3">
+        <Button
+          size="sm"
+          variant="success"
+          onclick={openApproveDialog}
+          data-testid="approval-approve-btn"
+        >
+          {$t("approvals.approve")}
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          onclick={openRejectDialog}
+          data-testid="approval-reject-btn"
+        >
+          {$t("approvals.reject")}
+        </Button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Approve Dialog (AC-2) -->
+  <Dialog
+    open={showApproveDialog}
+    onclose={() => (showApproveDialog = false)}
+    title={$t("approvals.confirm_approval")}
+    size="sm"
+    data-testid="approval-approve-dialog"
+  >
+    <p class="text-sm text-muted-foreground">
+      {$t("approvals.confirm_approval_message", { values: { agent: approval.agent_name, taskId: shortId(approval.task_id) } })}
+    </p>
+    <div class="mt-6 flex justify-end gap-2">
+      <Button variant="outline" onclick={() => (showApproveDialog = false)}>
+        {$t("common.cancel")}
+      </Button>
+      <Button
+        variant="success"
+        onclick={handleApprove}
+        disabled={approving}
+        data-testid="approval-confirm-btn"
+      >
+        {approving ? $t("approvals.approving") : $t("approvals.approve")}
+      </Button>
+    </div>
+  </Dialog>
+
+  <!-- Reject Dialog (AC-2 + AC-3) -->
+  <Dialog
+    open={showRejectDialog}
+    onclose={() => (showRejectDialog = false)}
+    title={$t("approvals.reject")}
+    size="sm"
+    data-testid="approval-reject-dialog"
+  >
+    <p class="mb-3 text-sm text-muted-foreground">
+      {$t("approvals.reject_reason", { values: { min: MIN_REASON_LENGTH } })}
+    </p>
+    <Textarea
+      bind:value={rejectReason}
+      rows={3}
+      placeholder={$t("approvals.reject_placeholder")}
+      data-testid="approval-reject-reason"
+    />
+    <p class="mt-1 text-[11px] text-muted-foreground">
+      {rejectReason.trim().length} / {MIN_REASON_LENGTH} min
+    </p>
+    <div class="mt-4 flex justify-end gap-2">
+      <Button variant="outline" onclick={() => (showRejectDialog = false)}>
+        {$t("common.cancel")}
+      </Button>
+      <Button
+        variant="destructive"
+        onclick={handleReject}
+        disabled={!reasonValid || rejecting}
+      >
+        {rejecting ? $t("approvals.rejecting") : $t("approvals.reject")}
+      </Button>
+    </div>
+  </Dialog>
 {/if}

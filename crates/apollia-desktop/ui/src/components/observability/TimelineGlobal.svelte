@@ -5,6 +5,7 @@
   import type { GlobalTimelineEvent } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
   import { Skeleton } from "$lib/components/ui/skeleton";
+  import { Clock } from "lucide-svelte";
 
   const WINDOW_OPTIONS: { label: string; minutes: number }[] = [
     { label: "30min", minutes: 30 },
@@ -158,27 +159,31 @@
   {:else if error}
     <p class="text-sm text-destructive">{error}</p>
   {:else if filteredEvents.length === 0}
-    <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
+    <!-- AC-5 — Empty state -->
+    <div class="glass-card glass-border flex flex-col items-center justify-center py-12" data-testid="timeline-empty">
+      <Clock class="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
       <p class="text-muted-foreground">{$t('observability.empty_timeline')}</p>
     </div>
   {:else}
-    <div class="space-y-1">
+    <div class="space-y-1.5">
       {#each filteredEvents as event, index (event.timestamp + "-" + index)}
+        <!-- AC-2 — glass-card-hover event cards -->
         <button
-          class="flex w-full items-start gap-3 rounded-md glass-border glass-card px-3 py-2 text-left transition-colors hover:bg-muted/50"
+          class="flex w-full items-start gap-3 glass-card-hover px-3.5 py-2.5 text-left"
           onclick={() => toggleExpand(index)}
+          data-testid="timeline-event-{index}"
         >
           <span class="mt-0.5 text-sm">{TYPE_ICONS[event.event_type] ?? "\u{2022}"}</span>
 
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
-              <span class="text-sm font-medium">{event.summary}</span>
-              <Badge variant="outline" class="text-[10px] capitalize">{event.event_type}</Badge>
+              <span class="text-[13px] font-medium">{event.summary}</span>
+              <Badge variant="secondary" class="text-[10px] capitalize">{event.event_type}</Badge>
             </div>
-            <span class="text-xs text-muted-foreground">{formatTimestamp(event.timestamp)}</span>
+            <span class="text-[11px] text-muted-foreground">{formatTimestamp(event.timestamp)}</span>
           </div>
 
-          <span class="mt-1 text-xs text-muted-foreground">
+          <span class="mt-1 text-[11px] text-muted-foreground">
             {expandedIndices.has(index) ? "\u{25B2}" : "\u{25BC}"}
           </span>
         </button>

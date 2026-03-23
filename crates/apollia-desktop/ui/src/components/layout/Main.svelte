@@ -38,7 +38,7 @@
       class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
       onclick={goBack}
       disabled={!$canGoBack}
-      title="Back (Cmd+[)"
+      aria-label="Back (Cmd+[)"
       data-testid="nav-back"
     >
       <ChevronLeft size={16} strokeWidth={1.75} />
@@ -47,7 +47,7 @@
       class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
       onclick={goForward}
       disabled={!$canGoForward}
-      title="Forward (Cmd+])"
+      aria-label="Forward (Cmd+])"
       data-testid="nav-forward"
     >
       <ChevronRight size={16} strokeWidth={1.75} />

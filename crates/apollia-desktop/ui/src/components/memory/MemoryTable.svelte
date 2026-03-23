@@ -4,16 +4,19 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { GlossaryTerm } from "$lib/components/ui/tooltip";
+  import { Trash2 } from "lucide-svelte";
+  import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
 
   interface Props {
     entries: MemoryEntry[];
     searching: boolean;
-    ondelete: (entryId: string) => void;
+    ondelete: (entryId: string) => void | Promise<void>;
   }
 
   let { entries, searching, ondelete }: Props = $props();
 
-  let confirmingId = $state<string | null>(null);
+  let deleteEntryId = $state<string | null>(null);
+  let deleting = $state(false);
 
   const TYPE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
     episodic: "default",
@@ -31,7 +34,7 @@
     const then = new Date(iso).getTime();
     const diffMs = now - then;
 
-    if (diffMs < 0) return "in the future";
+    if (diffMs < 0) return $t('memory.in_the_future');
 
     const seconds = Math.floor(diffMs / 1000);
     if (seconds < 60) return `${seconds}s ago`;
@@ -61,19 +64,23 @@
     return `${days}d`;
   }
 
-  function handleDeleteClick(entryId: string) {
-    confirmingId = entryId;
+  function requestDelete(entryId: string) {
+    deleteEntryId = entryId;
   }
 
-  function handleConfirmDelete() {
-    if (confirmingId !== null) {
-      ondelete(confirmingId);
-      confirmingId = null;
+  async function handleConfirmDelete() {
+    if (deleteEntryId === null) return;
+    deleting = true;
+    try {
+      await ondelete(deleteEntryId);
+    } finally {
+      deleting = false;
+      deleteEntryId = null;
     }
   }
 
   function handleCancelDelete() {
-    confirmingId = null;
+    deleteEntryId = null;
   }
 </script>
 
@@ -89,7 +96,7 @@
   </div>
 {:else}
   <div class="overflow-x-auto rounded-md glass-border glass-surface">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm" data-testid="memory-table">
       <thead class="border-b border-border bg-muted/50">
         <tr>
           <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.type')}</th>
@@ -129,25 +136,15 @@
               {ttlDisplay(entry.expires_at)}
             </td>
             <td class="px-4 py-2 text-right">
-              {#if confirmingId === entry.id}
-                <div class="inline-flex items-center gap-1">
-                  <Button size="sm" variant="destructive" onclick={handleConfirmDelete}>
-                    {$t('common.confirm')}
-                  </Button>
-                  <Button size="sm" variant="outline" onclick={handleCancelDelete}>
-                    {$t('common.cancel')}
-                  </Button>
-                </div>
-              {:else}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onclick={() => handleDeleteClick(entry.id)}
-                  aria-label={$t('memory.delete_label')}
-                >
-                  &#x1F5D1;
-                </Button>
-              {/if}
+              <Button
+                size="sm"
+                variant="ghost"
+                onclick={() => requestDelete(entry.id)}
+                aria-label={$t('memory.delete_label')}
+                data-testid="memory-delete-btn-{entry.id}"
+              >
+                <Trash2 class="h-4 w-4" />
+              </Button>
             </td>
           </tr>
         {/each}
@@ -155,3 +152,16 @@
     </table>
   </div>
 {/if}
+
+<!-- Delete confirmation dialog -->
+<ConfirmDialog
+  open={deleteEntryId !== null}
+  onclose={handleCancelDelete}
+  onconfirm={handleConfirmDelete}
+  title={$t('memory.delete_confirm_title')}
+  message={$t('memory.delete_confirm_message')}
+  confirmLabel={$t('memory.delete_confirm_yes')}
+  cancelLabel={$t('common.cancel')}
+  loading={deleting}
+  data-testid="memory-delete-confirm"
+/>

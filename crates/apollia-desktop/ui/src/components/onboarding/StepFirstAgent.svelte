@@ -126,8 +126,8 @@
   {/if}
 
   {#if started && agentId}
-    <div class="flex items-center gap-3 rounded-lg border border-[var(--apollia-success)] bg-[var(--apollia-success)]/10 p-4">
-      <span class="text-lg text-[var(--apollia-success)]">&#10003;</span>
+    <div class="flex items-center gap-3 rounded-lg border border-success bg-success/10 p-4">
+      <span class="text-lg text-success">&#10003;</span>
       <div>
         <p class="text-sm font-medium">{$t('onboarding.agent_started')}</p>
         <p class="text-sm font-medium text-foreground">{agentName}</p>

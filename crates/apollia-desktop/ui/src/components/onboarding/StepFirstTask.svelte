@@ -167,7 +167,7 @@
       case "tool_call":       return "text-warning";
       case "hitl_suspended":  return "text-warning";
       case "hitl_resolved":   return "text-success";
-      case "task_completed":  return "text-[var(--apollia-success)]";
+      case "task_completed":  return "text-success";
       case "task_transition": return "text-muted-foreground";
       default:                return "text-muted-foreground";
     }
@@ -256,7 +256,7 @@
           {#if !isTerminal}
             <span class="inline-block h-2 w-2 animate-pulse rounded-full bg-primary"></span>
           {:else if isCompleted}
-            <span class="h-2 w-2 rounded-full bg-[var(--apollia-success)]"></span>
+            <span class="h-2 w-2 rounded-full bg-success"></span>
           {:else}
             <span class="h-2 w-2 rounded-full bg-destructive"></span>
           {/if}
@@ -366,7 +366,7 @@
 
   <div class="flex items-center justify-between">
     {#if isCompleted}
-      <p class="flex items-center gap-1.5 text-sm text-[var(--apollia-success)] font-medium">
+      <p class="flex items-center gap-1.5 text-sm text-success font-medium">
         <Check size={16} /> {$t('onboarding.task_completed')}
       </p>
       <Button onclick={onFinish}>{$t('onboarding.finish_setup')}</Button>

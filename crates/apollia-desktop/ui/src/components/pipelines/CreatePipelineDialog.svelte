@@ -8,6 +8,7 @@
     PipelineDefinitionView,
   } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
   import { Select } from "$lib/components/ui/select";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Textarea } from "$lib/components/ui/textarea";
@@ -268,14 +269,13 @@
   <div class="space-y-4">
     <!-- ID -->
     <div>
-      <label class="mb-1 block text-sm font-medium" for="pipeline-id">{$t("pipelines.field_id")}</label>
-      <input
+      <label class="mb-1 block text-[11px] text-muted-foreground" for="pipeline-id">{$t("pipelines.field_id")}</label>
+      <Input
         id="pipeline-id"
-        type="text"
-        class="w-full rounded-md border bg-background px-3 py-2 text-sm {idError ? 'border-destructive' : ''}"
+        class={idError ? "border-destructive" : ""}
         placeholder={$t("pipelines.field_id_placeholder")}
         bind:value={pipelineId}
-        data-testid="pipeline-id-input"
+        data-testid="pipeline-create-input-name"
       />
       <p class="mt-0.5 text-xs text-muted-foreground">{$t("pipelines.field_id_help")}</p>
       {#if idError}
@@ -285,23 +285,21 @@
 
     <!-- Description -->
     <div>
-      <label class="mb-1 block text-sm font-medium" for="pipeline-description">
+      <label class="mb-1 block text-[11px] text-muted-foreground" for="pipeline-description">
         {$t("pipelines.field_description")}
-        <span class="font-normal text-muted-foreground">({$t("pipelines.input_json_optional")})</span>
+        <span>({$t("pipelines.input_json_optional")})</span>
       </label>
-      <input
+      <Input
         id="pipeline-description"
-        type="text"
-        class="w-full rounded-md border bg-background px-3 py-2 text-sm"
         bind:value={description}
-        data-testid="pipeline-description-input"
+        data-testid="pipeline-create-input-desc"
       />
     </div>
 
     <!-- On failure + Enabled -->
     <div class="flex items-center gap-6">
       <div>
-        <label class="mb-1 block text-sm font-medium" for="pipeline-on-failure">{$t("pipelines.def_on_failure")}</label>
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="pipeline-on-failure">{$t("pipelines.def_on_failure")}</label>
         <Select
           id="pipeline-on-failure"
           bind:value={onFailure}
@@ -311,8 +309,8 @@
           <option value="continue">continue</option>
         </Select>
       </div>
-      <label class="flex items-center gap-2 text-sm">
-        <Checkbox bind:checked={enabled} data-testid="pipeline-enabled-toggle" />
+      <label class="flex items-center gap-2 text-[11px] text-muted-foreground">
+        <Checkbox bind:checked={enabled} data-testid="pipeline-create-checkbox-enabled" />
         {$t("pipelines.def_enabled")}
       </label>
     </div>
@@ -320,7 +318,7 @@
     <!-- Steps section -->
     <div>
       <div class="mb-2 flex items-center justify-between">
-        <label class="block text-sm font-medium">{$t("pipelines.field_steps_label")}</label>
+        <label class="block text-[11px] text-muted-foreground">{$t("pipelines.field_steps_label")}</label>
         <Button size="sm" variant="outline" onclick={addStep} data-testid="add-step-btn">
           {$t("pipelines.add_step")}
         </Button>
@@ -355,11 +353,10 @@
             <div class="space-y-2">
               <!-- Step ID -->
               <div>
-                <label class="mb-0.5 block text-xs font-medium" for="step-{index}-id">{$t("pipelines.field_step_id")}</label>
-                <input
+                <label class="mb-0.5 block text-[11px] text-muted-foreground" for="step-{index}-id">{$t("pipelines.field_step_id")}</label>
+                <Input
                   id="step-{index}-id"
-                  type="text"
-                  class="w-full rounded-md border bg-background px-2 py-1.5 text-xs {stepIdErrors[index] ? 'border-destructive' : ''}"
+                  class="h-8 px-2 py-1.5 text-xs {stepIdErrors[index] ? 'border-destructive' : ''}"
                   placeholder="extract, validate, generate..."
                   bind:value={step.id}
                   data-testid="pipeline-step-{index}-id"
@@ -371,7 +368,7 @@
 
               <!-- Agent select -->
               <div>
-                <label class="mb-0.5 block text-xs font-medium" for="step-{index}-agent">{$t("pipelines.field_step_agent")}</label>
+                <label class="mb-0.5 block text-[11px] text-muted-foreground" for="step-{index}-agent">{$t("pipelines.field_step_agent")}</label>
                 <Select
                   id="step-{index}-agent"
                   class="w-full px-2 py-1.5 text-xs"
@@ -387,7 +384,7 @@
 
               <!-- Input -->
               <div>
-                <label class="mb-0.5 block text-xs font-medium" for="step-{index}-input">{$t("pipelines.field_step_input")}</label>
+                <label class="mb-0.5 block text-[11px] text-muted-foreground" for="step-{index}-input">{$t("pipelines.field_step_input")}</label>
                 <Textarea
                   id="step-{index}-input"
                   class="px-2 py-1.5 text-xs"
@@ -400,7 +397,7 @@
               <!-- Depends on (multi-select checkboxes) -->
               {#if otherStepIds(index).length > 0}
                 <div>
-                  <label class="mb-0.5 block text-xs font-medium">{$t("pipelines.field_depends_on")}</label>
+                  <label class="mb-0.5 block text-[11px] text-muted-foreground">{$t("pipelines.field_depends_on")}</label>
                   <div class="flex flex-wrap gap-2">
                     {#each otherStepIds(index) as depId}
                       <label class="flex items-center gap-1 text-xs">
@@ -419,7 +416,7 @@
               <!-- On failure -->
               <div class="flex items-center gap-4">
                 <div>
-                  <label class="mb-0.5 block text-xs font-medium" for="step-{index}-on-failure">{$t("pipelines.def_on_failure")}</label>
+                  <label class="mb-0.5 block text-[11px] text-muted-foreground" for="step-{index}-on-failure">{$t("pipelines.def_on_failure")}</label>
                   <Select
                     id="step-{index}-on-failure"
                     class="px-2 py-1.5 text-xs"
@@ -434,7 +431,7 @@
 
                 {#if step.onFailure === "fallback"}
                   <div>
-                    <label class="mb-0.5 block text-xs font-medium" for="step-{index}-fallback-for">{$t("pipelines.field_fallback_for")}</label>
+                    <label class="mb-0.5 block text-[11px] text-muted-foreground" for="step-{index}-fallback-for">{$t("pipelines.field_fallback_for")}</label>
                     <Select
                       id="step-{index}-fallback-for"
                       class="px-2 py-1.5 text-xs"
@@ -472,16 +469,14 @@
                       <option value="ends_with">ends_with</option>
                       <option value="regex">regex</option>
                     </Select>
-                    <input
-                      type="text"
-                      class="flex-1 rounded-md border bg-background px-2 py-1 text-xs"
+                    <Input
+                      class="h-8 flex-1 px-2 py-1 text-xs"
                       placeholder="field"
                       bind:value={step.conditionField}
                       data-testid="pipeline-step-{index}-condition-field"
                     />
-                    <input
-                      type="text"
-                      class="flex-1 rounded-md border bg-background px-2 py-1 text-xs"
+                    <Input
+                      class="h-8 flex-1 px-2 py-1 text-xs"
                       placeholder="value"
                       bind:value={step.conditionValue}
                       data-testid="pipeline-step-{index}-condition-value"

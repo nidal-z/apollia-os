@@ -98,7 +98,7 @@
             <p class="text-[11px] text-muted-foreground">{taskList.length} {$t('agents.tasks_label')}</p>
           </div>
         </div>
-        <Button size="sm" variant="ghost" class="h-7 w-7 p-0" onclick={fetchTasks} disabled={loading} title={$t('common.refresh')}>
+        <Button size="sm" variant="ghost" class="h-7 w-7 p-0" onclick={fetchTasks} disabled={loading} aria-label={$t('common.refresh')}>
           <RefreshCw size={13} class="text-muted-foreground {loading ? 'animate-spin' : ''}" />
         </Button>
       </div>

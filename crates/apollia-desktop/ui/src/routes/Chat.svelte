@@ -97,7 +97,7 @@
     <div class="mt-4 glass-card glass-border rounded-lg p-4 animate-fade-in" data-testid="new-chat-picker">
       <div class="flex items-center justify-between mb-3">
         <span class="text-xs font-medium">{$t("chat.pick_type")}</span>
-        <button onclick={closeNewChatPicker} class="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/50 hover:text-foreground transition-colors">
+        <button onclick={closeNewChatPicker} class="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/50 hover:text-foreground transition-colors" aria-label="Close" data-testid="chat-picker-close">
           <X size={13} />
         </button>
       </div>

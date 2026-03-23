@@ -198,7 +198,10 @@
     "no_prompt": "No prompt",
     "show_context": "Show context",
     "hide_context": "Hide context",
-    "confirm_approval": "Confirm approval for this task?",
+    "confirm_approval": "Confirm approval",
+    "confirm_approval_message": "Approve execution for agent {agent} (task {taskId})?",
+    "approved_toast": "Approval confirmed",
+    "rejected_toast": "Approval rejected",
     "approving": "Approving...",
     "approve": "Approve",
     "reject": "Reject",
@@ -232,6 +235,8 @@
     "model": "Model",
     "ping": "Ping",
     "pinging": "Pinging...",
+    "ping_ok": "Ping OK ({latency}ms)",
+    "ping_failed": "Ping failed",
     "local_ai": "Local AI",
     "running": "Running",
     "status_error": "Error",
@@ -431,7 +436,11 @@
       "procedural": "Procedural"
     },
     "delete_label": "Delete",
-    "expired": "expired"
+    "delete_confirm_title": "Delete memory entry",
+    "delete_confirm_message": "Are you sure you want to delete this memory entry? This action cannot be undone.",
+    "delete_confirm_yes": "Delete",
+    "expired": "expired",
+    "in_the_future": "in the future"
   },
   "notifications": {
     "title": "Notifications",
@@ -561,6 +570,8 @@
     "review_onboarding": "Review onboarding",
     "review_onboarding_desc": "Reset the onboarding flag and restart to see the welcome wizard.",
     "reset_onboarding": "Reset Onboarding",
+    "reset_confirm_title": "Reset onboarding",
+    "reset_confirm_message": "This will restart the welcome wizard on next launch. Are you sure?",
     "resetting": "Resetting...",
     "system_info": "System information",
     "system_version": "Version",

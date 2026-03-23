@@ -5,6 +5,7 @@
   import type { AuditTrailEntry } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
   import { Select } from "$lib/components/ui/select";
+  import { Shield } from "lucide-svelte";
 
   const PAGE_SIZE = 50;
 
@@ -129,34 +130,37 @@
   {:else if error}
     <p class="text-sm text-destructive">{error}</p>
   {:else if filteredEntries.length === 0}
-    <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
+    <!-- AC-5 — Empty state -->
+    <div class="glass-card glass-border flex flex-col items-center justify-center py-12" data-testid="audit-trail-empty">
+      <Shield class="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
       <p class="text-muted-foreground">{$t('observability.empty_audit')}</p>
     </div>
   {:else}
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b text-left text-xs text-muted-foreground">
-            <th class="pb-2 pr-4 font-medium">{$t('observability.table.timestamp')}</th>
-            <th class="pb-2 pr-4 font-medium">{$t('observability.table.tool')}</th>
-            <th class="pb-2 pr-4 font-medium">{$t('observability.table.agent')}</th>
-            <th class="pb-2 pr-4 text-right font-medium">{$t('observability.table.duration')}</th>
-            <th class="pb-2 text-right font-medium">{$t('observability.table.exit')}</th>
+    <!-- AC-4 — Standard table styling -->
+    <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="audit-trail-table">
+      <table class="w-full text-[13px]">
+        <thead class="border-b border-border bg-muted/50">
+          <tr>
+            <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.timestamp')}</th>
+            <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.tool')}</th>
+            <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.agent')}</th>
+            <th class="text-right px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.duration')}</th>
+            <th class="text-right px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.exit')}</th>
           </tr>
         </thead>
         <tbody>
           {#each filteredEntries as entry (entry.id)}
             <tr
-              class="cursor-pointer border-b border-dashed border-primary/8 transition-colors hover:bg-muted"
+              class="cursor-pointer border-b border-border last:border-0 transition-colors hover:bg-muted"
               onclick={() => toggleRow(entry.id)}
             >
-              <td class="py-2 pr-4 text-xs">{formatTimestamp(entry.timestamp)}</td>
-              <td class="py-2 pr-4">{entry.tool_name}</td>
-              <td class="py-2 pr-4 text-muted-foreground">{entry.agent_name}</td>
-              <td class="py-2 pr-4 text-right">{formatDuration(entry.duration_ms)}</td>
-              <td class="py-2 text-right">
+              <td class="px-3 py-2 text-[11px] text-muted-foreground">{formatTimestamp(entry.timestamp)}</td>
+              <td class="px-3 py-2">{entry.tool_name}</td>
+              <td class="px-3 py-2 text-muted-foreground">{entry.agent_name}</td>
+              <td class="px-3 py-2 text-right">{formatDuration(entry.duration_ms)}</td>
+              <td class="px-3 py-2 text-right">
                 {#if entry.exit_code !== null}
-                  <span class={entry.exit_code === 0 ? "text-[var(--apollia-success)]" : "text-destructive"}>
+                  <span class={entry.exit_code === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
                     {entry.exit_code}
                   </span>
                 {:else}

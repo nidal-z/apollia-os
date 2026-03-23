@@ -3,8 +3,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import type { LlmDailyCostsResponse, LlmDailyCostEntry } from "$lib/types";
-  import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
   import { Skeleton } from "$lib/components/ui/skeleton";
+  import { BarChart3 } from "lucide-svelte";
 
   const REFRESH_INTERVAL_MS = 60_000;
   const CHART_WIDTH = 600;
@@ -13,15 +13,16 @@
   const INNER_WIDTH = CHART_WIDTH - MARGIN.left - MARGIN.right;
   const INNER_HEIGHT = CHART_HEIGHT - MARGIN.top - MARGIN.bottom;
 
-  const BACKEND_COLORS: string[] = [
-    "#8b5cf6",
-    "#3b82f6",
-    "#10b981",
-    "#f59e0b",
-    "#ef4444",
-    "#ec4899",
-    "#06b6d4",
-    "#84cc16",
+  /** CSS variable names for chart colors — adapted for light/dark via app.css. */
+  const CHART_CSS_VARS: string[] = [
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+    "var(--chart-5)",
+    "var(--chart-6)",
+    "var(--chart-7)",
+    "var(--chart-8)",
   ];
 
   let entries = $state<LlmDailyCostEntry[]>([]);
@@ -34,7 +35,7 @@
   );
 
   let backendColorMap = $derived(
-    Object.fromEntries(backends.map((b, i) => [b, BACKEND_COLORS[i % BACKEND_COLORS.length]])),
+    Object.fromEntries(backends.map((b, i) => [b, CHART_CSS_VARS[i % CHART_CSS_VARS.length]])),
   );
 
   let dateLabels = $derived((() => {
@@ -62,7 +63,7 @@
         segments.push({
           backend: b,
           cost: entry ? entry.cost_usd : 0,
-          color: backendColorMap[b] ?? BACKEND_COLORS[0],
+          color: backendColorMap[b] ?? CHART_CSS_VARS[0],
         });
       }
       const total = segments.reduce((sum, s) => sum + s.cost, 0);
@@ -117,18 +118,21 @@
   });
 </script>
 
-<Card>
-  <CardHeader>
-    <CardTitle class="text-base font-medium">{$t('observability.llm_costs_title')}</CardTitle>
-  </CardHeader>
+<!-- AC-3 — glass-card wrapper -->
+<div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="llm-cost-chart">
+  <div class="px-4 py-3 border-b border-border">
+    <h3 class="text-[13px] font-medium">{$t('observability.llm_costs_title')}</h3>
+  </div>
 
-  <CardContent>
+  <div class="p-4">
     {#if loading}
       <Skeleton width="100%" height="250px" />
     {:else if error}
       <p class="text-sm text-destructive">{error}</p>
     {:else if entries.length === 0}
-      <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12">
+      <!-- AC-5 — Empty state -->
+      <div class="flex flex-col items-center justify-center py-12" data-testid="llm-costs-empty">
+        <BarChart3 class="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
         <p class="text-muted-foreground">{$t('observability.no_llm_calls')}</p>
       </div>
     {:else}
@@ -215,6 +219,7 @@
         </svg>
       </div>
 
+      <!-- Legend -->
       <div class="mt-4 flex flex-wrap gap-3">
         {#each backends as backend (backend)}
           <div class="flex items-center gap-1.5">
@@ -222,14 +227,15 @@
               class="inline-block h-3 w-3 rounded-sm"
               style="background-color: {backendColorMap[backend]}"
             ></span>
-            <span class="text-xs text-muted-foreground">{backend}</span>
+            <span class="text-[11px] text-muted-foreground">{backend}</span>
           </div>
         {/each}
       </div>
 
+      <!-- Total -->
       <div class="mt-3 text-center">
-        <span class="text-lg font-semibold">{$t('observability.total_7d', { values: { cost: formatCost(totalCost) } })}</span>
+        <span class="text-lg font-medium">{$t('observability.total_7d', { values: { cost: formatCost(totalCost) } })}</span>
       </div>
     {/if}
-  </CardContent>
-</Card>
+  </div>
+</div>

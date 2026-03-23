@@ -157,7 +157,7 @@
 
   {#if isCompleted}
     <div class="space-y-3">
-      <div class="flex items-center gap-2 text-sm font-medium text-[var(--apollia-success)]">
+      <div class="flex items-center gap-2 text-sm font-medium text-success">
         <Check size={16} />
         {$t('onboarding.task_completed_operator')}
       </div>

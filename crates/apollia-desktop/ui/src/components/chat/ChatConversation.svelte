@@ -224,7 +224,7 @@
       <button
         onclick={() => (configOpen = true)}
         class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
-        title={$t("chat.config_title")}
+        aria-label={$t("chat.config_title")}
         data-testid="chat-config-button"
       >
         <Settings2 size={14} />
@@ -233,7 +233,7 @@
         <button
           onclick={handleCloseSession}
           class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-warning hover:bg-warning/10 transition-colors"
-          title={$t("chat.close_session")}
+          aria-label={$t("chat.close_session")}
           data-testid="chat-close-session-button"
         >
           <XCircle size={14} />
@@ -242,6 +242,7 @@
       <button
         onclick={onclose}
         class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
+        aria-label="Close"
         data-testid="chat-close-button"
       >
         <X size={14} />

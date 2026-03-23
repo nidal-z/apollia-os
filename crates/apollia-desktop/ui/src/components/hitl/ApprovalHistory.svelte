@@ -2,6 +2,7 @@
   import { t } from "svelte-i18n";
   import type { ResolvedApproval } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
+  import { ClipboardList } from "lucide-svelte";
 
   interface Props {
     history: ResolvedApproval[];
@@ -33,48 +34,53 @@
 </script>
 
 {#if history.length === 0}
-  <p class="text-sm text-muted-foreground">{$t('approvals.no_history')}</p>
+  <!-- AC-5 — Empty state -->
+  <div
+    class="flex flex-col items-center justify-center py-12 text-muted-foreground"
+    data-testid="approval-history-empty"
+  >
+    <ClipboardList class="h-8 w-8 mb-2 opacity-50" />
+    <p class="text-sm">{$t("approvals.no_history")}</p>
+  </div>
 {:else}
-  <div class="overflow-auto rounded border">
-    <table class="w-full text-sm">
-      <thead>
-        <tr class="border-b border-border bg-muted/50 text-left text-xs text-muted-foreground">
-          <th class="px-3 py-2">{$t('approvals.table.task')}</th>
-          <th class="px-3 py-2">{$t('approvals.table.agent')}</th>
-          <th class="px-3 py-2">{$t('approvals.table.result')}</th>
-          <th class="px-3 py-2">{$t('approvals.table.wait')}</th>
-          <th class="px-3 py-2">{$t('approvals.table.reason')}</th>
-          <th class="px-3 py-2">{$t('approvals.table.date')}</th>
+  <!-- AC-4 — Standard glass-card table -->
+  <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="approval-history-table">
+    <table class="w-full text-[13px]">
+      <thead class="border-b border-border bg-muted/50">
+        <tr>
+          <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.task")}</th>
+          <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.agent")}</th>
+          <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.result")}</th>
+          <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.wait")}</th>
+          <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.reason")}</th>
+          <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.date")}</th>
         </tr>
       </thead>
       <tbody>
         {#each history as item (item.task_id + (item.responded_at ?? ""))}
-          <tr class="border-b last:border-0">
+          <tr class="hover:bg-muted border-b border-border last:border-0">
             <td class="px-3 py-2">
-              <code class="text-xs">{shortId(item.task_id)}</code>
+              <code class="text-[11px]">{shortId(item.task_id)}</code>
             </td>
-            <td class="px-3 py-2 text-xs">{item.agent_name || "-"}</td>
+            <td class="px-3 py-2 text-[11px]">{item.agent_name || "-"}</td>
             <td class="px-3 py-2">
               {#if item.approved}
-                <Badge
-                  variant="default"
-                  class="bg-[var(--apollia-success)] text-white text-[10px]"
-                >
-                  {$t('common.approved')}
+                <Badge variant="success" data-testid="approval-history-badge">
+                  {$t("common.approved")}
                 </Badge>
               {:else}
-                <Badge variant="destructive" class="text-[10px]">
-                  {$t('common.rejected')}
+                <Badge variant="destructive" data-testid="approval-history-badge">
+                  {$t("common.rejected")}
                 </Badge>
               {/if}
             </td>
-            <td class="px-3 py-2 text-xs text-muted-foreground">
+            <td class="px-3 py-2 text-[11px] text-muted-foreground">
               {formatWaitDuration(item.wait_duration_ms)}
             </td>
-            <td class="max-w-[200px] truncate px-3 py-2 text-xs text-muted-foreground">
+            <td class="max-w-[200px] truncate px-3 py-2 text-[11px] text-muted-foreground">
               {item.reason ?? "-"}
             </td>
-            <td class="px-3 py-2 text-xs text-muted-foreground">
+            <td class="px-3 py-2 text-[11px] text-muted-foreground">
               {formatDate(item.responded_at)}
             </td>
           </tr>

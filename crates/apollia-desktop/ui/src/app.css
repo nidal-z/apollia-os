@@ -29,14 +29,24 @@
     --radius: 0.75rem;
 
     /* Semantic colors */
-    --destructive: 0 72% 51%;
+    --destructive: 0 72% 40%;
     --destructive-foreground: 0 0% 98%;
     --info: 213 94% 47%;
     --info-foreground: 213 80% 30%;
-    --warning: 38 92% 50%;
+    --warning: 38 92% 28%;
     --warning-foreground: 32 80% 30%;
-    --success: 152 56% 42%;
+    --success: 152 56% 28%;
     --success-foreground: 152 56% 20%;
+
+    /* Chart palette — 8 distinguishable colors */
+    --chart-1: #7c3aed;
+    --chart-2: #3b82f6;
+    --chart-3: #10b981;
+    --chart-4: #f59e0b;
+    --chart-5: #ef4444;
+    --chart-6: #ec4899;
+    --chart-7: #06b6d4;
+    --chart-8: #84cc16;
   }
 
   .dark {
@@ -61,7 +71,7 @@
     --accent: 240 91% 62%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 63% 40%;
+    --destructive: 0 65% 58%;
     --destructive-foreground: 0 0% 98%;
     --info: 213 94% 60%;
     --info-foreground: 213 90% 82%;
@@ -69,6 +79,16 @@
     --warning-foreground: 45 90% 82%;
     --success: 152 50% 50%;
     --success-foreground: 152 50% 82%;
+
+    /* Chart palette — brighter for dark backgrounds */
+    --chart-1: #a78bfa;
+    --chart-2: #60a5fa;
+    --chart-3: #34d399;
+    --chart-4: #fbbf24;
+    --chart-5: #f87171;
+    --chart-6: #f472b6;
+    --chart-7: #22d3ee;
+    --chart-8: #a3e635;
   }
 }
 

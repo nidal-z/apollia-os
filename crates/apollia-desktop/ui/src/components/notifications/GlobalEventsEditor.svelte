@@ -3,6 +3,7 @@
   import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
+  import { addToast } from "$lib/components/ui/toast/store";
 
   interface Props {
     onsaved: () => void;
@@ -25,7 +26,6 @@
   let checkedEvents = $state<Set<string>>(new Set());
   let loading = $state(true);
   let saving = $state(false);
-  let toast = $state<{ type: "success" | "error"; message: string } | null>(null);
 
   async function loadEvents(): Promise<void> {
     loading = true;
@@ -51,19 +51,15 @@
 
   async function handleSave(): Promise<void> {
     saving = true;
-    toast = null;
     try {
       await invoke("set_notification_events", {
         events: [...checkedEvents],
       });
-      toast = { type: "success", message: $t("notifications.global_events_saved") };
+      addToast($t("notifications.global_events_saved"), "success");
       onsaved();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      toast = {
-        type: "error",
-        message: $t("notifications.global_events_error", { values: { message } }),
-      };
+      addToast($t("notifications.global_events_error", { values: { message } }), "error");
     } finally {
       saving = false;
     }
@@ -73,45 +69,35 @@
 </script>
 
 <section data-testid="global-events-section">
-  <h2 class="mb-1 text-lg font-medium">{$t("notifications.global_events_title")}</h2>
-  <p class="mb-3 text-sm text-muted-foreground">{$t("notifications.global_events_desc")}</p>
+  <h2 class="mb-1 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t("notifications.global_events_title")}</h2>
+  <p class="mb-3 text-xs text-muted-foreground">{$t("notifications.global_events_desc")}</p>
 
   {#if loading}
-    <p class="text-sm text-muted-foreground">{$t("common.loading")}</p>
+    <p class="text-xs text-muted-foreground">{$t("common.loading")}</p>
   {:else}
-    <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
-      {#each ALL_EVENT_TYPES as event}
-        <label class="flex items-center gap-2 text-sm" data-testid="global-event-{event}">
-          <Checkbox
-            checked={checkedEvents.has(event)}
-            onchange={() => toggleEvent(event)}
-          />
-          <span class="font-mono text-xs">{event}</span>
-        </label>
-      {/each}
-    </div>
+    <div class="glass-card glass-border rounded-lg p-4">
+      <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+        {#each ALL_EVENT_TYPES as event}
+          <label class="flex items-center gap-2 text-sm" data-testid="global-event-{event}">
+            <Checkbox
+              checked={checkedEvents.has(event)}
+              onchange={() => toggleEvent(event)}
+            />
+            <span class="font-mono text-xs">{event}</span>
+          </label>
+        {/each}
+      </div>
 
-    <div class="mt-4 flex items-center gap-3">
-      <Button
-        size="sm"
-        onclick={handleSave}
-        disabled={saving}
-        data-testid="global-events-save-btn"
-      >
-        {saving ? $t("notifications.global_events_saving") : $t("notifications.global_events_save")}
-      </Button>
-
-      {#if toast}
-        {#if toast.type === "success"}
-          <span class="text-sm text-[var(--apollia-success)]" data-testid="global-events-toast-success">
-            {toast.message}
-          </span>
-        {:else}
-          <span class="text-sm text-destructive" data-testid="global-events-toast-error">
-            {toast.message}
-          </span>
-        {/if}
-      {/if}
+      <div class="mt-4">
+        <Button
+          size="sm"
+          onclick={handleSave}
+          disabled={saving}
+          data-testid="global-events-save-btn"
+        >
+          {saving ? $t("notifications.global_events_saving") : $t("notifications.global_events_save")}
+        </Button>
+      </div>
     </div>
   {/if}
 </section>

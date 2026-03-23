@@ -8,6 +8,7 @@
     PipelineDefinitionView,
   } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
   import { Select } from "$lib/components/ui/select";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Textarea } from "$lib/components/ui/textarea";
@@ -287,11 +288,10 @@
     <div class="space-y-4">
       <!-- ID (readonly) -->
       <div>
-        <label class="mb-1 block text-sm font-medium" for="edit-pipeline-id">{$t("pipelines.field_id")}</label>
-        <input
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-pipeline-id">{$t("pipelines.field_id")}</label>
+        <Input
           id="edit-pipeline-id"
-          type="text"
-          class="w-full rounded-md border bg-muted px-3 py-2 text-sm"
+          class="bg-muted"
           value={pipelineId}
           readonly
           data-testid="edit-pipeline-id-input"
@@ -300,14 +300,12 @@
 
       <!-- Description -->
       <div>
-        <label class="mb-1 block text-sm font-medium" for="edit-pipeline-description">
+        <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-pipeline-description">
           {$t("pipelines.field_description")}
-          <span class="font-normal text-muted-foreground">({$t("pipelines.input_json_optional")})</span>
+          <span>({$t("pipelines.input_json_optional")})</span>
         </label>
-        <input
+        <Input
           id="edit-pipeline-description"
-          type="text"
-          class="w-full rounded-md border bg-background px-3 py-2 text-sm"
           bind:value={description}
           data-testid="edit-pipeline-description-input"
         />
@@ -316,7 +314,7 @@
       <!-- On failure + Enabled -->
       <div class="flex items-center gap-6">
         <div>
-          <label class="mb-1 block text-sm font-medium" for="edit-pipeline-on-failure">{$t("pipelines.def_on_failure")}</label>
+          <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-pipeline-on-failure">{$t("pipelines.def_on_failure")}</label>
           <Select
             id="edit-pipeline-on-failure"
             bind:value={onFailure}
@@ -326,7 +324,7 @@
             <option value="continue">continue</option>
           </Select>
         </div>
-        <label class="flex items-center gap-2 text-sm">
+        <label class="flex items-center gap-2 text-[11px] text-muted-foreground">
           <Checkbox bind:checked={enabled} data-testid="edit-pipeline-enabled-toggle" />
           {$t("pipelines.def_enabled")}
         </label>
@@ -335,7 +333,7 @@
       <!-- Steps section -->
       <div>
         <div class="mb-2 flex items-center justify-between">
-          <label class="block text-sm font-medium">{$t("pipelines.field_steps_label")}</label>
+          <label class="block text-[11px] text-muted-foreground">{$t("pipelines.field_steps_label")}</label>
           <Button size="sm" variant="outline" onclick={addStep} data-testid="edit-add-step-btn">
             {$t("pipelines.add_step")}
           </Button>
@@ -370,11 +368,10 @@
               <div class="space-y-2">
                 <!-- Step ID -->
                 <div>
-                  <label class="mb-0.5 block text-xs font-medium" for="edit-step-{index}-id">{$t("pipelines.field_step_id")}</label>
-                  <input
+                  <label class="mb-0.5 block text-[11px] text-muted-foreground" for="edit-step-{index}-id">{$t("pipelines.field_step_id")}</label>
+                  <Input
                     id="edit-step-{index}-id"
-                    type="text"
-                    class="w-full rounded-md border bg-background px-2 py-1.5 text-xs {stepIdErrors[index] ? 'border-destructive' : ''}"
+                    class="h-8 px-2 py-1.5 text-xs {stepIdErrors[index] ? 'border-destructive' : ''}"
                     bind:value={step.id}
                     data-testid="edit-pipeline-step-{index}-id"
                   />
@@ -385,7 +382,7 @@
 
                 <!-- Agent select -->
                 <div>
-                  <label class="mb-0.5 block text-xs font-medium" for="edit-step-{index}-agent">{$t("pipelines.field_step_agent")}</label>
+                  <label class="mb-0.5 block text-[11px] text-muted-foreground" for="edit-step-{index}-agent">{$t("pipelines.field_step_agent")}</label>
                   <Select
                     id="edit-step-{index}-agent"
                     class="w-full px-2 py-1.5 text-xs"
@@ -401,7 +398,7 @@
 
                 <!-- Input -->
                 <div>
-                  <label class="mb-0.5 block text-xs font-medium" for="edit-step-{index}-input">{$t("pipelines.field_step_input")}</label>
+                  <label class="mb-0.5 block text-[11px] text-muted-foreground" for="edit-step-{index}-input">{$t("pipelines.field_step_input")}</label>
                   <Textarea
                     id="edit-step-{index}-input"
                     class="px-2 py-1.5 text-xs"
@@ -414,7 +411,7 @@
                 <!-- Depends on -->
                 {#if otherStepIds(index).length > 0}
                   <div>
-                    <label class="mb-0.5 block text-xs font-medium">{$t("pipelines.field_depends_on")}</label>
+                    <label class="mb-0.5 block text-[11px] text-muted-foreground">{$t("pipelines.field_depends_on")}</label>
                     <div class="flex flex-wrap gap-2">
                       {#each otherStepIds(index) as depId}
                         <label class="flex items-center gap-1 text-xs">
@@ -433,7 +430,7 @@
                 <!-- On failure -->
                 <div class="flex items-center gap-4">
                   <div>
-                    <label class="mb-0.5 block text-xs font-medium" for="edit-step-{index}-on-failure">{$t("pipelines.def_on_failure")}</label>
+                    <label class="mb-0.5 block text-[11px] text-muted-foreground" for="edit-step-{index}-on-failure">{$t("pipelines.def_on_failure")}</label>
                     <Select
                       id="edit-step-{index}-on-failure"
                       class="px-2 py-1.5 text-xs"
@@ -448,7 +445,7 @@
 
                   {#if step.onFailure === "fallback"}
                     <div>
-                      <label class="mb-0.5 block text-xs font-medium" for="edit-step-{index}-fallback-for">{$t("pipelines.field_fallback_for")}</label>
+                      <label class="mb-0.5 block text-[11px] text-muted-foreground" for="edit-step-{index}-fallback-for">{$t("pipelines.field_fallback_for")}</label>
                       <Select
                         id="edit-step-{index}-fallback-for"
                         class="px-2 py-1.5 text-xs"
@@ -486,16 +483,14 @@
                         <option value="ends_with">ends_with</option>
                         <option value="regex">regex</option>
                       </Select>
-                      <input
-                        type="text"
-                        class="flex-1 rounded-md border bg-background px-2 py-1 text-xs"
+                      <Input
+                        class="h-8 flex-1 px-2 py-1 text-xs"
                         placeholder="field"
                         bind:value={step.conditionField}
                         data-testid="edit-pipeline-step-{index}-condition-field"
                       />
-                      <input
-                        type="text"
-                        class="flex-1 rounded-md border bg-background px-2 py-1 text-xs"
+                      <Input
+                        class="h-8 flex-1 px-2 py-1 text-xs"
                         placeholder="value"
                         bind:value={step.conditionValue}
                         data-testid="edit-pipeline-step-{index}-condition-value"

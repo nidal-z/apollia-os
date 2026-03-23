@@ -198,7 +198,10 @@
     "no_prompt": "Aucun prompt",
     "show_context": "Afficher le contexte",
     "hide_context": "Masquer le contexte",
-    "confirm_approval": "Confirmer l'approbation de cette tâche ?",
+    "confirm_approval": "Confirmer l'approbation",
+    "confirm_approval_message": "Approuver l'exécution pour l'agent {agent} (tâche {taskId}) ?",
+    "approved_toast": "Approbation confirmée",
+    "rejected_toast": "Approbation rejetée",
     "approving": "Approbation...",
     "approve": "Approuver",
     "reject": "Rejeter",
@@ -232,6 +235,8 @@
     "model": "Modèle",
     "ping": "Ping",
     "pinging": "Ping en cours...",
+    "ping_ok": "Ping OK ({latency}ms)",
+    "ping_failed": "Ping échoué",
     "local_ai": "IA locale",
     "running": "En cours",
     "status_error": "Erreur",
@@ -431,7 +436,11 @@
       "procedural": "Procédurale"
     },
     "delete_label": "Supprimer",
-    "expired": "expiré"
+    "delete_confirm_title": "Supprimer l'entrée mémoire",
+    "delete_confirm_message": "Êtes-vous sûr de vouloir supprimer cette entrée mémoire ? Cette action est irréversible.",
+    "delete_confirm_yes": "Supprimer",
+    "expired": "expiré",
+    "in_the_future": "dans le futur"
   },
   "notifications": {
     "title": "Notifications",
@@ -561,6 +570,8 @@
     "review_onboarding": "Revoir l'onboarding",
     "review_onboarding_desc": "Réinitialisez le flag d'onboarding et redémarrez pour revoir l'assistant de bienvenue.",
     "reset_onboarding": "Réinitialiser l'onboarding",
+    "reset_confirm_title": "Réinitialiser l'onboarding",
+    "reset_confirm_message": "Cela relancera l'assistant de bienvenue au prochain démarrage. Êtes-vous sûr ?",
     "resetting": "Réinitialisation...",
     "system_info": "Informations système",
     "system_version": "Version",

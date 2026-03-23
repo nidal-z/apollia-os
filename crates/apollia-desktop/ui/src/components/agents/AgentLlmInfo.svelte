@@ -54,8 +54,8 @@
             <span>{$t('agent_detail.llm_backend')}: {firstBackend.name}</span>
             <span>{$t('agent_detail.llm_model')}: {firstBackend.model}</span>
             <Badge
-              variant={firstBackend.status === "ready" ? "default" : "destructive"}
-              class={firstBackend.status === "ready" ? "bg-[var(--apollia-success)] text-white text-[10px]" : "text-[10px]"}
+              variant={firstBackend.status === "ready" ? "success" : "destructive"}
+              class="text-[10px]"
             >
               {firstBackend.status.toUpperCase()}
             </Badge>

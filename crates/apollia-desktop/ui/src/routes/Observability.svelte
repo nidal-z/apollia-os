@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
+  import { TabBar } from "$lib/components/ui/tabs";
   import TimelineGlobal from "../components/observability/TimelineGlobal.svelte";
   import LlmCostChart from "../components/observability/LlmCostChart.svelte";
   import AuditTrailTable from "../components/observability/AuditTrailTable.svelte";
@@ -11,7 +12,8 @@
   let costsLoaded = $state(false);
   let auditLoaded = $state(false);
 
-  function handleTabChange(tab: ObsTab) {
+  function handleTabChange(key: string) {
+    const tab = key as ObsTab;
     activeTab = tab;
     if (tab === "timeline") timelineLoaded = true;
     if (tab === "llm-costs") costsLoaded = true;
@@ -23,40 +25,26 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="max-w-6xl space-y-6" data-testid="observability-page">
   <!-- Header -->
-  <div class="space-y-1">
-    <h1 class="text-2xl font-semibold">{$t('observability.title')}</h1>
-    <p class="text-sm text-muted-foreground" data-testid="observability-subtitle">{$t('observability.subtitle')}</p>
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold">{$t('observability.title')}</h1>
+      <p class="text-xs text-muted-foreground" data-testid="observability-subtitle">{$t('observability.subtitle')}</p>
+    </div>
   </div>
 
-  <!-- Tabs -->
-  <div class="flex gap-1 rounded-md glass-border glass-surface p-1">
-    <button
-      class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === 'timeline'
-        ? 'glass-inset text-foreground shadow-sm'
-        : 'text-muted-foreground hover:text-foreground'}"
-      onclick={() => handleTabChange("timeline")}
-    >
-      {$t('observability.tab_timeline')}
-    </button>
-    <button
-      class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === 'llm-costs'
-        ? 'glass-inset text-foreground shadow-sm'
-        : 'text-muted-foreground hover:text-foreground'}"
-      onclick={() => handleTabChange("llm-costs")}
-    >
-      {$t('observability.tab_llm_costs')}
-    </button>
-    <button
-      class="rounded px-3 py-1 text-sm font-medium transition-colors {activeTab === 'audit-trail'
-        ? 'glass-inset text-foreground shadow-sm'
-        : 'text-muted-foreground hover:text-foreground'}"
-      onclick={() => handleTabChange("audit-trail")}
-    >
-      {$t('observability.tab_audit_trail')}
-    </button>
-  </div>
+  <!-- Tabs (AC-1) -->
+  <TabBar
+    items={[
+      { key: "timeline", label: $t("observability.tab_timeline") },
+      { key: "llm-costs", label: $t("observability.tab_llm_costs") },
+      { key: "audit-trail", label: $t("observability.tab_audit_trail") },
+    ]}
+    activeTab={activeTab}
+    ontabchange={handleTabChange}
+    testidPrefix="observability"
+  />
 
   <!-- Tab content (lazy-loaded on first display) -->
   {#if activeTab === "timeline"}

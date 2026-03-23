@@ -3,9 +3,10 @@
   import { t } from "svelte-i18n";
   import type { TriggerStatus, TriggerFireResult } from "$lib/types";
   import { humanizeTrigger } from "$lib/utils/humanize-trigger";
-  import { Card, CardContent } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { Toggle } from "$lib/components/ui/toggle";
+  import { addToast } from "$lib/components/ui/toast/store";
 
   interface Props {
     trigger: TriggerStatus;
@@ -21,8 +22,6 @@
 
   let toggling = $state(false);
   let firing = $state(false);
-  let toggleError = $state<string | null>(null);
-  let fireError = $state<string | null>(null);
 
   const SOURCE_BADGE: Record<
     TriggerStatus["source_kind"],
@@ -72,14 +71,18 @@
 
   async function handleToggle() {
     toggling = true;
-    toggleError = null;
     try {
       await invoke("set_trigger_enabled", {
         id: trigger.id,
         enabled: !trigger.enabled,
       });
+      addToast(
+        $t(trigger.enabled ? "triggers.disabled_toast" : "triggers.enabled_toast", { values: { id: trigger.id } }),
+        "success",
+      );
     } catch (err: unknown) {
-      toggleError = err instanceof Error ? err.message : String(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast(msg, "error");
     } finally {
       toggling = false;
     }
@@ -87,134 +90,103 @@
 
   async function handleFire() {
     firing = true;
-    fireError = null;
     try {
       const result: TriggerFireResult = await invoke("fire_trigger", {
         id: trigger.id,
       });
       onfire(result.task_id);
     } catch (err: unknown) {
-      fireError = err instanceof Error ? err.message : String(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      addToast(msg, "error");
     } finally {
       firing = false;
     }
   }
 </script>
 
-<Card class="relative overflow-hidden" data-testid="trigger-row-{trigger.id}">
-  <CardContent class="py-3">
-    <div class="flex items-center gap-4">
-      <!-- Trigger description and source badge -->
-      <div class="flex min-w-0 flex-1 items-center gap-3">
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <span class="text-sm font-medium" data-testid="trigger-description-{trigger.id}">
-              {humanDescription}
-            </span>
-            <Badge variant="outline" class={badgeConfig.extraClass}>
-              {badgeConfig.label}
-            </Badge>
-          </div>
-          {#if isBuilder && trigger.source_config}
-            <div class="mt-0.5 text-xs text-muted-foreground" data-testid="trigger-raw-{trigger.id}">
-              {trigger.source_config}
-            </div>
-          {/if}
-        </div>
-      </div>
+<div class="glass-card-hover relative overflow-hidden" data-testid="trigger-row-{trigger.id}">
+  <!-- Status accent bar -->
+  <div
+    class="h-0.5 w-full {trigger.enabled ? 'bg-primary' : 'bg-muted-foreground/20'}"
+    data-testid="trigger-status-bar"
+  ></div>
 
-      <!-- Stats -->
-      <div class="flex items-center gap-4 text-xs text-muted-foreground">
-        <div class="text-center">
-          <div class="font-medium text-foreground">{trigger.fire_count}</div>
-          <div>{$t('triggers.fires')}</div>
-        </div>
-        <div class="text-center">
-          <div class="font-medium text-foreground">{trigger.skip_count}</div>
-          <div>{$t('triggers.skips')}</div>
-        </div>
-        {#if trigger.last_fired}
-          <div class="min-w-[60px] text-center">
-            <div class="font-medium text-foreground">
-              {formatRelativeTime(trigger.last_fired)}
-            </div>
-            <div>{$t('triggers.last_fire')}</div>
-          </div>
-        {/if}
+  <div class="px-3.5 pt-3 pb-2.5">
+    <!-- Header: name + badge + toggle -->
+    <div class="flex items-center justify-between">
+      <div class="flex min-w-0 flex-1 items-center gap-2">
+        <h3 class="truncate text-[13px] font-medium">{trigger.id}</h3>
+        <Badge variant="outline" class={badgeConfig.extraClass}>
+          {badgeConfig.label}
+        </Badge>
       </div>
-
-      <!-- Toggle -->
-      <button
-        class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors {trigger.enabled
-          ? 'bg-[var(--apollia-success)]'
-          : 'bg-muted'}"
-        onclick={handleToggle}
+      <Toggle
+        checked={trigger.enabled}
+        onchange={handleToggle}
         disabled={toggling}
-        aria-label={trigger.enabled ? $t('triggers.disable_trigger') : $t('triggers.enable_trigger')}
         data-testid="trigger-toggle-{trigger.id}"
-      >
-        <span
-          class="pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform {trigger.enabled
-            ? 'translate-x-4'
-            : 'translate-x-0.5'}"
-        ></span>
-      </button>
+      />
+    </div>
 
-      <!-- Actions -->
-      <div class="flex items-center gap-1">
+    <!-- Description -->
+    <p class="mt-1 text-[11px] text-muted-foreground" data-testid="trigger-description-{trigger.id}">
+      {humanDescription}
+    </p>
+
+    <!-- Raw config (builder only) -->
+    {#if isBuilder && trigger.source_config}
+      <p class="mt-0.5 text-[11px] text-muted-foreground/60 font-mono" data-testid="trigger-raw-{trigger.id}">
+        {trigger.source_config}
+      </p>
+    {/if}
+
+    <!-- Stats row -->
+    <div class="mt-2 flex items-center gap-4 text-[11px] text-muted-foreground">
+      <span>{$t('triggers.fires')}: <span class="font-medium text-foreground">{trigger.fire_count}</span></span>
+      <span>{$t('triggers.skips')}: <span class="font-medium text-foreground">{trigger.skip_count}</span></span>
+      {#if trigger.last_fired}
+        <span>{$t('triggers.last_fire')}: <span class="font-medium text-foreground">{formatRelativeTime(trigger.last_fired)}</span></span>
+      {/if}
+    </div>
+
+    <!-- Actions -->
+    <div class="mt-3 flex gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        onclick={handleFire}
+        disabled={firing || !trigger.enabled}
+        data-testid="trigger-fire-{trigger.id}"
+      >
+        {firing ? "..." : $t('triggers.fire')}
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        onclick={() => onlogs(trigger.id)}
+        data-testid="trigger-logs-{trigger.id}"
+      >
+        {$t('triggers.logs')}
+      </Button>
+      {#if isBuilder}
         <Button
           size="sm"
-          variant="outline"
-          onclick={handleFire}
-          disabled={firing || !trigger.enabled}
-          data-testid="trigger-fire-{trigger.id}"
+          variant="ghost"
+          onclick={() => onedit(trigger.id)}
+          data-testid="trigger-edit-btn"
         >
-          {firing ? "..." : $t('triggers.fire')}
+          {$t('triggers.edit')}
         </Button>
         <Button
           size="sm"
           variant="ghost"
-          onclick={() => onlogs(trigger.id)}
-          data-testid="trigger-logs-{trigger.id}"
+          class="text-destructive"
+          onclick={() => ondelete(trigger.id)}
+          data-testid="trigger-delete-btn"
         >
-          {$t('triggers.logs')}
+          {$t('triggers.delete')}
         </Button>
-        {#if isBuilder}
-          <Button
-            size="sm"
-            variant="ghost"
-            onclick={() => onedit(trigger.id)}
-            data-testid="trigger-edit-{trigger.id}"
-          >
-            {$t('triggers.edit')}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            class="text-destructive"
-            onclick={() => ondelete(trigger.id)}
-            data-testid="trigger-delete-{trigger.id}"
-          >
-            {$t('triggers.delete')}
-          </Button>
-        {/if}
-      </div>
+      {/if}
     </div>
-
-    <!-- Error display -->
-    {#if toggleError}
-      <div
-        class="mt-2 rounded-md border border-destructive bg-destructive/10 px-3 py-1 text-xs text-destructive"
-      >
-        {toggleError}
-      </div>
-    {/if}
-    {#if fireError}
-      <div
-        class="mt-2 rounded-md border border-destructive bg-destructive/10 px-3 py-1 text-xs text-destructive"
-      >
-        {fireError}
-      </div>
-    {/if}
-  </CardContent>
-</Card>
+  </div>
+</div>

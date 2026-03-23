@@ -9,7 +9,9 @@
   import { setLocale } from "$lib/i18n";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import { Settings as SettingsIcon } from "lucide-svelte";
+  import TabBar from "$lib/components/ui/tabs/TabBar.svelte";
+  import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
+
   import type { ApollaConfigView, SystemInfo } from "$lib/types";
 
   type SettingsTab = "preferences" | "configuration" | "system";
@@ -21,12 +23,13 @@
   let error = $state<string | null>(null);
   let openingEditor = $state(false);
   let resettingOnboarding = $state(false);
+  let showResetConfirm = $state(false);
 
-  const tabs: { key: SettingsTab; labelKey: string }[] = [
-    { key: "preferences", labelKey: "settings.preferences" },
-    { key: "configuration", labelKey: "settings.runtime_config" },
-    { key: "system", labelKey: "settings.system_info" },
-  ];
+  const tabItems = $derived([
+    { key: "preferences", label: $t("settings.preferences") },
+    { key: "configuration", label: $t("settings.runtime_config") },
+    { key: "system", label: $t("settings.system_info") },
+  ]);
 
   async function loadConfig() {
     loading = true;
@@ -56,7 +59,7 @@
     }
   }
 
-  async function resetOnboarding() {
+  async function confirmResetOnboarding() {
     resettingOnboarding = true;
     try {
       await invoke("reset_onboarding");
@@ -65,6 +68,7 @@
       error = err instanceof Error ? err.message : String(err);
     } finally {
       resettingOnboarding = false;
+      showResetConfirm = false;
     }
   }
 
@@ -103,13 +107,12 @@
   });
 </script>
 
-<div class="space-y-6">
+<div class="max-w-6xl space-y-6" data-testid="settings-page">
   <!-- Header -->
-  <div class="flex items-center gap-3">
-    <SettingsIcon size={24} class="text-muted-foreground" />
-    <div class="space-y-1">
+  <div class="flex items-center justify-between">
+    <div>
       <h1 class="text-2xl font-semibold">{$t('settings.title')}</h1>
-      <p class="text-sm text-muted-foreground" data-testid="settings-subtitle">{$t('settings.subtitle')}</p>
+      <p class="text-xs text-muted-foreground" data-testid="settings-subtitle">{$t('settings.subtitle')}</p>
     </div>
   </div>
 
@@ -119,20 +122,13 @@
     </div>
   {/if}
 
-  <!-- Tab navigation (segmented control) -->
-  <div class="inline-flex rounded-lg bg-muted p-1" data-testid="settings-tabs">
-    {#each tabs as tab (tab.key)}
-      <button
-        class="rounded-md px-4 py-1.5 text-sm font-medium transition-all duration-150 {activeTab === tab.key
-          ? 'bg-card text-foreground shadow-sm'
-          : 'text-muted-foreground hover:text-foreground'}"
-        onclick={() => (activeTab = tab.key)}
-        data-testid="settings-tab-{tab.key}"
-      >
-        {$t(tab.labelKey)}
-      </button>
-    {/each}
-  </div>
+  <!-- AC-1: TabBar component -->
+  <TabBar
+    items={tabItems}
+    activeTab={activeTab}
+    ontabchange={(key) => { activeTab = key as SettingsTab; }}
+    testidPrefix="settings"
+  />
 
   {#if loading}
     <div class="space-y-4 py-4">
@@ -144,15 +140,16 @@
     <!-- Tab: Preferences -->
     {#if activeTab === "preferences"}
       <section class="space-y-5" data-testid="preferences-section">
-        <!-- Language -->
+        <!-- Language — AC-2: segmented control -->
         <div class="space-y-2">
-          <h3 class="text-sm font-medium text-muted-foreground tracking-[0.01em]">{$t('settings.language_title')}</h3>
-          <div class="inline-flex rounded-lg bg-muted p-1">
+          <h3 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.language_title')}</h3>
+          <div class="inline-flex gap-1 rounded-lg glass-border p-1">
             {#each LANGUAGE_OPTIONS as option (option.value)}
               <button
-                class="rounded-md px-4 py-1.5 text-sm font-medium transition-all duration-150 {$locale?.startsWith(option.value)
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'}"
+                class="rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200
+                  {$locale?.startsWith(option.value)
+                    ? 'glass-surface text-foreground shadow-sm'
+                    : 'bg-transparent text-muted-foreground hover:text-foreground'}"
                 onclick={() => changeLocale(option.value)}
                 data-testid="language-{option.value}"
               >
@@ -162,15 +159,16 @@
           </div>
         </div>
 
-        <!-- Theme -->
+        <!-- Theme — AC-2: segmented control -->
         <div class="space-y-2">
-          <h3 class="text-sm font-medium text-muted-foreground tracking-[0.01em]">{$t('settings.theme_title')}</h3>
-          <div class="inline-flex rounded-lg bg-muted p-1" data-testid="theme-toggle">
+          <h3 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.theme_title')}</h3>
+          <div class="inline-flex gap-1 rounded-lg glass-border p-1" data-testid="theme-toggle">
             {#each THEME_OPTIONS as option (option.value)}
               <button
-                class="rounded-md px-4 py-1.5 text-sm font-medium transition-all duration-150 {$themeMode === option.value
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'}"
+                class="rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200
+                  {$themeMode === option.value
+                    ? 'glass-surface text-foreground shadow-sm'
+                    : 'bg-transparent text-muted-foreground hover:text-foreground'}"
                 onclick={() => setTheme(option.value)}
                 data-testid="theme-{option.value}"
               >
@@ -180,41 +178,52 @@
           </div>
         </div>
 
-        <!-- Mode -->
+        <!-- Mode — AC-3: mode cards with accent bar -->
         <div class="space-y-2">
-          <h3 class="text-sm font-medium text-muted-foreground tracking-[0.01em]">{$t('settings.mode_title')}</h3>
+          <h3 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.mode_title')}</h3>
           <div class="flex gap-3" data-testid="mode-toggle">
             {#each MODE_OPTIONS as option (option.value)}
+              {@const isActive = $uiMode === option.value}
               <button
-                class="flex flex-col items-start rounded-lg border px-4 py-3 text-left transition-all duration-150 {$uiMode === option.value
-                  ? 'bg-primary/5 border-primary/30 text-foreground shadow-sm'
-                  : 'border-border text-foreground hover:bg-muted/50'}"
+                class="glass-card-hover relative flex flex-1 items-start overflow-hidden rounded-lg text-left transition-all duration-200
+                  {isActive ? 'ring-1 ring-primary/20' : ''}"
                 onclick={() => changeMode(option.value)}
                 data-testid="mode-{option.value}"
               >
-                <span class="text-sm font-medium">{$t(option.labelKey)}</span>
-                <span class="text-xs text-muted-foreground">{$t(option.descKey)}</span>
+                <!-- Accent bar left -->
+                <div class="absolute left-0 top-0 bottom-0 w-1 {isActive ? 'bg-primary' : 'bg-muted'}" />
+                <div class="py-3 pl-4 pr-3">
+                  <span class="text-sm font-medium">{$t(option.labelKey)}</span>
+                  <span class="mt-0.5 block text-xs text-muted-foreground">{$t(option.descKey)}</span>
+                </div>
               </button>
             {/each}
           </div>
         </div>
 
-        <!-- Reset onboarding -->
+        <!-- AC-6: Reset onboarding with ConfirmDialog -->
         <div class="pt-2">
-          <div class="flex items-center justify-between rounded-lg border border-border p-4">
-            <div>
-              <p class="text-sm">{$t('settings.review_onboarding')}</p>
-              <p class="text-xs text-muted-foreground">{$t('settings.review_onboarding_desc')}</p>
+          <div class="glass-card glass-border rounded-lg p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm">{$t('settings.review_onboarding')}</p>
+                <p class="text-xs text-muted-foreground">{$t('settings.review_onboarding_desc')}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onclick={() => { showResetConfirm = true; }}
+                data-testid="reset-onboarding-btn"
+              >
+                {$t('settings.reset_onboarding')}
+              </Button>
             </div>
-            <Button variant="outline" size="sm" onclick={resetOnboarding} disabled={resettingOnboarding}>
-              {resettingOnboarding ? $t('settings.resetting') : $t('settings.reset_onboarding')}
-            </Button>
           </div>
         </div>
       </section>
     {/if}
 
-    <!-- Tab: Configuration -->
+    <!-- Tab: Configuration — AC-4: glass-card sections -->
     {#if activeTab === "configuration"}
       <section class="space-y-4" data-testid="runtime-config-section">
         <div class="flex items-center justify-between">
@@ -238,16 +247,17 @@
 
           <div class="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
             {#each configView.sections as section (section.name)}
-              <div class="rounded-lg border border-border p-4">
+              <div class="glass-card glass-border rounded-lg p-4">
                 <div class="mb-3 flex items-center justify-between">
-                  <h3 class="text-sm font-medium uppercase tracking-wide text-muted-foreground">{section.name}</h3>
+                  <h3 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{section.name}</h3>
                   <span class="text-xs text-muted-foreground">{section.description}</span>
                 </div>
 
                 {#if section.redirect_route}
                   <button
-                    class="flex w-full items-center justify-between rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                    class="flex w-full items-center justify-between rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     onclick={() => navigateTo(section.redirect_route as any)}
+                    data-testid="settings-redirect-{section.name}"
                   >
                     <span>
                       {#if section.name === "llm"}
@@ -263,7 +273,7 @@
                     {#each section.entries as entry (entry.key)}
                       <div class="grid grid-cols-2 gap-2">
                         <span class="text-sm text-muted-foreground">{entry.key}</span>
-                        <span class="text-sm font-mono">{entry.value}</span>
+                        <span class="text-sm font-mono text-foreground">{entry.value}</span>
                       </div>
                     {/each}
                   </div>
@@ -275,24 +285,24 @@
       </section>
     {/if}
 
-    <!-- Tab: System -->
+    <!-- Tab: System — AC-5: glass-card system info -->
     {#if activeTab === "system"}
       <section class="space-y-4" data-testid="advanced-section">
         {#if systemInfo}
-          <div class="rounded-lg border border-border p-4" data-testid="system-info-section">
-            <h3 class="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">{$t('settings.system_info')}</h3>
+          <div class="glass-card glass-border rounded-lg p-4" data-testid="system-info-section">
+            <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.system_info')}</h3>
             <div class="space-y-2">
               <div class="grid grid-cols-2 gap-2">
                 <span class="text-sm text-muted-foreground">{$t('settings.system_version')}</span>
-                <span class="text-sm font-mono">{systemInfo.version}</span>
+                <span class="text-sm font-mono text-foreground">{systemInfo.version}</span>
               </div>
               <div class="grid grid-cols-2 gap-2">
                 <span class="text-sm text-muted-foreground">{$t('settings.system_os')}</span>
-                <span class="text-sm font-mono">{systemInfo.os}</span>
+                <span class="text-sm font-mono text-foreground">{systemInfo.os}</span>
               </div>
               <div class="grid grid-cols-2 gap-2">
                 <span class="text-sm text-muted-foreground">{$t('settings.system_python')}</span>
-                <span class="text-sm font-mono">{systemInfo.python_path ?? $t('settings.system_python_not_found')}</span>
+                <span class="text-sm font-mono text-foreground">{systemInfo.python_path ?? $t('settings.system_python_not_found')}</span>
               </div>
             </div>
           </div>
@@ -303,3 +313,16 @@
     {/if}
   {/if}
 </div>
+
+<!-- AC-6: Reset onboarding ConfirmDialog -->
+<ConfirmDialog
+  open={showResetConfirm}
+  onclose={() => { showResetConfirm = false; }}
+  onconfirm={confirmResetOnboarding}
+  title={$t('settings.reset_confirm_title')}
+  message={$t('settings.reset_confirm_message')}
+  confirmLabel={$t('settings.reset_onboarding')}
+  cancelLabel={$t('common.cancel')}
+  loading={resettingOnboarding}
+  data-testid="reset-onboarding-confirm"
+/>

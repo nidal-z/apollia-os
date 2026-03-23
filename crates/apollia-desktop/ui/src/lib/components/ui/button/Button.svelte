@@ -3,7 +3,7 @@
   import type { HTMLButtonAttributes } from "svelte/elements";
 
   interface Props extends HTMLButtonAttributes {
-    variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
+    variant?: "default" | "destructive" | "success" | "outline" | "secondary" | "ghost" | "link";
     size?: "default" | "sm" | "lg" | "icon";
     class?: string;
   }
@@ -19,6 +19,7 @@
   const variantClasses: Record<string, string> = {
     default: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
     destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+    success: "bg-emerald-600 text-white shadow-sm hover:bg-emerald-600/90 dark:bg-emerald-700 dark:hover:bg-emerald-700/90",
     outline: "border border-border bg-transparent text-foreground hover:bg-muted",
     secondary: "bg-muted text-foreground hover:bg-muted/80",
     ghost: "text-foreground hover:bg-muted",

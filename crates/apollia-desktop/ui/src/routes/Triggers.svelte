@@ -13,14 +13,12 @@
   import TriggerLogs from "../components/triggers/TriggerLogs.svelte";
   import CreateTriggerDialog from "../components/triggers/CreateTriggerDialog.svelte";
   import EditTriggerDialog from "../components/triggers/EditTriggerDialog.svelte";
+  import { addToast } from "$lib/components/ui/toast/store";
   import EmptyState from "../components/common/EmptyState.svelte";
+  import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
 
   let reloading = $state(false);
   let reloadError = $state<string | null>(null);
-  let toast = $state<{ message: string; type: "success" | "error" } | null>(
-    null,
-  );
-  let toastTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 
   let logsTriggerId = $state<string | null>(null);
   let logsOpen = $derived(logsTriggerId !== null);
@@ -44,34 +42,23 @@
     return groups;
   });
 
-  function showToast(message: string, type: "success" | "error") {
-    if (toastTimer !== null) {
-      clearTimeout(toastTimer);
-    }
-    toast = { message, type };
-    toastTimer = setTimeout(() => {
-      toast = null;
-      toastTimer = null;
-    }, 4000);
-  }
-
   async function handleReload() {
     reloading = true;
     reloadError = null;
     try {
       const result: TriggerReloadResult = await invoke("reload_triggers");
-      showToast($t('triggers.reload_success', { values: { count: result.reloaded } }), "success");
+      addToast($t('triggers.reload_success', { values: { count: result.reloaded } }), "success");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       reloadError = msg;
-      showToast($t('triggers.reload_error', { values: { message: msg } }), "error");
+      addToast($t('triggers.reload_error', { values: { message: msg } }), "error");
     } finally {
       reloading = false;
     }
   }
 
   function handleFire(taskId: string) {
-    showToast($t('triggers.fired_toast', { values: { taskId: taskId.slice(0, 8) } }), "success");
+    addToast($t('triggers.fired_toast', { values: { taskId: taskId.slice(0, 8) } }), "success");
   }
 
   function handleOpenLogs(triggerId: string) {
@@ -91,12 +78,12 @@
   }
 
   function handleTriggerCreated(id: string) {
-    showToast($t('triggers.created_toast', { values: { id } }), "success");
+    addToast($t('triggers.created_toast', { values: { id } }), "success");
     void handleReload();
   }
 
   function handleTriggerUpdated(id: string) {
-    showToast($t('triggers.updated_toast', { values: { id } }), "success");
+    addToast($t('triggers.updated_toast', { values: { id } }), "success");
     void handleReload();
   }
 
@@ -115,11 +102,11 @@
     try {
       await invoke("delete_trigger", { id });
       deleteTriggerId = null;
-      showToast($t('triggers.deleted_toast', { values: { id } }), "success");
+      addToast($t('triggers.deleted_toast', { values: { id } }), "success");
       void handleReload();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      showToast($t('triggers.delete_error', { values: { message: msg } }), "error");
+      addToast($t('triggers.delete_error', { values: { message: msg } }), "error");
       deleteTriggerId = null;
     } finally {
       deleting = false;
@@ -131,12 +118,12 @@
   }
 </script>
 
-<div class="space-y-6">
+<div class="max-w-6xl space-y-6" data-testid="triggers-page">
   <!-- Header -->
   <div class="flex items-center justify-between">
-    <div class="space-y-1">
+    <div>
       <h1 class="text-2xl font-semibold" data-testid="triggers-header">{$t('triggers.title')}</h1>
-      <p class="text-sm text-muted-foreground" data-testid="triggers-subtitle">{$t('triggers.subtitle')}</p>
+      <p class="text-xs text-muted-foreground" data-testid="triggers-subtitle">{$t('triggers.subtitle')}</p>
     </div>
     <div class="flex items-center gap-2">
       {#if $uiMode === "builder"}
@@ -160,20 +147,8 @@
     </div>
   </div>
 
-  <!-- Toast -->
-  {#if toast}
-    <div
-      class="rounded-md border px-4 py-2 text-sm {toast.type === 'success'
-        ? 'border-[var(--apollia-success)] bg-[var(--apollia-success)]/10 text-[var(--apollia-success)]'
-        : 'border-destructive bg-destructive/10 text-destructive'}"
-      data-testid="triggers-toast"
-    >
-      {toast.message}
-    </div>
-  {/if}
-
   <!-- Reload error -->
-  {#if reloadError && !toast}
+  {#if reloadError}
     <div
       class="rounded-md border border-destructive bg-destructive/10 px-4 py-2 text-sm text-destructive"
     >
@@ -199,13 +174,13 @@
             onclick={navigateToAgents}
             data-testid="trigger-agent-link-{agentName}"
           >
-            <h2 class="text-lg font-medium">{agentName}</h2>
+            <h2 class="text-sm font-medium uppercase tracking-wider text-muted-foreground" data-testid="trigger-group-header">{agentName}</h2>
             <span class="text-xs text-muted-foreground hover:underline">
               {$t('triggers.view_agent')} &rarr;
             </span>
           </button>
 
-          <div class="space-y-3">
+          <div class="grid gap-3 sm:grid-cols-1 md:grid-cols-2">
             {#each agentTriggers as trigger (trigger.id)}
               <div animate:flip={{ duration: 300 }} in:fly={{ y: 10, duration: 200 }}>
               <TriggerRow
@@ -253,41 +228,14 @@
 {/if}
 
 <!-- Delete confirmation dialog -->
-{#if deleteTriggerId}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-    role="button"
-    tabindex="-1"
-    onclick={handleCancelDelete}
-    onkeydown={(e) => e.key === "Escape" && handleCancelDelete()}
-  >
-    <div
-      class="w-[400px] rounded-lg border bg-background p-6 shadow-lg"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.key === "Escape" && handleCancelDelete()}
-      data-testid="delete-trigger-dialog"
-    >
-      <h3 class="mb-2 text-lg font-medium">{$t('triggers.delete_confirm_title')}</h3>
-      <p class="mb-4 text-sm text-muted-foreground">
-        {$t('triggers.delete_confirm_message', { values: { id: deleteTriggerId } })}
-      </p>
-      <div class="flex justify-end gap-2">
-        <Button variant="outline" size="sm" onclick={handleCancelDelete} data-testid="delete-trigger-cancel-btn">
-          {$t('common.cancel')}
-        </Button>
-        <Button
-          size="sm"
-          variant="destructive"
-          onclick={handleConfirmDelete}
-          disabled={deleting}
-          data-testid="delete-trigger-confirm-btn"
-        >
-          {deleting ? $t('triggers.deleting') : $t('triggers.delete_confirm_yes')}
-        </Button>
-      </div>
-    </div>
-  </div>
-{/if}
+<ConfirmDialog
+  open={deleteTriggerId !== null}
+  onclose={handleCancelDelete}
+  onconfirm={handleConfirmDelete}
+  title={$t('triggers.delete_confirm_title')}
+  message={$t('triggers.delete_confirm_message', { values: { id: deleteTriggerId ?? '' } })}
+  confirmLabel={$t('triggers.delete_confirm_yes')}
+  cancelLabel={$t('common.cancel')}
+  loading={deleting}
+  data-testid="delete-trigger-confirm"
+/>

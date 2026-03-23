@@ -16,18 +16,20 @@
   const isOperator = $derived($uiMode === "operator");
 </script>
 
-<div class="space-y-6">
+<div class="max-w-6xl space-y-6" data-testid="llm-page">
   <!-- Header -->
-  <div class="space-y-1">
-    <h1 class="text-2xl font-semibold">
-      {isOperator ? $t('llm.title_operator') : $t('llm.title')}
-    </h1>
-    <p class="text-sm text-muted-foreground" data-testid="llm-subtitle">{$t('llm.subtitle')}</p>
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold">
+        {isOperator ? $t('llm.title_operator') : $t('llm.title')}
+      </h1>
+      <p class="text-xs text-muted-foreground" data-testid="llm-subtitle">{$t('llm.subtitle')}</p>
+    </div>
   </div>
 
   <!-- Backend cards, skeleton loaders, or empty state -->
   {#if $connectionStatus === "connecting"}
-    <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2" data-testid="llm-skeleton">
+    <div class="grid gap-3 sm:grid-cols-1 md:grid-cols-2" data-testid="llm-skeleton">
       {#each { length: SKELETON_COUNT } as _}
         <div class="space-y-3 rounded-xl glass-card glass-border p-4">
           <div class="flex items-center justify-between">
@@ -49,7 +51,7 @@
       page="llm"
     />
   {:else}
-    <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
+    <div class="grid gap-3 sm:grid-cols-1 md:grid-cols-2" data-testid="llm-grid">
       {#each $llmBackends as backend (backend.name)}
         <div animate:flip={{ duration: 300 }} in:fly={{ y: 10, duration: 200 }}>
           <LlmBackendCard {backend} />
@@ -58,6 +60,11 @@
     </div>
 
     <!-- Session statistics -->
-    <LlmStats />
+    <div class="mt-6">
+      <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
+        {$t('llm.session_stats_title')}
+      </h2>
+      <LlmStats />
+    </div>
   {/if}
 </div>

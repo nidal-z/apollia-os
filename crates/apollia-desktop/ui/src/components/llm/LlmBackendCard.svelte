@@ -3,7 +3,6 @@
   import { t } from "svelte-i18n";
   import type { LlmBackendStatus, LlmPingResult } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
-  import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
 
@@ -17,21 +16,29 @@
   let pingResult = $state<number | null>(null);
   let pingError = $state<string | null>(null);
 
-  const STATUS_CONFIG: Record<
+  const STATUS_BADGE: Record<
     LlmBackendStatus["status"],
-    { labelKey: string; variant: "default" | "secondary" | "destructive" | "outline"; extraClass: string }
+    { labelKey: string; variant: "success" | "warning" | "destructive" }
   > = {
-    ready: { labelKey: "common.status.ready", variant: "default", extraClass: "bg-[var(--apollia-success)] text-white" },
-    loading: { labelKey: "common.status.loading", variant: "outline", extraClass: "animate-pulse border-info text-info" },
-    error: { labelKey: "common.status.error", variant: "destructive", extraClass: "" },
+    ready: { labelKey: "common.status.ready", variant: "success" },
+    loading: { labelKey: "common.status.loading", variant: "warning" },
+    error: { labelKey: "common.status.error", variant: "destructive" },
   };
 
-  const TYPE_CONFIG: Record<
-    LlmBackendStatus["backend_type"],
-    { label: string; extraClass: string }
-  > = {
-    embedded: { label: "EMBEDDED", extraClass: "border-info text-info" },
-    api: { label: "API", extraClass: "border-accent text-accent-foreground" },
+  const STATUS_BAR_COLOR: Record<LlmBackendStatus["status"], string> = {
+    ready: "bg-primary",
+    loading: "bg-warning",
+    error: "bg-destructive",
+  };
+
+  const TYPE_BADGE_VARIANT: Record<LlmBackendStatus["backend_type"], "info" | "outline"> = {
+    embedded: "info",
+    api: "outline",
+  };
+
+  const TYPE_LABEL: Record<LlmBackendStatus["backend_type"], string> = {
+    embedded: "EMBEDDED",
+    api: "API",
   };
 
   async function handlePing() {
@@ -43,7 +50,7 @@
       if (result.available && result.latency_ms !== null) {
         pingResult = result.latency_ms;
       } else {
-        pingError = result.error ?? "ping failed";
+        pingError = result.error ?? $t('llm.ping_failed');
       }
     } catch (err: unknown) {
       pingError = err instanceof Error ? err.message : String(err);
@@ -52,9 +59,9 @@
     }
   }
 
-  const isOperator = $derived($uiMode === "operator");
-  const statusConfig = $derived(STATUS_CONFIG[backend.status]);
-  const typeConfig = $derived(TYPE_CONFIG[backend.backend_type]);
+  const isBuilder = $derived($uiMode === "builder");
+  const statusBadge = $derived(STATUS_BADGE[backend.status]);
+  const statusBarColor = $derived(STATUS_BAR_COLOR[backend.status]);
 
   function prettifyModelName(model: string): string {
     return model
@@ -62,7 +69,7 @@
       .replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
-  const humanizedTitle = $derived(() => {
+  const humanizedTitle = $derived.by(() => {
     const isLocal = backend.backend_type === "embedded";
     const modelName = prettifyModelName(backend.model || backend.name);
     const status = backend.status === "ready"
@@ -73,61 +80,72 @@
       : `${modelName} — ${status}`;
   });
 
-  const humanizedCost = $derived(() => {
+  const humanizedCost = $derived.by(() => {
     return backend.backend_type === "embedded"
       ? $t("llm.free_local")
       : $t("llm.pay_per_use");
   });
 </script>
 
-{#if isOperator}
-  <!-- Operator mode: humanized card -->
-  <Card class="relative overflow-hidden">
-    <CardHeader class="pb-2">
-      <CardTitle class="text-base font-medium">{humanizedTitle()}</CardTitle>
-    </CardHeader>
+<div class="glass-card-hover relative overflow-hidden" data-testid="llm-backend-card">
+  <!-- Status accent bar -->
+  <div class="h-0.5 w-full {statusBarColor}" data-testid="llm-backend-status-bar" />
 
-    <CardContent>
-      <Badge variant="outline" class="text-xs {backend.backend_type === 'embedded' ? 'border-success text-success' : 'border-accent text-accent-foreground'}">
-        {humanizedCost()}
-      </Badge>
-    </CardContent>
-  </Card>
-{:else}
-  <!-- Builder mode: full technical card -->
-  <Card class="relative overflow-hidden">
-    <CardHeader class="pb-2">
+  <div class="px-3.5 pt-3 pb-2.5">
+    {#if isBuilder}
+      <!-- Builder mode: full technical card -->
       <div class="flex items-center justify-between">
-        <CardTitle class="text-base font-medium">{backend.name}</CardTitle>
-        <div class="flex items-center gap-2">
-          <Badge variant="outline" class={typeConfig.extraClass}>
-            {typeConfig.label}
+        <h3 class="text-[13px] font-medium">{backend.name}</h3>
+        <div class="flex items-center gap-1.5">
+          <Badge variant={TYPE_BADGE_VARIANT[backend.backend_type]} data-testid="llm-backend-type-badge">
+            {TYPE_LABEL[backend.backend_type]}
           </Badge>
-          <Badge variant={statusConfig.variant} class={statusConfig.extraClass}>
-            {$t(statusConfig.labelKey)}
+          <Badge variant={statusBadge.variant} data-testid="llm-backend-badge">
+            {$t(statusBadge.labelKey)}
           </Badge>
         </div>
       </div>
-    </CardHeader>
 
-    <CardContent>
-      <div class="space-y-3">
-        <div class="flex items-center gap-4 text-xs text-muted-foreground">
-          <span>{$t('llm.model')}: {backend.model}</span>
-        </div>
+      <p class="mt-1 text-[11px] text-muted-foreground">
+        {$t('llm.model')}: {backend.model}
+      </p>
 
-        <div class="flex items-center gap-2">
-          <Button size="sm" variant="outline" onclick={handlePing} disabled={pinging}>
-            {pinging ? $t('llm.pinging') : $t('llm.ping')}
-          </Button>
-          {#if pingResult !== null}
-            <span class="text-xs font-medium text-[var(--apollia-success)]">{pingResult}ms</span>
-          {/if}
-          {#if pingError}
-            <span class="text-xs text-destructive">{pingError}</span>
-          {/if}
-        </div>
+      <!-- Ping feedback -->
+      {#if pingResult !== null}
+        <p class="mt-1 text-[11px] text-success" data-testid="llm-ping-result">
+          {$t('llm.ping_ok', { values: { latency: pingResult } })}
+        </p>
+      {/if}
+      {#if pingError}
+        <p class="mt-1 text-[11px] text-destructive" data-testid="llm-ping-result">
+          {pingError}
+        </p>
+      {/if}
+
+      <!-- Actions -->
+      <div class="mt-3 flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onclick={handlePing}
+          disabled={pinging}
+          data-testid="llm-backend-ping-btn"
+        >
+          {pinging ? $t('llm.pinging') : $t('llm.ping')}
+        </Button>
       </div>
-    </CardContent>
-  </Card>
-{/if}
+    {:else}
+      <!-- Operator mode: humanized card -->
+      <h3 class="text-[13px] font-medium">{humanizedTitle}</h3>
+      <div class="mt-2">
+        <Badge
+          variant="outline"
+          class={backend.backend_type === 'embedded' ? 'border-success text-success' : ''}
+          data-testid="llm-backend-badge"
+        >
+          {humanizedCost}
+        </Badge>
+      </div>
+    {/if}
+  </div>
+</div>

@@ -160,7 +160,7 @@
             {#if isInstalled}
               <div class="ml-auto flex items-center gap-2">
                 <span class="text-[11px] text-muted-foreground">{$t("agents.auto_start_enabled")}</span>
-                <Toggle checked={agent.enabled} onchange={handleToggleEnabled} disabled={toggleLoading} size="sm" data-testid="agent-detail-enabled-toggle" />
+                <Toggle checked={agent.enabled} onchange={handleToggleEnabled} disabled={toggleLoading} size="sm" aria-label={$t("agents.auto_start_enabled")} data-testid="agent-detail-enabled-toggle" />
               </div>
             {/if}
           {/if}
