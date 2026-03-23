@@ -653,5 +653,119 @@
 
 ---
 
+## ADR-035 — Per-step observation en mode Orchestré
+
+**Date :** 2026-03-23
+**Statut :** Accepté
+
+**Contexte :** En mode Orchestré ORIA, le runtime pilote l'exécution des steps (pas l'agent Python). Les outputs des steps ne sont ni injectés dans le contexte des steps suivants, ni auto-enregistrés en mémoire épisodique. Le Principe #6 (mémoire à initiative de l'agent) ne s'applique pas car l'agent ne contrôle pas l'exécution.
+
+**Décision :** Injection delta légère : après chaque step, le runtime injecte les outputs précédents dans le contexte du step suivant (StepContext) et auto-enregistre une entrée mémoire épisodique (importance 0.6). Principe #6 relâché uniquement en mode Orchestré.
+
+**Alternatives considérées :** Re-observation complète per-step via Observer (rejetée — extra LLM call par step, trop coûteux), Plan-once execute-blindly (rejetée — steps sans contexte des résultats précédents).
+
+**Conséquences :** Nouveau StepContext struct. Memory writes fire-and-forget. Trace épisodique auto-construite. Principe #6 documenté comme relâché en mode Orchestré uniquement.
+
+**Principes impactés :** Principe #6 — Mémoire à initiative de l'agent (relâché en Orchestré), Principe #5 — Un acteur, une responsabilité (ActorLoop enrichi).
+
+[Détail → docs/adr/ADR-035-per-step-observation-orchestrated.md](adr/ADR-035-per-step-observation-orchestrated.md)
+
+---
+
+## ADR-036 — Stratégie de cache de plans ORIA
+
+**Date :** 2026-03-23
+**Statut :** Accepté
+
+**Contexte :** En mode Orchestré, ORIA appelle le LLM pour générer un ExecutionPlan à chaque tâche. Les tâches identiques produisent le même plan, gaspillant des appels LLM.
+
+**Décision :** Cache SQLite `plan_cache.db` avec clé SHA-256 de `{agent_name}:{agent_version}:{sorted_tools}:{normalized_task_text}`. TTL 7 jours, max 1000 entrées, LRU. Cache vérifié avant Reasoner::plan(). Cache hit émet RuntimeEvent::PlanCacheHit.
+
+**Alternatives considérées :** In-memory LRU (rejetée — perdu au restart), Pas de cache (rejetée — gaspillage LLM).
+
+**Conséquences :** Réduction coût LLM pour tâches répétitives. SQLite DB supplémentaire. Risque de staleness (mitigé par agent_version dans la clé + TTL).
+
+**Principes impactés :** Principe #1 — Local-first (cache local SQLite), Principe #4 — Fail fast (cache miss = fallback transparent).
+
+[Détail → docs/adr/ADR-036-plan-cache-strategy.md](adr/ADR-036-plan-cache-strategy.md)
+
+---
+
+## ADR-037 — Packaging Python SDK
+
+**Date :** 2026-03-23
+**Statut :** Accepté
+
+**Contexte :** Les développeurs d'agents écrivent du Python en important depuis un fichier unique `apollia_base.py` sans type hints, sans mocks, sans IDE autocomplete.
+
+**Décision :** Package `apollia-sdk` séparé dans `sdk/` à la racine. Installable via `pip install -e ./sdk`. Zéro dépendance Rust à l'installation. Type stubs PEP 561. Base classes (ReAct, Conversational, Orchestrated), utilitaires, mocks de test, scaffolding CLI.
+
+**Alternatives considérées :** SDK bundlé dans le binaire Rust via PyO3 (rejetée — nécessite build Rust pour développer en Python), Garder apollia_base.py unique (rejetée — ne scale pas, pas d'IDE support).
+
+**Conséquences :** Autocomplete IDE, validation mypy, tests MockContext, scaffolding `apollia new`. Stubs à maintenir en sync avec PyO3.
+
+**Principes impactés :** Principe #3 — Contrat minimal (SDK expose uniquement ce dont les agents ont besoin), Principe #2 — Zéro dépendance externe (SDK pur Python).
+
+[Détail → docs/adr/ADR-037-python-sdk-packaging.md](adr/ADR-037-python-sdk-packaging.md)
+
+---
+
+## ADR-038 — Mémoire utilisateur globale
+
+**Date :** 2026-03-23
+**Statut :** Accepté
+
+**Contexte :** Les sessions chat sont isolées — pas de mémoire cross-session. Le système ne connaît pas le nom, les préférences ou l'expertise de l'utilisateur.
+
+**Décision :** Namespace mémoire spécial `__user__` dans SemanticMemory. 3 catégories (preferences, habits, context). Injection non-déterministe dans le system prompt ("for reference, use as you see fit"). Sources : onboarding (0.9), chat_inference (0.5), user_explicit (0.95), agent_observation (0.5).
+
+**Alternatives considérées :** Contexte per-session uniquement (rejetée — amnésie cross-session), Moteur de règles déterministe (rejetée — viole Principe #6, rend les agents heuristiques).
+
+**Conséquences :** Continuité cross-session. User peut voir/éditer/valider ses mémoires. Risque de mémoires incorrectes (mitigé par confidence basse + feedback loop).
+
+**Principes impactés :** Principe #6 — Mémoire à initiative de l'agent (étendu au niveau utilisateur, disponible mais jamais imposé), Principe #1 — Local-first (données utilisateur en SQLite local).
+
+[Détail → docs/adr/ADR-038-global-user-memory.md](adr/ADR-038-global-user-memory.md)
+
+---
+
+## ADR-039 — Conversation memory management
+
+**Date :** 2026-03-23
+**Statut :** Accepté
+
+**Contexte :** Les conversations chat grandissent indéfiniment et finiront par dépasser la fenêtre de contexte du LLM.
+
+**Décision :** Sliding window de 20 derniers messages + résumé LLM des messages hors fenêtre. Résumé stocké dans `chat_sessions.summary`. Recalculé quand la fenêtre glisse. Contexte = system prompt + user memory + summary + window + message courant.
+
+**Alternatives considérées :** Garder tous les messages et tronquer au débordement (rejetée — perte brutale de contexte), Résumé hiérarchique multi-niveaux (rejetée — sur-engineered pour le besoin actuel).
+
+**Conséquences :** Taille de contexte bornée et prévisible. Contexte clé préservé dans le résumé. Extra LLM call lors du shift de fenêtre (~tous les 20 messages).
+
+**Principes impactés :** Principe #8 — CLI humaine, API machine (résumé généré machine pour injection machine).
+
+[Détail → docs/adr/ADR-039-conversation-memory-management.md](adr/ADR-039-conversation-memory-management.md)
+
+---
+
+## ADR-040 — Onboarding comme agent conversationnel
+
+**Date :** 2026-03-23
+**Statut :** Accepté
+
+**Contexte :** Apollia OS a besoin d'un flux d'onboarding pour collecter le contexte utilisateur initial. La plupart des applications utilisent des wizards déterministes avec des étapes numérotées, ce qui contredit la philosophie agentique.
+
+**Décision :** L'onboarding est un ConversationalAgent standard (SDK Sprint 21), déployé via une session chat. Le system prompt guide 5 domaines (identité, préférences, outils, domaine, agents) mais l'agent DÉCIDE l'ordre et la profondeur. Chaque insight est persisté immédiatement via ctx.memory.remember(). Pas de schéma rigide, pas d'étapes numérotées.
+
+**Alternatives considérées :** Wizard déterministe à étapes (rejetée — mécanique, ne showcase pas les capacités agents), Apprentissage passif uniquement (rejetée — prend trop de sessions, mauvaise première expérience).
+
+**Conséquences :** Démonstration first-class des capacités agentiques. Interaction naturelle et adaptative. Couverture potentiellement incomplète si l'utilisateur quitte tôt (mitigé par persistance immédiate + re-trigger `apollia-os onboard --topic`).
+
+**Principes impactés :** Principe #3 — Contrat minimal (agent onboarding = même contrat SDK), Principe #6 — Mémoire à initiative de l'agent (l'agent décide quoi retenir).
+
+[Détail → docs/adr/ADR-040-onboarding-conversational-agent.md](adr/ADR-040-onboarding-conversational-agent.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
