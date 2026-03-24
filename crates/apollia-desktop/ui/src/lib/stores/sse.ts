@@ -5,7 +5,7 @@
  * and dispatches to the appropriate Svelte stores.  A watchdog triggers a
  * full IPC refresh if no event is received within 10 seconds.
  *
- * Replaces the previous 3-second polling loop (STORY-156 / ADR-030).
+ * Replaces the previous 3-second polling loop (ADR-030).
  */
 import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
@@ -24,6 +24,7 @@ import type {
   TriggerStatus,
   PipelineRunSummary,
   ChatSessionSummary,
+  PlanCacheHitEvent,
 } from "$lib/types";
 
 /** Watchdog timeout — triggers a single IPC refresh if no event received. */
@@ -52,6 +53,12 @@ export const pipelineRuns = writable<PipelineRunSummary[]>([]);
 
 /** List of chat sessions from the runtime. */
 export const chatSessions = writable<ChatSessionSummary[]>([]);
+
+/** Dernier événement de cache hit reçu (`null` si aucun). */
+export const lastPlanCacheHit = writable<PlanCacheHitEvent | null>(null);
+
+/** Compteur cumulé de cache hits depuis le démarrage du store. */
+export const planCacheHitCount = writable<number>(0);
 
 // ─── IPC refresh helpers ──────────────────────────────────────────────────────
 
@@ -204,6 +211,13 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       break;
     case "chat-changed":
       void refreshChatSessionsViaIpc();
+      break;
+    case "plan-cache-hit":
+      lastPlanCacheHit.set(event.payload as unknown as PlanCacheHitEvent);
+      planCacheHitCount.update((n) => n + 1);
+      break;
+    case "agent-message-sent":
+      void refreshAgentsViaIpc();
       break;
     case "system":
       // AllReady / ShutdownRequested / FatalError — refresh everything

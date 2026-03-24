@@ -38,8 +38,10 @@ export interface AgentListItem {
   tools_required: string[];
   /** Outils optionnels de l'agent. */
   tools_optional: string[];
-  /** Mode d'exécution (`"auto"`, `"direct"`, `"orchestrated"`). */
-  execution_mode: string | null;
+  /** Mode d'exécution ORIA. */
+  execution_mode: "direct" | "orchestrated" | "auto" | null;
+  /** Score pondéré pour le classement/dispatch (issu du weighted scoring Observer). */
+  weighted_score?: number;
   /** Chemin d'installation sur disque (`null` pour les agents runtime-only). */
   install_path: string | null;
 }
@@ -119,7 +121,9 @@ export type TimelineEventType =
   | "tool_call"
   | "hitl_suspended"
   | "hitl_resolved"
-  | "task_completed";
+  | "task_completed"
+  | "step_observation"
+  | "plan_cache_hit";
 
 /** Événement de la timeline d'une tâche (union discriminée par `type`). */
 export type TimelineEvent =
@@ -168,6 +172,19 @@ export type TimelineEvent =
       type: "task_completed";
       output_preview?: string;
       duration_ms?: number;
+      timestamp: string;
+    }
+  | {
+      type: "step_observation";
+      step_name: string;
+      memory_key: string;
+      memory_value: string;
+      timestamp: string;
+    }
+  | {
+      type: "plan_cache_hit";
+      cache_key: string;
+      plan_id: string;
       timestamp: string;
     };
 
@@ -459,7 +476,7 @@ export interface NotificationLogEntry {
   error: string | null;
 }
 
-/** Événement de la timeline globale (STORY-148, AC-1/AC-2). */
+/** Événement de la timeline globale. */
 export interface GlobalTimelineEvent {
   event_type: "task" | "tool" | "llm" | "hitl" | string;
   timestamp: string;
@@ -472,7 +489,7 @@ export interface TimelineParams {
   window_minutes: number;
 }
 
-/** Entrée de l'audit trail (STORY-148, AC-4). */
+/** Entrée de l'audit trail. */
 export interface AuditTrailEntry {
   id: string;
   tool_name: string;
@@ -487,7 +504,7 @@ export interface AuditTrailEntry {
   stderr: string | null;
 }
 
-/** Entrée coût journalier par backend (STORY-148, AC-3). */
+/** Entrée coût journalier par backend. */
 export interface LlmDailyCostEntry {
   date: string;
   backend: string;
@@ -500,13 +517,13 @@ export interface LlmDailyCostsResponse {
   days: number;
 }
 
-/** Entrée clé/valeur d'une section de configuration (STORY-149). */
+/** Entrée clé/valeur d'une section de configuration. */
 export interface ConfigEntry {
   key: string;
   value: string;
 }
 
-/** Section de configuration regroupée par thème (STORY-149). */
+/** Section de configuration regroupée par thème. */
 export interface ConfigSection {
   name: string;
   description: string;
@@ -514,7 +531,7 @@ export interface ConfigSection {
   redirect_route: string | null;
 }
 
-/** Vue plate de la configuration Apollia OS (STORY-149). */
+/** Vue plate de la configuration Apollia OS. */
 export interface ApollaConfigView {
   config_path: string;
   config_exists: boolean;
@@ -528,7 +545,7 @@ export interface SystemInfo {
   python_path: string | null;
 }
 
-// ─── Chat (STORY-205) ──────────────────────────────────────────────────────
+// ─── Chat ───────────────────────────────────────────────────────────────────
 
 /** Résumé d'une session de chat pour la liste. */
 export interface ChatSessionSummary {
@@ -601,4 +618,66 @@ export interface ToolAuthorizationRequest {
   message_id: string;
   tool_name: string;
   decision: 'accept' | 'refuse' | 'always_accept';
+}
+
+// ─── Sprint 20 — Système Agentique Amélioré ─────────────────────────────────
+
+/** Vue détaillée d'un outil pour l'introspection (miroir Rust ToolDescriptor). */
+export interface ToolDescriptorView {
+  /** Nom unique de l'outil (ex: "bash_executor"). */
+  name: string;
+  /** Version semver de l'outil. */
+  version: string;
+  /** Description humaine de l'outil. */
+  description: string;
+  /** Type d'outil : "native", "mcp", "python". */
+  kind: string;
+  /** JSON Schema d'entrée (`null` si non défini). */
+  input_schema: Record<string, unknown> | null;
+  /** JSON Schema de sortie (`null` si non défini). */
+  output_schema: Record<string, unknown> | null;
+  /** Permissions requises par l'outil. */
+  permissions: string[];
+}
+
+/** Statistiques du cache de plans ORIA. */
+export interface PlanCacheStats {
+  /** Nombre total d'entrées en cache. */
+  total_entries: number;
+  /** Nombre total de cache hits depuis le démarrage. */
+  cache_hits: number;
+  /** Nombre total de cache misses depuis le démarrage. */
+  cache_misses: number;
+  /** Taux de hit en pourcentage (0-100). */
+  hit_rate_pct: number;
+  /** Horodatage RFC 3339 de l'entrée la plus ancienne (`null` si cache vide). */
+  oldest_entry_at: string | null;
+  /** Horodatage RFC 3339 de l'entrée la plus récente (`null` si cache vide). */
+  newest_entry_at: string | null;
+}
+
+/** Message échangé entre deux agents via la mailbox. */
+export interface AgentMessage {
+  /** Identifiant unique du message. */
+  id: string;
+  /** Nom de l'agent expéditeur. */
+  from_agent: string;
+  /** Nom de l'agent destinataire. */
+  to_agent: string;
+  /** Contenu du message (JSON arbitraire). */
+  payload: Record<string, unknown>;
+  /** Horodatage d'envoi RFC 3339. */
+  sent_at: string;
+}
+
+/** Événement de cache hit pour un plan d'exécution. */
+export interface PlanCacheHitEvent {
+  /** ID de la tâche qui a déclenché le cache hit. */
+  task_id: string;
+  /** Clé de cache SHA-256 qui a matché. */
+  cache_key: string;
+  /** ID du plan réutilisé depuis le cache. */
+  plan_id: string;
+  /** Horodatage RFC 3339 du cache hit. */
+  timestamp: string;
 }
