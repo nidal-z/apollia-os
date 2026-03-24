@@ -440,7 +440,30 @@
     "delete_confirm_message": "Êtes-vous sûr de vouloir supprimer cette entrée mémoire ? Cette action est irréversible.",
     "delete_confirm_yes": "Supprimer",
     "expired": "expiré",
-    "in_the_future": "dans le futur"
+    "in_the_future": "dans le futur",
+    "tab_memory": "Mémoire",
+    "tab_tools": "Outils",
+    "tools_load_failed": "Échec du chargement des outils",
+    "tools_empty_title": "Aucun outil enregistré",
+    "tools_empty_subtitle": "Les outils sont enregistrés quand les agents sont chargés dans le runtime.",
+    "tools_col_name": "Nom",
+    "tools_col_kind": "Type",
+    "tools_col_version": "Version",
+    "tools_col_description": "Description",
+    "tool_schema": {
+      "title_operator": "Détails de l'outil",
+      "title_builder": "Introspection du schéma d'outil",
+      "input_label_operator": "Entrée",
+      "input_label_builder": "Schéma d'entrée (JSON)",
+      "output_label_operator": "Sortie",
+      "output_label_builder": "Schéma de sortie (JSON)",
+      "permissions_label_operator": "Permissions",
+      "permissions_label_builder": "Permissions requises",
+      "empty_operator": "Schéma non disponible pour cet outil",
+      "empty_builder": "ToolDescriptor introuvable — l'outil n'expose peut-être pas l'introspection",
+      "no_schema": "Non défini",
+      "no_permissions": "Aucune permission requise"
+    }
   },
   "notifications": {
     "title": "Notifications",

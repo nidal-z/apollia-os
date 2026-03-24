@@ -2,22 +2,45 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import type { MemoryEntry, MemorySearchResult } from "$lib/types";
+  import type { MemoryEntry, MemorySearchResult, ToolSummary } from "$lib/types";
   import NamespaceSelector from "../components/memory/NamespaceSelector.svelte";
   import MemorySearch from "../components/memory/MemorySearch.svelte";
-  import { Database } from "lucide-svelte";
   import MemoryTable from "../components/memory/MemoryTable.svelte";
+  import ToolSchemaPanel from "../components/tools/ToolSchemaPanel.svelte";
+  import EmptyState from "../components/common/EmptyState.svelte";
+  import { Database, Wrench } from "lucide-svelte";
+  import { Badge } from "$lib/components/ui/badge";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { addToast } from "$lib/components/ui/toast/store";
-  import EmptyState from "../components/common/EmptyState.svelte";
 
+  type Tab = "memory" | "tools";
+
+  let activeTab = $state<Tab>("memory");
+
+  // ── Memory state ──
   let namespaces = $state<string[]>([]);
   let selectedNamespace = $state<string>("");
   let entries = $state<MemoryEntry[]>([]);
   let searchQuery = $state("");
   let searching = $state(false);
-  let loading = $state(true);
+  let loadingMemory = $state(true);
 
+  // ── Tools state ──
+  let tools = $state<ToolSummary[]>([]);
+  let loadingTools = $state(true);
+  let selectedTool = $state<string | null>(null);
+
+  const KIND_BADGE: Record<string, { variant: "default" | "info" | "warning"; label: string }> = {
+    native: { variant: "default", label: "Native" },
+    mcp: { variant: "info", label: "MCP" },
+    python: { variant: "warning", label: "Python" },
+  };
+
+  function kindBadge(kind: string): { variant: "default" | "info" | "warning"; label: string } {
+    return KIND_BADGE[kind] ?? { variant: "default", label: kind };
+  }
+
+  // ── Memory functions ──
   async function loadNamespaces(): Promise<void> {
     try {
       namespaces = await invoke("list_memory_namespaces");
@@ -31,14 +54,14 @@
 
   async function loadEntries(): Promise<void> {
     if (selectedNamespace === "") return;
-    loading = true;
+    loadingMemory = true;
     try {
       entries = await invoke("list_memory_entries", { namespace: selectedNamespace });
       searching = false;
     } catch (e) {
       addToast(`${$t('memory.load_entries_failed')}: ${e}`, "error");
     } finally {
-      loading = false;
+      loadingMemory = false;
     }
   }
 
@@ -50,7 +73,7 @@
       return;
     }
 
-    loading = true;
+    loadingMemory = true;
     try {
       const results: MemorySearchResult[] = await invoke("search_memory", {
         namespace: selectedNamespace,
@@ -70,7 +93,7 @@
     } catch (e) {
       addToast(`${$t('memory.search_failed')}: ${e}`, "error");
     } finally {
-      loading = false;
+      loadingMemory = false;
     }
   }
 
@@ -98,13 +121,37 @@
     }
   }
 
+  // ── Tools functions ──
+  async function loadTools(): Promise<void> {
+    loadingTools = true;
+    try {
+      tools = await invoke("list_tools");
+    } catch (e) {
+      addToast(`${$t('memory.tools_load_failed')}: ${e}`, "error");
+    } finally {
+      loadingTools = false;
+    }
+  }
+
+  function selectTool(name: string): void {
+    selectedTool = name;
+  }
+
+  function switchTab(tab: Tab): void {
+    activeTab = tab;
+    if (tab === "tools" && tools.length === 0 && loadingTools) {
+      loadTools();
+    }
+  }
+
   onMount(async () => {
     await loadNamespaces();
     if (selectedNamespace !== "") {
       await loadEntries();
     } else {
-      loading = false;
+      loadingMemory = false;
     }
+    loadTools();
   });
 </script>
 
@@ -117,35 +164,117 @@
     </div>
   </div>
 
-  <!-- AC-6: No namespaces -->
-  {#if !loading && namespaces.length === 0}
-    <EmptyState
-      icon={Database}
-      title={$t('memory.empty_title')}
-      subtitle={$t('memory.empty_subtitle')}
-      page="memory"
-    />
-  {:else}
-    <!-- Controls: Namespace selector + Search -->
-    <div class="flex items-center gap-4">
-      <NamespaceSelector
-        {namespaces}
-        selected={selectedNamespace}
-        onselect={handleNamespaceChange}
-      />
-      <MemorySearch value={searchQuery} onsearch={handleSearch} />
-    </div>
+  <!-- Tabs -->
+  <div class="flex gap-1 rounded-lg bg-muted/50 p-1 w-fit" data-testid="memory-tabs">
+    <button
+      class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors {activeTab === 'memory' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+      onclick={() => switchTab("memory")}
+      data-testid="memory-tab-memory"
+    >
+      <span class="flex items-center gap-1.5">
+        <Database size={13} />
+        {$t('memory.tab_memory')}
+      </span>
+    </button>
+    <button
+      class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors {activeTab === 'tools' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+      onclick={() => switchTab("tools")}
+      data-testid="memory-tab-tools"
+    >
+      <span class="flex items-center gap-1.5">
+        <Wrench size={13} />
+        {$t('memory.tab_tools')}
+        {#if !loadingTools}
+          <span class="rounded-full bg-muted px-1.5 text-[10px] text-muted-foreground">{tools.length}</span>
+        {/if}
+      </span>
+    </button>
+  </div>
 
-    <!-- Table -->
-    {#if loading}
+  <!-- Memory Tab -->
+  {#if activeTab === "memory"}
+    {#if !loadingMemory && namespaces.length === 0}
+      <EmptyState
+        icon={Database}
+        title={$t('memory.empty_title')}
+        subtitle={$t('memory.empty_subtitle')}
+        page="memory"
+      />
+    {:else}
+      <div class="flex items-center gap-4">
+        <NamespaceSelector
+          {namespaces}
+          selected={selectedNamespace}
+          onselect={handleNamespaceChange}
+        />
+        <MemorySearch value={searchQuery} onsearch={handleSearch} />
+      </div>
+
+      {#if loadingMemory}
+        <div class="space-y-2 py-4">
+          <Skeleton width="100%" height="2.5rem" />
+          <Skeleton width="100%" height="2.5rem" />
+          <Skeleton width="100%" height="2.5rem" />
+          <Skeleton width="80%" height="2.5rem" />
+        </div>
+      {:else}
+        <MemoryTable {entries} {searching} ondelete={handleDelete} />
+      {/if}
+    {/if}
+  {/if}
+
+  <!-- Tools Tab -->
+  {#if activeTab === "tools"}
+    {#if loadingTools}
       <div class="space-y-2 py-4">
         <Skeleton width="100%" height="2.5rem" />
         <Skeleton width="100%" height="2.5rem" />
         <Skeleton width="100%" height="2.5rem" />
-        <Skeleton width="80%" height="2.5rem" />
       </div>
+    {:else if tools.length === 0}
+      <EmptyState
+        icon={Wrench}
+        title={$t('memory.tools_empty_title')}
+        subtitle={$t('memory.tools_empty_subtitle')}
+        page="tools"
+      />
     {:else}
-      <MemoryTable {entries} {searching} ondelete={handleDelete} />
+      <div class="rounded-xl glass-card glass-border overflow-hidden" data-testid="tools-list">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-border/50 text-left text-xs text-muted-foreground/60 uppercase tracking-wider">
+              <th class="px-4 py-3 font-medium">{$t('memory.tools_col_name')}</th>
+              <th class="px-4 py-3 font-medium">{$t('memory.tools_col_kind')}</th>
+              <th class="px-4 py-3 font-medium">{$t('memory.tools_col_version')}</th>
+              <th class="px-4 py-3 font-medium hidden sm:table-cell">{$t('memory.tools_col_description')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each tools as tool (tool.name)}
+              {@const badge = kindBadge(tool.kind)}
+              <tr
+                class="border-b border-border/20 cursor-pointer transition-colors hover:bg-muted/30"
+                onclick={() => selectTool(tool.name)}
+                data-testid="tool-row"
+              >
+                <td class="px-4 py-3 font-medium">{tool.name}</td>
+                <td class="px-4 py-3">
+                  <Badge variant={badge.variant}>{badge.label}</Badge>
+                </td>
+                <td class="px-4 py-3 text-muted-foreground">{tool.version}</td>
+                <td class="px-4 py-3 text-muted-foreground truncate max-w-xs hidden sm:table-cell">{tool.description}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
     {/if}
   {/if}
 </div>
+
+<!-- Tool Schema Panel (Sheet) -->
+<ToolSchemaPanel
+  toolName={selectedTool ?? ""}
+  open={selectedTool !== null}
+  onclose={() => selectedTool = null}
+/>

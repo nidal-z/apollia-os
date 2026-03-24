@@ -440,7 +440,30 @@
     "delete_confirm_message": "Are you sure you want to delete this memory entry? This action cannot be undone.",
     "delete_confirm_yes": "Delete",
     "expired": "expired",
-    "in_the_future": "in the future"
+    "in_the_future": "in the future",
+    "tab_memory": "Memory",
+    "tab_tools": "Tools",
+    "tools_load_failed": "Failed to load tools",
+    "tools_empty_title": "No tools registered",
+    "tools_empty_subtitle": "Tools are registered when agents are loaded into the runtime.",
+    "tools_col_name": "Name",
+    "tools_col_kind": "Type",
+    "tools_col_version": "Version",
+    "tools_col_description": "Description",
+    "tool_schema": {
+      "title_operator": "Tool Details",
+      "title_builder": "Tool Schema Introspection",
+      "input_label_operator": "Input",
+      "input_label_builder": "Input Schema (JSON)",
+      "output_label_operator": "Output",
+      "output_label_builder": "Output Schema (JSON)",
+      "permissions_label_operator": "Permissions",
+      "permissions_label_builder": "Required Permissions",
+      "empty_operator": "Schema not available for this tool",
+      "empty_builder": "ToolDescriptor not found — tool may not expose introspection",
+      "no_schema": "Not defined",
+      "no_permissions": "No permissions required"
+    }
   },
   "notifications": {
     "title": "Notifications",

@@ -622,6 +622,18 @@ export interface ToolAuthorizationRequest {
 
 // ─── Sprint 20 — Système Agentique Amélioré ─────────────────────────────────
 
+/** Résumé d'un outil pour l'affichage en liste. */
+export interface ToolSummary {
+  /** Nom unique de l'outil (ex: "bash_executor"). */
+  name: string;
+  /** Version semver de l'outil. */
+  version: string;
+  /** Description humaine de l'outil. */
+  description: string;
+  /** Type d'outil : "native", "mcp", "python". */
+  kind: string;
+}
+
 /** Vue détaillée d'un outil pour l'introspection (miroir Rust ToolDescriptor). */
 export interface ToolDescriptorView {
   /** Nom unique de l'outil (ex: "bash_executor"). */

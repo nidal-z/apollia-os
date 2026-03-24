@@ -344,6 +344,7 @@ fn main() {
             commands::config::check_llm_configured,
             commands::config::check_hello_agent_exists,
             commands::config::list_available_agents,
+            commands::tools::list_tools,
             commands::tools::describe_tool,
             commands::chat::create_chat_session,
             commands::chat::list_chat_sessions,
