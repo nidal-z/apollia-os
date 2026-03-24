@@ -1,0 +1,66 @@
+@startuml seq-onboarding-flow
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowThickness 1.5
+skinparam sequenceParticipantBorderColor #333333
+
+title Flux d'onboarding — Apollia OS
+
+actor User
+participant "Supervisor" as Sup
+participant "EventBus" as Bus
+participant "Frontend\n(Desktop/CLI)" as UI
+participant "ChatSessionManager" as Chat
+participant "onboarding-agent" as Agent
+participant "UserMemoryRepository" as Mem
+
+== Premier lancement ==
+
+Sup -> Mem : is_empty()?
+Mem --> Sup : true
+Sup -> Bus : OnboardingRequired
+Bus -> UI : SSE event
+
+alt Configurer
+  User -> UI : click "Configurer"
+  UI -> Chat : create_session(mode=Agent,\nagent="onboarding-agent")
+  Chat --> UI : SessionInfo { session_id }
+  UI -> Bus : OnboardingStarted { session_id, mode="full" }
+
+  loop conversation naturelle
+    User -> UI : message
+    UI -> Chat : send_message(session_id, content)
+    Chat -> Agent : converse(ctx, user_message, history)
+    Agent -> Agent : LLM complete\n+ extract REMEMBER/INFER tags
+    Agent -> Mem : remember(key, value,\nsource="onboarding",\nconfidence=0.9|0.5)
+    Mem --> Agent : ok
+    Agent --> Chat : (response_text, updated_history)
+    Chat --> UI : response
+    UI --> User : affichage (tags retirés)
+    UI -> Mem : get_covered_topics()
+    note right : Polling toutes les 4s\n(desktop uniquement)
+  end
+
+  UI -> UI : 5/5 topics couverts\n→ animation confetti
+
+else Plus tard
+  User -> UI : click "Plus tard"
+  UI -> Mem : set_onboarding_skipped(true)
+  UI -> UI : affiche badge rappel
+  note right
+    L'utilisateur peut relancer
+    l'onboarding plus tard :
+    - CLI : apollia-os onboard
+    - Desktop : Settings
+  end note
+end
+
+== Re-onboarding partiel ==
+
+User -> UI : apollia-os onboard --topic preferences
+UI -> Chat : create_session(mode=Agent,\nagent="onboarding-agent",\nfocus_topic="preferences")
+Chat -> Agent : converse(ctx, message, history)\n+ system prompt ciblé
+Agent -> Mem : remember("user.preferences.*", ...)
+Agent --> UI : response
+
+@enduml

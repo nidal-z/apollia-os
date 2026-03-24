@@ -85,7 +85,7 @@ Chaque entrée est associée à une source (`UserMemorySource`) qui indique son 
 
 | Source | Description | Confiance implicite |
 |---|---|---|
-| `onboarding` | Renseignée lors du wizard de première utilisation | Élevée |
+| `onboarding` | Renseignée lors de l'onboarding conversationnel (voir [Guide Onboarding](Agents-Onboarding-Guide.md)) | Élevée (0.9 explicite, 0.5 inféré) |
 | `chat_inference` | Inférée par le LLM depuis une conversation | Moyenne |
 | `user_explicit` | Saisie manuellement par l'utilisateur | Élevée |
 | `agent_observation` | Observée par un agent pendant l'exécution d'une tâche | Moyenne |
@@ -299,8 +299,72 @@ if user_ctx is not None:
 
 ---
 
+## Scores de confiance
+
+Chaque entrée mémoire est associée à un score de confiance (`confidence`, flottant 0.0–1.0) qui reflète la fiabilité de l'information. Le score est utilisé pour arbitrer les mises à jour : une nouvelle valeur ne remplace pas une valeur existante avec un score de confiance strictement supérieur.
+
+| Score | Signification | Source typique |
+|---|---|---|
+| `0.95` | Validée par l'utilisateur (feedback loop UI) | `user_explicit` |
+| `0.9` | Déclarée explicitement pendant l'onboarding | `onboarding` |
+| `0.5` | Inférée du contexte (conversation ou observation) | `chat_inference`, `agent_observation` |
+
+**Méthodes liées** : `store_with_confidence()`, `update_confidence()` dans `UserMemoryRepository`.
+
+---
+
+## Onboarding conversationnel
+
+L'onboarding est le principal vecteur de peuplement initial de la mémoire utilisateur. Implémenté comme un agent conversationnel standard (`onboarding-agent`), il explore 5 domaines et persiste chaque information en temps réel avec un score de confiance adapté (0.9 pour les déclarations explicites, 0.5 pour les déductions).
+
+Pour le détail complet du fonctionnement, des clés mémoire, et de l'utilisation : voir [Guide Onboarding](Agents-Onboarding-Guide.md).
+
+**Méthodes liées** dans `UserMemoryRepository` :
+- `get_covered_topics()` — Domaines couverts par l'onboarding
+- `mark_topic_covered(topic)` — Marque un domaine comme couvert
+- `get_onboarding_skipped()` / `set_onboarding_skipped(skipped)` — État "Plus tard"
+- `get_last_onboarding_session()` / `set_last_onboarding_session(timestamp)` — Dernière session
+
+---
+
+## Enrichissement passif
+
+**Fichier** : `crates/apollia-runtime/src/chat/extractor.rs`
+
+En plus de l'extraction post-session déjà documentée (section "Extraction LLM"), le système supporte un enrichissement passif continu. Le `UserMemoryExtractor` est un composant stateful qui :
+
+1. **Rate-limite** les extractions (cooldown de 1 heure entre sessions).
+2. **Déduplique** : ignore les entrées dont la valeur est identique à l'existante.
+3. **Respecte la confiance** : ne remplace jamais une entrée avec un score supérieur (les données d'onboarding à 0.9 ne sont pas écrasées par l'extraction passive à 0.5).
+4. **Enrichit progressivement** : les nouvelles clés découvertes sont ajoutées, les clés existantes avec un score égal ou inférieur sont mises à jour.
+
+Le seuil minimal est de 6 messages pour l'enrichissement passif (vs 4 pour l'extraction standard).
+
+---
+
+## Feedback loop UI
+
+L'utilisateur peut gérer ses entrées mémoire depuis l'interface desktop (Settings > Mes Mémoires) :
+
+- **Valider** une entrée — augmente le score de confiance à 0.95 (`update_confidence()`)
+- **Corriger** une entrée — modifie la valeur via `update()`, source mise à `user_explicit`
+- **Supprimer** une entrée — suppression immédiate et définitive via `forget()`
+
+Ce mécanisme ferme la boucle : les informations inférées (confiance 0.5) peuvent être validées par l'utilisateur pour devenir des données de confiance élevée (0.95).
+
+---
+
 ## Diagrammes
 
 - [seq-chat-user-memory.puml](diagrams/seq-chat-user-memory.puml) — Injection de la mémoire utilisateur dans le chat
 - [seq-conversation-summarize.puml](diagrams/seq-conversation-summarize.puml) — Flux de summarization des conversations
 - [seq-chat-libre.puml](diagrams/seq-chat-libre.puml) — Chat libre complet (mis à jour avec user memory et summary)
+- [seq-onboarding-flow.puml](diagrams/seq-onboarding-flow.puml) — Flux d'onboarding complet
+
+---
+
+## Liens
+
+- [Guide Onboarding](Agents-Onboarding-Guide.md)
+- [ADR-040 — Onboarding comme agent conversationnel](adr/ADR-040-onboarding-conversational-agent.md)
+- [Brique — CLI](Briques-CLI.md) — Commande `apollia-os onboard`

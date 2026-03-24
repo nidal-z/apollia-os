@@ -265,7 +265,7 @@ impl UserMemoryExtractor {
 }
 
 // ---------------------------------------------------------------------------
-// Public free functions (backward compatibility with STORY-256)
+// Public free functions
 // ---------------------------------------------------------------------------
 
 /// Extracts user information from a conversation via an LLM call.
