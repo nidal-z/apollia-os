@@ -164,6 +164,15 @@ impl UserMemoryRepository {
         Ok(Self { store })
     }
 
+    /// Returns `true` if the repository contains no user memory entries.
+    pub fn is_empty(&self) -> Result<bool, UserMemoryError> {
+        let sem = SemanticMemory::new(&self.store);
+        let all = sem
+            .recall_all(USER_NAMESPACE)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+        Ok(all.is_empty())
+    }
+
     /// Stores or updates a user memory entry.
     ///
     /// If an entry with the same `key` already exists in `category`,
@@ -622,5 +631,33 @@ mod tests {
         // THEN — at most 3 "- key:" lines
         let entry_count = text.lines().filter(|l| l.starts_with("- ")).count();
         assert_eq!(entry_count, 3);
+    }
+
+    #[test]
+    fn test_is_empty_on_fresh_repo() {
+        // GIVEN a fresh repository with no entries
+        let (repo, _) = setup();
+
+        // WHEN / THEN
+        assert!(repo.is_empty().unwrap(), "fresh repo should be empty");
+    }
+
+    #[test]
+    fn test_is_empty_after_store() {
+        // GIVEN a repository with one entry
+        let (repo, _) = setup();
+        repo.store(
+            UserMemoryCategory::Preferences,
+            "language",
+            "fr",
+            UserMemorySource::Onboarding,
+        )
+        .unwrap();
+
+        // WHEN / THEN
+        assert!(
+            !repo.is_empty().unwrap(),
+            "repo with entries should not be empty"
+        );
     }
 }

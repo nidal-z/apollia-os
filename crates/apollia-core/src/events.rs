@@ -642,6 +642,14 @@ pub enum RuntimeEvent {
         /// Nom de l'agent destinataire.
         to: String,
     },
+
+    // ── Onboarding events ────────────────────────
+    /// Émis au premier lancement quand la UserMemory est vide.
+    ///
+    /// Le frontend intercepte cet événement via SSE pour afficher l'écran
+    /// d'accueil onboarding. Le runtime continue de fonctionner normalement
+    /// — cet événement est purement informatif et ne bloque rien.
+    OnboardingRequired,
 }
 
 #[cfg(test)]
@@ -921,6 +929,8 @@ mod tests {
                 task_id: "task-1".into(),
                 cache_key: "abc123def456".into(),
             },
+            // ── Onboarding ──────────────────────────
+            RuntimeEvent::OnboardingRequired,
         ];
 
         // THEN — toutes les variantes sont clonables et debuggables
@@ -1014,6 +1024,20 @@ mod tests {
         } else {
             panic!("Mauvais event reçu");
         }
+    }
+
+    // ── Onboarding ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_onboarding_required_event_serialization() {
+        // GIVEN
+        let event = RuntimeEvent::OnboardingRequired;
+        // WHEN
+        let json = serde_json::to_string(&event).expect("serialization failed");
+        let restored: RuntimeEvent = serde_json::from_str(&json).expect("deserialization failed");
+        // THEN
+        assert!(json.contains("OnboardingRequired"));
+        assert!(matches!(restored, RuntimeEvent::OnboardingRequired));
     }
 
     // ── round-trip désérialisation ────────────────────────────────
