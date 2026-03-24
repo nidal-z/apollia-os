@@ -436,6 +436,75 @@ impl UserMemoryRepository {
         Err(UserMemoryError::NotFound(key.to_owned()))
     }
 
+    // -- onboarding helpers --
+
+    /// Returns the list of onboarding topics that have been covered.
+    ///
+    /// A topic is considered covered when a key `onboarding_topic_{topic}`
+    /// exists in the `Context` category with source `Onboarding`.
+    pub fn get_covered_topics(&self) -> Result<Vec<String>, UserMemoryError> {
+        let sem = SemanticMemory::new(&self.store);
+        let prefix = format!(
+            "{}{KEY_SEPARATOR}onboarding_topic_",
+            UserMemoryCategory::Context.as_str()
+        );
+
+        let all = sem
+            .recall_all(USER_NAMESPACE)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+
+        let topics: Vec<String> = all
+            .into_iter()
+            .filter(|e| e.key.starts_with(&prefix))
+            .filter_map(|e| e.key.strip_prefix(&prefix).map(|t| t.to_owned()))
+            .collect();
+
+        Ok(topics)
+    }
+
+    /// Returns the ISO 8601 timestamp of the last onboarding session, if any.
+    pub fn get_last_onboarding_session(&self) -> Result<Option<String>, UserMemoryError> {
+        let entry = self.recall_by_key(UserMemoryCategory::Context, "onboarding_last_session")?;
+        Ok(entry.map(|e| e.value))
+    }
+
+    /// Returns `true` if the user has explicitly dismissed (skipped) the onboarding.
+    pub fn get_onboarding_skipped(&self) -> Result<bool, UserMemoryError> {
+        let entry = self.recall_by_key(UserMemoryCategory::Context, "onboarding_skipped")?;
+        Ok(entry.map(|e| e.value == "true").unwrap_or(false))
+    }
+
+    /// Marks or unmarks the onboarding as skipped.
+    pub fn set_onboarding_skipped(&self, skipped: bool) -> Result<(), UserMemoryError> {
+        self.store(
+            UserMemoryCategory::Context,
+            "onboarding_skipped",
+            if skipped { "true" } else { "false" },
+            UserMemorySource::Onboarding,
+        )
+    }
+
+    /// Records that an onboarding topic has been covered.
+    pub fn mark_topic_covered(&self, topic: &str) -> Result<(), UserMemoryError> {
+        let key = format!("onboarding_topic_{topic}");
+        self.store(
+            UserMemoryCategory::Context,
+            &key,
+            "covered",
+            UserMemorySource::Onboarding,
+        )
+    }
+
+    /// Records the timestamp of the current onboarding session.
+    pub fn set_last_onboarding_session(&self, timestamp: &str) -> Result<(), UserMemoryError> {
+        self.store(
+            UserMemoryCategory::Context,
+            "onboarding_last_session",
+            timestamp,
+            UserMemorySource::Onboarding,
+        )
+    }
+
     // -- helpers --
 
     /// Builds the compound key stored in SemanticMemory (`category.key`).
@@ -767,5 +836,98 @@ mod tests {
             !repo.is_empty().unwrap(),
             "repo with entries should not be empty"
         );
+    }
+
+    #[test]
+    fn test_get_covered_topics_empty() {
+        // GIVEN a fresh repository
+        let (repo, _) = setup();
+
+        // WHEN
+        let topics = repo.get_covered_topics().unwrap();
+
+        // THEN
+        assert!(topics.is_empty());
+    }
+
+    #[test]
+    fn test_get_covered_topics_with_entries() {
+        // GIVEN topics marked as covered
+        let (repo, _) = setup();
+        repo.mark_topic_covered("identity").unwrap();
+        repo.mark_topic_covered("preferences").unwrap();
+        repo.mark_topic_covered("tools").unwrap();
+
+        // WHEN
+        let topics = repo.get_covered_topics().unwrap();
+
+        // THEN
+        assert_eq!(topics.len(), 3);
+        assert!(topics.contains(&"identity".to_string()));
+        assert!(topics.contains(&"preferences".to_string()));
+        assert!(topics.contains(&"tools".to_string()));
+    }
+
+    #[test]
+    fn test_get_onboarding_skipped_default() {
+        // GIVEN a fresh repository
+        let (repo, _) = setup();
+
+        // WHEN / THEN
+        assert!(!repo.get_onboarding_skipped().unwrap());
+    }
+
+    #[test]
+    fn test_set_and_get_onboarding_skipped() {
+        // GIVEN a repository
+        let (repo, _) = setup();
+
+        // WHEN skipping onboarding
+        repo.set_onboarding_skipped(true).unwrap();
+
+        // THEN
+        assert!(repo.get_onboarding_skipped().unwrap());
+    }
+
+    #[test]
+    fn test_get_last_onboarding_session_default() {
+        // GIVEN a fresh repository
+        let (repo, _) = setup();
+
+        // WHEN / THEN
+        assert!(repo.get_last_onboarding_session().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_set_and_get_last_onboarding_session() {
+        // GIVEN a repository
+        let (repo, _) = setup();
+        let timestamp = "2026-06-15T14:30:00Z";
+
+        // WHEN
+        repo.set_last_onboarding_session(timestamp).unwrap();
+
+        // THEN
+        assert_eq!(
+            repo.get_last_onboarding_session().unwrap().as_deref(),
+            Some(timestamp)
+        );
+    }
+
+    #[test]
+    fn test_dismiss_preserves_topics() {
+        // GIVEN topics already covered
+        let (repo, _) = setup();
+        repo.mark_topic_covered("identity").unwrap();
+        repo.mark_topic_covered("domain").unwrap();
+
+        // WHEN dismissing onboarding
+        repo.set_onboarding_skipped(true).unwrap();
+
+        // THEN topics are preserved
+        let topics = repo.get_covered_topics().unwrap();
+        assert_eq!(topics.len(), 2);
+        assert!(topics.contains(&"identity".to_string()));
+        assert!(topics.contains(&"domain".to_string()));
     }
 }

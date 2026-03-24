@@ -650,6 +650,20 @@ pub enum RuntimeEvent {
     /// d'accueil onboarding. Le runtime continue de fonctionner normalement
     /// — cet événement est purement informatif et ne bloque rien.
     OnboardingRequired,
+
+    /// Émis quand une session d'onboarding est déclenchée (complet ou partiel).
+    ///
+    /// Le frontend utilise cet événement pour naviguer vers l'écran de chat
+    /// onboarding. `mode` vaut `"full"` pour un onboarding complet ou
+    /// `"partial"` pour un topic spécifique.
+    OnboardingStarted {
+        /// Identifiant de la session chat créée pour l'onboarding.
+        session_id: String,
+        /// `"full"` ou `"partial"`.
+        mode: String,
+        /// Topic ciblé si mode partial ; `None` en mode full.
+        topic: Option<String>,
+    },
 }
 
 #[cfg(test)]
@@ -931,6 +945,11 @@ mod tests {
             },
             // ── Onboarding ──────────────────────────
             RuntimeEvent::OnboardingRequired,
+            RuntimeEvent::OnboardingStarted {
+                session_id: "sess-123".into(),
+                mode: "full".into(),
+                topic: None,
+            },
         ];
 
         // THEN — toutes les variantes sont clonables et debuggables

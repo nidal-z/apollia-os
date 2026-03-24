@@ -189,7 +189,9 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::AgentMessageSent { .. } => "agent-changed",
 
         // ── Onboarding ─────────────────────────────────────────────────────
-        RuntimeEvent::OnboardingRequired => "onboarding-required",
+        RuntimeEvent::OnboardingRequired | RuntimeEvent::OnboardingStarted { .. } => {
+            "onboarding-changed"
+        }
 
         // ── System-level ─────────────────────────────────────────────────
         RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested | RuntimeEvent::FatalError(_) => {

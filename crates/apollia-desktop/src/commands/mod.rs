@@ -14,6 +14,7 @@ pub mod llm;
 pub mod memory;
 pub mod notifications;
 pub mod observability;
+pub mod onboarding;
 pub mod pipelines;
 pub mod tasks;
 pub mod tools;
