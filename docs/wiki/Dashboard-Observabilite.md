@@ -33,6 +33,8 @@ Le dashboard est organisé en **7 sections** mises à jour en temps réel via SS
 | **Tools** | Circuit breaker state, appels récents | `ToolCircuitBroken`, `ToolCircuitRestored` |
 | **LLM** | Backends actifs, coût estimé, latence | `LlmModelReady`, `LlmCallCompleted` |
 | **Audit** | Dernières invocations d'outils | Polling `GET /api/v1/dashboard/state` |
+| **Plan Cache** *(Sprint 20)* | Entrées cachées, taux de hit, purge | `PlanCacheHit`, API `GET /api/v1/plan-cache/stats` |
+| **Agent Messages** *(Sprint 20)* | Messages inter-agents, files | `AgentMessageSent`, API `GET /api/v1/agents/:name/messages` |
 
 ---
 

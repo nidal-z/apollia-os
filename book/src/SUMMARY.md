@@ -106,6 +106,8 @@
   - [ADR-032 — Agent Install & Persistence dans ~/.apollia/agents/](decisions/adr-032-agent-install-persistence.md)
   - [ADR-033 — Config opérateur SQLite : séparation structurel / opérationnel](decisions/adr-033-config-operateur-sqlite.md)
   - [ADR-034 — Chat hybride : sessions, streaming, HITL inline](decisions/adr-034-chat-hybride-sessions-streaming-hitl-inline.md)
+  - [ADR-035 — Per-step observation en mode Orchestré](decisions/adr-035-per-step-observation-orchestrated.md)
+  - [ADR-036 — Stratégie de cache de plans](decisions/adr-036-plan-cache-strategy.md)
 
 ---
 

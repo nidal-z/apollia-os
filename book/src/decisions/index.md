@@ -38,3 +38,6 @@
 | ADR-031 | [ADR-031 — Stratégie i18n : svelte-i18n avec fichiers JSON FR/EN](./adr-031-i18n-svelte-i18n-fr-en.md) | Accepté |
 | ADR-032 | [ADR-032 — Agent Install & Persistence dans ~/.apollia/agents/](./adr-032-agent-install-persistence.md) | Accepté |
 | ADR-033 | [ADR-033 — Config opérateur SQLite : séparation structurel / opérationnel](./adr-033-config-operateur-sqlite.md) | Accepté |
+| ADR-034 | [ADR-034 — Chat hybride : sessions, streaming, HITL inline](./adr-034-chat-hybride-sessions-streaming-hitl-inline.md) | Accepté |
+| ADR-035 | [ADR-035 — Per-step observation en mode Orchestré](./adr-035-per-step-observation-orchestrated.md) | Accepté |
+| ADR-036 | [ADR-036 — Stratégie de cache de plans ORIA](./adr-036-plan-cache-strategy.md) | Accepté |

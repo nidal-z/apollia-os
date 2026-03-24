@@ -406,6 +406,102 @@ Initier un graceful shutdown du runtime (drain 30s).
 
 ---
 
+## Tools *(Sprint 20)*
+
+### GET /api/v1/tools
+
+Liste tous les outils enregistrés dans le Tool Registry.
+
+**Réponse 200 :**
+```json
+{
+  "tools": [
+    {
+      "name": "bash_executor",
+      "version": "0.1.0",
+      "description": "Exécute des commandes shell dans un environment isolé",
+      "kind": "Native",
+      "input_schema": { "type": "object", "properties": { "command": { "type": "string" } } },
+      "output_schema": null,
+      "sandbox_profile": "FileSystem",
+      "tags": [],
+      "dangerous": false
+    }
+  ]
+}
+```
+
+### GET /api/v1/tools/:name
+
+Retourne le descripteur complet d'un outil.
+
+**Réponse 200 :** `ToolDescriptor` complet (même format qu'un élément de la liste ci-dessus).
+
+**Réponse 404 :** `{ "error": "Tool 'xxx' not found" }`
+
+---
+
+## Agent Messaging *(Sprint 20)*
+
+### GET /api/v1/agents/:name/messages
+
+Liste les messages en file pour un agent. Max 200 messages par requête.
+
+**Query params :**
+- `limit` (optionnel, défaut: 50, max: 200) — nombre de messages à retourner
+
+**Réponse 200 :**
+```json
+{
+  "messages": [
+    {
+      "from_agent": "agent-a",
+      "to_agent": "agent-b",
+      "payload": { "type": "data", "content": "résultat" },
+      "sent_at": "2026-03-24T10:00:00Z"
+    }
+  ]
+}
+```
+
+**Réponse 503 :** `{ "error": "Mailbox not configured" }` — si `AgentMailbox` n'est pas activé.
+
+---
+
+## Plan Cache *(Sprint 20)*
+
+### GET /api/v1/plan-cache/stats
+
+Statistiques du cache de plans ORIA.
+
+**Réponse 200 :**
+```json
+{
+  "total_entries": 42,
+  "cache_hits": 128,
+  "hit_rate_pct": 75.3,
+  "oldest_entry_at": "2026-03-17T08:00:00Z",
+  "newest_entry_at": "2026-03-24T09:45:00Z"
+}
+```
+
+**Réponse 503 :** `{ "error": "Plan cache not configured" }`
+
+### POST /api/v1/plan-cache/clear
+
+Purge toutes les entrées du cache de plans.
+
+**Corps :** aucun
+
+**Réponse 200 :**
+```json
+{
+  "cleared_count": 42
+}
+```
+
+---
+
 ## Observabilité *(Sprint 13)*
 
 ### GET /api/v1/tasks/:id/timeline

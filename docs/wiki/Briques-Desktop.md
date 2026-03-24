@@ -60,7 +60,8 @@ crates/apollia-desktop/
 │       ├── pipelines.rs       ← list_pipelines, list_pipeline_runs, list_all_pipeline_runs, run_pipeline, get_pipeline_run_detail
 │       ├── memory.rs          ← list_memory_namespaces, list_memory_entries, search_memory, delete_memory_entry
 │       ├── notifications.rs   ← list_notification_channels, test_notification_channel, get_notification_logs
-│       ├── observability.rs   ← get_global_timeline, get_tool_audit_trail, get_llm_daily_costs
+│       ├── tools.rs           ← list_tools, describe_tool [Sprint 20]
+│       ├── observability.rs   ← get_global_timeline, get_tool_audit_trail, get_llm_daily_costs, get_plan_cache_stats, clear_plan_cache [Sprint 20]
 │       ├── config.rs          ← get_config, open_config_in_editor
 │       └── onboarding.rs      ← check_onboarded, mark_onboarded, reset_onboarding, check_python, check_llm_configured, check_hello_agent_exists
 └── ui/                        ← application Svelte 5
@@ -69,22 +70,22 @@ crates/apollia-desktop/
     └── src/
         ├── App.svelte
         ├── lib/
-        │   ├── types.ts       ← 35+ interfaces TypeScript
+        │   ├── types.ts       ← 40+ interfaces TypeScript (dont ToolDescriptorView, PlanCacheStats, AgentMessage — Sprint 20)
         │   ├── stores/
         │   │   ├── sse.ts         ← SSE connection + 7 stores reactifs + 4 derives
         │   │   └── navigation.ts  ← currentRoute + showOnboarding
         │   └── components/ui/     ← Button, Card, Badge, Sheet, Separator (bits-ui)
         ├── components/
         │   ├── layout/        ← Sidebar.svelte, Main.svelte
-        │   ├── agents/        ← AgentCard.svelte, AgentLogs.svelte
+        │   ├── agents/        ← AgentCard.svelte, AgentLogs.svelte, AgentDetail.svelte, AgentMessagesPanel.svelte [Sprint 20]
         │   ├── tasks/         ← TaskList.svelte, TaskDetail.svelte, TaskTimeline.svelte
         │   ├── hitl/          ← ApprovalCard.svelte, ApprovalHistory.svelte
         │   ├── llm/           ← LlmBackendCard.svelte, LlmStats.svelte
         │   ├── triggers/      ← TriggerRow, TriggerLogs, CreateTriggerDialog, EditTriggerDialog
         │   ├── pipelines/     ← PipelineRunCard, PipelineRunDetail, PipelineDefinitionCard, CreatePipelineDialog, EditPipelineDialog
-        │   ├── memory/        ← NamespaceSelector.svelte, MemorySearch.svelte, MemoryTable.svelte
+        │   ├── memory/        ← NamespaceSelector.svelte, MemorySearch.svelte, MemoryTable.svelte, ToolSchemaPanel.svelte [Sprint 20]
         │   ├── notifications/ ← NotificationChannelCard, NotificationLog, CreateChannelDialog, EditChannelDialog, GlobalEventsEditor
-        │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte
+        │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte, PlanCacheStats.svelte [Sprint 20]
         │   └── onboarding/    ← StepEnvironment.svelte, StepFirstAgent.svelte, StepFirstTask.svelte
         └── routes/            ← 10 fichiers .svelte (un par route)
 ```

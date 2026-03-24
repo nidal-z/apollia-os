@@ -53,7 +53,7 @@ pub struct MemorySnapshot {
 4. Snapshot de l'état runtime (outils disponibles, ProcessState)
 5. **Classifier la complexité** → `ExecutionMode`
 
-**Algorithme de classification :**
+**Algorithme de classification — Scoring pondéré *(Sprint 20)* :**
 
 ```rust
 pub enum ExecutionMode {
@@ -62,29 +62,38 @@ pub enum ExecutionMode {
 }
 ```
 
-Le champ `execution_mode` de l'`AgentManifest` permet un override explicite (`"direct"` | `"orchestrated"`). La valeur `"auto"` (défaut) déclenche l'heuristique :
+Le champ `execution_mode` de l'`AgentManifest` permet un override explicite (`"direct"` | `"orchestrated"`). La valeur `"auto"` (défaut) déclenche le scoring pondéré.
+
+Depuis le Sprint 20 (STORY-234), la classification utilise un **scoring pondéré à 7 facteurs** au lieu de seuils booléens. Chaque facteur contribue un poids au score total ; si le score dépasse le seuil `ORCHESTRATED_THRESHOLD = 0.40`, le mode Orchestré est sélectionné.
 
 ```rust
-fn classify(task: &AIPTask, manifest: &AgentManifest) -> ExecutionMode {
-    // Override explicite depuis le manifest Python
-    match manifest.execution_mode.as_str() {
-        "direct" => return ExecutionMode::Direct,
-        "orchestrated" => return ExecutionMode::Orchestrated,
-        _ => {}  // "auto" ou valeur inconnue → heuristique
-    }
+// Poids des facteurs de complexité
+const WEIGHT_STEPS: f32 = 0.30;           // step_budget.max_steps > 15
+const WEIGHT_PARTS: f32 = 0.20;           // input.parts.len() > 3
+const WEIGHT_MULTI_STEP_TAG: f32 = 0.40;  // tags contient "multi-step"
+const WEIGHT_TOOLS: f32 = 0.20;           // tools_required.len() > 4
+const WEIGHT_INPUT_LENGTH: f32 = 0.10;    // input texte > 500 chars
+const WEIGHT_MEMORY_DEPTH: f32 = 0.10;    // mémoire épisodique > 5 entrées
+const WEIGHT_PLANNING_PROMPT: f32 = 0.10; // input contient mots-clés planning
 
-    let is_complex =
-        manifest.step_budget.as_ref()
-            .map(|b| b.max_steps > 15)
-            .unwrap_or(false)
-        || task.input.parts.len() > 3
-        || manifest.tags.contains(&"multi-step".to_string())
-        || manifest.tools_required.len() > 4;
+const ORCHESTRATED_THRESHOLD: f32 = 0.40;
 
-    if is_complex { ExecutionMode::Orchestrated }
-    else { ExecutionMode::Direct }
-}
+pub fn compute_complexity_score(
+    manifest: &AgentManifest,
+    input: &AIPInput,
+    memory_snapshot: Option<&MemorySnapshot>,
+) -> f32
+
+pub fn classify(
+    task: &AIPTask,
+    manifest: &AgentManifest,
+    memory_snapshot: Option<&MemorySnapshot>,
+) -> ExecutionMode
 ```
+
+**Mots-clés de planification détectés :** `"plan"`, `"etape"`, `"step"`, `"sequence"`, `"workflow"`, `"pipeline"`.
+
+Ce scoring remplace l'heuristique booléenne précédente. Il offre une classification plus fine en tenant compte du contexte mémoire et de la longueur de l'input, en plus des facteurs structurels (outils, steps, tags).
 
 **Configuration Python de l'agent :**
 
@@ -139,6 +148,7 @@ pub struct PlanStep {
     pub description: String,        // "Récupérer les infos client Dupont SA"
     pub tool_hint: Option<String>,  // "file_io"
     pub depends_on: Vec<String>,    // Dépendances entre steps (par step_id)
+    pub model_hint: Option<String>, // Backend LLM spécifique pour ce step (Sprint 20)
 }
 ```
 
@@ -178,7 +188,23 @@ Format JSON strict :
 Tâche : {task_input}
 ```
 
-**Décision modèle Reasoner :** Le Reasoner utilise **le même LLM que l'agent** via `Arc<dyn CompletionModel>` injecté depuis le `LlmRouter`. Pas de second modèle en MVP — la complexité de configurer deux modèles différents n'est pas justifiable pour la cible PME (ADR-004). Si `ORIAEngine` n'a pas de `Reasoner` configuré (LLM absent), `execute_orchestrated()` retourne `ORIAError::NoLlmConfigured`.
+**Décision modèle Reasoner :** Le Reasoner utilise **le même LLM que l'agent** via `Arc<dyn CompletionModel>` injecté depuis le `LlmRouter`. Si `ORIAEngine` n'a pas de `Reasoner` configuré (LLM absent), `execute_orchestrated()` retourne `ORIAError::NoLlmConfigured`.
+
+### 3.3 Multi-Model Routing par step *(Sprint 20)*
+
+Depuis le Sprint 20 (STORY-226, STORY-227), le champ `model_hint` sur `PlanStep` permet au Reasoner de spécifier un backend LLM différent pour chaque step du plan. L'`ActorLoop` résout le `model_hint` via `LlmRouter::get(Some(model_hint))` avant d'exécuter le step.
+
+**Comportement :**
+- Si `model_hint` est `Some("backend_name")` et que le backend existe → utilise ce backend
+- Si le backend demandé est introuvable → fallback vers le backend default avec un `tracing::warn!`
+- Si `model_hint` est `None` → utilise le backend default
+
+Le prompt Reasoner est enrichi pour produire `model_hint` quand pertinent :
+```
+Si une étape nécessite un modèle spécifique (ex: modèle rapide pour
+les tâches simples, modèle puissant pour le raisonnement complexe),
+ajoute un champ "model_hint": "nom_backend" à l'étape.
+```
 
 ---
 
@@ -208,15 +234,47 @@ pub enum StepError {
     NoLlmBackend,
     #[error("Tool not found: {0}")]
     ToolNotFound(String),
+    #[error("step rejeté par l'utilisateur : {reason}")]
+    RejectedByUser { reason: String },         // HITL Sprint 11
+    #[error("channel d'approbation fermé — runtime en cours d'arrêt")]
+    ApprovalChannelClosed,                     // HITL Sprint 11
 }
 
 impl StepError {
-    /// Retourne true si l'erreur peut déclencher une replanification.
     pub fn is_retryable(&self) -> bool {
         matches!(self, StepError::ToolCallFailed(_) | StepError::LlmCallFailed(_))
     }
 }
 ```
+
+### 4.0 StepContext — Observation per-step *(Sprint 20, ADR-035)*
+
+Depuis le Sprint 20, l'`ActorLoop` maintient un `StepContext` qui accumule les résultats des steps précédents et les injecte dans le contexte LLM de chaque step suivant. Ceci permet une **observation per-step en mode Orchestré** — le LLM voit les outputs des steps déjà exécutés.
+
+```rust
+pub struct StepContext {
+    pub previous_outputs: HashMap<String, String>, // step_id → output
+    pub step_index: usize,                          // position 0-based
+    pub total_steps: usize,
+    pub remaining_budget: StepBudgetView,
+}
+
+impl StepContext {
+    /// Formate les outputs précédents pour injection dans le prompt LLM.
+    pub fn format_previous_outputs(&self) -> Option<String>
+}
+```
+
+**Enregistrement mémoire épisodique per-step (STORY-230) :**
+
+Après chaque step complété, l'`ActorLoop` enregistre automatiquement un épisode dans la mémoire épisodique de l'agent (fire-and-forget via `tokio::spawn`, pas de blocage). L'importance est fixée à `0.6` et le contenu est tronqué à 200 caractères.
+
+```rust
+const STEP_MEMORY_IMPORTANCE: f64 = 0.6;
+const STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
+```
+
+**Principe #6 relaxé en Orchestré (ADR-035) :** En mode Direct, le Principe #6 ("mémoire à initiative de l'agent") reste strict — aucune injection automatique. En mode Orchestré, ORIA injecte le `StepContext` et enregistre les épisodes car l'agent Python n'est pas appelé pendant les steps.
 
 Pipeline d'exécution de l'`ActorLoop` :
 
@@ -590,7 +648,55 @@ $ apollia-os tools reset-circuit mcp_erp_acme
   ✔ Circuit breaker de mcp_erp_acme réinitialisé (→ CLOSED)
 ```
 
-### 7.3 Classification des erreurs
+### 7.3 Plan Cache — Réutilisation de plans *(Sprint 20, ADR-036)*
+
+Le Plan Cache permet de réutiliser des plans d'exécution précédemment générés pour des tâches similaires, évitant un appel LLM coûteux au Reasoner.
+
+```rust
+pub struct PlanCacheRepository { /* connexion SQLite plan_cache.db */ }
+
+impl PlanCacheRepository {
+    pub fn open(path: &Path) -> Result<Self, PlanCacheError>;
+    pub fn lookup(&self, key: &str) -> Result<Option<ExecutionPlan>, PlanCacheError>;
+    pub fn store(&self, key: &str, plan: &ExecutionPlan,
+                 agent_name: &str, agent_version: &str) -> Result<(), PlanCacheError>;
+    pub fn evict_expired(&self, max_age_days: u32) -> Result<u32, PlanCacheError>;
+    pub fn stats(&self) -> Result<PlanCacheStats, PlanCacheError>;
+    pub fn clear_all(&self) -> Result<u32, PlanCacheError>;
+}
+
+pub struct PlanCacheStats {
+    pub total_entries: u32,
+    pub cache_hits: u64,
+    pub oldest_entry_at: Option<String>,
+    pub newest_entry_at: Option<String>,
+}
+```
+
+**Calcul de la clé de cache :**
+
+```rust
+pub fn compute_cache_key(
+    agent_name: &str,
+    agent_version: &str,
+    tools: &[String],
+    task_text: &str,
+) -> String
+```
+
+La clé est un hash SHA-256 de `{agent_name}:{agent_version}:{sorted_tools}:{normalized_text_500chars}`. La normalisation du texte inclut : minuscules, collapse espaces multiples, troncature à 500 caractères.
+
+**Stratégie (ADR-036) :**
+- **TTL :** 7 jours
+- **Capacité max :** 1000 entrées
+- **Éviction :** LRU (Least Recently Used) via `last_used_at`
+- **Persistance :** `~/.apollia/plan_cache.db` (SQLite)
+- **Cache hit :** émet `RuntimeEvent::PlanCacheHit` sur l'EventBus
+- **Cache miss :** fallback transparent vers le Reasoner LLM, puis stockage du plan produit
+
+**Intégration dans `ORIAEngine::execute()` (STORY-233) :** Avant d'appeler `Reasoner.plan()`, l'engine calcule la clé de cache et vérifie le `PlanCacheRepository`. Si un plan caché existe et n'est pas expiré, il est réutilisé directement sans appel LLM.
+
+### 7.4 Classification des erreurs
 
 La classification est critique pour savoir quand retenter.
 
@@ -714,8 +820,13 @@ AIPResult → Runtime Core
 | Max 2 replans | Coût LLM prévisible, comportement déterministe en production |
 | Circuit breaker par outil | Isolation fine — un outil défaillant n'affecte pas les autres |
 | Classification Transient / Permanent | Retry uniquement sur ce qui peut se résoudre |
-| Modèle Reasoner = même LLM que l'agent | Pas de complexité multi-modèle en MVP PME |
+| Modèle Reasoner = même LLM que l'agent (fallback) | Simplicité MVP — `model_hint` per-step disponible si multi-modèle souhaité (Sprint 20) |
 | StepBudget exposé à l'agent (lecture seule) | Agent peut adapter sa stratégie proactivement |
+| Scoring pondéré 7 facteurs (ADR-035) | Classification plus fine que les seuils booléens — tient compte de la mémoire et de la longueur de l'input |
+| Per-step observation en mode Orchestré (ADR-035) | Injection delta dans le contexte LLM de chaque step — Principe #6 relaxé uniquement en Orchestré |
+| Plan Cache SHA-256 avec TTL 7j (ADR-036) | Évite les appels LLM répétitifs pour des tâches similaires — local-first, SQLite |
+| `model_hint` per-step (Sprint 20) | Le Reasoner peut router chaque step vers un backend LLM différent — fallback transparent si introuvable |
+| Mémoire épisodique fire-and-forget per-step | Traçabilité sans blocage — même pattern que AuditTrail (STORY-016) |
 | HITL via `oneshot` channel + `PendingApprovals` (ADR-023) | Suspension pure sans polling — le budget ne progresse pas ; résolution thread-safe via HashMap de senders |
 | Reprise HITL par re-appel `agent.run()` avec `is_resumed=True` (ADR-023) | Pas de nouveau point d'entrée — contrat minimal préservé (Principe #3) ; l'agent voit explicitement qu'il reprend via `task.is_resumed` |
 | `tools_requiring_approval` dans le manifest (ADR-023) | Déclaration décentralisée côté agent — le runtime n'a pas à connaître la sémantique métier de chaque outil |

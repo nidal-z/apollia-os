@@ -344,6 +344,36 @@ if ctx.memory:
     await ctx.memory.forget(memory_id)
 ```
 
+### ctx.tools.describe() — Introspection d'outils *(Sprint 20)*
+
+```python
+# Obtenir le schéma complet d'un outil
+schema = await ctx.tools.describe("bash_executor")
+# schema : dict | None
+# Contient : name, version, description, kind, input_schema, output_schema, permissions
+if schema:
+    input_fields = schema["input_schema"]["properties"]
+```
+
+### ctx.send() / ctx.receive() — Messagerie inter-agents *(Sprint 20)*
+
+```python
+# Envoyer un message à un autre agent
+await ctx.send("agent-b", {"type": "data", "content": "résultat partiel"})
+
+# Recevoir un message (avec timeout)
+msg = await ctx.receive(timeout=5.0)
+# msg : dict | None — contient "from", "payload", "sent_at"
+if msg:
+    data = msg["payload"]
+```
+
+**Contraintes :**
+- Max 100 messages en file par agent (au-delà : `MailboxError::QueueFull`)
+- Les messages sont des `serde_json::Value` (JSON arbitraire)
+- L'agent destinataire doit être démarré (pas de persistance hors-mémoire)
+- L'`AgentMailbox` est un acteur Tokio séparé du `TaskRouter`
+
 ### ctx.step_budget — StepBudgetView
 
 ```python

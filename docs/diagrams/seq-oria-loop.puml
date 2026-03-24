@@ -19,7 +19,7 @@ participant "ToolRegistry" as tools #1a1a2e/e0e0ff
 
 coord -> obs : observe(task, memory?)
 
-obs -> obs : classify(ContextBundle)\n→ ExecutionMode
+obs -> obs : compute_complexity_score()\n7 facteurs pondérés (Sprint 20)\nclassify() → ExecutionMode\nseuil Orchestré = 0.40
 
 alt Mode Direct (tâche courte, outils simples)
 

@@ -56,6 +56,8 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
 8. APIServer         → accepte les connexions externes
 9. NotificationEngine → alertes desktop / webhook [Sprint 11]
    └── ouvre NotificationConfigRepository (notifications.db) [Sprint 17]
+12c. AgentMailbox → messagerie inter-agents [Sprint 20]
+     └── files de messages par agent (max 100), AgentMailboxHandle (Clone+Send+Sync)
 13. ChatSessionManager → sessions de chat interactif [Sprint 18]
     └── ouvre ChatSessionRepository (chat.db), restaure autorisations
 ```

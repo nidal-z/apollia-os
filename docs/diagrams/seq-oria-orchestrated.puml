@@ -19,18 +19,31 @@ participant "ResilienceLayer" as resilience #1a1a2e/e0e0ff
 participant "ToolProxy\n(Rust tools)" as tools #1a1a2e/e0e0ff
 participant "LlmRouter" as llm #4a3728/f5e6d3
 participant "Agent Python" as agent #2d4a22/d4edda
+participant "PlanCache\n(SQLite)" as cache #2a3a4a/cce5ff
+participant "MemoryManager" as memory #2a3a4a/cce5ff
 participant "EventBus" as bus #2a3a4a/cce5ff
 
-== Phase 1 : Observer + Classification ==
+== Phase 1 : Observer + Classification (scoring pondéré Sprint 20) ==
 
 coord -> obs : observe(task, memory?)
-obs -> obs : classify() → Orchestrated\n(execution_mode override\nou heuristique)
+obs -> obs : classify() → Orchestrated\n(scoring pondéré 7 facteurs\nseuil 0.40)
 obs --> coord : ContextBundle { task, memory_snapshot }
+
+== Phase 1b : Plan Cache Lookup (Sprint 20, ADR-036) ==
+
+coord -> cache : compute_cache_key(agent, version, tools, input)\nlookup(key)
+
+alt cache HIT (plan non expiré, TTL 7j)
+  cache --> coord : ExecutionPlan (caché)
+  coord -> bus : PlanCacheHit { plan_id }
+  note right : Pas d'appel LLM → économie coût
+else cache MISS
+end
 
 == Phase 2 : Planification (Reasoner LLM) ==
 
 coord -> reasoner : plan(context_bundle)
-note right : system_prompt du manifest injecté\n+ outils disponibles + budget max
+note right : system_prompt du manifest injecté\n+ outils disponibles + budget max\n+ model_hint supporté (Sprint 20)
 
 loop max 3 tentatives (JSON invalide)
   reasoner -> llm : complete(prompt_planner)
@@ -66,6 +79,12 @@ loop chaque step dans l'ordre topologique
   coord -> db : start_step(plan_id, step_id)
   coord -> bus : StepStarted { step_id, num, total, desc }
 
+  note right : StepContext injecte previous_outputs\n+ step_index + remaining_budget\ndans le prompt LLM (Sprint 20)
+
+  alt step.model_hint présent (Sprint 20)
+    coord -> llm : get(Some(model_hint))\nfallback default si introuvable
+  end
+
   alt step.tool_hint présent
     coord -> resilience : pre_check(tool_name)
 
@@ -88,6 +107,7 @@ loop chaque step dans l'ordre topologique
     coord -> budget : increment_steps()
     coord -> db : complete_step(step_id, output)
     coord -> bus : StepCompleted { duration_ms }
+    coord -> memory : record episodic\n(fire-and-forget, importance=0.6\ntroncature 200 chars — Sprint 20)
 
   else step échoué
     coord -> resilience : record_failure(tool_name)
@@ -114,6 +134,7 @@ end
 == Phase 5 : Finalisation ==
 
 coord -> db : complete_plan(plan_id)
+coord -> cache : store(key, plan)\n(si cache MISS initial — Sprint 20)
 coord -> bus : PlanCompleted { step_count, duration_ms }
 
 alt hasattr(agent, "on_plan_complete")

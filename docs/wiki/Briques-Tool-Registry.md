@@ -323,7 +323,41 @@ $ apollia-os audit stats
 
 ---
 
-## 8. Décisions architecturales clés
+## 8. Introspection d'outils *(Sprint 20)*
+
+Depuis le Sprint 20 (STORY-224), le `ToolRegistryHandle` expose une méthode `describe()` qui retourne le `ToolDescriptor` complet d'un outil enregistré :
+
+```rust
+impl ToolRegistryHandle {
+    pub async fn describe(&self, name: &str) -> Option<ToolDescriptor>;
+}
+```
+
+**Usage côté agent Python (STORY-225) :**
+
+```python
+async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
+    schema = await ctx.tools.describe("bash_executor")
+    if schema:
+        # schema contient : name, version, description, kind,
+        # input_schema, output_schema, permissions
+        input_fields = schema["input_schema"]
+```
+
+**Endpoints REST (Sprint 20) :**
+
+```
+GET /api/v1/tools           → Liste tous les outils (ToolSummary[])
+GET /api/v1/tools/:name     → Détail complet d'un outil (ToolDescriptor)
+```
+
+**Commande Tauri :** `describe_tool(name)` retourne un `ToolDescriptorView` avec name, version, description, kind, input_schema, output_schema, permissions.
+
+**Composant Svelte :** `ToolSchemaPanel` affiche le JSON schema, les permissions et le type d'outil dans la vue Memory/Tools du desktop.
+
+---
+
+## 9. Décisions architecturales clés
 
 | Décision | Justification |
 |---|---|
