@@ -136,3 +136,7 @@ path = "integration/test_chat.rs"
 [[test]]
 name = "test_oria_enhanced"
 path = "integration/test_oria_enhanced.rs"
+
+[[test]]
+name = "test_chat_memory"
+path = "integration/test_chat_memory.rs"

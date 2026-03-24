@@ -227,7 +227,7 @@ impl BuiltInChatAgent {
     /// When user memory is available and non-empty, appends a `User Context`
     /// section to the base prompt. The block is purely informational — the LLM
     /// decides what to do with it.
-    fn build_system_prompt(&self, base_prompt: &str) -> String {
+    pub fn build_system_prompt(&self, base_prompt: &str) -> String {
         let mut prompt = base_prompt.to_string();
 
         if let Some(ref repo_mutex) = self.user_memory {
