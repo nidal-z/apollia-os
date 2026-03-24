@@ -181,6 +181,7 @@ dependencies = [
  "apollia-core",
  "apollia-llm",
  "apollia-memory",
+ "apollia-runtime",
  "apollia-tools",
  "async-trait",
  "futures",

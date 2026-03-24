@@ -415,6 +415,7 @@ fn is_leap(y: i32) -> bool {
 
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
 use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
+use apollia_runtime::mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
 
 use crate::llm::LlmProxy;
 
@@ -438,6 +439,12 @@ pub struct RuntimeContext {
     pub llm: Option<LlmProxy>,
     /// Interface mémoire isolée par namespace — `None` si `memory_namespace` absent du manifest.
     memory: Option<pyo3::Py<crate::memory::MemoryInterface>>,
+    /// Handle vers l'AgentMailbox — `None` si le runtime n'a pas démarré de mailbox.
+    mailbox: Option<AgentMailboxHandle>,
+    /// Nom de l'agent propriétaire de ce contexte.
+    agent_name: String,
+    /// Indique si l'agent supporte le protocole A2A (from manifest).
+    supports_a2a: bool,
 }
 
 impl RuntimeContext {
@@ -475,6 +482,9 @@ impl RuntimeContext {
         agent_id: AgentId,
         tool_proxy: Option<ToolProxy>,
         memory_interface: Option<crate::memory::MemoryInterface>,
+        mailbox: Option<AgentMailboxHandle>,
+        agent_name: String,
+        supports_a2a: bool,
     ) -> Self {
         let llm = llm_router.and_then(|router| {
             if router.list().is_empty() {
@@ -503,7 +513,14 @@ impl RuntimeContext {
         let memory = memory_interface
             .and_then(|mem| pyo3::Python::with_gil(|py| pyo3::Py::new(py, mem).ok()));
 
-        Self { llm, tools, memory }
+        Self {
+            llm,
+            tools,
+            memory,
+            mailbox,
+            agent_name,
+            supports_a2a,
+        }
     }
 }
 
@@ -546,6 +563,120 @@ impl RuntimeContext {
             None => py.None(),
         }
     }
+
+    /// Envoie un message à un autre agent via la mailbox inter-agents.
+    ///
+    /// Retourne un Python awaitable. Lève `RuntimeError` si `supports_a2a`
+    /// est `false` dans le manifest ou si la mailbox n'est pas disponible.
+    fn send<'py>(
+        &self,
+        py: Python<'py>,
+        agent_name: String,
+        message: PyObject,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        if !self.supports_a2a {
+            return Err(PyRuntimeError::new_err(
+                "A2A messaging requires supports_a2a: true in manifest",
+            ));
+        }
+        let mailbox = self.mailbox.clone().ok_or_else(|| {
+            PyRuntimeError::new_err("A2A mailbox not available in this runtime context")
+        })?;
+
+        // Convert Python dict → JSON
+        let json_mod = py
+            .import_bound("json")
+            .map_err(|e| PyRuntimeError::new_err(format!("failed to import json: {e}")))?;
+        let json_str: String = json_mod
+            .call_method1("dumps", (message.bind(py),))
+            .map_err(|e| PyRuntimeError::new_err(format!("json.dumps failed: {e}")))?
+            .extract()
+            .map_err(|e| PyRuntimeError::new_err(format!("extract failed: {e}")))?;
+        let payload: serde_json::Value = serde_json::from_str(&json_str)
+            .map_err(|e| PyRuntimeError::new_err(format!("JSON parse failed: {e}")))?;
+
+        let from = self.agent_name.clone();
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            send_inner(&mailbox, &from, &agent_name, payload)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            Ok(Python::with_gil(|py| py.None()))
+        })
+    }
+
+    /// Reçoit le prochain message en attente dans la mailbox de cet agent.
+    ///
+    /// Retourne un Python awaitable qui résout en `dict | None`.
+    /// `timeout_seconds` défaut à 5.0 si absent.
+    #[pyo3(signature = (timeout_seconds=None))]
+    fn receive<'py>(
+        &self,
+        py: Python<'py>,
+        timeout_seconds: Option<f64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        if !self.supports_a2a {
+            return Err(PyRuntimeError::new_err(
+                "A2A messaging requires supports_a2a: true in manifest",
+            ));
+        }
+        let mailbox = self.mailbox.clone().ok_or_else(|| {
+            PyRuntimeError::new_err("A2A mailbox not available in this runtime context")
+        })?;
+
+        let agent_name = self.agent_name.clone();
+        let timeout = std::time::Duration::from_secs_f64(timeout_seconds.unwrap_or(5.0));
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let message = receive_inner(&mailbox, &agent_name, timeout).await;
+            match message {
+                Some(msg) => {
+                    let value = serde_json::json!({
+                        "from": msg.from,
+                        "payload": msg.payload,
+                        "sent_at": msg.sent_at,
+                    });
+                    let json_str = serde_json::to_string(&value).map_err(|e| {
+                        PyRuntimeError::new_err(format!("serialization error: {e}"))
+                    })?;
+                    Python::with_gil(|py| {
+                        let json_mod = py
+                            .import_bound("json")
+                            .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+                        let py_obj: PyObject = json_mod
+                            .call_method1("loads", (json_str,))
+                            .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
+                            .unbind();
+                        Ok(py_obj)
+                    })
+                }
+                None => Ok(Python::with_gil(|py| py.None())),
+            }
+        })
+    }
+}
+
+/// Envoie un message d'un agent à un autre via la mailbox — testable sans PyO3.
+///
+/// Wrapper fin autour de [`AgentMailboxHandle::send`].
+pub(crate) async fn send_inner(
+    mailbox: &AgentMailboxHandle,
+    from: &str,
+    to: &str,
+    payload: serde_json::Value,
+) -> Result<(), MailboxError> {
+    mailbox.send(from, to, payload).await
+}
+
+/// Reçoit le prochain message en attente pour `agent_name` — testable sans PyO3.
+///
+/// Retourne `None` si aucun message n'arrive avant l'expiration du timeout.
+pub(crate) async fn receive_inner(
+    mailbox: &AgentMailboxHandle,
+    agent_name: &str,
+    timeout: std::time::Duration,
+) -> Option<AgentMessage> {
+    mailbox.receive(agent_name, timeout).await
 }
 
 #[cfg(test)]
@@ -636,8 +767,11 @@ mod runtime_context_tests {
             Arc::new(ObservabilityConfig::default()),
             tx,
             AgentId::new_v4(),
-            None, // tool_proxy
-            None, // memory_interface
+            None,          // tool_proxy
+            None,          // memory_interface
+            None,          // mailbox
+            String::new(), // agent_name
+            false,         // supports_a2a
         );
         // THEN
         assert!(ctx.llm.is_none());
@@ -658,8 +792,11 @@ mod runtime_context_tests {
             Arc::new(ObservabilityConfig::default()),
             tx,
             agent_id,
-            None, // tool_proxy
-            None, // memory_interface
+            None,          // tool_proxy
+            None,          // memory_interface
+            None,          // mailbox
+            String::new(), // agent_name
+            false,         // supports_a2a
         );
         // THEN un événement AgentDegraded est présent sur le bus
         let event = rx.try_recv().expect("un événement doit être présent");
@@ -686,8 +823,11 @@ mod runtime_context_tests {
             Arc::new(ObservabilityConfig::default()),
             tx,
             AgentId::new_v4(),
-            None, // tool_proxy
-            None, // memory_interface
+            None,          // tool_proxy
+            None,          // memory_interface
+            None,          // mailbox
+            String::new(), // agent_name
+            false,         // supports_a2a
         );
         // THEN
         assert!(ctx.llm.is_none());
@@ -981,5 +1121,70 @@ mod tests {
         assert!(value["output_schema"].is_null());
         let tags = value["tags"].as_array().expect("tags should be an array");
         assert!(tags.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod a2a_tests {
+    use super::*;
+    use apollia_runtime::EventBus;
+    use std::time::Duration;
+
+    /// AC-1 : send_inner délivre un message, receive_inner le reçoit.
+    #[tokio::test]
+    async fn test_send_inner_delivers_message() {
+        // GIVEN une mailbox active
+        let (event_tx, _event_rx) = EventBus::new();
+        let handle = AgentMailboxHandle::spawn(event_tx);
+
+        // WHEN agent-a envoie un message à agent-b
+        let payload = serde_json::json!({"greeting": "hello"});
+        send_inner(&handle, "agent-a", "agent-b", payload.clone())
+            .await
+            .expect("send should succeed");
+
+        // THEN agent-b reçoit le message avec les bons champs
+        let received = receive_inner(&handle, "agent-b", Duration::from_secs(1))
+            .await
+            .expect("should receive a message");
+        assert_eq!(received.from, "agent-a");
+        assert_eq!(received.payload, payload);
+        assert!(!received.sent_at.is_empty());
+
+        handle.shutdown().await;
+    }
+
+    /// AC-3 : receive_inner retourne None si aucun message en attente (timeout).
+    #[tokio::test]
+    async fn test_receive_inner_returns_none_on_timeout() {
+        // GIVEN une mailbox active sans messages
+        let (event_tx, _event_rx) = EventBus::new();
+        let handle = AgentMailboxHandle::spawn(event_tx);
+
+        // WHEN on essaie de recevoir avec un timeout court
+        let result = receive_inner(&handle, "agent-c", Duration::from_millis(50)).await;
+
+        // THEN le résultat est None
+        assert!(result.is_none());
+
+        handle.shutdown().await;
+    }
+
+    /// AC-2 : le gate check rejette l'appel si supports_a2a est false.
+    #[tokio::test]
+    async fn test_gate_check_rejects_without_a2a() {
+        // GIVEN un RuntimeContext avec supports_a2a = false
+        let ctx = RuntimeContext {
+            tools: None,
+            llm: None,
+            memory: None,
+            mailbox: None,
+            agent_name: "test-agent".to_string(),
+            supports_a2a: false,
+        };
+
+        // THEN les vérifications internes échouent
+        assert!(!ctx.supports_a2a);
+        assert!(ctx.mailbox.is_none());
     }
 }

@@ -9,7 +9,8 @@ license = "MIT"
 apollia-core   = { workspace = true }
 apollia-tools  = { workspace = true }
 apollia-memory = { workspace = true }
-apollia-llm    = { workspace = true, features = ["cloud"] }
+apollia-llm     = { workspace = true, features = ["cloud"] }
+apollia-runtime = { workspace = true }
 tokio          = { workspace = true }
 serde          = { workspace = true }
 serde_json     = { workspace = true }
