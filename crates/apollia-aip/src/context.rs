@@ -12,7 +12,7 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
 use apollia_tools::{
-    compute_input_hash, AuditTrailHandle, ToolInvocationRecord, ToolRegistryHandle,
+    compute_input_hash, AuditTrailHandle, ToolDescriptor, ToolInvocationRecord, ToolRegistryHandle,
 };
 
 /// Errors from tool invocation via the proxy.
@@ -42,6 +42,21 @@ pub trait ToolExecutor: Send + Sync {
         tool_name: &str,
         input: serde_json::Value,
     ) -> Result<serde_json::Value, String>;
+}
+
+/// Converts a [`ToolDescriptor`] into a [`serde_json::Value`] for serialization to Python.
+///
+/// Pure function — testable without PyO3 or the GIL. Returns a JSON object
+/// with keys: `name`, `version`, `description`, `input_schema`, `output_schema`, `tags`.
+pub fn describe_inner(descriptor: &ToolDescriptor) -> serde_json::Value {
+    serde_json::json!({
+        "name": descriptor.name,
+        "version": descriptor.version,
+        "description": descriptor.description,
+        "input_schema": descriptor.input_schema,
+        "output_schema": descriptor.output_schema,
+        "tags": descriptor.tags,
+    })
 }
 
 /// Python-facing proxy exposing Rust tools to an agent.
@@ -140,6 +155,37 @@ impl ToolProxy {
     /// Returns the number of tool calls made so far.
     fn tool_call_count(&self) -> u32 {
         self.tool_calls.load(Ordering::Relaxed)
+    }
+
+    /// Returns the JSON schema of a tool by name, or `None` if the tool is not registered.
+    ///
+    /// Returns a Python awaitable that resolves to a dict with keys
+    /// `name`, `version`, `description`, `input_schema`, `output_schema`, `tags`,
+    /// or `None` if the tool does not exist in the registry.
+    fn describe<'py>(&self, py: Python<'py>, name: String) -> PyResult<Bound<'py, PyAny>> {
+        let registry = self.registry.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let descriptor = registry.describe(&name).await;
+            match descriptor {
+                Some(desc) => {
+                    let value = describe_inner(&desc);
+                    let json_str = serde_json::to_string(&value).map_err(|e| {
+                        PyRuntimeError::new_err(format!("serialization error: {e}"))
+                    })?;
+                    Python::with_gil(|py| {
+                        let json_mod = py
+                            .import_bound("json")
+                            .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+                        let py_obj: PyObject = json_mod
+                            .call_method1("loads", (json_str,))
+                            .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
+                            .unbind();
+                        Ok(py_obj)
+                    })
+                }
+                None => Ok(Python::with_gil(|py| py.None())),
+            }
+        })
     }
 }
 
@@ -419,6 +465,7 @@ impl RuntimeContext {
     ///
     /// Le contexte ne panic jamais à la construction : la dégradation est
     /// signalée, mais l'agent décide lui-même si l'absence d'une capacité est fatale.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_llm(
         llm_router: Option<Arc<LlmRouter>>,
         budget_view: Arc<StepBudgetView>,
@@ -873,5 +920,66 @@ mod tests {
 
         registry.shutdown().await;
         audit.shutdown().await;
+    }
+
+    /// AC-3 : describe_inner retourne un JSON Value complet pour un descripteur renseigné.
+    #[test]
+    fn test_describe_inner_returns_json_value() {
+        // GIVEN un ToolDescriptor avec tous les champs renseignés
+        let descriptor = ToolDescriptor {
+            name: "bash_executor".to_string(),
+            version: "1.0.0".to_string(),
+            description: "Execute shell commands".to_string(),
+            kind: ToolKind::Native,
+            input_schema: serde_json::json!({ "type": "object", "properties": { "command": { "type": "string" } } }),
+            output_schema: Some(
+                serde_json::json!({ "type": "object", "properties": { "stdout": { "type": "string" } } }),
+            ),
+            sandbox_profile: SandboxProfile::FileSystem,
+            tags: vec!["shell".to_string(), "execution".to_string()],
+            dangerous: false,
+        };
+
+        // WHEN on appelle describe_inner
+        let value = describe_inner(&descriptor);
+
+        // THEN le résultat contient name, version, description, input_schema, output_schema, tags
+        assert_eq!(value["name"], "bash_executor");
+        assert_eq!(value["version"], "1.0.0");
+        assert_eq!(value["description"], "Execute shell commands");
+        assert_eq!(value["input_schema"]["type"], "object");
+        assert!(value["input_schema"]["properties"]["command"].is_object());
+        assert_eq!(value["output_schema"]["type"], "object");
+        let tags = value["tags"].as_array().expect("tags should be an array");
+        assert_eq!(tags.len(), 2);
+        assert_eq!(tags[0], "shell");
+        assert_eq!(tags[1], "execution");
+    }
+
+    /// AC-2 (côté Rust) : describe_inner sur un descripteur minimal (champs optionnels vides/None).
+    #[test]
+    fn test_describe_inner_minimal_descriptor() {
+        // GIVEN un ToolDescriptor avec output_schema=None et tags vide
+        let descriptor = ToolDescriptor {
+            name: "minimal".to_string(),
+            version: "0.1.0".to_string(),
+            description: "A minimal tool".to_string(),
+            kind: ToolKind::Native,
+            input_schema: serde_json::json!({ "type": "object" }),
+            output_schema: None,
+            sandbox_profile: SandboxProfile::ReadOnly,
+            tags: vec![],
+            dangerous: false,
+        };
+
+        // WHEN on appelle describe_inner
+        let value = describe_inner(&descriptor);
+
+        // THEN les champs optionnels sont null/vides
+        assert_eq!(value["name"], "minimal");
+        assert_eq!(value["version"], "0.1.0");
+        assert!(value["output_schema"].is_null());
+        let tags = value["tags"].as_array().expect("tags should be an array");
+        assert!(tags.is_empty());
     }
 }

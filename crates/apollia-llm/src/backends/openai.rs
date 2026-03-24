@@ -278,11 +278,9 @@ impl CompletionModel for OpenAICompatibleClient {
             match state {
                 OpenAIStreamState::Done => None,
                 OpenAIStreamState::Flushing { mut remaining } => {
-                    if let Some(call) = remaining.pop() {
-                        Some((Ok(StreamChunk::ToolCall(call)), OpenAIStreamState::Flushing { remaining }))
-                    } else {
-                        None
-                    }
+                    remaining.pop().map(|call| {
+                        (Ok(StreamChunk::ToolCall(call)), OpenAIStreamState::Flushing { remaining })
+                    })
                 }
                 OpenAIStreamState::Streaming {
                     mut inner,
