@@ -145,6 +145,13 @@ enum Commands {
         command: NotifyCommand,
     },
 
+    /// Launch onboarding or re-onboarding on a specific topic.
+    Onboard {
+        /// Focus on a specific topic (identity, preferences, tools, domain, agents).
+        #[arg(long)]
+        topic: Option<String>,
+    },
+
     /// Pipeline orchestration (list, run, runs, status).
     Pipeline {
         /// Pipeline subcommand.
@@ -205,6 +212,9 @@ fn main() {
                 commands::trigger::run(&command, cli.socket, json).await
             }
             Commands::Notify { command } => commands::notify::run(&command, cli.socket, json).await,
+            Commands::Onboard { topic } => {
+                commands::onboard::run(topic.as_deref(), cli.socket, json).await
+            }
             Commands::Pipeline { command } => {
                 commands::pipeline::run(&command, cli.socket, json).await
             }
@@ -1086,5 +1096,48 @@ mod tests {
         // THEN global json = true
         assert!(matches!(cli.command, Commands::Agent { .. }));
         assert!(cli.json);
+    }
+
+    // ── onboard command parsing ───────────────────────────────────
+
+    #[test]
+    fn test_cli_parses_onboard_no_topic() {
+        // GIVEN "apollia-os onboard"
+        let cli = parse(&["apollia-os", "onboard"]);
+        // THEN Commands::Onboard { topic: None }
+        match &cli.command {
+            Commands::Onboard { topic } => {
+                assert!(topic.is_none());
+                assert!(!cli.json);
+            }
+            other => panic!("expected Commands::Onboard, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_onboard_with_topic() {
+        // GIVEN "apollia-os onboard --topic preferences"
+        let cli = parse(&["apollia-os", "onboard", "--topic", "preferences"]);
+        // THEN Commands::Onboard { topic: Some("preferences") }
+        match &cli.command {
+            Commands::Onboard { topic } => {
+                assert_eq!(topic.as_deref(), Some("preferences"));
+            }
+            other => panic!("expected Commands::Onboard, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_onboard_json_flag() {
+        // GIVEN "apollia-os onboard --json --topic tools"
+        let cli = parse(&["apollia-os", "onboard", "--json", "--topic", "tools"]);
+        // THEN global json = true, topic = "tools"
+        match &cli.command {
+            Commands::Onboard { topic } => {
+                assert_eq!(topic.as_deref(), Some("tools"));
+                assert!(cli.json);
+            }
+            other => panic!("expected Commands::Onboard, got {other:?}"),
+        }
     }
 }
