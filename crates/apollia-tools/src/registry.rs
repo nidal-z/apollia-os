@@ -18,6 +18,11 @@ enum ToolRegistryMessage {
     List {
         reply: oneshot::Sender<Vec<ToolDescriptor>>,
     },
+    /// Request the descriptor of a tool by name (agent-facing introspection).
+    Describe {
+        name: String,
+        reply: oneshot::Sender<Option<ToolDescriptor>>,
+    },
     Shutdown,
 }
 
@@ -51,6 +56,10 @@ impl ToolRegistry {
                 ToolRegistryMessage::List { reply } => {
                     let list: Vec<ToolDescriptor> = self.catalogue.values().cloned().collect();
                     let _ = reply.send(list);
+                }
+                ToolRegistryMessage::Describe { name, reply } => {
+                    let result = self.catalogue.get(&name).cloned();
+                    let _ = reply.send(result);
                 }
                 ToolRegistryMessage::Shutdown => {
                     tracing::info!("ToolRegistry shutting down");
@@ -149,6 +158,24 @@ impl ToolRegistryHandle {
             .await
             .map_err(|_| ToolRegistryError::ActorGone)?;
         reply_rx.await.map_err(|_| ToolRegistryError::ActorGone)
+    }
+
+    /// Returns the descriptor for the named tool, or `None` if not registered
+    /// or the actor has stopped.
+    ///
+    /// Unlike [`get`](Self::get), this method never returns an error — it is
+    /// designed for agent-facing introspection where a missing tool and a
+    /// stopped registry are both represented as `None`.
+    pub async fn describe(&self, name: &str) -> Option<ToolDescriptor> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.sender
+            .send(ToolRegistryMessage::Describe {
+                name: name.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .ok()?;
+        reply_rx.await.ok()?
     }
 
     /// Sends the shutdown signal and waits for the actor to stop.
@@ -261,6 +288,55 @@ mod tests {
         // WHEN
         let result = registry.get("inexistant").await.expect("get failed");
         // THEN
+        assert!(result.is_none());
+        registry.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_describe_existing_tool() {
+        // GIVEN a registry with a registered tool
+        let registry = ToolRegistryHandle::start();
+        let descriptor = bash_executor_descriptor();
+        registry
+            .register(descriptor.clone())
+            .await
+            .expect("register failed");
+
+        // WHEN we describe it
+        let result = registry.describe("bash_executor").await;
+
+        // THEN we get the full descriptor back
+        assert!(result.is_some());
+        let desc = result.expect("expected Some");
+        assert_eq!(desc.name, "bash_executor");
+        assert_eq!(desc.version, "1.0.0");
+        assert_eq!(desc.description, "Execute shell commands in sandbox");
+        assert_eq!(desc.input_schema, descriptor.input_schema);
+        registry.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_describe_nonexistent_tool() {
+        // GIVEN an empty registry
+        let registry = ToolRegistryHandle::start();
+
+        // WHEN we describe a tool that does not exist
+        let result = registry.describe("does_not_exist").await;
+
+        // THEN we get None
+        assert!(result.is_none());
+        registry.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_describe_empty_name() {
+        // GIVEN a registry with tools
+        let registry = ToolRegistryHandle::start();
+
+        // WHEN we describe with an empty name
+        let result = registry.describe("").await;
+
+        // THEN we get None (no panic, no error)
         assert!(result.is_none());
         registry.shutdown().await;
     }
