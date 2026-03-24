@@ -10,6 +10,7 @@ Validates that the onboarding agent:
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -33,12 +34,17 @@ if _spec is None or _spec.loader is None:
     )
 
 _mod = importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name] = _mod
 _spec.loader.exec_module(_mod)
 OnboardingAgent = _mod.OnboardingAgent
 _detect_language = _mod._detect_language
 _extract_remember_tags = _mod._extract_remember_tags
 _strip_remember_tags = _mod._strip_remember_tags
 MEMORY_SOURCE = _mod.MEMORY_SOURCE
+TOPIC_GUIDES = _mod.TOPIC_GUIDES
+ALL_TOPIC_MEMORY_KEYS = _mod.ALL_TOPIC_MEMORY_KEYS
+topic_for_memory_key = _mod.topic_for_memory_key
+TopicGuide = _mod.TopicGuide
 
 
 # ---------------------------------------------------------------------------
@@ -337,3 +343,300 @@ class TestRunEntryPoint:
 
         with pytest.raises(RuntimeError, match="requires ctx.llm"):
             await agent.run(task, ctx)
+
+
+# ---------------------------------------------------------------------------
+# Topic guides — structure validation
+# ---------------------------------------------------------------------------
+
+class TestTopicGuideStructure:
+    """Verify that topic guide data structures are well-formed."""
+
+    def test_five_topic_guides_defined(self) -> None:
+        """GIVEN TOPIC_GUIDES WHEN inspected THEN exactly 5 topics."""
+        assert len(TOPIC_GUIDES) == 5
+        expected = {"identity", "preferences", "tools", "domain", "agents"}
+        assert set(TOPIC_GUIDES.keys()) == expected
+
+    def test_each_topic_has_memory_keys(self) -> None:
+        """GIVEN each TopicGuide WHEN inspected THEN memory_keys non-empty."""
+        for name, guide in TOPIC_GUIDES.items():
+            assert len(guide.memory_keys) > 0, f"Topic '{name}' has no memory keys"
+            for key in guide.memory_keys:
+                assert key.startswith("user."), (
+                    f"Topic '{name}' key '{key}' must start with 'user.'"
+                )
+
+    def test_all_topic_memory_keys_aggregated(self) -> None:
+        """GIVEN ALL_TOPIC_MEMORY_KEYS WHEN inspected THEN covers all topics."""
+        for guide in TOPIC_GUIDES.values():
+            for key in guide.memory_keys:
+                assert key in ALL_TOPIC_MEMORY_KEYS
+
+    def test_topic_for_memory_key_resolves(self) -> None:
+        """GIVEN a known memory key WHEN topic_for_memory_key THEN correct topic."""
+        assert topic_for_memory_key("user.name") == "identity"
+        assert topic_for_memory_key("user.role") == "identity"
+        assert topic_for_memory_key("user.preferences.verbosity") == "preferences"
+        assert topic_for_memory_key("user.tools.ide") == "tools"
+        assert topic_for_memory_key("user.domain.stack") == "domain"
+        assert topic_for_memory_key("user.agents.workflows") == "agents"
+        assert topic_for_memory_key("unknown.key") is None
+
+    def test_system_prompt_contains_topic_memory_keys(self) -> None:
+        """GIVEN the system prompts WHEN inspected THEN contain all memory keys."""
+        agent = OnboardingAgent()
+        prompt_fr = _mod._SYSTEM_PROMPT_FR
+        prompt_en = _mod._SYSTEM_PROMPT_EN
+
+        for guide in TOPIC_GUIDES.values():
+            for key in guide.memory_keys:
+                assert key in prompt_fr, (
+                    f"Key '{key}' missing from French system prompt"
+                )
+                assert key in prompt_en, (
+                    f"Key '{key}' missing from English system prompt"
+                )
+
+
+# ---------------------------------------------------------------------------
+# Topic coverage in conversations
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+class TestTopicsCoverage:
+    """Verify that a multi-turn conversation explores multiple topics."""
+
+    async def test_fifteen_message_conversation_covers_three_topics(self) -> None:
+        """GIVEN a 15-message conversation WHEN memory inspected THEN >= 3 topics."""
+        agent = OnboardingAgent()
+        llm_texts = [
+            # Turn 1 — identity
+            "Enchanté ! Comment tu t'appelles ? [REMEMBER user.name=Nidal]",
+            # Turn 2 — identity
+            "Nidal, super ! Et tu fais quoi dans la vie ? [REMEMBER user.role=CTO]",
+            # Turn 3 — identity
+            "CTO, beau parcours ! Tu te considères senior ? "
+            "[REMEMBER user.expertise_level=senior]",
+            # Turn 4 — domain
+            "Intéressant ! Tu travailles sur quels types de projets ? "
+            "[REMEMBER user.domain.type=SaaS B2B]",
+            # Turn 5 — domain
+            "Du SaaS B2B, c'est passionnant. C'est quoi ta stack ? "
+            "[REMEMBER user.domain.stack=Rust + Python]",
+            # Turn 6 — tools
+            "Rust et Python, combo puissant ! Tu utilises quel éditeur ? "
+            "[REMEMBER user.tools.ide=VSCode]",
+            # Turn 7 — tools
+            "VSCode, classique ! Tu as des outils CLI préférés ? "
+            "[REMEMBER user.tools.cli_favorites=ripgrep, fd, jq]",
+            # Turn 8 — preferences
+            "Bon à savoir ! Tu préfères des réponses détaillées ou concises ? "
+            "[REMEMBER user.preferences.verbosity=concise]",
+            # Turn 9 — agents
+            "Noté ! Tu as des tâches répétitives à automatiser ? "
+            "[REMEMBER user.agents.pain_points=code review triage]",
+            # Turn 10 — agents
+            "Je vois, la review de code. Tu imagines quoi d'autre ? "
+            "[REMEMBER user.agents.workflows=PR review automation]",
+            # Turn 11 — domain
+            "Et des contraintes particulières ? Sécurité, compliance ? "
+            "[REMEMBER user.domain.constraints=SOC2]",
+            # Turn 12 — preferences
+            "Compris pour SOC2. En quelle langue tu préfères qu'on échange ? "
+            "[REMEMBER user.preferences.format=markdown]",
+            # Turn 13 — tools
+            "Tu utilises quel terminal au quotidien ? "
+            "[REMEMBER user.tools.terminal=kitty]",
+            # Turn 14 — identity
+            "Et tu parles quelles langues ? "
+            "[REMEMBER user.languages=fr, en]",
+            # Turn 15 — agents
+            "On a bien avancé ! Tu as des attentes particulières ? "
+            "[REMEMBER user.agents.expectations=proactive suggestions]",
+        ]
+        responses = _make_llm_responses(llm_texts)
+        ctx = MockContext.create(llm_responses=responses, memory=True)
+
+        user_messages = [
+            "Salut !",
+            "Je m'appelle Nidal",
+            "CTO et cofondateur",
+            "Oui, senior depuis longtemps",
+            "Du SaaS B2B pour l'IA",
+            "Rust et Python",
+            "VSCode avec quelques extensions",
+            "ripgrep, fd, jq surtout",
+            "Concis, je préfère aller vite",
+            "Le triage des code reviews",
+            "Automatiser les PR reviews",
+            "On est SOC2 compliant",
+            "Markdown c'est parfait",
+            "Kitty terminal",
+            "Français et anglais",
+        ]
+
+        history: list[dict[str, str]] | None = None
+        for msg in user_messages:
+            _, history = await agent.converse(ctx, msg, history=history)
+
+        remember_ops = [
+            op for op in ctx.memory.operations if op["op"] == "remember"
+        ]
+        topics_covered: set[str] = set()
+        for op in remember_ops:
+            topic = topic_for_memory_key(op["key"])
+            if topic is not None:
+                topics_covered.add(topic)
+
+        assert len(topics_covered) >= 3, (
+            f"Expected >= 3 topics covered, got {len(topics_covered)}: "
+            f"{topics_covered}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Topic adaptation
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+class TestTopicAdaptation:
+    """Verify that LLM responses use topic-appropriate memory keys."""
+
+    async def test_python_dev_profile_uses_python_tools_keys(self) -> None:
+        """GIVEN a Python backend dev WHEN tools explored THEN Python-relevant keys."""
+        agent = OnboardingAgent()
+        llm_texts = [
+            "Enchanté ! [REMEMBER user.name=Alice]",
+            "Dev Python backend, super ! [REMEMBER user.role=developer] "
+            "[REMEMBER user.expertise_level=senior]",
+            "Tu utilises pip ou poetry ? [REMEMBER user.domain.stack=Python backend]",
+            "Poetry, bon choix ! Et ton IDE ? [REMEMBER user.tools.ide=PyCharm]",
+            "Tu utilises pytest pour les tests ? "
+            "[REMEMBER user.tools.cli_favorites=poetry, pytest, black]",
+        ]
+        responses = _make_llm_responses(llm_texts)
+        ctx = MockContext.create(llm_responses=responses, memory=True)
+
+        user_messages = [
+            "Hello!",
+            "I'm Alice, Python backend developer",
+            "Senior, 8 years experience",
+            "I use Poetry for everything",
+            "PyCharm mostly",
+        ]
+
+        history: list[dict[str, str]] | None = None
+        for msg in user_messages:
+            _, history = await agent.converse(ctx, msg, history=history)
+
+        remember_ops = [
+            op for op in ctx.memory.operations if op["op"] == "remember"
+        ]
+        remembered_keys = {op["key"] for op in remember_ops}
+        remembered_values = {
+            op["value"] for op in remember_ops if op.get("value")
+        }
+
+        assert "user.tools.ide" in remembered_keys
+        assert "user.domain.stack" in remembered_keys
+        all_values_str = " ".join(remembered_values).lower()
+        assert "python" in all_values_str or "pycharm" in all_values_str
+
+    async def test_designer_profile_differs_from_developer(self) -> None:
+        """GIVEN a junior designer WHEN memory keys inspected THEN different from dev."""
+        agent = OnboardingAgent()
+        llm_texts = [
+            "Bienvenue ! [REMEMBER user.name=Marie]",
+            "UX designer, génial ! [REMEMBER user.role=UX designer] "
+            "[REMEMBER user.expertise_level=junior]",
+            "Tu utilises quels outils de design ? "
+            "[REMEMBER user.tools.ide=Figma]",
+            "Et tu travailles sur quels types de projets ? "
+            "[REMEMBER user.domain.type=mobile apps]",
+            "Tu aimerais automatiser quoi ? "
+            "[REMEMBER user.agents.pain_points=design handoff]",
+        ]
+        responses = _make_llm_responses(llm_texts)
+        ctx = MockContext.create(llm_responses=responses, memory=True)
+
+        user_messages = [
+            "Salut !",
+            "Je suis Marie, UX designer junior",
+            "Je débute dans le métier",
+            "Figma surtout, et un peu Sketch",
+            "Des apps mobiles pour une startup",
+        ]
+
+        history: list[dict[str, str]] | None = None
+        for msg in user_messages:
+            _, history = await agent.converse(ctx, msg, history=history)
+
+        remember_ops = [
+            op for op in ctx.memory.operations if op["op"] == "remember"
+        ]
+        remembered = {op["key"]: op["value"] for op in remember_ops}
+
+        assert remembered.get("user.role") == "UX designer"
+        assert remembered.get("user.expertise_level") == "junior"
+        assert remembered.get("user.tools.ide") == "Figma"
+
+        topics_covered: set[str] = set()
+        for key in remembered:
+            topic = topic_for_memory_key(key)
+            if topic is not None:
+                topics_covered.add(topic)
+        assert len(topics_covered) >= 3
+
+
+# ---------------------------------------------------------------------------
+# Topic memory keys mapping
+# ---------------------------------------------------------------------------
+
+class TestTopicsMemoryKeysMapping:
+    """Verify memory keys are properly associated with topics."""
+
+    def test_all_memory_keys_map_to_a_topic(self) -> None:
+        """GIVEN ALL_TOPIC_MEMORY_KEYS WHEN mapped THEN each resolves to a topic."""
+        for key in ALL_TOPIC_MEMORY_KEYS:
+            topic = topic_for_memory_key(key)
+            assert topic is not None, f"Key '{key}' does not map to any topic"
+            assert topic in TOPIC_GUIDES, f"Key '{key}' maps to unknown topic '{topic}'"
+
+    def test_identity_keys_map_to_identity(self) -> None:
+        """GIVEN identity memory keys WHEN mapped THEN all resolve to 'identity'."""
+        expected_keys = {"user.name", "user.role", "user.languages", "user.expertise_level"}
+        for key in expected_keys:
+            assert topic_for_memory_key(key) == "identity"
+
+    def test_tools_keys_map_to_tools(self) -> None:
+        """GIVEN tools memory keys WHEN mapped THEN all resolve to 'tools'."""
+        expected_keys = {"user.tools.ide", "user.tools.terminal", "user.tools.cli_favorites"}
+        for key in expected_keys:
+            assert topic_for_memory_key(key) == "tools"
+
+    def test_domain_keys_map_to_domain(self) -> None:
+        """GIVEN domain memory keys WHEN mapped THEN all resolve to 'domain'."""
+        expected_keys = {"user.domain.type", "user.domain.stack", "user.domain.constraints"}
+        for key in expected_keys:
+            assert topic_for_memory_key(key) == "domain"
+
+    def test_agents_keys_map_to_agents(self) -> None:
+        """GIVEN agents memory keys WHEN mapped THEN all resolve to 'agents'."""
+        expected_keys = {
+            "user.agents.workflows",
+            "user.agents.pain_points",
+            "user.agents.expectations",
+        }
+        for key in expected_keys:
+            assert topic_for_memory_key(key) == "agents"
+
+    def test_preferences_keys_map_to_preferences(self) -> None:
+        """GIVEN preferences memory keys WHEN mapped THEN all resolve to 'preferences'."""
+        expected_keys = {
+            "user.preferences.verbosity",
+            "user.preferences.format",
+            "user.preferences.language",
+        }
+        for key in expected_keys:
+            assert topic_for_memory_key(key) == "preferences"
