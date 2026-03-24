@@ -39,8 +39,13 @@ _spec.loader.exec_module(_mod)
 OnboardingAgent = _mod.OnboardingAgent
 _detect_language = _mod._detect_language
 _extract_remember_tags = _mod._extract_remember_tags
+_extract_infer_tags = _mod._extract_infer_tags
 _strip_remember_tags = _mod._strip_remember_tags
+persist_insight = _mod.persist_insight
 MEMORY_SOURCE = _mod.MEMORY_SOURCE
+CONFIDENCE_EXPLICIT = _mod.CONFIDENCE_EXPLICIT
+CONFIDENCE_INFERRED = _mod.CONFIDENCE_INFERRED
+ONBOARDING_MEMORY_SCHEMA = _mod.ONBOARDING_MEMORY_SCHEMA
 TOPIC_GUIDES = _mod.TOPIC_GUIDES
 ALL_TOPIC_MEMORY_KEYS = _mod.ALL_TOPIC_MEMORY_KEYS
 topic_for_memory_key = _mod.topic_for_memory_key
@@ -640,3 +645,167 @@ class TestTopicsMemoryKeysMapping:
         }
         for key in expected_keys:
             assert topic_for_memory_key(key) == "preferences"
+
+
+# ---------------------------------------------------------------------------
+# Onboarding persistence — confidence and no-overwrite
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+class TestOnboardingPersistence:
+    """Verify confidence-aware persistence for onboarding results."""
+
+    async def test_persist_explicit_confidence(self) -> None:
+        """GIVEN explicit user info WHEN persisted THEN confidence=0.9."""
+        agent = OnboardingAgent()
+        responses = _make_llm_responses([
+            "Enchanté Nidal ! [REMEMBER user.name=Nidal]",
+        ])
+        ctx = MockContext.create(llm_responses=responses, memory=True)
+
+        await agent.converse(ctx, "Bonjour, je suis Nidal")
+
+        remember_ops = [
+            op for op in ctx.memory.operations
+            if op["op"] == "remember" and op["key"] == "user.name"
+        ]
+        assert len(remember_ops) == 1
+        assert remember_ops[0]["confidence"] == CONFIDENCE_EXPLICIT
+        assert remember_ops[0]["source"] == MEMORY_SOURCE
+
+    async def test_persist_inferred_confidence(self) -> None:
+        """GIVEN inferred info WHEN persisted THEN confidence=0.5."""
+        agent = OnboardingAgent()
+        responses = _make_llm_responses([
+            "Tu es développeur, je vois ! "
+            "[INFER user.expertise_level=senior]",
+        ])
+        ctx = MockContext.create(llm_responses=responses, memory=True)
+
+        await agent.converse(ctx, "Bonjour")
+
+        inferred_ops = [
+            op for op in ctx.memory.operations
+            if op["op"] == "remember" and op["key"] == "user.expertise_level"
+        ]
+        assert len(inferred_ops) == 1
+        assert inferred_ops[0]["confidence"] == CONFIDENCE_INFERRED
+        assert inferred_ops[0]["source"] == MEMORY_SOURCE
+
+    async def test_recall_after_onboarding(self) -> None:
+        """GIVEN a completed onboarding WHEN recall THEN preferences returned."""
+        agent = OnboardingAgent()
+        responses = _make_llm_responses([
+            "Bienvenue ! [REMEMBER user.name=Nidal]",
+            "Super ! [REMEMBER user.role=CTO]",
+            "Noté ! [REMEMBER user.preferences.verbosity=concise]",
+            "D'accord ! [REMEMBER user.preferences.format=markdown]",
+            "Compris ! [REMEMBER user.tools.ide=VSCode]",
+            "Excellent ! [REMEMBER user.domain.type=SaaS B2B]",
+            "Bien vu ! [REMEMBER user.domain.stack=Rust, Python]",
+            "C'est noté ! [REMEMBER user.agents.pain_points=code review triage]",
+        ])
+        ctx = MockContext.create(llm_responses=responses, memory=True)
+
+        messages = [
+            "Salut !",
+            "Nidal",
+            "CTO",
+            "Concis",
+            "Markdown",
+            "VSCode",
+            "SaaS B2B",
+            "Le triage des code reviews",
+        ]
+
+        history: list[dict[str, str]] | None = None
+        for msg in messages:
+            _, history = await agent.converse(ctx, msg, history=history)
+
+        remember_ops = [
+            op for op in ctx.memory.operations
+            if op["op"] == "remember" and not op.get("skipped", False)
+        ]
+        unique_keys = {op["key"] for op in remember_ops}
+
+        assert len(unique_keys) >= 5
+        assert all(op["source"] == MEMORY_SOURCE for op in remember_ops)
+
+        pref_value = await ctx.memory.recall("user.preferences.verbosity")
+        assert pref_value == "concise"
+
+    async def test_no_overwrite_higher_confidence(self) -> None:
+        """GIVEN explicit entry WHEN inferred value arrives THEN original preserved."""
+        agent = OnboardingAgent()
+        responses = _make_llm_responses([
+            "Enchanté Nidal ! [REMEMBER user.name=Nidal]",
+            "Hmm, peut-être un autre nom ? [INFER user.name=N.]",
+        ])
+        ctx = MockContext.create(llm_responses=responses, memory=True)
+
+        history: list[dict[str, str]] | None = None
+        _, history = await agent.converse(ctx, "Bonjour, je suis Nidal", history=history)
+        _, history = await agent.converse(ctx, "Oui c'est bien mon nom", history=history)
+
+        assert ctx.memory.store["user.name"] == "Nidal"
+        assert ctx.memory.confidences["user.name"] == CONFIDENCE_EXPLICIT
+
+        name_ops = [
+            op for op in ctx.memory.operations
+            if op["op"] == "remember" and op["key"] == "user.name"
+        ]
+        skipped_ops = [op for op in name_ops if op.get("skipped", False)]
+        assert len(skipped_ops) == 1
+
+
+# ---------------------------------------------------------------------------
+# INFER tag extraction
+# ---------------------------------------------------------------------------
+
+class TestInferTagExtraction:
+    """Verify the [INFER key=value] parsing logic."""
+
+    def test_extracts_infer_tag(self) -> None:
+        """GIVEN text with INFER tag WHEN extracted THEN one pair."""
+        pairs = _extract_infer_tags("Response [INFER user.expertise_level=senior] here")
+        assert len(pairs) == 1
+        assert pairs[0] == ("user.expertise_level", "senior")
+
+    def test_infer_tags_stripped(self) -> None:
+        """GIVEN text with INFER tags WHEN stripped THEN tags removed."""
+        text = "Hello [INFER user.role=dev] world"
+        result = _strip_remember_tags(text)
+        assert "[INFER" not in result
+        assert "Hello" in result
+        assert "world" in result
+
+    def test_mixed_remember_and_infer(self) -> None:
+        """GIVEN text with both REMEMBER and INFER WHEN extracted THEN both found."""
+        text = "[REMEMBER user.name=Alice] likes [INFER user.role=developer]"
+        remember_pairs = _extract_remember_tags(text)
+        infer_pairs = _extract_infer_tags(text)
+        assert len(remember_pairs) == 1
+        assert len(infer_pairs) == 1
+        assert remember_pairs[0] == ("user.name", "Alice")
+        assert infer_pairs[0] == ("user.role", "developer")
+
+
+# ---------------------------------------------------------------------------
+# Onboarding memory schema
+# ---------------------------------------------------------------------------
+
+class TestOnboardingMemorySchema:
+    """Verify the onboarding memory schema is well-formed."""
+
+    def test_schema_covers_all_topic_keys(self) -> None:
+        """GIVEN ONBOARDING_MEMORY_SCHEMA WHEN checked THEN all topic keys present."""
+        for key in ALL_TOPIC_MEMORY_KEYS:
+            assert key in ONBOARDING_MEMORY_SCHEMA, (
+                f"Key '{key}' missing from ONBOARDING_MEMORY_SCHEMA"
+            )
+
+    def test_schema_entries_have_topic(self) -> None:
+        """GIVEN each schema entry WHEN checked THEN has topic field."""
+        for key, meta in ONBOARDING_MEMORY_SCHEMA.items():
+            assert "topic" in meta, f"Key '{key}' missing 'topic' field"
+            assert "type" in meta, f"Key '{key}' missing 'type' field"

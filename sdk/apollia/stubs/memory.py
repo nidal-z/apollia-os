@@ -36,8 +36,14 @@ class MemoryInterface:
         key: str,
         value: str,
         source: str | None = None,
+        confidence: float | None = None,
     ) -> Awaitable[None]:
-        """Store a key/value pair in semantic memory."""
+        """Store a key/value pair in semantic memory.
+
+        ``confidence`` is a score between 0.0 and 1.0 (default 1.0).
+        When provided, an existing entry with strictly higher confidence
+        is preserved (no overwrite).
+        """
         ...
 
     def recall(self, key: str) -> Awaitable[str | None]:

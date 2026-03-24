@@ -178,6 +178,7 @@ class MockMemory:
 
     Attributes:
         store: In-memory semantic key/value storage.
+        confidences: Per-key confidence scores (0.0–1.0).
         episodes: In-memory episodic events.
         operations: Ordered list of ``{"op": ..., ...}`` dicts for
             introspection.
@@ -185,6 +186,7 @@ class MockMemory:
 
     def __init__(self) -> None:
         self.store: dict[str, str] = {}
+        self.confidences: dict[str, float] = {}
         self.episodes: list[dict[str, Any]] = []
         self.operations: list[dict[str, Any]] = []
 
@@ -208,10 +210,37 @@ class MockMemory:
         key: str,
         value: str,
         source: str | None = None,
+        confidence: float | None = None,
     ) -> None:
-        """Store a key/value pair in semantic memory."""
+        """Store a key/value pair in semantic memory.
+
+        When *confidence* is provided and the key already exists with
+        a strictly higher confidence, the write is skipped.
+        """
+        effective_confidence = confidence if confidence is not None else 1.0
+
+        if confidence is not None and key in self.confidences:
+            if self.confidences[key] > effective_confidence:
+                self.operations.append({
+                    "op": "remember",
+                    "key": key,
+                    "value": value,
+                    "source": source,
+                    "confidence": effective_confidence,
+                    "skipped": True,
+                })
+                return
+
         self.store[key] = value
-        self.operations.append({"op": "remember", "key": key, "value": value, "source": source})
+        self.confidences[key] = effective_confidence
+        self.operations.append({
+            "op": "remember",
+            "key": key,
+            "value": value,
+            "source": source,
+            "confidence": effective_confidence,
+            "skipped": False,
+        })
 
     async def recall(self, key: str) -> str | None:
         """Retrieve a value by key from semantic memory."""

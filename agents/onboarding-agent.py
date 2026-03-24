@@ -41,6 +41,30 @@ MEMORY_KEY_LANGUAGE: str = "user.preferences.language"
 
 MEMORY_KEY_ONBOARDING_STATE: str = "onboarding.state"
 
+CONFIDENCE_EXPLICIT: float = 0.9
+CONFIDENCE_INFERRED: float = 0.5
+CONFIDENCE_VALIDATED: float = 0.95
+
+ONBOARDING_MEMORY_SCHEMA: dict[str, dict[str, str]] = {
+    "user.name": {"type": "string", "topic": "identity"},
+    "user.role": {"type": "string", "topic": "identity"},
+    "user.languages": {"type": "list[string]", "topic": "identity"},
+    "user.expertise_level": {"type": "string", "topic": "identity"},
+    "user.preferences.verbosity": {"type": "string", "topic": "preferences"},
+    "user.preferences.format": {"type": "string", "topic": "preferences"},
+    "user.preferences.language": {"type": "string", "topic": "preferences"},
+    "user.tools.ide": {"type": "string", "topic": "tools"},
+    "user.tools.terminal": {"type": "string", "topic": "tools"},
+    "user.tools.cli_favorites": {"type": "list[string]", "topic": "tools"},
+    "user.tools.package_manager": {"type": "string", "topic": "tools"},
+    "user.domain.type": {"type": "string", "topic": "domain"},
+    "user.domain.stack": {"type": "list[string]", "topic": "domain"},
+    "user.domain.constraints": {"type": "list[string]", "topic": "domain"},
+    "user.agents.workflows": {"type": "list[string]", "topic": "agents"},
+    "user.agents.pain_points": {"type": "list[string]", "topic": "agents"},
+    "user.agents.expectations": {"type": "string", "topic": "agents"},
+}
+
 
 # ---------------------------------------------------------------------------
 # Topic guides
@@ -308,9 +332,11 @@ pertinent.
 - Rebondis sur les réponses pour creuser naturellement.
 - Adapte tes questions au profil qui se dessine : si l'utilisateur est dev \
 Python, ne demande pas ses outils C++.
-- Quand tu apprends quelque chose d'utile, indique-le entre crochets \
-[REMEMBER clé=valeur] pour que le système le persiste. Utilise les clés \
-mémoire listées dans chaque domaine.
+- Quand tu apprends quelque chose d'utile dit explicitement par l'utilisateur, \
+indique-le entre crochets [REMEMBER clé=valeur]. \
+Quand tu déduis une information du contexte (ex: l'utilisateur écrit en \
+français donc il est probablement francophone), utilise [INFER clé=valeur]. \
+Utilise les clés mémoire listées dans chaque domaine.
 - L'utilisateur peut quitter à tout moment. Ne force jamais la conversation.
 - Sois chaleureux, concis, et professionnel.
 - Commence par te présenter brièvement et poser une première question ouverte.\
@@ -335,9 +361,11 @@ skip a domain if the context makes it irrelevant.
 - Build on answers to dig deeper naturally.
 - Adapt your questions to the emerging profile: if the user is a Python dev, \
 don't ask about C++ tools.
-- When you learn something useful, indicate it in brackets \
-[REMEMBER key=value] so the system persists it. Use the memory keys listed \
-in each domain.
+- When you learn something useful stated explicitly by the user, indicate it \
+in brackets [REMEMBER key=value]. \
+When you infer information from context (e.g. the user writes in French so \
+they are likely francophone), use [INFER key=value]. \
+Use the memory keys listed in each domain.
 - The user can quit at any time. Never force the conversation.
 - Be warm, concise, and professional.
 - Start by briefly introducing yourself and asking one open question.\
@@ -384,9 +412,51 @@ def _extract_remember_tags(text: str) -> list[tuple[str, str]]:
     return pairs
 
 
+def _extract_infer_tags(text: str) -> list[tuple[str, str]]:
+    """Extract ``[INFER key=value]`` pairs from LLM output.
+
+    Same format as REMEMBER tags but indicates information deduced
+    from context rather than explicitly stated by the user.
+    """
+    pairs: list[tuple[str, str]] = []
+    for match in re.finditer(r"\[INFER\s+([^\]=]+)=([^\]]+)\]", text):
+        raw_key = match.group(1).strip().lower().replace(" ", "_")
+        value = match.group(2).strip()
+        if not raw_key.startswith(MEMORY_KEY_PREFIX):
+            raw_key = MEMORY_KEY_PREFIX + raw_key
+        pairs.append((raw_key, value))
+    return pairs
+
+
 def _strip_remember_tags(text: str) -> str:
-    """Remove ``[REMEMBER ...]`` tags from text shown to the user."""
-    return re.sub(r"\s*\[REMEMBER\s+[^\]]+\]\s*", " ", text).strip()
+    """Remove ``[REMEMBER ...]`` and ``[INFER ...]`` tags from text shown to the user."""
+    cleaned = re.sub(r"\s*\[REMEMBER\s+[^\]]+\]\s*", " ", text)
+    cleaned = re.sub(r"\s*\[INFER\s+[^\]]+\]\s*", " ", cleaned)
+    return cleaned.strip()
+
+
+async def persist_insight(
+    ctx: Any,
+    key: str,
+    value: str,
+    explicit: bool = True,
+) -> None:
+    """Persist an onboarding insight with the appropriate confidence score.
+
+    Explicit information (the user stated it directly) gets
+    ``CONFIDENCE_EXPLICIT`` (0.9).  Inferred information (deduced from
+    conversational context) gets ``CONFIDENCE_INFERRED`` (0.5).
+
+    The underlying memory layer skips the write if the key already holds
+    a value with strictly higher confidence.
+    """
+    confidence = CONFIDENCE_EXPLICIT if explicit else CONFIDENCE_INFERRED
+    await ctx.memory.remember(
+        key=key,
+        value=value,
+        source=MEMORY_SOURCE,
+        confidence=confidence,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -448,8 +518,8 @@ class OnboardingAgent(ConversationalAgent):
                 _SYSTEM_PROMPT_FR if lang == "fr" else _SYSTEM_PROMPT_EN
             )
             if ctx.memory is not None:
-                await ctx.memory.remember(
-                    MEMORY_KEY_LANGUAGE, lang, source=MEMORY_SOURCE,
+                await persist_insight(
+                    ctx, MEMORY_KEY_LANGUAGE, lang, explicit=False,
                 )
 
         if ctx.llm is None:
@@ -467,10 +537,13 @@ class OnboardingAgent(ConversationalAgent):
         response = await ctx.llm.complete(messages)
         raw_text: str = response.get("text", "")
 
-        pairs = _extract_remember_tags(raw_text)
+        explicit_pairs = _extract_remember_tags(raw_text)
+        inferred_pairs = _extract_infer_tags(raw_text)
         if ctx.memory is not None:
-            for key, value in pairs:
-                await ctx.memory.remember(key, value, source=MEMORY_SOURCE)
+            for key, value in explicit_pairs:
+                await persist_insight(ctx, key, value, explicit=True)
+            for key, value in inferred_pairs:
+                await persist_insight(ctx, key, value, explicit=False)
 
         processed_text = self.on_response(raw_text)
 
@@ -487,6 +560,7 @@ class OnboardingAgent(ConversationalAgent):
                 MEMORY_KEY_ONBOARDING_STATE,
                 json.dumps({"started": True, "turns": 1}),
                 source=MEMORY_SOURCE,
+                confidence=CONFIDENCE_EXPLICIT,
             )
 
         return processed_text, messages

@@ -85,20 +85,31 @@ impl MemoryInterface {
     /// Stores a key/value pair in semantic memory.
     ///
     /// source: provenance of the information (optional)
-    #[pyo3(signature = (key, value, source=None))]
+    /// confidence: score between 0.0 and 1.0 (default 1.0).
+    ///     When provided, an existing entry with strictly higher confidence
+    ///     is preserved (no overwrite).
+    #[pyo3(signature = (key, value, source=None, confidence=None))]
     fn remember<'py>(
         &self,
         py: Python<'py>,
         key: String,
         value: String,
         source: Option<String>,
+        confidence: Option<f64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let manager = Arc::clone(&self.manager);
         let namespace = self.namespace.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let result = tokio::task::spawn_blocking(move || {
-                remember_inner(&manager, &namespace, &key, &value, source.as_deref())
+                remember_inner(
+                    &manager,
+                    &namespace,
+                    &key,
+                    &value,
+                    source.as_deref(),
+                    confidence,
+                )
             })
             .await
             .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
@@ -233,12 +244,17 @@ fn record_inner(
 }
 
 /// Stores a key/value pair in semantic memory.
+///
+/// When `confidence` is `Some`, an existing entry with strictly higher
+/// confidence is preserved — the write is silently skipped.
+/// When `None`, defaults to 1.0 (backward-compatible unconditional upsert).
 fn remember_inner(
     manager: &Arc<Mutex<MemoryManager>>,
     namespace: &str,
     key: &str,
     value: &str,
     source: Option<&str>,
+    confidence: Option<f64>,
 ) -> Result<String, MemoryInterfaceError> {
     let mut mgr = lock(manager)?;
     check_write_access(&mgr, namespace)?;
@@ -248,8 +264,25 @@ fn remember_inner(
         .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
 
     let sem = SemanticMemory::new(store);
+    let conf = confidence.unwrap_or(1.0);
+
+    if confidence.is_some() {
+        if let Ok(Some(existing)) = sem.recall(namespace, key) {
+            if existing.confidence > conf {
+                tracing::debug!(
+                    namespace = %namespace,
+                    key = %key,
+                    existing_confidence = existing.confidence,
+                    new_confidence = conf,
+                    "skipping write: existing entry has higher confidence"
+                );
+                return Ok(existing.id);
+            }
+        }
+    }
+
     let json_value = serde_json::Value::String(value.to_string());
-    sem.remember(namespace, key, &json_value, 1.0, source, None)
+    sem.remember(namespace, key, &json_value, conf, source, None)
         .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))
 }
 
@@ -410,6 +443,7 @@ mod tests {
             "client.dupont.email",
             "marie@dupont.fr",
             None,
+            None,
         );
 
         // THEN the value is stored
@@ -426,6 +460,7 @@ mod tests {
             &iface.namespace,
             "client.dupont.email",
             "marie@dupont.fr",
+            None,
             None,
         )
         .expect("remember");
@@ -470,6 +505,7 @@ mod tests {
             "client.dupont.budget",
             "15000",
             Some("crm"),
+            None,
         )
         .expect("remember");
 
@@ -497,6 +533,7 @@ mod tests {
             &iface.namespace,
             "client.dupont.email",
             "marie@dupont.fr",
+            None,
             None,
         )
         .expect("remember");
@@ -548,7 +585,7 @@ mod tests {
 
         // WHEN we try to write (remember)
         let remember_result =
-            remember_inner(&iface.manager, &iface.namespace, "key", "value", None);
+            remember_inner(&iface.manager, &iface.namespace, "key", "value", None, None);
         assert!(matches!(
             remember_result,
             Err(MemoryInterfaceError::ReadOnly(_))
@@ -568,6 +605,90 @@ mod tests {
         // WHEN we try to search — should work (empty results is ok)
         let search_result = search_inner(&iface.manager, &iface.namespace, "test", 5);
         assert!(search_result.is_ok());
+    }
+
+    // Remember with explicit confidence
+    #[test]
+    fn test_remember_with_confidence() {
+        // GIVEN a MemoryInterface
+        let (iface, _dir) = setup_interface("agent-alpha");
+
+        // WHEN we remember with explicit confidence
+        let id = remember_inner(
+            &iface.manager,
+            &iface.namespace,
+            "user.name",
+            "Nidal",
+            Some("onboarding"),
+            Some(0.9),
+        );
+
+        // THEN the entry is stored with the given confidence
+        assert!(id.is_ok());
+        let value = recall_inner(&iface.manager, &iface.namespace, "user.name");
+        assert_eq!(value.expect("recall"), Some("Nidal".to_string()));
+    }
+
+    // No overwrite when existing confidence is strictly higher
+    #[test]
+    fn test_no_overwrite_higher_confidence() {
+        // GIVEN a key stored with confidence 0.9
+        let (iface, _dir) = setup_interface("agent-alpha");
+        remember_inner(
+            &iface.manager,
+            &iface.namespace,
+            "user.name",
+            "Nidal",
+            Some("onboarding"),
+            Some(0.9),
+        )
+        .expect("remember");
+
+        // WHEN we try to overwrite with lower confidence 0.5
+        remember_inner(
+            &iface.manager,
+            &iface.namespace,
+            "user.name",
+            "Unknown",
+            Some("onboarding"),
+            Some(0.5),
+        )
+        .expect("remember");
+
+        // THEN the original value is preserved
+        let value = recall_inner(&iface.manager, &iface.namespace, "user.name");
+        assert_eq!(value.expect("recall"), Some("Nidal".to_string()));
+    }
+
+    // Overwrite when new confidence is higher or equal
+    #[test]
+    fn test_overwrite_when_equal_or_higher_confidence() {
+        // GIVEN a key stored with confidence 0.5
+        let (iface, _dir) = setup_interface("agent-alpha");
+        remember_inner(
+            &iface.manager,
+            &iface.namespace,
+            "user.role",
+            "developer",
+            Some("onboarding"),
+            Some(0.5),
+        )
+        .expect("remember");
+
+        // WHEN we overwrite with equal confidence
+        remember_inner(
+            &iface.manager,
+            &iface.namespace,
+            "user.role",
+            "CTO",
+            Some("onboarding"),
+            Some(0.5),
+        )
+        .expect("remember");
+
+        // THEN the new value replaces the old one
+        let value = recall_inner(&iface.manager, &iface.namespace, "user.role");
+        assert_eq!(value.expect("recall"), Some("CTO".to_string()));
     }
 
     // Record with default importance (0.5)
