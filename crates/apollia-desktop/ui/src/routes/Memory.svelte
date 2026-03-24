@@ -2,20 +2,22 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
+  import { uiMode } from "$lib/stores/mode";
   import type { MemoryEntry, MemorySearchResult, ToolSummary } from "$lib/types";
   import NamespaceSelector from "../components/memory/NamespaceSelector.svelte";
   import MemorySearch from "../components/memory/MemorySearch.svelte";
   import MemoryTable from "../components/memory/MemoryTable.svelte";
+  import UserMemoryDashboard from "../components/memory/UserMemoryDashboard.svelte";
   import ToolSchemaPanel from "../components/tools/ToolSchemaPanel.svelte";
   import EmptyState from "../components/common/EmptyState.svelte";
-  import { Database, Wrench } from "lucide-svelte";
+  import { Database, Wrench, Brain } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { addToast } from "$lib/components/ui/toast/store";
 
-  type Tab = "memory" | "tools";
+  type Tab = "user_memory" | "memory" | "tools";
 
-  let activeTab = $state<Tab>("memory");
+  let activeTab = $state<Tab>("user_memory");
 
   // ── Memory state ──
   let namespaces = $state<string[]>([]);
@@ -39,6 +41,13 @@
   function kindBadge(kind: string): { variant: "default" | "info" | "warning"; label: string } {
     return KIND_BADGE[kind] ?? { variant: "default", label: kind };
   }
+
+  // ── Tab labels ──
+  let userMemoryLabel = $derived(
+    $uiMode === "operator"
+      ? $t("memory.user_memory.tab_operator")
+      : $t("memory.user_memory.tab_builder")
+  );
 
   // ── Memory functions ──
   async function loadNamespaces(): Promise<void> {
@@ -139,18 +148,18 @@
 
   function switchTab(tab: Tab): void {
     activeTab = tab;
+    if (tab === "memory" && namespaces.length === 0) {
+      loadNamespaces().then(() => {
+        if (selectedNamespace !== "") loadEntries();
+        else loadingMemory = false;
+      });
+    }
     if (tab === "tools" && tools.length === 0 && loadingTools) {
       loadTools();
     }
   }
 
   onMount(async () => {
-    await loadNamespaces();
-    if (selectedNamespace !== "") {
-      await loadEntries();
-    } else {
-      loadingMemory = false;
-    }
     loadTools();
   });
 </script>
@@ -166,6 +175,16 @@
 
   <!-- Tabs -->
   <div class="flex gap-1 rounded-lg bg-muted/50 p-1 w-fit" data-testid="memory-tabs">
+    <button
+      class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors {activeTab === 'user_memory' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
+      onclick={() => switchTab("user_memory")}
+      data-testid="memory-tab-user-memory"
+    >
+      <span class="flex items-center gap-1.5">
+        <Brain size={13} />
+        {userMemoryLabel}
+      </span>
+    </button>
     <button
       class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors {activeTab === 'memory' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}"
       onclick={() => switchTab("memory")}
@@ -190,6 +209,11 @@
       </span>
     </button>
   </div>
+
+  <!-- User Memory Tab -->
+  {#if activeTab === "user_memory"}
+    <UserMemoryDashboard mode={$uiMode} />
+  {/if}
 
   <!-- Memory Tab -->
   {#if activeTab === "memory"}

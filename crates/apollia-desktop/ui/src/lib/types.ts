@@ -718,6 +718,65 @@ export interface AgentMessage {
   sent_at: string;
 }
 
+// ─── User Memory ──────────────────────────────────────────────────────────────
+
+/** Aggregated user memory profile returned by get_user_memory_profile. */
+export interface UserMemoryProfileView {
+  entries: UserMemoryEntryView[];
+  stats: UserMemoryStats;
+}
+
+/** Single user memory entry formatted for the frontend. */
+export interface UserMemoryEntryView {
+  category: string;
+  key: string;
+  value: string;
+  source: string;
+  confidence: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Aggregated statistics over user memory entries. */
+export interface UserMemoryStats {
+  total: number;
+  by_category: CategoryCounts;
+  by_source: SourceCounts;
+  last_updated_at: string | null;
+}
+
+/** Entry counts grouped by category. */
+export interface CategoryCounts {
+  preferences: number;
+  habits: number;
+  context: number;
+}
+
+/** Entry counts grouped by source. */
+export interface SourceCounts {
+  onboarding: number;
+  chat_inference: number;
+  user_explicit: number;
+  agent_observation: number;
+}
+
+/** Request payload for creating or updating a user memory entry. */
+export interface UpdateUserMemoryRequest {
+  category: string;
+  key: string;
+  value: string;
+  confidence?: number;
+}
+
+/** Statistics for a single chat conversation session. */
+export interface ConversationStatsView {
+  message_count: number;
+  summarized_count: number;
+  context_usage_pct: number;
+  user_memory_injected: boolean;
+  cross_sessions_referenced: number;
+}
+
 /** Événement de cache hit pour un plan d'exécution. */
 export interface PlanCacheHitEvent {
   /** ID de la tâche qui a déclenché le cache hit. */
