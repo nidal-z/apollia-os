@@ -800,6 +800,9 @@ impl ChatSessionManager {
             return Err(ChatError::SessionClosed(session_id.to_string()));
         }
 
+        // Capture history before mutating session state
+        let history = session.history.clone();
+
         let now = now_rfc3339();
 
         // If an exchange is in progress, cancel it
@@ -811,6 +814,11 @@ impl ChatSessionManager {
         let _ = self.event_bus.send(RuntimeEvent::ChatSessionClosed {
             session_id: session_id.to_string(),
         });
+
+        // Fire-and-forget memory extraction if LLM and user memory are available
+        if let (Some(llm), Some(user_memory)) = (&self.llm_router, &self.user_memory) {
+            super::extractor::spawn_extraction(history, Arc::clone(llm), Arc::clone(user_memory));
+        }
 
         Ok(())
     }

@@ -7,6 +7,7 @@
 
 pub mod agent_chat;
 pub mod builtin_agent;
+pub mod extractor;
 pub mod manager;
 pub mod repository;
 pub mod types;
@@ -15,6 +16,7 @@ pub use agent_chat::{AgentChatExecutor, ChatAgentRunner};
 pub use builtin_agent::{
     BuiltInChatAgent, ChatAgentResponse, NativeChatToolInvoker, DEFAULT_SYSTEM_PROMPT,
 };
+pub use extractor::{extract_user_memory, spawn_extraction, ExtractionError, ExtractionResult};
 pub use manager::ChatSessionManagerHandle;
 pub use repository::{AppendMessageParams, ChatSessionRepository, MessageRow, SessionRow};
 pub use types::{
