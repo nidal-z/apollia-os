@@ -20,3 +20,10 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["apollia*"]
+
+[tool.mypy]
+strict = true
+
+[[tool.mypy.overrides]]
+module = "apollia.stubs.*"
+disable_error_code = ["empty-body"]
