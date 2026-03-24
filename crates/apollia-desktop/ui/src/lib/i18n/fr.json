@@ -182,7 +182,12 @@
     "latency": "Latence",
     "waiting_approval": "En attente d'approbation",
     "completed_in": "Terminé en {duration}",
-    "step": "Étape"
+    "step": "Étape",
+    "step_observation_operator": "Mémoire enregistrée",
+    "step_observation_builder": "Observation de step persistée",
+    "cache_hit_operator": "Plan en cache réutilisé",
+    "cache_hit_builder": "Cache hit du plan — planification LLM ignorée",
+    "cache_hit_tooltip": "Plan identique trouvé en cache — exécution directe sans re-planification"
   },
   "approvals": {
     "title": "Approbations",

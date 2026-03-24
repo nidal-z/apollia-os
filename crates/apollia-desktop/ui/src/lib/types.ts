@@ -127,7 +127,13 @@ export type TimelineEventType =
 
 /** Événement de la timeline d'une tâche (union discriminée par `type`). */
 export type TimelineEvent =
-  | { type: "task_transition"; status: string; timestamp: string }
+  | {
+      type: "task_transition";
+      status: string;
+      execution_mode?: string;
+      complexity_score?: number;
+      timestamp: string;
+    }
   | {
       type: "step_started";
       step_id: string;
@@ -140,6 +146,7 @@ export type TimelineEvent =
       step_id: string;
       duration_ms?: number;
       success: boolean;
+      model_hint?: string;
       timestamp: string;
     }
   | {
