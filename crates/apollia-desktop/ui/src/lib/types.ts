@@ -27,7 +27,13 @@ export interface AgentListItem {
   /** Activé pour l'auto-start au boot. */
   enabled: boolean;
   /** État runtime (`null` si non chargé). */
-  runtime_status: "active" | "degraded" | "stopped" | "initializing" | "stopping" | null;
+  runtime_status:
+    | "active"
+    | "degraded"
+    | "stopped"
+    | "initializing"
+    | "stopping"
+    | null;
   /** Horodatage d'installation RFC 3339 (`null` pour les agents session-only). */
   installed_at: string | null;
   /** Description humaine de l'agent (du manifest). */
@@ -376,7 +382,7 @@ export interface PipelineInfo {
 export interface PipelineDefinitionView {
   id: string;
   description: string;
-  on_failure: 'fail' | 'continue';
+  on_failure: "fail" | "continue";
   steps: PipelineStepView[];
   enabled: boolean;
   created_at: string;
@@ -389,14 +395,14 @@ export interface PipelineStepView {
   agent: string;
   input: string;
   depends_on: string[];
-  on_failure: 'fail' | 'skip' | 'fallback';
+  on_failure: "fail" | "skip" | "fallback";
   condition: StepConditionView | null;
   fallback_for: string | null;
 }
 
 /** Condition d'exécution d'un step. */
 export interface StepConditionView {
-  when: 'contains' | 'equals' | 'starts_with' | 'ends_with' | 'regex';
+  when: "contains" | "equals" | "starts_with" | "ends_with" | "regex";
   field: string;
   value: string;
 }
@@ -405,7 +411,7 @@ export interface StepConditionView {
 export interface CreatePipelineRequest {
   id: string;
   description?: string;
-  on_failure?: 'fail' | 'continue';
+  on_failure?: "fail" | "continue";
   enabled?: boolean;
   steps: PipelineStepInput[];
 }
@@ -414,7 +420,7 @@ export interface CreatePipelineRequest {
 export interface UpdatePipelineRequest {
   id: string;
   description?: string;
-  on_failure?: 'fail' | 'continue';
+  on_failure?: "fail" | "continue";
   enabled?: boolean;
   steps: PipelineStepInput[];
 }
@@ -425,7 +431,7 @@ export interface PipelineStepInput {
   agent: string;
   input: string;
   depends_on?: string[];
-  on_failure?: 'fail' | 'skip' | 'fallback';
+  on_failure?: "fail" | "skip" | "fallback";
   condition?: StepConditionView;
   fallback_for?: string;
 }
@@ -586,9 +592,9 @@ export interface SystemInfo {
 /** Résumé d'une session de chat pour la liste. */
 export interface ChatSessionSummary {
   id: string;
-  mode: 'libre' | 'agent';
+  mode: "libre" | "agent";
   agent_name: string | null;
-  status: 'active' | 'processing' | 'closed';
+  status: "active" | "processing" | "closed";
   last_message_preview: string | null;
   message_count: number;
   created_at: string;
@@ -598,10 +604,10 @@ export interface ChatSessionSummary {
 /** Détail complet d'une session de chat avec messages. */
 export interface ChatSessionDetail {
   id: string;
-  mode: 'libre' | 'agent';
+  mode: "libre" | "agent";
   agent_name: string | null;
   system_prompt: string;
-  status: 'active' | 'processing' | 'closed';
+  status: "active" | "processing" | "closed";
   available_tools: string[];
   authorized_tools: string[];
   messages: ChatMessageView[];
@@ -620,7 +626,7 @@ export interface UpdateSessionRequest {
 /** Message individuel dans une session de chat. */
 export interface ChatMessageView {
   id: string;
-  role: 'user' | 'assistant' | 'system' | 'tool';
+  role: "user" | "assistant" | "system" | "tool";
   content: string;
   tool_calls: ToolCallView[] | null;
   tool_name: string | null;
@@ -634,12 +640,12 @@ export interface ToolCallView {
   tool_name: string;
   input: Record<string, unknown>;
   output: string | null;
-  status: 'pending' | 'authorized' | 'executed' | 'refused';
+  status: "pending" | "authorized" | "executed" | "refused";
 }
 
 /** Requête de création d'une session de chat. */
 export interface CreateSessionRequest {
-  mode: 'libre' | 'agent';
+  mode: "libre" | "agent";
   agent_name?: string;
   system_prompt?: string;
   tools?: string[];
@@ -654,7 +660,7 @@ export interface SendMessageRequest {
 export interface ToolAuthorizationRequest {
   message_id: string;
   tool_name: string;
-  decision: 'accept' | 'refuse' | 'always_accept';
+  decision: "accept" | "refuse" | "always_accept";
 }
 
 // ─── Sprint 20 — Système Agentique Amélioré ─────────────────────────────────
@@ -785,6 +791,15 @@ export interface ContextWindowStats {
   summaryTokens: number;
   totalTokens: number;
   maxTokens: number;
+}
+
+/** Insight extracted from a chat conversation by LLM analysis. */
+export interface InsightEntry {
+  id: string;
+  text: string;
+  category: "preference" | "habit" | "context";
+  confidence: number;
+  source: string;
 }
 
 /** Événement de cache hit pour un plan d'exécution. */

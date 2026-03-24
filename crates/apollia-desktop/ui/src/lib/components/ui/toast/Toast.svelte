@@ -9,6 +9,8 @@
     visible?: boolean;
     ondismiss?: () => void;
     autoDismiss?: number;
+    actionLabel?: string;
+    onaction?: () => void;
     "data-testid"?: string;
   }
 
@@ -18,6 +20,8 @@
     visible = $bindable(true),
     ondismiss,
     autoDismiss = 4000,
+    actionLabel,
+    onaction,
     ...restProps
   }: Props = $props();
 
@@ -42,6 +46,11 @@
     ondismiss?.();
   }
 
+  function handleAction() {
+    onaction?.();
+    handleDismiss();
+  }
+
   const config = $derived(variantConfig[variant]);
 </script>
 
@@ -62,6 +71,15 @@
       <Info size={18} class={config.classes} />
     {/if}
     <p class="flex-1 text-sm text-card-foreground">{message}</p>
+    {#if actionLabel}
+      <button
+        class="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium text-[#7c5fd6] hover:bg-[#7c5fd6]/10 transition-colors"
+        onclick={handleAction}
+        data-testid="toast-action"
+      >
+        {actionLabel}
+      </button>
+    {/if}
     <button
       class="rounded-md p-0.5 text-muted-foreground hover:text-foreground transition-colors"
       onclick={handleDismiss}

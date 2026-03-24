@@ -5,13 +5,16 @@
  * derived stores for filtered views (active sessions, closed sessions).
  */
 import { derived, writable } from "svelte/store";
-import { chatSessions } from "./sse";
+import { chatSessions, extractedInsights } from "./sse";
 import type { ConversationStatsView } from "$lib/types";
 
 export { chatSessions } from "./sse";
+export { extractedInsights } from "./sse";
 
 /** Currently viewed session detail (set when navigating to a conversation). */
-export const currentSession = writable<import("$lib/types").ChatSessionDetail | null>(null);
+export const currentSession = writable<
+  import("$lib/types").ChatSessionDetail | null
+>(null);
 
 /** Session ID to open automatically when navigating to Chat (set by other pages like Agents). */
 export const pendingChatSessionId = writable<string | null>(null);
@@ -26,7 +29,14 @@ export const useUserMemory = writable<boolean>(true);
 export const memoryEntryCount = writable<number>(0);
 
 /** Conversation statistics for the current session. */
-export const chatConversationStats = writable<ConversationStatsView | null>(null);
+export const chatConversationStats = writable<ConversationStatsView | null>(
+  null,
+);
+
+/** Reset extracted insights to empty. */
+export function clearInsights(): void {
+  extractedInsights.set([]);
+}
 
 /** Active chat sessions (status !== 'closed'), most recent first. */
 export const activeChatSessions = derived(chatSessions, ($sessions) =>

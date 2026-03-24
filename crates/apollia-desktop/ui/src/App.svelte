@@ -6,6 +6,7 @@
   import Main from "./components/layout/Main.svelte";
   import OnboardingWizard from "./components/onboarding/OnboardingWizard.svelte";
   import { ToastContainer } from "$lib/components/ui/toast";
+  import ExtractionNotifier from "./components/chat/ExtractionNotifier.svelte";
   import { Tooltip } from "bits-ui";
   import { createSSEConnection } from "$lib/stores/sse";
   import { showOnboarding } from "$lib/stores/onboarding";
@@ -47,6 +48,7 @@
       <Sidebar />
       <Main />
     </div>
+    <ExtractionNotifier />
     <ToastContainer />
   {/if}
 </Tooltip.Provider>

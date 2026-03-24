@@ -26,6 +26,7 @@ import type {
   PipelineRunSummary,
   ChatSessionSummary,
   PlanCacheHitEvent,
+  InsightEntry,
 } from "$lib/types";
 
 /** Watchdog timeout — triggers a single IPC refresh if no event received. */
@@ -63,6 +64,9 @@ export const planCacheHitCount = writable<number>(0);
 
 /** Dernier message inter-agents reçu via SSE (`null` si aucun). */
 export const lastAgentMessage = writable<AgentMessage | null>(null);
+
+/** Insights extracted from the most recent session by LLM analysis. */
+export const extractedInsights = writable<InsightEntry[]>([]);
 
 // ─── IPC refresh helpers ──────────────────────────────────────────────────────
 
@@ -224,6 +228,14 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       lastAgentMessage.set(event.payload as unknown as AgentMessage);
       void refreshAgentsViaIpc();
       break;
+    case "memory-extraction": {
+      const insights = (event.payload as { insights?: InsightEntry[] })
+        .insights;
+      if (insights && insights.length > 0) {
+        extractedInsights.set(insights);
+      }
+      break;
+    }
     case "system":
       // AllReady / ShutdownRequested / FatalError — refresh everything
       void refreshAll();

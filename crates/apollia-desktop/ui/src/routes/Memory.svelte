@@ -8,6 +8,7 @@
   import MemorySearch from "../components/memory/MemorySearch.svelte";
   import MemoryTable from "../components/memory/MemoryTable.svelte";
   import UserMemoryDashboard from "../components/memory/UserMemoryDashboard.svelte";
+  import RecentExtractions from "../components/memory/RecentExtractions.svelte";
   import ToolSchemaPanel from "../components/tools/ToolSchemaPanel.svelte";
   import EmptyState from "../components/common/EmptyState.svelte";
   import { Database, Wrench, Brain } from "lucide-svelte";
@@ -212,6 +213,7 @@
 
   <!-- User Memory Tab -->
   {#if activeTab === "user_memory"}
+    <RecentExtractions mode={$uiMode} />
     <UserMemoryDashboard mode={$uiMode} />
   {/if}
 

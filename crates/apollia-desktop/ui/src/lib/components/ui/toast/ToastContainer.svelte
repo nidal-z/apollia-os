@@ -9,7 +9,9 @@
       message={toast.message}
       variant={toast.variant}
       ondismiss={() => removeToast(toast.id)}
-      data-testid="toast"
+      actionLabel={toast.actionLabel}
+      onaction={toast.onaction}
+      data-testid={toast["data-testid"] ?? "toast"}
     />
   {/each}
 </div>
