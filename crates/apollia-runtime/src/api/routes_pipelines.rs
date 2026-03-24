@@ -978,6 +978,7 @@ mod tests {
             chat_manager: None,
             plan_cache: None,
             mailbox_handle: None,
+            user_memory: None,
         }
     }
 
@@ -1012,6 +1013,7 @@ mod tests {
             chat_manager: None,
             plan_cache: None,
             mailbox_handle: None,
+            user_memory: None,
         }
     }
 

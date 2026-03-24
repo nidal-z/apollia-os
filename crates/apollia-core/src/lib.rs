@@ -23,6 +23,7 @@ pub mod process;
 pub mod result;
 pub mod sandbox;
 pub mod task;
+pub mod user;
 
 pub use budget::StepBudgetConfig;
 pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
@@ -35,3 +36,4 @@ pub use result::{
 };
 pub use sandbox::SandboxProfile;
 pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, TextPart};
+pub use user::{UpdateProfileRequest, UserMemoryEntryResponse, UserMemoryResponse, UserProfile};

@@ -205,6 +205,7 @@ mod tests {
             chat_manager: None,
             plan_cache: None,
             mailbox_handle: None,
+            user_memory: None,
         };
 
         Router::new()
@@ -245,6 +246,7 @@ mod tests {
             chat_manager: None,
             plan_cache: None,
             mailbox_handle: None,
+            user_memory: None,
         };
 
         Router::new()

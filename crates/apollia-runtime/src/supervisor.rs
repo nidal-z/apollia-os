@@ -170,6 +170,11 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     ///
     /// Always `Some` after startup — the mailbox is lightweight and always spawned.
     pub mailbox_handle: Option<crate::mailbox::AgentMailboxHandle>,
+    /// Repository for global user memory (preferences, habits, context).
+    ///
+    /// `Some` when `user_memory.db` opened successfully on startup.
+    /// `None` when the open failed (warning logged, user memory disabled).
+    pub user_memory: Option<std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
 }
 
 /// Supervisor errors.
@@ -669,6 +674,7 @@ impl Supervisor {
             chat_manager: chat_manager.clone(),
             plan_cache: plan_cache.clone(),
             mailbox_handle: Some(mailbox_handle.clone()),
+            user_memory: None,
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -844,6 +850,7 @@ impl Supervisor {
             chat_manager,
             plan_cache,
             mailbox_handle: Some(mailbox_handle),
+            user_memory: None,
         })
     }
 }
@@ -1405,6 +1412,7 @@ mod tests {
             chat_manager: None,
             plan_cache: None,
             mailbox_handle: None,
+            user_memory: None,
         };
 
         // WHEN on clone l'AppState

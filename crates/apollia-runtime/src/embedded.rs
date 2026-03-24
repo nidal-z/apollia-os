@@ -80,6 +80,11 @@ pub struct RuntimeHandle {
     ///
     /// `Some` after the mailbox is spawned during startup.
     pub mailbox_handle: Option<crate::mailbox::AgentMailboxHandle>,
+    /// Repository for global user memory (preferences, habits, context).
+    ///
+    /// `Some` when `user_memory.db` opened successfully on startup.
+    /// `None` when the open failed (warning logged, user memory disabled).
+    pub user_memory: Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
     /// Port TCP de l'APIServer.
     pub api_port: u16,
 }
@@ -270,6 +275,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         chat_manager: handles.chat_manager,
         plan_cache: handles.plan_cache,
         mailbox_handle: handles.mailbox_handle,
+        user_memory: handles.user_memory,
         api_port: tcp_port,
     })
 }

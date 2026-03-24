@@ -481,6 +481,7 @@ mod tests {
             chat_manager: None,
             plan_cache: None,
             mailbox_handle: None,
+            user_memory: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -620,6 +621,7 @@ mod tests {
             chat_manager: None,
             plan_cache: None,
             mailbox_handle: None,
+            user_memory: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -712,6 +714,7 @@ mod tests {
             chat_manager: None,
             plan_cache: None,
             mailbox_handle: None,
+            user_memory: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -910,6 +913,7 @@ mod tests {
             chat_manager: None,
             plan_cache: None,
             mailbox_handle: None,
+            user_memory: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

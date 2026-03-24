@@ -403,6 +403,7 @@ version = "0.1.0"
 dependencies = [
  "apollia-core",
  "apollia-llm",
+ "apollia-memory",
  "apollia-notifications",
  "apollia-oria",
  "apollia-pipelines",

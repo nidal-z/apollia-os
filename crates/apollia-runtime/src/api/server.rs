@@ -21,6 +21,7 @@ use tracing::info;
 
 use apollia_core::PendingApprovals;
 use apollia_llm::{LlmCallRepository, LlmRouter};
+use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_notifications::{
     NotificationConfig, NotificationConfigRepository, NotificationEngineHandle,
 };
@@ -152,6 +153,11 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` after the mailbox is spawned during startup.
     /// `None` in tests or when A2A messaging is disabled.
     pub mailbox_handle: Option<AgentMailboxHandle>,
+    /// Repository for global user memory (preferences, habits, context).
+    ///
+    /// `Some` after the Supervisor opens `user_memory.db` on startup.
+    /// `None` in tests or when user memory is not configured.
+    pub user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -181,6 +187,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             chat_manager: self.chat_manager.clone(),
             plan_cache: self.plan_cache.clone(),
             mailbox_handle: self.mailbox_handle.clone(),
+            user_memory: self.user_memory.clone(),
         }
     }
 }
@@ -303,6 +310,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     use super::routes_tasks::{cancel_task, get_task, list_tasks, resume_task, submit_task};
     use super::routes_timeline::get_task_timeline;
     use super::routes_tools::{describe_tool, list_tools};
+    use super::routes_user::{forget_memory, get_memory, get_profile, update_profile};
     use super::routes_triggers::{
         create_trigger, delete_trigger, disable_trigger, enable_trigger, fire_trigger,
         get_trigger_by_id, get_trigger_logs, list_triggers, reload_triggers, update_trigger,
@@ -418,6 +426,16 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             post(chat_authorize_tool::<B>),
         )
         .route("/api/v1/sessions/:id/stream", get(stream_session::<B>))
+        // User profile + memory routes
+        .route(
+            "/api/v1/user/profile",
+            get(get_profile::<B>).put(update_profile::<B>),
+        )
+        .route("/api/v1/user/memory", get(get_memory::<B>))
+        .route(
+            "/api/v1/user/memory/:key",
+            axum::routing::delete(forget_memory::<B>),
+        )
         .with_state(state)
 }
 
@@ -627,6 +645,7 @@ mod tests {
             chat_manager: None,
             plan_cache: None,
             mailbox_handle: None,
+            user_memory: None,
         }
     }
 

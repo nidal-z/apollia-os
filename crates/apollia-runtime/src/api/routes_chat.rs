@@ -596,6 +596,7 @@ mod tests {
             chat_manager: Some(chat_manager),
             plan_cache: None,
             mailbox_handle: None,
+            user_memory: None,
         };
 
         APIServer::build_router_for_test(state)
