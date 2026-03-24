@@ -24,9 +24,12 @@ use apollia_llm::{LlmCallRepository, LlmRouter};
 use apollia_notifications::{
     NotificationConfig, NotificationConfigRepository, NotificationEngineHandle,
 };
+use apollia_oria::plan_cache::PlanCacheRepository;
 use apollia_pipelines::{PipelineDefinitionRepository, PipelineEngineHandle};
 use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use apollia_triggers::{TriggerDefinitionRepository, TriggerEngineHandle};
+
+use crate::mailbox::AgentMailboxHandle;
 
 use crate::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use crate::chat::ChatSessionManagerHandle;
@@ -52,14 +55,14 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     pub backend: B,
     /// LLM router — `None` if no LLM backend was configured or available.
     ///
-    /// Injected into each agent's `RuntimeContext` via `ctx.llm` (STORY-059).
+    /// Injected into each agent's `RuntimeContext` via `ctx.llm`.
     /// Agents receive `ctx.llm = None` and an `AgentDegraded` event if absent.
     pub llm_router: Option<Arc<LlmRouter>>,
-    /// Handle to the TriggerEngine actor — `None` before STORY-072 (Supervisor integration).
+    /// Handle to the TriggerEngine actor.
     ///
-    /// Webhook route returns 503 Service Unavailable when this is `None` (AC-6).
+    /// Webhook route returns 503 Service Unavailable when this is `None`.
     pub trigger_engine: Option<TriggerEngineHandle>,
-    /// Path to `apollia.toml` — used by `POST /api/v1/triggers/reload` (STORY-073).
+    /// Path to `apollia.toml` — used by `POST /api/v1/triggers/reload`.
     ///
     /// `None` when the runtime was started without a config file (e.g. in unit tests).
     /// The reload route returns 503 when this is `None`.
@@ -73,19 +76,19 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// Registre HITL des approbations en attente — partagé entre routes et ORIAEngine.
     ///
     /// `ResumeHandler` appelle `pending_approvals.resolve()` pour débloquer
-    /// `execute_direct()` qui attend sur le oneshot channel (STORY-096).
+    /// `execute_direct()` qui attend sur le oneshot channel.
     /// `None` quand le HITL n'est pas configuré — `resume_task` logue un warning.
     pub pending_approvals: Option<Arc<PendingApprovals>>,
     /// Configuration des canaux de notification chargée depuis `apollia.toml`.
     ///
     /// Utilisée par `GET /api/v1/notifications/channels` et
-    /// `POST /api/v1/notifications/test` (STORY-104).
+    /// `POST /api/v1/notifications/test`.
     /// `None` si aucune section `[notifications]` n'est présente dans la config.
     pub notification_config: Option<NotificationConfig>,
-    /// Handle vers le `PipelineEngine` actor (STORY-119).
+    /// Handle vers le `PipelineEngine` actor.
     ///
     /// `None` quand aucun `[[pipelines]]` n'est déclaré dans `apollia.toml`.
-    /// Les routes REST pipelines (STORY-120) retournent 503 quand `None`.
+    /// Les routes REST pipelines retournent 503 quand `None`.
     pub pipeline_engine: Option<PipelineEngineHandle>,
     /// Factory for creating per-agent execution backends (ADR-019 extension).
     ///
@@ -102,43 +105,53 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` in production — opened by the Supervisor from `~/.apollia/audit.db`.
     /// `None` in tests — the `/api/v1/audit` routes return 503 when `None`.
     pub audit_trail: Option<AuditTrailHandle>,
-    /// Configuration de troncature pour l'observabilité des tâches (STORY-126).
+    /// Configuration de troncature pour l'observabilité des tâches.
     ///
     /// Passée aux `ExecutionCoordinator` pour la persistance input/output/transitions.
     pub obs_config: apollia_core::ObservabilityConfig,
-    /// Repository des appels LLM — agrégation coûts/tokens (STORY-143).
+    /// Repository des appels LLM — agrégation coûts/tokens.
     ///
     /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
     /// `None` en tests ou quand aucun backend LLM n'est configuré.
     pub llm_call_repository: Option<Arc<std::sync::Mutex<LlmCallRepository>>>,
-    /// Repository CRUD des définitions de triggers (STORY-187).
+    /// Repository CRUD des définitions de triggers.
     ///
     /// Ouvert par le Supervisor depuis `data_dir/triggers.db`.
-    /// Partagé entre le boot (lecture initiale) et les routes REST CRUD (STORY-189).
+    /// Partagé entre le boot (lecture initiale) et les routes REST CRUD.
     /// `None` en tests unitaires.
     pub trigger_def_repo: Option<Arc<std::sync::Mutex<TriggerDefinitionRepository>>>,
-    /// Repository CRUD des définitions de pipelines (STORY-187).
+    /// Repository CRUD des définitions de pipelines.
     ///
     /// Ouvert par le Supervisor depuis `data_dir/pipelines.db`.
-    /// Partagé entre le boot (lecture initiale) et les routes REST CRUD (STORY-190).
+    /// Partagé entre le boot (lecture initiale) et les routes REST CRUD.
     /// `None` en tests unitaires.
     pub pipeline_def_repo: Option<Arc<std::sync::Mutex<PipelineDefinitionRepository>>>,
-    /// Repository CRUD de la configuration des notifications (STORY-187).
+    /// Repository CRUD de la configuration des notifications.
     ///
     /// Ouvert par le Supervisor depuis `data_dir/notifications.db`.
-    /// Partagé entre le boot (lecture initiale) et les routes REST CRUD (STORY-191).
+    /// Partagé entre le boot (lecture initiale) et les routes REST CRUD.
     /// `None` en tests unitaires.
     pub notification_repo: Option<Arc<std::sync::Mutex<NotificationConfigRepository>>>,
-    /// Handle vers le [`NotificationEngine`] pour hot-reload après CRUD (STORY-191).
+    /// Handle vers le [`NotificationEngine`] pour hot-reload après CRUD.
     ///
     /// Permet aux routes REST de déclencher un rechargement des canaux après
     /// une mutation dans `notifications.db`. `None` en tests unitaires.
     pub notification_engine_handle: Option<NotificationEngineHandle>,
-    /// Handle to the [`ChatSessionManager`] actor (STORY-199).
+    /// Handle to the [`ChatSessionManager`] actor.
     ///
     /// `Some` after Phase 13 of the Supervisor startup sequence.
     /// `None` in tests or when the chat subsystem is not configured.
     pub chat_manager: Option<ChatSessionManagerHandle>,
+    /// ORIA plan cache repository — stores cached execution plans.
+    ///
+    /// `Some` when plan caching is enabled (SQLite `plan_cache.db` opened).
+    /// `None` in tests or when plan caching failed to initialize.
+    pub plan_cache: Option<Arc<std::sync::Mutex<PlanCacheRepository>>>,
+    /// Handle to the agent-to-agent mailbox actor.
+    ///
+    /// `Some` after the mailbox is spawned during startup.
+    /// `None` in tests or when A2A messaging is disabled.
+    pub mailbox_handle: Option<AgentMailboxHandle>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -166,6 +179,8 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             notification_repo: self.notification_repo.clone(),
             notification_engine_handle: self.notification_engine_handle.clone(),
             chat_manager: self.chat_manager.clone(),
+            plan_cache: self.plan_cache.clone(),
+            mailbox_handle: self.mailbox_handle.clone(),
         }
     }
 }
@@ -274,6 +289,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         get_session as chat_get_session, list_sessions, send_message, stream_session,
     };
     use super::routes_llm::llm_routes;
+    use super::routes_messages::list_agent_messages;
     use super::routes_notifications::{
         create_channel, delete_channel, get_events, list_channels, notification_logs, set_events,
         test_channels, update_channel,
@@ -282,6 +298,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         create_pipeline, delete_pipeline, get_pipeline, get_run, get_run_by_id, list_pipelines,
         list_runs, run_pipeline, update_pipeline,
     };
+    use super::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
     use super::routes_sse::stream_task;
     use super::routes_tasks::{cancel_task, get_task, list_tasks, resume_task, submit_task};
     use super::routes_timeline::get_task_timeline;
@@ -302,12 +319,12 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         )
         .route("/api/v1/tasks/:id/stream", get(stream_task::<B>))
         .route("/api/v1/tasks/:id/resume", post(resume_task::<B>))
-        // Timeline route (STORY-132)
+        // Timeline route
         .route("/api/v1/tasks/:id/timeline", get(get_task_timeline::<B>))
-        // Tool routes (STORY-011 Tool Registry)
+        // Tool routes
         .route("/api/v1/tools", get(list_tools::<B>))
         .route("/api/v1/tools/:name", get(describe_tool::<B>))
-        // Audit trail routes (STORY-016 AuditTrail)
+        // Audit trail routes
         .route("/api/v1/audit", get(list_audit::<B>))
         .route("/api/v1/audit/stats", get(get_audit_stats::<B>))
         .route(
@@ -318,6 +335,13 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             "/api/v1/agents/:id",
             get(get_agent::<B>).delete(stop_agent::<B>),
         )
+        .route(
+            "/api/v1/agents/:name/messages",
+            get(list_agent_messages::<B>),
+        )
+        // Plan cache routes
+        .route("/api/v1/plan-cache/stats", get(get_plan_cache_stats::<B>))
+        .route("/api/v1/plan-cache/clear", post(clear_plan_cache::<B>))
         .route("/webhooks/:id", post(handle_webhook::<B>))
         // HITL approval routes
         .route(
@@ -328,7 +352,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             "/api/v1/approvals/resolved",
             get(list_resolved_approvals::<B>),
         )
-        // Trigger routes (STORY-073 reload + STORY-074 status + STORY-189 CRUD)
+        // Trigger routes (reload + status + CRUD)
         .route(
             "/api/v1/triggers",
             get(list_triggers::<B>).post(create_trigger::<B>),
@@ -344,7 +368,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route("/api/v1/triggers/:id/enable", post(enable_trigger::<B>))
         .route("/api/v1/triggers/:id/disable", post(disable_trigger::<B>))
         .route("/api/v1/triggers/:id/logs", get(get_trigger_logs::<B>))
-        // Notification routes (STORY-104 + STORY-191 CRUD)
+        // Notification routes (CRUD)
         .route(
             "/api/v1/notifications/channels",
             get(list_channels::<B>).post(create_channel::<B>),
@@ -364,7 +388,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route("/api/v1/notifications/test", post(test_channels::<B>))
         .route("/api/v1/notifications/logs", get(notification_logs::<B>))
         .merge(llm_routes::<B>())
-        // Pipeline routes (STORY-120 + STORY-121 + STORY-190 CRUD)
+        // Pipeline routes (CRUD + run management)
         .route(
             "/api/v1/pipelines",
             get(list_pipelines::<B>).post(create_pipeline::<B>),
@@ -379,7 +403,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route("/api/v1/pipelines/:id/runs", get(list_runs::<B>))
         .route("/api/v1/pipelines/:id/runs/:run_id", get(get_run::<B>))
         .route("/api/v1/runs/:run_id", get(get_run_by_id::<B>))
-        // Chat session routes (STORY-199)
+        // Chat session routes
         .route(
             "/api/v1/sessions",
             get(list_sessions::<B>).post(create_session::<B>),
@@ -601,6 +625,8 @@ mod tests {
             notification_repo: None,
             notification_engine_handle: None,
             chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
         }
     }
 

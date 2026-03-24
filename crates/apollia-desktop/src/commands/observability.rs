@@ -1,4 +1,4 @@
-//! Commandes IPC Tauri pour la vue Observabilité (STORY-148).
+//! Commandes IPC Tauri pour la vue Observabilité.
 //!
 //! Trois commandes couvrant les 3 tabs de la vue :
 //! - `get_global_timeline` — événements runtime agrégés multi-tâches
@@ -9,10 +9,10 @@ use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use super::http_get_json;
+use super::{http_get_json, http_post_json};
 
 // ---------------------------------------------------------------------------
-// Global Timeline (AC-1, AC-2)
+// Global Timeline
 // ---------------------------------------------------------------------------
 
 /// Événement de la timeline globale pour l'affichage.
@@ -381,6 +381,95 @@ pub async fn get_llm_daily_costs(
 }
 
 // ---------------------------------------------------------------------------
+// Plan Cache Stats
+// ---------------------------------------------------------------------------
+
+/// Statistiques du cache de plans ORIA.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PlanCacheStatsView {
+    /// Nombre total d'entrées en cache.
+    pub total_entries: u32,
+    /// Nombre total de cache hits.
+    pub cache_hits: u64,
+    /// Nombre total de cache misses.
+    pub cache_misses: u64,
+    /// Taux de hit en pourcentage (0.0–100.0).
+    pub hit_rate_pct: f64,
+    /// Horodatage de l'entrée la plus ancienne, ou `null`.
+    pub oldest_entry_at: Option<String>,
+    /// Horodatage de l'entrée la plus récente, ou `null`.
+    pub newest_entry_at: Option<String>,
+}
+
+/// Résultat de l'opération de vidage du cache.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClearCacheResult {
+    /// Nombre d'entrées supprimées.
+    pub cleared_count: u32,
+}
+
+/// Retourne les statistiques du cache de plans ORIA.
+///
+/// Retourne des compteurs à zéro si le cache est vide ou désactivé.
+/// Délègue à `GET /api/v1/plan-cache/stats`.
+#[tauri::command]
+pub async fn get_plan_cache_stats(
+    state: State<'_, RuntimeHandle>,
+) -> Result<PlanCacheStatsView, String> {
+    get_plan_cache_stats_inner(state.api_port).await
+}
+
+/// Logique interne pour `get_plan_cache_stats`, testable sans Tauri State.
+async fn get_plan_cache_stats_inner(port: u16) -> Result<PlanCacheStatsView, String> {
+    let json = http_get_json(port, "/api/v1/plan-cache/stats")
+        .await
+        .map_err(|e| format!("get_plan_cache_stats: {e}"))?;
+
+    Ok(PlanCacheStatsView {
+        total_entries: json
+            .get("total_entries")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u32,
+        cache_hits: json.get("cache_hits").and_then(|v| v.as_u64()).unwrap_or(0),
+        cache_misses: 0,
+        hit_rate_pct: json
+            .get("hit_rate_pct")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0),
+        oldest_entry_at: json
+            .get("oldest_entry_at")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        newest_entry_at: json
+            .get("newest_entry_at")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+    })
+}
+
+/// Vide le cache de plans et retourne le nombre d'entrées supprimées.
+///
+/// Délègue à `POST /api/v1/plan-cache/clear`.
+#[tauri::command]
+pub async fn clear_plan_cache(state: State<'_, RuntimeHandle>) -> Result<ClearCacheResult, String> {
+    clear_plan_cache_inner(state.api_port).await
+}
+
+/// Logique interne pour `clear_plan_cache`, testable sans Tauri State.
+async fn clear_plan_cache_inner(port: u16) -> Result<ClearCacheResult, String> {
+    let json = http_post_json(port, "/api/v1/plan-cache/clear", &serde_json::json!({}))
+        .await
+        .map_err(|e| format!("clear_plan_cache: {e}"))?;
+
+    Ok(ClearCacheResult {
+        cleared_count: json
+            .get("cleared_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u32,
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -556,5 +645,63 @@ mod tests {
         assert_eq!(json["event_type"], "task");
         assert_eq!(json["summary"], "[agent-1] Task → working");
         assert_eq!(json["detail"]["status"], "working");
+    }
+
+    #[test]
+    fn test_plan_cache_stats_view_serializes_populated() {
+        // GIVEN a PlanCacheStatsView with data
+        let stats = PlanCacheStatsView {
+            total_entries: 42,
+            cache_hits: 128,
+            cache_misses: 30,
+            hit_rate_pct: 81.01,
+            oldest_entry_at: Some("2026-03-01T10:00:00Z".to_string()),
+            newest_entry_at: Some("2026-03-24T15:00:00Z".to_string()),
+        };
+
+        // WHEN serialized
+        let json = serde_json::to_value(&stats).expect("serialize");
+
+        // THEN all fields are present
+        assert_eq!(json["total_entries"], 42);
+        assert_eq!(json["cache_hits"], 128);
+        assert_eq!(json["cache_misses"], 30);
+        assert_eq!(json["hit_rate_pct"], 81.01);
+        assert_eq!(json["oldest_entry_at"], "2026-03-01T10:00:00Z");
+        assert_eq!(json["newest_entry_at"], "2026-03-24T15:00:00Z");
+    }
+
+    #[test]
+    fn test_plan_cache_stats_view_serializes_empty() {
+        // GIVEN an empty stats view
+        let stats = PlanCacheStatsView {
+            total_entries: 0,
+            cache_hits: 0,
+            cache_misses: 0,
+            hit_rate_pct: 0.0,
+            oldest_entry_at: None,
+            newest_entry_at: None,
+        };
+
+        // WHEN serialized
+        let json = serde_json::to_value(&stats).expect("serialize");
+
+        // THEN zero counters and null dates
+        assert_eq!(json["total_entries"], 0);
+        assert_eq!(json["cache_hits"], 0);
+        assert!(json["oldest_entry_at"].is_null());
+        assert!(json["newest_entry_at"].is_null());
+    }
+
+    #[test]
+    fn test_clear_cache_result_serializes() {
+        // GIVEN a clear result
+        let result = ClearCacheResult { cleared_count: 15 };
+
+        // WHEN serialized
+        let json = serde_json::to_value(&result).expect("serialize");
+
+        // THEN cleared_count is correct
+        assert_eq!(json["cleared_count"], 15);
     }
 }

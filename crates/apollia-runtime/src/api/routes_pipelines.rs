@@ -1,7 +1,7 @@
 //! REST routes for pipeline orchestration — `/api/v1/pipelines`.
 //!
-//! Implements CRUD endpoints for pipeline definitions (STORY-190) and
-//! run management endpoints (STORY-120/121):
+//! Implements CRUD endpoints for pipeline definitions and
+//! run management endpoints:
 //!
 //! | Method | Path                                  | Handler                |
 //! |--------|---------------------------------------|------------------------|
@@ -101,7 +101,7 @@ pub struct PipelineRunDetailResponse {
     pub ended_at: Option<String>,
 }
 
-// ── CRUD request types (STORY-190) ───────────────────────────────────────────
+// ── CRUD request types ───────────────────────────────────────────────────────
 
 /// Request body for `POST /api/v1/pipelines` — create a pipeline definition.
 #[derive(Debug, Deserialize)]
@@ -148,7 +148,7 @@ pub struct StepConditionInput {
     pub value: String,
 }
 
-// ── CRUD response types (STORY-190) ──────────────────────────────────────────
+// ── CRUD response types ───────────────────────────────────────────────────────
 
 /// Full pipeline definition response (returned by CRUD operations).
 #[derive(Debug, Serialize)]
@@ -503,7 +503,7 @@ fn row_to_response(row: PipelineDefinitionRow) -> PipelineDefinitionResponse {
     }
 }
 
-// ── CRUD Handlers (STORY-190) ────────────────────────────────────────────────
+// ── CRUD Handlers ────────────────────────────────────────────────────────────
 
 /// Handler for `POST /api/v1/pipelines` — create a pipeline definition.
 ///
@@ -976,6 +976,8 @@ mod tests {
             notification_repo: None,
             notification_engine_handle: None,
             chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
         }
     }
 
@@ -1008,6 +1010,8 @@ mod tests {
             notification_repo: None,
             notification_engine_handle: None,
             chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
         }
     }
 
@@ -1105,7 +1109,7 @@ mod tests {
         router.clone().oneshot(req).await.expect("request failed")
     }
 
-    // ── AC-1 — POST /api/v1/pipelines -> 201 ────────────────────────────────
+    // ── POST /api/v1/pipelines -> 201 ────────────────────────────────────────
 
     #[tokio::test]
     async fn test_create_pipeline_201() {
@@ -1128,7 +1132,7 @@ mod tests {
         assert!(!json["updated_at"].as_str().unwrap_or("").is_empty());
     }
 
-    // ── AC-2 — PUT /api/v1/pipelines/:id -> 200 ─────────────────────────────
+    // ── PUT /api/v1/pipelines/:id -> 200 ─────────────────────────────────────
 
     #[tokio::test]
     async fn test_update_pipeline_200() {
@@ -1161,7 +1165,7 @@ mod tests {
         assert_eq!(json["steps"][0]["id"], "new-step");
     }
 
-    // ── AC-3 — DELETE /api/v1/pipelines/:id -> 200 ───────────────────────────
+    // ── DELETE /api/v1/pipelines/:id -> 200 ───────────────────────────────────
 
     #[tokio::test]
     async fn test_delete_pipeline_200() {
@@ -1184,7 +1188,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
-    // ── AC-4 — GET /api/v1/pipelines/:id -> 200 ─────────────────────────────
+    // ── GET /api/v1/pipelines/:id -> 200 ─────────────────────────────────────
 
     #[tokio::test]
     async fn test_get_pipeline_200() {
@@ -1207,7 +1211,7 @@ mod tests {
         assert_eq!(json["steps"][1]["depends_on"][0], "step-a");
     }
 
-    // ── AC-5 — Validation cycle -> 422 ───────────────────────────────────────
+    // ── Validation cycle -> 422 ───────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_create_cycle_422() {
@@ -1238,7 +1242,7 @@ mod tests {
         );
     }
 
-    // ── AC-5 — Duplicate pipeline ID -> 409 ──────────────────────────────────
+    // ── Duplicate pipeline ID -> 409 ──────────────────────────────────────────
 
     #[tokio::test]
     async fn test_create_duplicate_409() {
@@ -1261,7 +1265,7 @@ mod tests {
         );
     }
 
-    // ── AC-7 — GET /api/v1/pipelines returns definitions ─────────────────────
+    // ── GET /api/v1/pipelines returns definitions ─────────────────────────────
 
     #[tokio::test]
     async fn test_list_returns_definitions() {

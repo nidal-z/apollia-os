@@ -203,6 +203,8 @@ mod tests {
             notification_repo: None,
             notification_engine_handle: None,
             chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
         };
 
         Router::new()
@@ -241,6 +243,8 @@ mod tests {
             notification_repo: None,
             notification_engine_handle: None,
             chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
         };
 
         Router::new()

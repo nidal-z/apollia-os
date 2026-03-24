@@ -50,13 +50,13 @@ pub struct AuditEventResponse {
     pub exit_code: Option<i32>,
     pub success: bool,
     pub error_code: Option<String>,
-    /// Arguments JSON complets de l'invocation (STORY-128).
+    /// Arguments JSON complets de l'invocation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub args_json: Option<String>,
-    /// Sortie standard de l'outil, potentiellement tronquée (STORY-128).
+    /// Sortie standard de l'outil, potentiellement tronquée.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stdout: Option<String>,
-    /// Sortie d'erreur de l'outil, potentiellement tronquée (STORY-128).
+    /// Sortie d'erreur de l'outil, potentiellement tronquée.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stderr: Option<String>,
 }
@@ -237,6 +237,8 @@ mod tests {
             notification_repo: None,
             notification_engine_handle: None,
             chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
         }
     }
 
@@ -260,7 +262,7 @@ mod tests {
         }
     }
 
-    // AC-1 — GET /api/v1/audit returns events list
+    // GET /api/v1/audit returns events list
     #[tokio::test]
     async fn test_list_audit_returns_events() {
         // GIVEN an audit trail with 2 records
@@ -287,7 +289,7 @@ mod tests {
         assert!(json["events"].as_array().unwrap().len() == 2);
     }
 
-    // AC-2 — GET /api/v1/audit/stats returns aggregate counts
+    // GET /api/v1/audit/stats returns aggregate counts
     #[tokio::test]
     async fn test_audit_stats_returns_counts() {
         // GIVEN an audit trail with records from 2 different agents and 2 tools
@@ -319,7 +321,7 @@ mod tests {
         assert_eq!(json["unique_agents"].as_u64().unwrap(), 2);
     }
 
-    // AC-3 — GET /api/v1/audit returns 503 when audit trail is not configured
+    // GET /api/v1/audit returns 503 when audit trail is not configured
     #[tokio::test]
     async fn test_list_audit_returns_503_when_not_configured() {
         // GIVEN no audit trail in AppState
@@ -337,7 +339,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
-    // AC-4 — limit is capped at 500
+    // limit is capped at 500
     #[tokio::test]
     async fn test_list_audit_limit_is_capped() {
         // GIVEN an empty audit trail

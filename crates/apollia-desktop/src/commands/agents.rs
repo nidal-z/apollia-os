@@ -242,7 +242,7 @@ pub async fn stop_agent(runtime: State<'_, RuntimeHandle>, agent_id: String) -> 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Commandes de persistance (STORY-181)
+// Commandes de persistance
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Installe un agent de façon permanente depuis un fichier Python (AC-1).
@@ -547,6 +547,93 @@ pub async fn update_agent(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Agent messages
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Message échangé entre deux agents.
+#[derive(Debug, Serialize)]
+pub struct AgentMessageView {
+    /// Nom de l'agent émetteur.
+    pub from_agent: String,
+    /// Nom de l'agent destinataire.
+    pub to_agent: String,
+    /// Contenu JSON du message.
+    pub payload: serde_json::Value,
+    /// Horodatage d'envoi (RFC 3339).
+    pub sent_at: String,
+}
+
+/// Plafond maximal de messages retournés.
+const MAX_MESSAGE_LIMIT: u32 = 200;
+/// Limite par défaut si non spécifiée ou invalide.
+const DEFAULT_MESSAGE_LIMIT: u32 = 50;
+
+/// Retourne les messages reçus par un agent, triés par `sent_at` descendant.
+///
+/// Le `limit` est plafonné à 200 ; si `<= 0` ou non fourni, la valeur par
+/// défaut (50) s'applique. Délègue à `GET /api/v1/agents/{name}/messages`.
+#[tauri::command]
+pub async fn list_agent_messages(
+    runtime: State<'_, RuntimeHandle>,
+    agent_name: String,
+    limit: u32,
+) -> Result<Vec<AgentMessageView>, String> {
+    list_agent_messages_inner(runtime.api_port, &agent_name, limit).await
+}
+
+/// Logique interne pour `list_agent_messages`, testable sans Tauri State.
+async fn list_agent_messages_inner(
+    port: u16,
+    agent_name: &str,
+    limit: u32,
+) -> Result<Vec<AgentMessageView>, String> {
+    let effective = if limit == 0 {
+        DEFAULT_MESSAGE_LIMIT
+    } else if limit > MAX_MESSAGE_LIMIT {
+        MAX_MESSAGE_LIMIT
+    } else {
+        limit
+    };
+
+    let path = format!("/api/v1/agents/{agent_name}/messages?limit={effective}");
+    match super::http_get_json(port, &path).await {
+        Ok(json) => {
+            let messages = json
+                .get("messages")
+                .and_then(|v| v.as_array())
+                .cloned()
+                .unwrap_or_default();
+
+            let views: Vec<AgentMessageView> = messages
+                .into_iter()
+                .map(|m| AgentMessageView {
+                    from_agent: m
+                        .get("from_agent")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    to_agent: m
+                        .get("to_agent")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    payload: m.get("payload").cloned().unwrap_or(serde_json::Value::Null),
+                    sent_at: m
+                        .get("sent_at")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                })
+                .collect();
+
+            Ok(views)
+        }
+        Err(e) if e.contains("404") => Ok(vec![]),
+        Err(e) => Err(format!("list_agent_messages: {e}")),
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -678,5 +765,33 @@ mod tests {
         assert!(json["installed_at"].is_null());
         assert_eq!(json["runtime_status"], "active");
         assert!(json["install_path"].is_null());
+    }
+
+    #[test]
+    fn test_agent_message_view_serializes() {
+        // GIVEN an AgentMessageView
+        let view = AgentMessageView {
+            from_agent: "agent-a".to_string(),
+            to_agent: "agent-b".to_string(),
+            payload: serde_json::json!({"data": "hello"}),
+            sent_at: "2026-03-24T10:00:00Z".to_string(),
+        };
+
+        // WHEN serialized
+        let json = serde_json::to_value(&view).expect("serialize");
+
+        // THEN all fields are present
+        assert_eq!(json["from_agent"], "agent-a");
+        assert_eq!(json["to_agent"], "agent-b");
+        assert_eq!(json["payload"]["data"], "hello");
+        assert_eq!(json["sent_at"], "2026-03-24T10:00:00Z");
+    }
+
+    #[test]
+    fn test_message_limit_constants() {
+        // GIVEN the limit constants
+        // THEN they have expected values
+        assert_eq!(MAX_MESSAGE_LIMIT, 200);
+        assert_eq!(DEFAULT_MESSAGE_LIMIT, 50);
     }
 }

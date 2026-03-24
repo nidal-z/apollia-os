@@ -3,14 +3,14 @@
 //! Expose les opérations CRUD sur les triggers via l'API REST du runtime :
 //! - `GET    /api/v1/triggers`              — liste de tous les triggers
 //! - `GET    /api/v1/triggers/:id`          — définition complète + statut runtime
-//! - `POST   /api/v1/triggers`              — créer un trigger (STORY-189)
-//! - `PUT    /api/v1/triggers/:id`          — modifier un trigger (STORY-189)
-//! - `DELETE /api/v1/triggers/:id`          — supprimer un trigger (STORY-189)
-//! - `POST   /api/v1/triggers/:id/fire`     — déclenchement immédiat (STORY-074)
-//! - `POST   /api/v1/triggers/:id/enable`   — activation (STORY-074)
-//! - `POST   /api/v1/triggers/:id/disable`  — désactivation (STORY-074)
-//! - `GET    /api/v1/triggers/:id/logs`     — historique SQLite (STORY-074)
-//! - `POST   /api/v1/triggers/reload`       — hot reload depuis SQLite (STORY-189)
+//! - `POST   /api/v1/triggers`              — créer un trigger
+//! - `PUT    /api/v1/triggers/:id`          — modifier un trigger
+//! - `DELETE /api/v1/triggers/:id`          — supprimer un trigger
+//! - `POST   /api/v1/triggers/:id/fire`     — déclenchement immédiat
+//! - `POST   /api/v1/triggers/:id/enable`   — activation
+//! - `POST   /api/v1/triggers/:id/disable`  — désactivation
+//! - `GET    /api/v1/triggers/:id/logs`     — historique SQLite
+//! - `POST   /api/v1/triggers/reload`       — hot reload depuis SQLite
 //!
 //! **Codes de retour partagés :**
 //! - `503` — `TriggerEngine` ou repository non disponible.
@@ -35,7 +35,7 @@ use apollia_triggers::{
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 
-// ─── Request types (STORY-189) ───────────────────────────────────────────
+// ─── Request types ───────────────────────────────────────────────────────
 
 /// Corps de requête pour `POST /api/v1/triggers` — création d'un trigger.
 #[derive(Debug, Deserialize)]
@@ -312,7 +312,7 @@ fn source_kind_and_detail(source: &apollia_triggers::TriggerSourceConfig) -> (St
     }
 }
 
-// ─── CRUD Handlers (STORY-189) ───────────────────────────────────────────
+// ─── CRUD Handlers ───────────────────────────────────────────────────────
 
 /// `POST /api/v1/triggers` — créer une nouvelle définition de trigger.
 ///
@@ -479,7 +479,7 @@ pub async fn get_trigger_by_id<B: ExecutionBackend + Clone>(
     Ok(Json(row_to_response(row)))
 }
 
-// ─── Handlers STORY-074 (existants) ──────────────────────────────────────
+// ─── Trigger Action Handlers ──────────────────────────────────────────────
 
 /// `GET /api/v1/triggers` — liste de tous les triggers avec leur statut.
 pub async fn list_triggers<B: ExecutionBackend + Clone>(
@@ -707,7 +707,7 @@ pub async fn get_trigger_logs<B: ExecutionBackend + Clone>(
     Json(LogsResponse { entries }).into_response()
 }
 
-// ─── Reload Handler (STORY-189 — modifié pour lire depuis SQLite) ────────
+// ─── Reload Handler ───────────────────────────────────────────────────────
 
 /// Handler axum pour `POST /api/v1/triggers/reload`.
 ///
@@ -872,6 +872,8 @@ mod tests {
             notification_repo: None,
             notification_engine_handle: None,
             chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
         }
     }
 
@@ -919,7 +921,7 @@ mod tests {
         serde_json::from_slice(&bytes).expect("parse JSON")
     }
 
-    // ── AC-1 — POST /api/v1/triggers → 201 ─────────────────────────────
+    // ── POST /api/v1/triggers → 201 ─────────────────────────────────────
 
     #[tokio::test]
     async fn test_create_trigger_201() {
@@ -947,7 +949,7 @@ mod tests {
         assert!(json["created_at"].as_str().is_some_and(|s| !s.is_empty()));
     }
 
-    // ── AC-2 — PUT /api/v1/triggers/:id → 200 ──────────────────────────
+    // ── PUT /api/v1/triggers/:id → 200 ──────────────────────────────────
 
     #[tokio::test]
     async fn test_update_trigger_200() {
@@ -994,7 +996,7 @@ mod tests {
         );
     }
 
-    // ── AC-3 — DELETE /api/v1/triggers/:id → 200 ────────────────────────
+    // ── DELETE /api/v1/triggers/:id → 200 ────────────────────────────────
 
     #[tokio::test]
     async fn test_delete_trigger_200() {
@@ -1027,7 +1029,7 @@ mod tests {
         assert_eq!(json["deleted"], "rapport-hebdo");
     }
 
-    // ── AC-4 — GET /api/v1/triggers/:id → 200 ──────────────────────────
+    // ── GET /api/v1/triggers/:id → 200 ──────────────────────────────────
 
     #[tokio::test]
     async fn test_get_trigger_200() {
@@ -1064,7 +1066,7 @@ mod tests {
         assert_eq!(json["on_busy"], "queue");
     }
 
-    // ── AC-5 — Cron invalide → 422 ─────────────────────────────────────
+    // ── Cron invalide → 422 ─────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_create_invalid_cron_422() {
@@ -1093,7 +1095,7 @@ mod tests {
         );
     }
 
-    // ── AC-6 — Duplicate ID → 409 ──────────────────────────────────────
+    // ── Duplicate ID → 409 ──────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_create_duplicate_409() {
@@ -1131,7 +1133,7 @@ mod tests {
         );
     }
 
-    // ── AC-7 — ID inexistant → 404 ─────────────────────────────────────
+    // ── ID inexistant → 404 ─────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_update_not_found_404() {
@@ -1168,7 +1170,7 @@ mod tests {
         );
     }
 
-    // ── AC-8 — Reload depuis SQLite ─────────────────────────────────────
+    // ── Reload depuis SQLite ─────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_reload_from_sqlite() {
@@ -1237,6 +1239,8 @@ mod tests {
             notification_repo: None,
             notification_engine_handle: None,
             chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
         };
 
         let router = Router::new()

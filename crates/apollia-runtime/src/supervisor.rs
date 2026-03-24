@@ -70,9 +70,9 @@ pub struct SupervisorConfig {
     /// Optional LLM configuration parsed from the `[llm]` section of `apollia.toml`.
     ///
     /// `None` disables the LLM layer entirely — the runtime starts normally and
-    /// agents receive `ctx.llm = None` (see STORY-059). No error is raised.
+    /// agents receive `ctx.llm = None`. No error is raised.
     pub llm_config: Option<LlmConfig>,
-    /// Path to `apollia.toml` — injected into [`AppState`] for hot reload (STORY-073).
+    /// Path to `apollia.toml` — injected into [`AppState`] for hot reload.
     ///
     /// `None` when the runtime starts without a config file (e.g. tests, `apollia-os start`
     /// without a config file). The `POST /api/v1/triggers/reload` route returns 503 when absent.
@@ -80,21 +80,21 @@ pub struct SupervisorConfig {
     /// Durée (en heures) au-delà de laquelle une tâche `input_required` est annulée.
     ///
     /// Configurable via `[runtime] input_required_timeout_hours` dans `apollia.toml`.
-    /// Le `TimeoutWatcher` (STORY-098) utilise cette valeur. Défaut : 24 heures.
+    /// Le `TimeoutWatcher` utilise cette valeur. Défaut : 24 heures.
     /// Ignoré si `AppState.task_repository` est `None`.
     pub input_required_timeout_hours: u64,
     /// Répertoire de données du runtime (ex: `~/.apollia/`).
     ///
     /// Utilisé pour localiser les bases SQLite (`triggers.db`, `pipelines.db`,
     /// `notifications.db`, etc.). Doit exister et être accessible en écriture.
-    /// Sert de `base_dir` pour l'ouverture des repositories au boot (STORY-187).
+    /// Sert de `base_dir` pour l'ouverture des repositories au boot.
     pub data_dir: std::path::PathBuf,
     /// Configuration d'observabilité (limites de troncature, flags debug).
     ///
     /// Injectée dans `AppState`, `TriggerEngine`, et `LlmCallRepository`.
     /// Par défaut : `ObservabilityConfig::default()` (32 KB max input/output).
     pub obs_config: apollia_core::ObservabilityConfig,
-    /// Repository des agents installés (STORY-179).
+    /// Repository des agents installés.
     ///
     /// `Some` → l'auto-load est activé au boot : les agents `enabled` sont
     /// chargés via `AgentLoader`, validés et enregistrés dans `AgentRegistry`.
@@ -116,51 +116,60 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     pub router_handle: TaskRouterHandle<B>,
     /// Handle to the API server.
     pub api_handle: APIServerHandle,
-    /// LLM router initialized at position 5 of the startup sequence (STORY-060).
+    /// LLM router initialized at position 5 of the startup sequence.
     ///
     /// `None` when no `[llm]` section is present in `apollia.toml`, or when
     /// `LlmRouter::from_config_with_bus` fails (warning logged, runtime continues).
     pub llm_router: Option<Arc<LlmRouter>>,
-    /// Handle to the TriggerEngine actor at position 6 of the startup sequence (STORY-072).
+    /// Handle to the TriggerEngine actor at position 6 of the startup sequence.
     ///
-    /// Always `Some` after successful startup — even when `config.triggers` is empty
-    /// (AC-3). Injected into `AppState` so webhook routes and CLI commands can reach it.
+    /// Always `Some` after successful startup — even when `config.triggers` is empty.
+    /// Injected into `AppState` so webhook routes and CLI commands can reach it.
     pub trigger_engine: TriggerEngineHandle,
-    /// Handle to the PipelineEngine actor (STORY-119).
+    /// Handle to the PipelineEngine actor.
     ///
     /// `None` when `config.pipelines` is empty — the runtime starts normally without
-    /// pipeline support (AC-3). `Some` when at least one pipeline is defined.
+    /// pipeline support. `Some` when at least one pipeline is defined.
     pub pipeline_engine: Option<PipelineEngineHandle>,
-    /// Handle to the AuditTrail actor (STORY-016).
+    /// Handle to the AuditTrail actor.
     ///
     /// `None` when the data directory is unavailable or the SQLite open fails
     /// (warning logged, runtime continues without audit). `Some` in production.
     pub audit_trail: Option<AuditTrailHandle>,
-    /// HITL task repository — persists `input_required` prompts/contexts (STORY-094).
+    /// HITL task repository — persists `input_required` prompts/contexts.
     ///
     /// Shared between `AppState` (resume handler) and `TimeoutWatcher`.
     /// `None` when the SQLite open fails (warning logged, HITL disabled).
     pub task_repository: Option<Arc<TaskRepository>>,
-    /// HITL pending approvals registry — oneshot channels for Mode Direct suspension (STORY-096).
+    /// HITL pending approvals registry — oneshot channels for Mode Direct suspension.
     ///
     /// `None` when `task_repository` is `None` (HITL disabled).
     pub pending_approvals: Option<Arc<apollia_core::PendingApprovals>>,
-    /// Handle to the NotificationEngine actor (STORY-102).
+    /// Handle to the NotificationEngine actor.
     ///
     /// `None` when no `[notifications]` section is present in `apollia.toml`.
     /// Used by [`ShutdownController`] to stop the engine before the EventBus closes,
     /// preventing late notifications from being delivered after `apollia-os stop`.
     pub notification_engine: Option<NotificationEngineHandle>,
-    /// Repository des appels LLM — agrégation coûts/tokens (STORY-143).
+    /// Repository des appels LLM — agrégation coûts/tokens.
     ///
     /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
     /// Partagé entre `AppState` (route REST costs) et le subscriber EventBus.
     pub llm_call_repository: Option<Arc<std::sync::Mutex<LlmCallRepository>>>,
-    /// Handle to the [`ChatSessionManager`] actor (STORY-199).
+    /// Handle to the [`ChatSessionManager`] actor.
     ///
     /// `Some` after Phase 13 of the Supervisor startup sequence.
     /// `None` when the chat subsystem failed to start (warning logged).
     pub chat_manager: Option<crate::chat::ChatSessionManagerHandle>,
+    /// ORIA plan cache repository — stores cached execution plans.
+    ///
+    /// `Some` when `plan_cache.db` opened successfully.
+    /// `None` when the open failed (warning logged, caching disabled).
+    pub plan_cache: Option<Arc<std::sync::Mutex<apollia_oria::plan_cache::PlanCacheRepository>>>,
+    /// Handle to the agent-to-agent mailbox actor.
+    ///
+    /// Always `Some` after startup — the mailbox is lightweight and always spawned.
+    pub mailbox_handle: Option<crate::mailbox::AgentMailboxHandle>,
 }
 
 /// Supervisor errors.
@@ -354,7 +363,7 @@ impl Supervisor {
 
         // Phase 6 (pos 7): TriggerEngine — démarré après TaskRouter (besoin du submitter)
         info!("Supervisor: starting TriggerEngine");
-        // Ouvre le repository de définitions de triggers depuis SQLite (STORY-187).
+        // Ouvre le repository de définitions de triggers depuis SQLite.
         let trigger_def_db_path = self.config.data_dir.join("triggers_def.db");
         let trigger_def_repo =
             TriggerDefinitionRepository::open(&trigger_def_db_path).map_err(|e| {
@@ -418,9 +427,9 @@ impl Supervisor {
             count: enabled_count,
         });
 
-        // Phase 7 (pos 8): PipelineEngine — chargement depuis SQLite (STORY-187).
+        // Phase 7 (pos 8): PipelineEngine — chargement depuis SQLite.
         //
-        // NOTE(STORY-119): PipelineEngine démarre APRÈS TaskRouter (et non en position 8
+        // PipelineEngine démarre APRÈS TaskRouter (et non en position 8
         // théorique de la spec) pour résoudre la dépendance circulaire :
         // PipelineEngine → TaskSubmitter → TaskRouterHandle.
         info!("Supervisor: starting PipelineEngine");
@@ -502,7 +511,7 @@ impl Supervisor {
 
         // Phase 9 (pos 10): APIServer
         info!("Supervisor: starting APIServer");
-        // Open TaskRepository (HITL persistence — STORY-094/095).
+        // Open TaskRepository (HITL persistence).
         // Shared between AppState (resume handler) and TimeoutWatcher.
         let task_repository: Option<Arc<TaskRepository>> = {
             let db_path = self.config.data_dir.join("hitl.db");
@@ -517,11 +526,11 @@ impl Supervisor {
                 }
             }
         };
-        // PendingApprovals — oneshot channel registry for HITL suspension (STORY-096).
+        // PendingApprovals — oneshot channel registry for HITL suspension.
         let pending_approvals: Option<Arc<PendingApprovals>> = task_repository
             .as_ref()
             .map(|_| Arc::new(PendingApprovals::new()));
-        // Phase 11-prep: open NotificationConfigRepository from SQLite (STORY-187).
+        // open NotificationConfigRepository from SQLite.
         let notif_db_path = self.config.data_dir.join("notifications.db");
         let notification_repo =
             NotificationConfigRepository::open(&notif_db_path).map_err(|e| {
@@ -561,7 +570,7 @@ impl Supervisor {
         let notification_config_for_engine = notification_config_from_db.clone();
         let notification_repo = Arc::new(std::sync::Mutex::new(notification_repo));
 
-        // Phase 11-early: NotificationEngine — spawné avant AppState pour passer le handle (STORY-191).
+        // NotificationEngine — spawné avant AppState pour passer le handle.
         let notification_engine: Option<NotificationEngineHandle> =
             if let Some(ref notif_config) = notification_config_for_engine {
                 let channels = build_channels(&notif_config.channels)
@@ -583,6 +592,27 @@ impl Supervisor {
                 );
                 None
             };
+
+        // Phase 12b: PlanCacheRepository — opened before APIServer for REST stats/clear.
+        let plan_cache: Option<
+            Arc<std::sync::Mutex<apollia_oria::plan_cache::PlanCacheRepository>>,
+        > = {
+            let db_path = self.config.data_dir.join("plan_cache.db");
+            match apollia_oria::plan_cache::PlanCacheRepository::open(&db_path) {
+                Ok(repo) => {
+                    info!("Supervisor: PlanCacheRepository ready");
+                    Some(Arc::new(std::sync::Mutex::new(repo)))
+                }
+                Err(e) => {
+                    warn!(error = %e, "PlanCacheRepository failed to open — plan caching disabled");
+                    None
+                }
+            }
+        };
+
+        // Phase 12c: AgentMailbox — lightweight actor, always spawned.
+        let mailbox_handle = crate::mailbox::AgentMailboxHandle::spawn(event_sender.clone());
+        info!("Supervisor: AgentMailbox ready");
 
         // Phase 13: ChatSessionManager — spawned before APIServer to inject handle into AppState.
         info!("Supervisor: starting ChatSessionManager");
@@ -610,7 +640,7 @@ impl Supervisor {
                 }
             };
 
-        // Clone handles before moving into AppState — needed for auto-load (STORY-179).
+        // Clone handles before moving into AppState — needed for auto-load.
         let agent_loader_for_autoload = agent_loader.clone();
         let backend_factory_for_autoload = backend_factory.clone();
         let backend_for_autoload = backend.clone();
@@ -637,6 +667,8 @@ impl Supervisor {
             notification_repo: Some(notification_repo.clone()),
             notification_engine_handle: notification_engine.clone(),
             chat_manager: chat_manager.clone(),
+            plan_cache: plan_cache.clone(),
+            mailbox_handle: Some(mailbox_handle.clone()),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -669,7 +701,7 @@ impl Supervisor {
         };
         info!("Supervisor: APIServer ready");
 
-        // Phase 8 (pos 9): TimeoutWatcher — démarré si task_repository est configuré (STORY-098)
+        // Phase 8 (pos 9): TimeoutWatcher — démarré si task_repository est configuré
         if let Some(ref repo) = task_repository {
             info!("Supervisor: starting TimeoutWatcher");
             let watcher = TimeoutWatcher::new(
@@ -693,7 +725,7 @@ impl Supervisor {
         // Drain the AllReady event from the startup receiver
         drain_until_all_ready(&mut startup_rx, timeout).await;
 
-        // Phase 11: Auto-load installed agents (STORY-179)
+        // Phase 11: Auto-load installed agents
         //
         // After AllReady, load all enabled agents from the repository,
         // validate via AgentLoader, register in AgentRegistry, transition to
@@ -810,6 +842,8 @@ impl Supervisor {
             notification_engine,
             llm_call_repository,
             chat_manager,
+            plan_cache,
+            mailbox_handle: Some(mailbox_handle),
         })
     }
 }
@@ -1265,7 +1299,7 @@ mod tests {
         // GIVEN / WHEN
         let specs = default_child_specs();
 
-        // THEN 7 specs sont retournees dans l'ordre (TriggerEngine ajouté en STORY-072)
+        // THEN 7 specs sont retournees dans l'ordre
         assert_eq!(specs.len(), 7);
         assert_eq!(specs[0].name, "event_bus");
         assert_eq!(specs[1].name, "agent_registry");
@@ -1282,7 +1316,7 @@ mod tests {
         assert_eq!(specs[6].restart_policy, RestartPolicy::OnFailure);
     }
 
-    // AC-2 — Supervisor starts successfully with llm_config = None
+    // Supervisor starts successfully with llm_config = None
     #[tokio::test]
     async fn test_ac2_start_without_llm_config_succeeds() {
         // GIVEN un Supervisor sans section [llm]
@@ -1334,7 +1368,7 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    // AC-4 — AppState clone preserves llm_router = None
+    // AppState clone preserves llm_router = None
     #[tokio::test]
     async fn test_app_state_clone_with_llm_router_none() {
         use crate::eventbus::EventBus;
@@ -1369,6 +1403,8 @@ mod tests {
             notification_repo: None,
             notification_engine_handle: None,
             chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
         };
 
         // WHEN on clone l'AppState
@@ -1381,7 +1417,7 @@ mod tests {
         );
     }
 
-    // AC-3 (STORY-072) — Supervisor démarre avec 0 triggers ; TriggerEngine toujours présent
+    // Supervisor démarre avec 0 triggers ; TriggerEngine toujours présent
     #[tokio::test]
     async fn test_ac3_supervisor_starts_with_zero_triggers() {
         // GIVEN une config sans triggers
@@ -1437,7 +1473,7 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    // AC-4 (STORY-102) — Supervisor démarre sans section [notifications] sans erreur
+    // Supervisor démarre sans section [notifications] sans erreur
     #[tokio::test]
     async fn test_ac4_no_notifications_section_starts_ok() {
         // GIVEN une config sans section [notifications]
@@ -1490,7 +1526,7 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    // AC-4 (STORY-072 / STORY-187) — Triggers chargés depuis SQLite au boot
+    // Triggers chargés depuis SQLite au boot
     #[tokio::test]
     async fn test_ac4_trigger_engine_loads_from_sqlite() {
         use apollia_triggers::{TriggerDefinitionRepository, TriggerDefinitionRow};
@@ -1562,7 +1598,7 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    // AC-9 (STORY-187) — Boot avec DBs vides crée les bases et démarre sans erreur
+    // Boot avec DBs vides crée les bases et démarre sans erreur
     #[tokio::test]
     async fn test_story187_boot_empty_dbs() {
         // GIVEN un répertoire vide (aucune DB pré-existante)
@@ -1604,7 +1640,7 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    // AC-7 (STORY-187) — AppState contient les 3 repositories après boot
+    // AppState contient les 3 repositories après boot
     #[tokio::test]
     async fn test_story187_appstate_contains_repos() {
         // GIVEN un Supervisor avec répertoire vide
@@ -1661,7 +1697,7 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    // AC-3 (STORY-119) — Aucun pipeline défini → PipelineEngine non démarré, pas d'erreur
+    // Aucun pipeline défini → PipelineEngine non démarré, pas d'erreur
     #[tokio::test]
     async fn test_ac3_no_pipelines_no_engine() {
         // GIVEN une config sans section [[pipelines]]
@@ -1719,7 +1755,7 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
-    // ── STORY-179 — Auto-load installed agents at boot ──────────────────────
+    // ── Auto-load installed agents at boot ──────────────────────
 
     /// Creates a test [`AgentManifest`] with minimal fields.
     fn test_manifest(name: &str) -> apollia_core::AgentManifest {
@@ -1795,7 +1831,7 @@ mod tests {
         let _ = std::fs::remove_file(socket_path);
     }
 
-    // AC-1 — Les agents enabled sont chargés au boot
+    // Les agents enabled sont chargés au boot
     #[tokio::test]
     async fn test_autoload_enabled_agents() {
         // GIVEN 3 agents installés dont 2 enabled
@@ -1836,7 +1872,7 @@ mod tests {
         shutdown_handles(handles, &socket_path).await;
     }
 
-    // AC-1 — Les agents disabled sont ignorés
+    // Les agents disabled sont ignorés
     #[tokio::test]
     async fn test_autoload_skips_disabled() {
         // GIVEN 2 agents dont 1 disabled
@@ -1875,7 +1911,7 @@ mod tests {
         shutdown_handles(handles, &socket_path).await;
     }
 
-    // AC-2 — Un agent en erreur ne bloque pas le boot
+    // Un agent en erreur ne bloque pas le boot
     #[tokio::test]
     async fn test_autoload_corrupted_agent_continues() {
         // GIVEN 2 agents enabled dont 1 avec un fichier "corrompu"
@@ -1916,7 +1952,7 @@ mod tests {
         shutdown_handles(handles, &socket_path).await;
     }
 
-    // AC-3 — Aucun agent installé = boot normal
+    // Aucun agent installé = boot normal
     #[tokio::test]
     async fn test_autoload_no_agents_no_error() {
         // GIVEN une base vide
@@ -1951,7 +1987,7 @@ mod tests {
         shutdown_handles(handles, &socket_path).await;
     }
 
-    // AC-4 — agent_repository = None → auto-load skippé
+    // agent_repository = None → auto-load skippé
     #[tokio::test]
     async fn test_autoload_none_repository_skips() {
         // GIVEN une config sans agent_repository

@@ -1,4 +1,4 @@
-//! Agent-to-agent messaging via an in-memory mailbox actor (STORY-235).
+//! Agent-to-agent messaging via an in-memory mailbox actor.
 //!
 //! Each agent has a bounded queue of messages (`VecDeque<AgentMessage>`, max 100).
 //! The actor follows the same Tokio `mpsc` + clonable handle pattern used by
@@ -55,6 +55,11 @@ enum MailboxMessage {
     PendingCount {
         agent_name: String,
         reply: oneshot::Sender<usize>,
+    },
+    ListMessages {
+        agent_name: String,
+        limit: usize,
+        reply: oneshot::Sender<Vec<AgentMessage>>,
     },
     Shutdown,
 }
@@ -129,6 +134,26 @@ impl AgentMailboxHandle {
         reply_rx.await.unwrap_or(0)
     }
 
+    /// Returns up to `limit` messages for `agent_name`, most recent first.
+    ///
+    /// The messages are cloned from the queue without consuming them.
+    /// Returns an empty `Vec` if the agent has no pending messages.
+    pub async fn list_messages(&self, agent_name: &str, limit: usize) -> Vec<AgentMessage> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let sent = self
+            .tx
+            .send(MailboxMessage::ListMessages {
+                agent_name: agent_name.to_owned(),
+                limit,
+                reply: reply_tx,
+            })
+            .await;
+        if sent.is_err() {
+            return Vec::new();
+        }
+        reply_rx.await.unwrap_or_default()
+    }
+
     /// Shuts down the mailbox actor gracefully.
     pub async fn shutdown(&self) {
         let _ = self.tx.send(MailboxMessage::Shutdown).await;
@@ -197,6 +222,17 @@ async fn run_mailbox_actor(mut rx: mpsc::Receiver<MailboxMessage>, event_bus: Ev
                 let count = queues.get(&agent_name).map_or(0, |q| q.len());
                 let _ = reply.send(count);
             }
+            MailboxMessage::ListMessages {
+                agent_name,
+                limit,
+                reply,
+            } => {
+                let messages = queues
+                    .get(&agent_name)
+                    .map(|q| q.iter().rev().take(limit).cloned().collect::<Vec<_>>())
+                    .unwrap_or_default();
+                let _ = reply.send(messages);
+            }
             MailboxMessage::Shutdown => {
                 break;
             }
@@ -248,7 +284,7 @@ mod tests {
     use super::*;
     use crate::eventbus::EventBus;
 
-    /// AC-1: Agent A sends to Agent B, Agent B receives the message.
+    /// Agent A sends to Agent B, Agent B receives the message.
     #[tokio::test]
     async fn test_send_and_receive_message() {
         // GIVEN
@@ -274,7 +310,7 @@ mod tests {
         handle.shutdown().await;
     }
 
-    /// AC-2: Receive with timeout returns None when no message is pending.
+    /// Receive with timeout returns None when no message is pending.
     #[tokio::test]
     async fn test_receive_timeout_returns_none() {
         // GIVEN
@@ -290,7 +326,7 @@ mod tests {
         handle.shutdown().await;
     }
 
-    /// AC-3: Queue overflow returns MailboxError::QueueFull.
+    /// Queue overflow returns MailboxError::QueueFull.
     #[tokio::test]
     async fn test_queue_full_returns_error() {
         // GIVEN
@@ -325,7 +361,7 @@ mod tests {
         handle.shutdown().await;
     }
 
-    /// AC-4: AgentMessageSent event is emitted on successful send.
+    /// AgentMessageSent event is emitted on successful send.
     #[tokio::test]
     async fn test_send_emits_event() {
         // GIVEN

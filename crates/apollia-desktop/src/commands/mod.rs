@@ -16,6 +16,7 @@ pub mod notifications;
 pub mod observability;
 pub mod pipelines;
 pub mod tasks;
+pub mod tools;
 pub mod triggers;
 
 use http_body_util::{BodyExt, Full};

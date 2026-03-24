@@ -341,7 +341,7 @@ pub struct DailyCostsResponse {
 /// Handler for `GET /api/v1/llm/costs/daily`.
 ///
 /// Returns LLM costs broken down by day and backend for the requested
-/// time window. Used by the Observability LLM Costs chart (STORY-148, AC-3).
+/// time window. Used by the Observability LLM Costs chart.
 pub async fn get_llm_daily_costs<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     axum::extract::Query(query): axum::extract::Query<CostsQuery>,
@@ -484,6 +484,8 @@ mod tests {
             notification_repo: None,
             notification_engine_handle: None,
             chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
         }
     }
 

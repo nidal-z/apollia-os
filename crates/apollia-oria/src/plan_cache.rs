@@ -132,6 +132,64 @@ impl PlanCacheRepository {
 
         Ok(deleted as u32)
     }
+
+    /// Returns aggregate statistics about the cache contents.
+    ///
+    /// All counters are zero when the cache is empty. The `oldest_entry_at` and
+    /// `newest_entry_at` fields are `None` when no entries exist.
+    pub fn stats(&self) -> Result<PlanCacheStats, PlanCacheError> {
+        let total_entries: u32 =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM plan_cache", [], |row| row.get(0))?;
+
+        let total_hits: u64 = self.conn.query_row(
+            "SELECT COALESCE(SUM(hit_count), 0) FROM plan_cache",
+            [],
+            |row| row.get(0),
+        )?;
+
+        let oldest: Option<String> = self
+            .conn
+            .query_row("SELECT MIN(created_at) FROM plan_cache", [], |row| {
+                row.get(0)
+            })
+            .optional()?
+            .flatten();
+
+        let newest: Option<String> = self
+            .conn
+            .query_row("SELECT MAX(created_at) FROM plan_cache", [], |row| {
+                row.get(0)
+            })
+            .optional()?
+            .flatten();
+
+        Ok(PlanCacheStats {
+            total_entries,
+            cache_hits: total_hits,
+            oldest_entry_at: oldest,
+            newest_entry_at: newest,
+        })
+    }
+
+    /// Removes all entries from the cache and returns the count of deleted rows.
+    pub fn clear_all(&self) -> Result<u32, PlanCacheError> {
+        let deleted = self.conn.execute("DELETE FROM plan_cache", [])?;
+        Ok(deleted as u32)
+    }
+}
+
+/// Aggregate statistics for the plan cache.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PlanCacheStats {
+    /// Number of cached plans.
+    pub total_entries: u32,
+    /// Total number of cache hits across all entries.
+    pub cache_hits: u64,
+    /// Timestamp of the oldest cache entry (RFC 3339 or SQLite datetime).
+    pub oldest_entry_at: Option<String>,
+    /// Timestamp of the newest cache entry (RFC 3339 or SQLite datetime).
+    pub newest_entry_at: Option<String>,
 }
 
 // ─────────────────────────────────────────────

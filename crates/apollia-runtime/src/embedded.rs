@@ -1,6 +1,6 @@
 //! Embedded runtime — starts the full Supervisor inside a dedicated thread.
 //!
-//! Designed for Tauri v2 integration (STORY-135): the desktop process calls
+//! Designed for Tauri v2 integration: the desktop process calls
 //! [`init_embedded()`] once at startup, receives a [`RuntimeHandle`] with all
 //! actor handles, and passes it to `tauri::Builder::manage()`.
 //!
@@ -63,15 +63,23 @@ pub struct RuntimeHandle {
     /// Handle vers le NotificationEngine optionnel. Wrappé dans `Arc` car
     /// `NotificationEngineHandle` n'implémente pas `Clone`.
     pub notification_engine: Option<Arc<NotificationEngineHandle>>,
-    /// Repository des appels LLM — agrégation coûts/tokens (STORY-143).
+    /// Repository des appels LLM — agrégation coûts/tokens.
     ///
     /// `Some` quand un `LlmRouter` est configuré et que `llm_calls.db` est ouvert.
     pub llm_call_repository: Option<Arc<std::sync::Mutex<apollia_llm::LlmCallRepository>>>,
-    /// Handle to the [`ChatSessionManager`] actor (STORY-204).
+    /// Handle to the [`ChatSessionManager`] actor.
     ///
-    /// `Some` after Phase 13 of the Supervisor startup sequence.
+    /// `Some` after the Supervisor startup sequence.
     /// `None` when the chat subsystem failed to start.
     pub chat_manager: Option<crate::chat::ChatSessionManagerHandle>,
+    /// ORIA plan cache repository.
+    ///
+    /// `Some` when `plan_cache.db` opened successfully.
+    pub plan_cache: Option<Arc<std::sync::Mutex<apollia_oria::plan_cache::PlanCacheRepository>>>,
+    /// Handle to the agent-to-agent mailbox actor.
+    ///
+    /// `Some` after the mailbox is spawned during startup.
+    pub mailbox_handle: Option<crate::mailbox::AgentMailboxHandle>,
     /// Port TCP de l'APIServer.
     pub api_port: u16,
 }
@@ -153,7 +161,7 @@ impl EmbeddedConfig {
             self.llm_config = s.llm;
         }
 
-        // NOTE(STORY-187): triggers, pipelines, and notifications are now loaded
+        // triggers, pipelines, and notifications are now loaded
         // from SQLite by the Supervisor. TOML sections for these are ignored.
 
         self
@@ -260,6 +268,8 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         notification_engine: handles.notification_engine.map(Arc::new),
         llm_call_repository: handles.llm_call_repository,
         chat_manager: handles.chat_manager,
+        plan_cache: handles.plan_cache,
+        mailbox_handle: handles.mailbox_handle,
         api_port: tcp_port,
     })
 }

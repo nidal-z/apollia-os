@@ -594,6 +594,8 @@ mod tests {
             notification_repo: None,
             notification_engine_handle: None,
             chat_manager: Some(chat_manager),
+            plan_cache: None,
+            mailbox_handle: None,
         };
 
         APIServer::build_router_for_test(state)

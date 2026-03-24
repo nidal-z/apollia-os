@@ -1,12 +1,12 @@
-//! Routes REST pour les notifications — STORY-104 + STORY-191 CRUD.
+//! Routes REST pour les notifications.
 //!
 //! Expose les endpoints de gestion des notifications :
 //! - `GET    /api/v1/notifications/channels`         — liste des canaux (depuis SQLite)
-//! - `POST   /api/v1/notifications/channels`         — créer un canal (STORY-191)
-//! - `PUT    /api/v1/notifications/channels/:id`     — modifier un canal (STORY-191)
-//! - `DELETE /api/v1/notifications/channels/:id`     — supprimer un canal (STORY-191)
-//! - `GET    /api/v1/notifications/events`           — événements globaux (STORY-191)
-//! - `PUT    /api/v1/notifications/events`           — remplacer événements globaux (STORY-191)
+//! - `POST   /api/v1/notifications/channels`         — créer un canal
+//! - `PUT    /api/v1/notifications/channels/:id`     — modifier un canal
+//! - `DELETE /api/v1/notifications/channels/:id`     — supprimer un canal
+//! - `GET    /api/v1/notifications/events`           — événements globaux
+//! - `PUT    /api/v1/notifications/events`           — remplacer événements globaux
 //! - `POST   /api/v1/notifications/channels/:id/test` — test d'un canal
 //! - `POST   /api/v1/notifications/test`             — test de tous les canaux
 //! - `GET    /api/v1/notifications/logs`             — historique depuis notifications.db
@@ -30,7 +30,7 @@ use apollia_notifications::{
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 
-// ─── Request types (STORY-191) ──────────────────────────────────────────────
+// ─── Request types ──────────────────────────────────────────────────────────
 
 /// Corps de requête pour `POST /api/v1/notifications/channels`.
 #[derive(Debug, Deserialize)]
@@ -95,7 +95,7 @@ pub struct EventsResponse {
     pub events: Vec<String>,
 }
 
-/// Description publique d'un canal retournée par `GET /channels` (héritage STORY-104).
+/// Description publique d'un canal retournée par `GET /channels`.
 #[derive(Debug, Serialize)]
 pub struct ChannelInfo {
     /// Identifiant unique du canal (ex: `"desktop"`, `"slack"`).
@@ -153,7 +153,7 @@ fn default_last() -> usize {
     20
 }
 
-// ─── CRUD Handlers (STORY-191) ──────────────────────────────────────────────
+// ─── CRUD Handlers ──────────────────────────────────────────────────────────
 
 /// `POST /api/v1/notifications/channels` — créer un canal de notification.
 ///
@@ -369,16 +369,16 @@ pub async fn set_events<B: ExecutionBackend + Clone>(
     )
 }
 
-// ─── Existing Handlers (STORY-104) ──────────────────────────────────────────
+// ─── Existing Handlers ──────────────────────────────────────────────────────
 
 /// `GET /api/v1/notifications/channels` — liste des canaux configurés.
 ///
-/// Lit depuis le repository SQLite (STORY-191). Fallback sur `notification_config`
+/// Lit depuis le repository SQLite. Fallback sur `notification_config`
 /// si le repo n'est pas disponible.
 pub async fn list_channels<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Json<serde_json::Value> {
-    // Prefer SQLite repo (STORY-191)
+    // Prefer SQLite repo
     if let Some(ref repo) = state.notification_repo {
         let guard = repo.lock().unwrap_or_else(|e| e.into_inner());
         let channels: Vec<ChannelResponse> = match guard.list_channels() {
@@ -474,7 +474,7 @@ pub async fn test_channels<B: ExecutionBackend + Clone>(
 
 /// `GET /api/v1/notifications/logs?last=N` — historique des notifications.
 ///
-/// Lit depuis `notifications.db` via le repository (STORY-191).
+/// Lit depuis `notifications.db` via le repository.
 /// Fallback sur `hitl.db` si le repo n'est pas disponible (backward compat).
 pub async fn notification_logs<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
@@ -482,7 +482,7 @@ pub async fn notification_logs<B: ExecutionBackend + Clone>(
 ) -> (StatusCode, Json<serde_json::Value>) {
     let last = params.last.min(1000);
 
-    // Prefer notifications.db repo (STORY-191 / AC-8)
+    // Prefer notifications.db repo
     if let Some(ref repo) = state.notification_repo {
         let guard = repo.lock().unwrap_or_else(|e| e.into_inner());
         match guard.query_logs(last) {
@@ -806,6 +806,8 @@ mod tests {
             notification_repo: Some(Arc::new(std::sync::Mutex::new(repo))),
             notification_engine_handle: None,
             chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
         }
     }
 
@@ -839,7 +841,7 @@ mod tests {
         serde_json::from_slice(&body).expect("parse JSON")
     }
 
-    // ── AC-1 — POST /api/v1/notifications/channels -> 201 ──────────────────
+    // ── POST /api/v1/notifications/channels -> 201 ──────────────────────────
 
     #[tokio::test]
     async fn test_create_channel_201() {
@@ -871,7 +873,7 @@ mod tests {
         assert!(!json["created_at"].as_str().unwrap_or("").is_empty());
     }
 
-    // ── AC-2 — PUT /api/v1/notifications/channels/:id -> 200 ───────────────
+    // ── PUT /api/v1/notifications/channels/:id -> 200 ───────────────────────
 
     #[tokio::test]
     async fn test_update_channel_200() {
@@ -913,7 +915,7 @@ mod tests {
         assert_eq!(json["config"]["url"], "https://hooks.slack.com/new");
     }
 
-    // ── AC-3 — DELETE /api/v1/notifications/channels/:id -> 200 ─────────────
+    // ── DELETE /api/v1/notifications/channels/:id -> 200 ────────────────────
 
     #[tokio::test]
     async fn test_delete_channel_200() {
@@ -960,7 +962,7 @@ mod tests {
         assert_eq!(json["channels"].as_array().map(|a| a.len()), Some(0));
     }
 
-    // ── AC-4 — GET /api/v1/notifications/events ─────────────────────────────
+    // ── GET /api/v1/notifications/events ────────────────────────────────────
 
     #[tokio::test]
     async fn test_get_events() {
@@ -1000,7 +1002,7 @@ mod tests {
         assert!(events.contains(&serde_json::json!("task.failed")));
     }
 
-    // ── AC-5 — PUT /api/v1/notifications/events -> 200 ─────────────────────
+    // ── PUT /api/v1/notifications/events -> 200 ─────────────────────────────
 
     #[tokio::test]
     async fn test_set_events() {
@@ -1028,7 +1030,7 @@ mod tests {
         assert_eq!(events.len(), 2);
     }
 
-    // ── AC-6 — Validation webhook sans URL -> 422 ───────────────────────────
+    // ── Validation webhook sans URL -> 422 ──────────────────────────────────
 
     #[tokio::test]
     async fn test_validation_webhook_no_url_422() {
@@ -1061,7 +1063,7 @@ mod tests {
         );
     }
 
-    // ── AC-6 — Validation event inconnu -> 422 ─────────────────────────────
+    // ── Validation event inconnu -> 422 ─────────────────────────────────────
 
     #[tokio::test]
     async fn test_validation_unknown_event_422() {
@@ -1092,7 +1094,7 @@ mod tests {
         );
     }
 
-    // ── Héritage STORY-104 — tests de types ────────────────────────────────
+    // ── Tests de types ──────────────────────────────────────────────────────
 
     #[test]
     fn test_channel_test_result_json_structure_ok() {

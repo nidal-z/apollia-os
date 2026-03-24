@@ -151,7 +151,9 @@ fn main() {
                     if !agent.enabled {
                         continue;
                     }
-                    let manifest = match agent_loader_for_boot.load_and_validate(&agent.install_path) {
+                    let manifest = match agent_loader_for_boot
+                        .load_and_validate(&agent.install_path)
+                    {
                         Ok(m) => m,
                         Err(e) => {
                             tracing::warn!(name = %agent.name, error = %e, "Failed to load installed agent at boot");
@@ -210,8 +212,7 @@ fn main() {
                             return;
                         }
 
-                        let dyn_backend = factory_ref.create_for_agent(&install_path, &agent_manifest);
-                        let agent_backend = apollia_runtime::coordinator::DynBackend::from(dyn_backend);
+                        let agent_backend = factory_ref.create_for_agent(&install_path, &agent_manifest);
                         let mut coordinator = apollia_runtime::coordinator::ExecutionCoordinator::new(
                             agent_id.clone(),
                             max_concurrent,
@@ -257,10 +258,10 @@ fn main() {
         .setup(move |app| {
             tray::setup_tray(app)?;
 
-            // STORY-156: bridge EventBus → Tauri events (replaces polling).
+            // bridge EventBus → Tauri events (replaces polling).
             events::spawn_event_bridge(app.handle().clone(), runtime_handle.event_sender.clone());
 
-            // AC-3: Closing the window hides it instead of quitting.
+            // Closing the window hides it instead of quitting.
             // The runtime keeps running in the background and the tray icon
             // remains visible. The user re-opens via tray menu "Ouvrir Apollia OS"
             // or quits via "Quitter" which triggers graceful shutdown.
@@ -280,6 +281,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::agents::list_agents,
+            commands::agents::list_agent_messages,
             commands::agents::start_agent,
             commands::agents::stop_agent,
             commands::agents::install_agent,
@@ -327,9 +329,11 @@ fn main() {
             commands::notifications::delete_notification_channel,
             commands::notifications::get_notification_events,
             commands::notifications::set_notification_events,
+            commands::observability::clear_plan_cache,
             commands::observability::get_global_timeline,
-            commands::observability::get_tool_audit_trail,
             commands::observability::get_llm_daily_costs,
+            commands::observability::get_plan_cache_stats,
+            commands::observability::get_tool_audit_trail,
             commands::config::get_config,
             commands::config::open_config_in_editor,
             commands::config::reset_onboarding,
@@ -340,6 +344,7 @@ fn main() {
             commands::config::check_llm_configured,
             commands::config::check_hello_agent_exists,
             commands::config::list_available_agents,
+            commands::tools::describe_tool,
             commands::chat::create_chat_session,
             commands::chat::list_chat_sessions,
             commands::chat::get_chat_session,
