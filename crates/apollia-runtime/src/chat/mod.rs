@@ -10,6 +10,7 @@ pub mod builtin_agent;
 pub mod extractor;
 pub mod manager;
 pub mod repository;
+pub mod summarizer;
 pub mod types;
 
 pub use agent_chat::{AgentChatExecutor, ChatAgentRunner};
@@ -19,6 +20,7 @@ pub use builtin_agent::{
 pub use extractor::{extract_user_memory, spawn_extraction, ExtractionError, ExtractionResult};
 pub use manager::ChatSessionManagerHandle;
 pub use repository::{AppendMessageParams, ChatSessionRepository, MessageRow, SessionRow};
+pub use summarizer::{summarize, SummarizerError};
 pub use types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId,
     PendingChatApprovals, SessionDetail, SessionId, SessionInfo, SessionStatus, ToolCallRecord,

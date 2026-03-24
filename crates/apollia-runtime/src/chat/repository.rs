@@ -35,6 +35,8 @@ pub struct SessionRow {
     pub closed_at: Option<String>,
     /// Preferred LLM backend name (nullable — uses runtime default when None).
     pub llm_backend: Option<String>,
+    /// Conversation summary produced by the summarizer (nullable).
+    pub summary: Option<String>,
 }
 
 /// Raw row from the `chat_messages` table.
@@ -99,6 +101,9 @@ impl ChatSessionRepository {
         // v2 migration: add llm_backend column for existing databases.
         let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN llm_backend TEXT");
 
+        // v3 migration: add summary column for conversation summarization.
+        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN summary TEXT");
+
         Ok(Self { conn })
     }
 
@@ -110,6 +115,10 @@ impl ChatSessionRepository {
 
         conn.execute_batch(MIGRATION_SQL)
             .map_err(|e| ChatError::InternalError(format!("migration failed: {e}")))?;
+
+        // v3 migration: summary column (already in CREATE TABLE for fresh DBs,
+        // but needed here since MIGRATION_SQL predates this column).
+        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN summary TEXT");
 
         Ok(Self { conn })
     }
@@ -193,7 +202,7 @@ impl ChatSessionRepository {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend, summary
                  FROM chat_sessions WHERE id = ?1",
             )
             .map_err(|e| ChatError::InternalError(format!("get_session prepare: {e}")))?;
@@ -210,6 +219,7 @@ impl ChatSessionRepository {
                     created_at: row.get(6)?,
                     closed_at: row.get(7)?,
                     llm_backend: row.get(8)?,
+                    summary: row.get(9)?,
                 })
             })
             .optional()
@@ -222,12 +232,12 @@ impl ChatSessionRepository {
     pub fn list_sessions(&self, status: Option<&str>) -> Result<Vec<SessionRow>, ChatError> {
         let (sql, param): (&str, Option<&str>) = match status {
             Some(s) => (
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend, summary
                  FROM chat_sessions WHERE status = ?1 ORDER BY created_at DESC",
                 Some(s),
             ),
             None => (
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend, summary
                  FROM chat_sessions ORDER BY created_at DESC",
                 None,
             ),
@@ -403,6 +413,34 @@ impl ChatSessionRepository {
         Ok(())
     }
 
+    /// Store or replace the conversation summary for a session.
+    ///
+    /// Returns `Err(ChatError::SessionNotFound)` if the session does not exist.
+    pub fn update_summary(&self, session_id: &str, summary: &str) -> Result<(), ChatError> {
+        let updated = self
+            .conn
+            .execute(
+                "UPDATE chat_sessions SET summary = ?1 WHERE id = ?2",
+                params![summary, session_id],
+            )
+            .map_err(|e| ChatError::InternalError(format!("update_summary: {e}")))?;
+
+        if updated == 0 {
+            return Err(ChatError::SessionNotFound(session_id.to_string()));
+        }
+        Ok(())
+    }
+
+    /// Retrieve the conversation summary for a session, if any.
+    ///
+    /// Returns `Err(ChatError::SessionNotFound)` if the session does not exist.
+    pub fn get_summary(&self, session_id: &str) -> Result<Option<String>, ChatError> {
+        let session = self
+            .get_session(session_id)?
+            .ok_or_else(|| ChatError::SessionNotFound(session_id.to_string()))?;
+        Ok(session.summary)
+    }
+
     /// Get the set of authorized tool names for a session.
     pub fn get_authorized_tools(&self, session_id: &str) -> Result<HashSet<String>, ChatError> {
         let mut stmt = self
@@ -436,6 +474,7 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
         created_at: row.get(6)?,
         closed_at: row.get(7)?,
         llm_backend: row.get(8)?,
+        summary: row.get(9)?,
     })
 }
 
