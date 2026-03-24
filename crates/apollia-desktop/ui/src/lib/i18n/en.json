@@ -722,7 +722,12 @@
     "trigger_config_webhook": "Endpoint: {config}",
     "trigger_config_oneshot": "One-time trigger",
     "trigger_enabled": "Active",
-    "trigger_last_fired": "Last fired: {date}"
+    "trigger_last_fired": "Last fired: {date}",
+    "messages_title": "Messages",
+    "messages_empty_title": "No messages exchanged",
+    "messages_empty_desc": "Messages will appear when this agent communicates with other agents.",
+    "message_sent_to": "To {agent}",
+    "message_received_from": "From {agent}"
   },
   "smart_output": {
     "show_raw": "Show raw output",

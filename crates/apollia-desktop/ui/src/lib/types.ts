@@ -44,6 +44,8 @@ export interface AgentListItem {
   weighted_score?: number;
   /** Chemin d'installation sur disque (`null` pour les agents runtime-only). */
   install_path: string | null;
+  /** Indique si l'agent supporte la communication inter-agents (A2A). */
+  supports_a2a: boolean;
 }
 
 /** Réponse d'une installation ou mise à jour d'agent. */

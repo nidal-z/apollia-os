@@ -8,10 +8,11 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Toggle } from "$lib/components/ui/toggle";
-  import { ExternalLink, Play, Square, Wrench, Tag, Cpu, Terminal } from "lucide-svelte";
+  import { ExternalLink, Play, Square, Wrench, Tag, Cpu, Terminal, MessageSquare } from "lucide-svelte";
   import AgentActivity from "./AgentActivity.svelte";
   import AgentTriggers from "./AgentTriggers.svelte";
   import AgentLlmInfo from "./AgentLlmInfo.svelte";
+  import AgentMessagesPanel from "./AgentMessagesPanel.svelte";
 
   interface Props {
     agent: AgentListItem;
@@ -47,6 +48,7 @@
   const isInstalled = $derived(agent.installed_at !== null);
   const isRunning = $derived(runtimeStatus === "active" || runtimeStatus === "degraded");
   const isLoaded = $derived(runtimeStatus !== null);
+  const showMessagesSection = $derived(agent.supports_a2a === true && $uiMode === "builder");
   const allTools = $derived([
     ...agent.tools_required.map((t) => ({ name: t, required: true })),
     ...agent.tools_optional.map((t) => ({ name: t, required: false })),
@@ -258,6 +260,17 @@
       <div class="glass-card glass-border rounded-lg px-4 py-3.5">
         <AgentLlmInfo />
       </div>
+
+      <!-- Agent messages (A2A + builder mode only) -->
+      {#if showMessagesSection}
+        <div class="glass-card glass-border rounded-lg px-4 py-3.5" data-testid="agent-messages-tab">
+          <div class="flex items-center gap-2 mb-3">
+            <MessageSquare size={12} class="text-muted-foreground/50" />
+            <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('agent_detail.messages_title')}</span>
+          </div>
+          <AgentMessagesPanel agentName={agent.name} />
+        </div>
+      {/if}
 
       <!-- Memory link (builder only) -->
       {#if $uiMode === "builder"}

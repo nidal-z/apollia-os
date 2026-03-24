@@ -17,6 +17,7 @@ import {
 } from "@tauri-apps/plugin-notification";
 import type {
   AgentListItem,
+  AgentMessage,
   TaskSummary,
   PendingApproval,
   ConnectionStatus,
@@ -59,6 +60,9 @@ export const lastPlanCacheHit = writable<PlanCacheHitEvent | null>(null);
 
 /** Compteur cumulé de cache hits depuis le démarrage du store. */
 export const planCacheHitCount = writable<number>(0);
+
+/** Dernier message inter-agents reçu via SSE (`null` si aucun). */
+export const lastAgentMessage = writable<AgentMessage | null>(null);
 
 // ─── IPC refresh helpers ──────────────────────────────────────────────────────
 
@@ -217,6 +221,7 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       planCacheHitCount.update((n) => n + 1);
       break;
     case "agent-message-sent":
+      lastAgentMessage.set(event.payload as unknown as AgentMessage);
       void refreshAgentsViaIpc();
       break;
     case "system":

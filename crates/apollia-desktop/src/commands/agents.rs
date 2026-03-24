@@ -61,6 +61,8 @@ pub struct AgentListItem {
     pub execution_mode: Option<String>,
     /// Chemin d'installation sur disque (`None` pour les agents runtime-only).
     pub install_path: Option<String>,
+    /// Indique si l'agent supporte la communication inter-agents (A2A).
+    pub supports_a2a: bool,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -147,6 +149,7 @@ pub async fn list_agents(
             tools_optional: manifest.tools_optional.clone(),
             execution_mode: Some(manifest.execution_mode.clone()),
             install_path: Some(agent.install_path.to_string_lossy().to_string()),
+            supports_a2a: manifest.supports_a2a,
         });
     }
 
@@ -172,6 +175,7 @@ pub async fn list_agents(
                 tools_optional: manifest.tools_optional.clone(),
                 execution_mode: Some(manifest.execution_mode.clone()),
                 install_path: None,
+                supports_a2a: manifest.supports_a2a,
             });
         }
     }
@@ -691,6 +695,7 @@ mod tests {
             tools_optional: vec!["file_io".to_string()],
             execution_mode: Some("auto".to_string()),
             install_path: Some("/home/user/.apollia/agents/hello-agent/agent.py".to_string()),
+            supports_a2a: true,
         };
 
         // WHEN serialized to JSON
@@ -726,6 +731,7 @@ mod tests {
             tools_optional: vec![],
             execution_mode: Some("direct".to_string()),
             install_path: Some("/home/user/.apollia/agents/disabled-agent/agent.py".to_string()),
+            supports_a2a: false,
         };
 
         // WHEN serialized to JSON
@@ -756,6 +762,7 @@ mod tests {
             tools_optional: vec![],
             execution_mode: Some("auto".to_string()),
             install_path: None,
+            supports_a2a: false,
         };
 
         // WHEN serialized to JSON
