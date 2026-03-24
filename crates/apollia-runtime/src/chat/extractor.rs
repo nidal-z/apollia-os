@@ -4,9 +4,12 @@
 //! LLM call extracts user preferences, habits, and contextual information.
 //! Extracted entries are stored in [`UserMemoryRepository`] with source
 //! [`UserMemorySource::ChatInference`].
+//!
+//! [`UserMemoryExtractor`] adds stateful enrichment with rate limiting and
+//! deduplication against existing entries.
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use tracing::warn;
@@ -17,11 +20,20 @@ use apollia_memory::user_memory::{UserMemoryCategory, UserMemoryRepository, User
 
 use super::types::ChatMessage;
 
-/// Minimum number of messages required to trigger extraction.
+/// Minimum number of messages required to trigger basic extraction.
 const MIN_MESSAGES_FOR_EXTRACTION: usize = 4;
+
+/// Minimum number of messages required for passive enrichment extraction.
+const MIN_MESSAGES_FOR_ENRICHMENT: usize = 6;
 
 /// Timeout for the asynchronous extraction task.
 const EXTRACTION_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Cooldown between two enrichment extractions (1 hour).
+const EXTRACTION_COOLDOWN: Duration = Duration::from_secs(3600);
+
+/// Confidence score assigned to entries created from chat inference.
+const CHAT_INFERENCE_CONFIDENCE: f64 = 0.5;
 
 /// Prompt sent to the LLM to extract user information from a conversation.
 const EXTRACTION_PROMPT: &str = r#"Analyze this conversation and extract user preferences, habits, and context.
@@ -54,7 +66,7 @@ pub struct ExtractionResult {
 }
 
 /// A single key-value pair extracted from a conversation.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct ExtractedEntry {
     /// Identifier for the extracted information.
     pub key: String,
@@ -77,10 +89,183 @@ pub enum ExtractionError {
         /// Number of messages in the conversation.
         message_count: usize,
     },
+    /// A user memory operation failed.
+    #[error("memory error: {0}")]
+    MemoryError(String),
 }
 
 // ---------------------------------------------------------------------------
-// Public API
+// UserMemoryExtractor — stateful enrichment with rate limiting
+// ---------------------------------------------------------------------------
+
+/// Stateful extractor that enriches user memory from chat conversations.
+///
+/// Provides rate limiting (at most one extraction per [`EXTRACTION_COOLDOWN`])
+/// and deduplication against existing [`UserMemoryRepository`] entries.
+/// Entries are stored with [`UserMemorySource::ChatInference`] and a
+/// confidence of [`CHAT_INFERENCE_CONFIDENCE`].
+pub struct UserMemoryExtractor {
+    /// Timestamp of the last successful extraction.
+    last_extraction: Option<Instant>,
+    /// LLM router for inference calls.
+    llm_router: Arc<LlmRouter>,
+    /// Shared user memory repository.
+    user_memory: Arc<std::sync::Mutex<UserMemoryRepository>>,
+}
+
+impl UserMemoryExtractor {
+    /// Creates a new extractor bound to the given LLM router and memory repository.
+    pub fn new(
+        llm_router: Arc<LlmRouter>,
+        user_memory: Arc<std::sync::Mutex<UserMemoryRepository>>,
+    ) -> Self {
+        Self {
+            last_extraction: None,
+            llm_router,
+            user_memory,
+        }
+    }
+
+    /// Attempts to extract and persist user information from a closed session.
+    ///
+    /// Returns the number of new entries created. Returns `Ok(0)` without
+    /// calling the LLM if the conversation is too short or if the rate
+    /// limit has not elapsed.
+    pub async fn extract_from_session(
+        &mut self,
+        messages: &[ChatMessage],
+    ) -> Result<usize, ExtractionError> {
+        if messages.len() < MIN_MESSAGES_FOR_ENRICHMENT {
+            return Ok(0);
+        }
+
+        if let Some(last) = self.last_extraction {
+            if last.elapsed() < EXTRACTION_COOLDOWN {
+                tracing::debug!(
+                    elapsed_secs = %last.elapsed().as_secs(),
+                    cooldown_secs = %EXTRACTION_COOLDOWN.as_secs(),
+                    "extraction rate limited"
+                );
+                return Ok(0);
+            }
+        }
+
+        let extraction = extract_user_memory(messages, &self.llm_router).await?;
+
+        let all_entries = flatten_extraction(&extraction);
+        let new_entries = self.deduplicate(&all_entries)?;
+
+        let count = self.store_new_entries(&new_entries)?;
+
+        self.last_extraction = Some(Instant::now());
+        if count > 0 {
+            tracing::info!(
+                entries_created = count,
+                "user memory enriched from conversation"
+            );
+        }
+
+        Ok(count)
+    }
+
+    /// Launches a fire-and-forget enrichment task after a session closes.
+    ///
+    /// Spawns a Tokio task with a [`EXTRACTION_TIMEOUT`] timeout.
+    /// Errors are logged as warnings but never propagated.
+    pub fn spawn_enrichment(extractor: Arc<tokio::sync::Mutex<Self>>, messages: Vec<ChatMessage>) {
+        if messages.len() < MIN_MESSAGES_FOR_ENRICHMENT {
+            return;
+        }
+
+        tokio::spawn(async move {
+            let result = tokio::time::timeout(EXTRACTION_TIMEOUT, async {
+                let mut guard = extractor.lock().await;
+                guard.extract_from_session(&messages).await
+            })
+            .await;
+
+            match result {
+                Ok(Ok(count)) => {
+                    tracing::debug!(count, "passive enrichment completed");
+                }
+                Ok(Err(e)) => {
+                    warn!(error = %e, "passive enrichment failed");
+                }
+                Err(_) => {
+                    warn!("passive enrichment timed out");
+                }
+            }
+        });
+    }
+
+    /// Filters out entries that already exist in the repository with the same
+    /// value or with a higher confidence score.
+    fn deduplicate(
+        &self,
+        entries: &[(UserMemoryCategory, &ExtractedEntry)],
+    ) -> Result<Vec<(UserMemoryCategory, ExtractedEntry)>, ExtractionError> {
+        let repo = self
+            .user_memory
+            .lock()
+            .map_err(|e| ExtractionError::MemoryError(format!("lock poisoned: {e}")))?;
+
+        let mut new_entries = Vec::new();
+
+        for &(category, entry) in entries {
+            match repo.recall_by_key(category, &entry.key) {
+                Ok(Some(existing)) if existing.value == entry.value => {
+                    tracing::debug!(key = %entry.key, "duplicate skipped — same value");
+                }
+                Ok(Some(existing)) if existing.confidence > CHAT_INFERENCE_CONFIDENCE => {
+                    tracing::debug!(
+                        key = %entry.key,
+                        existing_confidence = %existing.confidence,
+                        "higher confidence entry exists, skipping"
+                    );
+                }
+                Ok(_) => {
+                    new_entries.push((category, entry.clone()));
+                }
+                Err(e) => {
+                    warn!(key = %entry.key, error = %e, "deduplication lookup failed, skipping entry");
+                }
+            }
+        }
+
+        Ok(new_entries)
+    }
+
+    /// Persists deduplicated entries with chat inference confidence.
+    fn store_new_entries(
+        &self,
+        entries: &[(UserMemoryCategory, ExtractedEntry)],
+    ) -> Result<usize, ExtractionError> {
+        let repo = self
+            .user_memory
+            .lock()
+            .map_err(|e| ExtractionError::MemoryError(format!("lock poisoned: {e}")))?;
+
+        let mut stored = 0;
+        for (category, entry) in entries {
+            if let Err(e) = repo.store_with_confidence(
+                *category,
+                &entry.key,
+                &entry.value,
+                UserMemorySource::ChatInference,
+                CHAT_INFERENCE_CONFIDENCE,
+            ) {
+                warn!(key = %entry.key, error = %e, "failed to store enrichment entry");
+            } else {
+                stored += 1;
+            }
+        }
+
+        Ok(stored)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Public free functions (backward compatibility with STORY-256)
 // ---------------------------------------------------------------------------
 
 /// Extracts user information from a conversation via an LLM call.
@@ -195,23 +380,9 @@ fn parse_extraction_response(content: &str) -> Result<ExtractionResult, Extracti
         .map_err(|e| ExtractionError::ParseError(format!("{e}: {json_str}")))
 }
 
-/// Stores extracted entries into the user memory repository.
-///
-/// Each entry is upserted with [`UserMemorySource::ChatInference`].
-/// Errors on individual entries are logged but do not abort the process.
-fn store_extraction(
-    user_memory: &std::sync::Mutex<UserMemoryRepository>,
-    extraction: &ExtractionResult,
-) {
-    let repo = match user_memory.lock() {
-        Ok(r) => r,
-        Err(e) => {
-            warn!(error = %e, "Failed to acquire user memory lock for extraction");
-            return;
-        }
-    };
-
-    let entries: Vec<(UserMemoryCategory, &ExtractedEntry)> = extraction
+/// Flattens an [`ExtractionResult`] into a vec of `(category, entry)` pairs.
+fn flatten_extraction(extraction: &ExtractionResult) -> Vec<(UserMemoryCategory, &ExtractedEntry)> {
+    extraction
         .preferences
         .iter()
         .map(|e| (UserMemoryCategory::Preferences, e))
@@ -227,7 +398,26 @@ fn store_extraction(
                 .iter()
                 .map(|e| (UserMemoryCategory::Context, e)),
         )
-        .collect();
+        .collect()
+}
+
+/// Stores extracted entries into the user memory repository (legacy path).
+///
+/// Each entry is upserted with [`UserMemorySource::ChatInference`].
+/// Errors on individual entries are logged but do not abort the process.
+fn store_extraction(
+    user_memory: &std::sync::Mutex<UserMemoryRepository>,
+    extraction: &ExtractionResult,
+) {
+    let repo = match user_memory.lock() {
+        Ok(r) => r,
+        Err(e) => {
+            warn!(error = %e, "Failed to acquire user memory lock for extraction");
+            return;
+        }
+    };
+
+    let entries = flatten_extraction(extraction);
 
     for (category, entry) in &entries {
         if let Err(e) = repo.store(
@@ -346,6 +536,19 @@ mod tests {
         LlmRouter::with_backends(backends, "mock")
     }
 
+    fn make_test_repo() -> (
+        Arc<std::sync::Mutex<UserMemoryRepository>>,
+        std::path::PathBuf,
+    ) {
+        let dir = std::env::temp_dir().join(format!("apollia_extract_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("user_memory.db");
+        let repo = UserMemoryRepository::new(&path).unwrap();
+        (Arc::new(std::sync::Mutex::new(repo)), dir)
+    }
+
+    // -- Existing free-function tests --
+
     // GIVEN a conversation with 6 messages including explicit preferences
     // WHEN extract_user_memory is called with a mock LLM
     // THEN an ExtractionResult with the correct entries is returned
@@ -454,5 +657,149 @@ mod tests {
         let result = format_conversation(&messages);
         assert!(result.contains("user: hello"));
         assert!(result.contains("assistant: hi there"));
+    }
+
+    // -- UserMemoryExtractor tests --
+
+    // GIVEN a session with 10 messages mentioning user tools
+    // WHEN extract_from_session is called
+    // THEN entries are created in user memory with chat_inference source and 0.5 confidence
+    #[tokio::test]
+    async fn test_extraction_produces_memory_entries() {
+        let json = r#"{
+            "preferences": [{"key": "ide", "value": "Neovim"}],
+            "habits": [],
+            "context": [{"key": "stack", "value": "Python"}]
+        }"#;
+        let router = Arc::new(make_router_with_response(json));
+        let (repo, _dir) = make_test_repo();
+
+        let mut extractor = UserMemoryExtractor::new(router, Arc::clone(&repo));
+        let messages = make_test_messages(10);
+
+        let count = extractor
+            .extract_from_session(&messages)
+            .await
+            .expect("extraction should succeed");
+
+        assert_eq!(count, 2);
+
+        let guard = repo.lock().expect("lock should not be poisoned");
+        let prefs = guard
+            .recall(UserMemoryCategory::Preferences, 10)
+            .expect("recall should succeed");
+        assert_eq!(prefs.len(), 1);
+        assert_eq!(prefs[0].key, "ide");
+        assert_eq!(prefs[0].value, "Neovim");
+        assert_eq!(prefs[0].source, UserMemorySource::ChatInference);
+        assert!((prefs[0].confidence - CHAT_INFERENCE_CONFIDENCE).abs() < f64::EPSILON);
+
+        let ctx = guard
+            .recall(UserMemoryCategory::Context, 10)
+            .expect("recall should succeed");
+        assert_eq!(ctx.len(), 1);
+        assert_eq!(ctx[0].key, "stack");
+        assert_eq!(ctx[0].value, "Python");
+    }
+
+    // GIVEN an existing entry with higher confidence (onboarding, confidence=1.0)
+    // WHEN the extractor detects the same key
+    // THEN the existing entry is not modified and no duplicate is created
+    #[tokio::test]
+    async fn test_duplicate_detection_skips() {
+        let json = r#"{
+            "preferences": [{"key": "ide", "value": "Neovim"}],
+            "habits": [],
+            "context": []
+        }"#;
+        let router = Arc::new(make_router_with_response(json));
+        let (repo, _dir) = make_test_repo();
+
+        // Pre-populate with a high-confidence entry from onboarding
+        {
+            let guard = repo.lock().expect("lock");
+            guard
+                .store(
+                    UserMemoryCategory::Preferences,
+                    "ide",
+                    "Neovim",
+                    UserMemorySource::Onboarding,
+                )
+                .expect("store should succeed");
+        }
+
+        let mut extractor = UserMemoryExtractor::new(router, Arc::clone(&repo));
+        let messages = make_test_messages(10);
+
+        let count = extractor
+            .extract_from_session(&messages)
+            .await
+            .expect("extraction should succeed");
+
+        // No new entries — existing has same value
+        assert_eq!(count, 0);
+
+        // Verify the original entry is untouched
+        let guard = repo.lock().expect("lock");
+        let prefs = guard
+            .recall(UserMemoryCategory::Preferences, 10)
+            .expect("recall");
+        assert_eq!(prefs.len(), 1);
+        assert_eq!(prefs[0].source, UserMemorySource::Onboarding);
+    }
+
+    // GIVEN an extraction performed less than 1 hour ago
+    // WHEN a new session closes with enough messages
+    // THEN the extraction is skipped (rate limited)
+    #[tokio::test]
+    async fn test_rate_limiting_enforced() {
+        let json = r#"{
+            "preferences": [{"key": "ide", "value": "Neovim"}],
+            "habits": [],
+            "context": []
+        }"#;
+        let router = Arc::new(make_router_with_response(json));
+        let (repo, _dir) = make_test_repo();
+
+        let mut extractor = UserMemoryExtractor::new(router, Arc::clone(&repo));
+        let messages = make_test_messages(10);
+
+        // First extraction should succeed
+        let first = extractor
+            .extract_from_session(&messages)
+            .await
+            .expect("first extraction");
+        assert_eq!(first, 1);
+
+        // Second extraction immediately after should be rate limited
+        let second = extractor
+            .extract_from_session(&messages)
+            .await
+            .expect("second extraction");
+        assert_eq!(second, 0);
+    }
+
+    // GIVEN a session with fewer than 6 messages
+    // WHEN extract_from_session is called
+    // THEN no extraction is performed
+    #[tokio::test]
+    async fn test_short_session_skipped() {
+        let json = r#"{"preferences": [{"key": "x", "value": "y"}], "habits": [], "context": []}"#;
+        let router = Arc::new(make_router_with_response(json));
+        let (repo, _dir) = make_test_repo();
+
+        let mut extractor = UserMemoryExtractor::new(router, Arc::clone(&repo));
+        let messages = make_test_messages(5);
+
+        let count = extractor
+            .extract_from_session(&messages)
+            .await
+            .expect("should return Ok(0)");
+
+        assert_eq!(count, 0);
+
+        // Nothing stored
+        let guard = repo.lock().expect("lock");
+        assert!(guard.is_empty().expect("is_empty"));
     }
 }

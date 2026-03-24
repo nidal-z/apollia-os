@@ -18,7 +18,9 @@ pub use builtin_agent::{
     BuiltInChatAgent, ChatAgentResponse, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
     DEFAULT_SYSTEM_PROMPT,
 };
-pub use extractor::{extract_user_memory, spawn_extraction, ExtractionError, ExtractionResult};
+pub use extractor::{
+    extract_user_memory, spawn_extraction, ExtractionError, ExtractionResult, UserMemoryExtractor,
+};
 pub use manager::ChatSessionManagerHandle;
 pub use repository::{AppendMessageParams, ChatSessionRepository, MessageRow, SessionRow};
 pub use summarizer::{summarize, SummarizerError};

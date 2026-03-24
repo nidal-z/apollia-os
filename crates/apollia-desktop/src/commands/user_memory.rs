@@ -147,7 +147,7 @@ fn entry_to_view(entry: &UserMemoryEntry) -> UserMemoryEntryView {
         key: entry.key.clone(),
         value: entry.value.clone(),
         source: entry.source.to_string(),
-        confidence: 1.0,
+        confidence: entry.confidence,
         created_at: entry.created_at.clone(),
         updated_at: entry.updated_at.clone(),
     }
@@ -539,6 +539,7 @@ mod tests {
             key: "language".into(),
             value: "francais".into(),
             source: apollia_memory::user_memory::UserMemorySource::UserExplicit,
+            confidence: 1.0,
             created_at: "2026-03-20T10:00:00Z".into(),
             updated_at: "2026-03-20T10:00:00Z".into(),
         };

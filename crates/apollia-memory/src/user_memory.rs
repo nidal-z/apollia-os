@@ -123,6 +123,8 @@ pub struct UserMemoryEntry {
     pub value: String,
     /// How this entry was created.
     pub source: UserMemorySource,
+    /// Confidence score (0.0..=1.0).
+    pub confidence: f64,
     /// ISO 8601 creation timestamp.
     pub created_at: String,
     /// ISO 8601 last-update timestamp.
@@ -173,7 +175,7 @@ impl UserMemoryRepository {
         Ok(all.is_empty())
     }
 
-    /// Stores or updates a user memory entry.
+    /// Stores or updates a user memory entry with the default confidence (1.0).
     ///
     /// If an entry with the same `key` already exists in `category`,
     /// the value is replaced (upsert semantics).
@@ -184,6 +186,21 @@ impl UserMemoryRepository {
         value: &str,
         source: UserMemorySource,
     ) -> Result<(), UserMemoryError> {
+        self.store_with_confidence(category, key, value, source, DEFAULT_CONFIDENCE)
+    }
+
+    /// Stores or updates a user memory entry with a custom confidence score.
+    ///
+    /// If an entry with the same `key` already exists in `category`,
+    /// the value is replaced (upsert semantics).
+    pub fn store_with_confidence(
+        &self,
+        category: UserMemoryCategory,
+        key: &str,
+        value: &str,
+        source: UserMemorySource,
+        confidence: f64,
+    ) -> Result<(), UserMemoryError> {
         let compound_key = Self::compound_key(category, key);
         let sem = SemanticMemory::new(&self.store);
         let json_value = serde_json::Value::String(value.to_owned());
@@ -192,7 +209,7 @@ impl UserMemoryRepository {
             USER_NAMESPACE,
             &compound_key,
             &json_value,
-            DEFAULT_CONFIDENCE,
+            confidence,
             Some(source.as_str()),
             None,
         )
@@ -222,6 +239,24 @@ impl UserMemoryRepository {
             .collect();
 
         Ok(entries)
+    }
+
+    /// Looks up a single entry by category and key.
+    ///
+    /// Returns `None` if no entry matches the given category/key pair.
+    pub fn recall_by_key(
+        &self,
+        category: UserMemoryCategory,
+        key: &str,
+    ) -> Result<Option<UserMemoryEntry>, UserMemoryError> {
+        let compound_key = Self::compound_key(category, key);
+        let sem = SemanticMemory::new(&self.store);
+
+        let entry = sem
+            .recall(USER_NAMESPACE, &compound_key)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+
+        Ok(entry.and_then(|se| Self::semantic_to_entry(&compound_key, &se)))
     }
 
     /// Full-text search across all categories.
@@ -400,6 +435,7 @@ impl UserMemoryRepository {
             key: short_key.to_owned(),
             value,
             source,
+            confidence: se.confidence,
             created_at: se.created_at.clone(),
             updated_at: se.updated_at.clone(),
         })

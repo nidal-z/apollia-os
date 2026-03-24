@@ -23,6 +23,7 @@ use apollia_tools::ToolRegistryHandle;
 
 use super::agent_chat::{AgentChatExecutor, ChatAgentRunner};
 use super::builtin_agent::{BuiltInChatAgent, ChatAgentResponse, DEFAULT_CONTEXT_WINDOW_SIZE};
+use super::extractor::UserMemoryExtractor;
 use super::repository::{AppendMessageParams, ChatSessionRepository};
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId,
@@ -165,6 +166,8 @@ struct ChatSessionManager {
     pending_chat_approvals: PendingChatApprovals,
     /// Optional user memory repository for system prompt enrichment.
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+    /// Stateful extractor for passive memory enrichment from conversations.
+    enrichment_extractor: Option<Arc<tokio::sync::Mutex<UserMemoryExtractor>>>,
     /// Sender clone for spawned tasks to send commands back to the actor.
     tx: mpsc::Sender<ChatCommand>,
 }
@@ -909,9 +912,9 @@ impl ChatSessionManager {
             session_id: session_id.to_string(),
         });
 
-        // Fire-and-forget memory extraction if LLM and user memory are available
-        if let (Some(llm), Some(user_memory)) = (&self.llm_router, &self.user_memory) {
-            super::extractor::spawn_extraction(history, Arc::clone(llm), Arc::clone(user_memory));
+        // Fire-and-forget passive memory enrichment with rate limiting and deduplication
+        if let Some(extractor) = &self.enrichment_extractor {
+            UserMemoryExtractor::spawn_enrichment(Arc::clone(extractor), history);
         }
 
         Ok(())
@@ -1024,6 +1027,14 @@ impl ChatSessionManagerHandle {
         let repository = ChatSessionRepository::open(db_path)?;
         let pending_chat_approvals = PendingChatApprovals::new();
 
+        let enrichment_extractor = match (&llm_router, &user_memory) {
+            (Some(llm), Some(mem)) => {
+                let ext = UserMemoryExtractor::new(Arc::clone(llm), Arc::clone(mem));
+                Some(Arc::new(tokio::sync::Mutex::new(ext)))
+            }
+            _ => None,
+        };
+
         let (tx, rx) = mpsc::channel(256);
 
         let mut manager = ChatSessionManager {
@@ -1038,6 +1049,7 @@ impl ChatSessionManagerHandle {
             runtime_budget,
             pending_chat_approvals,
             user_memory,
+            enrichment_extractor,
             tx: tx.clone(),
         };
 
@@ -1522,6 +1534,7 @@ mod tests {
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: pending,
             user_memory: None,
+            enrichment_extractor: None,
             tx,
         };
 
@@ -1639,6 +1652,7 @@ mod tests {
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: PendingChatApprovals::new(),
             user_memory: None,
+            enrichment_extractor: None,
             tx,
         };
 
@@ -1694,6 +1708,7 @@ mod tests {
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: PendingChatApprovals::new(),
             user_memory: None,
+            enrichment_extractor: None,
             tx,
         };
 
@@ -1728,6 +1743,7 @@ mod tests {
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: PendingChatApprovals::new(),
             user_memory: None,
+            enrichment_extractor: None,
             tx,
         };
 
