@@ -6,6 +6,7 @@
  */
 import { derived, writable } from "svelte/store";
 import { chatSessions } from "./sse";
+import type { ConversationStatsView } from "$lib/types";
 
 export { chatSessions } from "./sse";
 
@@ -17,6 +18,15 @@ export const pendingChatSessionId = writable<string | null>(null);
 
 /** Token buffer for streaming responses in the active conversation. */
 export const chatTokenBuffer = writable<string>("");
+
+/** Whether user memory injection is enabled for the current session. */
+export const useUserMemory = writable<boolean>(true);
+
+/** Number of user memory entries injected into the current session. */
+export const memoryEntryCount = writable<number>(0);
+
+/** Conversation statistics for the current session. */
+export const chatConversationStats = writable<ConversationStatsView | null>(null);
 
 /** Active chat sessions (status !== 'closed'), most recent first. */
 export const activeChatSessions = derived(chatSessions, ($sessions) =>

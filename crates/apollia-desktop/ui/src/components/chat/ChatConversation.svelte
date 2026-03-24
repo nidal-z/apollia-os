@@ -3,14 +3,17 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
-  import { X, Loader2, Bot, MessageSquare, Settings2, XCircle } from "lucide-svelte";
-  import { currentSession, chatTokenBuffer } from "$lib/stores/chat";
+  import { X, Loader2, Bot, MessageSquare, Settings2, XCircle, Link } from "lucide-svelte";
+  import { currentSession, chatTokenBuffer, useUserMemory, memoryEntryCount, chatConversationStats } from "$lib/stores/chat";
+  import { uiMode } from "$lib/stores/mode";
   import { Badge } from "$lib/components/ui/badge";
-  import type { ChatSessionDetail, ChatMessageView } from "$lib/types";
+  import type { ChatSessionDetail, ChatMessageView, ConversationStatsView, UserMemoryProfileView } from "$lib/types";
   import ChatMessageBubble from "./ChatMessageBubble.svelte";
   import ChatInput from "./ChatInput.svelte";
   import StreamingText from "./StreamingText.svelte";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
+  import ContextIndicator from "./ContextIndicator.svelte";
+  import SummarizedMessagesBanner from "./SummarizedMessagesBanner.svelte";
 
   interface Props {
     sessionId: string;
@@ -32,6 +35,7 @@
   let tokenBuffer = $state("");
   let configOpen = $state(false);
   let sessionDetail = $state<ChatSessionDetail | null>(null);
+  let conversationStats = $state<ConversationStatsView | null>(null);
 
   const headerTitle = $derived(
     sessionMode === "agent" && sessionAgentName
@@ -41,6 +45,20 @@
 
   const inputDisabled = $derived(
     isProcessing || isStreaming || sessionStatus === "closed",
+  );
+
+  const summaryText = $derived.by(() => {
+    const prompt = sessionDetail?.system_prompt ?? "";
+    const marker = "Previous context summary:\n";
+    const idx = prompt.indexOf(marker);
+    if (idx < 0) return null;
+    return prompt.slice(idx + marker.length).trim() || null;
+  });
+
+  const summarizedCount = $derived(conversationStats?.summarized_count ?? 0);
+
+  const hasCrossSessionRefs = $derived(
+    (conversationStats?.cross_sessions_referenced ?? 0) > 0,
   );
 
   const avatarHue = $derived.by(() => {
@@ -153,6 +171,23 @@
     sessionDetail = detail;
     isProcessing = detail.status === "processing";
     currentSession.set(detail);
+    void loadConversationStats();
+  }
+
+  async function loadConversationStats(): Promise<void> {
+    try {
+      const stats = await invoke<ConversationStatsView>("get_conversation_stats", { sessionId });
+      conversationStats = stats;
+      chatConversationStats.set(stats);
+    } catch {
+      conversationStats = null;
+    }
+    try {
+      const profile = await invoke<UserMemoryProfileView>("get_user_memory_profile");
+      memoryEntryCount.set(profile.stats.total);
+    } catch {
+      memoryEntryCount.set(0);
+    }
   }
 
   function scrollToBottom(force = false): void {
@@ -250,6 +285,12 @@
     </div>
   </div>
 
+  <!-- Context indicator -->
+  <ContextIndicator
+    memoryEntryCount={$memoryEntryCount}
+    isInjected={$useUserMemory && (conversationStats?.user_memory_injected ?? false)}
+  />
+
   <!-- Messages -->
   {#if loading}
     <div class="flex flex-1 items-center justify-center">
@@ -271,8 +312,26 @@
           <p class="text-xs">{$t("chat.first_message_placeholder")}</p>
         </div>
       {:else}
+        {#if summarizedCount > 0 && summaryText}
+          <SummarizedMessagesBanner
+            summarizedCount={summarizedCount}
+            summaryText={summaryText}
+          />
+        {/if}
+
         {#each messages ?? [] as message (message.id)}
-          <ChatMessageBubble {message} {sessionId} />
+          <div class="relative">
+            <ChatMessageBubble {message} {sessionId} />
+            {#if $uiMode === "builder" && hasCrossSessionRefs && message.role === "assistant" && message.metadata?.cross_session}
+              <div
+                class="absolute -top-1 -right-1 flex items-center gap-1 rounded-full bg-[#7c5fd6]/20 px-2 py-0.5"
+                data-testid="cross-session-badge"
+              >
+                <Link size={9} class="text-[#7c5fd6]" />
+                <span class="text-[9px] font-medium text-[#7c5fd6]">{$t("chat.past_session")}</span>
+              </div>
+            {/if}
+          </div>
         {/each}
 
         {#if isStreaming && sessionMode === "libre"}

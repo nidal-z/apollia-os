@@ -464,6 +464,7 @@ mod tests {
                     tool_name: None,
                     created_at: "2026-03-20T10:00:00Z".into(),
                     seq: 1,
+                    metadata: None,
                 },
                 ChatMessage {
                     id: "m2".into(),
@@ -473,6 +474,7 @@ mod tests {
                     tool_name: None,
                     created_at: "2026-03-20T10:00:01Z".into(),
                     seq: 2,
+                    metadata: None,
                 },
                 ChatMessage {
                     id: "m3".into(),
@@ -482,6 +484,7 @@ mod tests {
                     tool_name: None,
                     created_at: "2026-03-20T10:00:02Z".into(),
                     seq: 3,
+                    metadata: None,
                 },
                 ChatMessage {
                     id: "m4".into(),
@@ -491,6 +494,7 @@ mod tests {
                     tool_name: Some("bash_executor".into()),
                     created_at: "2026-03-20T10:00:03Z".into(),
                     seq: 4,
+                    metadata: None,
                 },
                 ChatMessage {
                     id: "m5".into(),
@@ -500,6 +504,7 @@ mod tests {
                     tool_name: None,
                     created_at: "2026-03-20T10:00:04Z".into(),
                     seq: 5,
+                    metadata: None,
                 },
             ],
             authorized_tools: HashSet::new(),

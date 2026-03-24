@@ -626,6 +626,7 @@ export interface ChatMessageView {
   tool_name: string | null;
   seq: number;
   created_at: string;
+  metadata?: Record<string, unknown> | null;
 }
 
 /** Appel d'outil dans un message de chat. */
@@ -775,6 +776,15 @@ export interface ConversationStatsView {
   context_usage_pct: number;
   user_memory_injected: boolean;
   cross_sessions_referenced: number;
+}
+
+/** Token-level breakdown of context window usage. */
+export interface ContextWindowStats {
+  messagesTokens: number;
+  userMemoryTokens: number;
+  summaryTokens: number;
+  totalTokens: number;
+  maxTokens: number;
 }
 
 /** Événement de cache hit pour un plan d'exécution. */

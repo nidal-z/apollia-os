@@ -160,6 +160,7 @@ mod tests {
                 tool_name: None,
                 created_at: "2026-03-24T10:00:00Z".to_string(),
                 seq: i as u32 + 1,
+                metadata: None,
             })
             .collect()
     }

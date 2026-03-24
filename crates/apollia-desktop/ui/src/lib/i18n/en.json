@@ -899,6 +899,23 @@
     "copy_message": "Copy",
     "send_hint": "Enter to send",
     "no_sessions": "No conversations",
-    "close_confirm": "Close this session?"
+    "close_confirm": "Close this session?",
+    "context_loaded": "Context loaded",
+    "context_injected_builder": "User memory injected ({count} entries)",
+    "context_tooltip": "Apollia uses your preferences to personalize responses",
+    "summarized_messages": "{count} messages summarized",
+    "past_session": "Past session",
+    "use_preferences": "Use my preferences",
+    "inject_user_memory": "Inject user memory",
+    "memory_section": "Memory",
+    "context_window": "Context window",
+    "context_messages": "Messages: {pct}%",
+    "context_memory": "User memory: {pct}%",
+    "context_summary": "Summary: {pct}%",
+    "context_free": "Free: {pct}%",
+    "legend_messages": "Messages",
+    "legend_memory": "Memory",
+    "legend_summary": "Summary",
+    "legend_free": "Free"
   }
 }

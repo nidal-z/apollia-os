@@ -449,6 +449,7 @@ impl ChatSessionManager {
             tool_name: None,
             created_at: now.clone(),
             seq,
+            metadata: None,
         };
         session.history.push(msg);
 
@@ -673,6 +674,7 @@ impl ChatSessionManager {
                     tool_name: None,
                     created_at: now,
                     seq,
+                    metadata: None,
                 });
             }
             Err(e) => {
@@ -855,6 +857,7 @@ impl ChatSessionManager {
                     tool_name: m.tool_name,
                     created_at: m.created_at,
                     seq: m.seq,
+                    metadata: None,
                 }
             })
             .collect();
@@ -959,6 +962,7 @@ impl ChatSessionManager {
                         tool_name: m.tool_name,
                         created_at: m.created_at,
                         seq: m.seq,
+                        metadata: None,
                     }
                 })
                 .collect();

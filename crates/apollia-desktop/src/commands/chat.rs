@@ -70,6 +70,9 @@ pub struct ChatMessageView {
     pub tool_name: Option<String>,
     pub seq: u32,
     pub created_at: String,
+    /// Optional key-value metadata (e.g. cross-session markers).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
 }
 
 /// Creates a new chat session (Libre or Agent mode).
@@ -281,6 +284,7 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
             tool_name: m.tool_name.clone(),
             seq: m.seq,
             created_at: m.created_at.clone(),
+            metadata: m.metadata.clone(),
         })
         .collect();
 

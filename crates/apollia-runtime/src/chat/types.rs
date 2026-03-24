@@ -136,6 +136,9 @@ pub struct ChatMessage {
     pub created_at: String,
     /// Sequence number within the session (1-based, ascending).
     pub seq: u32,
+    /// Optional key-value metadata attached by the runtime (e.g. cross-session markers).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
 }
 
 /// Role of a chat message sender.

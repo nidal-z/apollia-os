@@ -1,12 +1,14 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { Terminal, FileText, Code, Save, Cpu, Settings2 } from "lucide-svelte";
+  import { Terminal, FileText, Code, Save, Cpu, Settings2, Brain } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Toggle } from "$lib/components/ui/toggle";
   import { Sheet } from "$lib/components/ui/sheet";
   import type { ChatSessionDetail, UpdateSessionRequest } from "$lib/types";
   import { llmBackends } from "$lib/stores/sse";
+  import { useUserMemory, chatConversationStats } from "$lib/stores/chat";
+  import { uiMode } from "$lib/stores/mode";
 
   interface Props {
     open: boolean;
@@ -41,6 +43,25 @@
     if (toolFileIo) tools.push("file_io");
     if (toolPython) tools.push("python_executor");
     return tools;
+  });
+
+  const memoryToggleLabel = $derived(
+    $uiMode === "builder"
+      ? $t("chat.inject_user_memory")
+      : $t("chat.use_preferences"),
+  );
+
+  const contextBarSegments = $derived.by(() => {
+    const stats = $chatConversationStats;
+    if (!stats) return null;
+    const pct = stats.context_usage_pct;
+    const hasMemory = stats.user_memory_injected;
+    const hasSummary = stats.summarized_count > 0;
+    const memoryPct = hasMemory ? Math.min(pct * 0.15, 15) : 0;
+    const summaryPct = hasSummary ? Math.min(pct * 0.1, 10) : 0;
+    const messagesPct = Math.max(pct - memoryPct - summaryPct, 0);
+    const freePct = Math.max(100 - messagesPct - memoryPct - summaryPct, 0);
+    return { messagesPct, memoryPct, summaryPct, freePct };
   });
 
   function syncFromSession(): void {
@@ -192,6 +213,82 @@
                 />
               </div>
             {/each}
+          </div>
+        </div>
+      {/if}
+
+      <!-- User memory toggle -->
+      <div class="glass-card glass-border rounded-xl p-3.5 space-y-2.5">
+        <p class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+          {$t("chat.memory_section")}
+        </p>
+        <div class="flex items-center justify-between rounded-lg px-3 py-2 glass-surface">
+          <div class="flex items-center gap-2.5">
+            <Brain class="h-3.5 w-3.5 text-[#7c5fd6]" />
+            <span class="text-xs font-medium">{memoryToggleLabel}</span>
+          </div>
+          <Toggle
+            size="sm"
+            checked={$useUserMemory}
+            onchange={(checked) => useUserMemory.set(checked)}
+            data-testid="toggle-user-memory"
+          />
+        </div>
+      </div>
+
+      <!-- Context window usage -->
+      {#if contextBarSegments}
+        <div class="glass-card glass-border rounded-xl p-3.5 space-y-2.5">
+          <p class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+            {$t("chat.context_window")}
+          </p>
+          <div
+            class="flex h-2 w-full overflow-hidden rounded-full bg-muted/20"
+            data-testid="context-window-bar"
+          >
+            {#if contextBarSegments.messagesPct > 0}
+              <div
+                class="h-full bg-[#3435f5]"
+                style="width: {contextBarSegments.messagesPct}%"
+                title={$t("chat.context_messages", { values: { pct: Math.round(contextBarSegments.messagesPct) } })}
+              ></div>
+            {/if}
+            {#if contextBarSegments.memoryPct > 0}
+              <div
+                class="h-full bg-[#7c5fd6]"
+                style="width: {contextBarSegments.memoryPct}%"
+                title={$t("chat.context_memory", { values: { pct: Math.round(contextBarSegments.memoryPct) } })}
+              ></div>
+            {/if}
+            {#if contextBarSegments.summaryPct > 0}
+              <div
+                class="h-full bg-[#f59e0b]"
+                style="width: {contextBarSegments.summaryPct}%"
+                title={$t("chat.context_summary", { values: { pct: Math.round(contextBarSegments.summaryPct) } })}
+              ></div>
+            {/if}
+            <div
+              class="h-full bg-[#6b7280]/30 flex-1"
+              title={$t("chat.context_free", { values: { pct: Math.round(contextBarSegments.freePct) } })}
+            ></div>
+          </div>
+          <div class="flex items-center gap-3 text-[9px] text-muted-foreground/50">
+            <span class="flex items-center gap-1">
+              <span class="inline-block h-1.5 w-1.5 rounded-full bg-[#3435f5]"></span>
+              {$t("chat.legend_messages")}
+            </span>
+            <span class="flex items-center gap-1">
+              <span class="inline-block h-1.5 w-1.5 rounded-full bg-[#7c5fd6]"></span>
+              {$t("chat.legend_memory")}
+            </span>
+            <span class="flex items-center gap-1">
+              <span class="inline-block h-1.5 w-1.5 rounded-full bg-[#f59e0b]"></span>
+              {$t("chat.legend_summary")}
+            </span>
+            <span class="flex items-center gap-1">
+              <span class="inline-block h-1.5 w-1.5 rounded-full bg-[#6b7280]/30"></span>
+              {$t("chat.legend_free")}
+            </span>
           </div>
         </div>
       {/if}
