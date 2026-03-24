@@ -311,6 +311,35 @@ pub async fn update_user_memory_entry(
     Ok(view)
 }
 
+/// Confidence score assigned when the user validates a memory entry.
+const VALIDATED_CONFIDENCE: f64 = 0.95;
+
+/// Validates a user memory entry by setting its confidence to 0.95.
+///
+/// The value and source are preserved.  Returns an error with code
+/// `NOT_FOUND` if no entry matches the given key.
+#[tauri::command]
+pub async fn validate_user_memory(
+    state: State<'_, RuntimeHandle>,
+    key: String,
+) -> Result<(), String> {
+    let repo = get_repo(&state)?;
+
+    tokio::task::spawn_blocking(move || {
+        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
+        repo.update_confidence(&key, VALIDATED_CONFIDENCE)
+            .map_err(|e| {
+                if e.to_string().contains("not found") {
+                    format!("NOT_FOUND: User memory entry not found: {key}")
+                } else {
+                    e.to_string()
+                }
+            })
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+}
+
 /// Deletes a user memory entry by key.
 ///
 /// Returns an error with code `NOT_FOUND` if no entry matches.
@@ -599,5 +628,10 @@ mod tests {
     #[test]
     fn test_max_search_results_value() {
         assert_eq!(MAX_SEARCH_RESULTS, 50);
+    }
+
+    #[test]
+    fn test_validated_confidence_value() {
+        assert!((VALIDATED_CONFIDENCE - 0.95).abs() < f64::EPSILON);
     }
 }

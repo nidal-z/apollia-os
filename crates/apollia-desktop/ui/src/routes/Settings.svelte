@@ -12,6 +12,7 @@
   import TabBar from "$lib/components/ui/tabs/TabBar.svelte";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
+  import UserMemories from "./settings/UserMemories.svelte";
 
   import type { ApollaConfigView, SystemInfo } from "$lib/types";
 
@@ -31,7 +32,7 @@
     updated_at: string;
   }
 
-  type SettingsTab = "preferences" | "profile" | "configuration" | "system";
+  type SettingsTab = "preferences" | "profile" | "memories" | "configuration" | "system";
   type ProfileCategory = "preferences" | "habits" | "context";
 
   // ─── State ──────────────────────────────────────────
@@ -63,6 +64,7 @@
   const tabItems = $derived([
     { key: "preferences", label: $t("settings.preferences") },
     { key: "profile", label: $t("settings.profile") },
+    { key: "memories", label: $t("settings.memories") },
     { key: "configuration", label: $t("settings.runtime_config") },
     { key: "system", label: $t("settings.system_info") },
   ]);
@@ -521,6 +523,13 @@
             </Button>
           </div>
         {/if}
+      </section>
+    {/if}
+
+    <!-- Tab: Memories (feedback loop) -->
+    {#if activeTab === "memories"}
+      <section data-testid="memories-section">
+        <UserMemories mode={$uiMode} />
       </section>
     {/if}
 

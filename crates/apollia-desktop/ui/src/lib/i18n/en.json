@@ -522,9 +522,13 @@
       "add_key_required": "Key is required",
       "edit_save": "Save",
       "edit_cancel": "Cancel",
+      "menu_validate": "Validate",
       "menu_edit": "Edit",
       "menu_delete": "Delete",
       "menu_recategorize": "Change category",
+      "badge_validated": "Validated",
+      "toast_validated": "Entry validated",
+      "toast_validate_failed": "Failed to validate entry",
       "delete_title_operator": "Delete this information?",
       "delete_title_builder": "Delete this memory entry?",
       "delete_confirm": "Delete",
@@ -732,7 +736,13 @@
     "profile_new_key_placeholder": "key",
     "profile_new_value_placeholder": "value",
     "profile_load_error": "Failed to load user profile",
-    "profile_unavailable": "User memory is not available. The runtime may not have started correctly."
+    "profile_unavailable": "User memory is not available. The runtime may not have started correctly.",
+    "memories": "My Memories",
+    "memories_subtitle": "Review, validate, or correct the information the system has learned about you.",
+    "memories_source_onboarding": "Onboarding",
+    "memories_source_chat_inference": "Inferred",
+    "memories_source_user_explicit": "Explicit",
+    "memories_source_agent_observation": "Agent"
   },
   "onboarding": {
     "welcome_title": "Welcome to Apollia OS",

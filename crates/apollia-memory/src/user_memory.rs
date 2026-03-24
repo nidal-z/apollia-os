@@ -374,6 +374,40 @@ impl UserMemoryRepository {
         Err(UserMemoryError::NotFound(key.to_owned()))
     }
 
+    /// Updates only the confidence score of an existing entry.
+    ///
+    /// The value and source are preserved.  Scans all categories for a
+    /// matching key.  Returns `Err(NotFound)` if the key does not exist.
+    pub fn update_confidence(&self, key: &str, confidence: f64) -> Result<(), UserMemoryError> {
+        let sem = SemanticMemory::new(&self.store);
+
+        for &cat in UserMemoryCategory::all() {
+            let compound = Self::compound_key(cat, key);
+            let existing = sem
+                .recall(USER_NAMESPACE, &compound)
+                .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+
+            if let Some(entry) = existing {
+                let source = entry
+                    .source
+                    .as_deref()
+                    .and_then(UserMemorySource::from_str)
+                    .unwrap_or(UserMemorySource::UserExplicit);
+
+                let value = entry
+                    .value
+                    .as_str()
+                    .map(|s| s.to_owned())
+                    .unwrap_or_else(|| entry.value.to_string());
+
+                self.store_with_confidence(cat, key, &value, source, confidence)?;
+                return Ok(());
+            }
+        }
+
+        Err(UserMemoryError::NotFound(key.to_owned()))
+    }
+
     /// Updates the value of an existing entry, preserving its source.
     ///
     /// Scans all categories for a matching key.
@@ -667,6 +701,44 @@ mod tests {
         // THEN — at most 3 "- key:" lines
         let entry_count = text.lines().filter(|l| l.starts_with("- ")).count();
         assert_eq!(entry_count, 3);
+    }
+
+    #[test]
+    fn test_update_confidence_preserves_value_and_source() {
+        // GIVEN an entry with confidence 0.5
+        let (repo, _) = setup();
+        repo.store_with_confidence(
+            UserMemoryCategory::Preferences,
+            "language",
+            "francais",
+            UserMemorySource::ChatInference,
+            0.5,
+        )
+        .unwrap();
+
+        // WHEN confidence is updated to 0.95
+        repo.update_confidence("language", 0.95).unwrap();
+
+        // THEN value and source are preserved, confidence is 0.95
+        let entry = repo
+            .recall_by_key(UserMemoryCategory::Preferences, "language")
+            .unwrap()
+            .expect("entry should exist");
+        assert_eq!(entry.value, "francais");
+        assert_eq!(entry.source, UserMemorySource::ChatInference);
+        assert!((entry.confidence - 0.95).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_update_confidence_not_found() {
+        // GIVEN an empty repo
+        let (repo, _) = setup();
+
+        // WHEN updating confidence for a non-existent key
+        let result = repo.update_confidence("nonexistent", 0.95);
+
+        // THEN NotFound is returned
+        assert!(matches!(result, Err(UserMemoryError::NotFound(_))));
     }
 
     #[test]

@@ -12,9 +12,10 @@
     onupdate: (key: string, value: string) => void;
     ondelete: (key: string) => void;
     onrecategorize: (key: string, category: string) => void;
+    onvalidate?: (key: string) => void;
   }
 
-  let { entry, onupdate, ondelete, onrecategorize }: Props = $props();
+  let { entry, onupdate, ondelete, onrecategorize, onvalidate }: Props = $props();
 
   const CATEGORY_COLORS: Record<string, string> = {
     preferences: "#3435f5",
@@ -52,6 +53,11 @@
     onupdate(entry.key, editValue.trim());
     isEditing = false;
     editValue = "";
+  }
+
+  function handleValidate(): void {
+    isMenuOpen = false;
+    onvalidate?.(entry.key);
   }
 
   function handleDelete(): void {
@@ -101,6 +107,14 @@
         <Badge variant="secondary" class="text-[10px]">
           {$t(`memory.user_memory.${SOURCE_LABELS[entry.source] ?? "source_explicit"}`)}
         </Badge>
+        {#if entry.confidence >= 0.95}
+          <span
+            class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-500/15 text-emerald-600"
+            data-testid="validated-badge-{entry.key}"
+          >
+            {$t("memory.user_memory.badge_validated")}
+          </span>
+        {/if}
       </div>
 
       {#if isEditing}
@@ -152,6 +166,15 @@
             class="absolute right-0 top-full z-20 mt-1 w-40 rounded-md glass-card glass-border shadow-lg py-1"
             onclick={(e: MouseEvent) => e.stopPropagation()}
           >
+            {#if onvalidate && entry.confidence < 0.95}
+              <button
+                class="w-full text-left px-3 py-1.5 text-xs text-emerald-600 hover:bg-muted/50 transition-colors"
+                onclick={handleValidate}
+                data-testid="validate-memory-{entry.key}"
+              >
+                {$t("memory.user_memory.menu_validate")}
+              </button>
+            {/if}
             <button
               class="w-full text-left px-3 py-1.5 text-xs hover:bg-muted/50 transition-colors"
               onclick={startEdit}
