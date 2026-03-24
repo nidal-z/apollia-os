@@ -1,0 +1,626 @@
+//! UserMemoryRepository — global user memory backed by SemanticMemory.
+//!
+//! Persists user preferences, habits, and contextual information under
+//! the reserved `__user__` namespace.  The repository delegates storage
+//! to [`SemanticMemory`] and [`MemorySearch`], adding domain-specific
+//! typing (category, source) and an LLM-friendly recall format.
+
+use std::fmt;
+use std::path::Path;
+
+use crate::search::{MemorySearch, SearchSource};
+use crate::semantic::SemanticMemory;
+use crate::store::MemoryStore;
+
+/// Reserved SemanticMemory namespace for user-level data.
+const USER_NAMESPACE: &str = "__user__";
+
+/// Default confidence score assigned to user memory entries.
+const DEFAULT_CONFIDENCE: f64 = 1.0;
+
+/// Separator between the category prefix and the key in semantic storage.
+const KEY_SEPARATOR: char = '.';
+
+// ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
+
+/// Category of a user memory entry (ADR-038).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UserMemoryCategory {
+    /// User preferences (language, output format, tone, etc.).
+    Preferences,
+    /// Observed user habits (working hours, review frequency, etc.).
+    Habits,
+    /// Contextual information (current project, role, team, etc.).
+    Context,
+}
+
+impl UserMemoryCategory {
+    /// Returns the string tag used as key prefix in SemanticMemory.
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Preferences => "preferences",
+            Self::Habits => "habits",
+            Self::Context => "context",
+        }
+    }
+
+    /// Ordered list of all categories, used for grouped recall.
+    fn all() -> &'static [Self] {
+        &[Self::Preferences, Self::Habits, Self::Context]
+    }
+
+    /// Parses a category from its string tag.
+    fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "preferences" => Some(Self::Preferences),
+            "habits" => Some(Self::Habits),
+            "context" => Some(Self::Context),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for UserMemoryCategory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Source of a user memory entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UserMemorySource {
+    /// Set during first-run onboarding wizard.
+    Onboarding,
+    /// Inferred by the LLM from a chat conversation.
+    ChatInference,
+    /// Explicitly provided by the user.
+    UserExplicit,
+    /// Observed by an agent during task execution.
+    AgentObservation,
+}
+
+impl UserMemorySource {
+    /// Returns the string tag stored in SemanticMemory's `source` field.
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Onboarding => "onboarding",
+            Self::ChatInference => "chat_inference",
+            Self::UserExplicit => "user_explicit",
+            Self::AgentObservation => "agent_observation",
+        }
+    }
+
+    /// Parses a source from its string tag.
+    fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "onboarding" => Some(Self::Onboarding),
+            "chat_inference" => Some(Self::ChatInference),
+            "user_explicit" => Some(Self::UserExplicit),
+            "agent_observation" => Some(Self::AgentObservation),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for UserMemorySource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// A single user memory entry returned by recall operations.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UserMemoryEntry {
+    /// Category of the entry.
+    pub category: UserMemoryCategory,
+    /// Short key identifying the entry within its category.
+    pub key: String,
+    /// Human-readable value.
+    pub value: String,
+    /// How this entry was created.
+    pub source: UserMemorySource,
+    /// ISO 8601 creation timestamp.
+    pub created_at: String,
+    /// ISO 8601 last-update timestamp.
+    pub updated_at: String,
+}
+
+/// Errors from [`UserMemoryRepository`] operations.
+#[derive(Debug, thiserror::Error)]
+pub enum UserMemoryError {
+    /// A storage operation failed.
+    #[error("storage error: {0}")]
+    StorageError(String),
+    /// The provided category string is not recognized.
+    #[error("invalid category: {0}")]
+    InvalidCategory(String),
+    /// The requested entry was not found.
+    #[error("entry not found: {0}")]
+    NotFound(String),
+}
+
+// ---------------------------------------------------------------------------
+// Repository
+// ---------------------------------------------------------------------------
+
+/// Repository for global user memory backed by [`SemanticMemory`].
+///
+/// All entries live under the `__user__` namespace in a shared
+/// [`MemoryStore`].  Keys are prefixed with the category tag
+/// (`preferences.language`, `habits.working_hours`, etc.).
+pub struct UserMemoryRepository {
+    store: MemoryStore,
+}
+
+impl UserMemoryRepository {
+    /// Opens (or creates) the user memory database at `db_path`.
+    pub fn new(db_path: &Path) -> Result<Self, UserMemoryError> {
+        let store =
+            MemoryStore::open(db_path).map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+        Ok(Self { store })
+    }
+
+    /// Stores or updates a user memory entry.
+    ///
+    /// If an entry with the same `key` already exists in `category`,
+    /// the value is replaced (upsert semantics).
+    pub fn store(
+        &self,
+        category: UserMemoryCategory,
+        key: &str,
+        value: &str,
+        source: UserMemorySource,
+    ) -> Result<(), UserMemoryError> {
+        let compound_key = Self::compound_key(category, key);
+        let sem = SemanticMemory::new(&self.store);
+        let json_value = serde_json::Value::String(value.to_owned());
+
+        sem.remember(
+            USER_NAMESPACE,
+            &compound_key,
+            &json_value,
+            DEFAULT_CONFIDENCE,
+            Some(source.as_str()),
+            None,
+        )
+        .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Recalls entries for a given category, ordered by key, up to `limit`.
+    pub fn recall(
+        &self,
+        category: UserMemoryCategory,
+        limit: usize,
+    ) -> Result<Vec<UserMemoryEntry>, UserMemoryError> {
+        let sem = SemanticMemory::new(&self.store);
+        let prefix = format!("{}{KEY_SEPARATOR}", category.as_str());
+
+        let all = sem
+            .recall_all(USER_NAMESPACE)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+
+        let entries: Vec<UserMemoryEntry> = all
+            .into_iter()
+            .filter(|e| e.key.starts_with(&prefix))
+            .take(limit)
+            .filter_map(|e| Self::semantic_to_entry(&e.key, &e))
+            .collect();
+
+        Ok(entries)
+    }
+
+    /// Full-text search across all categories.
+    ///
+    /// Returns entries matching `query` via FTS5 BM25 ranking.
+    pub fn search(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<UserMemoryEntry>, UserMemoryError> {
+        let searcher = MemorySearch::new(&self.store);
+        let sem = SemanticMemory::new(&self.store);
+
+        let results = searcher
+            .query(
+                USER_NAMESPACE,
+                query,
+                limit as u32,
+                Some(&[SearchSource::Semantic]),
+                None,
+            )
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+
+        let mut entries = Vec::with_capacity(results.len());
+        for result in &results {
+            let maybe = sem
+                .recall_all(USER_NAMESPACE)
+                .map_err(|e| UserMemoryError::StorageError(e.to_string()))?
+                .into_iter()
+                .find(|e| e.id == result.source_id);
+
+            if let Some(se) = maybe {
+                if let Some(entry) = Self::semantic_to_entry(&se.key, &se) {
+                    entries.push(entry);
+                }
+            }
+        }
+
+        Ok(entries)
+    }
+
+    /// Produces a text block suitable for LLM system-prompt injection.
+    ///
+    /// Entries are grouped by category. Output format:
+    /// ```text
+    /// Category: preferences
+    /// - language: francais
+    /// - format: markdown
+    /// Category: habits
+    /// - working_hours: 9h-18h
+    /// ```
+    pub fn recall_all_for_injection(&self, max_entries: usize) -> Result<String, UserMemoryError> {
+        let sem = SemanticMemory::new(&self.store);
+        let all = sem
+            .recall_all(USER_NAMESPACE)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+
+        let mut output = String::new();
+        let mut total = 0usize;
+
+        for &cat in UserMemoryCategory::all() {
+            let prefix = format!("{}{KEY_SEPARATOR}", cat.as_str());
+            let entries_for_cat: Vec<_> =
+                all.iter().filter(|e| e.key.starts_with(&prefix)).collect();
+
+            if entries_for_cat.is_empty() {
+                continue;
+            }
+
+            if !output.is_empty() {
+                output.push('\n');
+            }
+            output.push_str(&format!("Category: {}\n", cat.as_str()));
+
+            for entry in entries_for_cat {
+                if total >= max_entries {
+                    break;
+                }
+                let short_key = &entry.key[prefix.len()..];
+                let value = entry
+                    .value
+                    .as_str()
+                    .map(|s| s.to_owned())
+                    .unwrap_or_else(|| entry.value.to_string());
+                output.push_str(&format!("- {short_key}: {value}\n"));
+                total += 1;
+            }
+
+            if total >= max_entries {
+                break;
+            }
+        }
+
+        Ok(output)
+    }
+
+    /// Removes the entry with the given `key` from any category.
+    ///
+    /// Returns `Ok(())` if the entry was found and deleted, or
+    /// `Err(NotFound)` if no entry matched.
+    pub fn forget(&self, key: &str) -> Result<(), UserMemoryError> {
+        let sem = SemanticMemory::new(&self.store);
+
+        for &cat in UserMemoryCategory::all() {
+            let compound = Self::compound_key(cat, key);
+            let deleted = sem
+                .forget(USER_NAMESPACE, &compound)
+                .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+
+            if deleted {
+                return Ok(());
+            }
+        }
+
+        Err(UserMemoryError::NotFound(key.to_owned()))
+    }
+
+    /// Updates the value of an existing entry, preserving its source.
+    ///
+    /// Scans all categories for a matching key.
+    /// Returns `Err(NotFound)` if the key does not exist.
+    pub fn update(&self, key: &str, value: &str) -> Result<(), UserMemoryError> {
+        let sem = SemanticMemory::new(&self.store);
+
+        for &cat in UserMemoryCategory::all() {
+            let compound = Self::compound_key(cat, key);
+            let existing = sem
+                .recall(USER_NAMESPACE, &compound)
+                .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+
+            if let Some(entry) = existing {
+                let source = entry
+                    .source
+                    .as_deref()
+                    .and_then(UserMemorySource::from_str)
+                    .unwrap_or(UserMemorySource::UserExplicit);
+
+                self.store(cat, key, value, source)?;
+                return Ok(());
+            }
+        }
+
+        Err(UserMemoryError::NotFound(key.to_owned()))
+    }
+
+    // -- helpers --
+
+    /// Builds the compound key stored in SemanticMemory (`category.key`).
+    fn compound_key(category: UserMemoryCategory, key: &str) -> String {
+        format!("{}{KEY_SEPARATOR}{key}", category.as_str())
+    }
+
+    /// Converts a [`SemanticEntry`] to a [`UserMemoryEntry`].
+    ///
+    /// Returns `None` if the key does not contain a valid category prefix.
+    fn semantic_to_entry(
+        compound_key: &str,
+        se: &crate::semantic::SemanticEntry,
+    ) -> Option<UserMemoryEntry> {
+        let (cat_str, short_key) = compound_key.split_once(KEY_SEPARATOR)?;
+        let category = UserMemoryCategory::from_str(cat_str)?;
+        let source = se
+            .source
+            .as_deref()
+            .and_then(UserMemorySource::from_str)
+            .unwrap_or(UserMemorySource::UserExplicit);
+
+        let value = se
+            .value
+            .as_str()
+            .map(|s| s.to_owned())
+            .unwrap_or_else(|| se.value.to_string());
+
+        Some(UserMemoryEntry {
+            category,
+            key: short_key.to_owned(),
+            value,
+            source,
+            created_at: se.created_at.clone(),
+            updated_at: se.updated_at.clone(),
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn setup() -> (UserMemoryRepository, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("apollia_user_mem_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("user_memory.db");
+        let repo = UserMemoryRepository::new(&path).unwrap();
+        (repo, path)
+    }
+
+    // Store + recall round-trip for each category
+    #[test]
+    fn test_store_recall_round_trip() {
+        // GIVEN
+        let (repo, _) = setup();
+
+        // WHEN
+        repo.store(
+            UserMemoryCategory::Preferences,
+            "language",
+            "francais",
+            UserMemorySource::UserExplicit,
+        )
+        .unwrap();
+        repo.store(
+            UserMemoryCategory::Habits,
+            "working_hours",
+            "9h-18h",
+            UserMemorySource::AgentObservation,
+        )
+        .unwrap();
+        repo.store(
+            UserMemoryCategory::Context,
+            "current_project",
+            "apollia-os",
+            UserMemorySource::Onboarding,
+        )
+        .unwrap();
+
+        // THEN
+        let prefs = repo.recall(UserMemoryCategory::Preferences, 10).unwrap();
+        assert_eq!(prefs.len(), 1);
+        assert_eq!(prefs[0].key, "language");
+        assert_eq!(prefs[0].value, "francais");
+        assert_eq!(prefs[0].source, UserMemorySource::UserExplicit);
+        assert_eq!(prefs[0].category, UserMemoryCategory::Preferences);
+
+        let habits = repo.recall(UserMemoryCategory::Habits, 10).unwrap();
+        assert_eq!(habits.len(), 1);
+        assert_eq!(habits[0].key, "working_hours");
+
+        let ctx = repo.recall(UserMemoryCategory::Context, 10).unwrap();
+        assert_eq!(ctx.len(), 1);
+        assert_eq!(ctx[0].key, "current_project");
+    }
+
+    // recall_all_for_injection produces correct grouped format
+    #[test]
+    fn test_recall_all_for_injection_format() {
+        // GIVEN
+        let (repo, _) = setup();
+        repo.store(
+            UserMemoryCategory::Preferences,
+            "language",
+            "francais",
+            UserMemorySource::UserExplicit,
+        )
+        .unwrap();
+        repo.store(
+            UserMemoryCategory::Preferences,
+            "format",
+            "markdown",
+            UserMemorySource::UserExplicit,
+        )
+        .unwrap();
+        repo.store(
+            UserMemoryCategory::Habits,
+            "working_hours",
+            "9h-18h",
+            UserMemorySource::AgentObservation,
+        )
+        .unwrap();
+
+        // WHEN
+        let text = repo.recall_all_for_injection(50).unwrap();
+
+        // THEN
+        assert!(text.contains("Category: preferences"));
+        assert!(text.contains("- language: francais"));
+        assert!(text.contains("- format: markdown"));
+        assert!(text.contains("Category: habits"));
+        assert!(text.contains("- working_hours: 9h-18h"));
+        // Preferences appear before habits (ordered by category)
+        let pref_pos = text.find("Category: preferences").unwrap();
+        let habit_pos = text.find("Category: habits").unwrap();
+        assert!(pref_pos < habit_pos);
+    }
+
+    // FTS5 search returns results cross-categories
+    #[test]
+    fn test_search_fts5_cross_categories() {
+        // GIVEN
+        let (repo, _) = setup();
+        repo.store(
+            UserMemoryCategory::Preferences,
+            "language",
+            "francais",
+            UserMemorySource::UserExplicit,
+        )
+        .unwrap();
+        repo.store(
+            UserMemoryCategory::Context,
+            "locale",
+            "francais",
+            UserMemorySource::Onboarding,
+        )
+        .unwrap();
+
+        // WHEN
+        let results = repo.search("francais", 10).unwrap();
+
+        // THEN
+        assert!(results.len() >= 2);
+        let categories: Vec<_> = results.iter().map(|e| e.category).collect();
+        assert!(categories.contains(&UserMemoryCategory::Preferences));
+        assert!(categories.contains(&UserMemoryCategory::Context));
+    }
+
+    // Forget removes the entry
+    #[test]
+    fn test_forget_removes_entry() {
+        // GIVEN
+        let (repo, _) = setup();
+        repo.store(
+            UserMemoryCategory::Preferences,
+            "language",
+            "francais",
+            UserMemorySource::UserExplicit,
+        )
+        .unwrap();
+
+        // WHEN
+        repo.forget("language").unwrap();
+
+        // THEN
+        let prefs = repo.recall(UserMemoryCategory::Preferences, 10).unwrap();
+        assert!(prefs.is_empty());
+    }
+
+    // Update modifies the value
+    #[test]
+    fn test_update_modifies_value() {
+        // GIVEN
+        let (repo, _) = setup();
+        repo.store(
+            UserMemoryCategory::Preferences,
+            "language",
+            "francais",
+            UserMemorySource::UserExplicit,
+        )
+        .unwrap();
+
+        // WHEN
+        repo.update("language", "english").unwrap();
+
+        // THEN
+        let prefs = repo.recall(UserMemoryCategory::Preferences, 10).unwrap();
+        assert_eq!(prefs.len(), 1);
+        assert_eq!(prefs[0].value, "english");
+        assert_eq!(prefs[0].source, UserMemorySource::UserExplicit);
+    }
+
+    // Forget nonexistent key returns NotFound
+    #[test]
+    fn test_forget_nonexistent_returns_not_found() {
+        // GIVEN
+        let (repo, _) = setup();
+
+        // WHEN
+        let result = repo.forget("nonexistent");
+
+        // THEN
+        assert!(matches!(result, Err(UserMemoryError::NotFound(_))));
+    }
+
+    // Update nonexistent key returns NotFound
+    #[test]
+    fn test_update_nonexistent_returns_not_found() {
+        // GIVEN
+        let (repo, _) = setup();
+
+        // WHEN
+        let result = repo.update("nonexistent", "value");
+
+        // THEN
+        assert!(matches!(result, Err(UserMemoryError::NotFound(_))));
+    }
+
+    // recall_all_for_injection respects max_entries limit
+    #[test]
+    fn test_recall_all_for_injection_respects_limit() {
+        // GIVEN
+        let (repo, _) = setup();
+        for i in 0..10 {
+            repo.store(
+                UserMemoryCategory::Preferences,
+                &format!("key_{i}"),
+                &format!("value_{i}"),
+                UserMemorySource::UserExplicit,
+            )
+            .unwrap();
+        }
+
+        // WHEN
+        let text = repo.recall_all_for_injection(3).unwrap();
+
+        // THEN — at most 3 "- key:" lines
+        let entry_count = text.lines().filter(|l| l.starts_with("- ")).count();
+        assert_eq!(entry_count, 3);
+    }
+}

@@ -19,3 +19,4 @@ pub mod procedural;
 pub mod search;
 pub mod semantic;
 pub mod store;
+pub mod user_memory;
