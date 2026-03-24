@@ -32,6 +32,7 @@ hex              = "0.4"
 # Optional: only when python-tests feature is enabled
 apollia-aip           = { workspace = true, optional = true }
 pyo3                  = { workspace = true, optional = true }
+apollia-memory       = { workspace = true }
 apollia-notifications = { workspace = true }
 apollia-pipelines     = { workspace = true }
 reqwest               = { workspace = true, features = ["json"] }
@@ -131,3 +132,7 @@ path = "integration/test_config_crud.rs"
 [[test]]
 name = "test_chat"
 path = "integration/test_chat.rs"
+
+[[test]]
+name = "test_oria_enhanced"
+path = "integration/test_oria_enhanced.rs"
