@@ -356,6 +356,27 @@ impl Default for PendingChatApprovals {
     }
 }
 
+/// Configuration for chat session context window management.
+///
+/// Controls how many messages from the conversation history are included
+/// in the LLM context window and when summarization is triggered.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatSessionConfig {
+    /// Number of recent messages to include in the sliding window (default 20).
+    pub context_window_size: u32,
+}
+
+/// Default context window size (number of messages).
+const DEFAULT_CONTEXT_WINDOW_SIZE: u32 = 20;
+
+impl Default for ChatSessionConfig {
+    fn default() -> Self {
+        Self {
+            context_window_size: DEFAULT_CONTEXT_WINDOW_SIZE,
+        }
+    }
+}
+
 /// Lightweight session info for list responses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionInfo {

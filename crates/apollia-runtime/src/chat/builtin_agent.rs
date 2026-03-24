@@ -33,6 +33,9 @@ use crate::eventbus::EventBusSender;
 /// Default timeout for chat tool approval requests (5 minutes).
 const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
 
+/// Default number of recent messages in the sliding context window.
+pub const DEFAULT_CONTEXT_WINDOW_SIZE: usize = 20;
+
 // ─────────────────────────────────────────────
 // NativeChatToolInvoker — production tool execution
 // ─────────────────────────────────────────────
@@ -272,6 +275,8 @@ impl BuiltInChatAgent {
         authorized_tools: &HashSet<String>,
         pending_approvals: &PendingChatApprovals,
         budget: &StepBudget,
+        summary: Option<&str>,
+        context_window_size: usize,
     ) -> Result<ChatAgentResponse, ChatError> {
         let base_prompt = if system_prompt.is_empty() {
             DEFAULT_SYSTEM_PROMPT
@@ -288,7 +293,13 @@ impl BuiltInChatAgent {
             tool_names = ?tool_specs.iter().map(|s| &s.name).collect::<Vec<_>>(),
             "Chat ReAct loop: tool specs resolved"
         );
-        let mut llm_messages = build_llm_messages(&effective_prompt, history, user_message);
+        let mut llm_messages = build_llm_messages(
+            &effective_prompt,
+            history,
+            user_message,
+            summary,
+            context_window_size,
+        );
         let mut all_tool_calls: Vec<ToolCallRecord> = Vec::new();
         let mut newly_authorized: Vec<String> = Vec::new();
         let total_usage = TokenUsage {
@@ -550,17 +561,45 @@ impl BuiltInChatAgent {
 
 /// Build LLM messages from system prompt, chat history, and current user message.
 ///
-/// Returns messages in order: system, history (converted), user.
+/// Applies a sliding window over history: only the last `context_window_size`
+/// messages are included. When a conversation summary is available, it is
+/// injected as a system message between the system prompt and the windowed
+/// history to preserve context from older messages.
+///
+/// Message order: system prompt → [summary] → windowed history → user message.
 fn build_llm_messages(
     system_prompt: &str,
     history: &[ChatMessage],
     user_message: &str,
+    summary: Option<&str>,
+    context_window_size: usize,
 ) -> Vec<LlmChatMessage> {
-    let mut messages = Vec::with_capacity(history.len() + 2);
+    let window_size = if context_window_size == 0 {
+        DEFAULT_CONTEXT_WINDOW_SIZE
+    } else {
+        context_window_size
+    };
+
+    let windowed_history = if history.len() > window_size {
+        let start = history.len() - window_size;
+        &history[start..]
+    } else {
+        history
+    };
+
+    let mut messages = Vec::with_capacity(windowed_history.len() + 4);
 
     messages.push(LlmChatMessage::system(system_prompt));
 
-    for msg in history {
+    if let Some(summary_text) = summary {
+        if !summary_text.is_empty() {
+            messages.push(LlmChatMessage::system(format!(
+                "Previous context summary:\n{summary_text}"
+            )));
+        }
+    }
+
+    for msg in windowed_history {
         match msg.role {
             ChatRole::User => messages.push(LlmChatMessage::user(&msg.content)),
             ChatRole::Assistant => messages.push(LlmChatMessage::assistant(&msg.content)),
@@ -927,6 +966,8 @@ mod tests {
                 &HashSet::new(),
                 &approvals,
                 &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
             )
             .await;
 
@@ -975,6 +1016,8 @@ mod tests {
                 &authorized,
                 &approvals,
                 &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
             )
             .await;
 
@@ -1033,6 +1076,8 @@ mod tests {
                 &HashSet::new(),
                 &approvals,
                 &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
             )
             .await;
 
@@ -1089,6 +1134,8 @@ mod tests {
                 &HashSet::new(),
                 &approvals,
                 &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
             )
             .await;
 
@@ -1148,6 +1195,8 @@ mod tests {
                 &HashSet::new(),
                 &approvals,
                 &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
             )
             .await;
 
@@ -1188,6 +1237,8 @@ mod tests {
                 &authorized,
                 &approvals,
                 &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
             )
             .await;
 
@@ -1235,7 +1286,13 @@ mod tests {
         ];
 
         // WHEN building LLM messages
-        let messages = build_llm_messages("You are helpful.", &history, "Final question");
+        let messages = build_llm_messages(
+            "You are helpful.",
+            &history,
+            "Final question",
+            None,
+            DEFAULT_CONTEXT_WINDOW_SIZE,
+        );
 
         // THEN 5 messages in order: system, h1 (user), h2 (assistant), h3 (user), current user
         assert_eq!(messages.len(), 5);
@@ -1282,6 +1339,8 @@ mod tests {
                 &authorized,
                 &approvals,
                 &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
             )
             .await
             .expect("should succeed");
@@ -1342,7 +1401,7 @@ mod tests {
     #[test]
     fn test_default_system_prompt_used_when_empty() {
         // GIVEN empty system_prompt
-        let messages = build_llm_messages("", &[], "Hello");
+        let messages = build_llm_messages("", &[], "Hello", None, DEFAULT_CONTEXT_WINDOW_SIZE);
 
         // THEN first message is the empty string we passed (caller decides default)
         assert_eq!(messages.len(), 2);
@@ -1378,6 +1437,8 @@ mod tests {
                 &HashSet::new(),
                 &approvals,
                 &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
             )
             .await
             .expect("should succeed");
@@ -1424,6 +1485,8 @@ mod tests {
                 &HashSet::new(),
                 &approvals,
                 &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
             )
             .await
             .expect("should succeed");
@@ -1505,6 +1568,8 @@ mod tests {
                 &HashSet::new(),
                 &approvals,
                 &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
             )
             .await
             .expect("should return partial content, not error");
@@ -1615,6 +1680,8 @@ mod tests {
                 &authorized,
                 &approvals,
                 &budget,
+                None,
+                DEFAULT_CONTEXT_WINDOW_SIZE,
             )
             .await
             .expect("should succeed");
@@ -1722,5 +1789,90 @@ mod tests {
         // THEN the prompt does NOT contain the user context block
         assert_eq!(prompt, "Base prompt.");
         assert!(!prompt.contains("User Context"));
+    }
+
+    // ── Context window management tests ─────────────────────────────────
+
+    fn make_history(count: usize) -> Vec<ChatMessage> {
+        (0..count)
+            .map(|i| ChatMessage {
+                id: format!("msg-{i}"),
+                role: if i % 2 == 0 {
+                    ChatRole::User
+                } else {
+                    ChatRole::Assistant
+                },
+                content: format!("message {i}"),
+                tool_calls: None,
+                tool_name: None,
+                created_at: "2026-03-24T10:00:00Z".to_string(),
+                seq: i as u32 + 1,
+            })
+            .collect()
+    }
+
+    /// Extract text from a MessageContent, panicking if it's not Text.
+    fn text_of(msg: &apollia_llm::types::ChatMessage) -> &str {
+        match &msg.content {
+            apollia_llm::types::MessageContent::Text(s) => s.as_str(),
+            other => panic!("expected Text, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_context_window_short_conversation_includes_all() {
+        // GIVEN a conversation shorter than window_size (10 messages, window=20)
+        let history = make_history(10);
+
+        // WHEN building context without summary
+        let messages = build_llm_messages("system", &history, "new msg", None, 20);
+
+        // THEN all 10 history messages are included (+ system + user = 12)
+        assert_eq!(messages.len(), 12);
+        assert_eq!(messages[0].role, apollia_llm::types::Role::System);
+        assert_eq!(messages[11].role, apollia_llm::types::Role::User);
+    }
+
+    #[test]
+    fn test_context_window_long_conversation_with_summary() {
+        // GIVEN 40 messages, window_size=20, and a stored summary
+        let history = make_history(40);
+        let summary = "The user discussed project setup and deployment.";
+
+        // WHEN building context with summary
+        let messages = build_llm_messages("system", &history, "new msg", Some(summary), 20);
+
+        // THEN: system + summary + 20 windowed messages + user = 23
+        assert_eq!(messages.len(), 23);
+        // First message is system prompt
+        assert_eq!(messages[0].role, apollia_llm::types::Role::System);
+        // Second message is the summary (system role)
+        assert_eq!(messages[1].role, apollia_llm::types::Role::System);
+        let summary_text = text_of(&messages[1]);
+        assert!(summary_text.contains("Previous context summary:"));
+        assert!(summary_text.contains(summary));
+        // Last message is the current user message
+        assert_eq!(messages[22].role, apollia_llm::types::Role::User);
+        assert_eq!(text_of(&messages[22]), "new msg");
+        // Windowed messages start from index 20 (history[20..40])
+        assert_eq!(text_of(&messages[2]), "message 20");
+    }
+
+    #[test]
+    fn test_context_window_long_conversation_without_summary() {
+        // GIVEN 40 messages, window_size=20, no summary
+        let history = make_history(40);
+
+        // WHEN building context without summary
+        let messages = build_llm_messages("system", &history, "new msg", None, 20);
+
+        // THEN: system + 20 windowed messages + user = 22 (no summary message)
+        assert_eq!(messages.len(), 22);
+        assert_eq!(messages[0].role, apollia_llm::types::Role::System);
+        // First windowed message is history[20]
+        assert_eq!(text_of(&messages[1]), "message 20");
+        // Last message is current user message
+        assert_eq!(messages[21].role, apollia_llm::types::Role::User);
+        assert_eq!(text_of(&messages[21]), "new msg");
     }
 }

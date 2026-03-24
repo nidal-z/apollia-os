@@ -22,7 +22,7 @@ use apollia_oria::budget::StepBudget;
 use apollia_tools::ToolRegistryHandle;
 
 use super::agent_chat::{AgentChatExecutor, ChatAgentRunner};
-use super::builtin_agent::{BuiltInChatAgent, ChatAgentResponse};
+use super::builtin_agent::{BuiltInChatAgent, ChatAgentResponse, DEFAULT_CONTEXT_WINDOW_SIZE};
 use super::repository::{AppendMessageParams, ChatSessionRepository};
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId,
@@ -120,6 +120,13 @@ pub enum ChatCommand {
         message_id: MessageId,
         /// Error description.
         error: String,
+    },
+    /// Internal: persist a conversation summary computed by the spawned task.
+    PersistSummary {
+        /// Target session.
+        session_id: SessionId,
+        /// Summary text to store.
+        summary: String,
     },
     /// Shut down the actor.
     Shutdown,
@@ -230,6 +237,14 @@ impl ChatSessionManager {
                     error,
                 } => {
                     self.handle_exchange_error(&session_id, &message_id, &error);
+                }
+                ChatCommand::PersistSummary {
+                    session_id,
+                    summary,
+                } => {
+                    if let Err(e) = self.repository.update_summary(&session_id, &summary) {
+                        warn!(session_id = %session_id, error = %e, "Failed to persist conversation summary");
+                    }
                 }
                 ChatCommand::Shutdown => {
                     info!("ChatSessionManager: shutting down");
@@ -449,8 +464,37 @@ impl ChatSessionManager {
             let mid = message_id.clone();
             let user_msg = content.to_string();
             let tx = self.tx.clone();
+            let context_window_size = DEFAULT_CONTEXT_WINDOW_SIZE;
+
+            let stored_summary = self.repository.get_summary(session_id).unwrap_or(None);
+            let llm_for_summarize = self.llm_router.clone();
 
             tokio::spawn(async move {
+                let summary = if history.len() > context_window_size && stored_summary.is_none() {
+                    if let Some(ref llm) = llm_for_summarize {
+                        let older = &history[..history.len() - context_window_size];
+                        match super::summarizer::summarize(older, llm).await {
+                            Ok(s) => {
+                                let _ = tx
+                                    .send(ChatCommand::PersistSummary {
+                                        session_id: sid.clone(),
+                                        summary: s.clone(),
+                                    })
+                                    .await;
+                                Some(s)
+                            }
+                            Err(e) => {
+                                warn!(error = %e, "Context window summarization failed, proceeding without summary");
+                                None
+                            }
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    stored_summary
+                };
+
                 let result = agent
                     .execute(
                         &sid,
@@ -462,6 +506,8 @@ impl ChatSessionManager {
                         &authorized_tools,
                         &pending_approvals,
                         &budget,
+                        summary.as_deref(),
+                        context_window_size,
                     )
                     .await;
 
