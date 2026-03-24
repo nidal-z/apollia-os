@@ -11,10 +11,11 @@
   import { pendingChatSessionId } from "$lib/stores/chat";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import { Bot, Download } from "lucide-svelte";
+  import { Bot, Download, Sparkles } from "lucide-svelte";
   import AgentCard from "../components/agents/AgentCard.svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
   import AgentDetail from "../components/agents/AgentDetail.svelte";
+  import CreateFromTemplateDialog from "../components/agents/CreateFromTemplateDialog.svelte";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
   import EmptyState from "../components/common/EmptyState.svelte";
   import type { ChatSessionSummary, CreateSessionRequest } from "$lib/types";
@@ -27,6 +28,7 @@
   let logsOpen = $state(false);
   let detailAgent = $state<AgentListItem | null>(null);
   let detailOpen = $state(false);
+  let showCreateDialog = $state(false);
 
   const activeAgents = $derived($agents.filter((a) => a.runtime_status === "active" || a.runtime_status === "degraded"));
   const inactiveAgents = $derived($agents.filter((a) => a.runtime_status !== "active" && a.runtime_status !== "degraded"));
@@ -73,10 +75,16 @@
       <h1 class="text-2xl font-semibold tracking-tight" data-testid="agents-header">{$t('agents.title')}</h1>
       <p class="mt-1 text-sm text-muted-foreground" data-testid="agents-subtitle">{$t('agents.subtitle')}</p>
     </div>
-    <Button size="sm" onclick={pickAndInstallAgent} disabled={installingAgent} data-testid="install-agent-button" class="gap-1.5">
-      <Download size={13} />
-      {installingAgent ? $t('agents.installing') : $t('agents.install')}
-    </Button>
+    <div class="flex items-center gap-2">
+      <Button size="sm" variant="outline" onclick={() => showCreateDialog = true} data-testid="btn-new-agent" class="gap-1.5">
+        <Sparkles size={13} />
+        {$t('agents.new_agent')}
+      </Button>
+      <Button size="sm" onclick={pickAndInstallAgent} disabled={installingAgent} data-testid="install-agent-button" class="gap-1.5">
+        <Download size={13} />
+        {installingAgent ? $t('agents.installing') : $t('agents.install')}
+      </Button>
+    </div>
   </div>
 
   <!-- Sandbox banner -->
@@ -161,3 +169,9 @@
 {#if detailAgent}
   <AgentDetail agent={detailAgent} open={detailOpen} onclose={closeDetail} onlogs={openLogsFromDetail} />
 {/if}
+
+<CreateFromTemplateDialog
+  open={showCreateDialog}
+  onclose={() => showCreateDialog = false}
+  oncreated={() => showCreateDialog = false}
+/>

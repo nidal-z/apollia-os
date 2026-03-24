@@ -638,6 +638,122 @@ async fn list_agent_messages_inner(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Scaffolding from template
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Types de template supportés pour le scaffolding d'agent.
+const VALID_TEMPLATE_TYPES: &[&str] = &["react", "conversational", "orchestrated"];
+
+/// Regex de validation du nom d'agent : lettres minuscules, chiffres, tirets.
+/// Commence par une lettre, finit par une lettre ou un chiffre, minimum 2 caractères.
+fn is_valid_agent_name(name: &str) -> bool {
+    if name.len() < 2 {
+        return false;
+    }
+    let bytes = name.as_bytes();
+    if !bytes[0].is_ascii_lowercase() {
+        return false;
+    }
+    let last = bytes[bytes.len() - 1];
+    if !last.is_ascii_lowercase() && !last.is_ascii_digit() {
+        return false;
+    }
+    name.bytes()
+        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+
+/// Résultat de la création d'un agent depuis un template SDK.
+#[derive(Debug, Serialize)]
+pub struct CreateAgentResult {
+    /// Nom de l'agent créé.
+    pub name: String,
+    /// Type de template utilisé.
+    pub template_type: String,
+    /// Chemin du dossier créé sur le disque.
+    pub path: String,
+}
+
+/// Crée un nouvel agent depuis un template SDK.
+///
+/// Délègue à `python3 -m apollia new` pour la génération effective.
+/// Retourne le chemin du dossier créé en cas de succès.
+#[tauri::command]
+pub async fn create_agent_from_template(
+    name: String,
+    template_type: String,
+) -> Result<CreateAgentResult, String> {
+    if !VALID_TEMPLATE_TYPES.contains(&template_type.as_str()) {
+        return Err(format!(
+            "Type invalide '{}'. Types supportes : {}",
+            template_type,
+            VALID_TEMPLATE_TYPES.join(", ")
+        ));
+    }
+
+    if !is_valid_agent_name(&name) {
+        return Err(
+            "Le nom ne doit contenir que des lettres minuscules, chiffres et tirets".to_string(),
+        );
+    }
+
+    let agents_dir = apollia_data_dir().join("agents");
+    let target_dir = agents_dir.join(&name);
+    if target_dir.exists() {
+        return Err(format!("Un agent '{}' existe deja", name));
+    }
+
+    let output = tokio::process::Command::new("python3")
+        .args([
+            "-m",
+            "apollia",
+            "new",
+            &name,
+            "--type",
+            &template_type,
+            "--output",
+        ])
+        .arg(&target_dir)
+        .output()
+        .await
+        .map_err(|e| format!("Erreur execution Python : {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Echec du scaffolding : {stderr}"));
+    }
+
+    Ok(CreateAgentResult {
+        name,
+        template_type,
+        path: target_dir.display().to_string(),
+    })
+}
+
+/// Vérifie si le SDK Python apollia est installé.
+///
+/// Tente d'importer le module `apollia` via Python et retourne `true` si
+/// l'import réussit.
+#[tauri::command]
+pub async fn check_sdk_available() -> Result<bool, String> {
+    let output = tokio::process::Command::new("python3")
+        .args(["-c", "import apollia; print(apollia.__version__)"])
+        .output()
+        .await
+        .map_err(|e| format!("Python non disponible : {e}"))?;
+
+    Ok(output.status.success())
+}
+
+/// Vérifie si un nom d'agent est disponible (pas déjà utilisé).
+///
+/// Retourne `true` si le répertoire `~/.apollia/agents/<name>` n'existe pas.
+#[tauri::command]
+pub async fn check_agent_name_available(name: String) -> Result<bool, String> {
+    let target = apollia_data_dir().join("agents").join(&name);
+    Ok(!target.exists())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -800,5 +916,61 @@ mod tests {
         // THEN they have expected values
         assert_eq!(MAX_MESSAGE_LIMIT, 200);
         assert_eq!(DEFAULT_MESSAGE_LIMIT, 50);
+    }
+
+    #[test]
+    fn test_is_valid_agent_name_accepts_valid_names() {
+        // GIVEN valid agent names
+        // WHEN validated
+        // THEN they are accepted
+        assert!(is_valid_agent_name("my-agent"));
+        assert!(is_valid_agent_name("agent1"));
+        assert!(is_valid_agent_name("my-cool-agent-42"));
+        assert!(is_valid_agent_name("ab"));
+    }
+
+    #[test]
+    fn test_is_valid_agent_name_rejects_invalid_names() {
+        // GIVEN invalid agent names
+        // WHEN validated
+        // THEN they are rejected
+        assert!(!is_valid_agent_name(""));
+        assert!(!is_valid_agent_name("a"));
+        assert!(!is_valid_agent_name("MyAgent"));
+        assert!(!is_valid_agent_name("my agent"));
+        assert!(!is_valid_agent_name("1agent"));
+        assert!(!is_valid_agent_name("agent-"));
+        assert!(!is_valid_agent_name("my_agent"));
+        assert!(!is_valid_agent_name("my-agent!"));
+    }
+
+    #[test]
+    fn test_create_agent_result_serializes() {
+        // GIVEN a CreateAgentResult
+        let result = CreateAgentResult {
+            name: "my-agent".to_string(),
+            template_type: "react".to_string(),
+            path: "/home/user/.apollia/agents/my-agent".to_string(),
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&result).expect("serialize");
+
+        // THEN all fields are present with correct values
+        assert_eq!(json["name"], "my-agent");
+        assert_eq!(json["template_type"], "react");
+        assert!(json["path"]
+            .as_str()
+            .is_some_and(|p| p.contains("my-agent")));
+    }
+
+    #[test]
+    fn test_valid_template_types_constant() {
+        // GIVEN the template type list
+        // THEN it contains exactly the 3 expected types
+        assert_eq!(VALID_TEMPLATE_TYPES.len(), 3);
+        assert!(VALID_TEMPLATE_TYPES.contains(&"react"));
+        assert!(VALID_TEMPLATE_TYPES.contains(&"conversational"));
+        assert!(VALID_TEMPLATE_TYPES.contains(&"orchestrated"));
     }
 }

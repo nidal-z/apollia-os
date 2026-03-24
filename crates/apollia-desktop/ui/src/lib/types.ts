@@ -55,6 +55,33 @@ export interface InstallAgentResponse {
   install_path: string;
 }
 
+/** Résultat de la création d'un agent depuis un template SDK. */
+export interface CreateAgentResult {
+  /** Nom de l'agent créé. */
+  name: string;
+  /** Type de template utilisé. */
+  template_type: string;
+  /** Chemin du dossier créé sur le disque. */
+  path: string;
+}
+
+/** Type de template d'agent SDK. */
+export type AgentTemplateType = "react" | "conversational" | "orchestrated";
+
+/** Définition d'un template d'agent pour le dialog de création. */
+export interface TemplateDefinition {
+  /** Identifiant du type de template. */
+  type: AgentTemplateType;
+  /** Titre affiché. */
+  title: string;
+  /** Description courte. */
+  description: string;
+  /** Nom de l'icône Lucide. */
+  icon: string;
+  /** Couleur ou gradient CSS pour la bordure. */
+  color: string;
+}
+
 /** Résumé d'une tâche pour l'affichage. */
 export interface TaskSummary {
   id: string;
