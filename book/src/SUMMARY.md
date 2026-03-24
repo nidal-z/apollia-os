@@ -18,6 +18,7 @@
   - [Mode Orchestré (ORIA)](agents/mode-orchestre.md)
   - [Intégration dans un pipeline](agents/pipeline-integration.md)
   - [Python SDK Guide](agents/sdk-guide.md)
+  - [Onboarding](agents/onboarding-guide.md)
   - [Bonnes pratiques](agents/best-practices.md)
   - [Troubleshooting](agents/troubleshooting.md)
 
@@ -38,6 +39,7 @@
   - [Runtime Core](components/runtime-core.md)
   - [Tool Registry](components/tool-registry.md)
   - [Memory Engine](components/memory-engine.md)
+  - [User Memory](components/user-memory.md)
   - [ORIA Engine](components/oria-engine.md)
   - [LLM Backend](components/llm-backend.md)
   - [Triggers Engine](components/triggers.md)
@@ -110,6 +112,9 @@
   - [ADR-035 — Per-step observation en mode Orchestré](decisions/adr-035-per-step-observation-orchestrated.md)
   - [ADR-036 — Stratégie de cache de plans](decisions/adr-036-plan-cache-strategy.md)
   - [ADR-037 — Packaging Python SDK](decisions/adr-037-python-sdk-packaging.md)
+  - [ADR-038 — Mémoire utilisateur globale](decisions/adr-038-global-user-memory.md)
+  - [ADR-039 — Conversation memory management](decisions/adr-039-conversation-memory-management.md)
+  - [ADR-040 — Onboarding comme agent conversationnel](decisions/adr-040-onboarding-conversational-agent.md)
 
 ---
 

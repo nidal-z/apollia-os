@@ -4,7 +4,7 @@
 > Pas d'étapes numérotées, pas de formulaires fixes.
 > L'agent s'adapte à l'utilisateur et persiste chaque information en temps réel.
 
-**Décision architecturale** : [ADR-040 — Onboarding comme agent conversationnel](adr/ADR-040-onboarding-conversational-agent.md)
+**Décision architecturale** : [ADR-040 — Onboarding comme agent conversationnel](../adr/ADR-040-onboarding-conversational-agent.md)
 
 ---
 
@@ -138,7 +138,7 @@ L'agent utilise les tags `[REMEMBER key=value]` pour les déclarations explicite
 ### Onboarding complet
 
 ```bash
-apollia-os onboard
+$ apollia-os onboard
 ```
 
 Soumet une tâche à `onboarding-agent` et démarre la conversation complète. Le runtime doit être lancé au préalable.
@@ -146,8 +146,8 @@ Soumet une tâche à `onboarding-agent` et démarre la conversation complète. L
 ### Onboarding partiel (un domaine)
 
 ```bash
-apollia-os onboard --topic preferences
-apollia-os onboard --topic tools
+$ apollia-os onboard --topic preferences
+$ apollia-os onboard --topic tools
 ```
 
 Relance l'onboarding sur un domaine spécifique. Utile pour mettre à jour des informations existantes ou compléter un onboarding interrompu.
@@ -157,8 +157,8 @@ Relance l'onboarding sur un domaine spécifique. Utile pour mettre à jour des i
 ### Flag `--json`
 
 ```bash
-apollia-os onboard --json
-apollia-os onboard --topic tools --json
+$ apollia-os onboard --json
+$ apollia-os onboard --topic tools --json
 ```
 
 Sortie structurée JSON pour intégration machine.
@@ -241,13 +241,13 @@ Le system prompt est bilingue (FR/EN). La langue est détectée automatiquement 
 
 ## Diagrammes
 
-- [seq-onboarding-flow.puml](diagrams/seq-onboarding-flow.puml) — Flux d'onboarding complet (premier lancement + re-déclenchement)
+- [seq-onboarding-flow.puml](../diagrams/seq-onboarding-flow.puml) — Flux d'onboarding complet (premier lancement + re-déclenchement)
 
 ---
 
 ## Liens
 
-- [ADR-040 — Onboarding comme agent conversationnel](adr/ADR-040-onboarding-conversational-agent.md)
+- [ADR-040 — Onboarding comme agent conversationnel](../adr/ADR-040-onboarding-conversational-agent.md)
 - [Brique — Mémoire Utilisateur Globale](Briques-User-Memory.md)
 - [Brique — CLI](Briques-CLI.md)
 - [Guide RuntimeContext agents Python](Agents-RuntimeContext-Guide.md)

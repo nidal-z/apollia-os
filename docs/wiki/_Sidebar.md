@@ -10,6 +10,7 @@
 - [[Agents-Mode-Orchestre|Mode Orchestré (ORIA)]]
 - [[Agents-Adapter-Existants|Adapter LangGraph / CrewAI]]
 - [[Agents-SDK-Guide|Python SDK]]
+- [[Agents-Onboarding-Guide|Onboarding]]
 - [[Agents-Bonnes-Pratiques|Bonnes pratiques]]
 - [[Agents-Troubleshooting|Troubleshooting]]
 
@@ -26,6 +27,7 @@
 **Briques Fondamentales**
 - [[Briques-Tool-Registry|Tool Registry]]
 - [[Briques-Memory-Engine|Memory Engine]]
+- [[Briques-User-Memory|User Memory]]
 - [[Briques-ORIA-Engine|ORIA Engine]]
 - [[Briques-LLM-Backend|LLM Backend]]
 - [[Briques-Triggers|Triggers Engine]]

@@ -376,6 +376,34 @@ $ apollia-os model list
   → Téléchargez un modèle .gguf et placez-le dans ~/.apollia/models/
 ```
 
+### `apollia-os onboard [--topic <topic>]`
+
+Lance l'onboarding conversationnel ou re-déclenche un onboarding partiel sur un domaine spécifique. Voir le [Guide Onboarding](Agents-Onboarding-Guide.md) pour le détail complet.
+
+**Fichier** : `crates/apollia-cli/src/commands/onboard.rs`
+
+```bash
+# Onboarding complet — conversation naturelle sur les 5 domaines
+$ apollia-os onboard
+  -> Onboarding task abc123 submitted
+  ... conversation ...
+  * Onboarding completed in 45.2s
+
+# Re-onboarding ciblé sur un domaine
+$ apollia-os onboard --topic preferences
+  -> Onboarding task def456 submitted (topic: preferences)
+
+# Sortie JSON
+$ apollia-os onboard --topic tools --json
+```
+
+**Topics valides** : `identity`, `preferences`, `tools`, `domain`, `agents`.
+
+Un topic invalide retourne une erreur :
+```
+Error: invalid topic 'invalid', valid topics: identity, preferences, tools, domain, agents
+```
+
 ### `apollia-os notify <verb>`
 
 Gérer les notifications et tester les canaux configurés. Nécessite un runtime démarré.
@@ -538,7 +566,7 @@ $ apollia-os
     apollia-os status                     Vue d'ensemble
 
   TOUTES LES COMMANDES
-    start · stop · restart · status · run · health
+    start · stop · restart · status · run · health · onboard
     agent    list | start | stop | restart | info | logs | validate
     task     list | status | result | cancel | retry | resume | inspect
     pipeline list | run | runs | status
