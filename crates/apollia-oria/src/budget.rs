@@ -113,6 +113,18 @@ impl StepBudget {
         })
     }
 
+    /// Crée un snapshot [`StepBudgetView`] reflétant l'état courant du budget.
+    ///
+    /// La vue retournée est une copie figée (snapshot) : elle ne se met pas à jour
+    /// automatiquement si le budget évolue après sa création.
+    pub fn to_budget_view(&self) -> apollia_llm::StepBudgetView {
+        use std::sync::Arc;
+        apollia_llm::StepBudgetView::new(
+            Arc::new(AtomicU32::new(self.current_steps.load(Ordering::Relaxed))),
+            self.max_steps,
+        )
+    }
+
     /// Description lisible de la raison d'epuisement (pour les messages d'erreur).
     pub fn exhaustion_reason(&self) -> Option<String> {
         if self.current_steps.load(Ordering::Relaxed) >= self.max_steps {

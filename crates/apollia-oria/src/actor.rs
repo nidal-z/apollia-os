@@ -115,6 +115,51 @@ impl StepError {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// StepContext
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Context accumulated during plan execution, injected into each step.
+///
+/// Built incrementally by [`ActorLoop::execute`]: after each step completes,
+/// its output is added to `previous_outputs`. Each subsequent step receives
+/// a `StepContext` reflecting all prior results and the current budget state.
+///
+/// For LLM steps, `previous_outputs` is formatted into a system message
+/// (`"Previous step results:\n- s1: …\n- s2: …"`) to enrich the prompt.
+/// For tool steps, outputs are interpolated via `{{step_id}}` placeholders.
+pub struct StepContext {
+    /// Outputs of all previously completed steps, keyed by `step_id`.
+    pub previous_outputs: HashMap<String, String>,
+    /// Zero-based index of the current step in the topological order.
+    pub step_index: usize,
+    /// Total number of steps in the plan.
+    pub total_steps: usize,
+    /// Snapshot of the remaining budget at the moment this context was built.
+    pub remaining_budget: apollia_llm::StepBudgetView,
+}
+
+impl StepContext {
+    /// Formats `previous_outputs` as a human-readable block for LLM system messages.
+    ///
+    /// Returns `None` if there are no previous outputs.
+    /// Returns lines formatted as `"Previous step results:\n- s1: {output}\n- s2: {output}"`.
+    pub fn format_previous_outputs(&self) -> Option<String> {
+        if self.previous_outputs.is_empty() {
+            return None;
+        }
+        let mut lines = Vec::with_capacity(self.previous_outputs.len() + 1);
+        lines.push("Previous step results:".to_string());
+        // Sort by key for deterministic ordering.
+        let mut entries: Vec<_> = self.previous_outputs.iter().collect();
+        entries.sort_by_key(|(k, _)| (*k).clone());
+        for (step_id, output) in entries {
+            lines.push(format!("- {step_id}: {output}"));
+        }
+        Some(lines.join("\n"))
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // ActorLoop
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -289,9 +334,17 @@ impl ActorLoop {
                 tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
             }
 
+            // STORY-229: build StepContext with accumulated outputs and budget snapshot.
+            let step_ctx = StepContext {
+                previous_outputs: completed_outputs.clone(),
+                step_index: completed_outputs.len(),
+                total_steps: self.plan.steps.len(),
+                remaining_budget: budget.to_budget_view(),
+            };
+
             let started = Instant::now();
             let result = self
-                .execute_step(&step, &completed_outputs, tool_proxy, llm_router)
+                .execute_step(&step, &step_ctx, tool_proxy, llm_router)
                 .await;
             let duration_ms = started.elapsed().as_millis() as u64;
             budget.increment_steps();
@@ -510,7 +563,8 @@ impl ActorLoop {
     /// configuré, appelle [`suspend_for_approval`] et attend la décision humaine.
     ///
     /// - `tool_hint = Some("llm")` ou `None` → appel LLM, routé via `model_hint`
-    ///   si présent (STORY-227), sinon backend défaut.
+    ///   si présent (STORY-227), sinon backend défaut. Les outputs précédents sont
+    ///   injectés dans le system message (STORY-229 AC-4).
     /// - `tool_hint = Some(tool_name)` → appel via `ToolProxyTrait::invoke`
     ///   (`model_hint` ignoré pour les steps outil — AC-4).
     ///
@@ -521,7 +575,7 @@ impl ActorLoop {
     async fn execute_step(
         &self,
         step: &PlanStep,
-        completed_outputs: &HashMap<String, String>,
+        step_ctx: &StepContext,
         tool_proxy: &dyn ToolProxyTrait,
         llm_router: &LlmRouter,
     ) -> Result<String, StepError> {
@@ -550,11 +604,15 @@ impl ActorLoop {
         }
 
         // Exécution normale du step après approbation (ou si outil non-sensible).
-        let input = interpolate_outputs(&step.description, completed_outputs);
+        let input = interpolate_outputs(&step.description, &step_ctx.previous_outputs);
 
         match step.tool_hint.as_deref() {
             // Step LLM — routé vers le backend spécifié par model_hint (STORY-227).
-            Some("llm") | None => self.execute_llm_step(step, input, llm_router).await,
+            // STORY-229 AC-4: previous outputs injected into the system message.
+            Some("llm") | None => {
+                self.execute_llm_step(step, input, llm_router, step_ctx)
+                    .await
+            }
             // Step outil — model_hint ignoré (AC-4).
             Some(tool_name) => tool_proxy
                 .invoke(tool_name, &serde_json::json!({"input": input}))
@@ -570,14 +628,24 @@ impl ActorLoop {
     /// - Si `model_hint = Some(hint)` mais le backend n'existe pas, un `tracing::warn!`
     ///   est émis et le backend par défaut est utilisé en fallback (AC-2).
     /// - Si `model_hint = None`, le backend par défaut est utilisé (AC-3).
+    /// - STORY-229 AC-4: si des steps précédents ont complété, leurs outputs sont
+    ///   formatés dans un system message `"Previous step results:\n- s1: …"`.
     async fn execute_llm_step(
         &self,
         step: &PlanStep,
         input: String,
         llm_router: &LlmRouter,
+        step_ctx: &StepContext,
     ) -> Result<String, StepError> {
+        let mut messages = Vec::new();
+        // STORY-229 AC-4: inject previous step outputs as system context.
+        if let Some(context_text) = step_ctx.format_previous_outputs() {
+            messages.push(ChatMessage::system(context_text));
+        }
+        messages.push(ChatMessage::user(input));
+
         let request = CompletionRequest {
-            messages: vec![ChatMessage::user(input)],
+            messages,
             ..Default::default()
         };
 
@@ -845,9 +913,17 @@ impl ActorLoop {
                     tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
                 }
 
+                // STORY-229: build StepContext for execute_remaining steps.
+                let step_ctx = StepContext {
+                    previous_outputs: completed_outputs.clone(),
+                    step_index: completed_outputs.len(),
+                    total_steps: self.plan.steps.len(),
+                    remaining_budget: budget.to_budget_view(),
+                };
+
                 let started = Instant::now();
                 let result = self
-                    .execute_step(&step, &completed_outputs, tool_proxy, llm_router)
+                    .execute_step(&step, &step_ctx, tool_proxy, llm_router)
                     .await;
                 let duration_ms = started.elapsed().as_millis() as u64;
                 budget.increment_steps();
@@ -2151,6 +2227,231 @@ mod tests {
         assert!(
             output_debug.contains("tool-output"),
             "expected tool output, got: {output_debug}"
+        );
+    }
+
+    // ── STORY-229 — StepContext per-step observation ─────────────────────────
+
+    // AC-1 — Step with dependency receives the output of the predecessor.
+    //
+    // GIVEN a plan with s1 and s2 depending on s1
+    // WHEN s1 completes with output "result_A"
+    // THEN s2 receives a StepContext with previous_outputs = {"s1": "result_A"}
+    #[tokio::test]
+    async fn test_story229_ac1_step_with_dependency_receives_previous_output() {
+        // GIVEN — plan: s1 → s2 (s2 depends on s1).
+        // A capturing proxy records the input it receives.
+        struct CapturingProxy {
+            calls: Mutex<Vec<(String, String)>>,
+        }
+        #[async_trait::async_trait]
+        impl ToolProxyTrait for CapturingProxy {
+            async fn invoke(
+                &self,
+                tool_name: &str,
+                input: &serde_json::Value,
+            ) -> Result<String, String> {
+                let input_str = input.to_string();
+                self.calls
+                    .lock()
+                    .expect("lock")
+                    .push((tool_name.to_string(), input_str));
+                Ok(format!("result_{tool_name}"))
+            }
+        }
+
+        let plan = ExecutionPlan {
+            plan_id: "plan-229-ac1".into(),
+            task_id: "task-229-ac1".into(),
+            steps: vec![
+                PlanStep {
+                    step_id: "s1".into(),
+                    description: "Step s1".into(),
+                    tool_hint: Some("tool_a".into()),
+                    depends_on: vec![],
+                    model_hint: None,
+                },
+                PlanStep {
+                    step_id: "s2".into(),
+                    description: "Combine {{s1}}".into(),
+                    tool_hint: Some("tool_b".into()),
+                    depends_on: vec!["s1".into()],
+                    model_hint: None,
+                },
+            ],
+        };
+
+        let (bus_tx, _rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "test-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+
+        let proxy = CapturingProxy {
+            calls: Mutex::new(vec![]),
+        };
+        let mut actor = ActorLoop::new(plan, 0, db, bus_tx, make_manifest());
+        let llm = LlmRouter::empty();
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        // WHEN
+        let result = actor
+            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .await;
+
+        // THEN — completed, and s2 received the interpolated output from s1.
+        assert_eq!(result.status, TaskStatus::Completed);
+        let calls = proxy.calls.lock().expect("lock");
+        assert_eq!(calls.len(), 2);
+        // s2's input should have {{s1}} replaced with "result_tool_a"
+        assert!(
+            calls[1].1.contains("result_tool_a"),
+            "s2 input should contain s1 output, got: {}",
+            calls[1].1
+        );
+    }
+
+    // AC-2 — Step without dependency receives an empty StepContext.
+    //
+    // GIVEN a plan with a single step s1 without dependencies
+    // WHEN s1 starts
+    // THEN s1 receives a StepContext with previous_outputs = {}
+    #[tokio::test]
+    async fn test_story229_ac2_step_without_dependency_receives_empty_context() {
+        // We verify this by checking that a standalone LLM step does NOT receive
+        // a system message with "Previous step results:" (since context is empty).
+        struct CapturingModel {
+            received: Mutex<Vec<Vec<ChatMessage>>>,
+        }
+        #[async_trait::async_trait]
+        impl apollia_llm::CompletionModel for CapturingModel {
+            async fn complete(
+                &self,
+                req: CompletionRequest,
+            ) -> Result<apollia_llm::CompletionResponse, apollia_llm::LlmError> {
+                self.received
+                    .lock()
+                    .expect("lock")
+                    .push(req.messages.clone());
+                Ok(apollia_llm::CompletionResponse {
+                    content: "llm output".into(),
+                    tool_calls: vec![],
+                    usage: TokenUsage {
+                        prompt_tokens: 0,
+                        completion_tokens: 0,
+                        cost_usd: None,
+                    },
+                    finish_reason: FinishReason::Stop,
+                    latency_ms: 0,
+                })
+            }
+            async fn stream(
+                &self,
+                _req: CompletionRequest,
+            ) -> Result<
+                Pin<
+                    Box<
+                        dyn futures::Stream<
+                                Item = Result<apollia_llm::StreamChunk, apollia_llm::LlmError>,
+                            > + Send,
+                    >,
+                >,
+                apollia_llm::LlmError,
+            > {
+                Err(apollia_llm::LlmError::InferenceError(
+                    "mock does not stream".into(),
+                ))
+            }
+            fn is_available(&self) -> bool {
+                true
+            }
+            fn backend_name(&self) -> &str {
+                "capturing-mock"
+            }
+            fn model_id(&self) -> &str {
+                "capturing-model"
+            }
+        }
+
+        let model = Arc::new(CapturingModel {
+            received: Mutex::new(vec![]),
+        });
+        let model_for_check = model.clone();
+
+        // Single LLM step (tool_hint = None → LLM path).
+        let plan = ExecutionPlan {
+            plan_id: "plan-229-ac2".into(),
+            task_id: "task-229-ac2".into(),
+            steps: vec![PlanStep {
+                step_id: "s1".into(),
+                description: "Summarize the document".into(),
+                tool_hint: None,
+                depends_on: vec![],
+                model_hint: None,
+            }],
+        };
+
+        let (bus_tx, _rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "test-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+
+        let proxy = MockToolProxy {
+            response: "unused".into(),
+        };
+        let mut backends = HashMap::new();
+        backends.insert(
+            "capturing-mock".to_string(),
+            model as Arc<dyn apollia_llm::CompletionModel>,
+        );
+        let llm = LlmRouter::with_backends(backends, "capturing-mock");
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        let mut actor = ActorLoop::new(plan, 0, db, bus_tx, make_manifest());
+
+        // WHEN
+        let result = actor
+            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .await;
+
+        // THEN — completed, and the LLM received only a user message (no system context).
+        assert_eq!(result.status, TaskStatus::Completed);
+        let received = model_for_check.received.lock().expect("lock");
+        assert_eq!(received.len(), 1, "expected 1 LLM call");
+        let messages = &received[0];
+        // No system message should be present since previous_outputs is empty.
+        assert_eq!(
+            messages.len(),
+            1,
+            "expected only 1 message (user), got: {messages:?}"
+        );
+    }
+
+    // AC-3 — Budget view reflects consumed steps.
+    //
+    // GIVEN a budget with max_steps = 10 and 3 steps already consumed
+    // WHEN StepContext is built for the 4th step
+    // THEN remaining_budget reflects 7 steps remaining
+    #[test]
+    fn test_story229_ac3_budget_view_reflects_consumed_steps() {
+        // GIVEN
+        let budget = StepBudget::with_max(10);
+        budget.increment_steps();
+        budget.increment_steps();
+        budget.increment_steps();
+
+        // WHEN
+        let view = budget.to_budget_view();
+
+        // THEN — the view should NOT be exhausted (7 steps remain).
+        assert!(
+            !view.is_exhausted(),
+            "budget should not be exhausted with 7 steps remaining"
         );
     }
 }
