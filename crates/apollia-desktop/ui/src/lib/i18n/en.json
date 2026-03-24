@@ -543,6 +543,7 @@
     "tab_timeline": "Timeline",
     "tab_llm_costs": "LLM Costs",
     "tab_audit_trail": "Audit Trail",
+    "tab_plan_cache": "Plan Cache",
     "window": "Window",
     "filter": "Filter",
     "loading_timeline": "Loading timeline...",

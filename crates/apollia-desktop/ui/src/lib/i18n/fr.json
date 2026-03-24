@@ -543,6 +543,7 @@
     "tab_timeline": "Chronologie",
     "tab_llm_costs": "Coûts LLM",
     "tab_audit_trail": "Piste d'audit",
+    "tab_plan_cache": "Cache de plans",
     "window": "Fenêtre",
     "filter": "Filtre",
     "loading_timeline": "Chargement de la chronologie...",
