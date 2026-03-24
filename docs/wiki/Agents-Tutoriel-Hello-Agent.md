@@ -248,6 +248,8 @@ async def run(self, task, ctx):
 
 Vous avez un agent AIP-compatible fonctionnel. Prochaines étapes :
 
+**Utiliser le SDK Python** : pour des agents plus structurés avec IDE autocomplete, classes de base et mocks de test, installez le SDK (`pip install -e ./sdk`) et utilisez `BaseReActAgent`, `ConversationalAgent` ou `OrchestratedAgent`. Voir [Agents SDK Guide](./Agents-SDK-Guide).
+
 **Ajouter des outils** : modifiez le manifest pour déclarer `"tools_required": ["file_io"]`, puis utilisez `await ctx.tools.call("file_io", {...})` dans `run()`. Voir [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide).
 
 **Ajouter de la mémoire** : ajoutez `"memory_namespace": "hello-memory"` au manifest. Le runtime ouvrira automatiquement un namespace SQLite dédié. Voir [Briques Memory Engine](./Briques-Memory-Engine).
@@ -256,6 +258,7 @@ Vous avez un agent AIP-compatible fonctionnel. Prochaines étapes :
 
 ## Voir aussi
 
+- [Agents SDK Guide](./Agents-SDK-Guide) — SDK Python complet (classes de base, mocks, scaffolding)
 - [Agents Quickstart](./Agents-Quickstart) — version condensée (5 min)
 - [Briques AIP Specification](./Briques-AIP-Specification) — référence complète AIP
 - [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — tous les services `ctx.*`

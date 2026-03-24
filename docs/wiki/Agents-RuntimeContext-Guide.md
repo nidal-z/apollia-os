@@ -416,6 +416,7 @@ elapsed_seconds      = ctx.step_budget.elapsed_seconds        # float
 
 ## Voir aussi
 
+- [Agents SDK Guide](./Agents-SDK-Guide) — SDK Python avec classes de base, mocks de test et scaffolding
 - [Briques AIP Specification](./Briques-AIP-Specification) — contrat complet AIPTask, AIPResult, AgentManifest
 - [Briques Tool Registry](./Briques-Tool-Registry) — catalogue des outils, schémas complets
 - [Briques Memory Engine](./Briques-Memory-Engine) — backends mémoire, FTS5, namespaces

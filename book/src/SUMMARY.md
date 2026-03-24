@@ -17,6 +17,7 @@
   - [Adapter LangGraph / CrewAI](agents/adapters.md)
   - [Mode Orchestré (ORIA)](agents/mode-orchestre.md)
   - [Intégration dans un pipeline](agents/pipeline-integration.md)
+  - [Python SDK Guide](agents/sdk-guide.md)
   - [Bonnes pratiques](agents/best-practices.md)
   - [Troubleshooting](agents/troubleshooting.md)
 
@@ -108,6 +109,7 @@
   - [ADR-034 — Chat hybride : sessions, streaming, HITL inline](decisions/adr-034-chat-hybride-sessions-streaming-hitl-inline.md)
   - [ADR-035 — Per-step observation en mode Orchestré](decisions/adr-035-per-step-observation-orchestrated.md)
   - [ADR-036 — Stratégie de cache de plans](decisions/adr-036-plan-cache-strategy.md)
+  - [ADR-037 — Packaging Python SDK](decisions/adr-037-python-sdk-packaging.md)
 
 ---
 

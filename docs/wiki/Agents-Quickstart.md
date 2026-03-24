@@ -117,10 +117,24 @@ $ apollia-os stop
 
 ---
 
+## Alternative — Utiliser le SDK Python
+
+Pour des agents plus structurés avec IDE autocomplete, mocks de test et scaffolding :
+
+```bash
+$ pip install -e ./sdk
+$ apollia new mon-agent --type react
+```
+
+Le SDK fournit `BaseReActAgent`, `ConversationalAgent`, `OrchestratedAgent` avec type stubs PEP 561 et infrastructure de test complète. Voir [Agents SDK Guide](./Agents-SDK-Guide).
+
+---
+
 ## Ce qui vient ensuite
 
 Vous avez un agent fonctionnel. Pour aller plus loin :
 
+- **Python SDK** : [Agents SDK Guide](./Agents-SDK-Guide) — classes de base, mocks, scaffolding
 - **Utiliser les outils** : [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — `ctx.tools`, `ctx.memory`
 - **Tutoriel détaillé** : [Agents Tutoriel Hello Agent](./Agents-Tutoriel-Hello-Agent) — explications pas à pas
 - **Agents complexes** : [Agents Bonnes Pratiques](./Agents-Bonnes-Pratiques) — StepBudget, coûts LLM

@@ -9,6 +9,7 @@
 - [[Agents-RuntimeContext-Guide|RuntimeContext (ctx.*)]]
 - [[Agents-Mode-Orchestre|Mode Orchestré (ORIA)]]
 - [[Agents-Adapter-Existants|Adapter LangGraph / CrewAI]]
+- [[Agents-SDK-Guide|Python SDK]]
 - [[Agents-Bonnes-Pratiques|Bonnes pratiques]]
 - [[Agents-Troubleshooting|Troubleshooting]]
 

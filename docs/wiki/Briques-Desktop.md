@@ -77,7 +77,7 @@ crates/apollia-desktop/
         │   └── components/ui/     ← Button, Card, Badge, Sheet, Separator (bits-ui)
         ├── components/
         │   ├── layout/        ← Sidebar.svelte, Main.svelte
-        │   ├── agents/        ← AgentCard.svelte, AgentLogs.svelte, AgentDetail.svelte, AgentMessagesPanel.svelte [Sprint 20]
+        │   ├── agents/        ← AgentCard.svelte, AgentLogs.svelte, AgentDetail.svelte, AgentMessagesPanel.svelte [Sprint 20], CreateFromTemplateDialog.svelte [Sprint 21]
         │   ├── tasks/         ← TaskList.svelte, TaskDetail.svelte, TaskTimeline.svelte
         │   ├── hitl/          ← ApprovalCard.svelte, ApprovalHistory.svelte
         │   ├── llm/           ← LlmBackendCard.svelte, LlmStats.svelte
@@ -135,7 +135,7 @@ pub enum EmbeddedError {
 
 ## 3. Commandes Tauri IPC
 
-46 commandes exposees au frontend Svelte via `#[tauri::command]` (29 Sprint 15 + 11 Sprint 17 + 6 Sprint 18) :
+49 commandes exposees au frontend Svelte via `#[tauri::command]` (29 Sprint 15 + 11 Sprint 17 + 6 Sprint 18 + 3 Sprint 21) :
 
 ### Agents (3)
 
@@ -144,6 +144,9 @@ pub enum EmbeddedError {
 | `list_agents` | — | `Vec<AgentInfo>` |
 | `start_agent` | `path: String` | `Result<String, String>` (agent_id) |
 | `stop_agent` | `agent_id: String` | `Result<(), String>` |
+| `create_agent_from_template` | `name: String, template_type: String` | `Result<CreateAgentResult, String>` *(Sprint 21)* |
+| `check_sdk_available` | — | `Result<bool, String>` *(Sprint 21)* |
+| `check_agent_name_available` | `name: String` | `Result<bool, String>` *(Sprint 21)* |
 
 ### Tasks (3)
 

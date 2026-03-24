@@ -594,10 +594,25 @@ Si une validation échoue, l'agent s'arrête en `STOPPED` avec un message d'erre
 
 ---
 
+## SDK Python et type stubs
+
+Le SDK Python (`pip install -e ./sdk`) fournit des type stubs PEP 561 pour toutes les classes PyO3 injectées par le runtime :
+
+- `RuntimeContext` — `sdk/apollia/stubs/context.pyi`
+- `ToolProxy` — `sdk/apollia/stubs/tools.pyi`
+- `LlmProxy` — `sdk/apollia/stubs/llm.pyi`
+- `MemoryInterface` — `sdk/apollia/stubs/memory.pyi`
+
+Ces stubs activent l'autocomplete IDE et la validation `mypy` pour les agents Python. Le SDK propose également des classes de base optionnelles (`BaseReActAgent`, `ConversationalAgent`, `OrchestratedAgent`) et une infrastructure de test avec `MockContext`. Voir [Agents SDK Guide](./Agents-SDK-Guide) et [ADR-037](../adr/ADR-037-python-sdk-packaging).
+
+---
+
 ## Voir aussi
 
+- [Agents SDK Guide](./Agents-SDK-Guide) — SDK Python complet (classes de base, mocks, scaffolding)
 - [Agents Quickstart](./Agents-Quickstart) — démarrer en 5 minutes
 - [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — référence complète des services
 - [Architecture Vue d'ensemble](./Architecture-Vue-Ensemble) — AIP dans le contexte global
 - [ADR-003](../adr/ADR-003-duck-typing-aip) — pourquoi duck typing plutôt que classe de base
 - [ADR-014](../adr/ADR-014-bridge-spawn-blocking-asyncio-run) — bridge async Rust → Python
+- [ADR-037](../adr/ADR-037-python-sdk-packaging) — packaging Python SDK

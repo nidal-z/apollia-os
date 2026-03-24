@@ -193,6 +193,18 @@ $ apollia-os agent logs devis-generator
 $ apollia-os agent logs devis-generator --last 50
 $ apollia-os agent logs devis-generator --follow
 
+# Créer un agent depuis un template SDK (Sprint 21)
+$ apollia-os agent new mon-agent --type react
+  ✔ SDK disponible (apollia 0.1.0)
+  ✔ Nom disponible
+  → Création de l'agent dans ~/.apollia/agents/mon-agent/
+  ✔ Agent créé :
+    - mon_agent_agent.py
+    - test_mon_agent_agent.py
+
+$ apollia-os agent new assistant --type conversational
+$ apollia-os agent new analyseur --type orchestrated
+
 # Valider sans démarrer
 $ apollia-os agent validate ./agents/mon-agent.py
   ✔ Manifest valide
