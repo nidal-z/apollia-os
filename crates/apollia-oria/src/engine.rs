@@ -298,7 +298,7 @@ impl ORIAEngine {
     /// validate → plan → persist → ActorLoop → concat outputs.
     pub async fn execute(&self, task: AIPTask, agent: &dyn AIPAgent) -> AIPResult {
         let manifest = agent.manifest();
-        let mode = classify(&task, &manifest);
+        let mode = classify(&task, &manifest, None);
 
         match mode {
             ExecutionMode::Direct => {

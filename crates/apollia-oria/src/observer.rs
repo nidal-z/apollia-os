@@ -12,7 +12,7 @@
 //! The Observer is a **pure function** (not a Tokio actor) — it takes inputs and
 //! returns a result with no internal state.
 
-use apollia_core::{AIPTask, AgentManifest};
+use apollia_core::{AIPInput, AIPPart, AIPTask, AgentManifest};
 use apollia_memory::episodic::EpisodicMemory;
 use apollia_memory::manager::MemoryManager;
 use apollia_memory::semantic::SemanticMemory;
@@ -20,14 +20,49 @@ use apollia_memory::semantic::SemanticMemory;
 /// Maximum number of recent episodes loaded into the snapshot.
 const MAX_RECENT_EPISODES: usize = 10;
 
-/// Step budget threshold above which a task is considered complex.
+// ─── Weighted scoring constants (STORY-234) ─────────────────────────────────
+
+/// Weight for high step budget (`max_steps > 15`).
+const WEIGHT_STEPS: f32 = 0.30;
+
+/// Weight for many input parts (`parts.len() > 3`).
+const WEIGHT_PARTS: f32 = 0.20;
+
+/// Weight for the `"multi-step"` tag presence.
+const WEIGHT_MULTI_STEP_TAG: f32 = 0.40;
+
+/// Weight for many required tools (`tools_required.len() > 4`).
+const WEIGHT_TOOLS: f32 = 0.20;
+
+/// Weight for long input text (`total chars > INPUT_LENGTH_THRESHOLD`).
+const WEIGHT_INPUT_LENGTH: f32 = 0.10;
+
+/// Weight for deep episodic memory (`episodes.len() > MEMORY_DEPTH_THRESHOLD`).
+const WEIGHT_MEMORY_DEPTH: f32 = 0.10;
+
+/// Weight for planning keywords in the system prompt.
+const WEIGHT_PLANNING_PROMPT: f32 = 0.10;
+
+/// Minimum weighted score to classify a task as Orchestrated.
+const ORCHESTRATED_THRESHOLD: f32 = 0.40;
+
+/// Input text length (in chars) above which `WEIGHT_INPUT_LENGTH` is added.
+const INPUT_LENGTH_THRESHOLD: usize = 500;
+
+/// Episode count above which `WEIGHT_MEMORY_DEPTH` is added.
+const MEMORY_DEPTH_THRESHOLD: usize = 5;
+
+/// Step budget threshold above which `WEIGHT_STEPS` is added.
 const COMPLEXITY_STEP_THRESHOLD: u32 = 15;
 
-/// Input parts threshold above which a task is considered complex.
+/// Input parts threshold above which `WEIGHT_PARTS` is added.
 const COMPLEXITY_PARTS_THRESHOLD: usize = 3;
 
-/// Tools required threshold above which a task is considered complex.
+/// Tools required threshold above which `WEIGHT_TOOLS` is added.
 const COMPLEXITY_TOOLS_THRESHOLD: usize = 4;
+
+/// Keywords in the system prompt that suggest planning intent.
+const PLANNING_KEYWORDS: &[&str] = &["plan", "etape", "step", "sequence", "workflow", "pipeline"];
 
 /// Execution mode determined by the Observer for a task.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,36 +130,95 @@ pub enum ObserverError {
     MemoryError(String),
 }
 
-/// Classifies a task as Direct or Orchestrated.
+/// Extracts the total character length of all text parts in an [`AIPInput`].
+///
+/// Only [`AIPPart::Text`] variants contribute; `File` and `Data` parts are ignored.
+pub fn extract_total_text_length(input: &AIPInput) -> usize {
+    input
+        .parts
+        .iter()
+        .map(|part| match part {
+            AIPPart::Text(t) => t.text.len(),
+            AIPPart::File(_) | AIPPart::Data(_) => 0,
+        })
+        .sum()
+}
+
+/// Computes a weighted complexity score for a task, between 0.0 and ~1.4.
+///
+/// Each factor that exceeds its threshold adds its weight to the total.
+/// The caller compares the result against [`ORCHESTRATED_THRESHOLD`].
+///
+/// This is a **pure function** — deterministic, no side effects.
+pub fn compute_complexity_score(
+    manifest: &AgentManifest,
+    input: &AIPInput,
+    memory_snapshot: Option<&MemorySnapshot>,
+) -> f32 {
+    let mut score: f32 = 0.0;
+
+    let budget = manifest.step_budget.clone().unwrap_or_default();
+    if budget.max_steps > COMPLEXITY_STEP_THRESHOLD {
+        score += WEIGHT_STEPS;
+    }
+
+    if input.parts.len() > COMPLEXITY_PARTS_THRESHOLD {
+        score += WEIGHT_PARTS;
+    }
+
+    if manifest.tags.iter().any(|t| t == "multi-step") {
+        score += WEIGHT_MULTI_STEP_TAG;
+    }
+
+    if manifest.tools_required.len() > COMPLEXITY_TOOLS_THRESHOLD {
+        score += WEIGHT_TOOLS;
+    }
+
+    if extract_total_text_length(input) > INPUT_LENGTH_THRESHOLD {
+        score += WEIGHT_INPUT_LENGTH;
+    }
+
+    if let Some(snapshot) = memory_snapshot {
+        if snapshot.episodic_recent.len() > MEMORY_DEPTH_THRESHOLD {
+            score += WEIGHT_MEMORY_DEPTH;
+        }
+    }
+
+    if let Some(ref prompt) = manifest.system_prompt {
+        let lower = prompt.to_lowercase();
+        if PLANNING_KEYWORDS.iter().any(|kw| lower.contains(kw)) {
+            score += WEIGHT_PLANNING_PROMPT;
+        }
+    }
+
+    score
+}
+
+/// Classifies a task as Direct or Orchestrated using weighted scoring.
 ///
 /// Honours the `execution_mode` field of the manifest first:
-/// - `"orchestrated"` → always [`ExecutionMode::Orchestrated`], skipping the heuristic.
-/// - `"direct"` → always [`ExecutionMode::Direct`], skipping the heuristic.
-/// - `"auto"` (or any unknown value) → falls through to the heuristic below.
+/// - `"orchestrated"` → always [`ExecutionMode::Orchestrated`], skipping scoring.
+/// - `"direct"` → always [`ExecutionMode::Direct`], skipping scoring.
+/// - `"auto"` (or any unknown value) → falls through to [`compute_complexity_score`].
 ///
-/// Heuristic complexity criteria (any single one triggers Orchestrated):
-/// - `manifest.step_budget.max_steps > 15`
-/// - `task.input.parts.len() > 3`
-/// - `manifest.tags` contains `"multi-step"`
-/// - `manifest.tools_required.len() > 4`
+/// If the weighted score ≥ [`ORCHESTRATED_THRESHOLD`] (0.40), the task is Orchestrated.
 ///
 /// This is a **pure function** — no side effects, deterministic output.
-pub fn classify(task: &AIPTask, manifest: &AgentManifest) -> ExecutionMode {
-    // Override explicite — priorité absolue sur l'heuristique.
+pub fn classify(
+    task: &AIPTask,
+    manifest: &AgentManifest,
+    memory_snapshot: Option<&MemorySnapshot>,
+) -> ExecutionMode {
+    // Override explicite — priorité absolue sur le scoring.
     match manifest.execution_mode.as_str() {
         "orchestrated" => return ExecutionMode::Orchestrated,
         "direct" => return ExecutionMode::Direct,
-        _ => {} // "auto" ou valeur inconnue → heuristique
+        _ => {} // "auto" ou valeur inconnue → scoring pondéré
     }
 
-    let budget = manifest.step_budget.clone().unwrap_or_default();
+    let score = compute_complexity_score(manifest, &task.input, memory_snapshot);
 
-    let is_complex = budget.max_steps > COMPLEXITY_STEP_THRESHOLD
-        || task.input.parts.len() > COMPLEXITY_PARTS_THRESHOLD
-        || manifest.tags.iter().any(|t| t == "multi-step")
-        || manifest.tools_required.len() > COMPLEXITY_TOOLS_THRESHOLD;
-
-    if is_complex {
+    if score >= ORCHESTRATED_THRESHOLD {
         ExecutionMode::Orchestrated
     } else {
         ExecutionMode::Direct
@@ -137,13 +231,13 @@ pub fn classify(task: &AIPTask, manifest: &AgentManifest) -> ExecutionMode {
 /// (recent episodes + relevant semantic facts).
 /// If no `MemoryManager` is provided, `memory_snapshot` is `None`.
 ///
-/// The execution mode is determined by [`classify`].
+/// The memory snapshot is built first so it can inform [`classify`]
+/// (the `WEIGHT_MEMORY_DEPTH` factor uses episode count).
 pub fn observe(
     task: AIPTask,
     manifest: &AgentManifest,
     memory: Option<&mut MemoryManager>,
 ) -> Result<ContextBundle, ObserverError> {
-    let execution_mode = classify(&task, manifest);
     let manifest_system_prompt = manifest.system_prompt.clone();
 
     let available_tools: Vec<String> = manifest
@@ -153,11 +247,13 @@ pub fn observe(
         .cloned()
         .collect();
 
+    // Build memory snapshot first so classify() can use it for scoring.
     let memory_snapshot = match memory {
         Some(mgr) => {
             let namespace = match &manifest.memory_namespace {
                 Some(ns) => ns.clone(),
                 None => {
+                    let execution_mode = classify(&task, manifest, None);
                     return Ok(ContextBundle {
                         task,
                         memory_snapshot: None,
@@ -197,6 +293,8 @@ pub fn observe(
         }
         None => None,
     };
+
+    let execution_mode = classify(&task, manifest, memory_snapshot.as_ref());
 
     Ok(ContextBundle {
         task,
@@ -400,7 +498,7 @@ mod tests {
         let manifest = simple_manifest();
 
         // WHEN
-        let mode = classify(&task, &manifest);
+        let mode = classify(&task, &manifest, None);
 
         // THEN
         assert_eq!(mode, ExecutionMode::Direct);
@@ -409,12 +507,12 @@ mod tests {
     // AC-4 — classify complex agent returns Orchestrated
     #[test]
     fn test_classify_complex_agent_returns_orchestrated() {
-        // GIVEN
+        // GIVEN — 5 tools (>4) + 20 steps (>15) → score = 0.20 + 0.30 = 0.50 ≥ 0.40
         let task = simple_task();
         let manifest = complex_manifest();
 
         // WHEN
-        let mode = classify(&task, &manifest);
+        let mode = classify(&task, &manifest, None);
 
         // THEN
         assert_eq!(mode, ExecutionMode::Orchestrated);
@@ -423,30 +521,31 @@ mod tests {
     // AC-5 — tag "multi-step" forces Orchestrated
     #[test]
     fn test_classify_multi_step_tag_returns_orchestrated() {
-        // GIVEN a simple manifest but with "multi-step" tag
+        // GIVEN a simple manifest but with "multi-step" tag → score = 0.40 ≥ 0.40
         let mut manifest = simple_manifest();
         manifest.tags = vec!["multi-step".into()];
         let task = simple_task();
 
         // WHEN
-        let mode = classify(&task, &manifest);
+        let mode = classify(&task, &manifest, None);
 
         // THEN
         assert_eq!(mode, ExecutionMode::Orchestrated);
     }
 
-    // AC-6 — many input parts forces Orchestrated
+    // AC-6 — many input parts alone are below threshold with weighted scoring
+    // (STORY-234: 4 parts = WEIGHT_PARTS 0.20 < 0.40 — correctly classified as Direct)
     #[test]
-    fn test_classify_many_input_parts_returns_orchestrated() {
+    fn test_classify_many_input_parts_alone_returns_direct() {
         // GIVEN a simple manifest and a task with 4 input parts
         let manifest = simple_manifest();
         let task = multi_part_task();
 
-        // WHEN
-        let mode = classify(&task, &manifest);
+        // WHEN — score = WEIGHT_PARTS (0.20) < ORCHESTRATED_THRESHOLD (0.40)
+        let mode = classify(&task, &manifest, None);
 
-        // THEN
-        assert_eq!(mode, ExecutionMode::Orchestrated);
+        // THEN — weighted scoring reduces false positives vs old boolean OR
+        assert_eq!(mode, ExecutionMode::Direct);
     }
 
     // STORY-079 — AC-1 : override explicite "orchestrated"
@@ -458,7 +557,7 @@ mod tests {
         let task = simple_task();
 
         // WHEN
-        let mode = classify(&task, &manifest);
+        let mode = classify(&task, &manifest, None);
 
         // THEN : override prime, même pour un agent simple
         assert_eq!(mode, ExecutionMode::Orchestrated);
@@ -477,28 +576,34 @@ mod tests {
         let task = simple_task();
 
         // WHEN
-        let mode = classify(&task, &manifest);
+        let mode = classify(&task, &manifest, None);
 
         // THEN : l'override prime sur l'heuristique
         assert_eq!(mode, ExecutionMode::Direct);
     }
 
-    // STORY-079 — AC-3 : "auto" + 5 outils → heuristique Orchestrated
+    // STORY-079 — AC-3 : "auto" + 5 outils + 20 steps → Orchestrated
+    // (STORY-234: 5 tools alone = 0.20, need steps > 15 too for 0.50 ≥ 0.40)
     #[test]
-    fn test_ac3_auto_heuristic_orchestrated_on_many_tools() {
-        // GIVEN un manifest avec execution_mode = "auto" et 5 outils
+    fn test_ac3_auto_heuristic_orchestrated_on_many_tools_and_steps() {
+        // GIVEN un manifest avec 5 outils ET 20 steps
         let mut manifest = simple_manifest();
         manifest.execution_mode = "auto".to_string();
         manifest.tools_required = vec!["a", "b", "c", "d", "e"]
             .into_iter()
             .map(String::from)
             .collect();
+        manifest.step_budget = Some(StepBudgetConfig {
+            max_steps: 20,
+            max_tool_calls: 50,
+            wall_clock_secs: 600,
+        });
         let task = simple_task();
 
-        // WHEN
-        let mode = classify(&task, &manifest);
+        // WHEN — score = WEIGHT_TOOLS (0.20) + WEIGHT_STEPS (0.30) = 0.50 ≥ 0.40
+        let mode = classify(&task, &manifest, None);
 
-        // THEN : heuristique → Orchestrated (5 > 4)
+        // THEN : scoring → Orchestrated
         assert_eq!(mode, ExecutionMode::Orchestrated);
     }
 
@@ -512,10 +617,113 @@ mod tests {
         let task = simple_task();
 
         // WHEN
-        let mode = classify(&task, &manifest);
+        let mode = classify(&task, &manifest, None);
 
         // THEN : heuristique → Direct
         assert_eq!(mode, ExecutionMode::Direct);
+    }
+
+    // ── STORY-234 tests ─────────────────────────────────────────────────────
+
+    // STORY-234 — AC-1 : agent simple classé Direct (score ~0.0)
+    #[test]
+    fn test_simple_agent_classified_direct() {
+        // GIVEN un agent avec 2 outils, 10 steps max, pas de tag, input court
+        let manifest = simple_manifest();
+        let task = simple_task();
+
+        // WHEN
+        let score = compute_complexity_score(&manifest, &task.input, None);
+        let mode = classify(&task, &manifest, None);
+
+        // THEN
+        assert!(score < f32::EPSILON, "score should be ~0.0, got {score}");
+        assert_eq!(mode, ExecutionMode::Direct);
+    }
+
+    // STORY-234 — AC-2 : agent complexe classé Orchestrated (score >= 0.9)
+    #[test]
+    fn test_complex_agent_classified_orchestrated() {
+        // GIVEN un agent avec 5+ outils, 20 steps, tag "multi-step", input long
+        let mut manifest = complex_manifest();
+        manifest.tags = vec!["multi-step".into()];
+        let task = AIPTask {
+            task_id: "task-complex".into(),
+            context_id: "ctx-complex".into(),
+            input: AIPInput {
+                parts: vec![
+                    AIPPart::Text(TextPart {
+                        text: "a]".repeat(300),
+                    }),
+                    AIPPart::Text(TextPart {
+                        text: "b".repeat(300),
+                    }),
+                ],
+            },
+            history: vec![],
+            timeout_seconds: None,
+            ..AIPTask::default()
+        };
+
+        // WHEN — steps(0.30) + parts(0) + tag(0.40) + tools(0.20) + input_len(0.10) = 1.0
+        let score = compute_complexity_score(&manifest, &task.input, None);
+        let mode = classify(&task, &manifest, None);
+
+        // THEN
+        assert!(score >= 0.90, "score should be >= 0.90, got {score}");
+        assert_eq!(mode, ExecutionMode::Orchestrated);
+    }
+
+    // STORY-234 — AC-3 : tag "multi-step" seul déclenche Orchestrated
+    #[test]
+    fn test_multi_step_tag_alone_triggers_orchestrated() {
+        // GIVEN un agent avec 1 outil, 5 steps, tag "multi-step", input court
+        let mut manifest = simple_manifest();
+        manifest.tools_required = vec!["file_io".into()];
+        manifest.step_budget = Some(StepBudgetConfig {
+            max_steps: 5,
+            max_tool_calls: 10,
+            wall_clock_secs: 60,
+        });
+        manifest.tags = vec!["multi-step".into()];
+        let task = simple_task();
+
+        // WHEN
+        let score = compute_complexity_score(&manifest, &task.input, None);
+        let mode = classify(&task, &manifest, None);
+
+        // THEN — score = WEIGHT_MULTI_STEP_TAG (0.40) ≥ 0.40
+        assert!(score >= 0.40, "score should be >= 0.40, got {score}");
+        assert_eq!(mode, ExecutionMode::Orchestrated);
+    }
+
+    // STORY-234 — AC-4 : input long + nombreux outils contribuent au score
+    #[test]
+    fn test_input_length_and_tools_contribute_to_score() {
+        // GIVEN un agent avec 6 outils, 10 steps, pas de tag, input de 800 chars
+        let mut manifest = simple_manifest();
+        manifest.tools_required = vec!["a", "b", "c", "d", "e", "f"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let task = AIPTask {
+            task_id: "task-long".into(),
+            context_id: "ctx-long".into(),
+            input: AIPInput {
+                parts: vec![AIPPart::Text(TextPart {
+                    text: "x".repeat(800),
+                })],
+            },
+            history: vec![],
+            timeout_seconds: None,
+            ..AIPTask::default()
+        };
+
+        // WHEN — tools(0.20) + input_len(0.10) = 0.30
+        let score = compute_complexity_score(&manifest, &task.input, None);
+
+        // THEN
+        assert!(score >= 0.30, "score should be >= 0.30, got {score}");
     }
 
     // STORY-079 — AC-5 : serde round-trip JSON → execution_mode + system_prompt
