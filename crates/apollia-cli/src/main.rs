@@ -82,7 +82,7 @@ enum Commands {
         detach: bool,
     },
 
-    /// Agent management (list, start, stop, info, install, uninstall, enable, disable, update).
+    /// Agent management (list, start, stop, info, install, uninstall, enable, disable, update, new).
     Agent {
         /// Agent subcommand.
         #[command(subcommand)]
@@ -1033,6 +1033,58 @@ mod tests {
         let cli = parse(&["apollia-os", "pipeline", "--json", "list"]);
         // THEN global json = true
         assert!(matches!(cli.command, Commands::Pipeline { .. }));
+        assert!(cli.json);
+    }
+
+    // ── agent new command parsing ─────────────────────────────────
+
+    #[test]
+    fn test_cli_parses_agent_new_default_type() {
+        // GIVEN "apollia-os agent new my-agent"
+        let cli = parse(&["apollia-os", "agent", "new", "my-agent"]);
+        // THEN AgentCommand::New with default type "react"
+        match &cli.command {
+            Commands::Agent { command } => match command {
+                AgentCommand::New { name, r#type } => {
+                    assert_eq!(name, "my-agent");
+                    assert_eq!(r#type, "react");
+                }
+                other => panic!("expected AgentCommand::New, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_new_with_type() {
+        // GIVEN "apollia-os agent new my-bot --type conversational"
+        let cli = parse(&[
+            "apollia-os",
+            "agent",
+            "new",
+            "my-bot",
+            "--type",
+            "conversational",
+        ]);
+        // THEN AgentCommand::New with specified type
+        match &cli.command {
+            Commands::Agent { command } => match command {
+                AgentCommand::New { name, r#type } => {
+                    assert_eq!(name, "my-bot");
+                    assert_eq!(r#type, "conversational");
+                }
+                other => panic!("expected AgentCommand::New, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_new_json_flag() {
+        // GIVEN "apollia-os agent new my-agent --json"
+        let cli = parse(&["apollia-os", "agent", "new", "my-agent", "--json"]);
+        // THEN global json = true
+        assert!(matches!(cli.command, Commands::Agent { .. }));
         assert!(cli.json);
     }
 }

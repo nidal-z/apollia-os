@@ -661,6 +661,7 @@ fn expand_tilde_str(s: &str) -> PathBuf {
 /// Finds `apollia.toml` by searching in order:
 ///   1. `./apollia.toml`      (current working directory)
 ///   2. `~/.config/apollia/apollia.toml`  (user config dir)
+///
 /// Returns `None` if neither exists.
 fn find_config_file() -> Option<PathBuf> {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));

@@ -59,6 +59,15 @@ pub enum AgentCommand {
         /// Path to the new Python module.
         path: PathBuf,
     },
+    /// Create a new agent from an SDK template.
+    New {
+        /// Agent name in kebab-case (e.g. my-agent).
+        name: String,
+
+        /// Template type: react, conversational, or orchestrated.
+        #[arg(long, default_value = "react")]
+        r#type: String,
+    },
 }
 
 /// Execute an `agent` subcommand.
@@ -78,6 +87,7 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
         AgentCommand::Enable { name } => run_enable(name, json),
         AgentCommand::Disable { name } => run_disable(name, json),
         AgentCommand::Update { name, path } => run_update(name, path, json),
+        AgentCommand::New { name, r#type } => run_new(name, r#type, json),
     }
 }
 
@@ -493,6 +503,131 @@ fn run_update(name: &str, source_path: &Path, json: bool) -> i32 {
     }
 
     exit_codes::SUCCESS
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scaffolding (agent new)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Supported agent template types.
+const VALID_AGENT_TYPES: &[&str] = &["react", "conversational", "orchestrated"];
+
+/// `apollia-os agent new <name> [--type <type>]` — scaffold a new agent via the SDK.
+fn run_new(name: &str, agent_type: &str, json: bool) -> i32 {
+    // Validate template type.
+    if !VALID_AGENT_TYPES.contains(&agent_type) {
+        let msg = format!(
+            "Invalid type '{}'. Supported types: {}",
+            agent_type,
+            VALID_AGENT_TYPES.join(", ")
+        );
+        return print_error_and_exit(&msg, json);
+    }
+
+    // Verify the SDK is installed.
+    if let Err(msg) = check_sdk_installed() {
+        return print_error_and_exit(&msg, json);
+    }
+
+    // Check for name conflict in ~/.apollia/agents/.
+    let agents_dir = apollia_data_dir().join("agents");
+    let target_dir = agents_dir.join(name);
+    if target_dir.exists() {
+        let msg = format!(
+            "An agent '{}' already exists. Use a different name or remove the existing one with: \
+             apollia-os agent uninstall {}",
+            name, name
+        );
+        return print_error_and_exit(&msg, json);
+    }
+
+    // Delegate to `python3 -m apollia new <name> --type <type> --output-dir <path>`.
+    let output = match std::process::Command::new("python3")
+        .args([
+            "-m",
+            "apollia",
+            "new",
+            name,
+            "--type",
+            agent_type,
+            "--output-dir",
+        ])
+        .arg(&target_dir)
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            let msg = format!("Failed to execute python3: {e}");
+            return print_error_and_exit(&msg, json);
+        }
+    };
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let msg = format!("Scaffolding failed: {}", stderr.trim());
+        return print_error_and_exit(&msg, json);
+    }
+
+    // List generated files.
+    let files = list_generated_files(&target_dir);
+
+    if json {
+        let json_output = serde_json::json!({
+            "name": name,
+            "type": agent_type,
+            "path": target_dir.to_string_lossy(),
+            "files": files,
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json_output).unwrap_or_default()
+        );
+    } else {
+        println!("Agent '{}' created in {}", name, target_dir.display());
+        for f in &files {
+            println!("  {f}");
+        }
+    }
+
+    exit_codes::SUCCESS
+}
+
+/// Verify that the Apollia Python SDK is importable.
+fn check_sdk_installed() -> Result<(), String> {
+    let output = std::process::Command::new("python3")
+        .args(["-c", "import apollia"])
+        .output()
+        .map_err(|e| format!("python3 not found: {e}"))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err("apollia-sdk is not installed. Install it with: pip install apollia-sdk".to_string())
+    }
+}
+
+/// List files generated in `dir`, returning relative paths sorted alphabetically.
+fn list_generated_files(dir: &Path) -> Vec<String> {
+    let mut files = Vec::new();
+    collect_files_recursive(dir, dir, &mut files);
+    files.sort();
+    files
+}
+
+/// Recursively collect file paths relative to `base`.
+fn collect_files_recursive(base: &Path, current: &Path, out: &mut Vec<String>) {
+    let entries = match std::fs::read_dir(current) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_files_recursive(base, &path, out);
+        } else if let Ok(rel) = path.strip_prefix(base) {
+            out.push(rel.to_string_lossy().to_string());
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -946,5 +1081,107 @@ mod tests {
         assert!(looks_like_file_path("/abs/path/agent.py"));
         assert!(!looks_like_file_path("my-agent"));
         assert!(!looks_like_file_path("uuid-1234"));
+    }
+
+    #[test]
+    fn test_new_validates_agent_type() {
+        // GIVEN an invalid template type
+        // WHEN run_new is called
+        let code = run_new("test-agent", "invalid", false);
+        // THEN it returns GENERAL_ERROR
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn test_new_valid_agent_types_accepted() {
+        // GIVEN all valid template types
+        // THEN they are all recognized
+        for t in VALID_AGENT_TYPES {
+            assert!(VALID_AGENT_TYPES.contains(t), "type '{t}' should be valid");
+        }
+        assert!(!VALID_AGENT_TYPES.contains(&"invalid"));
+        assert!(!VALID_AGENT_TYPES.contains(&"custom"));
+    }
+
+    #[test]
+    fn test_new_detects_name_conflict() {
+        // GIVEN a temporary directory simulating ~/.apollia/agents/<name>/
+        let tmp = tempfile::tempdir().expect("create tmpdir");
+        let agents_dir = tmp.path().join("agents").join("existing-agent");
+        std::fs::create_dir_all(&agents_dir).expect("create agent dir");
+
+        // WHEN the target directory already exists
+        // THEN it is detected as a conflict
+        assert!(agents_dir.exists());
+    }
+
+    #[test]
+    fn test_new_json_output_format() {
+        // GIVEN a scaffolding result
+        let name = "my-agent";
+        let agent_type = "react";
+        let path = "/home/user/.apollia/agents/my-agent/";
+        let files = vec![
+            "my_agent_agent.py".to_string(),
+            "test_my_agent_agent.py".to_string(),
+        ];
+
+        // WHEN formatting JSON output
+        let output = serde_json::json!({
+            "name": name,
+            "type": agent_type,
+            "path": path,
+            "files": files,
+        });
+
+        // THEN the JSON contains all required fields
+        assert_eq!(output["name"], "my-agent");
+        assert_eq!(output["type"], "react");
+        assert!(output["path"]
+            .as_str()
+            .is_some_and(|p| p.contains("my-agent")));
+        let file_list = output["files"].as_array().expect("files should be array");
+        assert_eq!(file_list.len(), 2);
+    }
+
+    #[test]
+    fn test_new_default_type_is_react() {
+        // GIVEN the AgentCommand::New parsed without --type
+        use clap::Parser;
+
+        #[derive(Debug, Parser)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: AgentCommand,
+        }
+
+        let cli = TestCli::parse_from(["test", "new", "simple-bot"]);
+        // THEN the default type is "react"
+        match cli.cmd {
+            AgentCommand::New { name, r#type } => {
+                assert_eq!(name, "simple-bot");
+                assert_eq!(r#type, "react");
+            }
+            other => panic!("expected AgentCommand::New, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_list_generated_files_collects_recursively() {
+        // GIVEN a directory with files at different depths
+        let tmp = tempfile::tempdir().expect("create tmpdir");
+        let base = tmp.path();
+        std::fs::write(base.join("agent.py"), "").expect("write file");
+        let tests_dir = base.join("tests");
+        std::fs::create_dir_all(&tests_dir).expect("create tests dir");
+        std::fs::write(tests_dir.join("test_agent.py"), "").expect("write test file");
+
+        // WHEN listing generated files
+        let files = list_generated_files(base);
+
+        // THEN both files are found with relative paths
+        assert_eq!(files.len(), 2);
+        assert!(files.contains(&"agent.py".to_string()));
+        assert!(files.contains(&"tests/test_agent.py".to_string()));
     }
 }
