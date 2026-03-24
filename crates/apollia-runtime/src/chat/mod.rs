@@ -22,6 +22,7 @@ pub use extractor::{extract_user_memory, spawn_extraction, ExtractionError, Extr
 pub use manager::ChatSessionManagerHandle;
 pub use repository::{AppendMessageParams, ChatSessionRepository, MessageRow, SessionRow};
 pub use summarizer::{summarize, SummarizerError};
+pub use types::PastSessionSummary;
 pub use types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ChatSessionConfig, ExchangeState,
     MessageId, PendingChatApprovals, SessionDetail, SessionId, SessionInfo, SessionStatus,

@@ -377,6 +377,21 @@ impl Default for ChatSessionConfig {
     }
 }
 
+/// Summary of a past session for cross-session context injection.
+///
+/// Returned by [`ChatSessionRepository::find_relevant_sessions`] and used
+/// to build a context block that gives the LLM awareness of previous
+/// conversations related to the current topic.
+#[derive(Debug, Clone, Serialize)]
+pub struct PastSessionSummary {
+    /// Identifier of the past session.
+    pub session_id: String,
+    /// ISO-8601 creation timestamp of the session.
+    pub created_at: String,
+    /// Summary text produced by the conversation summarizer.
+    pub summary: String,
+}
+
 /// Lightweight session info for list responses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionInfo {

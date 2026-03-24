@@ -9,7 +9,7 @@ use std::path::Path;
 
 use rusqlite::{params, Connection};
 
-use super::types::{ChatError, ChatMode, ChatRole, SessionStatus};
+use super::types::{ChatError, ChatMode, ChatRole, PastSessionSummary, SessionStatus};
 
 /// SQL migration applied on first open.
 const MIGRATION_SQL: &str = include_str!("../../migrations/001_chat_tables.sql");
@@ -104,6 +104,16 @@ impl ChatSessionRepository {
         // v3 migration: add summary column for conversation summarization.
         let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN summary TEXT");
 
+        // v4 migration: FTS5 index on session summaries for cross-session recall.
+        conn.execute_batch(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS chat_sessions_fts USING fts5(
+                session_id UNINDEXED,
+                created_at UNINDEXED,
+                summary
+            );",
+        )
+        .map_err(|e| ChatError::InternalError(format!("FTS5 migration failed: {e}")))?;
+
         Ok(Self { conn })
     }
 
@@ -119,6 +129,16 @@ impl ChatSessionRepository {
         // v3 migration: summary column (already in CREATE TABLE for fresh DBs,
         // but needed here since MIGRATION_SQL predates this column).
         let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN summary TEXT");
+
+        // v4 migration: FTS5 index on session summaries for cross-session recall.
+        conn.execute_batch(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS chat_sessions_fts USING fts5(
+                session_id UNINDEXED,
+                created_at UNINDEXED,
+                summary
+            );",
+        )
+        .map_err(|e| ChatError::InternalError(format!("FTS5 migration failed: {e}")))?;
 
         Ok(Self { conn })
     }
@@ -415,6 +435,7 @@ impl ChatSessionRepository {
 
     /// Store or replace the conversation summary for a session.
     ///
+    /// Also updates the FTS5 index used for cross-session recall.
     /// Returns `Err(ChatError::SessionNotFound)` if the session does not exist.
     pub fn update_summary(&self, session_id: &str, summary: &str) -> Result<(), ChatError> {
         let updated = self
@@ -428,6 +449,31 @@ impl ChatSessionRepository {
         if updated == 0 {
             return Err(ChatError::SessionNotFound(session_id.to_string()));
         }
+
+        // Fetch created_at for the FTS5 index
+        let created_at: String = self
+            .conn
+            .query_row(
+                "SELECT created_at FROM chat_sessions WHERE id = ?1",
+                params![session_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| ChatError::InternalError(format!("update_summary created_at: {e}")))?;
+
+        // Replace FTS5 entry (delete then insert, since FTS5 doesn't support REPLACE natively)
+        self.conn
+            .execute(
+                "DELETE FROM chat_sessions_fts WHERE session_id = ?1",
+                params![session_id],
+            )
+            .map_err(|e| ChatError::InternalError(format!("update_summary fts delete: {e}")))?;
+        self.conn
+            .execute(
+                "INSERT INTO chat_sessions_fts (session_id, created_at, summary) VALUES (?1, ?2, ?3)",
+                params![session_id, created_at, summary],
+            )
+            .map_err(|e| ChatError::InternalError(format!("update_summary fts insert: {e}")))?;
+
         Ok(())
     }
 
@@ -439,6 +485,53 @@ impl ChatSessionRepository {
             .get_session(session_id)?
             .ok_or_else(|| ChatError::SessionNotFound(session_id.to_string()))?;
         Ok(session.summary)
+    }
+
+    /// Search past sessions by summary relevance using FTS5 full-text search.
+    ///
+    /// Returns the top `limit` sessions whose summary matches the query,
+    /// sorted by BM25 relevance. Only closed sessions with a non-empty summary
+    /// are returned.
+    pub fn find_relevant_sessions(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<PastSessionSummary>, ChatError> {
+        let sanitized = sanitize_fts_query(query);
+        if sanitized.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT session_id, created_at, summary
+                 FROM chat_sessions_fts
+                 WHERE summary MATCH ?1
+                 ORDER BY rank
+                 LIMIT ?2",
+            )
+            .map_err(|e| {
+                ChatError::InternalError(format!("find_relevant_sessions prepare: {e}"))
+            })?;
+
+        let rows = stmt
+            .query_map(params![sanitized, limit], |row| {
+                Ok(PastSessionSummary {
+                    session_id: row.get(0)?,
+                    created_at: row.get(1)?,
+                    summary: row.get(2)?,
+                })
+            })
+            .map_err(|e| ChatError::InternalError(format!("find_relevant_sessions query: {e}")))?;
+
+        let mut result = Vec::new();
+        for r in rows {
+            result.push(r.map_err(|e| {
+                ChatError::InternalError(format!("find_relevant_sessions row: {e}"))
+            })?);
+        }
+        Ok(result)
     }
 
     /// Get the set of authorized tool names for a session.
@@ -490,6 +583,29 @@ fn row_to_message(row: &rusqlite::Row<'_>) -> rusqlite::Result<MessageRow> {
         created_at: row.get(6)?,
         seq: row.get(7)?,
     })
+}
+
+/// Sanitize a user query for FTS5 MATCH by extracting alphanumeric words
+/// and joining them with implicit AND.
+///
+/// FTS5 special characters (`"`, `*`, `(`, `)`, etc.) are stripped.
+/// Returns an empty string if the query contains no searchable terms.
+fn sanitize_fts_query(input: &str) -> String {
+    input
+        .split_whitespace()
+        .filter_map(|word| {
+            let clean: String = word
+                .chars()
+                .filter(|c| c.is_alphanumeric() || *c == '-')
+                .collect();
+            if clean.is_empty() {
+                None
+            } else {
+                Some(clean)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Extension trait to make `query_row` return `Option` instead of error on missing row.
@@ -813,5 +929,95 @@ mod tests {
         let tools: Vec<String> =
             serde_json::from_str(&session.available_tools).expect("parse tools");
         assert_eq!(tools, vec!["bash_executor", "file_io"]);
+    }
+
+    #[test]
+    fn test_find_relevant_sessions_with_matches() {
+        // GIVEN 3 closed sessions with summaries about different topics
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        for (id, summary, ts) in [
+            (
+                "s1",
+                "Discussion about data migration project using batch processing",
+                "2026-03-20T10:00:00Z",
+            ),
+            (
+                "s2",
+                "Review of API design for user management endpoints",
+                "2026-03-18T10:00:00Z",
+            ),
+            (
+                "s3",
+                "Setup of CI/CD pipeline with GitHub Actions",
+                "2026-03-15T10:00:00Z",
+            ),
+        ] {
+            repo.create_session(id, &ChatMode::Libre, None, "", &[], ts, None)
+                .expect("create");
+            repo.close_session(id, ts).expect("close");
+            repo.update_summary(id, summary).expect("update summary");
+        }
+
+        // WHEN searching with a query about data migration
+        let results = repo
+            .find_relevant_sessions("data migration project batch processing", 3)
+            .expect("search");
+
+        // THEN at least one session about data migration is returned
+        assert!(!results.is_empty());
+        assert!(results.iter().any(|s| s.session_id == "s1"));
+        assert!(results.len() <= 3);
+    }
+
+    #[test]
+    fn test_find_relevant_sessions_no_match() {
+        // GIVEN sessions with summaries that do not match the query
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        repo.create_session(
+            "s1",
+            &ChatMode::Libre,
+            None,
+            "",
+            &[],
+            "2026-03-20T10:00:00Z",
+            None,
+        )
+        .expect("create");
+        repo.close_session("s1", "2026-03-20T12:00:00Z")
+            .expect("close");
+        repo.update_summary("s1", "Discussion about cooking recipes and ingredients")
+            .expect("update summary");
+
+        // WHEN searching for a completely unrelated topic
+        let results = repo
+            .find_relevant_sessions("kubernetes cluster deployment strategy", 3)
+            .expect("search");
+
+        // THEN no sessions are returned
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_find_relevant_sessions_empty_query() {
+        // GIVEN a repository with sessions
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        repo.create_session(
+            "s1",
+            &ChatMode::Libre,
+            None,
+            "",
+            &[],
+            "2026-03-20T10:00:00Z",
+            None,
+        )
+        .expect("create");
+        repo.update_summary("s1", "Some summary text")
+            .expect("update");
+
+        // WHEN searching with an empty query
+        let results = repo.find_relevant_sessions("", 3).expect("search");
+
+        // THEN no results (sanitized query is empty)
+        assert!(results.is_empty());
     }
 }

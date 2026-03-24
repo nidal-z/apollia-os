@@ -32,6 +32,15 @@ use super::types::{
 use crate::api::routes_agents::AgentLoader;
 use crate::eventbus::EventBusSender;
 
+/// Maximum number of past sessions to inject as cross-session context.
+const MAX_PAST_SESSIONS: usize = 3;
+
+/// Minimum length (in bytes) of the first message to trigger cross-session recall.
+///
+/// Short greetings like "bonjour" or "hello" are filtered out to avoid
+/// injecting irrelevant context from past sessions.
+const MIN_MESSAGE_LENGTH_FOR_RECALL: usize = 20;
+
 /// Commands sent to the [`ChatSessionManager`] actor.
 pub enum ChatCommand {
     /// Create a new chat session.
@@ -255,6 +264,32 @@ impl ChatSessionManager {
         info!("ChatSessionManager: actor stopped");
     }
 
+    /// Build a cross-session context block from past session summaries.
+    ///
+    /// Returns `None` if the first message is too short (trivial greeting)
+    /// or no relevant past sessions are found.
+    fn build_cross_session_context(&self, first_message: &str) -> Option<String> {
+        if first_message.len() < MIN_MESSAGE_LENGTH_FOR_RECALL {
+            return None;
+        }
+
+        let sessions = self
+            .repository
+            .find_relevant_sessions(first_message, MAX_PAST_SESSIONS)
+            .ok()?;
+
+        if sessions.is_empty() {
+            return None;
+        }
+
+        let mut block = String::from("## Previous conversations (for reference)\n");
+        for session in &sessions {
+            block.push_str(&format!("- [{}] {}\n", session.created_at, session.summary));
+        }
+
+        Some(block)
+    }
+
     /// Create a new chat session.
     fn handle_create_session(
         &mut self,
@@ -455,7 +490,17 @@ impl ChatSessionManager {
             );
 
             let history = session.history.clone();
-            let system_prompt = session.system_prompt.clone();
+            // On the first message, enrich the system prompt with cross-session context
+            let system_prompt = if history.len() == 1 {
+                let mut prompt = session.system_prompt.clone();
+                if let Some(block) = self.build_cross_session_context(content) {
+                    prompt.push_str("\n\n");
+                    prompt.push_str(&block);
+                }
+                prompt
+            } else {
+                session.system_prompt.clone()
+            };
             let available_tools = session.available_tools.clone();
             let authorized_tools = session.authorized_tools.clone();
             let pending_approvals = self.pending_chat_approvals.clone();
@@ -1539,6 +1584,155 @@ mod tests {
         assert!(matches!(result, Err(ChatError::SessionClosed(_))));
 
         handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_cross_session_context_substantive_message() {
+        // GIVEN 3 past sessions with summaries
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db_path = dir.path().join("chat.db");
+
+        let (event_tx, _) = tokio::sync::broadcast::channel(128);
+        let tool_registry = ToolRegistryHandle::start();
+        let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
+        let (tx, _rx) = mpsc::channel(256);
+        let repository = ChatSessionRepository::open(&db_path).expect("open");
+
+        // Seed past sessions with summaries on the same repository instance
+        for (id, summary, ts) in [
+            (
+                "past-1",
+                "Discussion about data migration project using batch processing",
+                "2026-03-20T10:00:00Z",
+            ),
+            (
+                "past-2",
+                "Review of API design for user management endpoints",
+                "2026-03-18T10:00:00Z",
+            ),
+            (
+                "past-3",
+                "Setup of CI/CD pipeline with GitHub Actions",
+                "2026-03-15T10:00:00Z",
+            ),
+        ] {
+            repository
+                .create_session(id, &ChatMode::Libre, None, "", &[], ts, None)
+                .expect("create");
+            repository.close_session(id, ts).expect("close");
+            repository.update_summary(id, summary).expect("summary");
+        }
+
+        let manager = ChatSessionManager {
+            sessions: HashMap::new(),
+            repository,
+            llm_router: fake_llm_router(),
+            tool_registry,
+            tool_invoker,
+            agent_loader: Arc::new(AlwaysOkLoader),
+            agent_runner: None,
+            event_bus: event_tx,
+            runtime_budget: StepBudgetConfig::default(),
+            pending_chat_approvals: PendingChatApprovals::new(),
+            user_memory: None,
+            tx,
+        };
+
+        // WHEN building cross-session context with a substantive first message
+        let context =
+            manager.build_cross_session_context("data migration project batch processing");
+
+        // THEN a context block with past sessions is returned
+        let block = context.expect("should have cross-session context");
+        assert!(block.starts_with("## Previous conversations (for reference)\n"));
+        assert!(block.contains("migration"));
+    }
+
+    #[tokio::test]
+    async fn test_cross_session_context_trivial_message() {
+        // GIVEN past sessions with summaries
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db_path = dir.path().join("chat.db");
+
+        let (event_tx, _) = tokio::sync::broadcast::channel(128);
+        let tool_registry = ToolRegistryHandle::start();
+        let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
+        let (tx, _rx) = mpsc::channel(256);
+        let repository = ChatSessionRepository::open(&db_path).expect("open");
+
+        repository
+            .create_session(
+                "past-1",
+                &ChatMode::Libre,
+                None,
+                "",
+                &[],
+                "2026-03-20T10:00:00Z",
+                None,
+            )
+            .expect("create");
+        repository
+            .close_session("past-1", "2026-03-20T12:00:00Z")
+            .expect("close");
+        repository
+            .update_summary("past-1", "Discussion about data migration")
+            .expect("summary");
+
+        let manager = ChatSessionManager {
+            sessions: HashMap::new(),
+            repository,
+            llm_router: fake_llm_router(),
+            tool_registry,
+            tool_invoker,
+            agent_loader: Arc::new(AlwaysOkLoader),
+            agent_runner: None,
+            event_bus: event_tx,
+            runtime_budget: StepBudgetConfig::default(),
+            pending_chat_approvals: PendingChatApprovals::new(),
+            user_memory: None,
+            tx,
+        };
+
+        // WHEN building cross-session context with a trivial message
+        let context = manager.build_cross_session_context("bonjour");
+
+        // THEN None is returned (message too short)
+        assert!(context.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_cross_session_context_no_relevant_sessions() {
+        // GIVEN a repository with no sessions (empty)
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db_path = dir.path().join("chat.db");
+
+        let (event_tx, _) = tokio::sync::broadcast::channel(128);
+        let tool_registry = ToolRegistryHandle::start();
+        let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
+        let (tx, _rx) = mpsc::channel(256);
+        let repository = ChatSessionRepository::open(&db_path).expect("open");
+
+        let manager = ChatSessionManager {
+            sessions: HashMap::new(),
+            repository,
+            llm_router: fake_llm_router(),
+            tool_registry,
+            tool_invoker,
+            agent_loader: Arc::new(AlwaysOkLoader),
+            agent_runner: None,
+            event_bus: event_tx,
+            runtime_budget: StepBudgetConfig::default(),
+            pending_chat_approvals: PendingChatApprovals::new(),
+            user_memory: None,
+            tx,
+        };
+
+        // WHEN building cross-session context with a substantive message but no past sessions
+        let context =
+            manager.build_cross_session_context("data migration project batch processing");
+
+        // THEN None is returned (no relevant sessions found)
+        assert!(context.is_none());
     }
 
     #[tokio::test]
