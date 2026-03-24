@@ -299,7 +299,7 @@ mod tests {
         dir.join("test.db")
     }
 
-    // AC-1 — All tables created on fresh open
+    // All tables created on fresh open
     #[test]
     fn test_ac1_schema_created_on_open() {
         // GIVEN
@@ -321,7 +321,7 @@ mod tests {
         assert!(tables.contains(&"_schema_version".to_string()));
     }
 
-    // AC-1 — WAL mode is active
+    // WAL mode is active
     #[test]
     fn test_ac1_wal_mode_active() {
         // GIVEN
@@ -336,7 +336,7 @@ mod tests {
         assert_eq!(mode, "wal");
     }
 
-    // AC-2 — FTS5 with unicode61 tokenizer works
+    // FTS5 with unicode61 tokenizer works
     #[test]
     fn test_ac2_fts5_unicode61_works() {
         // GIVEN
@@ -362,7 +362,7 @@ mod tests {
         assert!(count >= 1);
     }
 
-    // AC-3 — Reopen existing DB without re-migration
+    // Reopen existing DB without re-migration
     #[test]
     fn test_ac3_reopen_existing_db() {
         // GIVEN
@@ -374,7 +374,7 @@ mod tests {
         assert_eq!(store2.schema_version().unwrap(), SCHEMA_VERSION);
     }
 
-    // AC-4 — Invalid path returns error
+    // Invalid path returns error
     #[test]
     fn test_ac4_invalid_path_returns_error() {
         // GIVEN
@@ -385,7 +385,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // AC-5 — schema_version() returns current version
+    // schema_version() returns current version
     #[test]
     fn test_ac5_schema_version_returns_current() {
         // GIVEN

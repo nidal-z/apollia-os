@@ -522,7 +522,7 @@ mod tests {
     /// Minimal `TaskSubmitter` that always reports the task as submitted but
     /// never emits `TaskCompleted` on the EventBus.
     ///
-    /// Sufficient for testing AC-1 / AC-2 / AC-3 / AC-5 without running a full
+    /// Sufficient for testing list, run, unknown pipeline and get_run scenarios without running a full
     /// runtime stack.
     struct NeverCompletingSubmitter;
 
@@ -583,7 +583,7 @@ mod tests {
         PipelineEngine::spawn(pipelines, repo, submitter, make_event_bus())
     }
 
-    // ── AC-1 — list_pipelines returns all registered pipelines ────────────────
+    // ── list_pipelines returns all registered pipelines ────────────────
 
     #[tokio::test]
     async fn test_ac1_list_pipelines() {
@@ -602,7 +602,7 @@ mod tests {
         assert!(ids.contains(&"pipeline-beta"), "pipeline-beta missing");
     }
 
-    // ── AC-2 — run_pipeline creates a run persisted in SQLite ─────────────────
+    // ── run_pipeline creates a run persisted in SQLite ─────────────────
 
     #[tokio::test]
     async fn test_ac2_run_pipeline_returns_run_id() {
@@ -630,7 +630,7 @@ mod tests {
         assert_eq!(run.trigger_payload.as_deref(), Some("input.pdf"));
     }
 
-    // ── AC-3 — unknown pipeline returns PipelineNotFound ──────────────────────
+    // ── unknown pipeline returns PipelineNotFound ──────────────────────
 
     #[tokio::test]
     async fn test_ac3_unknown_pipeline_error() {
@@ -647,7 +647,7 @@ mod tests {
         );
     }
 
-    // ── AC-4 — resume_running_runs spawns executors for in-flight runs ─────────
+    // ── resume_running_runs spawns executors for in-flight runs ─────────
 
     #[tokio::test]
     async fn test_ac4_resume_running_runs() {
@@ -704,7 +704,7 @@ mod tests {
         );
     }
 
-    // ── AC-5 — get_run returns run state from SQLite ───────────────────────────
+    // ── get_run returns run state from SQLite ───────────────────────────
 
     #[tokio::test]
     async fn test_ac5_get_run_returns_state() {
@@ -730,7 +730,7 @@ mod tests {
         assert_eq!(run.trigger_payload.as_deref(), Some("data"));
     }
 
-    // ── AC-6 — shutdown stops the engine ──────────────────────────────────────
+    // ── shutdown stops the engine ──────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac6_shutdown_stops_engine() {

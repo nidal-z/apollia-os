@@ -555,7 +555,7 @@ mod tests {
     }
 
     // GIVEN / WHEN : PlanRepository::new() sur une base vide
-    // THEN : tables créées sans erreur (AC-1)
+    // THEN : tables créées sans erreur
     #[test]
     fn test_ac1_migration_appliquee() {
         let (_repo, _f) = make_repo();
@@ -564,7 +564,7 @@ mod tests {
 
     // GIVEN : un PlanRepository ouvert
     // WHEN  : cycle de vie complet — insert_plan → start/complete steps → complete_plan
-    // THEN  : get_plan_with_steps retourne status=completed et outputs corrects (AC-2)
+    // THEN  : get_plan_with_steps retourne status=completed et outputs corrects
     #[test]
     fn test_ac2_cycle_de_vie_complet() {
         let (repo, _f) = make_repo();
@@ -589,7 +589,7 @@ mod tests {
 
     // GIVEN : un plan avec s1 completed, s2 pending
     // WHEN  : begin_replan(plan_id, 1)
-    // THEN  : status=replanning, replan_count=1, s2 supprimé, s1 conservé (AC-3)
+    // THEN  : status=replanning, replan_count=1, s2 supprimé, s1 conservé
     #[test]
     fn test_ac3_replan_supprime_pending_garde_completed() {
         let (repo, _f) = make_repo();
@@ -614,7 +614,7 @@ mod tests {
 
     // GIVEN : un plan avec s1 et s2 pending
     // WHEN  : fail_plan(plan_id, "STEP_BUDGET_EXCEEDED")
-    // THEN  : plan.status=failed, tous les steps skipped ou failed (AC-4)
+    // THEN  : plan.status=failed, tous les steps skipped ou failed
     #[test]
     fn test_ac4_fail_plan_skippe_pending() {
         let (repo, _f) = make_repo();
@@ -650,7 +650,7 @@ mod tests {
 
     // GIVEN un step dans un plan
     // WHEN  save_step_input avec un texte court
-    // THEN  input_rendered persisté, input_truncated = false (AC-1)
+    // THEN  input_rendered persisté, input_truncated = false
     #[test]
     fn test_step_input_rendered_persisted() {
         let (repo, _f) = make_repo();
@@ -670,7 +670,7 @@ mod tests {
 
     // GIVEN un step complété
     // WHEN  save_step_output + save_step_tool + save_step_duration
-    // THEN  output_text, tool_used, duration_ms persistés (AC-2)
+    // THEN  output_text, tool_used, duration_ms persistés
     #[test]
     fn test_step_output_on_success() {
         let (repo, _f) = make_repo();
@@ -694,7 +694,7 @@ mod tests {
 
     // GIVEN un step échoué
     // WHEN  save_step_error + save_step_tool + save_step_duration
-    // THEN  error_detail, tool_used, duration_ms persistés (AC-3)
+    // THEN  error_detail, tool_used, duration_ms persistés
     #[test]
     fn test_step_error_detail_on_failure() {
         let (repo, _f) = make_repo();
@@ -719,7 +719,7 @@ mod tests {
 
     // GIVEN un step
     // WHEN  save_step_duration avec une valeur
-    // THEN  duration_ms persisté (AC-4)
+    // THEN  duration_ms persisté
     #[test]
     fn test_step_duration_measured() {
         let (repo, _f) = make_repo();
@@ -763,7 +763,7 @@ mod tests {
 
     // GIVEN : plan avec depends_on non vide
     // WHEN  : get_plan_with_steps
-    // THEN  : depends_on est correctement désérialisé (AC-5)
+    // THEN  : depends_on est correctement désérialisé
     #[test]
     fn test_ac5_depends_on_deserialise() {
         let (repo, _f) = make_repo();

@@ -8,8 +8,8 @@
 //! apollia-llm [feature = "local"]
 //!   └── EmbeddedBackend : CompletionModel
 //!         ├── load()     — charge le .gguf, configure le device, initialise le moteur
-//!         ├── complete() — inférence synchrone via send_chat_request (AC-3)
-//!         └── stream()   — fallback AC-5 : complete() → un seul chunk
+//!         ├── complete() — inférence synchrone via send_chat_request
+//!         └── stream()   — fallback : complete() → un seul chunk
 //! ```
 //!
 //! # Devices supportés
@@ -30,12 +30,12 @@
 //! ```
 //! Les shaders seront compilés à l'exécution par le driver Metal.
 //!
-//! # Streaming (AC-5)
+//! # Streaming
 //!
 //! `mistralrs::model::Stream<'a>` porte un lifetime lié au modèle et n'implémente
 //! pas `futures::Stream`. La transférer dans un `tokio::spawn` ('static) n'est pas
 //! possible sans un bridge par channel asynchrone — complexité injustifiée.
-//! Conformément à AC-5, `stream()` délègue à `complete()` et retourne le contenu
+//! `stream()` délègue à `complete()` et retourne le contenu
 //! complet en un seul chunk. L'implémentation streaming native sera ajoutée
 //! si `mistralrs` expose une API `'static`.
 //!
@@ -209,9 +209,9 @@ impl EmbeddedBackend {
     /// Charge le modèle depuis le fichier `.gguf` indiqué dans la config.
     ///
     /// Résout le chemin en chemin canonique absolu — si le fichier est absent,
-    /// retourne `Err(LlmError::ModelNotFound)` sans paniquer (AC-2).
+    /// retourne `Err(LlmError::ModelNotFound)` sans paniquer.
     ///
-    /// Sur succès, le moteur est en mémoire et `is_available()` retourne `true` (AC-1).
+    /// Sur succès, le moteur est en mémoire et `is_available()` retourne `true`.
     ///
     /// # Erreurs
     ///
@@ -232,7 +232,7 @@ impl EmbeddedBackend {
         // Expansion du préfixe `~` — PathBuf ne l'expand pas automatiquement.
         let expanded_path = expand_tilde(&config.model_path);
 
-        // Résolution canonique — échoue si le fichier n'existe pas (AC-2).
+        // Résolution canonique — échoue si le fichier n'existe pas.
         let canonical = expanded_path
             .canonicalize()
             .map_err(|_| LlmError::ModelNotFound {
@@ -341,9 +341,9 @@ impl EmbeddedBackend {
 
 #[async_trait::async_trait]
 impl CompletionModel for EmbeddedBackend {
-    /// Exécute l'inférence in-process et retourne la réponse complète (AC-3).
+    /// Exécute l'inférence in-process et retourne la réponse complète.
     ///
-    /// `usage.cost_usd` est toujours `None` — l'inférence locale est gratuite (AC-3).
+    /// `usage.cost_usd` est toujours `None` — l'inférence locale est gratuite.
     async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         let started = Instant::now();
         let messages = Self::build_messages(&req);
@@ -375,7 +375,7 @@ impl CompletionModel for EmbeddedBackend {
             usage: TokenUsage {
                 prompt_tokens: response.usage.prompt_tokens as u32,
                 completion_tokens: response.usage.completion_tokens as u32,
-                cost_usd: None, // backend local = gratuit (AC-3)
+                cost_usd: None, // backend local = gratuit
             },
             finish_reason,
             latency_ms: started.elapsed().as_millis() as u64,
@@ -384,13 +384,13 @@ impl CompletionModel for EmbeddedBackend {
 
     /// Retourne un stream de chunks texte.
     ///
-    /// # Fallback AC-5
+    /// # Fallback
     ///
     /// `mistralrs::model::Stream<'a>` porte un lifetime et n'implémente pas
     /// `futures::Stream`. Elle ne peut être transférée dans un task `'static`
     /// sans un bridge par channel — complexity injustifiée.
     ///
-    /// Conformément à AC-5 : délègue à `complete()` et retourne le contenu
+    /// Délègue à `complete()` et retourne le contenu
     /// complet en un seul chunk `Ok(content)`.
     async fn stream(
         &self,
@@ -402,7 +402,7 @@ impl CompletionModel for EmbeddedBackend {
         Ok(Box::pin(stream))
     }
 
-    /// Retourne `true` : le moteur est chargé en mémoire et prêt (AC-1).
+    /// Retourne `true` : le moteur est chargé en mémoire et prêt.
     fn is_available(&self) -> bool {
         true
     }
@@ -548,7 +548,7 @@ mod tests {
 
     // GIVEN un EmbeddedBackendConfig avec un model_path inexistant
     // WHEN on appelle EmbeddedBackend::load(&config).await
-    // THEN Err(LlmError::ModelNotFound { .. }) est retourné sans panique (AC-2)
+    // THEN Err(LlmError::ModelNotFound { .. }) est retourné sans panique
     #[tokio::test]
     async fn test_ac2_load_returns_model_not_found() {
         let config = EmbeddedBackendConfig {
@@ -697,10 +697,10 @@ mod tests {
 
     // GIVEN le fichier models/Qwen3.5-0.8B-Q6_K.gguf présent dans le workspace
     // WHEN on charge le backend puis on appelle complete() et stream()
-    // THEN AC-1 : load() réussit, is_available() = true, model_id est non vide
-    // THEN AC-3 : complete() retourne cost_usd=None, latency_ms>0, finish_reason valide, content non vide
-    // THEN AC-4 : stream() retourne au moins un chunk non vide
-    // THEN AC-5 : fallback — stream retourne exactement 1 chunk (contenu complet d'un seul tenant)
+    // THEN load() réussit, is_available() = true, model_id est non vide
+    // THEN complete() retourne cost_usd=None, latency_ms>0, finish_reason valide, content non vide
+    // THEN stream() retourne au moins un chunk non vide
+    // THEN fallback — stream retourne exactement 1 chunk (contenu complet d'un seul tenant)
     #[tokio::test]
     async fn test_ac1_ac3_ac4_ac5_with_real_model() {
         if !std::path::Path::new(TEST_MODEL_PATH).exists() {
@@ -710,7 +710,7 @@ mod tests {
             return;
         }
 
-        // ── AC-1 : chargement réussi ──────────────────────────────────────
+        // ── chargement réussi ──────────────────────────────────────
         let config = EmbeddedBackendConfig {
             name: "test-local".into(),
             model_path: PathBuf::from(TEST_MODEL_PATH),
@@ -720,19 +720,19 @@ mod tests {
 
         let backend = EmbeddedBackend::load(&config)
             .await
-            .expect("AC-1 : load() doit réussir avec un fichier .gguf valide");
+            .expect("load() doit réussir avec un fichier .gguf valide");
 
         assert!(
             backend.is_available(),
-            "AC-1 : is_available() doit retourner true après load()"
+            "is_available() doit retourner true après load()"
         );
         assert_eq!(backend.backend_name(), "test-local");
         assert!(
             !backend.model_id().is_empty(),
-            "AC-1 : model_id ne doit pas être vide"
+            "model_id ne doit pas être vide"
         );
 
-        // ── AC-3 : complete() cohérent ────────────────────────────────────
+        // ── complete() cohérent ────────────────────────────────────
         let req = CompletionRequest {
             messages: vec![ChatMessage::user("Dis bonjour en un mot.")],
             ..Default::default()
@@ -741,52 +741,52 @@ mod tests {
         let response = backend
             .complete(req.clone())
             .await
-            .expect("AC-3 : complete() doit réussir");
+            .expect("complete() doit réussir");
 
         assert!(
             response.usage.cost_usd.is_none(),
-            "AC-3 : cost_usd doit être None (backend local = gratuit)"
+            "cost_usd doit être None (backend local = gratuit)"
         );
         assert!(
             response.latency_ms > 0,
-            "AC-3 : latency_ms doit être supérieur à 0"
+            "latency_ms doit être supérieur à 0"
         );
         assert!(
             matches!(
                 response.finish_reason,
                 FinishReason::Stop | FinishReason::Length | FinishReason::ToolCalls
             ),
-            "AC-3 : finish_reason doit être Stop, Length ou ToolCalls — got {:?}",
+            "finish_reason doit être Stop, Length ou ToolCalls — got {:?}",
             response.finish_reason
         );
         assert!(
             !response.content.is_empty(),
-            "AC-3 : content ne doit pas être vide"
+            "content ne doit pas être vide"
         );
 
-        // ── AC-4 / AC-5 : stream() ────────────────────────────────────────
+        // ── stream() ────────────────────────────────────────
         use futures::StreamExt;
 
         let stream = backend
             .stream(req)
             .await
-            .expect("AC-4 : stream() doit réussir");
+            .expect("stream() doit réussir");
 
         let chunks: Vec<String> = stream.filter_map(|r| async { r.ok() }).collect().await;
 
         assert!(
             !chunks.is_empty(),
-            "AC-4 : stream() doit retourner au moins un chunk"
+            "stream() doit retourner au moins un chunk"
         );
         assert!(
             !chunks.join("").is_empty(),
-            "AC-4 : la concaténation des chunks ne doit pas être vide"
+            "la concaténation des chunks ne doit pas être vide"
         );
-        // AC-5 : fallback — le contenu complet est retourné en un seul chunk
+        // : fallback — le contenu complet est retourné en un seul chunk
         assert_eq!(
             chunks.len(),
             1,
-            "AC-5 : fallback stream doit retourner exactement 1 chunk (contenu complet)"
+            "fallback stream doit retourner exactement 1 chunk (contenu complet)"
         );
     }
 }

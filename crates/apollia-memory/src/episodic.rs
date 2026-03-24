@@ -313,7 +313,7 @@ mod tests {
         (store, path)
     }
 
-    // AC-1 — Record episode and verify FTS insert
+    // Record episode and verify FTS insert
     #[test]
     fn test_ac1_record_episode_and_fts_insert() {
         // GIVEN
@@ -344,7 +344,7 @@ mod tests {
         assert_eq!(count, 1);
     }
 
-    // AC-2 — History returns most recent first, limited
+    // History returns most recent first, limited
     #[test]
     fn test_ac2_history_returns_recent_first() {
         // GIVEN — 5 episodes
@@ -368,7 +368,7 @@ mod tests {
         assert_eq!(history.len(), 3);
     }
 
-    // AC-3 — History filtered by since date
+    // History filtered by since date
     #[test]
     fn test_ac3_history_filtered_by_since() {
         // GIVEN — insert episodes with explicit timestamps via raw SQL
@@ -408,7 +408,7 @@ mod tests {
         }
     }
 
-    // AC-4 — Purge expired episodes (including FTS cleanup)
+    // Purge expired episodes (including FTS cleanup)
     #[test]
     fn test_ac4_purge_expired() {
         // GIVEN — 1 expired, 1 not expired
@@ -447,7 +447,7 @@ mod tests {
         assert_eq!(fts_count, 0);
     }
 
-    // AC-5 — Optional fields default correctly
+    // Optional fields default correctly
     #[test]
     fn test_ac5_optional_fields_default() {
         // GIVEN / WHEN

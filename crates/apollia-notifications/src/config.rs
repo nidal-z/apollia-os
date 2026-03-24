@@ -245,7 +245,7 @@ mod tests {
         assert_eq!(Severity::Error.as_str(), "error");
     }
 
-    // AC-1 — build_channels retourne un DesktopChannel quand desktop enabled=true
+    // build_channels retourne un DesktopChannel quand desktop enabled=true
     #[test]
     fn test_ac1_build_channels_desktop_enabled() {
         // GIVEN config avec desktop enabled=true
@@ -266,7 +266,7 @@ mod tests {
         assert_eq!(channels[0].id(), "desktop");
     }
 
-    // AC-3 — build_channels ignore les canaux avec enabled=false
+    // build_channels ignore les canaux avec enabled=false
     #[test]
     fn test_ac3_build_channels_disabled_skipped() {
         // GIVEN config avec webhook enabled=false
@@ -286,7 +286,7 @@ mod tests {
         assert!(channels.is_empty());
     }
 
-    // AC-5 — build_channels retourne une erreur si webhook n'a pas d'url
+    // build_channels retourne une erreur si webhook n'a pas d'url
     #[test]
     fn test_ac5_build_channels_webhook_no_url_returns_error() {
         // GIVEN config type="webhook" sans champ url

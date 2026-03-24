@@ -84,7 +84,7 @@ impl AgentRunner for MockHitlRunner {
     }
 }
 
-// ── AC-1 — Mode Direct : approve → run() rappelé → Completed ────────────────
+// ── Mode Direct : approve → run() rappelé → Completed ────────────────
 
 /// ÉTANT DONNÉ un agent mock qui retourne InputRequired au premier appel
 ///             et Completed au second (is_resumed=True)
@@ -159,7 +159,7 @@ async fn test_ac1_mode_direct_approve_recalls_run() {
     );
 }
 
-// ── AC-2 — Mode Direct : reject → AIPResult::failed("REJECTED") ──────────────
+// ── Mode Direct : reject → AIPResult::failed("REJECTED") ──────────────
 
 /// ÉTANT DONNÉ même agent mock (retourne InputRequired au 1er appel)
 /// QUAND pending.resolve(approved=false, reason="Refus test")

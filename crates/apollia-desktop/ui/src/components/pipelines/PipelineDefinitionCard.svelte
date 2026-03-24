@@ -18,7 +18,7 @@
 </script>
 
 <div class="glass-card-hover relative overflow-hidden" data-testid="pipeline-def-card">
-  <!-- Status accent bar (AC-3) -->
+  <!-- Status accent bar -->
   <div
     class="h-0.5 w-full {definition.enabled ? 'bg-primary' : 'bg-muted-foreground/20'}"
     data-testid="pipeline-def-status-bar"

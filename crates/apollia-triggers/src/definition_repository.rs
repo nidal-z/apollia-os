@@ -415,7 +415,7 @@ mod tests {
         }
     }
 
-    // ── AC-2 — Insert + Get ─────────────────────────────────────────────────
+    // ── Insert + Get ─────────────────────────────────────────────────
 
     #[test]
     fn test_insert_and_get() {
@@ -443,7 +443,7 @@ mod tests {
         assert!(!got.updated_at.is_empty(), "updated_at doit être renseigné");
     }
 
-    // ── AC-3 — Insert duplicate ID ──────────────────────────────────────────
+    // ── Insert duplicate ID ──────────────────────────────────────────
 
     #[test]
     fn test_insert_duplicate_id() {
@@ -462,7 +462,7 @@ mod tests {
         );
     }
 
-    // ── AC-4 — Update existant ──────────────────────────────────────────────
+    // ── Update existant ──────────────────────────────────────────────
 
     #[test]
     fn test_update_existing() {
@@ -492,7 +492,7 @@ mod tests {
         );
     }
 
-    // ── AC-5 — Update ID inexistant ─────────────────────────────────────────
+    // ── Update ID inexistant ─────────────────────────────────────────
 
     #[test]
     fn test_update_not_found() {
@@ -510,7 +510,7 @@ mod tests {
         );
     }
 
-    // ── AC-6 — Delete + Get + List ──────────────────────────────────────────
+    // ── Delete + Get + List ──────────────────────────────────────────
 
     #[test]
     fn test_delete_and_list() {
@@ -542,7 +542,7 @@ mod tests {
         );
     }
 
-    // ── AC-7 — Validation cron invalide ─────────────────────────────────────
+    // ── Validation cron invalide ─────────────────────────────────────
 
     #[test]
     fn test_validation_invalid_cron() {
@@ -560,7 +560,7 @@ mod tests {
         );
     }
 
-    // ── AC-8 — Validation XOR agent/pipeline ────────────────────────────────
+    // ── Validation XOR agent/pipeline ────────────────────────────────
 
     #[test]
     fn test_validation_xor_agent_pipeline() {
@@ -609,7 +609,7 @@ mod tests {
         );
     }
 
-    // ── AC-9 — Validation webhook secret < 32 chars ─────────────────────────
+    // ── Validation webhook secret < 32 chars ─────────────────────────
 
     #[test]
     fn test_validation_webhook_short_secret() {

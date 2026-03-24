@@ -340,7 +340,7 @@ impl AIPBridge {
 
         tokio::task::spawn_blocking(move || {
             Python::with_gil(|py| -> Result<AIPResult, AIPBridgeError> {
-                // Build PyDict from HashMap (AC-3 — correct step_results injection)
+                // Build PyDict from HashMap
                 let py_dict = PyDict::new_bound(py);
                 for (k, v) in &step_results {
                     py_dict
@@ -355,7 +355,7 @@ impl AIPBridge {
 
                 let result = run_coroutine(py, &coroutine)?;
 
-                // Hook must return a str (AC-3)
+                // Hook must return a str
                 result
                     .bind(py)
                     .extract::<String>()
@@ -736,7 +736,7 @@ agent = A()
     // HITL contract tests
     // ─────────────────────────────────────────────
 
-    // AC-1 — AIPResult.input_required() retourne le bon variant
+    // AIPResult.input_required() retourne le bon variant
 
     #[tokio::test]
     async fn test_ac1_aip_result_input_required_variant() {
@@ -774,7 +774,7 @@ agent = A()
         assert_eq!(data.context, serde_json::json!({"key": "val"}));
     }
 
-    // AC-2 — AIPTask enrichi à la reprise (is_resumed=true, input_response peuplé)
+    // AIPTask enrichi à la reprise (is_resumed=true, input_response peuplé)
 
     #[tokio::test]
     async fn test_ac2_aip_task_is_resumed_true() {
@@ -827,7 +827,7 @@ agent = A()
         }
     }
 
-    // AC-3 — AIPTask reprise après rejet (input_response.approved=False, reason peuplée)
+    // AIPTask reprise après rejet (input_response.approved=False, reason peuplée)
 
     #[tokio::test]
     async fn test_ac3_aip_task_is_resumed_rejected() {
@@ -879,7 +879,7 @@ agent = A()
         }
     }
 
-    // AC-4 — Valeurs par défaut — is_resumed=False sur un premier appel
+    // Valeurs par défaut — is_resumed=False sur un premier appel
 
     #[test]
     fn test_ac4_aip_task_default_not_resumed() {
@@ -895,7 +895,7 @@ agent = A()
         );
     }
 
-    // AC-5 — InputResponseData serializable en JSON (roundtrip)
+    // InputResponseData serializable en JSON (roundtrip)
 
     #[test]
     fn test_ac5_input_response_json_roundtrip() {

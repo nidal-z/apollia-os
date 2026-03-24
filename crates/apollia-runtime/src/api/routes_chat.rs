@@ -1,13 +1,13 @@
 //! REST routes for the chat subsystem — `POST/GET/DELETE /api/v1/sessions`.
 //!
 //! Seven endpoints wrapping the [`ChatSessionManagerHandle`]:
-//! - `POST   /api/v1/sessions`                 — create session (AC-7)
-//! - `GET    /api/v1/sessions`                 — list sessions (AC-8)
-//! - `GET    /api/v1/sessions/:id`             — session detail (AC-9)
-//! - `DELETE /api/v1/sessions/:id`             — close session (AC-10)
-//! - `POST   /api/v1/sessions/:id/messages`    — send message (AC-11)
-//! - `POST   /api/v1/sessions/:id/authorize`   — resolve approval (AC-12)
-//! - `GET    /api/v1/sessions/:id/stream`      — SSE stream (AC-13)
+//! - `POST   /api/v1/sessions`                 — create session
+//! - `GET    /api/v1/sessions`                 — list sessions
+//! - `GET    /api/v1/sessions/:id`             — session detail
+//! - `DELETE /api/v1/sessions/:id`             — close session
+//! - `POST   /api/v1/sessions/:id/messages`    — send message
+//! - `POST   /api/v1/sessions/:id/authorize`   — resolve approval
+//! - `GET    /api/v1/sessions/:id/stream`      — SSE stream
 
 use std::convert::Infallible;
 
@@ -81,7 +81,7 @@ pub struct ListSessionsQuery {
     pub status: Option<String>,
 }
 
-/// Handler for `POST /api/v1/sessions` — create a new chat session (AC-7).
+/// Handler for `POST /api/v1/sessions` — create a new chat session.
 pub async fn create_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(body): Json<CreateSessionRequest>,
@@ -122,7 +122,7 @@ pub async fn create_session<B: ExecutionBackend + Clone>(
     }
 }
 
-/// Handler for `GET /api/v1/sessions` — list sessions (AC-8).
+/// Handler for `GET /api/v1/sessions` — list sessions.
 pub async fn list_sessions<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Query(query): Query<ListSessionsQuery>,
@@ -146,7 +146,7 @@ pub async fn list_sessions<B: ExecutionBackend + Clone>(
     (StatusCode::OK, Json(sessions)).into_response()
 }
 
-/// Handler for `GET /api/v1/sessions/:id` — session detail (AC-9).
+/// Handler for `GET /api/v1/sessions/:id` — session detail.
 pub async fn get_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -176,7 +176,7 @@ pub async fn get_session<B: ExecutionBackend + Clone>(
     }
 }
 
-/// Handler for `DELETE /api/v1/sessions/:id` — close session (AC-10).
+/// Handler for `DELETE /api/v1/sessions/:id` — close session.
 pub async fn close_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -204,7 +204,7 @@ pub async fn close_session<B: ExecutionBackend + Clone>(
     }
 }
 
-/// Handler for `POST /api/v1/sessions/:id/messages` — send message (AC-11).
+/// Handler for `POST /api/v1/sessions/:id/messages` — send message.
 pub async fn send_message<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -236,7 +236,7 @@ pub async fn send_message<B: ExecutionBackend + Clone>(
     }
 }
 
-/// Handler for `POST /api/v1/sessions/:id/authorize` — resolve tool approval (AC-12).
+/// Handler for `POST /api/v1/sessions/:id/authorize` — resolve tool approval.
 pub async fn authorize_tool<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(id): Path<String>,
@@ -283,7 +283,7 @@ pub async fn authorize_tool<B: ExecutionBackend + Clone>(
     }
 }
 
-/// Handler for `GET /api/v1/sessions/:id/stream` — SSE streaming (AC-13).
+/// Handler for `GET /api/v1/sessions/:id/stream` — SSE streaming.
 ///
 /// Opens a persistent SSE stream filtering `ChatXxx` [`RuntimeEvent`]s by `session_id`.
 /// The stream closes when `ChatSessionClosed` is emitted.

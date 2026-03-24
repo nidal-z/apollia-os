@@ -118,7 +118,7 @@
   });
 </script>
 
-<!-- AC-3 — glass-card wrapper -->
+<!-- glass-card wrapper -->
 <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="llm-cost-chart">
   <div class="px-4 py-3 border-b border-border">
     <h3 class="text-[13px] font-medium">{$t('observability.llm_costs_title')}</h3>
@@ -130,7 +130,7 @@
     {:else if error}
       <p class="text-sm text-destructive">{error}</p>
     {:else if entries.length === 0}
-      <!-- AC-5 — Empty state -->
+      <!-- Empty state -->
       <div class="flex flex-col items-center justify-center py-12" data-testid="llm-costs-empty">
         <BarChart3 class="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
         <p class="text-muted-foreground">{$t('observability.no_llm_calls')}</p>

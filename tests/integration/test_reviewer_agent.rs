@@ -70,7 +70,7 @@ fn make_task(input: &str) -> AIPTask {
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// AC-1 : le module apollia-reviewer.py se charge et valide sans erreur.
+/// le module apollia-reviewer.py se charge et valide sans erreur.
 #[cfg(feature = "python-tests")]
 #[tokio::test]
 async fn test_ac1_agent_loads_and_validates() {
@@ -100,7 +100,7 @@ async fn test_ac1_agent_loads_and_validates() {
     println!("✔ manifest validé : {:?}", validated.manifest.name);
 }
 
-/// AC-2 : run() avec entrée vide retourne status=failed (validation Python).
+/// run() avec entrée vide retourne status=failed (validation Python).
 #[cfg(feature = "python-tests")]
 #[tokio::test]
 async fn test_ac2_empty_input_returns_failed() {
@@ -139,7 +139,7 @@ async fn test_ac2_empty_input_returns_failed() {
     }
 }
 
-/// AC-3 : run() avec un chemin repo valide (ce repo) et ctx vide.
+/// run() avec un chemin repo valide (ce repo) et ctx vide.
 ///
 /// On s'attend à ce que l'agent tente des appels d'outils et échoue sur ctx.tools
 /// (AttributeError Python). C'est le comportement correct : la chaîne Rust→Python

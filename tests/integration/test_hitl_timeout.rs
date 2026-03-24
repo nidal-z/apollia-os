@@ -66,7 +66,7 @@ async fn get_task_status(db_path: &Path, task_id: &str) -> Option<String> {
     .expect("spawn_blocking must not fail")
 }
 
-// ── AC-5 — TimeoutWatcher : tâche input_required expirée → TaskCanceled ──────
+// ── TimeoutWatcher : tâche input_required expirée → TaskCanceled ──────
 
 /// ÉTANT DONNÉ une tâche en status `input_required` dans SQLite
 ///             avec `input_required_at` = 25h avant maintenant

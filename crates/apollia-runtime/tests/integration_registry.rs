@@ -43,7 +43,7 @@ async fn collect_events(
     events
 }
 
-/// AC-1 — Cycle de vie complet d'un agent.
+/// Cycle de vie complet d'un agent.
 ///
 /// Transitions : register → Active → Degraded → Active → Stopping → Stopped → unregister
 /// Événements attendus (7) :
@@ -99,7 +99,7 @@ async fn test_ac1_cycle_de_vie_complet() {
     assert!(matches!(&events[6], RuntimeEvent::AgentStopped(eid) if eid == &id));
 }
 
-/// AC-2 — Plusieurs agents simultanés.
+/// Plusieurs agents simultanés.
 #[tokio::test]
 async fn test_ac2_agents_simultanes() {
     // GIVEN
@@ -129,7 +129,7 @@ async fn test_ac2_agents_simultanes() {
         .all(|e| matches!(e, RuntimeEvent::AgentRegistered(_))));
 }
 
-/// AC-3 — Transition invalide n'altère pas l'état.
+/// Transition invalide n'altère pas l'état.
 #[tokio::test]
 async fn test_ac3_transition_invalide_preserve_etat() {
     // GIVEN
@@ -167,7 +167,7 @@ async fn test_ac3_transition_invalide_preserve_etat() {
     assert!(extra_events.is_empty());
 }
 
-/// AC-4 — Unregister d'un agent inconnu.
+/// Unregister d'un agent inconnu.
 #[tokio::test]
 async fn test_ac4_unregister_agent_inconnu() {
     // GIVEN

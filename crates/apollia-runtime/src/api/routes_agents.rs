@@ -223,7 +223,7 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
         .map_err(registry_error_to_response)?;
 
     let final_state = if has_missing_optional {
-        // AC-5: optional tools listed but not resolved yet -> DEGRADED
+        // optional tools listed but not resolved yet -> DEGRADED
         state
             .registry_handle
             .update_state(agent_id.as_str(), ProcessState::Active)
@@ -876,7 +876,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_agent_invalid_python_returns_400() {
-        // GIVEN un loader qui echoue toujours (AC-6)
+        // GIVEN un loader qui echoue toujours
         let (router, _) = test_router_with_loader(Arc::new(FailingAgentLoader));
 
         // WHEN POST /api/v1/agents avec un fichier invalide
@@ -899,7 +899,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_agent_with_optional_tools_degraded() {
-        // GIVEN un loader qui retourne un manifest avec tools_optional (AC-5)
+        // GIVEN un loader qui retourne un manifest avec tools_optional
         struct DegradedLoader;
         impl AgentLoader for DegradedLoader {
             fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {

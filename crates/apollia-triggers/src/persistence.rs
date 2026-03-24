@@ -346,8 +346,6 @@ mod tests {
         (dir, db)
     }
 
-    // ── AC-1 ───────────────────────────────────────────────────────────────
-
     #[test]
     fn test_ac1_migration_creates_tables() {
         // GIVEN / WHEN — open_test_db applique la migration
@@ -356,8 +354,6 @@ mod tests {
         let entries = persistence.query_history("any", 10).unwrap();
         assert!(entries.is_empty());
     }
-
-    // ── AC-2 ───────────────────────────────────────────────────────────────
 
     #[test]
     fn test_ac2_record_fired_persists_entry() {
@@ -385,8 +381,6 @@ mod tests {
         assert!(state.last_fired.is_some());
     }
 
-    // ── AC-3 ───────────────────────────────────────────────────────────────
-
     #[test]
     fn test_ac3_record_skipped_persists_reason() {
         // GIVEN
@@ -404,8 +398,6 @@ mod tests {
         assert_eq!(state.skip_count, 1);
         assert_eq!(state.fire_count, 0);
     }
-
-    // ── AC-4 ───────────────────────────────────────────────────────────────
 
     #[test]
     fn test_ac4_record_error_persists_error_message() {
@@ -431,8 +423,6 @@ mod tests {
             .unwrap_or("")
             .contains("submit failed"));
     }
-
-    // ── AC-5 ───────────────────────────────────────────────────────────────
 
     #[test]
     fn test_ac5_query_history_returns_n_last_entries_sorted_desc() {

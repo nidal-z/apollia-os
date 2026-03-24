@@ -282,7 +282,7 @@ mod tests {
         }
     }
 
-    // ─── AC-1 : Aller-retour store + lookup ───
+    // ─── Aller-retour store + lookup ───
 
     /// GIVEN un ExecutionPlan valide et une clé de cache calculée
     /// WHEN le plan est stocké via store() puis récupéré via lookup()
@@ -315,7 +315,7 @@ mod tests {
         assert_eq!(fetched.steps[1].model_hint, Some("fast-7b".to_string()));
     }
 
-    // ─── AC-2 : Eviction supprime les entrées expirées ───
+    // ─── Eviction supprime les entrées expirées ───
 
     /// GIVEN 3 entrées en cache dont 2 datent de plus de 7 jours
     /// WHEN evict_expired(7) est appelé
@@ -354,7 +354,7 @@ mod tests {
         assert!(repo.lookup("key-fresh").expect("lookup").is_some());
     }
 
-    // ─── AC-3 : Versions différentes → clés différentes ───
+    // ─── Versions différentes → clés différentes ───
 
     /// GIVEN le même agent_name, les mêmes outils, et le même texte de tâche
     /// WHEN compute_cache_key est appelé avec agent_version "1.0" puis "1.1"
@@ -374,7 +374,7 @@ mod tests {
         assert_eq!(key_v1.len(), 64, "SHA-256 hex should be 64 chars");
     }
 
-    // ─── AC-4 : Normalisation du texte dans la clé ───
+    // ─── Normalisation du texte dans la clé ───
 
     /// GIVEN un texte avec majuscules, espaces multiples, et plus de 500 caractères
     /// WHEN compute_cache_key est appelé

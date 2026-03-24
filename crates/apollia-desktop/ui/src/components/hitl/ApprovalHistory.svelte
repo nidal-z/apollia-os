@@ -34,7 +34,7 @@
 </script>
 
 {#if history.length === 0}
-  <!-- AC-5 — Empty state -->
+  <!-- Empty state -->
   <div
     class="flex flex-col items-center justify-center py-12 text-muted-foreground"
     data-testid="approval-history-empty"
@@ -43,7 +43,7 @@
     <p class="text-sm">{$t("approvals.no_history")}</p>
   </div>
 {:else}
-  <!-- AC-4 — Standard glass-card table -->
+  <!-- Standard glass-card table -->
   <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="approval-history-table">
     <table class="w-full text-[13px]">
       <thead class="border-b border-border bg-muted/50">

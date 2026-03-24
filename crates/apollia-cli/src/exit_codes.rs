@@ -1,4 +1,4 @@
-//! POSIX exit codes for the Apollia CLI (AC-8).
+//! POSIX exit codes for the Apollia CLI.
 
 /// Success — command completed without errors.
 pub const SUCCESS: i32 = 0;

@@ -192,7 +192,7 @@ impl MemoryInterface {
 impl MemoryInterface {
     /// Creates a new MemoryInterface for a given agent.
     ///
-    /// Returns None if the namespace is empty or absent (AC-6).
+    /// Returns None if the namespace is empty or absent.
     pub fn new(manager: MemoryManager, namespace: String, agent_id: String) -> Option<Self> {
         if namespace.is_empty() {
             return None;
@@ -376,7 +376,7 @@ mod tests {
         (iface, dir)
     }
 
-    // AC-1: Record episodic memory
+    // Record episodic memory
     #[test]
     fn test_record_episodic_memory() {
         // GIVEN a MemoryInterface with namespace "agent-alpha"
@@ -397,7 +397,7 @@ mod tests {
         assert!(!id.expect("should succeed").is_empty());
     }
 
-    // AC-2: Remember semantic memory
+    // Remember semantic memory
     #[test]
     fn test_remember_semantic_memory() {
         // GIVEN a MemoryInterface with namespace "agent-alpha"
@@ -416,7 +416,7 @@ mod tests {
         assert!(id.is_ok());
     }
 
-    // AC-3: Recall existing key
+    // Recall existing key
     #[test]
     fn test_recall_existing_key() {
         // GIVEN a MemoryInterface with a stored key
@@ -437,7 +437,7 @@ mod tests {
         assert_eq!(result.expect("recall"), Some("marie@dupont.fr".to_string()));
     }
 
-    // AC-3 bis: Recall missing key returns None
+    // bis: Recall missing key returns None
     #[test]
     fn test_recall_missing_key() {
         // GIVEN a MemoryInterface with no data
@@ -450,7 +450,7 @@ mod tests {
         assert_eq!(result.expect("recall"), None);
     }
 
-    // AC-4: Search FTS with results
+    // Search FTS with results
     #[test]
     fn test_search_fts_with_results() {
         // GIVEN a MemoryInterface with entries containing "Dupont"
@@ -487,7 +487,7 @@ mod tests {
         }
     }
 
-    // AC-5: Forget removes key
+    // Forget removes key
     #[test]
     fn test_forget_removes_key() {
         // GIVEN a MemoryInterface with a stored key
@@ -510,7 +510,7 @@ mod tests {
         assert_eq!(result.expect("recall"), None);
     }
 
-    // AC-6: No namespace returns None
+    // No namespace returns None
     #[test]
     fn test_no_namespace_returns_none() {
         // GIVEN a MemoryManager with no namespace
@@ -524,7 +524,7 @@ mod tests {
         assert!(result.is_none());
     }
 
-    // AC-7: Shared namespace is read-only
+    // Shared namespace is read-only
     #[test]
     fn test_shared_namespace_read_only() {
         // GIVEN a MemoryInterface on a shared (ReadOnly) namespace

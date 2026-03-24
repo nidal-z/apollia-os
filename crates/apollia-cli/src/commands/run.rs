@@ -67,7 +67,7 @@ impl RunDisplayState {
 /// formatting is applied.  In TTY mode, orchestrated plan events render the
 /// plan tree, step progress (`●`/`✔`/`✗`), replanning notices, and final
 /// result.  Direct-mode events (`step`, `completed`, `failed`, `canceled`)
-/// fall through to their original handlers so AC-5 is satisfied.
+/// fall through to their original handlers.
 pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
     if state.json_mode {
         println!("{}", event.raw_json);
@@ -474,7 +474,7 @@ async fn stream_task(
         }
     }
 
-    // Map terminal event type to exit code (AC-4, AC-5)
+    // Map terminal event type to exit code
     match terminal_event_type.as_str() {
         "completed" => exit_codes::SUCCESS,
         "failed" => exit_codes::TASK_FAILED,
@@ -509,7 +509,7 @@ mod tests {
         }
     }
 
-    // AC-1 — plan_generated updates state and is NOT terminal
+    // plan_generated updates state and is NOT terminal
     #[test]
     fn test_ac1_plan_generated_handler() {
         // GIVEN
@@ -533,7 +533,7 @@ mod tests {
         assert_eq!(state.plan_id.as_deref(), Some("p-001"));
     }
 
-    // AC-1 — plan tree rendered with dependencies
+    // plan tree rendered with dependencies
     #[test]
     fn test_ac1_plan_generated_with_steps() {
         // GIVEN — 2 steps, second depends on first
@@ -558,7 +558,7 @@ mod tests {
         assert_eq!(state.step_count, 2);
     }
 
-    // AC-2 — step_started updates current_num and is NOT terminal
+    // step_started updates current_num and is NOT terminal
     #[test]
     fn test_ac2_step_started_not_terminal() {
         // GIVEN
@@ -576,7 +576,7 @@ mod tests {
         assert_eq!(state.current_num, 1);
     }
 
-    // AC-3 — replanning is NOT terminal
+    // replanning is NOT terminal
     #[test]
     fn test_ac3_replanning_not_terminal() {
         // GIVEN
@@ -593,7 +593,7 @@ mod tests {
         assert!(!terminal);
     }
 
-    // AC-4 — plan_failed is terminal
+    // plan_failed is terminal
     #[test]
     fn test_ac4_plan_failed_est_terminal() {
         // GIVEN
@@ -607,7 +607,7 @@ mod tests {
         assert!(terminal);
     }
 
-    // AC-5 — completed is terminal
+    // completed is terminal
     #[test]
     fn test_ac5_completed_est_terminal() {
         // GIVEN
@@ -621,7 +621,7 @@ mod tests {
         assert!(terminal);
     }
 
-    // AC-5 — direct-mode events (no plan_* events) still work
+    // direct-mode events (no plan_* events) still work
     #[test]
     fn test_ac5_direct_mode_step_not_terminal() {
         // GIVEN — legacy direct-mode step event
@@ -636,7 +636,7 @@ mod tests {
         assert_eq!(state.step_count, 0);
     }
 
-    // AC-6 — json_mode prints raw_json; step_started is NOT terminal in json mode
+    // json_mode prints raw_json; step_started is NOT terminal in json mode
     #[test]
     fn test_ac6_json_mode_passe_en_brut() {
         // GIVEN
@@ -654,7 +654,7 @@ mod tests {
         assert!(!terminal);
     }
 
-    // AC-6 — json_mode: canceled IS terminal
+    // json_mode: canceled IS terminal
     #[test]
     fn test_ac6_json_mode_canceled_is_terminal() {
         // GIVEN

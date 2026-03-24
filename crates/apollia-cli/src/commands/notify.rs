@@ -59,8 +59,8 @@ pub async fn run(cmd: &NotifyCommand, socket: Option<PathBuf>, json: bool) -> i3
 
 /// `apollia-os notify test` — envoi d'une notification de test sur tous les canaux actifs.
 ///
-/// Exit code 0 si tous les canaux actifs réussissent (AC-1).
-/// Exit code 1 si au moins un canal actif échoue (AC-2).
+/// Exit code 0 si tous les canaux actifs réussissent.
+/// Exit code 1 si au moins un canal actif échoue.
 async fn run_test(client: &RuntimeClient, json: bool) -> i32 {
     let resp = match client.post("/api/v1/notifications/test", None).await {
         Ok(r) => r,
@@ -86,7 +86,7 @@ async fn run_test(client: &RuntimeClient, json: bool) -> i32 {
         .unwrap_or_default();
 
     if json {
-        // AC-5 — JSON structuré
+        // JSON structuré
         let output = serde_json::json!(results);
         match serde_json::to_string_pretty(&output) {
             Ok(s) => println!("{s}"),
@@ -99,7 +99,7 @@ async fn run_test(client: &RuntimeClient, json: bool) -> i32 {
         format_test_results(&results);
     }
 
-    // AC-2 — exit code 1 si au moins un canal actif est en erreur
+    // exit code 1 si au moins un canal actif est en erreur
     let has_error = results.iter().any(|r| {
         r.get("status")
             .and_then(|s| s.as_str())
@@ -442,7 +442,7 @@ mod tests {
         }
     }
 
-    // ── AC-1 — format_test_results all OK → exit 0 logic ─────────────────────
+    // ── format_test_results all OK → exit 0 logic ─────────────────────
 
     // GIVEN deux canaux actifs en succès
     // WHEN has_error est calculé
@@ -465,7 +465,7 @@ mod tests {
         assert!(!has_error, "all OK → no error flag");
     }
 
-    // ── AC-2 — un canal en erreur → exit 1 logic ──────────────────────────────
+    // ── un canal en erreur → exit 1 logic ──────────────────────────────
 
     // GIVEN un canal en erreur
     // WHEN has_error est calculé
@@ -488,9 +488,9 @@ mod tests {
         assert!(has_error, "one error → error flag set");
     }
 
-    // ── AC-5 — JSON ChannelTestResult désérialisable ──────────────────────────
+    // ── JSON ChannelTestResult désérialisable ──────────────────────────
 
-    // GIVEN un JSON conforme à la spec AC-5
+    // GIVEN un JSON conforme à la spec
     // WHEN désérialisé en ChannelTestResult
     // THEN tous les champs sont corrects
     #[test]

@@ -4,11 +4,11 @@
 //! via real HTTP calls to a live APIServer bound on a free TCP port.
 //! No Python dependency — uses MockBackend for instant task completion.
 //!
-//! AC-1: POST /api/v1/agents returns 201 + state "active"
-//! AC-2: POST /api/v1/tasks returns 202 + task_id
-//! AC-3: GET /api/v1/tasks/{id} polled to "completed"
-//! AC-4: Submit by manifest name (not UUID) returns 202
-//! AC-5: TCP port and Unix socket are released after test
+//! POST /api/v1/agents returns 201 + state "active"
+//! POST /api/v1/tasks returns 202 + task_id
+//! GET /api/v1/tasks/{id} polled to "completed"
+//! Submit by manifest name (not UUID) returns 202
+//! TCP port and Unix socket are released after test
 
 use std::future::Future;
 use std::path::PathBuf;
@@ -278,7 +278,7 @@ async fn test_task_completes_end_to_end_mock_backend() {
     )
     .await;
 
-    // WHEN POST /api/v1/tasks using the manifest name (not the UUID) — AC-4
+    // WHEN POST /api/v1/tasks using the manifest name (not the UUID) —
     let (status, task_resp) = http_post(
         port,
         "/api/v1/tasks",
@@ -293,7 +293,7 @@ async fn test_task_completes_end_to_end_mock_backend() {
     );
     let task_id = task_resp["task_id"].as_str().expect("task_id missing");
 
-    // WHEN polling GET /api/v1/tasks/{task_id} until terminal — AC-3
+    // WHEN polling GET /api/v1/tasks/{task_id} until terminal —
     let final_status = poll_until_terminal(port, task_id).await;
 
     // THEN status is "completed" (MockBackend completes instantly)

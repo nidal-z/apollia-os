@@ -631,7 +631,7 @@ fn build_list_json(
     serde_json::json!({ "agents": entries })
 }
 
-/// Format an enriched agent list as a human-readable table (AC-5).
+/// Format an enriched agent list as a human-readable table.
 fn format_enriched_agent_list(installed: &[InstalledAgent], runtime: &Option<serde_json::Value>) {
     let runtime_agents = runtime
         .as_ref()
@@ -805,7 +805,7 @@ mod tests {
         }
     }
 
-    // AC-1 — install command output format (JSON)
+    // install command output format (JSON)
     #[test]
     fn test_install_command_output() {
         // GIVEN an InstalledAgent
@@ -824,7 +824,7 @@ mod tests {
             .is_some_and(|p| p.contains("mon-agent")));
     }
 
-    // AC-2 — uninstall command output format (JSON)
+    // uninstall command output format (JSON)
     #[test]
     fn test_uninstall_command_output() {
         // GIVEN an agent name
@@ -839,7 +839,7 @@ mod tests {
         assert_eq!(output["status"], "uninstalled");
     }
 
-    // AC-3 — enable/disable output
+    // enable/disable output
     #[test]
     fn test_enable_disable_output() {
         // GIVEN an agent name
@@ -852,7 +852,7 @@ mod tests {
         assert_eq!(disable_output["enabled"], false);
     }
 
-    // AC-4 — update command output format
+    // update command output format
     #[test]
     fn test_update_command_output() {
         // GIVEN update result
@@ -865,7 +865,7 @@ mod tests {
         assert_eq!(output["version"], "0.2.0");
     }
 
-    // AC-5 — list shows installed agents merged with runtime
+    // list shows installed agents merged with runtime
     #[test]
     fn test_list_shows_installed_agents() {
         // GIVEN 2 installed agents (1 enabled, 1 disabled) and runtime data
@@ -916,7 +916,7 @@ mod tests {
         assert_eq!(agents[2]["installed"], false);
     }
 
-    // AC-6 — error for uninstall of nonexistent agent
+    // error for uninstall of nonexistent agent
     #[test]
     fn test_uninstall_not_found_error() {
         // GIVEN a repository with no agents
@@ -927,7 +927,7 @@ mod tests {
         assert!(result.is_none());
     }
 
-    // AC-7 — helper functions work without runtime
+    // helper functions work without runtime
     #[test]
     fn test_data_dir_resolution() {
         // GIVEN the HOME environment variable

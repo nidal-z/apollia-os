@@ -294,7 +294,7 @@ mod tests {
         std::env::temp_dir().join(format!("apollia_file_io_test_{}", uuid::Uuid::new_v4()))
     }
 
-    // --- AC-1: Read existing file ---
+    // --- Read existing file ---
 
     #[tokio::test]
     async fn test_ac1_read_existing_file() {
@@ -311,7 +311,7 @@ mod tests {
         fs::remove_dir_all(&sandbox).await.ok();
     }
 
-    // --- AC-2: Path traversal rejected ---
+    // --- Path traversal rejected ---
 
     #[tokio::test]
     async fn test_ac2_path_traversal_rejected() {
@@ -327,7 +327,7 @@ mod tests {
         fs::remove_dir_all(&sandbox).await.ok();
     }
 
-    // --- AC-3: Write creates file and intermediate directories ---
+    // --- Write creates file and intermediate directories ---
 
     #[tokio::test]
     async fn test_ac3_write_creates_file_and_dirs() {
@@ -350,7 +350,7 @@ mod tests {
         fs::remove_dir_all(&sandbox).await.ok();
     }
 
-    // --- AC-4: Nonexistent file returns NotFound ---
+    // --- Nonexistent file returns NotFound ---
 
     #[tokio::test]
     async fn test_ac4_read_nonexistent_file_returns_not_found() {
@@ -366,7 +366,7 @@ mod tests {
         fs::remove_dir_all(&sandbox).await.ok();
     }
 
-    // --- AC-5: List files matching glob pattern ---
+    // --- List files matching glob pattern ---
 
     #[tokio::test]
     async fn test_ac5_list_json_files() {
@@ -387,7 +387,7 @@ mod tests {
         fs::remove_dir_all(&sandbox).await.ok();
     }
 
-    // --- AC-6: Absolute path rejected ---
+    // --- Absolute path rejected ---
 
     #[tokio::test]
     async fn test_ac6_absolute_path_rejected() {

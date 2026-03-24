@@ -63,8 +63,6 @@ mod tests {
     use crate::types::{InputTemplate, OnBusyPolicy, TriggerSourceConfig};
     use std::time::Duration;
 
-    // ── AC-3 ──────────────────────────────────────────────────────────────
-
     #[tokio::test]
     async fn test_ac3_oneshot_fires_exactly_once() {
         // GIVEN — fire dans 100ms

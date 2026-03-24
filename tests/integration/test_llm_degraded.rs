@@ -182,7 +182,7 @@ async fn test_ctx_llm_is_none_when_no_backend() {
     );
 }
 
-/// AC-3 — le runtime continue de fonctionner après un échec d'initialisation LLM.
+/// le runtime continue de fonctionner après un échec d'initialisation LLM.
 ///
 /// Vérifie le principe #4 (fail fast) : l'erreur est détectée au démarrage,
 /// mais le runtime peut continuer avec `llm_router = None`.

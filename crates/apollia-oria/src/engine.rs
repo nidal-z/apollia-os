@@ -356,7 +356,7 @@ impl ORIAEngine {
         agent: &dyn AIPAgent,
         manifest: AgentManifest,
     ) -> AIPResult {
-        // ── AC-2 : validate system_prompt ────────────────────────────────
+        // ── validate system_prompt ────────────────────────────────
         if manifest.system_prompt.is_none() {
             return AIPResult::failed(
                 "MISSING_SYSTEM_PROMPT",
@@ -381,7 +381,7 @@ impl ORIAEngine {
             llm_backend_names: vec![],
         };
 
-        // ── AC-3 : get reasoner or fail ───────────────────────────────────
+        // ── get reasoner or fail ───────────────────────────────────
         let reasoner = match self.reasoner.as_ref() {
             Some(r) => r,
             None => {
@@ -462,7 +462,7 @@ impl ORIAEngine {
         let db_path = self.db_path.as_deref().unwrap_or(":memory:");
         let repo = self.open_repo_with_plan(db_path, &plan, &manifest.name);
 
-        // ── AC-5 : emit PlanGenerated ─────────────────────────────────────
+        // ── emit PlanGenerated ─────────────────────────────────────
         let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
             task_id: task_id_str.clone().into(),
             agent_name: manifest.name.clone(),
@@ -470,7 +470,7 @@ impl ORIAEngine {
             step_count,
         });
 
-        // ── AC-4 : create StepBudget via from_capped ─────────────────────
+        // ── create StepBudget via from_capped ─────────────────────
         let agent_budget = manifest.step_budget.clone().unwrap_or_default();
         let budget = StepBudget::from_capped(&agent_budget, &self.runtime_config);
 
@@ -514,7 +514,7 @@ impl ORIAEngine {
             let outputs = extract_step_outputs(&step_result);
 
             // call on_plan_complete() if the agent exposes it,
-            // otherwise fall back to automatic step-output concatenation (AC-6).
+            // otherwise fall back to automatic step-output concatenation.
             if agent.has_on_plan_complete() {
                 agent.call_on_plan_complete(outputs).await
             } else {
@@ -652,7 +652,7 @@ impl ORIAEngine {
     ///    - Si `approved=false` : retourne `AIPResult::failed("REJECTED", reason)`.
     /// 4. Sinon retourne le résultat directement.
     ///
-    /// **AC-4 (StepBudget pausé pendant suspension)** : l'attente sur le oneshot est un
+    /// **StepBudget pausé pendant suspension** : l'attente sur le oneshot est un
     /// `await` pur — le polling du budget ne tourne pas pendant la suspension.
     /// Le budget ne progresse pas tant que l'humain n'a pas répondu.
     pub async fn execute_direct(
@@ -683,7 +683,7 @@ impl ORIAEngine {
             None => ("Approbation requise".to_string(), serde_json::Value::Null),
         };
 
-        // AC-1 : persist input_required in SQLite (non-blocking on error — Principle #4)
+        // : persist input_required in SQLite (non-blocking on error — Principle #4)
         if let Some(repo) = self.task_repository.as_ref() {
             if let Err(e) = repo
                 .save_input_required(&task.task_id, None, &prompt, &context)
@@ -711,7 +711,7 @@ impl ORIAEngine {
             }
         }
 
-        // AC-1 : broadcast TaskInputRequired on EventBus
+        // : broadcast TaskInputRequired on EventBus
         // step_id=None in Mode Direct — the whole task is suspended (not a specific step).
         let _ = self.event_bus.send(RuntimeEvent::TaskInputRequired {
             task_id: task.task_id.clone().into(),
@@ -725,7 +725,7 @@ impl ORIAEngine {
             "task suspended — waiting for human approval"
         );
 
-        // AC-5 : register on PendingApprovals — if not configured, degrade gracefully
+        // : register on PendingApprovals — if not configured, degrade gracefully
         let pending = match self.pending_approvals.as_ref() {
             Some(p) => p,
             None => {
@@ -739,7 +739,7 @@ impl ORIAEngine {
 
         let rx = pending.register(&task.task_id);
 
-        // AC-4 : plain await — StepBudget does NOT advance during suspension
+        // : plain await — StepBudget does NOT advance during suspension
         let response = rx.await.map_err(|_| ORIAError::ApprovalChannelClosed)?;
 
         tracing::info!(
@@ -748,7 +748,7 @@ impl ORIAEngine {
             "human approval received — resuming task"
         );
 
-        // AC-3 : rejection → AIPResult::failed without calling run()
+        // : rejection → AIPResult::failed without calling run()
         if !response.approved {
             return Ok(AIPResult::failed(
                 "REJECTED",
@@ -756,7 +756,7 @@ impl ORIAEngine {
             ));
         }
 
-        // AC-2 : approval → rebuild AIPTask with is_resumed=true and call run() again
+        // : approval → rebuild AIPTask with is_resumed=true and call run() again
         let resumed_task = AIPTask {
             is_resumed: true,
             input_response: Some(response),
@@ -1377,7 +1377,7 @@ mod orchestrated_tests {
         .to_string()
     }
 
-    /// Valid 4-step plan JSON (for AC-5 step_count verification).
+    /// Valid 4-step plan JSON (for step_count verification).
     fn four_step_plan_json() -> String {
         r#"{"steps":[
             {"step_id":"s1","description":"step 1","tool_hint":"file_io","depends_on":[]},
@@ -1427,7 +1427,7 @@ mod orchestrated_tests {
         }
     }
 
-    // ── AC-1 : agent sans hook → concaténation automatique des outputs ──
+    // ── agent sans hook → concaténation automatique des outputs ──
 
     /// ÉTANT DONNÉ un agent execution_mode=orchestrated sans on_plan_complete()
     ///      ET un mock LLM retournant un plan de 2 steps
@@ -1456,7 +1456,7 @@ mod orchestrated_tests {
         );
     }
 
-    // ── AC-5 : hook on_plan_complete() appelé si présent ────────────────
+    // ── hook on_plan_complete() appelé si présent ────────────────
 
     /// ÉTANT DONNÉ un agent avec on_plan_complete() qui retourne "HOOK_CALLED"
     ///      ET execute_orchestrated() qui retourne CompletedWithSteps
@@ -1495,7 +1495,7 @@ mod orchestrated_tests {
         );
     }
 
-    // ── AC-6 : concaténation utilisée si hook absent ─────────────────────
+    // ── concaténation utilisée si hook absent ─────────────────────
 
     /// ÉTANT DONNÉ un agent SANS on_plan_complete()
     ///      ET execute_orchestrated() qui retourne CompletedWithSteps
@@ -1534,7 +1534,7 @@ mod orchestrated_tests {
         );
     }
 
-    // ── AC-2 : system_prompt absent → AIPResult::failed immédiat ────────
+    // ── system_prompt absent → AIPResult::failed immédiat ────────
 
     /// ÉTANT DONNÉ un agent execution_mode=orchestrated SANS system_prompt
     /// QUAND ORIAEngine::execute(task, &agent) est appelé
@@ -1580,7 +1580,7 @@ mod orchestrated_tests {
         );
     }
 
-    // ── AC-3 : Reasoner échoue → AIPResult::failed propagé ──────────────
+    // ── Reasoner échoue → AIPResult::failed propagé ──────────────
 
     /// ÉTANT DONNÉ un mock LLM qui retourne toujours une erreur
     /// QUAND ORIAEngine::execute(task, &agent) est appelé
@@ -1607,7 +1607,7 @@ mod orchestrated_tests {
         );
     }
 
-    // ── AC-5 : PlanGenerated avec step_count correct ─────────────────────
+    // ── PlanGenerated avec step_count correct ─────────────────────
 
     /// ÉTANT DONNÉ un plan de 4 steps généré par le Reasoner
     ///      ET un EventBus subscriber actif

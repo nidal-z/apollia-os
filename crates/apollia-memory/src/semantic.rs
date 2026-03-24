@@ -418,7 +418,7 @@ mod tests {
         (store, path)
     }
 
-    // AC-1 — remember stores entry and FTS index
+    // remember stores entry and FTS index
     #[test]
     fn test_ac1_remember_stores_entry_and_fts() {
         // GIVEN
@@ -448,7 +448,7 @@ mod tests {
         assert_eq!(fts_count, 1);
     }
 
-    // AC-2 — recall existing key
+    // recall existing key
     #[test]
     fn test_ac2_recall_existing_key() {
         // GIVEN
@@ -472,7 +472,7 @@ mod tests {
         assert_eq!(e.confidence, 0.9);
     }
 
-    // AC-3 — upsert updates value
+    // upsert updates value
     #[test]
     fn test_ac3_upsert_updates_value() {
         // GIVEN
@@ -489,7 +489,7 @@ mod tests {
         assert_eq!(entry.confidence, 0.8);
     }
 
-    // AC-3 bis — upsert updates FTS entry
+    // bis — upsert updates FTS entry
     #[test]
     fn test_ac3_upsert_updates_fts() {
         // GIVEN
@@ -513,7 +513,7 @@ mod tests {
         assert_eq!(fts_count, 1);
     }
 
-    // AC-4 — forget removes entry and FTS
+    // forget removes entry and FTS
     #[test]
     fn test_ac4_forget_removes_entry() {
         // GIVEN
@@ -539,7 +539,7 @@ mod tests {
         assert_eq!(fts_count, 0);
     }
 
-    // AC-5 — recall nonexistent returns None
+    // recall nonexistent returns None
     #[test]
     fn test_ac5_recall_nonexistent_returns_none() {
         // GIVEN
@@ -549,7 +549,7 @@ mod tests {
         assert!(sem.recall("ns", "nope").unwrap().is_none());
     }
 
-    // AC-6 — forget nonexistent returns false
+    // forget nonexistent returns false
     #[test]
     fn test_ac6_forget_nonexistent_returns_false() {
         // GIVEN

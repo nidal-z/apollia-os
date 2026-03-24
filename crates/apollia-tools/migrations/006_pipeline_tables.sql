@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
 );
 
 -- État d'exécution de chaque step au sein d'un run.
--- La PRIMARY KEY composite (run_id, step_id) garantit l'unicité AC-6.
+-- La PRIMARY KEY composite (run_id, step_id) garantit l'unicité des entrées.
 CREATE TABLE IF NOT EXISTS pipeline_step_runs (
     run_id      TEXT NOT NULL REFERENCES pipeline_runs(run_id),
     step_id     TEXT NOT NULL,

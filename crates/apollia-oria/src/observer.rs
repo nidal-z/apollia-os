@@ -412,7 +412,7 @@ mod tests {
         }
     }
 
-    // AC-1 — observe with memory populates snapshot
+    // observe with memory populates snapshot
     #[test]
     fn test_observe_with_memory_populates_snapshot() {
         // GIVEN a MemoryManager with episodes and semantic facts
@@ -475,7 +475,7 @@ mod tests {
         assert_eq!(snapshot.semantic_relevant[0].0, "client.budget");
     }
 
-    // AC-2 — observe without memory has snapshot None
+    // observe without memory has snapshot None
     #[test]
     fn test_observe_without_memory_snapshot_is_none() {
         // GIVEN
@@ -490,7 +490,7 @@ mod tests {
         assert_eq!(bundle.execution_mode, ExecutionMode::Direct);
     }
 
-    // AC-3 — classify simple agent returns Direct
+    // classify simple agent returns Direct
     #[test]
     fn test_classify_simple_agent_returns_direct() {
         // GIVEN
@@ -504,7 +504,7 @@ mod tests {
         assert_eq!(mode, ExecutionMode::Direct);
     }
 
-    // AC-4 — classify complex agent returns Orchestrated
+    // classify complex agent returns Orchestrated
     #[test]
     fn test_classify_complex_agent_returns_orchestrated() {
         // GIVEN — 5 tools (>4) + 20 steps (>15) → score = 0.20 + 0.30 = 0.50 ≥ 0.40
@@ -518,7 +518,7 @@ mod tests {
         assert_eq!(mode, ExecutionMode::Orchestrated);
     }
 
-    // AC-5 — tag "multi-step" forces Orchestrated
+    // tag "multi-step" forces Orchestrated
     #[test]
     fn test_classify_multi_step_tag_returns_orchestrated() {
         // GIVEN a simple manifest but with "multi-step" tag → score = 0.40 ≥ 0.40
@@ -533,7 +533,7 @@ mod tests {
         assert_eq!(mode, ExecutionMode::Orchestrated);
     }
 
-    // AC-6 — many input parts alone are below threshold with weighted scoring
+    // many input parts alone are below threshold with weighted scoring
     // (4 parts = WEIGHT_PARTS 0.20 < 0.40 — correctly classified as Direct)
     #[test]
     fn test_classify_many_input_parts_alone_returns_direct() {

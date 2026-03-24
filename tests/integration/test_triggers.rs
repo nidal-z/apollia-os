@@ -3,10 +3,10 @@
 //! Couvre les scénarios : interval, FileWatch, on_busy=Drop, on_busy=Queue.
 //! Aucune dépendance Python. Exécutés dans tous les environnements CI.
 //!
-//! **AC-1** : IntervalTrigger 200 ms → ≥ 2 submit() en 700 ms
-//! **AC-2** : FileWatch `create` → submit() dans les 5 s
-//! **AC-5** : `on_busy=Drop` + agent occupé → TriggerSkipped émis, 0 submit
-//! **AC-6** : `on_busy=Queue` + agent occupé → 1 submit quand même
+//! Scénario 1 : IntervalTrigger 200 ms → ≥ 2 submit() en 700 ms
+//! Scénario 2 : FileWatch `create` → submit() dans les 5 s
+//! Scénario 3 : `on_busy=Drop` + agent occupé → TriggerSkipped émis, 0 submit
+//! Scénario 4 : `on_busy=Queue` + agent occupé → 1 submit quand même
 
 use std::future::Future;
 use std::pin::Pin;

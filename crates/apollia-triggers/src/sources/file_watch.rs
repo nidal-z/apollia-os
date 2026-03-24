@@ -233,7 +233,7 @@ mod tests {
         }
     }
 
-    // ── AC-1 : détection d'un fichier créé ────────────────────────────────
+    // ── détection d'un fichier créé ────────────────────────────────
 
     #[tokio::test]
     async fn test_ac1_detects_file_creation() {
@@ -265,7 +265,7 @@ mod tests {
         );
     }
 
-    // ── AC-2 : événement Delete ignoré si events = ["create"] ─────────────
+    // ── événement Delete ignoré si events = ["create"] ─────────────
 
     #[tokio::test]
     async fn test_ac2_delete_ignored_when_filter_is_create() {
@@ -300,7 +300,7 @@ mod tests {
         );
     }
 
-    // ── AC-3 : map_notify_event — Create matche avec events = ["create"] ──
+    // ── map_notify_event — Create matche avec events = ["create"] ──
 
     #[test]
     fn test_map_notify_event_create_matches() {
@@ -337,7 +337,7 @@ mod tests {
         );
     }
 
-    // ── AC-4 : map_notify_event — Delete filtré si events = ["create"] ────
+    // ── map_notify_event — Delete filtré si events = ["create"] ────
 
     #[test]
     fn test_map_notify_event_delete_filtered_out() {
@@ -363,7 +363,7 @@ mod tests {
         assert!(payload.is_none(), "delete should be filtered out");
     }
 
-    // ── AC-5 : map_notify_event — Any matche tous les types ───────────────
+    // ── map_notify_event — Any matche tous les types ───────────────
 
     #[test]
     fn test_map_notify_event_any_matches_all() {

@@ -167,7 +167,7 @@ impl PipelineRepository {
     /// # Errors
     ///
     /// - [`PipelineRepositoryError::StepAlreadyExists`] if the
-    ///   `(run_id, step_id)` pair already exists (AC-6).
+    ///   `(run_id, step_id)` pair already exists.
     /// - [`PipelineRepositoryError::Sqlite`] for other database errors.
     pub fn insert_step(
         &mut self,
@@ -714,7 +714,7 @@ mod tests {
         }
     }
 
-    // AC-1 — insert_run followed by find_run returns the same run
+    // insert_run followed by find_run returns the same run
 
     #[test]
     fn test_ac1_insert_and_find_run() {
@@ -735,7 +735,7 @@ mod tests {
         assert_eq!(found.trigger_payload.as_deref(), Some("test.pdf"));
     }
 
-    // AC-2 — update_step with Completed sets output and status correctly
+    // update_step with Completed sets output and status correctly
 
     #[test]
     fn test_ac2_update_step_completed() {
@@ -769,7 +769,7 @@ mod tests {
         assert_eq!(ocr.task_id.as_deref(), Some("t-0001"));
     }
 
-    // AC-3 — complete_run sets status=Completed and ended_at
+    // complete_run sets status=Completed and ended_at
 
     #[test]
     fn test_ac3_complete_run() {
@@ -791,7 +791,7 @@ mod tests {
         );
     }
 
-    // AC-4 — fail_run sets status=Failed with the correct step_id
+    // fail_run sets status=Failed with the correct step_id
 
     #[test]
     fn test_ac4_fail_run() {
@@ -818,7 +818,7 @@ mod tests {
         }
     }
 
-    // AC-5 — find_running_runs returns only runs in 'running' status
+    // find_running_runs returns only runs in 'running' status
 
     #[test]
     fn test_ac5_find_running_runs_excludes_completed() {
@@ -842,7 +842,7 @@ mod tests {
         );
     }
 
-    // AC-6 — inserting a step twice returns StepAlreadyExists
+    // inserting a step twice returns StepAlreadyExists
 
     #[test]
     fn test_ac6_step_already_exists() {

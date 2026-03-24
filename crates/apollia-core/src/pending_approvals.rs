@@ -122,7 +122,7 @@ mod tests {
         }
     }
 
-    // AC-5 — deux tâches simultanées isolées
+    // deux tâches simultanées isolées
     #[tokio::test]
     async fn test_ac5_two_tasks_isolated() {
         // GIVEN deux registrations pour t-0001 et t-0002

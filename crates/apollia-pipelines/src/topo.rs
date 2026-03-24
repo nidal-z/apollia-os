@@ -57,7 +57,7 @@ pub fn topological_layers(steps: &[PipelineStepDef]) -> Result<Vec<Vec<StepId>>,
         return Ok(Vec::new());
     }
 
-    // ── AC-5: validate that every dependency references a known step ───────────
+    // ── validate that every dependency references a known step ───────────
     let known: HashSet<&StepId> = steps.iter().map(|s| &s.id).collect();
     for step in steps {
         for dep in &step.depends_on {
@@ -125,7 +125,7 @@ pub fn topological_layers(steps: &[PipelineStepDef]) -> Result<Vec<Vec<StepId>>,
         queue.extend(next);
     }
 
-    // ── AC-4: any remaining nodes with in_degree > 0 are part of a cycle ─────
+    // ── any remaining nodes with in_degree > 0 are part of a cycle ─────
     if processed < steps.len() {
         let cycle_step = steps
             .iter()
@@ -157,7 +157,7 @@ mod tests {
         }
     }
 
-    // AC-1 — Sequential pipeline (A → B → C) produces 3 single-step layers.
+    // Sequential pipeline (A → B → C) produces 3 single-step layers.
     #[test]
     fn test_ac1_sequential_abc() {
         // GIVEN
@@ -171,7 +171,7 @@ mod tests {
         assert_eq!(layers[2], vec![StepId("C".into())]);
     }
 
-    // AC-2 — Fan-out: B and C both depend on A, so layer 1 contains both.
+    // Fan-out: B and C both depend on A, so layer 1 contains both.
     #[test]
     fn test_ac2_fan_out() {
         // GIVEN
@@ -186,7 +186,7 @@ mod tests {
         assert!(layer1.contains(&StepId("C".into())));
     }
 
-    // AC-3 — Fan-in: D waits for both B and C; layer ordering is [A], [B, C], [D].
+    // Fan-in: D waits for both B and C; layer ordering is [A], [B, C], [D].
     #[test]
     fn test_ac3_fan_in() {
         // GIVEN
@@ -203,7 +203,7 @@ mod tests {
         assert_eq!(layers[2], vec![StepId("D".into())]);
     }
 
-    // AC-4 — Cycle A ↔ B is detected and reported.
+    // Cycle A ↔ B is detected and reported.
     #[test]
     fn test_ac4_cycle_detected() {
         // GIVEN
@@ -214,7 +214,7 @@ mod tests {
         assert!(matches!(result, Err(TopologicalError::CycleDetected(_))));
     }
 
-    // AC-5 — A dependency on a non-existent step returns UnknownDependency.
+    // A dependency on a non-existent step returns UnknownDependency.
     #[test]
     fn test_ac5_unknown_dependency() {
         // GIVEN
@@ -228,7 +228,7 @@ mod tests {
         ));
     }
 
-    // AC-6 — Fallback step is placed in its natural layer (same as the primary step).
+    // Fallback step is placed in its natural layer (same as the primary step).
     #[test]
     fn test_ac6_fallback_in_natural_layer() {
         // GIVEN — A[], B([A]), Fallback-B([A], fallback_for=Some(B))

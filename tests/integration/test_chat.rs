@@ -3,14 +3,14 @@
 //! Tests the complete chat flow: HTTP API → ChatSessionManager →
 //! BuiltInChatAgent (mock LLM) → EventBus → response.
 //!
-//! AC-1: Chat Libre simple exchange (create → send → response)
-//! AC-2: Chat Libre tool call + HITL accept
-//! AC-3: Chat Libre "Always Accept" (second call skips approval)
-//! AC-4: Chat Libre "Refuse" (tool refused, LLM continues)
-//! AC-5: Chat Agent with hello-agent (gated by python-tests)
-//! AC-6: History accumulation (3 exchanges → 6 messages)
-//! AC-7: Close session (DELETE → 409 on subsequent message)
-//! AC-8: Budget exhausted (infinite tool loop → ChatError)
+//! Chat Libre simple exchange (create → send → response)
+//! Chat Libre tool call + HITL accept
+//! Chat Libre "Always Accept" (second call skips approval)
+//! Chat Libre "Refuse" (tool refused, LLM continues)
+//! Chat Agent with hello-agent (gated by python-tests)
+//! History accumulation (3 exchanges → 6 messages)
+//! Close session (DELETE → 409 on subsequent message)
+//! Budget exhausted (infinite tool loop → ChatError)
 
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
@@ -444,7 +444,7 @@ fn cleanup(handle: APIServerHandle, socket_path: &PathBuf) {
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
-/// AC-1 — Chat Libre: create session → send message → receive response.
+/// Chat Libre: create session → send message → receive response.
 #[tokio::test]
 async fn test_chat_libre_simple_exchange() {
     // GIVEN a mock LLM that returns "Bonjour !"
@@ -508,7 +508,7 @@ async fn test_chat_libre_simple_exchange() {
     cleanup(handle, &socket_path);
 }
 
-/// AC-2 — Chat Libre: tool call + HITL accept flow.
+/// Chat Libre: tool call + HITL accept flow.
 #[tokio::test]
 async fn test_chat_libre_tool_call_hitl_accept() {
     // GIVEN a mock LLM: first returns tool_call, then returns text after tool result
@@ -600,7 +600,7 @@ async fn test_chat_libre_tool_call_hitl_accept() {
     cleanup(handle, &socket_path);
 }
 
-/// AC-3 — Chat Libre: "Always Accept" skips subsequent approvals.
+/// Chat Libre: "Always Accept" skips subsequent approvals.
 #[tokio::test]
 async fn test_chat_libre_always_accept() {
     // GIVEN mock LLM: exchange1 = tool_call → text, exchange2 = tool_call → text
@@ -705,7 +705,7 @@ async fn test_chat_libre_always_accept() {
     cleanup(handle, &socket_path);
 }
 
-/// AC-4 — Chat Libre: refuse tool → LLM continues without tool result.
+/// Chat Libre: refuse tool → LLM continues without tool result.
 #[tokio::test]
 async fn test_chat_libre_refuse() {
     // GIVEN mock LLM: tool_call → (after refusal) text response
@@ -777,7 +777,7 @@ async fn test_chat_libre_refuse() {
     cleanup(handle, &socket_path);
 }
 
-/// AC-6 — History accumulation: 3 exchanges → 6 messages with sequential seq.
+/// History accumulation: 3 exchanges → 6 messages with sequential seq.
 #[tokio::test]
 async fn test_chat_history_accumulation() {
     // GIVEN a mock LLM that returns "Reply N" for each exchange
@@ -845,7 +845,7 @@ async fn test_chat_history_accumulation() {
     cleanup(handle, &socket_path);
 }
 
-/// AC-7 — Close session: DELETE → ChatSessionClosed → 409 on subsequent message.
+/// Close session: DELETE → ChatSessionClosed → 409 on subsequent message.
 #[tokio::test]
 async fn test_chat_close_session() {
     let model = MockChatModel::new(vec![]);
@@ -894,7 +894,7 @@ async fn test_chat_close_session() {
     cleanup(handle, &socket_path);
 }
 
-/// AC-8 — Budget exhausted: infinite tool loop → ChatError after N iterations.
+/// Budget exhausted: infinite tool loop → ChatError after N iterations.
 #[tokio::test]
 async fn test_chat_budget_exhausted() {
     // GIVEN a mock LLM that ALWAYS returns tool calls (infinite loop)

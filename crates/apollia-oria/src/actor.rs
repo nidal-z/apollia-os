@@ -315,7 +315,7 @@ impl ActorLoop {
                 None => continue,
             };
 
-            // AC-2 : vérifier le budget avant chaque step.
+            // : vérifier le budget avant chaque step.
             if budget.is_exhausted() {
                 if let Err(e) = self
                     .db
@@ -488,7 +488,7 @@ impl ActorLoop {
                     );
                 }
 
-                // AC-3 : rejet humain → plan stoppé, steps suivants non exécutés.
+                // : rejet humain → plan stoppé, steps suivants non exécutés.
                 Err(StepError::RejectedByUser { ref reason }) => {
                     if let Err(db_err) =
                         self.db
@@ -603,7 +603,7 @@ impl ActorLoop {
     ///   si présent, sinon backend défaut. Les outputs précédents sont
     ///   injectés dans le system message.
     /// - `tool_hint = Some(tool_name)` → appel via `ToolProxyTrait::invoke`
-    ///   (`model_hint` ignoré pour les steps outil — AC-4).
+    ///   (`model_hint` ignoré pour les steps outil).
     ///
     /// Les outputs des steps précédents sont interpolés dans la description du step
     /// via [`interpolate_outputs`] avant d'être transmis à l'outil ou au LLM.
@@ -616,7 +616,7 @@ impl ActorLoop {
         tool_proxy: &dyn ToolProxyTrait,
         llm_router: &LlmRouter,
     ) -> Result<String, StepError> {
-        // AC-1/AC-5 : vérifier si l'outil du step nécessite une approbation humaine.
+        // Vérifier si l'outil du step nécessite une approbation humaine.
         let tool_needs_approval = step
             .tool_hint
             .as_deref()
@@ -650,7 +650,7 @@ impl ActorLoop {
                 self.execute_llm_step(step, input, llm_router, step_ctx)
                     .await
             }
-            // Step outil — model_hint ignoré (AC-4).
+            // Step outil — model_hint ignoré.
             Some(tool_name) => tool_proxy
                 .invoke(tool_name, &serde_json::json!({"input": input}))
                 .await
@@ -661,10 +661,10 @@ impl ActorLoop {
     /// Exécute un appel LLM pour un step, en tenant compte du `model_hint`.
     ///
     /// - Si `model_hint = Some(hint)` et que le backend existe dans le `LlmRouter`,
-    ///   l'appel est routé vers ce backend (AC-1).
+    ///   l'appel est routé vers ce backend.
     /// - Si `model_hint = Some(hint)` mais le backend n'existe pas, un `tracing::warn!`
-    ///   est émis et le backend par défaut est utilisé en fallback (AC-2).
-    /// - Si `model_hint = None`, le backend par défaut est utilisé (AC-3).
+    ///   est émis et le backend par défaut est utilisé en fallback.
+    /// - Si `model_hint = None`, le backend par défaut est utilisé.
     /// - si des steps précédents ont complété, leurs outputs sont
     ///   formatés dans un system message `"Previous step results:\n- s1: …"`.
     async fn execute_llm_step(
@@ -784,11 +784,11 @@ impl ActorLoop {
     ///
     /// Fire-and-forget: errors are logged as warnings but never interrupt execution.
     /// Skipped silently when `memory_manager` is `None` or when the agent manifest
-    /// has no `memory_namespace` configured (AC-2).
+    /// has no `memory_namespace` configured.
     ///
     /// Output is truncated to [`STEP_MEMORY_OUTPUT_MAX_CHARS`] characters.
     fn record_step_memory(&self, step_id: &str, description: &str, output: &str) {
-        // AC-2: skip if no memory_manager or no namespace configured.
+        // skip if no memory_manager or no namespace configured.
         let mm = match self.memory_manager.as_ref() {
             Some(mm) => mm,
             None => return,
@@ -798,7 +798,7 @@ impl ActorLoop {
             None => return,
         };
 
-        // AC-4: truncate output to 200 chars.
+        // truncate output to 200 chars.
         let truncated_output = truncate_chars(output, STEP_MEMORY_OUTPUT_MAX_CHARS);
         let content = format!("step {step_id}: {description} -> {truncated_output}");
         let task_id = self.plan.task_id.clone();
@@ -844,7 +844,7 @@ impl ActorLoop {
                 None,
                 Some(&metadata),
             ) {
-                // AC-3: warn but don't interrupt execution.
+                // warn but don't interrupt execution.
                 tracing::warn!(
                     error = %e,
                     namespace = %namespace_owned,
@@ -1435,7 +1435,7 @@ mod tests {
         (actor, bus_rx)
     }
 
-    // ── AC-1 — Exécution séquentielle dans l'ordre topologique ───────────────
+    // ── Exécution séquentielle dans l'ordre topologique ───────────────
 
     /// GIVEN un plan (s1, s2→s1, s3→s2) et un ToolProxy mock qui retourne "ok"
     /// WHEN actor.execute() est appelé
@@ -1467,7 +1467,7 @@ mod tests {
         );
     }
 
-    // ── AC-2 — StepBudget épuisé au step 3/5 ─────────────────────────────────
+    // ── StepBudget épuisé au step 3/5 ─────────────────────────────────
 
     /// GIVEN un plan de 5 steps et un StepBudget avec max_steps = 2
     /// WHEN actor.execute() est appelé
@@ -1506,7 +1506,7 @@ mod tests {
         );
     }
 
-    // ── AC-3 — Replanification déclenchée sur step retryable ─────────────────
+    // ── Replanification déclenchée sur step retryable ─────────────────
 
     /// GIVEN un plan (s1 ok, s2 fail retryable, s3 pending) et un Reasoner mock
     ///        qui retourne un plan alternatif (s2b, s3)
@@ -1608,7 +1608,7 @@ mod tests {
         }
     }
 
-    // ── AC-4 — MAX_REPLAN_EXCEEDED après 2 replanifications ──────────────────
+    // ── MAX_REPLAN_EXCEEDED après 2 replanifications ──────────────────
 
     /// GIVEN un plan où chaque step fail (retryable) et max_replans = 2
     /// WHEN actor.execute() est appelé
@@ -1680,7 +1680,7 @@ mod tests {
         assert!(!StepError::ToolNotFound("bash".into()).is_retryable());
     }
 
-    // ── AC-3 — Propagation manifest vers ActorLoop ───────────────────────────
+    // ── Propagation manifest vers ActorLoop ───────────────────────────
 
     /// ÉTANT DONNÉ un AgentManifest avec tools_requiring_approval=["smtp"]
     /// QUAND un ActorLoop est créé avec ce manifest
@@ -1746,7 +1746,7 @@ mod tests {
         }
     }
 
-    // AC-1 — Step avec outil sensible → suspension avant exécution
+    // Step avec outil sensible → suspension avant exécution
     //
     // ÉTANT DONNÉ un manifest avec tools_requiring_approval=["smtp"] et un step "s3" avec tool_hint="smtp"
     // QUAND execute() est appelé SANS résoudre le oneshot
@@ -1842,7 +1842,7 @@ mod tests {
         );
     }
 
-    // AC-2 — Approbation → step exécuté normalement
+    // Approbation → step exécuté normalement
     //
     // ÉTANT DONNÉ un step "s3" avec tool_hint="smtp" suspendu
     // QUAND PendingApprovals.resolve(approved=true)
@@ -1924,7 +1924,7 @@ mod tests {
         );
     }
 
-    // AC-3 — Rejet → plan stoppé, AIPResult::failed("REJECTED") retourné,
+    // Rejet → plan stoppé, AIPResult::failed("REJECTED") retourné,
     //         steps suivants non exécutés
     //
     // ÉTANT DONNÉ un plan [s1:file_io (non-sensible), s2:smtp (sensible)]
@@ -2030,7 +2030,7 @@ mod tests {
         );
     }
 
-    // AC-5 — Step avec outil NON sensible → aucune suspension
+    // Step avec outil NON sensible → aucune suspension
     //
     // ÉTANT DONNÉ un step utilisant "file_io" absent de tools_requiring_approval
     // QUAND execute() est appelé avec PendingApprovals configuré
@@ -2155,7 +2155,7 @@ mod tests {
         }
     }
 
-    /// AC-1 : Step avec model_hint dispatche vers le backend nommé.
+    /// Step avec model_hint dispatche vers le backend nommé.
     ///
     /// GIVEN un LlmRouter avec backends "default" et "fast"
     ///   ET un PlanStep LLM avec model_hint = Some("fast")
@@ -2207,7 +2207,7 @@ mod tests {
         );
     }
 
-    /// AC-2 : Step avec model_hint inconnu fallback vers le défaut avec warning.
+    /// Step avec model_hint inconnu fallback vers le défaut avec warning.
     ///
     /// GIVEN un LlmRouter avec uniquement un backend "default"
     ///   ET un PlanStep LLM avec model_hint = Some("unknown-backend")
@@ -2254,7 +2254,7 @@ mod tests {
         );
     }
 
-    /// AC-3 : Step sans model_hint utilise le défaut (rétrocompatible).
+    /// Step sans model_hint utilise le défaut (rétrocompatible).
     ///
     /// GIVEN un LlmRouter avec backends "default" et "fast"
     ///   ET un PlanStep LLM avec model_hint = None
@@ -2306,7 +2306,7 @@ mod tests {
         );
     }
 
-    /// AC-4 : Steps de type outil ignorent model_hint.
+    /// Steps de type outil ignorent model_hint.
     ///
     /// GIVEN un PlanStep avec tool_hint = Some("bash_executor") et model_hint = Some("fast")
     /// WHEN actor.execute() est appelé
@@ -2357,7 +2357,7 @@ mod tests {
 
     // ── StepContext per-step observation ─────────────────────────
 
-    // AC-1 — Step with dependency receives the output of the predecessor.
+    // Step with dependency receives the output of the predecessor.
     //
     // GIVEN a plan with s1 and s2 depending on s1
     // WHEN s1 completes with output "result_A"
@@ -2438,7 +2438,7 @@ mod tests {
         );
     }
 
-    // AC-2 — Step without dependency receives an empty StepContext.
+    // Step without dependency receives an empty StepContext.
     //
     // GIVEN a plan with a single step s1 without dependencies
     // WHEN s1 starts
@@ -2557,7 +2557,7 @@ mod tests {
         );
     }
 
-    // AC-3 — Budget view reflects consumed steps.
+    // Budget view reflects consumed steps.
     //
     // GIVEN a budget with max_steps = 10 and 3 steps already consumed
     // WHEN StepContext is built for the 4th step

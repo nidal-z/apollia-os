@@ -4,15 +4,15 @@
 //! in SQLite, and confirm that actors (TriggerEngine, PipelineEngine,
 //! NotificationEngine) reload their definitions.
 //!
-//! AC-1: POST trigger → GET triggers → verify 1 trigger
-//! AC-2: PUT trigger → GET trigger → verify updated schedule
-//! AC-3: DELETE trigger → GET triggers → verify 0 triggers
-//! AC-4: POST pipeline → POST run → verify run created
-//! AC-5: POST notification channel → write log → GET logs → verify log
-//! AC-6: POST trigger invalid cron → 422, POST pipeline cycle → 422,
+//! POST trigger → GET triggers → verify 1 trigger
+//! PUT trigger → GET trigger → verify updated schedule
+//! DELETE trigger → GET triggers → verify 0 triggers
+//! POST pipeline → POST run → verify run created
+//! POST notification channel → write log → GET logs → verify log
+//! POST trigger invalid cron → 422, POST pipeline cycle → 422,
 //!        POST channel webhook missing URL → 422
-//! AC-7: Boot with pre-populated DB → subsystems load definitions
-//! AC-8: Boot with empty DB → no errors, empty lists
+//! Boot with pre-populated DB → subsystems load definitions
+//! Boot with empty DB → no errors, empty lists
 
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -314,7 +314,7 @@ async fn cleanup(handle: APIServerHandle, socket_path: &Path) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AC-1 — Create trigger → list → verify
+// Create trigger → list → verify
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// GIVEN a runtime with triggers.db vide
@@ -374,7 +374,7 @@ async fn test_create_and_list_trigger() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AC-2 — Update trigger → verify source restarted
+// Update trigger → verify source restarted
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// GIVEN a trigger "test-trigger" with schedule "0 * * * *"
@@ -439,7 +439,7 @@ async fn test_update_trigger() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AC-3 — Delete trigger → verify source stopped
+// Delete trigger → verify source stopped
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// GIVEN a trigger "test-trigger" existing
@@ -487,7 +487,7 @@ async fn test_delete_trigger() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AC-4 — Create pipeline → list → verify definition
+// Create pipeline → list → verify definition
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// GIVEN a runtime with pipelines.db vide
@@ -548,7 +548,7 @@ async fn test_create_pipeline_and_list() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AC-5 — Create notification channel → verify logs endpoint
+// Create notification channel → verify logs endpoint
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// GIVEN a runtime with notifications.db vide
@@ -629,7 +629,7 @@ async fn test_create_channel_and_verify_logs_endpoint() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AC-6 — Validation errors
+// Validation errors
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// GIVEN a runtime démarré
@@ -722,7 +722,7 @@ async fn test_validation_errors() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AC-7 — Boot with pre-populated DB
+// Boot with pre-populated DB
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// GIVEN triggers.db, pipelines.db, notifications.db pre-filled with definitions
@@ -830,7 +830,7 @@ async fn test_boot_with_prepopulated_db() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AC-8 — Boot with empty DB
+// Boot with empty DB
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// GIVEN empty .db files (no definitions)

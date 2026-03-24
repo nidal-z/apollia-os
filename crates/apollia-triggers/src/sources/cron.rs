@@ -99,8 +99,6 @@ mod tests {
         }
     }
 
-    // ── AC-1 ──────────────────────────────────────────────────────────────
-
     #[tokio::test]
     async fn test_ac1_cron_fires_within_timeout() {
         // GIVEN — expression every-second (6 champs avec secondes)

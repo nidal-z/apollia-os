@@ -244,9 +244,7 @@ async fn http_post_webhook(
         .unwrap_or(0)
 }
 
-// ─── AC-3 ─────────────────────────────────────────────────────────────────
-
-/// AC-3 : POST avec signature HMAC valide → HTTP 200 + 1 submit().
+/// POST avec signature HMAC valide → HTTP 200 + 1 submit().
 #[tokio::test]
 async fn test_ac3_valid_webhook_returns_200() {
     // GIVEN — serveur avec trigger webhook "crm-sync" (secret "test-secret")
@@ -289,9 +287,7 @@ async fn test_ac3_valid_webhook_returns_200() {
     );
 }
 
-// ─── AC-4 ─────────────────────────────────────────────────────────────────
-
-/// AC-4 : POST avec signature invalide → HTTP 401 + zéro submit().
+/// POST avec signature invalide → HTTP 401 + zéro submit().
 #[tokio::test]
 async fn test_ac4_invalid_signature_returns_401() {
     // GIVEN — même serveur avec trigger webhook "crm-sync"

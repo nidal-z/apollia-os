@@ -99,7 +99,7 @@ pub async fn list_pending_approvals(
 /// # Errors
 ///
 /// Retourne une erreur si :
-/// - `approved == false` et `reason` est `None` (AC-7)
+/// - `approved == false` et `reason` est `None`
 /// - la tâche n'est pas en status `input_required` (409)
 /// - la tâche n'existe pas (404)
 #[tauri::command]

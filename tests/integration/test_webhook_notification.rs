@@ -2,9 +2,9 @@
 //!
 //! Tests the full HTTP notification path using a real `WebhookChannel`
 //! from `apollia-notifications`:
-//! - AC-6: wiremock server captures the POST and verifies all JSON fields
+//! - wiremock server captures the POST and verifies all JSON fields
 //!   and the `X-Apollia-Event` header.
-//! - AC-7: HTTP server that never responds → `NotifError::WebhookFailed`
+//! - HTTP server that never responds → `NotifError::WebhookFailed`
 //!   returned in < 2 s (non-blocking, no crash).
 
 use std::collections::HashMap;
@@ -53,7 +53,7 @@ fn make_channel(url: &str) -> WebhookChannel {
     })
 }
 
-// ── AC-6 — Payload JSON Apollia vérifié avec mock HTTP server ────────────────
+// ── Payload JSON Apollia vérifié avec mock HTTP server ────────────────
 
 /// ÉTANT DONNÉ un mock HTTP server (wiremock) qui attend POST sur /webhook
 /// QUAND `WebhookChannel.send(Notification{event:"task.input_required", ...})` est appelé
@@ -146,7 +146,7 @@ async fn test_ac6_webhook_payload_verified() {
     );
 }
 
-// ── AC-7 — WebhookChannel : connexion refusée → NotifError retourné, pas de panic
+// ── WebhookChannel : connexion refusée → NotifError retourné, pas de panic
 
 /// ÉTANT DONNÉ une URL pointant vers un port sans listener (connexion refusée)
 /// QUAND `WebhookChannel.send()` est appelé

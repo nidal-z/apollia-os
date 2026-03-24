@@ -1,8 +1,8 @@
 //! Integration tests for HITL Mode Orchestré.
 //!
 //! Tests `ActorLoop` with `tools_requiring_approval`:
-//! - AC-3: step with sensitive tool → suspend mid-plan → approve → step executed
-//! - AC-4: step rejected → plan stopped, subsequent steps NOT executed
+//! - step with sensitive tool → suspend mid-plan → approve → step executed
+//! - step rejected → plan stopped, subsequent steps NOT executed
 //!
 //! All tests use mock `ToolProxyTrait` and `Reasoner` with a stub LLM.
 //! No Python or real LLM required.
@@ -145,7 +145,7 @@ fn make_manifest_with_approval(tools: &[&str]) -> AgentManifest {
     .expect("manifest must deserialize")
 }
 
-// ── AC-3 — tools_requiring_approval → suspend mid-plan → approve → step exécuté
+// ── tools_requiring_approval → suspend mid-plan → approve → step exécuté
 
 /// ÉTANT DONNÉ un plan [s1:file_io, s2:smtp] + manifest.tools_requiring_approval=["smtp"]
 ///             + mock outil "smtp" qui retourne "envoyé"
@@ -260,7 +260,7 @@ async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
     );
 }
 
-// ── AC-4 — step rejeté → plan stoppé, steps suivants non exécutés ──────────
+// ── step rejeté → plan stoppé, steps suivants non exécutés ──────────
 
 /// ÉTANT DONNÉ un plan [s1:file_io, s2:smtp, s3:file_io]
 ///             + manifest.tools_requiring_approval=["smtp"]

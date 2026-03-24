@@ -1190,7 +1190,7 @@ mod tests {
             .with_step_timeout(Duration::from_millis(timeout_ms))
     }
 
-    // ── AC-1: Sequential pipeline ─────────────────────────────────────────────
+    // ── Sequential pipeline ─────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac1_sequential_pipeline() {
@@ -1259,7 +1259,7 @@ mod tests {
         );
     }
 
-    // ── AC-2: Fan-out ─────────────────────────────────────────────────────────
+    // ── Fan-out ─────────────────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac2_fan_out_both_steps_submitted() {
@@ -1297,7 +1297,7 @@ mod tests {
         assert_eq!(agents.len(), 3);
     }
 
-    // ── AC-3: on_failure = skip ───────────────────────────────────────────────
+    // ── on_failure = skip ───────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac3_skip_continues_pipeline() {
@@ -1347,7 +1347,7 @@ mod tests {
         assert!(!failed, "PipelineFailed should NOT be emitted");
     }
 
-    // ── AC-4: on_failure = fail ───────────────────────────────────────────────
+    // ── on_failure = fail ───────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac4_fail_stops_pipeline() {
@@ -1378,7 +1378,7 @@ mod tests {
         assert!(failed, "PipelineFailed should be emitted");
     }
 
-    // ── AC-5: Downstream not submitted after fatal failure ────────────────────
+    // ── Downstream not submitted after fatal failure ────────────────────
 
     #[tokio::test]
     async fn test_ac5_downstream_not_submitted() {
@@ -1418,7 +1418,7 @@ mod tests {
         );
     }
 
-    // ── AC-6: Per-step timeout ────────────────────────────────────────────────
+    // ── Per-step timeout ────────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac6_step_timeout_fails_pipeline() {
@@ -1536,7 +1536,7 @@ mod tests {
             "notification-agent must be submitted after fallback completes"
         );
 
-        // AC-2 — notification received the fallback output via {{steps.validation.output}}
+        // notification received the fallback output via {{steps.validation.output}}
         let notif_input = inputs
             .iter()
             .find(|(a, _)| a == "notification-agent")
@@ -1687,7 +1687,7 @@ mod tests {
         );
     }
 
-    // ── AC-7: EventBus events ─────────────────────────────────────────────────
+    // ── EventBus events ─────────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac7_events_emitted_in_order() {
@@ -1774,7 +1774,7 @@ mod tests {
         let mock = MockSubmitter::new(tx.clone()).with_input_required("comptabilite-agent");
 
         // Spawn a watcher that unblocks execute() by sending TaskResumed { approved: false }
-        // as soon as PipelineSuspended is observed — AC-1 only verifies the suspension event
+        // as soon as PipelineSuspended is observed — this only verifies the suspension event
         // and the SQLite status; the rejection path terminates the pipeline cleanly.
         let tx_watcher = tx.clone();
         let mut rx_watcher = tx.subscribe();

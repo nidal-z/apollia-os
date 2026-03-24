@@ -122,7 +122,7 @@
     </div>
   {/if}
 
-  <!-- AC-1: TabBar component -->
+  <!-- TabBar component -->
   <TabBar
     items={tabItems}
     activeTab={activeTab}
@@ -140,7 +140,7 @@
     <!-- Tab: Preferences -->
     {#if activeTab === "preferences"}
       <section class="space-y-5" data-testid="preferences-section">
-        <!-- Language — AC-2: segmented control -->
+        <!-- Language -->
         <div class="space-y-2">
           <h3 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.language_title')}</h3>
           <div class="inline-flex gap-1 rounded-lg glass-border p-1">
@@ -159,7 +159,7 @@
           </div>
         </div>
 
-        <!-- Theme — AC-2: segmented control -->
+        <!-- Theme -->
         <div class="space-y-2">
           <h3 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.theme_title')}</h3>
           <div class="inline-flex gap-1 rounded-lg glass-border p-1" data-testid="theme-toggle">
@@ -178,7 +178,7 @@
           </div>
         </div>
 
-        <!-- Mode — AC-3: mode cards with accent bar -->
+        <!-- Mode -->
         <div class="space-y-2">
           <h3 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.mode_title')}</h3>
           <div class="flex gap-3" data-testid="mode-toggle">
@@ -201,7 +201,7 @@
           </div>
         </div>
 
-        <!-- AC-6: Reset onboarding with ConfirmDialog -->
+        <!-- Reset onboarding with ConfirmDialog -->
         <div class="pt-2">
           <div class="glass-card glass-border rounded-lg p-4">
             <div class="flex items-center justify-between">
@@ -223,7 +223,7 @@
       </section>
     {/if}
 
-    <!-- Tab: Configuration — AC-4: glass-card sections -->
+    <!-- Tab: Configuration -->
     {#if activeTab === "configuration"}
       <section class="space-y-4" data-testid="runtime-config-section">
         <div class="flex items-center justify-between">
@@ -285,7 +285,7 @@
       </section>
     {/if}
 
-    <!-- Tab: System — AC-5: glass-card system info -->
+    <!-- Tab: System -->
     {#if activeTab === "system"}
       <section class="space-y-4" data-testid="advanced-section">
         {#if systemInfo}
@@ -314,7 +314,7 @@
   {/if}
 </div>
 
-<!-- AC-6: Reset onboarding ConfirmDialog -->
+<!-- Reset onboarding ConfirmDialog -->
 <ConfirmDialog
   open={showResetConfirm}
   onclose={() => { showResetConfirm = false; }}

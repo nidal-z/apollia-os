@@ -128,12 +128,12 @@
       {error}
     </div>
   {:else}
-    <!-- AC-1 — Global events section -->
+    <!-- Global events section -->
     <GlobalEventsEditor onsaved={handleGlobalEventsSaved} />
 
     <Separator />
 
-    <!-- AC-2 / AC-6 — Channels section -->
+    <!-- Channels section -->
     <section>
       <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('notifications.channels_title')}</h2>
       {#if channels.length === 0}
@@ -186,7 +186,7 @@
   onupdated={handleChannelUpdated}
 />
 
-<!-- Delete confirmation dialog (AC-6) -->
+<!-- Delete confirmation dialog -->
 <ConfirmDialog
   open={deleteConfirmId !== null}
   onclose={cancelDelete}

@@ -1121,8 +1121,6 @@ mod tests {
         }
     }
 
-    // ── AC-1 ───────────────────────────────────────────────────────────────
-
     #[tokio::test]
     async fn test_ac1_start_empty_definitions() {
         // GIVEN une liste vide de TriggerDefinition
@@ -1141,8 +1139,6 @@ mod tests {
         let list = handle.list().await;
         assert!(list.is_empty(), "liste attendue vide, got {:?}", list);
     }
-
-    // ── AC-2 ───────────────────────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac2_handle_event_queue_submits_task() {
@@ -1168,7 +1164,7 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 
-    // ── AC-3 (OnBusyPolicy::Drop) ──────────────────────────────────────────
+    // ── (OnBusyPolicy::Drop) ──────────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac3_drop_policy_skips_when_agent_busy() {
@@ -1200,8 +1196,6 @@ mod tests {
             result
         );
     }
-
-    // ── AC-4 ───────────────────────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac4_fire_now_returns_task_id() {
@@ -1246,8 +1240,6 @@ mod tests {
         );
     }
 
-    // ── AC-5 ───────────────────────────────────────────────────────────────
-
     #[tokio::test]
     async fn test_ac5_enable_disable_toggle() {
         // GIVEN un trigger actif
@@ -1275,8 +1267,6 @@ mod tests {
         // THEN enabled = true
         assert!(list[0].enabled, "trigger doit être réactivé");
     }
-
-    // ── AC-6 ───────────────────────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac6_submit_error_does_not_panic() {

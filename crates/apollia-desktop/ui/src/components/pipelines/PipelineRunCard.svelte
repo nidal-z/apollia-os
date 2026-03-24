@@ -45,7 +45,7 @@
 </script>
 
 <div class="glass-card-hover relative overflow-hidden" data-testid="pipeline-run-card">
-  <!-- Status accent bar (AC-2) -->
+  <!-- Status accent bar -->
   <div
     class="h-0.5 w-full {STATUS_BAR_COLOR[run.status] ?? 'bg-muted-foreground/20'}"
     data-testid="pipeline-run-status-bar"

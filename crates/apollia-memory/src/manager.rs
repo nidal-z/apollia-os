@@ -258,7 +258,7 @@ mod tests {
         dir
     }
 
-    // AC-1 -- Ouvrir un namespace prive (lecture/ecriture)
+    // -- Ouvrir un namespace prive (lecture/ecriture)
     #[test]
     fn test_ac1_open_primary_namespace() {
         // GIVEN
@@ -271,7 +271,7 @@ mod tests {
         assert!(base.join("crm-dupont.db").exists());
     }
 
-    // AC-2 -- Lire un namespace partage (lecture seule)
+    // -- Lire un namespace partage (lecture seule)
     #[test]
     fn test_ac2_read_shared_namespace() {
         // GIVEN -- create the shared namespace DB first
@@ -285,7 +285,7 @@ mod tests {
         assert_eq!(mgr.access_level("shared"), Some(MemoryAccess::ReadOnly));
     }
 
-    // AC-3 -- Ecriture refusee sur namespace partage (verification access_level)
+    // -- Ecriture refusee sur namespace partage (verification access_level)
     #[test]
     fn test_ac3_write_to_shared_rejected() {
         // GIVEN
@@ -296,7 +296,7 @@ mod tests {
         assert_eq!(mgr.access_level("private"), Some(MemoryAccess::ReadWrite));
     }
 
-    // AC-4 -- Acces refuse a un namespace non-declare
+    // -- Acces refuse a un namespace non-declare
     #[test]
     fn test_ac4_undeclared_namespace_rejected() {
         // GIVEN
@@ -311,7 +311,7 @@ mod tests {
         ));
     }
 
-    // AC-5 -- Stats d'un namespace
+    // -- Stats d'un namespace
     #[test]
     fn test_ac5_stats_returns_counts() {
         // GIVEN
@@ -328,7 +328,7 @@ mod tests {
         assert!(stats.db_size_bytes > 0);
     }
 
-    // AC-6 -- Agent sans memory_namespace (None)
+    // -- Agent sans memory_namespace (None)
     #[test]
     fn test_ac6_no_namespace_returns_error() {
         // GIVEN

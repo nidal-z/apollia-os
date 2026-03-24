@@ -941,7 +941,7 @@ mod tests {
         assert!(s.contains("agent-42"));
     }
 
-    // ── AC-1 : sérialisation JSON ─────────────────────────────────────────
+    // ── sérialisation JSON ─────────────────────────────────────────
 
     #[test]
     fn test_ac1_serialisation_plan_generated() {
@@ -993,7 +993,7 @@ mod tests {
         assert!(json.contains("\"retryable\":true"));
     }
 
-    // ── AC-2 : broadcast via EventBus ─────────────────────────────────────
+    // ── broadcast via EventBus ─────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac2_broadcast_plan_generated() {
@@ -1016,7 +1016,7 @@ mod tests {
         }
     }
 
-    // ── AC-3 : round-trip désérialisation ────────────────────────────────
+    // ── round-trip désérialisation ────────────────────────────────
 
     #[test]
     fn test_ac3_round_trip_step_failed() {
@@ -1046,7 +1046,7 @@ mod tests {
 mod pipeline_event_tests {
     use super::*;
 
-    /// AC-2 — sérialisation / désérialisation de `PipelineStarted`.
+    /// sérialisation / désérialisation de `PipelineStarted`.
     #[test]
     fn test_ac2_pipeline_started_roundtrip() {
         // GIVEN
@@ -1066,7 +1066,7 @@ mod pipeline_event_tests {
         ));
     }
 
-    /// AC-2 — sérialisation / désérialisation de `PipelineCompleted`.
+    /// sérialisation / désérialisation de `PipelineCompleted`.
     #[test]
     fn test_pipeline_completed_roundtrip() {
         // GIVEN
@@ -1088,7 +1088,7 @@ mod pipeline_event_tests {
         ));
     }
 
-    /// AC-2 — sérialisation / désérialisation de `PipelineStepSkipped`.
+    /// sérialisation / désérialisation de `PipelineStepSkipped`.
     #[test]
     fn test_pipeline_step_skipped_roundtrip() {
         // GIVEN
@@ -1104,7 +1104,7 @@ mod pipeline_event_tests {
         assert!(matches!(restored, RuntimeEvent::PipelineStepSkipped { .. }));
     }
 
-    /// AC-1 — tous les 9 variants Pipeline sont constructibles (zéro warning de compilation).
+    /// tous les 9 variants Pipeline sont constructibles (zéro warning de compilation).
     #[test]
     fn test_all_pipeline_events_compile() {
         // GIVEN / WHEN — construire chaque variant

@@ -111,7 +111,7 @@ mod tests {
         ctx
     }
 
-    // AC-1 — Contains: step executed when output contains the value
+    // Contains: step executed when output contains the value
     #[test]
     fn test_ac1_contains_true() {
         // GIVEN
@@ -126,7 +126,7 @@ mod tests {
         assert!(evaluate_condition(&cond, &ctx));
     }
 
-    // AC-2 — Contains: step skipped when output does not contain the value
+    // Contains: step skipped when output does not contain the value
     #[test]
     fn test_ac2_contains_false() {
         // GIVEN
@@ -141,7 +141,7 @@ mod tests {
         assert!(!evaluate_condition(&cond, &ctx));
     }
 
-    // AC-3 — Equals: case-sensitive exact match
+    // Equals: case-sensitive exact match
     #[test]
     fn test_ac3_equals() {
         // GIVEN
@@ -157,7 +157,7 @@ mod tests {
         assert!(!evaluate_condition(&cond, &ctx_with_step_output("s", "OK")));
     }
 
-    // AC-3 — StartsWith
+    // StartsWith
     #[test]
     fn test_ac3_starts_with() {
         // GIVEN
@@ -178,7 +178,7 @@ mod tests {
         ));
     }
 
-    // AC-3 — EndsWith
+    // EndsWith
     #[test]
     fn test_ac3_ends_with() {
         // GIVEN
@@ -199,7 +199,7 @@ mod tests {
         ));
     }
 
-    // AC-4 — Regex: match and non-match
+    // Regex: match and non-match
     #[test]
     fn test_ac4_regex_match() {
         // GIVEN
@@ -221,7 +221,7 @@ mod tests {
         ));
     }
 
-    // AC-5 — Absent field returns false, no panic
+    // Absent field returns false, no panic
     #[test]
     fn test_ac5_absent_field_returns_false() {
         // GIVEN — context has no output for "absent"

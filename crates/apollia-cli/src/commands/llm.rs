@@ -77,7 +77,7 @@ async fn run_status(client: &RuntimeClient, json: bool) -> i32 {
 
 /// `apollia-os llm ping [backend]` — measure the latency of a backend.
 ///
-/// Returns exit code `0` if the backend is available, `1` otherwise (AC-4).
+/// Returns exit code `0` if the backend is available, `1` otherwise.
 async fn run_ping(client: &RuntimeClient, backend: Option<&str>, json: bool) -> i32 {
     let body = serde_json::json!({ "backend": backend });
     let resp = match client.post("/api/v1/llm/ping", Some(&body)).await {

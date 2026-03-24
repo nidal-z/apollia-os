@@ -235,7 +235,7 @@ pub enum StepRunStatus {
 mod tests {
     use super::*;
 
-    // AC-1 — PipelineDefinition serialization round-trip
+    // PipelineDefinition serialization round-trip
     #[test]
     fn test_ac1_pipeline_definition_roundtrip() {
         // GIVEN
@@ -281,7 +281,7 @@ mod tests {
         assert_eq!(restored.description, def.description);
     }
 
-    // AC-2 — PipelineRun with WaitingApproval status round-trip
+    // PipelineRun with WaitingApproval status round-trip
     #[test]
     fn test_ac2_pipeline_run_waiting_approval_roundtrip() {
         // GIVEN
@@ -313,7 +313,7 @@ mod tests {
         assert_eq!(restored.trigger_payload, run.trigger_payload);
     }
 
-    // AC-3 — Newtype distinction enforced at compile time (proven by the type system;
+    // Newtype distinction enforced at compile time (proven by the type system;
     // this test documents the intent and exercises the Display impls).
     #[test]
     fn test_ac3_newtype_display() {
@@ -326,7 +326,7 @@ mod tests {
         assert_eq!(rid.to_string(), "r-0017");
     }
 
-    // AC-4 — StepFailurePolicy defaults to Fail when absent from JSON
+    // StepFailurePolicy defaults to Fail when absent from JSON
     #[test]
     fn test_ac4_step_failure_policy_default_is_fail() {
         // GIVEN — JSON without an on_failure field
@@ -340,7 +340,7 @@ mod tests {
         assert_eq!(step.on_failure, StepFailurePolicy::Fail);
     }
 
-    // AC-5 — GlobalFailurePolicy defaults to Fail when absent from JSON
+    // GlobalFailurePolicy defaults to Fail when absent from JSON
     #[test]
     fn test_ac5_global_failure_policy_default_is_fail() {
         // GIVEN — JSON without an on_failure field

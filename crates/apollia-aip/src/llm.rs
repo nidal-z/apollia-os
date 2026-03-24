@@ -3,7 +3,7 @@
 //! Pattern ADR-014 : toutes les méthodes async
 //! utilisent `pyo3_async_runtimes::tokio::future_into_py`.
 //!
-//! Les tests AC-1 à AC-5 (nécessitant un environnement Python complet)
+//! Les tests nécessitant un environnement Python complet
 //! sont couverts avec `#[cfg(feature = "python-tests")]`.
 
 use std::sync::Arc;
@@ -245,7 +245,7 @@ impl LlmProxy {
     /// Appel LLM en mode streaming — retourne une liste de chunks texte.
     ///
     /// MVP : collecte tous les chunks du stream Rust et les retourne comme `list[str]`.
-    /// Fallback AC-6 : si le backend ne supporte pas le streaming nativement,
+    /// Fallback : si le backend ne supporte pas le streaming nativement,
     /// appelle `complete()` et retourne le contenu complet comme liste à un seul élément
     /// sans lever d'erreur.
     ///
@@ -299,7 +299,7 @@ impl LlmProxy {
                             }
                             collected
                         }
-                        // AC-6 fallback: stream() not supported → single complete()
+                        // fallback: stream() not supported → single complete()
                         Err(_) => {
                             let fallback_req = CompletionRequest {
                                 messages: chat_messages,
@@ -318,7 +318,7 @@ impl LlmProxy {
                         }
                     }
                 }
-                // AC-6 fallback: backend not found → single complete() (may return BackendUnavailable)
+                // fallback: backend not found → single complete() (may return BackendUnavailable)
                 None => {
                     let fallback_req = CompletionRequest {
                         messages: chat_messages,
@@ -481,7 +481,7 @@ fn llm_err_to_py(e: LlmError) -> PyErr {
 mod tests {
     use super::*;
 
-    /// AC : `py_dict_to_chat_message` — role "user" converti correctement.
+    /// `py_dict_to_chat_message` — role "user" converti correctement.
     #[test]
     fn test_py_dict_to_chat_message_user() {
         // GIVEN
@@ -498,7 +498,7 @@ mod tests {
         });
     }
 
-    /// AC : role invalide → `PyValueError`.
+    /// role invalide → `PyValueError`.
     #[test]
     fn test_py_dict_to_chat_message_invalid_role() {
         // GIVEN
@@ -516,7 +516,7 @@ mod tests {
         });
     }
 
-    /// AC : `py_dict_to_tool_spec` — champs extraits correctement.
+    /// `py_dict_to_tool_spec` — champs extraits correctement.
     #[test]
     fn test_py_dict_to_tool_spec() {
         // GIVEN
@@ -535,7 +535,7 @@ mod tests {
         });
     }
 
-    /// AC : clé "role" absente → `PyValueError`.
+    /// clé "role" absente → `PyValueError`.
     #[test]
     fn test_py_dict_to_chat_message_missing_role() {
         // GIVEN
@@ -550,7 +550,7 @@ mod tests {
         });
     }
 
-    /// AC : role "system" converti correctement.
+    /// role "system" converti correctement.
     #[test]
     fn test_py_dict_to_chat_message_system() {
         // GIVEN
@@ -566,7 +566,7 @@ mod tests {
         });
     }
 
-    /// AC : clé "name" absente dans tool spec → `PyValueError`.
+    /// clé "name" absente dans tool spec → `PyValueError`.
     #[test]
     fn test_py_dict_to_tool_spec_missing_name() {
         // GIVEN
@@ -581,7 +581,7 @@ mod tests {
         });
     }
 
-    /// AC : `parameters` absent → défaut `{}`.
+    /// `parameters` absent → défaut `{}`.
     #[test]
     fn test_py_dict_to_tool_spec_parameters_optional() {
         // GIVEN

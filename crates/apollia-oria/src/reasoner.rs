@@ -458,7 +458,7 @@ mod tests {
         {"step_id":"s2","description":"Step 2","depends_on":["s1"]}
     ]}"#;
 
-    // ─── AC-1 — Plan valide depuis mock LLM ───
+    // ─── Plan valide depuis mock LLM ───
 
     /// GIVEN un Reasoner avec un mock CompletionModel qui retourne un JSON valide
     /// WHEN reasoner.plan(&ctx).await est appelé
@@ -482,7 +482,7 @@ mod tests {
         assert_eq!(model.calls(), 1);
     }
 
-    // ─── AC-2 — Retry ×3 sur JSON invalide ───
+    // ─── Retry ×3 sur JSON invalide ───
 
     /// GIVEN un mock qui retourne du texte non-JSON 3 fois
     /// WHEN reasoner.plan(&ctx).await est appelé
@@ -509,7 +509,7 @@ mod tests {
         assert_eq!(model.calls(), 3);
     }
 
-    // ─── AC-3 — Détection dépendance circulaire → retry ───
+    // ─── Détection dépendance circulaire → retry ───
 
     /// GIVEN un mock qui retourne un plan cyclique 3 fois
     /// WHEN reasoner.plan(&ctx).await est appelé
@@ -535,7 +535,7 @@ mod tests {
         assert_eq!(model.calls(), 3);
     }
 
-    // ─── AC-3 suite — cycle puis plan valide ───
+    // ─── suite — cycle puis plan valide ───
 
     /// GIVEN un mock qui retourne un plan cyclique puis un plan valide
     /// WHEN reasoner.plan(&ctx).await est appelé
@@ -555,7 +555,7 @@ mod tests {
         assert_eq!(model.calls(), 2);
     }
 
-    // ─── AC-5 — replan() génère un plan partiel ───
+    // ─── replan() génère un plan partiel ───
 
     /// GIVEN un mock qui retourne un plan de remplacement valide
     /// WHEN reasoner.replan(&ctx, &outputs, "s3", "timeout").await est appelé
@@ -586,7 +586,7 @@ mod tests {
         assert_eq!(model.calls(), 1);
     }
 
-    // ─── AC-6 — Backticks Markdown strippés ───
+    // ─── Backticks Markdown strippés ───
 
     /// GIVEN une réponse LLM avec backticks Markdown
     /// WHEN parse_and_validate() est appelé

@@ -56,7 +56,7 @@ mod tests {
     use crate::types::{parse_interval, InputTemplate, OnBusyPolicy, TriggerDefinitionError};
     use std::time::Duration;
 
-    // ── AC-5 : parse_interval ──────────────────────────────────────────────
+    // ── parse_interval ──────────────────────────────────────────────
 
     #[test]
     fn test_ac5_parse_interval_valid_formats() {

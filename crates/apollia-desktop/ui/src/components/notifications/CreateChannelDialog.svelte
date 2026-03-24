@@ -169,7 +169,7 @@
       </Select>
     </div>
 
-    <!-- Dynamic webhook fields (AC-4) -->
+    <!-- Dynamic webhook fields -->
     {#if channelType === "webhook"}
       <div>
         <label class="mb-1 block text-[11px] text-muted-foreground" for="channel-url">{$t("notifications.field_url")}</label>
@@ -205,7 +205,7 @@
       </div>
     {/if}
 
-    <!-- Events per-channel (AC-5) -->
+    <!-- Events per-channel -->
     {#if globalEvents.length > 0}
       <div>
         <label class="mb-1 block text-[11px] text-muted-foreground">{$t("notifications.field_events")}</label>

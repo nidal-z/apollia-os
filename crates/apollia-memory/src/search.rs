@@ -319,7 +319,7 @@ mod tests {
         store
     }
 
-    // AC-1 — Search returns BM25-ranked results
+    // Search returns BM25-ranked results
     #[test]
     fn test_ac1_search_returns_bm25_ranked_results() {
         // GIVEN
@@ -335,7 +335,7 @@ mod tests {
         }
     }
 
-    // AC-2 — Filter by episodic source only
+    // Filter by episodic source only
     #[test]
     fn test_ac2_filter_by_episodic_source() {
         // GIVEN
@@ -352,7 +352,7 @@ mod tests {
         }
     }
 
-    // AC-2 bis — Filter by semantic source only
+    // bis — Filter by semantic source only
     #[test]
     fn test_ac2_filter_by_semantic_source() {
         // GIVEN
@@ -369,7 +369,7 @@ mod tests {
         }
     }
 
-    // AC-3 — Filter by minimum importance
+    // Filter by minimum importance
     #[test]
     fn test_ac3_filter_by_min_importance() {
         // GIVEN
@@ -386,7 +386,7 @@ mod tests {
         }
     }
 
-    // AC-4 — Unicode61 normalises accents
+    // Unicode61 normalises accents
     #[test]
     fn test_ac4_unicode61_accent_normalization() {
         // GIVEN
@@ -413,7 +413,7 @@ mod tests {
         assert!(!results.is_empty());
     }
 
-    // AC-5 — No results returns empty vec
+    // No results returns empty vec
     #[test]
     fn test_ac5_no_results_returns_empty_vec() {
         // GIVEN

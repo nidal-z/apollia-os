@@ -5,7 +5,7 @@
  * a derived count store used by the Sidebar badge.
  *
  * Includes browser notification support for new approvals when the
- * window is not focused (AC-7).
+ * window is not focused.
  */
 import { derived, get } from "svelte/store";
 import { locale } from "svelte-i18n";

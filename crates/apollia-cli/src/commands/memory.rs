@@ -138,7 +138,7 @@ mod tests {
         (dir, db_path)
     }
 
-    // AC-1 -- inspect existing namespace returns Ok
+    // -- inspect existing namespace returns Ok
     #[test]
     fn test_ac1_inspect_existing_namespace() {
         // GIVEN
@@ -154,7 +154,7 @@ mod tests {
         assert!(output.contains("Procedures  : 0"));
     }
 
-    // AC-2 -- JSON output is valid and has expected fields
+    // -- JSON output is valid and has expected fields
     #[test]
     fn test_ac2_inspect_json_output() {
         // GIVEN
@@ -172,7 +172,7 @@ mod tests {
         assert_eq!(parsed["procedural_count"], 0);
     }
 
-    // AC-3 -- nonexistent namespace returns error
+    // -- nonexistent namespace returns error
     #[test]
     fn test_ac3_nonexistent_namespace_error() {
         // GIVEN
@@ -188,7 +188,7 @@ mod tests {
         assert!(msg.contains("not found"));
     }
 
-    // AC-4 -- custom data_dir works
+    // -- custom data_dir works
     #[test]
     fn test_ac4_custom_data_dir() {
         // GIVEN

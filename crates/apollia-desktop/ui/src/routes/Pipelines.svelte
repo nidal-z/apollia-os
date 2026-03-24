@@ -123,7 +123,7 @@
     </div>
   </div>
 
-  <!-- Tabs (AC-1) -->
+  <!-- Tabs -->
   <TabBar
     items={[
       { key: "active", label: $t("pipelines.tab_active"), count: $activePipelineRuns.length > 0 ? $activePipelineRuns.length : undefined },

@@ -196,7 +196,7 @@ impl LlmRouter {
             backends.insert(name, backend);
         }
 
-        // AC-6 : le backend par défaut doit être disponible après la boucle.
+        // : le backend par défaut doit être disponible après la boucle.
         if !backends.contains_key(&config.default) {
             return Err(LlmError::BackendUnavailable {
                 backend: config.default.clone(),
@@ -239,7 +239,7 @@ impl LlmRouter {
             let name = backend_cfg.name().to_owned();
             let model_path = backend_cfg.model_path_hint();
 
-            // AC-2 : émettre LlmModelLoading avant chaque tentative de chargement.
+            // : émettre LlmModelLoading avant chaque tentative de chargement.
             if let Some(ref b) = bus {
                 let _ = b.send(RuntimeEvent::LlmModelLoading {
                     backend: name.clone(),
@@ -272,7 +272,7 @@ impl LlmRouter {
 
             match result {
                 Ok(backend) => {
-                    // AC-2 : émettre LlmModelReady après succès.
+                    // : émettre LlmModelReady après succès.
                     if let Some(ref b) = bus {
                         let _ = b.send(RuntimeEvent::LlmModelReady {
                             backend: name.clone(),
@@ -287,7 +287,7 @@ impl LlmRouter {
                         error = %e,
                         "backend ignoré : chargement échoué"
                     );
-                    // AC-3 : émettre LlmModelFailed — backend ignoré, pas de crash.
+                    // : émettre LlmModelFailed — backend ignoré, pas de crash.
                     if let Some(ref b) = bus {
                         let _ = b.send(RuntimeEvent::LlmModelFailed {
                             backend: name.clone(),
@@ -345,7 +345,7 @@ impl LlmRouter {
                     reason: "not found in router".to_owned(),
                 })?;
 
-        // AC-4 : log du prompt uniquement à TRACE — jamais à INFO.
+        // : log du prompt uniquement à TRACE — jamais à INFO.
         if obs.debug_log_prompt {
             tracing::trace!(prompt = ?req.messages, "llm prompt");
         }
@@ -354,7 +354,7 @@ impl LlmRouter {
         let response = backend.complete(req).await?;
         let latency_ms = started.elapsed().as_millis() as u64;
 
-        // AC-1 : émission fire-and-forget — erreurs send() silencieusement ignorées.
+        // : émission fire-and-forget — erreurs send() silencieusement ignorées.
         if let Some(b) = bus {
             let _ = b.send(RuntimeEvent::LlmCallCompleted {
                 backend: backend_key.to_owned(),
@@ -559,7 +559,7 @@ mod tests {
         })
     }
 
-    // ── Tests AC-3/AC-4/AC-5 + list + clone + AC-6 ───────────────────────────
+    // ── Tests : get, list, clone, error cases ────────────────────────────────
 
     // GIVEN un LlmRouter avec default = "local" et un backend "local"
     // WHEN on appelle get(None)
@@ -712,7 +712,6 @@ mod tests {
     // GIVEN un LlmRouter avec un mock backend et un EventBusSender
     // WHEN on appelle complete_with_observability(None, req, Some(&tx), &obs)
     // THEN un événement LlmCallCompleted est reçu sur le bus avec backend == "mock"
-    // AC-1
     #[tokio::test]
     async fn test_ac1_llm_call_completed_emitted() {
         use apollia_core::events::RuntimeEvent;
@@ -757,7 +756,6 @@ mod tests {
     // GIVEN un router avec debug_log_prompt = false
     // WHEN on appelle complete_with_observability() avec un message "secret_payload_xyz"
     // THEN la fonction ne panic pas et retourne Ok — le prompt n'est pas loggué à INFO
-    // AC-4
     #[tokio::test]
     async fn test_ac4_prompt_not_logged_at_info_without_debug_flag() {
         // GIVEN
@@ -794,7 +792,7 @@ mod tests {
     // GIVEN un LlmRouter avec EventBusSender et backends vide (default absent)
     // WHEN on appelle from_config_with_bus
     // THEN Err(LlmError::BackendUnavailable) est retourné sans crash
-    // AC-3 (variante sans feature "local" : vérifie que le router ne crash pas)
+    // (variante sans feature "local" : vérifie que le router ne crash pas)
     #[tokio::test]
     async fn test_ac3_from_config_with_bus_no_backends_returns_error() {
         use apollia_core::events::RuntimeEvent;

@@ -1,6 +1,6 @@
 //! Route `POST /webhooks/:id` — réception de webhooks avec vérification HMAC-SHA256.
 //!
-//! **Ordre des vérifications (AC-6 / Principe #4 — Fail fast) :**
+//! **Ordre des vérifications (Principe #4 — Fail fast) :**
 //! 1. TriggerEngine disponible ? → 503
 //! 2. Trigger connu et de type webhook ? → 404
 //! 3. Header `X-Apollia-Signature` présent ? → 401
@@ -65,7 +65,7 @@ pub async fn handle_webhook<B: ExecutionBackend + Clone>(
         }
     };
 
-    // 4. Vérifier HMAC-SHA256 (constant-time — AC-5)
+    // 4. Vérifier HMAC-SHA256 (constant-time)
     if !verify_hmac(&secret, &body, &signature) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
@@ -91,7 +91,7 @@ pub async fn handle_webhook<B: ExecutionBackend + Clone>(
 /// Vérifie la signature HMAC-SHA256 d'un body.
 ///
 /// La signature doit être au format `"sha256=<hex>"`.
-/// Utilise [`constant_time_eq::constant_time_eq`] pour éviter les timing attacks (AC-5).
+/// Utilise [`constant_time_eq::constant_time_eq`] pour éviter les timing attacks.
 ///
 /// Retourne `true` uniquement si la signature est correcte.
 pub fn verify_hmac(secret: &str, body: &[u8], signature: &str) -> bool {

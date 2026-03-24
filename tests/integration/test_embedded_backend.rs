@@ -28,7 +28,7 @@ mod embedded_tests {
             .map(std::path::PathBuf::from)
     }
 
-    /// AC-5 — `EmbeddedBackend::load()` charge un modèle GGUF depuis le chemin fourni.
+    /// `EmbeddedBackend::load()` charge un modèle GGUF depuis le chemin fourni.
     ///
     /// Test ignoré si `$APOLLIA_TEST_MODEL_PATH` n'est pas défini.
     #[tokio::test]
@@ -70,7 +70,7 @@ mod embedded_tests {
         );
     }
 
-    /// AC-5 — `backend.complete()` retourne une réponse non vide avec `cost_usd == None`.
+    /// `backend.complete()` retourne une réponse non vide avec `cost_usd == None`.
     ///
     /// Test ignoré si `$APOLLIA_TEST_MODEL_PATH` n'est pas défini.
     #[tokio::test]

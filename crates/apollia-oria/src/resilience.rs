@@ -389,7 +389,7 @@ mod tests {
         ResilienceLayer::new(threshold, Duration::from_secs(30))
     }
 
-    // AC-1 — Closed state allows calls
+    // Closed state allows calls
     #[test]
     fn test_closed_allows_call() {
         // GIVEN a CircuitBreaker in Closed state
@@ -404,7 +404,7 @@ mod tests {
         assert_eq!(layer.get("file_io").unwrap().state(), &CircuitState::Closed);
     }
 
-    // AC-2 — Transient errors open the circuit after threshold
+    // Transient errors open the circuit after threshold
     #[test]
     fn test_transient_errors_open_circuit() {
         // GIVEN failure_threshold = 3
@@ -427,7 +427,7 @@ mod tests {
         assert_eq!(layer.get("file_io").unwrap().state(), &CircuitState::Open);
     }
 
-    // AC-2 continued — Open rejects immediately
+    // continued — Open rejects immediately
     #[test]
     fn test_open_rejects_immediately() {
         // GIVEN circuit in Open (cooldown not elapsed)
@@ -448,7 +448,7 @@ mod tests {
         ));
     }
 
-    // AC-3 — Cooldown transitions to HalfOpen
+    // Cooldown transitions to HalfOpen
     #[test]
     fn test_cooldown_transitions_to_half_open() {
         // GIVEN circuit in Open with cooldown = 0ms (immediately elapsed)
@@ -473,7 +473,7 @@ mod tests {
         );
     }
 
-    // AC-3 — HalfOpen success closes circuit
+    // HalfOpen success closes circuit
     #[test]
     fn test_half_open_success_closes_circuit() {
         // GIVEN circuit in HalfOpen
@@ -495,7 +495,7 @@ mod tests {
         assert_eq!(cb.failure_count(), 0);
     }
 
-    // AC-3 — HalfOpen failure reopens circuit
+    // HalfOpen failure reopens circuit
     #[test]
     fn test_half_open_failure_reopens_circuit() {
         // GIVEN circuit in HalfOpen
@@ -517,7 +517,7 @@ mod tests {
         assert_eq!(layer.get("file_io").unwrap().state(), &CircuitState::Open);
     }
 
-    // AC-4 — Permanent errors do not increment
+    // Permanent errors do not increment
     #[test]
     fn test_permanent_error_does_not_increment() {
         // GIVEN circuit in Closed with failure_count == 0
@@ -536,7 +536,7 @@ mod tests {
         assert_eq!(cb.state(), &CircuitState::Closed);
     }
 
-    // AC-4 — BudgetExceeded does not increment
+    // BudgetExceeded does not increment
     #[test]
     fn test_budget_exceeded_does_not_increment() {
         // GIVEN circuit in Closed
@@ -553,7 +553,7 @@ mod tests {
         assert_eq!(layer.get("file_io").unwrap().failure_count(), 0);
     }
 
-    // AC-4 — SandboxViolation does not increment
+    // SandboxViolation does not increment
     #[test]
     fn test_sandbox_violation_does_not_increment() {
         // GIVEN circuit in Closed
@@ -570,7 +570,7 @@ mod tests {
         assert_eq!(layer.get("file_io").unwrap().failure_count(), 0);
     }
 
-    // AC-5 — Success resets failure count
+    // Success resets failure count
     #[test]
     fn test_success_resets_failure_count() {
         // GIVEN failure_count == 3 (under threshold of 5)
@@ -590,7 +590,7 @@ mod tests {
         assert_eq!(layer.get("file_io").unwrap().failure_count(), 0);
     }
 
-    // AC-6 — Independent circuit breakers
+    // Independent circuit breakers
     #[test]
     fn test_independent_circuit_breakers() {
         // GIVEN ResilienceLayer with 3 tools
@@ -662,7 +662,7 @@ mod tests {
 
     // --- RetryPolicy tests ---
 
-    // AC-1 — Exponential backoff delays
+    // Exponential backoff delays
     #[test]
     fn test_calculate_delay_exponential() {
         // GIVEN RetryPolicy with base_delay=500, jitter=false
@@ -680,7 +680,7 @@ mod tests {
         assert_eq!(policy.calculate_delay(3), Duration::from_millis(2000));
     }
 
-    // AC-6 — Max delay caps the backoff
+    // Max delay caps the backoff
     #[test]
     fn test_calculate_delay_capped_at_max() {
         // GIVEN RetryPolicy with base_delay=500, max_delay=2000
@@ -699,7 +699,7 @@ mod tests {
         assert_eq!(delay, Duration::from_millis(2000));
     }
 
-    // AC-2 — Jitter adds randomness
+    // Jitter adds randomness
     #[test]
     fn test_calculate_delay_with_jitter() {
         // GIVEN RetryPolicy with jitter=true
@@ -758,7 +758,7 @@ mod tests {
         }
     }
 
-    // AC-4 (partial) — Success on first try, no retry needed
+    // (partial) — Success on first try, no retry needed
     #[tokio::test]
     async fn test_execute_success_no_retry() {
         // GIVEN an operation that succeeds
@@ -783,7 +783,7 @@ mod tests {
         assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 
-    // AC-4 — Transient failures then success
+    // Transient failures then success
     #[tokio::test]
     async fn test_execute_transient_then_success() {
         // GIVEN an operation that fails 2 times (Transient) then succeeds
@@ -814,7 +814,7 @@ mod tests {
         assert_eq!(layer.get("t").unwrap().failure_count(), 0);
     }
 
-    // AC-3 — Permanent error returns immediately, no retry
+    // Permanent error returns immediately, no retry
     #[tokio::test]
     async fn test_execute_permanent_no_retry() {
         // GIVEN an operation that fails with Permanent
@@ -841,7 +841,7 @@ mod tests {
         assert_eq!(layer.get("t").unwrap().failure_count(), 0);
     }
 
-    // AC-5 — All retries exhausted, failure recorded on circuit breaker
+    // All retries exhausted, failure recorded on circuit breaker
     #[tokio::test]
     async fn test_execute_all_retries_exhausted() {
         // GIVEN an operation that always fails (Transient), max_attempts=3

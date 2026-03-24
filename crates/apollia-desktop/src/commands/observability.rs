@@ -209,7 +209,7 @@ fn build_event_summary(event_type: &str, event: &serde_json::Value, agent_id: &s
 }
 
 // ---------------------------------------------------------------------------
-// Audit Trail (AC-4)
+// Audit Trail
 // ---------------------------------------------------------------------------
 
 /// Entrée de l'audit trail pour l'affichage dans l'UI.
@@ -313,7 +313,7 @@ pub async fn get_tool_audit_trail(
 }
 
 // ---------------------------------------------------------------------------
-// LLM Daily Costs (AC-3)
+// LLM Daily Costs
 // ---------------------------------------------------------------------------
 
 /// Entrée coût journalier par backend pour le graphique SVG.

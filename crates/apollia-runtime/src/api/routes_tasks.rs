@@ -308,7 +308,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
         }
     };
 
-    // ── AC-4 / AC-3 : vérifier le statut via TaskRepository ─────────────────
+    // ── vérifier le statut via TaskRepository ─────────────────
     let db_status = repo.get_task_status(&task_id).await.map_err(|e| {
         tracing::error!(task_id = %task_id, error = %e, "get_task_status failed");
         (
@@ -320,7 +320,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
     })?;
 
     match db_status.as_deref() {
-        // AC-4 — tâche absente de la table tasks → 404
+        // tâche absente de la table tasks → 404
         None => {
             return Err((
                 StatusCode::NOT_FOUND,
@@ -329,7 +329,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
                 }),
             ));
         }
-        // AC-3 — tâche présente mais pas en input_required → 409
+        // tâche présente mais pas en input_required → 409
         Some(status) if status != "input_required" => {
             return Err((
                 StatusCode::CONFLICT,
@@ -352,7 +352,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
         responded_at,
     };
 
-    // ── AC-2 : durabilité avant notification — DB write avant EventBus ───────
+    // ── durabilité avant notification — DB write avant EventBus ───────
     repo.save_input_response(&task_id, &input_response)
         .await
         .map_err(|e| {
@@ -899,7 +899,7 @@ mod tests {
             .with_state(state)
     }
 
-    // AC-1 — Approbation valide → 200 OK + TaskResumed émis sur EventBus
+    // Approbation valide → 200 OK + TaskResumed émis sur EventBus
 
     #[tokio::test]
     async fn test_ac1_resume_approve_returns_200() {
@@ -930,7 +930,7 @@ mod tests {
         assert_eq!(json["status"], "working");
     }
 
-    // AC-2 — Rejet valide avec raison → 200 OK
+    // Rejet valide avec raison → 200 OK
 
     #[tokio::test]
     async fn test_ac2_resume_reject_with_reason() {
@@ -963,7 +963,7 @@ mod tests {
         assert_eq!(json["status"], "working");
     }
 
-    // AC-3 — Tâche pas en input_required → 409 CONFLICT
+    // Tâche pas en input_required → 409 CONFLICT
 
     #[tokio::test]
     async fn test_ac3_resume_not_input_required_returns_409() {
@@ -1009,7 +1009,7 @@ mod tests {
         );
     }
 
-    // AC-4 — Tâche inexistante → 404 NOT FOUND
+    // Tâche inexistante → 404 NOT FOUND
 
     #[tokio::test]
     async fn test_ac4_resume_task_not_found_returns_404() {

@@ -389,7 +389,7 @@ mod tests {
         }
     }
 
-    // AC-1 — Création notifications.db avec 3 tables
+    // Création notifications.db avec 3 tables
     #[test]
     fn test_open_creates_tables() {
         // GIVEN un chemin vers une nouvelle base
@@ -425,7 +425,7 @@ mod tests {
         assert_eq!(indices.len(), 1);
     }
 
-    // AC-2 — Insert, get, list, update, delete channels
+    // Insert, get, list, update, delete channels
     #[test]
     fn test_insert_and_get_channel() {
         // GIVEN
@@ -446,7 +446,7 @@ mod tests {
         assert_eq!(all.len(), 1);
     }
 
-    // AC-2 — Update channel
+    // Update channel
     #[test]
     fn test_update_channel() {
         // GIVEN
@@ -467,7 +467,7 @@ mod tests {
         assert!(result.updated_at >= original.updated_at);
     }
 
-    // AC-2 — Delete channel
+    // Delete channel
     #[test]
     fn test_delete_channel() {
         // GIVEN
@@ -482,7 +482,7 @@ mod tests {
         assert!(repo.get_channel("slack-ops").expect("get").is_none());
     }
 
-    // AC-3 — Duplicate channel ID
+    // Duplicate channel ID
     #[test]
     fn test_duplicate_channel_id() {
         // GIVEN
@@ -500,7 +500,7 @@ mod tests {
         );
     }
 
-    // AC-4 — Global events CRUD
+    // Global events CRUD
     #[test]
     fn test_global_events_crud() {
         // GIVEN
@@ -523,7 +523,7 @@ mod tests {
         assert_eq!(events, vec!["task.completed"]);
     }
 
-    // AC-5 — Validation webhook sans URL
+    // Validation webhook sans URL
     #[test]
     fn test_validation_webhook_no_url() {
         // GIVEN
@@ -548,7 +548,7 @@ mod tests {
         );
     }
 
-    // AC-6 — Validation event name inconnu
+    // Validation event name inconnu
     #[test]
     fn test_validation_unknown_event() {
         // GIVEN
@@ -566,7 +566,7 @@ mod tests {
         );
     }
 
-    // AC-7 — Write log + query logs
+    // Write log + query logs
     #[test]
     fn test_write_and_query_logs() {
         // GIVEN

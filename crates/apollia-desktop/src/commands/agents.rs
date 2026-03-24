@@ -20,7 +20,7 @@ use super::http_post_json;
 // Types réponse
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Réponse d'une installation ou mise à jour d'agent (AC-1, AC-4).
+/// Réponse d'une installation ou mise à jour d'agent.
 #[derive(Debug, Serialize)]
 pub struct InstallAgentResponse {
     /// Nom unique de l'agent installé.
@@ -31,7 +31,7 @@ pub struct InstallAgentResponse {
     pub install_path: String,
 }
 
-/// Élément de la liste enrichie des agents (AC-5).
+/// Élément de la liste enrichie des agents.
 ///
 /// Fusionne les agents installés (persistés dans `agents.db`) avec les agents
 /// actifs dans le runtime, offrant une vue unifiée au frontend.
@@ -95,7 +95,7 @@ fn now_rfc3339() -> String {
 // Commandes existantes
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Liste tous les agents — fusionne agents installés et agents runtime (AC-5).
+/// Liste tous les agents — fusionne agents installés et agents runtime.
 ///
 /// Les agents installés (persistés dans `agents.db`) sont enrichis avec leur
 /// état runtime s'ils sont actuellement chargés. Les agents runtime-only
@@ -249,7 +249,7 @@ pub async fn stop_agent(runtime: State<'_, RuntimeHandle>, agent_id: String) -> 
 // Commandes de persistance
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Installe un agent de façon permanente depuis un fichier Python (AC-1).
+/// Installe un agent de façon permanente depuis un fichier Python.
 ///
 /// Valide le module Python via `AgentLoader`, copie le fichier dans
 /// `~/.apollia/agents/<name>/agent.py`, et persiste l'entrée dans `agents.db`.
@@ -342,7 +342,7 @@ pub async fn install_agent(
     })
 }
 
-/// Désinstalle un agent installé (AC-2).
+/// Désinstalle un agent installé.
 ///
 /// Supprime l'entrée de `agents.db` et le répertoire d'installation.
 /// Émet un `RuntimeEvent::AgentUninstalled` sur l'EventBus.
@@ -383,7 +383,7 @@ pub async fn uninstall_agent(
     Ok(())
 }
 
-/// Active un agent installé pour l'auto-start au boot (AC-3).
+/// Active un agent installé pour l'auto-start au boot.
 ///
 /// Met `enabled = true` dans `agents.db`.
 /// Émet un `RuntimeEvent::AgentEnabled` sur l'EventBus.
@@ -414,7 +414,7 @@ pub async fn enable_agent(
     Ok(())
 }
 
-/// Désactive un agent installé (ne sera plus chargé au boot) (AC-3).
+/// Désactive un agent installé (ne sera plus chargé au boot).
 ///
 /// Met `enabled = false` dans `agents.db`.
 /// Émet un `RuntimeEvent::AgentDisabled` sur l'EventBus.
@@ -446,7 +446,7 @@ pub async fn disable_agent(
     Ok(())
 }
 
-/// Met à jour un agent installé avec un nouveau fichier Python (AC-4).
+/// Met à jour un agent installé avec un nouveau fichier Python.
 ///
 /// Valide le nouveau module via `AgentLoader`, remplace le fichier, et met à
 /// jour l'entrée dans `agents.db`. Émet `RuntimeEvent::AgentInstalled`.
@@ -657,7 +657,7 @@ mod tests {
         assert_eq!(state_to_string(&ProcessState::Stopped), "stopped");
     }
 
-    // AC-1 — InstallAgentResponse serialization
+    // InstallAgentResponse serialization
     #[test]
     fn test_install_agent_response_serialization() {
         // GIVEN an InstallAgentResponse
@@ -678,7 +678,7 @@ mod tests {
             .is_some_and(|p| p.contains("mon-agent")));
     }
 
-    // AC-5 — AgentListItem includes installed fields
+    // AgentListItem includes installed fields
     #[test]
     fn test_agent_list_item_includes_installed_fields() {
         // GIVEN an AgentListItem with all fields populated
@@ -714,7 +714,7 @@ mod tests {
         assert_eq!(json["execution_mode"], "auto");
     }
 
-    // AC-5 — AgentListItem with no runtime (installed but not loaded)
+    // AgentListItem with no runtime (installed but not loaded)
     #[test]
     fn test_agent_list_item_without_runtime() {
         // GIVEN an installed agent not currently loaded in runtime
@@ -745,7 +745,7 @@ mod tests {
         assert_eq!(json["tags"], serde_json::json!([]));
     }
 
-    // AC-5 — Runtime-only agent (not installed)
+    // Runtime-only agent (not installed)
     #[test]
     fn test_agent_list_item_runtime_only() {
         // GIVEN a runtime-only agent (not persisted)

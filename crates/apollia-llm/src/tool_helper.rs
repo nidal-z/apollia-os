@@ -395,7 +395,7 @@ mod tests {
 
     // ── Tests ─────────────────────────────────────────────────────────────
 
-    /// AC-1 — LLM répond directement sans appel d'outil.
+    /// LLM répond directement sans appel d'outil.
     #[tokio::test]
     async fn test_ac1_stop_immediately_no_tool_call() {
         // GIVEN
@@ -418,7 +418,7 @@ mod tests {
         assert_eq!(invoker.call_count(), 0);
     }
 
-    /// AC-2 — Boucle ReAct : LLM appelle 1 outil puis répond.
+    /// Boucle ReAct : LLM appelle 1 outil puis répond.
     #[tokio::test]
     async fn test_ac2_one_tool_call_then_stop() {
         // GIVEN
@@ -452,7 +452,7 @@ mod tests {
         assert_eq!(invoker.call_count(), 1);
     }
 
-    /// AC-3 — Garde-fou `max_iterations` respecté.
+    /// Garde-fou `max_iterations` respecté.
     #[tokio::test]
     async fn test_ac3_max_iterations_reached() {
         // GIVEN — LLM retourne toujours ToolCalls
@@ -472,7 +472,7 @@ mod tests {
         ));
     }
 
-    /// AC-4 — Garde-fou `StepBudget` respecté : aucun appel LLM si budget épuisé.
+    /// Garde-fou `StepBudget` respecté : aucun appel LLM si budget épuisé.
     #[tokio::test]
     async fn test_ac4_budget_exhausted_stops_immediately() {
         // GIVEN
@@ -489,7 +489,7 @@ mod tests {
         assert!(matches!(result, Err(LlmError::BudgetExceeded)));
     }
 
-    /// AC-5 — Erreur d'outil absorbée comme texte, boucle continue.
+    /// Erreur d'outil absorbée comme texte, boucle continue.
     #[tokio::test]
     async fn test_ac5_tool_error_absorbed_as_text() {
         // GIVEN — ToolInvoker retourne toujours une erreur

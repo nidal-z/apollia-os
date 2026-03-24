@@ -82,7 +82,7 @@ fn hello_agent_path() -> std::path::PathBuf {
     workspace_root.join("agents").join("hello_agent.py")
 }
 
-// AC-1 — full chain: AIPLoader → AIPBridge → TaskRouter → Coordinator → TaskCompleted
+// full chain: AIPLoader → AIPBridge → TaskRouter → Coordinator → TaskCompleted
 #[tokio::test]
 async fn test_hello_agent_full_chain() {
     let agent_path = hello_agent_path();
@@ -160,7 +160,7 @@ async fn test_hello_agent_full_chain() {
     registry.shutdown();
 }
 
-// AC-2 — agent without manifest() fails validation before registration
+// agent without manifest() fails validation before registration
 #[tokio::test]
 async fn test_invalid_agent_fails_at_load() {
     // GIVEN a Python file with run() but no manifest()
@@ -195,7 +195,7 @@ async fn test_invalid_agent_fails_at_load() {
     );
 }
 
-// AC-2 complementary — agent with manifest() but non-async run() fails validation
+// complementary — agent with manifest() but non-async run() fails validation
 #[tokio::test]
 async fn test_sync_run_fails_validation() {
     // GIVEN a Python file where run() is not async
@@ -225,7 +225,7 @@ async fn test_sync_run_fails_validation() {
     );
 }
 
-// AC-2 complementary — loading a Python file with no 'agent' variable fails
+// complementary — loading a Python file with no 'agent' variable fails
 #[tokio::test]
 async fn test_missing_agent_variable_fails_load() {
     // GIVEN a valid Python file without a top-level `agent` variable

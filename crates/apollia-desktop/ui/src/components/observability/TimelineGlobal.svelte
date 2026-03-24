@@ -159,7 +159,7 @@
   {:else if error}
     <p class="text-sm text-destructive">{error}</p>
   {:else if filteredEvents.length === 0}
-    <!-- AC-5 — Empty state -->
+    <!-- Empty state -->
     <div class="glass-card glass-border flex flex-col items-center justify-center py-12" data-testid="timeline-empty">
       <Clock class="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
       <p class="text-muted-foreground">{$t('observability.empty_timeline')}</p>
@@ -167,7 +167,7 @@
   {:else}
     <div class="space-y-1.5">
       {#each filteredEvents as event, index (event.timestamp + "-" + index)}
-        <!-- AC-2 — glass-card-hover event cards -->
+        <!-- glass-card-hover event cards -->
         <button
           class="flex w-full items-start gap-3 glass-card-hover px-3.5 py-2.5 text-left"
           onclick={() => toggleExpand(index)}

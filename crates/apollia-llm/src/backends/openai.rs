@@ -668,7 +668,7 @@ mod tests {
 
     // GIVEN un OpenAICompatibleClient construit avec une config valide et une clé fictive
     // WHEN on lit is_available(), backend_name(), model_id()
-    // THEN les valeurs attendues sont retournées (AC-1)
+    // THEN les valeurs attendues sont retournées
     #[test]
     fn test_ac1_client_new_is_available() {
         let config = ApiBackendConfig {

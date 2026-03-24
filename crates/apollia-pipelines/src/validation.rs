@@ -21,20 +21,20 @@ pub fn validate_pipeline(def: &PipelineDefinitionRow) -> Result<(), PipelineDefi
 /// Valide la structure DAG d'une liste de steps de pipeline.
 ///
 /// Verifications effectuees (fail-fast, dans cet ordre) :
-/// 1. Le pipeline doit avoir au moins un step (AC-10)
-/// 2. Les identifiants de steps doivent etre uniques (AC-7)
-/// 3. Les `depends_on` doivent referencer des steps existants (AC-8)
-/// 4. Le graphe de dependances doit etre acyclique (AC-6)
-/// 5. Les `fallback_for` doivent referencer des steps avec `on_failure=fallback` (AC-9)
+/// 1. Le pipeline doit avoir au moins un step
+/// 2. Les identifiants de steps doivent etre uniques
+/// 3. Les `depends_on` doivent referencer des steps existants
+/// 4. Le graphe de dependances doit etre acyclique
+/// 5. Les `fallback_for` doivent referencer des steps avec `on_failure=fallback`
 pub fn validate_pipeline_dag(steps: &[PipelineStepDef]) -> Result<(), PipelineDefinitionError> {
-    // AC-10: au moins un step
+    // au moins un step
     if steps.is_empty() {
         return Err(PipelineDefinitionError::ValidationError(
             "pipeline must have at least one step".to_string(),
         ));
     }
 
-    // AC-7: step_id uniques
+    // step_id uniques
     let mut seen_ids = HashSet::with_capacity(steps.len());
     for step in steps {
         if !seen_ids.insert(&step.id) {
@@ -45,7 +45,7 @@ pub fn validate_pipeline_dag(steps: &[PipelineStepDef]) -> Result<(), PipelineDe
         }
     }
 
-    // AC-6 + AC-8: cycle detection + depends_on valides via topo.rs
+    // + cycle detection + depends_on valides via topo.rs
     topological_layers(steps).map_err(|e| match e {
         TopologicalError::CycleDetected(_) => {
             PipelineDefinitionError::ValidationError("cycle detected in pipeline DAG".to_string())
@@ -57,7 +57,7 @@ pub fn validate_pipeline_dag(steps: &[PipelineStepDef]) -> Result<(), PipelineDe
         }
     })?;
 
-    // AC-9: fallback_for doit referencer un step avec on_failure=Fallback
+    // fallback_for doit referencer un step avec on_failure=Fallback
     for step in steps {
         if let Some(ref target_id) = step.fallback_for {
             let target = steps.iter().find(|s| s.id == *target_id);
@@ -113,7 +113,7 @@ mod tests {
         }
     }
 
-    // AC-10 — pipeline vide
+    // pipeline vide
     #[test]
     fn test_validation_empty_steps() {
         // GIVEN un pipeline sans steps
@@ -133,7 +133,7 @@ mod tests {
         );
     }
 
-    // AC-7 — step_id duplique
+    // step_id duplique
     #[test]
     fn test_validation_duplicate_step_id() {
         // GIVEN deux steps avec le meme id "etape-1"
@@ -153,7 +153,7 @@ mod tests {
         );
     }
 
-    // AC-6 — cycle detecte
+    // cycle detecte
     #[test]
     fn test_validation_cycle() {
         // GIVEN steps A->B->A (cycle)
@@ -173,7 +173,7 @@ mod tests {
         );
     }
 
-    // AC-8 — depends_on reference invalide
+    // depends_on reference invalide
     #[test]
     fn test_validation_invalid_depends_on() {
         // GIVEN un step avec depends_on="step-inexistant"
@@ -193,7 +193,7 @@ mod tests {
         );
     }
 
-    // AC-9 — fallback_for invalide (step cible sans on_failure=fallback)
+    // fallback_for invalide (step cible sans on_failure=fallback)
     #[test]
     fn test_validation_invalid_fallback_for() {
         // GIVEN un step avec fallback_for="etape-1" mais etape-1 a on_failure=fail
@@ -215,7 +215,7 @@ mod tests {
         );
     }
 
-    // AC-9 — fallback_for valide (step cible avec on_failure=fallback)
+    // fallback_for valide (step cible avec on_failure=fallback)
     #[test]
     fn test_validation_valid_fallback_for() {
         // GIVEN etape-1 avec on_failure=Fallback, et fallback-1 avec fallback_for=etape-1
@@ -234,7 +234,7 @@ mod tests {
         assert!(result.is_ok(), "valid fallback_for should pass: {result:?}");
     }
 
-    // AC-9 — fallback_for reference un step inexistant
+    // fallback_for reference un step inexistant
     #[test]
     fn test_validation_fallback_for_unknown_step() {
         // GIVEN un step avec fallback_for="inexistant"

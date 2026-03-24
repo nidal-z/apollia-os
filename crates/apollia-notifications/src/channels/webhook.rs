@@ -187,7 +187,7 @@ mod tests {
         })
     }
 
-    // ─── AC-5 — canal désactivé ───────────────────────────────────────────────
+    // ─── canal désactivé ───────────────────────────────────────────────
 
     #[test]
     fn test_ac5_disabled_channel_accepts_false() {
@@ -234,7 +234,7 @@ mod tests {
         assert!(!channel.accepts("agent.degraded", &config));
     }
 
-    // ─── AC-1 — structure payload JSON ───────────────────────────────────────
+    // ─── structure payload JSON ───────────────────────────────────────
 
     #[test]
     fn test_ac1_payload_json_structure_task_input_required() {
@@ -304,7 +304,7 @@ mod tests {
         assert_eq!(payload["event"], "agent.degraded");
     }
 
-    // ─── AC-3 — timeout → NotifError::WebhookFailed ──────────────────────────
+    // ─── timeout → NotifError::WebhookFailed ──────────────────────────
 
     #[tokio::test]
     async fn test_ac3_webhook_timeout_returns_error() {
@@ -351,7 +351,7 @@ mod tests {
         );
     }
 
-    // ─── AC-4 — réponse HTTP 500 → NotifError::WebhookFailed ─────────────────
+    // ─── réponse HTTP 500 → NotifError::WebhookFailed ─────────────────
 
     #[tokio::test]
     async fn test_ac4_webhook_500_returns_error() {
@@ -395,7 +395,7 @@ mod tests {
         }
     }
 
-    // ─── AC-2 — headers corrects envoyés ─────────────────────────────────────
+    // ─── headers corrects envoyés ─────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac2_headers_sent_correctly() {

@@ -620,7 +620,7 @@ mod tests {
         }
     }
 
-    // ── AC-3 — Unknown pipeline → exit code 1 ─────────────────────────────────
+    // ── Unknown pipeline → exit code 1 ─────────────────────────────────
 
     #[tokio::test]
     async fn test_ac3_unknown_pipeline_exit_code_1() {
@@ -642,7 +642,7 @@ mod tests {
         );
     }
 
-    // ── AC-6 — JSON output: list format ───────────────────────────────────────
+    // ── JSON output: list format ───────────────────────────────────────
 
     #[test]
     fn test_ac6_format_pipeline_list_json_two_items() {

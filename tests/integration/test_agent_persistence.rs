@@ -4,11 +4,11 @@
 //! using real `AgentRepository` (SQLite) and `Supervisor` auto-load.
 //! No Python dependency — uses a configurable mock `AgentLoader`.
 //!
-//! AC-1: install → persist → reload at boot
-//! AC-2: disabled agent not loaded at boot
-//! AC-3: uninstall removes files + DB entry
-//! AC-4: corrupted agent does not block boot (graceful degradation)
-//! AC-5: update replaces file and manifest in DB
+//! install → persist → reload at boot
+//! disabled agent not loaded at boot
+//! uninstall removes files + DB entry
+//! corrupted agent does not block boot (graceful degradation)
+//! update replaces file and manifest in DB
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

@@ -100,7 +100,7 @@ impl ToolProxy {
         let input_value: serde_json::Value = serde_json::from_str(&input_str)
             .map_err(|e| PyRuntimeError::new_err(format!("JSON parse failed: {e}")))?;
 
-        // Increment counter unconditionally (AC-6)
+        // Increment counter unconditionally
         self.tool_calls.fetch_add(1, Ordering::Relaxed);
 
         // Clone fields for the 'static async future
@@ -488,7 +488,7 @@ impl RuntimeContext {
     ) -> Self {
         let llm = llm_router.and_then(|router| {
             if router.list().is_empty() {
-                // AC-3: fire-and-forget — erreurs send() silencieusement ignorées.
+                // fire-and-forget — erreurs send() silencieusement ignorées.
                 let _ = event_bus.send(RuntimeEvent::AgentDegraded {
                     agent_id,
                     reason: "no LLM backend available".into(),
@@ -753,7 +753,7 @@ mod runtime_context_tests {
         ))
     }
 
-    /// AC-2 — `ctx.llm` est `None` si le router n'a aucun backend.
+    /// `ctx.llm` est `None` si le router n'a aucun backend.
     #[tokio::test]
     async fn test_ac2_ctx_llm_none_if_no_backends() {
         // GIVEN un LlmRouter vide (0 backends)
@@ -777,7 +777,7 @@ mod runtime_context_tests {
         assert!(ctx.llm.is_none());
     }
 
-    /// AC-3 — `AgentDegraded` émis sur EventBus si aucun backend LLM.
+    /// `AgentDegraded` émis sur EventBus si aucun backend LLM.
     #[tokio::test]
     async fn test_ac3_agent_degraded_emitted_if_no_llm() {
         // GIVEN un router vide et un bus avec receiver
@@ -810,7 +810,7 @@ mod runtime_context_tests {
         );
     }
 
-    /// AC-2 (variante) — `ctx.llm` est `None` si `llm_router` est `None`.
+    /// (variante) — `ctx.llm` est `None` si `llm_router` est `None`.
     #[tokio::test]
     async fn test_ac2_ctx_llm_none_if_router_option_is_none() {
         // GIVEN llm_router = None (Supervisor n'a pas pu initialiser le LLM)
@@ -913,7 +913,7 @@ mod tests {
         (proxy, registry, audit)
     }
 
-    // AC-1: Nominal tool call
+    // Nominal tool call
     #[tokio::test]
     async fn test_call_tool_nominal() {
         // GIVEN a ToolProxy with "file_io" allowed and registered
@@ -936,7 +936,7 @@ mod tests {
         audit.shutdown().await;
     }
 
-    // AC-2: Tool not found in registry
+    // Tool not found in registry
     #[tokio::test]
     async fn test_call_tool_not_found() {
         // GIVEN a ToolProxy with "inexistant" allowed but NOT in registry
@@ -955,7 +955,7 @@ mod tests {
         audit.shutdown().await;
     }
 
-    // AC-3: Tool not allowed for this agent
+    // Tool not allowed for this agent
     #[tokio::test]
     async fn test_call_tool_not_allowed() {
         // GIVEN a ToolProxy with allowed_tools = ["file_io"]
@@ -980,7 +980,7 @@ mod tests {
         audit.shutdown().await;
     }
 
-    // AC-4: Tool execution failed
+    // Tool execution failed
     #[tokio::test]
     async fn test_call_tool_execution_failed() {
         // GIVEN a ToolProxy with an executor that fails
@@ -1005,7 +1005,7 @@ mod tests {
         audit.shutdown().await;
     }
 
-    // AC-5: Audit trail records each call
+    // Audit trail records each call
     #[tokio::test]
     async fn test_call_records_audit_trail() {
         // GIVEN a ToolProxy with a connected AuditTrailHandle
@@ -1038,7 +1038,7 @@ mod tests {
         audit.shutdown().await;
     }
 
-    // AC-6: Tool call counter increments
+    // Tool call counter increments
     #[tokio::test]
     async fn test_tool_call_count_increments() {
         // GIVEN a ToolProxy with tool_calls = 0
@@ -1062,7 +1062,7 @@ mod tests {
         audit.shutdown().await;
     }
 
-    /// AC-3 : describe_inner retourne un JSON Value complet pour un descripteur renseigné.
+    /// describe_inner retourne un JSON Value complet pour un descripteur renseigné.
     #[test]
     fn test_describe_inner_returns_json_value() {
         // GIVEN un ToolDescriptor avec tous les champs renseignés
@@ -1096,7 +1096,7 @@ mod tests {
         assert_eq!(tags[1], "execution");
     }
 
-    /// AC-2 (côté Rust) : describe_inner sur un descripteur minimal (champs optionnels vides/None).
+    /// (côté Rust) : describe_inner sur un descripteur minimal (champs optionnels vides/None).
     #[test]
     fn test_describe_inner_minimal_descriptor() {
         // GIVEN un ToolDescriptor avec output_schema=None et tags vide
@@ -1130,7 +1130,7 @@ mod a2a_tests {
     use apollia_runtime::EventBus;
     use std::time::Duration;
 
-    /// AC-1 : send_inner délivre un message, receive_inner le reçoit.
+    /// send_inner délivre un message, receive_inner le reçoit.
     #[tokio::test]
     async fn test_send_inner_delivers_message() {
         // GIVEN une mailbox active
@@ -1154,7 +1154,7 @@ mod a2a_tests {
         handle.shutdown().await;
     }
 
-    /// AC-3 : receive_inner retourne None si aucun message en attente (timeout).
+    /// receive_inner retourne None si aucun message en attente (timeout).
     #[tokio::test]
     async fn test_receive_inner_returns_none_on_timeout() {
         // GIVEN une mailbox active sans messages
@@ -1170,7 +1170,7 @@ mod a2a_tests {
         handle.shutdown().await;
     }
 
-    /// AC-2 : le gate check rejette l'appel si supports_a2a est false.
+    /// le gate check rejette l'appel si supports_a2a est false.
     #[tokio::test]
     async fn test_gate_check_rejects_without_a2a() {
         // GIVEN un RuntimeContext avec supports_a2a = false

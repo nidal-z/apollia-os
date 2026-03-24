@@ -74,8 +74,6 @@ mod tests {
     use crate::types::{InputTemplate, OnBusyPolicy, TriggerSourceConfig};
     use std::time::Duration;
 
-    // ── AC-2 ──────────────────────────────────────────────────────────────
-
     #[tokio::test]
     async fn test_ac2_interval_fires_multiple_times() {
         // GIVEN — intervalle de 100ms

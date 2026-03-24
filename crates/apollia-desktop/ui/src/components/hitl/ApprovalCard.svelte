@@ -107,7 +107,7 @@
 
 {#if !resolved}
   <div class="glass-card-hover relative overflow-hidden" data-testid="approval-card" data-task-id={approval.task_id}>
-    <!-- Status accent bar (AC-1) -->
+    <!-- Status accent bar -->
     <div
       class="h-0.5 w-full {isOverThreshold ? 'bg-destructive' : 'bg-warning'}"
       data-testid="approval-status-bar"
@@ -145,7 +145,7 @@
         </details>
       {/if}
 
-      <!-- Actions (AC-2) -->
+      <!-- Actions -->
       <div class="flex gap-2 mt-3">
         <Button
           size="sm"
@@ -167,7 +167,7 @@
     </div>
   </div>
 
-  <!-- Approve Dialog (AC-2) -->
+  <!-- Approve Dialog -->
   <Dialog
     open={showApproveDialog}
     onclose={() => (showApproveDialog = false)}
@@ -193,7 +193,7 @@
     </div>
   </Dialog>
 
-  <!-- Reject Dialog (AC-2 + AC-3) -->
+  <!-- Reject Dialog -->
   <Dialog
     open={showRejectDialog}
     onclose={() => (showRejectDialog = false)}

@@ -316,7 +316,7 @@ mod tests {
         }
     }
 
-    // ── AC-2 — Insert + Get ─────────────────────────────────────────────────
+    // ── Insert + Get ─────────────────────────────────────────────────
 
     #[test]
     fn test_insert_and_get() {
@@ -342,7 +342,7 @@ mod tests {
         assert!(!got.updated_at.is_empty(), "updated_at doit etre renseigne");
     }
 
-    // ── AC-3 — Insert duplicate ID ──────────────────────────────────────────
+    // ── Insert duplicate ID ──────────────────────────────────────────
 
     #[test]
     fn test_insert_duplicate_id() {
@@ -364,7 +364,7 @@ mod tests {
         );
     }
 
-    // ── AC-4 — Update existant ──────────────────────────────────────────────
+    // ── Update existant ──────────────────────────────────────────────
 
     #[test]
     fn test_update_existing() {
@@ -392,7 +392,7 @@ mod tests {
         );
     }
 
-    // ── AC-5 — Delete + Get + List ──────────────────────────────────────────
+    // ── Delete + Get + List ──────────────────────────────────────────
 
     #[test]
     fn test_delete_and_list() {
@@ -411,7 +411,7 @@ mod tests {
         assert!(repo.get("pipeline-1").expect("get").is_none());
     }
 
-    // ── AC-6 — Validation cycle detecte ─────────────────────────────────────
+    // ── Validation cycle detecte ─────────────────────────────────────
 
     #[test]
     fn test_validation_cycle() {
@@ -441,7 +441,7 @@ mod tests {
         );
     }
 
-    // ── AC-7 — Validation step_id duplique ──────────────────────────────────
+    // ── Validation step_id duplique ──────────────────────────────────
 
     #[test]
     fn test_validation_duplicate_step_id() {
@@ -471,7 +471,7 @@ mod tests {
         );
     }
 
-    // ── AC-8 — Validation depends_on reference invalide ─────────────────────
+    // ── Validation depends_on reference invalide ─────────────────────
 
     #[test]
     fn test_validation_invalid_depends_on() {
@@ -501,7 +501,7 @@ mod tests {
         );
     }
 
-    // ── AC-9 — Validation fallback_for invalide ─────────────────────────────
+    // ── Validation fallback_for invalide ─────────────────────────────
 
     #[test]
     fn test_validation_invalid_fallback_for() {
@@ -533,7 +533,7 @@ mod tests {
         );
     }
 
-    // ── AC-10 — Validation pipeline vide ────────────────────────────────────
+    // ── Validation pipeline vide ────────────────────────────────────
 
     #[test]
     fn test_validation_empty_steps() {

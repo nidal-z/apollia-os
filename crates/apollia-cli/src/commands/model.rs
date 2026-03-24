@@ -149,7 +149,7 @@ mod tests {
 
     // GIVEN a directory with 2 .gguf files and 1 .txt file
     // WHEN list_gguf_files() is called
-    // THEN only the 2 .gguf files are returned (AC-6)
+    // THEN only the 2 .gguf files are returned
     #[test]
     fn test_ac6_model_list_scans_gguf_files() {
         // GIVEN

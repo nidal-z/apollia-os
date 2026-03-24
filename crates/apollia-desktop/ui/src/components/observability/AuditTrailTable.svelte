@@ -130,13 +130,13 @@
   {:else if error}
     <p class="text-sm text-destructive">{error}</p>
   {:else if filteredEntries.length === 0}
-    <!-- AC-5 — Empty state -->
+    <!-- Empty state -->
     <div class="glass-card glass-border flex flex-col items-center justify-center py-12" data-testid="audit-trail-empty">
       <Shield class="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
       <p class="text-muted-foreground">{$t('observability.empty_audit')}</p>
     </div>
   {:else}
-    <!-- AC-4 — Standard table styling -->
+    <!-- Standard table styling -->
     <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="audit-trail-table">
       <table class="w-full text-[13px]">
         <thead class="border-b border-border bg-muted/50">

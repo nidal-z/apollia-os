@@ -140,7 +140,7 @@ async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
 /// `apollia-os task list --pending-approval` — display tasks awaiting HITL approval.
 ///
 /// Calls `GET /api/v1/tasks?status=input_required` and renders a table with
-/// `TASK_ID | AGENT | DEPUIS | PROMPT` columns (AC-1), or a JSON array (AC-5).
+/// `TASK_ID | AGENT | DEPUIS | PROMPT` columns, or a JSON array.
 async fn run_list_pending(client: &RuntimeClient, json: bool) -> i32 {
     let resp = match client.get("/api/v1/tasks?status=input_required").await {
         Ok(r) => r,
@@ -220,7 +220,7 @@ async fn run_cancel(client: &RuntimeClient, task_id: &str, json: bool) -> i32 {
 /// `apollia-os task resume <id> --approve|--reject [--reason "..."]`
 ///
 /// Posts `{ approved: bool, reason?: String }` to
-/// `POST /api/v1/tasks/{id}/resume` and prints the result (AC-2, AC-3, AC-4).
+/// `POST /api/v1/tasks/{id}/resume` and prints the result.
 async fn run_resume(
     client: &RuntimeClient,
     task_id: &str,
@@ -242,7 +242,7 @@ async fn run_resume(
         Err(e) => return handle_error(e, json),
     };
 
-    // HTTP 409 means the task is not in input_required state (AC-4).
+    // HTTP 409 means the task is not in input_required state.
     if resp.status == 409 {
         let msg = extract_error_message(&resp, "la tâche n'est pas en attente d'approbation");
         if json {
@@ -361,7 +361,7 @@ fn format_task_list(resp: &serde_json::Value) {
     }
 }
 
-/// Render pending-approval tasks as a human-readable table (AC-1).
+/// Render pending-approval tasks as a human-readable table.
 ///
 /// Columns: `TASK_ID | AGENT | DEPUIS | PROMPT` (prompt truncated to 60 chars).
 fn format_pending_table(tasks: &[serde_json::Value]) {
@@ -400,7 +400,7 @@ fn format_pending_table(tasks: &[serde_json::Value]) {
     }
 }
 
-/// Build the AC-5 JSON array for `--pending-approval --json` output.
+/// Build the JSON array for `--pending-approval --json` output.
 ///
 /// Each element has: `task_id`, `agent`, `waiting_since_secs`, `prompt`, `step_id`.
 pub fn build_pending_json(tasks: &[serde_json::Value]) -> Vec<serde_json::Value> {
@@ -504,7 +504,7 @@ fn display_plan_human(plan: &PlanWithSteps) {
 
 /// Serialize a plan with its steps to a `serde_json::Value` for `--json` output.
 ///
-/// Produces the structure expected by AC-2 :
+/// Produces the JSON structure :
 /// `{ plan_id, task_id, agent_name, status, replan_count, created_at, steps: [...] }`.
 fn plan_to_json(plan: &PlanWithSteps) -> serde_json::Value {
     serde_json::json!({
@@ -720,7 +720,7 @@ mod tests {
 
     // GIVEN un output de 200 caractères
     // WHEN truncate_output est appelé
-    // THEN l'output est tronqué à 120 chars + "..." (AC-5)
+    // THEN l'output est tronqué à 120 chars + "..."
     #[test]
     fn test_ac5_output_tronque() {
         // GIVEN
@@ -752,7 +752,7 @@ mod tests {
 
     // GIVEN un plan complété avec un step
     // WHEN plan_to_json est appelé
-    // THEN le JSON contient les champs attendus (AC-2)
+    // THEN le JSON contient les champs attendus
     #[test]
     fn test_plan_to_json_structure() {
         // GIVEN
