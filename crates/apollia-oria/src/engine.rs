@@ -11,7 +11,7 @@
 //! remains available for callers that already hold an [`AgentRunner`].
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::time::Instant;
 
@@ -20,6 +20,7 @@ use apollia_core::{
     RuntimeEvent, StepBudgetConfig, TaskStatus,
 };
 use apollia_llm::{CompletionModel, LlmRouter};
+use apollia_memory::manager::MemoryManager;
 
 use crate::actor::{ActorLoop, ToolProxyTrait};
 use crate::budget::StepBudget;
@@ -178,6 +179,11 @@ pub struct ORIAEngine {
     ///
     /// Si `None`, la persistance est ignorée (warning tracé) mais l'exécution continue.
     task_repository: Option<Arc<apollia_tools::TaskRepository>>,
+    /// Memory manager for automatic episodic recording per step (STORY-230).
+    ///
+    /// Passed to [`ActorLoop`] during orchestrated execution. When `Some`, each completed
+    /// step records an episodic memory entry in the agent's namespace.
+    memory_manager: Option<Arc<Mutex<MemoryManager>>>,
 }
 
 impl ORIAEngine {
@@ -201,6 +207,7 @@ impl ORIAEngine {
             db_path: None,
             pending_approvals: None,
             task_repository: None,
+            memory_manager: None,
         }
     }
 
@@ -263,6 +270,15 @@ impl ORIAEngine {
     /// (warning tracé — Principe #4 : fail fast uniquement pour les erreurs détectables).
     pub fn with_task_repository(mut self, repo: Arc<apollia_tools::TaskRepository>) -> Self {
         self.task_repository = Some(repo);
+        self
+    }
+
+    /// Injecte un [`MemoryManager`] pour l'enregistrement épisodique per-step (STORY-230).
+    ///
+    /// Passé à l'[`ActorLoop`] lors de l'exécution orchestrée. Chaque step complété
+    /// enregistre automatiquement une entrée épisodique dans le namespace de l'agent.
+    pub fn with_memory_manager(mut self, mm: Arc<Mutex<MemoryManager>>) -> Self {
+        self.memory_manager = Some(mm);
         self
     }
 
@@ -395,7 +411,8 @@ impl ORIAEngine {
             self.event_bus.clone(),
             manifest.clone(),
         )
-        .with_pending_approvals(self.pending_approvals.clone());
+        .with_pending_approvals(self.pending_approvals.clone())
+        .with_memory_manager(self.memory_manager.clone());
         let step_result = actor
             .execute(
                 tool_proxy,

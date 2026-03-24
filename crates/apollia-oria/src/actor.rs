@@ -29,7 +29,7 @@
 //! Les futures produites par `execute()` sont donc `!Send`.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
@@ -37,6 +37,7 @@ use apollia_core::manifest::AgentManifest;
 use apollia_core::observability::ObservabilityConfig;
 use apollia_core::{AIPResult, PendingApprovals};
 use apollia_llm::{ChatMessage, CompletionRequest, LlmRouter};
+use apollia_memory::manager::MemoryManager;
 
 use crate::budget::StepBudget;
 use crate::observer::{ContextBundle, ExecutionMode};
@@ -113,6 +114,19 @@ impl StepError {
         )
     }
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Constants
+// ────────────────────────────────────────────────────────────────────────────
+
+/// Importance level for step-level episodic memory entries (STORY-230).
+///
+/// Set to 0.6 — above the default recall threshold (0.5) so that step outputs
+/// appear in standard memory queries, but below critical events (1.0).
+const STEP_MEMORY_IMPORTANCE: f64 = 0.6;
+
+/// Maximum character length for step output stored in episodic memory (STORY-230 AC-4).
+const STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
 
 // ────────────────────────────────────────────────────────────────────────────
 // StepContext
@@ -197,6 +211,12 @@ pub struct ActorLoop {
     pending_approvals: Option<Arc<PendingApprovals>>,
     /// Configuration d'observabilité pour la troncature des inputs/outputs persistés.
     obs_config: ObservabilityConfig,
+    /// Memory manager for episodic recording after each step (STORY-230).
+    ///
+    /// When `Some`, step outputs are automatically recorded as episodic memories
+    /// in the agent's namespace. `Arc<Mutex<MemoryManager>>` follows the ADR-033
+    /// precedent (rare mutations, operator-level writes).
+    memory_manager: Option<Arc<Mutex<MemoryManager>>>,
 }
 
 impl ActorLoop {
@@ -227,6 +247,7 @@ impl ActorLoop {
             manifest,
             pending_approvals: None,
             obs_config: ObservabilityConfig::default(),
+            memory_manager: None,
         }
     }
 
@@ -245,6 +266,18 @@ impl ActorLoop {
     /// Par défaut, utilise [`ObservabilityConfig::default()`].
     pub fn with_obs_config(mut self, config: ObservabilityConfig) -> Self {
         self.obs_config = config;
+        self
+    }
+
+    /// Injecte un [`MemoryManager`] pour l'enregistrement épisodique per-step (STORY-230).
+    ///
+    /// Quand configuré, chaque step complété avec succès enregistre automatiquement
+    /// une entrée épisodique dans le namespace de l'agent. L'écriture est fire-and-forget :
+    /// un échec est loggé en warning mais n'interrompt jamais l'exécution du plan.
+    ///
+    /// `Arc<Mutex<MemoryManager>>` suit le précédent ADR-033 (mutations rares).
+    pub fn with_memory_manager(mut self, mm: Option<Arc<Mutex<MemoryManager>>>) -> Self {
+        self.memory_manager = mm;
         self
     }
 
@@ -377,6 +410,10 @@ impl ActorLoop {
                         step_id: step_id.clone(),
                         duration_ms,
                     });
+
+                    // STORY-230: record episodic memory per step (fire-and-forget).
+                    self.record_step_memory(&step_id, &step.description, &output);
+
                     completed_outputs.insert(step_id, output);
                 }
 
@@ -741,6 +778,80 @@ impl ActorLoop {
                     .unwrap_or_else(|| "Rejeté par l'utilisateur".into()),
             })
         }
+    }
+
+    /// Records an episodic memory entry for a completed step (STORY-230).
+    ///
+    /// Fire-and-forget: errors are logged as warnings but never interrupt execution.
+    /// Skipped silently when `memory_manager` is `None` or when the agent manifest
+    /// has no `memory_namespace` configured (AC-2).
+    ///
+    /// Output is truncated to [`STEP_MEMORY_OUTPUT_MAX_CHARS`] characters (AC-4).
+    fn record_step_memory(&self, step_id: &str, description: &str, output: &str) {
+        // AC-2: skip if no memory_manager or no namespace configured.
+        let mm = match self.memory_manager.as_ref() {
+            Some(mm) => mm,
+            None => return,
+        };
+        let namespace = match self.manifest.memory_namespace.as_deref() {
+            Some(ns) => ns,
+            None => return,
+        };
+
+        // AC-4: truncate output to 200 chars.
+        let truncated_output = truncate_chars(output, STEP_MEMORY_OUTPUT_MAX_CHARS);
+        let content = format!("step {step_id}: {description} -> {truncated_output}");
+        let task_id = self.plan.task_id.clone();
+        let agent_name = self.manifest.name.clone();
+        let namespace_owned = namespace.to_string();
+        let metadata = serde_json::json!({
+            "source": "oria_orchestrated",
+            "step_id": step_id,
+        });
+
+        let mm = Arc::clone(mm);
+        // Fire-and-forget: spawn_blocking for the sync SQLite write.
+        tokio::task::spawn_blocking(move || {
+            let mut guard = match mm.lock() {
+                Ok(g) => g,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        step_id = %task_id,
+                        "failed to acquire memory_manager lock for step memory (ignored)"
+                    );
+                    return;
+                }
+            };
+            let store = match guard.store(&namespace_owned) {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        namespace = %namespace_owned,
+                        "failed to open memory store for step memory (ignored)"
+                    );
+                    return;
+                }
+            };
+            let episodic = apollia_memory::episodic::EpisodicMemory::new(store);
+            if let Err(e) = episodic.record(
+                &namespace_owned,
+                &agent_name,
+                &content,
+                STEP_MEMORY_IMPORTANCE,
+                Some(task_id.as_str()),
+                None,
+                Some(&metadata),
+            ) {
+                // AC-3: warn but don't interrupt execution.
+                tracing::warn!(
+                    error = %e,
+                    namespace = %namespace_owned,
+                    "failed to record episodic step memory (ignored)"
+                );
+            }
+        });
     }
 
     /// Déclenche une replanification après l'échec retryable d'un step.
@@ -1168,6 +1279,20 @@ fn build_replan_context(plan: &ExecutionPlan) -> ContextBundle {
         available_tools: vec![],
         manifest_system_prompt: None,
         llm_backend_names: vec![],
+    }
+}
+
+/// Truncates a string to at most `max_chars` Unicode characters.
+///
+/// If the string exceeds `max_chars`, it is truncated and `"…"` is appended.
+/// UTF-8 safe: operates on `char` boundaries, not bytes.
+fn truncate_chars(s: &str, max_chars: usize) -> String {
+    let char_count = s.chars().count();
+    if char_count <= max_chars {
+        s.to_string()
+    } else {
+        let truncated: String = s.chars().take(max_chars).collect();
+        format!("{truncated}…")
     }
 }
 
@@ -2452,6 +2577,171 @@ mod tests {
         assert!(
             !view.is_exhausted(),
             "budget should not be exhausted with 7 steps remaining"
+        );
+    }
+
+    // ── STORY-230 — Per-step episodic memory ─────────────────────────────────
+
+    /// Helper: creates a manifest with `memory_namespace` set.
+    fn make_manifest_with_memory(namespace: &str) -> AgentManifest {
+        let json = format!(
+            r#"{{"name":"test-agent","version":"0.1.0","description":"test","tools_required":[],"memory_namespace":"{namespace}"}}"#,
+        );
+        serde_json::from_str(&json).expect("manifest with memory_namespace must deserialize")
+    }
+
+    /// Helper: creates an ActorLoop with a real MemoryManager backed by a temp dir.
+    fn make_actor_with_memory(
+        plan: ExecutionPlan,
+        manifest: AgentManifest,
+        memory_dir: &std::path::Path,
+    ) -> (ActorLoop, tokio::sync::broadcast::Receiver<RuntimeEvent>) {
+        let (bus_tx, bus_rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, &manifest.name).expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+
+        let mm = apollia_memory::manager::MemoryManager::new(
+            memory_dir,
+            manifest.memory_namespace.clone(),
+            vec![],
+        );
+        let mm = Arc::new(Mutex::new(mm));
+
+        let actor = ActorLoop::new(plan, 2, db, bus_tx, manifest).with_memory_manager(Some(mm));
+        (actor, bus_rx)
+    }
+
+    // STORY-230 AC-1 — Episodic entry created after step completion.
+    //
+    // GIVEN an agent with memory_namespace configured and a plan of 3 steps
+    // WHEN all steps complete successfully
+    // THEN an episodic entry exists for each step in the agent's namespace
+    #[tokio::test]
+    async fn test_story230_ac1_episodic_entry_after_step() {
+        // GIVEN
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let manifest = make_manifest_with_memory("test-ns");
+        let plan = make_plan(vec![("s1", &[]), ("s2", &["s1"]), ("s3", &["s2"])]);
+        let (mut actor, _rx) = make_actor_with_memory(plan, manifest, tmp.path());
+        let proxy = MockToolProxy {
+            response: "analysis done".into(),
+        };
+        let llm = LlmRouter::empty();
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        // WHEN
+        let result = actor
+            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .await;
+
+        // THEN — plan completed
+        assert_eq!(result.status, TaskStatus::Completed);
+
+        // Wait briefly for spawn_blocking tasks to complete.
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // Verify episodic entries exist via MemoryManager.
+        let mm = actor.memory_manager.as_ref().expect("memory_manager set");
+        let mut guard = mm.lock().expect("lock");
+        let store = guard.store("test-ns").expect("open store");
+        let episodic = apollia_memory::episodic::EpisodicMemory::new(store);
+        let entries = episodic.history("test-ns", 100, None).expect("history");
+
+        assert_eq!(
+            entries.len(),
+            3,
+            "expected 3 episodic entries, got {}",
+            entries.len()
+        );
+        // Verify content contains step id and output.
+        assert!(
+            entries.iter().any(|e| e.content.contains("step s1:")),
+            "expected entry for s1"
+        );
+        assert!(
+            entries.iter().any(|e| e.content.contains("analysis done")),
+            "expected output in entry"
+        );
+    }
+
+    // STORY-230 AC-2 — No write when memory_namespace is None.
+    //
+    // GIVEN an agent without memory_namespace
+    // WHEN steps complete
+    // THEN no memory write is attempted (no crash, no error)
+    #[tokio::test]
+    async fn test_story230_ac2_no_write_without_namespace() {
+        // GIVEN — default manifest has no memory_namespace
+        let plan = make_plan(vec![("s1", &[]), ("s2", &["s1"])]);
+        let (mut actor, _rx) = make_actor(plan);
+        let proxy = MockToolProxy {
+            response: "ok".into(),
+        };
+        let llm = LlmRouter::empty();
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        // WHEN — execute completes without memory_manager, no crash.
+        let result = actor
+            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .await;
+
+        // THEN
+        assert_eq!(result.status, TaskStatus::Completed);
+        assert!(
+            actor.memory_manager.is_none(),
+            "memory_manager should be None for default actor"
+        );
+    }
+
+    // STORY-230 AC-3 — Memory write failure does not block execution.
+    //
+    // GIVEN a memory_manager pointing to an invalid/read-only path
+    // WHEN steps complete and the memory write fails
+    // THEN the plan still completes successfully (warning logged)
+    #[tokio::test]
+    async fn test_story230_ac3_memory_failure_does_not_block() {
+        // GIVEN — use a non-existent directory that will cause SQLite to fail
+        let manifest = make_manifest_with_memory("test-ns");
+        let bad_path = std::path::PathBuf::from("/nonexistent/path/that/cannot/exist");
+        let mm = apollia_memory::manager::MemoryManager::new(
+            &bad_path,
+            Some("test-ns".to_string()),
+            vec![],
+        );
+        let mm = Arc::new(Mutex::new(mm));
+
+        let plan = make_plan(vec![("s1", &[]), ("s2", &["s1"])]);
+        let (bus_tx, _rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "test-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+        let mut actor = ActorLoop::new(plan, 2, db, bus_tx, manifest).with_memory_manager(Some(mm));
+
+        let proxy = MockToolProxy {
+            response: "ok".into(),
+        };
+        let llm = LlmRouter::empty();
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+
+        // WHEN — memory write will fail but execution should continue
+        let result = actor
+            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .await;
+
+        // THEN — plan completed despite memory failure
+        assert_eq!(
+            result.status,
+            TaskStatus::Completed,
+            "plan should complete even if memory write fails"
         );
     }
 }
