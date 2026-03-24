@@ -41,9 +41,6 @@ function createOnboardingStore() {
 
 export const onboardingStore = createOnboardingStore();
 
-/** Controls the legacy wizard visibility (used by App.svelte). */
-export const showOnboarding = writable<boolean>(false);
-
 /** Whether the sidebar badge should be visible. */
 export const showOnboardingBadge = derived(
   onboardingStore,

@@ -18,9 +18,13 @@
   interface Props {
     sessionId: string;
     onclose: () => void;
+    /** When true, hide the header bar (used for embedded contexts like onboarding). */
+    embedded?: boolean;
+    /** When true, hide the config button in the header. */
+    hideConfig?: boolean;
   }
 
-  let { sessionId, onclose }: Props = $props();
+  let { sessionId, onclose, embedded = false, hideConfig = false }: Props = $props();
 
   let messages = $state<ChatMessageView[]>([]);
   let sessionMode = $state<"libre" | "agent">("libre");
@@ -237,7 +241,8 @@
 </script>
 
 <div class="flex h-full flex-col" data-testid="chat-conversation">
-  <!-- Header — slim bar -->
+  <!-- Header — slim bar (hidden in embedded mode) -->
+  {#if !embedded}
   <div class="flex items-center justify-between border-b border-border/30 px-4 py-2.5">
     <div class="flex items-center gap-2.5">
       {#if sessionMode === "agent"}
@@ -256,6 +261,7 @@
       {/if}
     </div>
     <div class="flex items-center gap-0.5">
+      {#if !hideConfig}
       <button
         onclick={() => (configOpen = true)}
         class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
@@ -264,6 +270,7 @@
       >
         <Settings2 size={14} />
       </button>
+      {/if}
       {#if sessionStatus !== "closed"}
         <button
           onclick={handleCloseSession}
@@ -284,6 +291,7 @@
       </button>
     </div>
   </div>
+  {/if}
 
   <!-- Context indicator -->
   <ContextIndicator
@@ -375,9 +383,11 @@
   <ChatInput disabled={inputDisabled} onsend={handleSend} />
 </div>
 
+{#if !embedded}
 <ChatConfigPanel
   open={configOpen}
   session={sessionDetail}
   onclose={() => (configOpen = false)}
   onupdated={() => void refreshSession()}
 />
+{/if}

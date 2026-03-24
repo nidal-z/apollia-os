@@ -4,27 +4,28 @@
   import { isLoading } from "svelte-i18n";
   import Sidebar from "./components/layout/Sidebar.svelte";
   import Main from "./components/layout/Main.svelte";
-  import OnboardingWizard from "./components/onboarding/OnboardingWizard.svelte";
+  import OnboardingConversation from "./components/onboarding/OnboardingConversation.svelte";
   import { ToastContainer } from "$lib/components/ui/toast";
   import ExtractionNotifier from "./components/chat/ExtractionNotifier.svelte";
   import { Tooltip } from "bits-ui";
   import { createSSEConnection } from "$lib/stores/sse";
-  import { showOnboarding } from "$lib/stores/onboarding";
   import { initTheme } from "$lib/stores/theme";
+  import type { OnboardingStatus } from "$lib/types";
 
   let ready = $state(false);
+  let showOnboarding = $state(false);
 
   onMount(() => {
     initTheme();
     const cleanup = createSSEConnection();
 
-    invoke<boolean>("check_onboarded")
-      .then((onboarded) => {
-        showOnboarding.set(!onboarded);
+    invoke<OnboardingStatus>("get_onboarding_status")
+      .then((status) => {
+        showOnboarding = !status.completed && !status.skipped;
         ready = true;
       })
       .catch(() => {
-        showOnboarding.set(false);
+        showOnboarding = false;
         ready = true;
       });
 
@@ -32,7 +33,7 @@
   });
 
   function handleOnboardingComplete() {
-    showOnboarding.set(false);
+    showOnboarding = false;
   }
 </script>
 
@@ -41,8 +42,8 @@
     <div class="flex h-screen w-screen items-center justify-center bg-background text-foreground" data-testid="app-loading">
       <p class="text-sm text-muted-foreground">Loading…</p>
     </div>
-  {:else if $showOnboarding}
-    <OnboardingWizard onComplete={handleOnboardingComplete} />
+  {:else if showOnboarding}
+    <OnboardingConversation oncomplete={handleOnboardingComplete} />
   {:else}
     <div class="flex h-screen w-screen overflow-hidden" data-testid="app-main">
       <Sidebar />

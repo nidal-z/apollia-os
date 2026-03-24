@@ -813,3 +813,21 @@ export interface PlanCacheHitEvent {
   /** Horodatage RFC 3339 du cache hit. */
   timestamp: string;
 }
+
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+
+/** Onboarding completion status returned by get_onboarding_status. */
+export interface OnboardingStatus {
+  completed: boolean;
+  topics_covered: string[];
+  completion_pct: number;
+  last_session_at: string | null;
+  skipped: boolean;
+}
+
+/** Result of triggering an onboarding session via trigger_onboarding. */
+export interface TriggerResult {
+  session_id: string;
+  mode: "full" | "partial";
+  topic?: string;
+}

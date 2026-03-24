@@ -3,7 +3,7 @@
   import { onMount } from "svelte";
   import { t, locale } from "svelte-i18n";
   import { navigateTo } from "$lib/stores/navigation";
-  import { showOnboarding } from "$lib/stores/onboarding";
+  import { onboardingStore } from "$lib/stores/onboarding";
   import { themeMode, applyTheme, type ThemeMode } from "$lib/stores/theme";
   import { uiMode, type UIMode } from "$lib/stores/mode";
   import { setLocale } from "$lib/i18n";
@@ -149,7 +149,8 @@
     resettingOnboarding = true;
     try {
       await invoke("reset_onboarding");
-      showOnboarding.set(true);
+      onboardingStore.setRequired();
+      navigateTo("onboarding");
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
