@@ -34,9 +34,9 @@
 //!
 //! `mistralrs::model::Stream<'a>` porte un lifetime lié au modèle et n'implémente
 //! pas `futures::Stream`. La transférer dans un `tokio::spawn` ('static) n'est pas
-//! possible sans un bridge par channel asynchrone — complexité injustifiée pour STORY-052.
+//! possible sans un bridge par channel asynchrone — complexité injustifiée.
 //! Conformément à AC-5, `stream()` délègue à `complete()` et retourne le contenu
-//! complet en un seul chunk. L'implémentation streaming native sera ajoutée en STORY-064
+//! complet en un seul chunk. L'implémentation streaming native sera ajoutée
 //! si `mistralrs` expose une API `'static`.
 //!
 //! # Dépendances moteur
@@ -388,7 +388,7 @@ impl CompletionModel for EmbeddedBackend {
     ///
     /// `mistralrs::model::Stream<'a>` porte un lifetime et n'implémente pas
     /// `futures::Stream`. Elle ne peut être transférée dans un task `'static`
-    /// sans un bridge par channel — complexity injustifiée pour STORY-052.
+    /// sans un bridge par channel — complexity injustifiée.
     ///
     /// Conformément à AC-5 : délègue à `complete()` et retourne le contenu
     /// complet en un seul chunk `Ok(content)`.

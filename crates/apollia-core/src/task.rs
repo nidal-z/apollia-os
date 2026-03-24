@@ -28,7 +28,7 @@ pub struct AIPTask {
     ///
     /// Contient la décision (`approved`), la raison optionnelle, et le contexte
     /// JSON sérialisé par l'agent au moment du `input_required`.
-    /// Construite par `TaskRepository::rebuild_for_resume()` (STORY-094).
+    /// Construite par `TaskRepository::rebuild_for_resume()`.
     #[serde(default)]
     pub input_response: Option<InputResponseData>,
 }

@@ -2,7 +2,7 @@
 //!
 //! Fournit [`AgentRepository`] qui stocke et restitue les agents installés
 //! dans une base SQLite locale (`agents.db`). Les agents survivent aux
-//! redémarrages et sont auto-chargés au boot (STORY-179).
+//! redémarrages et sont auto-chargés au boot.
 //!
 //! La migration `007_agent_tables.sql` est appliquée idempotentiellement
 //! à l'appel de [`AgentRepository::open`].
@@ -342,7 +342,7 @@ mod tests {
         AgentRepository::open(Path::new(":memory:")).expect("failed to open test repo")
     }
 
-    // AC-1 — Migration crée la table installed_agents
+    // Migration crée la table installed_agents
     #[test]
     fn test_open_creates_table() {
         let repo = open_test_repo();
@@ -356,7 +356,7 @@ mod tests {
         assert_eq!(count, 0);
     }
 
-    // AC-2 + AC-5 — save() + get() round-trip avec manifest serde
+    // save() + get() round-trip avec manifest serde
     #[test]
     fn test_save_and_get_roundtrip() {
         let repo = open_test_repo();
@@ -373,13 +373,13 @@ mod tests {
         assert_eq!(loaded.install_path, agent.install_path);
         assert_eq!(loaded.source_path, agent.source_path);
         assert!(loaded.enabled);
-        // AC-5 : round-trip manifest
+        // round-trip manifest
         assert_eq!(loaded.manifest.name, "hello-agent");
         assert_eq!(loaded.manifest.description, "Test agent hello-agent");
         assert_eq!(loaded.manifest.tools_required, vec!["bash"]);
     }
 
-    // AC-2 — list() retourne tous les agents
+    // list() retourne tous les agents
     #[test]
     fn test_list_all_agents() {
         let repo = open_test_repo();
@@ -394,7 +394,7 @@ mod tests {
         assert_eq!(agents[2].name, "agent-c");
     }
 
-    // AC-2 — delete() supprime l'agent
+    // delete() supprime l'agent
     #[test]
     fn test_delete_agent() {
         let repo = open_test_repo();
@@ -405,7 +405,7 @@ mod tests {
         assert!(repo.get("to-delete").expect("get after delete").is_none());
     }
 
-    // AC-3 — list_enabled() filtre les disabled
+    // list_enabled() filtre les disabled
     #[test]
     fn test_list_enabled_filters_disabled() {
         let repo = open_test_repo();
@@ -421,7 +421,7 @@ mod tests {
         assert!(enabled_agents.iter().all(|a| a.enabled));
     }
 
-    // AC-4 — set_enabled() toggle + updated_at
+    // set_enabled() toggle + updated_at
     #[test]
     fn test_set_enabled_toggle() {
         let repo = open_test_repo();
@@ -446,7 +446,7 @@ mod tests {
         assert!(agent.enabled);
     }
 
-    // AC-2 — save() upsert sur agent existant
+    // save() upsert sur agent existant
     #[test]
     fn test_save_upsert_existing() {
         let repo = open_test_repo();
@@ -467,7 +467,7 @@ mod tests {
         assert_eq!(all.len(), 1);
     }
 
-    // AC-2 — get() retourne None si agent inexistant
+    // get() retourne None si agent inexistant
     #[test]
     fn test_get_nonexistent_returns_none() {
         let repo = open_test_repo();

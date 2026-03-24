@@ -1,4 +1,4 @@
-//! Tests e2e — comportement dégradé sans backend LLM (AC-3, STORY-064).
+//! Tests e2e — comportement dégradé sans backend LLM.
 //!
 //! Vérifie que :
 //! - le runtime démarre correctement avec `llm_router = None` ;
@@ -72,7 +72,7 @@ async fn free_port() -> u16 {
 // Tests
 // ─────────────────────────────────────────────
 
-/// AC-3 — le runtime démarre sans erreur quand `llm_router = None`.
+/// Le runtime démarre sans erreur quand `llm_router = None`.
 #[tokio::test]
 async fn test_runtime_starts_without_llm_router() {
     // GIVEN un runtime configuré sans LLM
@@ -125,7 +125,7 @@ async fn test_runtime_starts_without_llm_router() {
     let _ = std::fs::remove_file(&socket_path);
 }
 
-/// AC-3 — `AgentDegraded` peut être émis et reçu via l'EventBus.
+/// `AgentDegraded` peut être émis et reçu via l'EventBus.
 ///
 /// Vérifie l'infrastructure d'événements : le runtime peut observer
 /// et propager la dégradation d'un agent sans backend LLM.
@@ -159,7 +159,7 @@ async fn test_agent_degraded_event_emitted_when_no_llm() {
     );
 }
 
-/// AC-3 — `LlmRouter::empty()` n'a aucun backend disponible.
+/// `LlmRouter::empty()` n'a aucun backend disponible.
 ///
 /// Correspond au comportement de `ctx.llm = None` quand le router est vide.
 #[tokio::test]

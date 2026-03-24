@@ -282,7 +282,7 @@ pub struct ResumeResponse {
 ///
 /// Valide que la tâche est en status `input_required`, persiste la décision
 /// humaine dans SQLite, émet `RuntimeEvent::TaskResumed` sur l'EventBus,
-/// et reconstruit l'`AIPTask` enrichi pour la relance ORIA (STORY-096).
+/// et reconstruit l'`AIPTask` enrichi pour la relance ORIA.
 ///
 /// ## Codes HTTP
 /// - `200 OK` — reprise enregistrée avec succès
@@ -371,7 +371,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
         approved: body.approved,
     });
 
-    // ── Reconstruire l'AIPTask enrichi et résoudre le oneshot ORIA (STORY-096) ──
+    // ── Reconstruire l'AIPTask enrichi et résoudre le oneshot ORIA ──
     match repo.rebuild_for_resume(&task_id).await {
         Ok(enriched_task) => {
             // Résoudre le oneshot PendingApprovals pour débloquer execute_direct()

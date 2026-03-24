@@ -1,4 +1,4 @@
-//! Tests e2e — agent Python avec `ctx.llm` (AC-1, AC-2, STORY-064).
+//! Tests e2e — agent Python avec `ctx.llm`.
 //!
 //! Vérifie le cycle complet LLM depuis un agent Python :
 //! - agent qui appelle `ctx.llm.chat()` avec un mock Python → Completed ;
@@ -111,7 +111,7 @@ fn default_task() -> AIPTask {
 // Tests
 // ─────────────────────────────────────────────
 
-/// AC-1 — un agent Python avec un mock ctx Python complète avec succès.
+/// Un agent Python avec un mock ctx Python complète avec succès.
 ///
 /// Teste la chaîne : AIPBridge → agent.run(task, ctx) → AIPResult::Completed.
 /// Le ctx est un objet Python pur (pas RuntimeContext Rust) avec un `llm` mock Python.
@@ -198,7 +198,7 @@ async fn test_agent_llm_chat_completed() {
     );
 }
 
-/// AC-1 — `LlmCallCompleted` est émis sur l'EventBus après un appel LLM.
+/// `LlmCallCompleted` est émis sur l'EventBus après un appel LLM.
 ///
 /// Teste la couche d'observabilité de `LlmRouter::complete_with_observability`.
 /// Test Rust pur — pas de Python.
@@ -246,7 +246,7 @@ async fn test_llm_call_completed_event_emitted() {
     .expect("LlmCallCompleted doit être émis dans le délai imparti");
 }
 
-/// AC-1 — le stream d'un mock CompletionModel retourne les chunks attendus.
+/// Le stream d'un mock CompletionModel retourne les chunks attendus.
 ///
 /// Teste le mode streaming depuis l'API publique — Rust pur, pas de Python.
 #[tokio::test]
@@ -274,7 +274,7 @@ async fn test_llm_stream_yields_chunks() {
     assert!(matches!(&chunks[1], StreamChunk::Text(t) if t == "chunk2"));
 }
 
-/// AC-2 — agent Python appelant `ctx.llm.run_tools()` sur un mock Python → Completed.
+/// Agent Python appelant `ctx.llm.run_tools()` sur un mock Python → Completed.
 ///
 /// Simule le cycle ReAct complet en Python pur : 2 appels LLM, 1 appel outil.
 /// Vérifie que l'agent retourne `Completed` après la boucle.

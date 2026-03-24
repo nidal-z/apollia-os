@@ -5,7 +5,7 @@
   with appropriate formatting. Falls back to pre-formatted text for non-JSON.
   Toggle allows switching between formatted and raw views.
 
-  STORY-164: Smart output renderer (JSON → vue formatée)
+  Smart output renderer (JSON → vue formatée)
 -->
 <script lang="ts">
   import { t } from "svelte-i18n";

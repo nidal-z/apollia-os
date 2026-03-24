@@ -1,7 +1,7 @@
 // Canaux de notification concrets.
 //
-// - desktop : Notifications natives OS via `notify-rust` (STORY-100)
-// - webhook : Requêtes HTTP POST vers une URL configurée (STORY-101)
+// - desktop : Notifications natives OS via `notify-rust`.
+// - webhook : Requêtes HTTP POST vers une URL configurée.
 
 pub mod desktop;
 pub mod webhook;

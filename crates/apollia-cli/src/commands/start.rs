@@ -146,6 +146,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 MemoryInterface::new(manager, ns.to_string(), agent_name.to_string())
             });
 
+        let supports_a2a = manifest.supports_a2a;
         let ctx: PyObject = Python::with_gil(|py| {
             let ctx = RuntimeContext::new_with_llm(
                 llm_router,
@@ -156,6 +157,9 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 agent_name.to_string().into(),
                 tool_proxy,
                 memory_interface,
+                None, // mailbox — not available in chat runner context
+                agent_name.to_string(),
+                supports_a2a,
             );
             Py::new(py, ctx)
                 .map(|p| p.into_any())
@@ -502,9 +506,12 @@ impl AgentRunner for BridgeRunner {
                     tool_helper,
                     Arc::new(ObservabilityConfig::default()),
                     event_bus,
-                    agent_id.into(),
+                    agent_id.clone().into(),
                     tool_proxy,
                     memory_interface,
+                    None, // mailbox — not wired yet in BridgeRunner
+                    agent_id,
+                    false, // supports_a2a — not available at BridgeRunner level
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())

@@ -306,7 +306,7 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                         None => continue,
                     };
 
-                    // Evaluate condition before submitting the step (STORY-112).
+                    // Evaluate condition before submitting the step.
                     // A false condition skips the step without blocking downstream.
                     if let Some(cond) = &step_def.condition {
                         if !crate::condition::evaluate_condition(cond, &self.template_ctx) {
@@ -451,7 +451,7 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                         }
 
                         StepResult::InputRequired { task_id } => {
-                            // ── HITL suspend/resume (STORY-114) ──────────────
+                            // ── HITL suspend/resume ──────────────
                             //
                             // Protocol: subscribe EventBus BEFORE persisting the
                             // suspension so a very fast operator response
@@ -485,8 +485,7 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                                 // NOTE: RuntimeEvent::TaskResumed (apollia-core Sprint 11)
                                 // does not carry `new_task_id`. ORIA resumes the original
                                 // task, so we subscribe fresh and wait for TaskCompleted on
-                                // the same task_id. (Deviation from spec documented in
-                                // story-114-hitl-pipelines.md.)
+                                // the same task_id.
                                 let rx_complete = self.event_bus.subscribe();
                                 let (_, final_result) = Self::wait_for_task_completion(
                                     step_id.clone(),
@@ -1457,7 +1456,7 @@ mod tests {
         );
     }
 
-    // ── STORY-113 AC-1: fallback activated on step failure ────────────────────
+    // ── fallback activated on step failure ────────────────────
 
     #[tokio::test]
     async fn test_s113_ac1_fallback_activated_on_failure() {
@@ -1563,7 +1562,7 @@ mod tests {
         assert!(!failed, "PipelineFailed should NOT be emitted");
     }
 
-    // ── STORY-113 AC-3: no fallback declared → pipeline fails ─────────────────
+    // ── no fallback declared → pipeline fails ─────────────────
 
     #[tokio::test]
     async fn test_s113_ac3_no_fallback_declared_fails_pipeline() {
@@ -1612,7 +1611,7 @@ mod tests {
         );
     }
 
-    // ── STORY-113 AC-4: FallbackActive status persisted in SQLite ────────────
+    // ── FallbackActive status persisted in SQLite ────────────
 
     #[tokio::test]
     async fn test_s113_ac4_fallback_active_status_in_sqlite() {
@@ -1751,7 +1750,7 @@ mod tests {
         assert!(started_pos < completed_pos);
     }
 
-    // ── STORY-114 AC-1: InputRequired → PipelineSuspended ─────────────────────
+    // ── InputRequired → PipelineSuspended ─────────────────────
 
     #[tokio::test]
     async fn test_s114_ac1_input_required_suspends_pipeline() {
@@ -1828,7 +1827,7 @@ mod tests {
         );
     }
 
-    // ── STORY-114 AC-2: Approval → pipeline resumes and completes ─────────────
+    // ── Approval → pipeline resumes and completes ─────────────
 
     #[tokio::test]
     async fn test_s114_ac2_approve_resumes_pipeline() {
@@ -1929,7 +1928,7 @@ mod tests {
         assert!(!failed, "PipelineFailed must NOT be emitted");
     }
 
-    // ── STORY-114 AC-3: Rejection → PipelineFailed ────────────────────────────
+    // ── Rejection → PipelineFailed ────────────────────────────
 
     #[tokio::test]
     async fn test_s114_ac3_reject_fails_pipeline() {

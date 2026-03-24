@@ -1,4 +1,4 @@
-//! Integration tests — Sprint 20 ORIA Enhanced features (STORY-237).
+//! Integration tests — ORIA Enhanced features.
 //!
 //! 6 independent test scenarios covering:
 //! 1. Tool describe E2E

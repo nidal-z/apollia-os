@@ -1,6 +1,6 @@
 //! `LlmCallRepository` — persistance SQLite des appels LLM.
 //!
-//! Implémente STORY-129. Chaque [`RuntimeEvent::LlmCallCompleted`] reçu sur
+//! Chaque [`RuntimeEvent::LlmCallCompleted`] reçu sur
 //! l'EventBus est persisté dans la table `llm_calls` via [`spawn_subscriber`].
 //!
 //! Le `prompt_text` n'est persisté que si `debug_log_prompt = true` dans la
@@ -199,7 +199,7 @@ impl LlmCallRepository {
 
     /// Agrégation coût/tokens par backend+modèle depuis `since` (format ISO 8601).
     ///
-    /// Utilisé par le dashboard LLM Costs (STORY-133).
+    /// Utilisé par le dashboard LLM Costs.
     pub fn costs_by_backend_model_since(
         &self,
         since: &str,
@@ -233,7 +233,7 @@ impl LlmCallRepository {
     /// Agrégation coût journalier par backend depuis `since` (format ISO 8601).
     ///
     /// Retourne un vecteur de `LlmDailyCostSummary` trié par date ASC puis backend.
-    /// Utilisé par le dashboard Observability (STORY-148, AC-3).
+    /// Utilisé par le dashboard Observability.
     pub fn costs_by_day_backend_since(
         &self,
         since: &str,

@@ -1,4 +1,4 @@
-//! Integration tests — chat subsystem end-to-end (STORY-209).
+//! Integration tests — chat subsystem end-to-end.
 //!
 //! Tests the complete chat flow: HTTP API → ChatSessionManager →
 //! BuiltInChatAgent (mock LLM) → EventBus → response.

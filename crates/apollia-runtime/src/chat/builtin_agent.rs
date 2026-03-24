@@ -4,7 +4,7 @@
 //! Protected by [`StepBudget`] (Principle #7) and integrated with the HITL
 //! approval flow via [`PendingChatApprovals`].
 //!
-//! Uses `LlmRouter.stream()` for token-by-token streaming (STORY-201).
+//! Uses `LlmRouter.stream()` for token-by-token streaming.
 //! Each token emits a `ChatToken` RuntimeEvent on the EventBus so the SSE
 //! stream can forward it to the client in real time.
 
@@ -164,7 +164,7 @@ impl ToolInvoker for NativeChatToolInvoker {
 /// Maximum number of characters for input/output previews in events.
 const PREVIEW_MAX_LEN: usize = 200;
 
-/// Default system prompt used when no custom prompt is provided (AC-9).
+/// Default system prompt used when no custom prompt is provided.
 pub const DEFAULT_SYSTEM_PROMPT: &str = "Tu es un assistant IA polyvalent. Tu peux utiliser des \
     outils pour accomplir des tâches concrètes. Réponds de manière concise et structurée. \
     Si tu as besoin d'exécuter une commande ou d'accéder à un fichier, utilise les outils \
@@ -276,20 +276,20 @@ impl BuiltInChatAgent {
                 ..Default::default()
             };
 
-            // AC-3 — emit ChatResponseStarted before the first token
+            // Emit ChatResponseStarted before the first token
             let _ = self.event_bus.send(RuntimeEvent::ChatResponseStarted {
                 session_id: session_id.to_string(),
                 message_id: message_id.to_string(),
             });
 
-            // AC-1 — use stream() instead of complete()
+            // Use stream() instead of complete()
             let stream = self
                 .llm_router
                 .stream_with_observability(None, request, &obs)
                 .await
                 .map_err(|e| ChatError::InternalError(e.to_string()))?;
 
-            // AC-2/AC-6 — consume stream, emit ChatToken per token, accumulate text
+            // Consume stream, emit ChatToken per token, accumulate text
             let mut accumulated_text = String::new();
             let stream_result = self
                 .consume_stream(stream, session_id, message_id, &mut accumulated_text)
@@ -298,7 +298,7 @@ impl BuiltInChatAgent {
             match stream_result {
                 Ok(tool_calls) => {
                     if tool_calls.is_empty() {
-                        // AC-4 — final text response (no tool calls)
+                        // Final text response (no tool calls)
                         let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
                             session_id: session_id.to_string(),
                             message_id: message_id.to_string(),
@@ -313,7 +313,7 @@ impl BuiltInChatAgent {
                         });
                     }
 
-                    // AC-8 — tool calls detected in stream: process and continue loop
+                    // Tool calls detected in stream: process and continue loop
                     llm_messages.push(LlmChatMessage::assistant_with_calls(
                         &accumulated_text,
                         &tool_calls,
@@ -388,7 +388,7 @@ impl BuiltInChatAgent {
                     }
                 }
                 Err(err) => {
-                    // AC-7 — stream interrupted: emit ChatError, return partial content
+                    // Stream interrupted: emit ChatError, return partial content
                     let _ = self.event_bus.send(RuntimeEvent::ChatError {
                         session_id: session_id.to_string(),
                         message_id: Some(message_id.to_string()),
@@ -439,7 +439,7 @@ impl BuiltInChatAgent {
         while let Some(chunk_result) = stream.next().await {
             match chunk_result {
                 Ok(StreamChunk::Text(token)) => {
-                    // AC-2 — emit ChatToken and accumulate
+                    // Emit ChatToken and accumulate
                     let _ = self.event_bus.send(RuntimeEvent::ChatToken {
                         session_id: session_id.to_string(),
                         message_id: message_id.to_string(),
@@ -448,11 +448,11 @@ impl BuiltInChatAgent {
                     accumulated_text.push_str(&token);
                 }
                 Ok(StreamChunk::ToolCall(call)) => {
-                    // AC-8 — tool call detected in stream
+                    // Tool call detected in stream
                     tool_calls.push(call);
                 }
                 Err(e) => {
-                    // AC-7 — stream interrupted
+                    // Stream interrupted
                     warn!(
                         session_id = %session_id,
                         error = %e,
@@ -512,7 +512,7 @@ impl BuiltInChatAgent {
     }
 }
 
-/// Build LLM messages from system prompt, chat history, and current user message (AC-2).
+/// Build LLM messages from system prompt, chat history, and current user message.
 ///
 /// Returns messages in order: system, history (converted), user.
 fn build_llm_messages(
@@ -542,7 +542,7 @@ fn build_llm_messages(
     messages
 }
 
-/// Convert available tool names to LLM-compatible [`ToolSpec`]s via the registry (AC-3).
+/// Convert available tool names to LLM-compatible [`ToolSpec`]s via the registry.
 async fn build_tool_specs(
     available_tools: &[String],
     tool_registry: &ToolRegistryHandle,
@@ -865,7 +865,7 @@ mod tests {
 
     // ── Tests ────────────────────────────────────────────────────────────
 
-    /// AC-1/AC-8 — Simple text response without tool calls (streamed).
+    /// Simple text response without tool calls (streamed).
     #[tokio::test]
     async fn test_simple_text_response() {
         // GIVEN a model that streams text tokens without tool calls
@@ -903,7 +903,7 @@ mod tests {
         tool_registry.shutdown().await;
     }
 
-    /// AC-4 — Tool call authorized: direct execution (via streaming).
+    /// Tool call authorized: direct execution (via streaming).
     #[tokio::test]
     async fn test_tool_call_authorized() {
         // GIVEN a model that streams a tool call, then text
@@ -953,7 +953,7 @@ mod tests {
         tool_registry.shutdown().await;
     }
 
-    /// AC-5/AC-6 — Tool call not authorized, HITL Accept.
+    /// Tool call not authorized, HITL Accept.
     #[tokio::test]
     async fn test_tool_call_hitl_accept() {
         // GIVEN a model with tool call "file_io" NOT in authorized_tools
@@ -1010,7 +1010,7 @@ mod tests {
         tool_registry.shutdown().await;
     }
 
-    /// AC-6 — Tool call HITL Refuse: refusal message injected.
+    /// Tool call HITL Refuse: refusal message injected.
     #[tokio::test]
     async fn test_tool_call_hitl_refuse() {
         // GIVEN a model with unauthorized tool, decision = Refuse
@@ -1069,7 +1069,7 @@ mod tests {
         tool_registry.shutdown().await;
     }
 
-    /// AC-6 — Tool call HITL AlwaysAccept: tool whitelisted.
+    /// Tool call HITL AlwaysAccept: tool whitelisted.
     #[tokio::test]
     async fn test_tool_call_hitl_always_accept() {
         // GIVEN unauthorized tool, decision = AlwaysAccept
@@ -1124,7 +1124,7 @@ mod tests {
         tool_registry.shutdown().await;
     }
 
-    /// AC-7 — Budget exhausted returns error.
+    /// Budget exhausted returns error.
     #[tokio::test]
     async fn test_budget_exhausted() {
         // GIVEN a model that always returns tool calls + budget max_steps=1
@@ -1164,7 +1164,7 @@ mod tests {
         tool_registry.shutdown().await;
     }
 
-    /// AC-2 — build_llm_messages constructs messages in correct order.
+    /// build_llm_messages constructs messages in correct order.
     #[test]
     fn test_build_llm_messages() {
         // GIVEN system prompt, 3 history messages, and a user message
@@ -1210,7 +1210,7 @@ mod tests {
         assert_eq!(messages[4].role, apollia_llm::types::Role::User);
     }
 
-    /// AC-10 — Events emitted in correct order (including ChatToken).
+    /// Events emitted in correct order (including ChatToken).
     #[tokio::test]
     async fn test_events_emitted_in_order() {
         // GIVEN a model that streams one tool call then text "Done"
@@ -1312,9 +1312,9 @@ mod tests {
         assert_eq!(messages.len(), 2);
     }
 
-    // ── Streaming-specific tests (STORY-201) ─────────────────────────────
+    // ── Streaming-specific tests ──────────────────────────────────────────
 
-    /// AC-2 — Each token emits a ChatToken event.
+    /// Each token emits a ChatToken event.
     #[tokio::test]
     async fn test_stream_tokens_emitted() {
         // GIVEN a model that streams ["Bon", "jour", " ", "!"]
@@ -1360,7 +1360,7 @@ mod tests {
         tool_registry.shutdown().await;
     }
 
-    /// AC-6 — Accumulated text from stream matches final content.
+    /// Accumulated text from stream matches final content.
     #[tokio::test]
     async fn test_stream_accumulation() {
         // GIVEN a model that streams ["Hello", " ", "world"]
@@ -1398,7 +1398,7 @@ mod tests {
         tool_registry.shutdown().await;
     }
 
-    /// AC-7 — Stream interruption returns partial content.
+    /// Stream interruption returns partial content.
     #[tokio::test]
     async fn test_stream_interrupted() {
         // GIVEN a model whose stream returns 2 tokens then an error
@@ -1489,7 +1489,7 @@ mod tests {
         tool_registry.shutdown().await;
     }
 
-    /// AC-8 — Stream with tool call: text tokens emitted, then tool executed.
+    /// Stream with tool call: text tokens emitted, then tool executed.
     #[tokio::test]
     async fn test_stream_with_tool_call() {
         // GIVEN a model that streams text + tool_call on first iteration,

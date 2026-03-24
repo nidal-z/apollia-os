@@ -1,4 +1,4 @@
-//! Integration tests for `PipelineExecutor` — 9 topology scenarios (STORY-124).
+//! Integration tests for `PipelineExecutor` — 9 topology scenarios.
 //!
 //! Each test uses an in-memory SQLite database and a lightweight `MockSubmitter`
 //! that emits `RuntimeEvent`s on the EventBus instead of dispatching real tasks.

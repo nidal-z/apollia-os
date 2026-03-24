@@ -6,7 +6,7 @@
 //! - [`event_filter::map_event`] — transforme un [`RuntimeEvent`] en [`Notification`]
 //!
 //! Les canaux concrets (`DesktopChannel`, `WebhookChannel`) sont dans le module
-//! [`channels`] et implémentés dans STORY-100 et STORY-101.
+//! [`channels`] et implémentés.
 
 pub mod channels;
 pub mod config;

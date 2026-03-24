@@ -1,17 +1,17 @@
 //! Apollia OS — Tool Registry and native tools.
 //!
 //! Provides the tooling infrastructure for agents:
-//! - `ToolRegistry` — in-memory catalogue of available tools (STORY-011)
-//! - `ToolResolver` — validates tool availability at INITIALIZING (STORY-012)
-//! - `SandboxProfile` — Linux namespace isolation profiles (STORY-013)
-//! - `AuditTrail` — SQLite-persisted tool invocation log (STORY-016)
-//! - `TaskRepository` — SQLite-persisted HITL task state (STORY-094)
-//! - `AgentRepository` — SQLite-persisted installed agents (STORY-177)
+//! - `ToolRegistry` — in-memory catalogue of available tools
+//! - `ToolResolver` — validates tool availability at INITIALIZING
+//! - `SandboxProfile` — Linux namespace isolation profiles
+//! - `AuditTrail` — SQLite-persisted tool invocation log
+//! - `TaskRepository` — SQLite-persisted HITL task state
+//! - `AgentRepository` — SQLite-persisted installed agents
 //!
-//! Native tools (Sprint 2):
-//! - `bash_executor` — sandboxed shell execution via unshare(1) (STORY-013)
-//! - `python_executor` — isolated virtualenv execution (STORY-014)
-//! - `file_io` — filesystem operations with path traversal protection (STORY-015)
+//! Native tools:
+//! - `bash_executor` — sandboxed shell execution via unshare(1)
+//! - `python_executor` — isolated virtualenv execution
+//! - `file_io` — filesystem operations with path traversal protection
 //! - `http_client` — network-restricted HTTP client
 //! - `mcp_consumer` — MCP server protocol consumer
 

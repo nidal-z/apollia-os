@@ -64,7 +64,7 @@ pub enum CoordinatorError {
 /// Gere la concurrence des taches via un semaphore Tokio.
 /// Un coordinateur est cree par agent actif et possede son propre semaphore.
 /// Persiste les donnees d'observabilite (input/output/transitions/duration)
-/// dans le [`TaskRepository`] si disponible (STORY-126).
+/// dans le [`TaskRepository`] si disponible.
 pub struct ExecutionCoordinator<B: ExecutionBackend> {
     agent_id: AgentId,
     /// Nom humain de l'agent (manifest.name), persisté dans la DB d'observabilité.
@@ -106,7 +106,7 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
     /// Configure le repository d'observabilité pour la persistance des données de tâche.
     ///
     /// Quand configuré, le coordinateur persiste automatiquement l'input, l'output,
-    /// les transitions d'état et la durée de chaque tâche (STORY-126).
+    /// les transitions d'état et la durée de chaque tâche.
     pub fn with_task_repository(
         mut self,
         repo: Arc<TaskRepository>,

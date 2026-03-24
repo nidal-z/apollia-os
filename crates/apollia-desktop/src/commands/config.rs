@@ -1,4 +1,4 @@
-//! Commandes IPC Tauri pour la vue Settings (STORY-149).
+//! Commandes IPC Tauri pour la vue Settings.
 //!
 //! La vue Settings est **lecture seule** (ADR-029) : le round-trip
 //! TOML parse -> modifier -> sérialiser détruirait les commentaires

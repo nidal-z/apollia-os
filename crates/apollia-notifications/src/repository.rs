@@ -302,7 +302,7 @@ impl NotificationConfigRepository {
 impl NotificationChannelRow {
     /// Convertit une [`NotificationChannelRow`] en [`crate::config::ChannelConfig`].
     ///
-    /// Utilisé par le boot Supervisor (STORY-187) pour reconstruire la configuration
+    /// Utilisé par le boot Supervisor pour reconstruire la configuration
     /// de notification depuis SQLite.
     pub fn to_channel_config(&self) -> crate::config::ChannelConfig {
         let kind = match self.channel_type.as_str() {

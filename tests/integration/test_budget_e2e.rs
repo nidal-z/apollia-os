@@ -1,4 +1,4 @@
-//! Integration tests — StepBudget enforcement in real conditions (AC-5, STORY-045).
+//! Integration tests — StepBudget enforcement in real conditions.
 //!
 //! Tests that ORIAEngine correctly enforces the tri-dimensional budget
 //! (max_steps, max_tool_calls, wall_clock) and returns BudgetExceeded errors.
@@ -68,7 +68,7 @@ fn make_task() -> AIPTask {
     AIPTask::default()
 }
 
-// AC-5 — budget already exhausted before execution (max_steps=0)
+// Budget already exhausted before execution (max_steps=0)
 #[tokio::test]
 async fn test_budget_exceeded_returns_failed() {
     // GIVEN an agent with StepBudget max_steps=2, already at limit
@@ -107,7 +107,7 @@ async fn test_budget_exceeded_returns_failed() {
     );
 }
 
-// AC-5 — wall-clock budget exceeded during execution
+// Wall-clock budget exceeded during execution
 #[tokio::test]
 async fn test_wall_clock_budget_exceeded_during_execution() {
     // GIVEN a budget with wall_clock=0 (immediately exhausted)
@@ -135,7 +135,7 @@ async fn test_wall_clock_budget_exceeded_during_execution() {
     );
 }
 
-// AC-5 — wall-clock exhausted while runner is executing (runtime enforcement)
+// Wall-clock exhausted while runner is executing (runtime enforcement)
 #[tokio::test]
 async fn test_budget_enforced_during_slow_execution() {
     // GIVEN a budget with 50ms wall-clock limit and a runner that takes 300ms
@@ -162,7 +162,7 @@ async fn test_budget_enforced_during_slow_execution() {
     );
 }
 
-// AC-5 — max_tool_calls budget enforced
+// max_tool_calls budget enforced
 #[tokio::test]
 async fn test_tool_calls_budget_exceeded() {
     // GIVEN a budget with max_tool_calls=0
@@ -190,7 +190,7 @@ async fn test_tool_calls_budget_exceeded() {
     );
 }
 
-// AC-5 — from_capped applies min(agent, runtime) per dimension
+// from_capped applies min(agent, runtime) per dimension
 #[tokio::test]
 async fn test_budget_from_capped_enforced() {
     // GIVEN an agent budget (max_steps=100) and a runtime budget (max_steps=1)

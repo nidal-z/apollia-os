@@ -6,10 +6,10 @@
 //! channel interne ; le moteur évalue l'[`crate::OnBusyPolicy`], rend le
 //! template d'entrée et soumet une tâche au [`TaskSubmitter`].
 //!
-//! **Cette story N'implémente PAS** :
-//! - Les sources concrètes (`CronTrigger`, `FileWatchTrigger`) → STORY-067/068
-//! - La route webhook → STORY-069
-//! - La persistance SQLite réelle → STORY-070
+//! **Ce module N'implémente PAS** :
+//! - Les sources concrètes (`CronTrigger`, `FileWatchTrigger`)
+//! - La route webhook
+//! - La persistance SQLite réelle
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -39,7 +39,7 @@ use crate::types::{
 /// Pattern cohérent avec ADR-015 (`ToolExecutor`) et ADR-016 (`AgentRunner`) :
 /// le crate `apollia-triggers` ne dépend pas de `apollia-runtime`, ce qui évite
 /// les dépendances circulaires. Le concret `TaskRouterHandle<B>` implémentera
-/// ce trait dans STORY-072 lors de l'intégration au Supervisor.
+/// ce trait lors de l'intégration au Supervisor.
 pub trait TaskSubmitter: Send + Sync + 'static {
     /// Soumet une tâche pour l'agent désigné.
     ///
@@ -94,24 +94,24 @@ enum TriggerCommand {
     List {
         reply: oneshot::Sender<Vec<TriggerStatus>>,
     },
-    /// Retourne la définition complète d'un trigger par ID (STORY-074).
+    /// Retourne la définition complète d'un trigger par ID.
     GetDefinition {
         id: String,
         reply: oneshot::Sender<Option<TriggerDefinition>>,
     },
-    /// Retourne l'historique SQLite d'un trigger (STORY-074).
+    /// Retourne l'historique SQLite d'un trigger.
     QueryHistory {
         trigger_id: String,
         limit: usize,
         reply: oneshot::Sender<Vec<crate::persistence::TriggerHistoryEntry>>,
     },
-    /// Recharge les définitions de triggers (hot reload, implémenté STORY-073).
+    /// Recharge les définitions de triggers (hot reload).
     Reload {
         definitions: Vec<TriggerDefinition>,
         reply: oneshot::Sender<()>,
     },
     /// Injecte (ou retire) le `PipelineEngine` après le démarrage — résout la
-    /// dépendance circulaire TriggerEngine ↔ PipelineEngine (STORY-119).
+    /// dépendance circulaire TriggerEngine ↔ PipelineEngine.
     SetPipelineEngine {
         handle: Option<PipelineEngineHandle>,
     },
@@ -190,10 +190,10 @@ struct TriggerEngine {
     ///
     /// Injecté au démarrage. Si absent et qu'un trigger définit `pipeline`, un
     /// `tracing::warn!` est émis et `TriggerSkipped` est envoyé sur l'EventBus
-    /// (AC-3 STORY-117). Jamais de panic.
+    /// Jamais de panic.
     pipeline_engine: Option<PipelineEngineHandle>,
     event_bus: EventBusSender,
-    /// JoinHandles des sources actives — abortés lors du hot reload (STORY-073).
+    /// JoinHandles des sources actives — abortés lors du hot reload.
     handles: Vec<tokio::task::JoinHandle<()>>,
     fire_counts: HashMap<String, u64>,
     skip_counts: HashMap<String, u64>,
@@ -209,9 +209,9 @@ impl TriggerEngine {
     ///
     /// `persistence` : `None` désactive la persistance SQLite (utile pour les tests unitaires).
     /// `pipeline_engine` : `None` désactive le dispatch vers les pipelines — un trigger
-    /// avec `pipeline` émettra `TriggerSkipped` au lieu de paniquer (AC-3 STORY-117).
+    /// avec `pipeline` émettra `TriggerSkipped` au lieu de paniquer.
     /// `obs_config` : configuration d'observabilité pour la troncature des payloads.
-    /// Les sources dans `definitions` sont actuellement des stubs no-op (STORY-067/068).
+    /// Les sources dans `definitions` sont des implémentations concrètes.
     pub async fn start<S: TaskSubmitter>(
         definitions: Vec<TriggerDefinition>,
         task_router: S,
@@ -491,9 +491,9 @@ impl TriggerEngine {
             return Err(TriggerEngineError::SubmitFailed(reason));
         }
 
-        // ── Dispatch pipeline (STORY-117) ─────────────────────────────────────
+        // ── Dispatch pipeline ─────────────────────────────────────────────────
         // Si `pipeline` est défini, dispatche vers `PipelineEngine` au lieu du `TaskRouter`.
-        // L'exclusivité `agent XOR pipeline` est validée dans STORY-118.
+        // L'exclusivité `agent XOR pipeline` est validée à la création de la définition.
         if let Some(ref pipeline_id) = def.pipeline.clone() {
             return self.dispatch_to_pipeline(&event, pipeline_id, &def).await;
         }
@@ -558,13 +558,13 @@ impl TriggerEngine {
         }
     }
 
-    /// Dispatche un événement vers le `PipelineEngine` (STORY-117).
+    /// Dispatche un événement vers le `PipelineEngine`.
     ///
     /// - Si `pipeline_engine` est `Some`, appelle `run_pipeline()` et retourne le
     ///   `RunId` converti en `TaskId`.
     /// - Si `pipeline_engine` est `None`, émet `TriggerSkipped` avec
     ///   `reason = "pipeline_engine_unavailable"` et retourne `Err(SubmitFailed)`.
-    ///   Aucune panic dans les deux cas (AC-3).
+    ///   Aucune panic dans les deux cas.
     async fn dispatch_to_pipeline(
         &mut self,
         event: &TriggerEvent,
@@ -704,7 +704,7 @@ impl TriggerEngine {
         }
     }
 
-    /// Recharge les définitions de triggers (hot reload — STORY-073).
+    /// Recharge les définitions de triggers (hot reload).
     ///
     /// Donne à chaque source active 2 secondes pour se terminer proprement avant
     /// d'utiliser [`tokio::task::AbortHandle`] pour forcer l'arrêt. Cette fenêtre
@@ -712,7 +712,7 @@ impl TriggerEngine {
     ///
     /// Les compteurs en mémoire (`fire_counts`, `skip_counts`, `last_fired`)
     /// et les données SQLite sont **préservés** — seules les définitions et les
-    /// JoinHandles sont remplacés (AC-2).
+    /// JoinHandles sont remplacés.
     async fn do_reload(&mut self, new_definitions: Vec<TriggerDefinition>) {
         // 1. Arrêter toutes les sources actives avec timeout 2s.
         let handles = std::mem::take(&mut self.handles);
@@ -812,7 +812,7 @@ impl TriggerEngineHandle {
     ///
     /// `persistence` : `None` désactive la persistance SQLite (ex : tests, démonstrations).
     /// `pipeline_engine` : `None` désactive le dispatch pipeline — triggers avec `pipeline`
-    /// émettront `TriggerSkipped` au lieu de paniquer (AC-3 STORY-117).
+    /// émettront `TriggerSkipped` au lieu de paniquer.
     /// `obs_config` : configuration d'observabilité pour la troncature des payloads.
     /// Équivalent à `TriggerEngine::start` — exposé ici pour une API publique cohérente.
     pub async fn spawn<S: TaskSubmitter>(
@@ -925,7 +925,7 @@ impl TriggerEngineHandle {
         reply_rx.await.unwrap_or_default()
     }
 
-    /// Retourne la définition complète d'un trigger par ID (STORY-074).
+    /// Retourne la définition complète d'un trigger par ID.
     ///
     /// Retourne `None` si aucun trigger ne correspond à `id`.
     pub async fn get_definition(&self, id: &str) -> Option<TriggerDefinition> {
@@ -940,7 +940,7 @@ impl TriggerEngineHandle {
         reply_rx.await.unwrap_or(None)
     }
 
-    /// Retourne les `limit` dernières entrées d'historique pour un trigger (STORY-074).
+    /// Retourne les `limit` dernières entrées d'historique pour un trigger.
     ///
     /// Retourne un vec vide si la persistance n'est pas configurée ou si le trigger
     /// n'a pas encore été déclenché.
@@ -961,7 +961,7 @@ impl TriggerEngineHandle {
         reply_rx.await.unwrap_or_default()
     }
 
-    /// Recharge les définitions de triggers (hot reload — implémenté STORY-073).
+    /// Recharge les définitions de triggers (hot reload).
     pub async fn reload(&self, definitions: Vec<TriggerDefinition>) {
         let (reply_tx, reply_rx) = oneshot::channel();
         let _ = self
@@ -976,7 +976,7 @@ impl TriggerEngineHandle {
 
     /// Injecte (ou retire) le `PipelineEngine` après le démarrage du moteur.
     ///
-    /// Résout la dépendance circulaire TriggerEngine ↔ PipelineEngine (STORY-119) :
+    /// Résout la dépendance circulaire TriggerEngine ↔ PipelineEngine :
     /// le TriggerEngine démarre sans PipelineEngine, puis reçoit le handle dès que
     /// le PipelineEngine est prêt. Fire-and-forget — pas de réponse attendue.
     pub async fn set_pipeline_engine(&self, handle: Option<PipelineEngineHandle>) {
@@ -1024,7 +1024,7 @@ mod tests {
         }
     }
 
-    /// Construit une `TriggerDefinition` pour un trigger pipeline (STORY-117).
+    /// Construit une `TriggerDefinition` pour un trigger pipeline.
     fn make_pipeline_definition(id: &str, pipeline_id: &str) -> TriggerDefinition {
         TriggerDefinition {
             id: id.into(),
@@ -1347,9 +1347,9 @@ mod tests {
         assert_send_sync::<TriggerEngineHandle>();
     }
 
-    // ── STORY-073 — Hot reload ─────────────────────────────────────────────
+    // ── Hot reload ─────────────────────────────────────────────────────────
 
-    /// AC-1 : reload() remplace toutes les définitions existantes.
+    /// reload() remplace toutes les définitions existantes.
     #[tokio::test]
     async fn test_ac1_reload_replaces_all_triggers() {
         // GIVEN un moteur avec 1 trigger
@@ -1383,7 +1383,7 @@ mod tests {
         assert!(list.iter().any(|t| t.id == "trigger-3"));
     }
 
-    /// AC-1 : reload() émet RuntimeEvent::TriggersReloaded { count }.
+    /// reload() émet RuntimeEvent::TriggersReloaded { count }.
     #[tokio::test]
     async fn test_ac1_triggers_reloaded_event_emitted() {
         // GIVEN un bus avec subscriber actif
@@ -1423,9 +1423,9 @@ mod tests {
         );
     }
 
-    // ── STORY-117 — Triggers → Pipelines ──────────────────────────────────────
+    // ── Triggers → Pipelines ──────────────────────────────────────────────────
 
-    /// AC-3 : trigger avec `pipeline` sans PipelineEngineHandle → TriggerSkipped, pas de panic.
+    /// Trigger avec `pipeline` sans PipelineEngineHandle → TriggerSkipped, pas de panic.
     #[tokio::test]
     async fn test_ac3_trigger_pipeline_no_engine_warning_no_panic() {
         // GIVEN TriggerEngine sans pipeline_engine (None)
@@ -1485,7 +1485,7 @@ mod tests {
         assert_eq!(list.len(), 1, "l'acteur doit encore répondre après le skip");
     }
 
-    /// AC-5 : trigger avec `agent` non affecté par l'ajout de la fonctionnalité pipeline.
+    /// Trigger avec `agent` non affecté par l'ajout de la fonctionnalité pipeline.
     #[tokio::test]
     async fn test_ac5_agent_trigger_unaffected() {
         // GIVEN trigger existant avec agent="hello-agent" (pipeline = None)
@@ -1514,10 +1514,10 @@ mod tests {
         );
     }
 
-    /// AC-1 : le champ `pipeline` de TriggerDefinition est backward-compatible.
+    /// Le champ `pipeline` de TriggerDefinition est backward-compatible.
     ///
     /// Un moteur créé avec des définitions sans `pipeline` fonctionne exactement
-    /// comme avant STORY-117 — aucune régression.
+    /// comme attendu — aucune régression.
     #[tokio::test]
     async fn test_ac1_pipeline_none_no_regression() {
         // GIVEN trigger sans pipeline (None)

@@ -1,4 +1,4 @@
-//! Integration tests — full runtime chain via HTTP API (STORY-049).
+//! Integration tests — full runtime chain via HTTP API.
 //!
 //! Tests the complete flow: start_agent → submit_task → poll → Completed
 //! via real HTTP calls to a live APIServer bound on a free TCP port.
@@ -201,7 +201,7 @@ async fn poll_until_terminal(port: u16, task_id: &str) -> String {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-// AC-1 — POST /api/v1/agents returns 201 Created with state "active"
+// POST /api/v1/agents returns 201 Created with state "active"
 #[tokio::test]
 async fn test_start_agent_via_api_returns_active() {
     // GIVEN a runtime with MockBackend + StubAgentLoader
@@ -225,13 +225,13 @@ async fn test_start_agent_via_api_returns_active() {
         .expect("agent_id must be a string");
     assert!(!agent_id.is_empty(), "agent_id should not be empty");
 
-    // AC-5: cleanup
+    // Cleanup
     handle.shutdown();
     tokio::time::sleep(Duration::from_millis(20)).await;
     let _ = std::fs::remove_file(&socket_path);
 }
 
-// AC-2 — POST /api/v1/tasks returns 202 Accepted with a task_id
+// POST /api/v1/tasks returns 202 Accepted with a task_id
 #[tokio::test]
 async fn test_submit_task_via_api_accepted() {
     // GIVEN an active agent registered via the API
@@ -259,13 +259,13 @@ async fn test_submit_task_via_api_accepted() {
     let task_id = resp["task_id"].as_str().expect("task_id must be a string");
     assert!(!task_id.is_empty(), "task_id should not be empty");
 
-    // AC-5: cleanup
+    // Cleanup
     handle.shutdown();
     tokio::time::sleep(Duration::from_millis(20)).await;
     let _ = std::fs::remove_file(&socket_path);
 }
 
-// AC-3 + AC-4 — task submitted by manifest name reaches "completed" status
+// Task submitted by manifest name reaches "completed" status
 #[tokio::test]
 async fn test_task_completes_end_to_end_mock_backend() {
     // GIVEN an agent registered with manifest.name = "mock-agent"
@@ -302,13 +302,13 @@ async fn test_task_completes_end_to_end_mock_backend() {
         "expected 'completed', got '{final_status}'"
     );
 
-    // AC-5: cleanup
+    // Cleanup
     handle.shutdown();
     tokio::time::sleep(Duration::from_millis(20)).await;
     let _ = std::fs::remove_file(&socket_path);
 }
 
-// AC-5 — TCP port and Unix socket are released after server shutdown
+// TCP port and Unix socket are released after server shutdown
 #[tokio::test]
 async fn test_cleanup_socket_and_port_after_shutdown() {
     // GIVEN a running APIServer

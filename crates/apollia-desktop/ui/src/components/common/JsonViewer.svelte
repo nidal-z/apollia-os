@@ -5,7 +5,7 @@
   booleans, null, keys). Uses simple regex-based highlighting — no external
   dependency required.
 
-  STORY-164: Smart output renderer — raw JSON view
+  Smart output renderer — raw JSON view
 -->
 <script lang="ts">
   import { cn } from "$lib/utils";

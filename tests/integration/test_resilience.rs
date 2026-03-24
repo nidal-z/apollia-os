@@ -1,4 +1,4 @@
-//! Integration tests — ResilienceLayer circuit breaker (AC-3, STORY-045).
+//! Integration tests — ResilienceLayer circuit breaker.
 //!
 //! Tests the circuit breaker lifecycle at the workspace integration level:
 //! Closed → Open (on threshold) → HalfOpen (after cooldown) → Closed (on probe success).
@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use apollia_oria::resilience::{CircuitState, ErrorClass, ResilienceError, ResilienceLayer};
 
-// AC-3 — circuit opens after failure_threshold consecutive Transient errors
+// Circuit opens after failure_threshold consecutive Transient errors
 #[tokio::test]
 async fn test_circuit_breaker_opens_on_threshold() {
     // GIVEN a ResilienceLayer with failure_threshold=3 and a registered tool
@@ -58,7 +58,7 @@ async fn test_circuit_breaker_opens_on_threshold() {
     );
 }
 
-// AC-3 — circuit transitions to HalfOpen after cooldown, then Closed on probe success
+// Circuit transitions to HalfOpen after cooldown, then Closed on probe success
 #[tokio::test]
 async fn test_circuit_breaker_half_open_after_cooldown() {
     // GIVEN a circuit breaker with a very short cooldown (1ms) that is Open
@@ -105,7 +105,7 @@ async fn test_circuit_breaker_half_open_after_cooldown() {
     assert_eq!(layer.get("test_tool").unwrap().failure_count(), 0);
 }
 
-// AC-3 complementary — HalfOpen probe failure reopens the circuit
+// HalfOpen probe failure reopens the circuit
 #[tokio::test]
 async fn test_circuit_half_open_probe_failure_reopens() {
     // GIVEN a circuit in HalfOpen state
@@ -132,7 +132,7 @@ async fn test_circuit_half_open_probe_failure_reopens() {
     assert_eq!(layer.get("test_tool").unwrap().state(), &CircuitState::Open);
 }
 
-// AC-3 complementary — execute() with retry retries on Transient, not on Permanent
+// execute() with retry retries on Transient, not on Permanent
 #[tokio::test]
 async fn test_execute_with_retry_transient_then_success() {
     use apollia_oria::resilience::RetryPolicy;

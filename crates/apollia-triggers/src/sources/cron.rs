@@ -19,7 +19,7 @@ impl CronTrigger {
     ///
     /// La tâche boucle indéfiniment et envoie un [`TriggerEvent`] à chaque fire.
     /// Si le channel est fermé, la tâche se termine proprement.
-    /// Retourne le `JoinHandle<()>` pour abort lors du hot reload (STORY-073).
+    /// Retourne le `JoinHandle<()>` pour abort lors du hot reload.
     pub fn spawn(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> JoinHandle<()> {
         tokio::spawn(async move {
             // Guard : extraire le schedule depuis la source
@@ -47,7 +47,7 @@ impl CronTrigger {
             };
 
             while let Some(next) = schedule.upcoming(Utc).next() {
-                // AC-4 : si le prochain fire est dans le passé, délai minimal de 100ms
+                // Si le prochain fire est dans le passé, délai minimal de 100ms
                 let duration = (next - Utc::now()).to_std().unwrap_or_else(|_| {
                     tracing::warn!(
                         trigger = %def.id,

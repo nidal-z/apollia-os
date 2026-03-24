@@ -1,7 +1,7 @@
 //! Types de plan d'exécution pour le mode Orchestrated d'ORIA.
 //!
 //! Ces types sont produits par [`crate::reasoner::Reasoner`], validés par
-//! [`crate::topo::topological_sort`], et consommés par l'`ActorLoop` (STORY-083).
+//! [`crate::topo::topological_sort`], et consommés par l'`ActorLoop`.
 
 /// Plan d'exécution multi-étapes généré par le Reasoner.
 ///
@@ -42,7 +42,7 @@ pub struct PlanStep {
     ///
     /// Si `None`, le backend par défaut du `LlmRouter` est utilisé.
     /// La résolution effective du hint vers un backend concret est faite
-    /// par l'`ActorLoop` (STORY-227).
+    /// par l'`ActorLoop`.
     #[serde(default)]
     pub model_hint: Option<String>,
 }

@@ -195,7 +195,7 @@ impl Reasoner {
     /// complétés (`completed_outputs`) et de la raison d'échec du step `failed_step_id`.
     ///
     /// Un seul appel LLM sans retry propre — la gestion des retries de replanification
-    /// incombe à l'`ActorLoop` (STORY-083).
+    /// incombe à l'`ActorLoop`.
     pub async fn replan(
         &self,
         ctx: &ContextBundle,
@@ -666,7 +666,7 @@ mod tests {
         assert!(!plan.plan_id.is_empty());
     }
 
-    // ─── STORY-226 — AC-1 : Désérialisation sans model_hint ───
+    // ─── Désérialisation sans model_hint ───
 
     /// GIVEN un JSON de PlanStep sans champ model_hint
     /// WHEN on désérialise
@@ -688,7 +688,7 @@ mod tests {
         assert_eq!(steps[0].model_hint, None);
     }
 
-    // ─── STORY-226 — AC-2 : Désérialisation avec model_hint ───
+    // ─── Désérialisation avec model_hint ───
 
     /// GIVEN un JSON de PlanStep avec "model_hint": "fast-7b"
     /// WHEN on désérialise
@@ -710,7 +710,7 @@ mod tests {
         assert_eq!(steps[0].model_hint, Some("fast-7b".to_string()));
     }
 
-    // ─── STORY-226 — AC-3 : Prompt contient {llm_backend_names} ───
+    // ─── Prompt contient {llm_backend_names} ───
 
     /// GIVEN la constante PLANNER_SYSTEM_PROMPT
     /// WHEN on inspecte son contenu

@@ -1,7 +1,7 @@
 //! Persistance SQLite des plans d'exécution ORIA.
 //!
 //! `PlanRepository` est un wrapper synchrone autour de `rusqlite` — même pattern
-//! que `AuditTrail` (STORY-016). Toutes les méthodes sont synchrones ; l'`ActorLoop`
+//! que `AuditTrail`. Toutes les méthodes sont synchrones ; l'`ActorLoop`
 //! async les appelle via `tokio::task::spawn_blocking` si nécessaire.
 //!
 //! La migration `004_execution_plans.sql` est incluse au moment de la compilation
@@ -18,7 +18,7 @@ use crate::plan::{ExecutionPlan, PlanStep};
 /// SQL de migration embarqué — appliqué idempotentiellement à chaque ouverture.
 const MIGRATION_SQL: &str = include_str!("../../apollia-tools/migrations/004_execution_plans.sql");
 
-/// Colonnes d'observabilité STORY-127 à ajouter sur `plan_steps`.
+/// Colonnes d'observabilité à ajouter sur `plan_steps`.
 ///
 /// Chaque tuple : (nom colonne, type SQL). Appliquées idempotentiellement
 /// via [`apply_observability_migration`] — les colonnes déjà existantes
@@ -33,7 +33,7 @@ const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
     ("duration_ms", "INTEGER"),
 ];
 
-/// Applique la migration d'observabilité STORY-127 de façon idempotente.
+/// Applique la migration d'observabilité de façon idempotente.
 ///
 /// Utilise `ALTER TABLE ADD COLUMN` individuellement et ignore l'erreur
 /// « duplicate column name » (code SQLite 1) si la colonne existe déjà.
@@ -435,7 +435,7 @@ impl PlanRepository {
 
     /// Récupère le plan complet avec ses steps depuis SQLite.
     ///
-    /// Utilisé par `apollia-os task inspect` (STORY-089).
+    /// Utilisé par `apollia-os task inspect`.
     ///
     /// # Errors
     /// - [`PlanRepositoryError::NotFound`] si aucun plan n'est associé à `task_id`.
@@ -646,7 +646,7 @@ mod tests {
         assert!(matches!(result, Err(PlanRepositoryError::NotFound(_))));
     }
 
-    // ── STORY-127 : observabilité step ────────────────────────────────────
+    // ── observabilité step ────────────────────────────────────
 
     // GIVEN un step dans un plan
     // WHEN  save_step_input avec un texte court

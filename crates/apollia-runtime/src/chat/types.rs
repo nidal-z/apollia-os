@@ -1,4 +1,4 @@
-//! Chat domain types for Sprint 18 (STORY-198).
+//! Chat domain types.
 //!
 //! Defines sessions, messages, roles, tool approval mechanics,
 //! and the `ChatError` hierarchy used throughout the chat subsystem.

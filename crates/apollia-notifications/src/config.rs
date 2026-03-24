@@ -46,11 +46,11 @@ pub struct ChannelConfig {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ChannelKind {
-    /// Notification native OS via `notify-rust` (STORY-100).
+    /// Notification native OS via `notify-rust`.
     Desktop,
-    /// Requête HTTP POST vers une URL configurée (STORY-101).
+    /// Requête HTTP POST vers une URL configurée.
     Webhook,
-    /// Server-Sent Events via le dashboard local (Sprint 9, déjà disponible).
+    /// Server-Sent Events via le dashboard local.
     Sse,
 }
 
@@ -118,7 +118,7 @@ pub enum NotifConfigError {
 /// - `enabled = false` → canal ignoré silencieusement
 /// - `type = "desktop"` → [`DesktopChannel`] ajouté
 /// - `type = "webhook"` → [`WebhookChannel`] ajouté (erreur si `url` absent)
-/// - `type = "sse"` → ignoré (géré directement par le dashboard, STORY-105)
+/// - `type = "sse"` → ignoré (géré directement par le dashboard)
 ///
 /// Retourne une erreur si un canal `webhook` actif n'a pas de `url`.
 pub fn build_channels(
@@ -150,7 +150,7 @@ pub fn build_channels(
                 })));
             }
             ChannelKind::Sse => {
-                // Le canal SSE est géré directement par le dashboard (STORY-105).
+                // Le canal SSE est géré directement par le dashboard.
             }
         }
     }

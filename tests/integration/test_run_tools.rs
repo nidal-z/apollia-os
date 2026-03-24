@@ -1,4 +1,4 @@
-//! Tests e2e — boucle ReAct via `ToolCallHelper` (AC-2, STORY-064).
+//! Tests e2e — boucle ReAct via `ToolCallHelper`.
 //!
 //! Vérifie le comportement de la boucle ReAct depuis l'API publique de `apollia-llm` :
 //! - arrêt immédiat sur `FinishReason::Stop` ;
@@ -293,7 +293,7 @@ fn user_message(text: &str) -> ChatMessage {
 // Tests
 // ─────────────────────────────────────────────
 
-/// AC-2 — la boucle s'arrête immédiatement quand le LLM retourne `Stop`.
+/// La boucle s'arrête immédiatement quand le LLM retourne `Stop`.
 #[tokio::test]
 async fn test_react_loop_stops_on_finish_stop() {
     // GIVEN un mock qui répond directement avec Stop
@@ -328,7 +328,7 @@ async fn test_react_loop_stops_on_finish_stop() {
     );
 }
 
-/// AC-2 — boucle ReAct : 1 appel d'outil puis réponse finale (2 appels LLM, 1 appel outil).
+/// Boucle ReAct : 1 appel d'outil puis réponse finale (2 appels LLM, 1 appel outil).
 #[tokio::test]
 async fn test_react_loop_calls_tool_once() {
     // GIVEN un mock ReAct : ToolCalls au 1er appel, Stop au 2ème
@@ -363,7 +363,7 @@ async fn test_react_loop_calls_tool_once() {
     );
 }
 
-/// AC-4 — garde-fou `max_iterations` : la boucle infinie est arrêtée à N itérations.
+/// Garde-fou `max_iterations` : la boucle infinie est arrêtée à N itérations.
 #[tokio::test]
 async fn test_react_loop_max_iterations_guard() {
     // GIVEN un mock qui retourne toujours ToolCalls (boucle infinie potentielle)
@@ -393,7 +393,7 @@ async fn test_react_loop_max_iterations_guard() {
     );
 }
 
-/// AC-4 — garde-fou `StepBudget` : aucun appel LLM si le budget est épuisé.
+/// Garde-fou `StepBudget` : aucun appel LLM si le budget est épuisé.
 #[tokio::test]
 async fn test_react_loop_budget_exhausted_guard() {
     // GIVEN un budget déjà épuisé (100/100 steps)
@@ -421,7 +421,7 @@ async fn test_react_loop_budget_exhausted_guard() {
     );
 }
 
-/// AC-2 — les erreurs d'outil sont absorbées comme texte, la boucle continue.
+/// Les erreurs d'outil sont absorbées comme texte, la boucle continue.
 ///
 /// Vérifie que `ToolInvoker::invoke` retournant `Err` ne fait pas planter la boucle :
 /// l'erreur est transmise au LLM comme résultat textuel.

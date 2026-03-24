@@ -3,16 +3,16 @@
 //! `ActorLoop` est la pièce centrale du mode Orchestré (Option B) : ORIA exécute
 //! directement les outils et le LLM — `agent.run()` n'est **pas** appelé pendant
 //! les steps. L'agent fournit uniquement son `manifest()` et optionnellement
-//! `on_plan_complete()` (STORY-086).
+//! `on_plan_complete()`.
 //!
 //! ## Pipeline d'exécution
 //!
 //! ```text
 //! ActorLoop::execute()
-//!   ├── topological_sort(plan.steps)         → ordre d'exécution (STORY-082)
+//!   ├── topological_sort(plan.steps)         → ordre d'exécution
 //!   ├── Pour chaque step_id dans ordre :
 //!   │   ├── StepBudget::is_exhausted()       → STEP_BUDGET_EXCEEDED si épuisé
-//!   │   ├── db.start_step()                  → SQLite (STORY-081)
+//!   │   ├── db.start_step()                  → SQLite
 //!   │   ├── execute_step()                   → outil via ToolProxyTrait OU LLM via LlmRouter
 //!   │   ├── budget.increment_steps()
 //!   │   ├── db.complete_step() / fail_step()
@@ -119,13 +119,13 @@ impl StepError {
 // Constants
 // ────────────────────────────────────────────────────────────────────────────
 
-/// Importance level for step-level episodic memory entries (STORY-230).
+/// Importance level for step-level episodic memory entries.
 ///
 /// Set to 0.6 — above the default recall threshold (0.5) so that step outputs
 /// appear in standard memory queries, but below critical events (1.0).
 const STEP_MEMORY_IMPORTANCE: f64 = 0.6;
 
-/// Maximum character length for step output stored in episodic memory (STORY-230 AC-4).
+/// Maximum character length for step output stored in episodic memory.
 const STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -187,7 +187,7 @@ impl StepContext {
 /// En cas d'échec retryable d'un step, déclenche une replanification via le [`Reasoner`]
 /// jusqu'à `max_replans` fois.
 ///
-/// Pour activer le support HITL (STORY-097), injecter un [`PendingApprovals`] via
+/// Pour activer le support HITL, injecter un [`PendingApprovals`] via
 /// [`with_pending_approvals`]. Sans cela, les steps avec `tools_requiring_approval`
 /// s'exécutent directement sans suspension.
 ///
@@ -201,7 +201,7 @@ pub struct ActorLoop {
     /// Manifest de l'agent propriétaire de ce plan.
     ///
     /// Stocké en lecture seule pour que `execute_step` puisse accéder à
-    /// `tools_requiring_approval` lors de chaque step (vérification STORY-097).
+    /// `tools_requiring_approval` lors de chaque step.
     pub manifest: AgentManifest,
     /// Registre HITL des approbations en attente — partagé avec le `ResumeHandler`.
     ///
@@ -211,7 +211,7 @@ pub struct ActorLoop {
     pending_approvals: Option<Arc<PendingApprovals>>,
     /// Configuration d'observabilité pour la troncature des inputs/outputs persistés.
     obs_config: ObservabilityConfig,
-    /// Memory manager for episodic recording after each step (STORY-230).
+    /// Memory manager for episodic recording after each step.
     ///
     /// When `Some`, step outputs are automatically recorded as episodic memories
     /// in the agent's namespace. `Arc<Mutex<MemoryManager>>` follows the ADR-033
@@ -226,7 +226,7 @@ impl ActorLoop {
     /// (via `PlanRepository::insert_plan` + `insert_steps`).
     ///
     /// `manifest` est conservé en lecture seule pour que les steps puissent
-    /// accéder à `tools_requiring_approval` (vérification STORY-097).
+    /// accéder à `tools_requiring_approval`.
     ///
     /// Pour activer le support HITL, chaîner avec [`with_pending_approvals`].
     ///
@@ -251,7 +251,7 @@ impl ActorLoop {
         }
     }
 
-    /// Injecte le registre HITL des approbations en attente (STORY-097).
+    /// Injecte le registre HITL des approbations en attente.
     ///
     /// Requis pour que les steps dont l'outil est dans `tools_requiring_approval`
     /// suspendent l'exécution et attendent la décision humaine.
@@ -269,7 +269,7 @@ impl ActorLoop {
         self
     }
 
-    /// Injecte un [`MemoryManager`] pour l'enregistrement épisodique per-step (STORY-230).
+    /// Injecte un [`MemoryManager`] pour l'enregistrement épisodique per-step.
     ///
     /// Quand configuré, chaque step complété avec succès enregistre automatiquement
     /// une entrée épisodique dans le namespace de l'agent. L'écriture est fire-and-forget :
@@ -349,7 +349,7 @@ impl ActorLoop {
                 tracing::warn!(error = %e, step_id = %step_id, "start_step DB call failed (ignored)");
             }
 
-            // STORY-127: persist rendered input + tool name before execution.
+            // persist rendered input + tool name before execution.
             let rendered_input = interpolate_outputs(&step.description, &completed_outputs);
             if let Err(e) = self.db.save_step_input(
                 &step_id,
@@ -367,7 +367,7 @@ impl ActorLoop {
                 tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
             }
 
-            // STORY-229: build StepContext with accumulated outputs and budget snapshot.
+            // build StepContext with accumulated outputs and budget snapshot.
             let step_ctx = StepContext {
                 previous_outputs: completed_outputs.clone(),
                 step_index: completed_outputs.len(),
@@ -382,7 +382,7 @@ impl ActorLoop {
             let duration_ms = started.elapsed().as_millis() as u64;
             budget.increment_steps();
 
-            // STORY-127: persist duration unconditionally.
+            // persist duration unconditionally.
             if let Err(e) =
                 self.db
                     .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
@@ -392,7 +392,7 @@ impl ActorLoop {
 
             match result {
                 Ok(output) => {
-                    // STORY-127: persist observability output.
+                    // persist observability output.
                     if let Err(e) = self.db.save_step_output(
                         &step_id,
                         &self.plan.plan_id,
@@ -411,14 +411,14 @@ impl ActorLoop {
                         duration_ms,
                     });
 
-                    // STORY-230: record episodic memory per step (fire-and-forget).
+                    // record episodic memory per step (fire-and-forget).
                     self.record_step_memory(&step_id, &step.description, &output);
 
                     completed_outputs.insert(step_id, output);
                 }
 
                 Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
-                    // STORY-127: persist error detail.
+                    // persist error detail.
                     if let Err(db_err) =
                         self.db
                             .save_step_error(&step_id, &self.plan.plan_id, &e.to_string())
@@ -600,8 +600,8 @@ impl ActorLoop {
     /// configuré, appelle [`suspend_for_approval`] et attend la décision humaine.
     ///
     /// - `tool_hint = Some("llm")` ou `None` → appel LLM, routé via `model_hint`
-    ///   si présent (STORY-227), sinon backend défaut. Les outputs précédents sont
-    ///   injectés dans le system message (STORY-229 AC-4).
+    ///   si présent, sinon backend défaut. Les outputs précédents sont
+    ///   injectés dans le system message.
     /// - `tool_hint = Some(tool_name)` → appel via `ToolProxyTrait::invoke`
     ///   (`model_hint` ignoré pour les steps outil — AC-4).
     ///
@@ -644,8 +644,8 @@ impl ActorLoop {
         let input = interpolate_outputs(&step.description, &step_ctx.previous_outputs);
 
         match step.tool_hint.as_deref() {
-            // Step LLM — routé vers le backend spécifié par model_hint (STORY-227).
-            // STORY-229 AC-4: previous outputs injected into the system message.
+            // Step LLM — routé vers le backend spécifié par model_hint.
+            // previous outputs injected into the system message.
             Some("llm") | None => {
                 self.execute_llm_step(step, input, llm_router, step_ctx)
                     .await
@@ -665,7 +665,7 @@ impl ActorLoop {
     /// - Si `model_hint = Some(hint)` mais le backend n'existe pas, un `tracing::warn!`
     ///   est émis et le backend par défaut est utilisé en fallback (AC-2).
     /// - Si `model_hint = None`, le backend par défaut est utilisé (AC-3).
-    /// - STORY-229 AC-4: si des steps précédents ont complété, leurs outputs sont
+    /// - si des steps précédents ont complété, leurs outputs sont
     ///   formatés dans un system message `"Previous step results:\n- s1: …"`.
     async fn execute_llm_step(
         &self,
@@ -675,7 +675,7 @@ impl ActorLoop {
         step_ctx: &StepContext,
     ) -> Result<String, StepError> {
         let mut messages = Vec::new();
-        // STORY-229 AC-4: inject previous step outputs as system context.
+        // inject previous step outputs as system context.
         if let Some(context_text) = step_ctx.format_previous_outputs() {
             messages.push(ChatMessage::system(context_text));
         }
@@ -721,7 +721,7 @@ impl ActorLoop {
     /// 1. Enregistre un oneshot channel dans `pending_approvals` → récepteur `rx`.
     /// 2. Émet [`RuntimeEvent::TaskInputRequired`] avec `step_id: Some(step.step_id)`
     ///    sur l'`EventBus` pour notifier l'utilisateur.
-    /// 3. Attend `rx.await` — le `ResumeHandler` (STORY-095) envoie sur le sender.
+    /// 3. Attend `rx.await` — le `ResumeHandler` envoie sur le sender.
     /// 4. Si `approved=true` → `Ok(())` → l'outil du step est exécuté normalement.
     /// 5. Si `approved=false` → `Err(StepError::RejectedByUser { reason })`.
     /// 6. Si le channel est fermé (shutdown runtime) → `Err(StepError::ApprovalChannelClosed)`.
@@ -780,13 +780,13 @@ impl ActorLoop {
         }
     }
 
-    /// Records an episodic memory entry for a completed step (STORY-230).
+    /// Records an episodic memory entry for a completed step.
     ///
     /// Fire-and-forget: errors are logged as warnings but never interrupt execution.
     /// Skipped silently when `memory_manager` is `None` or when the agent manifest
     /// has no `memory_namespace` configured (AC-2).
     ///
-    /// Output is truncated to [`STEP_MEMORY_OUTPUT_MAX_CHARS`] characters (AC-4).
+    /// Output is truncated to [`STEP_MEMORY_OUTPUT_MAX_CHARS`] characters.
     fn record_step_memory(&self, step_id: &str, description: &str, output: &str) {
         // AC-2: skip if no memory_manager or no namespace configured.
         let mm = match self.memory_manager.as_ref() {
@@ -1006,7 +1006,7 @@ impl ActorLoop {
                     tracing::warn!(error = %e, step_id = %step_id, "start_step DB call failed (ignored)");
                 }
 
-                // STORY-127: persist rendered input + tool name before execution.
+                // persist rendered input + tool name before execution.
                 let rendered_input = interpolate_outputs(&step.description, &completed_outputs);
                 if let Err(e) = self.db.save_step_input(
                     &step_id,
@@ -1024,7 +1024,7 @@ impl ActorLoop {
                     tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
                 }
 
-                // STORY-229: build StepContext for execute_remaining steps.
+                // build StepContext for execute_remaining steps.
                 let step_ctx = StepContext {
                     previous_outputs: completed_outputs.clone(),
                     step_index: completed_outputs.len(),
@@ -1039,7 +1039,7 @@ impl ActorLoop {
                 let duration_ms = started.elapsed().as_millis() as u64;
                 budget.increment_steps();
 
-                // STORY-127: persist duration unconditionally.
+                // persist duration unconditionally.
                 if let Err(e) =
                     self.db
                         .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
@@ -1049,7 +1049,7 @@ impl ActorLoop {
 
                 match result {
                     Ok(output) => {
-                        // STORY-127: persist observability output.
+                        // persist observability output.
                         if let Err(e) = self.db.save_step_output(
                             &step_id,
                             &self.plan.plan_id,
@@ -1715,7 +1715,7 @@ mod tests {
         );
     }
 
-    // ── STORY-097 — HITL Mode Orchestré ──────────────────────────────────────
+    // ── HITL Mode Orchestré ──────────────────────────────────────
 
     /// Construit un `AgentManifest` avec `tools_requiring_approval` pour les tests HITL.
     fn make_manifest_with_approval(tools: &[&str]) -> AgentManifest {
@@ -2093,7 +2093,7 @@ mod tests {
         assert!(!StepError::ApprovalChannelClosed.is_retryable());
     }
 
-    // ── STORY-227 — Multi-model dispatch via model_hint ─────────────────────
+    // ── Multi-model dispatch via model_hint ─────────────────────
 
     /// Construit un plan avec un step LLM et un `model_hint` optionnel.
     fn make_llm_plan(step_id: &str, model_hint: Option<&str>) -> ExecutionPlan {
@@ -2355,7 +2355,7 @@ mod tests {
         );
     }
 
-    // ── STORY-229 — StepContext per-step observation ─────────────────────────
+    // ── StepContext per-step observation ─────────────────────────
 
     // AC-1 — Step with dependency receives the output of the predecessor.
     //
@@ -2580,7 +2580,7 @@ mod tests {
         );
     }
 
-    // ── STORY-230 — Per-step episodic memory ─────────────────────────────────
+    // ── Per-step episodic memory ─────────────────────────────────
 
     /// Helper: creates a manifest with `memory_namespace` set.
     fn make_manifest_with_memory(namespace: &str) -> AgentManifest {
@@ -2613,7 +2613,7 @@ mod tests {
         (actor, bus_rx)
     }
 
-    // STORY-230 AC-1 — Episodic entry created after step completion.
+    // Episodic entry created after step completion.
     //
     // GIVEN an agent with memory_namespace configured and a plan of 3 steps
     // WHEN all steps complete successfully
@@ -2668,7 +2668,7 @@ mod tests {
         );
     }
 
-    // STORY-230 AC-2 — No write when memory_namespace is None.
+    // No write when memory_namespace is None.
     //
     // GIVEN an agent without memory_namespace
     // WHEN steps complete
@@ -2699,7 +2699,7 @@ mod tests {
         );
     }
 
-    // STORY-230 AC-3 — Memory write failure does not block execution.
+    // Memory write failure does not block execution.
     //
     // GIVEN a memory_manager pointing to an invalid/read-only path
     // WHEN steps complete and the memory write fails

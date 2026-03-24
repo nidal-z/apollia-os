@@ -488,7 +488,7 @@ where
 ///
 /// `pending_count` retourne toujours 0 en MVP — le comptage per-agent n'est
 /// pas encore exposé dans l'API publique du `TaskRouter`. `OnBusyPolicy::Drop`
-/// peut être amélioré en STORY-073 avec un message `GetPendingCountForAgent`.
+/// peut être amélioré avec un message `GetPendingCountForAgent`.
 impl<B> apollia_triggers::TaskSubmitter for TaskRouterHandle<B>
 where
     B: ExecutionBackend + Clone + Send + Sync + 'static,
@@ -510,7 +510,6 @@ where
         _agent: &'a str,
     ) -> Pin<Box<dyn Future<Output = usize> + Send + 'a>> {
         // MVP: per-agent pending count non exposé — retourne 0.
-        // OnBusyPolicy::Drop sera affiné en STORY-073.
         Box::pin(async move { 0 })
     }
 }

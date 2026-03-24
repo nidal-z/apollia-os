@@ -7,8 +7,8 @@
 //! (insert/update).
 //!
 //! Les steps sont stockes comme JSON blob (`steps_json`) car toujours charges/sauves
-//! en bloc. Ce repository est utilise par le boot Supervisor (STORY-187) et les routes
-//! REST CRUD (STORY-190).
+//! en bloc. Ce repository est utilise par le boot Supervisor et les routes
+//! REST CRUD.
 
 use std::path::Path;
 
@@ -135,7 +135,7 @@ impl PipelineDefinitionRepository {
     /// Ouvre un repository en memoire (pour les tests).
     ///
     /// Utilisé par les tests unitaires de cette crate et par les tests
-    /// des routes REST dans `apollia-runtime` (STORY-190).
+    /// des routes REST dans `apollia-runtime`.
     pub fn open_in_memory() -> Result<Self, PipelineDefinitionError> {
         let conn = Connection::open_in_memory()?;
         conn.execute_batch(MIGRATION_008)?;

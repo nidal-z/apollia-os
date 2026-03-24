@@ -1,4 +1,4 @@
-//! Integration tests for HITL TimeoutWatcher — STORY-106 AC-5.
+//! Integration tests for HITL TimeoutWatcher.
 //!
 //! Tests the automatic cancellation of `input_required` tasks that have been
 //! pending for longer than the configured timeout.

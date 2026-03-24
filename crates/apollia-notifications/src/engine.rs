@@ -53,8 +53,8 @@ pub struct Notification {
 ///
 /// Un canal est object-safe (`Box<dyn NotificationChannel>`) et thread-safe (`Send + Sync`).
 /// Les canaux concrets sont implémentés dans :
-/// - [`crate::channels::desktop`] — notifications natives OS (STORY-100)
-/// - [`crate::channels::webhook`] — requêtes HTTP POST (STORY-101)
+/// - [`crate::channels::desktop`] — notifications natives OS.
+/// - [`crate::channels::webhook`] — requêtes HTTP POST.
 #[async_trait]
 pub trait NotificationChannel: Send + Sync {
     /// Identifiant unique du canal tel que configuré dans `apollia.toml`.
@@ -130,7 +130,7 @@ impl NotificationEngineHandle {
 /// Moteur de notification : s'abonne à l'EventBus et dispatche les événements
 /// aux canaux configurés.
 ///
-/// Démarré par le Supervisor via [`NotificationEngine::spawn`] (STORY-102).
+/// Démarré par le Supervisor via [`NotificationEngine::spawn`].
 /// Chaque événement reçu est transformé en [`Notification`] via
 /// [`map_event`], puis dispatché à chaque canal dont [`NotificationChannel::accepts`]
 /// retourne `true`.
@@ -170,7 +170,7 @@ impl NotificationEngine {
     ///
     /// The handle allows the Supervisor to stop the engine gracefully before the
     /// EventBus closes, and REST routes to hot-reload configuration after CRUD
-    /// mutations (STORY-191).
+    /// mutations.
     pub fn spawn(self) -> NotificationEngineHandle {
         let (cmd_tx, cmd_rx) = mpsc::channel(8);
         let NotificationEngine {

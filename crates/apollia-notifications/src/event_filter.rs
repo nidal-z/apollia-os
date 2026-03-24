@@ -12,7 +12,7 @@ use crate::{config::Severity, engine::Notification};
 /// Les événements qui produisent une notification :
 /// - `TaskInputRequired`, `TaskCompleted` (succès et échec), `AgentDegraded`,
 ///   `LlmModelFailed`, `TriggerError` — existants (Sprints 9-11)
-/// - `PipelineCompleted`, `PipelineFailed`, `PipelineSuspended` — ajoutés STORY-123
+/// - `PipelineCompleted`, `PipelineFailed`, `PipelineSuspended` — ajoutés.
 ///
 /// Tous les autres retournent `None`.
 pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
@@ -110,7 +110,7 @@ pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
             })
         }
 
-        // ── Pipeline events (STORY-123) ───────────────────────────────────
+        // ── Pipeline events ────────────────────────────────────────────────
         RuntimeEvent::PipelineCompleted {
             run_id,
             pipeline_id,
@@ -181,7 +181,7 @@ pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
             })
         }
 
-        // ── Chat events (STORY-203) ─────────────────────────────────────
+        // ── Chat events ────────────────────────────────────────────────────
         RuntimeEvent::ChatApprovalRequired {
             session_id,
             tool_name,
@@ -348,7 +348,7 @@ mod tests {
         assert!(map_event(&event).is_none());
     }
 
-    // ── STORY-123 : Pipeline notifications ───────────────────────────────
+    // ── Pipeline notifications ────────────────────────────────────────────
 
     #[test]
     fn test_ac1_pipeline_completed_maps_to_info_notification() {
@@ -418,7 +418,7 @@ mod tests {
         assert_eq!(notif.task_id.as_deref(), Some("t-0051"));
     }
 
-    // ── STORY-203 : Chat approval notification ─────────────────────────
+    // ── Chat approval notification ────────────────────────────────────────
 
     #[test]
     fn test_chat_approval_required_maps_to_warning_notification() {

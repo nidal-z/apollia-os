@@ -1,4 +1,4 @@
-//! Integration tests — CRUD API → SQLite → reload acteur (STORY-197).
+//! Integration tests — CRUD API → SQLite → reload acteur.
 //!
 //! Tests the full cycle: create/update/delete via HTTP REST, verify persistence
 //! in SQLite, and confirm that actors (TriggerEngine, PipelineEngine,

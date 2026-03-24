@@ -72,14 +72,14 @@ pub struct AgentManifest {
     pub execution_mode: String,
     /// Prompt système fourni à ORIA pour planifier l'exécution orchestrée.
     ///
-    /// Requis si `execution_mode = "orchestrated"` (validation dans STORY-085).
+    /// Requis si `execution_mode = "orchestrated"`.
     /// Ignoré pour les autres modes.
     #[serde(default)]
     pub system_prompt: Option<String>,
     /// Outils nécessitant une approbation humaine avant exécution en Mode Orchestré.
     ///
     /// Déclarés par l'agent dans son `manifest()`. Le runtime refuse d'exécuter un step
-    /// utilisant ces outils sans approbation explicite (logique STORY-097).
+    /// utilisant ces outils sans approbation explicite.
     /// Vide par défaut — aucun outil ne nécessite d'approbation.
     #[serde(default)]
     pub tools_requiring_approval: Vec<String>,

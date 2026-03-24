@@ -212,7 +212,7 @@ impl LlmRouter {
 
     /// Construit le router depuis la configuration avec observabilité EventBus.
     ///
-    /// Variante de [`from_config`](Self::from_config) à utiliser par le Supervisor (STORY-060).
+    /// Variante de [`from_config`](Self::from_config) à utiliser par le Supervisor.
     /// Émet sur le bus pour chaque backend :
     /// - [`RuntimeEvent::LlmModelLoading`] — avant le chargement
     /// - [`RuntimeEvent::LlmModelReady`] — si le chargement réussit
@@ -457,7 +457,7 @@ impl LlmRouter {
 
     /// Crée un `LlmRouter` vide sans aucun backend — pour les tests unitaires.
     ///
-    /// Utilisé par STORY-059 pour tester les chemins de dégradation :
+    /// Utilisé pour tester les chemins de dégradation :
     /// `ctx.llm = None` et `AgentDegraded` sur l'EventBus.
     pub fn empty() -> Self {
         Self {
@@ -707,7 +707,7 @@ mod tests {
         );
     }
 
-    // ── Tests observabilité (STORY-056) ──────────────────────────────────────
+    // ── Tests observabilité ────────────────────────────────────────────────────
 
     // GIVEN un LlmRouter avec un mock backend et un EventBusSender
     // WHEN on appelle complete_with_observability(None, req, Some(&tx), &obs)

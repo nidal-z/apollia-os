@@ -1,5 +1,5 @@
 /**
- * UI mode store for Apollia Desktop (STORY-160).
+ * UI mode store for Apollia Desktop.
  *
  * Controls whether the UI shows simplified "operator" views or detailed
  * "builder" views with technical information (cron expressions, token

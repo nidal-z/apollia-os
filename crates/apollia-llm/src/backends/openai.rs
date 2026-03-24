@@ -277,11 +277,12 @@ impl CompletionModel for OpenAICompatibleClient {
         let mapped = futures::stream::unfold(state, |state| async move {
             match state {
                 OpenAIStreamState::Done => None,
-                OpenAIStreamState::Flushing { mut remaining } => {
-                    remaining.pop().map(|call| {
-                        (Ok(StreamChunk::ToolCall(call)), OpenAIStreamState::Flushing { remaining })
-                    })
-                }
+                OpenAIStreamState::Flushing { mut remaining } => remaining.pop().map(|call| {
+                    (
+                        Ok(StreamChunk::ToolCall(call)),
+                        OpenAIStreamState::Flushing { remaining },
+                    )
+                }),
                 OpenAIStreamState::Streaming {
                     mut inner,
                     mut pending,
@@ -326,10 +327,7 @@ impl CompletionModel for OpenAICompatibleClient {
                                 continue;
                             }
                             Some(Err(e)) => {
-                                return Some((
-                                    Err(map_openai_error(e)),
-                                    OpenAIStreamState::Done,
-                                ));
+                                return Some((Err(map_openai_error(e)), OpenAIStreamState::Done));
                             }
                             None => {
                                 // SSE stream ended — flush accumulated tool calls
@@ -343,9 +341,8 @@ impl CompletionModel for OpenAICompatibleClient {
                                 let mut tool_calls: Vec<ToolCall> = calls
                                     .into_iter()
                                     .map(|(_, partial)| {
-                                        let arguments =
-                                            serde_json::from_str(&partial.arguments)
-                                                .unwrap_or(serde_json::Value::Null);
+                                        let arguments = serde_json::from_str(&partial.arguments)
+                                            .unwrap_or(serde_json::Value::Null);
                                         ToolCall {
                                             id: partial.id,
                                             name: partial.name,
@@ -526,9 +523,7 @@ enum OpenAIStreamState {
         pending: HashMap<u32, PartialToolCall>,
     },
     /// SSE stream ended — emitting accumulated tool calls one by one.
-    Flushing {
-        remaining: Vec<ToolCall>,
-    },
+    Flushing { remaining: Vec<ToolCall> },
     /// Fully consumed.
     Done,
 }

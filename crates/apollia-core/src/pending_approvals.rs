@@ -29,7 +29,7 @@ pub enum PendingApprovalError {
 /// Registre thread-safe des tâches en attente d'approbation humaine (HITL).
 ///
 /// Chaque tâche suspendue possède un [`oneshot::Sender`] enregistré par
-/// [`ORIAEngine::execute_direct`] (STORY-096). Le `ResumeHandler` (STORY-095)
+/// [`ORIAEngine::execute_direct`]. Le `ResumeHandler`
 /// appelle [`resolve`] pour débloquer l'attente et transmettre la décision humaine.
 ///
 /// Cloneable via `Arc` — partagé entre `ORIAEngine` et les routes REST via `AppState`.

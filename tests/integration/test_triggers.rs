@@ -1,6 +1,6 @@
-//! Integration tests — TriggerEngine : interval, FileWatch, on_busy (STORY-078).
+//! Integration tests — TriggerEngine : interval, FileWatch, on_busy.
 //!
-//! Couvre les critères d'acceptation AC-1, AC-2, AC-5, AC-6.
+//! Couvre les scénarios : interval, FileWatch, on_busy=Drop, on_busy=Queue.
 //! Aucune dépendance Python. Exécutés dans tous les environnements CI.
 //!
 //! **AC-1** : IntervalTrigger 200 ms → ≥ 2 submit() en 700 ms
@@ -99,9 +99,9 @@ fn interval_def(id: &str, every: &str, on_busy: OnBusyPolicy) -> TriggerDefiniti
     }
 }
 
-// ─── AC-1 ─────────────────────────────────────────────────────────────────
+// ─── IntervalTrigger ──────────────────────────────────────────────────────
 
-/// AC-1 : IntervalTrigger 200 ms → au moins 2 submit() en 700 ms.
+/// IntervalTrigger 200 ms → au moins 2 submit() en 700 ms.
 #[tokio::test]
 async fn test_ac1_interval_trigger_submits_tasks() {
     // GIVEN — moteur avec un trigger à 200 ms d'intervalle
@@ -129,9 +129,9 @@ async fn test_ac1_interval_trigger_submits_tasks() {
     );
 }
 
-// ─── AC-2 ─────────────────────────────────────────────────────────────────
+// ─── FileWatch ────────────────────────────────────────────────────────────
 
-/// AC-2 : FileWatch `create` → 1 submit() dans les 5 secondes.
+/// FileWatch `create` → 1 submit() dans les 5 secondes.
 #[tokio::test]
 async fn test_ac2_file_watch_create_submits_task() {
     // GIVEN — moteur avec FileWatch sur un répertoire temporaire
@@ -184,9 +184,9 @@ async fn test_ac2_file_watch_create_submits_task() {
     );
 }
 
-// ─── AC-5 ─────────────────────────────────────────────────────────────────
+// ─── on_busy=Drop ─────────────────────────────────────────────────────────
 
-/// AC-5 : `on_busy=Drop` + agent occupé → `TriggerSkipped` émis, zéro submit.
+/// `on_busy=Drop` + agent occupé → `TriggerSkipped` émis, zéro submit.
 #[tokio::test]
 async fn test_ac5_on_busy_drop_skips_and_emits_event() {
     // GIVEN — mock occupé (pending_count = 1) + policy Drop + interval "1h" (pas d'auto-fire)
@@ -234,9 +234,9 @@ async fn test_ac5_on_busy_drop_skips_and_emits_event() {
     );
 }
 
-// ─── AC-6 ─────────────────────────────────────────────────────────────────
+// ─── on_busy=Queue ────────────────────────────────────────────────────────
 
-/// AC-6 : `on_busy=Queue` + agent occupé → 1 submit() quand même.
+/// `on_busy=Queue` + agent occupé → 1 submit() quand même.
 #[tokio::test]
 async fn test_ac6_on_busy_queue_submits_task_when_agent_busy() {
     // GIVEN — mock occupé (pending_count = 1) + policy Queue + interval "1h" (pas d'auto-fire)

@@ -1,7 +1,7 @@
-//! Integration tests — full chain with hello_agent.py (AC-1, AC-2, STORY-045).
+//! Integration tests — full chain with hello_agent.py.
 //!
 //! Tests the complete path: AIPLoader → AIPBridge → TaskRouter → Coordinator.
-//! Requires Python environment. Gated behind the `python-tests` feature (AC-6).
+//! Requires Python environment. Gated behind the `python-tests` feature.
 //!
 //! Run with:
 //!   PYO3_PYTHON=/opt/homebrew/bin/python3.13 \

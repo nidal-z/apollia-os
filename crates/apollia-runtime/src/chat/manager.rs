@@ -138,7 +138,7 @@ struct ChatSessionManager {
     tool_invoker: Arc<dyn ToolInvoker>,
     /// Agent loader for validating agent names.
     agent_loader: Arc<dyn AgentLoader>,
-    /// Agent runner for Chat Agent mode (STORY-202). `None` disables Agent mode.
+    /// Agent runner for Chat Agent mode. `None` disables Agent mode.
     agent_runner: Option<Arc<dyn ChatAgentRunner>>,
     /// Event bus sender for runtime events.
     event_bus: EventBusSender,
@@ -237,7 +237,7 @@ impl ChatSessionManager {
         info!("ChatSessionManager: actor stopped");
     }
 
-    /// Create a new chat session (AC-3).
+    /// Create a new chat session.
     fn handle_create_session(
         &mut self,
         mode: ChatMode,
@@ -354,7 +354,7 @@ impl ChatSessionManager {
         Ok(())
     }
 
-    /// Send a user message in a session (AC-4).
+    /// Send a user message in a session.
     fn handle_send_message(
         &mut self,
         session_id: &str,
@@ -418,8 +418,8 @@ impl ChatSessionManager {
             message_id: message_id.clone(),
         });
 
-        // STORY-200: Launch BuiltInChatAgent in a background task for Libre mode.
-        // For Agent mode (STORY-202), a different path will be used.
+        // Launch BuiltInChatAgent in a background task for Libre mode.
+        // For Agent mode, a different path will be used.
         let session = self
             .sessions
             .get(session_id)
@@ -476,7 +476,7 @@ impl ChatSessionManager {
                 let _ = tx.send(cmd).await;
             });
         } else {
-            // Agent mode (STORY-202): dispatch to AgentChatExecutor.
+            // Agent mode: dispatch to AgentChatExecutor.
             let agent_runner = match self.agent_runner.clone() {
                 Some(r) => r,
                 None => {
@@ -530,7 +530,7 @@ impl ChatSessionManager {
         Ok(message_id)
     }
 
-    /// Handle successful completion of a ReAct exchange (AC-11).
+    /// Handle successful completion of a ReAct exchange.
     fn handle_exchange_complete(
         &mut self,
         session_id: &str,
@@ -642,7 +642,7 @@ impl ChatSessionManager {
         }
     }
 
-    /// Resolve a pending tool approval (AC-12).
+    /// Resolve a pending tool approval.
     fn handle_resolve_tool(
         &mut self,
         session_id: &str,
@@ -689,7 +689,7 @@ impl ChatSessionManager {
         Ok(())
     }
 
-    /// List sessions with optional status filter (AC-8).
+    /// List sessions with optional status filter.
     fn handle_list_sessions(&self, status_filter: Option<&SessionStatus>) -> Vec<SessionInfo> {
         let filter_sql = status_filter.map(|s| s.as_sql());
         match self.repository.list_sessions(filter_sql) {
@@ -714,7 +714,7 @@ impl ChatSessionManager {
         }
     }
 
-    /// Get session detail (AC-9).
+    /// Get session detail.
     fn handle_get_session(&self, session_id: &str) -> Option<SessionDetail> {
         // Try in-memory first
         if let Some(session) = self.sessions.get(session_id) {
@@ -785,7 +785,7 @@ impl ChatSessionManager {
         })
     }
 
-    /// Close a session (AC-5).
+    /// Close a session.
     fn handle_close_session(&mut self, session_id: &str) -> Result<(), ChatError> {
         let session = self
             .sessions
@@ -900,7 +900,7 @@ impl ChatSessionManagerHandle {
     /// Opens the SQLite database at `db_path`, restores active sessions,
     /// and starts the actor loop in a background `tokio::spawn`.
     ///
-    /// `agent_runner` enables Chat Agent mode (STORY-202). When `None`,
+    /// `agent_runner` enables Chat Agent mode. When `None`,
     /// Agent mode sessions will return an error at message time.
     #[allow(clippy::too_many_arguments)]
     pub fn spawn(

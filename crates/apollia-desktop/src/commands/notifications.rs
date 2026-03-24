@@ -198,7 +198,7 @@ pub async fn get_notification_logs(
     Ok(result)
 }
 
-// ─── CRUD types & commands (STORY-192) ──────────────────────────────────────
+// ─── CRUD types & commands ──────────────────────────────────────────────────
 
 /// Définition complète d'un canal de notification retournée par les opérations
 /// CRUD.

@@ -328,9 +328,12 @@ impl AgentRunner for BridgeRunner {
                     tool_helper,
                     Arc::new(ObservabilityConfig::default()),
                     event_bus,
-                    agent_id.into(),
+                    agent_id.clone().into(),
                     tool_proxy,
                     memory_interface,
+                    None, // mailbox — not wired yet in desktop BridgeRunner
+                    agent_id,
+                    false, // supports_a2a — not available at BridgeRunner level
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())

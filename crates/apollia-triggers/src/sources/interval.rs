@@ -18,7 +18,7 @@ impl IntervalTrigger {
     ///
     /// L'intervalle est parsé depuis la chaîne `every` via [`parse_interval`].
     /// Si le format est invalide, la tâche log l'erreur et se termine sans paniquer.
-    /// Retourne le `JoinHandle<()>` pour abort lors du hot reload (STORY-073).
+    /// Retourne le `JoinHandle<()>` pour abort lors du hot reload.
     pub fn spawn(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> JoinHandle<()> {
         tokio::spawn(async move {
             // Guard : extraire la durée depuis la source

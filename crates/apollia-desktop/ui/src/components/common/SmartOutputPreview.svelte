@@ -5,7 +5,7 @@
   JSON output and truncates it to MAX_PREVIEW_LENGTH characters. Falls back to
   the first line of raw text for non-JSON output.
 
-  STORY-164: Smart output renderer — preview variant
+  Smart output renderer — preview variant
 -->
 <script lang="ts">
   import { cn } from "$lib/utils";

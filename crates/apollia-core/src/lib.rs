@@ -4,15 +4,15 @@
 //! All other crates depend on this one; this crate depends on nothing
 //! else within the workspace.
 //!
-//! Types implemented in Sprint 0:
-//! - [`AgentManifest`], [`AgentSkill`] — STORY-002
-//! - [`AIPTask`], [`AIPInput`], [`AIPPart`], [`TextPart`], [`FilePart`], [`DataPart`], [`AIPMessage`] — STORY-002
-//! - [`AIPResult`], [`AIPError`], [`AIPArtifact`], [`TaskStatus`], [`StepBudgetConfig`] — STORY-002
-//! - `ProcessState` — STORY-003
-//! - Full `StepBudgetConfig` expansion, `SandboxProfile` — STORY-004
+//! Types implemented:
+//! - [`AgentManifest`], [`AgentSkill`]
+//! - [`AIPTask`], [`AIPInput`], [`AIPPart`], [`TextPart`], [`FilePart`], [`DataPart`], [`AIPMessage`]
+//! - [`AIPResult`], [`AIPError`], [`AIPArtifact`], [`TaskStatus`], [`StepBudgetConfig`]
+//! - `ProcessState`
+//! - Full `StepBudgetConfig` expansion, `SandboxProfile`
 //!
-//! Types implemented in Sprint 1:
-//! - [`RuntimeEvent`], [`AgentId`], [`TaskId`] — STORY-006
+//! Types implemented:
+//! - [`RuntimeEvent`], [`AgentId`], [`TaskId`]
 
 pub mod budget;
 pub mod events;

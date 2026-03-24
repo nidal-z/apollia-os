@@ -1,4 +1,4 @@
-//! Tests e2e — `EmbeddedBackend` avec un mini-modèle GGUF local (AC-5, STORY-064).
+//! Tests e2e — `EmbeddedBackend` avec un mini-modèle GGUF local.
 //!
 //! Nécessite :
 //! - `feature = "local"` — active l'inférence in-process via mistralrs.

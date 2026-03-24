@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 /// Profil d'isolation sandbox appliqué à l'exécution d'un outil natif.
 ///
 /// Défini dans apollia-core car c'est une contrainte architecturale fondamentale (ADR-005).
-/// L'isolation effective est implémentée dans apollia-tools via Linux namespaces (STORY-013).
+/// L'isolation effective est implémentée dans apollia-tools via Linux namespaces.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SandboxProfile {

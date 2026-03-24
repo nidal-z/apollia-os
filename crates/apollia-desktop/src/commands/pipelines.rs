@@ -287,7 +287,7 @@ pub async fn get_pipeline_run_detail(
     })
 }
 
-// ─── CRUD types & commands (STORY-192) ──────────────────────────────────────
+// ─── CRUD types & commands ──────────────────────────────────────────────────
 
 /// Définition complète d'un pipeline retournée par les opérations CRUD.
 #[derive(Debug, Serialize)]

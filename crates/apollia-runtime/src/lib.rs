@@ -1,12 +1,12 @@
 //! Apollia OS — Runtime Core.
 //!
 //! Responsible for the orchestration layer of the runtime:
-//! - `EventBus` — broadcast channel for all runtime events (STORY-006)
-//! - `AgentRegistry` — Tokio actor tracking `ProcessState` per agent (STORY-007)
-//! - `TaskRouter` — Tokio actor dispatching tasks to available agents (STORY-032)
-//! - `ExecutionCoordinator` — per-agent lifecycle coordinator (STORY-031)
-//! - `APIServer` — axum HTTP server on Unix socket + TCP 7771 (STORY-033)
-//! - `Supervisor` — ordered startup + watchdog (STORY-039)
+//! - `EventBus` — broadcast channel for all runtime events.
+//! - `AgentRegistry` — Tokio actor tracking `ProcessState` per agent.
+//! - `TaskRouter` — Tokio actor dispatching tasks to available agents.
+//! - `ExecutionCoordinator` — per-agent lifecycle coordinator.
+//! - `APIServer` — axum HTTP server on Unix socket + TCP 7771.
+//! - `Supervisor` — ordered startup + watchdog.
 
 pub mod api;
 pub mod chat;
@@ -32,14 +32,14 @@ pub use supervisor::{
 };
 pub use timeout_watcher::{TimeoutWatcher, TimeoutWatcherConfig, TimeoutWatcherError};
 
-// Embedded runtime (STORY-135)
+// Embedded runtime.
 pub use embedded::{init_embedded, EmbeddedConfig, EmbeddedError, RuntimeHandle};
 
 // Re-export from apollia-tools for convenience
 pub use apollia_tools::ToolRegistryHandle;
 
-// Agent-to-agent messaging (Sprint 20 — STORY-235)
+// Agent-to-agent messaging
 pub use mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
 
-// Chat subsystem (Sprint 18 — STORY-199)
+// Chat subsystem
 pub use chat::ChatSessionManagerHandle;

@@ -5,8 +5,8 @@
 //! métier est déléguée au module [`crate::validation`] et exécutée automatiquement
 //! avant chaque écriture (insert/update).
 //!
-//! Ce repository est utilisé par le boot Supervisor (STORY-187) et les routes
-//! REST CRUD (STORY-189).
+//! Ce repository est utilisé par le boot Supervisor et les routes
+//! REST CRUD.
 
 use std::path::Path;
 

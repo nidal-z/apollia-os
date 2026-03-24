@@ -135,7 +135,7 @@ mod tests {
 
     #[test]
     fn test_validate_events_chat_approval_required_ok() {
-        // GIVEN the new chat.approval_required event (STORY-203)
+        // GIVEN the new chat.approval_required event
         let events = vec!["chat.approval_required".into()];
         // WHEN / THEN validation passes
         assert!(validate_events(&events).is_ok());

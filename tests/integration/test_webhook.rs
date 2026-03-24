@@ -1,14 +1,13 @@
-//! Integration tests — route `POST /webhooks/:id` (STORY-078).
+//! Integration tests — route `POST /webhooks/:id`.
 //!
-//! Couvre les critères d'acceptation AC-3 et AC-4, plus un test supplémentaire
-//! pour le trigger inconnu (404).
+//! Couvre 3 scénarios : POST valide (HMAC correct), POST invalide (signature erronée),
+//! et POST trigger inconnu (404).
 //!
-//! **AC-3** : POST valide (HMAC correct) → HTTP 200 + 1 submit()
-//! **AC-4** : POST invalide (signature erronée) → HTTP 401 + 0 submit()
-//! **Extra** : POST trigger inconnu → HTTP 404 + 0 submit()
+//! **POST valide** : HMAC correct → HTTP 200 + 1 submit()
+//! **POST invalide** : signature erronée → HTTP 401 + 0 submit()
+//! **Trigger inconnu** : HTTP 404 + 0 submit()
 //!
 //! Pattern : serveur TCP réel (port éphémère) + requêtes HTTP brutes.
-//! Cohérent avec `test_runtime_chain.rs` (STORY-049).
 
 use std::future::Future;
 use std::path::PathBuf;

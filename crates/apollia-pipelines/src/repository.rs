@@ -2,7 +2,7 @@
 //!
 //! [`PipelineRepository`] is a synchronous wrapper around `rusqlite`. It must
 //! be called from `tokio::task::spawn_blocking` when used from async code,
-//! following the same pattern as `TaskRepository` (Sprint 11, STORY-094).
+//! following the same pattern as `TaskRepository`.
 //!
 //! The `006_pipeline_tables.sql` migration is embedded at compile time and
 //! applied idempotently on every call to [`PipelineRepository::migrate`].
@@ -412,7 +412,7 @@ impl PipelineRepository {
     ///
     /// Steps that were in `running` status when the process crashed are
     /// automatically reset to `pending` so the `PipelineExecutor` can
-    /// re-submit them on restart (STORY-115 resumption logic).
+    /// re-submit them on restart.
     ///
     /// # Errors
     ///

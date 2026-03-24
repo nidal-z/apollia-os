@@ -48,10 +48,10 @@ struct RawRoot {
 #[derive(Debug, Deserialize)]
 struct RawTrigger {
     id: String,
-    /// Agent cible — exclusif avec `pipeline` (validation exclusive dans STORY-118).
+    /// Agent cible — exclusif avec `pipeline`.
     #[serde(default)]
     agent: String,
-    /// Pipeline cible — exclusif avec `agent` (validation exclusive dans STORY-118).
+    /// Pipeline cible — exclusif avec `agent`.
     #[serde(default)]
     pipeline: Option<String>,
     #[serde(default = "default_true")]
@@ -109,7 +109,6 @@ fn validate_trigger(raw: &RawTrigger) -> Result<TriggerDefinition, TriggerTomlEr
         });
     }
     // Validation agent : requis uniquement si `pipeline` est absent.
-    // La validation exclusive `agent XOR pipeline` est implémentée dans STORY-118.
     if raw.pipeline.is_none() && raw.agent.is_empty() {
         return Err(TriggerTomlError::InvalidTrigger {
             id: raw.id.clone(),

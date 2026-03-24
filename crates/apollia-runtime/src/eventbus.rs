@@ -18,7 +18,7 @@ pub type EventBusReceiver = broadcast::Receiver<RuntimeEvent>;
 
 /// Point de création unique de l'EventBus du runtime.
 ///
-/// Instancié une seule fois par le Supervisor (STORY-039).
+/// Instancié une seule fois par le Supervisor.
 /// Durant Sprint 1, instancié directement dans les tests.
 pub struct EventBus;
 

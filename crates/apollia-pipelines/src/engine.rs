@@ -204,7 +204,7 @@ impl PipelineEngineHandle {
     /// Replaces in-memory pipeline definitions with the given list.
     ///
     /// Called after a CRUD mutation on the `PipelineDefinitionRepository` to
-    /// keep the engine's in-memory registry in sync with SQLite (AC-6 STORY-190).
+    /// keep the engine's in-memory registry in sync with SQLite.
     pub async fn reload(&self, definitions: Vec<PipelineDefinition>) {
         let (reply_tx, reply_rx) = oneshot::channel();
         let _ = self

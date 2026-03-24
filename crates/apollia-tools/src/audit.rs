@@ -103,7 +103,7 @@ const SCHEMA: &str = "
         ON tool_invocations(started_at);
 ";
 
-/// Colonnes d'observabilité ajoutées par la migration Sprint 13 (STORY-128).
+/// Colonnes d'observabilité ajoutées par la migration Sprint 13.
 ///
 /// Chaque ALTER TABLE est exécuté individuellement ; l'erreur « duplicate column »
 /// est ignorée pour garantir l'idempotence sur les bases existantes.
@@ -314,7 +314,7 @@ impl AuditTrailHandle {
                 return;
             }
 
-            // Migration Sprint 13 — colonnes d'observabilité (STORY-128).
+            // Migration Sprint 13 — colonnes d'observabilité.
             for ddl in MIGRATION_OBSERVABILITY_COLUMNS {
                 if let Err(e) = conn.execute_batch(ddl) {
                     let msg = e.to_string();
@@ -440,7 +440,7 @@ mod tests {
         }
     }
 
-    // AC-1 — Enregistrement d'une invocation réussie
+    // Enregistrement d'une invocation réussie
     #[tokio::test]
     async fn test_ac1_record_successful_invocation() {
         // GIVEN
@@ -458,7 +458,7 @@ mod tests {
         handle.shutdown().await;
     }
 
-    // AC-2 — Enregistrement d'une invocation échouée
+    // Enregistrement d'une invocation échouée
     #[tokio::test]
     async fn test_ac2_record_failed_invocation() {
         // GIVEN
@@ -475,7 +475,7 @@ mod tests {
         handle.shutdown().await;
     }
 
-    // AC-3 — Schéma créé automatiquement sur une base fraîche
+    // Schéma créé automatiquement sur une base fraîche
     #[tokio::test]
     async fn test_ac3_schema_created_on_fresh_db() {
         // GIVEN — base inexistante
@@ -490,7 +490,7 @@ mod tests {
         tokio::fs::remove_file(&db_path).await.ok();
     }
 
-    // AC-4 — record() ne bloque pas (fire-and-forget)
+    // record() ne bloque pas (fire-and-forget)
     #[tokio::test]
     async fn test_ac4_record_is_fire_and_forget() {
         // GIVEN
@@ -509,7 +509,7 @@ mod tests {
         handle.shutdown().await;
     }
 
-    // AC-5 — Mêmes paramètres → même input_hash
+    // Mêmes paramètres → même input_hash
     #[test]
     fn test_ac5_same_params_same_input_hash() {
         // GIVEN
@@ -543,7 +543,7 @@ mod tests {
         assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
-    // STORY-128 AC-1 — Arguments JSON persistés
+    // Arguments JSON persistés
     #[tokio::test]
     async fn test_tool_invocation_args_persisted() {
         // GIVEN un AuditTrail avec DB in-memory
@@ -563,7 +563,7 @@ mod tests {
         handle.shutdown().await;
     }
 
-    // STORY-128 AC-2 — Stdout tronqué via truncate_with_marker
+    // Stdout tronqué via truncate_with_marker
     #[tokio::test]
     async fn test_tool_invocation_stdout_truncated() {
         // GIVEN config max_tool_output_bytes = 100
@@ -585,7 +585,7 @@ mod tests {
         handle.shutdown().await;
     }
 
-    // STORY-128 AC-3 — Stderr persisté
+    // Stderr persisté
     #[tokio::test]
     async fn test_tool_invocation_stderr_persisted() {
         // GIVEN un AuditTrail
@@ -602,7 +602,7 @@ mod tests {
         handle.shutdown().await;
     }
 
-    // STORY-128 AC-4 — Duration et exit_code existants préservés après migration
+    // Duration et exit_code existants préservés après migration
     #[tokio::test]
     async fn test_tool_invocation_duration_preserved() {
         // GIVEN un AuditTrail

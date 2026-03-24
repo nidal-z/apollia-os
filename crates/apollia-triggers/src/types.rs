@@ -19,9 +19,9 @@ pub struct TriggerDefinition {
     pub id: TriggerId,
     /// Nom de l'agent cible — exclusif avec `pipeline`.
     ///
-    /// Chaîne vide lorsque `pipeline` est défini (validation exclusive dans STORY-118).
+    /// Chaîne vide lorsque `pipeline` est défini (validation exclusive).
     pub agent: String,
-    /// Pipeline cible — exclusif avec `agent` (validation dans STORY-118).
+    /// Pipeline cible — exclusif avec `agent`.
     ///
     /// Si défini, le trigger dispatche vers `PipelineEngine` au lieu du `TaskRouter`.
     /// `#[serde(default)]` garantit la compatibilité avec les configs existantes.
@@ -410,9 +410,9 @@ mod tests {
         assert_eq!(back.on_busy, OnBusyPolicy::Queue);
     }
 
-    // ── STORY-117 — Triggers → Pipelines ─────────────────────────────────
+    // ── Triggers → Pipelines ─────────────────────────────────────────────
 
-    /// AC-1 : le champ `pipeline` est backward-compatible — absent = None, pas d'erreur.
+    /// Le champ `pipeline` est backward-compatible — absent = None, pas d'erreur.
     #[test]
     fn test_ac1_pipeline_field_backward_compatible() {
         // GIVEN un JSON sans champ pipeline (config existante Sprint 9)
@@ -434,7 +434,7 @@ mod tests {
         assert_eq!(def.agent, "hello-agent");
     }
 
-    /// AC-1 (variant) : le champ `pipeline` est correctement désérialisé quand présent.
+    /// Le champ `pipeline` est correctement désérialisé quand présent.
     #[test]
     fn test_pipeline_field_deserialized() {
         // GIVEN un JSON avec champ pipeline

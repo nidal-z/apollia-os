@@ -10,8 +10,8 @@ use crate::task::{AIPPart, DataPart, TextPart};
 
 /// Données portées par [`AIPResult`] quand `status == InputRequired`.
 ///
-/// Persist dans SQLite par le runtime (STORY-094) et restituées dans
-/// [`InputResponseData::context`] lors de la reprise (STORY-095).
+/// Persist dans SQLite par le runtime et restituées dans
+/// [`InputResponseData::context`] lors de la reprise.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InputRequiredData {
     /// Prompt affiché à l'utilisateur pour prendre sa décision.
@@ -25,15 +25,15 @@ pub struct InputRequiredData {
 
 /// Réponse humaine reçue après une suspension `input_required`.
 ///
-/// Peuplée par `TaskRepository::rebuild_for_resume()` (STORY-094) et injectée
-/// dans [`crate::task::AIPTask::input_response`] lors de la reprise (STORY-095).
+/// Peuplée par `TaskRepository::rebuild_for_resume()` et injectée
+/// dans [`crate::task::AIPTask::input_response`] lors de la reprise.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InputResponseData {
     /// `true` si l'utilisateur a approuvé, `false` si rejeté.
     pub approved: bool,
     /// Raison transmise à l'agent — `None` si approuvé, potentiellement peuplé si rejeté.
     pub reason: Option<String>,
-    /// Contexte JSON sérialisé par l'agent au moment du suspend, restitué intégralement.
+    /// Contexte JSON sérialisé par l'agent au moment du suspend, restitué intégralement dans [`InputResponseData::context`].
     pub context: serde_json::Value,
     /// Horodatage ISO 8601 de la décision humaine.
     pub responded_at: String,
@@ -84,7 +84,7 @@ pub struct AIPResult {
     /// Données de la demande d'approbation si `status == InputRequired`.
     ///
     /// Peuplé par [`AIPResult::input_required`].
-    /// Persisté dans SQLite par le runtime (STORY-094).
+    /// Persisté dans SQLite par le runtime.
     /// `None` pour tous les autres statuts.
     #[serde(default)]
     pub input_required_data: Option<InputRequiredData>,
@@ -117,8 +117,8 @@ impl AIPResult {
     /// Construit un résultat demandant une approbation humaine (Human-in-the-Loop).
     ///
     /// Le runtime détecte ce variant via `status == InputRequired`, suspend la tâche,
-    /// persiste `prompt` et `context` dans SQLite (STORY-094), puis notifie l'utilisateur
-    /// sur les canaux configurés (STORY-099).
+    /// persiste `prompt` et `context` dans SQLite, puis notifie l'utilisateur
+    /// sur les canaux configurés.
     ///
     /// À la reprise, `context` est restitué dans [`InputResponseData::context`]
     /// injecté dans [`crate::task::AIPTask::input_response`].
@@ -174,7 +174,7 @@ impl AIPResult {
     /// Construit un résultat de succès avec les outputs de chaque step sérialisés en JSON.
     ///
     /// Utilisé par `ActorLoop` en fin d'exécution orchestrée pour transmettre
-    /// les résultats step par step au hook `on_plan_complete()` (STORY-086).
+    /// les résultats step par step au hook `on_plan_complete()`.
     ///
     /// La `HashMap<step_id → output>` est sérialisée dans `output[0]`
     /// comme `AIPPart::Data`, avec fallback `AIPPart::Text` si la sérialisation échoue.

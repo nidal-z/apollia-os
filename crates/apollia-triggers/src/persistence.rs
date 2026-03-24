@@ -114,7 +114,7 @@ impl TriggerPersistence {
         conn.execute_batch(include_str!(
             "../../apollia-tools/migrations/003_trigger_tables.sql"
         ))?;
-        // Migration STORY-130 : ajout payload_json et dispatch_ms.
+        // Migration : ajout payload_json et dispatch_ms.
         // Utilise PRAGMA table_info pour vérifier l'existence (pattern cohérent workspace).
         add_columns_if_missing(
             &conn,
@@ -510,7 +510,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    // ── STORY-130 — payload_json + dispatch_ms ──────────────────────────────
+    // ── payload_json + dispatch_ms ──────────────────────────────────────────
 
     #[test]
     fn test_trigger_payload_persisted() {

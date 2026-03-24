@@ -1,4 +1,4 @@
-//! Integration tests — agent persistence E2E (STORY-183).
+//! Integration tests — agent persistence E2E.
 //!
 //! Validates the complete cycle: install → persist → boot → reload
 //! using real `AgentRepository` (SQLite) and `Supervisor` auto-load.
@@ -65,7 +65,7 @@ impl ExecutionBackend for InstantBackend {
 ///
 /// Install paths follow `~/.apollia/agents/<name>/agent.py`, so the parent
 /// directory name is the agent name. If the file does not exist on disk,
-/// returns an error — simulating a corrupted/deleted agent scenario (AC-4).
+/// returns an error — simulating a corrupted/deleted agent scenario.
 struct FileCheckingAgentLoader;
 
 impl AgentLoader for FileCheckingAgentLoader {
@@ -204,7 +204,7 @@ async fn free_port() -> u16 {
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// AC-1 — Install an agent, persist to DB, then boot Supervisor → agent is auto-loaded.
+/// Install an agent, persist to DB, then boot Supervisor → agent is auto-loaded.
 #[tokio::test]
 async fn test_install_persist_reload_cycle() {
     // GIVEN a temp directory with agents.db and a valid agent file
@@ -246,7 +246,7 @@ async fn test_install_persist_reload_cycle() {
     handles.api_handle.shutdown();
 }
 
-/// AC-2 — Disabled agent is NOT loaded at boot.
+/// Disabled agent is NOT loaded at boot.
 #[tokio::test]
 async fn test_disabled_agent_not_loaded_at_boot() {
     // GIVEN an agent installed but disabled in the DB
@@ -288,7 +288,7 @@ async fn test_disabled_agent_not_loaded_at_boot() {
     handles.api_handle.shutdown();
 }
 
-/// AC-3 — Uninstall removes files and DB entry; Supervisor won't load it.
+/// Uninstall removes files and DB entry; Supervisor won't load it.
 #[tokio::test]
 async fn test_uninstall_removes_files_and_db() {
     // GIVEN an agent installed in a temp directory
@@ -355,7 +355,7 @@ async fn test_uninstall_removes_files_and_db() {
     handles.api_handle.shutdown();
 }
 
-/// AC-4 — Corrupted agent (file deleted) does not block boot; emits AgentLoadFailed.
+/// Corrupted agent (file deleted) does not block boot; emits AgentLoadFailed.
 #[tokio::test]
 async fn test_corrupted_agent_graceful_degradation() {
     // GIVEN 2 installed agents, one with its file manually deleted
@@ -423,7 +423,7 @@ async fn test_corrupted_agent_graceful_degradation() {
     handles.api_handle.shutdown();
 }
 
-/// AC-5 — Update replaces the file on disk and the manifest in DB.
+/// Update replaces the file on disk and the manifest in DB.
 #[tokio::test]
 async fn test_update_replaces_file_and_manifest() {
     // GIVEN an agent "test-agent" v1 installed

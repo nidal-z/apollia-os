@@ -4,7 +4,7 @@
 //! consommateurs :
 //! - [`crate::reasoner::Reasoner::parse_and_validate`] — pour détecter les cycles
 //!   avant d'accepter un plan généré par le LLM.
-//! - `ActorLoop` (STORY-083) — pour obtenir l'ordre d'exécution séquentiel des steps.
+//! - `ActorLoop` — pour obtenir l'ordre d'exécution séquentiel des steps.
 
 use std::collections::{HashMap, VecDeque};
 

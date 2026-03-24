@@ -17,7 +17,7 @@ impl OneshotTrigger {
     ///
     /// Si `fire_at` est dans le passé, la tâche fire immédiatement (délai nul).
     /// La tâche se termine définitivement après l'envoi de l'événement.
-    /// Retourne le `JoinHandle<()>` pour abort lors du hot reload (STORY-073).
+    /// Retourne le `JoinHandle<()>` pour abort lors du hot reload.
     pub fn spawn(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> JoinHandle<()> {
         tokio::spawn(async move {
             // Guard : extraire fire_at depuis la source

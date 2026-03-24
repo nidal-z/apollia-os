@@ -3,13 +3,13 @@
 //! Chaque source spawne une tâche Tokio indépendante (pas d'état partagé)
 //! et envoie des [`crate::TriggerEvent`] sur le channel interne du moteur.
 //!
-//! | Source       | Implémentée | Story    |
-//! |--------------|-------------|----------|
-//! | `Cron`       | ✅          | STORY-067 |
-//! | `Interval`   | ✅          | STORY-067 |
-//! | `Oneshot`    | ✅          | STORY-067 |
-//! | `FileWatch`  | ✅          | STORY-068 |
-//! | `Webhook`    | route axum  | STORY-069 |
+//! | Source       | Implémentée    |
+//! |--------------|----------------|
+//! | `Cron`       | ✅             |
+//! | `Interval`   | ✅             |
+//! | `Oneshot`    | ✅             |
+//! | `FileWatch`  | ✅             |
+//! | `Webhook`    | route axum     |
 
 pub mod cron;
 pub mod file_watch;
@@ -31,11 +31,11 @@ use crate::types::{TriggerDefinition, TriggerEvent, TriggerSourceConfig};
 /// - [`TriggerSourceConfig::Cron`]      → [`CronTrigger::spawn`]
 /// - [`TriggerSourceConfig::Interval`]  → [`IntervalTrigger::spawn`]
 /// - [`TriggerSourceConfig::Oneshot`]   → [`OneshotTrigger::spawn`]
-/// - [`TriggerSourceConfig::FileWatch`] → stub no-op (implémenté STORY-068)
-/// - [`TriggerSourceConfig::Webhook`]   → pas de spawn autonome (route axum, STORY-069)
+/// - [`TriggerSourceConfig::FileWatch`] → [`FileWatchTrigger::spawn`]
+/// - [`TriggerSourceConfig::Webhook`]   → pas de spawn autonome (route axum)
 ///
 /// Retourne un `JoinHandle<()>` dans tous les cas, permettant un abort uniforme
-/// lors du hot reload (STORY-073).
+/// lors du hot reload.
 pub fn spawn_source(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> JoinHandle<()> {
     match &def.source {
         TriggerSourceConfig::Cron { .. } => CronTrigger::spawn(def, tx),
@@ -43,7 +43,7 @@ pub fn spawn_source(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> J
         TriggerSourceConfig::Oneshot { .. } => OneshotTrigger::spawn(def, tx),
         TriggerSourceConfig::FileWatch { .. } => FileWatchTrigger::spawn(def, tx),
         TriggerSourceConfig::Webhook { .. } => {
-            // Pas de spawn autonome — la route axum gère l'événement (STORY-069)
+            // Pas de spawn autonome — la route axum gère l'événement
             tracing::debug!(trigger = %def.id, "Webhook source: no autonomous task");
             tokio::spawn(async {})
         }

@@ -1,4 +1,4 @@
-//! Integration tests — graceful shutdown with active tasks (AC-4, STORY-045).
+//! Integration tests — graceful shutdown with active tasks.
 //!
 //! Tests the full shutdown sequence: drain in-progress tasks → stop agents →
 //! stop actors in reverse order. Uses a mock backend to avoid Python dependency.
@@ -122,7 +122,7 @@ async fn free_port() -> u16 {
     l.local_addr().unwrap().port()
 }
 
-// AC-4 — task drains successfully before shutdown completes
+// Task drains successfully before shutdown completes
 #[tokio::test]
 async fn test_shutdown_drains_active_tasks() {
     // GIVEN a full runtime with a slow backend (completes in 300ms)
@@ -228,7 +228,7 @@ async fn test_shutdown_drains_active_tasks() {
     let _ = std::fs::remove_file(&socket_path);
 }
 
-// AC-4 — agent transitions to STOPPED after shutdown
+// Agent transitions to STOPPED after shutdown
 #[tokio::test]
 async fn test_shutdown_stops_all_agents() {
     // GIVEN an active agent registered in the runtime
@@ -313,7 +313,7 @@ async fn test_shutdown_stops_all_agents() {
     let _ = std::fs::remove_file(&socket_path);
 }
 
-// AC-4 — Supervisor stops all actors in reverse order (structural test)
+// Supervisor stops all actors in reverse order (structural test)
 #[tokio::test]
 async fn test_shutdown_broadcasts_requested_event() {
     // GIVEN a runtime with an event subscriber
@@ -387,7 +387,7 @@ async fn test_shutdown_broadcasts_requested_event() {
     let _ = std::fs::remove_file(&socket_path);
 }
 
-// AC-4 — drain timeout results in DrainTimeout error, but shutdown still completes
+// Drain timeout results in DrainTimeout error, but shutdown still completes
 #[tokio::test]
 async fn test_shutdown_drain_timeout_force_cancels() {
     use apollia_runtime::shutdown::ShutdownError;

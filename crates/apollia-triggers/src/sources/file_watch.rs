@@ -32,7 +32,7 @@ impl FileWatchTrigger {
     ///
     /// La tâche se termine proprement dès que le channel est fermé (`tx.is_closed()`).
     /// Le `Watcher` est droppé automatiquement, libérant les ressources OS (inotify/kqueue).
-    /// Retourne un `JoinHandle<()>` pour abort lors du hot reload (STORY-073).
+    /// Retourne un `JoinHandle<()>` pour abort lors du hot reload.
     pub fn spawn(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> JoinHandle<()> {
         tokio::spawn(async move {
             // Guard : extraire path depuis la source

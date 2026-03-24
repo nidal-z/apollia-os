@@ -4,7 +4,7 @@
 //! et les annule en émettant [`RuntimeEvent::TaskApprovalTimeout`] puis
 //! [`RuntimeEvent::TaskCanceled`] sur l'EventBus.
 //!
-//! Démarré par le [`Supervisor`](crate::supervisor::Supervisor) après l'APIServer (STORY-098).
+//! Démarré par le [`Supervisor`](crate::supervisor::Supervisor) après l'APIServer.
 //! Principes respectés : #4 (Fail fast) et #7 (Garde-fous non-négociables).
 
 use std::sync::Arc;
@@ -21,8 +21,7 @@ use crate::eventbus::EventBusSender;
 
 /// Configuration du watcher de timeout d'approbation HITL.
 ///
-/// Les valeurs par défaut correspondent aux recommandations de STORY-098 :
-/// 24 h de timeout, 60 s d'intervalle de scan.
+/// Valeurs par défaut : 24 h de timeout, 60 s d'intervalle de scan.
 #[derive(Debug, Clone)]
 pub struct TimeoutWatcherConfig {
     /// Durée après laquelle une tâche `input_required` est annulée automatiquement.
@@ -74,9 +73,9 @@ pub enum TimeoutWatcherError {
 /// 2. Émet [`RuntimeEvent::TaskApprovalTimeout`] sur l'EventBus.
 /// 3. Émet [`RuntimeEvent::TaskCanceled`] sur l'EventBus.
 ///
-/// En cas d'erreur SQLite, logue un `tracing::warn!` et continue la boucle sans crash (AC-5).
+/// En cas d'erreur SQLite, logue un `tracing::warn!` et continue la boucle sans crash.
 ///
-/// Le oneshot channel de `PendingApprovals` (STORY-096) est libéré automatiquement
+/// Le oneshot channel de `PendingApprovals` est libéré automatiquement
 /// lorsque la tâche annulée est droppée côté ORIA — aucune logique supplémentaire requise.
 ///
 /// [`scan_interval`]: TimeoutWatcherConfig::scan_interval
@@ -109,8 +108,8 @@ impl TimeoutWatcher {
 
     /// Lance la boucle de surveillance — ne retourne jamais sauf arrêt du runtime.
     ///
-    /// Utilise `tokio::time::interval` (pas `sleep`) pour éviter la dérive temporelle (AC-4).
-    /// En cas d'erreur SQLite lors d'un scan, logue un `tracing::warn!` et continue (AC-5).
+    /// Utilise `tokio::time::interval` (pas `sleep`) pour éviter la dérive temporelle.
+    /// En cas d'erreur SQLite lors d'un scan, logue un `tracing::warn!` et continue.
     pub async fn run(self) {
         let mut interval = tokio::time::interval(self.config.scan_interval);
         loop {
@@ -130,7 +129,7 @@ impl TimeoutWatcher {
     /// Scanne les tâches `input_required` expirées et les annule.
     ///
     /// Retourne le nombre de tâches effectivement annulées.
-    /// Retourne une erreur uniquement si le scan DB initial échoue (AC-5).
+    /// Retourne une erreur uniquement si le scan DB initial échoue.
     /// Les erreurs d'annulation individuelle sont loguées en `warn!` mais ne font pas échouer.
     async fn scan_and_cancel(&self) -> Result<usize, TimeoutWatcherError> {
         let expired_ids = self
@@ -231,7 +230,7 @@ mod tests {
         .unwrap()
     }
 
-    // AC-1 — Tâche expirée annulée + 2 events émis
+    // Tâche expirée annulée + 2 events émis
 
     #[tokio::test]
     async fn test_ac1_expired_task_is_cancelled() {
@@ -284,7 +283,7 @@ mod tests {
         );
     }
 
-    // AC-2 — Tâche récente (30 min) non annulée
+    // Tâche récente (30 min) non annulée
 
     #[tokio::test]
     async fn test_ac2_recent_task_not_cancelled() {
@@ -320,7 +319,7 @@ mod tests {
         );
     }
 
-    // AC-3 — Timeout configurable : 2h et tâche depuis 3h → annulée
+    // Timeout configurable : 2h et tâche depuis 3h → annulée
 
     #[tokio::test]
     async fn test_ac3_custom_timeout_2h() {
@@ -354,7 +353,7 @@ mod tests {
         assert_eq!(status.as_deref(), Some("cancelled"));
     }
 
-    // AC-5 — Erreur DB → Err retourné, pas de panic
+    // Erreur DB → Err retourné, pas de panic
 
     #[tokio::test]
     async fn test_ac5_db_error_does_not_crash() {

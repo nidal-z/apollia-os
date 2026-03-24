@@ -1,4 +1,4 @@
-//! AgentChatExecutor — executes Python agents in Chat Agent mode (STORY-202).
+//! AgentChatExecutor — executes Python agents in Chat Agent mode.
 //!
 //! Orchestrates the flow: validate agent → convert session to [`AIPTask`] →
 //! run agent via [`ChatAgentRunner`] → process [`AIPResult`] → emit events.
@@ -51,7 +51,7 @@ pub trait ChatAgentRunner: Send + Sync {
 // AgentChatExecutor — orchestrates chat agent exchanges
 // ─────────────────────────────────────────────
 
-/// Executor for Chat Agent mode sessions (STORY-202).
+/// Executor for Chat Agent mode sessions.
 ///
 /// Orchestrates the flow: convert session to [`AIPTask`] → run agent
 /// via [`ChatAgentRunner`] → process result → emit events.
@@ -185,7 +185,7 @@ impl AgentChatExecutor {
         }
     }
 
-    /// Handle the HITL flow when the agent returns InputRequired (AC-6).
+    /// Handle the HITL flow when the agent returns InputRequired.
     async fn handle_input_required(
         &self,
         result: &AIPResult,
@@ -515,7 +515,7 @@ mod tests {
         tx
     }
 
-    // ── session_to_task tests (AC-2) ──
+    // ── session_to_task tests ──
 
     #[test]
     fn test_session_to_task_conversion() {

@@ -4,7 +4,7 @@
 //! - **Mode Direct** — single `agent.run()` call with `StepBudget` supervision.
 //! - **Mode Orchestrated** — `Reasoner` generates a plan, `ActorLoop` executes
 //!   each step via `ToolProxy`, and outputs are concatenated or forwarded to
-//!   `on_plan_complete()` (STORY-086).
+//!   `on_plan_complete()`.
 //!
 //! The primary entry point is [`ORIAEngine::execute`], which classifies the task
 //! and delegates to the appropriate mode. The lower-level [`ORIAEngine::execute_direct`]
@@ -70,7 +70,7 @@ pub trait AIPAgent: Send + Sync {
 
     /// Returns `true` if the agent exposes an `on_plan_complete()` method.
     ///
-    /// Detected via `hasattr` Python in STORY-086. Returns `false` by default —
+    /// Detected via `hasattr` Python. Returns `false` by default —
     /// the automatic step-output concatenation is used as fallback.
     fn has_on_plan_complete(&self) -> bool {
         false
@@ -173,19 +173,19 @@ pub struct ORIAEngine {
     /// Registre HITL des approbations en attente — partagé avec le `ResumeHandler`.
     ///
     /// Requis pour que `execute_direct()` suspende la tâche et attende la décision
-    /// humaine (STORY-096). Si `None`, les résultats `InputRequired` sont retournés
+    /// humaine. Si `None`, les résultats `InputRequired` sont retournés
     /// tels quels sans suspension.
     pending_approvals: Option<Arc<PendingApprovals>>,
     /// Repository SQLite HITL — persiste le prompt et le contexte lors de la suspension.
     ///
     /// Si `None`, la persistance est ignorée (warning tracé) mais l'exécution continue.
     task_repository: Option<Arc<apollia_tools::TaskRepository>>,
-    /// Memory manager for automatic episodic recording per step (STORY-230).
+    /// Memory manager for automatic episodic recording per step.
     ///
     /// Passed to [`ActorLoop`] during orchestrated execution. When `Some`, each completed
     /// step records an episodic memory entry in the agent's namespace.
     memory_manager: Option<Arc<Mutex<MemoryManager>>>,
-    /// Cache de plans d'exécution (STORY-233).
+    /// Cache de plans d'exécution.
     ///
     /// Wrappé dans un `Mutex` car `rusqlite::Connection` n'est pas `Sync`.
     /// Les accès sont courts (lookup/store) et non concurrents en pratique.
@@ -263,7 +263,7 @@ impl ORIAEngine {
         self
     }
 
-    /// Injecte le registre HITL des approbations en attente (STORY-096).
+    /// Injecte le registre HITL des approbations en attente.
     ///
     /// Requis pour que `execute_direct()` suspende la tâche en status `input_required`
     /// et attende la décision humaine via un oneshot channel.
@@ -273,7 +273,7 @@ impl ORIAEngine {
         self
     }
 
-    /// Injecte le repository SQLite HITL pour persister le prompt et le contexte (STORY-096).
+    /// Injecte le repository SQLite HITL pour persister le prompt et le contexte.
     ///
     /// Si absent, la persistance SQLite est ignorée mais l'exécution HITL continue
     /// (warning tracé — Principe #4 : fail fast uniquement pour les erreurs détectables).
@@ -282,7 +282,7 @@ impl ORIAEngine {
         self
     }
 
-    /// Injecte un [`MemoryManager`] pour l'enregistrement épisodique per-step (STORY-230).
+    /// Injecte un [`MemoryManager`] pour l'enregistrement épisodique per-step.
     ///
     /// Passé à l'[`ActorLoop`] lors de l'exécution orchestrée. Chaque step complété
     /// enregistre automatiquement une entrée épisodique dans le namespace de l'agent.
@@ -291,7 +291,7 @@ impl ORIAEngine {
         self
     }
 
-    /// Ajoute un cache de plans à l'engine (STORY-233).
+    /// Ajoute un cache de plans à l'engine.
     ///
     /// Quand configuré, [`execute_orchestrated_plan`] vérifie le cache avant d'appeler
     /// le Reasoner. Un cache hit évite l'appel LLM, clone le plan avec un nouveau
@@ -349,7 +349,7 @@ impl ORIAEngine {
     /// 4. Émet `RuntimeEvent::PlanGenerated`
     /// 5. Crée `StepBudget::from_capped(manifest, runtime)`
     /// 6. Exécute via `ActorLoop`
-    /// 7. Concatène les outputs (ou stub `on_plan_complete` — STORY-086)
+    /// 7. Concatène les outputs (ou stub `on_plan_complete`)
     async fn execute_orchestrated_plan(
         &self,
         task: AIPTask,
@@ -392,7 +392,7 @@ impl ORIAEngine {
             }
         };
 
-        // ── Plan cache lookup (STORY-233) ─────────────────────────────────
+        // ── Plan cache lookup ─────────────────────────────────
         let task_text = extract_task_text(&task);
         let cache_key = compute_cache_key(
             &manifest.name,
@@ -438,7 +438,7 @@ impl ORIAEngine {
             Err(e) => return AIPResult::failed("PLAN_FAILED", &e.to_string()),
         };
 
-        // ── Store in cache (STORY-233) ────────────────────────────────────
+        // ── Store in cache ────────────────────────────────────
         if let Some(ref cache_mutex) = self.plan_cache {
             match cache_mutex.lock() {
                 Ok(cache) => {
@@ -513,7 +513,7 @@ impl ORIAEngine {
 
             let outputs = extract_step_outputs(&step_result);
 
-            // AC-5 (STORY-086): call on_plan_complete() if the agent exposes it,
+            // call on_plan_complete() if the agent exposes it,
             // otherwise fall back to automatic step-output concatenation (AC-6).
             if agent.has_on_plan_complete() {
                 agent.call_on_plan_complete(outputs).await
@@ -525,7 +525,7 @@ impl ORIAEngine {
         }
     }
 
-    /// Exécute un plan récupéré depuis le cache (STORY-233).
+    /// Exécute un plan récupéré depuis le cache.
     ///
     /// Identique au chemin post-Reasoner de [`execute_orchestrated_plan`] :
     /// persist → emit PlanGenerated → StepBudget → ActorLoop → concat.
@@ -640,7 +640,7 @@ impl ORIAEngine {
 
     // ─── Mode Direct ──────────────────────────────────────────────────────
 
-    /// Exécute une tâche en Mode Direct avec support HITL (STORY-096).
+    /// Exécute une tâche en Mode Direct avec support HITL.
     ///
     /// 1. Vérifie que le budget n'est pas déjà épuisé.
     /// 2. Appelle `runner.call_run(task)` avec supervision `StepBudget`.
@@ -696,7 +696,7 @@ impl ORIAEngine {
                 );
             }
 
-            // STORY-131 : record suspended_at timestamp for HITL timing
+            // record suspended_at timestamp for HITL timing
             let suspended_at =
                 chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
             if let Err(e) = repo
@@ -991,7 +991,7 @@ mod tests {
         );
     }
 
-    // ── HITL tests (STORY-096) ───────────────────────────────────────────
+    // ── HITL tests ───────────────────────────────────────────
 
     /// Runner qui retourne InputRequired au premier appel, puis Completed au second.
     struct MockRunnerInputRequired {
@@ -1043,7 +1043,7 @@ mod tests {
         }))
     }
 
-    // AC-1 : InputRequired → TaskInputRequired émis sur EventBus + suspension enregistrée
+    // InputRequired → TaskInputRequired émis sur EventBus + suspension enregistrée
 
     /// ÉTANT DONNÉ un agent qui retourne InputRequired
     /// QUAND execute_direct() reçoit ce résultat
@@ -1108,7 +1108,7 @@ mod tests {
         assert!(found, "expected TaskInputRequired event on EventBus");
     }
 
-    // AC-2 : Approve → run() rappelé avec is_resumed=true
+    // Approve → run() rappelé avec is_resumed=true
 
     /// ÉTANT DONNÉ une tâche suspendue en input_required
     /// QUAND PendingApprovals.resolve(approved=true)
@@ -1155,13 +1155,13 @@ mod tests {
         assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 2);
     }
 
-    // AC-3 : Reject → AIPResult::failed("REJECTED") sans rappeler run()
+    // Reject → AIPResult::failed("REJECTED") sans rappeler run()
 
     /// ÉTANT DONNÉ une tâche suspendue en input_required
     /// QUAND PendingApprovals.resolve(approved=false, reason="Trop cher")
     /// ALORS execute_direct() retourne AIPResult::failed("REJECTED") sans rappeler run()
     #[tokio::test]
-    async fn test_ac3_reject_returns_failed_without_run() {
+    async fn test_reject_returns_failed_without_run() {
         // GIVEN
         let pending = Arc::new(PendingApprovals::new());
         let engine = ORIAEngine::new().with_pending_approvals(pending.clone());
@@ -1220,7 +1220,7 @@ mod tests {
 }
 
 // ─────────────────────────────────────────────
-// Tests — execute() Mode Orchestrated (STORY-085)
+// Tests — execute() Mode Orchestrated
 // ─────────────────────────────────────────────
 
 #[cfg(test)]
@@ -1436,7 +1436,7 @@ mod orchestrated_tests {
     /// ALORS AIPResult::Completed est retourné
     ///   ET RuntimeEvent::PlanCompleted a été émis
     #[tokio::test]
-    async fn test_ac1_sans_hook_concatenation() {
+    async fn test_sans_hook_concatenation() {
         // GIVEN
         let engine = make_engine_with_mock(two_step_plan_json());
         let agent = MockAgent {
@@ -1463,7 +1463,7 @@ mod orchestrated_tests {
     /// QUAND ORIAEngine::execute(task, &agent) est appelé
     /// ALORS le résultat contient "HOOK_CALLED" (pas la concaténation auto)
     #[tokio::test]
-    async fn test_ac5_hook_called_when_present() {
+    async fn test_hook_called_when_present() {
         // GIVEN
         let engine = make_engine_with_mock(two_step_plan_json());
         let agent = MockAgentWithHook {
@@ -1503,7 +1503,7 @@ mod orchestrated_tests {
     /// ALORS call_on_plan_complete() n'est PAS appelé
     ///   ET la concaténation automatique des outputs est retournée
     #[tokio::test]
-    async fn test_ac6_concat_used_when_no_hook() {
+    async fn test_concat_used_when_no_hook() {
         // GIVEN
         let engine = make_engine_with_mock(two_step_plan_json());
         let agent = MockAgent {
@@ -1541,7 +1541,7 @@ mod orchestrated_tests {
     /// ALORS AIPResult::failed("MISSING_SYSTEM_PROMPT", _) est retourné
     ///   ET Reasoner.plan() n'est PAS appelé (aucun LLM configuré)
     #[tokio::test]
-    async fn test_ac2_system_prompt_absent_retourne_failed() {
+    async fn test_system_prompt_absent_retourne_failed() {
         // GIVEN — no LLM and no system_prompt (both should be caught at system_prompt check)
         let engine = ORIAEngine::new();
         let agent = MockAgent {
@@ -1586,7 +1586,7 @@ mod orchestrated_tests {
     /// QUAND ORIAEngine::execute(task, &agent) est appelé
     /// ALORS AIPResult::failed("PLAN_FAILED", _) est retourné
     #[tokio::test]
-    async fn test_ac3_reasoner_echec_retourne_failed() {
+    async fn test_reasoner_echec_retourne_failed() {
         // GIVEN
         let model = Arc::new(ErrorMockModel);
         let engine = ORIAEngine::new().with_reasoner(model, 20);
@@ -1614,7 +1614,7 @@ mod orchestrated_tests {
     /// QUAND ORIAEngine::execute_orchestrated() est appelé
     /// ALORS le subscriber reçoit RuntimeEvent::PlanGenerated { step_count: 4, .. }
     #[tokio::test]
-    async fn test_ac5_plan_generated_event_step_count() {
+    async fn test_plan_generated_event_step_count() {
         // GIVEN
         let (tx, mut rx) = tokio::sync::broadcast::channel::<RuntimeEvent>(32);
         let engine = make_engine_with_mock(four_step_plan_json()).with_event_bus(tx);
@@ -1680,7 +1680,7 @@ mod orchestrated_tests {
         assert_eq!(result.status, TaskStatus::Completed);
     }
 
-    // ─── STORY-233 : Plan Cache Integration ──────────────────────────────
+    // ─── Plan Cache Integration ──────────────────────────────
 
     /// ÉTANT DONNÉ deux versions différentes du même agent
     /// QUAND compute_cache_key est appelé avec "1.0" puis "1.1"

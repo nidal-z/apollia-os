@@ -1,6 +1,5 @@
 //! `ToolCallHelper` — boucle ReAct automatique avec exécution d'outils.
 //!
-//! Implémente STORY-057.
 //! Orchestre les appels LLM successifs et l'invocation du [`ToolInvoker`].
 
 use std::sync::{
@@ -16,7 +15,7 @@ use crate::types::{
 // StepBudgetView
 // ─────────────────────────────────────────────
 
-/// Vue read-only du `StepBudget` (STORY-030) exposée à la boucle ReAct.
+/// Vue read-only du `StepBudget` exposée à la boucle ReAct.
 ///
 /// Partagée via `Arc<AtomicU32>` avec le budget mutable du runtime.
 /// Aucune mutation n'est possible depuis cette vue.
@@ -58,7 +57,7 @@ impl StepBudgetView {
 /// Cela évite toute dépendance directe de `apollia-llm` vers `apollia-tools`
 /// et permet l'injection d'un mock en test.
 ///
-/// L'implémentation concrète wrappant `ToolRegistryHandle` est créée en STORY-058.
+/// L'implémentation concrète wrappant `ToolRegistryHandle` est créée.
 #[async_trait::async_trait]
 pub trait ToolInvoker: Send + Sync {
     /// Invoque un outil par son nom avec les arguments JSON fournis.

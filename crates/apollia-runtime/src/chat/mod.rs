@@ -1,9 +1,9 @@
 //! Chat subsystem — types, SQLite repository, and approval mechanics (Sprint 18).
 //!
 //! This module provides the foundational types and persistence layer for the
-//! chat hybride feature. The `ChatSessionManager` actor (STORY-199) and
-//! `BuiltInChatAgent` (STORY-200) build on top of these primitives.
-//! `AgentChatExecutor` (STORY-202) handles Chat Agent mode via Python agents.
+//! chat hybride feature. The `ChatSessionManager` actor and
+//! `BuiltInChatAgent` build on top of these primitives.
+//! `AgentChatExecutor` handles Chat Agent mode via Python agents.
 
 pub mod agent_chat;
 pub mod builtin_agent;

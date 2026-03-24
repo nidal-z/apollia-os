@@ -1,4 +1,4 @@
--- Chat tables — Sprint 18 (STORY-198)
+-- Chat tables
 -- Persistance locale des sessions de chat et messages.
 
 CREATE TABLE IF NOT EXISTS chat_sessions (

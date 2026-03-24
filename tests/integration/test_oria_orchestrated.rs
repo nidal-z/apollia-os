@@ -1,13 +1,13 @@
-//! Integration tests for ORIA orchestrated mode (STORY-091).
+//! Integration tests for ORIA orchestrated mode.
 //!
-//! Covers 7 acceptance criteria from the Sprint 10 DoD:
-//! - AC-1 : 4-step plan executed sequentially, `PlanCompleted` event emitted
-//! - AC-2 : topological order respected (diamond dependency)
-//! - AC-3 : `StepBudget::with_max(2)` stops at step 3 of 5
-//! - AC-4 : step failure triggers replanification, execution continues
-//! - AC-5 : `MAX_REPLAN_EXCEEDED` when `max_replans = 0` and step fails
-//! - AC-6 : `Reasoner` retry ×3 on invalid JSON → `PlanParseError`
-//! - AC-7 : agent without `on_plan_complete` → automatic output concatenation
+//! Covers 7 scenarios:
+//! - 4-step plan executed sequentially, `PlanCompleted` event emitted
+//! - Topological order respected (diamond dependency)
+//! - `StepBudget::with_max(2)` stops at step 3 of 5
+//! - Step failure triggers replanification, execution continues
+//! - `MAX_REPLAN_EXCEEDED` when `max_replans = 0` and step fails
+//! - `Reasoner` retry ×3 on invalid JSON → `PlanParseError`
+//! - Agent without `on_plan_complete` → automatic output concatenation
 
 use std::collections::VecDeque;
 use std::pin::Pin;
@@ -230,9 +230,9 @@ fn make_manifest() -> AgentManifest {
     .expect("minimal manifest must deserialize")
 }
 
-// ── AC-1 ─────────────────────────────────────────────────────────────────────
+// ── Plan séquentiel ───────────────────────────────────────────────────────────
 
-/// AC-1: Plan valide de 4 steps exécuté séquentiellement — `PlanCompleted` émis.
+/// Plan valide de 4 steps exécuté séquentiellement — `PlanCompleted` émis.
 ///
 /// ÉTANT DONNÉ un plan linéaire (s1→s2→s3→s4) et un `RecordingToolProxy`
 /// QUAND `ActorLoop::execute()` est appelé
@@ -293,9 +293,9 @@ async fn test_ac1_plan_4_steps_execute_sequentiellement() {
     );
 }
 
-// ── AC-2 ─────────────────────────────────────────────────────────────────────
+// ── Ordre topologique ─────────────────────────────────────────────────────────
 
-/// AC-2: Dépendances topologiques respectées — plan en diamant.
+/// Dépendances topologiques respectées — plan en diamant.
 ///
 /// ÉTANT DONNÉ s1 et s3 sans deps, s2 dépend de s1, s4 dépend de s2 et s3
 /// QUAND `ActorLoop::execute()` est appelé
@@ -351,9 +351,9 @@ async fn test_ac2_depends_on_respectes() {
     assert!(s3 < s4, "s3 must precede s4 (s3={s3}, s4={s4})");
 }
 
-// ── AC-3 ─────────────────────────────────────────────────────────────────────
+// ── Budget épuisé ─────────────────────────────────────────────────────────────
 
-/// AC-3: Budget épuisé — plan de 5 steps indépendants, max 2 steps autorisés.
+/// Budget épuisé — plan de 5 steps indépendants, max 2 steps autorisés.
 ///
 /// ÉTANT DONNÉ 5 steps sans dépendances et `StepBudget::with_max(2)`
 /// QUAND `ActorLoop::execute()` est appelé
@@ -404,9 +404,9 @@ async fn test_ac3_budget_epuise_step_3_sur_5() {
     );
 }
 
-// ── AC-4 ─────────────────────────────────────────────────────────────────────
+// ── Replanification ───────────────────────────────────────────────────────────
 
-/// AC-4: Replanification déclenchée sur step retryable.
+/// Replanification déclenchée sur step retryable.
 ///
 /// ÉTANT DONNÉ un plan (s1 ok, s2 retryable fail) avec `max_replans = 1`
 ///   ET un `Reasoner` qui retourne un plan de remplacement (s2b)
@@ -470,9 +470,9 @@ async fn test_ac4_replanification_step_echec() {
     );
 }
 
-// ── AC-5 ─────────────────────────────────────────────────────────────────────
+// ── MAX_REPLAN_EXCEEDED ───────────────────────────────────────────────────────
 
-/// AC-5: `MAX_REPLAN_EXCEEDED` — zéro replanification autorisée, step retryable échoue.
+/// `MAX_REPLAN_EXCEEDED` — zéro replanification autorisée, step retryable échoue.
 ///
 /// ÉTANT DONNÉ un plan avec un step qui produit toujours une erreur retryable
 ///   ET `max_replans = 0` (aucune replanification autorisée)
@@ -512,9 +512,9 @@ async fn test_ac5_max_replan_exceeded() {
     );
 }
 
-// ── AC-6 ─────────────────────────────────────────────────────────────────────
+// ── Reasoner retry ────────────────────────────────────────────────────────────
 
-/// AC-6: `Reasoner` retry ×3 sur JSON invalide — `PlanParseError(attempts: 3)`.
+/// `Reasoner` retry ×3 sur JSON invalide — `PlanParseError(attempts: 3)`.
 ///
 /// ÉTANT DONNÉ un mock `CompletionModel` retournant 3 fois du texte non-JSON
 /// QUAND `Reasoner::plan(&ctx).await` est appelé
@@ -549,9 +549,9 @@ async fn test_ac6_reasoner_retry_3_fois_json_invalide() {
     );
 }
 
-// ── AC-7 ─────────────────────────────────────────────────────────────────────
+// ── Concaténation automatique ─────────────────────────────────────────────────
 
-/// AC-7: Agent sans `on_plan_complete` → concaténation automatique des outputs.
+/// Agent sans `on_plan_complete` → concaténation automatique des outputs.
 ///
 /// ÉTANT DONNÉ un agent Rust implémentant `AIPAgent` sans `on_plan_complete`
 ///   ET un plan de 2 steps avec des outputs non vides

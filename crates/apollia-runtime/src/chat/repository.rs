@@ -1,4 +1,4 @@
-//! SQLite-backed repository for chat sessions and messages (STORY-198).
+//! SQLite-backed repository for chat sessions and messages.
 //!
 //! Operates on `~/.apollia/chat.db` — one database per runtime instance.
 //! All writes are synchronous (rusqlite); callers should wrap in

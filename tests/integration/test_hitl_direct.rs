@@ -1,4 +1,4 @@
-//! Integration tests for HITL Mode Direct — STORY-106 AC-1 and AC-2.
+//! Integration tests for HITL Mode Direct.
 //!
 //! Tests the full suspend → approve/reject → resume chain using
 //! a real `TaskRepository` (temp SQLite) + `ORIAEngine::execute_direct()`.

@@ -609,9 +609,8 @@ fn parse_sse_stream(
 
                                     match delta_type {
                                         Some("text_delta") => {
-                                            if let Some(text) = json
-                                                .pointer("/delta/text")
-                                                .and_then(|t| t.as_str())
+                                            if let Some(text) =
+                                                json.pointer("/delta/text").and_then(|t| t.as_str())
                                             {
                                                 if !text.is_empty() {
                                                     return Some((
@@ -623,9 +622,9 @@ fn parse_sse_stream(
                                         }
                                         // Tool call arguments arrive as JSON fragments
                                         Some("input_json_delta") => {
-                                            if let Some(partial) =
-                                                json.pointer("/delta/partial_json")
-                                                    .and_then(|t| t.as_str())
+                                            if let Some(partial) = json
+                                                .pointer("/delta/partial_json")
+                                                .and_then(|t| t.as_str())
                                             {
                                                 if let Some(ref mut pending) = state.pending_tool {
                                                     pending.arguments_json.push_str(partial);
@@ -663,10 +662,9 @@ fn parse_sse_stream(
                                 // Content block ends — emit tool call if one was pending
                                 Some("content_block_stop") => {
                                     if let Some(pending) = state.pending_tool.take() {
-                                        let arguments = serde_json::from_str(
-                                            &pending.arguments_json,
-                                        )
-                                        .unwrap_or(serde_json::Value::Null);
+                                        let arguments =
+                                            serde_json::from_str(&pending.arguments_json)
+                                                .unwrap_or(serde_json::Value::Null);
                                         return Some((
                                             Ok(StreamChunk::ToolCall(ToolCall {
                                                 id: pending.id,

@@ -20,7 +20,7 @@ use apollia_memory::semantic::SemanticMemory;
 /// Maximum number of recent episodes loaded into the snapshot.
 const MAX_RECENT_EPISODES: usize = 10;
 
-// ─── Weighted scoring constants (STORY-234) ─────────────────────────────────
+// ─── Weighted scoring constants ─────────────────────────────────
 
 /// Weight for high step budget (`max_steps > 15`).
 const WEIGHT_STEPS: f32 = 0.30;
@@ -534,7 +534,7 @@ mod tests {
     }
 
     // AC-6 — many input parts alone are below threshold with weighted scoring
-    // (STORY-234: 4 parts = WEIGHT_PARTS 0.20 < 0.40 — correctly classified as Direct)
+    // (4 parts = WEIGHT_PARTS 0.20 < 0.40 — correctly classified as Direct)
     #[test]
     fn test_classify_many_input_parts_alone_returns_direct() {
         // GIVEN a simple manifest and a task with 4 input parts
@@ -548,7 +548,7 @@ mod tests {
         assert_eq!(mode, ExecutionMode::Direct);
     }
 
-    // STORY-079 — AC-1 : override explicite "orchestrated"
+    // override explicite "orchestrated"
     #[test]
     fn test_ac1_orchestrated_override() {
         // GIVEN un manifest avec execution_mode = "orchestrated"
@@ -563,7 +563,7 @@ mod tests {
         assert_eq!(mode, ExecutionMode::Orchestrated);
     }
 
-    // STORY-079 — AC-2 : override explicite "direct" même avec 6 outils
+    // override explicite "direct" même avec 6 outils
     #[test]
     fn test_ac2_direct_override_despite_many_tools() {
         // GIVEN un manifest avec execution_mode = "direct" et 6 outils (> 4)
@@ -582,8 +582,8 @@ mod tests {
         assert_eq!(mode, ExecutionMode::Direct);
     }
 
-    // STORY-079 — AC-3 : "auto" + 5 outils + 20 steps → Orchestrated
-    // (STORY-234: 5 tools alone = 0.20, need steps > 15 too for 0.50 ≥ 0.40)
+    // "auto" + 5 outils + 20 steps → Orchestrated
+    // (5 tools alone = 0.20, need steps > 15 too for 0.50 ≥ 0.40)
     #[test]
     fn test_ac3_auto_heuristic_orchestrated_on_many_tools_and_steps() {
         // GIVEN un manifest avec 5 outils ET 20 steps
@@ -607,7 +607,7 @@ mod tests {
         assert_eq!(mode, ExecutionMode::Orchestrated);
     }
 
-    // STORY-079 — AC-4 : "auto" + agent simple → Direct
+    // "auto" + agent simple → Direct
     #[test]
     fn test_ac4_auto_heuristic_direct_on_simple_agent() {
         // GIVEN un manifest avec execution_mode = "auto" et 1 outil
@@ -623,9 +623,7 @@ mod tests {
         assert_eq!(mode, ExecutionMode::Direct);
     }
 
-    // ── STORY-234 tests ─────────────────────────────────────────────────────
-
-    // STORY-234 — AC-1 : agent simple classé Direct (score ~0.0)
+    // agent simple classé Direct (score ~0.0)
     #[test]
     fn test_simple_agent_classified_direct() {
         // GIVEN un agent avec 2 outils, 10 steps max, pas de tag, input court
@@ -641,7 +639,7 @@ mod tests {
         assert_eq!(mode, ExecutionMode::Direct);
     }
 
-    // STORY-234 — AC-2 : agent complexe classé Orchestrated (score >= 0.9)
+    // agent complexe classé Orchestrated (score >= 0.9)
     #[test]
     fn test_complex_agent_classified_orchestrated() {
         // GIVEN un agent avec 5+ outils, 20 steps, tag "multi-step", input long
@@ -674,7 +672,7 @@ mod tests {
         assert_eq!(mode, ExecutionMode::Orchestrated);
     }
 
-    // STORY-234 — AC-3 : tag "multi-step" seul déclenche Orchestrated
+    // tag "multi-step" seul déclenche Orchestrated
     #[test]
     fn test_multi_step_tag_alone_triggers_orchestrated() {
         // GIVEN un agent avec 1 outil, 5 steps, tag "multi-step", input court
@@ -697,7 +695,7 @@ mod tests {
         assert_eq!(mode, ExecutionMode::Orchestrated);
     }
 
-    // STORY-234 — AC-4 : input long + nombreux outils contribuent au score
+    // input long + nombreux outils contribuent au score
     #[test]
     fn test_input_length_and_tools_contribute_to_score() {
         // GIVEN un agent avec 6 outils, 10 steps, pas de tag, input de 800 chars
@@ -726,7 +724,7 @@ mod tests {
         assert!(score >= 0.30, "score should be >= 0.30, got {score}");
     }
 
-    // STORY-079 — AC-5 : serde round-trip JSON → execution_mode + system_prompt
+    // serde round-trip JSON → execution_mode + system_prompt
     #[test]
     fn test_ac5_serde_round_trip() {
         use apollia_core::AgentManifest;
@@ -742,7 +740,7 @@ mod tests {
         assert_eq!(manifest.system_prompt, Some("Planifie.".to_string()));
     }
 
-    // STORY-079 — valeur par défaut "auto" quand le champ est absent
+    // valeur par défaut "auto" quand le champ est absent
     #[test]
     fn test_default_execution_mode_is_auto() {
         use apollia_core::AgentManifest;

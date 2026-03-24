@@ -1,4 +1,4 @@
-//! Integration tests for HITL Mode Orchestré — STORY-106 AC-3 and AC-4.
+//! Integration tests for HITL Mode Orchestré.
 //!
 //! Tests `ActorLoop` with `tools_requiring_approval`:
 //! - AC-3: step with sensitive tool → suspend mid-plan → approve → step executed

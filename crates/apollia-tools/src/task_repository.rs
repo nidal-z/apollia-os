@@ -5,7 +5,7 @@
 //!
 //! Toutes les méthodes publiques sont `async` et délèguent aux opérations
 //! SQLite bloquantes via `tokio::task::spawn_blocking` — pattern identique
-//! à [`crate::audit::AuditTrail`] (STORY-016, ADR-014).
+//! à [`crate::audit::AuditTrail`] (ADR-014).
 //!
 //! La migration `005_hitl_tables.sql` est appliquée idempotentiellement
 //! à l'appel de [`TaskRepository::open`].
@@ -19,7 +19,7 @@ use rusqlite::params;
 /// SQL de migration embarqué — appliqué idempotentiellement à chaque ouverture.
 const MIGRATION_SQL: &str = include_str!("../migrations/005_hitl_tables.sql");
 
-/// Colonnes à ajouter par la migration observabilité STORY-126.
+/// Colonnes à ajouter par la migration observabilité.
 const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
     ("input_text", "TEXT"),
     ("input_truncated", "INTEGER NOT NULL DEFAULT 0"),
@@ -29,7 +29,7 @@ const OBSERVABILITY_COLUMNS: &[(&str, &str)] = &[
     ("transitions_json", "TEXT"),
 ];
 
-/// Colonnes HITL timing à ajouter sur `task_approvals` (STORY-131).
+/// Colonnes HITL timing à ajouter sur `task_approvals`.
 const HITL_TIMING_COLUMNS: &[(&str, &str)] =
     &[("suspended_at", "TEXT"), ("wait_duration_ms", "INTEGER")];
 
@@ -157,7 +157,7 @@ impl TaskRepository {
     ///
     /// Insère ou met à jour la ligne dans `tasks` avec `status = 'input_required'`
     /// et `input_required_at = CURRENT_TIMESTAMP`. Appelé par ORIA avant d'émettre
-    /// `RuntimeEvent::TaskInputRequired` sur l'EventBus (STORY-096).
+    /// `RuntimeEvent::TaskInputRequired` sur l'EventBus.
     ///
     /// # Errors
     ///
@@ -201,7 +201,7 @@ impl TaskRepository {
         Ok(())
     }
 
-    // ─── Méthodes HITL timing (STORY-131) ──────────────────────────────
+    // ─── Méthodes HITL timing ──────────────────────────────────────────
 
     /// Enregistre le timestamp de suspension lors d'un `input_required`.
     ///
@@ -291,7 +291,7 @@ impl TaskRepository {
     /// Met à jour `input_response_approved`, `input_response_reason`,
     /// `input_response_at` et `status` dans `tasks`, puis insère une ligne
     /// dans `task_approvals` pour l'historique multi-approbation.
-    /// Appelé par le `ResumeHandler` (STORY-095) après validation de la réponse.
+    /// Appelé par le `ResumeHandler` après validation de la réponse.
     ///
     /// # Errors
     ///
@@ -336,7 +336,7 @@ impl TaskRepository {
                 params![&task_id, approved as i32, &reason, &responded_at],
             )?;
 
-            // Update the pending row created by save_suspended_at (STORY-131).
+            // Update the pending row created by save_suspended_at.
             // If no pending row exists (backward compat), fallback to INSERT.
             let updated = conn.execute(
                 "UPDATE task_approvals \
@@ -379,7 +379,7 @@ impl TaskRepository {
     ///
     /// Lit les colonnes `input_response_*` depuis `tasks` et construit un `AIPTask`
     /// avec `is_resumed = true` et `input_response` peuplé avec la décision humaine
-    /// et le contexte JSON original. Appelé par le `ResumeHandler` (STORY-095) avant
+    /// et le contexte JSON original. Appelé par le `ResumeHandler` avant
     /// de relancer l'agent via ORIA.
     ///
     /// # Errors
@@ -449,7 +449,7 @@ impl TaskRepository {
 
     /// Retourne le statut SQLite d'une tâche, ou `None` si absente de la table `tasks`.
     ///
-    /// Utilisé par le `ResumeHandler` (STORY-095) pour vérifier qu'une tâche
+    /// Utilisé par le `ResumeHandler` pour vérifier qu'une tâche
     /// est bien en status `input_required` avant de traiter la reprise.
     ///
     /// # Errors
@@ -516,7 +516,7 @@ impl TaskRepository {
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
 
-    // ─── Méthodes observabilité (STORY-126) ─────────────────────────────
+    // ─── Méthodes observabilité ──────────────────────────────────────────
 
     /// Persiste l'input texte d'une tâche avec troncature éventuelle.
     ///
@@ -722,7 +722,7 @@ impl TaskRepository {
     /// Annule une tâche en mettant son statut à `cancelled` dans la DB.
     ///
     /// Persiste `reason` dans la colonne `input_response_reason` pour la traçabilité.
-    /// Appelé par le `TimeoutWatcher` (STORY-098) lors de l'expiration d'une
+    /// Appelé par le `TimeoutWatcher` lors de l'expiration d'une
     /// suspension `input_required`.
     ///
     /// # Errors
@@ -756,7 +756,7 @@ impl TaskRepository {
     ///
     /// Utilise `strftime('%s', 'now') - strftime('%s', input_required_at)` pour calculer
     /// les secondes écoulées et les comparer au seuil `older_than.as_secs()`.
-    /// Utilisé par le `TimeoutWatcher` (STORY-098) pour annuler les tâches expirées.
+    /// Utilisé par le `TimeoutWatcher` pour annuler les tâches expirées.
     ///
     /// # Errors
     ///
@@ -1064,9 +1064,9 @@ mod tests {
         (repo, path)
     }
 
-    // ─── Tests STORY-126 — Observabilité tasks ────────────────────────
+    // ─── Tests observabilité tasks ────────────────────────────────────
 
-    // AC-1 — Input persisté à la soumission (non tronqué)
+    // Input persisté à la soumission (non tronqué)
 
     #[tokio::test]
     async fn test_story126_ac1_input_persisted() {
@@ -1096,7 +1096,7 @@ mod tests {
         assert_eq!(truncated, 0);
     }
 
-    // AC-2 — Input tronqué si supérieur à la limite
+    // Input tronqué si supérieur à la limite
 
     #[tokio::test]
     async fn test_story126_ac2_input_truncated_at_limit() {
@@ -1131,7 +1131,7 @@ mod tests {
         assert!(text.contains("500"), "marker should mention 500 bytes");
     }
 
-    // AC-3 — Output persisté à la completion
+    // Output persisté à la completion
 
     #[tokio::test]
     async fn test_story126_ac3_output_persisted() {
@@ -1164,7 +1164,7 @@ mod tests {
         assert_eq!(truncated, 0);
     }
 
-    // AC-3 bis — Output tronqué si supérieur à la limite
+    // Output tronqué si supérieur à la limite
 
     #[tokio::test]
     async fn test_story126_ac3_output_truncated_at_limit() {
@@ -1200,7 +1200,7 @@ mod tests {
         assert_eq!(truncated, 1);
     }
 
-    // AC-4 — Transitions ordonnées chronologiquement
+    // Transitions ordonnées chronologiquement
 
     #[tokio::test]
     async fn test_story126_ac4_transitions_ordered() {
@@ -1245,7 +1245,7 @@ mod tests {
         assert_eq!(transitions[2]["ts"], "2026-03-13T10:00:02Z");
     }
 
-    // AC-5 — Durée mesurée
+    // Durée mesurée
 
     #[tokio::test]
     async fn test_story126_ac5_duration_recorded() {
@@ -1316,7 +1316,7 @@ mod tests {
 
     // ─── Tests HITL existants ────────────────────────────────────────
 
-    // AC-1 — Migration appliquée au démarrage : colonnes HITL présentes dans tasks
+    // Migration appliquée au démarrage : colonnes HITL présentes dans tasks
 
     #[tokio::test]
     async fn test_ac1_migration_005_colonnes_existantes() {
@@ -1376,7 +1376,7 @@ mod tests {
         );
     }
 
-    // AC-2 — save_input_response() persiste la réponse ET insère dans task_approvals
+    // save_input_response() persiste la réponse ET insère dans task_approvals
 
     #[tokio::test]
     async fn test_ac2_save_input_response_persiste() {
@@ -1445,7 +1445,7 @@ mod tests {
         );
     }
 
-    // AC-3 — rebuild_for_resume() reconstitue l'AIPTask avec is_resumed=true
+    // rebuild_for_resume() reconstitue l'AIPTask avec is_resumed=true
 
     #[tokio::test]
     async fn test_ac3_rebuild_for_resume_is_resumed_true() {
@@ -1487,7 +1487,7 @@ mod tests {
         );
     }
 
-    // AC-4 — find_input_required_older_than() retourne les tâches expirées
+    // find_input_required_older_than() retourne les tâches expirées
 
     #[tokio::test]
     async fn test_ac4_find_expired_input_required() {
@@ -1529,7 +1529,7 @@ mod tests {
         );
     }
 
-    // AC-5 — Tâche récente absente de la liste des expirées
+    // Tâche récente absente de la liste des expirées
 
     #[tokio::test]
     async fn test_ac5_find_recent_not_expired() {
@@ -1554,9 +1554,9 @@ mod tests {
         );
     }
 
-    // ─── Tests STORY-131 — HITL timing ───────────────────────────────
+    // ─── Tests HITL timing ───────────────────────────────────────────
 
-    // AC-1 — suspended_at enregistré à la suspension
+    // suspended_at enregistré à la suspension
 
     #[tokio::test]
     async fn test_story131_ac1_suspended_at_recorded() {
@@ -1588,7 +1588,7 @@ mod tests {
         assert_eq!(suspended, "2026-03-13T14:30:00.000Z");
     }
 
-    // AC-2 — responded_at enregistré à la réponse (via save_input_response)
+    // responded_at enregistré à la réponse (via save_input_response)
 
     #[tokio::test]
     async fn test_story131_ac2_responded_at_recorded() {
@@ -1629,7 +1629,7 @@ mod tests {
         assert_eq!(responded, "2026-03-13T14:35:00.000Z");
     }
 
-    // AC-3 — wait_duration_ms calculé automatiquement (5 min = 300000ms)
+    // wait_duration_ms calculé automatiquement (5 min = 300000ms)
 
     #[tokio::test]
     async fn test_story131_ac3_wait_duration_calculated() {
@@ -1673,7 +1673,7 @@ mod tests {
         );
     }
 
-    // AC-4 — Index pending créé
+    // Index pending créé
 
     #[tokio::test]
     async fn test_story131_ac4_pending_index_exists() {
@@ -1700,7 +1700,7 @@ mod tests {
         assert!(has_index, "idx_task_approvals_pending doit exister");
     }
 
-    // ─── Test STORY-141 — list_resolved_approvals ─────────────────────
+    // ─── Test list_resolved_approvals ─────────────────────────────────
 
     #[tokio::test]
     async fn test_story141_list_resolved_approvals() {

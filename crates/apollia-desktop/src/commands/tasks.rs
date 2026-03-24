@@ -2,7 +2,7 @@
 //!
 //! `list_tasks` et `submit_task` délèguent aux handles du runtime.
 //! `get_task_timeline` appelle l'API REST interne `GET /api/v1/tasks/{id}/timeline`
-//! (Sprint 13, STORY-132) pour éviter de dupliquer la logique d'agrégation.
+//! pour éviter de dupliquer la logique d'agrégation.
 
 use apollia_core::{AIPInput, AIPPart, TaskStatus, TextPart};
 use apollia_runtime::embedded::RuntimeHandle;
@@ -219,7 +219,7 @@ pub async fn submit_task(
 
 /// Récupère la timeline d'une tâche via l'API REST interne.
 ///
-/// Appelle `GET /api/v1/tasks/{id}/timeline` (Sprint 13, STORY-132) qui
+/// Appelle `GET /api/v1/tasks/{id}/timeline` qui
 /// agrège les événements de 5 sources SQLite (transitions, plans, LLM calls,
 /// tool calls, HITL). Le résultat est retourné tel quel au frontend.
 #[tauri::command]

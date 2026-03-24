@@ -1,4 +1,4 @@
-//! Timeline API — `GET /api/v1/tasks/{id}/timeline` (STORY-132).
+//! Timeline API — `GET /api/v1/tasks/{id}/timeline`.
 //!
 //! Aggregates execution data from 5 SQLite sources into a chronologically
 //! ordered timeline for a given task. All data is read server-side in a single
@@ -657,7 +657,7 @@ mod tests {
         .expect("audit migration");
     }
 
-    // ── AC-1 — Timeline Mode Direct, ordre chronologique ─────────────────
+    // ── Timeline Mode Direct, ordre chronologique ─────────────────────────
 
     #[test]
     fn test_ac1_timeline_mode_direct_chronological() {
@@ -741,7 +741,7 @@ mod tests {
         assert_eq!(types[4], "completed");
     }
 
-    // ── AC-2 — Timeline Mode Orchestré avec steps + LLM calls ────────────
+    // ── Timeline Mode Orchestré avec steps + LLM calls ────────────────────
 
     #[test]
     fn test_ac2_timeline_orchestrated_with_steps() {
@@ -815,7 +815,7 @@ mod tests {
         assert_eq!(types[4], "step_completed"); // s2 10:00:04
     }
 
-    // ── AC-3 — Timeline HITL suspension + résolution ─────────────────────
+    // ── Timeline HITL suspension + résolution ─────────────────────────────
 
     #[test]
     fn test_ac3_timeline_hitl_suspension_and_resolution() {
@@ -872,7 +872,7 @@ mod tests {
         }
     }
 
-    // ── AC-4 — Task not found → Err ─────────────────────────────────────
+    // ── Task not found → Err ─────────────────────────────────────────────
 
     #[test]
     fn test_ac4_timeline_task_not_found() {
@@ -893,7 +893,7 @@ mod tests {
         assert!(events.is_empty());
     }
 
-    // ── AC-5 — Tâche en cours → timeline partielle sans TaskCompleted ───
+    // ── Tâche en cours → timeline partielle sans TaskCompleted ───────────
 
     #[test]
     fn test_ac5_timeline_in_progress_no_task_completed() {

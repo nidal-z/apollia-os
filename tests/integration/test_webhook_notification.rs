@@ -1,4 +1,4 @@
-//! Integration tests for WebhookChannel — STORY-106 AC-6 and AC-7.
+//! Integration tests for WebhookChannel.
 //!
 //! Tests the full HTTP notification path using a real `WebhookChannel`
 //! from `apollia-notifications`:

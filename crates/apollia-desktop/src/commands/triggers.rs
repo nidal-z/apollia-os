@@ -223,7 +223,7 @@ pub async fn reload_triggers(state: State<'_, RuntimeHandle>) -> Result<ReloadRe
     Ok(ReloadResult { reloaded })
 }
 
-// ─── CRUD types & commands (STORY-192) ──────────────────────────────────────
+// ─── CRUD types & commands ──────────────────────────────────────────────────
 
 /// Définition complète d'un trigger retournée par les opérations CRUD.
 #[derive(Debug, Serialize)]
@@ -376,7 +376,7 @@ pub async fn update_trigger(
 
 /// Récupère la définition complète d'un trigger par son identifiant.
 ///
-/// Délègue à `GET /api/v1/triggers/:id` (route CRUD STORY-192).
+/// Délègue à `GET /api/v1/triggers/:id` (route CRUD).
 #[tauri::command]
 pub async fn get_trigger_definition(
     state: State<'_, RuntimeHandle>,

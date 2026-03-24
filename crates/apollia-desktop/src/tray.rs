@@ -1,4 +1,4 @@
-//! System tray integration for Apollia OS desktop (STORY-151).
+//! System tray integration for Apollia OS desktop.
 //!
 //! Provides a persistent tray icon with a context menu that allows the user to
 //! open the main window, see pending HITL approvals, and quit the application

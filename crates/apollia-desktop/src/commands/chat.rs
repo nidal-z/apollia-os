@@ -1,12 +1,10 @@
-//! Commandes IPC Tauri pour le chat hybride (STORY-204).
+//! Commandes IPC Tauri pour le chat hybride.
 //!
 //! Chaque commande délègue intégralement au `ChatSessionManagerHandle` —
 //! zéro logique métier dans cette couche. Si le chat n'est pas disponible
 //! (runtime sans LLM, erreur SQLite), une erreur explicite est retournée.
 
-use apollia_runtime::chat::{
-    ChatMode, SessionDetail, SessionInfo, SessionStatus, ToolDecision,
-};
+use apollia_runtime::chat::{ChatMode, SessionDetail, SessionInfo, SessionStatus, ToolDecision};
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
