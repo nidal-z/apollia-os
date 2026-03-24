@@ -413,6 +413,8 @@ fn is_leap(y: i32) -> bool {
 // RuntimeContext
 // ─────────────────────────────────────────────
 
+use std::collections::HashMap;
+
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
 use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
 use apollia_runtime::mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
@@ -445,6 +447,11 @@ pub struct RuntimeContext {
     agent_name: String,
     /// Indique si l'agent supporte le protocole A2A (from manifest).
     supports_a2a: bool,
+    /// Mémoire utilisateur injectée en mode chat — `None` en mode task.
+    ///
+    /// Structure : `{"preferences": [("key", "value"), ...], "habits": [...], "context": [...]}`.
+    /// L'agent décide quoi en faire — ce n'est jamais déterministe.
+    user_context: Option<HashMap<String, Vec<(String, String)>>>,
 }
 
 impl RuntimeContext {
@@ -485,6 +492,7 @@ impl RuntimeContext {
         mailbox: Option<AgentMailboxHandle>,
         agent_name: String,
         supports_a2a: bool,
+        user_context: Option<HashMap<String, Vec<(String, String)>>>,
     ) -> Self {
         let llm = llm_router.and_then(|router| {
             if router.list().is_empty() {
@@ -520,6 +528,7 @@ impl RuntimeContext {
             mailbox,
             agent_name,
             supports_a2a,
+            user_context,
         }
     }
 }
@@ -560,6 +569,19 @@ impl RuntimeContext {
     fn memory(&self, py: Python<'_>) -> PyObject {
         match &self.memory {
             Some(mem) => mem.clone_ref(py).into_any(),
+            None => py.None(),
+        }
+    }
+
+    /// Contexte utilisateur injecté en mode chat — `None` en mode task.
+    ///
+    /// Propriété Python `ctx.user_context`. Retourne un `dict[str, list[tuple[str, str]]]`
+    /// avec les catégories `preferences`, `habits`, `context`, ou `None` Python
+    /// si l'agent n'est pas en mode chat ou si la mémoire utilisateur est vide.
+    #[getter]
+    fn user_context(&self, py: Python<'_>) -> PyObject {
+        match &self.user_context {
+            Some(ctx) => ctx.to_object(py),
             None => py.None(),
         }
     }
@@ -772,6 +794,7 @@ mod runtime_context_tests {
             None,          // mailbox
             String::new(), // agent_name
             false,         // supports_a2a
+            None,          // user_context
         );
         // THEN
         assert!(ctx.llm.is_none());
@@ -797,6 +820,7 @@ mod runtime_context_tests {
             None,          // mailbox
             String::new(), // agent_name
             false,         // supports_a2a
+            None,          // user_context
         );
         // THEN un événement AgentDegraded est présent sur le bus
         let event = rx.try_recv().expect("un événement doit être présent");
@@ -828,6 +852,7 @@ mod runtime_context_tests {
             None,          // mailbox
             String::new(), // agent_name
             false,         // supports_a2a
+            None,          // user_context
         );
         // THEN
         assert!(ctx.llm.is_none());
@@ -1181,10 +1206,63 @@ mod a2a_tests {
             mailbox: None,
             agent_name: "test-agent".to_string(),
             supports_a2a: false,
+            user_context: None,
         };
 
         // THEN les vérifications internes échouent
         assert!(!ctx.supports_a2a);
         assert!(ctx.mailbox.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_user_context_some_in_chat_mode() {
+        // GIVEN a RuntimeContext with user_context populated (chat mode)
+        let mut uc = HashMap::new();
+        uc.insert(
+            "preferences".to_string(),
+            vec![
+                ("langue".to_string(), "francais".to_string()),
+                ("format".to_string(), "markdown".to_string()),
+            ],
+        );
+        uc.insert(
+            "habits".to_string(),
+            vec![("working_hours".to_string(), "9h-18h".to_string())],
+        );
+        uc.insert("context".to_string(), vec![]);
+
+        let ctx = RuntimeContext {
+            tools: None,
+            llm: None,
+            memory: None,
+            mailbox: None,
+            agent_name: "chat-agent".to_string(),
+            supports_a2a: false,
+            user_context: Some(uc),
+        };
+
+        // THEN user_context is Some with expected categories
+        assert!(ctx.user_context.is_some());
+        let uc = ctx.user_context.as_ref().expect("should be Some");
+        assert_eq!(uc.get("preferences").expect("preferences").len(), 2);
+        assert_eq!(uc.get("habits").expect("habits").len(), 1);
+        assert!(uc.get("context").expect("context").is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_user_context_none_in_task_mode() {
+        // GIVEN a RuntimeContext with user_context = None (task mode)
+        let ctx = RuntimeContext {
+            tools: None,
+            llm: None,
+            memory: None,
+            mailbox: None,
+            agent_name: "task-agent".to_string(),
+            supports_a2a: false,
+            user_context: None,
+        };
+
+        // THEN user_context is None
+        assert!(ctx.user_context.is_none());
     }
 }

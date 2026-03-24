@@ -84,6 +84,12 @@ struct AIPChatAgentRunner {
     tool_registry: Arc<std::sync::OnceLock<ToolRegistryHandle>>,
     /// Audit trail — populated after supervisor.start().
     audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
+    /// Global user memory repository — populated after supervisor.start().
+    user_memory: Arc<
+        std::sync::OnceLock<
+            Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
+        >,
+    >,
     /// Base data directory (e.g. `~/.apollia/`).
     data_dir: PathBuf,
 }
@@ -147,6 +153,17 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             });
 
         let supports_a2a = manifest.supports_a2a;
+
+        // Build user_context from UserMemoryRepository (chat mode only).
+        let user_context = self
+            .user_memory
+            .get()
+            .and_then(|opt| opt.as_ref())
+            .and_then(|repo_mutex| {
+                let repo = repo_mutex.lock().ok()?;
+                build_user_context_from_repo(&repo)
+            });
+
         let ctx: PyObject = Python::with_gil(|py| {
             let ctx = RuntimeContext::new_with_llm(
                 llm_router,
@@ -160,6 +177,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 None, // mailbox — not available in chat runner context
                 agent_name.to_string(),
                 supports_a2a,
+                user_context,
             );
             Py::new(py, ctx)
                 .map(|p| p.into_any())
@@ -167,6 +185,45 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         });
 
         bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
+    }
+}
+
+/// Builds the `user_context` dict from a [`UserMemoryRepository`].
+///
+/// Recalls up to 50 entries per category and returns a `HashMap` with keys
+/// `"preferences"`, `"habits"`, `"context"`, each mapping to a list of `(key, value)` pairs.
+/// Returns `None` if all categories are empty.
+fn build_user_context_from_repo(
+    repo: &apollia_memory::user_memory::UserMemoryRepository,
+) -> Option<std::collections::HashMap<String, Vec<(String, String)>>> {
+    use apollia_memory::user_memory::UserMemoryCategory;
+
+    const MAX_ENTRIES_PER_CATEGORY: usize = 50;
+
+    let categories = [
+        ("preferences", UserMemoryCategory::Preferences),
+        ("habits", UserMemoryCategory::Habits),
+        ("context", UserMemoryCategory::Context),
+    ];
+
+    let mut map = std::collections::HashMap::new();
+    let mut total = 0usize;
+
+    for (label, cat) in &categories {
+        let entries = repo
+            .recall(*cat, MAX_ENTRIES_PER_CATEGORY)
+            .unwrap_or_default();
+        total += entries.len();
+        map.insert(
+            (*label).to_string(),
+            entries.into_iter().map(|e| (e.key, e.value)).collect(),
+        );
+    }
+
+    if total == 0 {
+        None
+    } else {
+        Some(map)
     }
 }
 
@@ -512,6 +569,7 @@ impl AgentRunner for BridgeRunner {
                     None, // mailbox — not wired yet in BridgeRunner
                     agent_id,
                     false, // supports_a2a — not available at BridgeRunner level
+                    None,  // user_context — task mode, not chat
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
@@ -790,6 +848,11 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         Arc::new(std::sync::OnceLock::new());
     let task_repository_lock: Arc<std::sync::OnceLock<Arc<TaskRepository>>> =
         Arc::new(std::sync::OnceLock::new());
+    let user_memory_lock: Arc<
+        std::sync::OnceLock<
+            Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
+        >,
+    > = Arc::new(std::sync::OnceLock::new());
 
     let factory: Arc<dyn AgentBackendFactory> = Arc::new(ProductionBackendFactory {
         event_bus: event_bus_lock.clone(),
@@ -807,6 +870,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
             llm_router: llm_router_lock.clone(),
             tool_registry: tool_registry_lock.clone(),
             audit_trail: audit_trail_lock.clone(),
+            user_memory: user_memory_lock.clone(),
             data_dir: data_dir_for_chat,
         }));
 
@@ -832,6 +896,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
     if let Some(repo) = handles.task_repository.clone() {
         let _ = task_repository_lock.set(repo);
     }
+    let _ = user_memory_lock.set(handles.user_memory.clone());
 
     let elapsed = start.elapsed();
     println!("  * EventBus            ready");

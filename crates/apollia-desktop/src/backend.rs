@@ -334,6 +334,7 @@ impl AgentRunner for BridgeRunner {
                     None, // mailbox — not wired yet in desktop BridgeRunner
                     agent_id,
                     false, // supports_a2a — not available at BridgeRunner level
+                    None,  // user_context — task mode, not chat
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())

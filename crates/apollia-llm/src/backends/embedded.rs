@@ -767,10 +767,7 @@ mod tests {
         // ── stream() ────────────────────────────────────────
         use futures::StreamExt;
 
-        let stream = backend
-            .stream(req)
-            .await
-            .expect("stream() doit réussir");
+        let stream = backend.stream(req).await.expect("stream() doit réussir");
 
         let chunks: Vec<String> = stream.filter_map(|r| async { r.ok() }).collect().await;
 
