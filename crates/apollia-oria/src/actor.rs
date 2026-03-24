@@ -509,8 +509,10 @@ impl ActorLoop {
     /// `manifest.tools_requiring_approval`. Si oui et que `pending_approvals` est
     /// configuré, appelle [`suspend_for_approval`] et attend la décision humaine.
     ///
-    /// - `tool_hint = Some("llm")` ou `None` → appel direct au `LlmRouter` (backend défaut).
-    /// - `tool_hint = Some(tool_name)` → appel via `ToolProxyTrait::invoke`.
+    /// - `tool_hint = Some("llm")` ou `None` → appel LLM, routé via `model_hint`
+    ///   si présent (STORY-227), sinon backend défaut.
+    /// - `tool_hint = Some(tool_name)` → appel via `ToolProxyTrait::invoke`
+    ///   (`model_hint` ignoré pour les steps outil — AC-4).
     ///
     /// Les outputs des steps précédents sont interpolés dans la description du step
     /// via [`interpolate_outputs`] avant d'être transmis à l'outil ou au LLM.
@@ -551,24 +553,60 @@ impl ActorLoop {
         let input = interpolate_outputs(&step.description, completed_outputs);
 
         match step.tool_hint.as_deref() {
-            // step LLM — appel direct au backend défaut du LlmRouter.
-            Some("llm") | None => {
-                let model = llm_router.get(None).ok_or(StepError::NoLlmBackend)?;
-                let response = model
-                    .complete(CompletionRequest {
-                        messages: vec![ChatMessage::user(input)],
-                        ..Default::default()
-                    })
-                    .await
-                    .map_err(|e| StepError::LlmCallFailed(e.to_string()))?;
-                Ok(response.content)
-            }
-            // step outil — appel via ToolProxyTrait.
+            // Step LLM — routé vers le backend spécifié par model_hint (STORY-227).
+            Some("llm") | None => self.execute_llm_step(step, input, llm_router).await,
+            // Step outil — model_hint ignoré (AC-4).
             Some(tool_name) => tool_proxy
                 .invoke(tool_name, &serde_json::json!({"input": input}))
                 .await
                 .map_err(StepError::ToolCallFailed),
         }
+    }
+
+    /// Exécute un appel LLM pour un step, en tenant compte du `model_hint`.
+    ///
+    /// - Si `model_hint = Some(hint)` et que le backend existe dans le `LlmRouter`,
+    ///   l'appel est routé vers ce backend (AC-1).
+    /// - Si `model_hint = Some(hint)` mais le backend n'existe pas, un `tracing::warn!`
+    ///   est émis et le backend par défaut est utilisé en fallback (AC-2).
+    /// - Si `model_hint = None`, le backend par défaut est utilisé (AC-3).
+    async fn execute_llm_step(
+        &self,
+        step: &PlanStep,
+        input: String,
+        llm_router: &LlmRouter,
+    ) -> Result<String, StepError> {
+        let request = CompletionRequest {
+            messages: vec![ChatMessage::user(input)],
+            ..Default::default()
+        };
+
+        let backend_name = match &step.model_hint {
+            Some(hint) => {
+                if llm_router.get(Some(hint)).is_some() {
+                    Some(hint.as_str())
+                } else {
+                    tracing::warn!(
+                        step_id = %step.step_id,
+                        model_hint = %hint,
+                        "model_hint backend not found, falling back to default"
+                    );
+                    None
+                }
+            }
+            None => None,
+        };
+
+        let model = llm_router
+            .get(backend_name)
+            .ok_or(StepError::NoLlmBackend)?;
+
+        let response = model
+            .complete(request)
+            .await
+            .map_err(|e| StepError::LlmCallFailed(e.to_string()))?;
+
+        Ok(response.content)
     }
 
     /// Suspend l'exécution du step et attend la décision humaine (HITL Mode Orchestré).
@@ -1852,5 +1890,267 @@ mod tests {
         }
         .is_retryable());
         assert!(!StepError::ApprovalChannelClosed.is_retryable());
+    }
+
+    // ── STORY-227 — Multi-model dispatch via model_hint ─────────────────────
+
+    /// Construit un plan avec un step LLM et un `model_hint` optionnel.
+    fn make_llm_plan(step_id: &str, model_hint: Option<&str>) -> ExecutionPlan {
+        ExecutionPlan {
+            plan_id: "plan-llm".into(),
+            task_id: "task-llm".into(),
+            steps: vec![PlanStep {
+                step_id: step_id.into(),
+                description: format!("LLM step {step_id}"),
+                tool_hint: None,
+                depends_on: vec![],
+                model_hint: model_hint.map(String::from),
+            }],
+        }
+    }
+
+    /// Mock `CompletionModel` qui tags sa response with the backend name,
+    /// so tests can verify which backend handled the request.
+    struct TaggedMockModel {
+        tag: String,
+    }
+
+    #[async_trait::async_trait]
+    impl apollia_llm::CompletionModel for TaggedMockModel {
+        async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+            Ok(CompletionResponse {
+                content: format!("response-from-{}", self.tag),
+                tool_calls: vec![],
+                usage: TokenUsage {
+                    prompt_tokens: 0,
+                    completion_tokens: 0,
+                    cost_usd: None,
+                },
+                finish_reason: FinishReason::Stop,
+                latency_ms: 0,
+            })
+        }
+
+        async fn stream(
+            &self,
+            _req: CompletionRequest,
+        ) -> Result<
+            Pin<Box<dyn futures::Stream<Item = Result<apollia_llm::StreamChunk, LlmError>> + Send>>,
+            LlmError,
+        > {
+            Err(LlmError::InferenceError("mock does not stream".into()))
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+
+        fn backend_name(&self) -> &str {
+            &self.tag
+        }
+
+        fn model_id(&self) -> &str {
+            "tagged-mock"
+        }
+    }
+
+    /// AC-1 : Step avec model_hint dispatche vers le backend nommé.
+    ///
+    /// GIVEN un LlmRouter avec backends "default" et "fast"
+    ///   ET un PlanStep LLM avec model_hint = Some("fast")
+    /// WHEN actor.execute() est appelé
+    /// THEN la réponse provient du backend "fast"
+    #[tokio::test]
+    async fn test_story227_ac1_model_hint_dispatches_to_named_backend() {
+        // GIVEN
+        let plan = make_llm_plan("s1", Some("fast"));
+        let (bus_tx, _rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "test-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+
+        let mut backends = HashMap::new();
+        backends.insert(
+            "default".to_string(),
+            Arc::new(TaggedMockModel {
+                tag: "default".into(),
+            }) as Arc<dyn apollia_llm::CompletionModel>,
+        );
+        backends.insert(
+            "fast".to_string(),
+            Arc::new(TaggedMockModel { tag: "fast".into() })
+                as Arc<dyn apollia_llm::CompletionModel>,
+        );
+        let llm = LlmRouter::with_backends(backends, "default");
+
+        let proxy = MockToolProxy {
+            response: "unused".into(),
+        };
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+        let mut actor = ActorLoop::new(plan, 0, db, bus_tx, make_manifest());
+
+        // WHEN
+        let result = actor
+            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .await;
+
+        // THEN
+        assert_eq!(result.status, TaskStatus::Completed);
+        let output_debug = format!("{:?}", result.output);
+        assert!(
+            output_debug.contains("response-from-fast"),
+            "expected output from 'fast' backend, got: {output_debug}"
+        );
+    }
+
+    /// AC-2 : Step avec model_hint inconnu fallback vers le défaut avec warning.
+    ///
+    /// GIVEN un LlmRouter avec uniquement un backend "default"
+    ///   ET un PlanStep LLM avec model_hint = Some("unknown-backend")
+    /// WHEN actor.execute() est appelé
+    /// THEN la réponse provient du backend "default" (fallback)
+    #[tokio::test]
+    async fn test_story227_ac2_unknown_model_hint_falls_back_to_default() {
+        // GIVEN
+        let plan = make_llm_plan("s1", Some("unknown-backend"));
+        let (bus_tx, _rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "test-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+
+        let mut backends = HashMap::new();
+        backends.insert(
+            "default".to_string(),
+            Arc::new(TaggedMockModel {
+                tag: "default".into(),
+            }) as Arc<dyn apollia_llm::CompletionModel>,
+        );
+        let llm = LlmRouter::with_backends(backends, "default");
+
+        let proxy = MockToolProxy {
+            response: "unused".into(),
+        };
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+        let mut actor = ActorLoop::new(plan, 0, db, bus_tx, make_manifest());
+
+        // WHEN
+        let result = actor
+            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .await;
+
+        // THEN — fallback vers default, pas d'erreur
+        assert_eq!(result.status, TaskStatus::Completed);
+        let output_debug = format!("{:?}", result.output);
+        assert!(
+            output_debug.contains("response-from-default"),
+            "expected output from 'default' backend (fallback), got: {output_debug}"
+        );
+    }
+
+    /// AC-3 : Step sans model_hint utilise le défaut (rétrocompatible).
+    ///
+    /// GIVEN un LlmRouter avec backends "default" et "fast"
+    ///   ET un PlanStep LLM avec model_hint = None
+    /// WHEN actor.execute() est appelé
+    /// THEN la réponse provient du backend "default"
+    #[tokio::test]
+    async fn test_story227_ac3_no_model_hint_uses_default() {
+        // GIVEN
+        let plan = make_llm_plan("s1", None);
+        let (bus_tx, _rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "test-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+
+        let mut backends = HashMap::new();
+        backends.insert(
+            "default".to_string(),
+            Arc::new(TaggedMockModel {
+                tag: "default".into(),
+            }) as Arc<dyn apollia_llm::CompletionModel>,
+        );
+        backends.insert(
+            "fast".to_string(),
+            Arc::new(TaggedMockModel { tag: "fast".into() })
+                as Arc<dyn apollia_llm::CompletionModel>,
+        );
+        let llm = LlmRouter::with_backends(backends, "default");
+
+        let proxy = MockToolProxy {
+            response: "unused".into(),
+        };
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+        let mut actor = ActorLoop::new(plan, 0, db, bus_tx, make_manifest());
+
+        // WHEN
+        let result = actor
+            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .await;
+
+        // THEN
+        assert_eq!(result.status, TaskStatus::Completed);
+        let output_debug = format!("{:?}", result.output);
+        assert!(
+            output_debug.contains("response-from-default"),
+            "expected output from 'default' backend, got: {output_debug}"
+        );
+    }
+
+    /// AC-4 : Steps de type outil ignorent model_hint.
+    ///
+    /// GIVEN un PlanStep avec tool_hint = Some("bash_executor") et model_hint = Some("fast")
+    /// WHEN actor.execute() est appelé
+    /// THEN l'outil est exécuté normalement (model_hint ignoré)
+    #[tokio::test]
+    async fn test_story227_ac4_tool_step_ignores_model_hint() {
+        // GIVEN — step outil avec model_hint défini
+        let plan = ExecutionPlan {
+            plan_id: "plan-tool".into(),
+            task_id: "task-tool".into(),
+            steps: vec![PlanStep {
+                step_id: "s1".into(),
+                description: "Tool step".into(),
+                tool_hint: Some("bash_executor".into()),
+                depends_on: vec![],
+                model_hint: Some("fast".into()),
+            }],
+        };
+        let (bus_tx, _rx) = tokio::sync::broadcast::channel(64);
+        let db = PlanRepository::new(":memory:").expect("in-memory DB");
+        db.insert_plan(&plan, "test-agent").expect("insert_plan");
+        db.insert_steps(&plan.plan_id, &plan.steps)
+            .expect("insert_steps");
+
+        let proxy = MockToolProxy {
+            response: "tool-output".into(),
+        };
+        // LlmRouter vide — si model_hint était utilisé, ça échouerait
+        let llm = LlmRouter::empty();
+        let budget = StepBudget::unlimited();
+        let resilience = ResilienceLayer::default();
+        let reasoner = Reasoner::new(MockCompletionModel::new(vec![]), 10);
+        let mut actor = ActorLoop::new(plan, 0, db, bus_tx, make_manifest());
+
+        // WHEN
+        let result = actor
+            .execute(&proxy, &llm, &budget, &resilience, &reasoner)
+            .await;
+
+        // THEN — l'outil est exécuté normalement, model_hint ignoré
+        assert_eq!(result.status, TaskStatus::Completed);
+        let output_debug = format!("{:?}", result.output);
+        assert!(
+            output_debug.contains("tool-output"),
+            "expected tool output, got: {output_debug}"
+        );
     }
 }
