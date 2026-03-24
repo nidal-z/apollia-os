@@ -7,6 +7,7 @@
   import { uiMode } from "$lib/stores/mode";
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
+  import { showOnboardingBadge } from "$lib/stores/onboarding";
   import {
     LayoutDashboard,
     Bot,
@@ -23,6 +24,7 @@
     Layers,
     PanelLeftClose,
     PanelLeftOpen,
+    Sparkles,
   } from "lucide-svelte";
   import type { ComponentType } from "svelte";
 
@@ -233,6 +235,24 @@
         <span>{$t(settingsItem.labelKey)}</span>
       {/if}
     </button>
+
+    <!-- Onboarding badge -->
+    {#if $showOnboardingBadge}
+      <button
+        class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-secondary transition-colors hover:bg-secondary/10"
+        class:justify-center={collapsed}
+        class:px-2={collapsed}
+        data-testid="onboarding-badge"
+        onclick={() => navigate("onboarding")}
+        title={collapsed ? $t("onboarding_welcome.badge") : undefined}
+      >
+        <Sparkles size={18} strokeWidth={1.75} class="shrink-0" />
+        {#if !collapsed}
+          <span>{$t("onboarding_welcome.badge")}</span>
+          <Badge variant="secondary" class="ml-auto text-[10px] px-1.5 py-0">!</Badge>
+        {/if}
+      </button>
+    {/if}
 
     <!-- Mode toggle -->
     {#if !collapsed}

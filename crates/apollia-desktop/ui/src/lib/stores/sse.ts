@@ -28,6 +28,8 @@ import type {
   PlanCacheHitEvent,
   InsightEntry,
 } from "$lib/types";
+import { onboardingStore } from "./onboarding";
+import { currentRoute, navigateTo } from "./navigation";
 
 /** Watchdog timeout — triggers a single IPC refresh if no event received. */
 const WATCHDOG_TIMEOUT_MS = 10_000;
@@ -236,6 +238,12 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       }
       break;
     }
+    case "onboarding-required":
+      onboardingStore.setRequired();
+      if (!get(onboardingStore).completed) {
+        navigateTo("onboarding");
+      }
+      break;
     case "system":
       // AllReady / ShutdownRequested / FatalError — refresh everything
       void refreshAll();

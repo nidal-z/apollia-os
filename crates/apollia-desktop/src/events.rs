@@ -188,6 +188,9 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         // ── Agent messaging ────────────────────────────────────────────
         RuntimeEvent::AgentMessageSent { .. } => "agent-changed",
 
+        // ── Onboarding ─────────────────────────────────────────────────────
+        RuntimeEvent::OnboardingRequired => "onboarding-required",
+
         // ── System-level ─────────────────────────────────────────────────
         RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested | RuntimeEvent::FatalError(_) => {
             "system"
@@ -615,6 +618,7 @@ mod tests {
             "pipeline-changed",
             "chat-changed",
             "chat-token",
+            "onboarding-required",
             "system",
         ];
 

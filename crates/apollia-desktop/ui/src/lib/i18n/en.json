@@ -947,5 +947,13 @@
     "legend_memory": "Memory",
     "legend_summary": "Summary",
     "legend_free": "Free"
+  },
+  "onboarding_welcome": {
+    "title": "Welcome to Apollia OS",
+    "subtitle": "Set up your environment in a few minutes of conversation. Your AI assistant will learn your preferences and configure things just right.",
+    "configure": "Configure Apollia OS",
+    "skip": "Later",
+    "starting": "Starting…",
+    "badge": "Onboarding"
   }
 }

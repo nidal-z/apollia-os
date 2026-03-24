@@ -15,6 +15,7 @@
   import Observability from "../../routes/Observability.svelte";
   import Chat from "../../routes/Chat.svelte";
   import Settings from "../../routes/Settings.svelte";
+  import Onboarding from "../../routes/Onboarding.svelte";
 
   onMount(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -82,6 +83,8 @@
           <Observability />
         {:else if $currentRoute === "settings"}
           <Settings />
+        {:else if $currentRoute === "onboarding"}
+          <Onboarding />
         {/if}
       </div>
     {/key}
