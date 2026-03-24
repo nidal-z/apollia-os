@@ -3,8 +3,8 @@
 //! Command structure follows noun-verb pattern (ADR-008):
 //!   apollia-os <command> [options]
 //!
-//! Level 1 commands: start, stop, status, run (STORY-037)
-//! Level 2 commands: memory (STORY-023), agent/task/tools/audit (STORY-038)
+//! Level 1 commands: start, stop, status, run.
+//! Level 2 commands: memory, agent/task/tools/audit.
 //!
 //! Global flags: --json (machine-readable output), --socket (custom path).
 
@@ -388,7 +388,7 @@ mod tests {
         assert_eq!(exit_codes::TIMEOUT, 4);
     }
 
-    // --- Level-2 command parsing tests (STORY-038) ---
+    // --- Level-2 command parsing tests ---
 
     #[test]
     fn test_cli_parses_agent_list() {
@@ -727,7 +727,7 @@ mod tests {
         // GIVEN "apollia-os memory inspect test-ns"
         // WHEN parse
         let cli = parse(&["apollia-os", "memory", "inspect", "test-ns"]);
-        // THEN Commands::Memory preserved from STORY-023
+        // THEN Commands::Memory preserved
         match &cli.command {
             Commands::Memory { command } => match command {
                 MemoryCommand::Inspect { namespace, .. } => {
@@ -738,7 +738,7 @@ mod tests {
         }
     }
 
-    // ── STORY-063: llm / model command parsing ───────────────────────────────
+    // ── llm / model command parsing ───────────────────────────────
 
     #[test]
     fn test_cli_parses_llm_status() {
@@ -864,7 +864,7 @@ mod tests {
         assert!(cli.json);
     }
 
-    // ── STORY-073: trigger command parsing ───────────────────────────────────
+    // ── trigger command parsing ───────────────────────────────────
 
     #[test]
     fn test_cli_parses_trigger_reload() {
@@ -891,7 +891,7 @@ mod tests {
         assert!(cli.json);
     }
 
-    // ── STORY-104: notify command parsing ─────────────────────────────────────
+    // ── notify command parsing ─────────────────────────────────────
 
     #[test]
     fn test_cli_parses_notify_test() {
@@ -947,7 +947,7 @@ mod tests {
         assert!(cli.json);
     }
 
-    // ── STORY-121: pipeline command parsing ───────────────────────────────────
+    // ── pipeline command parsing ───────────────────────────────────
 
     #[test]
     fn test_cli_parses_pipeline_list() {

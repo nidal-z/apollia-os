@@ -2,7 +2,7 @@
 //!
 //! Exposes a `#[pyclass]` that agents use via `ctx.memory.record()`,
 //! `ctx.memory.remember()`, `ctx.memory.recall()`, `ctx.memory.search()`,
-//! and `ctx.memory.forget()` (STORY-028).
+//! and `ctx.memory.forget()`.
 //!
 //! Respects Principle #6: memory at agent's initiative — no automatic injection.
 

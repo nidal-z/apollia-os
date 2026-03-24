@@ -65,7 +65,7 @@ impl AgentLoader for AIPAgentLoader {
 }
 
 // ─────────────────────────────────────────────────────────────
-// AIPChatAgentRunner — concrete ChatAgentRunner for Chat Agent mode (STORY-202)
+// AIPChatAgentRunner — concrete ChatAgentRunner for Chat Agent mode.
 // ─────────────────────────────────────────────────────────────
 
 /// Concrete [`ChatAgentRunner`] implementation using PyO3 + AIPBridge.
@@ -431,7 +431,7 @@ impl Clone for AIPProductionBackend {
 ///
 /// Used by `AIPProductionBackend.execute()` to route tasks through
 /// `ORIAEngine::execute_direct()`, which adds HITL suspension support
-/// (STORY-096) without changing the Python contract.
+/// without changing the Python contract.
 struct BridgeRunner {
     bridge: Arc<AIPBridge>,
     llm_router: Option<Arc<LlmRouter>>,
@@ -708,7 +708,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         .unwrap_or_else(|_| std::env::temp_dir());
 
     // Load apollia.toml if found (LLM config and startup_agents only — triggers,
-    // pipelines, notifications are now loaded from SQLite by the Supervisor, STORY-187).
+    // pipelines, notifications are now loaded from SQLite by the Supervisor).
     let (llm_config, startup_agents, config_path) = match find_config_file() {
         Some(path) => {
             tracing::info!(config = %path.display(), "loading config");
@@ -729,7 +729,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         .map(|l| format!("backend \"{}\"", l.default))
         .unwrap_or_else(|| "disabled".to_string());
 
-    // Open AgentRepository for auto-load at boot (STORY-179).
+    // Open AgentRepository for auto-load at boot.
     let data_dir = home.join(".apollia");
     let data_dir_for_chat = data_dir.clone();
     let agent_repository: Option<apollia_tools::AgentRepository> = {
@@ -792,7 +792,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         task_repository: task_repository_lock.clone(),
     });
 
-    // STORY-202: Concrete ChatAgentRunner for Chat Agent mode.
+    // Concrete ChatAgentRunner for Chat Agent mode.
     let chat_agent_runner: Option<Arc<dyn apollia_runtime::chat::ChatAgentRunner>> =
         Some(Arc::new(AIPChatAgentRunner {
             event_bus: event_bus_lock.clone(),

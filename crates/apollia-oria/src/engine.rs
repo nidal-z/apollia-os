@@ -26,6 +26,7 @@ use crate::actor::{ActorLoop, ToolProxyTrait};
 use crate::budget::StepBudget;
 use crate::observer::{classify, ContextBundle, ExecutionMode, ObserverError};
 use crate::plan::ExecutionPlan;
+use crate::plan_cache::{compute_cache_key, PlanCacheRepository};
 use crate::plan_repository::PlanRepository;
 use crate::reasoner::{Reasoner, ReasonerError};
 use crate::resilience::ResilienceLayer;
@@ -184,6 +185,13 @@ pub struct ORIAEngine {
     /// Passed to [`ActorLoop`] during orchestrated execution. When `Some`, each completed
     /// step records an episodic memory entry in the agent's namespace.
     memory_manager: Option<Arc<Mutex<MemoryManager>>>,
+    /// Cache de plans d'exécution (STORY-233).
+    ///
+    /// Wrappé dans un `Mutex` car `rusqlite::Connection` n'est pas `Sync`.
+    /// Les accès sont courts (lookup/store) et non concurrents en pratique.
+    /// Un cache hit évite l'appel LLM et émet [`RuntimeEvent::PlanCacheHit`].
+    /// Les erreurs de cache sont loguées en `warn` et n'empêchent jamais l'exécution.
+    plan_cache: Option<Mutex<PlanCacheRepository>>,
 }
 
 impl ORIAEngine {
@@ -208,6 +216,7 @@ impl ORIAEngine {
             pending_approvals: None,
             task_repository: None,
             memory_manager: None,
+            plan_cache: None,
         }
     }
 
@@ -279,6 +288,19 @@ impl ORIAEngine {
     /// enregistre automatiquement une entrée épisodique dans le namespace de l'agent.
     pub fn with_memory_manager(mut self, mm: Arc<Mutex<MemoryManager>>) -> Self {
         self.memory_manager = Some(mm);
+        self
+    }
+
+    /// Ajoute un cache de plans à l'engine (STORY-233).
+    ///
+    /// Quand configuré, [`execute_orchestrated_plan`] vérifie le cache avant d'appeler
+    /// le Reasoner. Un cache hit évite l'appel LLM, clone le plan avec un nouveau
+    /// `plan_id`, et émet [`RuntimeEvent::PlanCacheHit`] sur l'EventBus.
+    /// Les erreurs de cache sont loguées en `warn` sans bloquer l'exécution.
+    ///
+    /// [`execute_orchestrated_plan`]: ORIAEngine::execute_orchestrated_plan
+    pub fn with_plan_cache(mut self, repo: PlanCacheRepository) -> Self {
+        self.plan_cache = Some(Mutex::new(repo));
         self
     }
 
@@ -370,11 +392,67 @@ impl ORIAEngine {
             }
         };
 
+        // ── Plan cache lookup (STORY-233) ─────────────────────────────────
+        let task_text = extract_task_text(&task);
+        let cache_key = compute_cache_key(
+            &manifest.name,
+            &manifest.version,
+            &ctx.available_tools,
+            &task_text,
+        );
+
+        if let Some(ref cache_mutex) = self.plan_cache {
+            let lookup_result = match cache_mutex.lock() {
+                Ok(cache) => Some(cache.lookup(&cache_key)),
+                Err(e) => {
+                    tracing::warn!(error = %e, "plan cache mutex poisoned, skipping lookup");
+                    None
+                }
+            };
+            match lookup_result {
+                Some(Ok(Some(cached_plan))) => {
+                    let new_plan_id = uuid::Uuid::new_v4().to_string();
+                    let plan = ExecutionPlan {
+                        plan_id: new_plan_id,
+                        task_id: task.task_id.clone(),
+                        steps: cached_plan.steps,
+                    };
+
+                    let _ = self.event_bus.send(RuntimeEvent::PlanCacheHit {
+                        task_id: task.task_id.clone().into(),
+                        cache_key: cache_key.clone(),
+                    });
+
+                    return self.execute_cached_plan(plan, task, agent, manifest).await;
+                }
+                Some(Ok(None)) | None => { /* cache miss or lock error — proceed to Reasoner */ }
+                Some(Err(e)) => {
+                    tracing::warn!(error = %e, "plan cache lookup failed");
+                }
+            }
+        }
+
         // ── Generate plan (Reasoner handles retries internally) ───────────
         let plan = match reasoner.plan(&ctx).await {
             Ok(p) => p,
             Err(e) => return AIPResult::failed("PLAN_FAILED", &e.to_string()),
         };
+
+        // ── Store in cache (STORY-233) ────────────────────────────────────
+        if let Some(ref cache_mutex) = self.plan_cache {
+            match cache_mutex.lock() {
+                Ok(cache) => {
+                    if let Err(e) =
+                        cache.store(&cache_key, &plan, &manifest.name, &manifest.version)
+                    {
+                        tracing::warn!(error = %e, "plan cache store failed");
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "plan cache mutex poisoned, skipping store");
+                }
+            }
+        }
 
         let plan_id = plan.plan_id.clone();
         let step_count = plan.steps.len();
@@ -437,6 +515,90 @@ impl ORIAEngine {
 
             // AC-5 (STORY-086): call on_plan_complete() if the agent exposes it,
             // otherwise fall back to automatic step-output concatenation (AC-6).
+            if agent.has_on_plan_complete() {
+                agent.call_on_plan_complete(outputs).await
+            } else {
+                concat_outputs(&outputs)
+            }
+        } else {
+            step_result
+        }
+    }
+
+    /// Exécute un plan récupéré depuis le cache (STORY-233).
+    ///
+    /// Identique au chemin post-Reasoner de [`execute_orchestrated_plan`] :
+    /// persist → emit PlanGenerated → StepBudget → ActorLoop → concat.
+    async fn execute_cached_plan(
+        &self,
+        plan: ExecutionPlan,
+        task: AIPTask,
+        agent: &dyn AIPAgent,
+        manifest: AgentManifest,
+    ) -> AIPResult {
+        let plan_id = plan.plan_id.clone();
+        let step_count = plan.steps.len();
+        let task_id_str = task.task_id.clone();
+
+        let db_path = self.db_path.as_deref().unwrap_or(":memory:");
+        let repo = self.open_repo_with_plan(db_path, &plan, &manifest.name);
+
+        let _ = self.event_bus.send(RuntimeEvent::PlanGenerated {
+            task_id: task_id_str.clone().into(),
+            agent_name: manifest.name.clone(),
+            plan_id: plan_id.clone(),
+            step_count,
+        });
+
+        let agent_budget = manifest.step_budget.clone().unwrap_or_default();
+        let budget = StepBudget::from_capped(&agent_budget, &self.runtime_config);
+
+        let noop_proxy = NoopToolProxy;
+        let tool_proxy: &dyn ToolProxyTrait = match &self.tool_proxy {
+            Some(p) => p.as_ref(),
+            None => &noop_proxy,
+        };
+
+        let plan_start = Instant::now();
+        let reasoner = match self.reasoner.as_ref() {
+            Some(r) => r,
+            None => {
+                return AIPResult::failed(
+                    "NO_LLM",
+                    "Orchestrated mode requires a configured LLM (use with_reasoner())",
+                );
+            }
+        };
+        let mut actor = ActorLoop::new(
+            plan,
+            MAX_REPLANS,
+            repo,
+            self.event_bus.clone(),
+            manifest.clone(),
+        )
+        .with_pending_approvals(self.pending_approvals.clone())
+        .with_memory_manager(self.memory_manager.clone());
+        let step_result = actor
+            .execute(
+                tool_proxy,
+                &self.llm_router,
+                &budget,
+                &self.resilience,
+                reasoner,
+            )
+            .await;
+        let duration_ms = plan_start.elapsed().as_millis() as u64;
+
+        if step_result.status == TaskStatus::Completed {
+            let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
+                task_id: task_id_str.into(),
+                plan_id,
+                step_count,
+                duration_ms,
+            });
+
+            let outputs = extract_step_outputs(&step_result);
+
             if agent.has_on_plan_complete() {
                 agent.call_on_plan_complete(outputs).await
             } else {
@@ -652,6 +814,25 @@ impl Default for ORIAEngine {
 
 /// Extracts the step outputs map from an `AIPResult::completed_with_steps` result.
 ///
+/// Extrait le texte d'une tâche à partir de ses `input.parts`.
+///
+/// Concatène tous les `TextPart` séparés par un espace. Retourne une chaîne vide
+/// si aucune partie textuelle n'est présente.
+fn extract_task_text(task: &AIPTask) -> String {
+    task.input
+        .parts
+        .iter()
+        .filter_map(|p| {
+            if let AIPPart::Text(t) = p {
+                Some(t.text.as_str())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// `AIPResult::completed_with_steps` stores the `HashMap<step_id, output>` as
 /// `AIPPart::Data`. Returns an empty map if the data cannot be parsed.
 fn extract_step_outputs(result: &AIPResult) -> HashMap<String, String> {
@@ -1497,5 +1678,96 @@ mod orchestrated_tests {
 
         // THEN
         assert_eq!(result.status, TaskStatus::Completed);
+    }
+
+    // ─── STORY-233 : Plan Cache Integration ──────────────────────────────
+
+    /// ÉTANT DONNÉ deux versions différentes du même agent
+    /// QUAND compute_cache_key est appelé avec "1.0" puis "1.1"
+    /// ALORS les clés de cache sont différentes
+    #[test]
+    fn test_version_change_produces_different_key() {
+        // GIVEN
+        let tools = vec!["bash".to_string(), "file_io".to_string()];
+        let text = "analyze logs";
+
+        // WHEN
+        let key_v1 = compute_cache_key("analyzer", "1.0", &tools, text);
+        let key_v2 = compute_cache_key("analyzer", "1.1", &tools, text);
+
+        // THEN
+        assert_ne!(key_v1, key_v2);
+        assert_eq!(key_v1.len(), 64, "SHA-256 hex should be 64 chars");
+        assert_eq!(key_v2.len(), 64, "SHA-256 hex should be 64 chars");
+    }
+
+    /// ÉTANT DONNÉ une tâche avec des parties textuelles
+    /// QUAND extract_task_text est appelé
+    /// ALORS les textes sont concaténés avec un espace
+    #[test]
+    fn test_extract_task_text_concatenates_text_parts() {
+        // GIVEN
+        let task = AIPTask {
+            input: apollia_core::AIPInput {
+                parts: vec![
+                    AIPPart::Text(apollia_core::TextPart {
+                        text: "analyze".into(),
+                    }),
+                    AIPPart::Data(DataPart {
+                        data: serde_json::json!({"key": "val"}),
+                    }),
+                    AIPPart::Text(apollia_core::TextPart {
+                        text: "logs".into(),
+                    }),
+                ],
+            },
+            ..AIPTask::default()
+        };
+
+        // WHEN
+        let text = extract_task_text(&task);
+
+        // THEN
+        assert_eq!(text, "analyze logs");
+    }
+
+    /// ÉTANT DONNÉ une tâche sans partie textuelle
+    /// QUAND extract_task_text est appelé
+    /// ALORS une chaîne vide est retournée
+    #[test]
+    fn test_extract_task_text_empty_when_no_text_parts() {
+        // GIVEN
+        let task = AIPTask::default();
+
+        // WHEN
+        let text = extract_task_text(&task);
+
+        // THEN
+        assert!(text.is_empty());
+    }
+
+    /// ÉTANT DONNÉ un PlanCacheHit event
+    /// QUAND il est émis sur l'EventBus
+    /// ALORS il est reçu avec les bons champs
+    #[test]
+    fn test_cache_hit_event_emits_on_bus() {
+        // GIVEN
+        let (tx, mut rx) = tokio::sync::broadcast::channel::<apollia_core::RuntimeEvent>(16);
+
+        // WHEN
+        let _ = tx.send(RuntimeEvent::PlanCacheHit {
+            task_id: "task-42".into(),
+            cache_key: "abc123".into(),
+        });
+
+        // THEN
+        let event = rx.try_recv().expect("should receive event");
+        match event {
+            RuntimeEvent::PlanCacheHit { task_id, cache_key } => {
+                assert_eq!(task_id.as_ref(), "task-42");
+                assert_eq!(cache_key, "abc123");
+            }
+            other => panic!("expected PlanCacheHit, got: {other:?}"),
+        }
     }
 }

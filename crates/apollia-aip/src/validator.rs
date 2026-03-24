@@ -24,7 +24,7 @@ pub struct ValidatedAgent {
     pub has_on_stop: bool,
     /// `true` if the agent implements `health_check()`.
     pub has_health_check: bool,
-    /// `true` if the agent implements `on_plan_complete()` (STORY-086).
+    /// `true` if the agent implements `on_plan_complete()`.
     pub has_on_plan_complete: bool,
 }
 

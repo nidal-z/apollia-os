@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// Configuration du budget d'exécution déclarée par l'agent dans son AgentManifest.
 ///
-/// Ces valeurs sont des suggestions maximales. Le runtime (ORIA StepBudget, STORY-030)
+/// Ces valeurs sont des suggestions maximales. Le runtime (ORIA StepBudget)
 /// applique les valeurs minimales entre la config agent et la config runtime globale.
 /// Un agent ne peut PAS dépasser les limites configurées dans apollia.toml.
 #[derive(Debug, Clone, Serialize, Deserialize)]

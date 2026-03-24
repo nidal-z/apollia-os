@@ -6,7 +6,7 @@
 //!
 //! Les sections opérationnelles (`[[triggers]]`, `[[pipelines]]`, `[notifications]`)
 //! ne sont plus gérées par le fichier TOML — elles sont désormais stockées en SQLite
-//! et administrées via l'API REST ou l'application desktop (STORY-187/188).
+//! et administrées via l'API REST ou l'application desktop.
 //! Si un ancien fichier TOML contient ces sections, un warning est émis mais le boot
 //! continue normalement.
 //!
@@ -74,7 +74,7 @@ pub struct AgentsConfig {
 ///
 /// Contient uniquement la configuration structurelle : agents, LLM, et paramètres
 /// de démarrage. La configuration opérationnelle (triggers, pipelines, notifications)
-/// est gérée en SQLite depuis STORY-187.
+/// est gérée en SQLite.
 ///
 /// Pour désérialiser depuis un fichier, utiliser [`parse_apollia_toml`].
 #[derive(Debug, serde::Deserialize)]
@@ -95,7 +95,7 @@ pub struct ApolliaCConfig {
     pub startup_agents: Vec<String>,
 }
 
-/// Noms des sections TOML qui sont désormais obsolètes (STORY-188).
+/// Noms des sections TOML qui sont désormais obsolètes.
 ///
 /// Utilisé par [`check_deprecated_sections`] pour émettre des warnings
 /// si un ancien fichier `apollia.toml` contient encore ces sections.
@@ -131,7 +131,7 @@ pub fn expand_tilde(path: &Path) -> PathBuf {
 /// Après le parsing TOML :
 /// - Les chemins `model_path` des backends embarqués sont normalisés via [`expand_tilde`].
 /// - Les sections obsolètes (`[[triggers]]`, `[[pipelines]]`, `[notifications]`) sont
-///   détectées et émettent un warning sans bloquer le démarrage (STORY-188).
+///   détectées et émettent un warning sans bloquer le démarrage.
 ///
 /// La section `[llm]` est **optionnelle** : son absence produit `config.llm = None`
 /// sans erreur.
@@ -200,7 +200,7 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
 
 /// Détecte et signale les sections TOML obsolètes.
 ///
-/// Depuis STORY-187/188, les sections `[[triggers]]`, `[[pipelines]]` et
+/// Les sections `[[triggers]]`, `[[pipelines]]` et
 /// `[notifications]` sont gérées en SQLite. Si le fichier TOML les contient
 /// encore, un warning est émis pour chaque section détectée.
 fn check_deprecated_sections(content: &str) {
@@ -468,7 +468,7 @@ model = "claude-haiku-4-5-20251001"
         assert_eq!(expanded, PathBuf::from("/tmp/model.gguf"));
     }
 
-    // ─── STORY-188 — Deprecated sections warning ─────────────────────────────
+    // ─── Deprecated sections warning ─────────────────────────────
 
     // GIVEN un TOML contenant une section [[triggers]]
     // WHEN parse_apollia_toml est appelé

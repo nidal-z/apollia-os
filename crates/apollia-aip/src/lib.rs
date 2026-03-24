@@ -5,10 +5,10 @@
 //! `async run()` is AIP-compatible (ADR-003).
 //!
 //! Components (Sprint 4):
-//! - `loader` — loads a Python module and validates AIP duck-typing (STORY-024, STORY-025)
-//! - `bridge` — async Rust→Python calls via pyo3-async-runtimes (STORY-026)
-//! - `context` — `RuntimeContext` injected into agent `run()` calls (STORY-027, STORY-028)
-//! - `wrapper` — `AIPWrapper` for non-native agents (LangGraph, CrewAI) (STORY-025)
+//! - `loader` — loads a Python module and validates AIP duck-typing.
+//! - `bridge` — async Rust→Python calls via pyo3-async-runtimes.
+//! - `context` — `RuntimeContext` injected into agent `run()` calls.
+//! - `wrapper` — `AIPWrapper` for non-native agents (LangGraph, CrewAI).
 
 pub mod bridge;
 #[allow(clippy::useless_conversion)]

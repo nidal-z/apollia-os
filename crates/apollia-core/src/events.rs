@@ -168,7 +168,7 @@ pub enum RuntimeEvent {
     /// Erreur fatale non récupérable.
     FatalError(String),
 
-    /// Le chargement d'un agent installé a échoué au boot (STORY-179).
+    /// Le chargement d'un agent installé a échoué au boot.
     ///
     /// Émis par le Supervisor lors de l'auto-load des agents installés.
     /// L'agent est ignoré mais le runtime continue (dégradation gracieuse).
@@ -179,24 +179,24 @@ pub enum RuntimeEvent {
         error: String,
     },
 
-    /// Un agent a été installé de façon permanente (ADR-032, STORY-180).
+    /// Un agent a été installé de façon permanente.
     AgentInstalled {
         /// Nom unique de l'agent installé.
         name: String,
         /// Version semver de l'agent.
         version: String,
     },
-    /// Un agent installé a été supprimé (ADR-032, STORY-180).
+    /// Un agent installé a été supprimé.
     AgentUninstalled {
         /// Nom de l'agent désinstallé.
         name: String,
     },
-    /// Un agent installé a été activé pour l'auto-start au boot (ADR-032, STORY-180).
+    /// Un agent installé a été activé pour l'auto-start au boot.
     AgentEnabled {
         /// Nom de l'agent activé.
         name: String,
     },
-    /// Un agent installé a été désactivé (ne sera plus chargé au boot) (ADR-032, STORY-180).
+    /// Un agent installé a été désactivé (ne sera plus chargé au boot).
     AgentDisabled {
         /// Nom de l'agent désactivé.
         name: String,
@@ -282,7 +282,7 @@ pub enum RuntimeEvent {
         cost_usd: Option<f64>,
     },
 
-    // ── Plan / Step events (STORY-084) ─────────────────────────────────────
+    // ── Plan / Step events ─────────────────────────────────────
     /// Un `ExecutionPlan` a été généré par le Reasoner et persisté en SQLite.
     PlanGenerated {
         /// Identifiant de la tâche ayant déclenché la planification.
@@ -373,10 +373,10 @@ pub enum RuntimeEvent {
         reason: String,
     },
 
-    // ── HITL — Human-in-the-Loop events (Sprint 11) ────────────────────
+    // ── HITL — Human-in-the-Loop events ────────────────────
     /// Une tâche `input_required` a expiré — annulée automatiquement par le `TimeoutWatcher`.
     ///
-    /// Émis par `TimeoutWatcher::scan_and_cancel` (STORY-098) pour chaque tâche
+    /// Émis par `TimeoutWatcher::scan_and_cancel` pour chaque tâche
     /// dont `input_required_at` dépasse `input_required_timeout`.
     /// Suivi immédiatement de [`RuntimeEvent::TaskCanceled`] pour la même tâche.
     TaskApprovalTimeout {
@@ -388,7 +388,7 @@ pub enum RuntimeEvent {
 
     /// Une tâche est suspendue en attente d'une entrée humaine.
     ///
-    /// Émis par ORIA (STORY-096, STORY-097) après que la suspension est détectée.
+    /// Émis par ORIA après que la suspension est détectée.
     /// - **Mode Direct** : émis par `ORIAEngine::execute_direct()` quand l'agent
     ///   retourne `AIPResult::input_required()`. `step_id` est `None`.
     /// - **Mode Orchestré** : émis par `ActorLoop::suspend_for_approval()` avant
@@ -408,9 +408,9 @@ pub enum RuntimeEvent {
 
     /// Une tâche a été reprise après une suspension HITL.
     ///
-    /// Émis par le `ResumeHandler` (STORY-095) après persistence de la
+    /// Émis par le `ResumeHandler` après persistence de la
     /// décision humaine dans SQLite et avant la relance ORIA.
-    /// STORY-096 souscrit à cet événement pour relancer `run()` sur l'agent.
+    /// souscrit à cet événement pour relancer `run()` sur l'agent.
     TaskResumed {
         /// Identifiant de la tâche reprise.
         task_id: TaskId,
@@ -418,7 +418,7 @@ pub enum RuntimeEvent {
         approved: bool,
     },
 
-    // ── Pipeline events (Sprint 12 — STORY-116) ──────────────────────────
+    // ── Pipeline events ──────────────────────────
     /// Un run de pipeline a démarré — émis par `PipelineExecutor::execute()`.
     PipelineStarted {
         /// Identifiant unique du run (e.g. `"r-0017"`).
@@ -473,7 +473,7 @@ pub enum RuntimeEvent {
         reason: String,
     },
 
-    /// Le pipeline est suspendu en attente d'une approbation HITL (STORY-114).
+    /// Le pipeline est suspendu en attente d'une approbation HITL.
     PipelineSuspended {
         /// Identifiant du run suspendu.
         run_id: String,
@@ -483,7 +483,7 @@ pub enum RuntimeEvent {
         task_id: String,
     },
 
-    /// Le pipeline a repris après une approbation HITL (STORY-114).
+    /// Le pipeline a repris après une approbation HITL.
     PipelineResumed {
         /// Identifiant du run repris.
         run_id: String,
@@ -513,7 +513,7 @@ pub enum RuntimeEvent {
         reason: String,
     },
 
-    // ── Chat events (Sprint 18 — STORY-198) ────────────────────────────────
+    // ── Chat events ────────────────────────────────
     /// Une session de chat a été créée.
     ChatSessionCreated {
         /// Identifiant unique de la session.
@@ -623,6 +623,15 @@ pub enum RuntimeEvent {
         message_id: String,
         /// Nom de l'outil concerné.
         tool_name: String,
+    },
+
+    // ── Plan Cache events ────────────────────────
+    /// Un plan a été récupéré depuis le cache au lieu d'être généré par le Reasoner.
+    PlanCacheHit {
+        /// Identifiant de la tâche ayant déclenché la recherche dans le cache.
+        task_id: TaskId,
+        /// Clé SHA-256 du cache qui a produit le hit.
+        cache_key: String,
     },
 }
 
@@ -897,6 +906,11 @@ mod tests {
                 session_id: "sess-001".into(),
                 message_id: "msg-005".into(),
                 tool_name: "bash_executor".into(),
+            },
+            // ── Plan Cache (Sprint 20 — STORY-233) ────────────────────────
+            RuntimeEvent::PlanCacheHit {
+                task_id: "task-1".into(),
+                cache_key: "abc123def456".into(),
             },
         ];
 

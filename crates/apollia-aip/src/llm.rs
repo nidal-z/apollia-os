@@ -1,10 +1,10 @@
 //! `LlmProxy` — bridge PyO3 exposant le moteur LLM à Python via `ctx.llm`.
 //!
-//! Implémente STORY-058. Pattern ADR-014 : toutes les méthodes async
+//! Pattern ADR-014 : toutes les méthodes async
 //! utilisent `pyo3_async_runtimes::tokio::future_into_py`.
 //!
 //! Les tests AC-1 à AC-5 (nécessitant un environnement Python complet)
-//! sont couverts par STORY-064 avec `#[cfg(feature = "python-tests")]`.
+//! sont couverts avec `#[cfg(feature = "python-tests")]`.
 
 use std::sync::Arc;
 
@@ -69,7 +69,7 @@ pub struct PyLlmResponse {
 
 /// Bridge PyO3 vers le `LlmRouter` Rust — exposé à Python via `ctx.llm`.
 ///
-/// Injecté dans `RuntimeContext` par STORY-059. Wrappé via `Arc<LlmRouter>`
+/// Injecté dans `RuntimeContext`. Wrappé via `Arc<LlmRouter>`
 /// pour permettre le partage sans copie entre le runtime et les agents.
 ///
 /// # Exemple Python complet
@@ -119,7 +119,7 @@ pub struct LlmProxy {
 impl LlmProxy {
     /// Crée un `LlmProxy` à injecter dans le `RuntimeContext` Python.
     ///
-    /// Appelé par STORY-059 lors de l'initialisation du contexte agent.
+    /// Appelé lors de l'initialisation du contexte agent.
     /// `event_bus` est `None` si aucun Supervisor n'est actif (tests unitaires).
     pub fn new(
         router: Arc<LlmRouter>,

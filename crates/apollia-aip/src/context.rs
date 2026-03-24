@@ -2,7 +2,7 @@
 //!
 //! Exposes a `#[pyclass]` that agents use via `ctx.tools.call(tool_name, input)`.
 //! Handles permission checks, registry lookup, tool execution, audit logging,
-//! and tool call counting (STORY-027, ADR-015).
+//! and tool call counting.
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;

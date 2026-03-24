@@ -4,7 +4,7 @@
 //! `logs` et `reload` pour gérer, déboguer et auditer les déclenchements
 //! automatiques d'agents depuis le terminal sans modifier `apollia.toml`.
 //!
-//! Pattern noun-verb cohérent avec `agent` et `task` (ADR-008, STORY-038).
+//! Pattern noun-verb cohérent avec `agent` et `task`.
 
 use std::path::PathBuf;
 

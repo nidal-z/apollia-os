@@ -1,7 +1,7 @@
 //! `apollia-os agent` subcommands — manage agents via the runtime API and local persistence.
 //!
 //! Provides `list`, `start`, `stop`, `info` (runtime-dependent) and
-//! `install`, `uninstall`, `enable`, `disable`, `update` (local, STORY-180).
+//! `install`, `uninstall`, `enable`, `disable`, `update` (local).
 
 use std::path::{Path, PathBuf};
 
@@ -196,10 +196,10 @@ async fn run_info(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// New commands (install/uninstall/enable/disable/update) — STORY-180
+// New commands (install/uninstall/enable/disable/update)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `apollia-os agent install <path>` — install an agent permanently (AC-1, AC-7).
+/// `apollia-os agent install <path>` — install an agent permanently.
 async fn run_install(source_path: &Path, client: &RuntimeClient, json: bool) -> i32 {
     // Validate source file exists.
     if !source_path.exists() {
@@ -298,7 +298,7 @@ async fn run_install(source_path: &Path, client: &RuntimeClient, json: bool) -> 
     exit_codes::SUCCESS
 }
 
-/// `apollia-os agent uninstall <name>` — remove an installed agent (AC-2, AC-6).
+/// `apollia-os agent uninstall <name>` — remove an installed agent.
 fn run_uninstall(name: &str, json: bool) -> i32 {
     let data_dir = apollia_data_dir();
     let repo = match open_repository_or_create(&data_dir) {
@@ -343,7 +343,7 @@ fn run_uninstall(name: &str, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// `apollia-os agent enable <name>` — re-enable an installed agent (AC-3).
+/// `apollia-os agent enable <name>` — re-enable an installed agent.
 fn run_enable(name: &str, json: bool) -> i32 {
     let data_dir = apollia_data_dir();
     let repo = match open_repository_or_create(&data_dir) {
@@ -375,7 +375,7 @@ fn run_enable(name: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os agent disable <name>` — disable an installed agent (AC-3).
+/// `apollia-os agent disable <name>` — disable an installed agent.
 fn run_disable(name: &str, json: bool) -> i32 {
     let data_dir = apollia_data_dir();
     let repo = match open_repository_or_create(&data_dir) {
@@ -407,7 +407,7 @@ fn run_disable(name: &str, json: bool) -> i32 {
     }
 }
 
-/// `apollia-os agent update <name> <path>` — update an installed agent (AC-4).
+/// `apollia-os agent update <name> <path>` — update an installed agent.
 fn run_update(name: &str, source_path: &Path, json: bool) -> i32 {
     let data_dir = apollia_data_dir();
     let repo = match open_repository_or_create(&data_dir) {
@@ -560,7 +560,7 @@ fn print_error_and_exit(msg: &str, json: bool) -> i32 {
     exit_codes::GENERAL_ERROR
 }
 
-/// Build a merged JSON array for `agent list --json` (AC-5).
+/// Build a merged JSON array for `agent list --json`.
 fn build_list_json(
     installed: &[InstalledAgent],
     runtime: &Option<serde_json::Value>,

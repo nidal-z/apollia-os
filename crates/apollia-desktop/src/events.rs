@@ -160,7 +160,8 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::StepFailed { .. }
         | RuntimeEvent::PlanReplanning { .. }
         | RuntimeEvent::PlanCompleted { .. }
-        | RuntimeEvent::PlanFailed { .. } => "task-changed",
+        | RuntimeEvent::PlanFailed { .. }
+        | RuntimeEvent::PlanCacheHit { .. } => "task-changed",
 
         // ── Circuit breaker ──────────────────────────────────────────────
         RuntimeEvent::ToolCircuitBroken { .. } | RuntimeEvent::ToolCircuitRestored { .. } => {
@@ -595,6 +596,10 @@ mod tests {
                 session_id: "s".into(),
                 message_id: "m".into(),
                 tool_name: "t".into(),
+            },
+            RuntimeEvent::PlanCacheHit {
+                task_id: "t".into(),
+                cache_key: "k".into(),
             },
         ];
 

@@ -4,7 +4,7 @@
 //! tasks. The `inspect` subcommand reads directly from SQLite (`~/.apollia/plans.db`)
 //! without requiring a running runtime (Principe #1 — Local-first).
 //!
-//! HITL additions (STORY-103):
+//! HITL additions:
 //! - `task list --pending-approval` — filter tasks awaiting human approval.
 //! - `task resume <id> --approve` — approve a suspended HITL task.
 //! - `task resume <id> --reject [--reason "..."]` — reject a suspended HITL task.
@@ -789,7 +789,7 @@ mod tests {
         assert_eq!(step_status_icon("unknown"), "○");
     }
 
-    // STORY-103 AC-2 — body du resume --approve
+    // body du resume --approve
     // GIVEN approve=true, reason=None
     // WHEN build_resume_body est appelé
     // THEN body = { "approved": true } sans "reason"
@@ -804,7 +804,7 @@ mod tests {
         assert!(body.get("reason").is_none(), "reason should be absent");
     }
 
-    // STORY-103 AC-3 — body du resume --reject --reason "Budget"
+    // body du resume --reject --reason "Budget"
     // GIVEN approve=false, reason=Some("Budget")
     // WHEN build_resume_body est appelé
     // THEN body = { "approved": false, "reason": "Budget" }
@@ -819,7 +819,7 @@ mod tests {
         assert_eq!(body["reason"], "Budget");
     }
 
-    // STORY-103 AC-5 — structure JSON de la liste pending-approval
+    // structure JSON de la liste pending-approval
     // GIVEN deux tâches en attente (mock)
     // WHEN build_pending_json est appelé
     // THEN JSON array avec task_id, agent, waiting_since_secs, prompt, step_id
@@ -863,7 +863,7 @@ mod tests {
         assert_eq!(output[1]["step_id"], serde_json::Value::Null);
     }
 
-    // STORY-103 AC-6 — --approve et --reject mutuellement exclusifs
+    // --approve et --reject mutuellement exclusifs
     // GIVEN "task resume t-0042 --approve --reject"
     // WHEN clap parse
     // THEN erreur de conflit de groupe (parse error)
@@ -880,7 +880,7 @@ mod tests {
         );
     }
 
-    // STORY-103 — prompt truncation à 60 chars
+    // prompt truncation à 60 chars
     // GIVEN un prompt de 80 caractères
     // WHEN truncate_prompt est appelé
     // THEN le prompt est tronqué à 60 + "..."
@@ -897,7 +897,7 @@ mod tests {
         assert!(result.ends_with("..."));
     }
 
-    // STORY-103 — prompt court non tronqué
+    // prompt court non tronqué
     // GIVEN un prompt de 30 caractères
     // WHEN truncate_prompt est appelé
     // THEN le prompt est retourné tel quel
@@ -914,7 +914,7 @@ mod tests {
         assert!(!result.ends_with("..."));
     }
 
-    // STORY-103 — format_duration_since avec timestamp passé
+    // format_duration_since avec timestamp passé
     // GIVEN un timestamp il y a 90 minutes
     // WHEN format_duration_since est appelé
     // THEN la durée est formatée en "1h"
@@ -932,7 +932,7 @@ mod tests {
         assert_eq!(result, "1h");
     }
 
-    // STORY-103 — format_duration_since avec timestamp invalide
+    // format_duration_since avec timestamp invalide
     // GIVEN un timestamp invalide
     // WHEN format_duration_since est appelé
     // THEN "-" est retourné

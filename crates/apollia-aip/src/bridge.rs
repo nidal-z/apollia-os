@@ -5,7 +5,7 @@
 //!
 //! The GIL is only held on the blocking thread pool, never on Tokio workers.
 //!
-//! ## Python AIP types (STORY-092)
+//! ## Python AIP types
 //!
 //! `AIPResult` and `InputResponse` Python convenience classes are injected into
 //! the agent's `run.__globals__` namespace before each `call_run()` invocation.
@@ -29,7 +29,7 @@ use pyo3::types::PyDict;
 use crate::validator::ValidatedAgent;
 
 // ─────────────────────────────────────────────
-// Python AIP types — static definition (STORY-092)
+// Python AIP types — static definition
 // ─────────────────────────────────────────────
 
 /// Python source for the `AIPResult` and `InputResponse` helper classes.
@@ -69,8 +69,8 @@ class AIPResult:
     def input_required(cls, prompt, context):
         """Suspendre la tâche et demander une validation humaine.
 
-        Le runtime persiste prompt et context dans SQLite (STORY-094),
-        puis notifie l'utilisateur sur les canaux configurés (STORY-099).
+        Le runtime persiste prompt et context dans SQLite,
+        puis notifie l'utilisateur sur les canaux configurés.
         """
         return {
             "status": "input_required",
@@ -125,7 +125,7 @@ pub enum AIPBridgeError {
 /// Tokio worker threads (ADR-014).
 ///
 /// Injects Python `AIPResult` and `InputResponse` convenience classes into
-/// the agent's `run.__globals__` namespace before every `call_run()` (STORY-092).
+/// the agent's `run.__globals__` namespace before every `call_run()`.
 pub struct AIPBridge {
     /// The Python agent object.
     agent: Py<PyAny>,
@@ -133,11 +133,11 @@ pub struct AIPBridge {
     has_on_start: bool,
     /// Whether the agent has an `on_stop` callback.
     has_on_stop: bool,
-    /// Whether the agent has an `on_plan_complete` hook (STORY-086).
+    /// Whether the agent has an `on_plan_complete` hook.
     has_on_plan_complete: bool,
-    /// Python `AIPResult` class — injected into agent globals for convenience (STORY-092).
+    /// Python `AIPResult` class — injected into agent globals for convenience.
     aip_result_class: Py<PyAny>,
-    /// Python `InputResponse` class — wraps the input_response dict for attribute access (STORY-092).
+    /// Python `InputResponse` class — wraps the input_response dict for attribute access.
     input_response_class: Py<PyAny>,
 }
 
@@ -145,7 +145,7 @@ impl AIPBridge {
     /// Creates a new bridge from a validated agent.
     ///
     /// Initialises the Python `AIPResult` and `InputResponse` helper classes
-    /// (STORY-092) that will be injected into the agent's globals on each
+    /// that will be injected into the agent's globals on each
     /// `call_run()` invocation.
     ///
     /// # Errors
@@ -191,7 +191,7 @@ impl AIPBridge {
 
     /// Returns `true` if the agent exposes an `on_plan_complete()` hook.
     ///
-    /// Detected at validation time via `hasattr` Python duck typing (AC-1, AC-2).
+    /// Detected at validation time via `hasattr` Python duck typing.
     pub fn has_on_plan_complete(&self) -> bool {
         self.has_on_plan_complete
     }
@@ -200,7 +200,7 @@ impl AIPBridge {
     ///
     /// Serializes `AIPTask` to a Python dict, injects the `AIPResult` and
     /// `InputResponse` helper classes into the agent's `run.__globals__`
-    /// (STORY-092), calls the `run` coroutine via `asyncio.run()`, and
+    ///, calls the `run` coroutine via `asyncio.run()`, and
     /// deserializes the result into `AIPResult`.
     ///
     /// If `task.input_response` is present (resumed task), the raw dict is
@@ -229,7 +229,7 @@ impl AIPBridge {
         let result_json = tokio::task::spawn_blocking(move || {
             Python::with_gil(|py| -> Result<String, AIPBridgeError> {
                 // 1. Inject AIPResult and InputResponse into the agent's run method globals
-                //    so the agent can use them without any import statement (STORY-092).
+                //    so the agent can use them without any import statement.
                 let run_method = agent.bind(py).getattr("run").map_err(|e| {
                     AIPBridgeError::Internal(format!("agent has no run method: {e}"))
                 })?;
@@ -252,7 +252,7 @@ impl AIPBridge {
                     .map_err(|e| AIPBridgeError::SerializationError(e.to_string()))?;
 
                 // 3. If task["input_response"] is present, wrap it as an InputResponse
-                //    object so the agent can use ir.approved, ir.reason, etc. (STORY-092).
+                //    object so the agent can use ir.approved, ir.reason, etc.
                 if let Ok(dict) = task_dict.downcast::<pyo3::types::PyDict>() {
                     if let Ok(Some(ir_raw)) = dict.get_item("input_response") {
                         if !ir_raw.is_none() {
@@ -733,7 +733,7 @@ agent = A()
     }
 
     // ─────────────────────────────────────────────
-    // STORY-092 — HITL contract tests
+    // HITL contract tests
     // ─────────────────────────────────────────────
 
     // AC-1 — AIPResult.input_required() retourne le bon variant

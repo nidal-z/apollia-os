@@ -3,7 +3,7 @@
 //! Fournit les sous-commandes `list`, `run`, `runs` et `status` pour déclencher
 //! et monitorer les pipelines multi-agents depuis le terminal.
 //!
-//! Pattern noun-verb cohérent avec `agent`, `task`, `trigger` (ADR-008, STORY-038).
+//! Pattern noun-verb cohérent avec `agent`, `task`, `trigger`.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
