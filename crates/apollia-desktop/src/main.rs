@@ -356,6 +356,10 @@ fn main() {
             commands::chat::update_chat_session,
             commands::chat::send_chat_message,
             commands::chat::authorize_chat_tool,
+            commands::user::get_user_profile,
+            commands::user::update_user_profile,
+            commands::user::get_user_memory,
+            commands::user::forget_user_memory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

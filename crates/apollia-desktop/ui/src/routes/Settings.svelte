@@ -11,10 +11,30 @@
   import { Skeleton } from "$lib/components/ui/skeleton";
   import TabBar from "$lib/components/ui/tabs/TabBar.svelte";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
+  import { addToast } from "$lib/components/ui/toast/store";
 
   import type { ApollaConfigView, SystemInfo } from "$lib/types";
 
-  type SettingsTab = "preferences" | "configuration" | "system";
+  // ─── Types ──────────────────────────────────────────
+
+  interface UserProfileView {
+    name: string | null;
+    preferences: Record<string, string>;
+    habits: Record<string, string>;
+    context: Record<string, string>;
+  }
+
+  interface UserMemoryEntryView {
+    key: string;
+    value: string;
+    source: string;
+    updated_at: string;
+  }
+
+  type SettingsTab = "preferences" | "profile" | "configuration" | "system";
+  type ProfileCategory = "preferences" | "habits" | "context";
+
+  // ─── State ──────────────────────────────────────────
 
   let activeTab = $state<SettingsTab>("preferences");
   let configView = $state<ApollaConfigView | null>(null);
@@ -25,11 +45,42 @@
   let resettingOnboarding = $state(false);
   let showResetConfirm = $state(false);
 
+  // Profile state
+  let profileCategory = $state<ProfileCategory>("preferences");
+  let profileName = $state("");
+  let profileEntries = $state<UserMemoryEntryView[]>([]);
+  let profileLoading = $state(false);
+  let profileSaving = $state(false);
+  let profileError = $state<string | null>(null);
+  let profileUnavailable = $state(false);
+  let editedValues = $state<Record<string, string>>({});
+  let newEntryKey = $state("");
+  let newEntryValue = $state("");
+  let deleteTarget = $state<string | null>(null);
+  let showDeleteConfirm = $state(false);
+  let deleting = $state(false);
+
   const tabItems = $derived([
     { key: "preferences", label: $t("settings.preferences") },
+    { key: "profile", label: $t("settings.profile") },
     { key: "configuration", label: $t("settings.runtime_config") },
     { key: "system", label: $t("settings.system_info") },
   ]);
+
+  const profileCategoryItems = $derived([
+    { key: "preferences", label: $t("settings.profile_tab_preferences") },
+    { key: "habits", label: $t("settings.profile_tab_habits") },
+    { key: "context", label: $t("settings.profile_tab_context") },
+  ]);
+
+  const SOURCE_LABELS: Record<string, string> = {
+    user_explicit: "User",
+    chat_inference: "Chat",
+    onboarding: "Onboarding",
+    agent_observation: "Agent",
+  };
+
+  // ─── Loaders ────────────────────────────────────────
 
   async function loadConfig() {
     loading = true;
@@ -47,6 +98,39 @@
       loading = false;
     }
   }
+
+  async function loadProfile() {
+    profileLoading = true;
+    profileError = null;
+    profileUnavailable = false;
+    try {
+      const profile = await invoke<UserProfileView>("get_user_profile");
+      profileName = profile.name ?? "";
+      await loadMemoryEntries();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("user memory not configured") || msg.includes("503")) {
+        profileUnavailable = true;
+      } else {
+        profileError = msg;
+      }
+    } finally {
+      profileLoading = false;
+    }
+  }
+
+  async function loadMemoryEntries() {
+    try {
+      profileEntries = await invoke<UserMemoryEntryView[]>("get_user_memory", { category: profileCategory });
+      editedValues = {};
+      newEntryKey = "";
+      newEntryValue = "";
+    } catch (err: unknown) {
+      profileError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  // ─── Actions ────────────────────────────────────────
 
   async function openEditor() {
     openingEditor = true;
@@ -71,6 +155,73 @@
       showResetConfirm = false;
     }
   }
+
+  async function saveProfile() {
+    profileSaving = true;
+    profileError = null;
+    try {
+      const updates: Record<string, string> = {};
+      for (const entry of profileEntries) {
+        const edited = editedValues[entry.key];
+        if (edited !== undefined && edited !== entry.value) {
+          updates[entry.key] = edited;
+        }
+      }
+      if (newEntryKey.trim() && newEntryValue.trim()) {
+        updates[newEntryKey.trim()] = newEntryValue.trim();
+      }
+
+      const data: Record<string, unknown> = {};
+      if (profileCategory === "preferences") {
+        data.name = profileName || null;
+        data.preferences = Object.keys(updates).length > 0 ? updates : undefined;
+      } else if (profileCategory === "habits") {
+        data.habits = Object.keys(updates).length > 0 ? updates : undefined;
+      } else {
+        data.context = Object.keys(updates).length > 0 ? updates : undefined;
+      }
+
+      // Only save name from preferences tab
+      if (profileCategory === "preferences" && profileName) {
+        data.name = profileName;
+      }
+
+      await invoke("update_user_profile", { data });
+      addToast($t("settings.profile_saved"), "success");
+      await loadMemoryEntries();
+    } catch (err: unknown) {
+      profileError = err instanceof Error ? err.message : String(err);
+    } finally {
+      profileSaving = false;
+    }
+  }
+
+  async function confirmDeleteEntry() {
+    if (!deleteTarget) return;
+    deleting = true;
+    try {
+      await invoke("forget_user_memory", { key: deleteTarget });
+      await loadMemoryEntries();
+    } catch (err: unknown) {
+      profileError = err instanceof Error ? err.message : String(err);
+    } finally {
+      deleting = false;
+      deleteTarget = null;
+      showDeleteConfirm = false;
+    }
+  }
+
+  function requestDelete(key: string) {
+    deleteTarget = key;
+    showDeleteConfirm = true;
+  }
+
+  async function switchProfileCategory(cat: string) {
+    profileCategory = cat as ProfileCategory;
+    await loadMemoryEntries();
+  }
+
+  // ─── Constants ──────────────────────────────────────
 
   const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
     { value: "light", labelKey: "settings.theme_light" },
@@ -126,7 +277,12 @@
   <TabBar
     items={tabItems}
     activeTab={activeTab}
-    ontabchange={(key) => { activeTab = key as SettingsTab; }}
+    ontabchange={(key) => {
+      activeTab = key as SettingsTab;
+      if (key === "profile") {
+        loadProfile();
+      }
+    }}
     testidPrefix="settings"
   />
 
@@ -220,6 +376,151 @@
             </div>
           </div>
         </div>
+      </section>
+    {/if}
+
+    <!-- Tab: Profile -->
+    {#if activeTab === "profile"}
+      <section class="space-y-5" data-testid="profile-section">
+        <p class="text-sm text-muted-foreground">{$t('settings.profile_subtitle')}</p>
+
+        {#if profileUnavailable}
+          <div class="rounded-md border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-warning-foreground">
+            {$t('settings.profile_unavailable')}
+          </div>
+        {:else if profileLoading}
+          <div class="space-y-4">
+            <Skeleton width="100%" height="3rem" />
+            <Skeleton width="100%" height="12rem" />
+          </div>
+        {:else}
+          {#if profileError}
+            <div class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+              {profileError}
+            </div>
+          {/if}
+
+          <!-- Category sub-tabs -->
+          <div class="inline-flex gap-1 rounded-lg glass-border p-1" data-testid="profile-category-tabs">
+            {#each profileCategoryItems as cat (cat.key)}
+              <button
+                class="rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200
+                  {profileCategory === cat.key
+                    ? 'glass-surface text-foreground shadow-sm'
+                    : 'bg-transparent text-muted-foreground hover:text-foreground'}"
+                onclick={() => switchProfileCategory(cat.key)}
+                data-testid="profile-tab-{cat.key}"
+              >
+                {cat.label}
+              </button>
+            {/each}
+          </div>
+
+          <!-- Name field (only in preferences tab) -->
+          {#if profileCategory === "preferences"}
+            <div class="space-y-1" data-testid="profile-name-field">
+              <label class="text-sm font-medium text-muted-foreground" for="profile-name">{$t('settings.profile_name')}</label>
+              <input
+                id="profile-name"
+                type="text"
+                class="w-full max-w-md rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/30"
+                placeholder={$t('settings.profile_name_placeholder')}
+                bind:value={profileName}
+                data-testid="profile-name-input"
+              />
+            </div>
+          {/if}
+
+          <!-- Entries table -->
+          <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="profile-entries-table">
+            {#if profileEntries.length === 0 && !newEntryKey}
+              <div class="px-4 py-8 text-center text-sm text-muted-foreground">
+                {$t('settings.profile_empty')}
+              </div>
+            {:else}
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-border">
+                    <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('settings.profile_key')}</th>
+                    <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('settings.profile_value')}</th>
+                    <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('settings.profile_source')}</th>
+                    <th class="w-10 px-2 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each profileEntries as entry (entry.key)}
+                    <tr class="border-b border-border/50 last:border-b-0 hover:bg-muted/30 transition-colors" data-testid="profile-entry-{entry.key}">
+                      <td class="px-4 py-2 font-mono text-xs text-foreground">{entry.key}</td>
+                      <td class="px-4 py-2">
+                        <input
+                          type="text"
+                          class="w-full rounded border border-transparent bg-transparent px-1.5 py-0.5 text-sm text-foreground hover:border-border focus:border-primary/30 focus:outline-none focus:ring-1 focus:ring-primary/20"
+                          value={editedValues[entry.key] ?? entry.value}
+                          oninput={(e) => { editedValues[entry.key] = (e.target as HTMLInputElement).value; }}
+                          data-testid="profile-entry-value-{entry.key}"
+                        />
+                      </td>
+                      <td class="px-4 py-2">
+                        <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium
+                          {entry.source === 'user_explicit' ? 'bg-primary/10 text-primary' :
+                           entry.source === 'chat_inference' ? 'bg-info/10 text-info-foreground' :
+                           entry.source === 'onboarding' ? 'bg-warning/10 text-warning-foreground' :
+                           'bg-muted text-muted-foreground'}"
+                          data-testid="profile-entry-source-{entry.key}"
+                        >
+                          {SOURCE_LABELS[entry.source] ?? entry.source}
+                        </span>
+                      </td>
+                      <td class="px-2 py-2 text-center">
+                        <button
+                          class="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          onclick={() => requestDelete(entry.key)}
+                          title="Delete"
+                          data-testid="profile-delete-{entry.key}"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            {/if}
+
+            <!-- New entry row -->
+            <div class="flex items-center gap-2 border-t border-border/50 px-4 py-2" data-testid="profile-new-entry">
+              <input
+                type="text"
+                class="flex-1 rounded border border-border bg-background px-2 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/20"
+                placeholder={$t('settings.profile_new_key_placeholder')}
+                bind:value={newEntryKey}
+                data-testid="profile-new-key"
+              />
+              <input
+                type="text"
+                class="flex-[2] rounded border border-border bg-background px-2 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/20"
+                placeholder={$t('settings.profile_new_value_placeholder')}
+                bind:value={newEntryValue}
+                data-testid="profile-new-value"
+              />
+            </div>
+          </div>
+
+          <!-- Save button -->
+          <div class="flex justify-end">
+            <Button
+              onclick={saveProfile}
+              disabled={profileSaving}
+              size="sm"
+              data-testid="profile-save-btn"
+            >
+              {profileSaving ? $t('settings.profile_saving') : $t('settings.profile_save')}
+            </Button>
+          </div>
+        {/if}
       </section>
     {/if}
 
@@ -325,4 +626,17 @@
   cancelLabel={$t('common.cancel')}
   loading={resettingOnboarding}
   data-testid="reset-onboarding-confirm"
+/>
+
+<!-- Delete memory entry ConfirmDialog -->
+<ConfirmDialog
+  open={showDeleteConfirm}
+  onclose={() => { showDeleteConfirm = false; deleteTarget = null; }}
+  onconfirm={confirmDeleteEntry}
+  title={$t('settings.profile_delete_confirm_title')}
+  message={$t('settings.profile_delete_confirm_message')}
+  confirmLabel={$t('common.delete')}
+  cancelLabel={$t('common.cancel')}
+  loading={deleting}
+  data-testid="profile-delete-confirm"
 />

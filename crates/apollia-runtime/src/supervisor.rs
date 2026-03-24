@@ -646,6 +646,23 @@ impl Supervisor {
                 }
             };
 
+        // Phase 14: UserMemoryRepository — global user memory (preferences, habits, context).
+        let user_memory: Option<
+            std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>,
+        > = {
+            let db_path = self.config.data_dir.join("user_memory.db");
+            match apollia_memory::user_memory::UserMemoryRepository::new(&db_path) {
+                Ok(repo) => {
+                    info!("Supervisor: UserMemoryRepository ready");
+                    Some(std::sync::Arc::new(std::sync::Mutex::new(repo)))
+                }
+                Err(e) => {
+                    warn!(error = %e, "UserMemoryRepository failed to open — user memory disabled");
+                    None
+                }
+            }
+        };
+
         // Clone handles before moving into AppState — needed for auto-load.
         let agent_loader_for_autoload = agent_loader.clone();
         let backend_factory_for_autoload = backend_factory.clone();
@@ -675,7 +692,7 @@ impl Supervisor {
             chat_manager: chat_manager.clone(),
             plan_cache: plan_cache.clone(),
             mailbox_handle: Some(mailbox_handle.clone()),
-            user_memory: None,
+            user_memory: user_memory.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -851,7 +868,7 @@ impl Supervisor {
             chat_manager,
             plan_cache,
             mailbox_handle: Some(mailbox_handle),
-            user_memory: None,
+            user_memory,
         })
     }
 }
