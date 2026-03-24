@@ -157,9 +157,8 @@ def test_extract_json_embedded() -> None:
 
 
 def test_extract_json_failure() -> None:
-    """extract_json() raises ActionParseError on non-JSON input."""
-    with pytest.raises(ActionParseError):
-        extract_json("no json here")
+    """extract_json() returns empty dict on non-JSON input."""
+    assert extract_json("no json here") == {}
 
 
 def test_validate_action_tool_call() -> None:
