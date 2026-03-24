@@ -182,8 +182,11 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::ChatApprovalTimeout { .. } => "chat-changed",
 
         // ChatToken uses a dedicated fast path — not "chat-changed" to avoid
-        // triggering a full IPC refresh on every streamed token (STORY-204 AC-9).
+        // triggering a full IPC refresh on every streamed token.
         RuntimeEvent::ChatToken { .. } => "chat-token",
+
+        // ── Agent messaging ────────────────────────────────────────────
+        RuntimeEvent::AgentMessageSent { .. } => "agent-changed",
 
         // ── System-level ─────────────────────────────────────────────────
         RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested | RuntimeEvent::FatalError(_) => {

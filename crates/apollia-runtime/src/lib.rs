@@ -13,6 +13,7 @@ pub mod chat;
 pub mod coordinator;
 pub mod embedded;
 pub mod eventbus;
+pub mod mailbox;
 pub mod registry;
 pub mod router;
 pub mod shutdown;
@@ -36,6 +37,9 @@ pub use embedded::{init_embedded, EmbeddedConfig, EmbeddedError, RuntimeHandle};
 
 // Re-export from apollia-tools for convenience
 pub use apollia_tools::ToolRegistryHandle;
+
+// Agent-to-agent messaging (Sprint 20 — STORY-235)
+pub use mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
 
 // Chat subsystem (Sprint 18 — STORY-199)
 pub use chat::ChatSessionManagerHandle;

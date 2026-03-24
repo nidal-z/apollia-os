@@ -633,6 +633,15 @@ pub enum RuntimeEvent {
         /// Clé SHA-256 du cache qui a produit le hit.
         cache_key: String,
     },
+
+    // ── Agent Messaging events ────────────────────
+    /// Un message a été envoyé entre deux agents via l'AgentMailbox.
+    AgentMessageSent {
+        /// Nom de l'agent expéditeur.
+        from: String,
+        /// Nom de l'agent destinataire.
+        to: String,
+    },
 }
 
 #[cfg(test)]
@@ -737,7 +746,7 @@ mod tests {
                 trigger_id: "rapport-hebdo".into(),
             },
             RuntimeEvent::TriggersReloaded { count: 3 },
-            // ── Mode Orchestré (STORY-084) ────────────────────────────────
+            // ── Mode Orchestré ────────────────────────────────
             RuntimeEvent::PlanGenerated {
                 task_id: "task-1".into(),
                 agent_name: "mon-agent".into(),
@@ -783,7 +792,7 @@ mod tests {
                 plan_id: "plan-abc".into(),
                 reason: "MAX_REPLAN_EXCEEDED".into(),
             },
-            // ── HITL (Sprint 11) ──────────────────────────────────────────
+            // ── HITL ──────────────────────────────────────────
             RuntimeEvent::TaskApprovalTimeout {
                 task_id: "task-1".into(),
                 after_secs: 86400,
@@ -797,7 +806,7 @@ mod tests {
                 task_id: "task-1".into(),
                 approved: true,
             },
-            // ── Pipeline (Sprint 12) ──────────────────────────────────────
+            // ── Pipeline ──────────────────────────────────────
             RuntimeEvent::PipelineStarted {
                 run_id: "r-0001".into(),
                 pipeline_id: "traitement-facture".into(),
@@ -845,7 +854,7 @@ mod tests {
                 step_id: "validation".into(),
                 reason: "timeout".into(),
             },
-            // ── Chat (Sprint 18 — STORY-198) ────────────────────────────────
+            // ── Chat ────────────────────────────────
             RuntimeEvent::ChatSessionCreated {
                 session_id: "sess-001".into(),
                 mode: "libre".into(),
@@ -907,7 +916,7 @@ mod tests {
                 message_id: "msg-005".into(),
                 tool_name: "bash_executor".into(),
             },
-            // ── Plan Cache (Sprint 20 — STORY-233) ────────────────────────
+            // ── Plan Cache ────────────────────────
             RuntimeEvent::PlanCacheHit {
                 task_id: "task-1".into(),
                 cache_key: "abc123def456".into(),
@@ -1032,7 +1041,7 @@ mod tests {
     }
 }
 
-// ── STORY-116 : Pipeline event tests ─────────────────────────────────────────
+// ── Pipeline event tests ─────────────────────────────────────────
 #[cfg(test)]
 mod pipeline_event_tests {
     use super::*;
