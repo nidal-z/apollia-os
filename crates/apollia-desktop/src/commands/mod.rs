@@ -19,6 +19,7 @@ pub mod tasks;
 pub mod tools;
 pub mod triggers;
 pub mod user;
+pub mod user_memory;
 
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;

@@ -360,6 +360,11 @@ fn main() {
             commands::user::update_user_profile,
             commands::user::get_user_memory,
             commands::user::forget_user_memory,
+            commands::user_memory::get_user_memory_profile,
+            commands::user_memory::update_user_memory_entry,
+            commands::user_memory::delete_user_memory_entry,
+            commands::user_memory::search_user_memory,
+            commands::user_memory::get_conversation_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
