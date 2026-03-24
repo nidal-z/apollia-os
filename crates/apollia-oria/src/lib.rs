@@ -16,6 +16,7 @@ pub mod budget;
 pub mod engine;
 pub mod observer;
 pub mod plan;
+pub mod plan_cache;
 pub mod plan_repository;
 pub mod reasoner;
 pub mod resilience;
