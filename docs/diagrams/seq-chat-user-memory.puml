@@ -1,0 +1,73 @@
+@startuml seq-chat-user-memory
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+skinparam SequenceGroupBorderColor #888888
+
+title Séquence — Injection mémoire utilisateur dans le chat — Apollia OS
+
+actor "User / Browser" as user #3a3a3a/white
+participant "BuiltInChatAgent" as agent #1a1a2e/e0e0ff
+participant "UserMemoryRepository" as umr #2a6a3a/c5f5c5
+participant "LlmRouter" as llm #4a3728/f5e6d3
+database "user_memory.db\n(SemanticMemory\n__user__)" as db #2a3a4a/cce5ff
+
+== Phase 1 — Construction du system prompt ==
+
+user -> agent : execute(session, message)
+agent -> agent : build_system_prompt(\n  base_prompt\n)
+
+agent -> umr : recall_all_for_injection(50)
+umr -> db : SELECT * FROM semantic_entries\nWHERE namespace = '__user__'
+db --> umr : entries (preferences, habits, context)
+umr --> agent : formatted text block
+
+note right of agent
+  Bloc injecté dans le system prompt :
+
+  ## User Context (for reference, use as you see fit)
+  Category: preferences
+  - language: français
+  - format: markdown
+  Category: habits
+  - working_hours: 9h-18h
+  Category: context
+  - current_project: apollia-os
+end note
+
+agent -> agent : prompt = base_prompt\n+ "\n\n## User Context..."\n+ formatted block
+
+== Phase 2 — Appel LLM avec contexte enrichi ==
+
+agent -> llm : stream(CompletionRequest {\n  system: enriched_prompt,\n  messages: [...]\n})
+llm --> agent : token stream
+
+note right of llm
+  Le LLM reçoit le contexte utilisateur
+  comme information supplémentaire.
+  Il DÉCIDE quoi en faire.
+  (Principe #6 — non déterministe)
+end note
+
+== Phase 3 — Extraction post-session (fire-and-forget) ==
+
+user -> agent : (session closed)
+agent -> agent : spawn_extraction(\n  messages, llm, user_memory\n)
+
+note right of agent
+  Conditions :
+  - ≥ 4 messages dans la session
+  - Timeout 30s
+  - Erreurs loguées, jamais propagées
+end note
+
+agent -[#blue]> llm : extract_user_memory(\n  messages\n)
+llm --> agent : JSON {\n  preferences: [...],\n  habits: [...],\n  context: [...]\n}
+
+agent -> umr : store(category, key, value,\n  ChatInference)
+umr -> db : UPSERT semantic_entries\n(namespace='__user__',\n key='category.key')
+
+@enduml

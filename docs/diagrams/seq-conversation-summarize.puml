@@ -1,0 +1,83 @@
+@startuml seq-conversation-summarize
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+skinparam SequenceGroupBorderColor #888888
+
+title Séquence — Summarization et gestion de la fenêtre de contexte — Apollia OS
+
+participant "BuiltInChatAgent" as agent #1a1a2e/e0e0ff
+participant "ChatSessionManager" as csm #1a1a2e/e0e0ff
+participant "ConversationSummarizer" as sum #2a6a3a/c5f5c5
+participant "LlmRouter" as llm #4a3728/f5e6d3
+database "chat.db" as db #2a3a4a/cce5ff
+
+== Détection — Historique dépasse la fenêtre ==
+
+agent -> agent : build_llm_messages(\n  history, user_message,\n  summary=None,\n  window_size=20\n)
+
+note right of agent
+  history.len() > context_window_size (20)
+  ET aucun summary stocké pour cette session.
+  → Déclenche la summarization.
+end note
+
+== Phase 1 — Génération du résumé ==
+
+agent -> sum : summarize(messages, llm)
+sum -> sum : format_conversation(\n  messages\n)
+sum -> llm : complete(CompletionRequest {\n  system: "Summarize this conversation\n    in 2-3 concise paragraphs\n    (max 500 tokens)...",\n  user: transcript\n})
+
+note right of llm
+  Focus sur :
+  1. Décisions prises
+  2. Contexte établi
+  3. Questions non résolues
+
+  Pas de salutations / small talk.
+end note
+
+llm --> sum : summary text (≤ 500 tokens)
+sum --> agent : Ok(summary_text)
+
+== Phase 2 — Persistance du résumé ==
+
+agent -> csm : PersistSummary {\n  session_id, summary\n}
+csm -> db : UPDATE chat_sessions\nSET summary = ?\nWHERE id = ?
+csm -> db : INSERT INTO chat_sessions_fts\n(session_id, created_at, summary)
+
+note right of db
+  Le résumé est indexé via FTS5
+  pour le cross-session recall.
+end note
+
+== Phase 3 — Injection dans les échanges suivants ==
+
+agent -> agent : build_llm_messages(\n  history, user_message,\n  summary=Some(text),\n  window_size=20\n)
+
+note right of agent
+  Ordre des messages LLM :
+  1. [system prompt + user context]
+  2. [system: "Previous context summary:\n{text}"]
+  3. [derniers 20 messages de l'historique]
+  4. [user message]
+end note
+
+== Cross-session recall (nouvelle session) ==
+
+csm -> csm : build_cross_session_context(\n  first_message\n)
+
+note right of csm
+  Condition : message ≥ 20 caractères
+  (salutations triviales ignorées)
+end note
+
+csm -> db : SELECT FROM chat_sessions_fts\nMATCH ? LIMIT 3
+db --> csm : past sessions (id, created_at, summary)
+
+csm -> csm : format as\n"## Previous conversations\n  (for reference)\n- [date] summary\n..."
+
+@enduml

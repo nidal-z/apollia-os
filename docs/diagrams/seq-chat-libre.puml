@@ -7,16 +7,19 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — Chat Libre (boucle ReAct + streaming) — Apollia OS
+title Séquence — Chat Libre (boucle ReAct + streaming + mémoire) — Apollia OS
 
 actor "User / Browser" as user #3a3a3a/white
 participant "APIServer\n(axum)" as api #1a1a2e/e0e0ff
 participant "ChatSessionManager" as csm #1a1a2e/e0e0ff
 participant "BuiltInChatAgent" as agent #1a1a2e/e0e0ff
+participant "UserMemoryRepository" as umr #2a6a3a/c5f5c5
+participant "ConversationSummarizer" as sum #2a6a3a/c5f5c5
 participant "LlmRouter" as llm #4a3728/f5e6d3
 participant "ToolRegistry" as tools #1a1a2e/e0e0ff
 participant "EventBus" as bus #2a3a4a/cce5ff
 database "chat.db" as db #2a3a4a/cce5ff
+database "user_memory.db" as umdb #2a6a3a/c5f5c5
 
 == Phase 1 — Création de session ==
 
@@ -27,17 +30,62 @@ csm -> bus : publish(ChatSessionCreated {\n  session_id, mode: "libre"\n})
 csm --> api : SessionInfo {id, mode, status: Active}
 api --> user : 201 {session_id}
 
-== Phase 2 — Envoi de message ==
+== Phase 1b — Cross-session recall (premier message) ==
 
 user -> api : POST /api/v1/sessions/:id/messages\n{content: "..."}
 api -> csm : SendMessage {session_id, content}
+
+csm -> csm : build_cross_session_context(\n  first_message\n)
+note right of csm
+  Si message ≥ 20 caractères :
+  recherche FTS5 sur chat_sessions_fts
+  Max 3 sessions passées pertinentes.
+end note
+csm -> db : SELECT FROM chat_sessions_fts\nMATCH ? LIMIT 3
+db --> csm : past sessions (summary, date)
+
+== Phase 2 — Envoi de message ==
+
 csm -> db : INSERT chat_messages\n(role=user)
 csm -> bus : publish(ChatMessageSent {\n  session_id, message_id\n})
+
+== Phase 2b — User Memory injection ==
+
 csm -> agent : execute(session, message)
+agent -> agent : build_system_prompt(\n  base_prompt\n)
+agent -> umr : recall_all_for_injection(50)
+umr -> umdb : SELECT * FROM semantic_entries\nWHERE namespace = '__user__'
+umdb --> umr : entries
+umr --> agent : formatted block
+note right of agent
+  System prompt enrichi :
+  base_prompt + "\n\n## User Context
+  (for reference, use as you see fit)\n"
+  + grouped entries by category
+end note
+
+== Phase 2c — Context window + Summary ==
+
+agent -> agent : build_llm_messages(\n  effective_prompt,\n  history, user_message,\n  summary, window_size=20\n)
+
+alt Historique > window_size ET pas de summary
+  agent -> sum : summarize(older_messages, llm)
+  sum -> llm : complete(summarization prompt)
+  llm --> sum : summary text (≤ 500 tokens)
+  sum --> agent : Ok(summary)
+  agent -> csm : PersistSummary {\n  session_id, summary\n}
+  csm -> db : UPDATE chat_sessions\nSET summary = ?
+  note right of agent
+    Ordre des messages LLM :
+    1. [system + user context]
+    2. [summary]
+    3. [derniers 20 messages]
+    4. [user message]
+  end note
+end
 
 loop Boucle ReAct (max StepBudget iterations)
 
-  agent -> agent : build_llm_messages(\n  history + tool_specs\n)
   agent -> llm : stream(CompletionRequest)
   llm --> agent : token stream
   agent -> bus : publish(ChatResponseStarted {\n  session_id\n})
@@ -98,5 +146,27 @@ end
 agent -> db : INSERT chat_messages\n(role=assistant, content)
 csm --> api : Ok(message_id)
 api --> user : 200 {message_id}
+
+== Phase 4 — Fermeture et extraction mémoire ==
+
+user -> api : DELETE /api/v1/sessions/:id
+api -> csm : CloseSession
+csm -> db : UPDATE chat_sessions\nSET status = 'closed'
+
+csm -> csm : spawn_extraction(\n  messages, llm, user_memory\n)
+note right of csm
+  Fire-and-forget (Tokio spawn).
+  Conditions : ≥ 4 messages.
+  Timeout : 30 secondes.
+  Erreurs loguées, jamais propagées.
+end note
+
+csm -[#blue]> llm : extract_user_memory(messages)
+llm --> csm : JSON {preferences, habits, context}
+csm -> umr : store(category, key, value,\n  ChatInference)
+umr -> umdb : UPSERT (namespace='__user__')
+
+csm --> api : Ok
+api --> user : 200
 
 @enduml
