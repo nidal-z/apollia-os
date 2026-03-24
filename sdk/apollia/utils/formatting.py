@@ -1,0 +1,166 @@
+"""Output formatting utilities for Apollia agents.
+
+Provides standardised conversion of arbitrary data into human-readable
+text, Markdown tables, or indented JSON.  Also provides helpers to
+extract plain text from AIPResult / AIPInput ``parts`` lists.
+
+All public functions are pure (no side-effects) and depend only on the
+standard library (``json``).
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+
+def format_as_text(data: Any) -> str:
+    """Convert an arbitrary value to a human-readable text representation.
+
+    Args:
+        data: Value to format.  ``str`` is returned as-is; ``dict`` is
+            rendered as one ``key: value`` line per entry; ``list`` is
+            rendered as one element per line; everything else goes
+            through ``str()``.
+
+    Returns:
+        Plain-text representation of *data*.
+    """
+    if isinstance(data, str):
+        return data
+
+    if isinstance(data, dict):
+        lines: list[str] = []
+        for key, value in data.items():
+            if isinstance(value, (dict, list)):
+                lines.append(f"{key}:")
+                nested = format_as_text(value)
+                for nested_line in nested.splitlines():
+                    lines.append(f"  {nested_line}")
+            else:
+                lines.append(f"{key}: {value}")
+        return "\n".join(lines)
+
+    if isinstance(data, list):
+        return "\n".join(format_as_text(item) for item in data)
+
+    return str(data)
+
+
+def format_as_markdown(data: Any) -> str:
+    """Convert a value to Markdown.
+
+    * ``dict`` → two-column table (Key | Value).
+    * ``list[dict]`` → multi-column table using the union of all keys.
+    * Anything else → delegates to :func:`format_as_text`.
+
+    Args:
+        data: Value to format.
+
+    Returns:
+        Markdown representation of *data*.
+    """
+    if isinstance(data, dict):
+        return _dict_to_markdown_table(data)
+
+    if isinstance(data, list) and data and all(isinstance(item, dict) for item in data):
+        return _list_of_dicts_to_markdown_table(data)
+
+    return format_as_text(data)
+
+
+def format_as_json(data: Any, indent: int = 2) -> str:
+    """Serialise a value as indented JSON.
+
+    Non-serialisable types are coerced via ``str()`` so that the call
+    never raises for ``data`` that contains dates, sets, etc.
+
+    Args:
+        data: Value to serialise.
+        indent: Number of spaces for indentation (default ``2``).
+
+    Returns:
+        JSON string.
+
+    Raises:
+        TypeError: Only if ``str()`` itself fails on a nested object
+            (extremely unlikely).
+    """
+    return json.dumps(data, indent=indent, ensure_ascii=False, default=str)
+
+
+def aip_result_text(result: dict[str, Any]) -> str:
+    """Extract concatenated text from an AIPResult dictionary.
+
+    Args:
+        result: Dictionary with a ``parts`` key containing a list of
+            part dicts, each having ``type`` and ``content`` keys.
+
+    Returns:
+        Newline-joined text of all parts whose ``type`` is ``"text"``.
+        Empty string when no text parts exist.
+    """
+    return parts_to_text(result.get("parts", []))
+
+
+def parts_to_text(parts: list[dict[str, Any]]) -> str:
+    """Extract concatenated text from a list of AIP parts.
+
+    Args:
+        parts: List of dicts with ``type`` and ``content`` keys.
+
+    Returns:
+        Newline-joined text of all parts whose ``type`` is ``"text"``.
+        Empty string when the list is empty or contains no text parts.
+    """
+    texts = [
+        part.get("content", "")
+        for part in parts
+        if isinstance(part, dict) and part.get("type") == "text"
+    ]
+    return "\n".join(texts)
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _dict_to_markdown_table(data: dict[str, Any]) -> str:
+    """Render a flat dict as a two-column Markdown table."""
+    if not data:
+        return "| Key | Value |\n| --- | --- |"
+
+    rows = [
+        f"| {_escape_pipe(str(key))} | {_escape_pipe(str(value))} |"
+        for key, value in data.items()
+    ]
+    header = "| Key | Value |"
+    separator = "| --- | --- |"
+    return "\n".join([header, separator, *rows])
+
+
+def _list_of_dicts_to_markdown_table(data: list[dict[str, Any]]) -> str:
+    """Render a list of dicts as a multi-column Markdown table."""
+    all_keys: list[str] = []
+    seen: set[str] = set()
+    for item in data:
+        for key in item:
+            if key not in seen:
+                all_keys.append(key)
+                seen.add(key)
+
+    header = "| " + " | ".join(_escape_pipe(str(k)) for k in all_keys) + " |"
+    separator = "| " + " | ".join("---" for _ in all_keys) + " |"
+
+    rows: list[str] = []
+    for item in data:
+        cells = [_escape_pipe(str(item.get(k, ""))) for k in all_keys]
+        rows.append("| " + " | ".join(cells) + " |")
+
+    return "\n".join([header, separator, *rows])
+
+
+def _escape_pipe(text: str) -> str:
+    """Escape pipe characters so they don't break Markdown tables."""
+    return text.replace("|", "\\|")
