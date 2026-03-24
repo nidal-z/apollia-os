@@ -541,12 +541,14 @@ mod tests {
                     description: "Step 1".into(),
                     tool_hint: Some("file_io".into()),
                     depends_on: vec![],
+                    model_hint: None,
                 },
                 PlanStep {
                     step_id: "s2".into(),
                     description: "Step 2".into(),
                     tool_hint: None,
                     depends_on: vec!["s1".into()],
+                    model_hint: None,
                 },
             ],
         }

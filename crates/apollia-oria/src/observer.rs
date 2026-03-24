@@ -64,6 +64,11 @@ pub struct ContextBundle {
     pub available_tools: Vec<String>,
     /// System prompt from the agent manifest, forwarded to the Reasoner for plan generation.
     pub manifest_system_prompt: Option<String>,
+    /// Names of LLM backends available for multi-model routing per step.
+    ///
+    /// Injected into the Reasoner prompt via `{llm_backend_names}` so the LLM
+    /// can populate `PlanStep.model_hint` with valid backend names.
+    pub llm_backend_names: Vec<String>,
 }
 
 impl Default for ContextBundle {
@@ -74,6 +79,7 @@ impl Default for ContextBundle {
             execution_mode: ExecutionMode::Direct,
             available_tools: vec![],
             manifest_system_prompt: None,
+            llm_backend_names: vec![],
         }
     }
 }
@@ -158,6 +164,7 @@ pub fn observe(
                         execution_mode,
                         available_tools,
                         manifest_system_prompt,
+                        llm_backend_names: vec![],
                     });
                 }
             };
@@ -197,6 +204,7 @@ pub fn observe(
         execution_mode,
         available_tools,
         manifest_system_prompt,
+        llm_backend_names: vec![],
     })
 }
 

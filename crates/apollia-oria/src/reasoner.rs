@@ -76,20 +76,23 @@ const MAX_ATTEMPTS: u32 = 3;
 
 /// Prompt système pour la planification initiale.
 ///
-/// Les placeholders `{max_steps}`, `{tool_names}`, `{memory_summary}` et
-/// `{recent_history}` sont interpolés par `build_system_prompt()` via `str::replace`.
+/// Les placeholders `{max_steps}`, `{tool_names}`, `{llm_backend_names}`,
+/// `{memory_summary}` et `{recent_history}` sont interpolés par
+/// `build_system_prompt()` via `str::replace`.
 const PLANNER_SYSTEM_PROMPT: &str = r#"Tu es un planificateur d'exécution pour un agent IA autonome.
 À partir du contexte et du system_prompt de l'agent, génère un plan d'exécution structuré.
 
 CONTRAINTES STRICTES :
 - Maximum {max_steps} étapes
 - Outils disponibles : {tool_names}
+- Modèles LLM disponibles : {llm_backend_names}
 - Chaque step_id doit être unique (s1, s2, s3...)
 - Les depends_on ne peuvent référencer que des step_ids existants dans ce plan
 - Pas de dépendances circulaires
+- Optionnellement, spécifie model_hint pour choisir un backend LLM par step. Omets le champ pour utiliser le backend par défaut.
 
 RÉPONDRE UNIQUEMENT EN JSON VALIDE, sans texte avant ou après :
-{"steps": [{"step_id": "s1", "description": "Description claire de l'action", "tool_hint": "nom_outil_ou_llm", "depends_on": []}]}
+{"steps": [{"step_id": "s1", "description": "Description claire de l'action", "tool_hint": "nom_outil_ou_llm", "model_hint": "fast-7b", "depends_on": []}]}
 
 Contexte mémoire disponible : {memory_summary}
 Historique récent : {recent_history}"#;
@@ -311,9 +314,16 @@ impl Reasoner {
             },
         );
 
+        let llm_backend_names = if ctx.llm_backend_names.is_empty() {
+            "Aucun modèle LLM disponible.".to_string()
+        } else {
+            ctx.llm_backend_names.join(", ")
+        };
+
         PLANNER_SYSTEM_PROMPT
             .replace("{max_steps}", &self.max_steps.to_string())
             .replace("{tool_names}", &tool_names)
+            .replace("{llm_backend_names}", &llm_backend_names)
             .replace("{memory_summary}", &memory_summary)
             .replace("{recent_history}", "")
     }
@@ -654,5 +664,67 @@ mod tests {
         assert_eq!(plan.steps.len(), 3);
         assert_eq!(plan.task_id, "task-abc");
         assert!(!plan.plan_id.is_empty());
+    }
+
+    // ─── STORY-226 — AC-1 : Désérialisation sans model_hint ───
+
+    /// GIVEN un JSON de PlanStep sans champ model_hint
+    /// WHEN on désérialise
+    /// THEN model_hint == None (serde default)
+    #[test]
+    fn test_deserialize_plan_without_model_hint() {
+        // GIVEN
+        let json = r#"{"steps":[
+            {"step_id":"s1","description":"Step 1","tool_hint":"file_io","depends_on":[]}
+        ]}"#;
+
+        // WHEN
+        let parsed: serde_json::Value = serde_json::from_str(json).expect("valid JSON");
+        let steps: Vec<PlanStep> =
+            serde_json::from_value(parsed["steps"].clone()).expect("valid steps");
+
+        // THEN
+        assert_eq!(steps.len(), 1);
+        assert_eq!(steps[0].model_hint, None);
+    }
+
+    // ─── STORY-226 — AC-2 : Désérialisation avec model_hint ───
+
+    /// GIVEN un JSON de PlanStep avec "model_hint": "fast-7b"
+    /// WHEN on désérialise
+    /// THEN model_hint == Some("fast-7b")
+    #[test]
+    fn test_deserialize_plan_with_model_hint() {
+        // GIVEN
+        let json = r#"{"steps":[
+            {"step_id":"s1","description":"Step 1","tool_hint":"llm","model_hint":"fast-7b","depends_on":[]}
+        ]}"#;
+
+        // WHEN
+        let parsed: serde_json::Value = serde_json::from_str(json).expect("valid JSON");
+        let steps: Vec<PlanStep> =
+            serde_json::from_value(parsed["steps"].clone()).expect("valid steps");
+
+        // THEN
+        assert_eq!(steps.len(), 1);
+        assert_eq!(steps[0].model_hint, Some("fast-7b".to_string()));
+    }
+
+    // ─── STORY-226 — AC-3 : Prompt contient {llm_backend_names} ───
+
+    /// GIVEN la constante PLANNER_SYSTEM_PROMPT
+    /// WHEN on inspecte son contenu
+    /// THEN il contient "{llm_backend_names}" et une instruction sur model_hint
+    #[test]
+    fn test_prompt_contains_llm_backend_names_placeholder() {
+        // GIVEN / WHEN / THEN
+        assert!(
+            PLANNER_SYSTEM_PROMPT.contains("{llm_backend_names}"),
+            "PLANNER_SYSTEM_PROMPT must contain {{llm_backend_names}} placeholder"
+        );
+        assert!(
+            PLANNER_SYSTEM_PROMPT.contains("model_hint"),
+            "PLANNER_SYSTEM_PROMPT must mention model_hint"
+        );
     }
 }

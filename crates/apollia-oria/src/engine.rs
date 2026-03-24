@@ -340,6 +340,7 @@ impl ORIAEngine {
             execution_mode: ExecutionMode::Orchestrated,
             available_tools,
             manifest_system_prompt: manifest.system_prompt.clone(),
+            llm_backend_names: vec![],
         };
 
         // ── AC-3 : get reasoner or fail ───────────────────────────────────

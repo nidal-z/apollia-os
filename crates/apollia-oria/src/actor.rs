@@ -1053,6 +1053,7 @@ fn build_replan_context(plan: &ExecutionPlan) -> ContextBundle {
         execution_mode: ExecutionMode::Orchestrated,
         available_tools: vec![],
         manifest_system_prompt: None,
+        llm_backend_names: vec![],
     }
 }
 
@@ -1177,6 +1178,7 @@ mod tests {
                     description: format!("Step {id}"),
                     tool_hint: Some("mock_tool".into()),
                     depends_on: deps.iter().map(|s| s.to_string()).collect(),
+                    model_hint: None,
                 })
                 .collect(),
         }
@@ -1500,6 +1502,7 @@ mod tests {
                 description: format!("Step {step_id} using {tool_name}"),
                 tool_hint: Some(tool_name.into()),
                 depends_on: vec![],
+                model_hint: None,
             }],
         }
     }
@@ -1703,12 +1706,14 @@ mod tests {
                     description: "Lire fichier".into(),
                     tool_hint: Some("file_io".into()),
                     depends_on: vec![],
+                    model_hint: None,
                 },
                 PlanStep {
                     step_id: "s2".into(),
                     description: "Envoyer email".into(),
                     tool_hint: Some("smtp".into()),
                     depends_on: vec!["s1".into()],
+                    model_hint: None,
                 },
             ],
         };

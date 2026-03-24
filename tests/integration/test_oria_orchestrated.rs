@@ -206,6 +206,7 @@ fn make_plan(steps: Vec<(&str, &[&str])>) -> ExecutionPlan {
                 description: format!("Step {id}"),
                 tool_hint: Some("mock_tool".to_string()),
                 depends_on: deps.iter().map(|s| s.to_string()).collect(),
+                model_hint: None,
             })
             .collect(),
     }

@@ -38,4 +38,11 @@ pub struct PlanStep {
     /// puisse démarrer. Validé par `parse_and_validate()`.
     #[serde(default)]
     pub depends_on: Vec<String>,
+    /// Hint optionnel pour router ce step vers un backend LLM spécifique.
+    ///
+    /// Si `None`, le backend par défaut du `LlmRouter` est utilisé.
+    /// La résolution effective du hint vers un backend concret est faite
+    /// par l'`ActorLoop` (STORY-227).
+    #[serde(default)]
+    pub model_hint: Option<String>,
 }

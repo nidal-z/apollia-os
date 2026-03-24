@@ -169,12 +169,14 @@ async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
                 description: "Lire le fichier".into(),
                 tool_hint: Some("file_io".into()),
                 depends_on: vec![],
+                model_hint: None,
             },
             PlanStep {
                 step_id: "s2".into(),
                 description: "Envoyer l'email".into(),
                 tool_hint: Some("smtp".into()),
                 depends_on: vec!["s1".into()],
+                model_hint: None,
             },
         ],
     };
@@ -279,18 +281,21 @@ async fn test_ac4_orchestrated_tool_reject_stops_plan() {
                 description: "Lire le fichier".into(),
                 tool_hint: Some("file_io".into()),
                 depends_on: vec![],
+                model_hint: None,
             },
             PlanStep {
                 step_id: "s2".into(),
                 description: "Envoyer l'email".into(),
                 tool_hint: Some("smtp".into()),
                 depends_on: vec!["s1".into()],
+                model_hint: None,
             },
             PlanStep {
                 step_id: "s3".into(),
                 description: "Archiver le résultat".into(),
                 tool_hint: Some("file_io".into()),
                 depends_on: vec!["s2".into()],
+                model_hint: None,
             },
         ],
     };
