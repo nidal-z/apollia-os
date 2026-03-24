@@ -174,7 +174,8 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     ///
     /// `Some` when `user_memory.db` opened successfully on startup.
     /// `None` when the open failed (warning logged, user memory disabled).
-    pub user_memory: Option<std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
+    pub user_memory:
+        Option<std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
 }
 
 /// Supervisor errors.

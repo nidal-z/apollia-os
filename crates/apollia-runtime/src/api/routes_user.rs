@@ -243,9 +243,7 @@ fn upsert_map(
 }
 
 /// Parses a category string into a [`UserMemoryCategory`].
-fn parse_category(
-    s: &str,
-) -> Result<UserMemoryCategory, (StatusCode, Json<ErrorResponse>)> {
+fn parse_category(s: &str) -> Result<UserMemoryCategory, (StatusCode, Json<ErrorResponse>)> {
     match s {
         "preferences" => Ok(UserMemoryCategory::Preferences),
         "habits" => Ok(UserMemoryCategory::Habits),
@@ -350,11 +348,12 @@ mod tests {
     }
 
     fn temp_repo() -> Arc<std::sync::Mutex<UserMemoryRepository>> {
-        let dir =
-            std::env::temp_dir().join(format!("apollia_user_api_{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("apollia_user_api_{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("user_memory.db");
-        Arc::new(std::sync::Mutex::new(UserMemoryRepository::new(&path).unwrap()))
+        Arc::new(std::sync::Mutex::new(
+            UserMemoryRepository::new(&path).unwrap(),
+        ))
     }
 
     fn build_test_router(state: AppState<MockBackend>) -> axum::Router {
@@ -402,9 +401,7 @@ mod tests {
 
         // THEN
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), 4096)
-            .await
-            .unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let profile: UserProfile = serde_json::from_slice(&body).unwrap();
         assert_eq!(
             profile.preferences.get("language").map(String::as_str),
@@ -447,9 +444,7 @@ mod tests {
             .unwrap();
         let resp = router.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), 4096)
-            .await
-            .unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let profile: UserProfile = serde_json::from_slice(&body).unwrap();
         assert_eq!(
             profile.preferences.get("language").map(String::as_str),
@@ -491,9 +486,7 @@ mod tests {
 
         // THEN
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), 4096)
-            .await
-            .unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let mem_resp: UserMemoryResponse = serde_json::from_slice(&body).unwrap();
         assert_eq!(mem_resp.entries.len(), 1);
         assert_eq!(mem_resp.entries[0].key, "language");
@@ -534,9 +527,7 @@ mod tests {
             .body(Body::empty())
             .unwrap();
         let resp = router.oneshot(req).await.unwrap();
-        let body = axum::body::to_bytes(resp.into_body(), 4096)
-            .await
-            .unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let mem_resp: UserMemoryResponse = serde_json::from_slice(&body).unwrap();
         assert!(mem_resp.entries.is_empty());
     }

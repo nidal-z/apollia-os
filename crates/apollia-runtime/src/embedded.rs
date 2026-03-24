@@ -84,7 +84,8 @@ pub struct RuntimeHandle {
     ///
     /// `Some` when `user_memory.db` opened successfully on startup.
     /// `None` when the open failed (warning logged, user memory disabled).
-    pub user_memory: Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
+    pub user_memory:
+        Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
     /// Port TCP de l'APIServer.
     pub api_port: u16,
 }

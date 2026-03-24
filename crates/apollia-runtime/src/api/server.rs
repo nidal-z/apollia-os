@@ -310,11 +310,11 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     use super::routes_tasks::{cancel_task, get_task, list_tasks, resume_task, submit_task};
     use super::routes_timeline::get_task_timeline;
     use super::routes_tools::{describe_tool, list_tools};
-    use super::routes_user::{forget_memory, get_memory, get_profile, update_profile};
     use super::routes_triggers::{
         create_trigger, delete_trigger, disable_trigger, enable_trigger, fire_trigger,
         get_trigger_by_id, get_trigger_logs, list_triggers, reload_triggers, update_trigger,
     };
+    use super::routes_user::{forget_memory, get_memory, get_profile, update_profile};
     use super::routes_webhooks::handle_webhook;
 
     Router::new()
