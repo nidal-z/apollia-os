@@ -20,6 +20,7 @@ use apollia_llm::types::{
     ChatMessage as LlmChatMessage, CompletionRequest, StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };
 use apollia_llm::{LlmRouter, ObservabilityConfig, ToolInvoker};
+use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_tools::ToolRegistryHandle;
 
@@ -196,6 +197,8 @@ pub struct BuiltInChatAgent {
     tool_invoker: Arc<dyn ToolInvoker>,
     /// Event bus for emitting chat lifecycle events.
     event_bus: EventBusSender,
+    /// Optional user memory repository for injecting user context into the system prompt.
+    user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
 }
 
 impl BuiltInChatAgent {
@@ -205,13 +208,45 @@ impl BuiltInChatAgent {
         tool_registry: ToolRegistryHandle,
         tool_invoker: Arc<dyn ToolInvoker>,
         event_bus: EventBusSender,
+        user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     ) -> Self {
         Self {
             llm_router,
             tool_registry,
             tool_invoker,
             event_bus,
+            user_memory,
         }
+    }
+
+    /// Build the effective system prompt with optional user memory injection.
+    ///
+    /// When user memory is available and non-empty, appends a `User Context`
+    /// section to the base prompt. The block is purely informational — the LLM
+    /// decides what to do with it.
+    fn build_system_prompt(&self, base_prompt: &str) -> String {
+        let mut prompt = base_prompt.to_string();
+
+        if let Some(ref repo_mutex) = self.user_memory {
+            match repo_mutex.lock() {
+                Ok(repo) => match repo.recall_all_for_injection(50) {
+                    Ok(block) if !block.is_empty() => {
+                        prompt
+                            .push_str("\n\n## User Context (for reference, use as you see fit)\n");
+                        prompt.push_str(&block);
+                    }
+                    Ok(_) => {} // empty — nothing to inject
+                    Err(e) => {
+                        warn!(error = %e, "Failed to read user memory for injection, skipping");
+                    }
+                },
+                Err(e) => {
+                    warn!(error = %e, "User memory mutex poisoned, skipping injection");
+                }
+            }
+        }
+
+        prompt
     }
 
     /// Execute a complete exchange: user message → LLM stream → tool calls → response.
@@ -238,11 +273,12 @@ impl BuiltInChatAgent {
         pending_approvals: &PendingChatApprovals,
         budget: &StepBudget,
     ) -> Result<ChatAgentResponse, ChatError> {
-        let effective_prompt = if system_prompt.is_empty() {
+        let base_prompt = if system_prompt.is_empty() {
             DEFAULT_SYSTEM_PROMPT
         } else {
             system_prompt
         };
+        let effective_prompt = self.build_system_prompt(base_prompt);
 
         let tool_specs = build_tool_specs(available_tools, &self.tool_registry).await;
         info!(
@@ -252,7 +288,7 @@ impl BuiltInChatAgent {
             tool_names = ?tool_specs.iter().map(|s| &s.name).collect::<Vec<_>>(),
             "Chat ReAct loop: tool specs resolved"
         );
-        let mut llm_messages = build_llm_messages(effective_prompt, history, user_message);
+        let mut llm_messages = build_llm_messages(&effective_prompt, history, user_message);
         let mut all_tool_calls: Vec<ToolCallRecord> = Vec::new();
         let mut newly_authorized: Vec<String> = Vec::new();
         let total_usage = TokenUsage {
@@ -874,7 +910,7 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -920,7 +956,7 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("hello\n"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -970,7 +1006,7 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("file content"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1027,7 +1063,7 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("unused"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1086,7 +1122,7 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1133,7 +1169,7 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
 
         let budget = make_budget(1);
         let mut authorized = HashSet::new();
@@ -1227,7 +1263,7 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("output"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None);
 
         let budget = make_budget(10);
         let mut authorized = HashSet::new();
@@ -1325,7 +1361,7 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None);
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1371,7 +1407,7 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1452,7 +1488,7 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None);
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1560,7 +1596,7 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("file content"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx);
+        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None);
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1600,5 +1636,91 @@ mod tests {
         assert_eq!(tokens, vec!["Je ", "vais ", "lire", "Fichier ", "lu."]);
 
         tool_registry.shutdown().await;
+    }
+
+    // ── User memory injection tests ─────────────────────────────────────
+
+    fn make_user_memory_repo(
+        entries: &[(&str, &str, &str)],
+    ) -> Arc<std::sync::Mutex<UserMemoryRepository>> {
+        use apollia_memory::user_memory::{UserMemoryCategory, UserMemorySource};
+
+        let dir = std::env::temp_dir().join(format!("apollia_test_um_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let db_path = dir.join("user_memory.db");
+        let repo = UserMemoryRepository::new(&db_path).expect("open user memory db");
+
+        for (cat_str, key, value) in entries {
+            let category = match *cat_str {
+                "preferences" => UserMemoryCategory::Preferences,
+                "habits" => UserMemoryCategory::Habits,
+                "context" => UserMemoryCategory::Context,
+                _ => panic!("unknown category: {cat_str}"),
+            };
+            repo.store(category, key, value, UserMemorySource::UserExplicit)
+                .expect("store entry");
+        }
+
+        Arc::new(std::sync::Mutex::new(repo))
+    }
+
+    #[tokio::test]
+    async fn test_build_system_prompt_with_non_empty_user_memory() {
+        // GIVEN a BuiltInChatAgent with 3 user memory entries
+        let repo = make_user_memory_repo(&[
+            ("preferences", "langue", "francais"),
+            ("preferences", "format", "markdown"),
+            ("context", "projet", "apollia"),
+        ]);
+        let router = make_router(Arc::new(MockStopModel::with_content("ok")));
+        let tool_registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        let event_bus = make_event_bus();
+        let agent = BuiltInChatAgent::new(router, tool_registry, invoker, event_bus, Some(repo));
+
+        // WHEN building the system prompt
+        let prompt = agent.build_system_prompt("Base prompt.");
+
+        // THEN the prompt contains the user context block
+        assert!(prompt.starts_with("Base prompt."));
+        assert!(prompt.contains("## User Context (for reference, use as you see fit)"));
+        assert!(prompt.contains("langue: francais"));
+        assert!(prompt.contains("format: markdown"));
+        assert!(prompt.contains("projet: apollia"));
+    }
+
+    #[tokio::test]
+    async fn test_build_system_prompt_with_empty_user_memory() {
+        // GIVEN a BuiltInChatAgent with an empty user memory repository
+        let repo = make_user_memory_repo(&[]);
+        let router = make_router(Arc::new(MockStopModel::with_content("ok")));
+        let tool_registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        let event_bus = make_event_bus();
+        let agent = BuiltInChatAgent::new(router, tool_registry, invoker, event_bus, Some(repo));
+
+        // WHEN building the system prompt
+        let prompt = agent.build_system_prompt("Base prompt.");
+
+        // THEN the prompt does NOT contain the user context block
+        assert_eq!(prompt, "Base prompt.");
+        assert!(!prompt.contains("User Context"));
+    }
+
+    #[tokio::test]
+    async fn test_build_system_prompt_without_repository() {
+        // GIVEN a BuiltInChatAgent with no user memory repository (None)
+        let router = make_router(Arc::new(MockStopModel::with_content("ok")));
+        let tool_registry = ToolRegistryHandle::start();
+        let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
+        let event_bus = make_event_bus();
+        let agent = BuiltInChatAgent::new(router, tool_registry, invoker, event_bus, None);
+
+        // WHEN building the system prompt
+        let prompt = agent.build_system_prompt("Base prompt.");
+
+        // THEN the prompt does NOT contain the user context block
+        assert_eq!(prompt, "Base prompt.");
+        assert!(!prompt.contains("User Context"));
     }
 }

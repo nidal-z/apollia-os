@@ -620,33 +620,8 @@ impl Supervisor {
         let mailbox_handle = crate::mailbox::AgentMailboxHandle::spawn(event_sender.clone());
         info!("Supervisor: AgentMailbox ready");
 
-        // Phase 13: ChatSessionManager — spawned before APIServer to inject handle into AppState.
-        info!("Supervisor: starting ChatSessionManager");
-        let chat_db_path = self.config.data_dir.join("chat.db");
-        let chat_tool_invoker: std::sync::Arc<dyn apollia_llm::ToolInvoker> =
-            std::sync::Arc::new(crate::chat::NativeChatToolInvoker::new());
-        let chat_manager: Option<crate::chat::ChatSessionManagerHandle> =
-            match crate::chat::ChatSessionManagerHandle::spawn(
-                &chat_db_path,
-                llm_router.clone(),
-                tool_registry_handle.clone(),
-                chat_tool_invoker,
-                agent_loader.clone(),
-                agent_runner.clone(),
-                event_sender.clone(),
-                apollia_core::StepBudgetConfig::default(),
-            ) {
-                Ok(handle) => {
-                    info!("Supervisor: ChatSessionManager ready");
-                    Some(handle)
-                }
-                Err(e) => {
-                    warn!(error = %e, "ChatSessionManager failed to start — chat disabled");
-                    None
-                }
-            };
-
-        // Phase 14: UserMemoryRepository — global user memory (preferences, habits, context).
+        // Phase 13: UserMemoryRepository — global user memory (preferences, habits, context).
+        // Created before ChatSessionManager so we can inject it for system prompt enrichment.
         let user_memory: Option<
             std::sync::Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>,
         > = {
@@ -662,6 +637,33 @@ impl Supervisor {
                 }
             }
         };
+
+        // Phase 14: ChatSessionManager — spawned before APIServer to inject handle into AppState.
+        info!("Supervisor: starting ChatSessionManager");
+        let chat_db_path = self.config.data_dir.join("chat.db");
+        let chat_tool_invoker: std::sync::Arc<dyn apollia_llm::ToolInvoker> =
+            std::sync::Arc::new(crate::chat::NativeChatToolInvoker::new());
+        let chat_manager: Option<crate::chat::ChatSessionManagerHandle> =
+            match crate::chat::ChatSessionManagerHandle::spawn(
+                &chat_db_path,
+                llm_router.clone(),
+                tool_registry_handle.clone(),
+                chat_tool_invoker,
+                agent_loader.clone(),
+                agent_runner.clone(),
+                event_sender.clone(),
+                apollia_core::StepBudgetConfig::default(),
+                user_memory.clone(),
+            ) {
+                Ok(handle) => {
+                    info!("Supervisor: ChatSessionManager ready");
+                    Some(handle)
+                }
+                Err(e) => {
+                    warn!(error = %e, "ChatSessionManager failed to start — chat disabled");
+                    None
+                }
+            };
 
         // Clone handles before moving into AppState — needed for auto-load.
         let agent_loader_for_autoload = agent_loader.clone();

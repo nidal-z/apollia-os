@@ -17,6 +17,7 @@ use tracing::{error, info, warn};
 
 use apollia_core::{RuntimeEvent, StepBudgetConfig};
 use apollia_llm::{LlmRouter, ToolInvoker};
+use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_tools::ToolRegistryHandle;
 
@@ -146,6 +147,8 @@ struct ChatSessionManager {
     runtime_budget: StepBudgetConfig,
     /// Pending tool approval channels.
     pending_chat_approvals: PendingChatApprovals,
+    /// Optional user memory repository for system prompt enrichment.
+    user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     /// Sender clone for spawned tasks to send commands back to the actor.
     tx: mpsc::Sender<ChatCommand>,
 }
@@ -433,6 +436,7 @@ impl ChatSessionManager {
                 self.tool_registry.clone(),
                 Arc::clone(&self.tool_invoker),
                 self.event_bus.clone(),
+                self.user_memory.clone(),
             );
 
             let history = session.history.clone();
@@ -912,6 +916,7 @@ impl ChatSessionManagerHandle {
         agent_runner: Option<Arc<dyn ChatAgentRunner>>,
         event_bus: EventBusSender,
         runtime_budget: StepBudgetConfig,
+        user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     ) -> Result<Self, ChatError> {
         let repository = ChatSessionRepository::open(db_path)?;
         let pending_chat_approvals = PendingChatApprovals::new();
@@ -929,6 +934,7 @@ impl ChatSessionManagerHandle {
             event_bus,
             runtime_budget,
             pending_chat_approvals,
+            user_memory,
             tx: tx.clone(),
         };
 
@@ -1184,6 +1190,7 @@ mod tests {
             None, // no agent runner in basic tests
             event_tx,
             StepBudgetConfig::default(),
+            None, // no user memory in basic tests
         )
         .expect("spawn manager")
     }
@@ -1316,6 +1323,7 @@ mod tests {
             None,
             event_tx,
             StepBudgetConfig::default(),
+            None,
         )
         .expect("spawn");
 
@@ -1410,6 +1418,7 @@ mod tests {
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: pending,
+            user_memory: None,
             tx,
         };
 

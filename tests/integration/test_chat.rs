@@ -247,6 +247,7 @@ fn build_chat_app_state(
         None, // no ChatAgentRunner for libre-only tests
         event_sender.clone(),
         budget_config,
+        None, // no user memory in tests
     )
     .expect("ChatSessionManager spawn");
 

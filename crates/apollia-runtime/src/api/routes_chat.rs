@@ -568,6 +568,7 @@ mod tests {
             None,
             event_tx.clone(),
             StepBudgetConfig::default(),
+            None,
         )
         .expect("spawn chat manager");
 
