@@ -91,6 +91,12 @@ fn show_main_window(app: &AppHandle) {
 /// the full graceful shutdown sequence (drain tasks, stop agents) runs before
 /// process exit.
 fn initiate_quit(app: &AppHandle) {
+    // Release global hotkeys before the process exits so the OS reclaims them
+    // immediately and other applications can register the same shortcuts.
+    if let Err(e) = crate::stt::hotkey::unregister_all(app) {
+        tracing::warn!(error = %e, "failed to unregister hotkeys during shutdown");
+    }
+
     let app_handle = app.clone();
     // Fire-and-forget: send POST /api/v1/shutdown then exit
     tauri::async_runtime::spawn(async move {
