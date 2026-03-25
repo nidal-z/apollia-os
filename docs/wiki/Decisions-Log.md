@@ -767,5 +767,27 @@
 
 ---
 
+## ADR-041 — Moteur STT embarqué : whisper-rs V1, trait SttBackend, roadmap candle-whisper/Voxtral
+
+**Date :** 2026-03-25
+**Statut :** Accepté
+
+**Contexte :** Apollia OS doit transcrire la parole en texte localement (hotkey globale → dictée vocale). Le moteur STT doit respecter les mêmes contraintes que le LLM (ADR-020) : local-first, zéro dépendance opérationnelle, fail fast. STT et LLM sont des pipelines distincts → crate dédiée (Principe #5).
+
+**Décision :** Nouvelle crate `apollia-stt` avec trait `SttBackend` object-safe (Send + Sync, API synchrone, `spawn_blocking` côté appelant). Implémentation V1 via `whisper-rs` 0.16 (whisper.cpp FFI, compilation statique CMake). Feature flags `stt-whisper-cpp` (défaut) / `stt-metal` / `stt-cuda` identiques au pattern ADR-020. Modèle GGML (~900 Mo) comme fichier externe dans `~/.apollia/models/`.
+
+**Alternatives considérées :** candle-whisper pure Rust (rejetée V1 — benchmarks Metal inférieurs, RTF ~0.50x vs ~0.30x whisper.cpp, prévu V2 Q3-Q4 2026), Service STT cloud Whisper API/Google/Deepgram (rejetée — viole Principes #1 et #2), Voxtral Mistral (rejetée V1 — pas encore disponible dans l'écosystème Rust, prévu V3 2027).
+
+**Conséquences :**
+- Pipeline STT 100% local, < 2s sur M1 Metal, trait abstrait pour migration V2/V3 sans refactoring
+- CMake requis au build-time (documenté INSTALL.md), ~5-15 Mo supplémentaires dans le binaire
+- Conflit ggml potentiel futur si llama.cpp intégré directement (mitigé par le trait abstrait)
+
+**Principes impactés :** Principe #1 — Local-first (renforcé), Principe #2 — Zéro dépendance (respecté), Principe #4 — Fail fast (respecté), Principe #5 — Un acteur, une responsabilité (crate dédiée)
+
+[Détail → docs/adr/ADR-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md](adr/ADR-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
