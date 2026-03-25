@@ -834,6 +834,14 @@ export interface TriggerResult {
 
 // ─── STT (Speech-to-Text) ────────────────────────────────────────────────────
 
+/** Description of an available STT model file on disk. */
+export interface SttModelInfo {
+  name: string;
+  path: string;
+  size_mb: number;
+  language: string | null;
+}
+
 /** Current status of the STT engine reported by `get_stt_status`. */
 export interface SttStatus {
   enabled: boolean;

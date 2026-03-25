@@ -14,7 +14,8 @@
   import { addToast } from "$lib/components/ui/toast/store";
   import UserMemories from "./settings/UserMemories.svelte";
 
-  import type { ApollaConfigView, SystemInfo } from "$lib/types";
+  import type { ApollaConfigView, SystemInfo, SttModelInfo } from "$lib/types";
+  import { refreshSttStatus, sttStatus } from "$lib/stores/stt";
 
   // ─── Types ──────────────────────────────────────────
 
@@ -32,7 +33,7 @@
     updated_at: string;
   }
 
-  type SettingsTab = "preferences" | "profile" | "memories" | "configuration" | "system";
+  type SettingsTab = "preferences" | "profile" | "memories" | "stt" | "configuration" | "system";
   type ProfileCategory = "preferences" | "habits" | "context";
 
   // ─── State ──────────────────────────────────────────
@@ -45,6 +46,11 @@
   let openingEditor = $state(false);
   let resettingOnboarding = $state(false);
   let showResetConfirm = $state(false);
+
+  // STT state
+  let sttModels = $state<SttModelInfo[]>([]);
+  let sttLoading = $state(false);
+  let sttError = $state<string | null>(null);
 
   // Profile state
   let profileCategory = $state<ProfileCategory>("preferences");
@@ -65,6 +71,7 @@
     { key: "preferences", label: $t("settings.preferences") },
     { key: "profile", label: $t("settings.profile") },
     { key: "memories", label: $t("settings.memories") },
+    { key: "stt", label: $t("settings.stt") },
     { key: "configuration", label: $t("settings.runtime_config") },
     { key: "system", label: $t("settings.system_info") },
   ]);
@@ -129,6 +136,22 @@
       newEntryValue = "";
     } catch (err: unknown) {
       profileError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  async function loadStt() {
+    sttLoading = true;
+    sttError = null;
+    try {
+      const [, models] = await Promise.all([
+        refreshSttStatus(),
+        invoke<SttModelInfo[]>("list_stt_models"),
+      ]);
+      sttModels = models;
+    } catch (err: unknown) {
+      sttError = err instanceof Error ? err.message : String(err);
+    } finally {
+      sttLoading = false;
     }
   }
 
@@ -284,6 +307,8 @@
       activeTab = key as SettingsTab;
       if (key === "profile") {
         loadProfile();
+      } else if (key === "stt") {
+        loadStt();
       }
     }}
     testidPrefix="settings"
@@ -531,6 +556,127 @@
     {#if activeTab === "memories"}
       <section data-testid="memories-section">
         <UserMemories mode={$uiMode} />
+      </section>
+    {/if}
+
+    <!-- Tab: Speech-to-Text -->
+    {#if activeTab === "stt"}
+      <section class="space-y-5" data-testid="stt-section">
+        <p class="text-sm text-muted-foreground">{$t('settings.stt_subtitle')}</p>
+
+        {#if sttLoading}
+          <div class="space-y-4">
+            <Skeleton width="100%" height="8rem" />
+            <Skeleton width="100%" height="8rem" />
+          </div>
+        {:else if sttError}
+          <div class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+            {$t('settings.stt_error')}: {sttError}
+          </div>
+        {:else}
+          {@const status = $sttStatus}
+
+          <!-- Engine status -->
+          <div class="glass-card glass-border rounded-lg p-4" data-testid="stt-engine-status">
+            <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.stt_engine_status')}</h3>
+            <div class="space-y-2">
+              <div class="grid grid-cols-2 gap-2">
+                <span class="text-sm text-muted-foreground">{$t('settings.stt_engine_status')}</span>
+                <span class="text-sm font-mono text-foreground">
+                  {#if status?.enabled}
+                    <span class="inline-flex items-center gap-1.5">
+                      <span class="h-2 w-2 rounded-full bg-green-500"></span>
+                      {$t('settings.stt_enabled')}
+                    </span>
+                  {:else}
+                    <span class="inline-flex items-center gap-1.5">
+                      <span class="h-2 w-2 rounded-full bg-muted-foreground"></span>
+                      {$t('settings.stt_disabled')}
+                    </span>
+                  {/if}
+                </span>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <span class="text-sm text-muted-foreground">{$t('settings.stt_model_name')}</span>
+                <span class="text-sm font-mono text-foreground">
+                  {#if status?.model_loaded}
+                    <span class="inline-flex items-center gap-1.5">
+                      <span class="h-2 w-2 rounded-full bg-green-500"></span>
+                      {status.model_name}
+                    </span>
+                  {:else}
+                    <span class="text-muted-foreground">{$t('settings.stt_model_not_loaded')}</span>
+                  {/if}
+                </span>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <span class="text-sm text-muted-foreground">{$t('settings.stt_backend')}</span>
+                <span class="text-sm font-mono text-foreground">{status?.backend_name ?? "—"}</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <span class="text-sm text-muted-foreground">{$t('settings.stt_model_path')}</span>
+                <span class="text-sm font-mono text-foreground break-all">{status?.model_path ?? "—"}</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <span class="text-sm text-muted-foreground">{$t('settings.stt_acceleration')}</span>
+                <span class="text-sm font-mono text-foreground">
+                  {#if status?.metal_enabled}
+                    <span class="inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{$t('settings.stt_metal')}</span>
+                  {:else if status?.cuda_enabled}
+                    <span class="inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{$t('settings.stt_cuda')}</span>
+                  {:else}
+                    {$t('settings.stt_none')}
+                  {/if}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Configuration (from apollia.toml) -->
+          {#if configView}
+            {@const sttSection = configView.sections.find(s => s.name === "stt")}
+            {#if sttSection}
+              <div class="glass-card glass-border rounded-lg p-4" data-testid="stt-config">
+                <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.stt_config')}</h3>
+                <div class="space-y-2">
+                  {#each sttSection.entries as entry (entry.key)}
+                    <div class="grid grid-cols-2 gap-2">
+                      <span class="text-sm text-muted-foreground">{entry.key}</span>
+                      <span class="text-sm font-mono text-foreground">{entry.value}</span>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          {/if}
+
+          <!-- Available models -->
+          <div class="glass-card glass-border rounded-lg p-4" data-testid="stt-models">
+            <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.stt_available_models')}</h3>
+            {#if sttModels.length === 0}
+              <p class="text-sm text-muted-foreground">{$t('settings.stt_no_models')}</p>
+            {:else}
+              <div class="space-y-2">
+                {#each sttModels as model (model.name)}
+                  <div class="flex items-center justify-between rounded-md border border-border/50 px-3 py-2" data-testid="stt-model-{model.name}">
+                    <div>
+                      <span class="text-sm font-mono text-foreground">{model.name}</span>
+                      {#if model.language}
+                        <span class="ml-2 inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{model.language}</span>
+                      {/if}
+                    </div>
+                    <span class="text-xs text-muted-foreground">{$t('settings.stt_model_size', { values: { size: model.size_mb.toFixed(0) } })}</span>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+
+          <!-- Hint to edit apollia.toml -->
+          <div class="rounded-md border border-info/20 bg-info/5 px-4 py-3 text-sm text-info-foreground" data-testid="stt-config-hint">
+            {$t('settings.stt_config_hint')}
+          </div>
+        {/if}
       </section>
     {/if}
 
