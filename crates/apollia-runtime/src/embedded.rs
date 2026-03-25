@@ -86,6 +86,11 @@ pub struct RuntimeHandle {
     /// `None` when the open failed (warning logged, user memory disabled).
     pub user_memory:
         Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
+    /// Handle to the SttEngine actor.
+    ///
+    /// `Some` when `stt.enabled = true` and the model loaded successfully.
+    /// `None` when STT is disabled, the model is absent, or loading failed.
+    pub stt_engine: Option<crate::stt::SttEngineHandle>,
     /// Port TCP de l'APIServer.
     pub api_port: u16,
 }
@@ -133,6 +138,11 @@ pub struct EmbeddedConfig {
     /// Chat Agent runner — enables Chat Agent mode in the ChatSessionManager.
     /// When `None`, Agent mode sessions will fail at message time.
     pub chat_agent_runner: Option<Arc<dyn crate::chat::ChatAgentRunner>>,
+    /// Configuration STT optionnelle parsée depuis `[stt]` dans `apollia.toml`.
+    ///
+    /// `None` désactive le moteur STT. `Some(cfg)` avec `cfg.enabled = false`
+    /// produit le même comportement.
+    pub stt_config: Option<apollia_core::SttConfig>,
 }
 
 impl Default for EmbeddedConfig {
@@ -152,6 +162,7 @@ impl Default for EmbeddedConfig {
             config_path: None,
             agent_repository: None,
             chat_agent_runner: None,
+            stt_config: None,
         }
     }
 }
@@ -169,6 +180,14 @@ impl EmbeddedConfig {
         }
         if let Ok(s) = toml::from_str::<LlmSection>(content) {
             self.llm_config = s.llm;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct SttSection {
+            stt: Option<apollia_core::SttConfig>,
+        }
+        if let Ok(s) = toml::from_str::<SttSection>(content) {
+            self.stt_config = s.stt;
         }
 
         // triggers, pipelines, and notifications are now loaded
@@ -254,13 +273,19 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         data_dir: config.data_dir,
         obs_config: config.obs_config,
         agent_repository: config.agent_repository,
+        stt_config: config.stt_config,
     };
 
     let supervisor = Supervisor::new(supervisor_config);
 
     let noop = DynBackend::new(NoopBackend);
     let handles = supervisor
-        .start(noop, config.agent_loader, config.backend_factory, config.chat_agent_runner)
+        .start(
+            noop,
+            config.agent_loader,
+            config.backend_factory,
+            config.chat_agent_runner,
+        )
         .await?;
 
     Ok(RuntimeHandle {
@@ -281,6 +306,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         plan_cache: handles.plan_cache,
         mailbox_handle: handles.mailbox_handle,
         user_memory: handles.user_memory,
+        stt_engine: handles.stt_engine,
         api_port: tcp_port,
     })
 }

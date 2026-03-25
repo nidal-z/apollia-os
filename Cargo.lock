@@ -433,6 +433,7 @@ dependencies = [
  "apollia-notifications",
  "apollia-oria",
  "apollia-pipelines",
+ "apollia-stt",
  "apollia-tools",
  "apollia-triggers",
  "async-trait",

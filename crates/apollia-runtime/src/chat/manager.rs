@@ -190,7 +190,9 @@ impl ChatSessionManager {
                     tools,
                     reply,
                 } => {
-                    let result = self.handle_create_session(mode, agent_name, system_prompt, tools).await;
+                    let result = self
+                        .handle_create_session(mode, agent_name, system_prompt, tools)
+                        .await;
                     let _ = reply.send(result);
                 }
                 ChatCommand::SendMessage {
@@ -321,11 +323,9 @@ impl ChatSessionManager {
         // Validate agent exists in the registry if agent mode
         if mode == ChatMode::Agent {
             if let Some(ref name) = agent_name {
-                let found = self
-                    .registry_handle
-                    .find_by_name(name)
-                    .await
-                    .map_err(|e| ChatError::InternalError(format!("registry lookup failed: {e}")))?;
+                let found = self.registry_handle.find_by_name(name).await.map_err(|e| {
+                    ChatError::InternalError(format!("registry lookup failed: {e}"))
+                })?;
                 if found.is_none() {
                     return Err(ChatError::AgentNotFound(name.clone()));
                 }

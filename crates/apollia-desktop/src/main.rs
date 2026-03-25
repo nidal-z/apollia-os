@@ -123,9 +123,7 @@ fn main() {
 
     // Build the ChatAgentRunner so Chat Agent mode works in the ChatSessionManager.
     // Uses its own AgentRepository instance (SQLite WAL supports concurrent readers).
-    let chat_agent_runner: Option<
-        Arc<dyn apollia_runtime::chat::ChatAgentRunner>,
-    > = {
+    let chat_agent_runner: Option<Arc<dyn apollia_runtime::chat::ChatAgentRunner>> = {
         let db_path = apollia_data_dir.join("agents.db");
         match apollia_tools::AgentRepository::open(&db_path) {
             Ok(repo) => Some(Arc::new(backend::ProductionChatAgentRunner {

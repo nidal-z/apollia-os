@@ -664,6 +664,47 @@ pub enum RuntimeEvent {
         /// Topic ciblé si mode partial ; `None` en mode full.
         topic: Option<String>,
     },
+
+    // ── STT events ───────────────────────────────────
+    /// Le modèle STT a été chargé avec succès — moteur opérationnel.
+    ///
+    /// Émis par `SttEngine` après chargement du modèle GGML dans `spawn_blocking`.
+    /// Le frontend peut utiliser cet événement pour indiquer que le STT est prêt.
+    SttModelLoaded {
+        /// Nom du backend utilisé (ex: `"whisper-cpp"`).
+        backend: String,
+        /// Chemin du fichier modèle chargé.
+        model_path: String,
+        /// Nom court du modèle (dérivé du nom de fichier sans extension).
+        model_name: String,
+    },
+
+    /// Une transcription STT s'est terminée avec succès.
+    ///
+    /// Émis par `SttEngine` après persistance dans `SttRepository` et avant
+    /// la réponse au caller. Permet au frontend de rafraîchir la liste des
+    /// transcriptions et d'afficher un toast de confirmation.
+    SttTranscribed {
+        /// Texte complet transcrit.
+        text: String,
+        /// Langue détectée ou utilisée (code ISO 639-1).
+        language: Option<String>,
+        /// Source de la transcription (`"hotkey"`, `"file"`, `"api"`).
+        source: String,
+        /// Durée de l'audio source en millisecondes.
+        duration_ms: u64,
+        /// Temps de traitement en millisecondes.
+        processing_time_ms: u64,
+    },
+
+    /// Une erreur s'est produite lors d'une transcription STT.
+    ///
+    /// Émis par `SttEngine` quand `SttBackend::transcribe()` échoue.
+    /// Le frontend peut afficher un toast d'erreur ou une notification.
+    SttTranscriptionFailed {
+        /// Description de l'erreur.
+        reason: String,
+    },
 }
 
 #[cfg(test)]
@@ -949,6 +990,22 @@ mod tests {
                 session_id: "sess-123".into(),
                 mode: "full".into(),
                 topic: None,
+            },
+            // ── STT ──────────────────────────────────
+            RuntimeEvent::SttModelLoaded {
+                backend: "whisper-cpp".into(),
+                model_path: "/tmp/model.bin".into(),
+                model_name: "whisper-large-v3".into(),
+            },
+            RuntimeEvent::SttTranscribed {
+                text: "Bonjour le monde".into(),
+                language: Some("fr".into()),
+                source: "hotkey".into(),
+                duration_ms: 3000,
+                processing_time_ms: 800,
+            },
+            RuntimeEvent::SttTranscriptionFailed {
+                reason: "model not loaded".into(),
             },
         ];
 

@@ -193,6 +193,11 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
             "onboarding-changed"
         }
 
+        // ── STT ──────────────────────────────────────────────────────────
+        RuntimeEvent::SttModelLoaded { .. }
+        | RuntimeEvent::SttTranscribed { .. }
+        | RuntimeEvent::SttTranscriptionFailed { .. } => "stt-changed",
+
         // ── System-level ─────────────────────────────────────────────────
         RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested | RuntimeEvent::FatalError(_) => {
             "system"

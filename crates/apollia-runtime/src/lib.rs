@@ -17,6 +17,7 @@ pub mod mailbox;
 pub mod registry;
 pub mod router;
 pub mod shutdown;
+pub mod stt;
 pub mod supervisor;
 pub mod timeout_watcher;
 
@@ -43,3 +44,6 @@ pub use mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
 
 // Chat subsystem
 pub use chat::ChatSessionManagerHandle;
+
+// STT engine
+pub use stt::{SttEngineError, SttEngineHandle, SttStatus, TranscriptSource};

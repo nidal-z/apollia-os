@@ -559,9 +559,7 @@ pub async fn reload_llm(
 
     // 4. Inject into the ChatSessionManager
     if let Some(ref manager) = state.chat_manager {
-        manager
-            .reload_llm(Some(std::sync::Arc::new(router)))
-            .await;
+        manager.reload_llm(Some(std::sync::Arc::new(router))).await;
     }
 
     Ok(true)
@@ -575,8 +573,8 @@ fn infer_quantization(stem: &str) -> String {
     let upper = stem.to_uppercase();
     // Common GGUF quantization suffixes (ordered by specificity)
     let patterns = [
-        "Q8_0", "Q6_K", "Q5_K_M", "Q5_K_S", "Q5_0", "Q4_K_M", "Q4_K_S", "Q4_0", "Q3_K_M",
-        "Q3_K_S", "Q2_K", "IQ4_XS", "IQ3_M", "IQ2_S", "F16", "F32",
+        "Q8_0", "Q6_K", "Q5_K_M", "Q5_K_S", "Q5_0", "Q4_K_M", "Q4_K_S", "Q4_0", "Q3_K_M", "Q3_K_S",
+        "Q2_K", "IQ4_XS", "IQ3_M", "IQ2_S", "F16", "F32",
     ];
     for p in &patterns {
         if upper.contains(p) {
@@ -855,9 +853,7 @@ mod tests {
             .expect("append");
 
         // THEN the existing content is unchanged
-        let content = tokio::fs::read_to_string(&config_path)
-            .await
-            .expect("read");
+        let content = tokio::fs::read_to_string(&config_path).await.expect("read");
         assert!(content.contains("existing"));
         assert!(!content.contains("embedded"));
     }
@@ -877,9 +873,7 @@ mod tests {
             .expect("append");
 
         // THEN the LLM block is appended
-        let content = tokio::fs::read_to_string(&config_path)
-            .await
-            .expect("read");
+        let content = tokio::fs::read_to_string(&config_path).await.expect("read");
         assert!(content.contains("[llm]"));
         assert!(content.contains("test.gguf"));
         assert!(content.contains("q8_0"));
