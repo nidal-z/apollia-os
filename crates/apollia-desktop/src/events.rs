@@ -73,6 +73,27 @@ pub fn spawn_event_bridge(app: AppHandle, event_bus: EventBusSender) {
                         continue;
                     }
 
+                    // Dedicated fast-path events for STT overlay and
+                    // latency-critical transcription delivery.
+                    match &event {
+                        RuntimeEvent::SttTranscribed { ref text, .. } => {
+                            if let Err(e) = app.emit("stt-transcribed", text) {
+                                tracing::warn!(error = %e, "failed to emit stt-transcribed event");
+                            }
+                        }
+                        RuntimeEvent::SttRecordingStarted => {
+                            if let Err(e) = app.emit("stt-recording-started", ()) {
+                                tracing::warn!(error = %e, "failed to emit stt-recording-started event");
+                            }
+                        }
+                        RuntimeEvent::SttRecordingStopped { .. } => {
+                            if let Err(e) = app.emit("stt-recording-stopped", ()) {
+                                tracing::warn!(error = %e, "failed to emit stt-recording-stopped event");
+                            }
+                        }
+                        _ => {}
+                    }
+
                     let tauri_event = map_runtime_event(&event);
                     if let Err(e) = app.emit("runtime-event", &tauri_event) {
                         tracing::warn!(error = %e, "failed to emit Tauri event");
@@ -616,6 +637,26 @@ mod tests {
                 task_id: "t".into(),
                 cache_key: "k".into(),
             },
+            // ── STT events ─────────────────────────────────────────
+            RuntimeEvent::SttRecordingStarted,
+            RuntimeEvent::SttRecordingStopped {
+                audio_duration_ms: 1500,
+            },
+            RuntimeEvent::SttModelLoaded {
+                backend: "whisper-cpp".into(),
+                model_path: "/tmp/model.bin".into(),
+                model_name: "model".into(),
+            },
+            RuntimeEvent::SttTranscribed {
+                text: "hello".into(),
+                language: Some("en".into()),
+                source: "hotkey".into(),
+                duration_ms: 1000,
+                processing_time_ms: 200,
+            },
+            RuntimeEvent::SttTranscriptionFailed {
+                reason: "error".into(),
+            },
         ];
 
         let valid_categories = [
@@ -628,6 +669,7 @@ mod tests {
             "chat-changed",
             "chat-token",
             "onboarding-required",
+            "stt-changed",
             "system",
         ];
 
@@ -731,5 +773,57 @@ mod tests {
         let json = serde_json::to_string(&tauri_event.payload).unwrap_or_default();
         assert!(json.contains("my-agent-42"));
         assert!(json.contains("tool missing"));
+    }
+
+    #[test]
+    fn test_stt_events_are_stt_changed() {
+        // GIVEN STT lifecycle events
+        let events = vec![
+            RuntimeEvent::SttRecordingStarted,
+            RuntimeEvent::SttRecordingStopped {
+                audio_duration_ms: 2000,
+            },
+            RuntimeEvent::SttModelLoaded {
+                backend: "whisper-cpp".into(),
+                model_path: "/tmp/m.bin".into(),
+                model_name: "m".into(),
+            },
+            RuntimeEvent::SttTranscribed {
+                text: "bonjour".into(),
+                language: Some("fr".into()),
+                source: "hotkey".into(),
+                duration_ms: 1500,
+                processing_time_ms: 300,
+            },
+            RuntimeEvent::SttTranscriptionFailed {
+                reason: "oops".into(),
+            },
+        ];
+        // WHEN / THEN all map to "stt-changed"
+        for event in &events {
+            let mapped = map_runtime_event(event);
+            assert_eq!(
+                mapped.category, "stt-changed",
+                "expected stt-changed for {:?}",
+                event
+            );
+        }
+    }
+
+    #[test]
+    fn test_stt_transcribed_payload_contains_text() {
+        // GIVEN a SttTranscribed event
+        let event = RuntimeEvent::SttTranscribed {
+            text: "Bonjour le monde".into(),
+            language: Some("fr".into()),
+            source: "hotkey".into(),
+            duration_ms: 2000,
+            processing_time_ms: 300,
+        };
+        // WHEN mapped
+        let tauri_event = map_runtime_event(&event);
+        // THEN the payload contains the transcription text
+        let json = serde_json::to_string(&tauri_event.payload).unwrap_or_default();
+        assert!(json.contains("Bonjour le monde"));
     }
 }

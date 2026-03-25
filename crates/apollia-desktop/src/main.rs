@@ -464,6 +464,11 @@ fn main() {
             commands::user_memory::delete_user_memory_entry,
             commands::user_memory::search_user_memory,
             commands::user_memory::get_conversation_stats,
+            commands::stt::get_stt_status,
+            commands::stt::list_transcriptions,
+            commands::stt::delete_transcription,
+            commands::stt::transcribe_file,
+            commands::stt::list_stt_models,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

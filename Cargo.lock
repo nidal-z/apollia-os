@@ -278,6 +278,7 @@ dependencies = [
  "chrono",
  "enigo",
  "futures",
+ "hound",
  "http-body-util",
  "hyper",
  "hyper-util",
