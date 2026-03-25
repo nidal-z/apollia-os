@@ -12,6 +12,7 @@ pub mod run;
 pub mod start;
 pub mod status;
 pub mod stop;
+pub mod stt;
 pub mod task;
 pub mod tools;
 pub mod trigger;

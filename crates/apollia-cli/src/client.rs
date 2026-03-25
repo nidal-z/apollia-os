@@ -133,6 +133,18 @@ impl RuntimeClient {
         self.request("DELETE", uri, None).await
     }
 
+    /// Send a POST request with a raw body and custom content-type.
+    ///
+    /// Used for multipart uploads where the body is pre-built by the caller.
+    pub async fn post_multipart(
+        &self,
+        uri: &str,
+        body: &[u8],
+        content_type: &str,
+    ) -> Result<RawResponse, ClientError> {
+        self.request_raw("POST", uri, body, content_type).await
+    }
+
     /// Check if the runtime is healthy by calling `GET /api/v1/health`.
     pub async fn health(&self) -> Result<serde_json::Value, ClientError> {
         let resp = self.get("/api/v1/health").await?;
@@ -496,6 +508,50 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// Get STT engine status via `GET /api/v1/stt/status`.
+    pub async fn stt_status(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/stt/status").await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// List STT transcriptions via `GET /api/v1/stt/transcriptions`.
+    pub async fn stt_transcriptions(
+        &self,
+        limit: u32,
+        offset: u32,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .get(&format!(
+                "/api/v1/stt/transcriptions?limit={limit}&offset={offset}"
+            ))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// List STT models via `GET /api/v1/stt/models`.
+    pub async fn stt_models(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/stt/models").await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// Open a streaming GET connection for SSE endpoints.
     ///
     /// Unlike [`get`], this method does **not** buffer the entire response body.
@@ -590,6 +646,78 @@ impl RuntimeClient {
         });
 
         Ok(rx)
+    }
+
+    /// Internal: send an HTTP request with a raw byte body and explicit content-type.
+    async fn request_raw(
+        &self,
+        method: &str,
+        uri: &str,
+        body: &[u8],
+        content_type: &str,
+    ) -> Result<RawResponse, ClientError> {
+        let stream = UnixStream::connect(&self.socket_path).await.map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound
+                || e.kind() == std::io::ErrorKind::ConnectionRefused
+            {
+                ClientError::ConnectionRefused
+            } else {
+                ClientError::Io(e)
+            }
+        })?;
+
+        let io = TokioIo::new(stream);
+        let (mut sender, conn) = http1::handshake(io)
+            .await
+            .map_err(|e| ClientError::Http(e.to_string()))?;
+
+        tokio::spawn(async move {
+            if let Err(e) = conn.await {
+                tracing::debug!(error = %e, "HTTP connection closed");
+            }
+        });
+
+        let req = hyper::Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("host", "localhost")
+            .header("content-type", content_type)
+            .body(Full::new(Bytes::from(body.to_vec())))
+            .map_err(|e| ClientError::Http(e.to_string()))?;
+
+        let resp = sender
+            .send_request(req)
+            .await
+            .map_err(|e| ClientError::Http(e.to_string()))?;
+
+        let status = resp.status().as_u16();
+
+        if status >= 400 {
+            let body_bytes = resp
+                .into_body()
+                .collect()
+                .await
+                .map_err(|e| ClientError::Http(e.to_string()))?
+                .to_bytes();
+            let body_str = String::from_utf8_lossy(&body_bytes).to_string();
+            return Err(ClientError::ServerError {
+                status,
+                body: extract_error(&body_str, status),
+            });
+        }
+
+        let body_bytes = resp
+            .into_body()
+            .collect()
+            .await
+            .map_err(|e| ClientError::Http(e.to_string()))?
+            .to_bytes();
+        let body_str = String::from_utf8_lossy(&body_bytes).to_string();
+
+        Ok(RawResponse {
+            status,
+            body: body_str,
+        })
     }
 
     /// Internal: send an HTTP request over Unix socket.

@@ -92,6 +92,12 @@ hound = "3.5"
 # --- Config parsing ---
 toml = "0.8"
 
+# --- HuggingFace model download ---
+hf-hub = "0.3"
+
+# --- Progress bars (CLI download) ---
+indicatif = "0.17"
+
 # --- Clipboard + keyboard simulation (apollia-desktop STT injection) ---
 arboard = "3"
 enigo = "0.5"

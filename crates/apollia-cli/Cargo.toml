@@ -55,6 +55,8 @@ toml               = { workspace = true }
 pyo3               = { workspace = true }
 async-trait        = { workspace = true }
 futures            = { workspace = true }
+hf-hub             = { workspace = true }
+indicatif          = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

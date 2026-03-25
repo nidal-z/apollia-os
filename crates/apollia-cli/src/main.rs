@@ -24,6 +24,7 @@ use commands::memory::MemoryCommand;
 use commands::model::ModelCommand;
 use commands::notify::NotifyCommand;
 use commands::pipeline::PipelineCommand;
+use commands::stt::SttCommand;
 use commands::task::TaskCommand;
 use commands::tools::ToolsCommand;
 use commands::trigger::TriggerCommand;
@@ -145,6 +146,13 @@ enum Commands {
         command: NotifyCommand,
     },
 
+    /// Speech-to-Text management (status, transcribe, transcriptions, model).
+    Stt {
+        /// STT subcommand.
+        #[command(subcommand)]
+        command: SttCommand,
+    },
+
     /// Launch onboarding or re-onboarding on a specific topic.
     Onboard {
         /// Focus on a specific topic (identity, preferences, tools, domain, agents).
@@ -212,6 +220,7 @@ fn main() {
                 commands::trigger::run(&command, cli.socket, json).await
             }
             Commands::Notify { command } => commands::notify::run(&command, cli.socket, json).await,
+            Commands::Stt { command } => commands::stt::run(&command, cli.socket, json).await,
             Commands::Onboard { topic } => {
                 commands::onboard::run(topic.as_deref(), cli.socket, json).await
             }
@@ -236,6 +245,7 @@ mod tests {
     use commands::model::ModelCommand;
     use commands::notify::NotifyCommand;
     use commands::pipeline::PipelineCommand;
+    use commands::stt::{SttCommand, SttModelCommand, TranscriptionsCommand};
     use commands::task::TaskCommand;
     use commands::tools::ToolsCommand;
     use commands::trigger::TriggerCommand;
@@ -1139,5 +1149,142 @@ mod tests {
             }
             other => panic!("expected Commands::Onboard, got {other:?}"),
         }
+    }
+
+    // ── stt command parsing ───────────────────────────────────────
+
+    #[test]
+    fn test_cli_parses_stt_status() {
+        let cli = parse(&["apollia-os", "stt", "status"]);
+        match &cli.command {
+            Commands::Stt { command } => {
+                assert!(matches!(command, SttCommand::Status));
+                assert!(!cli.json);
+            }
+            other => panic!("expected Commands::Stt, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_stt_status_json() {
+        let cli = parse(&["apollia-os", "stt", "--json", "status"]);
+        assert!(matches!(cli.command, Commands::Stt { .. }));
+        assert!(cli.json);
+    }
+
+    #[test]
+    fn test_cli_parses_stt_transcribe() {
+        let cli = parse(&["apollia-os", "stt", "transcribe", "audio.wav"]);
+        match &cli.command {
+            Commands::Stt { command } => match command {
+                SttCommand::Transcribe { file, output } => {
+                    assert_eq!(file, &PathBuf::from("audio.wav"));
+                    assert!(output.is_none());
+                }
+                other => panic!("expected SttCommand::Transcribe, got {other:?}"),
+            },
+            other => panic!("expected Commands::Stt, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_stt_transcribe_with_output() {
+        let cli = parse(&[
+            "apollia-os",
+            "stt",
+            "transcribe",
+            "audio.wav",
+            "--output",
+            "out.json",
+        ]);
+        match &cli.command {
+            Commands::Stt { command } => match command {
+                SttCommand::Transcribe { file, output } => {
+                    assert_eq!(file, &PathBuf::from("audio.wav"));
+                    assert_eq!(output.as_deref(), Some(std::path::Path::new("out.json")));
+                }
+                other => panic!("expected SttCommand::Transcribe, got {other:?}"),
+            },
+            other => panic!("expected Commands::Stt, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_stt_transcriptions_list() {
+        let cli = parse(&["apollia-os", "stt", "transcriptions", "list"]);
+        match &cli.command {
+            Commands::Stt { command } => match command {
+                SttCommand::Transcriptions { command } => {
+                    assert!(matches!(command, TranscriptionsCommand::List { limit: 20 }));
+                }
+                other => panic!("expected SttCommand::Transcriptions, got {other:?}"),
+            },
+            other => panic!("expected Commands::Stt, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_stt_transcriptions_list_custom_limit() {
+        let cli = parse(&[
+            "apollia-os",
+            "stt",
+            "transcriptions",
+            "list",
+            "--limit",
+            "50",
+        ]);
+        match &cli.command {
+            Commands::Stt { command } => match command {
+                SttCommand::Transcriptions { command } => match command {
+                    TranscriptionsCommand::List { limit } => assert_eq!(*limit, 50),
+                },
+                other => panic!("expected SttCommand::Transcriptions, got {other:?}"),
+            },
+            other => panic!("expected Commands::Stt, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_stt_model_list() {
+        let cli = parse(&["apollia-os", "stt", "model", "list"]);
+        match &cli.command {
+            Commands::Stt { command } => match command {
+                SttCommand::Model { command } => {
+                    assert!(matches!(command, SttModelCommand::List));
+                }
+                other => panic!("expected SttCommand::Model, got {other:?}"),
+            },
+            other => panic!("expected Commands::Stt, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_stt_model_download() {
+        let cli = parse(&[
+            "apollia-os",
+            "stt",
+            "model",
+            "download",
+            "whisper-large-v3-fr-q5_0",
+        ]);
+        match &cli.command {
+            Commands::Stt { command } => match command {
+                SttCommand::Model { command } => match command {
+                    SttModelCommand::Download { name } => {
+                        assert_eq!(name, "whisper-large-v3-fr-q5_0");
+                    }
+                    other => panic!("expected SttModelCommand::Download, got {other:?}"),
+                },
+                other => panic!("expected SttCommand::Model, got {other:?}"),
+            },
+            other => panic!("expected Commands::Stt, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_stt_json_flag_after_subcommand() {
+        let cli = parse(&["apollia-os", "stt", "model", "list", "--json"]);
+        assert!(matches!(cli.command, Commands::Stt { .. }));
+        assert!(cli.json);
     }
 }
