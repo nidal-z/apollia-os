@@ -15,6 +15,7 @@
 //! - [`RuntimeEvent`], [`AgentId`], [`TaskId`]
 
 pub mod budget;
+pub mod config;
 pub mod events;
 pub mod manifest;
 pub mod observability;
@@ -26,6 +27,7 @@ pub mod task;
 pub mod user;
 
 pub use budget::StepBudgetConfig;
+pub use config::SttConfig;
 pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
 pub use manifest::{AgentManifest, AgentSkill};
 pub use observability::{truncate_with_marker, ObservabilityConfig};

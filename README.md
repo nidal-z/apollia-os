@@ -127,7 +127,7 @@ default = "local"
 [[llm.backends]]
 type         = "embedded"
 name         = "local"
-model_path   = "~/.apollia/models/Qwen3-0.6B-Q8_0.gguf"
+model_path   = "~/.apollia/models/example.gguf"
 device       = "metal"     # "cpu" | "metal"
 quantization = "q8_0"
 ```

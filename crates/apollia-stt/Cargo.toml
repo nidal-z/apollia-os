@@ -1,0 +1,25 @@
+[package]
+name = "apollia-stt"
+version = "0.1.0"
+edition = "2021"
+description = "Apollia OS — Speech-to-Text engine (trait SttBackend + types + backends)"
+license = "MIT"
+
+[features]
+default = ["stt-whisper-cpp"]
+## Backend whisper.cpp via whisper-rs (feature-gated).
+stt-whisper-cpp = ["dep:whisper-rs"]
+## Accélération Metal (Apple Silicon GPU) — implique stt-whisper-cpp.
+stt-metal       = ["stt-whisper-cpp", "whisper-rs/metal"]
+## Accélération CUDA (NVIDIA GPU) — implique stt-whisper-cpp.
+stt-cuda        = ["stt-whisper-cpp", "whisper-rs/cuda"]
+
+[dependencies]
+apollia-core = { workspace = true }
+serde        = { workspace = true }
+thiserror    = { workspace = true }
+whisper-rs   = { version = "0.14", optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+toml       = { workspace = true }

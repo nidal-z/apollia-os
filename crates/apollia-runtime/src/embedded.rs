@@ -130,6 +130,9 @@ pub struct EmbeddedConfig {
     pub config_path: Option<PathBuf>,
     /// Repository des agents installés — requis pour l'auto-load au boot.
     pub agent_repository: Option<AgentRepository>,
+    /// Chat Agent runner — enables Chat Agent mode in the ChatSessionManager.
+    /// When `None`, Agent mode sessions will fail at message time.
+    pub chat_agent_runner: Option<Arc<dyn crate::chat::ChatAgentRunner>>,
 }
 
 impl Default for EmbeddedConfig {
@@ -148,6 +151,7 @@ impl Default for EmbeddedConfig {
             llm_config: None,
             config_path: None,
             agent_repository: None,
+            chat_agent_runner: None,
         }
     }
 }
@@ -256,7 +260,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
 
     let noop = DynBackend::new(NoopBackend);
     let handles = supervisor
-        .start(noop, config.agent_loader, config.backend_factory, None)
+        .start(noop, config.agent_loader, config.backend_factory, config.chat_agent_runner)
         .await?;
 
     Ok(RuntimeHandle {

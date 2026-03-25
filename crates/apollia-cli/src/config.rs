@@ -29,6 +29,7 @@
 
 use std::path::{Path, PathBuf};
 
+use apollia_core::SttConfig;
 use apollia_llm::{BackendKind, LlmConfig};
 
 // ─────────────────────────────────────────────
@@ -86,6 +87,11 @@ pub struct ApolliaCConfig {
     ///
     /// Vaut `None` si la section `[llm]` est absente du fichier.
     pub llm: Option<LlmConfig>,
+
+    /// Section `[stt]` — configuration du moteur Speech-to-Text.
+    ///
+    /// Vaut `None` si la section `[stt]` est absente du fichier.
+    pub stt: Option<SttConfig>,
 
     /// Chemins d'agents Python à démarrer automatiquement au démarrage du runtime.
     ///
@@ -153,7 +159,7 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
     let mut filtered = toml::map::Map::new();
     if let toml::Value::Table(table) = &raw_table {
         for key in &[
-            "agents", "llm", "runtime", "memory", "tools", "budget", "api",
+            "agents", "llm", "stt", "runtime", "memory", "tools", "budget", "api",
         ] {
             if let Some(v) = table.get(*key) {
                 filtered.insert((*key).to_string(), v.clone());
@@ -173,6 +179,11 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
                 cfg.model_path = expand_tilde(&cfg.model_path);
             }
         }
+    }
+
+    // Normalise le chemin model_path STT (~ → $HOME).
+    if let Some(ref mut stt) = config.stt {
+        stt.model_path = expand_tilde(&stt.model_path);
     }
 
     // Extraire la liste des agents à démarrer automatiquement et normaliser les chemins.
@@ -598,6 +609,7 @@ input = "x"
         let config = ApolliaCConfig {
             agents: None,
             llm: None,
+            stt: None,
             startup_agents: vec![],
         };
         // If this compiles, the struct has exactly these fields (+ serde skip).

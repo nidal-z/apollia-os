@@ -458,3 +458,89 @@ fn default_memory_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     PathBuf::from(home).join(".apollia").join("memory")
 }
+
+// ─── Chat Agent Runner ───────────────────────────────────────────────────────
+
+/// Production [`ChatAgentRunner`] for the desktop app.
+///
+/// Resolves the agent name to an `install_path` via [`AgentRepository`],
+/// loads the Python module, creates a full `RuntimeContext`, and calls
+/// `AIPBridge.call_run`. Same execution path as `AIPProductionBackend`
+/// but parameterized by agent name instead of pre-loaded bridge.
+pub struct ProductionChatAgentRunner {
+    pub agent_repo: Arc<std::sync::Mutex<apollia_tools::AgentRepository>>,
+    pub event_bus: Arc<std::sync::OnceLock<EventBusSender>>,
+    pub llm_router: Arc<std::sync::OnceLock<Option<Arc<LlmRouter>>>>,
+    pub tool_registry: Arc<std::sync::OnceLock<ToolRegistryHandle>>,
+    pub audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
+    pub pending_approvals: Arc<std::sync::OnceLock<Arc<PendingApprovals>>>,
+    pub task_repository: Arc<std::sync::OnceLock<Arc<TaskRepository>>>,
+}
+
+#[async_trait::async_trait]
+impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
+    async fn run_agent(
+        &self,
+        agent_name: &str,
+        task: apollia_core::AIPTask,
+    ) -> Result<apollia_core::AIPResult, String> {
+        // 1. Resolve agent name → install_path
+        let install_path = {
+            let repo = self
+                .agent_repo
+                .lock()
+                .map_err(|e| format!("agent repo mutex poisoned: {e}"))?;
+            let agent = repo
+                .get(agent_name)
+                .map_err(|e| format!("agent repo error: {e}"))?
+                .ok_or_else(|| format!("agent not found in repository: {agent_name}"))?;
+            agent.install_path.clone()
+        };
+
+        // 2. Load Python module + create bridge
+        let module =
+            apollia_aip::loader::load_agent_module(&install_path).map_err(|e| e.to_string())?;
+        let validated =
+            apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
+        let allowed_tools = validated.manifest.tools_required.clone();
+        let memory_namespace = validated.manifest.memory_namespace.clone();
+        let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
+
+        // 3. Resolve OnceLock handles
+        let event_bus = self
+            .event_bus
+            .get()
+            .cloned()
+            .ok_or("event bus not initialized")?;
+        let llm_router = self.llm_router.get().cloned().flatten();
+        let tool_registry = self.tool_registry.get().cloned();
+        let audit_trail = self.audit_trail.get().cloned();
+
+        // 4. Build RuntimeContext and call the agent
+        let runner = BridgeRunner {
+            bridge,
+            llm_router,
+            event_bus: event_bus.clone(),
+            agent_id: agent_name.to_string(),
+            allowed_tools,
+            tool_registry,
+            audit_trail,
+            memory_namespace,
+            memory_base_dir: default_memory_dir(),
+        };
+
+        let mut engine = ORIAEngine::new().with_event_bus(event_bus);
+        if let Some(pending) = self.pending_approvals.get().cloned() {
+            engine = engine.with_pending_approvals(pending);
+        }
+        if let Some(repo) = self.task_repository.get().cloned() {
+            engine = engine.with_task_repository(repo);
+        }
+
+        let budget = Arc::new(StepBudget::unlimited());
+        engine
+            .execute_direct(task, &runner, budget)
+            .await
+            .map_err(|e| e.to_string())
+    }
+}

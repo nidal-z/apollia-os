@@ -33,6 +33,14 @@
       requestAnimationFrame(() => { fadeIn = true; });
 
       pollTimer = setInterval(pollTopicProgress, POLL_INTERVAL_MS);
+
+      // Auto-send a greeting to kick off the conversation — the onboarding
+      // agent will respond with a personalised welcome, so the user isn't
+      // staring at an empty chat wondering what to type.
+      await invoke("send_chat_message", {
+        sessionId: result.session_id,
+        content: "Bonjour !",
+      });
     } catch {
       isLoading = false;
       fadeIn = true;

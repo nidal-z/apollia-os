@@ -121,6 +121,29 @@ fn main() {
         bundled_agents::ensure_bundled_agents(repo, &apollia_data_dir);
     }
 
+    // Build the ChatAgentRunner so Chat Agent mode works in the ChatSessionManager.
+    // Uses its own AgentRepository instance (SQLite WAL supports concurrent readers).
+    let chat_agent_runner: Option<
+        Arc<dyn apollia_runtime::chat::ChatAgentRunner>,
+    > = {
+        let db_path = apollia_data_dir.join("agents.db");
+        match apollia_tools::AgentRepository::open(&db_path) {
+            Ok(repo) => Some(Arc::new(backend::ProductionChatAgentRunner {
+                agent_repo: Arc::new(std::sync::Mutex::new(repo)),
+                event_bus: event_bus_lock.clone(),
+                llm_router: llm_router_lock.clone(),
+                tool_registry: tool_registry_lock.clone(),
+                audit_trail: audit_trail_lock.clone(),
+                pending_approvals: pending_approvals_lock.clone(),
+                task_repository: task_repository_lock.clone(),
+            })),
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to open agents.db for ChatAgentRunner — Chat Agent mode disabled");
+                None
+            }
+        }
+    };
+
     // Do NOT pass agent_repository here — auto-load inside the Supervisor
     // happens before OnceLocks are populated, causing "event bus not initialized"
     // errors. Instead, we auto-load manually after OnceLocks are set below.
@@ -128,6 +151,7 @@ fn main() {
         agent_loader: Arc::new(backend::AIPAgentLoader),
         backend_factory: Some(factory.clone()),
         agent_repository: None,
+        chat_agent_runner,
         ..EmbeddedConfig::default()
     });
 
@@ -354,6 +378,8 @@ fn main() {
             commands::config::check_llm_configured,
             commands::config::check_hello_agent_exists,
             commands::config::list_available_agents,
+            commands::config::setup_local_llm,
+            commands::config::reload_llm,
             commands::tools::list_tools,
             commands::tools::describe_tool,
             commands::chat::create_chat_session,

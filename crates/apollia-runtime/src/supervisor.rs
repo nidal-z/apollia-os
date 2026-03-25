@@ -654,6 +654,7 @@ impl Supervisor {
                 event_sender.clone(),
                 apollia_core::StepBudgetConfig::default(),
                 user_memory.clone(),
+                registry_handle.clone(),
             ) {
                 Ok(handle) => {
                     info!("Supervisor: ChatSessionManager ready");

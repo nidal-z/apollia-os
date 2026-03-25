@@ -32,6 +32,7 @@ use super::types::{
 };
 use crate::api::routes_agents::AgentLoader;
 use crate::eventbus::EventBusSender;
+use crate::registry::AgentRegistryHandle;
 
 /// Maximum number of past sessions to inject as cross-session context.
 const MAX_PAST_SESSIONS: usize = 3;
@@ -138,6 +139,11 @@ pub enum ChatCommand {
         /// Summary text to store.
         summary: String,
     },
+    /// Hot-reload the LLM router (e.g. after onboarding setup).
+    ReloadLlm {
+        /// New router to use for subsequent requests.
+        router: Option<Arc<LlmRouter>>,
+    },
     /// Shut down the actor.
     Shutdown,
 }
@@ -154,8 +160,8 @@ struct ChatSessionManager {
     tool_registry: ToolRegistryHandle,
     /// Tool invoker for actual tool execution (ADR-015).
     tool_invoker: Arc<dyn ToolInvoker>,
-    /// Agent loader for validating agent names.
-    agent_loader: Arc<dyn AgentLoader>,
+    /// Agent registry for resolving agent names to IDs.
+    registry_handle: AgentRegistryHandle,
     /// Agent runner for Chat Agent mode. `None` disables Agent mode.
     agent_runner: Option<Arc<dyn ChatAgentRunner>>,
     /// Event bus sender for runtime events.
@@ -184,7 +190,7 @@ impl ChatSessionManager {
                     tools,
                     reply,
                 } => {
-                    let result = self.handle_create_session(mode, agent_name, system_prompt, tools);
+                    let result = self.handle_create_session(mode, agent_name, system_prompt, tools).await;
                     let _ = reply.send(result);
                 }
                 ChatCommand::SendMessage {
@@ -258,6 +264,10 @@ impl ChatSessionManager {
                         warn!(session_id = %session_id, error = %e, "Failed to persist conversation summary");
                     }
                 }
+                ChatCommand::ReloadLlm { router } => {
+                    info!("ChatSessionManager: LLM router reloaded");
+                    self.llm_router = router;
+                }
                 ChatCommand::Shutdown => {
                     info!("ChatSessionManager: shutting down");
                     break;
@@ -294,7 +304,7 @@ impl ChatSessionManager {
     }
 
     /// Create a new chat session.
-    fn handle_create_session(
+    async fn handle_create_session(
         &mut self,
         mode: ChatMode,
         agent_name: Option<String>,
@@ -308,11 +318,15 @@ impl ChatSessionManager {
             ));
         }
 
-        // Validate agent exists if agent mode
+        // Validate agent exists in the registry if agent mode
         if mode == ChatMode::Agent {
             if let Some(ref name) = agent_name {
-                let dummy_path = std::path::PathBuf::from(name);
-                if self.agent_loader.load_and_validate(&dummy_path).is_err() {
+                let found = self
+                    .registry_handle
+                    .find_by_name(name)
+                    .await
+                    .map_err(|e| ChatError::InternalError(format!("registry lookup failed: {e}")))?;
+                if found.is_none() {
                     return Err(ChatError::AgentNotFound(name.clone()));
                 }
             }
@@ -1018,11 +1032,12 @@ impl ChatSessionManagerHandle {
         llm_router: Option<Arc<LlmRouter>>,
         tool_registry: ToolRegistryHandle,
         tool_invoker: Arc<dyn ToolInvoker>,
-        agent_loader: Arc<dyn AgentLoader>,
+        _agent_loader: Arc<dyn AgentLoader>,
         agent_runner: Option<Arc<dyn ChatAgentRunner>>,
         event_bus: EventBusSender,
         runtime_budget: StepBudgetConfig,
         user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+        registry_handle: AgentRegistryHandle,
     ) -> Result<Self, ChatError> {
         let repository = ChatSessionRepository::open(db_path)?;
         let pending_chat_approvals = PendingChatApprovals::new();
@@ -1043,7 +1058,7 @@ impl ChatSessionManagerHandle {
             llm_router,
             tool_registry,
             tool_invoker,
-            agent_loader,
+            registry_handle,
             agent_runner,
             event_bus,
             runtime_budget,
@@ -1210,6 +1225,14 @@ impl ChatSessionManagerHandle {
     }
 
     /// Signal the actor to shut down.
+    /// Hot-reload the LLM router used by the chat subsystem.
+    ///
+    /// Called after the user configures a new LLM backend (e.g. during
+    /// onboarding). The new router is used for all subsequent requests.
+    pub async fn reload_llm(&self, router: Option<Arc<LlmRouter>>) {
+        let _ = self.tx.send(ChatCommand::ReloadLlm { router }).await;
+    }
+
     pub async fn shutdown(&self) {
         let _ = self.tx.send(ChatCommand::Shutdown).await;
     }
@@ -1296,6 +1319,7 @@ mod tests {
         let (event_tx, _) = tokio::sync::broadcast::channel(128);
         let tool_registry = ToolRegistryHandle::start();
         let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
+        let registry_handle = crate::registry::AgentRegistry::spawn(event_tx.clone());
         ChatSessionManagerHandle::spawn(
             &db_path,
             llm_router,
@@ -1306,6 +1330,7 @@ mod tests {
             event_tx,
             StepBudgetConfig::default(),
             None, // no user memory in basic tests
+            registry_handle,
         )
         .expect("spawn manager")
     }
@@ -1429,6 +1454,7 @@ mod tests {
         let db_path = dir.path().join("chat.db");
         let tool_registry = ToolRegistryHandle::start();
         let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
+        let registry_handle = crate::registry::AgentRegistry::spawn(event_tx.clone());
         let handle = ChatSessionManagerHandle::spawn(
             &db_path,
             fake_llm_router(),
@@ -1439,6 +1465,7 @@ mod tests {
             event_tx,
             StepBudgetConfig::default(),
             None,
+            registry_handle,
         )
         .expect("spawn");
 
@@ -1528,7 +1555,7 @@ mod tests {
             llm_router: fake_llm_router(),
             tool_registry,
             tool_invoker,
-            agent_loader: Arc::new(AlwaysOkLoader),
+            registry_handle: crate::registry::AgentRegistry::spawn(event_tx.clone()),
             agent_runner: None,
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
@@ -1646,7 +1673,7 @@ mod tests {
             llm_router: fake_llm_router(),
             tool_registry,
             tool_invoker,
-            agent_loader: Arc::new(AlwaysOkLoader),
+            registry_handle: crate::registry::AgentRegistry::spawn(event_tx.clone()),
             agent_runner: None,
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
@@ -1702,7 +1729,7 @@ mod tests {
             llm_router: fake_llm_router(),
             tool_registry,
             tool_invoker,
-            agent_loader: Arc::new(AlwaysOkLoader),
+            registry_handle: crate::registry::AgentRegistry::spawn(event_tx.clone()),
             agent_runner: None,
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
@@ -1737,7 +1764,7 @@ mod tests {
             llm_router: fake_llm_router(),
             tool_registry,
             tool_invoker,
-            agent_loader: Arc::new(AlwaysOkLoader),
+            registry_handle: crate::registry::AgentRegistry::spawn(event_tx.clone()),
             agent_runner: None,
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),

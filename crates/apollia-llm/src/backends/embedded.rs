@@ -274,10 +274,28 @@ impl EmbeddedBackend {
         };
 
         // Chargement in-process via mistralrs — zéro HTTP, zéro processus externe.
-        let engine = builder
-            .build()
-            .await
-            .map_err(|e| LlmError::InferenceError(e.to_string()))?;
+        // `catch_unwind` protects against panics in mistral-rs when loading
+        // unsupported model architectures (e.g. "Unknown GGUF architecture").
+        let engine = match tokio::task::spawn(async move { builder.build().await }).await {
+            Ok(Ok(engine)) => engine,
+            Ok(Err(e)) => return Err(LlmError::InferenceError(e.to_string())),
+            Err(join_err) => {
+                let reason = if join_err.is_panic() {
+                    match join_err.into_panic().downcast::<String>() {
+                        Ok(msg) => *msg,
+                        Err(payload) => match payload.downcast::<&str>() {
+                            Ok(msg) => msg.to_string(),
+                            Err(_) => "unknown panic during model load".to_string(),
+                        },
+                    }
+                } else {
+                    "model load task cancelled".to_string()
+                };
+                return Err(LlmError::InferenceError(format!(
+                    "model load panicked: {reason}"
+                )));
+            }
+        };
 
         tracing::info!(
             backend = %config.name,

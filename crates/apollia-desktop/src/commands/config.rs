@@ -442,6 +442,216 @@ pub async fn list_available_agents() -> Result<Vec<AvailableAgent>, String> {
     Ok(agents)
 }
 
+/// Result of the local LLM setup operation.
+#[derive(Debug, Serialize)]
+pub struct SetupLlmResult {
+    /// Absolute path where the model is stored.
+    pub model_path: String,
+    /// Inferred quantization from the filename (e.g. `"q8_0"`, `"q4_k_m"`).
+    pub quantization: String,
+}
+
+/// Sets up a local embedded LLM from a user-selected GGUF file.
+///
+/// Copies the model into `~/.apollia/models/`, adds the `[llm]` section
+/// to `apollia.toml`, and returns the path for confirmation.
+///
+/// This is a first-launch helper — it writes a minimal LLM config block
+/// so the onboarding agent can function. Advanced users can edit the
+/// TOML directly afterwards.
+#[tauri::command]
+pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String> {
+    let source = PathBuf::from(&gguf_path);
+
+    // Validate the file exists and is a .gguf
+    if !source.exists() {
+        return Err(format!("file not found: {gguf_path}"));
+    }
+    if source.extension().and_then(|e| e.to_str()) != Some("gguf") {
+        return Err("expected a .gguf file".into());
+    }
+
+    // Infer quantization from filename (e.g. "Qwen3-0.6B-Q8_0.gguf" → "q8_0")
+    let file_stem = source
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("model");
+    let quantization = infer_quantization(file_stem);
+
+    // Copy into ~/.apollia/models/
+    let models_dir = default_config_path()
+        .parent()
+        .unwrap_or(std::path::Path::new("."))
+        .join("models");
+    tokio::fs::create_dir_all(&models_dir)
+        .await
+        .map_err(|e| format!("failed to create models directory: {e}"))?;
+
+    let file_name = source
+        .file_name()
+        .ok_or("invalid file name")?
+        .to_string_lossy()
+        .to_string();
+    let dest = models_dir.join(&file_name);
+
+    // Only copy if not already there
+    if dest != source {
+        tokio::fs::copy(&source, &dest)
+            .await
+            .map_err(|e| format!("failed to copy model: {e}"))?;
+    }
+
+    let model_path_str = format!("~/.apollia/models/{file_name}");
+
+    // Append [llm] section to apollia.toml if not already present
+    let config_path = default_config_path();
+    append_llm_config(&config_path, &model_path_str, &quantization).await?;
+
+    tracing::info!(
+        model = %model_path_str,
+        quantization = %quantization,
+        "local LLM configured via onboarding setup"
+    );
+
+    Ok(SetupLlmResult {
+        model_path: dest.display().to_string(),
+        quantization,
+    })
+}
+
+/// Hot-reloads the LLM router from `apollia.toml`.
+///
+/// Re-reads the TOML config, builds a new `LlmRouter`, and injects it
+/// into the `ChatSessionManager` so the new model is available immediately
+/// without restarting the application.
+#[tauri::command]
+pub async fn reload_llm(
+    state: tauri::State<'_, apollia_runtime::embedded::RuntimeHandle>,
+) -> Result<bool, String> {
+    // 1. Re-read apollia.toml
+    let config_path = default_config_path();
+    if !config_path.exists() {
+        return Err("apollia.toml not found".into());
+    }
+    let content = tokio::fs::read_to_string(&config_path)
+        .await
+        .map_err(|e| format!("failed to read apollia.toml: {e}"))?;
+
+    // 2. Parse the [llm] section
+    #[derive(serde::Deserialize)]
+    struct LlmSection {
+        llm: Option<apollia_llm::LlmConfig>,
+    }
+    let llm_config = toml::from_str::<LlmSection>(&content)
+        .map_err(|e| format!("failed to parse apollia.toml: {e}"))?
+        .llm;
+
+    let Some(config) = llm_config else {
+        return Err("no [llm] section found in apollia.toml".into());
+    };
+
+    // 3. Build a new LlmRouter
+    let router = apollia_llm::LlmRouter::from_config(&config)
+        .await
+        .map_err(|e| format!("failed to load LLM: {e}"))?;
+
+    tracing::info!("LLM router reloaded from apollia.toml");
+
+    // 4. Inject into the ChatSessionManager
+    if let Some(ref manager) = state.chat_manager {
+        manager
+            .reload_llm(Some(std::sync::Arc::new(router)))
+            .await;
+    }
+
+    Ok(true)
+}
+
+/// Infers the quantization type from a GGUF filename.
+///
+/// Looks for common patterns like `Q8_0`, `Q4_K_M`, `Q5_K_S`, etc.
+/// Returns `"q4_k_m"` as a safe default if nothing is detected.
+fn infer_quantization(stem: &str) -> String {
+    let upper = stem.to_uppercase();
+    // Common GGUF quantization suffixes (ordered by specificity)
+    let patterns = [
+        "Q8_0", "Q6_K", "Q5_K_M", "Q5_K_S", "Q5_0", "Q4_K_M", "Q4_K_S", "Q4_0", "Q3_K_M",
+        "Q3_K_S", "Q2_K", "IQ4_XS", "IQ3_M", "IQ2_S", "F16", "F32",
+    ];
+    for p in &patterns {
+        if upper.contains(p) {
+            return p.to_lowercase();
+        }
+    }
+    "q4_k_m".to_string()
+}
+
+/// Appends a minimal `[llm]` configuration block to `apollia.toml`.
+///
+/// Skips if the file already contains a `[llm]` section.
+async fn append_llm_config(
+    config_path: &std::path::Path,
+    model_path: &str,
+    quantization: &str,
+) -> Result<(), String> {
+    let existing = if config_path.exists() {
+        tokio::fs::read_to_string(config_path)
+            .await
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+
+    // Don't overwrite an existing [llm] section
+    if existing.contains("[llm]") {
+        return Ok(());
+    }
+
+    let device = if cfg!(target_os = "macos") {
+        "metal"
+    } else {
+        "cpu"
+    };
+
+    let llm_block = format!(
+        r#"
+
+# ─────────────────────────────────────────────
+# LLM — configured automatically during onboarding
+# ─────────────────────────────────────────────
+[llm]
+default = "local"
+
+[llm.observability]
+log_token_usage  = true
+log_latency      = true
+log_cost         = false
+debug_log_prompt = false
+
+[[llm.backends]]
+type         = "embedded"
+name         = "local"
+model_path   = "{model_path}"
+device       = "{device}"
+quantization = "{quantization}"
+"#
+    );
+
+    let mut content = existing;
+    content.push_str(&llm_block);
+
+    if let Some(parent) = config_path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("failed to create config directory: {e}"))?;
+    }
+    tokio::fs::write(config_path, &content)
+        .await
+        .map_err(|e| format!("failed to write apollia.toml: {e}"))?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -610,5 +820,69 @@ mod tests {
             toml_string(&toml_value, "missing_section", "key", "default"),
             "default"
         );
+    }
+
+    #[test]
+    fn test_infer_quantization_common_patterns() {
+        // GIVEN various GGUF filenames
+        // THEN the quantization is correctly inferred
+        assert_eq!(infer_quantization("Qwen3-0.6B-Q8_0"), "q8_0");
+        assert_eq!(infer_quantization("llama-3-8b-Q4_K_M"), "q4_k_m");
+        assert_eq!(infer_quantization("mistral-7b-Q5_K_S"), "q5_k_s");
+        assert_eq!(infer_quantization("phi-3-mini-F16"), "f16");
+        assert_eq!(infer_quantization("model-Q3_K_M"), "q3_k_m");
+    }
+
+    #[test]
+    fn test_infer_quantization_fallback() {
+        // GIVEN a filename with no recognizable quantization
+        // THEN the default is returned
+        assert_eq!(infer_quantization("some-random-model"), "q4_k_m");
+    }
+
+    #[tokio::test]
+    async fn test_append_llm_config_skips_if_already_present() {
+        // GIVEN a config file that already has [llm]
+        let dir = tempfile::tempdir().expect("tempdir");
+        let config_path = dir.path().join("apollia.toml");
+        tokio::fs::write(&config_path, "[llm]\ndefault = \"existing\"\n")
+            .await
+            .expect("write");
+
+        // WHEN appending LLM config
+        append_llm_config(&config_path, "~/.apollia/models/test.gguf", "q8_0")
+            .await
+            .expect("append");
+
+        // THEN the existing content is unchanged
+        let content = tokio::fs::read_to_string(&config_path)
+            .await
+            .expect("read");
+        assert!(content.contains("existing"));
+        assert!(!content.contains("embedded"));
+    }
+
+    #[tokio::test]
+    async fn test_append_llm_config_writes_block() {
+        // GIVEN an empty config file
+        let dir = tempfile::tempdir().expect("tempdir");
+        let config_path = dir.path().join("apollia.toml");
+        tokio::fs::write(&config_path, "[runtime]\nport = 7771\n")
+            .await
+            .expect("write");
+
+        // WHEN appending LLM config
+        append_llm_config(&config_path, "~/.apollia/models/test.gguf", "q8_0")
+            .await
+            .expect("append");
+
+        // THEN the LLM block is appended
+        let content = tokio::fs::read_to_string(&config_path)
+            .await
+            .expect("read");
+        assert!(content.contains("[llm]"));
+        assert!(content.contains("test.gguf"));
+        assert!(content.contains("q8_0"));
+        assert!(content.contains("[runtime]")); // original preserved
     }
 }

@@ -18,10 +18,17 @@ local-metal = ["local", "apollia-runtime/local-metal"]
 local-accelerate = ["local", "apollia-runtime/local-accelerate"]
 ## GPU NVIDIA CUDA.
 local-cuda = ["local", "apollia-runtime/local-cuda"]
+## Backend STT whisper.cpp.
+stt-whisper-cpp = ["apollia-stt/stt-whisper-cpp"]
+## Accélération Metal pour STT (Apple Silicon GPU).
+stt-metal = ["apollia-stt/stt-metal"]
+## Accélération CUDA pour STT (NVIDIA GPU).
+stt-cuda = ["apollia-stt/stt-cuda"]
 
 [dependencies]
 apollia-runtime  = { workspace = true }
 apollia-llm      = { workspace = true, default-features = false }
+apollia-stt      = { workspace = true, default-features = false }
 apollia-core     = { workspace = true }
 apollia-memory   = { workspace = true }
 apollia-tools    = { workspace = true }

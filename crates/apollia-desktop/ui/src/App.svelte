@@ -4,6 +4,7 @@
   import { isLoading } from "svelte-i18n";
   import Sidebar from "./components/layout/Sidebar.svelte";
   import Main from "./components/layout/Main.svelte";
+  import OnboardingLlmSetup from "./components/onboarding/OnboardingLlmSetup.svelte";
   import OnboardingConversation from "./components/onboarding/OnboardingConversation.svelte";
   import { ToastContainer } from "$lib/components/ui/toast";
   import ExtractionNotifier from "./components/chat/ExtractionNotifier.svelte";
@@ -12,28 +13,44 @@
   import { initTheme } from "$lib/stores/theme";
   import type { OnboardingStatus } from "$lib/types";
 
-  let ready = $state(false);
-  let showOnboarding = $state(false);
+  /** Onboarding steps: llm-setup → conversation → done */
+  type OnboardingStep = "llm-setup" | "conversation" | "done";
 
-  onMount(() => {
+  let ready = $state(false);
+  let onboardingStep = $state<OnboardingStep>("done");
+
+  onMount(async () => {
     initTheme();
     const cleanup = createSSEConnection();
 
-    invoke<OnboardingStatus>("get_onboarding_status")
-      .then((status) => {
-        showOnboarding = !status.completed && !status.skipped;
-        ready = true;
-      })
-      .catch(() => {
-        showOnboarding = false;
-        ready = true;
-      });
+    try {
+      const status = await invoke<OnboardingStatus>("get_onboarding_status");
+      if (status.completed || status.skipped) {
+        onboardingStep = "done";
+      } else {
+        // Check if an LLM is already configured
+        const llmReady = await invoke<boolean>("check_llm_configured");
+        onboardingStep = llmReady ? "conversation" : "llm-setup";
+      }
+    } catch {
+      onboardingStep = "done";
+    }
+    ready = true;
 
     return cleanup;
   });
 
+  function handleLlmSetupComplete() {
+    onboardingStep = "conversation";
+  }
+
+  function handleSkipAll() {
+    invoke("dismiss_onboarding").catch(() => {});
+    onboardingStep = "done";
+  }
+
   function handleOnboardingComplete() {
-    showOnboarding = false;
+    onboardingStep = "done";
   }
 </script>
 
@@ -42,7 +59,12 @@
     <div class="flex h-screen w-screen items-center justify-center bg-background text-foreground" data-testid="app-loading">
       <p class="text-sm text-muted-foreground">Loading…</p>
     </div>
-  {:else if showOnboarding}
+  {:else if onboardingStep === "llm-setup"}
+    <OnboardingLlmSetup
+      oncomplete={handleLlmSetupComplete}
+      onskip={handleSkipAll}
+    />
+  {:else if onboardingStep === "conversation"}
     <OnboardingConversation oncomplete={handleOnboardingComplete} />
   {:else}
     <div class="flex h-screen w-screen overflow-hidden" data-testid="app-main">

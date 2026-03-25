@@ -8,6 +8,7 @@ members = [
     "crates/apollia-memory",
     "crates/apollia-aip",
     "crates/apollia-llm",
+    "crates/apollia-stt",
     "crates/apollia-triggers",
     "crates/apollia-notifications",
     "crates/apollia-pipelines",
@@ -24,6 +25,7 @@ default-members = [
     "crates/apollia-memory",
     "crates/apollia-aip",
     "crates/apollia-llm",
+    "crates/apollia-stt",
     "crates/apollia-triggers",
     "crates/apollia-notifications",
     "crates/apollia-pipelines",
@@ -110,6 +112,7 @@ apollia-tools   = { path = "crates/apollia-tools" }
 apollia-memory  = { path = "crates/apollia-memory" }
 apollia-aip     = { path = "crates/apollia-aip" }
 apollia-llm           = { path = "crates/apollia-llm", default-features = false }
+apollia-stt           = { path = "crates/apollia-stt", default-features = false }
 apollia-triggers      = { path = "crates/apollia-triggers" }
 apollia-notifications = { path = "crates/apollia-notifications" }
 apollia-pipelines     = { path = "crates/apollia-pipelines" }
