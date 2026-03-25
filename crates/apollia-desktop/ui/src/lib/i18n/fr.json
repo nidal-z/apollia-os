@@ -971,7 +971,11 @@
     "copy": "Copier",
     "copied": "Copié !",
     "empty_title": "Aucune transcription",
-    "empty_subtitle": "Utilisez le raccourci clavier ou transcrivez un fichier pour commencer."
+    "empty_subtitle": "Utilisez le raccourci clavier ou transcrivez un fichier pour commencer.",
+    "transcribe_file": "Transcrire un fichier",
+    "transcribing": "Transcription…",
+    "file_filter_audio": "Fichiers audio",
+    "error_model_not_loaded": "Le modèle STT n'est pas chargé. Vérifiez votre configuration dans apollia.toml."
   },
   "onboarding_welcome": {
     "title": "Bienvenue sur Apollia OS",

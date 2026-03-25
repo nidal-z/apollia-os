@@ -5,6 +5,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import EmptyState from "../components/common/EmptyState.svelte";
   import TranscriptCard from "../components/stt/TranscriptCard.svelte";
+  import TranscribeFileDialog from "../components/stt/TranscribeFileDialog.svelte";
   import {
     sttStatus,
     transcriptions,
@@ -40,16 +41,19 @@
 
 <div class="space-y-6" data-testid="transcriptions-page">
   <!-- Header -->
-  <div>
-    <h1
-      class="text-2xl font-semibold tracking-tight text-foreground"
-      data-testid="transcriptions-title"
-    >
-      {$t("transcriptions.title")}
-    </h1>
-    <p class="mt-1 text-sm text-muted-foreground/60">
-      {$t("transcriptions.subtitle")}
-    </p>
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <h1
+        class="text-2xl font-semibold tracking-tight text-foreground"
+        data-testid="transcriptions-title"
+      >
+        {$t("transcriptions.title")}
+      </h1>
+      <p class="mt-1 text-sm text-muted-foreground/60">
+        {$t("transcriptions.subtitle")}
+      </p>
+    </div>
+    <TranscribeFileDialog />
   </div>
 
   <!-- Status banner -->

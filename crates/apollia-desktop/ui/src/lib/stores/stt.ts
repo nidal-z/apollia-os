@@ -50,6 +50,15 @@ export async function deleteTranscription(id: string): Promise<void> {
   await refreshTranscriptions();
 }
 
+/** Transcribe an audio file and refresh the list. */
+export async function transcribeFile(filePath: string): Promise<TranscriptRow> {
+  const result: TranscriptRow = await invoke("transcribe_file", {
+    filePath,
+  });
+  await refreshTranscriptions();
+  return result;
+}
+
 // ─── Event listeners ─────────────────────────────────────────────────────────
 
 /**
