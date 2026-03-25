@@ -140,6 +140,9 @@ async fn run_status(socket: Option<PathBuf>, json: bool) -> i32 {
 }
 
 /// `apollia-os stt transcribe <file>` — transcribe an audio file via the runtime API.
+///
+/// Pre-checks that STT is enabled in the runtime config before attempting
+/// the transcription. Returns a clear error if `stt.enabled = false`.
 async fn run_transcribe(
     file: &PathBuf,
     output: Option<&std::path::Path>,
@@ -178,6 +181,24 @@ async fn run_transcribe(
     };
 
     let client = make_client(socket);
+
+    // Pre-check: bail early with a clear message if STT is disabled.
+    if let Ok(status) = client.stt_status().await {
+        if status["enabled"].as_bool() == Some(false) {
+            let msg =
+                "STT is disabled in apollia.toml — set stt.enabled = true to use transcription";
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({"error": msg}))
+                        .unwrap_or_default()
+                );
+            } else {
+                eprintln!("Error: {msg}");
+            }
+            return exit_codes::GENERAL_ERROR;
+        }
+    }
 
     let boundary = "apollia-cli-boundary-7f3a";
     let mut body = Vec::new();
