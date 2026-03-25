@@ -12,12 +12,14 @@
 
 pub mod audio;
 pub mod backend;
+pub mod repository;
 pub mod types;
 #[cfg(feature = "stt-whisper-cpp")]
 pub mod whisper_cpp;
 
 pub use audio::{to_whisper_format, trim_silence, AudioCapture, CaptureBuffer};
 pub use backend::SttBackend;
+pub use repository::{SttRepository, TranscriptRow};
 pub use types::{SttError, TranscriptResult, TranscriptSegment};
 #[cfg(feature = "stt-whisper-cpp")]
 pub use whisper_cpp::WhisperCppBackend;

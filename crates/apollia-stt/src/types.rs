@@ -97,6 +97,13 @@ pub enum SttError {
     /// Erreur interne inattendue.
     #[error("internal STT error: {0}")]
     Internal(String),
+
+    /// Erreur du repository SQLite (ouverture, migration, requête).
+    #[error("STT repository error: {reason}")]
+    Repository {
+        /// Description de l'erreur du repository.
+        reason: String,
+    },
 }
 
 #[cfg(test)]

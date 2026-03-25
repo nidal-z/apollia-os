@@ -467,11 +467,13 @@ dependencies = [
  "apollia-core",
  "cpal",
  "rubato 0.15.0",
+ "rusqlite",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "toml 0.8.23",
  "tracing",
+ "uuid 1.21.0",
  "whisper-rs",
 ]
 
