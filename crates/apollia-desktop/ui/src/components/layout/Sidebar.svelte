@@ -25,6 +25,7 @@
     PanelLeftClose,
     PanelLeftOpen,
     Sparkles,
+    Mic,
   } from "lucide-svelte";
   import type { ComponentType } from "svelte";
 
@@ -62,6 +63,7 @@
       labelKey: "nav.data",
       items: [
         { route: "memory", labelKey: "nav.memory", icon: Database },
+        { route: "transcriptions", labelKey: "nav.transcriptions", icon: Mic },
         { route: "notifications", labelKey: "nav.notifications", icon: Bell },
         { route: "observability", labelKey: "nav.observability", icon: Activity },
       ],

@@ -30,6 +30,7 @@ import type {
 } from "$lib/types";
 import { onboardingStore } from "./onboarding";
 import { currentRoute, navigateTo } from "./navigation";
+import { refreshSttStatus, refreshTranscriptions } from "./stt";
 
 /** Watchdog timeout — triggers a single IPC refresh if no event received. */
 const WATCHDOG_TIMEOUT_MS = 10_000;
@@ -238,6 +239,10 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       }
       break;
     }
+    case "stt-changed":
+      void refreshSttStatus();
+      void refreshTranscriptions();
+      break;
     case "onboarding-required":
       onboardingStore.setRequired();
       if (!get(onboardingStore).completed) {

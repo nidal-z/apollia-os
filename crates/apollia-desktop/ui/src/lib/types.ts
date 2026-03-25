@@ -831,3 +831,28 @@ export interface TriggerResult {
   mode: "full" | "partial";
   topic?: string;
 }
+
+// ─── STT (Speech-to-Text) ────────────────────────────────────────────────────
+
+/** Current status of the STT engine reported by `get_stt_status`. */
+export interface SttStatus {
+  enabled: boolean;
+  model_loaded: boolean;
+  model_path: string;
+  model_name: string;
+  backend_name: string;
+  metal_enabled: boolean;
+  cuda_enabled: boolean;
+}
+
+/** A single transcription row returned by `list_transcriptions`. */
+export interface TranscriptRow {
+  id: string;
+  full_text: string;
+  language: string | null;
+  source: "hotkey" | "file" | "api";
+  audio_duration_ms: number;
+  processing_time_ms: number;
+  model_name: string | null;
+  created_at: string;
+}

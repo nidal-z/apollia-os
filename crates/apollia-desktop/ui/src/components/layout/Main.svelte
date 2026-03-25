@@ -16,6 +16,7 @@
   import Chat from "../../routes/Chat.svelte";
   import Settings from "../../routes/Settings.svelte";
   import Onboarding from "../../routes/Onboarding.svelte";
+  import Transcriptions from "../../routes/Transcriptions.svelte";
 
   onMount(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -77,6 +78,8 @@
           <Pipelines />
         {:else if $currentRoute === "memory"}
           <Memory />
+        {:else if $currentRoute === "transcriptions"}
+          <Transcriptions />
         {:else if $currentRoute === "notifications"}
           <Notifications />
         {:else if $currentRoute === "observability"}

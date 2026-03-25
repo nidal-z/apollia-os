@@ -48,6 +48,7 @@
     "memory": "Mémoire",
     "notifications": "Notifications",
     "observability": "Observabilité",
+    "transcriptions": "Transcriptions",
     "chat": "Chat",
     "settings": "Paramètres",
     "switch_to_builder": "Passer en mode Builder",
@@ -957,6 +958,20 @@
     "legend_memory": "Mémoire",
     "legend_summary": "Résumé",
     "legend_free": "Libre"
+  },
+  "transcriptions": {
+    "title": "Transcriptions",
+    "subtitle": "Historique de vos dictées vocales",
+    "status_active": "Actif",
+    "status_inactive": "Inactif",
+    "recording": "Enregistrement…",
+    "source_hotkey": "Dictée vocale",
+    "source_file": "Transcription de fichier",
+    "source_api": "API",
+    "copy": "Copier",
+    "copied": "Copié !",
+    "empty_title": "Aucune transcription",
+    "empty_subtitle": "Utilisez le raccourci clavier ou transcrivez un fichier pour commencer."
   },
   "onboarding_welcome": {
     "title": "Bienvenue sur Apollia OS",
