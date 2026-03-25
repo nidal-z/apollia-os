@@ -71,6 +71,7 @@
   - [Configuration apollia.toml](ops/config.md)
   - [Exploitation & Debug](ops/debug.md)
   - [Dashboard Observabilité](ops/dashboard.md)
+  - [Sprint Summary](ops/sprint-summary.md)
 
 # Décisions Architecturales
 

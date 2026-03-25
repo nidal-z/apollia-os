@@ -57,6 +57,9 @@
 - [[Ops-Exploitation-et-Debug|Exploitation & Debug]]
 - [[Dashboard-Observabilite|Dashboard Observabilité]]
 
+**Historique**
+- [[Sprint-Summary|Sprint Summary]]
+
 **Roadmap & Décisions**
 - [[Roadmap|Roadmap v0.1 → v1.0]]
 - [[Decisions-Log|Décisions (ADR)]]

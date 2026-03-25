@@ -58,9 +58,7 @@ pub struct TriggerResult {
 #[derive(Debug, thiserror::Error)]
 pub enum OnboardingError {
     /// The onboarding agent is not registered in the runtime.
-    #[error(
-        "onboarding-agent not found. Install it with: apollia-os agent install onboarding-agent"
-    )]
+    #[error("onboarding-agent not found — it should be provisioned automatically at startup. Check that Python is available and restart the application.")]
     AgentNotInstalled,
 
     /// The UserMemory database is unavailable.
@@ -376,7 +374,7 @@ mod tests {
         // THEN the message is actionable
         let msg = err.to_string();
         assert!(msg.contains("onboarding-agent"));
-        assert!(msg.contains("Install"));
+        assert!(msg.contains("restart"));
     }
 
     #[test]

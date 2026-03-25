@@ -7,6 +7,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod backend;
+mod bundled_agents;
 mod commands;
 mod events;
 pub mod tray;
@@ -113,6 +114,12 @@ fn main() {
             }
         }
     };
+
+    // Extract bundled system agents (e.g. onboarding-agent) to disk and register
+    // them in the repository so the auto-load loop picks them up.
+    if let Some(ref repo) = boot_agent_repo {
+        bundled_agents::ensure_bundled_agents(repo, &apollia_data_dir);
+    }
 
     // Do NOT pass agent_repository here — auto-load inside the Supervisor
     // happens before OnceLocks are populated, causing "event bus not initialized"
