@@ -666,6 +666,21 @@ pub enum RuntimeEvent {
     },
 
     // ── STT events ───────────────────────────────────
+    /// L'enregistrement audio STT a démarré (hotkey activée).
+    ///
+    /// Émis par `SttFlow` quand l'utilisateur active la hotkey d'enregistrement.
+    /// Le frontend utilise cet événement pour afficher l'overlay d'enregistrement.
+    SttRecordingStarted,
+
+    /// L'enregistrement audio STT s'est arrêté (hotkey relâchée ou silence détecté).
+    ///
+    /// Émis par `SttFlow` quand l'enregistrement se termine, avant le lancement
+    /// de la transcription. `audio_duration_ms` indique la durée de l'audio capturé.
+    SttRecordingStopped {
+        /// Durée de l'audio enregistré en millisecondes.
+        audio_duration_ms: u64,
+    },
+
     /// Le modèle STT a été chargé avec succès — moteur opérationnel.
     ///
     /// Émis par `SttEngine` après chargement du modèle GGML dans `spawn_blocking`.
@@ -992,6 +1007,10 @@ mod tests {
                 topic: None,
             },
             // ── STT ──────────────────────────────────
+            RuntimeEvent::SttRecordingStarted,
+            RuntimeEvent::SttRecordingStopped {
+                audio_duration_ms: 3200,
+            },
             RuntimeEvent::SttModelLoaded {
                 backend: "whisper-cpp".into(),
                 model_path: "/tmp/model.bin".into(),

@@ -194,7 +194,9 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         }
 
         // ── STT ──────────────────────────────────────────────────────────
-        RuntimeEvent::SttModelLoaded { .. }
+        RuntimeEvent::SttRecordingStarted
+        | RuntimeEvent::SttRecordingStopped { .. }
+        | RuntimeEvent::SttModelLoaded { .. }
         | RuntimeEvent::SttTranscribed { .. }
         | RuntimeEvent::SttTranscriptionFailed { .. } => "stt-changed",
 
