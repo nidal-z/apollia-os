@@ -2,14 +2,26 @@
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
 
-  let hotkey = $state("...");
+  let isRecording = $state(true);
+  let hotkey = $state("…");
 
   onMount(() => {
-    const unlisten = listen<string>("stt-overlay-config", (event) => {
-      hotkey = formatHotkey(event.payload);
-    });
+    const unlisteners = [
+      listen<string>("stt-overlay-config", (event) => {
+        hotkey = formatHotkey(event.payload);
+      }),
+      listen("stt-recording-started", () => {
+        isRecording = true;
+      }),
+      listen("stt-recording-stopped", () => {
+        isRecording = false;
+      }),
+    ];
+
     return () => {
-      unlisten.then((fn) => fn());
+      for (const p of unlisteners) {
+        void p.then((fn) => fn());
+      }
     };
   });
 
@@ -30,13 +42,15 @@
   }
 </script>
 
-<div class="overlay" role="status" aria-live="polite">
-  <span class="indicator" aria-hidden="true"></span>
-  <div class="text">
-    <span class="title">Enregistrement en cours...</span>
-    <span class="hint">{hotkey} pour arr&ecirc;ter</span>
+{#if isRecording}
+  <div class="overlay" role="status" aria-live="polite">
+    <span class="indicator" aria-hidden="true"></span>
+    <div class="text">
+      <span class="title">Enregistrement en cours…</span>
+      <span class="hint">{hotkey} pour arrêter</span>
+    </div>
   </div>
-</div>
+{/if}
 
 <style>
   .overlay {
