@@ -10,6 +10,7 @@ mod backend;
 mod bundled_agents;
 mod commands;
 mod events;
+pub mod stt;
 pub mod tray;
 
 use std::sync::Arc;
@@ -153,6 +154,10 @@ fn main() {
         ..EmbeddedConfig::default()
     });
 
+    // Keep a copy of the STT config for the desktop hotkey listener (the
+    // embedded runtime consumes `config`).
+    let stt_config_for_hotkey = config.stt_config.clone();
+
     let runtime_handle: RuntimeHandle =
         apollia_runtime::init_embedded(config).expect("failed to start embedded runtime");
 
@@ -280,6 +285,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(runtime_handle.clone())
         .manage(agent_repo)
         .manage(agent_loader)
@@ -289,6 +295,36 @@ fn main() {
 
             // bridge EventBus → Tauri events (replaces polling).
             events::spawn_event_bridge(app.handle().clone(), runtime_handle.event_sender.clone());
+
+            // Register the global STT hotkey when STT is enabled.
+            if let Some(ref stt_cfg) = stt_config_for_hotkey {
+                if stt_cfg.enabled {
+                    let event_sender = runtime_handle.event_sender.clone();
+                    let event_sender_stop = runtime_handle.event_sender.clone();
+                    let mode =
+                        stt::hotkey::TriggerMode::from_config(&stt_cfg.trigger_mode);
+                    let listener =
+                        stt::hotkey::HotkeyListener::new(stt_cfg.hotkey.clone(), mode);
+
+                    if let Err(e) = listener.register(
+                        app.handle(),
+                        move || {
+                            let _ = event_sender.send(
+                                apollia_core::events::RuntimeEvent::SttRecordingStarted,
+                            );
+                        },
+                        move || {
+                            let _ = event_sender_stop.send(
+                                apollia_core::events::RuntimeEvent::SttRecordingStopped {
+                                    audio_duration_ms: 0,
+                                },
+                            );
+                        },
+                    ) {
+                        tracing::warn!(error = %e, "STT hotkey registration failed — recording via hotkey disabled");
+                    }
+                }
+            }
 
             // Closing the window hides it instead of quitting.
             // The runtime keeps running in the background and the tray icon
