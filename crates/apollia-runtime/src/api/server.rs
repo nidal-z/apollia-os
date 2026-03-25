@@ -158,6 +158,16 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` after the Supervisor opens `user_memory.db` on startup.
     /// `None` in tests or when user memory is not configured.
     pub user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+    /// Handle to the STT engine actor.
+    ///
+    /// `Some` after Phase 14 of the Supervisor startup when `stt.enabled = true`.
+    /// `None` in tests or when STT is disabled. Routes return 503 when `None`.
+    pub stt_engine: Option<crate::stt::SttEngineHandle>,
+    /// STT transcription repository — persists transcription history.
+    ///
+    /// `Some` when the STT subsystem is initialized.
+    /// `None` in tests or when STT is disabled.
+    pub stt_repository: Option<Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -188,6 +198,8 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             plan_cache: self.plan_cache.clone(),
             mailbox_handle: self.mailbox_handle.clone(),
             user_memory: self.user_memory.clone(),
+            stt_engine: self.stt_engine.clone(),
+            stt_repository: self.stt_repository.clone(),
         }
     }
 }
@@ -307,6 +319,9 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     };
     use super::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
     use super::routes_sse::stream_task;
+    use super::routes_stt::{
+        delete_transcription, list_models, list_transcriptions, stt_status, transcribe_audio,
+    };
     use super::routes_tasks::{cancel_task, get_task, list_tasks, resume_task, submit_task};
     use super::routes_timeline::get_task_timeline;
     use super::routes_tools::{describe_tool, list_tools};
@@ -436,6 +451,15 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             "/api/v1/user/memory/:key",
             axum::routing::delete(forget_memory::<B>),
         )
+        // STT routes
+        .route("/api/v1/stt/status", get(stt_status::<B>))
+        .route("/api/v1/stt/transcribe", post(transcribe_audio::<B>))
+        .route("/api/v1/stt/transcriptions", get(list_transcriptions::<B>))
+        .route(
+            "/api/v1/stt/transcriptions/:id",
+            axum::routing::delete(delete_transcription::<B>),
+        )
+        .route("/api/v1/stt/models", get(list_models::<B>))
         .with_state(state)
 }
 
@@ -646,6 +670,8 @@ mod tests {
             plan_cache: None,
             mailbox_handle: None,
             user_memory: None,
+            stt_engine: None,
+            stt_repository: None,
         }
     }
 

@@ -91,6 +91,10 @@ pub struct RuntimeHandle {
     /// `Some` when `stt.enabled = true` and the model loaded successfully.
     /// `None` when STT is disabled, the model is absent, or loading failed.
     pub stt_engine: Option<crate::stt::SttEngineHandle>,
+    /// STT transcription repository for API routes.
+    ///
+    /// Separate connection for read operations. `None` when STT is disabled.
+    pub stt_repository: Option<Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
     /// Port TCP de l'APIServer.
     pub api_port: u16,
 }
@@ -307,6 +311,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         mailbox_handle: handles.mailbox_handle,
         user_memory: handles.user_memory,
         stt_engine: handles.stt_engine,
+        stt_repository: handles.stt_repository,
         api_port: tcp_port,
     })
 }

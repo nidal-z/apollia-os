@@ -482,6 +482,8 @@ mod tests {
             plan_cache: None,
             mailbox_handle: None,
             user_memory: None,
+            stt_engine: None,
+            stt_repository: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -622,6 +624,8 @@ mod tests {
             plan_cache: None,
             mailbox_handle: None,
             user_memory: None,
+            stt_engine: None,
+            stt_repository: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -715,6 +719,8 @@ mod tests {
             plan_cache: None,
             mailbox_handle: None,
             user_memory: None,
+            stt_engine: None,
+            stt_repository: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -914,6 +920,8 @@ mod tests {
             plan_cache: None,
             mailbox_handle: None,
             user_memory: None,
+            stt_engine: None,
+            stt_repository: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

@@ -875,6 +875,8 @@ mod tests {
             plan_cache: None,
             mailbox_handle: None,
             user_memory: None,
+            stt_engine: None,
+            stt_repository: None,
         }
     }
 
@@ -1243,6 +1245,8 @@ mod tests {
             plan_cache: None,
             mailbox_handle: None,
             user_memory: None,
+            stt_engine: None,
+            stt_repository: None,
         };
 
         let router = Router::new()

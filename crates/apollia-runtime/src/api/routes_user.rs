@@ -344,6 +344,8 @@ mod tests {
             plan_cache: None,
             mailbox_handle: None,
             user_memory: Some(repo),
+            stt_engine: None,
+            stt_repository: None,
         }
     }
 

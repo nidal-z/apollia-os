@@ -186,6 +186,11 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `Some` when `stt.enabled = true` and the model loaded successfully.
     /// `None` when STT is disabled, the model is absent, or loading failed.
     pub stt_engine: Option<crate::stt::SttEngineHandle>,
+    /// STT transcription repository for API routes.
+    ///
+    /// Separate connection from the engine's internal repository (SQLite WAL
+    /// supports concurrent readers). `None` when STT is disabled.
+    pub stt_repository: Option<std::sync::Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
 }
 
 /// Supervisor errors.
@@ -681,70 +686,75 @@ impl Supervisor {
         // When `stt.enabled = true`, opens `SttRepository`, loads the backend
         // model via `spawn_blocking`, and spawns the actor. On any failure the
         // engine is `None` and the runtime continues without STT.
-        let stt_engine: Option<crate::stt::SttEngineHandle> =
-            if self.config.stt_config.as_ref().is_some_and(|c| c.enabled) {
-                let stt_cfg = self.config.stt_config.as_ref().expect("checked above");
-                info!("Supervisor: starting SttEngine");
+        let (stt_engine, stt_repository): (
+            Option<crate::stt::SttEngineHandle>,
+            Option<std::sync::Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
+        ) = if self.config.stt_config.as_ref().is_some_and(|c| c.enabled) {
+            let stt_cfg = self.config.stt_config.as_ref().expect("checked above");
+            info!("Supervisor: starting SttEngine");
 
-                let model_path = resolve_home(&stt_cfg.model_path);
+            let model_path = resolve_home(&stt_cfg.model_path);
 
-                if !model_path.exists() {
-                    error!(
-                        path = %model_path.display(),
-                        "STT model file not found — SttEngine disabled"
-                    );
-                    None
-                } else {
-                    let repo_path = self.config.data_dir.join("stt_transcriptions.db");
-                    match apollia_stt::SttRepository::open(&repo_path) {
-                        Ok(repository) => {
-                            let mp = model_path.display().to_string();
-                            match tokio::task::spawn_blocking(move || {
-                                crate::stt::engine::try_load_backend(&mp)
-                            })
-                            .await
-                            {
-                                Ok(Ok(backend)) => {
-                                    let handle = crate::stt::SttEngineHandle::start(
-                                        backend,
-                                        repository,
-                                        stt_cfg.clone(),
-                                        event_sender.clone(),
-                                    );
-                                    info!("Supervisor: SttEngine ready");
-                                    Some(handle)
-                                }
-                                Ok(Err(e)) => {
-                                    error!(
-                                        error = %e,
-                                        "STT model loading failed — SttEngine disabled"
-                                    );
-                                    None
-                                }
-                                Err(e) => {
-                                    error!(
-                                        error = %e,
-                                        "STT model loading panicked — SttEngine disabled"
-                                    );
-                                    None
-                                }
+            if !model_path.exists() {
+                error!(
+                    path = %model_path.display(),
+                    "STT model file not found — SttEngine disabled"
+                );
+                (None, None)
+            } else {
+                let repo_path = self.config.data_dir.join("stt_transcriptions.db");
+                match apollia_stt::SttRepository::open(&repo_path) {
+                    Ok(repository) => {
+                        let mp = model_path.display().to_string();
+                        match tokio::task::spawn_blocking(move || {
+                            crate::stt::engine::try_load_backend(&mp)
+                        })
+                        .await
+                        {
+                            Ok(Ok(backend)) => {
+                                let handle = crate::stt::SttEngineHandle::start(
+                                    backend,
+                                    repository,
+                                    stt_cfg.clone(),
+                                    event_sender.clone(),
+                                );
+                                info!("Supervisor: SttEngine ready");
+                                let api_repo = apollia_stt::SttRepository::open(&repo_path)
+                                    .map(|r| std::sync::Arc::new(std::sync::Mutex::new(r)))
+                                    .ok();
+                                (Some(handle), api_repo)
+                            }
+                            Ok(Err(e)) => {
+                                error!(
+                                    error = %e,
+                                    "STT model loading failed — SttEngine disabled"
+                                );
+                                (None, None)
+                            }
+                            Err(e) => {
+                                error!(
+                                    error = %e,
+                                    "STT model loading panicked — SttEngine disabled"
+                                );
+                                (None, None)
                             }
                         }
-                        Err(e) => {
-                            error!(
-                                error = %e,
-                                "SttRepository failed to open — SttEngine disabled"
-                            );
-                            None
-                        }
+                    }
+                    Err(e) => {
+                        error!(
+                            error = %e,
+                            "SttRepository failed to open — SttEngine disabled"
+                        );
+                        (None, None)
                     }
                 }
-            } else {
-                if self.config.stt_config.is_some() {
-                    info!("Supervisor: STT disabled in config — Phase 15 skipped");
-                }
-                None
-            };
+            }
+        } else {
+            if self.config.stt_config.is_some() {
+                info!("Supervisor: STT disabled in config — Phase 15 skipped");
+            }
+            (None, None)
+        };
 
         // Clone handles before moving into AppState — needed for auto-load.
         let agent_loader_for_autoload = agent_loader.clone();
@@ -776,6 +786,8 @@ impl Supervisor {
             plan_cache: plan_cache.clone(),
             mailbox_handle: Some(mailbox_handle.clone()),
             user_memory: user_memory.clone(),
+            stt_engine: stt_engine.clone(),
+            stt_repository: stt_repository.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -975,6 +987,7 @@ impl Supervisor {
             mailbox_handle: Some(mailbox_handle),
             user_memory,
             stt_engine,
+            stt_repository,
         })
     }
 }
@@ -1550,6 +1563,8 @@ mod tests {
             plan_cache: None,
             mailbox_handle: None,
             user_memory: None,
+            stt_engine: None,
+            stt_repository: None,
         };
 
         // WHEN on clone l'AppState

@@ -55,7 +55,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 
 # --- API server (apollia-runtime) ---
-axum = { version = "0.7", features = ["macros"] }
+axum = { version = "0.7", features = ["macros", "multipart"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio", "server-auto", "service"] }
@@ -85,6 +85,9 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 # mistralrs      = SDK public GGUF — [feature = "local"]
 mistralrs-core = { version = "0.7" }
 mistralrs       = { version = "0.7" }
+
+# --- Audio (WAV decoding for STT API) ---
+hound = "3.5"
 
 # --- Config parsing ---
 toml = "0.8"
