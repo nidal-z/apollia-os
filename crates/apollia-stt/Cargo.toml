@@ -19,6 +19,9 @@ apollia-core = { workspace = true }
 serde        = { workspace = true }
 thiserror    = { workspace = true }
 whisper-rs   = { version = "0.16", optional = true }
+cpal         = "0.15"
+rubato       = "0.15"
+tracing      = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

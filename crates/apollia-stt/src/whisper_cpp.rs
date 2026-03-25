@@ -8,9 +8,7 @@
 use std::path::Path;
 use std::time::Instant;
 
-use whisper_rs::{
-    FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters,
-};
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 use crate::backend::SttBackend;
 use crate::types::{SttError, TranscriptResult, TranscriptSegment};
@@ -109,9 +107,11 @@ impl SttBackend for WhisperCppBackend {
         let mut full_text = String::new();
 
         for i in 0..num_segments {
-            let seg = state.get_segment(i).ok_or_else(|| SttError::TranscriptionFailed {
-                reason: format!("segment {i} out of bounds"),
-            })?;
+            let seg = state
+                .get_segment(i)
+                .ok_or_else(|| SttError::TranscriptionFailed {
+                    reason: format!("segment {i} out of bounds"),
+                })?;
 
             let text = seg
                 .to_str_lossy()

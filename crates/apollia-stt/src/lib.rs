@@ -10,11 +10,13 @@
 //! - `stt-metal` — accélération Metal (Apple Silicon)
 //! - `stt-cuda` — accélération CUDA (NVIDIA)
 
+pub mod audio;
 pub mod backend;
 pub mod types;
 #[cfg(feature = "stt-whisper-cpp")]
 pub mod whisper_cpp;
 
+pub use audio::{to_whisper_format, trim_silence, AudioCapture, CaptureBuffer};
 pub use backend::SttBackend;
 pub use types::{SttError, TranscriptResult, TranscriptSegment};
 #[cfg(feature = "stt-whisper-cpp")]
