@@ -53,6 +53,8 @@ tauri          = { version = "2", features = ["devtools", "tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
+arboard          = { workspace = true }
+enigo            = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

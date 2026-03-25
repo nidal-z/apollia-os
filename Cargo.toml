@@ -92,6 +92,10 @@ hound = "3.5"
 # --- Config parsing ---
 toml = "0.8"
 
+# --- Clipboard + keyboard simulation (apollia-desktop STT injection) ---
+arboard = "3"
+enigo = "0.5"
+
 # --- File opener (cross-platform) ---
 open = "5"
 
