@@ -296,32 +296,42 @@ fn main() {
             // bridge EventBus → Tauri events (replaces polling).
             events::spawn_event_bridge(app.handle().clone(), runtime_handle.event_sender.clone());
 
-            // Register the global STT hotkey when STT is enabled.
+            // Register the global STT hotkey with the full SttFlow pipeline
+            // when STT is enabled and the engine loaded successfully.
             if let Some(ref stt_cfg) = stt_config_for_hotkey {
                 if stt_cfg.enabled {
-                    let event_sender = runtime_handle.event_sender.clone();
-                    let event_sender_stop = runtime_handle.event_sender.clone();
-                    let mode =
-                        stt::hotkey::TriggerMode::from_config(&stt_cfg.trigger_mode);
-                    let listener =
-                        stt::hotkey::HotkeyListener::new(stt_cfg.hotkey.clone(), mode);
+                    if let Some(ref stt_engine) = runtime_handle.stt_engine {
+                        let flow = Arc::new(stt::flow::SttFlow::new(
+                            stt_cfg.clone(),
+                            stt_engine.clone(),
+                            runtime_handle.event_sender.clone(),
+                            app.handle().clone(),
+                        ));
 
-                    if let Err(e) = listener.register(
-                        app.handle(),
-                        move || {
-                            let _ = event_sender.send(
-                                apollia_core::events::RuntimeEvent::SttRecordingStarted,
-                            );
-                        },
-                        move || {
-                            let _ = event_sender_stop.send(
-                                apollia_core::events::RuntimeEvent::SttRecordingStopped {
-                                    audio_duration_ms: 0,
-                                },
-                            );
-                        },
-                    ) {
-                        tracing::warn!(error = %e, "STT hotkey registration failed — recording via hotkey disabled");
+                        let mode =
+                            stt::hotkey::TriggerMode::from_config(&stt_cfg.trigger_mode);
+                        let listener =
+                            stt::hotkey::HotkeyListener::new(stt_cfg.hotkey.clone(), mode);
+
+                        let flow_start = Arc::clone(&flow);
+                        let flow_stop = Arc::clone(&flow);
+
+                        if let Err(e) = listener.register(
+                            app.handle(),
+                            move || {
+                                flow_start.start_recording();
+                            },
+                            move || {
+                                let flow = Arc::clone(&flow_stop);
+                                tauri::async_runtime::spawn(async move {
+                                    flow.stop_and_transcribe().await;
+                                });
+                            },
+                        ) {
+                            tracing::warn!(error = %e, "STT hotkey registration failed — recording via hotkey disabled");
+                        }
+                    } else {
+                        tracing::warn!("STT enabled in config but engine not loaded — hotkey disabled");
                     }
                 }
             }

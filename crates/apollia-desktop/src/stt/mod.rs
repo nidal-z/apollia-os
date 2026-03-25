@@ -2,4 +2,5 @@
 //! orchestration.
 
 pub mod clipboard;
+pub mod flow;
 pub mod hotkey;
