@@ -17,5 +17,11 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     target: "esnext",
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        overlay: path.resolve(__dirname, "overlay.html"),
+      },
+    },
   },
 });

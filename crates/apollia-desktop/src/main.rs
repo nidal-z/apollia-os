@@ -330,6 +330,24 @@ fn main() {
                         ) {
                             tracing::warn!(error = %e, "STT hotkey registration failed — recording via hotkey disabled");
                         }
+
+                        // Recording overlay: secondary always-on-top window that
+                        // shows a visual indicator while audio capture is active.
+                        match stt::overlay::RecordingOverlay::create(
+                            app.handle(),
+                            stt_cfg.hotkey.clone(),
+                        ) {
+                            Ok(overlay) => {
+                                stt::overlay::spawn_overlay_listener(
+                                    overlay,
+                                    &runtime_handle.event_sender,
+                                );
+                                tracing::info!("recording overlay window created");
+                            }
+                            Err(e) => {
+                                tracing::warn!(error = %e, "failed to create recording overlay — visual indicator disabled");
+                            }
+                        }
                     } else {
                         tracing::warn!("STT enabled in config but engine not loaded — hotkey disabled");
                     }
