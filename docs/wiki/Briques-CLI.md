@@ -404,6 +404,57 @@ Un topic invalide retourne une erreur :
 Error: invalid topic 'invalid', valid topics: identity, preferences, tools, domain, agents
 ```
 
+### `apollia-os stt <verb>`
+
+Moteur Speech-to-Text embarqué. Nécessite un runtime démarré (sauf `model list`).
+
+```bash
+# Statut du moteur STT
+$ apollia-os stt status
+  STT ENGINE
+  ────────────────────────────────────────────
+  Statut      : ✔ actif
+  Backend     : whisper-cpp
+  Modèle      : whisper-large-v3-fr-q5_0.bin
+  Metal       : ✔ activé
+  Langue      : fr
+
+$ apollia-os stt status --json
+
+# Transcrire un fichier audio
+$ apollia-os stt transcribe fichier.wav
+  Transcription (3.2s audio, 1.1s traitement) :
+  Bonjour, je voudrais un devis pour cinq jours de prestation.
+
+$ apollia-os stt transcribe fichier.wav --output résultat.txt
+$ apollia-os stt transcribe fichier.wav --json
+
+# Historique des transcriptions
+$ apollia-os stt transcriptions list
+  ID               SOURCE   LANGUE   DURÉE    DATE
+  a1b2c3d4e5f6     🎙️ hotkey fr       3.2s     il y a 5min
+  f6e5d4c3b2a1     📁 file   fr       12.1s    il y a 1h
+
+$ apollia-os stt transcriptions list --limit 5 --json
+
+# Lister les modèles disponibles
+$ apollia-os stt model list
+  MODÈLES STT (~/.apollia/models/)
+  ────────────────────────────────────────────
+  NOM                                    TAILLE
+  whisper-large-v3-fr-q5_0.bin           956 MB
+
+# Télécharger un modèle depuis HuggingFace
+$ apollia-os stt model download bofenghuang/whisper-large-v3-french
+  Téléchargement : whisper-large-v3-fr-q5_0.bin
+  ████████████████████████████████ 956.2 MB / 956.2 MB (100%)
+  ✔ Modèle enregistré dans ~/.apollia/models/whisper-large-v3-fr-q5_0.bin
+
+# Si STT désactivé :
+$ apollia-os stt status
+  ✗ STT désactivé (stt.enabled = false dans apollia.toml)
+```
+
 ### `apollia-os notify <verb>`
 
 Gérer les notifications et tester les canaux configurés. Nécessite un runtime démarré.
@@ -567,13 +618,14 @@ $ apollia-os
 
   TOUTES LES COMMANDES
     start · stop · restart · status · run · health · onboard
-    agent    list | start | stop | restart | info | logs | validate
+    agent    list | start | stop | restart | info | logs | validate | new
     task     list | status | result | cancel | retry | resume | inspect
     pipeline list | run | runs | status
     tools    list | describe | register | unregister | test | reset-circuit
     memory   inspect | search | get | forget | purge | export | import
     audit    [list] | stats | export
     notify   test | list | logs
+    stt      status | transcribe | transcriptions list | model list | model download
 
   FLAGS GLOBAUX : --json · -q/--quiet · -v/--verbose · --debug · --no-color
 

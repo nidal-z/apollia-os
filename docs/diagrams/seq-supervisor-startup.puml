@@ -7,7 +7,7 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — Démarrage ordonné Supervisor (13 phases) — Apollia OS
+title Séquence — Démarrage ordonné Supervisor (15 phases) — Apollia OS
 
 participant "CLI\n(apollia-os start)" as cli #3a3a3a/ffffff
 participant "Supervisor" as sup #1a1a2e/e0e0ff
@@ -20,6 +20,7 @@ participant "APIServer" as api #1a1a2e/e0e0ff
 participant "TriggerEngine" as trig #2d4a22/d4edda
 participant "NotificationEngine" as notif #4a3728/f5e6d3
 participant "ChatSessionManager" as chat #1a1a2e/e0e0ff
+participant "SttEngine" as stt #1a1a2e/e0e0ff
 
 cli -> sup : Supervisor::start(config, agent_loader)
 
@@ -110,6 +111,22 @@ chat -> chat : ChatSessionRepository::open(\n  data_dir/chat.db\n)
 chat -> chat : restore authorized_tools\nfrom SQLite
 chat --> sup : ChatSessionManagerHandle
 note right of sup : ✔ Phase 13 — ChatSessionManager prêt\n(chat.db ouvert, autorisations restaurées)
+
+' Phase 15 — STT (Sprint 24, ADR-041)
+alt stt.enabled = true dans apollia.toml
+  sup -> sup : SttRepository::open(\n  data_dir/stt.db\n) [spawn_blocking]
+  sup -> sup : try_load_backend()\n  WhisperCppBackend::load(model_path)\n  [spawn_blocking]
+  alt modèle absent ou chargement échoué
+    note right of sup : ⚠ Phase 15 — SttEngine absent\nSTT désactivé (aucun panic)
+  else succès
+    sup -> stt : SttEngineHandle::start(\n  backend, repository, event_sender\n)
+    stt -> bus : send(SttModelLoaded { backend, model_path })
+    stt --> sup : SttEngineHandle
+    note right of sup : ✔ Phase 15 — SttEngine prêt\n(modèle chargé, repository ouvert)
+  end
+else stt.enabled = false
+  note right of sup : ⚠ Phase 15 — STT désactivé\n(config stt.enabled = false)
+end
 
 ' AllReady
 sup -> bus : send(RuntimeEvent::AllReady)

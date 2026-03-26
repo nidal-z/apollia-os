@@ -63,14 +63,20 @@ crates/apollia-desktop/
 │       ├── tools.rs           ← list_tools, describe_tool [Sprint 20]
 │       ├── observability.rs   ← get_global_timeline, get_tool_audit_trail, get_llm_daily_costs, get_plan_cache_stats, clear_plan_cache [Sprint 20]
 │       ├── config.rs          ← get_config, open_config_in_editor
-│       └── onboarding.rs      ← check_onboarded, mark_onboarded, reset_onboarding, check_python, check_llm_configured, check_hello_agent_exists
+│       ├── onboarding.rs      ← check_onboarded, mark_onboarded, reset_onboarding, check_python, check_llm_configured, check_hello_agent_exists
+│       └── stt.rs             ← get_stt_status, list_transcriptions, delete_transcription, transcribe_file, list_stt_models [Sprint 24]
+│   ├── stt/                   ← module STT desktop [Sprint 24]
+│   │   ├── flow.rs            ← SttFlow (hotkey → capture → transcribe → clipboard)
+│   │   ├── hotkey.rs          ← HotkeyListener (tauri-plugin-global-shortcut)
+│   │   ├── clipboard.rs       ← ClipboardManager (arboard + enigo)
+│   │   └── overlay.rs         ← RecordingOverlay (fenêtre Tauri secondaire)
 └── ui/                        ← application Svelte 5
     ├── package.json
     ├── vite.config.ts
     └── src/
         ├── App.svelte
         ├── lib/
-        │   ├── types.ts       ← 40+ interfaces TypeScript (dont ToolDescriptorView, PlanCacheStats, AgentMessage — Sprint 20)
+        │   ├── types.ts       ← 45+ interfaces TypeScript (dont SttStatus, TranscriptRow, SttModelInfo — Sprint 24)
         │   ├── stores/
         │   │   ├── sse.ts         ← SSE connection + 7 stores reactifs + 4 derives
         │   │   └── navigation.ts  ← currentRoute + showOnboarding
@@ -86,8 +92,9 @@ crates/apollia-desktop/
         │   ├── memory/        ← NamespaceSelector.svelte, MemorySearch.svelte, MemoryTable.svelte, ToolSchemaPanel.svelte [Sprint 20]
         │   ├── notifications/ ← NotificationChannelCard, NotificationLog, CreateChannelDialog, EditChannelDialog, GlobalEventsEditor
         │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte, PlanCacheStats.svelte [Sprint 20]
+        │   ├── stt/           ← TranscriptCard.svelte, TranscribeFileDialog.svelte, RecordingOverlay.svelte [Sprint 24]
         │   └── onboarding/    ← StepEnvironment.svelte, StepFirstAgent.svelte, StepFirstTask.svelte
-        └── routes/            ← 10 fichiers .svelte (un par route)
+        └── routes/            ← 12 fichiers .svelte (un par route, dont Transcriptions.svelte — Sprint 24)
 ```
 
 ### 2.2 `RuntimeHandle` (apollia-runtime)
@@ -135,7 +142,7 @@ pub enum EmbeddedError {
 
 ## 3. Commandes Tauri IPC
 
-49 commandes exposees au frontend Svelte via `#[tauri::command]` (29 Sprint 15 + 11 Sprint 17 + 6 Sprint 18 + 3 Sprint 21) :
+54 commandes exposees au frontend Svelte via `#[tauri::command]` (29 Sprint 15 + 11 Sprint 17 + 6 Sprint 18 + 3 Sprint 21 + 5 Sprint 24) :
 
 ### Agents (3)
 
@@ -248,6 +255,16 @@ pub enum EmbeddedError {
 | `send_chat_message` | `session_id: String, content: String` | `Result<String, String>` (message_id) |
 | `authorize_chat_tool` | `session_id, message_id, tool_name, decision` | `Result<(), String>` |
 
+### STT (5 — Sprint 24)
+
+| Commande | Parametres | Retour |
+|---|---|---|
+| `get_stt_status` | — | `Result<SttStatus, String>` |
+| `list_transcriptions` | `limit: Option<u32>` | `Result<Vec<TranscriptRow>, String>` |
+| `delete_transcription` | `id: String` | `Result<(), String>` |
+| `transcribe_file` | `file_path: String` | `Result<TranscriptRow, String>` |
+| `list_stt_models` | — | `Result<Vec<SttModelInfo>, String>` |
+
 ### Onboarding (6 — commandes utilitaires)
 
 | Commande | Parametres | Retour |
@@ -274,21 +291,22 @@ pub enum EmbeddedError {
 
 ### 4.2 Navigation
 
-Store Svelte `currentRoute` avec 11 routes :
+Store Svelte `currentRoute` avec 12 routes :
 
 ```typescript
 type Route =
-  | "agents"        // Gestion agents (Sprint 14)
-  | "tasks"         // Liste et detail taches (Sprint 14)
-  | "approvals"     // Approbations HITL (Sprint 14)
-  | "chat"          // Sessions de chat interactif (Sprint 18)
-  | "llm"           // Backends LLM, ping, statistiques
-  | "triggers"      // Triggers TOML, enable/disable, fire
-  | "pipelines"     // Runs multi-agent, steps temps reel
-  | "memory"        // Namespaces, recherche FTS5, suppression
-  | "notifications" // Canaux, test, historique
-  | "observability" // Timeline, audit trail, couts LLM
-  | "settings";     // Configuration lecture seule (ADR-029)
+  | "agents"         // Gestion agents (Sprint 14)
+  | "tasks"          // Liste et detail taches (Sprint 14)
+  | "approvals"      // Approbations HITL (Sprint 14)
+  | "chat"           // Sessions de chat interactif (Sprint 18)
+  | "transcriptions" // Historique STT + transcription fichier (Sprint 24)
+  | "llm"            // Backends LLM, ping, statistiques
+  | "triggers"       // Triggers TOML, enable/disable, fire
+  | "pipelines"      // Runs multi-agent, steps temps reel
+  | "memory"         // Namespaces, recherche FTS5, suppression
+  | "notifications"  // Canaux, test, historique
+  | "observability"  // Timeline, audit trail, couts LLM
+  | "settings";      // Configuration lecture seule (ADR-029)
 ```
 
 Rendu conditionnel `{#if}` dans `Main.svelte`. Pas de router externe — routing par store client-side.
@@ -301,7 +319,7 @@ Navigation regroupee en 4 categories :
 |---|---|
 | **Operations** | agents, tasks, approvals, chat |
 | **Infrastructure** | llm, triggers, pipelines |
-| **Donnees** | memory, notifications, observability |
+| **Donnees** | memory, transcriptions, notifications, observability |
 | **Settings** | settings (en bas, avant l'indicateur de connexion) |
 
 Badge rouge sur `approvals` affichant le nombre d'approbations en attente.
@@ -323,6 +341,9 @@ Le store `sse.ts` etablit une connexion SSE vers `localhost:7771/api/v1/dashboar
 | `triggers` | `TriggerStatus[]` | channel `triggers` |
 | `pipelineRuns` | `PipelineRunSummary[]` | channel `pipeline` |
 | `connectionStatus` | `ConnectionStatus` | etat connexion SSE |
+| `sttStatus` | `SttStatus \| null` | hydrate via IPC `get_stt_status` |
+| `transcriptions` | `TranscriptRow[]` | hydrate via IPC `list_transcriptions` |
+| `isRecording` | `boolean` | evenements `stt-recording-started/stopped` |
 | `chatSessions` | `ChatSessionSummary[]` | evenement `chat-changed` |
 | `currentSession` | `ChatSessionDetail \| null` | — |
 | `chatTokenBuffer` | `string` | evenement `chat-token` (fast path) |
@@ -368,6 +389,9 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 **Chat (Sprint 18) :**
 `ChatSessionSummary`, `ChatSessionDetail`, `ChatMessageView`, `ToolCallView`, `CreateSessionRequest`, `SendMessageRequest`, `ToolAuthorizationRequest`
 
+**STT (Sprint 24) :**
+`SttStatus`, `SttModelInfo`, `TranscriptRow`
+
 **Config :**
 `ConfigEntry`, `ConfigSection`, `ApollaConfigView`
 
@@ -394,7 +418,9 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 - *LLM Costs* : bar chart SVG natif Svelte (pas de lib externe), cout par jour 7j, barres colorees par backend
 - *Audit Trail* : table expandable (args_json, stdout, stderr), filtres par outil + agent
 
-**Settings** — Vue lecture seule nettoyee (ADR-029, Sprint 17). Affiche uniquement les sections structurelles TOML : [runtime], [llm], [budget], [memory], [tools]. Les sections operationnelles (triggers, pipelines, notifications) ont ete retirees — un bandeau info redirige vers les vues dediees. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor()` via `open::that()`.
+**Transcriptions** *(Sprint 24)* — Route `/transcriptions`, catégorie "Données", icône micro. Bandeau statut STT (enabled/disabled, modèle chargé, Metal/CUDA). Liste des transcriptions en ordre chronologique inversé avec `TranscriptCard` (texte, langue, source icône 🎙️/📁/🔌, durée, timestamp). Boutons Copy et Delete par carte. `TranscribeFileDialog` : file picker natif filtré (.wav, .mp3, .ogg, .m4a), spinner pendant la transcription. Badge "Enregistrement" animé quand `isRecording = true`. Empty state avec icône Mic. Section STT dans Settings (lecture seule — ADR-029) : enabled, hotkey, clipboard mode, modèle actif, langue, lien vers doc `apollia.toml`.
+
+**Settings** — Vue lecture seule nettoyee (ADR-029, Sprint 17). Affiche uniquement les sections structurelles TOML : [runtime], [llm], [budget], [memory], [tools], [stt]. Les sections operationnelles (triggers, pipelines, notifications) ont ete retirees — un bandeau info redirige vers les vues dediees. Bouton "Ouvrir dans l'editeur" appelle `open_config_in_editor()` via `open::that()`.
 
 ---
 
@@ -511,3 +537,4 @@ Elements `data-testid` sur les composants principaux pour les tests e2e :
 - **ADR-028** — Frontend Svelte : UX first, UI sprint dedie
 - **ADR-029** — Settings lecture seule (round-trip TOML detruirait les commentaires)
 - **ADR-033** — Config operateur SQLite : separation structurel (TOML) / operationnel (SQLite)
+- **ADR-041** — Moteur STT embarqué : whisper-rs V1, trait SttBackend

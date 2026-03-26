@@ -11,7 +11,7 @@
 
 **Auteur :** Nidal — CTO & Co-fondateur Apollia  
 **Développement :** soir/weekend, 8-10h/semaine  
-**Phase actuelle :** Sprint 18 — Chat hybride (à planifier). Sprint 17 livré (Config opérateur SQLite CRUD). Sprint 16 à planifier (UI/UX bimodale).
+**Phase actuelle :** Sprint 24 livré (apollia-stt : moteur STT embarqué, 17/17 stories). Sprint 21 livré (Python SDK). Sprint 20 livré (Système Agentique Amélioré).
 
 ---
 
@@ -40,6 +40,7 @@ crates/
 ├── apollia-tools/    ← Tool Registry + outils natifs + sandbox
 ├── apollia-memory/   ← Memory Engine (SQLite, FTS5)
 ├── apollia-aip/      ← Bridge PyO3 (Rust ↔ Python async)
+├── apollia-stt/      ← Speech-to-Text (trait SttBackend, whisper-rs, audio pipeline)
 ├── apollia-desktop/  ← Application Desktop (Tauri v2 + Svelte 5)
 └── apollia-cli/      ← Binaire final (clap)
 ```
@@ -122,9 +123,8 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Sprint actif :** Sprint 18 — Chat hybride (à planifier)
-**Dernier sprint livré :** Sprint 17 — Config opérateur SQLite CRUD (14/14 stories, ADR-033)
+**Dernier sprint livré :** Sprint 24 — apollia-stt : moteur STT embarqué (17/17 stories, ADR-041)
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
-**Dernière décision :** ADR-033 — Config opérateur SQLite : séparation structurel (TOML) / opérationnel (SQLite)
+**Dernière décision :** ADR-041 — Moteur STT embarqué : whisper-rs V1, trait SttBackend
 
 Pour l'état détaillé : lire `docs/internal/STORIES/sprint-index.md`.

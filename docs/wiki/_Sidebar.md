@@ -35,6 +35,7 @@
 - [[Briques-Pipelines|Pipelines Engine]]
 - [[Briques-Runtime-Core|Runtime Core]]
 - [[Briques-Desktop|Application Desktop]]
+- [[Briques-STT|Speech-to-Text]]
 - [[Briques-Chat|Chat]]
 - [[Briques-CLI|Apollia CLI]]
 

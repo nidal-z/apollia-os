@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title C4 Container — 12 Crates Workspace — Apollia OS
+title C4 Container — 13 Crates Workspace — Apollia OS
 
 actor "Opérateur" as ops #3a3a3a/white
 actor "Développeur" as dev #3a3a3a/white
@@ -65,6 +65,12 @@ rectangle "Apollia OS Workspace" as workspace #1a1a2e {
     component "NotificationEngine (acteur Tokio pos.9)\nNotificationChannel trait\nDesktop · Email · Webhook" as notifengine
   }
 
+  rectangle "apollia-stt\n(STT Engine)" as stt #1a1a2e {
+    component "SttBackend trait\nWhisperCppBackend\n(whisper-rs 0.16)" as sttbackend
+    component "AudioCapture (cpal)\nResampler (rubato)\nSilenceDetector" as audio
+    component "SttRepository\n(SQLite)" as sttrepo
+  }
+
   rectangle "apollia-core\n(types partagés)" as core #1a1a2e {
     component "AgentManifest\nAIPTask / AIPResult\nProcessState / TaskStatus\nRuntimeEvent (TriggerFired…\nPipelineStarted…)" as types
   }
@@ -103,5 +109,8 @@ pipelines --> runtime : TaskSubmitter → TaskRouter\n(submit step tasks)
 pipelines --> sqlite : pipeline_runs\npipeline_step_runs
 notifications --> runtime : abonnement EventBus\n(TaskCompleted / PipelineCompleted...)
 llm --> cloudllm : HTTP REST\n(feature = cloud)
+desktop --> stt : SttFlow\n(hotkey → record → transcribe)
+runtime --> stt : SttEngine actor\n(Phase 15)
+stt --> sqlite : stt_transcriptions\nstt.db
 
 @enduml

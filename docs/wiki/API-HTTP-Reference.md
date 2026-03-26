@@ -1310,6 +1310,106 @@ curl -N -H "Accept: text/event-stream" \
 
 ---
 
+## STT — Speech-to-Text *(Sprint 24)*
+
+5 endpoints pour la transcription audio locale. Tous retournent `503` si le moteur STT est absent (`stt.enabled = false` ou modèle non chargé).
+
+### GET /api/v1/stt/status
+
+Statut du moteur STT.
+
+**Réponse 200 :**
+```json
+{
+  "enabled": true,
+  "model_loaded": true,
+  "model_path": "~/.apollia/models/whisper-large-v3-fr-q5_0.bin",
+  "model_name": "whisper-large-v3-fr-q5_0",
+  "backend_name": "whisper-cpp",
+  "metal_enabled": true,
+  "cuda_enabled": false
+}
+```
+
+**Réponse 503 :** `{ "error": "STT engine not available" }`
+
+### POST /api/v1/stt/transcribe
+
+Transcrire un fichier audio envoyé en multipart.
+
+**Corps :** `multipart/form-data` avec champ `file` (formats : WAV, MP3).
+
+**Réponse 200 :**
+```json
+{
+  "id": "a1b2c3d4e5f6...",
+  "full_text": "Bonjour, je voudrais un devis.",
+  "language": "fr",
+  "source": "api",
+  "audio_duration_ms": 3200,
+  "processing_time_ms": 1100,
+  "model_name": "whisper-large-v3-fr-q5_0",
+  "created_at": "2026-03-25T14:30:00Z"
+}
+```
+
+**Erreurs :**
+- `400` — format audio non supporté ou fichier vide
+- `503` — moteur STT absent
+
+### GET /api/v1/stt/transcriptions
+
+Historique des transcriptions.
+
+**Query params :**
+- `limit` (optionnel, défaut: 50) — nombre de résultats
+- `offset` (optionnel, défaut: 0) — pagination
+
+**Réponse 200 :**
+```json
+{
+  "transcriptions": [
+    {
+      "id": "a1b2c3d4e5f6...",
+      "full_text": "Bonjour, je voudrais un devis.",
+      "language": "fr",
+      "source": "hotkey",
+      "audio_duration_ms": 3200,
+      "processing_time_ms": 1100,
+      "model_name": "whisper-large-v3-fr-q5_0",
+      "created_at": "2026-03-25T14:30:00Z"
+    }
+  ]
+}
+```
+
+### DELETE /api/v1/stt/transcriptions/:id
+
+Supprimer une transcription.
+
+**Réponse 204 :** suppression réussie.
+
+**Erreurs :** `503` — moteur STT absent.
+
+### GET /api/v1/stt/models
+
+Lister les fichiers modèles `.bin` disponibles dans `~/.apollia/models/`.
+
+**Réponse 200 :**
+```json
+{
+  "models": [
+    {
+      "name": "whisper-large-v3-fr-q5_0",
+      "path": "/Users/nidal/.apollia/models/whisper-large-v3-fr-q5_0.bin",
+      "size_mb": 956.2
+    }
+  ]
+}
+```
+
+---
+
 ## Voir aussi
 
 - [Briques CLI](./Briques-CLI) — wrapper CLI sur cette API
@@ -1327,3 +1427,5 @@ curl -N -H "Accept: text/event-stream" \
 - [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) — config opérateur SQLite (CRUD triggers/pipelines/notifications)
 - [ADR-034](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md) — chat hybride : sessions, streaming, HITL inline
 - [Briques Chat](./Briques-Chat) — sous-système de chat complet
+- [Briques STT](./Briques-STT) — moteur Speech-to-Text embarqué (Sprint 24)
+- [ADR-041](../adr/ADR-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md) — décisions moteur STT (whisper-rs, trait SttBackend)

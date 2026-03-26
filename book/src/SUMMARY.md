@@ -46,6 +46,7 @@
   - [Notifications Engine](components/notifications.md)
   - [Pipelines Engine](components/pipelines.md)
   - [Application Desktop](components/desktop.md)
+  - [Speech-to-Text](components/stt.md)
   - [Chat](components/chat.md)
   - [CLI](components/cli.md)
 
@@ -116,6 +117,7 @@
   - [ADR-038 — Mémoire utilisateur globale](decisions/adr-038-global-user-memory.md)
   - [ADR-039 — Conversation memory management](decisions/adr-039-conversation-memory-management.md)
   - [ADR-040 — Onboarding comme agent conversationnel](decisions/adr-040-onboarding-conversational-agent.md)
+  - [ADR-041 — Moteur STT embarqué : whisper-rs, trait SttBackend](decisions/adr-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md)
 
 ---
 

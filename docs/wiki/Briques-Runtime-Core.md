@@ -60,6 +60,8 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
      └── files de messages par agent (max 100), AgentMailboxHandle (Clone+Send+Sync)
 13. ChatSessionManager → sessions de chat interactif [Sprint 18]
     └── ouvre ChatSessionRepository (chat.db), restaure autorisations
+15. SttEngine → moteur Speech-to-Text embarqué [Sprint 24]
+    └── ouvre SttRepository (stt.db), charge WhisperCppBackend (conditionnel : stt.enabled)
 ```
 
 Depuis le Sprint 17 (ADR-033), le Supervisor ouvre les repositories SQLite pour les triggers, pipelines et notifications au démarrage. Les définitions sont chargées depuis SQLite (plus depuis `apollia.toml`). Chaque repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
@@ -193,6 +195,13 @@ Deux surfaces exposées :
 ### 6.1 Endpoints REST
 
 ```
+# STT [Sprint 24]
+GET    /api/v1/stt/status                   → Statut moteur STT
+POST   /api/v1/stt/transcribe               → Transcrire audio (multipart WAV/MP3)
+GET    /api/v1/stt/transcriptions?limit=N   → Historique transcriptions
+DELETE /api/v1/stt/transcriptions/:id       → Supprimer une transcription
+GET    /api/v1/stt/models                   → Lister les modèles .bin disponibles
+
 POST   /api/v1/tasks                        → Soumettre une tâche
 GET    /api/v1/tasks/{id}                   → Statut d'une tâche
 DELETE /api/v1/tasks/{id}                   → Annuler
@@ -293,6 +302,13 @@ pub enum RuntimeEvent {
     LlmModelReady   { backend: String },
     LlmModelFailed  { backend: String, error: String },
     LlmCallCompleted { backend: String, model: String, cost_usd: Option<f64> },
+
+    // STT [Sprint 24]
+    SttRecordingStarted,
+    SttRecordingStopped { audio_duration_ms: u64 },
+    SttModelLoaded { backend: String, model_path: String, model_name: String },
+    SttTranscribed { text: String, language: Option<String>, source: String, duration_ms: u64, processing_time_ms: u64 },
+    SttTranscriptionFailed { reason: String },
 
     // Triggers [Sprint 9]
     TriggerFired    { trigger_id: TriggerId, agent: String, task_id: TaskId },
@@ -419,3 +435,4 @@ debug_log_prompt      = false               # persister les prompts LLM (RGPD �
 - [Timeline Aggregation](../diagrams/seq-timeline-aggregation.puml) — agrégation 5 sources → chronologie unifiée
 - [Chat Libre sequence](../diagrams/seq-chat-libre.puml) — boucle ReAct + streaming token-by-token (Sprint 18)
 - [Chat session state machine](../diagrams/state-chat-session.puml) — Active → Processing → Closed (Sprint 18)
+- [STT Flow](../diagrams/seq-stt-flow.puml) — hotkey → capture → transcribe → clipboard (Sprint 24)

@@ -1,0 +1,65 @@
+@startuml seq-stt-flow
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+skinparam SequenceGroupBorderColor #888888
+
+title Séquence — STT Flow (hotkey → capture → transcribe → clipboard) — Sprint 24, ADR-041
+
+actor "Utilisateur" as user #3a3a3a/ffffff
+participant "HotkeyListener" as hotkey #1a1a2e/e0e0ff
+participant "SttFlow" as flow #1a1a2e/e0e0ff
+participant "AudioCapture\n(cpal)" as capture #1a1a2e/e0e0ff
+participant "Resampler\n(rubato)" as resample #1a1a2e/e0e0ff
+participant "SttEngine" as engine #1a1a2e/e0e0ff
+participant "WhisperCpp\nBackend" as whisper #4a3728/f5e6d3
+participant "SttRepository\n(SQLite)" as repo #2a3a4a/cce5ff
+participant "ClipboardManager" as clipboard #1a1a2e/e0e0ff
+participant "EventBus" as bus #2a3a4a/cce5ff
+participant "Overlay" as overlay #1a1a2e/e0e0ff
+
+== Démarrage enregistrement ==
+
+user -> hotkey : appui hotkey (Ctrl+Shift+Space)
+hotkey -> flow : start_recording()
+flow -> bus : send(SttRecordingStarted)
+bus -> overlay : show()
+flow -> capture : start()
+capture --> flow : Stream + CaptureBuffer
+
+note over user : L'utilisateur parle…
+
+== Arrêt et transcription ==
+
+user -> hotkey : appui hotkey (Ctrl+Shift+Space)
+hotkey -> flow : stop_and_transcribe()
+flow -> bus : send(SttRecordingStopped)
+bus -> overlay : hide()
+
+flow -> capture : drain()
+capture --> flow : raw PCM samples
+
+flow -> resample : to_whisper_format()
+resample --> flow : 16kHz mono f32
+
+flow -> flow : trim_silence()
+
+flow -> engine : transcribe(audio, source)
+engine -> whisper : spawn_blocking {\n  backend.transcribe()\n}
+whisper --> engine : TranscriptResult
+
+engine -> repo : insert(result)
+engine -> bus : send(SttTranscribed { text })
+engine --> flow : TranscriptResult
+
+== Injection texte ==
+
+flow -> clipboard : inject(text)
+clipboard -> clipboard : set clipboard\n+ simulate Cmd+V
+
+note over user : Le texte transcrit\napparaît au curseur
+
+@enduml

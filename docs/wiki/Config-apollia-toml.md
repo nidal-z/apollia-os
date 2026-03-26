@@ -261,6 +261,66 @@ wall_clock_timeout_secs = 300
 
 ---
 
+### [stt] — Moteur Speech-to-Text *(Sprint 24)*
+
+La section `[stt]` configure le moteur STT embarqué (ADR-041). Elle est **optionnelle** — le runtime démarre sans STT si `enabled = false` ou si la section est absente.
+
+```toml
+[stt]
+# Activer le moteur STT
+# Défaut : false
+enabled = true
+
+# Chemin du modèle GGML Whisper
+# Défaut : ~/.apollia/models/whisper-large-v3-fr-q5_0.bin
+model_path = "~/.apollia/models/whisper-large-v3-fr-q5_0.bin"
+
+# Raccourci clavier global (desktop uniquement)
+# Défaut : "ctrl+shift+space"
+hotkey = "ctrl+shift+space"
+
+# Mode d'injection du texte transcrit
+# "paste" : injection dans le clipboard + simulation Cmd+V/Ctrl+V
+# "memo"  : sauvegarde uniquement dans SttRepository
+# "both"  : clipboard + memo
+# Défaut : "paste"
+clipboard_mode = "paste"
+
+# Restaurer le contenu précédent du clipboard après injection
+# Défaut : true
+clipboard_restore = true
+
+# Seuil de silence en dB pour le trim audio
+# Défaut : -40.0
+silence_threshold_db = -40.0
+
+# Durée maximale d'enregistrement en secondes
+# Défaut : 120
+max_recording_sec = 120
+
+# Langue par défaut pour la transcription (code ISO 639-1)
+# Défaut : "fr"
+language = "fr"
+
+# Mode de déclenchement du raccourci
+# "toggle"       : premier appui = ON, deuxième = OFF
+# "push_to_talk" : maintenu = ON, relâché = OFF
+# Défaut : "toggle"
+trigger_mode = "toggle"
+```
+
+**Comportement si modèle absent :** warning loggé au démarrage, `stt_engine = None`, runtime continue. L'app desktop et la CLI affichent un message invitant à télécharger le modèle (`apollia-os stt model download`).
+
+**Feature flags de compilation :**
+
+| Feature | Commande | Usage |
+|---|---|---|
+| `stt-whisper-cpp` (défaut) | `cargo build` | Backend whisper.cpp CPU |
+| `stt-metal` | `cargo build --features stt-metal` | Accélération Apple Silicon Metal |
+| `stt-cuda` | `cargo build --features stt-cuda` | Accélération NVIDIA CUDA |
+
+---
+
 ## Configuration opérationnelle — migrée vers SQLite *(Sprint 17)*
 
 Depuis le Sprint 17 (ADR-033), les sections opérationnelles suivantes ne sont plus dans `apollia.toml` :
@@ -273,7 +333,7 @@ Depuis le Sprint 17 (ADR-033), les sections opérationnelles suivantes ne sont p
 
 **Pourquoi :** un opérateur non-technique peut créer, modifier et supprimer ses triggers, pipelines et canaux de notification depuis l'interface graphique — sans toucher au TOML, sans redémarrer le runtime.
 
-`apollia.toml` conserve uniquement la configuration **structurelle** : `[runtime]`, `[memory]`, `[tools]`, `[api]`, `[llm]`, `[budget]`, `[observability]`.
+`apollia.toml` conserve uniquement la configuration **structurelle** : `[runtime]`, `[memory]`, `[tools]`, `[api]`, `[llm]`, `[budget]`, `[observability]`, `[stt]`.
 
 Voir :
 - [Briques Triggers](./Briques-Triggers) — CRUD triggers
