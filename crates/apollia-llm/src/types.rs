@@ -328,6 +328,15 @@ pub enum LlmError {
     #[error("response parse error: {0}")]
     ParseError(String),
 
+    /// Le modèle GGUF utilise une architecture non supportée par le moteur d'inférence.
+    ///
+    /// L'utilisateur doit choisir un modèle compatible (Llama, Mistral, Qwen2, Phi, etc.).
+    #[error("unsupported model architecture '{architecture}' — try a Llama, Mistral, Qwen2, or Phi model instead")]
+    UnsupportedModel {
+        /// Nom de l'architecture GGUF non reconnue (ex. `"qwen35moe"`).
+        architecture: String,
+    },
+
     /// L'accélérateur demandé n'est pas compilé dans ce binaire.
     ///
     /// Recompiler avec la feature indiquée dans `hint` pour activer ce device.
@@ -511,6 +520,9 @@ mod tests {
             LlmError::MaxIterationsReached { iterations: 3 },
             LlmError::MaxTokensReached,
             LlmError::ParseError("invalid json".into()),
+            LlmError::UnsupportedModel {
+                architecture: "qwen35moe".into(),
+            },
             LlmError::DeviceNotAvailable {
                 device: "cuda".into(),
                 hint: "local-cuda".into(),

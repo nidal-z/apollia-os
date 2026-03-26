@@ -479,7 +479,7 @@ class OnboardingAgent(ConversationalAgent):
         """Return the AIP agent manifest."""
         return {
             "name": "onboarding-agent",
-            "version": "1.0.0",
+            "version": "1.2.0",
             "description": (
                 "Agent d'onboarding conversationnel — fait connaissance "
                 "avec l'utilisateur de manière naturelle."
@@ -535,7 +535,8 @@ class OnboardingAgent(ConversationalAgent):
         messages.append({"role": "user", "content": user_message})
 
         response = await ctx.llm.complete(messages)
-        raw_text: str = response.get("text", "")
+        # LlmResponse is a PyO3 object with .content attribute (not a dict).
+        raw_text: str = getattr(response, "content", "") or ""
 
         explicit_pairs = _extract_remember_tags(raw_text)
         inferred_pairs = _extract_infer_tags(raw_text)
@@ -576,15 +577,23 @@ class OnboardingAgent(ConversationalAgent):
                 "OnboardingAgent requires ctx.llm — no LLM backend configured"
             )
 
-        user_message = getattr(task, "input", None)
-        if user_message is None:
+        # task is a Python dict (serialised from Rust AIPTask via JSON).
+        # task["input"]["parts"][0]["text"] contains the user message.
+        task_input = task.get("input") if isinstance(task, dict) else getattr(task, "input", None)
+        if task_input is None:
             return AIPResult.failed("NO_INPUT", "No input provided in task")
 
-        input_text = (
-            user_message.text
-            if hasattr(user_message, "text")
-            else str(user_message)
-        )
+        # Extract text from the first TextPart in input.parts
+        if isinstance(task_input, dict):
+            parts = task_input.get("parts", [])
+            input_text = parts[0]["text"] if parts else str(task_input)
+        elif hasattr(task_input, "parts"):
+            parts = task_input.parts
+            input_text = parts[0].text if parts else str(task_input)
+        elif hasattr(task_input, "text"):
+            input_text = task_input.text
+        else:
+            input_text = str(task_input)
 
         response_text, _ = await self.converse(ctx, input_text)
         return AIPResult.completed(response_text)

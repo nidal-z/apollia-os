@@ -389,7 +389,7 @@ impl ExecutionBackend for AIPProductionBackend {
 /// before any HTTP request can arrive.
 pub struct ProductionBackendFactory {
     pub event_bus: Arc<std::sync::OnceLock<EventBusSender>>,
-    pub llm_router: Arc<std::sync::OnceLock<Option<Arc<LlmRouter>>>>,
+    pub llm_router: Arc<std::sync::RwLock<Option<Arc<LlmRouter>>>>,
     pub tool_registry: Arc<std::sync::OnceLock<ToolRegistryHandle>>,
     pub audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
     pub pending_approvals: Arc<std::sync::OnceLock<Arc<PendingApprovals>>>,
@@ -410,7 +410,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 return DynBackend::new(NoopBackend);
             }
         };
-        let llm_router = self.llm_router.get().cloned().flatten();
+        let llm_router = self.llm_router.read().expect("llm_router_lock poisoned").clone();
         let tool_registry = self.tool_registry.get().cloned();
         let audit_trail = self.audit_trail.get().cloned();
         let pending_approvals = self.pending_approvals.get().cloned();
@@ -470,7 +470,7 @@ fn default_memory_dir() -> PathBuf {
 pub struct ProductionChatAgentRunner {
     pub agent_repo: Arc<std::sync::Mutex<apollia_tools::AgentRepository>>,
     pub event_bus: Arc<std::sync::OnceLock<EventBusSender>>,
-    pub llm_router: Arc<std::sync::OnceLock<Option<Arc<LlmRouter>>>>,
+    pub llm_router: Arc<std::sync::RwLock<Option<Arc<LlmRouter>>>>,
     pub tool_registry: Arc<std::sync::OnceLock<ToolRegistryHandle>>,
     pub audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
     pub pending_approvals: Arc<std::sync::OnceLock<Arc<PendingApprovals>>>,
@@ -512,7 +512,7 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             .get()
             .cloned()
             .ok_or("event bus not initialized")?;
-        let llm_router = self.llm_router.get().cloned().flatten();
+        let llm_router = self.llm_router.read().expect("llm_router_lock poisoned").clone();
         let tool_registry = self.tool_registry.get().cloned();
         let audit_trail = self.audit_trail.get().cloned();
 

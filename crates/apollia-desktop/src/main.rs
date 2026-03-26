@@ -23,6 +23,10 @@ use apollia_runtime::eventbus::EventBusSender;
 use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use tauri::Manager;
 
+/// Shared mutable LLM router — updated by `reload_llm`, read by
+/// `ProductionChatAgentRunner` and `ProductionBackendFactory`.
+pub type SharedLlmRouter = Arc<std::sync::RwLock<Option<Arc<LlmRouter>>>>;
+
 /// Resolves `~` prefix to `$HOME` in a path string.
 fn expand_tilde(s: &str) -> std::path::PathBuf {
     if s.starts_with("~/") {
@@ -75,8 +79,8 @@ fn main() {
     // Populated after init_embedded() returns, before any HTTP request arrives.
     let event_bus_lock: Arc<std::sync::OnceLock<EventBusSender>> =
         Arc::new(std::sync::OnceLock::new());
-    let llm_router_lock: Arc<std::sync::OnceLock<Option<Arc<LlmRouter>>>> =
-        Arc::new(std::sync::OnceLock::new());
+    let llm_router_lock: Arc<std::sync::RwLock<Option<Arc<LlmRouter>>>> =
+        Arc::new(std::sync::RwLock::new(None));
     let tool_registry_lock: Arc<std::sync::OnceLock<ToolRegistryHandle>> =
         Arc::new(std::sync::OnceLock::new());
     let audit_trail_lock: Arc<std::sync::OnceLock<AuditTrailHandle>> =
@@ -163,7 +167,7 @@ fn main() {
 
     // Populate OnceLocks now that the supervisor is fully running.
     let _ = event_bus_lock.set(runtime_handle.event_sender.clone());
-    let _ = llm_router_lock.set(runtime_handle.llm_router.clone());
+    *llm_router_lock.write().expect("llm_router_lock poisoned") = runtime_handle.llm_router.clone();
     let _ = tool_registry_lock.set(runtime_handle.tool_registry_handle.clone());
     if let Some(audit) = runtime_handle.audit_trail.clone() {
         let _ = audit_trail_lock.set(audit);
@@ -290,6 +294,7 @@ fn main() {
         .manage(agent_repo)
         .manage(agent_loader)
         .manage(runtime_handle.event_sender.clone())
+        .manage(llm_router_lock.clone())
         .setup(move |app| {
             tray::setup_tray(app)?;
 

@@ -81,10 +81,10 @@ async-trait = "0.1"
 # cloud backends (OpenAI-compatible + Anthropic) — [feature = "cloud"]
 async-openai = "0.28"
 reqwest = { version = "0.12", features = ["json", "stream"] }
-# mistralrs-core = moteur d'inférence (inclus transitivement via mistralrs)
-# mistralrs      = SDK public GGUF — [feature = "local"]
-mistralrs-core = { version = "0.7" }
-mistralrs       = { version = "0.7" }
+# llama-cpp-2 = bindings Rust safe pour llama.cpp — ADR-042
+# Compilation statique, binaire unique, 30+ architectures GGUF.
+llama-cpp-2 = "0.1.140"
+encoding_rs = "0.8"
 
 # --- Audio (WAV decoding for STT API) ---
 hound = "3.5"

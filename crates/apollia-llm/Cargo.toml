@@ -6,26 +6,23 @@ edition = "2021"
 [features]
 default = ["cloud"]
 
-# ── Backend local (inférence in-process via mistralrs) ───────────────────────
-local            = ["dep:mistralrs-core", "dep:mistralrs"]
+# ── Backend local (inférence in-process via llama.cpp) ────────────────────────
+# ADR-042 : llama-cpp-2 remplace mistralrs pour le support de 30+ architectures
+# GGUF et les kernels Metal natifs (MoE inclus).
+local            = ["dep:llama-cpp-2", "dep:encoding_rs"]
 
 # CPU seul — explicitement déclaré pour la lisibilité TOML, équivaut à `local`.
 local-cpu        = ["local"]
 
 # CPU + Accelerate.framework Apple (BLAS vectorisé — Apple Silicon).
-# Nettement plus rapide que CPU pur sur macOS, sans GPU.
-local-accelerate = ["local", "mistralrs/accelerate", "mistralrs-core/accelerate"]
-
-# GPU NVIDIA CUDA.
-# NOTE : n'active pas encore mistralrs/cuda — en attente de validation CUDA
-# sur la matrice CI (pas de GPU NVIDIA dans l'environnement de dev actuel).
-# Quand disponible : ajouter "mistralrs/cuda", "mistralrs-core/cuda" ici.
-local-cuda       = ["local"]
+# Avec llama.cpp, l'optimisation CPU est automatique via les flags natifs.
+local-accelerate = ["local"]
 
 # GPU Apple Silicon Metal.
-# objc2-metal 0.3.2 et candle-metal-kernels sont désormais disponibles sur crates.io.
-# GgufModelBuilder::with_device(Device::new_metal(0)) est utilisé dans embedded.rs.
-local-metal      = ["local", "mistralrs/metal", "mistralrs-core/metal"]
+local-metal      = ["local", "llama-cpp-2/metal"]
+
+# GPU NVIDIA CUDA.
+local-cuda       = ["local", "llama-cpp-2/cuda"]
 
 # ── Backend cloud (API HTTP — Anthropic, OpenAI-compatible) ──────────────────
 cloud            = ["dep:async-openai", "dep:reqwest"]
@@ -44,9 +41,10 @@ uuid           = { workspace = true }
 # cloud backends [feature = "cloud"]
 async-openai   = { workspace = true, optional = true }
 reqwest        = { workspace = true, optional = true }
-# local backend [feature = "local"]
-mistralrs-core = { workspace = true, optional = true }
-mistralrs       = { workspace = true, optional = true }
+# local backend [feature = "local"] — ADR-042
+llama-cpp-2    = { workspace = true, optional = true }
+encoding_rs    = { workspace = true, optional = true }
+tokio-stream   = { workspace = true }
 
 [dev-dependencies]
 toml = { workspace = true }

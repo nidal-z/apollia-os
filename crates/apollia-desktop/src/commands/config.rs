@@ -527,6 +527,7 @@ pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String
 #[tauri::command]
 pub async fn reload_llm(
     state: tauri::State<'_, apollia_runtime::embedded::RuntimeHandle>,
+    shared_llm: tauri::State<'_, crate::SharedLlmRouter>,
 ) -> Result<bool, String> {
     // 1. Re-read apollia.toml
     let config_path = default_config_path();
@@ -553,14 +554,19 @@ pub async fn reload_llm(
     // 3. Build a new LlmRouter
     let router = apollia_llm::LlmRouter::from_config(&config)
         .await
-        .map_err(|e| format!("failed to load LLM: {e}"))?;
+        .map_err(|e| e.to_string())?;
+
+    let router = std::sync::Arc::new(router);
 
     tracing::info!("LLM router reloaded from apollia.toml");
 
     // 4. Inject into the ChatSessionManager
     if let Some(ref manager) = state.chat_manager {
-        manager.reload_llm(Some(std::sync::Arc::new(router))).await;
+        manager.reload_llm(Some(router.clone())).await;
     }
+
+    // 5. Update the shared lock so ProductionChatAgentRunner sees the new router
+    *shared_llm.write().expect("shared llm_router lock poisoned") = Some(router);
 
     Ok(true)
 }
@@ -600,11 +606,6 @@ async fn append_llm_config(
         String::new()
     };
 
-    // Don't overwrite an existing [llm] section
-    if existing.contains("[llm]") {
-        return Ok(());
-    }
-
     let device = if cfg!(target_os = "macos") {
         "metal"
     } else {
@@ -635,8 +636,17 @@ quantization = "{quantization}"
 "#
     );
 
-    let mut content = existing;
-    content.push_str(&llm_block);
+    // Replace existing [llm] section or append if absent.
+    let content = if let Some(llm_start) = existing.find("\n[llm]").or_else(|| {
+        if existing.starts_with("[llm]") { Some(0) } else { None }
+    }) {
+        let prefix = existing[..llm_start].trim_end().to_string();
+        format!("{prefix}\n{llm_block}")
+    } else {
+        let mut content = existing;
+        content.push_str(&llm_block);
+        content
+    };
 
     if let Some(parent) = config_path.parent() {
         tokio::fs::create_dir_all(parent)

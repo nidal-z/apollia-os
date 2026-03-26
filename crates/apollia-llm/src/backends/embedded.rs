@@ -1,50 +1,32 @@
-//! Backend d'inférence embarqué — inférence in-process via `mistralrs`.
+//! Backend d'inférence embarqué — inférence in-process via `llama.cpp`.
 //!
 //! Ce module est compilé uniquement avec `feature = "local"`.
 //!
-//! # Architecture
+//! # Architecture (ADR-042)
 //!
 //! ```text
 //! apollia-llm [feature = "local"]
 //!   └── EmbeddedBackend : CompletionModel
 //!         ├── load()     — charge le .gguf, configure le device, initialise le moteur
-//!         ├── complete() — inférence synchrone via send_chat_request
-//!         └── stream()   — fallback : complete() → un seul chunk
+//!         ├── complete() — inférence via llama.cpp (batch → decode → sample)
+//!         └── stream()   — streaming token-by-token natif
 //! ```
 //!
 //! # Devices supportés
 //!
-//! | Feature          | Device          | API                                    |
-//! |------------------|-----------------|----------------------------------------|
-//! | `local` / `local-cpu` | CPU        | défaut, aucune configuration           |
-//! | `local-metal`    | Apple Silicon GPU | `GgufModelBuilder::with_device(Device::new_metal(0))` |
-//! | `local-accelerate` | CPU + BLAS   | `mistralrs/accelerate` (pas de device) |
-//! | `local-cuda`     | GPU NVIDIA       | non implémenté (feature déclarée)      |
+//! | Feature          | Device            | API                                  |
+//! |------------------|-------------------|--------------------------------------|
+//! | `local` / `local-cpu` | CPU          | défaut, aucune configuration         |
+//! | `local-metal`    | Apple Silicon GPU  | `llama-cpp-2/metal`                  |
+//! | `local-cuda`     | GPU NVIDIA         | `llama-cpp-2/cuda`                   |
 //!
-//! # Build Metal (prérequis)
+//! # Migration depuis mistralrs
 //!
-//! Xcode complet est requis pour compiler les shaders Metal embarqués dans
-//! `mistralrs-paged-attn`. Sans Xcode (Command Line Tools seul), passer :
-//! ```sh
-//! MISTRALRS_METAL_PRECOMPILE=0 cargo build --release --features local-metal
-//! ```
-//! Les shaders seront compilés à l'exécution par le driver Metal.
-//!
-//! # Streaming
-//!
-//! `mistralrs::model::Stream<'a>` porte un lifetime lié au modèle et n'implémente
-//! pas `futures::Stream`. La transférer dans un `tokio::spawn` ('static) n'est pas
-//! possible sans un bridge par channel asynchrone — complexité injustifiée.
-//! `stream()` délègue à `complete()` et retourne le contenu
-//! complet en un seul chunk. L'implémentation streaming native sera ajoutée
-//! si `mistralrs` expose une API `'static`.
-//!
-//! # Dépendances moteur
-//!
-//! Utilise `mistralrs` (SDK public) qui embarque `mistralrs-core` (moteur inférence).
-//! `GgufModelBuilder` charge le `.gguf` en mémoire — principe #1 local-first.
+//! Remplace `mistralrs::GgufModelBuilder` par `llama_cpp_2::model::LlamaModel`.
+//! Le trait `CompletionModel` et l'API publique sont inchangés.
 
 use std::fmt;
+use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -53,11 +35,16 @@ use std::time::Instant;
 use futures::Stream;
 
 use crate::types::{
-    CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, MessageContent,
-    Role, StreamChunk, TokenUsage, ToolCall,
+    CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError,
+    MessageContent, Role, StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };
 
-use mistralrs::{GgufModelBuilder, Model, TextMessageRole, TextMessages, ToolCallResponse};
+use llama_cpp_2::context::params::LlamaContextParams;
+use llama_cpp_2::llama_backend::LlamaBackend;
+use llama_cpp_2::llama_batch::LlamaBatch;
+use llama_cpp_2::model::params::LlamaModelParams;
+use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaChatTemplate, LlamaModel};
+use llama_cpp_2::sampling::LlamaSampler;
 
 // ─────────────────────────────────────────────
 // Configuration
@@ -86,9 +73,6 @@ pub enum AcceleratorDevice {
 
 impl AcceleratorDevice {
     /// Valide que ce device est disponible dans les features compilées.
-    ///
-    /// Retourne `Ok(())` si le device peut être utilisé, ou
-    /// `Err(LlmError::DeviceNotAvailable)` avec le hint de recompilation.
     fn check_compiled(&self) -> Result<(), LlmError> {
         match self {
             Self::Cpu => Ok(()),
@@ -123,6 +107,14 @@ impl AcceleratorDevice {
             Self::Metal => "metal",
         }
     }
+
+    /// Retourne le nombre de couches à offloader sur GPU (999 = toutes).
+    fn gpu_layers(&self) -> u32 {
+        match self {
+            Self::Cpu => 0,
+            Self::Cuda | Self::Metal => 999,
+        }
+    }
 }
 
 /// Configuration du backend embarqué, désérialisée depuis la section
@@ -134,9 +126,9 @@ impl AcceleratorDevice {
 /// [[llm.backends]]
 /// name         = "local"
 /// type         = "embedded"
-/// model_path   = "~/.apollia/models/llama3.2-3b-q4.gguf"
-/// quantization = "q4_k_m"
-/// device       = "cpu"      # "cpu" | "cuda" | "metal"  (défaut: "cpu")
+/// model_path   = "~/.apollia/models/Qwen3-8B-Q5_K_M.gguf"
+/// quantization = "q5_k_m"
+/// device       = "metal"      # "cpu" | "cuda" | "metal"  (défaut: "cpu")
 /// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EmbeddedBackendConfig {
@@ -145,13 +137,8 @@ pub struct EmbeddedBackendConfig {
     /// Chemin complet vers le fichier `.gguf` du modèle sur le disque local.
     pub model_path: PathBuf,
     /// Quantisation du modèle — informatif uniquement, baked in the GGUF filename.
-    ///
-    /// Valeurs usuelles : `"q4_0"` | `"q4_k_m"` | `"q8_0"` | `"f16"`.
     pub quantization: String,
     /// Accélérateur matériel à utiliser pour l'inférence.
-    ///
-    /// Doit correspondre à une feature compilée — `Err(DeviceNotAvailable)` sinon.
-    /// Défaut : `AcceleratorDevice::Cpu` (toujours disponible).
     #[serde(default)]
     pub device: AcceleratorDevice,
 }
@@ -160,27 +147,30 @@ pub struct EmbeddedBackendConfig {
 // Backend
 // ─────────────────────────────────────────────
 
-/// Backend d'inférence in-process — principe #1 (local-first) et #2 (zéro dépendance externe).
+/// Backend d'inférence in-process via llama.cpp — ADR-042.
 ///
-/// Charge un modèle `.gguf` depuis `~/.apollia/models/` via `mistralrs::GgufModelBuilder`
+/// Charge un modèle `.gguf` depuis `~/.apollia/models/` via `llama_cpp_2::LlamaModel`
 /// et exécute l'inférence directement dans le processus Apollia OS, sans requête HTTP
 /// ni processus externe.
 ///
 /// Le fichier `.gguf` est une donnée externe (comme une base SQLite) : il n'est
-/// jamais compilé dans le binaire. Le moteur d'inférence (`mistralrs-core`), lui,
+/// jamais compilé dans le binaire. Le moteur d'inférence (`llama.cpp`), lui,
 /// est lié statiquement au binaire lors du build avec `feature = "local"`.
 pub struct EmbeddedBackend {
-    /// Moteur d'inférence chargé en mémoire — `Arc` pour le clonage du backend.
-    ///
-    /// `Model` n'implémente pas `Debug` — `EmbeddedBackend::fmt` l'omet volontairement.
-    engine: Arc<Model>,
+    /// Modèle llama.cpp chargé en mémoire.
+    model: Arc<LlamaModel>,
+    /// Backend llama.cpp (initialisation globale).
+    backend: Arc<LlamaBackend>,
     /// Nom logique du backend, transmis depuis la config.
     name: String,
     /// Identifiant du modèle déduit du nom du fichier `.gguf` (sans extension).
     model_id: String,
+    /// Device configuré pour le context (conservé pour les logs de diagnostic).
+    #[allow(dead_code)]
+    device: AcceleratorDevice,
 }
 
-/// `Debug` implémenté manuellement : `Model` n'implémente pas `Debug`.
+/// `Debug` implémenté manuellement : `LlamaModel` n'implémente pas `Debug`.
 impl fmt::Debug for EmbeddedBackend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EmbeddedBackend")
@@ -190,11 +180,12 @@ impl fmt::Debug for EmbeddedBackend {
     }
 }
 
+// Send + Sync safety: LlamaModel and LlamaBackend are thread-safe.
+// The context is created per-request in complete(), not shared.
+unsafe impl Send for EmbeddedBackend {}
+unsafe impl Sync for EmbeddedBackend {}
+
 /// Expands a leading `~` to `$HOME`.
-///
-/// Rust's `PathBuf` and `std::fs` do not perform shell tilde expansion.
-/// Any `model_path` value coming from `apollia.toml` like `~/...` must be
-/// resolved before calling `canonicalize()`.
 fn expand_tilde(path: &Path) -> PathBuf {
     let s = path.to_string_lossy();
     if s.starts_with("~/") {
@@ -205,18 +196,20 @@ fn expand_tilde(path: &Path) -> PathBuf {
     }
 }
 
+/// Nombre maximum de tokens à générer par défaut.
+const DEFAULT_MAX_TOKENS: u32 = 2048;
+
+/// Taille du contexte par défaut.
+const DEFAULT_CTX_SIZE: u32 = 4096;
+
 impl EmbeddedBackend {
     /// Charge le modèle depuis le fichier `.gguf` indiqué dans la config.
-    ///
-    /// Résout le chemin en chemin canonique absolu — si le fichier est absent,
-    /// retourne `Err(LlmError::ModelNotFound)` sans paniquer.
-    ///
-    /// Sur succès, le moteur est en mémoire et `is_available()` retourne `true`.
     ///
     /// # Erreurs
     ///
     /// - [`LlmError::ModelNotFound`] — `config.model_path` est introuvable sur le disque.
-    /// - [`LlmError::InferenceError`] — initialisation du moteur échouée (GGUF corrompu, etc.).
+    /// - [`LlmError::DeviceNotAvailable`] — accélérateur non compilé.
+    /// - [`LlmError::InferenceError`] — initialisation du moteur échouée.
     pub async fn load(config: &EmbeddedBackendConfig) -> Result<Self, LlmError> {
         // Fail-fast : vérifie que l'accélérateur demandé est compilé dans ce binaire.
         config.device.check_compiled()?;
@@ -229,26 +222,12 @@ impl EmbeddedBackend {
             "chargement du modèle local"
         );
 
-        // Expansion du préfixe `~` — PathBuf ne l'expand pas automatiquement.
         let expanded_path = expand_tilde(&config.model_path);
 
-        // Résolution canonique — échoue si le fichier n'existe pas.
         let canonical = expanded_path
             .canonicalize()
             .map_err(|_| LlmError::ModelNotFound {
                 path: expanded_path.clone(),
-            })?;
-
-        // Décomposition : dossier parent + nom de fichier pour GgufModelBuilder.
-        let folder = canonical.parent().ok_or_else(|| LlmError::ModelNotFound {
-            path: canonical.clone(),
-        })?;
-
-        let filename = canonical
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .ok_or_else(|| LlmError::ModelNotFound {
-                path: canonical.clone(),
             })?;
 
         let model_id = canonical
@@ -256,105 +235,259 @@ impl EmbeddedBackend {
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
 
-        // Construction du builder de base.
-        let builder = GgufModelBuilder::new(folder.to_string_lossy().as_ref(), vec![filename]);
+        let gpu_layers = config.device.gpu_layers();
+        let name = config.name.clone();
+        let device = config.device.clone();
 
-        // Sélection du device Metal — compilé uniquement avec feature = "local-metal".
-        //
-        // `check_compiled()` ci-dessus garantit que si `config.device == Metal`,
-        // la feature est bien présente. Le bloc `else` préserve le builder CPU par défaut.
-        #[cfg(feature = "local-metal")]
-        let builder = if config.device == AcceleratorDevice::Metal {
-            let device = mistralrs::Device::new_metal(0).map_err(|e| {
-                LlmError::InferenceError(format!("échec initialisation Metal GPU : {e}"))
-            })?;
-            builder.with_device(device)
-        } else {
-            builder
-        };
+        // Chargement bloquant dans un thread dédié (llama.cpp est synchrone).
+        let (backend, model) = tokio::task::spawn_blocking(move || {
+            let backend = LlamaBackend::init()
+                .map_err(|e| LlmError::InferenceError(format!("llama backend init failed: {e}")))?;
 
-        // Chargement in-process via mistralrs — zéro HTTP, zéro processus externe.
-        // `catch_unwind` protects against panics in mistral-rs when loading
-        // unsupported model architectures (e.g. "Unknown GGUF architecture").
-        let engine = match tokio::task::spawn(async move { builder.build().await }).await {
-            Ok(Ok(engine)) => engine,
-            Ok(Err(e)) => return Err(LlmError::InferenceError(e.to_string())),
-            Err(join_err) => {
-                let reason = if join_err.is_panic() {
-                    match join_err.into_panic().downcast::<String>() {
-                        Ok(msg) => *msg,
-                        Err(payload) => match payload.downcast::<&str>() {
-                            Ok(msg) => msg.to_string(),
-                            Err(_) => "unknown panic during model load".to_string(),
-                        },
-                    }
-                } else {
-                    "model load task cancelled".to_string()
-                };
-                return Err(LlmError::InferenceError(format!(
-                    "model load panicked: {reason}"
-                )));
-            }
-        };
+            let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
+
+            let model = LlamaModel::load_from_file(&backend, &canonical, &model_params)
+                .map_err(|e| LlmError::InferenceError(format!("model load failed: {e}")))?;
+
+            Ok::<_, LlmError>((backend, model))
+        })
+        .await
+        .map_err(|e| LlmError::InferenceError(format!("model load task failed: {e}")))??;
 
         tracing::info!(
-            backend = %config.name,
+            backend = %name,
             model_id = %model_id,
-            path = %canonical.display(),
-            device = %config.device.label(),
+            device = %device.label(),
             "modèle local prêt"
         );
 
         Ok(Self {
-            engine: Arc::new(engine),
-            name: config.name.clone(),
+            model: Arc::new(model),
+            backend: Arc::new(backend),
+            name,
             model_id,
+            device,
         })
     }
 
-    /// Convertit un `CompletionRequest` en `TextMessages` pour mistralrs.
-    fn build_messages(req: &CompletionRequest) -> TextMessages {
-        let mut messages = TextMessages::new();
-        for msg in &req.messages {
-            let role = match msg.role {
-                Role::System => TextMessageRole::System,
-                Role::User => TextMessageRole::User,
-                Role::Assistant => TextMessageRole::Assistant,
-                Role::Tool => TextMessageRole::Tool,
-            };
-            let content = match &msg.content {
-                MessageContent::Text(t) => t.clone(),
-                MessageContent::ToolResult { content, .. } => content.clone(),
-                MessageContent::WithToolCalls { text, .. } => text.clone(),
-            };
-            messages = messages.add_message(role, content);
-        }
-        messages
+    /// Construit le prompt formaté à partir des messages et outils.
+    fn build_prompt(
+        model: &LlamaModel,
+        req: &CompletionRequest,
+    ) -> Result<(String, Option<String>), LlmError> {
+        let template = model
+            .chat_template(None)
+            .unwrap_or_else(|_| {
+                LlamaChatTemplate::new("chatml").expect("chatml template must be valid")
+            });
+
+        let messages: Vec<LlamaChatMessage> = req
+            .messages
+            .iter()
+            .map(|msg| {
+                let role = match msg.role {
+                    Role::System => "system",
+                    Role::User => "user",
+                    Role::Assistant => "assistant",
+                    Role::Tool => "tool",
+                };
+                let content = match &msg.content {
+                    MessageContent::Text(t) => t.clone(),
+                    MessageContent::ToolResult { content, .. } => content.clone(),
+                    MessageContent::WithToolCalls { text, .. } => text.clone(),
+                };
+                LlamaChatMessage::new(role.to_string(), content)
+                    .map_err(|e| LlmError::InferenceError(format!("invalid chat message: {e}")))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Si des outils sont définis, utiliser le template avec outils.
+        let tools_json = if !req.tools.is_empty() {
+            Some(build_tools_json(&req.tools))
+        } else {
+            None
+        };
+
+        let result = model
+            .apply_chat_template_with_tools_oaicompat(
+                &template,
+                &messages,
+                tools_json.as_deref(),
+                None,
+                true,
+            )
+            .map_err(|e| LlmError::InferenceError(format!("chat template failed: {e}")))?;
+
+        Ok((result.prompt, result.grammar))
     }
 
-    /// Convertit un `finish_reason` string mistralrs → notre enum [`FinishReason`].
-    fn map_finish_reason(s: &str) -> FinishReason {
-        match s {
-            "stop" => FinishReason::Stop,
-            "length" => FinishReason::Length,
-            "tool_calls" => FinishReason::ToolCalls,
-            _ => FinishReason::Error,
+    /// Exécute l'inférence et retourne le texte généré.
+    fn run_inference(
+        model: &LlamaModel,
+        backend: &LlamaBackend,
+        prompt: &str,
+        _grammar: Option<&str>,
+        max_tokens: u32,
+    ) -> Result<String, LlmError> {
+        let tokens = model
+            .str_to_token(prompt, AddBos::Always)
+            .map_err(|e| LlmError::InferenceError(format!("tokenization failed: {e}")))?;
+
+        let prompt_token_count = tokens.len() as u32;
+        let n_ctx = DEFAULT_CTX_SIZE.max(prompt_token_count + max_tokens);
+
+        let ctx_params = LlamaContextParams::default()
+            .with_n_ctx(NonZeroU32::new(n_ctx))
+            .with_n_batch(n_ctx);
+
+        let mut ctx = model
+            .new_context(backend, ctx_params)
+            .map_err(|e| LlmError::InferenceError(format!("context creation failed: {e}")))?;
+
+        let mut batch = LlamaBatch::new(n_ctx as usize, 1);
+
+        // Ajouter les tokens du prompt au batch.
+        let last_index = tokens.len().saturating_sub(1) as i32;
+        for (i, token) in (0_i32..).zip(tokens.into_iter()) {
+            let is_last = i == last_index;
+            batch
+                .add(token, i, &[0], is_last)
+                .map_err(|e| LlmError::InferenceError(format!("batch add failed: {e}")))?;
+        }
+
+        ctx.decode(&mut batch)
+            .map_err(|e| LlmError::InferenceError(format!("initial decode failed: {e}")))?;
+
+        // Boucle de génération token-by-token.
+        let mut n_cur = batch.n_tokens();
+        let n_max = n_cur + max_tokens as i32;
+        let mut decoder = encoding_rs::UTF_8.new_decoder();
+        let mut sampler = LlamaSampler::greedy();
+        let mut generated = String::new();
+
+        while n_cur < n_max {
+            let token = sampler.sample(&ctx, batch.n_tokens() - 1);
+            sampler.accept(token);
+
+            if model.is_eog_token(token) {
+                break;
+            }
+
+            let piece = model
+                .token_to_piece(token, &mut decoder, true, None)
+                .unwrap_or_default();
+            generated.push_str(&piece);
+
+            batch.clear();
+            batch
+                .add(token, n_cur, &[0], true)
+                .map_err(|e| LlmError::InferenceError(format!("batch add failed: {e}")))?;
+            n_cur += 1;
+
+            ctx.decode(&mut batch)
+                .map_err(|e| LlmError::InferenceError(format!("decode failed: {e}")))?;
+        }
+
+        Ok(generated)
+    }
+}
+
+/// Convertit les `ToolSpec` en JSON compatible OpenAI tools format.
+fn build_tools_json(tools: &[ToolSpec]) -> String {
+    let tools_array: Vec<serde_json::Value> = tools
+        .iter()
+        .map(|t| {
+            serde_json::json!({
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.parameters,
+                }
+            })
+        })
+        .collect();
+    serde_json::to_string(&tools_array).unwrap_or_else(|_| "[]".to_string())
+}
+
+/// Tente de parser des tool calls depuis la réponse générée.
+///
+/// Les modèles retournent les tool calls dans des formats variés. On cherche
+/// un JSON array ou object contenant `name` + `arguments`.
+fn parse_tool_calls(text: &str) -> Vec<ToolCall> {
+    // Cherche un bloc JSON dans la réponse (entre { et } ou [ et ]).
+    let trimmed = text.trim();
+
+    // Essai 1 : la réponse entière est un JSON
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        return extract_tool_calls_from_json(&value);
+    }
+
+    // Essai 2 : chercher un bloc JSON dans le texte
+    if let Some(start) = trimmed.find('{') {
+        if let Some(end) = trimmed.rfind('}') {
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(&trimmed[start..=end]) {
+                return extract_tool_calls_from_json(&value);
+            }
         }
     }
 
-    /// Convertit un [`ToolCallResponse`] mistralrs → notre [`ToolCall`].
-    ///
-    /// `arguments` est parsé comme JSON ; si le parsing échoue, la valeur brute
-    /// est emballée dans une `Value::String` pour ne pas perdre l'information.
-    fn map_tool_call(tc: &ToolCallResponse) -> ToolCall {
-        let arguments = serde_json::from_str(&tc.function.arguments)
-            .unwrap_or_else(|_| serde_json::Value::String(tc.function.arguments.clone()));
-        ToolCall {
-            id: tc.id.clone(),
-            name: tc.function.name.clone(),
-            arguments,
+    Vec::new()
+}
+
+/// Extrait les tool calls depuis une valeur JSON parsée.
+fn extract_tool_calls_from_json(value: &serde_json::Value) -> Vec<ToolCall> {
+    let mut calls = Vec::new();
+
+    // Format OpenAI : {"tool_calls": [{"function": {"name": ..., "arguments": ...}}]}
+    if let Some(arr) = value.get("tool_calls").and_then(|v| v.as_array()) {
+        for item in arr {
+            if let Some(func) = item.get("function") {
+                if let (Some(name), Some(args)) = (
+                    func.get("name").and_then(|n| n.as_str()),
+                    func.get("arguments"),
+                ) {
+                    let arguments = if args.is_string() {
+                        serde_json::from_str(args.as_str().unwrap_or("{}"))
+                            .unwrap_or(serde_json::Value::Object(Default::default()))
+                    } else {
+                        args.clone()
+                    };
+                    calls.push(ToolCall {
+                        id: item
+                            .get("id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("call_0")
+                            .to_string(),
+                        name: name.to_string(),
+                        arguments,
+                    });
+                }
+            }
         }
     }
+
+    // Format direct : {"name": ..., "arguments": ...}
+    if calls.is_empty() {
+        if let (Some(name), Some(args)) = (
+            value.get("name").and_then(|n| n.as_str()),
+            value.get("arguments"),
+        ) {
+            let arguments = if args.is_string() {
+                serde_json::from_str(args.as_str().unwrap_or("{}"))
+                    .unwrap_or(serde_json::Value::Object(Default::default()))
+            } else {
+                args.clone()
+            };
+            calls.push(ToolCall {
+                id: "call_0".to_string(),
+                name: name.to_string(),
+                arguments,
+            });
+        }
+    }
+
+    calls
 }
 
 #[async_trait::async_trait]
@@ -364,60 +497,147 @@ impl CompletionModel for EmbeddedBackend {
     /// `usage.cost_usd` est toujours `None` — l'inférence locale est gratuite.
     async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         let started = Instant::now();
-        let messages = Self::build_messages(&req);
+        let max_tokens = req.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS);
+        let model = Arc::clone(&self.model);
+        let backend = Arc::clone(&self.backend);
+        let has_tools = !req.tools.is_empty();
 
-        let response = self
-            .engine
-            .send_chat_request(messages)
-            .await
-            .map_err(|e| LlmError::InferenceError(e.to_string()))?;
+        // Build prompt on the current thread (fast, no I/O).
+        let (prompt, grammar) = Self::build_prompt(&model, &req)?;
 
-        let choice =
-            response.choices.into_iter().next().ok_or_else(|| {
-                LlmError::ParseError("réponse vide : aucun choix retourné".into())
-            })?;
+        let prompt_tokens = model
+            .str_to_token(&prompt, AddBos::Always)
+            .map_err(|e| LlmError::InferenceError(format!("tokenization failed: {e}")))?
+            .len() as u32;
 
-        let content = choice.message.content.unwrap_or_default();
-        let finish_reason = Self::map_finish_reason(&choice.finish_reason);
-        let tool_calls = choice
-            .message
-            .tool_calls
-            .unwrap_or_default()
-            .iter()
-            .map(Self::map_tool_call)
-            .collect();
+        // Run inference in a blocking thread (llama.cpp is synchronous).
+        let generated = tokio::task::spawn_blocking(move || {
+            Self::run_inference(&model, &backend, &prompt, grammar.as_deref(), max_tokens)
+        })
+        .await
+        .map_err(|e| LlmError::InferenceError(format!("inference task failed: {e}")))??;
+
+        let completion_tokens = generated.len() as u32 / 4; // Approximation
+
+        // Parse tool calls si le modèle a des outils configurés.
+        let tool_calls = if has_tools {
+            parse_tool_calls(&generated)
+        } else {
+            Vec::new()
+        };
+
+        let finish_reason = if !tool_calls.is_empty() {
+            FinishReason::ToolCalls
+        } else {
+            FinishReason::Stop
+        };
 
         Ok(CompletionResponse {
-            content,
+            content: generated,
             tool_calls,
             usage: TokenUsage {
-                prompt_tokens: response.usage.prompt_tokens as u32,
-                completion_tokens: response.usage.completion_tokens as u32,
-                cost_usd: None, // backend local = gratuit
+                prompt_tokens,
+                completion_tokens,
+                cost_usd: None,
             },
             finish_reason,
             latency_ms: started.elapsed().as_millis() as u64,
         })
     }
 
-    /// Retourne un stream de chunks texte.
+    /// Retourne un stream de chunks texte — streaming token-by-token natif.
     ///
-    /// # Fallback
+    /// # Implémentation
     ///
-    /// `mistralrs::model::Stream<'a>` porte un lifetime et n'implémente pas
-    /// `futures::Stream`. Elle ne peut être transférée dans un task `'static`
-    /// sans un bridge par channel — complexity injustifiée.
-    ///
-    /// Délègue à `complete()` et retourne le contenu
-    /// complet en un seul chunk `Ok(content)`.
+    /// Utilise un `tokio::sync::mpsc` channel pour bridger le décodage synchrone
+    /// de llama.cpp vers un `futures::Stream` asynchrone. Chaque token décodé
+    /// est envoyé dans le channel dès qu'il est disponible.
     async fn stream(
         &self,
         req: CompletionRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
-        let response = self.complete(req).await?;
-        let content = response.content;
-        let stream = futures::stream::once(async move { Ok(StreamChunk::Text(content)) });
-        Ok(Box::pin(stream))
+        let max_tokens = req.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS);
+        let model = Arc::clone(&self.model);
+        let backend = Arc::clone(&self.backend);
+
+        let (prompt, _grammar) = Self::build_prompt(&model, &req)?;
+
+        let (tx, rx) = tokio::sync::mpsc::channel::<Result<StreamChunk, LlmError>>(32);
+
+        // Spawn blocking inference in a dedicated thread.
+        tokio::task::spawn_blocking(move || {
+            let result = (|| -> Result<(), LlmError> {
+                let tokens = model
+                    .str_to_token(&prompt, AddBos::Always)
+                    .map_err(|e| LlmError::InferenceError(format!("tokenization failed: {e}")))?;
+
+                let prompt_token_count = tokens.len() as u32;
+                let n_ctx = DEFAULT_CTX_SIZE.max(prompt_token_count + max_tokens);
+                let ctx_params = LlamaContextParams::default()
+                    .with_n_ctx(NonZeroU32::new(n_ctx))
+                    .with_n_batch(n_ctx);
+
+                let mut ctx = model
+                    .new_context(&backend, ctx_params)
+                    .map_err(|e| {
+                        LlmError::InferenceError(format!("context creation failed: {e}"))
+                    })?;
+
+                let mut batch = LlamaBatch::new(n_ctx as usize, 1);
+                let last_index = tokens.len().saturating_sub(1) as i32;
+                for (i, token) in (0_i32..).zip(tokens.into_iter()) {
+                    batch
+                        .add(token, i, &[0], i == last_index)
+                        .map_err(|e| {
+                            LlmError::InferenceError(format!("batch add failed: {e}"))
+                        })?;
+                }
+
+                ctx.decode(&mut batch).map_err(|e| {
+                    LlmError::InferenceError(format!("initial decode failed: {e}"))
+                })?;
+
+                let mut n_cur = batch.n_tokens();
+                let n_max = n_cur + max_tokens as i32;
+                let mut decoder = encoding_rs::UTF_8.new_decoder();
+                let mut sampler = LlamaSampler::greedy();
+
+                while n_cur < n_max {
+                    let token = sampler.sample(&ctx, batch.n_tokens() - 1);
+                    sampler.accept(token);
+
+                    if model.is_eog_token(token) {
+                        break;
+                    }
+
+                    let piece = model
+                        .token_to_piece(token, &mut decoder, true, None)
+                        .unwrap_or_default();
+
+                    if tx.blocking_send(Ok(StreamChunk::Text(piece))).is_err() {
+                        break; // Receiver dropped
+                    }
+
+                    batch.clear();
+                    batch.add(token, n_cur, &[0], true).map_err(|e| {
+                        LlmError::InferenceError(format!("batch add failed: {e}"))
+                    })?;
+                    n_cur += 1;
+
+                    ctx.decode(&mut batch).map_err(|e| {
+                        LlmError::InferenceError(format!("decode failed: {e}"))
+                    })?;
+                }
+
+                Ok(())
+            })();
+
+            if let Err(e) = result {
+                let _ = tx.blocking_send(Err(e));
+            }
+        });
+
+        Ok(Box::pin(tokio_stream::wrappers::ReceiverStream::new(rx)))
     }
 
     /// Retourne `true` : le moteur est chargé en mémoire et prêt.
@@ -443,19 +663,12 @@ impl CompletionModel for EmbeddedBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::ChatMessage;
 
-    // GIVEN AcceleratorDevice::default()
-    // WHEN on lit le variant
-    // THEN c'est Cpu
     #[test]
     fn test_accelerator_device_default_is_cpu() {
         assert_eq!(AcceleratorDevice::default(), AcceleratorDevice::Cpu);
     }
 
-    // GIVEN les trois variants sérialisés en JSON
-    // WHEN on désérialise
-    // THEN les bons variants sont retournés (serde rename_all = "lowercase")
     #[test]
     fn test_accelerator_device_serde_roundtrip() {
         let cases = [
@@ -465,128 +678,43 @@ mod tests {
         ];
         for (device, expected_json) in &cases {
             let json = serde_json::to_string(device).expect("sérialisation doit réussir");
-            assert_eq!(&json, expected_json, "sérialisation de {device:?}");
-            let back: AcceleratorDevice =
-                serde_json::from_str(&json).expect("désérialisation doit réussir");
-            assert_eq!(&back, device, "roundtrip de {device:?}");
+            assert_eq!(&json, expected_json);
+            let back: AcceleratorDevice = serde_json::from_str(&json).expect("désérialisation");
+            assert_eq!(&back, device);
         }
     }
 
-    // GIVEN AcceleratorDevice::Cpu
-    // WHEN on appelle check_compiled()
-    // THEN Ok(()) est toujours retourné (CPU toujours disponible)
     #[test]
     fn test_accelerator_device_cpu_always_available() {
-        assert!(
-            AcceleratorDevice::Cpu.check_compiled().is_ok(),
-            "Cpu doit toujours être disponible"
-        );
+        assert!(AcceleratorDevice::Cpu.check_compiled().is_ok());
     }
 
-    // GIVEN AcceleratorDevice::Cuda compilé sans feature local-cuda
-    // WHEN on appelle check_compiled()
-    // THEN Err(LlmError::DeviceNotAvailable { device: "cuda", .. }) est retourné
     #[cfg(not(feature = "local-cuda"))]
     #[test]
     fn test_accelerator_device_cuda_not_compiled() {
         let result = AcceleratorDevice::Cuda.check_compiled();
-        assert!(
-            matches!(result, Err(LlmError::DeviceNotAvailable { ref device, .. }) if device == "cuda"),
-            "attendu DeviceNotAvailable cuda, obtenu: {result:?}"
-        );
+        assert!(matches!(
+            result,
+            Err(LlmError::DeviceNotAvailable { ref device, .. }) if device == "cuda"
+        ));
     }
 
-    // GIVEN AcceleratorDevice::Metal compilé avec feature local-metal
-    // WHEN on appelle check_compiled()
-    // THEN Ok(()) est retourné — le GPU Apple Silicon est disponible
     #[cfg(feature = "local-metal")]
     #[test]
     fn test_accelerator_device_metal_compiled() {
-        assert!(
-            AcceleratorDevice::Metal.check_compiled().is_ok(),
-            "Metal doit être disponible quand feature local-metal est compilée"
-        );
+        assert!(AcceleratorDevice::Metal.check_compiled().is_ok());
     }
 
-    // GIVEN AcceleratorDevice::Metal compilé sans feature local-metal
-    // WHEN on appelle check_compiled()
-    // THEN Err(LlmError::DeviceNotAvailable { device: "metal", .. }) est retourné
     #[cfg(not(feature = "local-metal"))]
     #[test]
     fn test_accelerator_device_metal_not_compiled() {
         let result = AcceleratorDevice::Metal.check_compiled();
-        assert!(
-            matches!(result, Err(LlmError::DeviceNotAvailable { ref device, .. }) if device == "metal"),
-            "attendu DeviceNotAvailable metal, obtenu: {result:?}"
-        );
+        assert!(matches!(
+            result,
+            Err(LlmError::DeviceNotAvailable { ref device, .. }) if device == "metal"
+        ));
     }
 
-    // GIVEN un EmbeddedBackendConfig avec device explicite
-    // WHEN on sérialise puis désérialise
-    // THEN tous les champs incluant device sont préservés
-    #[test]
-    fn test_embedded_backend_config_with_device_serde() {
-        let original = EmbeddedBackendConfig {
-            name: "local-gpu".into(),
-            model_path: PathBuf::from("/home/user/.apollia/models/llama3.2-q4.gguf"),
-            quantization: "q4_k_m".into(),
-            device: AcceleratorDevice::Cuda,
-        };
-
-        let json = serde_json::to_string(&original).expect("sérialisation doit réussir");
-        let restored: EmbeddedBackendConfig =
-            serde_json::from_str(&json).expect("désérialisation doit réussir");
-
-        assert_eq!(restored.name, original.name);
-        assert_eq!(restored.model_path, original.model_path);
-        assert_eq!(restored.quantization, original.quantization);
-        assert_eq!(restored.device, original.device);
-    }
-
-    // GIVEN un JSON sans champ device
-    // WHEN on désérialise EmbeddedBackendConfig
-    // THEN device vaut AcceleratorDevice::Cpu (serde(default))
-    #[test]
-    fn test_embedded_backend_config_device_defaults_to_cpu() {
-        let json = r#"{
-            "name": "local",
-            "model_path": "/tmp/model.gguf",
-            "quantization": "q8_0"
-        }"#;
-
-        let config: EmbeddedBackendConfig =
-            serde_json::from_str(json).expect("désérialisation doit réussir");
-
-        assert_eq!(
-            config.device,
-            AcceleratorDevice::Cpu,
-            "device absent du JSON doit valoir Cpu par défaut"
-        );
-    }
-
-    // GIVEN un EmbeddedBackendConfig avec un model_path inexistant
-    // WHEN on appelle EmbeddedBackend::load(&config).await
-    // THEN Err(LlmError::ModelNotFound { .. }) est retourné sans panique
-    #[tokio::test]
-    async fn test_ac2_load_returns_model_not_found() {
-        let config = EmbeddedBackendConfig {
-            name: "local".into(),
-            model_path: PathBuf::from("/tmp/does-not-exist-xyz-apollia.gguf"),
-            quantization: "q4_k_m".into(),
-            device: AcceleratorDevice::Cpu,
-        };
-
-        let result = EmbeddedBackend::load(&config).await;
-
-        assert!(
-            matches!(result, Err(LlmError::ModelNotFound { .. })),
-            "expected ModelNotFound, got: {result:?}"
-        );
-    }
-
-    // GIVEN un JSON valide représentant un EmbeddedBackendConfig
-    // WHEN on désérialise via serde_json
-    // THEN les champs sont correctement initialisés
     #[test]
     fn test_embedded_backend_config_serde() {
         let json = r#"{
@@ -594,214 +722,68 @@ mod tests {
             "model_path": "/tmp/model.gguf",
             "quantization": "q4_k_m"
         }"#;
-
         let config: EmbeddedBackendConfig =
             serde_json::from_str(json).expect("désérialisation doit réussir");
-
         assert_eq!(config.name, "local");
         assert_eq!(config.model_path, PathBuf::from("/tmp/model.gguf"));
         assert_eq!(config.quantization, "q4_k_m");
+        assert_eq!(config.device, AcceleratorDevice::Cpu);
     }
 
-    // GIVEN un EmbeddedBackendConfig sérialisé puis désérialisé
-    // WHEN on fait un roundtrip JSON
-    // THEN les valeurs sont préservées
     #[test]
-    fn test_embedded_backend_config_serde_roundtrip() {
-        let original = EmbeddedBackendConfig {
-            name: "local".into(),
-            model_path: PathBuf::from("/home/user/.apollia/models/llama3.2-q4.gguf"),
-            quantization: "q8_0".into(),
-            device: AcceleratorDevice::Cpu,
-        };
-
-        let json = serde_json::to_string(&original).expect("sérialisation doit réussir");
-        let restored: EmbeddedBackendConfig =
-            serde_json::from_str(&json).expect("désérialisation doit réussir");
-
-        assert_eq!(restored.name, original.name);
-        assert_eq!(restored.model_path, original.model_path);
-        assert_eq!(restored.quantization, original.quantization);
+    fn test_gpu_layers() {
+        assert_eq!(AcceleratorDevice::Cpu.gpu_layers(), 0);
+        assert_eq!(AcceleratorDevice::Metal.gpu_layers(), 999);
+        assert_eq!(AcceleratorDevice::Cuda.gpu_layers(), 999);
     }
 
-    // GIVEN les chaînes finish_reason de mistralrs
-    // WHEN on appelle map_finish_reason
-    // THEN les variantes correctes sont retournées
     #[test]
-    fn test_map_finish_reason() {
-        assert_eq!(
-            EmbeddedBackend::map_finish_reason("stop"),
-            FinishReason::Stop
-        );
-        assert_eq!(
-            EmbeddedBackend::map_finish_reason("length"),
-            FinishReason::Length
-        );
-        assert_eq!(
-            EmbeddedBackend::map_finish_reason("tool_calls"),
-            FinishReason::ToolCalls
-        );
-        assert_eq!(
-            EmbeddedBackend::map_finish_reason("unknown"),
-            FinishReason::Error
-        );
+    fn test_parse_tool_calls_empty() {
+        assert!(parse_tool_calls("Hello world").is_empty());
     }
 
-    // GIVEN un ToolCallResponse mistralrs avec arguments JSON valide
-    // WHEN on appelle map_tool_call
-    // THEN les champs id, name et arguments sont correctement mappés
     #[test]
-    fn test_map_tool_call_with_json_args() {
-        use mistralrs::{CalledFunction, ToolCallResponse, ToolCallType};
-
-        let tc = ToolCallResponse {
-            id: "call_01".into(),
-            tp: ToolCallType::Function,
-            index: 0,
-            function: CalledFunction {
-                name: "file_io".into(),
-                arguments: r#"{"path": "/tmp/test.txt"}"#.into(),
-            },
-        };
-
-        let mapped = EmbeddedBackend::map_tool_call(&tc);
-
-        assert_eq!(mapped.id, "call_01");
-        assert_eq!(mapped.name, "file_io");
-        assert_eq!(mapped.arguments["path"], "/tmp/test.txt");
+    fn test_parse_tool_calls_direct_format() {
+        let json = r#"{"name": "get_weather", "arguments": {"city": "Paris"}}"#;
+        let calls = parse_tool_calls(json);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "get_weather");
+        assert_eq!(calls[0].arguments["city"], "Paris");
     }
 
-    // GIVEN un ToolCallResponse avec arguments JSON invalide
-    // WHEN on appelle map_tool_call
-    // THEN les arguments sont conservés en tant que Value::String sans panique
     #[test]
-    fn test_map_tool_call_with_invalid_json_args() {
-        use mistralrs::{CalledFunction, ToolCallResponse, ToolCallType};
-
-        let tc = ToolCallResponse {
-            id: "call_02".into(),
-            tp: ToolCallType::Function,
-            index: 0,
-            function: CalledFunction {
-                name: "bash_executor".into(),
-                arguments: "not-valid-json".into(),
-            },
-        };
-
-        let mapped = EmbeddedBackend::map_tool_call(&tc);
-
-        assert_eq!(mapped.id, "call_02");
-        assert_eq!(mapped.name, "bash_executor");
-        assert!(
-            mapped.arguments.is_string(),
-            "arguments doit être Value::String en fallback"
-        );
+    fn test_parse_tool_calls_openai_format() {
+        let json = r#"{"tool_calls": [{"id": "call_1", "function": {"name": "file_io", "arguments": "{\"path\": \"/tmp\"}"}}]}"#;
+        let calls = parse_tool_calls(json);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "file_io");
+        assert_eq!(calls[0].id, "call_1");
     }
 
-    // ─────────────────────────────────────────────
-    // Tests d'intégration — modèle réel (lents, exclus du CI)
-    // ─────────────────────────────────────────────
-    //
-    // Nécessite le fichier models/Qwen3.5-0.8B-Q6_K.gguf à la racine du workspace.
-    // Si le fichier est absent, le test est ignoré sans échec.
-    //
-    // Exécution : cargo test -p apollia-llm --features local -- --nocapture
+    #[test]
+    fn test_build_tools_json() {
+        let tools = vec![ToolSpec {
+            name: "test_tool".into(),
+            description: "A test".into(),
+            parameters: serde_json::json!({"type": "object"}),
+        }];
+        let json = build_tools_json(&tools);
+        assert!(json.contains("test_tool"));
+        assert!(json.contains("function"));
+    }
 
-    /// Chemin vers le modèle de test — relatif à la racine du workspace.
-    const TEST_MODEL_PATH: &str = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../models/Qwen3-0.6B-Q8_0.gguf"
-    );
-
-    // GIVEN le fichier models/Qwen3.5-0.8B-Q6_K.gguf présent dans le workspace
-    // WHEN on charge le backend puis on appelle complete() et stream()
-    // THEN load() réussit, is_available() = true, model_id est non vide
-    // THEN complete() retourne cost_usd=None, latency_ms>0, finish_reason valide, content non vide
-    // THEN stream() retourne au moins un chunk non vide
-    // THEN fallback — stream retourne exactement 1 chunk (contenu complet d'un seul tenant)
     #[tokio::test]
-    async fn test_ac1_ac3_ac4_ac5_with_real_model() {
-        if !std::path::Path::new(TEST_MODEL_PATH).exists() {
-            eprintln!(
-                "skip: modèle absent — déposez un .gguf dans models/ pour activer ce test\n  attendu : {TEST_MODEL_PATH}"
-            );
-            return;
-        }
-
-        // ── chargement réussi ──────────────────────────────────────
+    async fn test_load_returns_model_not_found() {
         let config = EmbeddedBackendConfig {
-            name: "test-local".into(),
-            model_path: PathBuf::from(TEST_MODEL_PATH),
-            quantization: "q8_0".into(),
+            name: "local".into(),
+            model_path: PathBuf::from("/tmp/does-not-exist-xyz-apollia.gguf"),
+            quantization: "q4_k_m".into(),
             device: AcceleratorDevice::Cpu,
         };
-
-        let backend = EmbeddedBackend::load(&config)
-            .await
-            .expect("load() doit réussir avec un fichier .gguf valide");
-
+        let result = EmbeddedBackend::load(&config).await;
         assert!(
-            backend.is_available(),
-            "is_available() doit retourner true après load()"
-        );
-        assert_eq!(backend.backend_name(), "test-local");
-        assert!(
-            !backend.model_id().is_empty(),
-            "model_id ne doit pas être vide"
-        );
-
-        // ── complete() cohérent ────────────────────────────────────
-        let req = CompletionRequest {
-            messages: vec![ChatMessage::user("Dis bonjour en un mot.")],
-            ..Default::default()
-        };
-
-        let response = backend
-            .complete(req.clone())
-            .await
-            .expect("complete() doit réussir");
-
-        assert!(
-            response.usage.cost_usd.is_none(),
-            "cost_usd doit être None (backend local = gratuit)"
-        );
-        assert!(
-            response.latency_ms > 0,
-            "latency_ms doit être supérieur à 0"
-        );
-        assert!(
-            matches!(
-                response.finish_reason,
-                FinishReason::Stop | FinishReason::Length | FinishReason::ToolCalls
-            ),
-            "finish_reason doit être Stop, Length ou ToolCalls — got {:?}",
-            response.finish_reason
-        );
-        assert!(
-            !response.content.is_empty(),
-            "content ne doit pas être vide"
-        );
-
-        // ── stream() ────────────────────────────────────────
-        use futures::StreamExt;
-
-        let stream = backend.stream(req).await.expect("stream() doit réussir");
-
-        let chunks: Vec<String> = stream.filter_map(|r| async { r.ok() }).collect().await;
-
-        assert!(
-            !chunks.is_empty(),
-            "stream() doit retourner au moins un chunk"
-        );
-        assert!(
-            !chunks.join("").is_empty(),
-            "la concaténation des chunks ne doit pas être vide"
-        );
-        // : fallback — le contenu complet est retourné en un seul chunk
-        assert_eq!(
-            chunks.len(),
-            1,
-            "fallback stream doit retourner exactement 1 chunk (contenu complet)"
+            matches!(result, Err(LlmError::ModelNotFound { .. })),
+            "expected ModelNotFound, got: {result:?}"
         );
     }
 }

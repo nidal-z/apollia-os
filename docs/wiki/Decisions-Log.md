@@ -789,5 +789,28 @@
 
 ---
 
+## ADR-042 — Remplacement de mistral.rs par llama.cpp (lié statiquement) comme moteur d'inférence GGUF
+
+**Date :** 2026-03-26
+**Statut :** Accepté
+
+**Contexte :** mistralrs v0.7 ne supporte que 16 architectures GGUF et ses kernels candle Metal crashent sur les modèles MoE (`indexed_moe_forward not implemented`). Qwen3.5, GLM-4.7, Llama 4 sont inaccessibles. Le streaming est un fallback single-chunk.
+
+**Décision :** Remplacement de `mistralrs` + `mistralrs-core` par `llama-cpp-2` (bindings safe Rust pour llama.cpp, compilation statique). Changement contenu dans `apollia-llm::backends::embedded`. Le trait `CompletionModel`, le `LlmRouter`, le config TOML et l'API publique ne changent pas.
+
+**Alternatives considérées :** Attendre mistral.rs 0.8+ (rejetée — délai inconnu, pas de garantie Metal MoE), llama-server processus externe (rejetée — viole Principe #2), Contribuer les kernels Metal à candle (rejetée — effort 3-6 mois disproportionné).
+
+**Conséquences :**
+- 30+ architectures GGUF supportées immédiatement (Qwen3.5, GLM-4.7, Llama 4...)
+- Metal MoE natif fonctionnel, streaming token-by-token, taille binaire réduite
+- Build chain C++ (cmake) déjà présente via ADR-041 whisper.cpp
+- Surveiller conflit symboles ggml entre whisper.cpp et llama.cpp
+
+**Principes impactés :** Principe #1 — Local-first (renforcé), Principe #2 — Zéro dépendance (respecté, statique), Principe #4 — Fail fast (respecté)
+
+[Détail → docs/adr/ADR-042-remplacement-mistralrs-par-llamacpp-statique.md](adr/ADR-042-remplacement-mistralrs-par-llamacpp-statique.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

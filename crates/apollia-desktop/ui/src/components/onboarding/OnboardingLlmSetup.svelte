@@ -21,6 +21,23 @@
   // Trigger fade-in on mount
   $effect(() => { requestAnimationFrame(() => { fadeIn = true; }); });
 
+  /** Maps raw backend error strings to user-friendly messages in French. */
+  function toUserFriendlyError(raw: string): string {
+    // Unsupported GGUF architecture (e.g. qwen35moe)
+    if (raw.includes("unsupported model architecture") || raw.includes("Unknown GGUF architecture")) {
+      return "Ce modèle utilise une architecture non supportée. Essayez un modèle Llama, Mistral, Qwen2 ou Phi au format GGUF.";
+    }
+    // Model file not found
+    if (raw.includes("model file not found") || raw.includes("file not found")) {
+      return "Fichier modèle introuvable. Vérifiez que le fichier .gguf existe bien à l'emplacement indiqué.";
+    }
+    // Device/GPU not available
+    if (raw.includes("not available") && raw.includes("device")) {
+      return "L'accélérateur GPU demandé n'est pas disponible sur cette machine.";
+    }
+    return raw;
+  }
+
   async function handleSelectModel(): Promise<void> {
     if (selecting || configuring) return;
     selecting = true;
@@ -53,7 +70,8 @@
       // Brief pause to show the success state before transitioning
       setTimeout(() => oncomplete(), 800);
     } catch (err: unknown) {
-      error = err instanceof Error ? err.message : String(err);
+      const raw = err instanceof Error ? err.message : String(err);
+      error = toUserFriendlyError(raw);
       selecting = false;
       configuring = false;
     }
