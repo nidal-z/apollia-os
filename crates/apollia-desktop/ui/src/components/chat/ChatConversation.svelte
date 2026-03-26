@@ -14,6 +14,7 @@
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
   import SummarizedMessagesBanner from "./SummarizedMessagesBanner.svelte";
+  import ApprovalCard from "./ApprovalCard.svelte";
 
   interface Props {
     sessionId: string;
@@ -39,6 +40,14 @@
   let tokenBuffer = $state("");
   let configOpen = $state(false);
   let sessionDetail = $state<ChatSessionDetail | null>(null);
+
+  /** Pending tool approval — shown inline when the LLM requests a tool call. */
+  let pendingApproval = $state<{
+    sessionId: string;
+    messageId: string;
+    toolName: string;
+    inputPreview: string;
+  } | null>(null);
   let conversationStats = $state<ConversationStatsView | null>(null);
 
   const headerTitle = $derived(
@@ -103,6 +112,7 @@
           const p = evt.payload as { session_id?: string; tool_name?: string };
           if (p.session_id === sessionId) {
             activeToolName = p.tool_name ?? null;
+            pendingApproval = null;
             scrollToBottom();
           }
           return;
@@ -112,7 +122,29 @@
           if (p.session_id === sessionId) activeToolName = null;
           return;
         }
+        if (evt.event_type === "ChatApprovalRequired") {
+          // Payload is externally-tagged serde: { ChatApprovalRequired: { session_id, ... } }
+          const inner = (evt.payload as Record<string, unknown>)?.ChatApprovalRequired as
+            { session_id?: string; message_id?: string; tool_name?: string; prompt?: string } | undefined;
+          const p = inner ?? evt.payload as { session_id?: string; message_id?: string; tool_name?: string; prompt?: string };
+          if (!p.session_id || p.session_id === sessionId) {
+            isStreaming = false;
+            pendingApproval = {
+              sessionId: sessionId,
+              messageId: p.message_id ?? "",
+              toolName: p.tool_name ?? "",
+              inputPreview: p.prompt ?? "",
+            };
+            scrollToBottom();
+          }
+          return;
+        }
+        if (evt.event_type === "ChatApprovalResolved" || evt.event_type === "ChatApprovalTimeout") {
+          pendingApproval = null;
+          return;
+        }
         if (evt.event_type === "ChatResponseCompleted") {
+          pendingApproval = null;
           void finalizeStreaming();
           return;
         }
@@ -355,6 +387,19 @@
             <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
               <Loader2 size={11} class="animate-spin" />
               <span>{$t("chat.tool_executing", { values: { tool: activeToolName } })}</span>
+            </div>
+          </div>
+        {/if}
+
+        {#if pendingApproval}
+          <div class="flex justify-start" data-testid="chat-approval-inline">
+            <div class="max-w-[85%]">
+              <ApprovalCard
+                sessionId={pendingApproval.sessionId}
+                messageId={pendingApproval.messageId}
+                toolName={pendingApproval.toolName}
+                inputPreview={pendingApproval.inputPreview}
+              />
             </div>
           </div>
         {/if}

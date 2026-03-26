@@ -230,6 +230,16 @@ impl BuiltInChatAgent {
     pub fn build_system_prompt(&self, base_prompt: &str) -> String {
         let mut prompt = base_prompt.to_string();
 
+        // Inject platform context so the LLM knows the user's environment.
+        let home = std::env::var("HOME").unwrap_or_default();
+        prompt.push_str(&format!(
+            "\n\n## System Environment\n- OS: {os}\n- Architecture: {arch}\n- Home directory: {home}\n- Working directory: {cwd}",
+            os = std::env::consts::OS,
+            arch = std::env::consts::ARCH,
+            home = home,
+            cwd = std::env::current_dir().map(|p| p.display().to_string()).unwrap_or_else(|_| "unknown".into()),
+        ));
+
         if let Some(ref repo_mutex) = self.user_memory {
             match repo_mutex.lock() {
                 Ok(repo) => match repo.recall_all_for_injection(50) {
@@ -510,7 +520,95 @@ impl BuiltInChatAgent {
             }
         }
 
+        // If no structured ToolCall chunks were received, attempt to parse
+        // tool calls from the accumulated text. Local GGUF models (llama.cpp)
+        // often emit tool calls as raw text like `<tool_call>{"name":...}</tool_call>`
+        // rather than as structured stream events.
+        if tool_calls.is_empty() {
+            let parsed = Self::parse_tool_calls_from_text(accumulated_text);
+            tracing::debug!(
+                text_len = accumulated_text.len(),
+                has_tool_tag = accumulated_text.contains("<tool_call>"),
+                parsed_count = parsed.len(),
+                "post-stream tool call text parsing"
+            );
+            if !parsed.is_empty() {
+                // Strip the tool_call tags from the text shown to the user.
+                let cleaned = Self::strip_tool_call_tags(accumulated_text);
+                accumulated_text.clear();
+                accumulated_text.push_str(&cleaned);
+                return Ok(parsed);
+            }
+        }
+
         Ok(tool_calls)
+    }
+
+    /// Parses tool calls emitted as raw text by local models.
+    ///
+    /// Supports the common format used by Qwen3 and other GGUF models:
+    /// `<tool_call>\n{"name": "...", "arguments": {...}}\n</tool_call>`
+    ///
+    /// The JSON may span multiple lines and contain nested braces.
+    fn parse_tool_calls_from_text(text: &str) -> Vec<ToolCall> {
+        let mut calls = Vec::new();
+        let tag_open = "<tool_call>";
+        let tag_close = "</tool_call>";
+
+        let mut search_from = 0;
+        while let Some(start) = text[search_from..].find(tag_open) {
+            let json_start = search_from + start + tag_open.len();
+            if let Some(end) = text[json_start..].find(tag_close) {
+                let json_str = text[json_start..json_start + end].trim();
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_str) {
+                    if let Some(call) = Self::json_to_tool_call(&parsed, calls.len()) {
+                        tracing::info!(
+                            tool = %call.name,
+                            "parsed tool call from text output"
+                        );
+                        calls.push(call);
+                    }
+                }
+                search_from = json_start + end + tag_close.len();
+            } else {
+                break;
+            }
+        }
+
+        calls
+    }
+
+    /// Converts a JSON value to a `ToolCall` if it has the expected shape.
+    fn json_to_tool_call(value: &serde_json::Value, index: usize) -> Option<ToolCall> {
+        let name = value.get("name")?.as_str()?;
+        let arguments = value.get("arguments").cloned().unwrap_or(serde_json::json!({}));
+        Some(ToolCall {
+            id: format!("call_{index}"),
+            name: name.to_string(),
+            arguments,
+        })
+    }
+
+    /// Strips `<tool_call>...</tool_call>` tags from text.
+    fn strip_tool_call_tags(text: &str) -> String {
+        let mut result = String::with_capacity(text.len());
+        let tag_open = "<tool_call>";
+        let tag_close = "</tool_call>";
+        let mut cursor = 0;
+
+        while let Some(start) = text[cursor..].find(tag_open) {
+            result.push_str(&text[cursor..cursor + start]);
+            let after_open = cursor + start + tag_open.len();
+            if let Some(end) = text[after_open..].find(tag_close) {
+                cursor = after_open + end + tag_close.len();
+            } else {
+                // No closing tag — keep the rest as-is
+                cursor = cursor + start;
+                break;
+            }
+        }
+        result.push_str(&text[cursor..]);
+        result.trim().to_string()
     }
 
     /// Execute a single tool call via the [`ToolInvoker`], emitting events.

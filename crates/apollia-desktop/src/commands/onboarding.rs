@@ -132,16 +132,70 @@ fn get_repo(
         .ok_or(OnboardingError::RepositoryNotInitialized)
 }
 
+/// Maps a memory key written by the onboarding agent to a topic name.
+///
+/// The agent writes keys like `user.name`, `user.tools.ide`, `user.domain.stack`
+/// etc. This function maps them to the five onboarding topics.
+fn topic_for_memory_key(key: &str) -> Option<&'static str> {
+    if key.starts_with("user.name")
+        || key.starts_with("user.role")
+        || key.starts_with("user.languages")
+        || key.starts_with("user.expertise")
+    {
+        Some("identity")
+    } else if key.starts_with("user.preferences") {
+        Some("preferences")
+    } else if key.starts_with("user.tools") {
+        Some("tools")
+    } else if key.starts_with("user.domain") {
+        Some("domain")
+    } else if key.starts_with("user.agents") {
+        Some("agents")
+    } else {
+        None
+    }
+}
+
 /// Reads onboarding status from UserMemory.
+///
+/// Also scans the `onboarding-agent` semantic memory namespace to auto-detect
+/// covered topics from the keys the agent has written (`user.name`, `user.tools.ide`,
+/// etc.) and marks them in `UserMemoryRepository` so the progress bar advances.
 async fn get_onboarding_status_inner(
     state: &RuntimeHandle,
 ) -> Result<OnboardingStatus, OnboardingError> {
     let repo = get_repo(state)?;
 
+    // Open the agent's memory store to scan for written keys.
+    let memory_dir = {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        std::path::PathBuf::from(home).join(".apollia").join("memory")
+    };
+    let agent_db_path = memory_dir.join("onboarding-agent.db");
+
     let status = tokio::task::spawn_blocking(move || {
         let repo = repo
             .lock()
             .map_err(|e| OnboardingError::SessionCreationFailed(format!("mutex poisoned: {e}")))?;
+
+        // Auto-detect covered topics from the agent's semantic memory.
+        if agent_db_path.exists() {
+            if let Ok(agent_store) = apollia_memory::store::MemoryStore::open(&agent_db_path) {
+                let sem = apollia_memory::semantic::SemanticMemory::new(&agent_store);
+                if let Ok(entries) = sem.recall_all("onboarding-agent") {
+                    let mut discovered = std::collections::HashSet::new();
+                    for entry in &entries {
+                        if let Some(topic) = topic_for_memory_key(&entry.key) {
+                            discovered.insert(topic);
+                        }
+                    }
+                    // Mark newly discovered topics.
+                    for topic in discovered {
+                        let _ = repo.mark_topic_covered(topic);
+                    }
+                }
+            }
+        }
 
         let topics_covered = repo
             .get_covered_topics()

@@ -4,8 +4,6 @@
   import { Sparkles, ArrowRight, Clock } from "lucide-svelte";
   import { navigateTo } from "$lib/stores/navigation";
   import { onboardingStore } from "$lib/stores/onboarding";
-  import { pendingChatSessionId } from "$lib/stores/chat";
-  import type { ChatSessionSummary, CreateSessionRequest } from "$lib/types";
 
   let starting = $state(false);
 
@@ -13,16 +11,13 @@
     if (starting) return;
     starting = true;
     try {
-      const request: CreateSessionRequest = {
-        mode: "agent",
-        agent_name: "onboarding-agent",
-      };
-      const session = await invoke<ChatSessionSummary>(
-        "create_chat_session",
-        { request },
-      );
-      pendingChatSessionId.set(session.id);
-      navigateTo("chat");
+      // Reset onboarding state so App.svelte re-enters the onboarding flow
+      // with the proper OnboardingConversation component (topic progress bar).
+      await invoke("reset_onboarding");
+      onboardingStore.setRequired();
+      // Force a full page reload to re-trigger App.svelte's onMount logic,
+      // which checks onboarding status and shows the conversation phase.
+      window.location.reload();
     } catch {
       starting = false;
     }

@@ -36,12 +36,6 @@
   let deleteTarget = $state<UserMemoryEntryView | null>(null);
   let isDeleting = $state(false);
 
-  const CATEGORY_LABELS: Record<string, { en: string; fr: string }> = {
-    preferences: { en: "Preferences", fr: "Préférences" },
-    habits: { en: "Habits", fr: "Habitudes" },
-    context: { en: "Context", fr: "Contexte" },
-  };
-
   const CATEGORY_COLORS: Record<string, string> = {
     preferences: "#3435f5",
     habits: "#7c5fd6",
@@ -60,13 +54,20 @@
   // ── Derived ──
   let entries = $derived(profile?.entries ?? []);
 
+  /** Internal keys that should not be shown to the user. */
+  const HIDDEN_KEY_PREFIXES = ["onboarding_topic_", "onboarding_skipped"];
+
+  let visibleEntries = $derived(
+    entries.filter((e) => !HIDDEN_KEY_PREFIXES.some((p) => e.key.startsWith(p)))
+  );
+
   let groupedEntries = $derived.by(() => {
     const groups: Record<string, UserMemoryEntryView[]> = {
       preferences: [],
       habits: [],
       context: [],
     };
-    for (const entry of entries) {
+    for (const entry of visibleEntries) {
       const cat = entry.category;
       if (cat in groups) {
         groups[cat].push(entry);
@@ -181,7 +182,7 @@
       <Skeleton width="100%" height="4rem" />
       <Skeleton width="100%" height="4rem" />
     </div>
-  {:else if !profile || entries.length === 0}
+  {:else if !profile || visibleEntries.length === 0}
     <EmptyState
       icon={Brain}
       title={mode === "operator"
@@ -196,7 +197,7 @@
     <!-- Source legend -->
     <div class="flex flex-wrap gap-3" data-testid="source-legend">
       {#each Object.entries(SOURCE_BADGE_COLORS) as [source, colors]}
-        {@const count = entries.filter((e) => e.source === source).length}
+        {@const count = visibleEntries.filter((e) => e.source === source).length}
         {#if count > 0}
           <div class="flex items-center gap-1.5">
             <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium {colors.bg} {colors.text}">
@@ -212,7 +213,7 @@
     {#each CATEGORIES as cat}
       {@const catEntries = groupedEntries[cat]}
       {#if catEntries.length > 0}
-        <div class="rounded-xl glass-card glass-border overflow-hidden" data-testid="category-{cat}">
+        <div class="rounded-xl glass-card glass-border overflow-visible" data-testid="category-{cat}">
           <!-- Accordion header -->
           <button
             class="flex w-full items-center justify-between px-4 py-3 transition-colors hover:bg-muted/30"

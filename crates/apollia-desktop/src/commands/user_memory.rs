@@ -225,6 +225,81 @@ fn count_cross_session_refs(system_prompt: &str) -> usize {
 // Tauri commands
 // ---------------------------------------------------------------------------
 
+/// Maps an onboarding-agent memory key to a `UserMemoryCategory`.
+fn category_for_agent_key(key: &str) -> Option<UserMemoryCategory> {
+    if key.starts_with("user.preferences") {
+        Some(UserMemoryCategory::Preferences)
+    } else if key.starts_with("user.tools") || key.starts_with("user.agents") {
+        Some(UserMemoryCategory::Habits)
+    } else if key.starts_with("user.name")
+        || key.starts_with("user.role")
+        || key.starts_with("user.languages")
+        || key.starts_with("user.expertise")
+        || key.starts_with("user.domain")
+    {
+        Some(UserMemoryCategory::Context)
+    } else {
+        None
+    }
+}
+
+/// Syncs onboarding-agent semantic memory entries into the global user memory.
+///
+/// The onboarding agent writes insights (e.g. `user.name`, `user.tools.ide`)
+/// into its own namespace DB. This function copies them into `UserMemoryRepository`
+/// so the "Mon profil" view can display them.
+fn sync_onboarding_insights(repo: &UserMemoryRepository) {
+    let memory_dir = {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        std::path::PathBuf::from(home)
+            .join(".apollia")
+            .join("memory")
+    };
+    let agent_db_path = memory_dir.join("onboarding-agent.db");
+
+    if !agent_db_path.exists() {
+        return;
+    }
+
+    let Ok(agent_store) = apollia_memory::store::MemoryStore::open(&agent_db_path) else {
+        return;
+    };
+
+    let sem = apollia_memory::semantic::SemanticMemory::new(&agent_store);
+    let Ok(entries) = sem.recall_all("onboarding-agent") else {
+        return;
+    };
+
+    for entry in &entries {
+        let Some(category) = category_for_agent_key(&entry.key) else {
+            continue;
+        };
+
+        // Use a human-friendly key (strip "user." prefix).
+        let display_key = entry.key.strip_prefix("user.").unwrap_or(&entry.key);
+
+        // Only sync if not already present in global memory.
+        let existing = repo.recall(category, MAX_RECALL_PER_CATEGORY);
+        let already_exists = existing
+            .as_ref()
+            .map(|entries| entries.iter().any(|e| e.key == display_key))
+            .unwrap_or(false);
+
+        if !already_exists {
+            let value_str = match &entry.value {
+                serde_json::Value::String(s) => s.clone(),
+                other => other.to_string(),
+            };
+            let _ = repo.store(
+                category,
+                display_key,
+                &value_str,
+                apollia_memory::user_memory::UserMemorySource::Onboarding,
+            );
+        }
+    }
+}
+
 /// Returns the full user memory profile with per-category and per-source
 /// statistics.
 #[tauri::command]
@@ -235,6 +310,9 @@ pub async fn get_user_memory_profile(
 
     let entries = tokio::task::spawn_blocking(move || {
         let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
+
+        // Sync onboarding-agent insights into global user memory.
+        sync_onboarding_insights(&repo);
 
         let mut all = Vec::new();
         for &cat in &[

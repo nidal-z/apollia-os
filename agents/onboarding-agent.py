@@ -339,7 +339,11 @@ français donc il est probablement francophone), utilise [INFER clé=valeur]. \
 Utilise les clés mémoire listées dans chaque domaine.
 - L'utilisateur peut quitter à tout moment. Ne force jamais la conversation.
 - Sois chaleureux, concis, et professionnel.
-- Commence par te présenter brièvement et poser une première question ouverte.\
+- Commence par te présenter brièvement et poser une première question ouverte.
+- Quand tu as suffisamment couvert les 5 domaines (au moins une info pertinente \
+par domaine), conclus la conversation avec un résumé court de ce que tu as appris \
+et dis à l'utilisateur que l'onboarding est terminé. Ne continue pas à poser des \
+questions indéfiniment.\
 """
 
 _SYSTEM_PROMPT_EN = f"""\
@@ -368,7 +372,11 @@ they are likely francophone), use [INFER key=value]. \
 Use the memory keys listed in each domain.
 - The user can quit at any time. Never force the conversation.
 - Be warm, concise, and professional.
-- Start by briefly introducing yourself and asking one open question.\
+- Start by briefly introducing yourself and asking one open question.
+- When you have sufficiently covered all 5 domains (at least one relevant piece \
+of information per domain), conclude the conversation with a short summary of what \
+you learned and tell the user that onboarding is complete. Do not keep asking \
+questions indefinitely.\
 """
 
 
@@ -479,7 +487,7 @@ class OnboardingAgent(ConversationalAgent):
         """Return the AIP agent manifest."""
         return {
             "name": "onboarding-agent",
-            "version": "1.2.0",
+            "version": "1.4.0",
             "description": (
                 "Agent d'onboarding conversationnel — fait connaissance "
                 "avec l'utilisateur de manière naturelle."
@@ -595,7 +603,24 @@ class OnboardingAgent(ConversationalAgent):
         else:
             input_text = str(task_input)
 
-        response_text, _ = await self.converse(ctx, input_text)
+        # Extract conversation history from the task to maintain context.
+        # task["history"] is a list of {"role": "user"|"agent", "parts": [{"text": "..."}]}
+        raw_history = task.get("history", []) if isinstance(task, dict) else getattr(task, "history", [])
+        history = []
+        for msg in (raw_history or []):
+            if isinstance(msg, dict):
+                role_raw = msg.get("role", "user")
+                role = "assistant" if role_raw == "agent" else role_raw
+                parts = msg.get("parts", [])
+                text = parts[0]["text"] if parts and isinstance(parts[0], dict) else str(msg)
+                history.append({"role": role, "content": text})
+            elif hasattr(msg, "role"):
+                role = "assistant" if msg.role == "agent" else msg.role
+                parts = getattr(msg, "parts", [])
+                text = parts[0].text if parts else str(msg)
+                history.append({"role": role, "content": text})
+
+        response_text, _ = await self.converse(ctx, input_text, history=history or None)
         return AIPResult.completed(response_text)
 
 

@@ -18,7 +18,7 @@ use apollia_tools::AgentRepository;
 const ONBOARDING_AGENT_PY: &str = include_str!("../../../agents/onboarding-agent.py");
 
 /// Bundled version — must match the `manifest()["version"]` in the Python file.
-const ONBOARDING_AGENT_VERSION: &str = "1.2.0";
+const ONBOARDING_AGENT_VERSION: &str = "1.4.0";
 
 /// Ensures all bundled agents are extracted and registered in the repository.
 ///
