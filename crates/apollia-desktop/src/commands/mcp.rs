@@ -10,6 +10,7 @@ use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::mcp::enrichments::{load_builtin_enrichments, TrustLevel};
 use crate::mcp::registry_client::{
     McpRegistryClient, RegistryIcon, RegistryPackage, RegistryRepository, RegistryServer,
 };
@@ -54,6 +55,68 @@ impl From<RegistryServer> for RegistryServerView {
             repository: s.server.repository,
         }
     }
+}
+
+/// UI-friendly enrichment view for a connector, keyed by package identifier.
+///
+/// Mirrors the TypeScript `ConnectorEnrichmentView` type. The `operator_label`
+/// and `auth_help_text` are resolved to English; full locale support is handled
+/// by the i18n layer on the frontend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorEnrichmentView {
+    /// Human-readable label shown in the operator UI (English).
+    pub operator_label: String,
+    /// Category used for grouping in the catalogue (e.g. `"productivity"`).
+    pub category: String,
+    /// Lucide icon name (e.g. `"database"`, `"globe"`).
+    pub icon_name: String,
+    /// Trust level badge serialised as a snake_case string.
+    pub trust_level: TrustLevel,
+    /// URL where the user can obtain an API key, if applicable.
+    pub auth_help_url: Option<String>,
+    /// Guidance shown on the authentication step (English).
+    pub auth_help_text: Option<String>,
+    /// Default value for the `requires_approval` flag on the created server.
+    pub default_requires_approval: bool,
+}
+
+/// Pair of a package identifier and its enrichment view.
+///
+/// Returned by [`list_mcp_enrichments`] so the frontend can build a
+/// lookup table keyed by `package_identifier`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnrichmentEntry {
+    /// Package identifier matching the registry (e.g. `@notionhq/notion-mcp-server`).
+    pub package_identifier: String,
+    /// Enrichment data for this package.
+    pub enrichment: ConnectorEnrichmentView,
+}
+
+/// List all builtin connector enrichments.
+///
+/// Returns every entry from the embedded `enrichments.json`. The frontend uses
+/// the resulting list to build a lookup table keyed by `package_identifier`,
+/// enabling the operator connection cards to show human-readable labels and
+/// icons for known connectors.
+#[tauri::command]
+pub fn list_mcp_enrichments() -> Vec<EnrichmentEntry> {
+    load_builtin_enrichments()
+        .into_iter()
+        .map(|e| EnrichmentEntry {
+            package_identifier: e.package_identifier,
+            enrichment: ConnectorEnrichmentView {
+                operator_label: e.operator_label.get("en").cloned().unwrap_or_default(),
+                category: e.category,
+                icon_name: e.icon_name,
+                trust_level: e.trust_level,
+                auth_help_url: e.auth_help_url,
+                auth_help_text: e
+                    .auth_help_text
+                    .and_then(|m| m.get("en").cloned()),
+                default_requires_approval: e.default_requires_approval,
+            },
+        })
+        .collect()
 }
 
 /// List all connected MCP servers with their status.

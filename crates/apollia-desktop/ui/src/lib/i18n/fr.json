@@ -65,7 +65,11 @@
   "integrations": {
     "add_connection": "Ajouter une connexion",
     "operator": {
-      "subtitle": "Gérez vos connexions MCP"
+      "subtitle": "Gérez vos connexions MCP",
+      "tools_active": "{count} outils actifs",
+      "never": "Jamais",
+      "manage": "Gérer",
+      "no_connections": "Aucune connexion active. Ajoutez-en une pour commencer."
     },
     "builder": {
       "subtitle": "Configurez et surveillez les serveurs MCP"

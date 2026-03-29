@@ -493,6 +493,7 @@ fn main() {
             commands::stt::delete_transcription,
             commands::stt::transcribe_file,
             commands::stt::list_stt_models,
+            commands::mcp::list_mcp_enrichments,
             commands::mcp::list_mcp_servers,
             commands::mcp::get_mcp_server_detail,
             commands::mcp::add_mcp_server,
