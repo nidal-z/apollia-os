@@ -85,9 +85,10 @@ impl BashExecutor {
         ToolDescriptor {
             name: "bash_executor".to_string(),
             version: "1.0.0".to_string(),
-            description: "Execute a shell command. Prefer targeted, fast commands over broad scans. \
+            description:
+                "Execute a shell command. Prefer targeted, fast commands over broad scans. \
                           Set timeout_secs proportional to expected duration."
-                .to_string(),
+                    .to_string(),
             kind: ToolKind::Native,
             input_schema: json!({
                 "type": "object",

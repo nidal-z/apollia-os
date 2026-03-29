@@ -20,6 +20,7 @@ pub mod audit;
 pub mod descriptor;
 pub mod registry;
 pub mod resolver;
+pub mod sandbox_path;
 pub mod task_repository;
 pub mod tools;
 
@@ -30,6 +31,7 @@ pub use audit::{
 pub use descriptor::{McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind};
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
+pub use sandbox_path::{SandboxPathError, SandboxRoot};
 pub use task_repository::{
     ApprovalInfo, PersistedTaskSummary, ResolvedApprovalRow, TaskDetail, TaskRepoError,
     TaskRepository,
