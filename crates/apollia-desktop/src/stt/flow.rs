@@ -268,8 +268,8 @@ impl SttFlow {
 
         match mode {
             "paste" | "both" => self.inject_clipboard(text).await,
-            "clipboard"      => self.write_clipboard(text),
-            _                => {}
+            "clipboard" => self.write_clipboard(text),
+            _ => {}
         }
 
         if mode == "memo" || mode == "both" {

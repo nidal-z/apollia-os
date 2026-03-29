@@ -638,7 +638,11 @@ quantization = "{quantization}"
 
     // Replace existing [llm] section or append if absent.
     let content = if let Some(llm_start) = existing.find("\n[llm]").or_else(|| {
-        if existing.starts_with("[llm]") { Some(0) } else { None }
+        if existing.starts_with("[llm]") {
+            Some(0)
+        } else {
+            None
+        }
     }) {
         let prefix = existing[..llm_start].trim_end().to_string();
         format!("{prefix}\n{llm_block}")

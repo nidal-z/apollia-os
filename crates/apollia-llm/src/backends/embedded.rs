@@ -35,8 +35,8 @@ use std::time::Instant;
 use futures::Stream;
 
 use crate::types::{
-    CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError,
-    MessageContent, Role, StreamChunk, TokenUsage, ToolCall, ToolSpec,
+    CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, MessageContent,
+    Role, StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };
 
 use llama_cpp_2::context::params::LlamaContextParams;
@@ -275,11 +275,9 @@ impl EmbeddedBackend {
         model: &LlamaModel,
         req: &CompletionRequest,
     ) -> Result<(String, Option<String>), LlmError> {
-        let template = model
-            .chat_template(None)
-            .unwrap_or_else(|_| {
-                LlamaChatTemplate::new("chatml").expect("chatml template must be valid")
-            });
+        let template = model.chat_template(None).unwrap_or_else(|_| {
+            LlamaChatTemplate::new("chatml").expect("chatml template must be valid")
+        });
 
         let messages: Vec<LlamaChatMessage> = req
             .messages
@@ -577,25 +575,20 @@ impl CompletionModel for EmbeddedBackend {
                     .with_n_ctx(NonZeroU32::new(n_ctx))
                     .with_n_batch(n_ctx);
 
-                let mut ctx = model
-                    .new_context(&backend, ctx_params)
-                    .map_err(|e| {
-                        LlmError::InferenceError(format!("context creation failed: {e}"))
-                    })?;
+                let mut ctx = model.new_context(&backend, ctx_params).map_err(|e| {
+                    LlmError::InferenceError(format!("context creation failed: {e}"))
+                })?;
 
                 let mut batch = LlamaBatch::new(n_ctx as usize, 1);
                 let last_index = tokens.len().saturating_sub(1) as i32;
                 for (i, token) in (0_i32..).zip(tokens.into_iter()) {
                     batch
                         .add(token, i, &[0], i == last_index)
-                        .map_err(|e| {
-                            LlmError::InferenceError(format!("batch add failed: {e}"))
-                        })?;
+                        .map_err(|e| LlmError::InferenceError(format!("batch add failed: {e}")))?;
                 }
 
-                ctx.decode(&mut batch).map_err(|e| {
-                    LlmError::InferenceError(format!("initial decode failed: {e}"))
-                })?;
+                ctx.decode(&mut batch)
+                    .map_err(|e| LlmError::InferenceError(format!("initial decode failed: {e}")))?;
 
                 let mut n_cur = batch.n_tokens();
                 let n_max = n_cur + max_tokens as i32;
@@ -619,14 +612,13 @@ impl CompletionModel for EmbeddedBackend {
                     }
 
                     batch.clear();
-                    batch.add(token, n_cur, &[0], true).map_err(|e| {
-                        LlmError::InferenceError(format!("batch add failed: {e}"))
-                    })?;
+                    batch
+                        .add(token, n_cur, &[0], true)
+                        .map_err(|e| LlmError::InferenceError(format!("batch add failed: {e}")))?;
                     n_cur += 1;
 
-                    ctx.decode(&mut batch).map_err(|e| {
-                        LlmError::InferenceError(format!("decode failed: {e}"))
-                    })?;
+                    ctx.decode(&mut batch)
+                        .map_err(|e| LlmError::InferenceError(format!("decode failed: {e}")))?;
                 }
 
                 Ok(())

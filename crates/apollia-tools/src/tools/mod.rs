@@ -6,4 +6,5 @@
 pub mod bash_executor;
 pub mod file_io;
 pub mod file_read;
+pub mod file_write;
 pub mod python_executor;

@@ -169,7 +169,9 @@ async fn get_onboarding_status_inner(
     // Open the agent's memory store to scan for written keys.
     let memory_dir = {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-        std::path::PathBuf::from(home).join(".apollia").join("memory")
+        std::path::PathBuf::from(home)
+            .join(".apollia")
+            .join("memory")
     };
     let agent_db_path = memory_dir.join("onboarding-agent.db");
 

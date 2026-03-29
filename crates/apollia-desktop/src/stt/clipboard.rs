@@ -62,7 +62,11 @@ pub fn prepare_paste(text: &str, restore: bool) -> Result<Option<String>, Clipbo
     let mut clipboard =
         Clipboard::new().map_err(|e| ClipboardError::ClipboardInit(e.to_string()))?;
 
-    let previous = if restore { clipboard.get_text().ok() } else { None };
+    let previous = if restore {
+        clipboard.get_text().ok()
+    } else {
+        None
+    };
 
     clipboard
         .set_text(text)

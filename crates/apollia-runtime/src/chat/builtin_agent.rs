@@ -609,7 +609,10 @@ impl BuiltInChatAgent {
     /// Converts a JSON value to a `ToolCall` if it has the expected shape.
     fn json_to_tool_call(value: &serde_json::Value, index: usize) -> Option<ToolCall> {
         let name = value.get("name")?.as_str()?;
-        let arguments = value.get("arguments").cloned().unwrap_or(serde_json::json!({}));
+        let arguments = value
+            .get("arguments")
+            .cloned()
+            .unwrap_or(serde_json::json!({}));
         Some(ToolCall {
             id: format!("call_{index}"),
             name: name.to_string(),

@@ -96,8 +96,8 @@ pub async fn get_stt_config() -> Result<SttConfigView, String> {
         stt: apollia_core::SttConfig,
     }
 
-    let wrapper: Wrapper = toml::from_str(&content)
-        .map_err(|e| format!("failed to parse apollia.toml: {e}"))?;
+    let wrapper: Wrapper =
+        toml::from_str(&content).map_err(|e| format!("failed to parse apollia.toml: {e}"))?;
 
     let stt = wrapper.stt;
     Ok(SttConfigView {
@@ -353,7 +353,7 @@ fn replace_or_append_stt_section(existing: &str, stt_block: &str) -> String {
         // Find the end of the [stt] section body: next top-level "[" at start
         // of a line, or end of file.
         let rest = &existing[start..]; // starts at "[stt]"
-        let section_end = rest[1..]   // skip the "[" to avoid self-match
+        let section_end = rest[1..] // skip the "[" to avoid self-match
             .find("\n[")
             .map(|i| start + 1 + i + 1)
             .unwrap_or(existing.len());
@@ -477,7 +477,8 @@ mod tests {
     #[test]
     fn replace_stt_section_replaces_existing() {
         // GIVEN an apollia.toml with an existing [stt] section
-        let existing = "[runtime]\nport = 7771\n\n[stt]\nenabled = false\nmodel_path = \"old.bin\"\n";
+        let existing =
+            "[runtime]\nport = 7771\n\n[stt]\nenabled = false\nmodel_path = \"old.bin\"\n";
         let new_block = "[stt]\nenabled = true\nmodel_path = \"new.bin\"";
         // WHEN replacing
         let result = replace_or_append_stt_section(existing, new_block);

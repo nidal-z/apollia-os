@@ -410,7 +410,11 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 return DynBackend::new(NoopBackend);
             }
         };
-        let llm_router = self.llm_router.read().expect("llm_router_lock poisoned").clone();
+        let llm_router = self
+            .llm_router
+            .read()
+            .expect("llm_router_lock poisoned")
+            .clone();
         let tool_registry = self.tool_registry.get().cloned();
         let audit_trail = self.audit_trail.get().cloned();
         let pending_approvals = self.pending_approvals.get().cloned();
@@ -512,7 +516,11 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             .get()
             .cloned()
             .ok_or("event bus not initialized")?;
-        let llm_router = self.llm_router.read().expect("llm_router_lock poisoned").clone();
+        let llm_router = self
+            .llm_router
+            .read()
+            .expect("llm_router_lock poisoned")
+            .clone();
         let tool_registry = self.tool_registry.get().cloned();
         let audit_trail = self.audit_trail.get().cloned();
 
