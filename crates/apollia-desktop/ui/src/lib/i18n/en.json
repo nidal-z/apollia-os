@@ -63,11 +63,27 @@
     }
   },
   "integrations": {
+    "add_connection": "Add a connection",
     "operator": {
       "subtitle": "Manage your MCP connections"
     },
     "builder": {
       "subtitle": "Configure and monitor MCP servers"
+    },
+    "disclaimer": {
+      "title": "External connections — Read before continuing",
+      "body_1": "Connections allow your assistants to interact with external services (Notion, Slack, GitHub, etc.).",
+      "body_2_title": "Your data will transit",
+      "body_2": "When an assistant uses a connection, your data is sent to the service via third-party software (MCP server) running on your machine. Apollia does not control this software's code.",
+      "body_3_title": "Trust the publisher",
+      "body_3": "Each connection uses an MCP server maintained by a third-party publisher. Verify the source before installing. Prefer servers from the official catalogue.",
+      "body_4_title": "You are responsible",
+      "body_4": "Use of third-party APIs is subject to their terms of service. Apollia cannot guarantee compliance of your usage.",
+      "body_5_title": "Your control",
+      "body_5": "You can at any time: require approval for each action, view the history of all actions, disconnect a service instantly, delete your stored API keys.",
+      "checkbox": "I have read and understood this information",
+      "learn_more": "Learn more: Security of connections",
+      "continue": "Continue"
     }
   },
   "dashboard": {
