@@ -557,7 +557,105 @@ pub enum SandboxPathError {
 
 ---
 
-## 10. Décisions architecturales clés
+## 10. Outils MCP *(Sprint 26)*
+
+Le Sprint 26 introduit la crate `apollia-mcp` qui connecte le Tool Registry aux serveurs MCP externes. Un serveur MCP est un processus tiers (Node.js, Python, ou autre) qui expose des outils via le protocole JSON-RPC MCP.
+
+### 10.1 Naming — `mcp:{server}/{tool}`
+
+Chaque outil découvert sur un serveur MCP est enregistré dans le Tool Registry avec la convention :
+
+```
+mcp:{server_name}/{tool_name}
+```
+
+Exemples :
+
+| Serveur | Outil MCP | Nom dans le Tool Registry |
+|---|---|---|
+| `notion` | `search` | `mcp:notion/search` |
+| `notion` | `create_page` | `mcp:notion/create_page` |
+| `sqlite` | `query` | `mcp:sqlite/query` |
+| `brave-search` | `brave_web_search` | `mcp:brave-search/brave_web_search` |
+
+Le `server_name` provient du champ `name` de `mcp.toml`. Le `tool_name` est l'identifiant retourné par la réponse `tools/list` du serveur.
+
+### 10.2 `ToolKind::McpServer`
+
+Les outils MCP sont enregistrés avec `ToolKind::McpServer` :
+
+```rust
+pub enum ToolKind {
+    Native,
+    McpServer {
+        server_url: String,       // nom du serveur (ex. "notion")
+        transport: McpTransport,  // McpTransport::Stdio en V1
+        tool_name: String,        // nom local de l'outil côté serveur (ex. "search")
+    },
+    Custom { .. },
+}
+```
+
+`McpTransport::Stdio` est le seul transport supporté en V1 — le serveur MCP est un sous-processus local géré par le runtime.
+
+### 10.3 Enregistrement automatique par `McpClientManager`
+
+Au démarrage, `McpClientManagerHandle::start` :
+
+1. Lit `~/.apollia/mcp.toml` et itère sur les serveurs déclarés.
+2. Pour chaque serveur, démarre le processus (`command` + `args` + `env`) et effectue le handshake `initialize`.
+3. Envoie `tools/list` au serveur et récupère les définitions d'outils.
+4. Enregistre chaque outil découvert dans le `ToolRegistryHandle` avec un `ToolDescriptor` construit à partir de la définition MCP.
+5. Un serveur qui échoue à démarrer est loggué et ignoré — les autres serveurs continuent.
+
+L'enregistrement est idempotent par redémarrage de session : le manager gère les ajouts et suppressions dynamiques via les routes API (`POST /api/v1/mcp/servers`, `DELETE /api/v1/mcp/servers/:name`).
+
+### 10.4 `McpToolExecutor` — Interface d'exécution unifiée
+
+Chaque outil MCP découvert est encapsulé dans un `McpToolExecutor` qui implémente le trait `ToolExecutor` :
+
+```rust
+impl ToolExecutor for McpToolExecutor {
+    fn tool_name(&self) -> &'static str { /* "mcp:notion/search" */ }
+
+    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError>;
+}
+```
+
+`execute` :
+1. Vérifie si une approbation HITL est requise (serveur ou agent) — si oui, suspend et attend.
+2. Sérialise `input` comme `arguments` du `tools/call` JSON-RPC.
+3. Achemine la requête via `McpClientManagerHandle` vers la session du serveur.
+4. Retourne le `content` de la réponse MCP comme `Value` JSON.
+
+### 10.5 `SandboxProfile` selon `requires_approval`
+
+Les outils MCP utilisent le profil sandbox suivant :
+
+| Condition | `SandboxProfile` |
+|---|---|
+| `requires_approval = false` | `SandboxProfile::NetworkRestricted` |
+| `requires_approval = true` | `SandboxProfile::Full` (l'approbation HITL tient lieu de garde-fou) |
+
+Contrairement aux outils natifs dont le sandbox est appliqué par le runtime, le sandbox d'un outil MCP est déclaratif : le code s'exécute dans le processus serveur externe. `SandboxProfile` ici reflète la politique de confiance accordée au serveur.
+
+### 10.6 `McpConfigWriter` — Mutations persistées
+
+`McpConfigWriter` gère les mutations de `mcp.toml` depuis les routes API :
+
+```rust
+impl McpConfigWriter {
+    pub fn add_server(&self, config: &McpServerConfig) -> Result<(), McpConfigWriteError>;
+    pub fn remove_server(&self, name: &str) -> Result<(), McpConfigWriteError>;
+    pub fn update_server(&self, name: &str, config: &McpServerConfig) -> Result<(), McpConfigWriteError>;
+}
+```
+
+Chaque méthode : lit le fichier courant, applique la mutation en mémoire, valide, puis réécrit. L'ordre des serveurs est préservé par `update_server`. Les commentaires TOML ne sont pas préservés en V1 (TOML roundtrip via serde).
+
+---
+
+## 11. Décisions architecturales clés
 
 | Décision | Justification |
 |---|---|
@@ -572,6 +670,11 @@ pub enum SandboxPathError {
 | `ToolExecutor` trait + `ToolDispatcher` (ADR-043) | Interface JSON unifiée — découplage registry/dispatch, ajout d'outils sans modifier le routeur |
 | Feature flags `http` et `memory-search` | `http_fetch` et `memory_search` sont opt-in à la compilation — binaire minimal par défaut, zéro surface d'attaque réseau inutile |
 | `SandboxRoot` comme type dédié | Centralisation de la logique anti-traversal — un seul endroit à auditer, impossibilité d'oublier la validation |
+| Naming `mcp:{server}/{tool}` (Sprint 26) | Namespace explicite — évite les collisions avec les outils natifs, lisible dans les manifests agents et les logs audit |
+| `McpClientManager` comme acteur unique (Sprint 26) | Pattern acteur Tokio strict — zéro état partagé, toutes les mutations de sessions passent par le channel `mpsc` |
+| `McpConfigWriter` séparé de `McpClientManager` (Sprint 26) | Séparation I/O disque / état runtime — le writer est synchrone et stateless, le manager ne touche jamais le disque directement |
+| `McpToolExecutor` implémente `ToolExecutor` (Sprint 26) | Les outils MCP sont indiscernables des outils natifs pour le `ToolDispatcher` — ajout de l'intégration MCP sans modifier le chemin d'exécution existant |
+| Transport stdio V1 uniquement (Sprint 26 — ADR-043) | Local-first : le serveur MCP est un subprocess local, zéro appel réseau initié sans action explicite de l'utilisateur |
 
 ---
 
