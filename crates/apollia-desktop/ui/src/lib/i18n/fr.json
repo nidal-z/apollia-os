@@ -75,6 +75,19 @@
     "builder": {
       "subtitle": "Configurez et surveillez les serveurs MCP",
       "no_servers": "Aucun serveur MCP configuré.",
+      "browse_registry": "Parcourir le Registry",
+      "registry": {
+        "title": "MCP Registry",
+        "subtitle": "Découvrez des serveurs depuis le MCP Registry officiel",
+        "search_placeholder": "Rechercher des serveurs…",
+        "no_results": "Aucun serveur ne correspond à votre recherche.",
+        "sync_button": "Synchroniser",
+        "syncing": "Synchronisation…",
+        "source_label": "Source",
+        "last_sync_label": "Dernier sync",
+        "never": "Jamais",
+        "env_count": "{count} vars d'env"
+      },
       "row": {
         "tools": "{count} outils",
         "pid": "PID {pid}"

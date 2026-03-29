@@ -12,6 +12,7 @@
   import type { McpServerStatusView, ConnectorEnrichmentView, RegistryServerView } from "$lib/types";
   import BuilderServerRow from "../components/integrations/BuilderServerRow.svelte";
   import BuilderServerDetail from "../components/integrations/BuilderServerDetail.svelte";
+  import BuilderRegistryBrowser from "../components/integrations/BuilderRegistryBrowser.svelte";
 
   let disclaimerOpen = $state(false);
   let catalogueOpen = $state(false);
@@ -30,6 +31,9 @@
   let builderLoadError = $state<string | null>(null);
   let builderDetailServerName = $state<string | null>(null);
   let builderDetailOpen = $state(false);
+  let builderRegistryOpen = $state(false);
+  let builderRegistrySelected = $state<RegistryServerView | null>(null);
+  let builderRegistryWizardOpen = $state(false);
 
   async function loadOperatorData(): Promise<void> {
     loading = true;
@@ -129,6 +133,23 @@
     loadBuilderData();
   }
 
+  function handleBuilderRegistrySelect(server: RegistryServerView): void {
+    builderRegistrySelected = server;
+    builderRegistryWizardOpen = true;
+  }
+
+  function handleBuilderRegistryWizardClose(): void {
+    builderRegistryWizardOpen = false;
+    builderRegistrySelected = null;
+  }
+
+  function handleBuilderRegistryWizardComplete(): void {
+    builderRegistryWizardOpen = false;
+    builderRegistrySelected = null;
+    builderRegistryOpen = false;
+    loadBuilderData();
+  }
+
   $effect(() => {
     if ($uiMode === "operator") {
       loadOperatorData();
@@ -195,30 +216,56 @@
   </div>
 {:else}
   <div class="flex flex-col gap-6" data-testid="integrations-builder">
-    <div>
-      <h1 class="text-2xl font-semibold text-foreground">{$t("nav.mcp_servers")}</h1>
-      <p class="mt-1 text-sm text-muted-foreground">{$t("integrations.builder.subtitle")}</p>
-    </div>
-
-    {#if builderLoading}
-      <p class="text-sm text-muted-foreground" data-testid="builder-loading">
-        {$t("common.loading")}
-      </p>
-    {:else if builderLoadError}
-      <p class="text-sm text-destructive" data-testid="builder-error">{builderLoadError}</p>
-    {:else if builderServers.length === 0}
-      <p class="text-sm text-muted-foreground" data-testid="builder-empty">
-        {$t("integrations.builder.no_servers")}
-      </p>
-    {:else}
-      <div class="flex flex-col gap-2" data-testid="builder-servers-list">
-        {#each builderServers as server (server.name)}
-          <BuilderServerRow
-            {server}
-            onClick={() => handleBuilderRowClick(server.name)}
-          />
-        {/each}
+    {#if builderRegistryOpen}
+      <div class="flex items-center gap-3">
+        <Button
+          size="sm"
+          variant="ghost"
+          onclick={() => { builderRegistryOpen = false; }}
+          data-testid="registry-back-btn"
+          aria-label={$t("common.back")}
+        >
+          <ArrowLeft size={16} class="mr-1.5" />
+          {$t("common.back")}
+        </Button>
       </div>
+
+      <BuilderRegistryBrowser onSelectServer={handleBuilderRegistrySelect} />
+    {:else}
+      <div class="flex items-start justify-between">
+        <div>
+          <h1 class="text-2xl font-semibold text-foreground">{$t("nav.mcp_servers")}</h1>
+          <p class="mt-1 text-sm text-muted-foreground">{$t("integrations.builder.subtitle")}</p>
+        </div>
+        <Button
+          size="sm"
+          onclick={() => { builderRegistryOpen = true; }}
+          data-testid="browse-registry-btn"
+        >
+          {$t("integrations.builder.browse_registry")}
+        </Button>
+      </div>
+
+      {#if builderLoading}
+        <p class="text-sm text-muted-foreground" data-testid="builder-loading">
+          {$t("common.loading")}
+        </p>
+      {:else if builderLoadError}
+        <p class="text-sm text-destructive" data-testid="builder-error">{builderLoadError}</p>
+      {:else if builderServers.length === 0}
+        <p class="text-sm text-muted-foreground" data-testid="builder-empty">
+          {$t("integrations.builder.no_servers")}
+        </p>
+      {:else}
+        <div class="flex flex-col gap-2" data-testid="builder-servers-list">
+          {#each builderServers as server (server.name)}
+            <BuilderServerRow
+              {server}
+              onClick={() => handleBuilderRowClick(server.name)}
+            />
+          {/each}
+        </div>
+      {/if}
     {/if}
   </div>
 {/if}
@@ -229,6 +276,15 @@
     open={wizardOpen}
     onclose={handleWizardClose}
     oncomplete={handleWizardComplete}
+  />
+{/if}
+
+{#if builderRegistrySelected}
+  <ConnectorWizard
+    server={builderRegistrySelected}
+    open={builderRegistryWizardOpen}
+    onclose={handleBuilderRegistryWizardClose}
+    oncomplete={handleBuilderRegistryWizardComplete}
   />
 {/if}
 

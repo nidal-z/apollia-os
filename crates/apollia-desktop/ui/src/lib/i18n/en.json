@@ -75,6 +75,19 @@
     "builder": {
       "subtitle": "Configure and monitor MCP servers",
       "no_servers": "No MCP servers configured.",
+      "browse_registry": "Browse Registry",
+      "registry": {
+        "title": "MCP Registry",
+        "subtitle": "Discover servers from the official MCP Registry",
+        "search_placeholder": "Search servers…",
+        "no_results": "No servers match your search.",
+        "sync_button": "Sync now",
+        "syncing": "Syncing…",
+        "source_label": "Source",
+        "last_sync_label": "Last sync",
+        "never": "Never",
+        "env_count": "{count} env vars"
+      },
       "row": {
         "tools": "{count} tools",
         "pid": "PID {pid}"
