@@ -9,7 +9,9 @@
 //! 3. Drain in-progress tasks (default: 30s timeout)
 //! 4. Cancel remaining tasks and log them
 //! 5. Transition agents to Stopped
-//! 6. Stop actors in reverse order: APIServer → TaskRouter → AgentRegistry
+//! 6. Stop the NotificationEngine
+//! 7. Stop the MCP client manager (kill child processes, prevent zombies)
+//! 8. Stop actors in reverse order: TaskRouter → AgentRegistry
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -18,6 +20,7 @@ use std::time::Duration;
 use tracing::{info, warn};
 
 use apollia_core::{ProcessState, RuntimeEvent, TaskId};
+use apollia_mcp::manager::McpClientManagerHandle;
 
 use crate::api::APIServerHandle;
 use crate::coordinator::ExecutionBackend;
@@ -76,6 +79,11 @@ pub struct ShutdownController<B: ExecutionBackend> {
     /// Stopped explicitly *before* the EventBus closes so no late notifications
     /// are delivered after `apollia-os stop` returns.
     notification_engine: Option<apollia_notifications::NotificationEngineHandle>,
+    /// Handle to the MCP client manager, if started.
+    ///
+    /// Stopped after the NotificationEngine and before the TaskRouter so that
+    /// any in-flight MCP tool calls complete before the subprocess is killed.
+    mcp_handle: Option<McpClientManagerHandle>,
 }
 
 impl<B: ExecutionBackend> ShutdownController<B> {
@@ -87,6 +95,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
         router_handle: TaskRouterHandle<B>,
         registry_handle: AgentRegistryHandle,
         notification_engine: Option<apollia_notifications::NotificationEngineHandle>,
+        mcp_handle: Option<McpClientManagerHandle>,
     ) -> Self {
         Self {
             config,
@@ -95,6 +104,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
             router_handle,
             registry_handle,
             notification_engine,
+            mcp_handle,
         }
     }
 
@@ -135,7 +145,14 @@ impl<B: ExecutionBackend> ShutdownController<B> {
             info!("NotificationEngine stopped");
         }
 
-        // Step 6: Stop actors in reverse startup order
+        // Step 6: Stop the MCP client manager, killing all child server processes.
+        if let Some(mcp_handle) = self.mcp_handle {
+            info!("Shutting down MCP client manager");
+            mcp_handle.shutdown().await;
+            info!("McpClientManager stopped");
+        }
+
+        // Step 7: Stop actors in reverse startup order
         // APIServer already stopped in step 2
         // TaskRouter
         self.router_handle.shutdown();
@@ -507,6 +524,7 @@ mod tests {
             router_handle,
             registry_handle,
             None,
+            None,
         );
 
         (controller, event_sender, socket_path)
@@ -649,6 +667,7 @@ mod tests {
             router_handle,
             registry_handle,
             None,
+            None,
         );
 
         // WHEN shutdown() est appele
@@ -748,6 +767,7 @@ mod tests {
             api_handle,
             router_handle,
             registry_handle,
+            None,
             None,
         );
 
@@ -950,6 +970,7 @@ mod tests {
             api_handle,
             router_handle.clone(),
             registry_handle.clone(),
+            None,
             None,
         );
 

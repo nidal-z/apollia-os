@@ -947,6 +947,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         handles.router_handle,
         handles.registry_handle,
         handles.notification_engine,
+        handles.mcp_handle,
     );
 
     match shutdown.shutdown().await {

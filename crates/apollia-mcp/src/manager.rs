@@ -672,7 +672,9 @@ impl McpClientManager {
                 }
 
                 McpCommand::Shutdown => {
-                    for (_, session) in self.sessions.drain() {
+                    tracing::info!("McpClientManager shutting down");
+                    for (name, session) in self.sessions.drain() {
+                        tracing::info!(server = %name, "Shutting down MCP session");
                         session.shutdown().await;
                     }
                     break;
@@ -1058,5 +1060,15 @@ mod tests {
         let found = sessions.get("github");
         // THEN it is absent
         assert!(found.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_ac3_shutdown_on_empty_manager() {
+        // GIVEN a manager handle with no sessions started
+        let (tx, _rx) = tokio::sync::mpsc::channel(1);
+        let handle = McpClientManagerHandle { tx };
+        // WHEN shutdown is called
+        handle.shutdown().await;
+        // THEN no error (graceful no-op)
     }
 }

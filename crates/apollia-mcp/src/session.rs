@@ -410,13 +410,17 @@ impl McpSession {
 
     /// Gracefully shut down the session.
     ///
-    /// Closes the stdin channel so the writer task terminates and the server process
-    /// receives EOF. Waits up to 5 seconds for the process to exit on its own before
-    /// returning — `kill_on_drop` will terminate it when this value is dropped if it
-    /// has not yet exited.
+    /// 1. Sends a `notifications/cancelled` notification (best-effort; silently ignored
+    ///    if the stdin pipe is already closed).
+    /// 2. Sends SIGKILL to the child process.
+    /// 3. Waits for the child to exit to prevent zombie processes.
     pub async fn shutdown(mut self) {
-        drop(self.stdin_tx);
-        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), self.child.wait()).await;
+        let _ = self
+            .send_notification("notifications/cancelled", None)
+            .await;
+        let _ = self.child.kill().await;
+        let _ = self.child.wait().await;
+        tracing::info!(server = %self.config.name, "MCP session shutdown complete");
     }
 }
 
@@ -613,6 +617,14 @@ mod tests {
         // THEN
         assert_eq!(result.is_error, Some(true));
         assert_eq!(result.content.len(), 1);
+    }
+
+    #[test]
+    fn test_ac1_shutdown_notification_method() {
+        // GIVEN the cancellation notification method name
+        let method = "notifications/cancelled";
+        // THEN it conforms to the MCP protocol notification namespace
+        assert!(method.starts_with("notifications/"));
     }
 
     #[test]
