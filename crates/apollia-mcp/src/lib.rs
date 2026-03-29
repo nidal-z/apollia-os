@@ -4,3 +4,4 @@
 //! server management, and tool execution for the Model Context Protocol.
 
 pub mod config;
+pub mod jsonrpc;
