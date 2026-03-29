@@ -84,6 +84,17 @@
       "checkbox": "J'ai lu et compris ces informations",
       "learn_more": "En savoir plus : Sécurité des connexions",
       "continue": "Continuer"
+    },
+    "trust": {
+      "verified_official": "Officiel",
+      "community_verified": "Vérifié",
+      "community": "Communauté",
+      "custom": "Personnalisé"
+    },
+    "status": {
+      "connected": "Connecté",
+      "disconnected": "Déconnecté",
+      "error": "Erreur"
     }
   },
   "dashboard": {
