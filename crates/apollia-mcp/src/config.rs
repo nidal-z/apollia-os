@@ -3,11 +3,11 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Top-level MCP configuration loaded from `~/.apollia/mcp.toml`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct McpConfig {
     /// Ordered list of MCP server definitions.
     #[serde(default)]
@@ -15,7 +15,7 @@ pub struct McpConfig {
 }
 
 /// Configuration for a single MCP server process.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerConfig {
     /// Unique server name (e.g. `"notion"`). Used in tool name prefixes: `mcp:notion/search`.
     /// Allowed characters: `[a-z0-9_-]`.
