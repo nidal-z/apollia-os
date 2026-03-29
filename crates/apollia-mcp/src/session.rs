@@ -101,6 +101,8 @@ pub struct McpSession {
     server_info: ServerInfo,
     /// Tools discovered via `tools/list` (populated by `discover_tools` in the next phase).
     tools: Vec<McpToolDefinition>,
+    /// Instant at which the session was successfully started.
+    started_at: std::time::Instant,
     /// Background stdin writer task handle (kept alive for the session duration).
     _stdin_task: tokio::task::JoinHandle<()>,
     /// Background stdout reader task handle (kept alive for the session duration).
@@ -161,6 +163,7 @@ impl McpSession {
                 version: None,
             },
             tools: Vec::new(),
+            started_at: std::time::Instant::now(),
             _stdin_task: stdin_task,
             _stdout_task: stdout_task,
         };
@@ -343,6 +346,21 @@ impl McpSession {
     /// Returns whether every tool call to this server requires HITL approval.
     pub fn requires_approval(&self) -> bool {
         self.config.requires_approval
+    }
+
+    /// Returns the OS process ID of the server subprocess, if still running.
+    pub fn pid(&self) -> Option<u32> {
+        self.child.id()
+    }
+
+    /// Returns the number of seconds elapsed since this session was started.
+    pub fn uptime_secs(&self) -> u64 {
+        self.started_at.elapsed().as_secs()
+    }
+
+    /// Returns the configuration used to start this session.
+    pub fn config(&self) -> &McpServerConfig {
+        &self.config
     }
 
     /// Execute a tool on this MCP server via `tools/call`.

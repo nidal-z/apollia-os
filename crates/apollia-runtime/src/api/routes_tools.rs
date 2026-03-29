@@ -209,6 +209,7 @@ mod tests {
             user_memory: None,
             stt_engine: None,
             stt_repository: None,
+            mcp_handle: None,
         };
 
         Router::new()
@@ -252,6 +253,7 @@ mod tests {
             user_memory: None,
             stt_engine: None,
             stt_repository: None,
+            mcp_handle: None,
         };
 
         Router::new()

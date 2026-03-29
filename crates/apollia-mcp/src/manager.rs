@@ -32,6 +32,16 @@ enum McpCommand {
     GetStatus {
         reply: oneshot::Sender<Vec<McpServerStatus>>,
     },
+    /// Return detailed info (status + tools + redacted config) for a single server.
+    GetDetail {
+        server_name: String,
+        reply: oneshot::Sender<Option<McpServerDetail>>,
+    },
+    /// Restart a specific server session (stop + re-spawn).
+    RestartServer {
+        server_name: String,
+        reply: oneshot::Sender<Result<McpServerStatus, McpSessionError>>,
+    },
     /// Check whether a named server requires HITL approval for all its tools.
     ServerRequiresApproval {
         server_name: String,
@@ -44,7 +54,7 @@ enum McpCommand {
 // ─── public types ────────────────────────────────────────────────────────────
 
 /// Status snapshot for a single connected MCP server.
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct McpServerStatus {
     /// Server name as declared in the configuration.
     pub name: String,
@@ -56,6 +66,74 @@ pub struct McpServerStatus {
     pub requires_approval: bool,
     /// `true` when the session is alive; always `true` for sessions tracked by the manager.
     pub connected: bool,
+    /// OS process ID of the server subprocess, if still running.
+    pub pid: Option<u32>,
+    /// Seconds elapsed since the session was started.
+    pub uptime_secs: Option<u64>,
+    /// ISO 8601 timestamp of the last tool call (`None` if the server has never been called).
+    pub last_call_at: Option<String>,
+    /// Error message when the server is in a degraded state.
+    pub error: Option<String>,
+    /// Package identifier (e.g. `@notionhq/notion-mcp-server`), when identifiable.
+    pub package: Option<String>,
+    /// Transport protocol declared in the configuration (e.g. `"stdio"`).
+    pub transport: String,
+}
+
+/// Detailed information for a single MCP server, including its tool list.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct McpServerDetail {
+    /// Summary status of the server.
+    pub status: McpServerStatus,
+    /// Full list of tools exposed by this server.
+    pub tools: Vec<McpToolSummary>,
+    /// Server configuration with secrets redacted.
+    pub config: McpServerConfigView,
+}
+
+/// Summary of a single MCP tool for API and UI consumption.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct McpToolSummary {
+    /// Fully qualified tool name as registered in the ToolRegistry (e.g. `mcp:notion/search`).
+    pub full_name: String,
+    /// Tool name within the server scope (e.g. `search`).
+    pub local_name: String,
+    /// Human-readable description, if provided by the server.
+    pub description: Option<String>,
+    /// JSON Schema for the tool's input parameters.
+    pub input_schema: serde_json::Value,
+}
+
+/// Read-only view of a server configuration with all secret values redacted.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct McpServerConfigView {
+    /// Server name as declared in the configuration.
+    pub name: String,
+    /// Command used to launch the server subprocess.
+    pub command: String,
+    /// Arguments passed to the server command.
+    pub args: Vec<String>,
+    /// Environment variable keys declared for this server (values are not exposed).
+    pub env_keys: Vec<String>,
+    /// Transport protocol (e.g. `"stdio"`).
+    pub transport: String,
+    /// Whether tool calls require HITL approval.
+    pub requires_approval: bool,
+    /// Tags attached to this server.
+    pub tags: Vec<String>,
+}
+
+/// Result of a connection test performed without persisting a new session.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct McpConnectionTestResult {
+    /// Server identity returned by the `initialize` response.
+    pub server_info: String,
+    /// MCP protocol version negotiated with the server.
+    pub protocol_version: String,
+    /// Tools discovered during the test session.
+    pub tools: Vec<McpToolSummary>,
+    /// Wall-clock duration of the test in milliseconds.
+    pub test_duration_ms: u64,
 }
 
 /// Clonable handle to the [`McpClientManager`] actor.
@@ -238,6 +316,46 @@ impl McpClientManagerHandle {
         reply_rx.await.unwrap_or(false)
     }
 
+    /// Return detailed information (status, tools, redacted config) for a single server.
+    ///
+    /// Returns `None` when no session with `server_name` is connected, or when
+    /// the actor has already shut down.
+    pub async fn server_detail(&self, server_name: &str) -> Option<McpServerDetail> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(McpCommand::GetDetail {
+                server_name: server_name.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .ok()?;
+        reply_rx.await.unwrap_or(None)
+    }
+
+    /// Restart the named server: stop the current session and spawn a new one.
+    ///
+    /// Returns the updated [`McpServerStatus`] on success. Returns an error when
+    /// no session with `server_name` exists, the actor has shut down, or the new
+    /// session fails to initialise.
+    pub async fn restart_server(
+        &self,
+        server_name: &str,
+    ) -> Result<McpServerStatus, McpSessionError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(McpCommand::RestartServer {
+                server_name: server_name.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| McpSessionError::ServerExited {
+                server: server_name.to_string(),
+            })?;
+        reply_rx.await.map_err(|_| McpSessionError::ServerExited {
+            server: server_name.to_string(),
+        })?
+    }
+
     /// Gracefully shut down all MCP sessions and stop the actor.
     ///
     /// Consumes the handle. Remaining clones will receive channel-closed errors
@@ -274,15 +392,41 @@ impl McpClientManager {
                     let statuses = self
                         .sessions
                         .iter()
-                        .map(|(name, session)| McpServerStatus {
-                            name: name.clone(),
-                            server_info: session.server_info().name.clone(),
-                            tools_count: session.tools().len(),
-                            requires_approval: session.requires_approval(),
-                            connected: true,
-                        })
+                        .map(|(name, session)| build_status(name, session))
                         .collect();
                     let _ = reply.send(statuses);
+                }
+
+                McpCommand::GetDetail { server_name, reply } => {
+                    let detail = self
+                        .sessions
+                        .get(&server_name)
+                        .map(|session| build_detail(&server_name, session));
+                    let _ = reply.send(detail);
+                }
+
+                McpCommand::RestartServer { server_name, reply } => {
+                    match self.sessions.remove(&server_name) {
+                        None => {
+                            let _ = reply.send(Err(McpSessionError::ServerExited {
+                                server: server_name,
+                            }));
+                        }
+                        Some(old_session) => {
+                            let config = old_session.config().clone();
+                            old_session.shutdown().await;
+                            match McpSession::start(config).await {
+                                Ok(new_session) => {
+                                    let status = build_status(&server_name, &new_session);
+                                    self.sessions.insert(server_name, new_session);
+                                    let _ = reply.send(Ok(status));
+                                }
+                                Err(e) => {
+                                    let _ = reply.send(Err(e));
+                                }
+                            }
+                        }
+                    }
                 }
 
                 McpCommand::ServerRequiresApproval { server_name, reply } => {
@@ -302,6 +446,56 @@ impl McpClientManager {
                 }
             }
         }
+    }
+}
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+/// Build an enriched [`McpServerStatus`] snapshot from a live session.
+fn build_status(name: &str, session: &McpSession) -> McpServerStatus {
+    McpServerStatus {
+        name: name.to_string(),
+        server_info: session.server_info().name.clone(),
+        tools_count: session.tools().len(),
+        requires_approval: session.requires_approval(),
+        connected: true,
+        pid: session.pid(),
+        uptime_secs: Some(session.uptime_secs()),
+        last_call_at: None,
+        error: None,
+        package: None,
+        transport: session.config().transport.clone(),
+    }
+}
+
+/// Build a [`McpServerDetail`] from a live session, redacting secret env values.
+fn build_detail(name: &str, session: &McpSession) -> McpServerDetail {
+    let config = session.config();
+    let tools = session
+        .tools()
+        .iter()
+        .map(|t| McpToolSummary {
+            full_name: format!("mcp:{}/{}", name, t.name),
+            local_name: t.name.clone(),
+            description: t.description.clone(),
+            input_schema: t.input_schema.clone(),
+        })
+        .collect();
+
+    let config_view = McpServerConfigView {
+        name: config.name.clone(),
+        command: config.command.clone(),
+        args: config.args.clone(),
+        env_keys: config.env.keys().cloned().collect(),
+        transport: config.transport.clone(),
+        requires_approval: config.requires_approval,
+        tags: config.tags.clone(),
+    };
+
+    McpServerDetail {
+        status: build_status(name, session),
+        tools,
+        config: config_view,
     }
 }
 
@@ -331,6 +525,12 @@ mod tests {
             tools_count: 5,
             requires_approval: true,
             connected: true,
+            pid: Some(1234),
+            uptime_secs: Some(60),
+            last_call_at: None,
+            error: None,
+            package: None,
+            transport: "stdio".to_string(),
         };
         // WHEN serialized to JSON
         let json = serde_json::to_value(&status).unwrap();
@@ -338,6 +538,7 @@ mod tests {
         assert_eq!(json["name"], "notion");
         assert_eq!(json["tools_count"], 5);
         assert_eq!(json["requires_approval"], true);
+        assert_eq!(json["transport"], "stdio");
     }
 
     #[test]
@@ -396,11 +597,129 @@ mod tests {
             tools_count: 0,
             requires_approval: false,
             connected: false,
+            pid: None,
+            uptime_secs: None,
+            last_call_at: None,
+            error: Some("process exited".to_string()),
+            package: None,
+            transport: "stdio".to_string(),
         };
         // WHEN
         let json = serde_json::to_value(&status).unwrap();
         // THEN
         assert_eq!(json["connected"], false);
         assert_eq!(json["tools_count"], 0);
+    }
+
+    #[tokio::test]
+    async fn test_empty_status_when_no_mcp_handle() {
+        // GIVEN no MCP handle
+        let mcp_handle: Option<McpClientManagerHandle> = None;
+        // WHEN status is queried
+        let statuses = match &mcp_handle {
+            Some(handle) => handle.status().await,
+            None => Vec::new(),
+        };
+        // THEN the result is empty
+        assert!(statuses.is_empty());
+    }
+
+    #[test]
+    fn test_list_servers_serialization() {
+        // GIVEN two server status snapshots
+        let statuses = vec![
+            McpServerStatus {
+                name: "notion".to_string(),
+                server_info: "notion-mcp-server".to_string(),
+                tools_count: 5,
+                requires_approval: true,
+                connected: true,
+                pid: None,
+                uptime_secs: Some(30),
+                last_call_at: None,
+                error: None,
+                package: None,
+                transport: "stdio".to_string(),
+            },
+            McpServerStatus {
+                name: "sqlite".to_string(),
+                server_info: "mcp-server-sqlite".to_string(),
+                tools_count: 3,
+                requires_approval: false,
+                connected: true,
+                pid: None,
+                uptime_secs: Some(30),
+                last_call_at: None,
+                error: None,
+                package: None,
+                transport: "stdio".to_string(),
+            },
+        ];
+        // WHEN serialized
+        let json = serde_json::to_value(&statuses).unwrap();
+        // THEN the array and fields are correct
+        assert_eq!(json.as_array().unwrap().len(), 2);
+        assert_eq!(json[0]["name"], "notion");
+        assert_eq!(json[1]["tools_count"], 3);
+    }
+
+    #[test]
+    fn test_server_detail_serialization() {
+        // GIVEN a server detail with one tool
+        let detail = McpServerDetail {
+            status: McpServerStatus {
+                name: "notion".to_string(),
+                server_info: "notion-mcp-server".to_string(),
+                tools_count: 1,
+                requires_approval: false,
+                connected: true,
+                pid: Some(42),
+                uptime_secs: Some(10),
+                last_call_at: None,
+                error: None,
+                package: None,
+                transport: "stdio".to_string(),
+            },
+            tools: vec![McpToolSummary {
+                full_name: "mcp:notion/search".to_string(),
+                local_name: "search".to_string(),
+                description: Some("Search pages".to_string()),
+                input_schema: serde_json::json!({"type": "object"}),
+            }],
+            config: McpServerConfigView {
+                name: "notion".to_string(),
+                command: "npx".to_string(),
+                args: vec!["@notionhq/notion-mcp-server".to_string()],
+                env_keys: vec!["NOTION_TOKEN".to_string()],
+                transport: "stdio".to_string(),
+                requires_approval: false,
+                tags: vec![],
+            },
+        };
+        // WHEN serialized
+        let json = serde_json::to_value(&detail).unwrap();
+        // THEN fields are correct and no secret values are exposed
+        assert_eq!(json["status"]["name"], "notion");
+        assert_eq!(json["tools"].as_array().unwrap().len(), 1);
+        assert_eq!(json["config"]["env_keys"][0], "NOTION_TOKEN");
+        assert!(json["config"].get("env").is_none());
+    }
+
+    #[test]
+    fn test_config_view_redacts_env_values() {
+        // GIVEN a config view with env keys
+        let view = McpServerConfigView {
+            name: "notion".to_string(),
+            command: "npx".to_string(),
+            args: vec![],
+            env_keys: vec!["NOTION_TOKEN".to_string(), "API_KEY".to_string()],
+            transport: "stdio".to_string(),
+            requires_approval: false,
+            tags: vec![],
+        };
+        // THEN only keys are exposed — no values
+        assert_eq!(view.env_keys.len(), 2);
+        assert!(view.env_keys.contains(&"NOTION_TOKEN".to_string()));
+        assert!(view.env_keys.contains(&"API_KEY".to_string()));
     }
 }

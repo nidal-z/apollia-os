@@ -21,6 +21,7 @@ use tracing::info;
 
 use apollia_core::PendingApprovals;
 use apollia_llm::{LlmCallRepository, LlmRouter};
+use apollia_mcp::manager::McpClientManagerHandle;
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_notifications::{
     NotificationConfig, NotificationConfigRepository, NotificationEngineHandle,
@@ -168,6 +169,12 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `Some` when the STT subsystem is initialized.
     /// `None` in tests or when STT is disabled.
     pub stt_repository: Option<Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
+    /// Handle to the MCP client manager actor.
+    ///
+    /// `Some` when `~/.apollia/mcp.toml` is present and at least one server connected.
+    /// `None` when the config file is absent, empty, or all servers failed to start.
+    /// MCP routes return 503 when `None`.
+    pub mcp_handle: Option<McpClientManagerHandle>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -200,6 +207,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             user_memory: self.user_memory.clone(),
             stt_engine: self.stt_engine.clone(),
             stt_repository: self.stt_repository.clone(),
+            mcp_handle: self.mcp_handle.clone(),
         }
     }
 }
@@ -308,6 +316,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         get_session as chat_get_session, list_sessions, send_message, stream_session,
     };
     use super::routes_llm::llm_routes;
+    use super::routes_mcp::mcp_router;
     use super::routes_messages::list_agent_messages;
     use super::routes_notifications::{
         create_channel, delete_channel, get_events, list_channels, notification_logs, set_events,
@@ -460,6 +469,8 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             axum::routing::delete(delete_transcription::<B>),
         )
         .route("/api/v1/stt/models", get(list_models::<B>))
+        // MCP routes
+        .merge(mcp_router::<B>())
         .with_state(state)
 }
 
@@ -672,6 +683,7 @@ mod tests {
             user_memory: None,
             stt_engine: None,
             stt_repository: None,
+            mcp_handle: None,
         }
     }
 

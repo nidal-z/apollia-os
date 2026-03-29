@@ -346,6 +346,7 @@ mod tests {
             user_memory: Some(repo),
             stt_engine: None,
             stt_repository: None,
+            mcp_handle: None,
         }
     }
 

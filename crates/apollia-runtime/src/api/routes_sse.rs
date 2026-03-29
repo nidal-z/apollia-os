@@ -472,6 +472,7 @@ mod tests {
             user_memory: None,
             stt_engine: None,
             stt_repository: None,
+            mcp_handle: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))

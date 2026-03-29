@@ -836,6 +836,7 @@ impl Supervisor {
             user_memory: user_memory.clone(),
             stt_engine: stt_engine.clone(),
             stt_repository: stt_repository.clone(),
+            mcp_handle: mcp_handle.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -1680,6 +1681,7 @@ mod tests {
             user_memory: None,
             stt_engine: None,
             stt_repository: None,
+            mcp_handle: None,
         };
 
         // WHEN on clone l'AppState
