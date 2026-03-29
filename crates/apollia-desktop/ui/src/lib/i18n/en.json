@@ -64,7 +64,20 @@
     }
   },
   "integrations": {
+    "title_operator": "Connections",
+    "title_builder": "MCP Servers",
     "add_connection": "Add a connection",
+    "add_server": "Add MCP Server",
+    "search_placeholder": "Search for an application...",
+    "search_placeholder_builder": "Search MCP servers...",
+    "categories": {
+      "all": "All",
+      "productivity": "Productivity",
+      "data": "Data",
+      "development": "Development",
+      "communication": "Communication",
+      "search": "Search"
+    },
     "operator": {
       "subtitle": "Manage your MCP connections",
       "tools_active": "{count} active tools",
@@ -137,7 +150,8 @@
     "status": {
       "connected": "Connected",
       "disconnected": "Disconnected",
-      "error": "Error"
+      "error": "Error",
+      "not_configured": "Not configured"
     },
     "catalogue": {
       "title": "Add a connection",
@@ -170,8 +184,10 @@
       "browse": "Browse",
       "test_button": "Test connection",
       "test_testing": "Testing…",
+      "test_running": "Testing connection...",
       "test_hint": "Verify that the configuration is correct before saving.",
       "test_success": "{count} tools discovered",
+      "test_failure": "Connection failed: {error}",
       "test_duration": "Response time: {ms} ms",
       "test_error_title": "Connection failed",
       "approval_title": "Approval level",

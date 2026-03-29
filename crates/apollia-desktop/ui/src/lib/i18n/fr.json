@@ -64,7 +64,20 @@
     }
   },
   "integrations": {
+    "title_operator": "Connexions",
+    "title_builder": "Serveurs MCP",
     "add_connection": "Ajouter une connexion",
+    "add_server": "Ajouter un serveur MCP",
+    "search_placeholder": "Rechercher une application...",
+    "search_placeholder_builder": "Rechercher des serveurs MCP...",
+    "categories": {
+      "all": "Tout",
+      "productivity": "Productivité",
+      "data": "Données",
+      "development": "Développement",
+      "communication": "Communication",
+      "search": "Recherche"
+    },
     "operator": {
       "subtitle": "Gérez vos connexions MCP",
       "tools_active": "{count} outils actifs",
@@ -137,7 +150,8 @@
     "status": {
       "connected": "Connecté",
       "disconnected": "Déconnecté",
-      "error": "Erreur"
+      "error": "Erreur",
+      "not_configured": "Non configuré"
     },
     "catalogue": {
       "title": "Ajouter une connexion",
@@ -170,8 +184,10 @@
       "browse": "Parcourir",
       "test_button": "Tester la connexion",
       "test_testing": "Test en cours…",
+      "test_running": "Test de connexion en cours...",
       "test_hint": "Vérifiez que la configuration est correcte avant de sauvegarder.",
       "test_success": "{count} outils découverts",
+      "test_failure": "Échec de connexion : {error}",
       "test_duration": "Temps de réponse : {ms} ms",
       "test_error_title": "Connexion échouée",
       "approval_title": "Niveau d'approbation",
