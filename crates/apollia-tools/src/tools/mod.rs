@@ -11,4 +11,6 @@ pub mod file_io;
 pub mod file_list;
 pub mod file_read;
 pub mod file_write;
+#[cfg(feature = "http")]
+pub mod http_fetch;
 pub mod python_executor;
