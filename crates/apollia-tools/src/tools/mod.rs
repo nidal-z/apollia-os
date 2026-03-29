@@ -13,4 +13,6 @@ pub mod file_read;
 pub mod file_write;
 #[cfg(feature = "http")]
 pub mod http_fetch;
+#[cfg(feature = "memory-search")]
+pub mod memory_search;
 pub mod python_executor;

@@ -19,12 +19,14 @@ glob         = "0.3"
 regex        = "1"
 
 # Optional — feature-gated to keep the default build lean
-reqwest = { workspace = true, optional = true }
-url     = { version = "2", optional = true }
+reqwest        = { workspace = true, optional = true }
+url            = { version = "2", optional = true }
+apollia-memory = { workspace = true, optional = true }
 
 [features]
-default = ["http"]
-http    = ["dep:reqwest", "dep:url"]
+default       = ["http"]
+http          = ["dep:reqwest", "dep:url"]
+memory-search = ["dep:apollia-memory"]
 
 [dev-dependencies]
 tempfile = "3.14"
