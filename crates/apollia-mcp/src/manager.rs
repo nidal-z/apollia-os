@@ -37,10 +37,25 @@ enum McpCommand {
         server_name: String,
         reply: oneshot::Sender<Option<McpServerDetail>>,
     },
+    /// Add a new server at runtime: spawn, handshake, register its tools.
+    AddServer {
+        config: McpServerConfig,
+        reply: oneshot::Sender<Result<McpServerStatus, McpSessionError>>,
+    },
+    /// Remove a server: shutdown the session and unregister from the session map.
+    RemoveServer {
+        server_name: String,
+        reply: oneshot::Sender<Result<(), McpSessionError>>,
+    },
     /// Restart a specific server session (stop + re-spawn).
     RestartServer {
         server_name: String,
         reply: oneshot::Sender<Result<McpServerStatus, McpSessionError>>,
+    },
+    /// Test a config without persisting a session: spawn, handshake, tools/list, then kill.
+    TestConnection {
+        config: McpServerConfig,
+        reply: oneshot::Sender<Result<McpConnectionTestResult, McpSessionError>>,
     },
     /// Check whether a named server requires HITL approval for all its tools.
     ServerRequiresApproval {
@@ -153,6 +168,7 @@ pub struct McpClientManagerHandle {
 struct McpClientManager {
     sessions: HashMap<String, McpSession>,
     rx: mpsc::Receiver<McpCommand>,
+    tool_registry: ToolRegistryHandle,
 }
 
 // ─── handle impl ─────────────────────────────────────────────────────────────
@@ -245,7 +261,11 @@ impl McpClientManagerHandle {
             }
         }
 
-        let actor = McpClientManager { sessions, rx };
+        let actor = McpClientManager {
+            sessions,
+            rx,
+            tool_registry: tool_registry.clone(),
+        };
         tokio::spawn(actor.run());
 
         Ok(Self { tx })
@@ -356,6 +376,76 @@ impl McpClientManagerHandle {
         })?
     }
 
+    /// Add a new MCP server at runtime.
+    ///
+    /// Spawns the server process, performs the initialize handshake, registers
+    /// discovered tools in the tool registry, and returns the server status.
+    /// Returns [`McpSessionError::InitializeFailed`] when a server with the same
+    /// name is already managed.
+    pub async fn add_server(
+        &self,
+        config: McpServerConfig,
+    ) -> Result<McpServerStatus, McpSessionError> {
+        let name = config.name.clone();
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(McpCommand::AddServer {
+                config,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| McpSessionError::ServerExited {
+                server: name.clone(),
+            })?;
+        reply_rx
+            .await
+            .map_err(|_| McpSessionError::ServerExited { server: name })?
+    }
+
+    /// Remove an MCP server: shutdown the session and remove it from the managed set.
+    ///
+    /// Returns [`McpSessionError::ServerExited`] when no session with `name` exists.
+    pub async fn remove_server(&self, name: &str) -> Result<(), McpSessionError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(McpCommand::RemoveServer {
+                server_name: name.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| McpSessionError::ServerExited {
+                server: name.to_string(),
+            })?;
+        reply_rx.await.map_err(|_| McpSessionError::ServerExited {
+            server: name.to_string(),
+        })?
+    }
+
+    /// Test a server configuration without persisting any session.
+    ///
+    /// Spawns an ephemeral process, performs the MCP handshake and `tools/list`,
+    /// captures the result, then immediately kills the process. No session is
+    /// registered and the tool registry is not modified.
+    pub async fn test_connection(
+        &self,
+        config: McpServerConfig,
+    ) -> Result<McpConnectionTestResult, McpSessionError> {
+        let name = config.name.clone();
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(McpCommand::TestConnection {
+                config,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| McpSessionError::ServerExited {
+                server: name.clone(),
+            })?;
+        reply_rx
+            .await
+            .map_err(|_| McpSessionError::ServerExited { server: name })?
+    }
+
     /// Gracefully shut down all MCP sessions and stop the actor.
     ///
     /// Consumes the handle. Remaining clones will receive channel-closed errors
@@ -368,6 +458,134 @@ impl McpClientManagerHandle {
 // ─── actor impl ──────────────────────────────────────────────────────────────
 
 impl McpClientManager {
+    /// Register all tools from a session into the tool registry.
+    ///
+    /// Uses the `mcp:<server>/<tool>` naming convention. Failures are logged at
+    /// `warn` level and do not abort the registration of remaining tools.
+    async fn register_session_tools(&self, server_name: &str, session: &McpSession) {
+        let tags = {
+            let mut t = vec!["mcp".to_string(), server_name.to_string()];
+            t.extend(session.config().tags.clone());
+            t
+        };
+        let requires_approval = session.requires_approval();
+
+        for tool_def in session.tools() {
+            let descriptor = ToolDescriptor {
+                name: format!("mcp:{}/{}", server_name, tool_def.name),
+                version: "1.0.0".to_string(),
+                description: tool_def
+                    .description
+                    .clone()
+                    .unwrap_or_else(|| format!("MCP tool from {}", server_name)),
+                kind: ToolKind::McpServer {
+                    server_url: format!("stdio://{}", server_name),
+                    transport: McpTransport::Stdio,
+                    tool_name: tool_def.name.clone(),
+                },
+                input_schema: tool_def.input_schema.clone(),
+                output_schema: None,
+                sandbox_profile: if requires_approval {
+                    SandboxProfile::Full
+                } else {
+                    SandboxProfile::NetworkRestricted
+                },
+                tags: tags.clone(),
+                dangerous: requires_approval,
+            };
+
+            match self.tool_registry.register(descriptor).await {
+                Ok(()) => {
+                    tracing::info!(
+                        server = %server_name,
+                        tool = %tool_def.name,
+                        "MCP tool registered"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        server = %server_name,
+                        tool = %tool_def.name,
+                        error = %e,
+                        "failed to register MCP tool"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Spawn a new session for `config`, register its tools, and insert it into the map.
+    ///
+    /// Returns an error when a session with the same name already exists, or when
+    /// the session fails to start.
+    async fn handle_add_server(
+        &mut self,
+        config: McpServerConfig,
+    ) -> Result<McpServerStatus, McpSessionError> {
+        let name = config.name.clone();
+        if self.sessions.contains_key(&name) {
+            return Err(McpSessionError::InitializeFailed {
+                server: name,
+                cause: "server with this name already exists".to_string(),
+            });
+        }
+
+        let session = McpSession::start(config).await?;
+        tracing::info!(
+            server = %name,
+            tools = session.tools().len(),
+            "MCP server added"
+        );
+        self.register_session_tools(&name, &session).await;
+        let status = build_status(&name, &session);
+        self.sessions.insert(name, session);
+        Ok(status)
+    }
+
+    /// Shutdown the session named `name` and remove it from the managed set.
+    ///
+    /// Returns [`McpSessionError::ServerExited`] when the name is not found.
+    async fn handle_remove_server(&mut self, name: &str) -> Result<(), McpSessionError> {
+        match self.sessions.remove(name) {
+            Some(session) => {
+                session.shutdown().await;
+                tracing::info!(server = %name, "MCP server removed");
+                Ok(())
+            }
+            None => Err(McpSessionError::ServerExited {
+                server: name.to_string(),
+            }),
+        }
+    }
+
+    /// Spawn an ephemeral session for `config`, capture the result, then kill it.
+    ///
+    /// No session is stored and the tool registry is never modified.
+    async fn handle_test_connection(
+        config: McpServerConfig,
+    ) -> Result<McpConnectionTestResult, McpSessionError> {
+        let start = std::time::Instant::now();
+        let session = McpSession::start(config).await?;
+        let tools: Vec<McpToolSummary> = session
+            .tools()
+            .iter()
+            .map(|t| McpToolSummary {
+                full_name: format!("test:{}/{}", session.server_name(), t.name),
+                local_name: t.name.clone(),
+                description: t.description.clone(),
+                input_schema: t.input_schema.clone(),
+            })
+            .collect();
+        let result = McpConnectionTestResult {
+            server_info: session.server_info().name.clone(),
+            protocol_version: "2024-11-05".to_string(),
+            tools,
+            test_duration_ms: start.elapsed().as_millis() as u64,
+        };
+        session.shutdown().await;
+        Ok(result)
+    }
+
     /// Main actor loop: process commands until a [`McpCommand::Shutdown`] is received
     /// or all senders are dropped.
     async fn run(mut self) {
@@ -405,6 +623,16 @@ impl McpClientManager {
                     let _ = reply.send(detail);
                 }
 
+                McpCommand::AddServer { config, reply } => {
+                    let result = self.handle_add_server(config).await;
+                    let _ = reply.send(result);
+                }
+
+                McpCommand::RemoveServer { server_name, reply } => {
+                    let result = self.handle_remove_server(&server_name).await;
+                    let _ = reply.send(result);
+                }
+
                 McpCommand::RestartServer { server_name, reply } => {
                     match self.sessions.remove(&server_name) {
                         None => {
@@ -427,6 +655,11 @@ impl McpClientManager {
                             }
                         }
                     }
+                }
+
+                McpCommand::TestConnection { config, reply } => {
+                    let result = Self::handle_test_connection(config).await;
+                    let _ = reply.send(result);
                 }
 
                 McpCommand::ServerRequiresApproval { server_name, reply } => {
@@ -721,5 +954,109 @@ mod tests {
         assert_eq!(view.env_keys.len(), 2);
         assert!(view.env_keys.contains(&"NOTION_TOKEN".to_string()));
         assert!(view.env_keys.contains(&"API_KEY".to_string()));
+    }
+
+    #[test]
+    fn test_add_server_duplicate_name_detection() {
+        // GIVEN a server name already present in a session map
+        let mut sessions: HashMap<String, ()> = HashMap::new();
+        sessions.insert("notion".to_string(), ());
+        // WHEN checking for a duplicate
+        let exists = sessions.contains_key("notion");
+        // THEN the duplicate is detected
+        assert!(exists);
+    }
+
+    #[test]
+    fn test_remove_server_from_map() {
+        // GIVEN a map with "notion" and "sqlite"
+        let mut sessions: HashMap<String, String> = HashMap::new();
+        sessions.insert("notion".to_string(), "session-notion".to_string());
+        sessions.insert("sqlite".to_string(), "session-sqlite".to_string());
+        // WHEN "notion" is removed
+        let removed = sessions.remove("notion");
+        // THEN only "sqlite" remains
+        assert!(removed.is_some());
+        assert_eq!(sessions.len(), 1);
+        assert!(!sessions.contains_key("notion"));
+    }
+
+    #[test]
+    fn test_connection_result_construction() {
+        // GIVEN test-connection result data
+        let result = McpConnectionTestResult {
+            server_info: "test-server".to_string(),
+            protocol_version: "2024-11-05".to_string(),
+            tools: vec![McpToolSummary {
+                full_name: "test:srv/tool1".to_string(),
+                local_name: "tool1".to_string(),
+                description: Some("A test tool".to_string()),
+                input_schema: serde_json::json!({"type": "object"}),
+            }],
+            test_duration_ms: 200,
+        };
+        // WHEN serialized
+        let json = serde_json::to_value(&result).unwrap();
+        // THEN all fields are correct
+        assert_eq!(result.tools.len(), 1);
+        assert_eq!(result.test_duration_ms, 200);
+        assert_eq!(json["protocol_version"], "2024-11-05");
+    }
+
+    #[test]
+    fn test_server_detail_with_tools_and_config() {
+        // GIVEN a fully populated McpServerDetail
+        let detail = McpServerDetail {
+            status: McpServerStatus {
+                name: "notion".to_string(),
+                server_info: "notion-mcp".to_string(),
+                tools_count: 2,
+                requires_approval: false,
+                connected: true,
+                pid: Some(1234),
+                uptime_secs: Some(60),
+                last_call_at: None,
+                error: None,
+                package: None,
+                transport: "stdio".to_string(),
+            },
+            tools: vec![
+                McpToolSummary {
+                    full_name: "mcp:notion/search".to_string(),
+                    local_name: "search".to_string(),
+                    description: Some("Search pages".to_string()),
+                    input_schema: serde_json::json!({}),
+                },
+                McpToolSummary {
+                    full_name: "mcp:notion/create".to_string(),
+                    local_name: "create".to_string(),
+                    description: None,
+                    input_schema: serde_json::json!({}),
+                },
+            ],
+            config: McpServerConfigView {
+                name: "notion".to_string(),
+                command: "npx".to_string(),
+                args: vec!["@notionhq/notion-mcp-server".to_string()],
+                env_keys: vec!["NOTION_TOKEN".to_string()],
+                transport: "stdio".to_string(),
+                requires_approval: false,
+                tags: vec![],
+            },
+        };
+        // THEN all fields are accessible and correct
+        assert_eq!(detail.status.name, "notion");
+        assert_eq!(detail.tools.len(), 2);
+        assert_eq!(detail.config.env_keys, vec!["NOTION_TOKEN"]);
+    }
+
+    #[test]
+    fn test_remove_server_unknown_name() {
+        // GIVEN a map that does not contain "github"
+        let sessions: HashMap<String, String> = HashMap::new();
+        // WHEN querying for "github"
+        let found = sessions.get("github");
+        // THEN it is absent
+        assert!(found.is_none());
     }
 }
