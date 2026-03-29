@@ -8,9 +8,7 @@ pub mod enrichments;
 pub mod registry_client;
 pub mod secret_store;
 
-pub use enrichments::{
-    find_enrichment, load_builtin_enrichments, ConnectorEnrichment, TrustLevel,
-};
+pub use enrichments::{find_enrichment, load_builtin_enrichments, ConnectorEnrichment, TrustLevel};
 pub use registry_client::{
     McpRegistryClient, RegistryClientError, RegistryEnvVar, RegistryIcon, RegistryListResponse,
     RegistryMetadata, RegistryPackage, RegistryPackageArg, RegistryRepository, RegistryServer,

@@ -22,6 +22,8 @@ use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
 use apollia_runtime::eventbus::EventBusSender;
 use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
+use mcp::McpRegistryClient;
+use mcp::SecretStore;
 use tauri::Manager;
 
 /// Shared mutable LLM router — updated by `reload_llm`, read by
@@ -287,6 +289,16 @@ fn main() {
     };
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(backend::AIPAgentLoader);
 
+    let mcp_registry_client = match McpRegistryClient::new(&apollia_data_dir) {
+        Ok(client) => client,
+        Err(e) => {
+            tracing::warn!(error = %e, "McpRegistryClient failed to initialize — registry commands disabled");
+            // Fall back to a client with a writable temp dir so Tauri state is always populated.
+            McpRegistryClient::new(std::path::Path::new("/tmp"))
+                .expect("fallback McpRegistryClient")
+        }
+    };
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -296,6 +308,8 @@ fn main() {
         .manage(agent_loader)
         .manage(runtime_handle.event_sender.clone())
         .manage(llm_router_lock.clone())
+        .manage(mcp_registry_client)
+        .manage(SecretStore::new())
         .setup(move |app| {
             tray::setup_tray(app)?;
 
@@ -479,6 +493,15 @@ fn main() {
             commands::stt::delete_transcription,
             commands::stt::transcribe_file,
             commands::stt::list_stt_models,
+            commands::mcp::list_mcp_servers,
+            commands::mcp::get_mcp_server_detail,
+            commands::mcp::add_mcp_server,
+            commands::mcp::remove_mcp_server,
+            commands::mcp::test_mcp_connection,
+            commands::mcp::restart_mcp_server,
+            commands::mcp::fetch_mcp_registry,
+            commands::mcp::store_mcp_secret,
+            commands::mcp::delete_mcp_secret,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

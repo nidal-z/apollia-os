@@ -11,6 +11,7 @@ pub mod chat;
 pub mod config;
 pub mod hitl;
 pub mod llm;
+pub mod mcp;
 pub mod memory;
 pub mod notifications;
 pub mod observability;
