@@ -10,6 +10,7 @@ mod backend;
 mod bundled_agents;
 mod commands;
 mod events;
+pub mod mcp;
 pub mod stt;
 pub mod tray;
 

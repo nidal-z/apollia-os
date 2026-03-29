@@ -29,6 +29,7 @@ stt-metal = ["stt-whisper-cpp", "apollia-stt/stt-metal", "apollia-runtime/stt-me
 stt-cuda = ["stt-whisper-cpp", "apollia-stt/stt-cuda", "apollia-runtime/stt-cuda"]
 
 [dependencies]
+reqwest          = { workspace = true }
 apollia-runtime  = { workspace = true }
 apollia-llm      = { workspace = true, default-features = false }
 apollia-stt      = { workspace = true, default-features = false }
@@ -62,6 +63,7 @@ hound            = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
+wiremock = "0.6"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

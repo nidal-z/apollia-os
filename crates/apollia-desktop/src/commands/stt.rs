@@ -348,7 +348,7 @@ fn replace_or_append_stt_section(existing: &str, stt_block: &str) -> String {
     };
 
     if let Some(start) = stt_pos {
-        let prefix = existing[..start].trim_end_matches(|c: char| c == '\n' || c == '\r');
+        let prefix = existing[..start].trim_end_matches(['\n', '\r']);
 
         // Find the end of the [stt] section body: next top-level "[" at start
         // of a line, or end of file.
@@ -358,7 +358,7 @@ fn replace_or_append_stt_section(existing: &str, stt_block: &str) -> String {
             .map(|i| start + 1 + i + 1)
             .unwrap_or(existing.len());
 
-        let suffix = existing[section_end..].trim_start_matches(|c: char| c == '\n' || c == '\r');
+        let suffix = existing[section_end..].trim_start_matches(['\n', '\r']);
 
         if suffix.is_empty() {
             format!("{prefix}\n\n{stt_block}\n")
