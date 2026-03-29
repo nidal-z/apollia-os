@@ -1,0 +1,68 @@
+[
+  {
+    "package_identifier": "@notionhq/notion-mcp-server",
+    "operator_label": { "en": "Notion", "fr": "Notion" },
+    "category": "productivity",
+    "icon_name": "notion",
+    "trust_level": "verified_official",
+    "auth_help_url": "https://www.notion.so/my-integrations",
+    "auth_help_text": {
+      "en": "Create a new integration and copy the Internal Integration Secret.",
+      "fr": "Créez une nouvelle intégration et copiez le Secret d'intégration interne."
+    },
+    "default_requires_approval": true
+  },
+  {
+    "package_identifier": "mcp-server-sqlite",
+    "operator_label": { "en": "SQLite Database", "fr": "Base de données SQLite" },
+    "category": "data",
+    "icon_name": "database",
+    "trust_level": "community_verified",
+    "auth_help_url": null,
+    "auth_help_text": null,
+    "default_requires_approval": false
+  },
+  {
+    "package_identifier": "@anthropic/mcp-server-brave-search",
+    "operator_label": { "en": "Brave Search", "fr": "Recherche Brave" },
+    "category": "search",
+    "icon_name": "search",
+    "trust_level": "verified_official",
+    "auth_help_url": "https://brave.com/search/api/",
+    "auth_help_text": {
+      "en": "Sign up for a Brave Search API key.",
+      "fr": "Inscrivez-vous pour obtenir une clé API Brave Search."
+    },
+    "default_requires_approval": false
+  },
+  {
+    "package_identifier": "@anthropic/mcp-server-filesystem",
+    "operator_label": { "en": "Local Files", "fr": "Fichiers locaux" },
+    "category": "data",
+    "icon_name": "folder",
+    "trust_level": "verified_official",
+    "auth_help_url": null,
+    "auth_help_text": null,
+    "default_requires_approval": false
+  },
+  {
+    "package_identifier": "@anthropic/mcp-server-memory",
+    "operator_label": { "en": "Memory (Knowledge Graph)", "fr": "Mémoire (graphe de connaissances)" },
+    "category": "data",
+    "icon_name": "brain",
+    "trust_level": "verified_official",
+    "auth_help_url": null,
+    "auth_help_text": null,
+    "default_requires_approval": false
+  },
+  {
+    "package_identifier": "@anthropic/mcp-server-puppeteer",
+    "operator_label": { "en": "Web Browser", "fr": "Navigateur web" },
+    "category": "development",
+    "icon_name": "globe",
+    "trust_level": "verified_official",
+    "auth_help_url": null,
+    "auth_help_text": null,
+    "default_requires_approval": true
+  }
+]

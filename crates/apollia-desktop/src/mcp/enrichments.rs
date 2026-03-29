@@ -1,0 +1,127 @@
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+/// UI-friendly metadata for a popular MCP server.
+///
+/// Complements the MCP Registry response with translated labels, category,
+/// icon, trust level and auth guidance — all embedded at compile time.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorEnrichment {
+    /// Package identifier matching the registry (e.g. `@notionhq/notion-mcp-server`).
+    pub package_identifier: String,
+    /// Human-readable labels keyed by locale (`"en"`, `"fr"`).
+    pub operator_label: HashMap<String, String>,
+    /// Category for grouping in the catalogue (e.g. `"productivity"`, `"data"`).
+    pub category: String,
+    /// Lucide icon name (e.g. `"database"`, `"search"`, `"globe"`).
+    pub icon_name: String,
+    /// Trust level badge shown in the UI.
+    pub trust_level: TrustLevel,
+    /// URL where the user can create or retrieve their API key.
+    pub auth_help_url: Option<String>,
+    /// Per-locale guidance shown on the auth step of the wizard.
+    pub auth_help_text: Option<HashMap<String, String>>,
+    /// Default value for the `requires_approval` flag on the created server.
+    pub default_requires_approval: bool,
+}
+
+/// Trust level displayed as a badge next to a connector.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrustLevel {
+    /// Publisher is the service vendor (e.g. `@notionhq`).
+    VerifiedOfficial,
+    /// Open-source package listed in the official registry.
+    CommunityVerified,
+    /// Listed in the registry but not verified.
+    Community,
+    /// Added manually by the user, not from the registry.
+    Custom,
+}
+
+/// Load the builtin enrichments embedded at compile time.
+///
+/// Returns all entries from `enrichments.json`. If the embedded JSON is somehow
+/// malformed the function returns an empty `Vec` rather than panicking.
+pub fn load_builtin_enrichments() -> Vec<ConnectorEnrichment> {
+    let json = include_str!("enrichments.json");
+    serde_json::from_str(json).unwrap_or_default()
+}
+
+/// Find the enrichment for `package_identifier` in a pre-loaded slice.
+///
+/// Returns `None` when no entry matches the given identifier.
+pub fn find_enrichment<'a>(
+    enrichments: &'a [ConnectorEnrichment],
+    package_identifier: &str,
+) -> Option<&'a ConnectorEnrichment> {
+    enrichments
+        .iter()
+        .find(|e| e.package_identifier == package_identifier)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn load_builtin_enrichments_returns_at_least_6() {
+        // GIVEN the embedded JSON
+        // WHEN enrichments are loaded
+        let enrichments = load_builtin_enrichments();
+        // THEN at least 6 entries are returned
+        assert!(enrichments.len() >= 6);
+    }
+
+    #[test]
+    fn enrichment_has_required_fields() {
+        // GIVEN the loaded enrichments
+        let enrichments = load_builtin_enrichments();
+        // WHEN the first entry is inspected
+        let first = &enrichments[0];
+        // THEN all required fields are present and non-empty
+        assert!(!first.package_identifier.is_empty());
+        assert!(first.operator_label.contains_key("en"));
+        assert!(first.operator_label.contains_key("fr"));
+        assert!(!first.category.is_empty());
+        assert!(!first.icon_name.is_empty());
+    }
+
+    #[test]
+    fn find_enrichment_returns_notion() {
+        // GIVEN the loaded enrichments
+        let enrichments = load_builtin_enrichments();
+        // WHEN looking up the Notion package
+        let found = find_enrichment(&enrichments, "@notionhq/notion-mcp-server");
+        // THEN the Notion enrichment is returned
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().operator_label["en"], "Notion");
+    }
+
+    #[test]
+    fn find_enrichment_unknown_returns_none() {
+        // GIVEN the loaded enrichments
+        let enrichments = load_builtin_enrichments();
+        // WHEN looking up an unknown package
+        let found = find_enrichment(&enrichments, "unknown-package");
+        // THEN None is returned
+        assert!(found.is_none());
+    }
+
+    #[test]
+    fn all_6_connectors_present() {
+        // GIVEN the loaded enrichments
+        let enrichments = load_builtin_enrichments();
+        let ids: Vec<&str> = enrichments
+            .iter()
+            .map(|e| e.package_identifier.as_str())
+            .collect();
+        // THEN all 6 expected connectors are present
+        assert!(ids.contains(&"@notionhq/notion-mcp-server"));
+        assert!(ids.contains(&"mcp-server-sqlite"));
+        assert!(ids.contains(&"@anthropic/mcp-server-brave-search"));
+        assert!(ids.contains(&"@anthropic/mcp-server-filesystem"));
+        assert!(ids.contains(&"@anthropic/mcp-server-memory"));
+        assert!(ids.contains(&"@anthropic/mcp-server-puppeteer"));
+    }
+}
