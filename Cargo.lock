@@ -290,6 +290,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "apollia-mcp"
+version = "0.1.0"
+dependencies = [
+ "apollia-core",
+ "apollia-tools",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
+]
+
+[[package]]
 name = "apollia-memory"
 version = "0.1.0"
 dependencies = [

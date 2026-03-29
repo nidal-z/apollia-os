@@ -9,6 +9,7 @@ members = [
     "crates/apollia-aip",
     "crates/apollia-llm",
     "crates/apollia-stt",
+    "crates/apollia-mcp",
     "crates/apollia-triggers",
     "crates/apollia-notifications",
     "crates/apollia-pipelines",
@@ -26,6 +27,7 @@ default-members = [
     "crates/apollia-aip",
     "crates/apollia-llm",
     "crates/apollia-stt",
+    "crates/apollia-mcp",
     "crates/apollia-triggers",
     "crates/apollia-notifications",
     "crates/apollia-pipelines",
@@ -129,6 +131,7 @@ apollia-stt           = { path = "crates/apollia-stt", default-features = false 
 apollia-triggers      = { path = "crates/apollia-triggers" }
 apollia-notifications = { path = "crates/apollia-notifications" }
 apollia-pipelines     = { path = "crates/apollia-pipelines" }
+apollia-mcp           = { path = "crates/apollia-mcp" }
 
 [profile.release]
 opt-level = 3
