@@ -850,5 +850,24 @@
 
 ---
 
+## ADR-045 — Page Intégrations : wizard générique piloté par les metadata MCP Registry
+
+**Date :** 2026-08-01
+**Statut :** Accepté
+
+**Contexte :** Le client MCP (ADR-044) est opérationnel, mais la configuration des serveurs nécessite d'éditer `~/.apollia/mcp.toml` manuellement — bloquant pour les opérateurs non-techniques. Le Sprint 27 ajoute une page Intégrations dans le desktop Apollia. Elle doit permettre la découverte, la configuration, et la gestion sécurisée des secrets (tokens API) pour 16 000+ serveurs MCP sans qu'aucune modification du code soit requise pour chaque nouveau connecteur.
+
+**Décision :** Wizard générique unique (`ConnectorWizard`) piloté dynamiquement par les metadata du MCP Registry officiel (`registry.modelcontextprotocol.io/v0.1/servers`). Aucun composant par connecteur. Les 6 connecteurs les plus courants (Notion, Slack, GitHub, Linear, PostgreSQL, Filesystem) bénéficient d'enrichissements builtin (labels UX, liens doc, valeurs par défaut). Les secrets sont stockés dans le keychain OS via la crate `keyring` et référencés dans `mcp.toml` par le préfixe `APOLLIA_SECRET:<service>/<key>`. Cache local du registry (TTL 24h) pour le mode offline.
+
+**Alternatives considérées :** Wizard par connecteur (rejetée — maintenance infinie, équipe solo, 16 000+ serveurs impossibles à couvrir), Éditeur TOML assisté (rejetée — inaccessible aux opérateurs non-techniques, pas de découverte, secrets en clair).
+
+**Conséquences :** Ajout d'un connecteur ne nécessite aucune modification du code frontend. Secrets isolés dans le keychain OS. Mode offline garanti par le cache. Limites V1 : fallback fichier chiffré local si D-Bus absent (Linux headless), UX dépendante de la qualité des metadata du registry, validation sémantique des paramètres impossible (détectée uniquement par le test de connexion). À surveiller : qualité des metadata du registry, évolution du schéma API, adoption du secret store sur Linux headless.
+
+**Principes impactés :** Principe #1 — Local-first (respecté : secrets dans keychain OS, cache local, mode offline), Principe #2 — Zéro dépendance externe (respecté en mode offline, réseau optionnel), Principe #4 — Fail fast (respecté : test de connexion avant confirmation), Principe #8 — CLI humaine, API machine (respecté : wizard délègue à l'API REST existante).
+
+[Détail → docs/adr/ADR-045-page-integrations-wizard-generique.md](adr/ADR-045-page-integrations-wizard-generique.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
