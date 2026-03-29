@@ -29,7 +29,8 @@
       "ready": "READY",
       "loading": "LOADING",
       "error": "ERROR"
-    }
+    },
+    "back": "Back"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -99,6 +100,14 @@
       "connected": "Connected",
       "disconnected": "Disconnected",
       "error": "Error"
+    },
+    "catalogue": {
+      "title": "Add a connection",
+      "subtitle": "Discover and install MCP connections",
+      "search_placeholder": "Search connections…",
+      "no_results": "No connections match your search.",
+      "installed_badge": "Installed",
+      "category_all": "All"
     }
   },
   "dashboard": {

@@ -29,7 +29,8 @@
       "ready": "PRÊT",
       "loading": "CHARGEMENT",
       "error": "ERREUR"
-    }
+    },
+    "back": "Retour"
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -99,6 +100,14 @@
       "connected": "Connecté",
       "disconnected": "Déconnecté",
       "error": "Erreur"
+    },
+    "catalogue": {
+      "title": "Ajouter une connexion",
+      "subtitle": "Découvrez et installez des connexions MCP",
+      "search_placeholder": "Rechercher des connexions…",
+      "no_results": "Aucune connexion ne correspond à votre recherche.",
+      "installed_badge": "Installé",
+      "category_all": "Tout"
     }
   },
   "dashboard": {

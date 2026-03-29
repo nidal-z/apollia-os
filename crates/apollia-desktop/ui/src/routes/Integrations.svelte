@@ -1,14 +1,16 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { Plus } from "lucide-svelte";
+  import { Plus, ArrowLeft } from "lucide-svelte";
   import { uiMode } from "$lib/stores/mode";
   import { Button } from "$lib/components/ui/button";
   import McpDisclaimerDialog, { isDisclaimerAccepted } from "../components/integrations/McpDisclaimerDialog.svelte";
   import OperatorConnectionCard from "../components/integrations/OperatorConnectionCard.svelte";
-  import type { McpServerStatusView, ConnectorEnrichmentView } from "$lib/types";
+  import OperatorCatalogue from "../components/integrations/OperatorCatalogue.svelte";
+  import type { McpServerStatusView, ConnectorEnrichmentView, RegistryServerView } from "$lib/types";
 
   let disclaimerOpen = $state(false);
+  let catalogueOpen = $state(false);
   let servers = $state<McpServerStatusView[]>([]);
   let enrichmentMap = $state(new Map<string, ConnectorEnrichmentView>());
   let loading = $state(false);
@@ -40,7 +42,7 @@
 
   function handleAddConnection(): void {
     if (isDisclaimerAccepted()) {
-      // ConnectorWizard will be wired here in STORY-357
+      catalogueOpen = true;
     } else {
       disclaimerOpen = true;
     }
@@ -48,6 +50,10 @@
 
   function handleDisclaimerAccept(): void {
     disclaimerOpen = false;
+    catalogueOpen = true;
+  }
+
+  function handleSelectServer(_server: RegistryServerView): void {
     // ConnectorWizard will be wired here in STORY-357
   }
 
@@ -64,40 +70,57 @@
 
 {#if $uiMode === "operator"}
   <div class="flex flex-col gap-6" data-testid="integrations-operator">
-    <div class="flex items-start justify-between">
-      <div>
-        <h1 class="text-2xl font-semibold text-foreground">{$t("nav.connections")}</h1>
-        <p class="mt-1 text-sm text-muted-foreground">{$t("integrations.operator.subtitle")}</p>
+    {#if catalogueOpen}
+      <div class="flex items-center gap-3">
+        <Button
+          size="sm"
+          variant="ghost"
+          onclick={() => { catalogueOpen = false; }}
+          data-testid="catalogue-back-btn"
+          aria-label={$t("common.back")}
+        >
+          <ArrowLeft size={16} class="mr-1.5" />
+          {$t("common.back")}
+        </Button>
       </div>
-      <Button size="sm" onclick={handleAddConnection} data-testid="add-connection-btn">
-        <Plus size={16} class="mr-1.5" />
-        {$t("integrations.add_connection")}
-      </Button>
-    </div>
 
-    {#if loading}
-      <p class="text-sm text-muted-foreground" data-testid="connections-loading">
-        {$t("common.loading")}
-      </p>
-    {:else if loadError}
-      <p class="text-sm text-destructive" data-testid="connections-error">{loadError}</p>
-    {:else if servers.length === 0}
-      <p class="text-sm text-muted-foreground" data-testid="connections-empty">
-        {$t("integrations.operator.no_connections")}
-      </p>
+      <OperatorCatalogue onSelectServer={handleSelectServer} />
     {:else}
-      <div
-        class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-        data-testid="connections-grid"
-      >
-        {#each servers as server (server.name)}
-          <OperatorConnectionCard
-            {server}
-            enrichment={resolveEnrichment(server)}
-            onManage={handleManage}
-          />
-        {/each}
+      <div class="flex items-start justify-between">
+        <div>
+          <h1 class="text-2xl font-semibold text-foreground">{$t("nav.connections")}</h1>
+          <p class="mt-1 text-sm text-muted-foreground">{$t("integrations.operator.subtitle")}</p>
+        </div>
+        <Button size="sm" onclick={handleAddConnection} data-testid="add-connection-btn">
+          <Plus size={16} class="mr-1.5" />
+          {$t("integrations.add_connection")}
+        </Button>
       </div>
+
+      {#if loading}
+        <p class="text-sm text-muted-foreground" data-testid="connections-loading">
+          {$t("common.loading")}
+        </p>
+      {:else if loadError}
+        <p class="text-sm text-destructive" data-testid="connections-error">{loadError}</p>
+      {:else if servers.length === 0}
+        <p class="text-sm text-muted-foreground" data-testid="connections-empty">
+          {$t("integrations.operator.no_connections")}
+        </p>
+      {:else}
+        <div
+          class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          data-testid="connections-grid"
+        >
+          {#each servers as server (server.name)}
+            <OperatorConnectionCard
+              {server}
+              enrichment={resolveEnrichment(server)}
+              onManage={handleManage}
+            />
+          {/each}
+        </div>
+      {/if}
     {/if}
   </div>
 {:else}
