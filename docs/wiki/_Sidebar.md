@@ -49,6 +49,7 @@
 **API & Intégration**
 - [[API-HTTP-Reference|API HTTP]]
 - [[MCP-Guide-Utilisateur|MCP — Guide utilisateur]]
+- [[Integrations-Guide|Intégrations — Guide desktop]]
 - [[MCP-Integration|MCP — Intégration technique]]
 - [[A2A-ACP-Alignement|A2A / ACP]]
 
