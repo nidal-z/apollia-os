@@ -3,7 +3,10 @@
   import { t } from "svelte-i18n";
   import { Copy, Check } from "lucide-svelte";
   import type { ChatMessageView } from "$lib/types";
-  import ToolCallCard from "./ToolCallCard.svelte";
+  import { uiMode } from "$lib/stores/mode";
+  import OperatorToolCard from "./OperatorToolCard.svelte";
+  import BuilderToolCard from "./BuilderToolCard.svelte";
+  import OperatorApprovalCard from "./OperatorApprovalCard.svelte";
   import ApprovalCard from "./ApprovalCard.svelte";
 
   interface Props {
@@ -14,6 +17,7 @@
   let { message, sessionId }: Props = $props();
 
   const isUser = $derived(message.role === "user");
+  const isOperator = $derived($uiMode === "operator");
 
   const formattedTime = $derived.by(() => {
     const date = new Date(message.created_at);
@@ -74,14 +78,24 @@
       <div class="mt-2 space-y-1.5">
         {#each message.tool_calls ?? [] as toolCall (toolCall.tool_name)}
           {#if toolCall.status === "pending"}
-            <ApprovalCard
-              {sessionId}
-              messageId={message.id}
-              toolName={toolCall.tool_name}
-              inputPreview={JSON.stringify(toolCall.input, null, 2)}
-            />
+            {#if isOperator}
+              <OperatorApprovalCard
+                {sessionId}
+                messageId={message.id}
+                {toolCall}
+              />
+            {:else}
+              <ApprovalCard
+                {sessionId}
+                messageId={message.id}
+                toolName={toolCall.tool_name}
+                inputPreview={JSON.stringify(toolCall.input, null, 2)}
+              />
+            {/if}
+          {:else if isOperator}
+            <OperatorToolCard {toolCall} />
           {:else}
-            <ToolCallCard {toolCall} />
+            <BuilderToolCard {toolCall} />
           {/if}
         {/each}
       </div>
