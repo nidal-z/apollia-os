@@ -105,26 +105,25 @@ impl FileEdit {
         }
 
         // 2. SandboxViolation
-        let resolved = self
-            .sandbox
-            .resolve(&input.path)
-            .map_err(|_| FileEditError::SandboxViolation {
-                path: input.path.clone(),
-            })?;
+        let resolved =
+            self.sandbox
+                .resolve(&input.path)
+                .map_err(|_| FileEditError::SandboxViolation {
+                    path: input.path.clone(),
+                })?;
 
         // 3. NotFound
-        let mut file =
-            fs::File::open(&resolved)
-                .await
-                .map_err(|e| match e.kind() {
-                    std::io::ErrorKind::NotFound => FileEditError::NotFound {
-                        path: input.path.clone(),
-                    },
-                    _ => FileEditError::IoError {
-                        path: input.path.clone(),
-                        cause: e.to_string(),
-                    },
-                })?;
+        let mut file = fs::File::open(&resolved)
+            .await
+            .map_err(|e| match e.kind() {
+                std::io::ErrorKind::NotFound => FileEditError::NotFound {
+                    path: input.path.clone(),
+                },
+                _ => FileEditError::IoError {
+                    path: input.path.clone(),
+                    cause: e.to_string(),
+                },
+            })?;
 
         let mut raw = Vec::new();
         file.read_to_end(&mut raw)
