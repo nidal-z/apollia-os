@@ -33,7 +33,7 @@ apollia-memory        = { workspace = true }
 apollia-notifications = { workspace = true }
 apollia-pipelines     = { path = "../apollia-pipelines" }
 apollia-oria          = { workspace = true }
-apollia-tools         = { workspace = true }
+apollia-tools         = { workspace = true, features = ["http", "memory-search"] }
 apollia-triggers      = { path = "../apollia-triggers" }
 async-trait           = { workspace = true }
 futures            = { workspace = true }

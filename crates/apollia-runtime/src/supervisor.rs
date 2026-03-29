@@ -1004,11 +1004,20 @@ fn resolve_home(path: &std::path::Path) -> std::path::PathBuf {
 
 /// Returns descriptors for native tools bundled with `apollia-tools`.
 ///
-/// Used by the Supervisor to auto-register tools at startup.
+/// Registers all 10 active native tools in the order: existing tools first,
+/// then new atomic tools grouped by category.
 fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
     vec![
         apollia_tools::tools::bash_executor::BashExecutor::descriptor(),
         apollia_tools::tools::python_executor::PythonExecutor::descriptor(),
+        apollia_tools::tools::file_read::FileRead::descriptor(),
+        apollia_tools::tools::file_write::FileWrite::descriptor(),
+        apollia_tools::tools::file_edit::FileEdit::descriptor(),
+        apollia_tools::tools::file_list::FileList::descriptor(),
+        apollia_tools::tools::file_glob::FileGlob::descriptor(),
+        apollia_tools::tools::file_grep::FileGrep::descriptor(),
+        apollia_tools::tools::http_fetch::HttpFetch::descriptor(),
+        apollia_tools::tools::memory_search::MemorySearchTool::descriptor(),
     ]
 }
 
@@ -1157,6 +1166,29 @@ mod tests {
         }
     }
 
+    #[test]
+    fn native_tool_descriptors_returns_10_tools() {
+        // GIVEN: the native_tool_descriptors() function
+        // WHEN: called
+        // THEN: exactly 10 descriptors are returned
+        let descriptors = native_tool_descriptors();
+        assert_eq!(descriptors.len(), 10);
+    }
+
+    #[test]
+    fn native_tool_descriptors_all_pass_validation() {
+        // GIVEN: the native_tool_descriptors() function
+        // WHEN: called
+        // THEN: every descriptor passes validate()
+        for descriptor in native_tool_descriptors() {
+            assert!(
+                descriptor.validate().is_ok(),
+                "descriptor '{}' failed validation",
+                descriptor.name
+            );
+        }
+    }
+
     /// Find a free TCP port.
     async fn free_port() -> u16 {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -1296,8 +1328,8 @@ mod tests {
         assert!(tools.is_ok());
         assert_eq!(
             tools.unwrap().len(),
-            2,
-            "2 native tools should be auto-registered"
+            10,
+            "10 native tools should be auto-registered"
         );
 
         // TaskRouterHandle: is clone
