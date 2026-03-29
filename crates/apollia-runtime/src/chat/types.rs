@@ -44,6 +44,8 @@ pub struct ChatSession {
     pub active_exchange: Option<ExchangeState>,
     /// Preferred LLM backend name (None = runtime default).
     pub llm_backend: Option<String>,
+    /// User-defined display title (falls back to agent_name or mode).
+    pub title: Option<String>,
 }
 
 /// Chat mode — free-form LLM conversation or agent-backed.
@@ -408,6 +410,8 @@ pub struct SessionInfo {
     pub status: SessionStatus,
     /// Creation timestamp.
     pub created_at: String,
+    /// User-defined display title (falls back to agent_name or mode).
+    pub title: Option<String>,
 }
 
 /// Detailed session view for single-session responses.
@@ -659,6 +663,7 @@ mod tests {
             created_at: "2026-03-20T10:00:00Z".into(),
             active_exchange: None,
             llm_backend: None,
+            title: None,
         };
 
         // WHEN we serialize and deserialize

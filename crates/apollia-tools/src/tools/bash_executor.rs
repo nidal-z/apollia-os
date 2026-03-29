@@ -85,8 +85,8 @@ impl BashExecutor {
         ToolDescriptor {
             name: "bash_executor".to_string(),
             version: "1.0.0".to_string(),
-            description: "Execute shell commands with Linux namespace isolation (PID + mount). \
-                          Dev mode on non-Linux platforms emits per-invocation warnings — see ADR-012."
+            description: "Execute a shell command. Prefer targeted, fast commands over broad scans. \
+                          Set timeout_secs proportional to expected duration."
                 .to_string(),
             kind: ToolKind::Native,
             input_schema: json!({
@@ -95,17 +95,21 @@ impl BashExecutor {
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": "Shell command interpreted by /bin/sh -c"
+                        "description": "Shell command to execute. Use the most efficient approach \
+                                        for the task — avoid scanning entire filesystems when a \
+                                        scoped command suffices."
                     },
                     "timeout_secs": {
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 300,
-                        "description": "Hard timeout in seconds before SIGKILL"
+                        "description": "Timeout in seconds. Match to expected command duration \
+                                        (e.g. simple lookups: 5-10s, builds: 60-120s)."
                     },
                     "working_dir": {
                         "type": "string",
-                        "description": "Optional absolute path to the working directory"
+                        "description": "Optional working directory. Use to avoid unnecessary \
+                                        path navigation in the command itself."
                     }
                 }
             }),

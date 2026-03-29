@@ -37,6 +37,8 @@ pub struct SessionRow {
     pub llm_backend: Option<String>,
     /// Conversation summary produced by the summarizer (nullable).
     pub summary: Option<String>,
+    /// User-defined display title (nullable — falls back to agent_name or mode).
+    pub title: Option<String>,
 }
 
 /// Raw row from the `chat_messages` table.
@@ -114,6 +116,9 @@ impl ChatSessionRepository {
         )
         .map_err(|e| ChatError::InternalError(format!("FTS5 migration failed: {e}")))?;
 
+        // v5 migration: add title column for user-defined session names.
+        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN title TEXT");
+
         Ok(Self { conn })
     }
 
@@ -139,6 +144,9 @@ impl ChatSessionRepository {
             );",
         )
         .map_err(|e| ChatError::InternalError(format!("FTS5 migration failed: {e}")))?;
+
+        // v5 migration: title column.
+        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN title TEXT");
 
         Ok(Self { conn })
     }
@@ -217,12 +225,66 @@ impl ChatSessionRepository {
         Ok(())
     }
 
+    /// Delete a session and all its messages and tool authorizations.
+    ///
+    /// Returns `Err(ChatError::SessionNotFound)` if the session does not exist.
+    pub fn delete_session(&self, id: &str) -> Result<(), ChatError> {
+        // Delete related data first (foreign-key-like cleanup).
+        self.conn
+            .execute(
+                "DELETE FROM chat_messages WHERE session_id = ?1",
+                params![id],
+            )
+            .map_err(|e| ChatError::InternalError(format!("delete_session messages: {e}")))?;
+
+        self.conn
+            .execute(
+                "DELETE FROM chat_tool_authorizations WHERE session_id = ?1",
+                params![id],
+            )
+            .map_err(|e| ChatError::InternalError(format!("delete_session authorizations: {e}")))?;
+
+        // Clean up FTS5 index.
+        let _ = self.conn.execute(
+            "DELETE FROM chat_sessions_fts WHERE session_id = ?1",
+            params![id],
+        );
+
+        let deleted = self
+            .conn
+            .execute("DELETE FROM chat_sessions WHERE id = ?1", params![id])
+            .map_err(|e| ChatError::InternalError(format!("delete_session: {e}")))?;
+
+        if deleted == 0 {
+            return Err(ChatError::SessionNotFound(id.to_string()));
+        }
+        Ok(())
+    }
+
+    /// Rename a session by setting a user-defined title.
+    ///
+    /// Returns `Err(ChatError::SessionNotFound)` if the session does not exist.
+    pub fn rename_session(&self, id: &str, title: &str) -> Result<(), ChatError> {
+        let updated = self
+            .conn
+            .execute(
+                "UPDATE chat_sessions SET title = ?1 WHERE id = ?2",
+                params![title, id],
+            )
+            .map_err(|e| ChatError::InternalError(format!("rename_session: {e}")))?;
+
+        if updated == 0 {
+            return Err(ChatError::SessionNotFound(id.to_string()));
+        }
+        Ok(())
+    }
+
     /// Retrieve a session by ID, or `None` if not found.
     pub fn get_session(&self, id: &str) -> Result<Option<SessionRow>, ChatError> {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend, summary
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend, summary, title
                  FROM chat_sessions WHERE id = ?1",
             )
             .map_err(|e| ChatError::InternalError(format!("get_session prepare: {e}")))?;
@@ -240,6 +302,7 @@ impl ChatSessionRepository {
                     closed_at: row.get(7)?,
                     llm_backend: row.get(8)?,
                     summary: row.get(9)?,
+                    title: row.get(10)?,
                 })
             })
             .optional()
@@ -252,12 +315,12 @@ impl ChatSessionRepository {
     pub fn list_sessions(&self, status: Option<&str>) -> Result<Vec<SessionRow>, ChatError> {
         let (sql, param): (&str, Option<&str>) = match status {
             Some(s) => (
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend, summary
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend, summary, title
                  FROM chat_sessions WHERE status = ?1 ORDER BY created_at DESC",
                 Some(s),
             ),
             None => (
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend, summary
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend, summary, title
                  FROM chat_sessions ORDER BY created_at DESC",
                 None,
             ),
@@ -568,6 +631,7 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
         closed_at: row.get(7)?,
         llm_backend: row.get(8)?,
         summary: row.get(9)?,
+        title: row.get(10)?,
     })
 }
 

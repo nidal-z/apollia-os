@@ -599,6 +599,7 @@ export interface ChatSessionSummary {
   message_count: number;
   created_at: string;
   closed_at: string | null;
+  title: string | null;
 }
 
 /** Détail complet d'une session de chat avec messages. */
@@ -614,6 +615,7 @@ export interface ChatSessionDetail {
   created_at: string;
   closed_at: string | null;
   llm_backend: string | null;
+  title: string | null;
 }
 
 /** Payload pour mettre à jour la configuration d'une session. */
@@ -840,6 +842,19 @@ export interface SttModelInfo {
   path: string;
   size_mb: number;
   language: string | null;
+}
+
+/** STT configuration read from / written to the `[stt]` section of apollia.toml. */
+export interface SttConfigView {
+  enabled: boolean;
+  model_path: string;
+  hotkey: string;
+  clipboard_mode: string;
+  clipboard_restore: boolean;
+  silence_threshold_db: number;
+  max_recording_sec: number;
+  language: string | null;
+  trigger_mode: string;
 }
 
 /** Current status of the STT engine reported by `get_stt_status`. */

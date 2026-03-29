@@ -1,14 +1,18 @@
 //! Tauri IPC commands for STT (Speech-to-Text) functionality.
 //!
-//! Exposes 5 commands to the Svelte frontend for querying STT engine status,
-//! listing/deleting transcriptions, transcribing audio files, and listing
-//! available models. All commands delegate to [`SttEngineHandle`] and
-//! [`SttRepository`] via the managed [`RuntimeHandle`].
+//! Exposes 7 commands to the Svelte frontend:
+//! - `get_stt_config`      — read [stt] section from apollia.toml
+//! - `update_stt_config`   — write [stt] section to apollia.toml
+//! - `get_stt_status`      — query runtime engine status
+//! - `list_transcriptions` — list transcription history
+//! - `delete_transcription`— delete a transcription by ID
+//! - `transcribe_file`     — transcribe a WAV file
+//! - `list_stt_models`     — list available .bin model files
 
 use std::io::Cursor;
 use std::sync::Arc;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use apollia_runtime::embedded::RuntimeHandle;
@@ -26,6 +30,127 @@ pub struct SttModelInfo {
     pub size_mb: f64,
     /// Language hint from the filename, if detectable.
     pub language: Option<String>,
+}
+
+/// STT configuration read from (and written to) the `[stt]` section of `apollia.toml`.
+///
+/// Mirror of [`apollia_core::SttConfig`] with all paths as plain `String`
+/// so the Tauri JSON bridge can serialise/deserialise without PathBuf.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SttConfigView {
+    /// Whether the STT engine is enabled at startup.
+    pub enabled: bool,
+    /// Path to the GGML model file (may use `~` prefix).
+    pub model_path: String,
+    /// Global hotkey to trigger recording.
+    pub hotkey: String,
+    /// Text injection mode: `"paste"` or `"clipboard"`.
+    pub clipboard_mode: String,
+    /// Whether to restore clipboard content after injection.
+    pub clipboard_restore: bool,
+    /// RMS silence threshold in dB (negative, e.g. `-40.0`).
+    pub silence_threshold_db: f32,
+    /// Maximum recording duration in seconds.
+    pub max_recording_sec: u32,
+    /// ISO 639-1 language hint, or `null` for auto-detect.
+    pub language: Option<String>,
+    /// Recording trigger mode: `"toggle"` or `"push-to-talk"`.
+    pub trigger_mode: String,
+}
+
+impl Default for SttConfigView {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            model_path: "~/.apollia/models/ggml-model-q5_0.bin".to_owned(),
+            hotkey: "ctrl+shift+space".to_owned(),
+            clipboard_mode: "paste".to_owned(),
+            clipboard_restore: true,
+            silence_threshold_db: -40.0,
+            max_recording_sec: 60,
+            language: Some("fr".to_owned()),
+            trigger_mode: "toggle".to_owned(),
+        }
+    }
+}
+
+/// Returns the current `[stt]` configuration from `~/.apollia/apollia.toml`.
+///
+/// Reads and deserialises only the `[stt]` table. Returns defaults if the
+/// file does not exist or the section is absent.
+#[tauri::command]
+pub async fn get_stt_config() -> Result<SttConfigView, String> {
+    let config_path = resolve_home("~/.apollia/apollia.toml");
+
+    if !config_path.exists() {
+        return Ok(SttConfigView::default());
+    }
+
+    let content = tokio::fs::read_to_string(&config_path)
+        .await
+        .map_err(|e| format!("failed to read apollia.toml: {e}"))?;
+
+    #[derive(serde::Deserialize)]
+    struct Wrapper {
+        #[serde(default)]
+        stt: apollia_core::SttConfig,
+    }
+
+    let wrapper: Wrapper = toml::from_str(&content)
+        .map_err(|e| format!("failed to parse apollia.toml: {e}"))?;
+
+    let stt = wrapper.stt;
+    Ok(SttConfigView {
+        enabled: stt.enabled,
+        model_path: stt.model_path.display().to_string(),
+        hotkey: stt.hotkey,
+        clipboard_mode: stt.clipboard_mode,
+        clipboard_restore: stt.clipboard_restore,
+        silence_threshold_db: stt.silence_threshold_db,
+        max_recording_sec: stt.max_recording_sec,
+        language: stt.language,
+        trigger_mode: stt.trigger_mode,
+    })
+}
+
+/// Writes the `[stt]` section to `~/.apollia/apollia.toml`.
+///
+/// Finds and replaces the existing `[stt]` block (preserving all other
+/// sections and comments), or appends it if absent. The caller must restart
+/// the application for the new configuration to take effect.
+#[tauri::command]
+pub async fn update_stt_config(config: SttConfigView) -> Result<(), String> {
+    let config_path = resolve_home("~/.apollia/apollia.toml");
+
+    // Ensure the config directory exists.
+    if let Some(parent) = config_path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("failed to create config directory: {e}"))?;
+    }
+
+    let existing = if config_path.exists() {
+        tokio::fs::read_to_string(&config_path)
+            .await
+            .map_err(|e| format!("failed to read apollia.toml: {e}"))?
+    } else {
+        String::new()
+    };
+
+    let stt_block = format_stt_block(&config);
+    let new_content = replace_or_append_stt_section(&existing, &stt_block);
+
+    tokio::fs::write(&config_path, new_content)
+        .await
+        .map_err(|e| format!("failed to write apollia.toml: {e}"))?;
+
+    tracing::info!(
+        enabled = config.enabled,
+        model_path = %config.model_path,
+        "STT configuration updated via desktop UI"
+    );
+
+    Ok(())
 }
 
 /// Returns the current STT engine status.
@@ -178,6 +303,73 @@ pub async fn list_stt_models(
     Ok(models)
 }
 
+// ── STT config helpers ───────────────────────────────────────────────
+
+/// Formats a `[stt]` TOML block from a [`SttConfigView`].
+fn format_stt_block(config: &SttConfigView) -> String {
+    let lang_line = match &config.language {
+        Some(lang) if !lang.is_empty() => format!("language             = \"{lang}\"\n"),
+        _ => String::new(),
+    };
+
+    format!(
+        "[stt]\n\
+         enabled              = {enabled}\n\
+         model_path           = \"{model_path}\"\n\
+         hotkey               = \"{hotkey}\"\n\
+         clipboard_mode       = \"{clipboard_mode}\"\n\
+         clipboard_restore    = {clipboard_restore}\n\
+         silence_threshold_db = {silence:.1}\n\
+         max_recording_sec    = {max_rec}\n\
+         {lang_line}\
+         trigger_mode         = \"{trigger_mode}\"",
+        enabled = config.enabled,
+        model_path = config.model_path,
+        hotkey = config.hotkey,
+        clipboard_mode = config.clipboard_mode,
+        clipboard_restore = config.clipboard_restore,
+        silence = config.silence_threshold_db,
+        max_rec = config.max_recording_sec,
+        lang_line = lang_line,
+        trigger_mode = config.trigger_mode,
+    )
+}
+
+/// Finds the `[stt]` section in `existing` and replaces its content with
+/// `stt_block`. If no `[stt]` section is found, appends the block.
+///
+/// Comments and other sections are preserved.
+fn replace_or_append_stt_section(existing: &str, stt_block: &str) -> String {
+    // Locate "[stt]" at start of a line.
+    let stt_pos = if existing.starts_with("[stt]") {
+        Some(0usize)
+    } else {
+        existing.find("\n[stt]").map(|i| i + 1)
+    };
+
+    if let Some(start) = stt_pos {
+        let prefix = existing[..start].trim_end_matches(|c: char| c == '\n' || c == '\r');
+
+        // Find the end of the [stt] section body: next top-level "[" at start
+        // of a line, or end of file.
+        let rest = &existing[start..]; // starts at "[stt]"
+        let section_end = rest[1..]   // skip the "[" to avoid self-match
+            .find("\n[")
+            .map(|i| start + 1 + i + 1)
+            .unwrap_or(existing.len());
+
+        let suffix = existing[section_end..].trim_start_matches(|c: char| c == '\n' || c == '\r');
+
+        if suffix.is_empty() {
+            format!("{prefix}\n\n{stt_block}\n")
+        } else {
+            format!("{prefix}\n\n{stt_block}\n\n{suffix}")
+        }
+    } else {
+        format!("{}\n\n{stt_block}\n", existing.trim_end())
+    }
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────
 
 /// Extracts the `SttRepository` from the runtime handle.
@@ -245,6 +437,83 @@ fn detect_language_from_name(name: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn format_stt_block_with_language() {
+        // GIVEN a config with a language set
+        let config = SttConfigView {
+            enabled: true,
+            model_path: "~/.apollia/models/test.bin".to_owned(),
+            hotkey: "ctrl+shift+space".to_owned(),
+            clipboard_mode: "paste".to_owned(),
+            clipboard_restore: true,
+            silence_threshold_db: -40.0,
+            max_recording_sec: 60,
+            language: Some("fr".to_owned()),
+            trigger_mode: "toggle".to_owned(),
+        };
+        // WHEN formatted
+        let block = format_stt_block(&config);
+        // THEN key fields are present
+        assert!(block.contains("[stt]"));
+        assert!(block.contains("enabled              = true"));
+        assert!(block.contains("language             = \"fr\""));
+        assert!(block.contains("model_path           = \"~/.apollia/models/test.bin\""));
+    }
+
+    #[test]
+    fn format_stt_block_without_language() {
+        // GIVEN a config with no language (auto-detect)
+        let config = SttConfigView {
+            language: None,
+            ..SttConfigView::default()
+        };
+        // WHEN formatted
+        let block = format_stt_block(&config);
+        // THEN no language line is emitted
+        assert!(!block.contains("language             ="));
+    }
+
+    #[test]
+    fn replace_stt_section_replaces_existing() {
+        // GIVEN an apollia.toml with an existing [stt] section
+        let existing = "[runtime]\nport = 7771\n\n[stt]\nenabled = false\nmodel_path = \"old.bin\"\n";
+        let new_block = "[stt]\nenabled = true\nmodel_path = \"new.bin\"";
+        // WHEN replacing
+        let result = replace_or_append_stt_section(existing, new_block);
+        // THEN [stt] has new values
+        assert!(result.contains("enabled = true"));
+        assert!(result.contains("new.bin"));
+        // AND [runtime] is preserved
+        assert!(result.contains("[runtime]"));
+        // AND old values are gone
+        assert!(!result.contains("enabled = false"));
+        assert!(!result.contains("old.bin"));
+    }
+
+    #[test]
+    fn replace_stt_section_appends_when_absent() {
+        // GIVEN a config without [stt]
+        let existing = "[runtime]\nport = 7771\n";
+        let new_block = "[stt]\nenabled = true";
+        // WHEN replacing
+        let result = replace_or_append_stt_section(existing, new_block);
+        // THEN [stt] is appended and [runtime] preserved
+        assert!(result.contains("[stt]"));
+        assert!(result.contains("[runtime]"));
+    }
+
+    #[test]
+    fn replace_stt_section_preserves_suffix_sections() {
+        // GIVEN a config with [stt] followed by another section
+        let existing = "[stt]\nenabled = false\n\n[tools]\nsandbox = true\n";
+        let new_block = "[stt]\nenabled = true";
+        // WHEN replacing
+        let result = replace_or_append_stt_section(existing, new_block);
+        // THEN [tools] is still present
+        assert!(result.contains("[tools]"));
+        assert!(result.contains("enabled = true"));
+    }
 
     #[test]
     fn detect_language_from_model_name() {

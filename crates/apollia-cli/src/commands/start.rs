@@ -773,20 +773,20 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         .map(PathBuf::from)
         .unwrap_or_else(|_| std::env::temp_dir());
 
-    // Load apollia.toml if found (LLM config and startup_agents only — triggers,
+    // Load apollia.toml if found (LLM, STT, and startup_agents — triggers,
     // pipelines, notifications are now loaded from SQLite by the Supervisor).
-    let (llm_config, startup_agents, config_path) = match find_config_file() {
+    let (llm_config, stt_config, startup_agents, config_path) = match find_config_file() {
         Some(path) => {
             tracing::info!(config = %path.display(), "loading config");
             let cfg = crate::config::parse_apollia_toml(&path).map_err(|e| StartError::Config {
                 path: path.clone(),
                 reason: e.to_string(),
             })?;
-            (cfg.llm, cfg.startup_agents, Some(path))
+            (cfg.llm, cfg.stt, cfg.startup_agents, Some(path))
         }
         None => {
             tracing::info!("no apollia.toml found — starting with defaults");
-            (None, vec![], None)
+            (None, None, vec![], None)
         }
     };
 
@@ -825,7 +825,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         data_dir,
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository,
-        stt_config: None,
+        stt_config,
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);

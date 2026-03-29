@@ -36,16 +36,22 @@ const EXTRACTION_COOLDOWN: Duration = Duration::from_secs(3600);
 const CHAT_INFERENCE_CONFIDENCE: f64 = 0.5;
 
 /// Prompt sent to the LLM to extract user information from a conversation.
-const EXTRACTION_PROMPT: &str = r#"Analyze this conversation and extract user preferences, habits, and context.
-Return ONLY a JSON object with this structure:
+const EXTRACTION_PROMPT: &str = r#"Analyze this conversation and extract durable user information — things that will still be true in future conversations.
+
+Return ONLY a JSON object:
 {
   "preferences": [{"key": "...", "value": "..."}],
   "habits": [{"key": "...", "value": "..."}],
   "context": [{"key": "...", "value": "..."}]
 }
-Only include information explicitly stated or strongly implied by the user.
-Do not invent or assume information not present in the conversation.
-If no information can be extracted for a category, use an empty array."#;
+
+Rules:
+- Only include information explicitly stated or strongly implied by the user.
+- Focus on stable traits: role, expertise, tools, preferences, domain — not ephemeral task details.
+- Use concise, specific keys (e.g. "preferred_language", "ide", "expertise_level") — not generic ones.
+- Skip information that is obvious from the system context (OS, working directory).
+- If nothing durable can be extracted for a category, use an empty array.
+- Do not invent or assume information not present in the conversation."#;
 
 // ---------------------------------------------------------------------------
 // Public types

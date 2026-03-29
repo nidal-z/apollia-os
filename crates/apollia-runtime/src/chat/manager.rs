@@ -114,6 +114,22 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
+    /// Delete a session and all its data.
+    DeleteSession {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// Rename a session (set a user-defined title).
+    RenameSession {
+        /// Target session.
+        session_id: SessionId,
+        /// New display title.
+        title: String,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
     /// Internal: ReAct exchange completed successfully (sent by spawned task).
     ExchangeComplete {
         /// Target session.
@@ -227,6 +243,18 @@ impl ChatSessionManager {
                 }
                 ChatCommand::CloseSession { session_id, reply } => {
                     let result = self.handle_close_session(&session_id);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::DeleteSession { session_id, reply } => {
+                    let result = self.handle_delete_session(&session_id);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::RenameSession {
+                    session_id,
+                    title,
+                    reply,
+                } => {
+                    let result = self.handle_rename_session(&session_id, &title);
                     let _ = reply.send(result);
                 }
                 ChatCommand::UpdateSession {
@@ -365,6 +393,7 @@ impl ChatSessionManager {
             created_at: now.clone(),
             active_exchange: None,
             llm_backend: None,
+            title: None,
         };
 
         let info = session_to_info(&session);
@@ -818,6 +847,7 @@ impl ChatSessionManager {
                         agent_name: row.agent_name,
                         status,
                         created_at: row.created_at,
+                        title: row.title,
                     })
                 })
                 .collect(),
@@ -892,6 +922,7 @@ impl ChatSessionManager {
             created_at: row.created_at,
             active_exchange: None,
             llm_backend: row.llm_backend,
+            title: row.title,
         };
 
         Some(SessionDetail {
@@ -931,6 +962,36 @@ impl ChatSessionManager {
             UserMemoryExtractor::spawn_enrichment(Arc::clone(extractor), history);
         }
 
+        Ok(())
+    }
+
+    /// Delete a session and all its data from SQLite and in-memory cache.
+    fn handle_delete_session(&mut self, session_id: &str) -> Result<(), ChatError> {
+        // Remove from SQLite (messages, authorizations, FTS, session row).
+        self.repository.delete_session(session_id)?;
+
+        // Remove from in-memory cache.
+        self.sessions.remove(session_id);
+
+        let _ = self.event_bus.send(RuntimeEvent::ChatSessionClosed {
+            session_id: session_id.to_string(),
+        });
+
+        info!(session_id = %session_id, "chat session deleted");
+        Ok(())
+    }
+
+    /// Rename a session by setting a user-defined title.
+    fn handle_rename_session(&mut self, session_id: &str, title: &str) -> Result<(), ChatError> {
+        // Persist to SQLite.
+        self.repository.rename_session(session_id, title)?;
+
+        // Update in-memory cache if present.
+        if let Some(session) = self.sessions.get_mut(session_id) {
+            session.title = Some(title.to_string());
+        }
+
+        info!(session_id = %session_id, title = %title, "chat session renamed");
         Ok(())
     }
 
@@ -996,6 +1057,7 @@ impl ChatSessionManager {
                 created_at: row.created_at,
                 active_exchange: None,
                 llm_backend: row.llm_backend,
+                title: row.title,
             };
             self.sessions.insert(row.id, session);
         }
@@ -1224,6 +1286,43 @@ impl ChatSessionManagerHandle {
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
+    /// Delete a session and all its data.
+    pub async fn delete_session(&self, session_id: SessionId) -> Result<(), ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::DeleteSession {
+                session_id,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// Rename a session (set a user-defined title).
+    pub async fn rename_session(
+        &self,
+        session_id: SessionId,
+        title: String,
+    ) -> Result<(), ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::RenameSession {
+                session_id,
+                title,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
     /// Signal the actor to shut down.
     /// Hot-reload the LLM router used by the chat subsystem.
     ///
@@ -1246,6 +1345,7 @@ fn session_to_info(session: &ChatSession) -> SessionInfo {
         agent_name: session.agent_name.clone(),
         status: session.status.clone(),
         created_at: session.created_at.clone(),
+        title: session.title.clone(),
     }
 }
 
@@ -1578,6 +1678,7 @@ mod tests {
             created_at: "2026-03-20T10:00:00Z".into(),
             active_exchange: None,
             llm_backend: None,
+            title: None,
         };
         manager.sessions.insert("sess-1".into(), session);
 

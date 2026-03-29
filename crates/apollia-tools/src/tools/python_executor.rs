@@ -243,8 +243,8 @@ impl PythonExecutor {
         ToolDescriptor {
             name: "python_executor".to_string(),
             version: "1.0.0".to_string(),
-            description: "Execute Python code in a per-agent isolated virtualenv. \
-                          Packages are installed at INITIALIZING, never at execution time."
+            description: "Execute Python code in the agent's virtualenv. Only pre-installed \
+                          packages are available. Write focused scripts that do one thing well."
                 .to_string(),
             kind: ToolKind::Native,
             input_schema: json!({

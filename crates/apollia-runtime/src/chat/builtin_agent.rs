@@ -168,11 +168,35 @@ impl ToolInvoker for NativeChatToolInvoker {
 /// Maximum number of characters for input/output previews in events.
 const PREVIEW_MAX_LEN: usize = 200;
 
+/// Maximum number of characters for tool output injected into LLM context.
+/// Outputs longer than this are truncated with a notice so the LLM knows
+/// results were cut and can refine its command.
+const TOOL_OUTPUT_MAX_LEN: usize = 4000;
+
 /// Default system prompt used when no custom prompt is provided.
-pub const DEFAULT_SYSTEM_PROMPT: &str = "Tu es un assistant IA polyvalent. Tu peux utiliser des \
-    outils pour accomplir des tâches concrètes. Réponds de manière concise et structurée. \
-    Si tu as besoin d'exécuter une commande ou d'accéder à un fichier, utilise les outils \
-    disponibles.";
+pub const DEFAULT_SYSTEM_PROMPT: &str = "\
+Tu es un assistant IA qui aide l'utilisateur en exécutant des actions concrètes via ses outils. \
+Réponds de manière concise et naturelle.
+
+## Comportement
+
+- **Agis d'abord** : quand l'utilisateur demande quelque chose de faisable avec tes outils, \
+exécute-le immédiatement. Ne demande pas de précisions sauf si la requête est réellement ambiguë.
+- **Langage naturel** : parle comme un humain, pas comme une machine. N'expose jamais de \
+détails techniques internes (chemins système, noms d'outils, limitations techniques).
+- **Autonomie** : si une première approche échoue, essaie une alternative avant de signaler un \
+problème à l'utilisateur.
+
+## Principes d'utilisation des outils
+
+1. **Contexte d'abord** : vérifie si l'information est déjà dans le contexte de la conversation \
+avant d'exécuter un outil.
+2. **Commande minimale** : choisis l'approche la plus rapide et ciblée. Ne scanne jamais un \
+filesystem entier quand un scope restreint suffit.
+3. **Timeout proportionnel** : adapte `timeout_secs` à la complexité réelle de la commande.
+4. **Résilience** : si une commande échoue ou timeout, analyse la cause et essaie une approche \
+différente plutôt que de relancer la même commande.
+";
 
 /// Response produced by a complete chat exchange.
 #[derive(Debug, Clone)]
@@ -244,8 +268,12 @@ impl BuiltInChatAgent {
             match repo_mutex.lock() {
                 Ok(repo) => match repo.recall_all_for_injection(50) {
                     Ok(block) if !block.is_empty() => {
-                        prompt
-                            .push_str("\n\n## User Context (for reference, use as you see fit)\n");
+                        prompt.push_str(
+                            "\n\n## User Context\n\
+                             Use this to personalize your responses (adapt language, depth, \
+                             examples to the user's profile). Do not repeat this information \
+                             back to the user unless asked.\n",
+                        );
                         prompt.push_str(&block);
                     }
                     Ok(_) => {} // empty — nothing to inject
@@ -653,7 +681,11 @@ impl BuiltInChatAgent {
             status: ToolCallStatus::Executed,
         };
 
-        (record, output)
+        // Truncate output for LLM context to avoid flooding the context window.
+        // The full output is preserved in the ToolCallRecord for history/UI.
+        let llm_output = truncate_tool_output(&output);
+
+        (record, llm_output)
     }
 }
 
@@ -743,12 +775,78 @@ async fn build_tool_specs(
 
 /// Truncate a string to a maximum length, appending "..." if truncated.
 fn truncate_preview(s: &str) -> String {
-    if s.len() <= PREVIEW_MAX_LEN {
+    truncate_to(s, PREVIEW_MAX_LEN)
+}
+
+/// Truncate tool output for LLM context injection.
+///
+/// When the raw output exceeds [`TOOL_OUTPUT_MAX_LEN`], this function attempts
+/// a smarter strategy: it parses the JSON result, prioritizes user-relevant
+/// lines in stdout (lines under the user's home directory), and rebuilds a
+/// compact result. Falls back to raw truncation if parsing fails.
+fn truncate_tool_output(s: &str) -> String {
+    if s.len() <= TOOL_OUTPUT_MAX_LEN {
+        return s.to_string();
+    }
+
+    // Try to parse as the JSON shape returned by bash_executor / file_io
+    if let Ok(mut val) = serde_json::from_str::<serde_json::Value>(s) {
+        if let Some(stdout) = val.get("stdout").and_then(|v| v.as_str()).map(String::from) {
+            let lines: Vec<&str> = stdout.lines().collect();
+            let total_lines = lines.len();
+
+            // Partition: user-space lines first, then the rest
+            let home = std::env::var("HOME").unwrap_or_default();
+            let (user_lines, system_lines): (Vec<&str>, Vec<&str>) = if home.is_empty() {
+                (lines.clone(), Vec::new())
+            } else {
+                lines.iter().partition(|l| l.starts_with(&home))
+            };
+
+            // Build compact output: user lines have priority, fill remaining budget
+            let mut kept = Vec::new();
+            let mut budget = TOOL_OUTPUT_MAX_LEN / 2; // reserve half for JSON overhead + notice
+            for line in user_lines.iter().chain(system_lines.iter()) {
+                if line.len() + 1 > budget {
+                    break;
+                }
+                budget -= line.len() + 1;
+                kept.push(*line);
+            }
+
+            let compact_stdout = kept.join("\n");
+            val["stdout"] = serde_json::Value::String(compact_stdout);
+
+            let result = val.to_string();
+            if kept.len() < total_lines {
+                return format!(
+                    "{result}\n\n[Output filtered — showing {kept}/{total} lines, \
+                     user paths prioritized. Refine the command for more precise results.]",
+                    kept = kept.len(),
+                    total = total_lines,
+                );
+            }
+            return result;
+        }
+    }
+
+    // Fallback: raw truncation
+    let truncated = truncate_to(s, TOOL_OUTPUT_MAX_LEN);
+    format!(
+        "{truncated}\n\n[Output truncated — {total} chars total. \
+         Refine the command to produce less output.]",
+        total = s.len()
+    )
+}
+
+/// Truncate a string to `max_len` characters at a valid UTF-8 boundary.
+fn truncate_to(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
         s.to_string()
     } else {
         let boundary = s
             .char_indices()
-            .take_while(|(i, _)| *i < PREVIEW_MAX_LEN.saturating_sub(3))
+            .take_while(|(i, _)| *i < max_len.saturating_sub(3))
             .last()
             .map(|(i, c)| i + c.len_utf8())
             .unwrap_or(0);

@@ -231,7 +231,7 @@ impl SttFlow {
             return;
         }
 
-        self.dispatch_result(&transcript.full_text);
+        self.dispatch_result(&transcript.full_text).await;
     }
 
     /// Takes and drains the active capture buffer.
@@ -255,11 +255,21 @@ impl SttFlow {
     }
 
     /// Dispatches the transcription result based on `clipboard_mode`.
-    fn dispatch_result(&self, text: &str) {
+    ///
+    /// | mode          | action                                                          |
+    /// |---------------|-----------------------------------------------------------------|
+    /// | `"paste"`     | clipboard → osascript Cmd+V (macOS) / enigo Ctrl+V (Linux)     |
+    /// | `"clipboard"` | clipboard only — user pastes manually                           |
+    /// | `"memo"`      | desktop notification only                                       |
+    /// | `"both"`      | clipboard → paste + notification                                |
+    async fn dispatch_result(&self, text: &str) {
         let mode = self.config.clipboard_mode.as_str();
+        tracing::debug!(mode, len = text.len(), "dispatching transcription result");
 
-        if mode == "paste" || mode == "both" {
-            self.inject_clipboard(text);
+        match mode {
+            "paste" | "both" => self.inject_clipboard(text).await,
+            "clipboard"      => self.write_clipboard(text),
+            _                => {}
         }
 
         if mode == "memo" || mode == "both" {
@@ -267,11 +277,49 @@ impl SttFlow {
         }
     }
 
-    /// Injects transcribed text at the cursor via clipboard + simulated paste.
-    fn inject_clipboard(&self, text: &str) {
+    /// Writes text to the clipboard without simulating a paste keystroke.
+    fn write_clipboard(&self, text: &str) {
+        if let Err(e) = clipboard::write_only(text) {
+            tracing::warn!(error = %e, "clipboard write failed");
+        }
+    }
+
+    /// Injects transcribed text via clipboard + paste from a subprocess.
+    ///
+    /// Step 1: write text to clipboard (arboard, fast).
+    /// Step 2: async sleep — lets the WindowServer propagate the clipboard.
+    /// Step 3: osascript subprocess sends Cmd+V (macOS) / enigo Ctrl+V (Linux).
+    ///
+    /// Using a subprocess for the paste keystroke avoids two bugs specific to
+    /// macOS + Tauri:
+    ///  - `enigo` Meta+V CGEvent crashes when WebKit processes it on the main
+    ///    thread while the Tokio runtime is live.
+    ///  - `enigo::text()` HID events loop through Tauri's global-shortcut tap,
+    ///    causing the transcription to be retyped as progressively shorter
+    ///    suffixes each time a matching key is encountered in the text.
+    async fn inject_clipboard(&self, text: &str) {
         let restore = self.config.clipboard_restore;
-        if let Err(e) = clipboard::inject(text, restore) {
-            tracing::warn!(error = %e, "clipboard injection failed");
+
+        let previous = match clipboard::prepare_paste(text, restore) {
+            Ok(prev) => prev,
+            Err(e) => {
+                tracing::warn!(error = %e, "clipboard write failed");
+                return;
+            }
+        };
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
+
+        if let Err(e) = clipboard::paste_via_subprocess() {
+            tracing::warn!(error = %e, "paste failed");
+            return;
+        }
+
+        if let Some(prev) = previous {
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+            if let Err(e) = clipboard::restore_clipboard(&prev) {
+                tracing::warn!(error = %e, "clipboard restore failed");
+            }
         }
     }
 

@@ -181,8 +181,8 @@ impl FileIo {
         ToolDescriptor {
             name: "file_io".to_string(),
             version: "1.0.0".to_string(),
-            description: "Read, write, and list files within the agent's sandbox directory. \
-                          All path traversal attempts are rejected before any I/O."
+            description: "Read, write, or list files in the sandbox. Use 'list' to explore \
+                          before 'read' when unsure of contents. Paths are sandbox-restricted."
                 .to_string(),
             kind: ToolKind::Native,
             input_schema: json!({

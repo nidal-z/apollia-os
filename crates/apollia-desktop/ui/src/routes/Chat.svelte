@@ -5,6 +5,7 @@
   import { MessageSquare, Plus, Loader2, Bot, X, Terminal, FileText, Code } from "lucide-svelte";
   import { connectionStatus } from "$lib/stores/sse";
   import { activeChatSessions, closedChatSessions, pendingChatSessionId } from "$lib/stores/chat";
+  import { chatSessions } from "$lib/stores/sse";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { ChatSessionSummary, CreateSessionRequest, AgentListItem } from "$lib/types";
@@ -73,9 +74,20 @@
   function closeConversation() { selectedSessionId = null; }
 
   async function handleDeleteSession(sessionId: string): Promise<void> {
-    try { await invoke("delete_chat_session", { sessionId }); }
-    catch (err: unknown) { console.warn("delete_chat_session IPC not available:", err); }
+    // Optimistic update: remove from store immediately
+    chatSessions.update((sessions) => sessions.filter((s) => s.id !== sessionId));
     if (selectedSessionId === sessionId) selectedSessionId = null;
+    try { await invoke("delete_chat_session", { sessionId }); }
+    catch (err: unknown) { console.warn("delete_chat_session failed:", err); }
+  }
+
+  async function handleRenameSession(sessionId: string, title: string): Promise<void> {
+    // Optimistic update: patch title in store immediately
+    chatSessions.update((sessions) =>
+      sessions.map((s) => (s.id === sessionId ? { ...s, title } : s))
+    );
+    try { await invoke("rename_chat_session", { sessionId, title }); }
+    catch (err: unknown) { console.warn("rename_chat_session failed:", err); }
   }
 </script>
 
@@ -181,33 +193,47 @@
         page="chat"
       />
     {:else if selectedSessionId}
-      <!-- Two-column: session list + conversation -->
+      <!-- Two-column: session sidebar + conversation -->
       <div class="flex gap-0" style="height: calc(100vh - 180px);">
-        <!-- Session sidebar — no card wrapper, just a bordered list -->
-        <div class="w-56 shrink-0 flex flex-col border-r border-border/30 pr-2 overflow-hidden">
+        <!-- Session sidebar -->
+        <div class="w-60 shrink-0 flex flex-col border-r border-border/30 pr-2 overflow-hidden">
+          <!-- New chat button in sidebar -->
+          <button
+            class="mb-2 flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-medium
+              text-muted-foreground bg-muted/30 hover:bg-muted/50 hover:text-foreground
+              transition-all active:scale-[0.98] w-full"
+            onclick={openNewChatPicker}
+            data-testid="sidebar-new-chat"
+          >
+            <Plus size={12} />
+            {$t("chat.new_chat")}
+          </button>
+
           {#if $activeChatSessions.length > 0}
-            <p class="px-3 pt-1 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40">{$t("chat.active_sessions")}</p>
-            <div class="space-y-0.5">
+            <p class="px-3 pt-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary/50">{$t("chat.active_sessions")}</p>
+            <div class="space-y-1">
               {#each $activeChatSessions as session (session.id)}
                 <ChatSessionCard
                   {session}
                   selected={selectedSessionId === session.id}
                   onclick={navigateToSession}
                   ondelete={handleDeleteSession}
+                  onrename={handleRenameSession}
                 />
               {/each}
             </div>
           {/if}
 
           {#if $closedChatSessions.length > 0}
-            <p class="px-3 pt-3 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40">{$t("chat.closed_sessions")}</p>
-            <div class="space-y-0.5 overflow-y-auto">
+            <p class="px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40">{$t("chat.closed_sessions")}</p>
+            <div class="space-y-1 overflow-y-auto">
               {#each $closedChatSessions as session (session.id)}
                 <ChatSessionCard
                   {session}
                   selected={selectedSessionId === session.id}
                   onclick={navigateToSession}
                   ondelete={handleDeleteSession}
+                  onrename={handleRenameSession}
                 />
               {/each}
             </div>
@@ -220,25 +246,35 @@
         </div>
       </div>
     {:else}
-      <!-- Session list (no session selected) — clean list style -->
+      <!-- Session list (no session selected) — card list style -->
       {#if $activeChatSessions.length > 0}
-        <p class="px-1 pb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40" data-testid="chat-active-section">
+        <p class="px-1 pb-2 text-[10px] font-semibold uppercase tracking-wider text-primary/50" data-testid="chat-active-section">
           {$t("chat.active_sessions")}
         </p>
-        <div class="glass-card glass-border rounded-lg overflow-hidden divide-y divide-border/30" data-testid="chat-active-list">
+        <div class="glass-card glass-border rounded-lg overflow-hidden divide-y divide-border/20 shadow-sm" data-testid="chat-active-list">
           {#each $activeChatSessions as session (session.id)}
-            <ChatSessionCard {session} onclick={navigateToSession} ondelete={handleDeleteSession} />
+            <ChatSessionCard
+              {session}
+              onclick={navigateToSession}
+              ondelete={handleDeleteSession}
+              onrename={handleRenameSession}
+            />
           {/each}
         </div>
       {/if}
 
       {#if $closedChatSessions.length > 0}
-        <p class="px-1 pt-4 pb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/40" data-testid="chat-closed-section">
+        <p class="px-1 pt-4 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40" data-testid="chat-closed-section">
           {$t("chat.closed_sessions")}
         </p>
-        <div class="glass-card glass-border rounded-lg overflow-hidden divide-y divide-border/30" data-testid="chat-closed-list">
+        <div class="glass-card glass-border rounded-lg overflow-hidden divide-y divide-border/20" data-testid="chat-closed-list">
           {#each $closedChatSessions as session (session.id)}
-            <ChatSessionCard {session} onclick={navigateToSession} ondelete={handleDeleteSession} />
+            <ChatSessionCard
+              {session}
+              onclick={navigateToSession}
+              ondelete={handleDeleteSession}
+              onrename={handleRenameSession}
+            />
           {/each}
         </div>
       {/if}

@@ -13,7 +13,7 @@
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import UserMemories from "./settings/UserMemories.svelte";
 
-  import type { ApollaConfigView, SystemInfo, SttModelInfo } from "$lib/types";
+  import type { ApollaConfigView, SystemInfo, SttModelInfo, SttConfigView } from "$lib/types";
   import { refreshSttStatus, sttStatus } from "$lib/stores/stt";
 
   // ─── Types ──────────────────────────────────────────
@@ -35,6 +35,10 @@
   let sttModels = $state<SttModelInfo[]>([]);
   let sttLoading = $state(false);
   let sttError = $state<string | null>(null);
+  let sttConfig = $state<SttConfigView | null>(null);
+  let sttConfigSaved = $state(false);
+  let sttSaving = $state(false);
+  let sttSaveError = $state<string | null>(null);
 
   const tabItems = $derived([
     { key: "preferences", label: $t("settings.preferences") },
@@ -66,17 +70,175 @@
   async function loadStt() {
     sttLoading = true;
     sttError = null;
+    sttConfigSaved = false;
+    sttSaveError = null;
     try {
-      const [, models] = await Promise.all([
-        refreshSttStatus(),
+      const [config, models] = await Promise.all([
+        invoke<SttConfigView>("get_stt_config"),
         invoke<SttModelInfo[]>("list_stt_models"),
       ]);
+      sttConfig = { ...config };
       sttModels = models;
+      // Engine status may fail if STT is not yet started — handle gracefully.
+      refreshSttStatus().catch(() => {});
     } catch (err: unknown) {
       sttError = err instanceof Error ? err.message : String(err);
     } finally {
       sttLoading = false;
     }
+  }
+
+  async function saveSttConfig() {
+    if (!sttConfig) return;
+    sttSaving = true;
+    sttSaveError = null;
+    sttConfigSaved = false;
+    try {
+      await invoke("update_stt_config", { config: sttConfig });
+      sttConfigSaved = true;
+    } catch (err: unknown) {
+      sttSaveError = err instanceof Error ? err.message : String(err);
+    } finally {
+      sttSaving = false;
+    }
+  }
+
+  // ─── Hotkey capture ─────────────────────────────────
+  // WebKit (Tauri/macOS) loses button focus after click, and event.ctrlKey
+  // etc. are unreliable at keydown time on macOS. Solution:
+  //   1. Attach listeners on document in capture phase (bypasses focus).
+  //   2. Track modifier state MANUALLY via a Set on each keydown/keyup.
+  //   3. preventDefault() on every key during recording so app shortcuts
+  //      don't fire while the user is building the combo.
+  //   4. Confirm on keyup of the non-modifier key (combo complete).
+
+  let hotkeyRecording = $state(false);
+  let hotkeyPreview  = $state('');       // live display while recording
+  // Plain (non-reactive) modifier tracking — updated on every keydown/keyup.
+  let _activeMods = new Set<string>();   // 'ctrl' | 'shift' | 'alt' | 'meta'
+
+  /** Map event.key → canonical modifier label. */
+  const MOD_MAP: Record<string, string> = {
+    Control: 'ctrl',
+    Shift:   'shift',
+    Alt:     'alt',   // Option on macOS
+    Meta:    'meta',  // Command on macOS
+  };
+  const SKIP_KEYS = new Set(['CapsLock', 'Dead', 'Unidentified', 'Process']);
+
+  /** event.code → short key name for the hotkey string. */
+  function normalizeKey(code: string, fallbackKey: string): string {
+    if (code.startsWith('Key'))    return code.slice(3).toLowerCase();
+    if (code.startsWith('Digit'))  return code.slice(5);
+    if (code.startsWith('Numpad')) return 'numpad' + code.slice(6).toLowerCase();
+    if (/^F\d+$/.test(code))       return code.toLowerCase();
+    const named: Record<string, string> = {
+      Space: 'space', Enter: 'enter', Backspace: 'backspace', Tab: 'tab',
+      Delete: 'delete', Insert: 'insert', Escape: 'escape',
+      ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+      Home: 'home', End: 'end', PageUp: 'pageup', PageDown: 'pagedown',
+      Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']',
+      Semicolon: ';', Quote: "'", Backquote: '`', Comma: ',', Period: '.',
+      Slash: '/', Backslash: '\\', Pause: 'pause', PrintScreen: 'print',
+    };
+    return named[code] ?? fallbackKey.toLowerCase();
+  }
+
+  function stopHotkeyCapture() {
+    hotkeyRecording = false;
+    hotkeyPreview   = '';
+    _activeMods.clear();
+    document.removeEventListener('keydown', _onHotkeyKeydown, true);
+    document.removeEventListener('keyup',   _onHotkeyKeyup,   true);
+    document.removeEventListener('click',   _onHotkeyOutside,  true);
+  }
+
+  function _buildComboFromEvent(event: KeyboardEvent): string {
+    // Belt-and-suspenders: use BOTH the manual Set AND event.xxxKey flags.
+    // The flags are reliable at the moment a non-modifier key is pressed;
+    // the Set handles macOS cases where modifier events fire after the main key.
+    const parts: string[] = [];
+    if (_activeMods.has('ctrl')  || event.ctrlKey)  parts.push('ctrl');
+    if (_activeMods.has('shift') || event.shiftKey) parts.push('shift');
+    if (_activeMods.has('alt')   || event.altKey)   parts.push('alt');
+    if (_activeMods.has('meta')  || event.metaKey)  parts.push('meta');
+    parts.push(normalizeKey(event.code, event.key));
+    return parts.join('+');
+  }
+
+  function _onHotkeyKeydown(event: KeyboardEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation(); // block Tauri global-shortcut handler too
+
+    if (event.key === 'Escape') { stopHotkeyCapture(); return; }
+
+    const mod = MOD_MAP[event.key];
+    if (mod) {
+      _activeMods.add(mod);
+      // Show live preview of held modifiers.
+      const held = [];
+      if (_activeMods.has('ctrl'))  held.push('Ctrl');
+      if (_activeMods.has('shift')) held.push('Shift');
+      if (_activeMods.has('alt'))   held.push('Alt');
+      if (_activeMods.has('meta'))  held.push('Cmd');
+      hotkeyPreview = held.join('+') + (held.length ? ' +' : '');
+      return;
+    }
+    if (SKIP_KEYS.has(event.key)) return;
+
+    // Non-modifier key — build and immediately confirm the combo.
+    const combo = _buildComboFromEvent(event);
+    if (sttConfig) sttConfig.hotkey = combo;
+    stopHotkeyCapture();
+  }
+
+  function _onHotkeyKeyup(event: KeyboardEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+
+    const mod = MOD_MAP[event.key];
+    if (!mod) return;
+
+    // Capture the full set BEFORE removing this modifier.
+    const parts: string[] = [];
+    if (_activeMods.has('ctrl'))  parts.push('ctrl');
+    if (_activeMods.has('shift')) parts.push('shift');
+    if (_activeMods.has('alt'))   parts.push('alt');
+    if (_activeMods.has('meta'))  parts.push('meta');
+
+    _activeMods.delete(mod);
+
+    if (_activeMods.size === 0) {
+      // Last modifier released — confirm as modifier-only combo (e.g. ctrl+alt).
+      if (parts.length > 0 && sttConfig) sttConfig.hotkey = parts.join('+');
+      stopHotkeyCapture();
+      return;
+    }
+
+    // Still holding some modifiers — update live preview.
+    const held = [];
+    if (_activeMods.has('ctrl'))  held.push('Ctrl');
+    if (_activeMods.has('shift')) held.push('Shift');
+    if (_activeMods.has('alt'))   held.push('Alt');
+    if (_activeMods.has('meta'))  held.push('Cmd');
+    hotkeyPreview = held.join('+') + ' +';
+  }
+
+  function _onHotkeyOutside(event: MouseEvent) {
+    const btn = document.getElementById('stt-hotkey-btn');
+    if (btn && !btn.contains(event.target as Node)) stopHotkeyCapture();
+  }
+
+  function startHotkeyCapture() {
+    if (hotkeyRecording) return; // already active — avoid double-binding
+    _activeMods.clear();
+    hotkeyPreview  = '';
+    hotkeyRecording = true;
+    document.addEventListener('keydown', _onHotkeyKeydown, true);
+    document.addEventListener('keyup',   _onHotkeyKeyup,   true);
+    document.addEventListener('click',   _onHotkeyOutside,  true);
   }
 
   // ─── Actions ────────────────────────────────────────
@@ -286,11 +448,205 @@
             {$t('settings.stt_error')}: {sttError}
           </div>
         {:else}
-          {@const status = $sttStatus}
 
-          <!-- Engine status -->
+          <!-- ── Configuration (editable) ──────────────────────────── -->
+          {#if sttConfig}
+            <div class="glass-card glass-border rounded-lg p-4" data-testid="stt-config-form">
+              <h3 class="mb-4 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.stt_config_section')}</h3>
+
+              <div class="space-y-4">
+                <!-- Enable toggle -->
+                <label class="flex cursor-pointer items-center justify-between" data-testid="stt-enable-toggle">
+                  <span class="text-sm text-foreground">{$t('settings.stt_enable_engine')}</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={sttConfig.enabled}
+                    aria-label={$t('settings.stt_enable_engine')}
+                    onclick={() => { if (sttConfig) sttConfig.enabled = !sttConfig.enabled; }}
+                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {sttConfig.enabled ? 'bg-primary' : 'bg-muted'}"
+                  >
+                    <span class="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform {sttConfig.enabled ? 'translate-x-6' : 'translate-x-1'}"></span>
+                  </button>
+                </label>
+
+                <!-- Model selector -->
+                <div class="space-y-1.5">
+                  <label class="text-sm text-muted-foreground" for="stt-model-select">{$t('settings.stt_select_model')}</label>
+                  {#if sttModels.length > 0}
+                    <select
+                      id="stt-model-select"
+                      bind:value={sttConfig.model_path}
+                      class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                      data-testid="stt-model-select"
+                    >
+                      {#each sttModels as model (model.name)}
+                        <option value="~/.apollia/models/{model.name}">
+                          {model.name} ({model.size_mb.toFixed(0)} Mo{model.language ? ` · ${model.language}` : ''})
+                        </option>
+                      {/each}
+                    </select>
+                  {:else}
+                    <p class="rounded-md border border-border/50 px-3 py-2 text-sm text-muted-foreground">
+                      {$t('settings.stt_no_models')}
+                    </p>
+                  {/if}
+                </div>
+
+                <!-- Language -->
+                <div class="space-y-1.5">
+                  <label class="text-sm text-muted-foreground" for="stt-language">{$t('settings.stt_language')}</label>
+                  <input
+                    id="stt-language"
+                    type="text"
+                    placeholder={$t('settings.stt_language_auto')}
+                    bind:value={sttConfig.language}
+                    class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                    data-testid="stt-language-input"
+                  />
+                </div>
+
+                <!-- Hotkey capture -->
+                <div class="space-y-1.5">
+                  <label class="text-sm text-muted-foreground" for="stt-hotkey-btn">{$t('settings.stt_hotkey')}</label>
+                  <button
+                    id="stt-hotkey-btn"
+                    type="button"
+                    aria-label={hotkeyRecording ? $t('settings.stt_hotkey_recording') : sttConfig.hotkey || $t('settings.stt_hotkey_placeholder')}
+                    class="flex h-9 w-full cursor-pointer items-center justify-between rounded-md border px-3 py-1.5 text-sm transition-colors {hotkeyRecording ? 'border-primary bg-primary/5 text-primary ring-2 ring-primary/30' : 'border-border bg-background text-foreground hover:border-border/80'}"
+                    data-testid="stt-hotkey-input"
+                    onclick={startHotkeyCapture}
+                  >
+                    <span class="font-mono">
+                      {#if hotkeyRecording}
+                        {#if hotkeyPreview}
+                          <span>{hotkeyPreview}</span>
+                        {:else}
+                          <span class="animate-pulse">{$t('settings.stt_hotkey_recording')}</span>
+                        {/if}
+                      {:else}
+                        {sttConfig.hotkey || $t('settings.stt_hotkey_placeholder')}
+                      {/if}
+                    </span>
+                    {#if !hotkeyRecording}
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true">
+                        <path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.848 2.047a.75.75 0 0 0 .98.98l2.047-.848a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.474Z" />
+                        <path d="M4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V8a.75.75 0 0 1 1.5 0v3.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H8a.75.75 0 0 1 0 1.5H4.75Z" />
+                      </svg>
+                    {/if}
+                  </button>
+                  {#if hotkeyRecording}
+                    <p class="text-xs text-primary/80">{$t('settings.stt_hotkey_hint')}</p>
+                  {/if}
+                </div>
+
+                <!-- Trigger mode + Clipboard mode (2-col grid) -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="space-y-1.5">
+                    <label class="text-sm text-muted-foreground" for="stt-trigger">{$t('settings.stt_trigger_mode')}</label>
+                    <select
+                      id="stt-trigger"
+                      bind:value={sttConfig.trigger_mode}
+                      class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                    >
+                      <option value="toggle">{$t('settings.stt_trigger_toggle')}</option>
+                      <option value="push-to-talk">{$t('settings.stt_trigger_push')}</option>
+                    </select>
+                  </div>
+
+                  <div class="space-y-1.5">
+                    <label class="text-sm text-muted-foreground" for="stt-clipboard">{$t('settings.stt_clipboard_mode')}</label>
+                    <select
+                      id="stt-clipboard"
+                      bind:value={sttConfig.clipboard_mode}
+                      class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                    >
+                      <option value="paste">{$t('settings.stt_clipboard_paste')}</option>
+                      <option value="clipboard">{$t('settings.stt_clipboard_clipboard')}</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Max recording + Silence threshold (2-col grid) -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="space-y-1.5">
+                    <label class="text-sm text-muted-foreground" for="stt-max-rec">{$t('settings.stt_max_recording')}</label>
+                    <div class="relative">
+                      <input
+                        id="stt-max-rec"
+                        type="number"
+                        min="5"
+                        max="300"
+                        bind:value={sttConfig.max_recording_sec}
+                        class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 pr-8 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                      />
+                      <span class="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs text-muted-foreground">s</span>
+                    </div>
+                  </div>
+
+                  <div class="space-y-1.5">
+                    <label class="text-sm text-muted-foreground" for="stt-silence">{$t('settings.stt_silence_threshold')}</label>
+                    <div class="relative">
+                      <input
+                        id="stt-silence"
+                        type="number"
+                        min="-80"
+                        max="0"
+                        step="1"
+                        bind:value={sttConfig.silence_threshold_db}
+                        class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 pr-10 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                      />
+                      <span class="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs text-muted-foreground">dB</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Clipboard restore toggle -->
+                <label class="flex cursor-pointer items-center justify-between">
+                  <span class="text-sm text-muted-foreground">{$t('settings.stt_clipboard_restore')}</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={sttConfig.clipboard_restore}
+                    aria-label={$t('settings.stt_clipboard_restore')}
+                    onclick={() => { if (sttConfig) sttConfig.clipboard_restore = !sttConfig.clipboard_restore; }}
+                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring {sttConfig.clipboard_restore ? 'bg-primary' : 'bg-muted'}"
+                  >
+                    <span class="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform {sttConfig.clipboard_restore ? 'translate-x-6' : 'translate-x-1'}"></span>
+                  </button>
+                </label>
+              </div>
+
+              <!-- Save button + errors -->
+              <div class="mt-5 flex items-center gap-3">
+                <Button
+                  onclick={saveSttConfig}
+                  disabled={sttSaving}
+                  data-testid="stt-save-btn"
+                >
+                  {sttSaving ? $t('settings.stt_saving') : $t('settings.stt_save')}
+                </Button>
+                {#if sttSaveError}
+                  <span class="text-sm text-destructive">{$t('settings.stt_save_error')}: {sttSaveError}</span>
+                {/if}
+              </div>
+            </div>
+          {/if}
+
+          <!-- ── Restart notice ─────────────────────────────────────── -->
+          {#if sttConfigSaved}
+            <div class="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400" data-testid="stt-restart-notice" role="alert">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mt-0.5 h-4 w-4 shrink-0">
+                <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+              </svg>
+              {$t('settings.stt_restart_notice')}
+            </div>
+          {/if}
+
+          <!-- ── Engine runtime status (read-only) ─────────────────── -->
+          {@const status = $sttStatus}
           <div class="glass-card glass-border rounded-lg p-4" data-testid="stt-engine-status">
-            <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.stt_engine_status')}</h3>
+            <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.stt_engine_status_section')}</h3>
             <div class="space-y-2">
               <div class="grid grid-cols-2 gap-2">
                 <span class="text-sm text-muted-foreground">{$t('settings.stt_engine_status')}</span>
@@ -326,10 +682,6 @@
                 <span class="text-sm font-mono text-foreground">{status?.backend_name ?? "—"}</span>
               </div>
               <div class="grid grid-cols-2 gap-2">
-                <span class="text-sm text-muted-foreground">{$t('settings.stt_model_path')}</span>
-                <span class="text-sm font-mono text-foreground break-all">{status?.model_path ?? "—"}</span>
-              </div>
-              <div class="grid grid-cols-2 gap-2">
                 <span class="text-sm text-muted-foreground">{$t('settings.stt_acceleration')}</span>
                 <span class="text-sm font-mono text-foreground">
                   {#if status?.metal_enabled}
@@ -344,25 +696,7 @@
             </div>
           </div>
 
-          <!-- Configuration (from apollia.toml) -->
-          {#if configView}
-            {@const sttSection = configView.sections.find(s => s.name === "stt")}
-            {#if sttSection}
-              <div class="glass-card glass-border rounded-lg p-4" data-testid="stt-config">
-                <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.stt_config')}</h3>
-                <div class="space-y-2">
-                  {#each sttSection.entries as entry (entry.key)}
-                    <div class="grid grid-cols-2 gap-2">
-                      <span class="text-sm text-muted-foreground">{entry.key}</span>
-                      <span class="text-sm font-mono text-foreground">{entry.value}</span>
-                    </div>
-                  {/each}
-                </div>
-              </div>
-            {/if}
-          {/if}
-
-          <!-- Available models -->
+          <!-- ── Available models ──────────────────────────────────── -->
           <div class="glass-card glass-border rounded-lg p-4" data-testid="stt-models">
             <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.stt_available_models')}</h3>
             {#if sttModels.length === 0}
@@ -384,8 +718,8 @@
             {/if}
           </div>
 
-          <!-- Hint to edit apollia.toml -->
-          <div class="rounded-md border border-info/20 bg-info/5 px-4 py-3 text-sm text-info-foreground" data-testid="stt-config-hint">
+          <!-- ── Config file hint ──────────────────────────────────── -->
+          <div class="rounded-md border border-border/30 bg-muted/20 px-4 py-3 text-xs text-muted-foreground" data-testid="stt-config-hint">
             {$t('settings.stt_config_hint')}
           </div>
         {/if}

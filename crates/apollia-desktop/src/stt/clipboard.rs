@@ -1,20 +1,17 @@
 //! Clipboard injection for STT transcription results.
 //!
-//! Saves the current clipboard content, sets the transcribed text, simulates
-//! a system Paste shortcut (`Cmd+V` on macOS, `Ctrl+V` on Linux), and
-//! optionally restores the previous clipboard content after a short delay.
-
-use std::thread;
-use std::time::Duration;
+//! Exposes two public primitives used by the async STT flow:
+//! - [`write_only`]          – write text to clipboard, no paste
+//! - [`prepare_paste`]       – write text + optionally save previous
+//! - [`simulate_paste`]      – send Cmd/Ctrl+V via the Accessibility API
+//! - [`restore_clipboard`]   – write back previously saved content
+//!
+//! The delays between steps (clipboard propagation, post-paste settle)
+//! are the caller's responsibility so they can be `tokio::time::sleep`
+//! instead of blocking `thread::sleep`.
 
 use arboard::Clipboard;
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
-
-/// Delay between setting clipboard text and simulating the paste shortcut.
-///
-/// Applications need time to process the paste event before the clipboard
-/// content can be restored.
-const PASTE_SETTLE_MS: u64 = 100;
 
 /// Errors that can occur during clipboard injection.
 #[derive(Debug, thiserror::Error)]
@@ -40,46 +37,105 @@ pub enum ClipboardError {
     PasteSimulation(String),
 }
 
-/// Injects text at the current cursor position via clipboard + simulated paste.
+/// Writes text to the system clipboard without simulating a paste shortcut.
 ///
-/// The function is intentionally **blocking** (it sleeps for [`PASTE_SETTLE_MS`]
-/// when `restore` is `true`). Call it from a background thread or
-/// `spawn_blocking` to avoid stalling the async runtime.
+/// Use when `clipboard_mode = "clipboard"`: the user pastes manually.
+pub fn write_only(text: &str) -> Result<(), ClipboardError> {
+    let mut clipboard =
+        Clipboard::new().map_err(|e| ClipboardError::ClipboardInit(e.to_string()))?;
+    clipboard
+        .set_text(text)
+        .map_err(|e| ClipboardError::Write(e.to_string()))?;
+    tracing::debug!(len = text.len(), "text written to clipboard (no paste)");
+    Ok(())
+}
+
+/// Writes text to the clipboard and optionally saves the previous content.
 ///
-/// # Arguments
+/// Returns the previous clipboard text if `restore` is `true` and
+/// a previous text was present. The caller should pass the returned value
+/// to [`restore_clipboard`] after an async delay.
 ///
-/// * `text`    – The text to inject at the cursor position.
-/// * `restore` – When `true`, the previous clipboard content is saved before
-///   injection and restored after the paste is processed.
-pub fn inject(text: &str, restore: bool) -> Result<(), ClipboardError> {
+/// This function is **fast** (no sleeps). The caller is responsible for
+/// inserting the appropriate async delays between steps.
+pub fn prepare_paste(text: &str, restore: bool) -> Result<Option<String>, ClipboardError> {
     let mut clipboard =
         Clipboard::new().map_err(|e| ClipboardError::ClipboardInit(e.to_string()))?;
 
-    let previous = if restore {
-        clipboard.get_text().ok()
-    } else {
-        None
-    };
+    let previous = if restore { clipboard.get_text().ok() } else { None };
 
     clipboard
         .set_text(text)
         .map_err(|e| ClipboardError::Write(e.to_string()))?;
 
-    simulate_paste()?;
+    tracing::debug!(len = text.len(), restore, "clipboard prepared for paste");
+    Ok(previous)
+}
 
-    if let Some(prev) = previous {
-        thread::sleep(Duration::from_millis(PASTE_SETTLE_MS));
-        clipboard
-            .set_text(&prev)
-            .map_err(|e| ClipboardError::Write(e.to_string()))?;
+/// Pastes text at the current cursor position using clipboard + osascript.
+///
+/// On macOS, simulating Cmd+V via `enigo` within the Tauri process causes two
+/// distinct failures:
+///  1. Using `Key::Meta` + `Key::Unicode('v')`: crashes because the CGEvent is
+///     processed by the WebKit paste handler on the main thread while the
+///     Tokio runtime is active.
+///  2. Using `enigo::text()`: the HID-level CGEvents pass through Tauri's
+///     global-shortcut event tap, which re-dispatches them as a new hotkey
+///     invocation each time a chunk containing a matching key is seen —
+///     resulting in the transcription text being typed repeatedly as
+///     progressively shorter suffixes.
+///
+/// The solution: write the text to the clipboard with `arboard`, then send
+/// Cmd+V from a **separate `osascript` subprocess**. The event originates
+/// outside the Tauri process so WebKit handles it like a normal user paste
+/// and the global-shortcut tap never sees it.
+///
+/// On platforms other than macOS, falls back to `enigo` Ctrl+V.
+///
+/// This function is **fast** (no sleeps). `arboard` clipboard access must have
+/// already been done by the caller via [`prepare_paste`] before calling this.
+pub fn paste_via_subprocess() -> Result<(), ClipboardError> {
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("osascript")
+            .args([
+                "-e",
+                "tell application \"System Events\" to keystroke \"v\" using {command down}",
+            ])
+            .status()
+            .map_err(|e| ClipboardError::PasteSimulation(format!("osascript spawn failed: {e}")))?;
+        if !status.success() {
+            return Err(ClipboardError::PasteSimulation(format!(
+                "osascript exited with {status}"
+            )));
+        }
+        tracing::debug!("paste triggered via osascript subprocess");
     }
-
-    tracing::debug!(len = text.len(), restore, "text injected via clipboard");
+    #[cfg(not(target_os = "macos"))]
+    {
+        let mut enigo = Enigo::new(&Settings::default())
+            .map_err(|e| ClipboardError::KeyboardInit(e.to_string()))?;
+        enigo
+            .key(Key::Control, Direction::Press)
+            .map_err(|e| ClipboardError::PasteSimulation(e.to_string()))?;
+        enigo
+            .key(Key::Unicode('v'), Direction::Click)
+            .map_err(|e| ClipboardError::PasteSimulation(e.to_string()))?;
+        enigo
+            .key(Key::Control, Direction::Release)
+            .map_err(|e| ClipboardError::PasteSimulation(e.to_string()))?;
+        tracing::debug!("paste triggered via enigo Ctrl+V");
+    }
     Ok(())
 }
 
-/// Simulates the platform paste shortcut (`Cmd+V` / `Ctrl+V`).
-fn simulate_paste() -> Result<(), ClipboardError> {
+/// Simulates the platform paste shortcut (`Cmd+V` on macOS, `Ctrl+V` elsewhere).
+///
+/// **Prefer [`type_text`] over this function** when possible. On macOS,
+/// posting a Meta+V CGEvent while a Tauri/WebKit window is in focus crashes
+/// the process. This function is kept for potential future use on other
+/// platforms.
+pub fn simulate_paste() -> Result<(), ClipboardError> {
     let mut enigo = Enigo::new(&Settings::default())
         .map_err(|e| ClipboardError::KeyboardInit(e.to_string()))?;
 
@@ -95,6 +151,20 @@ fn simulate_paste() -> Result<(), ClipboardError> {
         .key(modifier, Direction::Release)
         .map_err(|e| ClipboardError::PasteSimulation(e.to_string()))?;
 
+    tracing::debug!("paste shortcut simulated");
+    Ok(())
+}
+
+/// Restores the clipboard to a previously saved value.
+///
+/// Call this after [`simulate_paste`] and the post-paste settle delay.
+pub fn restore_clipboard(previous: &str) -> Result<(), ClipboardError> {
+    let mut clipboard =
+        Clipboard::new().map_err(|e| ClipboardError::ClipboardInit(e.to_string()))?;
+    clipboard
+        .set_text(previous)
+        .map_err(|e| ClipboardError::Write(e.to_string()))?;
+    tracing::debug!("clipboard restored to previous content");
     Ok(())
 }
 

@@ -34,6 +34,7 @@ pub struct ChatSessionSummary {
     pub message_count: u32,
     pub created_at: String,
     pub closed_at: Option<String>,
+    pub title: Option<String>,
 }
 
 /// Detailed view of a chat session (flat structure for frontend).
@@ -50,6 +51,7 @@ pub struct ChatSessionDetail {
     pub created_at: String,
     pub closed_at: Option<String>,
     pub llm_backend: Option<String>,
+    pub title: Option<String>,
 }
 
 /// Request payload for updating session configuration.
@@ -183,6 +185,41 @@ pub async fn update_chat_session(
         .map_err(|e| e.to_string())
 }
 
+/// Deletes a chat session and all its messages.
+#[tauri::command]
+pub async fn delete_chat_session(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+) -> Result<(), String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+
+    manager
+        .delete_session(session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Renames a chat session (sets a user-defined title).
+#[tauri::command]
+pub async fn rename_chat_session(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+    title: String,
+) -> Result<(), String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+
+    manager
+        .rename_session(session_id, title)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Sends a user message and launches the async response generation.
 #[tauri::command]
 pub async fn send_chat_message(
@@ -263,6 +300,7 @@ fn session_info_to_summary(info: &SessionInfo) -> ChatSessionSummary {
         message_count: 0,
         created_at: info.created_at.clone(),
         closed_at: None,
+        title: info.title.clone(),
     }
 }
 
@@ -302,6 +340,7 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
         created_at: session.created_at,
         closed_at: None,
         llm_backend: session.llm_backend,
+        title: session.title,
     }
 }
 
@@ -409,6 +448,7 @@ mod tests {
             message_count: 0,
             created_at: "2026-03-20T10:00:00Z".into(),
             closed_at: None,
+            title: None,
         };
         let json = serde_json::to_string(&summary).expect("serialize");
         let restored: ChatSessionSummary = serde_json::from_str(&json).expect("deserialize");
@@ -427,6 +467,7 @@ mod tests {
             agent_name: Some("test-agent".into()),
             status: SessionStatus::Processing,
             created_at: "2026-03-20T10:00:00Z".into(),
+            title: None,
         };
         let summary = session_info_to_summary(&info);
         assert_eq!(summary.id, "sess-1");
