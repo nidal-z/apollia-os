@@ -7,10 +7,13 @@
   import McpDisclaimerDialog, { isDisclaimerAccepted } from "../components/integrations/McpDisclaimerDialog.svelte";
   import OperatorConnectionCard from "../components/integrations/OperatorConnectionCard.svelte";
   import OperatorCatalogue from "../components/integrations/OperatorCatalogue.svelte";
+  import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
   import type { McpServerStatusView, ConnectorEnrichmentView, RegistryServerView } from "$lib/types";
 
   let disclaimerOpen = $state(false);
   let catalogueOpen = $state(false);
+  let selectedServer = $state<RegistryServerView | null>(null);
+  let wizardOpen = $state(false);
   let servers = $state<McpServerStatusView[]>([]);
   let enrichmentMap = $state(new Map<string, ConnectorEnrichmentView>());
   let loading = $state(false);
@@ -53,8 +56,21 @@
     catalogueOpen = true;
   }
 
-  function handleSelectServer(_server: RegistryServerView): void {
-    // ConnectorWizard will be wired here in STORY-357
+  function handleSelectServer(server: RegistryServerView): void {
+    selectedServer = server;
+    wizardOpen = true;
+  }
+
+  function handleWizardClose(): void {
+    wizardOpen = false;
+    selectedServer = null;
+  }
+
+  function handleWizardComplete(): void {
+    wizardOpen = false;
+    selectedServer = null;
+    catalogueOpen = false;
+    loadOperatorData();
   }
 
   function handleManage(_name: string): void {
@@ -130,6 +146,15 @@
       <p class="mt-1 text-sm text-muted-foreground">{$t("integrations.builder.subtitle")}</p>
     </div>
   </div>
+{/if}
+
+{#if selectedServer}
+  <ConnectorWizard
+    server={selectedServer}
+    open={wizardOpen}
+    onclose={handleWizardClose}
+    oncomplete={handleWizardComplete}
+  />
 {/if}
 
 <McpDisclaimerDialog
