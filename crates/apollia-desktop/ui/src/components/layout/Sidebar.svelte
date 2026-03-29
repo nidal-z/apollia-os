@@ -14,6 +14,7 @@
     ListChecks,
     MessageSquare,
     ShieldCheck,
+    Plug,
     Brain,
     Timer,
     GitBranch,
@@ -37,6 +38,7 @@
     { route: "agents", labelKey: "nav.my_assistants", icon: Bot },
     { route: "tasks", labelKey: "nav.activity", icon: ListChecks },
     { route: "chat", labelKey: "nav.chat", icon: MessageSquare },
+    { route: "integrations", labelKey: "nav.connections", icon: Plug },
     { route: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
   ];
 
@@ -57,6 +59,7 @@
         { route: "llm", labelKey: "nav.llm", icon: Brain },
         { route: "triggers", labelKey: "nav.triggers", icon: Timer },
         { route: "pipelines", labelKey: "nav.pipelines", icon: GitBranch },
+        { route: "integrations", labelKey: "nav.mcp_servers", icon: Plug },
       ],
     },
     {

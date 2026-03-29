@@ -51,6 +51,8 @@
     "transcriptions": "Transcriptions",
     "chat": "Chat",
     "settings": "Settings",
+    "connections": "Connections",
+    "mcp_servers": "MCP Servers",
     "switch_to_builder": "Switch to Builder",
     "switch_to_operator": "Switch to Operator",
     "connection": {
@@ -58,6 +60,14 @@
       "connected": "Runtime connected",
       "reconnecting": "Reconnecting...",
       "error": "Connection lost"
+    }
+  },
+  "integrations": {
+    "operator": {
+      "subtitle": "Manage your MCP connections"
+    },
+    "builder": {
+      "subtitle": "Configure and monitor MCP servers"
     }
   },
   "dashboard": {

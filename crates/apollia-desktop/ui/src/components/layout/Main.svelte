@@ -17,6 +17,7 @@
   import Settings from "../../routes/Settings.svelte";
   import Onboarding from "../../routes/Onboarding.svelte";
   import Transcriptions from "../../routes/Transcriptions.svelte";
+  import Integrations from "../../routes/Integrations.svelte";
 
   onMount(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -84,6 +85,8 @@
           <Notifications />
         {:else if $currentRoute === "observability"}
           <Observability />
+        {:else if $currentRoute === "integrations"}
+          <Integrations />
         {:else if $currentRoute === "settings"}
           <Settings />
         {:else if $currentRoute === "onboarding"}
