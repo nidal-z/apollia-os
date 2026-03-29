@@ -21,7 +21,7 @@ use crate::config::McpServerConfig;
 use crate::jsonrpc::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 use crate::protocol::{
     ClientCapabilities, ClientInfo, InitializeParams, InitializeResult, McpToolDefinition,
-    ServerCapabilities, ServerInfo,
+    ServerCapabilities, ServerInfo, ToolsListResult,
 };
 
 // ─── errors ──────────────────────────────────────────────────────────────────
@@ -166,6 +166,7 @@ impl McpSession {
         };
 
         session.initialize().await?;
+        session.discover_tools().await?;
 
         Ok(session)
     }
@@ -211,6 +212,34 @@ impl McpSession {
         self.send_notification("notifications/initialized", None)
             .await?;
 
+        Ok(())
+    }
+
+    /// Discover tools available on this MCP server via `tools/list`.
+    ///
+    /// Called automatically at the end of `start()` after the `initialize` handshake.
+    /// Populates the `tools` field; logs a warning when the server exposes no tools.
+    async fn discover_tools(&mut self) -> Result<(), McpSessionError> {
+        let timeout_secs = self.config.init_timeout_secs;
+        let response = self.send_request("tools/list", None, timeout_secs).await?;
+
+        let result: ToolsListResult =
+            serde_json::from_value(response).map_err(|e| McpSessionError::InitializeFailed {
+                server: self.config.name.clone(),
+                cause: e.to_string(),
+            })?;
+
+        tracing::info!(
+            server = %self.config.name,
+            tools_count = result.tools.len(),
+            "MCP tools discovered"
+        );
+
+        if result.tools.is_empty() {
+            tracing::warn!(server = %self.config.name, "MCP server exposes no tools");
+        }
+
+        self.tools = result.tools;
         Ok(())
     }
 
@@ -311,12 +340,6 @@ impl McpSession {
         &self.tools
     }
 
-    /// Replaces the tool list; called by `discover_tools` during the tools/list phase.
-    #[allow(dead_code)]
-    pub(crate) fn set_tools(&mut self, tools: Vec<McpToolDefinition>) {
-        self.tools = tools;
-    }
-
     /// Gracefully shut down the session.
     ///
     /// Closes the stdin channel so the writer task terminates and the server process
@@ -407,6 +430,34 @@ mod tests {
             call_timeout_secs,
             tags: vec![],
         }
+    }
+
+    #[test]
+    fn test_tools_list_result_parsing() {
+        // GIVEN a tools/list response with three tools
+        let json = serde_json::json!({
+            "tools": [
+                {"name": "search", "description": "Search pages", "inputSchema": {"type": "object"}},
+                {"name": "create", "inputSchema": {"type": "object"}},
+                {"name": "delete", "description": "Delete a page", "inputSchema": {"type": "object"}}
+            ]
+        });
+        // WHEN
+        let result: ToolsListResult = serde_json::from_value(json).unwrap();
+        // THEN
+        assert_eq!(result.tools.len(), 3);
+        assert_eq!(result.tools[0].name, "search");
+        assert_eq!(result.tools[1].description, None);
+    }
+
+    #[test]
+    fn test_empty_tools_list_is_valid() {
+        // GIVEN a tools/list response with no tools
+        let json = serde_json::json!({"tools": []});
+        // WHEN
+        let result: ToolsListResult = serde_json::from_value(json).unwrap();
+        // THEN
+        assert!(result.tools.is_empty());
     }
 
     #[test]
