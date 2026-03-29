@@ -60,7 +60,14 @@ pub struct McpServerConfig {
 }
 ```
 
-Les valeurs du champ `env` acceptent la syntaxe `${NOM_VARIABLE}`. L'interpolation est résolue depuis les variables d'environnement shell au moment du chargement. Une variable référencée absente retourne une erreur de configuration explicite.
+Les valeurs du champ `env` supportent deux syntaxes d'interpolation résolues par `resolve_env()` au chargement :
+
+| Syntaxe | Source | Exemple |
+|---|---|---|
+| `${NOM_VAR}` | Variable d'environnement shell | `${NOTION_API_KEY}` |
+| `${APOLLIA_SECRET:NOM_VAR}` | OS Keychain (via crate `keyring`, Sprint 27) | `${APOLLIA_SECRET:NOTION_API_KEY}` |
+
+Pour `APOLLIA_SECRET:`, la clé lue dans le keychain suit le format `{server_name}:{nom_var}`. Une variable absente (shell ou keychain) retourne une erreur de configuration explicite. Les secrets sont écrits dans le keychain par la page Intégrations du desktop — voir [Guide Intégrations](./Integrations-Guide).
 
 ### `McpSession`
 

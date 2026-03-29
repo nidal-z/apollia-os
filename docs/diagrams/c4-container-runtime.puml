@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title C4 Container — 14 Crates Workspace — Apollia OS
+title C4 Container — Workspace — Apollia OS
 
 actor "Opérateur" as ops #3a3a3a/white
 actor "Développeur" as dev #3a3a3a/white
@@ -14,7 +14,7 @@ actor "Utilisateur Desktop" as desktop_user #3a3a3a/white
 
 rectangle "Apollia OS Workspace" as workspace #1a1a2e {
 
-  rectangle "apollia-desktop\n(Tauri v2 + Svelte 5)" as desktop #1a1a2e
+  rectangle "apollia-desktop\n(Tauri v2 + Svelte 5)\nRegistryClient · SecretStore\nPage Intégrations · Wizard" as desktop #1a1a2e
 
   rectangle "apollia-cli\n(binaire clap v4)" as cli #1a1a2e
 
@@ -41,6 +41,7 @@ rectangle "Apollia OS Workspace" as workspace #1a1a2e {
   rectangle "apollia-mcp\n(Client MCP)" as mcp_crate #1a1a2e {
     component "McpClientManager\n(acteur Tokio)" as mcpmanager
     component "McpSession · McpToolExecutor\nMcpConfigWriter" as mcpsession
+    component "resolve_env()\n(APOLLIA_SECRET: prefix)" as secretresolver
   }
 
   rectangle "apollia-memory\n(Memory Engine)" as memory #2a3a4a {
@@ -91,6 +92,10 @@ rectangle "Serveur MCP\n(subprocess stdio local)" as mcp #4a3728
 
 rectangle "API Cloud LLM\n(OpenAI / Anthropic\noptionnel [feature=cloud])" as cloudllm #4a3728
 
+rectangle "MCP Registry API\n(registry.modelcontextprotocol.io)" as mcp_registry #4a3728
+
+rectangle "OS Keychain\n(macOS Keychain / D-Bus / WinCred)" as keychain #4a3728
+
 ops --> cli : apollia-os [cmd]
 dev --> agent : écrit
 desktop_user --> desktop : double-clic
@@ -118,5 +123,8 @@ llm --> cloudllm : HTTP REST\n(feature = cloud)
 desktop --> stt : SttFlow\n(hotkey → record → transcribe)
 runtime --> stt : SttEngine actor\n(Phase 15)
 stt --> sqlite : stt_transcriptions\nstt.db
+desktop --> mcp_registry : RegistryClient\n(HTTP GET /v0.1/servers, cache local)
+desktop --> keychain : SecretStore\n(keyring crate — store/load secrets)
+mcp_crate --> keychain : resolve_env()\n(APOLLIA_SECRET: → keychain read)
 
 @enduml

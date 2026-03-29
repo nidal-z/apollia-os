@@ -291,7 +291,7 @@ pub enum EmbeddedError {
 
 ### 4.2 Navigation
 
-Store Svelte `currentRoute` avec 12 routes :
+Store Svelte `currentRoute` avec 13 routes :
 
 ```typescript
 type Route =
@@ -300,6 +300,7 @@ type Route =
   | "approvals"      // Approbations HITL (Sprint 14)
   | "chat"           // Sessions de chat interactif (Sprint 18)
   | "transcriptions" // Historique STT + transcription fichier (Sprint 24)
+  | "integrations"   // Page Integrations MCP : operator (Connexions) / builder (MCP Servers) (Sprint 27)
   | "llm"            // Backends LLM, ping, statistiques
   | "triggers"       // Triggers TOML, enable/disable, fire
   | "pipelines"      // Runs multi-agent, steps temps reel
@@ -318,7 +319,7 @@ Navigation regroupee en 4 categories :
 | Categorie | Routes |
 |---|---|
 | **Operations** | agents, tasks, approvals, chat |
-| **Infrastructure** | llm, triggers, pipelines |
+| **Infrastructure** | llm, triggers, pipelines, integrations |
 | **Donnees** | memory, transcriptions, notifications, observability |
 | **Settings** | settings (en bas, avant l'indicateur de connexion) |
 
@@ -417,6 +418,8 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 - *Timeline* : evenements des N dernieres heures (slider 30min→24h), filtres par type (Task/Tool/LLM/Trigger/HITL), liste chronologique inversee avec icones + detail expandable
 - *LLM Costs* : bar chart SVG natif Svelte (pas de lib externe), cout par jour 7j, barres colorees par backend
 - *Audit Trail* : table expandable (args_json, stdout, stderr), filtres par outil + agent
+
+**Integrations** *(Sprint 27)* — Route `/integrations`, catégorie "Infrastructure". Le rendu change selon le mode actif : mode **Operator** affiche "Connexions" (OperatorConnectionCard + OperatorCatalogue + ConnectorWizard 5 étapes + OperatorServerManage) ; mode **Builder** affiche "MCP Servers" (BuilderServerRow + BuilderServerDetail + BuilderRegistryBrowser). Le catalogue est alimenté par le `RegistryClient` qui interroge `registry.modelcontextprotocol.io` avec cache local JSON (`~/.apollia/cache/mcp-registry.json`). Les secrets saisis dans le wizard sont stockés dans l'OS Keychain via le `SecretStore` (crate `keyring`). Le disclaimer de sécurité MCP s'affiche une seule fois (persisté dans `localStorage`). Les cartes affichent `TrustBadge` (Official / Verified / Community / Custom) et `ConnectionStatusIndicator`. i18n complet EN + FR (clés `integrations.*`). Voir [Guide Intégrations](./Integrations-Guide) pour la documentation utilisateur.
 
 **Transcriptions** *(Sprint 24)* — Route `/transcriptions`, catégorie "Données", icône micro. Bandeau statut STT (enabled/disabled, modèle chargé, Metal/CUDA). Liste des transcriptions en ordre chronologique inversé avec `TranscriptCard` (texte, langue, source icône 🎙️/📁/🔌, durée, timestamp). Boutons Copy et Delete par carte. `TranscribeFileDialog` : file picker natif filtré (.wav, .mp3, .ogg, .m4a), spinner pendant la transcription. Badge "Enregistrement" animé quand `isRecording = true`. Empty state avec icône Mic. Section STT dans Settings (lecture seule — ADR-029) : enabled, hotkey, clipboard mode, modèle actif, langue, lien vers doc `apollia.toml`.
 

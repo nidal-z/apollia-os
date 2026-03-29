@@ -57,6 +57,7 @@
 - [Vue d'ensemble](api/index.md)
   - [API HTTP REST](api/http-reference.md)
   - [MCP Integration](api/mcp.md)
+  - [Guide Intégrations Desktop](api/integrations-guide.md)
   - [A2A / ACP](api/a2a-acp.md)
 
 # Sécurité
@@ -122,6 +123,7 @@
   - [ADR-041 — Moteur STT embarqué : whisper-rs, trait SttBackend](decisions/adr-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md)
   - [ADR-043 — Décomposition atomique des outils natifs](decisions/adr-043-decomposition-atomique-outils.md)
   - [ADR-044 — Client MCP : architecture, transport, lifecycle](decisions/adr-044-client-mcp.md)
+  - [ADR-045 — Page Intégrations : wizard générique piloté par MCP Registry](decisions/adr-045-page-integrations-wizard-generique.md)
 
 ---
 
