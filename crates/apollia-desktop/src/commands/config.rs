@@ -636,21 +636,14 @@ quantization = "{quantization}"
 "#
     );
 
-    // Replace existing [llm] section or append if absent.
-    let content = if let Some(llm_start) = existing.find("\n[llm]").or_else(|| {
-        if existing.starts_with("[llm]") {
-            Some(0)
-        } else {
-            None
-        }
-    }) {
-        let prefix = existing[..llm_start].trim_end().to_string();
-        format!("{prefix}\n{llm_block}")
-    } else {
-        let mut content = existing;
-        content.push_str(&llm_block);
-        content
-    };
+    // Skip if [llm] section is already present.
+    let already_has_llm = existing.starts_with("[llm]") || existing.contains("\n[llm]");
+    if already_has_llm {
+        return Ok(());
+    }
+
+    let mut content = existing;
+    content.push_str(&llm_block);
 
     if let Some(parent) = config_path.parent() {
         tokio::fs::create_dir_all(parent)
