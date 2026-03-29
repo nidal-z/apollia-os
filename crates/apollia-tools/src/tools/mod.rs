@@ -5,6 +5,7 @@
 
 pub mod bash_executor;
 pub mod file_edit;
+pub mod file_glob;
 pub mod file_io;
 pub mod file_list;
 pub mod file_read;
