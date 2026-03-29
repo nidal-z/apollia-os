@@ -7,6 +7,7 @@
 //! - `AuditTrail` — SQLite-persisted tool invocation log
 //! - `TaskRepository` — SQLite-persisted HITL task state
 //! - `AgentRepository` — SQLite-persisted installed agents
+//! - `executor` — [`ToolExecutor`] trait and [`ToolDispatcher`] for unified JSON dispatch
 //!
 //! Native tools:
 //! - `bash_executor` — sandboxed shell execution via unshare(1)
@@ -18,6 +19,7 @@
 pub mod agent_repository;
 pub mod audit;
 pub mod descriptor;
+pub mod executor;
 pub mod registry;
 pub mod resolver;
 pub mod sandbox_path;
@@ -29,6 +31,7 @@ pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
 };
 pub use descriptor::{McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind};
+pub use executor::{ToolDispatcher, ToolExecutionError, ToolExecutor};
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
 pub use sandbox_path::{SandboxPathError, SandboxRoot};
