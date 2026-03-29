@@ -117,8 +117,8 @@ mod tests {
     use crate::eventbus::EventBus;
     use crate::registry::AgentRegistry;
     use crate::router::TaskRouterHandle;
-    use apollia_core::{AIPResult, AIPTask, SandboxProfile, TaskStatus};
-    use apollia_tools::{ToolDescriptor, ToolKind, ToolRegistryHandle};
+    use apollia_core::{AIPResult, AIPTask, TaskStatus};
+    use apollia_tools::ToolRegistryHandle;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use axum::routing::get;
@@ -154,31 +154,32 @@ mod tests {
         }
     }
 
-    fn file_io_descriptor() -> ToolDescriptor {
-        ToolDescriptor {
-            name: "file_io".into(),
-            version: "1.0.0".into(),
-            description: "Read and write files within the agent workspace".into(),
-            kind: ToolKind::Native,
-            input_schema: serde_json::json!({ "type": "object" }),
-            output_schema: None,
-            sandbox_profile: SandboxProfile::FileSystem,
-            tags: vec!["io".into()],
-            dangerous: false,
-        }
-    }
-
-    /// Build a test router with a real ToolRegistry populated with one tool.
+    /// Build a test router with a real ToolRegistry populated with all 10 native tools.
     async fn test_router_with_tools() -> Router {
         let (event_tx, _) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =
             TaskRouterHandle::spawn(registry_handle.clone(), event_tx.clone(), 64);
         let tool_registry = ToolRegistryHandle::start();
-        tool_registry
-            .register(file_io_descriptor())
-            .await
-            .expect("register failed");
+
+        let descriptors = [
+            apollia_tools::tools::bash_executor::BashExecutor::descriptor(),
+            apollia_tools::tools::python_executor::PythonExecutor::descriptor(),
+            apollia_tools::tools::file_read::FileRead::descriptor(),
+            apollia_tools::tools::file_write::FileWrite::descriptor(),
+            apollia_tools::tools::file_edit::FileEdit::descriptor(),
+            apollia_tools::tools::file_list::FileList::descriptor(),
+            apollia_tools::tools::file_glob::FileGlob::descriptor(),
+            apollia_tools::tools::file_grep::FileGrep::descriptor(),
+            apollia_tools::tools::http_fetch::HttpFetch::descriptor(),
+            apollia_tools::tools::memory_search::MemorySearchTool::descriptor(),
+        ];
+        for descriptor in descriptors {
+            tool_registry
+                .register(descriptor)
+                .await
+                .expect("register failed");
+        }
 
         let state = AppState {
             router_handle,
@@ -260,8 +261,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_tools_returns_registered_tools() {
-        // GIVEN un registry avec un outil enregistré
+    async fn api_tools_list_returns_10_tools() {
+        // GIVEN a registry with all 10 native tools registered
         let router = test_router_with_tools().await;
 
         // WHEN GET /api/v1/tools
@@ -271,38 +272,66 @@ mod tests {
             .unwrap();
         let resp = router.oneshot(req).await.unwrap();
 
-        // THEN 200 + liste avec 1 outil
+        // THEN 200 + exactly 10 tools
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 16 * 1024).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         let tools = json["tools"].as_array().expect("tools must be array");
-        assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0]["name"], "file_io");
+        assert_eq!(tools.len(), 10);
     }
 
     #[tokio::test]
-    async fn test_describe_tool_returns_descriptor() {
-        // GIVEN un registry avec file_io enregistré
+    async fn api_tools_get_by_name_returns_descriptor() {
+        // GIVEN a registry with all 10 native tools registered
         let router = test_router_with_tools().await;
 
-        // WHEN GET /api/v1/tools/file_io
+        // WHEN GET /api/v1/tools/file_read
         let req = Request::builder()
-            .uri("/api/v1/tools/file_io")
+            .uri("/api/v1/tools/file_read")
             .body(Body::empty())
             .unwrap();
         let resp = router.oneshot(req).await.unwrap();
 
-        // THEN 200 + descriptor avec les bons champs
+        // THEN 200 + complete descriptor with all expected fields
         assert_eq!(resp.status(), StatusCode::OK);
         let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["name"], "file_io");
+        assert_eq!(json["name"], "file_read");
         assert_eq!(json["version"], "1.0.0");
+        assert!(!json["input_schema"].is_null(), "input_schema must be present");
+        assert!(!json["output_schema"].is_null(), "output_schema must be present");
+        assert!(!json["sandbox_profile"].is_null(), "sandbox_profile must be present");
+    }
+
+    #[tokio::test]
+    async fn api_tools_response_includes_tags() {
+        // GIVEN a registry with all 10 native tools registered
+        let router = test_router_with_tools().await;
+
+        // WHEN GET /api/v1/tools
+        let req = Request::builder()
+            .uri("/api/v1/tools")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN every tool has a non-empty tags array
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 16 * 1024).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let tools = json["tools"].as_array().expect("tools must be array");
+        for tool in tools {
+            let name = tool["name"].as_str().unwrap_or("<unnamed>");
+            let tags = tool["tags"].as_array().unwrap_or_else(|| {
+                panic!("tool '{name}' is missing 'tags' field")
+            });
+            assert!(!tags.is_empty(), "tool '{name}' has empty tags");
+        }
     }
 
     #[tokio::test]
     async fn test_describe_tool_unknown_returns_404() {
-        // GIVEN un registry avec file_io, mais pas "unknown_tool"
+        // GIVEN a registry with all 10 native tools, "unknown_tool" is not among them
         let router = test_router_with_tools().await;
 
         // WHEN GET /api/v1/tools/unknown_tool
@@ -312,7 +341,7 @@ mod tests {
             .unwrap();
         let resp = router.oneshot(req).await.unwrap();
 
-        // THEN 404
+        // THEN 404 with error message naming the missing tool
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
         let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
@@ -321,7 +350,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_tools_without_registry_returns_503() {
-        // GIVEN un AppState sans tool_registry_handle
+        // GIVEN an AppState with no tool_registry_handle
         let router = test_router_no_registry();
 
         // WHEN GET /api/v1/tools
@@ -337,7 +366,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_describe_tool_without_registry_returns_503() {
-        // GIVEN un AppState sans tool_registry_handle
+        // GIVEN an AppState with no tool_registry_handle
         let router = test_router_no_registry();
 
         // WHEN GET /api/v1/tools/anything
