@@ -21,7 +21,7 @@ use crate::config::McpServerConfig;
 use crate::jsonrpc::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 use crate::protocol::{
     ClientCapabilities, ClientInfo, InitializeParams, InitializeResult, McpToolDefinition,
-    ServerCapabilities, ServerInfo, ToolsListResult,
+    ServerCapabilities, ServerInfo, ToolCallParams, ToolCallResult, ToolsListResult,
 };
 
 // ─── errors ──────────────────────────────────────────────────────────────────
@@ -340,6 +340,51 @@ impl McpSession {
         &self.tools
     }
 
+    /// Execute a tool on this MCP server via `tools/call`.
+    ///
+    /// Serialises `tool_name` and `arguments` into a `tools/call` JSON-RPC request,
+    /// sends it through the stdin writer, and waits for the response. The timeout
+    /// applied is `call_timeout_secs` from the server configuration.
+    ///
+    /// Returns the raw [`ToolCallResult`] so the caller can inspect `is_error` and
+    /// route content accordingly. Deserialisaton failures are surfaced as
+    /// [`McpSessionError::ToolCallFailed`].
+    pub async fn call_tool(
+        &self,
+        tool_name: &str,
+        arguments: Option<serde_json::Value>,
+    ) -> Result<ToolCallResult, McpSessionError> {
+        let params = ToolCallParams {
+            name: tool_name.to_string(),
+            arguments,
+        };
+
+        let params_value = serde_json::to_value(&params)
+            .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
+
+        let response = self
+            .send_request(
+                "tools/call",
+                Some(params_value),
+                self.config.call_timeout_secs,
+            )
+            .await
+            .map_err(|e| match e {
+                McpSessionError::InitializeTimeout { .. } => McpSessionError::ToolCallTimeout {
+                    server: self.config.name.clone(),
+                    tool: tool_name.to_string(),
+                    timeout_secs: self.config.call_timeout_secs,
+                },
+                other => other,
+            })?;
+
+        serde_json::from_value(response).map_err(|e| McpSessionError::ToolCallFailed {
+            server: self.config.name.clone(),
+            tool: tool_name.to_string(),
+            cause: e.to_string(),
+        })
+    }
+
     /// Gracefully shut down the session.
     ///
     /// Closes the stdin channel so the writer task terminates and the server process
@@ -501,5 +546,63 @@ mod tests {
         let result = McpSession::start(config).await;
         // THEN the timeout fires and an error is returned
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ac1_tool_call_params_serialization() {
+        use crate::protocol::ToolCallParams;
+        // GIVEN
+        let params = ToolCallParams {
+            name: "search".to_string(),
+            arguments: Some(serde_json::json!({"query": "test"})),
+        };
+        // WHEN
+        let value = serde_json::to_value(&params).unwrap();
+        // THEN
+        assert_eq!(value["name"], "search");
+        assert_eq!(value["arguments"]["query"], "test");
+    }
+
+    #[test]
+    fn test_ac3_jsonrpc_error_display() {
+        // GIVEN
+        let error = McpSessionError::JsonRpcError {
+            server: "notion".to_string(),
+            code: -32600,
+            message: "Invalid Request".to_string(),
+        };
+        // WHEN / THEN
+        let display = error.to_string();
+        assert!(display.contains("-32600"));
+        assert!(display.contains("Invalid Request"));
+    }
+
+    #[test]
+    fn test_ac4_tool_call_result_with_is_error() {
+        use crate::protocol::ToolCallResult;
+        // GIVEN
+        let json = serde_json::json!({
+            "content": [{"type": "text", "text": "tool not found"}],
+            "isError": true
+        });
+        // WHEN
+        let result: ToolCallResult = serde_json::from_value(json).unwrap();
+        // THEN
+        assert_eq!(result.is_error, Some(true));
+        assert_eq!(result.content.len(), 1);
+    }
+
+    #[test]
+    fn test_tool_call_timeout_error_display() {
+        // GIVEN
+        let error = McpSessionError::ToolCallTimeout {
+            server: "notion".to_string(),
+            tool: "search".to_string(),
+            timeout_secs: 60,
+        };
+        // WHEN / THEN
+        let display = error.to_string();
+        assert!(display.contains("60s"));
+        assert!(display.contains("search"));
     }
 }
