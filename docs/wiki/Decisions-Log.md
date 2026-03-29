@@ -812,5 +812,24 @@
 
 ---
 
+## ADR-043 — Décomposition atomique des outils natifs
+
+**Date :** 2026-03-29
+**Statut :** Accepté
+
+**Contexte :** Les 3 outils natifs actuels (bash_executor, file_io, python_executor) ont une scope trop large. `file_io` combine read+write+list, créant des schémas JSON ambigus pour les LLM (~15% d'erreurs de validation). Pas d'outils de recherche (grep/glob), pas d'outil HTTP dédié, pas d'outil mémoire malgré le Memory Engine FTS5+BM25 existant. Le marché (Claude Code, Cursor, Cline) a convergé vers 7-10 outils file atomiques.
+
+**Décision :** Décomposer file_io en 4 outils atomiques (file_read, file_write, file_edit, file_list) + ajouter 2 outils de recherche (file_glob, file_grep) + http_fetch + memory_search. Déprécier file_io (code conservé mais non-enregistré, warning au resolve). Total : 10 outils actifs. Règle : un outil = une action sémantique = un schéma JSON sans ambiguïté.
+
+**Alternatives considérées :** Garder file_io avec meilleure description (rejetée — le problème est structurel, pas dans la doc), Ajouter des exemples dans les descriptions (rejetée — approche cosmétique), Supprimer complètement file_io (rejetée — breaking change, préféré dépréciation progressive).
+
+**Conséquences :** Réduction des erreurs de validation (~15% → ~2%). Surface d'API complète (recherche, HTTP, mémoire). Plus d'outils à maintenir (10 vs 3), mais chaque outil est plus simple. Migration nécessaire pour agents existants (guidée par warning). À surveiller : adoption par les agents, performance registry, cohérence des descriptions.
+
+**Principes impactés :** Principe #3 — Contrat minimal (renforcé : un outil = une action claire), Principe #4 — Fail fast (renforcé : schémas JSON sans ambiguïté), Principe #1 — Local-first (étendu : memory_search expose la mémoire locale).
+
+[Détail → docs/adr/ADR-043-decomposition-atomique-outils.md](adr/ADR-043-decomposition-atomique-outils.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
