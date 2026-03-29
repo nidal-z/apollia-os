@@ -274,7 +274,9 @@ mod tests {
 
         // THEN 200 + exactly 10 tools
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), 16 * 1024).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 16 * 1024)
+            .await
+            .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         let tools = json["tools"].as_array().expect("tools must be array");
         assert_eq!(tools.len(), 10);
@@ -298,9 +300,18 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["name"], "file_read");
         assert_eq!(json["version"], "1.0.0");
-        assert!(!json["input_schema"].is_null(), "input_schema must be present");
-        assert!(!json["output_schema"].is_null(), "output_schema must be present");
-        assert!(!json["sandbox_profile"].is_null(), "sandbox_profile must be present");
+        assert!(
+            !json["input_schema"].is_null(),
+            "input_schema must be present"
+        );
+        assert!(
+            !json["output_schema"].is_null(),
+            "output_schema must be present"
+        );
+        assert!(
+            !json["sandbox_profile"].is_null(),
+            "sandbox_profile must be present"
+        );
     }
 
     #[tokio::test]
@@ -317,14 +328,16 @@ mod tests {
 
         // THEN every tool has a non-empty tags array
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(resp.into_body(), 16 * 1024).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 16 * 1024)
+            .await
+            .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         let tools = json["tools"].as_array().expect("tools must be array");
         for tool in tools {
             let name = tool["name"].as_str().unwrap_or("<unnamed>");
-            let tags = tool["tags"].as_array().unwrap_or_else(|| {
-                panic!("tool '{name}' is missing 'tags' field")
-            });
+            let tags = tool["tags"]
+                .as_array()
+                .unwrap_or_else(|| panic!("tool '{name}' is missing 'tags' field"));
             assert!(!tags.is_empty(), "tool '{name}' has empty tags");
         }
     }

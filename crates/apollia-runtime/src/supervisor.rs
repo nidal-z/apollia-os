@@ -18,6 +18,7 @@ use tracing::{error, info, warn};
 
 use apollia_core::{PendingApprovals, ProcessState, RuntimeEvent};
 use apollia_llm::{LlmCallRepository, LlmConfig, LlmRouter};
+use apollia_mcp::{config::McpConfig, manager::McpClientManagerHandle};
 use apollia_notifications::{
     build_channels, NotificationConfig, NotificationConfigRepository, NotificationEngine,
     NotificationEngineHandle,
@@ -191,6 +192,11 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// Separate connection from the engine's internal repository (SQLite WAL
     /// supports concurrent readers). `None` when STT is disabled.
     pub stt_repository: Option<std::sync::Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
+    /// Handle to the MCP client manager actor (Phase 3b).
+    ///
+    /// `Some` when `~/.apollia/mcp.toml` exists and at least one server connected.
+    /// `None` when the config file is absent, empty, or all servers failed to start.
+    pub mcp_handle: Option<McpClientManagerHandle>,
 }
 
 /// Supervisor errors.
@@ -329,6 +335,48 @@ impl Supervisor {
             }
         }
         info!("Supervisor: ToolRegistry ready (native tools registered)");
+
+        // Phase 3b: MCP Client Manager — optional, no-op when mcp.toml is absent.
+        //
+        // Reads `<data_dir>/mcp.toml`, spawns one subprocess per configured server,
+        // performs the MCP initialize + tools/list handshake, and registers discovered
+        // tools in the ToolRegistry with the `mcp:<server>/<tool>` naming convention.
+        // Errors (missing file, parse failure, server crash) are never fatal: the
+        // runtime continues and MCP tools are simply unavailable.
+        let mcp_handle: Option<McpClientManagerHandle> = {
+            let mcp_config_path = self.config.data_dir.join("mcp.toml");
+            match McpConfig::load(&mcp_config_path) {
+                Ok(config) if config.servers.is_empty() => {
+                    info!("Supervisor: no MCP servers configured — Phase 3b skipped");
+                    None
+                }
+                Ok(config) => {
+                    let server_count = config.servers.len();
+                    match McpClientManagerHandle::start(config.servers, &tool_registry_handle).await
+                    {
+                        Ok(handle) => {
+                            let status = handle.status().await;
+                            let total_tools: usize = status.iter().map(|s| s.tools_count).sum();
+                            info!(
+                                servers = server_count,
+                                connected = status.len(),
+                                tools = total_tools,
+                                "MCP Phase 3b complete"
+                            );
+                            Some(handle)
+                        }
+                        Err(e) => {
+                            warn!(error = %e, "MCP Phase 3b failed — continuing without MCP");
+                            None
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!(error = %e, "failed to load mcp.toml — continuing without MCP");
+                    None
+                }
+            }
+        };
 
         // Phase 4 (pos 5): LlmRouter — initialized before TaskRouter
         let llm_router: Option<Arc<LlmRouter>> = if let Some(llm_cfg) = &self.config.llm_config {
@@ -988,6 +1036,7 @@ impl Supervisor {
             user_memory,
             stt_engine,
             stt_repository,
+            mcp_handle,
         })
     }
 }
@@ -1187,6 +1236,41 @@ mod tests {
                 descriptor.name
             );
         }
+    }
+
+    #[test]
+    fn mcp_phase3b_missing_config_returns_empty() {
+        // GIVEN a path that does not exist
+        let path = std::path::Path::new("/tmp/nonexistent-mcp-config-335.toml");
+        // WHEN
+        let config = McpConfig::load(path).unwrap();
+        // THEN no servers and no error
+        assert!(config.servers.is_empty());
+    }
+
+    #[test]
+    fn mcp_phase3b_valid_config_parses_two_servers() {
+        // GIVEN a valid mcp.toml with two server entries
+        use std::io::Write;
+        let toml_content = r#"
+            [[servers]]
+            name = "notion"
+            command = "npx"
+            args = ["-y", "@notionhq/notion-mcp-server"]
+
+            [[servers]]
+            name = "sqlite"
+            command = "uvx"
+            args = ["mcp-server-sqlite"]
+        "#;
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        file.write_all(toml_content.as_bytes()).unwrap();
+        // WHEN
+        let config = McpConfig::load(file.path()).unwrap();
+        // THEN both servers are present
+        assert_eq!(config.servers.len(), 2);
+        assert_eq!(config.servers[0].name, "notion");
+        assert_eq!(config.servers[1].name, "sqlite");
     }
 
     /// Find a free TCP port.
