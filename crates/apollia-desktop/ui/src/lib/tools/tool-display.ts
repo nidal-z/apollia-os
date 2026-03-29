@@ -282,6 +282,84 @@ export function truncateString(s: string, max: number): string {
   return s.slice(0, max) + "\u2026";
 }
 
+/**
+ * Builds a short technical summary of a tool's output for use in the builder
+ * card's collapsible output toggle. Returns `null` when no meaningful summary
+ * can be derived (unknown tool or missing expected output fields).
+ */
+export function buildOutputSummary(
+  toolName: string,
+  params: Record<string, string>,
+): string | null {
+  switch (toolName) {
+    case "file_grep": {
+      const matches = params.match_count;
+      const files = params.file_count;
+      if (matches !== undefined && files !== undefined) {
+        return `${matches} matches in ${files} files`;
+      }
+      if (matches !== undefined) return `${matches} matches`;
+      return null;
+    }
+    case "file_read": {
+      const lines = params.total_lines;
+      return lines !== undefined ? `${lines} lines` : null;
+    }
+    case "file_write": {
+      const bytes = params.bytes_written;
+      return bytes !== undefined ? `${bytes} bytes written` : null;
+    }
+    case "file_edit": {
+      const replacements = params.replacements;
+      return replacements !== undefined ? `${replacements} replacement(s)` : null;
+    }
+    case "file_list": {
+      const count = params.entry_count;
+      return count !== undefined ? `${count} entries` : null;
+    }
+    case "file_glob": {
+      const count = params.match_count;
+      return count !== undefined ? `${count} matches` : null;
+    }
+    case "bash_executor": {
+      const exitCode = params.exit_code;
+      return exitCode !== undefined ? `exit ${exitCode}` : null;
+    }
+    case "http_fetch": {
+      const status = params.status_code;
+      return status !== undefined ? `HTTP ${status}` : null;
+    }
+    case "memory_search": {
+      const count = params.result_count;
+      return count !== undefined ? `${count} results` : null;
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Builds the `$ command` display string for a `bash_executor` input.
+ * Returns `null` when the `command` field is absent or not a string.
+ */
+export function buildBashInputDisplay(input: Record<string, unknown>): string | null {
+  const command = typeof input.command === "string" ? input.command : null;
+  return command !== null ? `$ ${command}` : null;
+}
+
+/**
+ * Builds the `METHOD URL` display string for an `http_fetch` input.
+ * Defaults to `GET` when the `method` field is absent. Returns `null` when
+ * the `url` field is absent or not a string.
+ */
+export function buildHttpInputDisplay(input: Record<string, unknown>): string | null {
+  const url = typeof input.url === "string" ? input.url : null;
+  if (url === null) return null;
+  const method =
+    typeof input.method === "string" ? input.method.toUpperCase() : "GET";
+  return `${method} ${url}`;
+}
+
 /** Extracts the hostname from a URL string, falling back to a truncated URL on parse error. */
 function extractHostname(url: string): string {
   try {

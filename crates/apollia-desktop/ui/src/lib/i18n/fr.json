@@ -974,6 +974,7 @@
     "tool_show_result": "Voir le résultat",
     "tool_hide_result": "Masquer le résultat",
     "authorize_tool": "Autoriser l'exécution de",
+    "authorize_action": "L'assistant souhaite effectuer une action",
     "approve_accept": "Accepter",
     "approve_refuse": "Refuser",
     "approve_always": "Toujours accepter",

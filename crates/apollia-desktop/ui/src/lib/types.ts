@@ -643,6 +643,10 @@ export interface ToolCallView {
   input: Record<string, unknown>;
   output: string | null;
   status: "pending" | "authorized" | "executed" | "refused";
+  /** Execution duration in milliseconds, available after the call completes. */
+  duration_ms?: number | null;
+  /** Process exit code, available when the tool produces one (e.g. bash_executor). */
+  exit_code?: number | null;
 }
 
 /** Requête de création d'une session de chat. */
