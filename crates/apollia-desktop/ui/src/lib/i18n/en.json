@@ -73,7 +73,32 @@
       "no_connections": "No active connections. Add one to get started."
     },
     "builder": {
-      "subtitle": "Configure and monitor MCP servers"
+      "subtitle": "Configure and monitor MCP servers",
+      "no_servers": "No MCP servers configured.",
+      "row": {
+        "tools": "{count} tools",
+        "pid": "PID {pid}"
+      },
+      "detail": {
+        "tab_tools": "Tools",
+        "tab_logs": "Logs",
+        "tab_config": "Config",
+        "restart_button": "Restart",
+        "restarting": "Restarting…",
+        "remove_button": "Remove",
+        "removing": "Removing…",
+        "remove_warning": "Remove {name}? The server configuration will be deleted.",
+        "remove_cancel": "Cancel",
+        "remove_confirm": "Remove",
+        "no_tools": "No tools discovered.",
+        "schema_toggle": "Input schema",
+        "command": "Command",
+        "transport": "Transport",
+        "env_keys": "Environment variables",
+        "no_env": "No environment variables.",
+        "tags": "Tags",
+        "logs_placeholder": "Logs are not yet available. Real-time streaming is coming in a future version."
+      }
     },
     "disclaimer": {
       "title": "External connections — Read before continuing",

@@ -10,6 +10,8 @@
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
   import OperatorServerManage from "../components/integrations/OperatorServerManage.svelte";
   import type { McpServerStatusView, ConnectorEnrichmentView, RegistryServerView } from "$lib/types";
+  import BuilderServerRow from "../components/integrations/BuilderServerRow.svelte";
+  import BuilderServerDetail from "../components/integrations/BuilderServerDetail.svelte";
 
   let disclaimerOpen = $state(false);
   let catalogueOpen = $state(false);
@@ -21,6 +23,13 @@
   let enrichmentMap = $state(new Map<string, ConnectorEnrichmentView>());
   let loading = $state(false);
   let loadError = $state<string | null>(null);
+
+  // Builder mode state
+  let builderServers = $state<McpServerStatusView[]>([]);
+  let builderLoading = $state(false);
+  let builderLoadError = $state<string | null>(null);
+  let builderDetailServerName = $state<string | null>(null);
+  let builderDetailOpen = $state(false);
 
   async function loadOperatorData(): Promise<void> {
     loading = true;
@@ -92,9 +101,39 @@
     loadOperatorData();
   }
 
+  async function loadBuilderData(): Promise<void> {
+    builderLoading = true;
+    builderLoadError = null;
+    try {
+      builderServers = await invoke<McpServerStatusView[]>("list_mcp_servers");
+    } catch (err: unknown) {
+      builderLoadError = err instanceof Error ? err.message : String(err);
+    } finally {
+      builderLoading = false;
+    }
+  }
+
+  function handleBuilderRowClick(name: string): void {
+    builderDetailServerName = name;
+    builderDetailOpen = true;
+  }
+
+  function handleBuilderDetailClose(): void {
+    builderDetailOpen = false;
+    builderDetailServerName = null;
+  }
+
+  function handleBuilderRemove(): void {
+    builderDetailOpen = false;
+    builderDetailServerName = null;
+    loadBuilderData();
+  }
+
   $effect(() => {
     if ($uiMode === "operator") {
       loadOperatorData();
+    } else {
+      loadBuilderData();
     }
   });
 </script>
@@ -160,6 +199,27 @@
       <h1 class="text-2xl font-semibold text-foreground">{$t("nav.mcp_servers")}</h1>
       <p class="mt-1 text-sm text-muted-foreground">{$t("integrations.builder.subtitle")}</p>
     </div>
+
+    {#if builderLoading}
+      <p class="text-sm text-muted-foreground" data-testid="builder-loading">
+        {$t("common.loading")}
+      </p>
+    {:else if builderLoadError}
+      <p class="text-sm text-destructive" data-testid="builder-error">{builderLoadError}</p>
+    {:else if builderServers.length === 0}
+      <p class="text-sm text-muted-foreground" data-testid="builder-empty">
+        {$t("integrations.builder.no_servers")}
+      </p>
+    {:else}
+      <div class="flex flex-col gap-2" data-testid="builder-servers-list">
+        {#each builderServers as server (server.name)}
+          <BuilderServerRow
+            {server}
+            onClick={() => handleBuilderRowClick(server.name)}
+          />
+        {/each}
+      </div>
+    {/if}
   </div>
 {/if}
 
@@ -177,6 +237,15 @@
   onaccept={handleDisclaimerAccept}
   onclose={() => { disclaimerOpen = false; }}
 />
+
+{#if builderDetailServerName !== null}
+  <BuilderServerDetail
+    serverName={builderDetailServerName}
+    open={builderDetailOpen}
+    onclose={handleBuilderDetailClose}
+    onRemove={handleBuilderRemove}
+  />
+{/if}
 
 {#if managedServerName !== null}
   <OperatorServerManage

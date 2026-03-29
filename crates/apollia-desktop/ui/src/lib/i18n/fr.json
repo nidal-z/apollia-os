@@ -73,7 +73,32 @@
       "no_connections": "Aucune connexion active. Ajoutez-en une pour commencer."
     },
     "builder": {
-      "subtitle": "Configurez et surveillez les serveurs MCP"
+      "subtitle": "Configurez et surveillez les serveurs MCP",
+      "no_servers": "Aucun serveur MCP configuré.",
+      "row": {
+        "tools": "{count} outils",
+        "pid": "PID {pid}"
+      },
+      "detail": {
+        "tab_tools": "Outils",
+        "tab_logs": "Logs",
+        "tab_config": "Config",
+        "restart_button": "Redémarrer",
+        "restarting": "Redémarrage…",
+        "remove_button": "Supprimer",
+        "removing": "Suppression…",
+        "remove_warning": "Supprimer {name} ? La configuration du serveur sera supprimée.",
+        "remove_cancel": "Annuler",
+        "remove_confirm": "Supprimer",
+        "no_tools": "Aucun outil découvert.",
+        "schema_toggle": "Schéma d'entrée",
+        "command": "Commande",
+        "transport": "Transport",
+        "env_keys": "Variables d'environnement",
+        "no_env": "Aucune variable d'environnement.",
+        "tags": "Tags",
+        "logs_placeholder": "Les logs ne sont pas encore disponibles. Le streaming temps réel est prévu dans une prochaine version."
+      }
     },
     "disclaimer": {
       "title": "Connexions externes — Lisez avant de continuer",
