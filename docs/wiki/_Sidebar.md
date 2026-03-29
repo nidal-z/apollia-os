@@ -27,6 +27,7 @@
 **Briques Fondamentales**
 - [[Briques-Tool-Registry|Tool Registry]]
 - [[Outils-Reference|Référence des Outils Natifs]]
+- [[Briques-MCP|Client MCP (apollia-mcp)]]
 - [[Briques-Memory-Engine|Memory Engine]]
 - [[Briques-User-Memory|User Memory]]
 - [[Briques-ORIA-Engine|ORIA Engine]]
@@ -47,7 +48,8 @@
 
 **API & Intégration**
 - [[API-HTTP-Reference|API HTTP]]
-- [[MCP-Integration|MCP]]
+- [[MCP-Guide-Utilisateur|MCP — Guide utilisateur]]
+- [[MCP-Integration|MCP — Intégration technique]]
 - [[A2A-ACP-Alignement|A2A / ACP]]
 
 **Sécurité**

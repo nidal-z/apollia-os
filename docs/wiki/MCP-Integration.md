@@ -51,22 +51,27 @@ Le runtime tente de se connecter au serveur MCP `filesystem` à `INITIALIZING`. 
 
 ### Configuration du serveur MCP
 
-Dans `apollia.toml` (fonctionnalité prévue v0.2) :
+Dans `~/.apollia/mcp.toml` (disponible depuis Sprint 26) :
 
 ```toml
-[[mcp.servers]]
-name = "filesystem"
+[[servers]]
+name      = "filesystem"
 transport = "stdio"
-command = "npx"
-args = ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
+command   = "npx"
+args      = ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
 
-[[mcp.servers]]
-name = "brave-search"
+[[servers]]
+name    = "brave-search"
 transport = "stdio"
 command = "npx"
-args = ["-y", "@modelcontextprotocol/server-brave-search"]
-env = { BRAVE_API_KEY = "${BRAVE_API_KEY}" }
+args    = ["-y", "@modelcontextprotocol/server-brave-search"]
+requires_approval = true
+
+[servers.env]
+BRAVE_API_KEY = "${BRAVE_API_KEY}"
 ```
+
+Voir [MCP — Guide utilisateur](./MCP-Guide-Utilisateur) pour la référence complète des champs.
 
 ### Appeler un outil MCP depuis l'agent
 
@@ -92,9 +97,12 @@ Un agent Apollia OS avec `supports_a2a: True` génère automatiquement une Agent
 | Fonctionnalité | Statut |
 |---|---|
 | Tool Registry aligné JSON Schema MCP | ✅ v0.1 |
-| `mcp_consumer` natif (client MCP) | v0.2 (planifié) |
+| Client MCP natif (`apollia-mcp`) | ✅ v0.2 (Sprint 26) |
+| Transport stdio MCP | ✅ v0.2 (Sprint 26) |
+| HITL gate à deux niveaux (serveur + agent) | ✅ v0.2 (Sprint 26) |
+| Mutations dynamiques à chaud (API REST) | ✅ v0.2 (Sprint 26) |
+| Configuration `~/.apollia/mcp.toml` | ✅ v0.2 (Sprint 26) |
 | Exposition serveur MCP | v0.3 (planifié) |
-| Transport stdio MCP | v0.2 (planifié) |
 | Transport HTTP+SSE MCP | v0.3 (planifié) |
 
 ---

@@ -6,7 +6,7 @@ skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title C4 Container — 13 Crates Workspace — Apollia OS
+title C4 Container — 14 Crates Workspace — Apollia OS
 
 actor "Opérateur" as ops #3a3a3a/white
 actor "Développeur" as dev #3a3a3a/white
@@ -34,8 +34,13 @@ rectangle "Apollia OS Workspace" as workspace #1a1a2e {
   }
 
   rectangle "apollia-tools\n(Tool Registry)" as tools #1a1a2e {
-    component "ToolRegistry\nAuditTrail" as reg2
-    component "BashExecutor\nFileIo\nPythonExecutor" as native
+    component "ToolRegistry · ToolDispatcher\nAuditTrail · SandboxRoot" as reg2
+    component "BashExecutor · PythonExecutor\nfile_read/write/edit/list/glob/grep\nhttp_fetch · memory_search" as native
+  }
+
+  rectangle "apollia-mcp\n(Client MCP)" as mcp_crate #1a1a2e {
+    component "McpClientManager\n(acteur Tokio)" as mcpmanager
+    component "McpSession · McpToolExecutor\nMcpConfigWriter" as mcpsession
   }
 
   rectangle "apollia-memory\n(Memory Engine)" as memory #2a3a4a {
@@ -82,7 +87,7 @@ database "SQLite\n(FTS5)" as sqlite #2a3a4a
 
 rectangle "Linux namespaces\n(unshare, sandbox)" as sandbox #4a3728
 
-rectangle "Serveur MCP\n(externe, optionnel)" as mcp #4a3728
+rectangle "Serveur MCP\n(subprocess stdio local)" as mcp #4a3728
 
 rectangle "API Cloud LLM\n(OpenAI / Anthropic\noptionnel [feature=cloud])" as cloudllm #4a3728
 
@@ -100,7 +105,8 @@ aip --> agent : PyO3 (asyncio.run)
 aip --> llm : ctx.llm (LlmProxy)
 agent --> aip : AIPResult (dict)
 tools --> sandbox : bash_executor\npython_executor
-tools --> mcp : mcp_consumer (v0.2)
+mcp_crate --> mcp : JSON-RPC 2.0 stdio\n(subprocess local)
+runtime --> mcp_crate : McpClientManagerHandle\n(Phase 3b startup)
 memory --> sqlite : INSERT / FTS5 MATCH
 triggers --> runtime : TriggerEvent → TaskRouter\n(submit AIPTask)
 triggers --> sqlite : trigger_history\ntrigger_state

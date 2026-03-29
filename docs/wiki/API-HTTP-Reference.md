@@ -1410,6 +1410,110 @@ Lister les fichiers modèles `.bin` disponibles dans `~/.apollia/models/`.
 
 ---
 
+## MCP *(Sprint 26, ADR-044)*
+
+### GET /api/v1/mcp/servers
+
+Retourne la liste des serveurs MCP configurés et leur statut de connexion.
+
+```bash
+$ curl http://127.0.0.1:7771/api/v1/mcp/servers
+```
+
+```json
+[
+  {
+    "name": "notion",
+    "server_info": "notion-mcp-server 1.0.0",
+    "tools_count": 8,
+    "requires_approval": false,
+    "connected": true,
+    "pid": 12345,
+    "uptime_secs": 3600,
+    "last_call_at": "2026-06-15T10:30:00Z",
+    "error": null,
+    "package": "@notionhq/notion-mcp-server",
+    "transport": "stdio"
+  }
+]
+```
+
+### GET /api/v1/mcp/servers/:name
+
+Retourne le statut détaillé d'un serveur : configuration (secrets redactés) et liste des outils découverts.
+
+```bash
+$ curl http://127.0.0.1:7771/api/v1/mcp/servers/notion
+```
+
+### POST /api/v1/mcp/servers
+
+Ajoute un nouveau serveur MCP à chaud : démarre le subprocess, effectue le handshake, enregistre les outils dans le Tool Registry, et persiste dans `mcp.toml`.
+
+```bash
+$ curl -X POST http://127.0.0.1:7771/api/v1/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "sqlite",
+    "command": "uvx",
+    "args": ["mcp-server-sqlite", "--db-path", "/home/user/data.db"],
+    "transport": "stdio",
+    "requires_approval": false
+  }'
+```
+
+Retourne `201 Created` avec le `McpServerStatus` du serveur démarré.
+
+### DELETE /api/v1/mcp/servers/:name
+
+Arrête la session du serveur, retire ses outils du Tool Registry, et supprime l'entrée de `mcp.toml`.
+
+```bash
+$ curl -X DELETE http://127.0.0.1:7771/api/v1/mcp/servers/sqlite
+```
+
+### POST /api/v1/mcp/servers/:name/restart
+
+Arrête et redémarre la session d'un serveur existant avec la configuration actuelle.
+
+```bash
+$ curl -X POST http://127.0.0.1:7771/api/v1/mcp/servers/notion/restart
+```
+
+### PUT /api/v1/mcp/servers/:name/config
+
+Remplace la configuration d'un serveur et redémarre automatiquement la session. L'ordre des serveurs dans `mcp.toml` est préservé.
+
+```bash
+$ curl -X PUT http://127.0.0.1:7771/api/v1/mcp/servers/notion/config \
+  -H "Content-Type: application/json" \
+  -d '{
+    "command": "npx",
+    "args": ["-y", "@notionhq/notion-mcp-server"],
+    "init_timeout_secs": 60
+  }'
+```
+
+### POST /api/v1/mcp/servers/test
+
+Effectue un handshake éphémère avec la configuration fournie, liste les outils, puis arrête le processus. Le Tool Registry n'est pas modifié. Utile pour valider une configuration avant de l'ajouter.
+
+```bash
+$ curl -X POST http://127.0.0.1:7771/api/v1/mcp/servers/test \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "brave-search",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+    "transport": "stdio",
+    "env": {"BRAVE_API_KEY": "${BRAVE_API_KEY}"}
+  }'
+```
+
+Retourne `{ "tools": [...], "server_info": "..." }` ou une erreur si le handshake échoue.
+
+---
+
 ## Voir aussi
 
 - [Briques CLI](./Briques-CLI) — wrapper CLI sur cette API
@@ -1429,3 +1533,6 @@ Lister les fichiers modèles `.bin` disponibles dans `~/.apollia/models/`.
 - [Briques Chat](./Briques-Chat) — sous-système de chat complet
 - [Briques STT](./Briques-STT) — moteur Speech-to-Text embarqué (Sprint 24)
 - [ADR-041](../adr/ADR-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md) — décisions moteur STT (whisper-rs, trait SttBackend)
+- [MCP — Guide utilisateur](./MCP-Guide-Utilisateur) — configuration mcp.toml, exemples serveurs MCP
+- [Briques MCP](./Briques-MCP) — spécification crate apollia-mcp (Sprint 26)
+- [ADR-044](../adr/ADR-044-client-mcp.md) — décisions client MCP (transport stdio, McpClientManager, HITL)

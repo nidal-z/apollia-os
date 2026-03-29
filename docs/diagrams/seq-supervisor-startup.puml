@@ -7,13 +7,14 @@ skinparam ArrowColor #444444
 skinparam BorderColor #444444
 skinparam SequenceGroupBorderColor #888888
 
-title Séquence — Démarrage ordonné Supervisor (15 phases) — Apollia OS
+title Séquence — Démarrage ordonné Supervisor (16 phases) — Apollia OS
 
 participant "CLI\n(apollia-os start)" as cli #3a3a3a/ffffff
 participant "Supervisor" as sup #1a1a2e/e0e0ff
 participant "EventBus" as bus #2a3a4a/cce5ff
 participant "AgentRegistry" as reg #1a1a2e/e0e0ff
 participant "ToolRegistry" as tools #1a1a2e/e0e0ff
+participant "McpClientManager" as mcp #1a1a2e/e0e0ff
 participant "LlmRouter" as llm #4a3728/f5e6d3
 participant "TaskRouter" as router #1a1a2e/e0e0ff
 participant "APIServer" as api #1a1a2e/e0e0ff
@@ -37,10 +38,27 @@ note right of sup : ✔ Phase 2 — AgentRegistry prêt
 ' Phase 3
 sup -> tools : ToolRegistryHandle::start()
 tools --> sup : ToolRegistryHandle
-sup -> tools : register(BashExecutor)
-sup -> tools : register(FileIo)
-sup -> tools : register(PythonExecutor)
-note right of sup : ✔ Phase 3 — ToolRegistry prêt\n(3 outils natifs enregistrés)
+sup -> tools : register(BashExecutor, PythonExecutor)
+sup -> tools : register(file_read, file_write,\n  file_edit, file_list, file_glob, file_grep)
+sup -> tools : register(http_fetch, memory_search)
+note right of sup : ✔ Phase 3 — ToolRegistry prêt\n(10 outils natifs enregistrés)
+
+' Phase 3b — MCP (Sprint 26, ADR-044)
+alt mcp.toml présent dans data_dir
+  sup -> mcp : McpClientManagerHandle::start(\n  McpConfig::load(mcp.toml),\n  tool_registry\n)
+  mcp -> mcp : itérer sur [[servers]]
+  loop pour chaque serveur configuré
+    mcp -> mcp : McpSession::spawn(command, args, env)
+    mcp -> mcp : handshake initialize
+    mcp -> mcp : tools/list → découverte outils
+    mcp -> tools : register(McpToolExecutor\n× N outils découverts)
+    note right of mcp : Serveur en erreur → warn! + skip\nles autres serveurs continuent
+  end
+  mcp --> sup : McpClientManagerHandle
+  note right of sup : ✔ Phase 3b — McpClientManager prêt\n(M serveurs, K outils MCP enregistrés)
+else mcp.toml absent
+  note right of sup : ⚠ Phase 3b — MCP désactivé\n(mcp.toml absent — aucun serveur configuré)
+end
 
 ' Phase 4 — optionnelle
 alt [llm] configuré dans apollia.toml

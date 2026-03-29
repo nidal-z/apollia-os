@@ -6,57 +6,72 @@ skinparam defaultFontSize 11
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title Séquence — Tool Call MCP (mcp_consumer) — Apollia OS
+title Séquence — Tool Call MCP (McpToolExecutor) — Apollia OS
 
 participant "Agent Python" as agent #2d4a22/d4edda
-participant "ToolProxy" as proxy #1a1a2e/e0e0ff
-participant "ToolRegistry" as reg #1a1a2e/e0e0ff
-participant "McpConsumer" as mcp_c #1a1a2e/e0e0ff
-participant "ResilienceLayer\n(circuit breaker)" as resilience #1a1a2e/e0e0ff
-participant "MCP Server\n(externe stdio/HTTP)" as mcp_s #4a3728/f5e6d3
-participant "AuditTrail" as audit #2a3a4a/cce5ff
+participant "ToolDispatcher" as dispatcher #1a1a2e/e0e0ff
+participant "McpToolExecutor" as executor #1a1a2e/e0e0ff
+participant "McpClientManager\n(acteur Tokio)" as manager #1a1a2e/e0e0ff
+participant "McpSession\n(subprocess stdio)" as session #1a1a2e/e0e0ff
+participant "MCP Server\n(subprocess local)" as mcp_s #4a3728/f5e6d3
+participant "PendingApprovals" as hitl #2a3a4a/cce5ff
 
-note over mcp_c, mcp_s
-  Connexion établie à INITIALIZING.
-  Maintenue pour toute la durée de vie de l'agent.
-  Échec connexion → ProcessState::Degraded (si optional)
-  ou ProcessState::Stopped (si required).
+note over manager, mcp_s
+  Session démarrée à la première invocation (lazy start).
+  Transport : stdio — subprocess local géré par le runtime.
+  Protocole : JSON-RPC 2.0, corrélation requête/réponse par id.
 end note
 
-agent -> proxy : await ctx.tools.call(\n  "mcp:filesystem",\n  {"action": "read_file", "path": "/data/a.pdf"}\n)
+agent -> dispatcher : await ctx.tools.call(\n  "mcp:notion/search",\n  {"query": "rapport Q1"}\n)
 
-proxy -> reg : get("mcp:filesystem")
-reg --> proxy : ToolDescriptor{kind: Mcp}
+dispatcher -> executor : dispatch("mcp:notion/search", input)
 
-proxy -> resilience : pre_check("mcp:filesystem")
+alt requires_approval = true (serveur OU agent)
+  executor -> hitl : create PendingApproval\n{ tool: "mcp:notion/search", input }
+  hitl --> executor : suspend
+  note right of hitl : En attente de\nPOST /api/v1/approvals/:id/approve
+  hitl --> executor : approved (ou rejected → ToolExecutionError)
+end
 
-alt circuit OPEN
-  resilience --> proxy : ResilienceError::CircuitOpen
-  proxy --> agent : PyRuntimeError (circuit open)
-else circuit CLOSED ou HALF_OPEN
-  proxy -> mcp_c : call("filesystem", input_json)
+executor -> manager : call_tool("notion", "search", arguments)
 
-  mcp_c -> mcp_s : MCP tools/call\n{"name": "read_file", "arguments": {...}}
+alt session absente (lazy start)
+  manager -> session : McpSession::spawn(McpServerConfig)
+  session -> mcp_s : spawn subprocess\n(npx -y @notionhq/notion-mcp-server)
+  session -> mcp_s : {"method":"initialize",...}
+  mcp_s --> session : initialize result\n{serverInfo: {...}}
+  session -> mcp_s : {"method":"notifications/initialized"}
+  session -> mcp_s : {"method":"tools/list"}
+  mcp_s --> session : tools/list result\n[{name, description, inputSchema}, ...]
+  session --> manager : McpSession prête\n(N outils découverts)
+  manager -> manager : register tools\ndans ToolRegistryHandle
+end
 
-  alt succès
-    mcp_s --> mcp_c : MCP result\n{"content": [...]}
-    mcp_c --> proxy : Ok(result_json)
-    proxy -> resilience : record_success("mcp:filesystem")
+manager -> session : call_tool("search", arguments)
+session -> mcp_s : {"jsonrpc":"2.0","id":"N",\n"method":"tools/call",\n"params":{"name":"search","arguments":{...}}}
 
-  else erreur transitoire (timeout, connexion perdue)
-    mcp_s --> mcp_c : erreur / timeout
-    mcp_c --> proxy : Err(Transient)
-    proxy -> resilience : record_failure("mcp:filesystem")
-    note right of resilience : backoff jitter\nmax 3 retries
+alt succès
+  mcp_s --> session : {"result":{"content":[{"type":"text","text":"..."}]}}
+  session --> manager : Ok(content_json)
+  manager --> executor : Ok(Value)
+  executor --> dispatcher : Ok(result)
+  dispatcher --> agent : result dict
 
-  else erreur permanente
-    mcp_s --> mcp_c : erreur MCP permanente
-    mcp_c --> proxy : Err(Permanent)
-    proxy --> agent : PyRuntimeError (permanent)
-  end
+else erreur MCP (erreur métier)
+  mcp_s --> session : {"error":{"code":-32000,"message":"..."}}
+  session --> manager : Err(JsonRpcError)
+  manager --> executor : Err(ToolExecutionError::ExecutionFailed)
+  executor --> agent : PyRuntimeError
 
-  proxy -> audit : record(fire-and-forget)
-  proxy --> agent : result dict
+else timeout tools/call
+  session --> manager : Err(CallTimeout)
+  manager --> executor : Err(ToolExecutionError::ExecutionFailed{code:"TIMEOUT"})
+  executor --> agent : PyRuntimeError
+
+else subprocess crash / déconnexion
+  session --> manager : Err(Disconnected)
+  manager --> executor : Err(ToolExecutionError::ExecutionFailed{code:"DISCONNECTED"})
+  executor --> agent : PyRuntimeError (redémarrage manuel requis)
 end
 
 @enduml

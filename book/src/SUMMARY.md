@@ -39,6 +39,7 @@
   - [Runtime Core](components/runtime-core.md)
   - [Tool Registry](components/tool-registry.md)
   - [Référence des Outils Natifs](components/outils-reference.md)
+  - [Client MCP](components/mcp.md)
   - [Memory Engine](components/memory-engine.md)
   - [User Memory](components/user-memory.md)
   - [ORIA Engine](components/oria-engine.md)
@@ -120,6 +121,7 @@
   - [ADR-040 — Onboarding comme agent conversationnel](decisions/adr-040-onboarding-conversational-agent.md)
   - [ADR-041 — Moteur STT embarqué : whisper-rs, trait SttBackend](decisions/adr-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md)
   - [ADR-043 — Décomposition atomique des outils natifs](decisions/adr-043-decomposition-atomique-outils.md)
+  - [ADR-044 — Client MCP : architecture, transport, lifecycle](decisions/adr-044-client-mcp.md)
 
 ---
 
