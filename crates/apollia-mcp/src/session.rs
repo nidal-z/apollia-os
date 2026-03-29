@@ -340,6 +340,11 @@ impl McpSession {
         &self.tools
     }
 
+    /// Returns whether every tool call to this server requires HITL approval.
+    pub fn requires_approval(&self) -> bool {
+        self.config.requires_approval
+    }
+
     /// Execute a tool on this MCP server via `tools/call`.
     ///
     /// Serialises `tool_name` and `arguments` into a `tools/call` JSON-RPC request,

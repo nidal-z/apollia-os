@@ -5,5 +5,6 @@
 
 pub mod config;
 pub mod jsonrpc;
+pub mod manager;
 pub mod protocol;
 pub mod session;
