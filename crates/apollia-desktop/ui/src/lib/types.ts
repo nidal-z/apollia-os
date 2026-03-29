@@ -883,3 +883,124 @@ export interface TranscriptRow {
   model_name: string | null;
   created_at: string;
 }
+
+// ─── MCP Integrations ────────────────────────────────────────────────────────
+
+/** MCP server summary returned by `list_mcp_servers` and `restart_mcp_server`. */
+export interface McpServerStatusView {
+  name: string;
+  server_info: string;
+  tools_count: number;
+  requires_approval: boolean;
+  connected: boolean;
+  pid: number | null;
+  uptime_secs: number | null;
+  last_call_at: string | null;
+  error: string | null;
+  package: string | null;
+  transport: string;
+}
+
+/** MCP server detail including its tool list, returned by `get_mcp_server_detail`. */
+export interface McpServerDetailView {
+  status: McpServerStatusView;
+  tools: McpToolSummaryView[];
+  config: McpServerConfigView;
+}
+
+/** Summary of a single tool exposed by an MCP server. */
+export interface McpToolSummaryView {
+  full_name: string;
+  local_name: string;
+  description: string | null;
+  input_schema: Record<string, unknown>;
+}
+
+/** Read-only configuration of an MCP server with secret values redacted. */
+export interface McpServerConfigView {
+  name: string;
+  command: string;
+  args: string[];
+  env_keys: string[];
+  transport: string;
+  requires_approval: boolean;
+  tags: string[];
+}
+
+/** Trust level badge shown next to a connector in the catalogue. */
+export type TrustLevel =
+  | "verified_official"
+  | "community_verified"
+  | "community"
+  | "custom";
+
+/** MCP server entry from the registry catalogue, enriched with trust and install state. */
+export interface RegistryServerView {
+  name: string;
+  title: string | null;
+  description: string | null;
+  version: string;
+  repository_url: string | null;
+  website_url: string | null;
+  packages: RegistryPackageView[];
+  trust_level: TrustLevel;
+  enrichment: ConnectorEnrichmentView | null;
+  is_installed: boolean;
+}
+
+/** An installable package for an MCP registry server. */
+export interface RegistryPackageView {
+  registry_type: string;
+  identifier: string;
+  version: string;
+  runtime_hint: string | null;
+  transport_type: string;
+  environment_variables: RegistryEnvVarView[];
+  package_arguments: RegistryPackageArgView[];
+}
+
+/** An environment variable required by an MCP server package. */
+export interface RegistryEnvVarView {
+  name: string;
+  description: string | null;
+  is_required: boolean;
+  is_secret: boolean;
+}
+
+/** A positional or named argument forwarded to an MCP package at launch. */
+export interface RegistryPackageArgView {
+  arg_type: string;
+  value_hint: string | null;
+  description: string | null;
+  is_required: boolean;
+}
+
+/** UI-friendly metadata enriching a registry server entry for the catalogue. */
+export interface ConnectorEnrichmentView {
+  operator_label: string;
+  category: string;
+  icon_name: string;
+  trust_level: TrustLevel;
+  auth_help_url: string | null;
+  auth_help_text: string | null;
+  default_requires_approval: boolean;
+}
+
+/** Result of testing an MCP server connection without persisting a session. */
+export interface McpConnectionTestResultView {
+  server_info: string;
+  protocol_version: string;
+  tools: McpToolSummaryView[];
+  test_duration_ms: number;
+}
+
+/** Input payload for adding a new MCP server via `add_mcp_server`. */
+export interface McpServerConfigInput {
+  name: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  transport: string;
+  requires_approval: boolean;
+  tags: string[];
+}
