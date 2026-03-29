@@ -195,7 +195,7 @@ impl McpClientManagerHandle {
             let requires_approval = config.requires_approval;
             let tags = config.tags.clone();
 
-            match McpSession::start(config).await {
+            match McpSession::start(config, None).await {
                 Ok(session) => {
                     tracing::info!(
                         server = %server_name,
@@ -530,7 +530,7 @@ impl McpClientManager {
             });
         }
 
-        let session = McpSession::start(config).await?;
+        let session = McpSession::start(config, None).await?;
         tracing::info!(
             server = %name,
             tools = session.tools().len(),
@@ -565,7 +565,7 @@ impl McpClientManager {
         config: McpServerConfig,
     ) -> Result<McpConnectionTestResult, McpSessionError> {
         let start = std::time::Instant::now();
-        let session = McpSession::start(config).await?;
+        let session = McpSession::start(config, None).await?;
         let tools: Vec<McpToolSummary> = session
             .tools()
             .iter()
@@ -643,7 +643,7 @@ impl McpClientManager {
                         Some(old_session) => {
                             let config = old_session.config().clone();
                             old_session.shutdown().await;
-                            match McpSession::start(config).await {
+                            match McpSession::start(config, None).await {
                                 Ok(new_session) => {
                                     let status = build_status(&server_name, &new_session);
                                     self.sessions.insert(server_name, new_session);

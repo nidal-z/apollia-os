@@ -191,7 +191,7 @@ async fn test_connection(
     Json(config): Json<McpServerConfig>,
 ) -> Result<Json<McpConnectionTestResult>, JsonError> {
     let start = Instant::now();
-    let session = McpSession::start(config)
+    let session = McpSession::start(config, None)
         .await
         .map_err(|e| json_err(StatusCode::BAD_REQUEST, e))?;
 

@@ -6,6 +6,19 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+/// Abstracts secret retrieval so that `apollia-mcp` does not depend on any
+/// specific keychain implementation.
+///
+/// Implementors provide access to secrets keyed by the format
+/// `"{server_name}:{env_var}"` (e.g. `"notion:NOTION_API_KEY"`).
+pub trait SecretResolver: Send + Sync {
+    /// Retrieve the secret for `key`.
+    ///
+    /// Returns `Ok(value)` when the secret is present, or `Err(message)`
+    /// when it cannot be retrieved (not found, backend unavailable, etc.).
+    fn get_secret(&self, key: &str) -> Result<String, String>;
+}
+
 /// Top-level MCP configuration loaded from `~/.apollia/mcp.toml`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct McpConfig {
@@ -177,24 +190,38 @@ impl McpServerConfig {
         Ok(())
     }
 
-    /// Resolve `${VAR}` placeholders in every env value from the system environment.
+    /// Resolve `${VAR}` placeholders in every env value.
     ///
-    /// Returns a new map with all placeholders replaced by the corresponding
-    /// environment variable values. Returns [`McpConfigError::UnresolvedEnvVar`]
-    /// if any referenced variable is absent from the environment.
-    pub fn resolve_env(&self) -> Result<HashMap<String, String>, McpConfigError> {
+    /// Plain `${VAR}` placeholders are resolved from the system environment.
+    /// Placeholders prefixed with `APOLLIA_SECRET:` (e.g. `${APOLLIA_SECRET:MY_KEY}`)
+    /// are resolved from the supplied `secret_store` using the keychain key
+    /// `"{server_name}:{MY_KEY}"`.
+    ///
+    /// Returns a new map with all placeholders replaced by their resolved values.
+    /// Returns [`McpConfigError::UnresolvedEnvVar`] if any placeholder cannot be
+    /// resolved, including when `secret_store` is `None` for an `APOLLIA_SECRET:`
+    /// placeholder.
+    pub fn resolve_env(
+        &self,
+        secret_store: Option<&dyn SecretResolver>,
+    ) -> Result<HashMap<String, String>, McpConfigError> {
         self.env
             .iter()
             .map(|(key, value)| {
-                let resolved = resolve_placeholders(value, &self.name)?;
+                let resolved = resolve_placeholders(value, &self.name, secret_store)?;
                 Ok((key.clone(), resolved))
             })
             .collect()
     }
 }
 
-/// Replace all `${VAR}` occurrences in `value` with the corresponding env variables.
-fn resolve_placeholders(value: &str, server_name: &str) -> Result<String, McpConfigError> {
+/// Replace all `${VAR}` occurrences in `value`, dispatching to either the system
+/// environment or the secret store depending on the `APOLLIA_SECRET:` prefix.
+fn resolve_placeholders(
+    value: &str,
+    server_name: &str,
+    secret_store: Option<&dyn SecretResolver>,
+) -> Result<String, McpConfigError> {
     let mut result = String::with_capacity(value.len());
     let mut remaining = value;
 
@@ -213,17 +240,47 @@ fn resolve_placeholders(value: &str, server_name: &str) -> Result<String, McpCon
         let var_name = &remaining[..end];
         remaining = &remaining[end + 1..];
 
-        let var_value = std::env::var(var_name).map_err(|_| McpConfigError::UnresolvedEnvVar {
-            server: server_name.to_string(),
-            var: var_name.to_string(),
-        })?;
-
+        let var_value = resolve_single_var(server_name, var_name, secret_store)?;
         result.push_str(&var_value);
     }
 
     // Append any trailing literal text.
     result.push_str(remaining);
     Ok(result)
+}
+
+/// Resolve a single variable reference extracted from a `${…}` placeholder.
+///
+/// When `var_name` starts with `APOLLIA_SECRET:`, the remainder is used as the
+/// secret key and the value is fetched from `secret_store` using the composite
+/// key `"{server_name}:{secret_key}"`. When `secret_store` is `None` the call
+/// fails immediately with [`McpConfigError::UnresolvedEnvVar`].
+///
+/// All other variable names are resolved from the process environment via
+/// [`std::env::var`].
+fn resolve_single_var(
+    server_name: &str,
+    var_name: &str,
+    secret_store: Option<&dyn SecretResolver>,
+) -> Result<String, McpConfigError> {
+    if let Some(secret_key) = var_name.strip_prefix("APOLLIA_SECRET:") {
+        let store = secret_store.ok_or_else(|| McpConfigError::UnresolvedEnvVar {
+            server: server_name.to_string(),
+            var: var_name.to_string(),
+        })?;
+        let key = format!("{}:{}", server_name, secret_key);
+        store
+            .get_secret(&key)
+            .map_err(|_| McpConfigError::UnresolvedEnvVar {
+                server: server_name.to_string(),
+                var: var_name.to_string(),
+            })
+    } else {
+        std::env::var(var_name).map_err(|_| McpConfigError::UnresolvedEnvVar {
+            server: server_name.to_string(),
+            var: var_name.to_string(),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -325,7 +382,7 @@ mod tests {
             tags: vec![],
         };
         // WHEN
-        let resolved = config.resolve_env().unwrap();
+        let resolved = config.resolve_env(None).unwrap();
         // THEN
         assert_eq!(resolved["API_KEY"], "secret123");
         std::env::remove_var("TEST_MCP_KEY_327");
@@ -348,7 +405,7 @@ mod tests {
         };
         // WHEN / THEN
         assert!(matches!(
-            config.resolve_env(),
+            config.resolve_env(None),
             Err(McpConfigError::UnresolvedEnvVar { .. })
         ));
     }
@@ -393,7 +450,7 @@ mod tests {
             tags: vec![],
         };
         // WHEN
-        let resolved = config.resolve_env().unwrap();
+        let resolved = config.resolve_env(None).unwrap();
         // THEN
         assert_eq!(resolved["BASE_URL"], "http://localhost:8080");
         std::env::remove_var("TEST_MCP_HOST_327");
@@ -438,6 +495,123 @@ mod tests {
         assert!(matches!(
             config.validate(),
             Err(McpConfigError::EmptyCommand { .. })
+        ));
+    }
+
+    // ── SecretResolver tests ─────────────────────────────────────────────────
+
+    /// In-memory secret store used exclusively in tests.
+    struct MockSecretStore {
+        secrets: HashMap<String, String>,
+    }
+
+    impl MockSecretStore {
+        fn with(pairs: &[(&str, &str)]) -> Self {
+            Self {
+                secrets: pairs
+                    .iter()
+                    .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+                    .collect(),
+            }
+        }
+    }
+
+    impl SecretResolver for MockSecretStore {
+        fn get_secret(&self, key: &str) -> Result<String, String> {
+            self.secrets
+                .get(key)
+                .cloned()
+                .ok_or_else(|| format!("not found: {key}"))
+        }
+    }
+
+    fn server_with_env(name: &str, env: HashMap<String, String>) -> McpServerConfig {
+        McpServerConfig {
+            name: name.to_string(),
+            command: "npx".to_string(),
+            args: vec![],
+            env,
+            transport: "stdio".to_string(),
+            requires_approval: false,
+            init_timeout_secs: 30,
+            call_timeout_secs: 60,
+            tags: vec![],
+        }
+    }
+
+    #[test]
+    fn test_resolve_apollia_secret_from_store() {
+        // GIVEN env = { KEY = "${APOLLIA_SECRET:MY_KEY}" } and a store holding "notion:MY_KEY"
+        let store = MockSecretStore::with(&[("notion:MY_KEY", "tok_abc123")]);
+        let config = server_with_env(
+            "notion",
+            HashMap::from([("KEY".to_string(), "${APOLLIA_SECRET:MY_KEY}".to_string())]),
+        );
+        // WHEN
+        let resolved = config.resolve_env(Some(&store)).unwrap();
+        // THEN the keyring value is injected
+        assert_eq!(resolved["KEY"], "tok_abc123");
+    }
+
+    #[test]
+    fn test_resolve_normal_env_var_unchanged() {
+        // GIVEN env = { KEY = "${HOME}" } and no secret store
+        let config = server_with_env(
+            "test",
+            HashMap::from([("KEY".to_string(), "${HOME}".to_string())]),
+        );
+        let home = std::env::var("HOME").unwrap_or_default();
+        // WHEN
+        let resolved = config.resolve_env(None).unwrap();
+        // THEN the system env var is returned as before
+        assert_eq!(resolved["KEY"], home);
+    }
+
+    #[test]
+    fn test_missing_secret_returns_unresolved_error() {
+        // GIVEN env = { KEY = "${APOLLIA_SECRET:MISSING}" } and a store without that key
+        let store = MockSecretStore::with(&[]);
+        let config = server_with_env(
+            "notion",
+            HashMap::from([("KEY".to_string(), "${APOLLIA_SECRET:MISSING}".to_string())]),
+        );
+        // WHEN / THEN
+        assert!(matches!(
+            config.resolve_env(Some(&store)),
+            Err(McpConfigError::UnresolvedEnvVar { .. })
+        ));
+    }
+
+    #[test]
+    fn test_coexistence_secret_and_env_var() {
+        // GIVEN env = { A = "${APOLLIA_SECRET:X}", B = "${HOME}" }
+        let store = MockSecretStore::with(&[("svc:X", "from_keychain")]);
+        let config = server_with_env(
+            "svc",
+            HashMap::from([
+                ("A".to_string(), "${APOLLIA_SECRET:X}".to_string()),
+                ("B".to_string(), "${HOME}".to_string()),
+            ]),
+        );
+        let home = std::env::var("HOME").unwrap_or_default();
+        // WHEN
+        let resolved = config.resolve_env(Some(&store)).unwrap();
+        // THEN A comes from the keyring and B from the system environment
+        assert_eq!(resolved["A"], "from_keychain");
+        assert_eq!(resolved["B"], home);
+    }
+
+    #[test]
+    fn test_apollia_secret_without_store_returns_error() {
+        // GIVEN env = { KEY = "${APOLLIA_SECRET:X}" } and secret_store = None
+        let config = server_with_env(
+            "svc",
+            HashMap::from([("KEY".to_string(), "${APOLLIA_SECRET:X}".to_string())]),
+        );
+        // WHEN / THEN
+        assert!(matches!(
+            config.resolve_env(None),
+            Err(McpConfigError::UnresolvedEnvVar { .. })
         ));
     }
 }

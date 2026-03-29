@@ -17,7 +17,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tracing::{debug, warn};
 
-use crate::config::McpServerConfig;
+use crate::config::{McpServerConfig, SecretResolver};
 use crate::jsonrpc::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
 use crate::protocol::{
     ClientCapabilities, ClientInfo, InitializeParams, InitializeResult, McpToolDefinition,
@@ -112,12 +112,16 @@ pub struct McpSession {
 impl McpSession {
     /// Spawn the server subprocess and perform the MCP `initialize` handshake.
     ///
-    /// Resolves `${VAR}` placeholders in `config.env` before spawning.
+    /// Resolves `${VAR}` placeholders in `config.env` before spawning. Placeholders
+    /// prefixed with `APOLLIA_SECRET:` are resolved via `secret_store` when provided.
     /// On success, returns a session that is ready to accept `tools/list` and
     /// `tools/call` requests.
-    pub async fn start(config: McpServerConfig) -> Result<Self, McpSessionError> {
+    pub async fn start(
+        config: McpServerConfig,
+        secret_store: Option<&dyn SecretResolver>,
+    ) -> Result<Self, McpSessionError> {
         let resolved_env = config
-            .resolve_env()
+            .resolve_env(secret_store)
             .map_err(|e| McpSessionError::SpawnFailed {
                 server: config.name.clone(),
                 cause: e.to_string(),
@@ -560,7 +564,7 @@ mod tests {
         // GIVEN a command that does not exist on this system
         let config = make_config("test", "nonexistent-binary-12345", vec![], 5, 10);
         // WHEN
-        let result = McpSession::start(config).await;
+        let result = McpSession::start(config, None).await;
         // THEN
         assert!(matches!(result, Err(McpSessionError::SpawnFailed { .. })));
     }
@@ -570,7 +574,7 @@ mod tests {
         // GIVEN `cat` spawns successfully but never writes a JSON-RPC response
         let config = make_config("timeout-test", "cat", vec![], 1, 10);
         // WHEN
-        let result = McpSession::start(config).await;
+        let result = McpSession::start(config, None).await;
         // THEN the timeout fires and an error is returned
         assert!(result.is_err());
     }

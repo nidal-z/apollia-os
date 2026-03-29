@@ -5,6 +5,8 @@
 //! never leave the local machine — they are delegated entirely to the native
 //! OS keychain (macOS Keychain, Linux Secret Service, Windows Credential Manager).
 
+use apollia_mcp::config::SecretResolver;
+
 /// Local secret store backed by the OS keychain.
 ///
 /// All secrets are stored under the service name `apollia-mcp`. Keys follow
@@ -104,6 +106,16 @@ impl SecretStore {
 impl Default for SecretStore {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl SecretResolver for SecretStore {
+    /// Retrieve a secret from the OS keychain by its composite key.
+    ///
+    /// Returns `Ok(value)` when found, or `Err(message)` for any keychain
+    /// error including [`SecretStoreError::NotFound`].
+    fn get_secret(&self, key: &str) -> Result<String, String> {
+        self.retrieve(key).map_err(|e| e.to_string())
     }
 }
 

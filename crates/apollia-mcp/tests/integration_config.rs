@@ -63,7 +63,7 @@ fn test_config_unresolved_env_var_fails() {
     };
 
     // WHEN env var resolution is requested
-    let result = config.resolve_env();
+    let result = config.resolve_env(None);
 
     // THEN an UnresolvedEnvVar error is returned
     assert!(matches!(

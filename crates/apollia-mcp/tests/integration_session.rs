@@ -45,7 +45,7 @@ async fn test_mock_server_handshake() {
     let config = mock_server_config();
 
     // WHEN a session is started
-    let session = McpSession::start(config).await.unwrap();
+    let session = McpSession::start(config, None).await.unwrap();
 
     // THEN the handshake succeeded and both tools were discovered
     assert_eq!(session.tools().len(), 2);
@@ -59,7 +59,7 @@ async fn test_mock_server_handshake() {
 #[tokio::test]
 async fn test_full_flow_echo_tool_call() {
     // GIVEN a running session with the mock server
-    let session = McpSession::start(mock_server_config()).await.unwrap();
+    let session = McpSession::start(mock_server_config(), None).await.unwrap();
 
     // WHEN the echo tool is called with a message
     let result = session
@@ -82,7 +82,7 @@ async fn test_full_flow_echo_tool_call() {
 #[tokio::test]
 async fn test_full_flow_add_tool_call() {
     // GIVEN a running session with the mock server
-    let session = McpSession::start(mock_server_config()).await.unwrap();
+    let session = McpSession::start(mock_server_config(), None).await.unwrap();
 
     // WHEN the add tool is called with two numbers
     let result = session
@@ -117,7 +117,7 @@ async fn test_initialize_timeout_on_slow_server() {
     };
 
     // WHEN a session start is attempted
-    let result = McpSession::start(config).await;
+    let result = McpSession::start(config, None).await;
 
     // THEN the initialize handshake times out
     assert!(matches!(
@@ -133,7 +133,7 @@ async fn test_server_crash_returns_error_on_tool_call() {
     let config = crash_server_config();
 
     // WHEN the session is started — succeeds because the crash happens after tools/list
-    let session = McpSession::start(config).await.unwrap();
+    let session = McpSession::start(config, None).await.unwrap();
     assert_eq!(session.tools().len(), 1);
 
     // Allow the server process to fully exit before calling a tool

@@ -31,6 +31,7 @@ stt-cuda = ["stt-whisper-cpp", "apollia-stt/stt-cuda", "apollia-runtime/stt-cuda
 [dependencies]
 reqwest          = { workspace = true }
 apollia-runtime  = { workspace = true }
+apollia-mcp      = { path = "../apollia-mcp" }
 apollia-llm      = { workspace = true, default-features = false }
 apollia-stt      = { workspace = true, default-features = false }
 apollia-core     = { workspace = true }
