@@ -831,5 +831,24 @@
 
 ---
 
+## ADR-044 — Client MCP : architecture, transport, lifecycle
+
+**Date :** 2026-03-29
+**Statut :** Accepté
+
+**Contexte :** 16 000+ serveurs MCP existent (GitHub, Notion, Slack, PostgreSQL, Brave Search…). Sans client MCP, les agents Apollia sont isolés de cet écosystème. Le transport stdio couvre ~90 % des serveurs communautaires et reste local-first (subprocess, pas de réseau distant). Le Principe #2 interdit tout SDK MCP tiers.
+
+**Décision :** Nouvelle crate `apollia-mcp` avec implémentation native du protocole JSON-RPC 2.0 + MCP. Transport stdio uniquement en V1 (deux tâches Tokio : stdin writer, stdout reader). Configuration via `~/.apollia/mcp.toml` (secrets interpolés depuis les variables d'environnement). Naming `mcp:{server}/{tool}` dans le ToolRegistry. HITL à deux niveaux : serveur (`requires_approval`) et agent (`tools_requiring_approval`). Lazy start des sous-processus serveurs.
+
+**Alternatives considérées :** SDK MCP Rust tiers (rejetée — viole Principe #2, crates expérimentales non maintenues), HTTP/SSE uniquement (rejetée — couvre une minorité des serveurs MCP réels), intégration dans `apollia-tools` (rejetée — mélange de responsabilités, viole Principe #5).
+
+**Conséquences :** Écosystème MCP accessible depuis les agents. Serveurs locaux fonctionnent hors-ligne. HITL assure la conformité local-first. Pas de reconnection automatique en V1 (crash = erreur explicite). HTTP/SSE reporté à V2. Nouvelles dépendances workspace : `toml`, `async-trait`.
+
+**Principes impactés :** Principe #1 — Local-first (respecté : stdio local, secrets env, HITL gate), Principe #2 — Zéro dépendance externe (respecté : implémentation native), Principe #5 — Un acteur, une responsabilité (respecté : McpClientManager acteur dédié), Principe #8 — CLI humaine, API machine (respecté : `/mcp/servers` REST).
+
+[Détail → docs/adr/ADR-044-client-mcp.md](adr/ADR-044-client-mcp.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
