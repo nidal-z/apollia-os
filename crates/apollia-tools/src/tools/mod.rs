@@ -4,6 +4,7 @@
 //! that returns a valid `ToolDescriptor` for registration in `ToolRegistry`.
 
 pub mod bash_executor;
+pub mod file_edit;
 pub mod file_io;
 pub mod file_read;
 pub mod file_write;
