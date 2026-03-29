@@ -352,6 +352,14 @@ impl McpSession {
         self.config.requires_approval
     }
 
+    /// Update whether tool calls to this server require HITL approval.
+    ///
+    /// The change takes effect immediately for future calls; no process restart
+    /// is required. Callers are responsible for persisting the change to `mcp.toml`.
+    pub fn set_requires_approval(&mut self, requires_approval: bool) {
+        self.config.requires_approval = requires_approval;
+    }
+
     /// Returns the OS process ID of the server subprocess, if still running.
     pub fn pid(&self) -> Option<u32> {
         self.child.id()

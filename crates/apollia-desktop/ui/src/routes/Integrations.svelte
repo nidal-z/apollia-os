@@ -8,12 +8,15 @@
   import OperatorConnectionCard from "../components/integrations/OperatorConnectionCard.svelte";
   import OperatorCatalogue from "../components/integrations/OperatorCatalogue.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
+  import OperatorServerManage from "../components/integrations/OperatorServerManage.svelte";
   import type { McpServerStatusView, ConnectorEnrichmentView, RegistryServerView } from "$lib/types";
 
   let disclaimerOpen = $state(false);
   let catalogueOpen = $state(false);
   let selectedServer = $state<RegistryServerView | null>(null);
   let wizardOpen = $state(false);
+  let managedServerName = $state<string | null>(null);
+  let manageOpen = $state(false);
   let servers = $state<McpServerStatusView[]>([]);
   let enrichmentMap = $state(new Map<string, ConnectorEnrichmentView>());
   let loading = $state(false);
@@ -73,8 +76,20 @@
     loadOperatorData();
   }
 
-  function handleManage(_name: string): void {
-    // OperatorServerManage sheet will be wired here in STORY-358
+  function handleManage(name: string): void {
+    managedServerName = name;
+    manageOpen = true;
+  }
+
+  function handleManageClose(): void {
+    manageOpen = false;
+    managedServerName = null;
+  }
+
+  function handleManageDisconnect(): void {
+    manageOpen = false;
+    managedServerName = null;
+    loadOperatorData();
   }
 
   $effect(() => {
@@ -162,3 +177,12 @@
   onaccept={handleDisclaimerAccept}
   onclose={() => { disclaimerOpen = false; }}
 />
+
+{#if managedServerName !== null}
+  <OperatorServerManage
+    serverName={managedServerName}
+    open={manageOpen}
+    onclose={handleManageClose}
+    onDisconnect={handleManageDisconnect}
+  />
+{/if}

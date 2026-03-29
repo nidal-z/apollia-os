@@ -12,7 +12,7 @@ use std::time::Instant;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
     Json, Router,
 };
 
@@ -44,6 +44,10 @@ pub fn mcp_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route(
             "/api/v1/mcp/servers/:name/config",
             put(update_server_config::<B>),
+        )
+        .route(
+            "/api/v1/mcp/servers/:name/approval",
+            patch(set_server_approval::<B>),
         )
 }
 
@@ -252,6 +256,43 @@ async fn update_server_config<B: ExecutionBackend + Clone>(
         .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     Ok(Json(status))
+}
+
+/// Request body for `PATCH /api/v1/mcp/servers/:name/approval`.
+#[derive(Debug, serde::Deserialize)]
+struct SetApprovalBody {
+    requires_approval: bool,
+}
+
+/// `PATCH /api/v1/mcp/servers/:name/approval` — Update the approval flag without restarting.
+///
+/// Updates the `requires_approval` flag in-memory and persists the change to `mcp.toml`.
+/// The running session is **not** restarted; the new flag takes effect for the next
+/// tool call. Returns `200 OK` with the updated [`McpServerStatus`] on success.
+/// Returns `404 Not Found` when no server with `name` is managed.
+/// Returns `503 Service Unavailable` when MCP is not configured.
+async fn set_server_approval<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(name): Path<String>,
+    Json(body): Json<SetApprovalBody>,
+) -> Result<Json<McpServerStatus>, JsonError> {
+    let handle = require_mcp_handle(&state)?;
+    let writer = require_config_writer(&state)?;
+
+    handle
+        .set_server_approval(&name, body.requires_approval)
+        .await
+        .map_err(|e| json_err(StatusCode::NOT_FOUND, e))?;
+
+    writer
+        .set_server_approval(&name, body.requires_approval)
+        .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    handle
+        .server_detail(&name)
+        .await
+        .map(|d| Json(d.status))
+        .ok_or_else(|| json_err(StatusCode::NOT_FOUND, format!("server '{}' not found", name)))
 }
 
 // ─── tests ────────────────────────────────────────────────────────────────────

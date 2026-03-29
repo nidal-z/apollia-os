@@ -101,6 +101,18 @@ pub(crate) async fn http_put_json(
     http_request_json(port, "PUT", path, Some(body)).await
 }
 
+/// Envoie une requête PATCH avec un corps JSON à l'API REST interne.
+///
+/// Utilisé pour les mises à jour partielles (ex. : `requires_approval` d'un
+/// serveur MCP sans le redémarrer).
+pub(crate) async fn http_patch_json(
+    port: u16,
+    path: &str,
+    body: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    http_request_json(port, "PATCH", path, Some(body)).await
+}
+
 /// Envoie une requête DELETE à l'API REST interne et retourne le corps JSON
 /// parsé.
 ///

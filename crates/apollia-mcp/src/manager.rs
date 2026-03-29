@@ -62,6 +62,12 @@ enum McpCommand {
         server_name: String,
         reply: oneshot::Sender<bool>,
     },
+    /// Update the `requires_approval` flag for a server in-memory.
+    SetApproval {
+        server_name: String,
+        requires_approval: bool,
+        reply: oneshot::Sender<Result<(), McpSessionError>>,
+    },
     /// Gracefully shut down all sessions and stop the actor loop.
     Shutdown,
 }
@@ -446,6 +452,33 @@ impl McpClientManagerHandle {
             .map_err(|_| McpSessionError::ServerExited { server: name })?
     }
 
+    /// Update the `requires_approval` flag for the named server in-memory.
+    ///
+    /// The change is applied immediately; callers are responsible for persisting
+    /// the new value to `mcp.toml` via [`McpConfigWriter::set_server_approval`].
+    /// Returns [`McpSessionError::ServerExited`] when no session with `server_name`
+    /// is connected, or when the actor has already shut down.
+    pub async fn set_server_approval(
+        &self,
+        server_name: &str,
+        requires_approval: bool,
+    ) -> Result<(), McpSessionError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(McpCommand::SetApproval {
+                server_name: server_name.to_string(),
+                requires_approval,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| McpSessionError::ServerExited {
+                server: server_name.to_string(),
+            })?;
+        reply_rx.await.map_err(|_| McpSessionError::ServerExited {
+            server: server_name.to_string(),
+        })?
+    }
+
     /// Gracefully shut down all MCP sessions and stop the actor.
     ///
     /// Consumes the handle. Remaining clones will receive channel-closed errors
@@ -669,6 +702,28 @@ impl McpClientManager {
                         .map(|s| s.requires_approval())
                         .unwrap_or(false);
                     let _ = reply.send(requires);
+                }
+
+                McpCommand::SetApproval {
+                    server_name,
+                    requires_approval,
+                    reply,
+                } => {
+                    let result = match self.sessions.get_mut(&server_name) {
+                        Some(session) => {
+                            session.set_requires_approval(requires_approval);
+                            tracing::info!(
+                                server = %server_name,
+                                requires_approval = %requires_approval,
+                                "MCP server approval updated"
+                            );
+                            Ok(())
+                        }
+                        None => Err(McpSessionError::ServerExited {
+                            server: server_name,
+                        }),
+                    };
+                    let _ = reply.send(result);
                 }
 
                 McpCommand::Shutdown => {

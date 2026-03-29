@@ -146,6 +146,27 @@
       "approval_readonly_desc": "Seules les opérations de lecture sont autorisées",
       "confirm_button": "Ajouter la connexion",
       "adding": "Ajout en cours…"
+    },
+    "manage": {
+      "title": "Gérer {name}",
+      "status_section": "Statut",
+      "approval_section": "Approbation",
+      "activity_section": "Activité récente",
+      "tools_count": "{count} outils disponibles",
+      "last_call": "Dernier appel {time}",
+      "no_activity": "Aucune activité pour l’instant",
+      "test_button": "Tester",
+      "test_testing": "Test en cours…",
+      "test_ok": "Connexion OK — {count} outils",
+      "test_failed": "Test échoué",
+      "reconnect_button": "Reconnecter",
+      "reconnecting": "Reconnexion…",
+      "approval_saving": "Enregistrement…",
+      "disconnect_button": "Déconnecter",
+      "disconnect_warning": "Déconnecter {name} ? La configuration et tous les secrets stockés seront supprimés.",
+      "disconnect_cancel": "Annuler",
+      "disconnect_confirm": "Déconnecter",
+      "disconnecting": "Déconnexion…"
     }
   },
   "dashboard": {

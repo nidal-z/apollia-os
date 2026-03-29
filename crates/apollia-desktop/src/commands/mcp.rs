@@ -16,7 +16,7 @@ use crate::mcp::registry_client::{
 };
 use crate::mcp::secret_store::SecretStore;
 
-use super::{http_delete_json, http_get_json, http_post_json};
+use super::{http_delete_json, http_get_json, http_patch_json, http_post_json};
 
 /// Flattened view of a registry server entry for the catalogue UI.
 ///
@@ -232,6 +232,23 @@ pub async fn store_mcp_secret(
 ) -> Result<(), String> {
     let key = SecretStore::key_for(&server_name, &env_var);
     secret_store.store(&key, &value).map_err(|e| e.to_string())
+}
+
+/// Update the `requires_approval` flag for a running MCP server.
+///
+/// Applies the change in-memory immediately and persists it to `mcp.toml`.
+/// The server session is not restarted; the flag takes effect on the next tool call.
+/// Returns the updated server status.
+#[tauri::command]
+pub async fn set_mcp_server_approval(
+    state: State<'_, RuntimeHandle>,
+    name: String,
+    requires_approval: bool,
+) -> Result<McpServerStatus, String> {
+    let body = serde_json::json!({ "requires_approval": requires_approval });
+    let path = format!("/api/v1/mcp/servers/{name}/approval");
+    let json = http_patch_json(state.api_port, &path, &body).await?;
+    serde_json::from_value(json).map_err(|e| format!("failed to parse server status: {e}"))
 }
 
 /// Delete a secret from the OS keychain for an MCP server environment variable.

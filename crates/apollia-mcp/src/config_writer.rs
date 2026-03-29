@@ -110,6 +110,25 @@ impl McpConfigWriter {
         self.persist(&current)
     }
 
+    /// Update only the `requires_approval` flag for the server named `name`.
+    ///
+    /// All other fields are preserved exactly as written in `mcp.toml`. Returns
+    /// [`McpConfigWriteError::ServerNotFound`] when `name` is absent from the file.
+    pub fn set_server_approval(
+        &self,
+        name: &str,
+        requires_approval: bool,
+    ) -> Result<(), McpConfigWriteError> {
+        let mut current = self.load_raw()?;
+        let pos = current
+            .servers
+            .iter()
+            .position(|s| s.name == name)
+            .ok_or_else(|| McpConfigWriteError::ServerNotFound(name.to_string()))?;
+        current.servers[pos].requires_approval = requires_approval;
+        self.persist(&current)
+    }
+
     // ── private helpers ──────────────────────────────────────────────────────
 
     /// Load the current config, returning an empty config if the file is absent.

@@ -146,6 +146,27 @@
       "approval_readonly_desc": "Only read operations are permitted",
       "confirm_button": "Add connection",
       "adding": "Adding…"
+    },
+    "manage": {
+      "title": "Manage {name}",
+      "status_section": "Status",
+      "approval_section": "Approval",
+      "activity_section": "Recent activity",
+      "tools_count": "{count} tools available",
+      "last_call": "Last call {time}",
+      "no_activity": "No activity yet",
+      "test_button": "Test",
+      "test_testing": "Testing…",
+      "test_ok": "Connection OK — {count} tools",
+      "test_failed": "Test failed",
+      "reconnect_button": "Reconnect",
+      "reconnecting": "Reconnecting…",
+      "approval_saving": "Saving…",
+      "disconnect_button": "Disconnect",
+      "disconnect_warning": "Disconnect {name}? This will remove the configuration and all stored secrets.",
+      "disconnect_cancel": "Cancel",
+      "disconnect_confirm": "Disconnect",
+      "disconnecting": "Disconnecting…"
     }
   },
   "dashboard": {

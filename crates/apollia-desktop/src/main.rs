@@ -503,6 +503,7 @@ fn main() {
             commands::mcp::fetch_mcp_registry,
             commands::mcp::store_mcp_secret,
             commands::mcp::delete_mcp_secret,
+            commands::mcp::set_mcp_server_approval,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
