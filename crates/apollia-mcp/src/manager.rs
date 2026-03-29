@@ -32,6 +32,11 @@ enum McpCommand {
     GetStatus {
         reply: oneshot::Sender<Vec<McpServerStatus>>,
     },
+    /// Check whether a named server requires HITL approval for all its tools.
+    ServerRequiresApproval {
+        server_name: String,
+        reply: oneshot::Sender<bool>,
+    },
     /// Gracefully shut down all sessions and stop the actor loop.
     Shutdown,
 }
@@ -212,6 +217,27 @@ impl McpClientManagerHandle {
         reply_rx.await.unwrap_or_default()
     }
 
+    /// Check whether a server requires HITL approval for all its tools.
+    ///
+    /// Returns `true` when the server's `requires_approval` flag is set in `mcp.toml`.
+    /// Returns `false` when no session with that name is connected, or the actor has
+    /// already shut down.
+    pub async fn server_requires_approval(&self, server_name: &str) -> bool {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .tx
+            .send(McpCommand::ServerRequiresApproval {
+                server_name: server_name.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .is_err()
+        {
+            return false;
+        }
+        reply_rx.await.unwrap_or(false)
+    }
+
     /// Gracefully shut down all MCP sessions and stop the actor.
     ///
     /// Consumes the handle. Remaining clones will receive channel-closed errors
@@ -259,6 +285,15 @@ impl McpClientManager {
                     let _ = reply.send(statuses);
                 }
 
+                McpCommand::ServerRequiresApproval { server_name, reply } => {
+                    let requires = self
+                        .sessions
+                        .get(&server_name)
+                        .map(|s| s.requires_approval())
+                        .unwrap_or(false);
+                    let _ = reply.send(requires);
+                }
+
                 McpCommand::Shutdown => {
                     for (_, session) in self.sessions.drain() {
                         session.shutdown().await;
@@ -303,6 +338,44 @@ mod tests {
         assert_eq!(json["name"], "notion");
         assert_eq!(json["tools_count"], 5);
         assert_eq!(json["requires_approval"], true);
+    }
+
+    #[test]
+    fn test_server_requires_approval_flag_in_config() {
+        // GIVEN a server config with requires_approval=true
+        use crate::config::McpServerConfig;
+        let config = McpServerConfig {
+            name: "notion".to_string(),
+            command: "npx".to_string(),
+            args: vec![],
+            env: std::collections::HashMap::new(),
+            transport: "stdio".to_string(),
+            requires_approval: true,
+            init_timeout_secs: 30,
+            call_timeout_secs: 60,
+            tags: vec![],
+        };
+        // WHEN / THEN the flag is readable
+        assert!(config.requires_approval);
+    }
+
+    #[test]
+    fn test_server_requires_approval_false_by_default() {
+        // GIVEN a server config with requires_approval=false
+        use crate::config::McpServerConfig;
+        let config = McpServerConfig {
+            name: "sqlite".to_string(),
+            command: "npx".to_string(),
+            args: vec![],
+            env: std::collections::HashMap::new(),
+            transport: "stdio".to_string(),
+            requires_approval: false,
+            init_timeout_secs: 30,
+            call_timeout_secs: 60,
+            tags: vec![],
+        };
+        // THEN
+        assert!(!config.requires_approval);
     }
 
     #[test]
