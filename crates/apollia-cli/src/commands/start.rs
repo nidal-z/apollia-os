@@ -344,7 +344,9 @@ impl ToolExecutor for NativeToolExecutor {
             tokio::runtime::Handle::current().block_on(async move {
                 match tool.as_str() {
                     "bash_executor" => native_exec_bash(input).await,
-                    "file_io" => native_exec_file_io(input, &home).await,
+                    "file_read" => native_exec_file_read(input, &home).await,
+                    "file_write" => native_exec_file_write(input, &home).await,
+                    "file_list" => native_exec_file_list(input, &home).await,
                     other => Err(format!("tool not found: {other}")),
                 }
             })
@@ -385,62 +387,46 @@ async fn native_exec_bash(input: serde_json::Value) -> Result<serde_json::Value,
     }))
 }
 
-/// Execute `file_io` from a raw JSON input dict.
-///
-/// Uses `home_dir` as the sandbox root so agents can write to paths under
-/// the user's home directory (e.g. repo checkouts on macOS dev machines).
-async fn native_exec_file_io(
+/// Execute `file_read` from a raw JSON input dict.
+async fn native_exec_file_read(
     input: serde_json::Value,
     home_dir: &Path,
 ) -> Result<serde_json::Value, String> {
-    use apollia_tools::tools::file_io::FileIo;
+    use apollia_tools::tools::file_read::{FileRead, FileReadInput};
 
-    let file_io = FileIo::new(home_dir.to_path_buf()).map_err(|e| e.to_string())?;
+    let tool = FileRead::new(home_dir.to_path_buf()).map_err(|e| e.to_string())?;
+    let file_input: FileReadInput =
+        serde_json::from_value(input).map_err(|e| format!("file_read: invalid arguments: {e}"))?;
+    let output = tool.run(file_input).await.map_err(|e| e.to_string())?;
+    serde_json::to_value(&output).map_err(|e| e.to_string())
+}
 
-    let action = input
-        .get("action")
-        .and_then(|v| v.as_str())
-        .ok_or("file_io: missing 'action' field")?;
+/// Execute `file_write` from a raw JSON input dict.
+async fn native_exec_file_write(
+    input: serde_json::Value,
+    home_dir: &Path,
+) -> Result<serde_json::Value, String> {
+    use apollia_tools::tools::file_write::{FileWrite, FileWriteInput};
 
-    match action {
-        "read" => {
-            let path = input
-                .get("path")
-                .and_then(|v| v.as_str())
-                .ok_or("file_io: missing 'path' field")?;
-            let bytes = file_io.read(path).await.map_err(|e| e.to_string())?;
-            let content = String::from_utf8_lossy(&bytes).to_string();
-            Ok(serde_json::json!({ "content": content, "size": bytes.len() }))
-        }
-        "write" => {
-            let path = input
-                .get("path")
-                .and_then(|v| v.as_str())
-                .ok_or("file_io: missing 'path' field")?;
-            let content = input
-                .get("content")
-                .and_then(|v| v.as_str())
-                .ok_or("file_io: missing 'content' field")?;
-            file_io
-                .write(path, content.as_bytes())
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(serde_json::json!({ "written": true }))
-        }
-        "list" => {
-            let dir = input
-                .get("dir")
-                .and_then(|v| v.as_str())
-                .ok_or("file_io: missing 'dir' field")?;
-            let pattern = input.get("pattern").and_then(|v| v.as_str()).unwrap_or("*");
-            let files = file_io
-                .list(dir, pattern)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(serde_json::json!({ "files": files }))
-        }
-        other => Err(format!("file_io: unknown action '{other}'")),
-    }
+    let tool = FileWrite::new(home_dir.to_path_buf()).map_err(|e| e.to_string())?;
+    let file_input: FileWriteInput =
+        serde_json::from_value(input).map_err(|e| format!("file_write: invalid arguments: {e}"))?;
+    tool.run(file_input).await.map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "written": true }))
+}
+
+/// Execute `file_list` from a raw JSON input dict.
+async fn native_exec_file_list(
+    input: serde_json::Value,
+    home_dir: &Path,
+) -> Result<serde_json::Value, String> {
+    use apollia_tools::tools::file_list::{FileList, FileListInput};
+
+    let tool = FileList::new(home_dir.to_path_buf()).map_err(|e| e.to_string())?;
+    let file_input: FileListInput =
+        serde_json::from_value(input).map_err(|e| format!("file_list: invalid arguments: {e}"))?;
+    let output = tool.run(file_input).await.map_err(|e| e.to_string())?;
+    serde_json::to_value(&output).map_err(|e| e.to_string())
 }
 
 // Real per-agent execution backend (AIPBridge + RuntimeContext)

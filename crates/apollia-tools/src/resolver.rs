@@ -231,9 +231,9 @@ mod tests {
     #[tokio::test]
     async fn test_ac1_all_required_tools_present_succeeds() {
         // GIVEN
-        let registry = registry_with_tools(&["bash_executor", "file_io"]).await;
+        let registry = registry_with_tools(&["bash_executor", "file_read"]).await;
         let mut manifest = minimal_manifest();
-        manifest.tools_required = vec!["bash_executor".to_string(), "file_io".to_string()];
+        manifest.tools_required = vec!["bash_executor".to_string(), "file_read".to_string()];
         // WHEN
         let result = resolve(&manifest, &registry).await;
         // THEN
@@ -331,10 +331,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_fail_fast_stops_at_first_missing_required() {
-        // GIVEN — only "file_io" present, manifest requires ["bash_executor", "file_io"]
-        let registry = registry_with_tools(&["file_io"]).await;
+        // GIVEN — only "file_read" present, manifest requires ["bash_executor", "file_read"]
+        let registry = registry_with_tools(&["file_read"]).await;
         let mut manifest = minimal_manifest();
-        manifest.tools_required = vec!["bash_executor".to_string(), "file_io".to_string()];
+        manifest.tools_required = vec!["bash_executor".to_string(), "file_read".to_string()];
         // WHEN
         let result = resolve(&manifest, &registry).await;
         // THEN — fails on first missing, not second
@@ -347,16 +347,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_optional_present_and_missing_mix() {
-        // GIVEN — "file_io" present, "mcp_erp" absent
-        let registry = registry_with_tools(&["file_io"]).await;
+        // GIVEN — "file_read" present, "mcp_erp" absent
+        let registry = registry_with_tools(&["file_read"]).await;
         let mut manifest = minimal_manifest();
-        manifest.tools_optional = vec!["file_io".to_string(), "mcp_erp".to_string()];
+        manifest.tools_optional = vec!["file_read".to_string(), "mcp_erp".to_string()];
         // WHEN
         let result = resolve(&manifest, &registry).await;
-        // THEN — Degraded because of missing optional, but resolved contains file_io
+        // THEN — Degraded because of missing optional, but resolved contains file_read
         let report = result.expect("should succeed");
         assert!(matches!(report.status, ResolutionStatus::Degraded));
-        assert_eq!(report.resolved, vec!["file_io"]);
+        assert_eq!(report.resolved, vec!["file_read"]);
         assert_eq!(report.warnings.len(), 1);
         registry.shutdown().await;
     }

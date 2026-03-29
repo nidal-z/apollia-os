@@ -1002,14 +1002,13 @@ fn resolve_home(path: &std::path::Path) -> std::path::PathBuf {
     path.to_owned()
 }
 
-/// Returns descriptors for the three native tools bundled with `apollia-tools`.
+/// Returns descriptors for native tools bundled with `apollia-tools`.
 ///
 /// Used by the Supervisor to auto-register tools at startup.
 fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
     vec![
         apollia_tools::tools::bash_executor::BashExecutor::descriptor(),
         apollia_tools::tools::python_executor::PythonExecutor::descriptor(),
-        apollia_tools::tools::file_io::FileIo::descriptor(),
     ]
 }
 
@@ -1297,8 +1296,8 @@ mod tests {
         assert!(tools.is_ok());
         assert_eq!(
             tools.unwrap().len(),
-            3,
-            "3 native tools should be auto-registered"
+            2,
+            "2 native tools should be auto-registered"
         );
 
         // TaskRouterHandle: is clone

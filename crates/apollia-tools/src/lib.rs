@@ -11,9 +11,9 @@
 //! Native tools:
 //! - `bash_executor` — sandboxed shell execution via unshare(1)
 //! - `python_executor` — isolated virtualenv execution
-//! - `file_io` — filesystem operations with path traversal protection
-//! - `http_client` — network-restricted HTTP client
-//! - `mcp_consumer` — MCP server protocol consumer
+//! - `file_read`, `file_write`, `file_list`, `file_edit`, `file_glob`, `file_grep` — atomic filesystem operations
+//! - `http_fetch` — network-restricted HTTP client (feature `http`)
+//! - `memory_search` — FTS5 full-text search (feature `memory-search`)
 
 pub mod agent_repository;
 pub mod audit;
@@ -36,4 +36,3 @@ pub use task_repository::{
     ApprovalInfo, PersistedTaskSummary, ResolvedApprovalRow, TaskDetail, TaskRepoError,
     TaskRepository,
 };
-pub use tools::file_io::{FileIo, FileIoError};

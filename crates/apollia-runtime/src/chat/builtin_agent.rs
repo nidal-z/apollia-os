@@ -45,7 +45,7 @@ pub const DEFAULT_CONTEXT_WINDOW_SIZE: usize = 20;
 /// Used by [`BuiltInChatAgent`] to execute tools in Chat Libre mode.
 /// Each tool invocation is fully async (no `block_in_place`).
 pub struct NativeChatToolInvoker {
-    /// Sandbox root for file I/O operations.
+    /// Sandbox root for file operations.
     home_dir: std::path::PathBuf,
 }
 
@@ -97,56 +97,37 @@ impl NativeChatToolInvoker {
         .to_string())
     }
 
-    /// Execute `file_io` with the given JSON arguments.
-    async fn invoke_file_io(&self, arguments: &serde_json::Value) -> Result<String, String> {
-        use apollia_tools::tools::file_io::FileIo;
+    /// Execute `file_read` with the given JSON arguments.
+    async fn invoke_file_read(&self, arguments: &serde_json::Value) -> Result<String, String> {
+        use apollia_tools::tools::file_read::{FileRead, FileReadInput};
 
-        let file_io = FileIo::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let tool = FileRead::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let input: FileReadInput = serde_json::from_value(arguments.clone())
+            .map_err(|e| format!("file_read: invalid arguments: {e}"))?;
+        let output = tool.run(input).await.map_err(|e| e.to_string())?;
+        serde_json::to_string(&output).map_err(|e| e.to_string())
+    }
 
-        let action = arguments
-            .get("action")
-            .and_then(|v| v.as_str())
-            .ok_or("file_io: missing 'action' field")?;
+    /// Execute `file_write` with the given JSON arguments.
+    async fn invoke_file_write(&self, arguments: &serde_json::Value) -> Result<String, String> {
+        use apollia_tools::tools::file_write::{FileWrite, FileWriteInput};
 
-        match action {
-            "read" => {
-                let path = arguments
-                    .get("path")
-                    .and_then(|v| v.as_str())
-                    .ok_or("file_io: missing 'path' field")?;
-                let bytes = file_io.read(path).await.map_err(|e| e.to_string())?;
-                let content = String::from_utf8_lossy(&bytes).to_string();
-                Ok(serde_json::json!({"content": content, "size": bytes.len()}).to_string())
-            }
-            "write" => {
-                let path = arguments
-                    .get("path")
-                    .and_then(|v| v.as_str())
-                    .ok_or("file_io: missing 'path' field")?;
-                let content = arguments
-                    .get("content")
-                    .and_then(|v| v.as_str())
-                    .ok_or("file_io: missing 'content' field")?;
-                file_io
-                    .write(path, content.as_bytes())
-                    .await
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::json!({"written": true, "path": path}).to_string())
-            }
-            "list" => {
-                let dir = arguments.get("dir").and_then(|v| v.as_str()).unwrap_or(".");
-                let pattern = arguments
-                    .get("pattern")
-                    .and_then(|v| v.as_str())
-                    .ok_or("file_io: missing 'pattern' field")?;
-                let files = file_io
-                    .list(dir, pattern)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                Ok(serde_json::json!({"files": files}).to_string())
-            }
-            other => Err(format!("file_io: unknown action '{other}'")),
-        }
+        let tool = FileWrite::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let input: FileWriteInput = serde_json::from_value(arguments.clone())
+            .map_err(|e| format!("file_write: invalid arguments: {e}"))?;
+        tool.run(input).await.map_err(|e| e.to_string())?;
+        Ok(serde_json::json!({"written": true}).to_string())
+    }
+
+    /// Execute `file_list` with the given JSON arguments.
+    async fn invoke_file_list(&self, arguments: &serde_json::Value) -> Result<String, String> {
+        use apollia_tools::tools::file_list::{FileList, FileListInput};
+
+        let tool = FileList::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let input: FileListInput = serde_json::from_value(arguments.clone())
+            .map_err(|e| format!("file_list: invalid arguments: {e}"))?;
+        let output = tool.run(input).await.map_err(|e| e.to_string())?;
+        serde_json::to_string(&output).map_err(|e| e.to_string())
     }
 }
 
@@ -159,7 +140,9 @@ impl ToolInvoker for NativeChatToolInvoker {
     ) -> Result<String, String> {
         match tool_name {
             "bash_executor" => self.invoke_bash(arguments).await,
-            "file_io" => self.invoke_file_io(arguments).await,
+            "file_read" => self.invoke_file_read(arguments).await,
+            "file_write" => self.invoke_file_write(arguments).await,
+            "file_list" => self.invoke_file_list(arguments).await,
             other => Err(format!("unknown tool: {other}")),
         }
     }
@@ -634,7 +617,7 @@ impl BuiltInChatAgent {
                 cursor = after_open + end + tag_close.len();
             } else {
                 // No closing tag — keep the rest as-is
-                cursor = cursor + start;
+                cursor += start;
                 break;
             }
         }
@@ -1234,12 +1217,12 @@ mod tests {
     /// Tool call not authorized, HITL Accept.
     #[tokio::test]
     async fn test_tool_call_hitl_accept() {
-        // GIVEN a model with tool call "file_io" NOT in authorized_tools
+        // GIVEN a model with tool call "file_read" NOT in authorized_tools
         let model = Arc::new(MockReActModel {
             calls: vec![LlmToolCall {
                 id: "c1".into(),
-                name: "file_io".into(),
-                arguments: serde_json::json!({"path": "/tmp/test.txt"}),
+                name: "file_read".into(),
+                arguments: serde_json::json!({"path": "test.txt"}),
             }],
             final_tokens: split_tokens("Fichier lu"),
             iteration: AtomicU32::new(0),
@@ -1254,7 +1237,7 @@ mod tests {
         let approvals = PendingChatApprovals::new();
 
         // Pre-resolve the approval to Accept before execute (simulates user action)
-        let key = "sess-1::msg-1::file_io".to_string();
+        let key = "sess-1::msg-1::file_read".to_string();
         tokio::spawn({
             let approvals = approvals.clone();
             async move {
@@ -1271,7 +1254,7 @@ mod tests {
                 "Read file",
                 &[],
                 "assistant",
-                &["file_io".to_string()],
+                &["file_read".to_string()],
                 &HashSet::new(),
                 &approvals,
                 &budget,
@@ -1297,7 +1280,7 @@ mod tests {
         let model = Arc::new(MockReActModel {
             calls: vec![LlmToolCall {
                 id: "c1".into(),
-                name: "file_io".into(),
+                name: "file_read".into(),
                 arguments: serde_json::json!({}),
             }],
             final_tokens: split_tokens("Ok, pas de souci."),
@@ -1312,7 +1295,7 @@ mod tests {
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
 
-        let key = "sess-1::msg-1::file_io".to_string();
+        let key = "sess-1::msg-1::file_read".to_string();
         tokio::spawn({
             let approvals = approvals.clone();
             async move {
@@ -1329,7 +1312,7 @@ mod tests {
                 "Read",
                 &[],
                 "assistant",
-                &["file_io".to_string()],
+                &["file_read".to_string()],
                 &HashSet::new(),
                 &approvals,
                 &budget,
@@ -1358,7 +1341,7 @@ mod tests {
         let model = Arc::new(MockReActModel {
             calls: vec![LlmToolCall {
                 id: "c1".into(),
-                name: "file_io".into(),
+                name: "file_read".into(),
                 arguments: serde_json::json!({}),
             }],
             final_tokens: split_tokens("Done"),
@@ -1373,7 +1356,7 @@ mod tests {
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
 
-        let key = "sess-1::msg-1::file_io".to_string();
+        let key = "sess-1::msg-1::file_read".to_string();
         tokio::spawn({
             let approvals = approvals.clone();
             async move {
@@ -1390,7 +1373,7 @@ mod tests {
                 "Read",
                 &[],
                 "assistant",
-                &["file_io".to_string()],
+                &["file_read".to_string()],
                 &HashSet::new(),
                 &approvals,
                 &budget,
@@ -1399,11 +1382,11 @@ mod tests {
             )
             .await;
 
-        // THEN tool executed AND newly_authorized contains "file_io"
+        // THEN tool executed AND newly_authorized contains "file_read"
         let resp = result.expect("should succeed");
         assert_eq!(resp.tool_calls.len(), 1);
         assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Executed);
-        assert_eq!(resp.newly_authorized, vec!["file_io".to_string()]);
+        assert_eq!(resp.newly_authorized, vec!["file_read".to_string()]);
 
         tool_registry.shutdown().await;
     }
@@ -1831,8 +1814,8 @@ mod tests {
                         Ok(LlmStreamChunk::Text("lire".into())),
                         Ok(LlmStreamChunk::ToolCall(LlmToolCall {
                             id: "c1".into(),
-                            name: "file_io".into(),
-                            arguments: serde_json::json!({"action": "read", "path": "/tmp"}),
+                            name: "file_read".into(),
+                            arguments: serde_json::json!({"path": "data.txt"}),
                         })),
                     ];
                     Ok(Box::pin(futures::stream::iter(chunks)))
@@ -1868,7 +1851,7 @@ mod tests {
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
         let mut authorized = HashSet::new();
-        authorized.insert("file_io".to_string());
+        authorized.insert("file_read".to_string());
 
         // WHEN execute
         let resp = agent
@@ -1878,7 +1861,7 @@ mod tests {
                 "lis le fichier",
                 &[],
                 "",
-                &["file_io".to_string()],
+                &["file_read".to_string()],
                 &authorized,
                 &approvals,
                 &budget,
@@ -1891,7 +1874,7 @@ mod tests {
         // THEN final content from second iteration
         assert_eq!(resp.content, "Fichier lu.");
         assert_eq!(resp.tool_calls.len(), 1);
-        assert_eq!(resp.tool_calls[0].tool_name, "file_io");
+        assert_eq!(resp.tool_calls[0].tool_name, "file_read");
         assert_eq!(resp.tool_calls[0].status, ToolCallStatus::Executed);
 
         // AND tokens from both iterations were emitted
