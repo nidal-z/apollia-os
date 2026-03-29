@@ -38,6 +38,7 @@
   - [AIP Bridge (PyO3)](components/aip-spec.md)
   - [Runtime Core](components/runtime-core.md)
   - [Tool Registry](components/tool-registry.md)
+  - [Référence des Outils Natifs](components/outils-reference.md)
   - [Memory Engine](components/memory-engine.md)
   - [User Memory](components/user-memory.md)
   - [ORIA Engine](components/oria-engine.md)
@@ -118,6 +119,7 @@
   - [ADR-039 — Conversation memory management](decisions/adr-039-conversation-memory-management.md)
   - [ADR-040 — Onboarding comme agent conversationnel](decisions/adr-040-onboarding-conversational-agent.md)
   - [ADR-041 — Moteur STT embarqué : whisper-rs, trait SttBackend](decisions/adr-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md)
+  - [ADR-043 — Décomposition atomique des outils natifs](decisions/adr-043-decomposition-atomique-outils.md)
 
 ---
 

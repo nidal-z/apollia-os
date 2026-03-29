@@ -1,7 +1,7 @@
 # Chat — Sous-systeme conversationnel
 
 > Page source de verite pour le sous-systeme Chat introduit au Sprint 18.
-> Derniere mise a jour : Sprint 18.
+> Derniere mise a jour : Sprint 25.
 
 ---
 
@@ -320,6 +320,91 @@ Les evenements chat transitent du `RuntimeEvent` vers le frontend Svelte via le 
 | `chatTokenBuffer` | `writable<string>` | Accumulation des tokens recus via `"chat-token"`, vide a la reception de `ChatResponseCompleted` |
 
 Le store `chatTokenBuffer` est consomme par `StreamingText.svelte` pour l'affichage progressif. A la reception de `ChatResponseCompleted`, le buffer est vide et le message complet est ajoute a l'historique de `currentSession`.
+
+---
+
+## Mode-aware tool card rendering *(Sprint 25)*
+
+Le Sprint 25 introduit un rendu conditionnel des appels d'outils dans le frontend Svelte, pilote par le store `uiMode`. Selon la valeur de ce store, chaque appel d'outil est affiche sous une forme adaptee a l'audience : phrase lisible pour l'operateur final, details techniques pour le developpeur.
+
+### Deux modes de rendu
+
+Le store `uiMode` accepte deux valeurs :
+
+| Valeur | Audience | Style d'affichage |
+|---|---|---|
+| `"operator"` | Utilisateur final | Phrase humaine, icone, indicateur de statut — sans JSON expose |
+| `"builder"` | Developpeur / debug | Nom technique, JSON entree/sortie, previews specialisees |
+
+`ChatMessageBubble.svelte` lit `$uiMode` a chaque rendu et instancie le composant correspondant en lieu et place de l'ancien `ToolCallCard.svelte`.
+
+### OperatorToolCard.svelte
+
+Composant cible quand `$uiMode === "operator"`.
+
+- Affiche une phrase humaine construite a partir des cles i18n : par exemple "Lecture de rapport.pdf" pour un appel `read_file`.
+- Integre une icone Lucide fournie par `resolveToolDisplay()`.
+- Affiche un indicateur de statut anime :
+  - Spinner (roue) pendant `Pending` / `Authorized`
+  - Icone check verte pour `Executed`
+  - Icone X rouge pour `Refused`
+- Affiche un resume de la sortie (`outputSummaryKey` + `outputParams`) une fois l'outil execute.
+- N'expose aucun JSON brut a l'utilisateur final.
+
+### BuilderToolCard.svelte
+
+Composant cible quand `$uiMode === "builder"` (valeur par defaut).
+
+- Affiche le nom technique de l'outil.
+- Section "Entree" : JSON brut de l'appel, repliable via `<details>`.
+- Section "Sortie" : JSON brut du resultat, repliable, visible uniquement apres execution.
+- Previews specialisees selon le type d'outil :
+  - **bash** : bloc code avec syntaxe shell.
+  - **http** : methode + URL en evidence, corps repliable.
+- Equivalent enrichi de l'ancien `ToolCallCard.svelte`, conserve pour les sessions de debug.
+
+### OperatorApprovalCard.svelte
+
+Carte d'approbation HITL adaptee au mode operateur. Elle remplace `ApprovalCard.svelte` quand `$uiMode === "operator"`.
+
+- Description humaine de l'outil en attente (via i18n), sans JSON.
+- Deux actions uniquement : **Approuver** et **Refuser** — le bouton "Toujours accepter" (`AlwaysAccept`) est retire de la vue operateur.
+- `ApprovalCard.svelte` (existant) reste utilise en mode `"builder"` et conserve les trois decisions (`Accept`, `Refuse`, `AlwaysAccept`).
+
+### Module tool-display.ts
+
+Fichier : `src/lib/chat/tool-display.ts`
+
+Ce module centralise la logique de presentation des outils natifs.
+
+```typescript
+interface ToolDisplayInfo {
+  icon: LucideIcon;          // composant Lucide a afficher
+  labelKey: string;          // cle i18n du nom court de l'outil
+  descriptionKey: string;    // cle i18n de la phrase humaine (supporte templateParams)
+  templateParams?: string[]; // noms des champs de l'input a interpoler dans la description
+  outputSummaryKey?: string; // cle i18n du resume de sortie
+  outputParams?: string[];   // noms des champs de l'output a interpoler dans le resume
+}
+
+function resolveToolDisplay(toolCall: ToolCallView): ToolDisplayInfo
+```
+
+`resolveToolDisplay` couvre les 10 outils natifs du Tool Registry. Pour tout outil inconnu, il retourne une entree generique avec l'icone `Wrench` et les cles `tools.unknown.*`.
+
+### Support i18n
+
+Les cles de traduction sont definies dans les deux catalogues (EN et FR) sous l'espace de noms `tools.*`.
+
+Structure de cle :
+
+```
+tools.<tool_name>.label          — nom court (ex. "Lecture de fichier")
+tools.<tool_name>.description    — phrase humaine avec placeholders {param} (ex. "Lecture de {path}")
+tools.<tool_name>.output_summary — resume de sortie avec placeholders (ex. "{lines} lignes lues")
+```
+
+Les 10 outils natifs documentes : `read_file`, `write_file`, `list_dir`, `bash`, `http_request`, `search_memory`, `store_memory`, `web_search`, `read_url`, `send_notification`.
 
 ---
 

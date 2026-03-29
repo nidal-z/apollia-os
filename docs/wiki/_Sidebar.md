@@ -26,6 +26,7 @@
 
 **Briques Fondamentales**
 - [[Briques-Tool-Registry|Tool Registry]]
+- [[Outils-Reference|Référence des Outils Natifs]]
 - [[Briques-Memory-Engine|Memory Engine]]
 - [[Briques-User-Memory|User Memory]]
 - [[Briques-ORIA-Engine|ORIA Engine]]

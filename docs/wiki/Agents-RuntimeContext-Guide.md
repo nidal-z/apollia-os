@@ -52,33 +52,110 @@ result = await ctx.tools.call("bash_executor", {
 # result : {"stdout": "...", "stderr": "...", "exit_code": 0}
 ```
 
-#### file_io
+#### file_read
 
-Lecture/écriture de fichiers avec protection path traversal.
+Lit un fichier avec protection path traversal. Supporte la lecture partielle par plage de lignes.
 
 ```python
-# Lister des fichiers
-result = await ctx.tools.call("file_io", {
-    "action": "list",
-    "path": ".",
-    "pattern": "*.py",   # optionnel, glob
+result = await ctx.tools.call("file_read", {
+    "path": "data/config.json",
+    "offset": 1,    # optionnel, 1-based line number
+    "limit": 50,    # optionnel, max lignes à retourner
 })
-# result : {"files": ["hello_agent.py", "devis_agent.py"]}
+# result : {"content": "    1\t{\n    2\t  \"key\": ...", "total_lines": 42, "truncated": false}
+```
 
-# Lire un fichier
-result = await ctx.tools.call("file_io", {
-    "action": "read",
-    "path": "./data/config.json",
-})
-# result : {"content": "...", "size": 1234}
+#### file_write
 
-# Écrire un fichier
-result = await ctx.tools.call("file_io", {
-    "action": "write",
-    "path": "./output/rapport.txt",
+Écrit un fichier (crée ou remplace). Protection path traversal.
+
+```python
+result = await ctx.tools.call("file_write", {
+    "path": "output/rapport.txt",
     "content": "Contenu du rapport...",
 })
-# result : {"written": 42}
+# result : {"bytes_written": 1234, "path": "output/rapport.txt"}
+```
+
+#### file_edit
+
+Remplace une chaîne exacte dans un fichier. Échoue si `old_str` est absent ou non-unique.
+
+```python
+result = await ctx.tools.call("file_edit", {
+    "path": "src/agent.py",
+    "old_str": "version = \"1.0.0\"",
+    "new_str": "version = \"1.1.0\"",
+})
+# result : {"replaced": true, "path": "src/agent.py"}
+# Échoue si old_str absent ou non-unique dans le fichier.
+```
+
+#### file_list
+
+Liste les entrées d'un répertoire avec profondeur configurable.
+
+```python
+result = await ctx.tools.call("file_list", {
+    "path": ".",
+    "depth": 2,     # optionnel
+})
+# result : {"entries": [{"name": "...", "is_dir": false, "size": 1234}, ...]}
+```
+
+#### file_glob
+
+Recherche de fichiers par pattern glob.
+
+```python
+result = await ctx.tools.call("file_glob", {
+    "pattern": "**/*.py",
+    "path": ".",    # optionnel, répertoire de départ
+})
+# result : {"matches": ["src/agent.py", "tests/test_agent.py"], "count": 2}
+```
+
+#### file_grep
+
+Recherche par expression régulière dans les fichiers, avec filtre glob et lignes de contexte.
+
+```python
+result = await ctx.tools.call("file_grep", {
+    "pattern": "def run\\(",     # regex
+    "path": ".",
+    "glob": "*.py",              # optionnel, filtre fichiers
+    "context_lines": 2,          # optionnel, lignes de contexte
+})
+# result : {"matches": [{"file": "src/agent.py", "line": 12, "content": "..."}], "count": 3}
+```
+
+#### http_fetch
+
+Effectue une requête HTTP. Requiert que le domaine cible soit dans `network_allowlist` du manifest.
+
+```python
+result = await ctx.tools.call("http_fetch", {
+    "url": "https://api.exemple.com/data",
+    "method": "GET",                         # optionnel, défaut GET
+    "headers": {"Authorization": "Bearer x"}, # optionnel
+    "timeout_secs": 15,                      # optionnel
+})
+# result : {"status": 200, "body": "...", "headers": {...}}
+# Requiert que api.exemple.com soit dans network_allowlist du manifest.
+```
+
+#### memory_search
+
+Recherche dans la mémoire persistante de l'agent ou d'un namespace explicite.
+
+```python
+result = await ctx.tools.call("memory_search", {
+    "query": "devis client Dupont",
+    "namespace": "crm-agent",  # optionnel, défaut = namespace propre
+    "limit": 10,               # optionnel, max 50
+    "source": "episodic",      # optionnel : "episodic" | "semantic"
+})
+# result : {"results": [{"content": "...", "score": 0.92, "source": "episodic"}], "count": 3}
 ```
 
 #### python_executor
@@ -97,7 +174,7 @@ result = await ctx.tools.call("python_executor", {
 
 ```python
 available = ctx.tools.list_tools()
-# ["bash_executor", "file_io"]
+# ["bash_executor", "python_executor", "file_read", "file_write", "file_edit", "file_list", "file_glob", "file_grep", "http_fetch", "memory_search"]
 ```
 
 ### Compter les appels
@@ -289,15 +366,16 @@ result = await ctx.llm.run_tools(
     ],
     tools=[                      # list[dict] — schéma JSON Schema
         {
-            "name":        "file_io",
-            "description": "Lit ou écrit des fichiers locaux.",
+            "name":        "file_read",
+            "description": "Lit un fichier local avec protection path traversal.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "action": {"type": "string", "enum": ["read", "write", "list"]},
                     "path":   {"type": "string"},
+                    "offset": {"type": "integer"},
+                    "limit":  {"type": "integer"},
                 },
-                "required": ["action", "path"],
+                "required": ["path"],
             },
         }
     ],
@@ -374,7 +452,7 @@ async def run(self, task, ctx):
 Logs structurés envoyés via le système de logging du runtime (`tracing`).
 
 ```python
-ctx.log.info("step_started", step=1, tool="file_io")
+ctx.log.info("step_started", step=1, tool="file_read")
 ctx.log.warn("budget_low", steps_remaining=2)
 ctx.log.error("tool_failed", tool="bash_executor", reason="timeout")
 ctx.log.debug("internal_state", state={"key": "val"})

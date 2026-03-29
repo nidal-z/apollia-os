@@ -6,36 +6,44 @@ skinparam defaultFontSize 11
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
 
-title Séquence — Tool Call Natif (bash_executor) — Apollia OS
+title Séquence — Tool Call Natif (ToolDispatcher) — Apollia OS
 
 participant "Agent Python\n(ctx.tools)" as agent #2d4a22/d4edda
 participant "ToolProxy\n(PyO3 #[pyclass])" as proxy #1a1a2e/e0e0ff
 participant "ToolRegistry\n(acteur Tokio)" as reg #1a1a2e/e0e0ff
-participant "BashExecutor" as bash #1a1a2e/e0e0ff
-participant "Sandbox\n(unshare)" as sandbox #4a3728/f5e6d3
+participant "ToolDispatcher" as dispatcher #1a1a2e/e0e0ff
+participant "NativeTool\n(e.g. FileRead, BashExecutor)" as tool #1a1a2e/e0e0ff
 participant "AuditTrail\n(SQLite WAL)" as audit #2a3a4a/cce5ff
 
-agent -> proxy : await ctx.tools.call(\n  "bash_executor",\n  {"command": "ls -la"}\n)
+agent -> proxy : await ctx.tools.call(\n  "file_read",\n  {"path": "rapport.pdf"}\n)
 
 proxy -> proxy : json.dumps(input)\n→ serde_json::Value
 
 note over proxy
   Permission check :
-  "bash_executor" ∈ allowed_tools ?
+  "file_read" ∈ allowed_tools ?
   Si non → ToolNotAllowed (sans révéler l'existence)
 end note
 
-proxy -> reg : get("bash_executor")
+proxy -> reg : get("file_read")
 reg --> proxy : ToolDescriptor{sandbox: FileSystem}
 
-proxy -> bash : execute("bash_executor", input)
+proxy -> dispatcher : dispatch("file_read", input_json)
 
-bash -> bash : construire commande :\nunshare --user --mount\n  --pid --net --fork\n  /bin/bash -c "ls -la"
+note over dispatcher
+  Route par tool_name :
+  "file_read" → FileRead::execute
+  "bash_executor" → BashExecutor::execute
+  …
+end note
 
-bash -> sandbox : spawn process\ndans namespace isolé
-sandbox --> bash : stdout / stderr / exit_code
+dispatcher -> tool : execute(input)
 
-bash --> proxy : Ok({"stdout": "...", "exit_code": 0})
+tool -> tool : SandboxRoot::resolve(path)\n→ vérifie confinement sandbox\n→ ouvre le fichier
+
+tool --> dispatcher : Ok({\n  "content": "...",\n  "total_lines": 42,\n  "truncated": false\n})
+
+dispatcher --> proxy : Ok(serde_json::Value)
 
 proxy -> audit : record(fire-and-forget)\n{tool_name, input_hash, duration_ms,\n agent_id, task_id, success}
 
@@ -43,7 +51,7 @@ audit -> audit : INSERT tool_invocations\n(SQLite WAL, sync_channel 1024)
 
 proxy -> proxy : serde_json → json.loads\n→ Python dict
 
-proxy --> agent : {"stdout": "...", "exit_code": 0}
+proxy --> agent : {"content": "...", "total_lines": 42, "truncated": false}
 
 note over proxy
   tool_calls counter++
