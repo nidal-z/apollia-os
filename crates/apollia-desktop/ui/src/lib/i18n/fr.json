@@ -1041,5 +1041,76 @@
     "skip": "Plus tard",
     "starting": "Démarrage…",
     "badge": "Onboarding"
+  },
+  "tools": {
+    "labels": {
+      "file_read": "Lecture de fichier",
+      "file_write": "Écriture de fichier",
+      "file_edit": "Modification de fichier",
+      "file_list": "Exploration de dossier",
+      "file_glob": "Recherche de fichiers",
+      "file_grep": "Recherche dans le code",
+      "bash_executor": "Commande système",
+      "python_executor": "Script Python",
+      "http_fetch": "Requête réseau",
+      "memory_search": "Recherche en mémoire",
+      "mcp_generic": "Outil externe",
+      "mcp_tool": "Outil externe"
+    },
+    "descriptions": {
+      "file_read": "Lecture de {path}",
+      "file_read_partial": "Lecture de {path} (lignes {offset}–{end})",
+      "file_write": "Écriture dans {path}",
+      "file_edit": "Modification de {path}",
+      "file_edit_replace_all": "Renommage dans {path}",
+      "file_list": "Exploration de {path}",
+      "file_list_recursive": "Scan complet de {path}",
+      "file_glob": "Recherche de fichiers correspondant à {pattern}",
+      "file_glob_in": "Recherche de {pattern} dans {path}",
+      "file_grep": "Recherche de « {pattern} »",
+      "file_grep_in": "Recherche de « {pattern} » dans les fichiers {glob}",
+      "bash_executor": "Exécution d'une commande système",
+      "python_executor": "Exécution d'un script Python",
+      "http_fetch_get": "Récupération de données depuis {hostname}",
+      "http_fetch_post": "Envoi de données vers {hostname}",
+      "http_fetch_generic": "Requête {method} vers {hostname}",
+      "http_fetch": "Requête {method} vers {hostname}",
+      "memory_search": "Recherche en mémoire de « {query} »",
+      "memory_search_ns": "Recherche de « {query} » dans la mémoire {namespace}",
+      "mcp_generic": "Utilisation de {server_name} : {tool_description}",
+      "mcp_tool": "Utilisation de {server_name} : {tool_description}"
+    },
+    "status": {
+      "pending": "En attente…",
+      "authorized": "Autorisé, en cours…",
+      "executed": "Terminé",
+      "refused": "Refusé"
+    },
+    "output": {
+      "file_read_summary": "{total_lines} lignes lues",
+      "file_read_truncated": "{total_lines} lignes ({limit} affichées)",
+      "file_write_summary": "Fichier écrit avec succès",
+      "file_edit_summary": "{replacements} remplacement(s) effectué(s)",
+      "file_list_summary": "{count} éléments trouvés",
+      "file_glob_summary": "{count} fichiers trouvés",
+      "file_grep_summary": "{count} résultats dans {files_searched} fichiers",
+      "file_grep_truncated": "{count} résultats affichés (tronqués)",
+      "http_fetch_summary": "Réponse {status} ({duration_ms}ms)",
+      "memory_search_summary": "{count} résultats trouvés",
+      "bash_executor_summary": "Terminé (code {exit_code}, {duration_ms}ms)",
+      "python_executor_summary": "Terminé (code {exit_code}, {duration_ms}ms)"
+    },
+    "outputs": {
+      "file_read": "{total_lines} lignes lues",
+      "file_write": "Fichier écrit avec succès",
+      "file_edit": "{replacements} remplacement(s) effectué(s)",
+      "file_list": "{count} éléments trouvés",
+      "file_glob": "{count} fichiers trouvés",
+      "file_grep": "{count} résultats dans {files_searched} fichiers",
+      "http_fetch": "Réponse {status} ({duration_ms}ms)",
+      "memory_search": "{count} résultats trouvés",
+      "bash_executor": "Terminé (code {exit_code}, {duration_ms}ms)",
+      "python_executor": "Terminé (code {exit_code}, {duration_ms}ms)"
+    }
   }
 }

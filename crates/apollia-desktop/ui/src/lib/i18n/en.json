@@ -974,7 +974,7 @@
     "tool_show_result": "Show result",
     "tool_hide_result": "Hide result",
     "authorize_tool": "Authorize execution of",
-    "authorize_action": "The assistant wants to perform an action",
+    "authorize_action": "The assistant would like to perform an action",
     "approve_accept": "Accept",
     "approve_refuse": "Refuse",
     "approve_always": "Always accept",
@@ -1041,5 +1041,76 @@
     "skip": "Later",
     "starting": "Starting…",
     "badge": "Onboarding"
+  },
+  "tools": {
+    "labels": {
+      "file_read": "File reading",
+      "file_write": "File writing",
+      "file_edit": "File modification",
+      "file_list": "Folder exploration",
+      "file_glob": "File search",
+      "file_grep": "Code search",
+      "bash_executor": "System command",
+      "python_executor": "Python script",
+      "http_fetch": "Network request",
+      "memory_search": "Memory search",
+      "mcp_generic": "External tool",
+      "mcp_tool": "External tool"
+    },
+    "descriptions": {
+      "file_read": "Reading {path}",
+      "file_read_partial": "Reading {path} (lines {offset}–{end})",
+      "file_write": "Writing to {path}",
+      "file_edit": "Modifying {path}",
+      "file_edit_replace_all": "Renaming across {path}",
+      "file_list": "Exploring {path}",
+      "file_list_recursive": "Scanning all contents of {path}",
+      "file_glob": "Searching for files matching {pattern}",
+      "file_glob_in": "Searching for {pattern} in {path}",
+      "file_grep": "Searching for \"{pattern}\"",
+      "file_grep_in": "Searching for \"{pattern}\" in {glob} files",
+      "bash_executor": "Running a system command",
+      "python_executor": "Running a Python script",
+      "http_fetch_get": "Fetching data from {hostname}",
+      "http_fetch_post": "Sending data to {hostname}",
+      "http_fetch_generic": "{method} request to {hostname}",
+      "http_fetch": "{method} request to {hostname}",
+      "memory_search": "Searching memory for \"{query}\"",
+      "memory_search_ns": "Searching \"{query}\" in {namespace} memory",
+      "mcp_generic": "Using {server_name}: {tool_description}",
+      "mcp_tool": "Using {server_name}: {tool_description}"
+    },
+    "status": {
+      "pending": "Waiting...",
+      "authorized": "Authorized, running...",
+      "executed": "Completed",
+      "refused": "Refused"
+    },
+    "output": {
+      "file_read_summary": "{total_lines} lines read",
+      "file_read_truncated": "{total_lines} lines ({limit} shown)",
+      "file_write_summary": "File written successfully",
+      "file_edit_summary": "{replacements} replacement(s) made",
+      "file_list_summary": "{count} items found",
+      "file_glob_summary": "{count} files found",
+      "file_grep_summary": "{count} matches in {files_searched} files",
+      "file_grep_truncated": "{count} matches shown (results truncated)",
+      "http_fetch_summary": "Response {status} ({duration_ms}ms)",
+      "memory_search_summary": "{count} results found",
+      "bash_executor_summary": "Completed (exit code {exit_code}, {duration_ms}ms)",
+      "python_executor_summary": "Completed (exit code {exit_code}, {duration_ms}ms)"
+    },
+    "outputs": {
+      "file_read": "{total_lines} lines read",
+      "file_write": "File written successfully",
+      "file_edit": "{replacements} replacement(s) made",
+      "file_list": "{count} items found",
+      "file_glob": "{count} files found",
+      "file_grep": "{count} matches in {files_searched} files",
+      "http_fetch": "Response {status} ({duration_ms}ms)",
+      "memory_search": "{count} results found",
+      "bash_executor": "Completed (exit code {exit_code}, {duration_ms}ms)",
+      "python_executor": "Completed (exit code {exit_code}, {duration_ms}ms)"
+    }
   }
 }
