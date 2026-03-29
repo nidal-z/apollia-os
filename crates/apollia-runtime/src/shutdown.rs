@@ -485,6 +485,7 @@ mod tests {
             stt_engine: None,
             stt_repository: None,
             mcp_handle: None,
+            config_writer: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -628,6 +629,7 @@ mod tests {
             stt_engine: None,
             stt_repository: None,
             mcp_handle: None,
+            config_writer: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -724,6 +726,7 @@ mod tests {
             stt_engine: None,
             stt_repository: None,
             mcp_handle: None,
+            config_writer: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -926,6 +929,7 @@ mod tests {
             stt_engine: None,
             stt_repository: None,
             mcp_handle: None,
+            config_writer: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

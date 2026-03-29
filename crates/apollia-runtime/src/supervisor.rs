@@ -18,7 +18,9 @@ use tracing::{error, info, warn};
 
 use apollia_core::{PendingApprovals, ProcessState, RuntimeEvent};
 use apollia_llm::{LlmCallRepository, LlmConfig, LlmRouter};
-use apollia_mcp::{config::McpConfig, manager::McpClientManagerHandle};
+use apollia_mcp::{
+    config::McpConfig, config_writer::McpConfigWriter, manager::McpClientManagerHandle,
+};
 use apollia_notifications::{
     build_channels, NotificationConfig, NotificationConfigRepository, NotificationEngine,
     NotificationEngineHandle,
@@ -343,8 +345,8 @@ impl Supervisor {
         // tools in the ToolRegistry with the `mcp:<server>/<tool>` naming convention.
         // Errors (missing file, parse failure, server crash) are never fatal: the
         // runtime continues and MCP tools are simply unavailable.
+        let mcp_config_path = self.config.data_dir.join("mcp.toml");
         let mcp_handle: Option<McpClientManagerHandle> = {
-            let mcp_config_path = self.config.data_dir.join("mcp.toml");
             match McpConfig::load(&mcp_config_path) {
                 Ok(config) if config.servers.is_empty() => {
                     info!("Supervisor: no MCP servers configured — Phase 3b skipped");
@@ -837,6 +839,7 @@ impl Supervisor {
             stt_engine: stt_engine.clone(),
             stt_repository: stt_repository.clone(),
             mcp_handle: mcp_handle.clone(),
+            config_writer: Some(Arc::new(McpConfigWriter::new(mcp_config_path))),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -1682,6 +1685,7 @@ mod tests {
             stt_engine: None,
             stt_repository: None,
             mcp_handle: None,
+            config_writer: None,
         };
 
         // WHEN on clone l'AppState
