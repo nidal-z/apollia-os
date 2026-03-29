@@ -427,6 +427,7 @@ version = "0.1.0"
 dependencies = [
  "apollia-core",
  "glob",
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",
