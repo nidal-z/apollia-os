@@ -1,15 +1,19 @@
 //! Transport abstraction for MCP JSON-RPC communication.
 //!
 //! The [`McpTransport`] trait decouples session logic from the underlying
-//! byte-level channel. Current implementation: [`StdioTransport`] (subprocess
-//! stdio pipes). Future implementations: `StreamableHttpTransport`, `SseTransport`.
+//! byte-level channel. Implementations: [`StdioTransport`] (subprocess stdio
+//! pipes), [`StreamableHttpTransport`] (HTTP POST to a remote server). Future:
+//! `SseTransport`.
 
+pub mod http;
 pub mod stdio;
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use crate::config::McpServerConfig;
 
+pub use http::StreamableHttpTransport;
 pub use stdio::StdioTransport;
 
 // ─── errors ──────────────────────────────────────────────────────────────────
@@ -77,10 +81,14 @@ pub trait McpTransport: Send + Sync + 'static {
 ///
 /// Dispatches on `config.transport`:
 /// - `"stdio"` — spawns the subprocess and returns a [`StdioTransport`].
+/// - `"streamable-http"` — builds a [`StreamableHttpTransport`] targeting `config.url`.
+/// - `"sse"` — not yet implemented; returns [`TransportError::Unsupported`].
 /// - anything else — returns [`TransportError::Unsupported`].
 ///
 /// The `resolved_env` map must already have all `${VAR}` placeholders resolved;
-/// use [`McpServerConfig::resolve_env`] before calling this function.
+/// use [`McpServerConfig::resolve_env`] before calling this function. For
+/// network transports, `resolved_env` is not used (env vars are not injected
+/// into a remote process).
 pub fn create_transport(
     config: &McpServerConfig,
     resolved_env: HashMap<String, String>,
@@ -88,6 +96,16 @@ pub fn create_transport(
     match config.transport.as_str() {
         "stdio" => {
             let transport = StdioTransport::spawn(&config.command, &config.args, resolved_env)?;
+            Ok(Box::new(transport))
+        }
+        "streamable-http" => {
+            let url = config.url.as_deref().ok_or_else(|| {
+                TransportError::Unsupported(
+                    "streamable-http transport requires a 'url' field in config".to_string(),
+                )
+            })?;
+            let timeout = Duration::from_secs(config.call_timeout_secs);
+            let transport = StreamableHttpTransport::new(url, vec![], timeout)?;
             Ok(Box::new(transport))
         }
         other => Err(TransportError::Unsupported(other.to_string())),
@@ -108,6 +126,7 @@ mod tests {
             args: vec![],
             env: HashMap::new(),
             transport: transport.to_string(),
+            url: None,
             requires_approval: false,
             init_timeout_secs: 5,
             call_timeout_secs: 5,
@@ -136,8 +155,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_create_transport_streamable_http_returns_error() {
-        // GIVEN a config with transport = "streamable-http" (not yet implemented)
+    async fn test_create_transport_streamable_http_returns_ok() {
+        // GIVEN a config with transport = "streamable-http" and a url
+        let mut config = make_config("streamable-http");
+        config.url = Some("https://mcp.example.com/mcp".to_string());
+        // WHEN the factory is called
+        let result = create_transport(&config, HashMap::new());
+        // THEN a transport is returned (no connection is made at construction time)
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_create_transport_streamable_http_without_url_returns_error() {
+        // GIVEN a config with transport = "streamable-http" but no url
         let config = make_config("streamable-http");
         // WHEN the factory is called
         let result = create_transport(&config, HashMap::new());

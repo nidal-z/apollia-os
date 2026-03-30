@@ -35,6 +35,8 @@ pub struct McpServerConfig {
     pub name: String,
 
     /// Executable to spawn (e.g. `"npx"`, `"uvx"`, `"python3"`).
+    /// Empty for network-based transports (`"streamable-http"`, `"sse"`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub command: String,
 
     /// Arguments forwarded to the command.
@@ -46,9 +48,14 @@ pub struct McpServerConfig {
     #[serde(default)]
     pub env: HashMap<String, String>,
 
-    /// Transport protocol. Only `"stdio"` is supported in V1.
+    /// Transport protocol. Supported values: `"stdio"`, `"streamable-http"`, `"sse"`.
     #[serde(default = "default_transport")]
     pub transport: String,
+
+    /// Remote server URL for network-based transports (`"streamable-http"`, `"sse"`).
+    /// Required when `transport` is not `"stdio"`. Not used by `"stdio"` transport.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 
     /// When `true`, every tool call to this server requires HITL approval before execution.
     #[serde(default)]
@@ -106,9 +113,13 @@ pub enum McpConfigError {
     #[error("server '{server}': command is empty")]
     EmptyCommand { server: String },
 
-    /// A server specifies a transport other than `"stdio"`.
-    #[error("server '{server}': unsupported transport '{transport}' (V1 supports 'stdio' only)")]
+    /// A server specifies an unrecognised transport.
+    #[error("server '{server}': unsupported transport '{transport}' (supported: 'stdio', 'streamable-http', 'sse')")]
     UnsupportedTransport { server: String, transport: String },
+
+    /// A network transport was configured without the required `url` field.
+    #[error("server '{server}': transport '{transport}' requires a 'url' field")]
+    MissingUrl { server: String, transport: String },
 
     /// An `${VAR}` placeholder in an env value has no corresponding environment variable.
     #[error("server '{server}': unresolved environment variable: ${{{var}}}")]
@@ -174,17 +185,29 @@ impl McpServerConfig {
             return Err(McpConfigError::InvalidServerName(self.name.clone()));
         }
 
-        if self.command.is_empty() {
-            return Err(McpConfigError::EmptyCommand {
-                server: self.name.clone(),
-            });
-        }
-
-        if self.transport != "stdio" {
-            return Err(McpConfigError::UnsupportedTransport {
-                server: self.name.clone(),
-                transport: self.transport.clone(),
-            });
+        match self.transport.as_str() {
+            "stdio" => {
+                if self.command.is_empty() {
+                    return Err(McpConfigError::EmptyCommand {
+                        server: self.name.clone(),
+                    });
+                }
+            }
+            "streamable-http" | "sse" => {
+                let url_empty = self.url.as_deref().map(str::is_empty).unwrap_or(true);
+                if url_empty {
+                    return Err(McpConfigError::MissingUrl {
+                        server: self.name.clone(),
+                        transport: self.transport.clone(),
+                    });
+                }
+            }
+            other => {
+                return Err(McpConfigError::UnsupportedTransport {
+                    server: self.name.clone(),
+                    transport: other.to_string(),
+                });
+            }
         }
 
         Ok(())
@@ -354,6 +377,7 @@ mod tests {
             args: vec![],
             env: HashMap::new(),
             transport: "stdio".to_string(),
+            url: None,
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
@@ -376,6 +400,7 @@ mod tests {
             args: vec![],
             env: HashMap::from([("API_KEY".to_string(), "${TEST_MCP_KEY_327}".to_string())]),
             transport: "stdio".to_string(),
+            url: None,
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
@@ -398,6 +423,7 @@ mod tests {
             args: vec![],
             env: HashMap::from([("KEY".to_string(), "${TOTALLY_MISSING_VAR_327}".to_string())]),
             transport: "stdio".to_string(),
+            url: None,
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
@@ -419,6 +445,7 @@ mod tests {
             args: vec![],
             env: HashMap::new(),
             transport: "http".to_string(),
+            url: None,
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
@@ -444,6 +471,7 @@ mod tests {
                 "http://${TEST_MCP_HOST_327}:8080".to_string(),
             )]),
             transport: "stdio".to_string(),
+            url: None,
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
@@ -465,6 +493,7 @@ mod tests {
             args: vec![],
             env: HashMap::new(),
             transport: "stdio".to_string(),
+            url: None,
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
@@ -486,6 +515,7 @@ mod tests {
             args: vec![],
             env: HashMap::new(),
             transport: "stdio".to_string(),
+            url: None,
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
@@ -532,6 +562,7 @@ mod tests {
             args: vec![],
             env,
             transport: "stdio".to_string(),
+            url: None,
             requires_approval: false,
             init_timeout_secs: 30,
             call_timeout_secs: 60,
@@ -613,5 +644,65 @@ mod tests {
             config.resolve_env(None),
             Err(McpConfigError::UnresolvedEnvVar { .. })
         ));
+    }
+
+    #[test]
+    fn test_streamable_http_with_url_passes_validation() {
+        // GIVEN a config with transport = "streamable-http" and a valid url
+        let config = McpServerConfig {
+            name: "notion".to_string(),
+            command: String::new(),
+            args: vec![],
+            env: HashMap::new(),
+            transport: "streamable-http".to_string(),
+            url: Some("https://mcp.notion.ai/mcp".to_string()),
+            requires_approval: false,
+            init_timeout_secs: 30,
+            call_timeout_secs: 60,
+            tags: vec![],
+        };
+        // WHEN / THEN
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_streamable_http_without_url_fails() {
+        // GIVEN a config with transport = "streamable-http" but no url
+        let config = McpServerConfig {
+            name: "notion".to_string(),
+            command: String::new(),
+            args: vec![],
+            env: HashMap::new(),
+            transport: "streamable-http".to_string(),
+            url: None,
+            requires_approval: false,
+            init_timeout_secs: 30,
+            call_timeout_secs: 60,
+            tags: vec![],
+        };
+        // WHEN / THEN
+        assert!(matches!(
+            config.validate(),
+            Err(McpConfigError::MissingUrl { .. })
+        ));
+    }
+
+    #[test]
+    fn test_sse_with_url_passes_validation() {
+        // GIVEN a config with transport = "sse" and a valid url
+        let config = McpServerConfig {
+            name: "brave".to_string(),
+            command: String::new(),
+            args: vec![],
+            env: HashMap::new(),
+            transport: "sse".to_string(),
+            url: Some("https://mcp.brave.com/sse".to_string()),
+            requires_approval: false,
+            init_timeout_secs: 30,
+            call_timeout_secs: 60,
+            tags: vec![],
+        };
+        // WHEN / THEN
+        assert!(config.validate().is_ok());
     }
 }

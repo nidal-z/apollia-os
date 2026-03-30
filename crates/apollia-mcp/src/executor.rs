@@ -405,6 +405,7 @@ mod tests {
             args: vec![],
             env: std::collections::HashMap::new(),
             transport: "stdio".to_string(),
+            url: None,
             requires_approval: true,
             init_timeout_secs: 30,
             call_timeout_secs: 60,

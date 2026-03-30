@@ -9,6 +9,7 @@ license = "MIT"
 apollia-core  = { workspace = true }
 apollia-tools = { workspace = true }
 async-trait   = { workspace = true }
+reqwest       = { workspace = true }
 serde         = { workspace = true }
 serde_json    = { workspace = true }
 thiserror     = { workspace = true }
@@ -17,5 +18,6 @@ toml          = { workspace = true }
 tracing       = { workspace = true }
 
 [dev-dependencies]
+axum     = { workspace = true }
 tempfile = "3"
 tokio    = { workspace = true }
