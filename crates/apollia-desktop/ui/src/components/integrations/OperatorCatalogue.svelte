@@ -1,10 +1,11 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import type { RegistryServerView } from "$lib/types";
+  import type { RegistryServerView, TrustLevel } from "$lib/types";
   import CatalogueSearchBar from "./CatalogueSearchBar.svelte";
   import CatalogueCategoryTabs from "./CatalogueCategoryTabs.svelte";
   import CatalogueCard from "./CatalogueCard.svelte";
+  import CatalogueSortDropdown, { type SortOption } from "./CatalogueSortDropdown.svelte";
 
   interface Props {
     onSelectServer: (server: RegistryServerView) => void;
@@ -17,6 +18,18 @@
   let loadError = $state<string | null>(null);
   let searchQuery = $state("");
   let selectedCategory = $state("all");
+  let sortBy = $state<SortOption>("trust");
+
+  const TRUST_ORDER: Record<TrustLevel, number> = {
+    verified_official: 0,
+    community_verified: 1,
+    community: 2,
+    custom: 3,
+  };
+
+  function trustPriority(server: RegistryServerView): number {
+    return TRUST_ORDER[server.trust_level];
+  }
 
   /** Ordered list of categories derived from server enrichments, with "all" first. */
   const availableCategories = $derived.by(() => {
@@ -40,6 +53,28 @@
       const inDescription = (s.description ?? "").toLowerCase().includes(query);
       return inName || inTitle || inDescription;
     });
+  });
+
+  /** Filtered servers sorted by the active sort option. */
+  const sortedServers = $derived.by(() => {
+    const list = [...filteredServers];
+    switch (sortBy) {
+      case "name_asc":
+        return list.sort((a, b) =>
+          a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+        );
+      case "name_desc":
+        return list.sort((a, b) =>
+          b.name.toLowerCase().localeCompare(a.name.toLowerCase()),
+        );
+      case "installed_first":
+        return list.sort((a, b) => {
+          const installedDiff = (a.is_installed ? 0 : 1) - (b.is_installed ? 0 : 1);
+          return installedDiff !== 0 ? installedDiff : trustPriority(a) - trustPriority(b);
+        });
+      case "trust":
+        return list.sort((a, b) => trustPriority(a) - trustPriority(b));
+    }
   });
 
   async function loadRegistry(): Promise<void> {
@@ -77,10 +112,18 @@
     <p class="text-sm text-destructive" data-testid="catalogue-error">{loadError}</p>
   {:else}
     <div class="flex flex-col gap-3">
-      <CatalogueSearchBar
-        value={searchQuery}
-        onchange={(v) => { searchQuery = v; }}
-      />
+      <div class="flex items-center gap-2">
+        <div class="flex-1">
+          <CatalogueSearchBar
+            value={searchQuery}
+            onchange={(v) => { searchQuery = v; }}
+          />
+        </div>
+        <CatalogueSortDropdown
+          value={sortBy}
+          onchange={(v) => { sortBy = v; }}
+        />
+      </div>
 
       {#if availableCategories.length > 1}
         <CatalogueCategoryTabs
@@ -91,7 +134,7 @@
       {/if}
     </div>
 
-    {#if filteredServers.length === 0}
+    {#if sortedServers.length === 0}
       <p
         class="text-sm text-muted-foreground py-6 text-center"
         data-testid="catalogue-no-results"
@@ -103,7 +146,7 @@
         class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
         data-testid="catalogue-grid"
       >
-        {#each filteredServers as server (server.name)}
+        {#each sortedServers as server (server.name)}
           <CatalogueCard
             {server}
             onclick={() => onSelectServer(server)}

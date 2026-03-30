@@ -159,7 +159,12 @@
       "search_placeholder": "Search connections…",
       "no_results": "No connections match your search.",
       "installed_badge": "Installed",
-      "category_all": "All"
+      "category_all": "All",
+      "sort_label": "Sort by",
+      "sort_trust": "Trust level",
+      "sort_name_asc": "Name (A→Z)",
+      "sort_name_desc": "Name (Z→A)",
+      "sort_installed": "Installed first"
     },
     "wizard": {
       "title": "Configure {name}",

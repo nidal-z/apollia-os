@@ -159,7 +159,12 @@
       "search_placeholder": "Rechercher des connexions…",
       "no_results": "Aucune connexion ne correspond à votre recherche.",
       "installed_badge": "Installé",
-      "category_all": "Tout"
+      "category_all": "Tout",
+      "sort_label": "Trier par",
+      "sort_trust": "Niveau de confiance",
+      "sort_name_asc": "Nom (A→Z)",
+      "sort_name_desc": "Nom (Z→A)",
+      "sort_installed": "Installés d'abord"
     },
     "wizard": {
       "title": "Configurer {name}",
