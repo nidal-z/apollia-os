@@ -171,7 +171,8 @@
       "filter_not_installed": "Not installed",
       "filter_clear_all": "Clear all",
       "result_count": "{count} connections",
-      "result_count_one": "1 connection"
+      "result_count_one": "1 connection",
+      "search_clear": "Clear search"
     },
     "wizard": {
       "title": "Configure {name}",

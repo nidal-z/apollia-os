@@ -187,6 +187,7 @@
         {#each sortedServers as server (server.name)}
           <CatalogueCard
             {server}
+            {searchQuery}
             onclick={() => onSelectServer(server)}
           />
         {/each}

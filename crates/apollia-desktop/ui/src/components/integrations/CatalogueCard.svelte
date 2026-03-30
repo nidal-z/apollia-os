@@ -25,10 +25,12 @@
 
   interface Props {
     server: RegistryServerView;
+    /** Active search query forwarded from the catalogue for highlight rendering. */
+    searchQuery?: string;
     onclick: () => void;
   }
 
-  let { server, onclick }: Props = $props();
+  let { server, searchQuery = "", onclick }: Props = $props();
 
   const title = $derived(
     server.enrichment?.operator_label ?? server.title ?? server.name,
@@ -39,6 +41,41 @@
   );
 
   const isDisabled = $derived(server.is_installed);
+
+  interface Segment {
+    text: string;
+    highlight: boolean;
+  }
+
+  /**
+   * Splits `text` into plain and highlighted segments for `query`.
+   * Matching is case-insensitive. Returns plain segments when query is empty.
+   * Never uses innerHTML — safe against XSS by construction.
+   */
+  function highlightMatch(text: string, query: string): Segment[] {
+    const trimmed = query.trim();
+    if (trimmed.length === 0) return [{ text, highlight: false }];
+
+    const queryLower = trimmed.toLowerCase();
+    const textLower = text.toLowerCase();
+    const segments: Segment[] = [];
+    let offset = 0;
+
+    while (offset < text.length) {
+      const idx = textLower.indexOf(queryLower, offset);
+      if (idx === -1) {
+        segments.push({ text: text.slice(offset), highlight: false });
+        break;
+      }
+      if (idx > offset) {
+        segments.push({ text: text.slice(offset, idx), highlight: false });
+      }
+      segments.push({ text: text.slice(idx, idx + queryLower.length), highlight: true });
+      offset = idx + queryLower.length;
+    }
+
+    return segments;
+  }
 </script>
 
 <button
@@ -68,7 +105,15 @@
             class="text-[13px] font-medium text-foreground truncate"
             data-testid="catalogue-card-title"
           >
-            {title}
+            {#each highlightMatch(title, searchQuery) as segment (segment.text + String(segment.highlight))}
+              {#if segment.highlight}
+                <mark class="bg-yellow-200 dark:bg-yellow-800 text-inherit rounded-sm not-italic"
+                  >{segment.text}</mark
+                >
+              {:else}
+                {segment.text}
+              {/if}
+            {/each}
           </span>
           <TrustBadge level={server.trust_level} />
           {#if server.is_installed}
@@ -86,7 +131,15 @@
         class="text-xs text-muted-foreground line-clamp-2"
         data-testid="catalogue-card-description"
       >
-        {server.description}
+        {#each highlightMatch(server.description, searchQuery) as segment (segment.text + String(segment.highlight))}
+          {#if segment.highlight}
+            <mark class="bg-yellow-200 dark:bg-yellow-800 text-inherit rounded-sm not-italic"
+              >{segment.text}</mark
+            >
+          {:else}
+            {segment.text}
+          {/if}
+        {/each}
       </p>
     {/if}
   </div>
