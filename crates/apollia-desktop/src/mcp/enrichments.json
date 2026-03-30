@@ -15,11 +15,13 @@
       "en": "Create a new integration and copy the Internal Integration Secret.",
       "fr": "Créez une nouvelle intégration et copiez le Secret d'intégration interne."
     },
-    "default_requires_approval": true
+    "default_requires_approval": true,
+    "remote_url": "https://mcp.notion.com/mcp",
+    "remote_transport": "streamable-http"
   },
   {
     "package_identifier": "@anthropic/mcp-server-brave-search",
-    "registry_names": ["com.brave/search"],
+    "registry_names": [],
     "operator_label": { "en": "Brave Search", "fr": "Recherche Brave" },
     "description": {
       "en": "Search the web using the Brave Search API.",
@@ -27,13 +29,23 @@
     },
     "category": "search",
     "icon_name": "search",
-    "trust_level": "verified_official",
+    "trust_level": "community_verified",
     "auth_help_url": "https://brave.com/search/api/",
     "auth_help_text": {
       "en": "Sign up for a Brave Search API key.",
       "fr": "Inscrivez-vous pour obtenir une clé API Brave Search."
     },
-    "default_requires_approval": false
+    "default_requires_approval": false,
+    "package_registry_type": "npm",
+    "package_runtime_hint": "node",
+    "package_env_vars": [
+      {
+        "name": "BRAVE_API_KEY",
+        "description": "Brave Search API key",
+        "is_required": true,
+        "is_secret": true
+      }
+    ]
   },
   {
     "package_identifier": "@anthropic/mcp-server-filesystem",
@@ -48,7 +60,9 @@
     "trust_level": "community_verified",
     "auth_help_url": null,
     "auth_help_text": null,
-    "default_requires_approval": false
+    "default_requires_approval": false,
+    "package_registry_type": "npm",
+    "package_runtime_hint": "node"
   },
   {
     "package_identifier": "@anthropic/mcp-server-memory",
@@ -63,7 +77,9 @@
     "trust_level": "community_verified",
     "auth_help_url": null,
     "auth_help_text": null,
-    "default_requires_approval": false
+    "default_requires_approval": false,
+    "package_registry_type": "npm",
+    "package_runtime_hint": "node"
   },
   {
     "package_identifier": "@anthropic/mcp-server-puppeteer",
@@ -78,6 +94,8 @@
     "trust_level": "community_verified",
     "auth_help_url": null,
     "auth_help_text": null,
-    "default_requires_approval": true
+    "default_requires_approval": true,
+    "package_registry_type": "npm",
+    "package_runtime_hint": "node"
   }
 ]

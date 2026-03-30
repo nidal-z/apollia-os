@@ -29,6 +29,36 @@ pub struct ConnectorEnrichment {
     /// Short description shown in the catalogue for synthetic entries.
     #[serde(default)]
     pub description: Option<HashMap<String, String>>,
+    /// Remote URL for synthetic entries (streamable-http or SSE endpoint).
+    #[serde(default)]
+    pub remote_url: Option<String>,
+    /// Remote transport type (`"streamable-http"` or `"sse"`).
+    #[serde(default)]
+    pub remote_transport: Option<String>,
+    /// Package registry type for synthetic package entries (`"npm"`, `"pypi"`).
+    #[serde(default)]
+    pub package_registry_type: Option<String>,
+    /// Runtime hint for the package (`"node"`, `"python"`).
+    #[serde(default)]
+    pub package_runtime_hint: Option<String>,
+    /// Environment variable names required by this package (for synthetic entries).
+    #[serde(default)]
+    pub package_env_vars: Vec<EnrichmentEnvVar>,
+}
+
+/// An environment variable declared in an enrichment for synthetic package entries.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnrichmentEnvVar {
+    /// Variable name (e.g. `BRAVE_API_KEY`).
+    pub name: String,
+    /// Human-readable description.
+    pub description: Option<String>,
+    /// Whether the variable is required.
+    #[serde(default)]
+    pub is_required: bool,
+    /// Whether the variable is a secret (stored in keychain).
+    #[serde(default)]
+    pub is_secret: bool,
 }
 
 /// Trust level displayed as a badge next to a connector.

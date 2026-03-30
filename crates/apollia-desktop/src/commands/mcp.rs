@@ -14,8 +14,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::mcp::enrichments::{load_builtin_enrichments, TrustLevel};
 use crate::mcp::registry_client::{
-    McpRegistryClient, RegistryIcon, RegistryPackage, RegistryRemote, RegistryRepository,
-    RegistryServer,
+    McpRegistryClient, RegistryEnvVar, RegistryIcon, RegistryPackage, RegistryRemote,
+    RegistryRepository, RegistryServer, RegistryTransport,
 };
 use crate::mcp::secret_store::SecretStore;
 
@@ -561,7 +561,28 @@ pub async fn fetch_mcp_registry(
                     .and_then(|m| m.get("en").cloned()),
                 version: String::new(),
                 website_url: enrichment.auth_help_url.clone(),
-                packages: None,
+                packages: enrichment.package_registry_type.as_ref().map(|reg_type| {
+                    vec![RegistryPackage {
+                        registry_type: reg_type.clone(),
+                        identifier: enrichment.package_identifier.clone(),
+                        version: None,
+                        runtime_hint: enrichment.package_runtime_hint.clone(),
+                        transport: RegistryTransport {
+                            transport_type: "stdio".to_string(),
+                        },
+                        environment_variables: enrichment
+                            .package_env_vars
+                            .iter()
+                            .map(|ev| RegistryEnvVar {
+                                name: ev.name.clone(),
+                                description: ev.description.clone(),
+                                is_required: ev.is_required,
+                                is_secret: ev.is_secret,
+                            })
+                            .collect(),
+                        package_arguments: vec![],
+                    }]
+                }),
                 icons: None,
                 repository: None,
                 trust_level: trust_level_str(&enrichment.trust_level),
@@ -583,7 +604,14 @@ pub async fn fetch_mcp_registry(
                     default_requires_approval: enrichment.default_requires_approval,
                 }),
                 is_installed: installed_names.contains(&enrichment.package_identifier),
-                remotes: vec![],
+                remotes: match (&enrichment.remote_url, &enrichment.remote_transport) {
+                    (Some(url), Some(transport)) => vec![RegistryRemote {
+                        transport_type: transport.clone(),
+                        url: url.clone(),
+                        headers: vec![],
+                    }],
+                    _ => vec![],
+                },
             });
         }
     }

@@ -275,10 +275,29 @@ impl McpRegistryClient {
     /// [`RegistryClientError::Offline`] is returned.
     ///
     /// `search` is an optional keyword filter forwarded to the registry API.
+    /// Cache TTL — skip network fetch if cache is younger than this.
+    const CACHE_TTL: Duration = Duration::from_secs(15 * 60); // 15 minutes
+
     pub async fn fetch_servers(
         &self,
         search: Option<&str>,
     ) -> Result<Vec<RegistryServer>, RegistryClientError> {
+        // Stale-while-revalidate: if cache is fresh enough, return it immediately.
+        if search.is_none() {
+            if let Some(age) = self.cache_age() {
+                if age < Self::CACHE_TTL {
+                    if let Ok(cached) = self.read_cache() {
+                        tracing::debug!(
+                            age_secs = age.as_secs(),
+                            servers = cached.len(),
+                            "returning fresh cache"
+                        );
+                        return Ok(Self::dedup_latest(cached));
+                    }
+                }
+            }
+        }
+
         let servers = match self.fetch_from_network(search).await {
             Ok(servers) => {
                 if let Err(e) = self.write_cache(&servers) {
@@ -295,6 +314,16 @@ impl McpRegistryClient {
             }
         };
         Ok(Self::dedup_latest(servers))
+    }
+
+    /// Returns the age of the cache file, or `None` if it doesn't exist.
+    fn cache_age(&self) -> Option<Duration> {
+        std::fs::metadata(&self.cache_path)
+            .ok()?
+            .modified()
+            .ok()?
+            .elapsed()
+            .ok()
     }
 
     /// Deduplicate server entries, keeping only the latest version per name.

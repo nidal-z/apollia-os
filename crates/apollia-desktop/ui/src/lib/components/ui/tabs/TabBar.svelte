@@ -49,7 +49,7 @@
 <div
   role="tablist"
   class={cn(
-    "flex gap-1 rounded-md border border-border/50 bg-muted/50 p-1",
+    "flex gap-1 overflow-x-auto rounded-md border border-border/50 bg-muted/50 p-1 scrollbar-none",
     className,
   )}
   data-testid="{testidPrefix}-tabbar"
@@ -60,7 +60,7 @@
       aria-selected={item.key === activeTab}
       tabindex={item.key === activeTab ? 0 : -1}
       class={cn(
-        "rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+        "shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all",
         item.key === activeTab
           ? "bg-background text-foreground shadow-sm"
           : "text-muted-foreground hover:text-foreground",

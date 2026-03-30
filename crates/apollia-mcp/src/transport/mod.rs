@@ -90,8 +90,8 @@ pub trait McpTransport: Send + Sync + 'static {
 ///
 /// The `resolved_env` map must already have all `${VAR}` placeholders resolved;
 /// use [`McpServerConfig::resolve_env`] before calling this function. For
-/// network transports, `resolved_env` is not used (env vars are not injected
-/// into a remote process).
+/// network transports, entries in `resolved_env` are forwarded as HTTP headers
+/// (e.g. `Authorization: Bearer …`).
 pub fn create_transport(
     config: &McpServerConfig,
     resolved_env: HashMap<String, String>,
@@ -107,8 +107,9 @@ pub fn create_transport(
                     "streamable-http transport requires a 'url' field in config".to_string(),
                 )
             })?;
+            let auth_headers: Vec<(String, String)> = resolved_env.into_iter().collect();
             let timeout = Duration::from_secs(config.call_timeout_secs);
-            let transport = StreamableHttpTransport::new(url, vec![], timeout)?;
+            let transport = StreamableHttpTransport::new(url, auth_headers, timeout)?;
             Ok(Box::new(transport))
         }
         "sse" => {
@@ -117,8 +118,9 @@ pub fn create_transport(
                     "sse transport requires a 'url' field in config".to_string(),
                 )
             })?;
+            let auth_headers: Vec<(String, String)> = resolved_env.into_iter().collect();
             let timeout = Duration::from_secs(config.call_timeout_secs);
-            let transport = SseTransport::new(url, vec![], timeout)?;
+            let transport = SseTransport::new(url, auth_headers, timeout)?;
             Ok(Box::new(transport))
         }
         other => Err(TransportError::Unsupported(other.to_string())),

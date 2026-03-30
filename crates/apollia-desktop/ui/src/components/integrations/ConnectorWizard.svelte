@@ -105,14 +105,18 @@
   /// Whether this server can be connected (has a remote endpoint or an installable package).
   const canInstall = $derived(connectionMode !== null);
 
-  // Build the full server config from current form values.
-  const builtConfig = $derived.by((): McpServerConfigInput | null => {
+  /// Build a config object from current form values.
+  /// When `forTest` is true, secret values are inlined (raw) so the test endpoint
+  /// can use them without a secret store. When false, secrets use
+  /// `${APOLLIA_SECRET:*}` placeholders for persistence.
+  function buildConfig(forTest: boolean): McpServerConfigInput | null {
     if (connectionMode === "remote" && remote) {
       const env: Record<string, string> = {};
       for (const header of remote.headers) {
-        env[header.name] = header.isSecret
-          ? `\${APOLLIA_SECRET:${header.name}}`
-          : (envValues[header.name] ?? "");
+        env[header.name] =
+          header.isSecret && !forTest
+            ? `\${APOLLIA_SECRET:${header.name}}`
+            : (envValues[header.name] ?? "");
       }
       return {
         name: server.name,
@@ -126,9 +130,10 @@
     if (connectionMode === "package" && pkg) {
       const env: Record<string, string> = {};
       for (const envVar of pkg.environment_variables ?? []) {
-        env[envVar.name] = envVar.is_secret
-          ? `\${APOLLIA_SECRET:${envVar.name}}`
-          : (envValues[envVar.name] ?? "");
+        env[envVar.name] =
+          envVar.is_secret && !forTest
+            ? `\${APOLLIA_SECRET:${envVar.name}}`
+            : (envValues[envVar.name] ?? "");
       }
       return {
         name: server.name,
@@ -146,7 +151,12 @@
       };
     }
     return null;
-  });
+  }
+
+  // Config with placeholder secrets — used for finalize (persist to mcp.toml).
+  const builtConfig = $derived(buildConfig(false));
+  // Config with raw secret values — used for the ephemeral connection test.
+  const testConfig = $derived(buildConfig(true));
 
   function goNext(): void {
     if (currentStep < totalSteps) currentStep += 1;
@@ -296,9 +306,9 @@
         values={argValues}
         onchange={handleArgChange}
       />
-    {:else if currentStepName === "test" && builtConfig}
-      <WizardStepTest config={builtConfig} />
-    {:else if currentStepName === "test" && !builtConfig}
+    {:else if currentStepName === "test" && testConfig}
+      <WizardStepTest config={testConfig} />
+    {:else if currentStepName === "test" && !testConfig}
       <div class="space-y-2 rounded-md border border-border bg-muted/40 p-4" data-testid="wizard-step-test-unavailable">
         <p class="text-sm text-muted-foreground">
           {$t("integrations.wizard.test_unavailable")}
