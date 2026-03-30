@@ -164,7 +164,8 @@
       "sort_trust": "Niveau de confiance",
       "sort_name_asc": "Nom (A→Z)",
       "sort_name_desc": "Nom (Z→A)",
-      "sort_installed": "Installés d'abord"
+      "sort_installed": "Installés d'abord",
+      "filter_trust_label": "Niveau de confiance"
     },
     "wizard": {
       "title": "Configurer {name}",

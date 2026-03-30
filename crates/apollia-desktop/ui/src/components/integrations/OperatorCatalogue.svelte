@@ -6,6 +6,7 @@
   import CatalogueCategoryTabs from "./CatalogueCategoryTabs.svelte";
   import CatalogueCard from "./CatalogueCard.svelte";
   import CatalogueSortDropdown, { type SortOption } from "./CatalogueSortDropdown.svelte";
+  import CatalogueTrustFilter, { type TrustFilterOption } from "./CatalogueTrustFilter.svelte";
 
   interface Props {
     onSelectServer: (server: RegistryServerView) => void;
@@ -19,6 +20,7 @@
   let searchQuery = $state("");
   let selectedCategory = $state("all");
   let sortBy = $state<SortOption>("trust");
+  let selectedTrust = $state<TrustFilterOption[]>([]);
 
   const TRUST_ORDER: Record<TrustLevel, number> = {
     verified_official: 0,
@@ -55,9 +57,17 @@
     });
   });
 
+  /** Servers after applying the trust-level filter (no selection = show all). */
+  const filteredByTrust = $derived.by(() => {
+    if (selectedTrust.length === 0) return filteredServers;
+    return filteredServers.filter((s) =>
+      selectedTrust.includes(s.trust_level as TrustFilterOption),
+    );
+  });
+
   /** Filtered servers sorted by the active sort option. */
   const sortedServers = $derived.by(() => {
-    const list = [...filteredServers];
+    const list = [...filteredByTrust];
     switch (sortBy) {
       case "name_asc":
         return list.sort((a, b) =>
@@ -132,6 +142,11 @@
           onchange={(cat) => { selectedCategory = cat; }}
         />
       {/if}
+
+      <CatalogueTrustFilter
+        selected={selectedTrust}
+        onchange={(v) => { selectedTrust = v; }}
+      />
     </div>
 
     {#if sortedServers.length === 0}
