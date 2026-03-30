@@ -803,18 +803,9 @@ mod tests {
     #[test]
     fn test_dedup_preserves_unique_names() {
         // GIVEN three entries with distinct names
-        let a = serde_json::from_value::<RegistryServer>(
-            make_server_json("server-a"),
-        )
-        .unwrap();
-        let b = serde_json::from_value::<RegistryServer>(
-            make_server_json("server-b"),
-        )
-        .unwrap();
-        let c = serde_json::from_value::<RegistryServer>(
-            make_server_json("server-c"),
-        )
-        .unwrap();
+        let a = serde_json::from_value::<RegistryServer>(make_server_json("server-a")).unwrap();
+        let b = serde_json::from_value::<RegistryServer>(make_server_json("server-b")).unwrap();
+        let c = serde_json::from_value::<RegistryServer>(make_server_json("server-c")).unwrap();
 
         // WHEN deduplicating
         let result = McpRegistryClient::dedup_latest(vec![a, b, c]);

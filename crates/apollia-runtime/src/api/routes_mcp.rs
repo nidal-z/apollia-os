@@ -292,7 +292,12 @@ async fn set_server_approval<B: ExecutionBackend + Clone>(
         .server_detail(&name)
         .await
         .map(|d| Json(d.status))
-        .ok_or_else(|| json_err(StatusCode::NOT_FOUND, format!("server '{}' not found", name)))
+        .ok_or_else(|| {
+            json_err(
+                StatusCode::NOT_FOUND,
+                format!("server '{}' not found", name),
+            )
+        })
 }
 
 // ─── tests ────────────────────────────────────────────────────────────────────

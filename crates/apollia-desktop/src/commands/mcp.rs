@@ -33,19 +33,178 @@ fn infer_category(name: &str, description: Option<&str>) -> Option<String> {
 
     // Order matters: more specific patterns first.
     static RULES: &[(&[&str], &str)] = &[
-        (&["database", "sql", "sqlite", "postgres", "mysql", "mongo", "redis", "supabase", "firebase", "dynamodb", "bigquery", "snowflake", "csv", "parquet", "warehouse"], "data"),
-        (&["search", "brave", "google", "bing", "duckduckgo", "serp", "web search"], "search"),
-        (&["slack", "discord", "email", "smtp", "telegram", "whatsapp", "teams", "chat", "messaging", "notification"], "communication"),
-        (&["git", "github", "gitlab", "jira", "linear", "ci/cd", "docker", "kubernetes", "terraform", "deploy", "devops", "debug", "lint", "test", "ide", "vscode", "compiler", "build"], "development"),
-        (&["file", "filesystem", "storage", "s3", "gcs", "blob", "drive", "dropbox", "ftp"], "storage"),
-        (&["notion", "confluence", "asana", "trello", "todoist", "calendar", "schedule", "project", "task", "productivity", "spreadsheet", "airtable"], "productivity"),
-        (&["llm", "openai", "anthropic", "claude", "gpt", "ai", "machine learning", "embedding", "vector", "rag", "agent"], "ai"),
-        (&["api", "rest", "graphql", "webhook", "http", "endpoint", "scrape", "crawl", "browser", "puppeteer", "playwright"], "web"),
-        (&["image", "video", "audio", "media", "pdf", "document", "ocr"], "media"),
-        (&["crypto", "blockchain", "wallet", "nft", "defi", "trading", "finance", "payment", "stripe", "invoice"], "finance"),
+        (
+            &[
+                "database",
+                "sql",
+                "sqlite",
+                "postgres",
+                "mysql",
+                "mongo",
+                "redis",
+                "supabase",
+                "firebase",
+                "dynamodb",
+                "bigquery",
+                "snowflake",
+                "csv",
+                "parquet",
+                "warehouse",
+            ],
+            "data",
+        ),
+        (
+            &[
+                "search",
+                "brave",
+                "google",
+                "bing",
+                "duckduckgo",
+                "serp",
+                "web search",
+            ],
+            "search",
+        ),
+        (
+            &[
+                "slack",
+                "discord",
+                "email",
+                "smtp",
+                "telegram",
+                "whatsapp",
+                "teams",
+                "chat",
+                "messaging",
+                "notification",
+            ],
+            "communication",
+        ),
+        (
+            &[
+                "git",
+                "github",
+                "gitlab",
+                "jira",
+                "linear",
+                "ci/cd",
+                "docker",
+                "kubernetes",
+                "terraform",
+                "deploy",
+                "devops",
+                "debug",
+                "lint",
+                "test",
+                "ide",
+                "vscode",
+                "compiler",
+                "build",
+            ],
+            "development",
+        ),
+        (
+            &[
+                "file",
+                "filesystem",
+                "storage",
+                "s3",
+                "gcs",
+                "blob",
+                "drive",
+                "dropbox",
+                "ftp",
+            ],
+            "storage",
+        ),
+        (
+            &[
+                "notion",
+                "confluence",
+                "asana",
+                "trello",
+                "todoist",
+                "calendar",
+                "schedule",
+                "project",
+                "task",
+                "productivity",
+                "spreadsheet",
+                "airtable",
+            ],
+            "productivity",
+        ),
+        (
+            &[
+                "llm",
+                "openai",
+                "anthropic",
+                "claude",
+                "gpt",
+                "ai",
+                "machine learning",
+                "embedding",
+                "vector",
+                "rag",
+                "agent",
+            ],
+            "ai",
+        ),
+        (
+            &[
+                "api",
+                "rest",
+                "graphql",
+                "webhook",
+                "http",
+                "endpoint",
+                "scrape",
+                "crawl",
+                "browser",
+                "puppeteer",
+                "playwright",
+            ],
+            "web",
+        ),
+        (
+            &["image", "video", "audio", "media", "pdf", "document", "ocr"],
+            "media",
+        ),
+        (
+            &[
+                "crypto",
+                "blockchain",
+                "wallet",
+                "nft",
+                "defi",
+                "trading",
+                "finance",
+                "payment",
+                "stripe",
+                "invoice",
+            ],
+            "finance",
+        ),
         (&["map", "location", "geo", "weather", "travel"], "geo"),
-        (&["security", "auth", "oauth", "identity", "encrypt", "vault", "secret"], "security"),
-        (&["analytics", "metrics", "monitor", "log", "observ", "grafana", "datadog", "sentry"], "analytics"),
+        (
+            &[
+                "security", "auth", "oauth", "identity", "encrypt", "vault", "secret",
+            ],
+            "security",
+        ),
+        (
+            &[
+                "analytics",
+                "metrics",
+                "monitor",
+                "log",
+                "observ",
+                "grafana",
+                "datadog",
+                "sentry",
+            ],
+            "analytics",
+        ),
     ];
 
     for (keywords, category) in RULES {
@@ -176,9 +335,7 @@ pub fn list_mcp_enrichments() -> Vec<EnrichmentEntry> {
                 icon_name: e.icon_name,
                 trust_level: e.trust_level,
                 auth_help_url: e.auth_help_url,
-                auth_help_text: e
-                    .auth_help_text
-                    .and_then(|m| m.get("en").cloned()),
+                auth_help_text: e.auth_help_text.and_then(|m| m.get("en").cloned()),
                 default_requires_approval: e.default_requires_approval,
             },
         })
@@ -299,11 +456,7 @@ pub async fn fetch_mcp_registry(
     let enrichment_by_name: HashMap<&str, &crate::mcp::enrichments::ConnectorEnrichment> =
         enrichments
             .iter()
-            .flat_map(|e| {
-                e.registry_names
-                    .iter()
-                    .map(move |name| (name.as_str(), e))
-            })
+            .flat_map(|e| e.registry_names.iter().map(move |name| (name.as_str(), e)))
             .collect();
 
     // Build set of installed server names for is_installed detection.
@@ -328,9 +481,8 @@ pub async fn fetch_mcp_registry(
                 .copied()
                 .or_else(|| {
                     view.packages.as_ref().and_then(|pkgs| {
-                        pkgs.iter().find_map(|pkg| {
-                            enrichment_by_pkg.get(pkg.identifier.as_str()).copied()
-                        })
+                        pkgs.iter()
+                            .find_map(|pkg| enrichment_by_pkg.get(pkg.identifier.as_str()).copied())
                     })
                 });
 
@@ -357,8 +509,7 @@ pub async fn fetch_mcp_registry(
 
             // Auto-categorize by keywords when no enrichment provided a category.
             if view.category.is_none() {
-                view.category =
-                    infer_category(&view.name, view.description.as_deref());
+                view.category = infer_category(&view.name, view.description.as_deref());
             }
 
             // Check if installed by matching server name.

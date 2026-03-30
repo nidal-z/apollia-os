@@ -40,7 +40,7 @@ pub struct McpServerConfig {
     pub command: String,
 
     /// Arguments forwarded to the command.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
 
     /// Environment variables injected into the server process.
@@ -704,5 +704,51 @@ mod tests {
         };
         // WHEN / THEN
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_parse_remote_config_toml() {
+        // GIVEN a mcp.toml declaring a streamable-http server with a url and no command
+        let toml_content = r#"
+            [[servers]]
+            name = "notion"
+            transport = "streamable-http"
+            url = "https://mcp.notion.com/mcp"
+        "#;
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml_content.as_bytes()).unwrap();
+        // WHEN
+        let config = McpConfig::load(file.path()).unwrap();
+        // THEN
+        assert_eq!(config.servers.len(), 1);
+        let server = &config.servers[0];
+        assert_eq!(server.transport, "streamable-http");
+        assert_eq!(server.url, Some("https://mcp.notion.com/mcp".to_string()));
+        assert!(
+            server.command.is_empty(),
+            "command must be absent for remote transports"
+        );
+    }
+
+    #[test]
+    fn test_parse_stdio_config_toml_unchanged() {
+        // GIVEN a mcp.toml with a stdio server (no url field)
+        let toml_content = r#"
+            [[servers]]
+            name = "sqlite"
+            command = "npx"
+            args = ["mcp-server-sqlite"]
+        "#;
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml_content.as_bytes()).unwrap();
+        // WHEN
+        let config = McpConfig::load(file.path()).unwrap();
+        // THEN transport defaults to "stdio", command is set, url is absent
+        assert_eq!(config.servers.len(), 1);
+        let server = &config.servers[0];
+        assert_eq!(server.transport, "stdio");
+        assert_eq!(server.command, "npx");
+        assert_eq!(server.args, vec!["mcp-server-sqlite"]);
+        assert!(server.url.is_none());
     }
 }

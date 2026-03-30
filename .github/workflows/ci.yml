@@ -9,6 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   fmt:
@@ -85,3 +86,40 @@ jobs:
           name: coverage-html-${{ github.sha }}
           path: target/llvm-cov/html/
           retention-days: 30
+
+  vitest:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        working-directory: crates/apollia-desktop/ui
+        run: npm ci
+      - name: Run Vitest
+        working-directory: crates/apollia-desktop/ui
+        run: npm test
+
+  diagrams:
+    name: Diagrams (PlantUML)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PlantUML
+        run: sudo apt-get install -y plantuml
+      - uses: taiki-e/install-action@just
+      - name: Generate SVG diagrams
+        run: just diagrams
+
+  book:
+    name: mdBook Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@mdbook
+      - name: Build book
+        run: mdbook build book
+      # deploy-pages désactivé — repo privé (réactiver lors du passage en public)

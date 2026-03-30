@@ -224,33 +224,34 @@ mod tests {
         let received_ids: Arc<TokioMutex<Vec<String>>> = Arc::new(TokioMutex::new(vec![]));
         let state = Arc::clone(&received_ids);
 
-        let app = Router::new().route(
-            "/mcp",
-            post(
-                |State(captured): State<Arc<TokioMutex<Vec<String>>>>,
-                 req_headers: HeaderMap,
-                 _body: String| async move {
-                    // Record the Mcp-Session-Id sent by the client (if any).
-                    if let Some(v) = req_headers.get("Mcp-Session-Id") {
-                        if let Ok(s) = v.to_str() {
-                            captured.lock().await.push(s.to_string());
+        let app = Router::new()
+            .route(
+                "/mcp",
+                post(
+                    |State(captured): State<Arc<TokioMutex<Vec<String>>>>,
+                     req_headers: HeaderMap,
+                     _body: String| async move {
+                        // Record the Mcp-Session-Id sent by the client (if any).
+                        if let Some(v) = req_headers.get("Mcp-Session-Id") {
+                            if let Ok(s) = v.to_str() {
+                                captured.lock().await.push(s.to_string());
+                            }
                         }
-                    }
-                    let mut resp_headers = HeaderMap::new();
-                    resp_headers.insert(
-                        "Mcp-Session-Id",
-                        "session-xyz".parse().expect("valid header value"),
-                    );
-                    (
-                        StatusCode::OK,
-                        resp_headers,
-                        r#"{"jsonrpc":"2.0","id":1,"result":{}}"#,
-                    )
-                    .into_response()
-                },
-            ),
-        )
-        .with_state(state);
+                        let mut resp_headers = HeaderMap::new();
+                        resp_headers.insert(
+                            "Mcp-Session-Id",
+                            "session-xyz".parse().expect("valid header value"),
+                        );
+                        (
+                            StatusCode::OK,
+                            resp_headers,
+                            r#"{"jsonrpc":"2.0","id":1,"result":{}}"#,
+                        )
+                            .into_response()
+                    },
+                ),
+            )
+            .with_state(state);
         let addr = start_server(app).await;
 
         let transport = StreamableHttpTransport::new(
@@ -276,7 +277,11 @@ mod tests {
 
         // THEN only the second request carried the Mcp-Session-Id header
         let ids = received_ids.lock().await;
-        assert_eq!(ids.len(), 1, "only the second request should echo the session ID");
+        assert_eq!(
+            ids.len(),
+            1,
+            "only the second request should echo the session ID"
+        );
         assert_eq!(ids[0], "session-xyz");
     }
 
@@ -286,22 +291,23 @@ mod tests {
         let received_auth: Arc<TokioMutex<Vec<String>>> = Arc::new(TokioMutex::new(vec![]));
         let state = Arc::clone(&received_auth);
 
-        let app = Router::new().route(
-            "/mcp",
-            post(
-                |State(captured): State<Arc<TokioMutex<Vec<String>>>>,
-                 req_headers: HeaderMap,
-                 _body: String| async move {
-                    if let Some(v) = req_headers.get("Authorization") {
-                        if let Ok(s) = v.to_str() {
-                            captured.lock().await.push(s.to_string());
+        let app = Router::new()
+            .route(
+                "/mcp",
+                post(
+                    |State(captured): State<Arc<TokioMutex<Vec<String>>>>,
+                     req_headers: HeaderMap,
+                     _body: String| async move {
+                        if let Some(v) = req_headers.get("Authorization") {
+                            if let Ok(s) = v.to_str() {
+                                captured.lock().await.push(s.to_string());
+                            }
                         }
-                    }
-                    (StatusCode::OK, r#"{"jsonrpc":"2.0","id":1,"result":{}}"#).into_response()
-                },
-            ),
-        )
-        .with_state(state);
+                        (StatusCode::OK, r#"{"jsonrpc":"2.0","id":1,"result":{}}"#).into_response()
+                    },
+                ),
+            )
+            .with_state(state);
         let addr = start_server(app).await;
 
         // WHEN the transport is configured with an Authorization header
@@ -327,10 +333,7 @@ mod tests {
     #[tokio::test]
     async fn test_http_transport_error_status() {
         // GIVEN a server that returns HTTP 500
-        let app = Router::new().route(
-            "/mcp",
-            post(|| async { StatusCode::INTERNAL_SERVER_ERROR }),
-        );
+        let app = Router::new().route("/mcp", post(|| async { StatusCode::INTERNAL_SERVER_ERROR }));
         let addr = start_server(app).await;
 
         let transport = StreamableHttpTransport::new(
@@ -348,17 +351,17 @@ mod tests {
         // THEN a TransportError::Io containing the HTTP status code is returned
         assert!(matches!(result, Err(TransportError::Io(_))));
         if let Err(TransportError::Io(msg)) = result {
-            assert!(msg.contains("500"), "error message must contain '500', got: {msg}");
+            assert!(
+                msg.contains("500"),
+                "error message must contain '500', got: {msg}"
+            );
         }
     }
 
     #[tokio::test]
     async fn test_http_transport_401_returns_error() {
         // GIVEN a server that returns HTTP 401
-        let app = Router::new().route(
-            "/mcp",
-            post(|| async { StatusCode::UNAUTHORIZED }),
-        );
+        let app = Router::new().route("/mcp", post(|| async { StatusCode::UNAUTHORIZED }));
         let addr = start_server(app).await;
 
         let transport = StreamableHttpTransport::new(
@@ -376,7 +379,10 @@ mod tests {
         // THEN a TransportError::Io containing the HTTP status code is returned
         assert!(matches!(result, Err(TransportError::Io(_))));
         if let Err(TransportError::Io(msg)) = result {
-            assert!(msg.contains("401"), "error message must contain '401', got: {msg}");
+            assert!(
+                msg.contains("401"),
+                "error message must contain '401', got: {msg}"
+            );
         }
     }
 

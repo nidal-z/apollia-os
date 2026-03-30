@@ -172,6 +172,21 @@ mod tests {
         }
     }
 
+    fn remote_config(name: &str, url: &str) -> McpServerConfig {
+        McpServerConfig {
+            name: name.to_string(),
+            command: String::new(),
+            args: vec![],
+            env: HashMap::new(),
+            transport: "streamable-http".to_string(),
+            url: Some(url.to_string()),
+            requires_approval: false,
+            init_timeout_secs: 30,
+            call_timeout_secs: 60,
+            tags: vec![],
+        }
+    }
+
     #[test]
     fn test_add_server_creates_block() {
         // GIVEN an empty temp file
@@ -362,5 +377,84 @@ mod tests {
         assert!(names.contains(&"notion"));
         assert!(names.contains(&"brave"));
         assert!(!names.contains(&"sqlite"));
+    }
+
+    #[test]
+    fn test_config_writer_writes_remote_server() {
+        // GIVEN a remote server with transport=streamable-http
+        let tmp = NamedTempFile::new().unwrap();
+        let writer = McpConfigWriter::new(tmp.path().to_path_buf());
+
+        // WHEN it is written to disk
+        writer
+            .add_server(&remote_config("notion", "https://mcp.notion.com/mcp"))
+            .unwrap();
+
+        // THEN the TOML contains url and transport but omits command and args
+        let content = std::fs::read_to_string(tmp.path()).unwrap();
+        assert!(
+            content.contains("https://mcp.notion.com/mcp"),
+            "url must be present in TOML"
+        );
+        assert!(
+            content.contains("streamable-http"),
+            "transport must be present in TOML"
+        );
+        assert!(
+            !content.contains("command"),
+            "command must be absent for remote servers"
+        );
+        assert!(
+            !content.contains("args"),
+            "args must be absent for remote servers"
+        );
+    }
+
+    #[test]
+    fn test_config_writer_remote_server_round_trip() {
+        // GIVEN a remote server written via the writer
+        let tmp = NamedTempFile::new().unwrap();
+        let writer = McpConfigWriter::new(tmp.path().to_path_buf());
+        writer
+            .add_server(&remote_config("notion", "https://mcp.notion.com/mcp"))
+            .unwrap();
+
+        // WHEN the file is reloaded and validated
+        let loaded = McpConfig::load(tmp.path()).unwrap();
+
+        // THEN the config faithfully represents the original remote server
+        assert_eq!(loaded.servers.len(), 1);
+        let server = &loaded.servers[0];
+        assert_eq!(server.name, "notion");
+        assert_eq!(server.transport, "streamable-http");
+        assert_eq!(server.url, Some("https://mcp.notion.com/mcp".to_string()));
+        assert!(server.command.is_empty());
+        assert!(server.args.is_empty());
+    }
+
+    #[test]
+    fn test_config_writer_mixed_stdio_and_remote() {
+        // GIVEN a file containing both a stdio and a remote server
+        let tmp = NamedTempFile::new().unwrap();
+        let writer = McpConfigWriter::new(tmp.path().to_path_buf());
+        writer.add_server(&sample_config("sqlite")).unwrap();
+        writer
+            .add_server(&remote_config("notion", "https://mcp.notion.com/mcp"))
+            .unwrap();
+
+        // WHEN the file is reloaded
+        let loaded = McpConfig::load(tmp.path()).unwrap();
+
+        // THEN both servers are present with their respective transport config intact
+        assert_eq!(loaded.servers.len(), 2);
+        let sqlite = loaded.servers.iter().find(|s| s.name == "sqlite").unwrap();
+        assert_eq!(sqlite.transport, "stdio");
+        assert_eq!(sqlite.command, "npx");
+        assert!(sqlite.url.is_none());
+
+        let notion = loaded.servers.iter().find(|s| s.name == "notion").unwrap();
+        assert_eq!(notion.transport, "streamable-http");
+        assert_eq!(notion.url, Some("https://mcp.notion.com/mcp".to_string()));
+        assert!(notion.command.is_empty());
     }
 }
