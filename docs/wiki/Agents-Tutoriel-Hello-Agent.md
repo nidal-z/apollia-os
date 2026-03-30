@@ -43,9 +43,9 @@ class MonAgent:
 agent = MonAgent()  # instance au niveau module — obligatoire
 ```
 
-Pas de classe de base. Pas de décorateur. Pas de `__init__` requis. Le runtime valide via duck typing.
+Pas de classe de base. Pas de décorateur. Pas de `__init__` requis. Le runtime utilise le **duck typing** : il vérifie que votre objet a les méthodes `manifest()` et `run()`, sans imposer d'héritage (voir [ADR-003](../decisions/adr-003-duck-typing-aip) et [Glossaire](../glossary)).
 
-La ligne `agent = MonAgent()` est importante : le runtime cherche une variable `agent` au niveau module quand il charge le fichier.
+La ligne `agent = MonAgent()` est importante : le runtime cherche une variable `agent` au niveau module quand il charge le fichier Python.
 
 ---
 
@@ -66,7 +66,7 @@ def manifest(self):
     }
 ```
 
-`tools_required` vide signifie que l'agent peut fonctionner sans aucun outil. C'est parfait pour commencer.
+`tools_required` vide signifie que l'agent peut fonctionner sans aucun outil. Au démarrage, le runtime **résout** (vérifie l'existence dans le Tool Registry) chaque outil déclaré ici. Si un outil requis est absent, l'agent refuse de démarrer. C'est parfait pour commencer sans dépendance.
 
 ---
 
@@ -175,13 +175,15 @@ Que se passe-t-il en coulisse ?
 
 ```bash
 $ apollia-os run hello-agent "Dupont SA"
-  -> Task t-abc123 submitted to hello-agent
+  -> Task t-abc123 submitted to hello-agent     # ID unique de la tâche
   Executing...
-  Done in 0.3s (1 step, 0 tool calls)
+  Done in 0.3s (1 step, 0 tool calls)           # 1 step = 1 cycle run(), 0 outil appelé
 
   RESULT
   Bonjour ! J'ai reçu : Dupont SA
 ```
+
+> **Comprendre l'output :** `t-abc123` est l'identifiant unique de la tâche. "1 step" signifie que l'agent a effectué un cycle de raisonnement (son `run()`). "0 tool calls" confirme qu'aucun outil (`ctx.tools`) n'a été appelé.
 
 ### Étape 4 : Observer l'état
 

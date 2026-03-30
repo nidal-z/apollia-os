@@ -58,6 +58,8 @@ curl http://localhost:7771/.well-known/agent.json
 }
 ```
 
+> **Convention de nommage :** Le manifest Python utilise `snake_case` (`input_modes`, `output_modes`). L'AgentCard JSON exposé via A2A utilise `camelCase` (`inputModes`, `outputModes`) conformément à la spec A2A. La conversion est automatique lors de la sérialisation.
+
 L'agent n'écrit pas de code A2A — il déclare ses capacités dans le manifest, Apollia OS fait le reste.
 
 ### Ce qui n'est pas encore implémenté

@@ -1,15 +1,21 @@
 # Architecture — Modèle Acteur Tokio — Apollia OS
 
 > Comment le Runtime Core est structuré en acteurs Tokio indépendants, et pourquoi ce modèle garantit l'absence d'état partagé.
-> Public cible : contributeur Rust, architecte
+> Public cible : contributeur Rust, architecte. Les développeurs Python peuvent lire cette page pour comprendre l'architecture — les concepts Rust sont expliqués ci-dessous.
+
+**Concepts Rust pour les non-Rustaceans :**
+- **Tokio** : le runtime asynchrone de Rust (équivalent de `asyncio` en Python). Il exécute des tâches concurrentes sur un pool de threads.
+- **`mpsc`** (Multiple Producer, Single Consumer) : un canal de messages — plusieurs expéditeurs, un seul récepteur. C'est comme une file d'attente thread-safe.
+- **`Arc<Mutex<T>>`** : un pattern pour partager des données entre threads (Arc = pointeur partagé, Mutex = verrou). Apollia OS l'évite entre acteurs car les verrous créent des contentions et des deadlocks potentiels. À la place, chaque acteur possède ses données et communique par messages.
+- **Handle** : une poignée légère (clonable) qui contient un `mpsc::Sender` pour envoyer des messages à un acteur. C'est l'API publique d'un acteur.
 
 ---
 
 ## Vue d'ensemble
 
-Le Runtime Core d'Apollia OS est composé de huit acteurs Tokio. Un acteur est une tâche Tokio qui possède exclusivement son état interne et communique avec l'extérieur uniquement via des messages sur un canal `mpsc`. Zéro `Arc<Mutex<T>>` entre acteurs.
+Le Runtime Core d'Apollia OS est composé de 12 acteurs Tokio (voir [Runtime Core](./Briques-Runtime-Core) pour la liste complète). Un acteur est une tâche asynchrone qui possède exclusivement son état interne et communique avec l'extérieur uniquement via des messages sur un canal `mpsc`. Zéro `Arc<Mutex<T>>` entre acteurs.
 
-Ce modèle s'inspire du pattern acteur documenté par Alice Ryhl (blog Tokio). Il force la séparation des responsabilités par construction : il est architecturalement impossible pour un acteur de modifier l'état d'un autre sans passer par un message.
+Ce modèle s'inspire du [pattern acteur documenté par Alice Ryhl](https://ryhl.io/blog/actors-with-tokio/). Il force la séparation des responsabilités par construction : il est architecturalement impossible pour un acteur de modifier l'état d'un autre sans passer par un message.
 
 ---
 
@@ -24,11 +30,14 @@ Ce modèle s'inspire du pattern acteur documenté par Alice Ryhl (blog Tokio). I
 **Messages entrants :** `Publish(RuntimeEvent)`, `Subscribe` (retourne un `Receiver`).
 
 ```rust
-// Événements représentatifs
-RuntimeEvent::TaskSubmitted { task_id, agent_id }
-RuntimeEvent::TaskCompleted { task_id, output }
-RuntimeEvent::AgentTransitioned { agent_id, from, to }
+// Événements représentatifs (liste simplifiée — voir events.rs pour les 30+ variants)
+RuntimeEvent::TaskStarted { task_id, agent_id }
+RuntimeEvent::TaskCompleted { task_id, output, success }
+RuntimeEvent::StepExecuted { task_id, step, tool }
+RuntimeEvent::ToolCircuitBroken { tool_name }
 RuntimeEvent::ToolCircuitRestored { tool_name }
+RuntimeEvent::AgentRegistered(agent_id)
+RuntimeEvent::AgentDegraded { agent_id, reason }
 RuntimeEvent::ShutdownRequested
 ```
 

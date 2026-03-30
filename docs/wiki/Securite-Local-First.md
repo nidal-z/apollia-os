@@ -9,7 +9,9 @@
 
 Le principe Local-First (Principe #1) est la garantie fondamentale d'Apollia OS : **aucun octet de données utilisateur ne quitte la machine sans une action explicite du développeur**.
 
-Cette garantie n'est pas contractuelle ou de confiance — elle est architecturale. Il n'existe pas de serveur distant vers lequel Apollia OS pourrait envoyer des données, même accidentellement.
+Cette garantie est architecturale — le runtime Rust n'ouvre aucune connexion sortante. Il n'existe pas de serveur distant vers lequel Apollia OS pourrait envoyer des données, même accidentellement.
+
+> **Caveat important :** le runtime est local-first, mais le code Python de l'agent est sous la responsabilité du développeur. Un agent peut appeler des API externes (OpenAI, Anthropic, etc.) qui traitent les données hors machine. Pour une isolation complète, utiliser les features `local` / `local-metal` et auditer le code des agents. Voir la section [Ce qui PEUT sortir](#ce-qui-peut-sortir-avec-action-explicite).
 
 ---
 

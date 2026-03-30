@@ -25,8 +25,8 @@ MCP (Model Context Protocol) est un standard développé initialement par Anthro
 **Techniquement :**
 - JSON-RPC 2.0 inspiré du Language Server Protocol
 - 3 primitives serveur : `Resources` (données contextuelles), `Prompts` (templates), `Tools` (fonctions exécutables)
-- Spécification v2 (novembre 2025) : exécution asynchrone, OAuth 2.1, orientation production
-- Plus de 16 000 serveurs MCP disponibles dans l'écosystème
+- Spécification 2024-11-05 : exécution asynchrone, Streamable HTTP, orientation production
+- Écosystème en croissance rapide avec des milliers de serveurs MCP disponibles
 
 **Schéma d'un outil MCP :**
 ```json
@@ -212,7 +212,7 @@ Apollia OS maintient cette distinction explicitement — pas d'ambiguïté entre
 - Pas de discovery A2A cloud — l'AgentCard est exposée localement
 - Pas de compatibilité ACP REST complète en v0.1 — uniquement l'alignement sémantique des états
 
-Ces fonctionnalités enterprise sont dans la roadmap v1.0.
+Ces fonctionnalités enterprise sont dans la [Roadmap](./Roadmap).
 
 ---
 

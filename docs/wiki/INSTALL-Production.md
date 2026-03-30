@@ -111,7 +111,7 @@ Wants=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/apollia-os start --foreground --config /etc/apollia/apollia.toml
+ExecStart=/usr/local/bin/apollia-os start
 ExecStop=/usr/local/bin/apollia-os stop
 Restart=on-failure
 RestartSec=5s
@@ -171,7 +171,7 @@ apollia-os run hello-agent "test production"
 
 ## Considérations sécurité
 
-**Isolation réseau :** L'API est liée sur `127.0.0.1` par défaut. Ne jamais exposer sur `0.0.0.0` sans reverse proxy + authentification.
+> **WARNING — Isolation réseau :** L'API est liée sur `127.0.0.1` par défaut. **Ne JAMAIS exposer sur `0.0.0.0` sans reverse proxy + authentification.** L'API n'a pas d'authentification intégrée — toute personne qui atteint le port peut soumettre des tâches et contrôler le runtime.
 
 **Agents et sandbox :** Les `bash_executor` et `python_executor` utilisent les Linux namespaces (unshare) pour l'isolation. Vérifier que `unprivileged_userns_clone = 1`.
 

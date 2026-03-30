@@ -590,10 +590,12 @@ L'agent **lit** le budget mais ne peut pas le modifier. C'est le runtime qui l'a
 
 ```rust
 pub struct ResilienceLayer {
-    pub retry_policy: RetryPolicy,
-    pub circuit_breakers: HashMap<String, CircuitBreaker>,  // Par outil
+    circuit_breakers: HashMap<String, CircuitBreaker>,  // Par outil
+    default_failure_threshold: u32,                     // Défaut : 3
+    default_cooldown: Duration,                         // Défaut : 30s
 }
 
+// RetryPolicy est utilisée séparément par l'ActorLoop
 pub struct RetryPolicy {
     pub max_attempts: u32,      // Défaut : 3
     pub base_delay_ms: u64,     // Défaut : 500ms
@@ -602,10 +604,10 @@ pub struct RetryPolicy {
 }
 
 pub struct CircuitBreaker {
-    pub state: CircuitState,
-    pub failure_count: u32,
-    pub failure_threshold: u32,  // Défaut : 5 failures consécutives
-    pub cooldown: Duration,      // Défaut : 30s
+    state: CircuitState,
+    failure_count: u32,
+    failure_threshold: u32,  // Défaut : 3 échecs consécutifs
+    cooldown: Duration,      // Défaut : 30s
     pub last_failure: Option<Instant>,
 }
 

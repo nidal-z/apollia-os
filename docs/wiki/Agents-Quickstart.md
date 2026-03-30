@@ -123,8 +123,10 @@ Pour des agents plus structurés avec IDE autocomplete, mocks de test et scaffol
 
 ```bash
 $ pip install -e ./sdk
-$ apollia new mon-agent --type react
+$ apollia-os agent new mon-agent --type react
 ```
+
+> Vous pouvez aussi appeler directement le SDK : `python -m apollia new mon-agent --type react`
 
 Le SDK fournit `BaseReActAgent`, `ConversationalAgent`, `OrchestratedAgent` avec type stubs PEP 561 et infrastructure de test complète. Voir [Agents SDK Guide](./Agents-SDK-Guide).
 

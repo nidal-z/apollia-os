@@ -302,7 +302,7 @@ $ apollia-os tools list
   file_grep          natif    0.2.0    ✔       FileSystem
   http_fetch         natif    0.2.0    ✔       NetworkRestricted
   memory_search      natif    0.2.0    ✔       ReadOnly
-  mcp_consumer       natif    0.1.0    ✔       FileSystem
+  mcp_consumer       mcp      0.1.0    ✔       FileSystem
   erp_acme           custom   1.0.0    ✔       NetworkRestricted
 ```
 
@@ -679,3 +679,5 @@ Chaque méthode : lit le fichier courant, applique la mutation en mémoire, vali
 ---
 
 *Prochaine lecture recommandée : [Memory Engine](./Briques-Memory-Engine)*
+
+> Voir aussi [MCP Integration](./MCP-Integration) pour la configuration utilisateur des serveurs MCP (ajout/suppression à chaud, `mcp.toml`).

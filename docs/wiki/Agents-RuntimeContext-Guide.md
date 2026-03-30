@@ -5,7 +5,20 @@
 
 ---
 
-## Vue d'ensemble
+## Vue d'ensemble en 1 minute
+
+Le `RuntimeContext` (`ctx`) est votre agent's interface avec le runtime. Quatre services, quatre responsabilités :
+
+| Service | Rôle | Quand l'utiliser |
+|---|---|---|
+| `ctx.tools` | Appeler des outils (bash, fichiers, réseau, MCP) | Toute interaction avec le monde extérieur |
+| `ctx.memory` | Stocker/retrouver des souvenirs persistants | Enrichir le contexte entre les tâches |
+| `ctx.llm` | Appeler un LLM (raisonnement, résumé, extraction) | Tout ce qui nécessite de l'intelligence |
+| `ctx.step_budget` | Lire le budget restant (lecture seule) | Adapter le comportement avant épuisement |
+
+`ctx.tools` est toujours disponible. `ctx.memory` nécessite `memory_namespace` dans le manifest. `ctx.llm` nécessite un backend LLM configuré. `ctx.step_budget` est toujours disponible (lecture seule, le runtime gère le décompte).
+
+## Détail
 
 Le `RuntimeContext` (accessible via le paramètre `ctx` dans `run()`) est l'interface entre votre agent et tous les services du runtime. Il est injecté par Apollia OS à chaque appel de tâche — vous n'avez jamais à l'instancier.
 
@@ -190,7 +203,15 @@ count = ctx.tools.tool_call_count()
 
 **Disponible uniquement si `memory_namespace` est défini dans le manifest.** `None` sinon.
 
-Le Memory Engine distingue trois types de mémoire : épisodique (événements), sémantique (faits), procédurale (procédures). `ctx.memory` expose une interface unifiée.
+Le Memory Engine distingue trois types de mémoire. `ctx.memory` expose une interface unifiée pour les trois :
+
+| Type | Ce qu'il stocke | Exemple | Score clé |
+|---|---|---|---|
+| **Épisodique** | Événements horodatés | "Client Acme a demandé 10 licences à 5000€" | `importance` (0.0-1.0) : à quel point cet événement est significatif |
+| **Sémantique** | Faits durables (clé→valeur) | "budget_annuel_acme" → "50 000€" | `confidence` (0.0-1.0) : degré de certitude du fait |
+| **Procédurale** | Procédures réutilisables | "Pour créer un devis : 1. Vérifier le client..." | `confidence` (0.0-1.0) |
+
+> `importance` mesure la pertinence d'un événement pour le contexte futur. `confidence` mesure la fiabilité d'une information (1.0 = déclaré par l'utilisateur, 0.5 = inféré par un LLM).
 
 ### Stocker un épisode
 

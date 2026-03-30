@@ -4,11 +4,22 @@
 
 ---
 
+## Qu'est-ce que le Mode Orchestré ?
+
+En Mode Direct (par défaut), c'est votre code Python dans `run()` qui décide quels outils appeler et dans quel ordre. En Mode Orchestré, c'est le runtime qui planifie et exécute — votre agent décrit **ce qu'il sait faire** (via `system_prompt`), et le runtime décide **comment** le faire.
+
+**Les composants d'ORIA :**
+- **ORIA** (Observer-Reasoner-Actor) : le moteur d'exécution du runtime. C'est lui qui supervise tous les agents, en mode direct comme orchestré.
+- **Reasoner** : un appel LLM qui, à partir du `system_prompt` de l'agent et de la tâche soumise, génère un plan d'exécution JSON (quels outils appeler, dans quel ordre, avec quels paramètres).
+- **ActorLoop** : la boucle d'exécution qui parcourt le plan step par step, appelle les outils, et gère les erreurs. Elle applique le `StepBudget` à chaque step.
+
+---
+
 ## 1. Principe
 
 En **Mode Orchestré**, l'agent n'implémente pas de boucle ReAct dans `run()`. ORIA prend en charge l'intégralité de l'exécution :
 
-1. Le **Reasoner** (LLM) génère un `ExecutionPlan` JSON à partir du `system_prompt` de l'agent
+1. Le **Reasoner** génère un `ExecutionPlan` JSON à partir du `system_prompt` de l'agent et de l'input de la tâche
 2. L'**ActorLoop** exécute les steps dans l'ordre topologique, appelle les outils directement
 3. ORIA replanifie automatiquement si un step échoue (max 2 replans)
 4. L'agent peut optionnellement post-traiter les résultats via `on_plan_complete()`
@@ -22,6 +33,28 @@ En **Mode Orchestré**, l'agent n'implémente pas de boucle ReAct dans `run()`. 
 | Qui appelle les outils | L'agent via `ctx.tools` | ORIA via `ActorLoop` |
 | Replanification | Manuelle dans `run()` | Automatique (max 2) |
 | Persistance SQLite | Non | Oui (`~/.apollia/plans.db`) |
+
+### Flux d'exécution comparé
+
+```mermaid
+graph LR
+    subgraph Direct["Mode Direct"]
+        T1[Tâche soumise] --> R1["run() appelé"]
+        R1 --> L1["Agent raisonne (LLM)"]
+        L1 --> O1["Agent appelle outils"]
+        O1 --> L1
+        L1 --> D1[Résultat retourné]
+    end
+
+    subgraph Orchestrated["Mode Orchestré"]
+        T2[Tâche soumise] --> P2["Reasoner génère un plan"]
+        P2 --> A2["ActorLoop exécute step 1"]
+        A2 --> B2["ActorLoop exécute step 2"]
+        B2 --> C2["...step N"]
+        C2 --> H2["on_plan_complete() (optionnel)"]
+        H2 --> D2[Résultat retourné]
+    end
+```
 
 ---
 

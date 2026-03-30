@@ -51,7 +51,7 @@ Aucune directement — infrastructure acteur interne.
 - `ToolDescriptor`, `ToolKind`, `McpTransport` dans `apollia-tools`
 - `ToolRegistry` acteur Tokio + `ToolRegistryHandle`
 - `ToolResolver` : validation des outils requis/optionnels au démarrage agent
-- 3 outils natifs : `bash_executor` (Linux namespaces via `unshare`, mode Dev macOS), `python_executor` (venv isolé par agent), `file_io` (protection path traversal + glob matcher)
+- 3 outils natifs : `bash_executor` (Linux namespaces via `unshare`, mode Dev macOS), `python_executor` (venv isolé par agent), `file_io` (protection path traversal + glob matcher) — *Note : `file_io` a été déprécié au Sprint 25 et remplacé par `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep` (ADR-043)*
 - `AuditTrail` SQLite (acteur `std::thread` + `mpsc::sync_channel`, fire-and-forget, SHA-256)
 
 ### Primitives agent disponibles

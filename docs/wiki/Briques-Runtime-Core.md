@@ -44,23 +44,23 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
 ### 2.1 Séquence de démarrage (ordre strict)
 
 ```
-1. EventBus          → bus interne (premier, tout le monde en dépend)
-2. AgentRegistry     → registre d'état
-3. Tool Registry     → catalogue outils + résolution MCP
-4. Memory Engine     → ouverture connexions SQLite
-5. LlmRouter         → backends LLM (embedded + cloud) [Sprint 8]
-6. TriggerEngine     → moteur de déclenchement automatique [Sprint 9]
-   └── ouvre TriggerDefinitionRepository (triggers_def.db) [Sprint 17]
-7. PipelineEngine    → orchestration multi-agent [Sprint 12]
-   └── ouvre PipelineDefinitionRepository (pipelines_def.db) [Sprint 17]
-8. APIServer         → accepte les connexions externes
-9. NotificationEngine → alertes desktop / webhook [Sprint 11]
-   └── ouvre NotificationConfigRepository (notifications.db) [Sprint 17]
-12c. AgentMailbox → messagerie inter-agents [Sprint 20]
-     └── files de messages par agent (max 100), AgentMailboxHandle (Clone+Send+Sync)
-13. ChatSessionManager → sessions de chat interactif [Sprint 18]
+1.  EventBus            → bus interne (premier, tout le monde en dépend)
+2.  AgentRegistry       → registre d'état
+3.  Tool Registry       → catalogue outils + résolution MCP
+4.  Memory Engine       → ouverture connexions SQLite
+5.  LlmRouter           → backends LLM (embedded + cloud) [Sprint 8]
+6.  TriggerEngine       → moteur de déclenchement automatique [Sprint 9]
+    └── ouvre TriggerDefinitionRepository (triggers_def.db) [Sprint 17]
+7.  PipelineEngine      → orchestration multi-agent [Sprint 12]
+    └── ouvre PipelineDefinitionRepository (pipelines_def.db) [Sprint 17]
+8.  APIServer           → accepte les connexions externes
+9.  NotificationEngine  → alertes desktop / webhook [Sprint 11]
+    └── ouvre NotificationConfigRepository (notifications.db) [Sprint 17]
+10. AgentMailbox        → messagerie inter-agents [Sprint 20]
+    └── files de messages par agent (max 100), AgentMailboxHandle (Clone+Send+Sync)
+11. ChatSessionManager  → sessions de chat interactif [Sprint 18]
     └── ouvre ChatSessionRepository (chat.db), restaure autorisations
-15. SttEngine → moteur Speech-to-Text embarqué [Sprint 24]
+12. SttEngine           → moteur Speech-to-Text embarqué [Sprint 24]
     └── ouvre SttRepository (stt.db), charge WhisperCppBackend (conditionnel : stt.enabled)
 ```
 

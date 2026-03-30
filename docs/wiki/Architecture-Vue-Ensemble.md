@@ -2,6 +2,65 @@
 
 > *Stack, workspace Rust, interactions entre briques, et spécification complète de l'Agent Interface Protocol.*
 
+**Prérequis de lecture :** cette page assume une familiarité avec Python async/await. Aucune connaissance de Rust n'est requise — les concepts Rust sont expliqués quand ils apparaissent. Si un terme n'est pas clair, consultez le [Glossaire](./glossary).
+
+**Concepts clés :**
+- **AIP** (Agent Interface Protocol) : le contrat minimal entre un agent Python et le runtime Rust. Deux fonctions suffisent : `manifest()` (qui je suis) et `run(task, ctx)` (que je fais).
+- **ORIA** : le moteur d'exécution qui supervise les agents — Observer, Reasoner, Actor. Il applique les garde-fous (StepBudget) et peut planifier automatiquement en mode orchestré.
+- **Acteur Tokio** : un composant autonome qui possède son état et communique par messages. C'est le pattern de concurrence utilisé par le runtime (inspiré d'[Alice Ryhl](https://ryhl.io/blog/actors-with-tokio/)).
+
+### Diagramme simplifié
+
+```mermaid
+graph TB
+    subgraph Desktop["Apollia Desktop (Tauri + Svelte)"]
+        UI[WebView UI]
+    end
+
+    subgraph Runtime["Apollia OS Runtime (Rust)"]
+        API[API Server :7771]
+        SUP[Supervisor]
+        EB[EventBus]
+        AR[AgentRegistry]
+        TR[TaskRouter]
+
+        subgraph Execution["Par agent actif"]
+            EC[ExecutionCoordinator]
+            ORIA[ORIA Engine]
+            SB[StepBudget]
+            RL[ResilienceLayer]
+        end
+
+        TOOLS[Tool Registry]
+        MEM[Memory Engine SQLite]
+        LLM[LLM Router]
+        TRIG[TriggerEngine]
+        PIPE[PipelineEngine]
+    end
+
+    subgraph Agents["Agents Python"]
+        A1["Agent 1 (manifest + run)"]
+        A2["Agent 2 (LangGraph)"]
+    end
+
+    UI --> API
+    API --> TR
+    TR --> EC
+    EC --> ORIA
+    ORIA --> A1
+    ORIA --> A2
+    ORIA --> TOOLS
+    ORIA --> LLM
+    A1 -.->|ctx.tools| TOOLS
+    A1 -.->|ctx.memory| MEM
+    A1 -.->|ctx.llm| LLM
+    EB -.->|events| UI
+    TRIG -->|fire| TR
+    PIPE -->|orchestrate| TR
+```
+
+> **Note :** ce diagramme nécessite le preprocessor `mdbook-mermaid` pour un rendu graphique. Sans le plugin, il est lisible comme texte structuré.
+
 ---
 
 ## 1. Vue d'ensemble de l'architecture

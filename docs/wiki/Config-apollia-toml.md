@@ -280,9 +280,8 @@ model_path = "~/.apollia/models/whisper-large-v3-fr-q5_0.bin"
 hotkey = "ctrl+shift+space"
 
 # Mode d'injection du texte transcrit
-# "paste" : injection dans le clipboard + simulation Cmd+V/Ctrl+V
-# "memo"  : sauvegarde uniquement dans SttRepository
-# "both"  : clipboard + memo
+# "paste"     : copie dans le clipboard puis simule Cmd/Ctrl+V (injection automatique)
+# "clipboard" : copie dans le clipboard sans coller automatiquement
 # Défaut : "paste"
 clipboard_mode = "paste"
 
@@ -295,8 +294,8 @@ clipboard_restore = true
 silence_threshold_db = -40.0
 
 # Durée maximale d'enregistrement en secondes
-# Défaut : 120
-max_recording_sec = 120
+# Défaut : 60
+max_recording_sec = 60
 
 # Langue par défaut pour la transcription (code ISO 639-1)
 # Défaut : "fr"
@@ -304,7 +303,7 @@ language = "fr"
 
 # Mode de déclenchement du raccourci
 # "toggle"       : premier appui = ON, deuxième = OFF
-# "push_to_talk" : maintenu = ON, relâché = OFF
+# "push-to-talk" : maintenu = ON, relâché = OFF
 # Défaut : "toggle"
 trigger_mode = "toggle"
 ```

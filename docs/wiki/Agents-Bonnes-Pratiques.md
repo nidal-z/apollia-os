@@ -7,7 +7,17 @@
 
 ## StepBudget — anticiper avant d'être arrêté
 
-Le runtime applique un StepBudget non contournable (Principe #7). Un agent qui ignore le budget restant se fait couper en pleine exécution avec une tâche `failed`.
+Le runtime applique un StepBudget non contournable ([Principe #7](./Architecture-Principes#principe-7--les-garde-fous-sont-non-négociables)). Un agent qui ignore le budget restant se fait couper en pleine exécution avec une tâche `failed`.
+
+**Coût des opérations :**
+
+| Opération | Coût en steps | Coût en tool_calls |
+|---|---|---|
+| Appel LLM (`ctx.llm.chat()`) | 1 step | 0 |
+| Appel outil (`ctx.tools.call()`) | 0 | 1 tool_call |
+| Retry d'outil (RetryPolicy) | 0 | 1 tool_call supplémentaire |
+
+Défauts runtime : 10 steps, 20 tool_calls, 300s. Voir [Guardrails](./Securite-Guardrails) pour la configuration des plafonds.
 
 ### Vérifier avant chaque itération
 
@@ -149,6 +159,27 @@ def manifest(self):
 ```
 
 **Attention :** si votre agent maintient un état interne entre les appels, `max_concurrent_tasks: 1` est obligatoire. Si `run()` est stateless (ne modifie aucun attribut de `self`), vous pouvez augmenter cette valeur.
+
+---
+
+## Outils dangereux — `dangerous_tools_allowed`
+
+Certains outils ont le flag `dangerous: true` dans leur `ToolDescriptor` (ex: `bash_executor` avec profil `Full`). Par défaut, un agent **ne peut pas** appeler ces outils.
+
+Pour autoriser un agent à les utiliser, déclarer explicitement dans le manifest :
+
+```python
+def manifest(self):
+    return {
+        "name": "admin-agent",
+        "dangerous_tools_allowed": True,  # opt-in explicite
+        "tools_required": ["bash_executor"],
+    }
+```
+
+> **Attention sécurité :** activer `dangerous_tools_allowed` donne à l'agent un accès étendu (exécution shell non restreinte, réseau complet selon le profil sandbox). Ne l'activer que pour les agents de confiance exécutant des tâches d'administration. Le champ est audité dans le `AuditTrail`.
+
+Sans ce flag, toute tentative d'appel à un outil dangereux retourne une erreur `ToolAccessDenied`.
 
 ---
 

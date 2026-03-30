@@ -14,7 +14,7 @@ Le SDK Apollia fournit des classes de base, des type stubs, des utilitaires de p
 - Type stubs PEP 561 pour `RuntimeContext`, `ToolProxy`, `LlmProxy`, `MemoryInterface`
 - 3 classes de base : `BaseReActAgent`, `ConversationalAgent`, `OrchestratedAgent`
 - Mocks + assertions pour tests unitaires sans runtime
-- CLI scaffolding : `apollia new <name> --type react`
+- CLI scaffolding : `apollia-os agent new <name> --type react` (ou `python -m apollia new <name>`)
 - Compatible Python 3.10+
 
 ---
@@ -105,7 +105,7 @@ agent = MonAgent()
 
 | Méthode | Description |
 |---|---|
-| `react(task, ctx, user_message, *, extra_context="", pending_tool=None)` | Exécute la boucle ReAct complète |
+| `react(task, ctx, user_message, *, extra_context="", pending_tool=None)` | Exécute la boucle ReAct complète. **Retourne** `str` (texte final) ou `dict` (AIPResult complet, ex: HITL `input_required`) |
 | `get_tool_schemas()` | Retourne les schémas des outils natifs |
 | `manifest()` | (abstraite) Retourne le manifest AIP |
 | `run(task, ctx)` | (abstraite) Point d'entrée principal |
@@ -378,17 +378,14 @@ async def test_mon_agent_analyse():
 ### 5.1 Via le SDK Python
 
 ```bash
-# Créer un agent ReAct (défaut)
-$ apollia new mon-agent
+# Via le CLI runtime (recommandé — détecte le SDK automatiquement)
+$ apollia-os agent new mon-agent
+$ apollia-os agent new assistant --type conversational
+$ apollia-os agent new analyseur --type orchestrated
 
-# Créer un agent conversationnel
-$ apollia new assistant --type conversational
-
-# Créer un agent orchestré
-$ apollia new analyseur --type orchestrated
-
-# Spécifier le répertoire de sortie
-$ apollia new mon-agent --output-dir ./agents/
+# Ou directement via le SDK Python
+$ python -m apollia new mon-agent
+$ python -m apollia new mon-agent --output-dir ./agents/
 ```
 
 Fichiers générés : `<module_name>_agent.py` + `test_<module_name>_agent.py`

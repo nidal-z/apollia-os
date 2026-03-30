@@ -9,6 +9,10 @@ src = "src"
 build-dir = "../target/book"
 create-missing = false
 
+[preprocessor.gettext]
+after = ["links"]
+optional = true
+
 [output.html]
 default-theme = "navy"
 preferred-dark-theme = "coal"

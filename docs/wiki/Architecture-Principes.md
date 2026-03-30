@@ -17,12 +17,12 @@
 - Aucun telemetry, aucun "phone home"
 
 **Pourquoi ce principe existe :**
-Le projet SaaS précédent avait une architecture cloud nécessaire par design. La promesse de souveraineté des données se heurtait à la réalité : les données transitaient quand même par l'infrastructure cloud pour être indexées et traitées. Les retours des prospects PME étaient clairs : "On veut bien essayer, mais nos données client ne peuvent pas sortir de chez nous."
+Apollia a démarré comme un SaaS cloud (voir [ADR-010](../decisions/adr-010-pivot-saas-vers-runtime-rust-open-source) pour le récit du pivot). L'architecture cloud rendait impossible la souveraineté réelle des données : les données transitaient par l'infrastructure cloud pour être indexées et traitées. Les retours des prospects PME étaient clairs : "On veut bien essayer, mais nos données client ne peuvent pas sortir de chez nous."
 
 La solution n'était pas d'améliorer les garanties contractuelles. C'était de rendre le cloud techniquement inutile.
 
 **Conséquence architecturale :**
-Toute dépendance à un service externe est optionnelle et doit se dégrader gracieusement. FTS5 avant les embeddings. Pas d'embedding avant `local_gguf` ou `ollama`. Jamais de "ça ne marchera pas si vous n'avez pas de connexion internet."
+Toute dépendance à un service externe est optionnelle et doit se dégrader gracieusement. SQLite remplace PostgreSQL/Redis/Qdrant : recherche full-text via FTS5 (module SQLite natif), et embeddings via sqlite-vec quand disponible. Pas d'embedding avant `local_gguf` ou `ollama`. Jamais de "ça ne marchera pas si vous n'avez pas de connexion internet."
 
 ---
 
@@ -97,12 +97,15 @@ Un agent qui démarre avec succès et plante à la 3ème étape de sa 2ème tâc
 - `TaskRouter` : dispatch des tâches uniquement
 - `ExecutionCoordinator` : interface avec ORIA par agent uniquement
 - `APIServer` : exposition externe uniquement
+- Et 8+ acteurs supplémentaires : `LlmRouter`, `TriggerEngine`, `PipelineEngine`, `NotificationEngine`, `ChatSessionManager`, `SttEngine`, `AuditTrail`, `TimeoutWatcher`…
 - Chaque acteur communique par messages, jamais par état partagé
+
+> Pour la liste complète des acteurs et leur séquence de démarrage, voir [Runtime Core](./Briques-Runtime-Core).
 
 **Pourquoi ce principe existe :**
 Le projet SaaS précédent avait des services qui faisaient trop de choses. Quand un bug apparaissait dans le pipeline de traitement, il était difficile de déterminer dans quelle couche il se trouvait.
 
-Le modèle acteur Tokio (inspiré d'Alice Ryhl's blog post canonique sur les acteurs Tokio) force la séparation des responsabilités par construction : chaque acteur possède exclusivement son état, et toute interaction passe par des messages explicites.
+Le modèle acteur Tokio (inspiré du [blog post d'Alice Ryhl sur les acteurs Tokio](https://ryhl.io/blog/actors-with-tokio/)) force la séparation des responsabilités par construction : chaque acteur possède exclusivement son état, et toute interaction passe par des messages explicites.
 
 **Conséquence architecturale :**
 Pattern `mpsc::channel` + `HashMap` état interne + `JoinHandle` Tokio pour chaque acteur. `Handle` séparé pour l'API publique. Pas d'état partagé entre acteurs (pas de `Arc<Mutex<...>>` traversant les frontières d'acteurs).
@@ -122,7 +125,7 @@ Pattern `mpsc::channel` + `HashMap` état interne + `JoinHandle` Tokio pour chaq
 **Pourquoi ce principe existe :**
 La "mémoire automatique" est séduisante en théorie. En pratique, elle génère des appels LLM non contrôlés (résumés automatiques, extraction de faits...), des coûts imprévisibles, des comportements difficiles à debugger, et des risques de perte d'information par consolidation trop agressive.
 
-La littérature sur les agents IA 2025 identifie la latence due au traitement mémoriel constant comme l'un des principaux goulots d'étranglement des agents en production.
+La latence due au traitement mémoriel constant est un goulot d'étranglement fréquemment observé dans les agents en production — chaque injection automatique de contexte ajoute un appel LLM et 1-3 secondes de latence.
 
 **Conséquence architecturale :**
 `MemoryInterface` est une API appelée explicitement par l'agent. Pas de hook de lifecycle qui injecte automatiquement. La consolidation sera une feature opt-in v1.0, jamais un comportement par défaut.
@@ -140,7 +143,7 @@ La littérature sur les agents IA 2025 identifie la latence due au traitement m�
 - Un agent peut déclarer des limites supérieures dans son manifest (opt-in explicite)
 
 **Pourquoi ce principe existe :**
-Les boucles infinies et les coûts LLM incontrôlés sont les deux causes de mort les plus communes des agents en production. Un agent qui loupe sa condition d'arrêt peut générer des centaines d'appels LLM et des coûts en heures.
+Les boucles infinies et les coûts LLM incontrôlés sont des risques fréquemment observés dans les déploiements d'agents IA. Un agent qui loupe sa condition d'arrêt peut générer des centaines d'appels LLM et des coûts en heures.
 
 En production PME, ce type d'incident est inacceptable. Le runtime doit être la couche de sécurité sur laquelle on peut compter indépendamment de la qualité du code de l'agent.
 

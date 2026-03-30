@@ -7,7 +7,7 @@
 
 ## Vue d'ensemble
 
-Les guardrails d'Apollia OS protègent contre les deux causes de mort les plus communes des agents en production : les boucles infinies et les coûts LLM incontrôlés. Ils sont appliqués par le runtime Rust — un agent Python ne peut pas les désactiver depuis son code.
+Les guardrails d'Apollia OS protègent contre les risques les plus fréquemment observés dans les déploiements d'agents IA : les boucles infinies et les coûts LLM incontrôlés. Ils sont appliqués par le runtime Rust — un agent Python ne peut pas les désactiver depuis son code.
 
 ---
 
@@ -36,6 +36,31 @@ La tâche passe immédiatement en `failed` avec `error.code = "BUDGET_EXCEEDED"`
   }
 }
 ```
+
+### Qu'est-ce qu'un "step" ?
+
+Un **step** correspond à un cycle de raisonnement de l'agent. Concrètement :
+
+| Opération | Coût en steps | Coût en tool_calls |
+|---|---|---|
+| Un appel LLM (raisonnement) | 1 step | 0 |
+| Un appel outil (`ctx.tools.*`) | 0 | 1 tool_call |
+| Un retry d'outil (RetryPolicy) | 0 | 1 tool_call supplémentaire |
+
+En mode orchestré (ORIA), chaque step du plan d'exécution consomme 1 step + N tool_calls.
+
+### Plafonds runtime (`max_steps_ceiling`)
+
+Le runtime applique un plafond global configurable dans `apollia.toml` :
+
+```toml
+[runtime.budget]
+max_steps_ceiling = 50
+max_tool_calls_ceiling = 100
+wall_clock_ceiling_secs = 600
+```
+
+Si ces valeurs ne sont pas définies, les défauts runtime (10 steps, 20 tool_calls, 300s) s'appliquent comme plafond.
 
 ### from_capped — le runtime plafonne toujours
 
@@ -92,7 +117,7 @@ HALF_OPEN (test — une tentative autorisée)
 
 | Paramètre | Valeur |
 |---|---|
-| Seuil d'échec | 5 échecs consécutifs |
+| Seuil d'échec | 3 échecs consécutifs |
 | Période de cooldown | 30 secondes |
 
 ### Comportement observé
@@ -115,18 +140,28 @@ apollia-os audit stats
 
 Pour les erreurs transitoires, l'ORIA Engine réessaie automatiquement avec backoff.
 
+### Configuration par défaut
+
+| Paramètre | Valeur par défaut |
+|---|---|
+| `max_attempts` | 3 |
+| `base_delay_ms` | 500 ms |
+| `max_delay_ms` | 10 000 ms (10s) |
+| `jitter` | ±25% |
+
 ### Comportement
 
 ```
 Tentative 1 : immédiate
-Tentative 2 : base_delay = 100ms
-Tentative 3 : base_delay × 2 = 200ms  (±25% jitter)
-Tentative 4 : base_delay × 4 = 400ms  (±25% jitter)
+Tentative 2 : 500ms  (±25% jitter)
+Tentative 3 : 1000ms (±25% jitter)
 ...
-Maximum : max_delay (défaut: 5000ms)
+Maximum : 10 000ms (cap)
 ```
 
-Le jitter (±25%) évite les tempêtes de retry synchronisées quand plusieurs agents réessaient en même temps.
+Formule : `min(base_delay_ms × 2^(attempt-1), max_delay_ms)`, avec jitter optionnel de ±25%.
+
+Le jitter évite les tempêtes de retry synchronisées quand plusieurs agents réessaient en même temps.
 
 ### Erreurs qui déclenchent un retry
 
@@ -162,6 +197,14 @@ def manifest(self):
         }
     }
 ```
+
+---
+
+## Outils dangereux — `dangerous_tools_allowed`
+
+Les outils avec `dangerous: true` dans leur `ToolDescriptor` (ex: `bash_executor` avec profil `SandboxProfile::Full`) nécessitent un opt-in explicite de l'agent via `dangerous_tools_allowed: True` dans le manifest. Sans ce flag, l'appel retourne `ToolAccessDenied`.
+
+Ce mécanisme garantit qu'un agent ne peut pas accidentellement accéder à des outils à haut risque. Voir [Bonnes Pratiques — Outils dangereux](./Agents-Bonnes-Pratiques) pour les détails d'implémentation.
 
 ---
 

@@ -82,7 +82,52 @@ async def run(self, task, ctx):
         "action": "read_file",
         "path": "/data/rapport.pdf"
     })
+
+    # Lister les outils MCP disponibles
+    tools = await ctx.tools.list_tools()
+    mcp_tools = [t for t in tools if t["name"].startswith("mcp:")]
 ```
+
+> Le préfixe `mcp:` est ajouté automatiquement par le runtime. Les outils MCP passent par le même `ResilienceLayer` et `AuditTrail` que les outils natifs. Voir [Tool Registry — MCP](./Briques-Tool-Registry) pour l'architecture interne.
+
+---
+
+## Ajouter / supprimer un serveur MCP à chaud
+
+Les serveurs MCP peuvent être ajoutés ou retirés sans redémarrer le runtime :
+
+### Via CLI
+
+```bash
+# Ajouter un serveur MCP
+apollia-os mcp add --name filesystem --command "npx" --args "@modelcontextprotocol/server-filesystem" --args "/data"
+
+# Tester la connexion
+apollia-os mcp test filesystem
+
+# Supprimer un serveur MCP
+apollia-os mcp remove filesystem
+```
+
+### Via API REST
+
+```bash
+# Ajouter
+curl -X POST http://localhost:7771/api/v1/mcp/servers \
+  -H "Content-Type: application/json" \
+  -d '{"name": "filesystem", "command": "npx", "args": ["@modelcontextprotocol/server-filesystem", "/data"]}'
+
+# Supprimer
+curl -X DELETE http://localhost:7771/api/v1/mcp/servers/filesystem
+```
+
+### Via l'application Desktop
+
+Page **Intégrations** → onglet MCP → bouton "Ajouter un serveur" ou icône de suppression sur un serveur existant.
+
+Le `McpConfigWriter` valide la configuration (échec si le serveur existe déjà ou n'est pas trouvé), met à jour `mcp.toml`, et notifie le `McpClientManager` qui connecte/déconnecte le transport en temps réel.
+
+> Voir aussi [Tool Registry — MCP](./Briques-Tool-Registry) pour l'architecture interne (`McpClientManager`, `McpToolExecutor`).
 
 ---
 

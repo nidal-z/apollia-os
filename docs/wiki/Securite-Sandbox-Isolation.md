@@ -5,9 +5,16 @@
 
 ---
 
+## Prérequis
+
+- **Linux :** kernel ≥ 4.18 avec `unprivileged_userns_clone = 1`. Vérifier : `sysctl kernel.unprivileged_userns_clone`. Si la valeur est 0, activer avec `sudo sysctl -w kernel.unprivileged_userns_clone=1` (persistant : ajouter dans `/etc/sysctl.d/apollia.conf`).
+- **macOS :** le sandbox Linux n'est **pas disponible**. En développement, `sandbox = false` est utilisé par défaut. **Ne JAMAIS déployer avec `sandbox = false` en production.**
+
 ## Vue d'ensemble
 
-Apollia OS utilise les **Linux user namespaces** (via `unshare`) pour isoler l'exécution de `bash_executor` et `python_executor`. Pas de Docker, pas de daemon requis — les namespaces sont une fonctionnalité native du kernel Linux disponible sans privilèges root.
+Apollia OS utilise les **Linux user namespaces** (via `unshare`) pour isoler l'exécution de `bash_executor` et `python_executor`. Pas de Docker, pas de daemon requis — les [user namespaces](https://man7.org/linux/man-pages/man7/user_namespaces.7.html) sont une fonctionnalité native du kernel Linux disponible sans privilèges root.
+
+La commande `unshare` crée un environnement isolé avec ses propres identifiants utilisateur (`--user`), son propre filesystem (`--mount`) et sa propre pile réseau (`--net`). L'outil s'exécute comme root dans son namespace (uid 0) mais n'a aucun privilège réel sur le système hôte.
 
 Cette approche implémente le Principe #2 (Zéro dépendance externe) et ADR-005.
 

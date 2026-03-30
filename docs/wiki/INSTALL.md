@@ -2,7 +2,7 @@
 
 ---
 
-## Prerequis
+## Prérequis
 
 | Outil | Version minimale | Installation |
 |---|---|---|
@@ -42,7 +42,7 @@ Par défaut, le build n'inclut que les backends cloud (HTTP). Pour activer l'inf
 
 | Feature | Matériel cible | Commande |
 |---|---|---|
-| `local` / `local-cpu` | CPU (tout matériel) | `cargo build --features local` |
+| `local` / `local-cpu` | CPU (tout matériel) | `cargo build --features local` (`local-cpu` est un alias de `local`) |
 | `local-metal` | GPU Apple Silicon (M1/M2/M3/M4) | voir ci-dessous |
 | `local-accelerate` | macOS CPU + BLAS vectorisé | `cargo build --features local-accelerate` |
 | `local-cuda` | GPU NVIDIA | `cargo build --features local-cuda` (non testé) |
@@ -71,8 +71,9 @@ Pour l'ajouter au PATH :
 # Ajouter temporairement
 export PATH="$PWD/target/debug:$PATH"
 
-# Ou installer directement
+# Ou installer directement (installe dans ~/.cargo/bin/)
 cargo install --path crates/apollia-cli
+# Vérifier que ~/.cargo/bin est dans votre PATH
 ```
 
 ---

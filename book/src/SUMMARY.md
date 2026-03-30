@@ -1,6 +1,7 @@
 # Summary
 
 [Introduction](introduction.md)
+[Pourquoi Apollia OS ?](why-apollia.md)
 
 ---
 
@@ -121,10 +122,13 @@
   - [ADR-039 — Conversation memory management](decisions/adr-039-conversation-memory-management.md)
   - [ADR-040 — Onboarding comme agent conversationnel](decisions/adr-040-onboarding-conversational-agent.md)
   - [ADR-041 — Moteur STT embarqué : whisper-rs, trait SttBackend](decisions/adr-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md)
+  - [ADR-042 — Remplacement de mistral.rs par llama.cpp statique](decisions/adr-042-remplacement-mistralrs-par-llamacpp-statique.md)
   - [ADR-043 — Décomposition atomique des outils natifs](decisions/adr-043-decomposition-atomique-outils.md)
   - [ADR-044 — Client MCP : architecture, transport, lifecycle](decisions/adr-044-client-mcp.md)
   - [ADR-045 — Page Intégrations : wizard générique piloté par MCP Registry](decisions/adr-045-page-integrations-wizard-generique.md)
+  - [ADR-046 — Transport HTTP/SSE pour MCP](decisions/adr-046-transport-http-sse-mcp.md)
 
 ---
 
+[Glossaire](glossary.md)
 [Roadmap](roadmap.md)
