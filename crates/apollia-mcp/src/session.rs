@@ -1,20 +1,18 @@
-//! MCP session: subprocess lifecycle, stdio pipes, JSON-RPC routing, and initialize handshake.
+//! MCP session: transport lifecycle, JSON-RPC routing, and initialize handshake.
 //!
-//! Each [`McpSession`] owns one MCP server subprocess and two background Tokio tasks:
-//! - a **stdin writer** that serialises outgoing JSON-RPC messages to the child's stdin,
-//! - a **stdout reader** that parses incoming JSON-RPC responses and dispatches them to
-//!   the caller waiting on the matching [`oneshot`] channel.
+//! Each [`McpSession`] owns one [`McpTransport`] and one background dispatch task:
+//! - the **dispatch task** calls [`McpTransport::recv`] in a loop, parses each
+//!   JSON-RPC response, and routes it to the caller waiting on the matching
+//!   [`oneshot`] channel.
 //!
-//! Request/response correlation is handled via a shared `pending` map keyed by request ID.
+//! Request/response correlation is handled via a shared `pending` map keyed by
+//! request ID. The transport handles all byte-level I/O.
 
 use std::collections::HashMap;
-use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
-use tokio::process::{Child, Command};
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{oneshot, Mutex};
 use tracing::{debug, warn};
 
 use crate::config::{McpServerConfig, SecretResolver};
@@ -23,6 +21,7 @@ use crate::protocol::{
     ClientCapabilities, ClientInfo, InitializeParams, InitializeResult, McpToolDefinition,
     ServerCapabilities, ServerInfo, ToolCallParams, ToolCallResult, ToolsListResult,
 };
+use crate::transport::{create_transport, McpTransport};
 
 // ─── errors ──────────────────────────────────────────────────────────────────
 
@@ -73,24 +72,23 @@ pub enum McpSessionError {
     #[error("failed to serialize/deserialize JSON-RPC message: {0}")]
     SerdeError(String),
 
-    /// The server's stdin pipe was closed (writer task exited).
-    #[error("server '{server}' stdin closed")]
+    /// The transport's send channel was closed.
+    #[error("server '{server}' transport send channel closed")]
     StdinClosed { server: String },
 }
 
 // ─── session ─────────────────────────────────────────────────────────────────
 
-/// Active session with a single MCP server process.
+/// Active session with a single MCP server.
 ///
-/// Manages the stdio pipes, JSON-RPC message routing, and request/response
-/// correlation. One session per server; owned by `McpClientManager`.
+/// Manages the JSON-RPC message routing and request/response correlation.
+/// The underlying byte-level I/O is handled by the [`McpTransport`] implementation.
+/// One session per server; owned by `McpClientManager`.
 pub struct McpSession {
     /// Server configuration (name, timeouts, command, etc.).
     config: McpServerConfig,
-    /// Child process handle. `kill_on_drop(true)` is set at spawn time.
-    child: Child,
-    /// Sender half of the channel consumed by the stdin writer task.
-    stdin_tx: mpsc::Sender<String>,
+    /// Transport that handles all byte-level send/recv with the server.
+    transport: Arc<dyn McpTransport>,
     /// Pending in-flight requests: request ID → reply oneshot.
     pending: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>>,
     /// Monotonically increasing request ID counter.
@@ -99,18 +97,16 @@ pub struct McpSession {
     capabilities: ServerCapabilities,
     /// Server identity received during the initialize handshake.
     server_info: ServerInfo,
-    /// Tools discovered via `tools/list` (populated by `discover_tools` in the next phase).
+    /// Tools discovered via `tools/list`.
     tools: Vec<McpToolDefinition>,
     /// Instant at which the session was successfully started.
     started_at: std::time::Instant,
-    /// Background stdin writer task handle (kept alive for the session duration).
-    _stdin_task: tokio::task::JoinHandle<()>,
-    /// Background stdout reader task handle (kept alive for the session duration).
-    _stdout_task: tokio::task::JoinHandle<()>,
+    /// Background dispatch task: reads from the transport and routes responses.
+    _dispatch_task: tokio::task::JoinHandle<()>,
 }
 
 impl McpSession {
-    /// Spawn the server subprocess and perform the MCP `initialize` handshake.
+    /// Connect the transport and perform the MCP `initialize` handshake.
     ///
     /// Resolves `${VAR}` placeholders in `config.env` before spawning. Placeholders
     /// prefixed with `APOLLIA_SECRET:` are resolved via `secret_store` when provided.
@@ -120,41 +116,30 @@ impl McpSession {
         config: McpServerConfig,
         secret_store: Option<&dyn SecretResolver>,
     ) -> Result<Self, McpSessionError> {
-        let resolved_env = config
-            .resolve_env(secret_store)
-            .map_err(|e| McpSessionError::SpawnFailed {
-                server: config.name.clone(),
-                cause: e.to_string(),
-            })?;
+        let resolved_env =
+            config
+                .resolve_env(secret_store)
+                .map_err(|e| McpSessionError::SpawnFailed {
+                    server: config.name.clone(),
+                    cause: e.to_string(),
+                })?;
 
-        let mut child = Command::new(&config.command)
-            .args(&config.args)
-            .envs(resolved_env)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|e| McpSessionError::SpawnFailed {
-                server: config.name.clone(),
-                cause: e.to_string(),
-            })?;
+        let transport: Arc<dyn McpTransport> =
+            Arc::from(create_transport(&config, resolved_env).map_err(|e| {
+                McpSessionError::SpawnFailed {
+                    server: config.name.clone(),
+                    cause: e.to_string(),
+                }
+            })?);
 
-        // Both pipes are guaranteed by the Stdio::piped() builder above.
-        let stdin = child.stdin.take().expect("stdin was piped");
-        let stdout = child.stdout.take().expect("stdout was piped");
-
-        let (stdin_tx, stdin_rx) = mpsc::channel::<String>(64);
         let pending: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>> =
             Arc::new(Mutex::new(HashMap::new()));
 
-        let stdin_task = spawn_stdin_writer(stdin, stdin_rx);
-        let stdout_task = spawn_stdout_reader(stdout, Arc::clone(&pending));
+        let dispatch_task = spawn_dispatch_task(Arc::clone(&transport), Arc::clone(&pending));
 
         let mut session = McpSession {
             config,
-            child,
-            stdin_tx,
+            transport,
             pending,
             next_id: AtomicU64::new(1),
             capabilities: ServerCapabilities {
@@ -168,8 +153,7 @@ impl McpSession {
             },
             tools: Vec::new(),
             started_at: std::time::Instant::now(),
-            _stdin_task: stdin_task,
-            _stdout_task: stdout_task,
+            _dispatch_task: dispatch_task,
         };
 
         session.initialize().await?;
@@ -253,7 +237,7 @@ impl McpSession {
     /// Send a JSON-RPC request and wait for the response, with a hard timeout.
     ///
     /// Inserts a [`oneshot::Sender`] into `pending`, writes the serialised request
-    /// to the stdin writer channel, then awaits the response on the matching receiver.
+    /// to the transport, then awaits the response on the matching receiver.
     /// On timeout, the pending entry is removed to prevent map growth.
     async fn send_request(
         &self,
@@ -270,8 +254,8 @@ impl McpSession {
         let json = serde_json::to_string(&request)
             .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
 
-        self.stdin_tx
-            .send(json)
+        self.transport
+            .send(&json)
             .await
             .map_err(|_| McpSessionError::StdinClosed {
                 server: self.config.name.clone(),
@@ -319,8 +303,8 @@ impl McpSession {
         let notification = JsonRpcNotification::new(method, params);
         let json = serde_json::to_string(&notification)
             .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
-        self.stdin_tx
-            .send(json)
+        self.transport
+            .send(&json)
             .await
             .map_err(|_| McpSessionError::StdinClosed {
                 server: self.config.name.clone(),
@@ -360,9 +344,12 @@ impl McpSession {
         self.config.requires_approval = requires_approval;
     }
 
-    /// Returns the OS process ID of the server subprocess, if still running.
+    /// Returns the OS process ID of the server process, if applicable.
+    ///
+    /// Delegates to the transport; subprocess-based transports return the child PID.
+    /// Network-based transports return `None`.
     pub fn pid(&self) -> Option<u32> {
-        self.child.id()
+        self.transport.pid()
     }
 
     /// Returns the number of seconds elapsed since this session was started.
@@ -378,11 +365,11 @@ impl McpSession {
     /// Execute a tool on this MCP server via `tools/call`.
     ///
     /// Serialises `tool_name` and `arguments` into a `tools/call` JSON-RPC request,
-    /// sends it through the stdin writer, and waits for the response. The timeout
+    /// sends it through the transport, and waits for the response. The timeout
     /// applied is `call_timeout_secs` from the server configuration.
     ///
     /// Returns the raw [`ToolCallResult`] so the caller can inspect `is_error` and
-    /// route content accordingly. Deserialisaton failures are surfaced as
+    /// route content accordingly. Deserialisation failures are surfaced as
     /// [`McpSessionError::ToolCallFailed`].
     pub async fn call_tool(
         &self,
@@ -422,67 +409,44 @@ impl McpSession {
 
     /// Gracefully shut down the session.
     ///
-    /// 1. Sends a `notifications/cancelled` notification (best-effort; silently ignored
-    ///    if the stdin pipe is already closed).
-    /// 2. Sends SIGKILL to the child process.
-    /// 3. Waits for the child to exit to prevent zombie processes.
-    pub async fn shutdown(mut self) {
+    /// 1. Sends a `notifications/cancelled` notification (best-effort; silently
+    ///    ignored if the transport is already closed).
+    /// 2. Shuts down the transport (terminates the subprocess or closes the connection).
+    pub async fn shutdown(self) {
         let _ = self
             .send_notification("notifications/cancelled", None)
             .await;
-        let _ = self.child.kill().await;
-        let _ = self.child.wait().await;
+        let _ = self.transport.shutdown().await;
         tracing::info!(server = %self.config.name, "MCP session shutdown complete");
     }
 }
 
 // ─── background tasks ────────────────────────────────────────────────────────
 
-/// Spawn the stdin writer task.
+/// Spawn the dispatch task.
 ///
-/// Reads JSON-encoded messages from `rx` and writes each as a newline-terminated
-/// line to the child process's stdin. Exits when the channel sender is dropped.
-fn spawn_stdin_writer(
-    stdin: tokio::process::ChildStdin,
-    mut rx: mpsc::Receiver<String>,
-) -> tokio::task::JoinHandle<()> {
-    tokio::spawn(async move {
-        let mut writer = BufWriter::new(stdin);
-        while let Some(line) = rx.recv().await {
-            let msg = format!("{line}\n");
-            if writer.write_all(msg.as_bytes()).await.is_err() || writer.flush().await.is_err() {
-                break;
-            }
-        }
-    })
-}
-
-/// Spawn the stdout reader task.
-///
-/// Reads newline-terminated JSON lines from the child process's stdout,
-/// deserialises them as [`JsonRpcResponse`] values, and dispatches each response
-/// to the waiting caller via the `pending` map. Exits when the stdout pipe is closed.
-fn spawn_stdout_reader(
-    stdout: tokio::process::ChildStdout,
+/// Calls [`McpTransport::recv`] in a loop, deserialises each line as a
+/// [`JsonRpcResponse`], and routes it to the caller waiting on the matching
+/// entry in `pending`. Exits when the transport closes (recv returns an error).
+fn spawn_dispatch_task(
+    transport: Arc<dyn McpTransport>,
     pending: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        let reader = BufReader::new(stdout);
-        let mut lines = reader.lines();
-        while let Ok(Some(line)) = lines.next_line().await {
+        while let Ok(line) = transport.recv().await {
             match serde_json::from_str::<JsonRpcResponse>(&line) {
                 Ok(response) => {
                     if let Some(id) = response.id {
                         let mut map = pending.lock().await;
                         if let Some(sender) = map.remove(&id) {
-                            // The receiver may have been dropped on timeout — that is expected.
+                            // The receiver may have been dropped on timeout — expected.
                             let _ = sender.send(response);
                         }
                     }
                     // Notifications (no id) are intentionally ignored in V1.
                 }
                 Err(e) => {
-                    warn!(error = %e, "failed to parse JSON-RPC line from MCP server stdout");
+                    warn!(error = %e, "failed to parse JSON-RPC line from MCP server");
                 }
             }
         }

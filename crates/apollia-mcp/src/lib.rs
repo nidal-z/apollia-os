@@ -10,3 +10,4 @@ pub mod jsonrpc;
 pub mod manager;
 pub mod protocol;
 pub mod session;
+pub mod transport;
