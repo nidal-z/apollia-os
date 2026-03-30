@@ -4,6 +4,7 @@
 //! with automatic pagination, keyword search, and local disk cache. Falls
 //! back to the cached data when the registry is unreachable.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -56,8 +57,8 @@ pub struct RegistryServerDetail {
 /// Repository reference for an MCP server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegistryRepository {
-    /// Repository URL (GitHub, GitLab, …).
-    pub url: String,
+    /// Repository URL (GitHub, GitLab, …). Absent on some registry entries.
+    pub url: Option<String>,
     /// Registry source identifier (e.g. `github`).
     pub source: Option<String>,
 }
@@ -70,8 +71,8 @@ pub struct RegistryPackage {
     pub registry_type: String,
     /// Package identifier within its registry (e.g. `@modelcontextprotocol/server-notion`).
     pub identifier: String,
-    /// Package version string.
-    pub version: String,
+    /// Package version string (absent on some registry entries).
+    pub version: Option<String>,
     /// Suggested runtime (e.g. `node`, `python`).
     #[serde(rename = "runtimeHint")]
     pub runtime_hint: Option<String>,
@@ -224,30 +225,71 @@ impl McpRegistryClient {
         &self,
         search: Option<&str>,
     ) -> Result<Vec<RegistryServer>, RegistryClientError> {
-        match self.fetch_from_network(search).await {
+        let servers = match self.fetch_from_network(search).await {
             Ok(servers) => {
                 if let Err(e) = self.write_cache(&servers) {
                     tracing::warn!(error = %e, "failed to update MCP registry cache");
                 }
-                Ok(servers)
+                servers
             }
             Err(network_err) => {
                 tracing::warn!(
                     error = %network_err,
                     "MCP Registry unreachable — falling back to local cache"
                 );
-                self.read_cache()
+                self.read_cache()?
             }
-        }
+        };
+        Ok(Self::dedup_latest(servers))
     }
 
-    /// Fetch all pages from the network, following `nextCursor` until exhausted.
+    /// Deduplicate server entries, keeping only the latest version per name.
+    ///
+    /// The registry returns multiple versions of the same server. The `_meta`
+    /// object contains an `isLatest` flag; when present the flagged entry wins.
+    /// Otherwise the last occurrence (highest index in the paginated response)
+    /// is kept.
+    fn dedup_latest(servers: Vec<RegistryServer>) -> Vec<RegistryServer> {
+        let mut best: HashMap<String, (usize, bool)> = HashMap::new();
+        for (idx, entry) in servers.iter().enumerate() {
+            let is_latest = entry
+                .meta
+                .as_ref()
+                .and_then(|m| m.pointer("/io.modelcontextprotocol.registry~1official/isLatest"))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            match best.get(&entry.server.name) {
+                Some(&(_, true)) if !is_latest => {} // existing is already latest
+                _ => {
+                    best.insert(entry.server.name.clone(), (idx, is_latest));
+                }
+            }
+        }
+
+        let mut keep: Vec<usize> = best.into_values().map(|(idx, _)| idx).collect();
+        keep.sort_unstable();
+
+        keep.into_iter()
+            .filter_map(|idx| servers.get(idx).cloned())
+            .collect()
+    }
+
+    /// Maximum number of pages to fetch from the registry in a single call.
+    ///
+    /// The registry contains thousands of entries. Exhaustive pagination is
+    /// unnecessary for the catalogue UI — the `search` parameter filters
+    /// server-side, and the first few pages are enough for browsing.
+    const MAX_PAGES: usize = 5;
+
+    /// Fetch pages from the network, following `nextCursor` up to [`Self::MAX_PAGES`].
     async fn fetch_from_network(
         &self,
         search: Option<&str>,
     ) -> Result<Vec<RegistryServer>, RegistryClientError> {
         let mut all_servers: Vec<RegistryServer> = Vec::new();
         let mut cursor: Option<String> = None;
+        let mut page = 0usize;
 
         loop {
             let mut query: Vec<(&str, String)> = vec![("limit", "100".to_string())];
@@ -258,7 +300,7 @@ impl McpRegistryClient {
                 query.push(("cursor", c.clone()));
             }
 
-            let response: RegistryListResponse = self
+            let body = self
                 .http
                 .get(format!("{}/v0.1/servers", self.base_url))
                 .query(&query)
@@ -268,14 +310,24 @@ impl McpRegistryClient {
                 .map_err(|e| RegistryClientError::HttpError(e.to_string()))?
                 .error_for_status()
                 .map_err(|e| RegistryClientError::HttpError(e.to_string()))?
-                .json()
+                .text()
                 .await
-                .map_err(|e| RegistryClientError::ParseError(e.to_string()))?;
+                .map_err(|e| RegistryClientError::HttpError(e.to_string()))?;
+
+            let response: RegistryListResponse =
+                serde_json::from_str(&body).map_err(|e| {
+                    tracing::error!(
+                        serde_error = %e,
+                        "registry JSON deserialization failed"
+                    );
+                    RegistryClientError::ParseError(e.to_string())
+                })?;
 
             all_servers.extend(response.servers);
+            page += 1;
 
             match response.metadata.next_cursor {
-                Some(c) if !c.is_empty() => cursor = Some(c),
+                Some(c) if !c.is_empty() && page < Self::MAX_PAGES => cursor = Some(c),
                 _ => break,
             }
         }
@@ -555,5 +607,56 @@ mod tests {
         assert!(pkg.environment_variables[0].is_required);
 
         assert!(response.metadata.next_cursor.is_none());
+    }
+
+    // ── dedup_latest ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_dedup_keeps_latest_version() {
+        // GIVEN two entries with the same name, one marked isLatest
+        let old = serde_json::from_value::<RegistryServer>(serde_json::json!({
+            "server": { "name": "foo/bar", "description": "old", "version": "1.0.0" },
+            "_meta": { "io.modelcontextprotocol.registry/official": { "isLatest": false } }
+        }))
+        .unwrap();
+
+        let latest = serde_json::from_value::<RegistryServer>(serde_json::json!({
+            "server": { "name": "foo/bar", "description": "new", "version": "2.0.0" },
+            "_meta": { "io.modelcontextprotocol.registry/official": { "isLatest": true } }
+        }))
+        .unwrap();
+
+        // WHEN deduplicating
+        let result = McpRegistryClient::dedup_latest(vec![old, latest]);
+
+        // THEN only the latest entry is kept
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].server.version, "2.0.0");
+    }
+
+    #[test]
+    fn test_dedup_preserves_unique_names() {
+        // GIVEN three entries with distinct names
+        let a = serde_json::from_value::<RegistryServer>(
+            make_server_json("server-a"),
+        )
+        .unwrap();
+        let b = serde_json::from_value::<RegistryServer>(
+            make_server_json("server-b"),
+        )
+        .unwrap();
+        let c = serde_json::from_value::<RegistryServer>(
+            make_server_json("server-c"),
+        )
+        .unwrap();
+
+        // WHEN deduplicating
+        let result = McpRegistryClient::dedup_latest(vec![a, b, c]);
+
+        // THEN all three are preserved in order
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0].server.name, "server-a");
+        assert_eq!(result[1].server.name, "server-b");
+        assert_eq!(result[2].server.name, "server-c");
     }
 }

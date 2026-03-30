@@ -16,7 +16,7 @@
 
   let { level }: Props = $props();
 
-  const config = $derived(BADGE_CONFIG[level]);
+  const config = $derived(BADGE_CONFIG[level] ?? BADGE_CONFIG.community);
 </script>
 
 <Badge variant={config.variant}>
