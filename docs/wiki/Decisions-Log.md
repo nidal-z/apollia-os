@@ -869,5 +869,24 @@
 
 ---
 
+## ADR-046 — Transport HTTP/SSE pour les serveurs MCP distants
+
+**Date :** 2026-03-30
+**Statut :** Accepté
+
+**Contexte :** Le Sprint 27 a livré le catalogue MCP et le wizard, mais ~70% des serveurs du registry utilisent des transports distants (streamable-http, SSE) au lieu de packages npm (stdio subprocess). Le backend MCP ne supporte que stdio — la majorité du catalogue est non-installable, y compris les serveurs officiels (Notion, Brave).
+
+**Décision :** Nous adoptons un trait `McpTransport` abstrait dans `apollia-mcp` avec trois implémentations : `StdioTransport` (refactoring existant), `StreamableHttpTransport` (nouveau), `SseTransport` (nouveau). Le transport est sélectionné dynamiquement depuis `McpServerConfig.transport`.
+
+**Alternatives considérées :** Proxy local stdio-to-HTTP (rejetée — processus intermédiaire, latence, complexité lifecycle), HTTP uniquement sans SSE (rejetée — exclut les serveurs SSE-only comme fallback Notion).
+
+**Conséquences :** 100% des serveurs du registry deviennent installables. Refactoring majeur de session.rs (~500 LOC). Le wizard supporte les serveurs distants nativement.
+
+**Principes impactés :** Principe #1 — Local-first (respecté : données locales, appels distants explicites), Principe #5 — Un acteur, une responsabilité (respecté : chaque transport est une implémentation indépendante).
+
+[Détail → docs/adr/ADR-046-transport-http-sse-mcp.md](adr/ADR-046-transport-http-sse-mcp.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
