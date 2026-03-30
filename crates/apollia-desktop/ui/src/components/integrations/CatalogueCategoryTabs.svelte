@@ -10,10 +10,14 @@
 
   let { categories, selected, onchange }: Props = $props();
 
-  /** Capitalizes the first letter of a category key for display. */
+  /** Resolves the i18n label for a category, with capitalized fallback. */
   function labelFor(cat: string): string {
     if (cat === "all") return $t("integrations.catalogue.category_all");
-    return cat.charAt(0).toUpperCase() + cat.slice(1);
+    const key = `integrations.categories.${cat}`;
+    const translated = $t(key);
+    // If the i18n key is missing, $t returns the key itself — fall back to capitalized.
+    if (translated === key) return cat.charAt(0).toUpperCase() + cat.slice(1);
+    return translated;
   }
 
   const tabItems = $derived(

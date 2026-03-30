@@ -177,6 +177,23 @@ pub enum RegistryClientError {
     Offline,
 }
 
+/// Try to extract the `nextCursor` from a JSON body that failed full parsing.
+///
+/// This allows pagination to continue past pages with invalid characters
+/// in server descriptions/names while the metadata is still valid JSON.
+fn extract_cursor_raw(body: &str) -> Option<String> {
+    // Look for "nextCursor":"<value>" near the end of the body.
+    let marker = "\"nextCursor\":\"";
+    let start = body.rfind(marker)? + marker.len();
+    let end = body[start..].find('"')? + start;
+    let cursor = &body[start..end];
+    if cursor.is_empty() {
+        None
+    } else {
+        Some(cursor.to_string())
+    }
+}
+
 impl McpRegistryClient {
     /// Create a new registry client.
     ///
@@ -275,14 +292,13 @@ impl McpRegistryClient {
             .collect()
     }
 
-    /// Maximum number of pages to fetch from the registry in a single call.
-    ///
-    /// The registry contains thousands of entries. Exhaustive pagination is
-    /// unnecessary for the catalogue UI — the `search` parameter filters
-    /// server-side, and the first few pages are enough for browsing.
-    const MAX_PAGES: usize = 5;
+    /// Safety limit to avoid infinite pagination loops.
+    const MAX_PAGES: usize = 200;
 
-    /// Fetch pages from the network, following `nextCursor` up to [`Self::MAX_PAGES`].
+    /// Fetch all pages from the network, following `nextCursor` until exhausted.
+    ///
+    /// Pages that fail to parse (e.g. invalid control characters in JSON) are
+    /// skipped — the servers fetched so far are still returned.
     async fn fetch_from_network(
         &self,
         search: Option<&str>,
@@ -300,28 +316,62 @@ impl McpRegistryClient {
                 query.push(("cursor", c.clone()));
             }
 
-            let body = self
+            let body = match self
                 .http
                 .get(format!("{}/v0.1/servers", self.base_url))
                 .query(&query)
                 .header("Accept", "application/json")
                 .send()
                 .await
-                .map_err(|e| RegistryClientError::HttpError(e.to_string()))?
-                .error_for_status()
-                .map_err(|e| RegistryClientError::HttpError(e.to_string()))?
-                .text()
-                .await
-                .map_err(|e| RegistryClientError::HttpError(e.to_string()))?;
+            {
+                Ok(resp) => match resp.error_for_status() {
+                    Ok(resp) => match resp.text().await {
+                        Ok(body) => body,
+                        Err(e) if all_servers.is_empty() => {
+                            return Err(RegistryClientError::HttpError(e.to_string()));
+                        }
+                        Err(e) => {
+                            tracing::warn!(page, error = %e, "registry page read failed — stopping");
+                            break;
+                        }
+                    },
+                    Err(e) if all_servers.is_empty() => {
+                        return Err(RegistryClientError::HttpError(e.to_string()));
+                    }
+                    Err(e) => {
+                        tracing::warn!(page, error = %e, "registry page HTTP error — stopping");
+                        break;
+                    }
+                },
+                Err(e) if all_servers.is_empty() => {
+                    return Err(RegistryClientError::HttpError(e.to_string()));
+                }
+                Err(e) => {
+                    tracing::warn!(page, error = %e, "registry page fetch failed — stopping");
+                    break;
+                }
+            };
 
-            let response: RegistryListResponse =
-                serde_json::from_str(&body).map_err(|e| {
-                    tracing::error!(
+            let response: RegistryListResponse = match serde_json::from_str(&body) {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::warn!(
+                        page,
                         serde_error = %e,
-                        "registry JSON deserialization failed"
+                        "registry page JSON parse failed — skipping to next page"
                     );
-                    RegistryClientError::ParseError(e.to_string())
-                })?;
+                    // Try to extract the cursor from raw JSON to continue pagination
+                    if let Some(next) = extract_cursor_raw(&body) {
+                        cursor = Some(next);
+                        page += 1;
+                        if page >= Self::MAX_PAGES {
+                            break;
+                        }
+                        continue;
+                    }
+                    break;
+                }
+            };
 
             all_servers.extend(response.servers);
             page += 1;
@@ -331,6 +381,18 @@ impl McpRegistryClient {
                 _ => break,
             }
         }
+
+        if all_servers.is_empty() && page > 0 {
+            return Err(RegistryClientError::ParseError(
+                "all registry pages failed to parse".to_string(),
+            ));
+        }
+
+        tracing::info!(
+            servers = all_servers.len(),
+            pages = page,
+            "MCP Registry fetch complete"
+        );
 
         Ok(all_servers)
     }

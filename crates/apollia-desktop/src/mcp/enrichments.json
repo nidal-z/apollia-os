@@ -1,7 +1,12 @@
 [
   {
     "package_identifier": "@notionhq/notion-mcp-server",
+    "registry_names": ["com.notion/mcp"],
     "operator_label": { "en": "Notion", "fr": "Notion" },
+    "description": {
+      "en": "Read and write Notion pages, databases and comments.",
+      "fr": "Lire et écrire des pages, bases de données et commentaires Notion."
+    },
     "category": "productivity",
     "icon_name": "notion",
     "trust_level": "verified_official",
@@ -13,18 +18,13 @@
     "default_requires_approval": true
   },
   {
-    "package_identifier": "mcp-server-sqlite",
-    "operator_label": { "en": "SQLite Database", "fr": "Base de données SQLite" },
-    "category": "data",
-    "icon_name": "database",
-    "trust_level": "community_verified",
-    "auth_help_url": null,
-    "auth_help_text": null,
-    "default_requires_approval": false
-  },
-  {
     "package_identifier": "@anthropic/mcp-server-brave-search",
+    "registry_names": ["com.brave/search"],
     "operator_label": { "en": "Brave Search", "fr": "Recherche Brave" },
+    "description": {
+      "en": "Search the web using the Brave Search API.",
+      "fr": "Rechercher sur le web via l'API Brave Search."
+    },
     "category": "search",
     "icon_name": "search",
     "trust_level": "verified_official",
@@ -37,30 +37,45 @@
   },
   {
     "package_identifier": "@anthropic/mcp-server-filesystem",
+    "registry_names": [],
     "operator_label": { "en": "Local Files", "fr": "Fichiers locaux" },
+    "description": {
+      "en": "Read, write and manage files on the local filesystem.",
+      "fr": "Lire, écrire et gérer des fichiers sur le système de fichiers local."
+    },
     "category": "data",
     "icon_name": "folder",
-    "trust_level": "verified_official",
+    "trust_level": "community_verified",
     "auth_help_url": null,
     "auth_help_text": null,
     "default_requires_approval": false
   },
   {
     "package_identifier": "@anthropic/mcp-server-memory",
+    "registry_names": [],
     "operator_label": { "en": "Memory (Knowledge Graph)", "fr": "Mémoire (graphe de connaissances)" },
+    "description": {
+      "en": "Persistent knowledge graph for storing and retrieving structured information.",
+      "fr": "Graphe de connaissances persistant pour stocker et retrouver de l'information structurée."
+    },
     "category": "data",
     "icon_name": "brain",
-    "trust_level": "verified_official",
+    "trust_level": "community_verified",
     "auth_help_url": null,
     "auth_help_text": null,
     "default_requires_approval": false
   },
   {
     "package_identifier": "@anthropic/mcp-server-puppeteer",
+    "registry_names": [],
     "operator_label": { "en": "Web Browser", "fr": "Navigateur web" },
+    "description": {
+      "en": "Control a headless Chrome browser for web scraping and automation.",
+      "fr": "Contrôler un navigateur Chrome headless pour le scraping et l'automatisation web."
+    },
     "category": "development",
     "icon_name": "globe",
-    "trust_level": "verified_official",
+    "trust_level": "community_verified",
     "auth_help_url": null,
     "auth_help_text": null,
     "default_requires_approval": true

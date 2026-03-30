@@ -944,6 +944,7 @@ export interface RegistryServerView {
   website_url: string | null;
   packages: RegistryPackageView[];
   trust_level: TrustLevel;
+  category: string | null;
   enrichment: ConnectorEnrichmentView | null;
   is_installed: boolean;
 }

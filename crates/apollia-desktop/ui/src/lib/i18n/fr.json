@@ -76,7 +76,15 @@
       "data": "Données",
       "development": "Développement",
       "communication": "Communication",
-      "search": "Recherche"
+      "search": "Recherche",
+      "storage": "Stockage",
+      "ai": "IA & LLM",
+      "web": "Web & APIs",
+      "media": "Médias",
+      "finance": "Finance",
+      "geo": "Géo & Cartes",
+      "security": "Sécurité",
+      "analytics": "Analytique"
     },
     "operator": {
       "subtitle": "Gérez vos connexions MCP",
@@ -212,7 +220,10 @@
       "approval_readonly_label": "Lecture seule",
       "approval_readonly_desc": "Seules les opérations de lecture sont autorisées",
       "confirm_button": "Ajouter la connexion",
-      "adding": "Ajout en cours…"
+      "adding": "Ajout en cours…",
+      "test_unavailable": "Le test de connexion n'est pas disponible pour ce serveur. Il utilise un transport distant (HTTP/SSE) qui ne nécessite pas d'installation de paquet local.",
+      "no_package_title": "Serveur distant — configuration manuelle requise",
+      "no_package_body": "Ce serveur utilise une connexion distante (HTTP/SSE) et ne peut pas être installé automatiquement. Consultez le site du serveur pour les instructions de configuration."
     },
     "manage": {
       "title": "Gérer {name}",

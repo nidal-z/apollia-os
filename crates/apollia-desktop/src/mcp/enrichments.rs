@@ -9,6 +9,9 @@ use std::collections::HashMap;
 pub struct ConnectorEnrichment {
     /// Package identifier matching the registry (e.g. `@notionhq/notion-mcp-server`).
     pub package_identifier: String,
+    /// Server names in the MCP Registry that map to this connector (e.g. `["com.notion/mcp"]`).
+    #[serde(default)]
+    pub registry_names: Vec<String>,
     /// Human-readable labels keyed by locale (`"en"`, `"fr"`).
     pub operator_label: HashMap<String, String>,
     /// Category for grouping in the catalogue (e.g. `"productivity"`, `"data"`).
@@ -23,6 +26,9 @@ pub struct ConnectorEnrichment {
     pub auth_help_text: Option<HashMap<String, String>>,
     /// Default value for the `requires_approval` flag on the created server.
     pub default_requires_approval: bool,
+    /// Short description shown in the catalogue for synthetic entries.
+    #[serde(default)]
+    pub description: Option<HashMap<String, String>>,
 }
 
 /// Trust level displayed as a badge next to a connector.
@@ -65,12 +71,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn load_builtin_enrichments_returns_at_least_6() {
+    fn load_builtin_enrichments_returns_at_least_5() {
         // GIVEN the embedded JSON
         // WHEN enrichments are loaded
         let enrichments = load_builtin_enrichments();
-        // THEN at least 6 entries are returned
-        assert!(enrichments.len() >= 6);
+        // THEN at least 5 entries are returned
+        assert!(enrichments.len() >= 5);
     }
 
     #[test]
@@ -109,16 +115,15 @@ mod tests {
     }
 
     #[test]
-    fn all_6_connectors_present() {
+    fn all_5_connectors_present() {
         // GIVEN the loaded enrichments
         let enrichments = load_builtin_enrichments();
         let ids: Vec<&str> = enrichments
             .iter()
             .map(|e| e.package_identifier.as_str())
             .collect();
-        // THEN all 6 expected connectors are present
+        // THEN all 5 expected connectors are present
         assert!(ids.contains(&"@notionhq/notion-mcp-server"));
-        assert!(ids.contains(&"mcp-server-sqlite"));
         assert!(ids.contains(&"@anthropic/mcp-server-brave-search"));
         assert!(ids.contains(&"@anthropic/mcp-server-filesystem"));
         assert!(ids.contains(&"@anthropic/mcp-server-memory"));

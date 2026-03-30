@@ -60,13 +60,13 @@
     }
   });
 
-  const pkg = $derived(server.packages[0]);
+  const pkg = $derived(server.packages?.[0] ?? null);
 
   // Derive the ordered list of visible steps based on the server's metadata.
   const visibleSteps = $derived.by((): WizardStep[] => {
     const steps: WizardStep[] = ["info"];
-    if (pkg && pkg.environment_variables.length > 0) steps.push("auth");
-    if (pkg && pkg.package_arguments.length > 0) steps.push("params");
+    if (pkg?.environment_variables?.length) steps.push("auth");
+    if (pkg?.package_arguments?.length) steps.push("params");
     steps.push("test", "confirm");
     return steps;
   });
@@ -74,11 +74,14 @@
   const totalSteps = $derived(visibleSteps.length);
   const currentStepName = $derived(visibleSteps[currentStep - 1] ?? "info");
 
+  /// Whether this server can be installed (has a package with command+identifier).
+  const canInstall = $derived(pkg != null);
+
   // Build the full server config from current form values.
   const builtConfig = $derived.by((): McpServerConfigInput | null => {
     if (!pkg) return null;
     const env: Record<string, string> = {};
-    for (const envVar of pkg.environment_variables) {
+    for (const envVar of pkg.environment_variables ?? []) {
       env[envVar.name] = envVar.is_secret
         ? `\${APOLLIA_SECRET:${envVar.name}}`
         : (envValues[envVar.name] ?? "");
@@ -88,10 +91,10 @@
       command: pkg.runtime_hint ?? "npx",
       args: [
         pkg.identifier,
-        ...pkg.package_arguments.map((a, i) => argValues[a.value_hint ?? String(i)] ?? ""),
+        ...(pkg.package_arguments ?? []).map((a, i) => argValues[a.value_hint ?? String(i)] ?? ""),
       ],
       env,
-      transport: pkg.transport_type,
+      transport: pkg.transport_type ?? "stdio",
       requires_approval: approvalLevel === "ask",
       tags: [],
     };
@@ -137,7 +140,7 @@
     finalizeError = null;
     try {
       // Persist secrets in the OS keyring before writing the config.
-      for (const envVar of pkg.environment_variables) {
+      for (const envVar of pkg.environment_variables ?? []) {
         const val = envValues[envVar.name];
         if (envVar.is_secret && val) {
           await invoke("store_mcp_secret", {
@@ -212,26 +215,41 @@
       <WizardStepInfo {server} />
     {:else if currentStepName === "auth" && pkg}
       <WizardStepAuth
-        envVars={pkg.environment_variables}
+        envVars={pkg?.environment_variables ?? []}
         enrichment={server.enrichment}
         values={envValues}
         onchange={handleEnvChange}
       />
     {:else if currentStepName === "params" && pkg}
       <WizardStepParams
-        args={pkg.package_arguments}
+        args={pkg?.package_arguments ?? []}
         values={argValues}
         onchange={handleArgChange}
       />
     {:else if currentStepName === "test" && builtConfig}
       <WizardStepTest config={builtConfig} />
-    {:else if currentStepName === "confirm"}
+    {:else if currentStepName === "test" && !builtConfig}
+      <div class="space-y-2 rounded-md border border-border bg-muted/40 p-4" data-testid="wizard-step-test-unavailable">
+        <p class="text-sm text-muted-foreground">
+          {$t("integrations.wizard.test_unavailable")}
+        </p>
+      </div>
+    {:else if currentStepName === "confirm" && canInstall}
       <WizardStepConfirm
         {approvalLevel}
         onchange={(level: "auto" | "ask" | "readonly") => {
           approvalLevel = level;
         }}
       />
+    {:else if currentStepName === "confirm" && !canInstall}
+      <div class="space-y-3 rounded-md border border-border bg-muted/40 p-4" data-testid="wizard-no-package">
+        <p class="text-sm font-medium text-foreground">
+          {$t("integrations.wizard.no_package_title")}
+        </p>
+        <p class="text-sm text-muted-foreground">
+          {$t("integrations.wizard.no_package_body")}
+        </p>
+      </div>
     {/if}
   </div>
 
@@ -261,7 +279,7 @@
       <Button
         size="sm"
         onclick={finalize}
-        disabled={finalizing}
+        disabled={finalizing || !canInstall}
         data-testid="wizard-confirm-btn"
       >
         {finalizing

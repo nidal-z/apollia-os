@@ -35,11 +35,11 @@
     return TRUST_ORDER[server.trust_level];
   }
 
-  /** Ordered list of categories derived from server enrichments, with "all" first. */
+  /** Ordered list of categories derived from server category field, with "all" first. */
   const availableCategories = $derived.by(() => {
     const seen = new Set<string>();
     for (const s of servers) {
-      if (s.enrichment) seen.add(s.enrichment.category);
+      if (s.category) seen.add(s.category);
     }
     return ["all", ...Array.from(seen).sort()];
   });
@@ -49,7 +49,7 @@
     const query = searchQuery.trim().toLowerCase();
     return servers.filter((s) => {
       if (selectedCategory !== "all") {
-        if (!s.enrichment || s.enrichment.category !== selectedCategory) return false;
+        if (s.category !== selectedCategory) return false;
       }
       if (query.length === 0) return true;
       const inName = s.name.toLowerCase().includes(query);

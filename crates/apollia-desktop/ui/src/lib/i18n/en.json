@@ -76,7 +76,15 @@
       "data": "Data",
       "development": "Development",
       "communication": "Communication",
-      "search": "Search"
+      "search": "Search",
+      "storage": "Storage",
+      "ai": "AI & LLM",
+      "web": "Web & APIs",
+      "media": "Media",
+      "finance": "Finance",
+      "geo": "Geo & Maps",
+      "security": "Security",
+      "analytics": "Analytics"
     },
     "operator": {
       "subtitle": "Manage your MCP connections",
@@ -212,7 +220,10 @@
       "approval_readonly_label": "Read-only",
       "approval_readonly_desc": "Only read operations are permitted",
       "confirm_button": "Add connection",
-      "adding": "Adding…"
+      "adding": "Adding…",
+      "test_unavailable": "Connection test is not available for this server. It uses a remote transport (HTTP/SSE) that doesn't require a local package installation.",
+      "no_package_title": "Remote server — manual setup required",
+      "no_package_body": "This server uses a remote connection (HTTP/SSE) and cannot be installed automatically. Visit the server's website for setup instructions."
     },
     "manage": {
       "title": "Manage {name}",

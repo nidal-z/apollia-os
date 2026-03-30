@@ -10,6 +10,8 @@ use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use std::collections::{HashMap, HashSet};
+
 use crate::mcp::enrichments::{load_builtin_enrichments, TrustLevel};
 use crate::mcp::registry_client::{
     McpRegistryClient, RegistryIcon, RegistryPackage, RegistryRepository, RegistryServer,
@@ -17,6 +19,52 @@ use crate::mcp::registry_client::{
 use crate::mcp::secret_store::SecretStore;
 
 use super::{http_delete_json, http_get_json, http_patch_json, http_post_json};
+
+/// Infer a category from a server's name and description using keyword matching.
+///
+/// Returns `None` when no keywords match — the frontend treats `None` as "other".
+fn infer_category(name: &str, description: Option<&str>) -> Option<String> {
+    let text = format!(
+        "{} {}",
+        name.to_lowercase(),
+        description.unwrap_or("").to_lowercase()
+    );
+
+    // Order matters: more specific patterns first.
+    static RULES: &[(&[&str], &str)] = &[
+        (&["database", "sql", "sqlite", "postgres", "mysql", "mongo", "redis", "supabase", "firebase", "dynamodb", "bigquery", "snowflake", "csv", "parquet", "warehouse"], "data"),
+        (&["search", "brave", "google", "bing", "duckduckgo", "serp", "web search"], "search"),
+        (&["slack", "discord", "email", "smtp", "telegram", "whatsapp", "teams", "chat", "messaging", "notification"], "communication"),
+        (&["git", "github", "gitlab", "jira", "linear", "ci/cd", "docker", "kubernetes", "terraform", "deploy", "devops", "debug", "lint", "test", "ide", "vscode", "compiler", "build"], "development"),
+        (&["file", "filesystem", "storage", "s3", "gcs", "blob", "drive", "dropbox", "ftp"], "storage"),
+        (&["notion", "confluence", "asana", "trello", "todoist", "calendar", "schedule", "project", "task", "productivity", "spreadsheet", "airtable"], "productivity"),
+        (&["llm", "openai", "anthropic", "claude", "gpt", "ai", "machine learning", "embedding", "vector", "rag", "agent"], "ai"),
+        (&["api", "rest", "graphql", "webhook", "http", "endpoint", "scrape", "crawl", "browser", "puppeteer", "playwright"], "web"),
+        (&["image", "video", "audio", "media", "pdf", "document", "ocr"], "media"),
+        (&["crypto", "blockchain", "wallet", "nft", "defi", "trading", "finance", "payment", "stripe", "invoice"], "finance"),
+        (&["map", "location", "geo", "weather", "travel"], "geo"),
+        (&["security", "auth", "oauth", "identity", "encrypt", "vault", "secret"], "security"),
+        (&["analytics", "metrics", "monitor", "log", "observ", "grafana", "datadog", "sentry"], "analytics"),
+    ];
+
+    for (keywords, category) in RULES {
+        if keywords.iter().any(|kw| text.contains(kw)) {
+            return Some((*category).to_string());
+        }
+    }
+    None
+}
+
+/// Convert a [`TrustLevel`] enum to the snake_case string expected by the frontend.
+fn trust_level_str(tl: &TrustLevel) -> String {
+    match tl {
+        TrustLevel::VerifiedOfficial => "verified_official",
+        TrustLevel::CommunityVerified => "community_verified",
+        TrustLevel::Community => "community",
+        TrustLevel::Custom => "custom",
+    }
+    .to_string()
+}
 
 /// Flattened view of a registry server entry for the catalogue UI.
 ///
@@ -40,6 +88,14 @@ pub struct RegistryServerView {
     pub icons: Option<Vec<RegistryIcon>>,
     /// Source code repository reference.
     pub repository: Option<RegistryRepository>,
+    /// Trust level resolved from builtin enrichments.
+    pub trust_level: String,
+    /// Category for grouping in the catalogue (e.g. `"productivity"`, `"data"`).
+    pub category: Option<String>,
+    /// Enrichment metadata if the server matches a builtin connector.
+    pub enrichment: Option<ConnectorEnrichmentView>,
+    /// Whether this server is already installed locally.
+    pub is_installed: bool,
 }
 
 impl From<RegistryServer> for RegistryServerView {
@@ -53,6 +109,10 @@ impl From<RegistryServer> for RegistryServerView {
             packages: s.server.packages,
             icons: s.server.icons,
             repository: s.server.repository,
+            trust_level: "community".to_string(),
+            category: None,
+            enrichment: None,
+            is_installed: false,
         }
     }
 }
@@ -203,21 +263,174 @@ pub async fn restart_mcp_server(
     serde_json::from_value(json).map_err(|e| format!("failed to parse server status: {e}"))
 }
 
-/// Fetch MCP Registry servers with local cache and offline fallback.
+/// Fetch MCP Registry servers with enrichment and install-status join.
 ///
-/// Queries the official MCP registry for available servers, updating the local
-/// disk cache on success. Falls back to cached data when the registry is
-/// unreachable.
+/// Queries the official MCP registry, then enriches each result:
+/// - Matches package identifiers against builtin enrichments to set
+///   `trust_level` and `enrichment` (label, category, icon, auth help).
+/// - Matches server names against currently installed MCP servers to set
+///   `is_installed`.
+///
+/// Falls back to cached registry data when the network is unreachable.
 #[tauri::command]
 pub async fn fetch_mcp_registry(
     registry: State<'_, McpRegistryClient>,
+    state: State<'_, RuntimeHandle>,
     search: Option<String>,
 ) -> Result<Vec<RegistryServerView>, String> {
-    registry
+    let raw_servers = registry
         .fetch_servers(search.as_deref())
         .await
-        .map(|servers| servers.into_iter().map(RegistryServerView::from).collect())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // Build enrichment lookups: by package identifier AND by registry server name.
+    let enrichments = load_builtin_enrichments();
+    let enrichment_by_pkg: HashMap<&str, &crate::mcp::enrichments::ConnectorEnrichment> =
+        enrichments
+            .iter()
+            .map(|e| (e.package_identifier.as_str(), e))
+            .collect();
+    let enrichment_by_name: HashMap<&str, &crate::mcp::enrichments::ConnectorEnrichment> =
+        enrichments
+            .iter()
+            .flat_map(|e| {
+                e.registry_names
+                    .iter()
+                    .map(move |name| (name.as_str(), e))
+            })
+            .collect();
+
+    // Build set of installed server names for is_installed detection.
+    let installed_names: HashSet<String> =
+        match http_get_json(state.api_port, "/api/v1/mcp/servers").await {
+            Ok(json) => serde_json::from_value::<Vec<McpServerStatus>>(json)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|s| s.name)
+                .collect(),
+            Err(_) => HashSet::new(),
+        };
+
+    let views: Vec<RegistryServerView> = raw_servers
+        .into_iter()
+        .map(|s| {
+            let mut view = RegistryServerView::from(s);
+
+            // Try to find enrichment: first by registry server name, then by package identifier.
+            let matched = enrichment_by_name
+                .get(view.name.as_str())
+                .copied()
+                .or_else(|| {
+                    view.packages.as_ref().and_then(|pkgs| {
+                        pkgs.iter().find_map(|pkg| {
+                            enrichment_by_pkg.get(pkg.identifier.as_str()).copied()
+                        })
+                    })
+                });
+
+            if let Some(enrichment) = matched {
+                view.trust_level = trust_level_str(&enrichment.trust_level);
+                view.category = Some(enrichment.category.clone());
+                view.enrichment = Some(ConnectorEnrichmentView {
+                    operator_label: enrichment
+                        .operator_label
+                        .get("en")
+                        .cloned()
+                        .unwrap_or_default(),
+                    category: enrichment.category.clone(),
+                    icon_name: enrichment.icon_name.clone(),
+                    trust_level: enrichment.trust_level.clone(),
+                    auth_help_url: enrichment.auth_help_url.clone(),
+                    auth_help_text: enrichment
+                        .auth_help_text
+                        .as_ref()
+                        .and_then(|m| m.get("en").cloned()),
+                    default_requires_approval: enrichment.default_requires_approval,
+                });
+            }
+
+            // Auto-categorize by keywords when no enrichment provided a category.
+            if view.category.is_none() {
+                view.category =
+                    infer_category(&view.name, view.description.as_deref());
+            }
+
+            // Check if installed by matching server name.
+            if installed_names.contains(&view.name) {
+                view.is_installed = true;
+            }
+
+            view
+        })
+        .collect();
+
+    // Inject synthetic entries for enrichments not found in the paginated results.
+    // The registry is alphabetically paginated, so known connectors (e.g. com.notion)
+    // may fall outside the fetched pages. We inject them so they always appear.
+    let matched_names: HashSet<String> = views
+        .iter()
+        .filter(|v| v.enrichment.is_some())
+        .map(|v| v.name.clone())
+        .collect();
+
+    let mut result = views;
+    for enrichment in &enrichments {
+        let already_present = enrichment
+            .registry_names
+            .iter()
+            .any(|n| matched_names.contains(n))
+            || matched_names.contains(&enrichment.package_identifier);
+
+        if !already_present {
+            // Pick the first registry name as the synthetic server name, fallback to package_identifier.
+            let name = enrichment
+                .registry_names
+                .first()
+                .cloned()
+                .unwrap_or_else(|| enrichment.package_identifier.clone());
+
+            result.push(RegistryServerView {
+                name,
+                title: Some(
+                    enrichment
+                        .operator_label
+                        .get("en")
+                        .cloned()
+                        .unwrap_or_default(),
+                ),
+                description: enrichment
+                    .description
+                    .as_ref()
+                    .and_then(|m| m.get("en").cloned()),
+                version: String::new(),
+                website_url: enrichment.auth_help_url.clone(),
+                packages: None,
+                icons: None,
+                repository: None,
+                trust_level: trust_level_str(&enrichment.trust_level),
+                category: Some(enrichment.category.clone()),
+                enrichment: Some(ConnectorEnrichmentView {
+                    operator_label: enrichment
+                        .operator_label
+                        .get("en")
+                        .cloned()
+                        .unwrap_or_default(),
+                    category: enrichment.category.clone(),
+                    icon_name: enrichment.icon_name.clone(),
+                    trust_level: enrichment.trust_level.clone(),
+                    auth_help_url: enrichment.auth_help_url.clone(),
+                    auth_help_text: enrichment
+                        .auth_help_text
+                        .as_ref()
+                        .and_then(|m| m.get("en").cloned()),
+                    default_requires_approval: enrichment.default_requires_approval,
+                }),
+                is_installed: installed_names.contains(&enrichment.package_identifier),
+            });
+        }
+    }
+
+    Ok(result)
 }
 
 /// Store a secret in the OS keychain for an MCP server environment variable.
