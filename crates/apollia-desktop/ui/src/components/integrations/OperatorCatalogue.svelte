@@ -6,7 +6,8 @@
   import CatalogueCategoryTabs from "./CatalogueCategoryTabs.svelte";
   import CatalogueCard from "./CatalogueCard.svelte";
   import CatalogueSortDropdown, { type SortOption } from "./CatalogueSortDropdown.svelte";
-  import CatalogueTrustFilter, { type TrustFilterOption } from "./CatalogueTrustFilter.svelte";
+  import CatalogueFilterBar, { type InstallFilter } from "./CatalogueFilterBar.svelte";
+  import type { TrustFilterOption } from "./CatalogueTrustFilter.svelte";
 
   interface Props {
     onSelectServer: (server: RegistryServerView) => void;
@@ -21,6 +22,7 @@
   let selectedCategory = $state("all");
   let sortBy = $state<SortOption>("trust");
   let selectedTrust = $state<TrustFilterOption[]>([]);
+  let installFilter = $state<InstallFilter>("all");
 
   const TRUST_ORDER: Record<TrustLevel, number> = {
     verified_official: 0,
@@ -65,9 +67,21 @@
     );
   });
 
+  /** Servers after applying the install-status filter. */
+  const filteredByInstall = $derived.by(() => {
+    if (installFilter === "all") return filteredByTrust;
+    if (installFilter === "installed") return filteredByTrust.filter((s) => s.is_installed);
+    return filteredByTrust.filter((s) => !s.is_installed);
+  });
+
+  /** True when at least one non-default filter is active. */
+  const hasActiveFilters = $derived(
+    selectedTrust.length > 0 || installFilter !== "all" || searchQuery.trim().length > 0,
+  );
+
   /** Filtered servers sorted by the active sort option. */
   const sortedServers = $derived.by(() => {
-    const list = [...filteredByTrust];
+    const list = [...filteredByInstall];
     switch (sortBy) {
       case "name_asc":
         return list.sort((a, b) =>
@@ -143,9 +157,18 @@
         />
       {/if}
 
-      <CatalogueTrustFilter
-        selected={selectedTrust}
-        onchange={(v) => { selectedTrust = v; }}
+      <CatalogueFilterBar
+        trustSelected={selectedTrust}
+        {installFilter}
+        resultCount={sortedServers.length}
+        {hasActiveFilters}
+        ontrustchange={(v) => { selectedTrust = v; }}
+        oninstallchange={(v) => { installFilter = v; }}
+        onclearall={() => {
+          selectedTrust = [];
+          installFilter = "all";
+          searchQuery = "";
+        }}
       />
     </div>
 
