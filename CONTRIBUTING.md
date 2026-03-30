@@ -120,4 +120,4 @@ Ouvrir une [issue GitHub](https://github.com/nidal-z/apollia-os/issues) avec :
 
 ## Licence
 
-En contribuant, vous acceptez que votre code soit distribué sous les licences MIT et Apache-2.0 du projet.
+En contribuant, vous acceptez que votre code soit distribué sous la licence Apache-2.0 du projet.

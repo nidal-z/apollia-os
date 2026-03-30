@@ -104,6 +104,21 @@ Full architecture documentation: [docs/Architecture-Vue-Ensemble.md](docs/Archit
 
 ---
 
+## Platform Support
+
+| Platform | CPU | GPU | Status |
+|----------|-----|-----|--------|
+| Linux x86_64 | ✅ Tested | CUDA — planned | Primary development target |
+| macOS Apple Silicon | ✅ Tested | ✅ Metal tested | No Xcode required |
+| macOS Intel | ✅ Should work | — | Not explicitly tested |
+| Windows x86_64 | Planned | CUDA — planned | Not yet tested |
+| Linux (ROCm / AMD GPU) | — | Not planned | No timeline |
+
+> **Note:** Windows and CUDA builds require community testing before being marked stable.
+> If you test on a platform not listed above, please open an issue with your results.
+
+---
+
 ## LLM Backends
 
 Apollia OS ships three backend types. The default binary (`cargo build --release`) supports only API backends. Local inference requires a feature flag.
@@ -111,11 +126,14 @@ Apollia OS ships three backend types. The default binary (`cargo build --release
 ### Embedded — local GGUF model
 
 ```bash
-# CPU (all platforms)
+# CPU (Linux, macOS, Windows)
 cargo build --release --features local
 
 # Apple Silicon GPU (Metal — no Xcode required)
 cargo build --release --features local-metal
+
+# NVIDIA GPU (CUDA — Linux and Windows, not yet tested)
+cargo build --release --features local-cuda
 ```
 
 Place any GGUF model in `~/.apollia/models/` and configure `apollia.toml`:
@@ -128,7 +146,7 @@ default = "local"
 type         = "embedded"
 name         = "local"
 model_path   = "~/.apollia/models/example.gguf"
-device       = "metal"     # "cpu" | "metal"
+device       = "metal"     # "cpu" | "metal" | "cuda"
 quantization = "q8_0"
 ```
 
