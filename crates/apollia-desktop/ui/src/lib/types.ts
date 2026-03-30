@@ -934,6 +934,24 @@ export type TrustLevel =
   | "community"
   | "custom";
 
+/** A remote connection endpoint for an MCP registry server. */
+export interface RegistryRemoteView {
+  /** Transport type: `"streamable-http"` or `"sse"`. */
+  type: string;
+  /** Connection URL (e.g. `"https://mcp.notion.com/mcp"`). */
+  url: string;
+  /** HTTP headers required to authenticate or configure the connection. */
+  headers: RegistryRemoteHeaderView[];
+}
+
+/** A required HTTP header for a remote MCP connection. */
+export interface RegistryRemoteHeaderView {
+  name: string;
+  description: string | null;
+  isRequired: boolean;
+  isSecret: boolean;
+}
+
 /** MCP server entry from the registry catalogue, enriched with trust and install state. */
 export interface RegistryServerView {
   name: string;
@@ -947,6 +965,8 @@ export interface RegistryServerView {
   category: string | null;
   enrichment: ConnectorEnrichmentView | null;
   is_installed: boolean;
+  /** Remote connection endpoints (streamable-http, SSE). Empty for package-only servers. */
+  remotes: RegistryRemoteView[];
 }
 
 /** An installable package for an MCP registry server. */

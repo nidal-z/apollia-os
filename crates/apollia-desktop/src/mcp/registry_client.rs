@@ -52,6 +52,12 @@ pub struct RegistryServerDetail {
     pub packages: Option<Vec<RegistryPackage>>,
     /// Icon assets for display in the catalogue UI.
     pub icons: Option<Vec<RegistryIcon>>,
+    /// Remote connection endpoints (streamable-http, SSE).
+    ///
+    /// Empty when the server is only distributed as an installable package.
+    /// Approximately 70% of registry servers expose only remotes with no packages.
+    #[serde(default)]
+    pub remotes: Vec<RegistryRemote>,
 }
 
 /// Repository reference for an MCP server.
@@ -135,6 +141,37 @@ pub struct RegistryIcon {
     /// MIME type of the icon (e.g. `image/svg+xml`).
     #[serde(rename = "mimeType")]
     pub mime_type: Option<String>,
+}
+
+/// A remote connection endpoint for an MCP server.
+///
+/// Represents a `streamable-http` or `sse` entry in the registry `remotes` array.
+/// Remote servers are connected directly over the network without a local package install.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegistryRemote {
+    /// Transport type (e.g. `"streamable-http"`, `"sse"`).
+    #[serde(rename = "type")]
+    pub transport_type: String,
+    /// Connection URL (e.g. `"https://mcp.notion.com/mcp"`).
+    pub url: String,
+    /// HTTP headers required to authenticate or configure the connection.
+    #[serde(default)]
+    pub headers: Vec<RegistryRemoteHeader>,
+}
+
+/// A required HTTP header for a remote MCP connection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegistryRemoteHeader {
+    /// Header name (e.g. `"Authorization"`).
+    pub name: String,
+    /// Human-readable description shown in the connection wizard.
+    pub description: Option<String>,
+    /// Whether this header must be provided before connecting.
+    #[serde(rename = "isRequired", default)]
+    pub is_required: bool,
+    /// Whether the value should be stored in the OS keychain instead of plain text.
+    #[serde(rename = "isSecret", default)]
+    pub is_secret: bool,
 }
 
 /// Paginated response from the MCP Registry `/v0.1/servers` endpoint.
@@ -694,6 +731,73 @@ mod tests {
         // THEN only the latest entry is kept
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].server.version, "2.0.0");
+    }
+
+    // ── remotes deserialization ───────────────────────────────────────────────
+
+    #[test]
+    fn test_registry_server_with_remotes_deserializes() {
+        // GIVEN a registry JSON payload with a remotes array
+        let json = serde_json::json!({
+            "server": {
+                "name": "@notionhq/notion-mcp-server",
+                "title": "Notion",
+                "description": "Read and write Notion pages",
+                "version": "1.0.0",
+                "repository": null,
+                "websiteUrl": null,
+                "packages": null,
+                "icons": null,
+                "remotes": [{
+                    "type": "streamable-http",
+                    "url": "https://mcp.notion.com/mcp",
+                    "headers": [{
+                        "name": "Authorization",
+                        "description": "Bearer token",
+                        "isRequired": true,
+                        "isSecret": true
+                    }]
+                }]
+            },
+            "_meta": null
+        });
+
+        // WHEN deserialized
+        let server: RegistryServer = serde_json::from_value(json).unwrap();
+
+        // THEN remotes contains the expected URL and transport type
+        assert_eq!(server.server.remotes.len(), 1);
+        let remote = &server.server.remotes[0];
+        assert_eq!(remote.transport_type, "streamable-http");
+        assert_eq!(remote.url, "https://mcp.notion.com/mcp");
+        assert_eq!(remote.headers.len(), 1);
+        assert_eq!(remote.headers[0].name, "Authorization");
+        assert!(remote.headers[0].is_required);
+        assert!(remote.headers[0].is_secret);
+    }
+
+    #[test]
+    fn test_registry_server_without_remotes_defaults_empty() {
+        // GIVEN a registry JSON payload with no remotes field
+        let json = serde_json::json!({
+            "server": {
+                "name": "@modelcontextprotocol/server-sqlite",
+                "title": "SQLite",
+                "description": "Query local SQLite databases",
+                "version": "0.3.0",
+                "repository": null,
+                "websiteUrl": null,
+                "packages": null,
+                "icons": null
+            },
+            "_meta": null
+        });
+
+        // WHEN deserialized
+        let server: RegistryServer = serde_json::from_value(json).unwrap();
+
+        // THEN remotes defaults to an empty Vec
+        assert!(server.server.remotes.is_empty());
     }
 
     #[test]

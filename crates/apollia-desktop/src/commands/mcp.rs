@@ -14,7 +14,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::mcp::enrichments::{load_builtin_enrichments, TrustLevel};
 use crate::mcp::registry_client::{
-    McpRegistryClient, RegistryIcon, RegistryPackage, RegistryRepository, RegistryServer,
+    McpRegistryClient, RegistryIcon, RegistryPackage, RegistryRemote, RegistryRepository,
+    RegistryServer,
 };
 use crate::mcp::secret_store::SecretStore;
 
@@ -96,6 +97,10 @@ pub struct RegistryServerView {
     pub enrichment: Option<ConnectorEnrichmentView>,
     /// Whether this server is already installed locally.
     pub is_installed: bool,
+    /// Remote connection endpoints (streamable-http, SSE).
+    ///
+    /// Empty when the server is only distributed as an installable package.
+    pub remotes: Vec<RegistryRemote>,
 }
 
 impl From<RegistryServer> for RegistryServerView {
@@ -113,6 +118,7 @@ impl From<RegistryServer> for RegistryServerView {
             category: None,
             enrichment: None,
             is_installed: false,
+            remotes: s.server.remotes,
         }
     }
 }
@@ -426,6 +432,7 @@ pub async fn fetch_mcp_registry(
                     default_requires_approval: enrichment.default_requires_approval,
                 }),
                 is_installed: installed_names.contains(&enrichment.package_identifier),
+                remotes: vec![],
             });
         }
     }
