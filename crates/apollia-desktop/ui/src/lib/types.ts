@@ -1018,8 +1018,12 @@ export interface McpConnectionTestResultView {
 /** Input payload for adding a new MCP server via `add_mcp_server`. */
 export interface McpServerConfigInput {
   name: string;
-  command: string;
-  args: string[];
+  /** Executable to spawn. Omitted for network-based transports (`streamable-http`, `sse`). */
+  command?: string;
+  /** Arguments forwarded to the command. Omitted for network-based transports. */
+  args?: string[];
+  /** Remote server URL. Required for `streamable-http` and `sse` transports. */
+  url?: string;
   env: Record<string, string>;
   transport: string;
   requires_approval: boolean;

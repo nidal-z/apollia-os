@@ -11,7 +11,11 @@
   import WizardStepParams from "./WizardStepParams.svelte";
   import WizardStepTest from "./WizardStepTest.svelte";
   import WizardStepConfirm from "./WizardStepConfirm.svelte";
-  import type { McpServerConfigInput, RegistryServerView } from "$lib/types";
+  import type {
+    McpServerConfigInput,
+    RegistryEnvVarView,
+    RegistryServerView,
+  } from "$lib/types";
 
   interface Props {
     server: RegistryServerView;
@@ -60,13 +64,37 @@
     }
   });
 
+  // Remote takes precedence over package when both are present (more modern transport).
+  const remote = $derived(server.remotes[0] ?? null);
   const pkg = $derived(server.packages?.[0] ?? null);
+  const connectionMode = $derived<"remote" | "package" | null>(
+    remote ? "remote" : pkg ? "package" : null,
+  );
+
+  /// Remote headers mapped to RegistryEnvVarView so WizardStepAuth can render them uniformly.
+  const remoteHeadersAsEnvVars = $derived.by((): RegistryEnvVarView[] => {
+    if (!remote) return [];
+    return remote.headers.map((h) => ({
+      name: h.name,
+      description: h.description,
+      is_required: h.isRequired,
+      is_secret: h.isSecret,
+    }));
+  });
 
   // Derive the ordered list of visible steps based on the server's metadata.
   const visibleSteps = $derived.by((): WizardStep[] => {
     const steps: WizardStep[] = ["info"];
-    if (pkg?.environment_variables?.length) steps.push("auth");
-    if (pkg?.package_arguments?.length) steps.push("params");
+    if (connectionMode === "remote") {
+      if (remote && remote.headers.some((h) => h.isRequired || h.isSecret)) {
+        steps.push("auth");
+      }
+    } else if (pkg?.environment_variables?.length) {
+      steps.push("auth");
+    }
+    if (connectionMode === "package" && pkg?.package_arguments?.length) {
+      steps.push("params");
+    }
     steps.push("test", "confirm");
     return steps;
   });
@@ -74,30 +102,50 @@
   const totalSteps = $derived(visibleSteps.length);
   const currentStepName = $derived(visibleSteps[currentStep - 1] ?? "info");
 
-  /// Whether this server can be installed (has a package with command+identifier).
-  const canInstall = $derived(pkg != null);
+  /// Whether this server can be connected (has a remote endpoint or an installable package).
+  const canInstall = $derived(connectionMode !== null);
 
   // Build the full server config from current form values.
   const builtConfig = $derived.by((): McpServerConfigInput | null => {
-    if (!pkg) return null;
-    const env: Record<string, string> = {};
-    for (const envVar of pkg.environment_variables ?? []) {
-      env[envVar.name] = envVar.is_secret
-        ? `\${APOLLIA_SECRET:${envVar.name}}`
-        : (envValues[envVar.name] ?? "");
+    if (connectionMode === "remote" && remote) {
+      const env: Record<string, string> = {};
+      for (const header of remote.headers) {
+        env[header.name] = header.isSecret
+          ? `\${APOLLIA_SECRET:${header.name}}`
+          : (envValues[header.name] ?? "");
+      }
+      return {
+        name: server.name,
+        url: remote.url,
+        transport: remote.type,
+        env,
+        requires_approval: approvalLevel === "ask",
+        tags: [],
+      };
     }
-    return {
-      name: server.name,
-      command: pkg.runtime_hint ?? "npx",
-      args: [
-        pkg.identifier,
-        ...(pkg.package_arguments ?? []).map((a, i) => argValues[a.value_hint ?? String(i)] ?? ""),
-      ],
-      env,
-      transport: pkg.transport_type ?? "stdio",
-      requires_approval: approvalLevel === "ask",
-      tags: [],
-    };
+    if (connectionMode === "package" && pkg) {
+      const env: Record<string, string> = {};
+      for (const envVar of pkg.environment_variables ?? []) {
+        env[envVar.name] = envVar.is_secret
+          ? `\${APOLLIA_SECRET:${envVar.name}}`
+          : (envValues[envVar.name] ?? "");
+      }
+      return {
+        name: server.name,
+        command: pkg.runtime_hint ?? "npx",
+        args: [
+          pkg.identifier,
+          ...(pkg.package_arguments ?? []).map(
+            (a, i) => argValues[a.value_hint ?? String(i)] ?? "",
+          ),
+        ],
+        env,
+        transport: pkg.transport_type ?? "stdio",
+        requires_approval: approvalLevel === "ask",
+        tags: [],
+      };
+    }
+    return null;
   });
 
   function goNext(): void {
@@ -135,19 +183,32 @@
   }
 
   async function finalize(): Promise<void> {
-    if (!pkg || !builtConfig) return;
+    if (!builtConfig) return;
     finalizing = true;
     finalizeError = null;
     try {
       // Persist secrets in the OS keyring before writing the config.
-      for (const envVar of pkg.environment_variables ?? []) {
-        const val = envValues[envVar.name];
-        if (envVar.is_secret && val) {
-          await invoke("store_mcp_secret", {
-            serverName: server.name,
-            envVar: envVar.name,
-            value: val,
-          });
+      if (connectionMode === "remote" && remote) {
+        for (const header of remote.headers) {
+          const val = envValues[header.name];
+          if (header.isSecret && val) {
+            await invoke("store_mcp_secret", {
+              serverName: server.name,
+              envVar: header.name,
+              value: val,
+            });
+          }
+        }
+      } else if (connectionMode === "package" && pkg) {
+        for (const envVar of pkg.environment_variables ?? []) {
+          const val = envValues[envVar.name];
+          if (envVar.is_secret && val) {
+            await invoke("store_mcp_secret", {
+              serverName: server.name,
+              envVar: envVar.name,
+              value: val,
+            });
+          }
         }
       }
       await invoke("add_mcp_server", { config: builtConfig });
@@ -213,16 +274,25 @@
   <div class="min-h-[180px]">
     {#if currentStepName === "info"}
       <WizardStepInfo {server} />
-    {:else if currentStepName === "auth" && pkg}
-      <WizardStepAuth
-        envVars={pkg?.environment_variables ?? []}
-        enrichment={server.enrichment}
-        values={envValues}
-        onchange={handleEnvChange}
-      />
-    {:else if currentStepName === "params" && pkg}
+    {:else if currentStepName === "auth"}
+      {#if connectionMode === "remote"}
+        <WizardStepAuth
+          envVars={remoteHeadersAsEnvVars}
+          enrichment={server.enrichment}
+          values={envValues}
+          onchange={handleEnvChange}
+        />
+      {:else if connectionMode === "package" && pkg}
+        <WizardStepAuth
+          envVars={pkg.environment_variables ?? []}
+          enrichment={server.enrichment}
+          values={envValues}
+          onchange={handleEnvChange}
+        />
+      {/if}
+    {:else if currentStepName === "params" && connectionMode === "package" && pkg}
       <WizardStepParams
-        args={pkg?.package_arguments ?? []}
+        args={pkg.package_arguments ?? []}
         values={argValues}
         onchange={handleArgChange}
       />

@@ -221,9 +221,9 @@
       "approval_readonly_desc": "Only read operations are permitted",
       "confirm_button": "Add connection",
       "adding": "Adding…",
-      "test_unavailable": "Connection test is not available for this server. It uses a remote transport (HTTP/SSE) that doesn't require a local package installation.",
-      "no_package_title": "Remote server — manual setup required",
-      "no_package_body": "This server uses a remote connection (HTTP/SSE) and cannot be installed automatically. Visit the server's website for setup instructions."
+      "test_unavailable": "Connection test is unavailable — no configuration found for this server.",
+      "no_package_title": "Server not configurable",
+      "no_package_body": "This server has no installable package and no remote endpoint. It cannot be added automatically."
     },
     "manage": {
       "title": "Manage {name}",
