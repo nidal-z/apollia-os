@@ -106,6 +106,7 @@ fn onboarding_manifest() -> AgentManifest {
         execution_mode: "conversational".to_string(),
         system_prompt: None,
         tools_requiring_approval: Vec::new(),
+        llm_backend: None,
     }
 }
 

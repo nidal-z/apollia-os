@@ -759,20 +759,20 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         .map(PathBuf::from)
         .unwrap_or_else(|_| std::env::temp_dir());
 
-    // Load apollia.toml if found (LLM, STT, and startup_agents — triggers,
-    // pipelines, notifications are now loaded from SQLite by the Supervisor).
-    let (llm_config, stt_config, startup_agents, config_path) = match find_config_file() {
+    // Load apollia.toml if found (LLM and STT — agents, triggers, pipelines,
+    // notifications are all loaded from SQLite by the Supervisor).
+    let (llm_config, stt_config, config_path) = match find_config_file() {
         Some(path) => {
             tracing::info!(config = %path.display(), "loading config");
             let cfg = crate::config::parse_apollia_toml(&path).map_err(|e| StartError::Config {
                 path: path.clone(),
                 reason: e.to_string(),
             })?;
-            (cfg.llm, cfg.stt, cfg.startup_agents, Some(path))
+            (cfg.llm, cfg.stt, Some(path))
         }
         None => {
             tracing::info!("no apollia.toml found — starting with defaults");
-            (None, None, vec![], None)
+            (None, None, None)
         }
     };
 
@@ -903,28 +903,6 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
     println!("  * Runtime ready in {:.1}s", elapsed.as_secs_f64());
     println!();
     println!("  Press Ctrl+C or run `apollia-os stop` to shut down.");
-
-    // Auto-start agents declared in [agents] startup list.
-    // A short delay lets the API server complete its bind before we POST.
-    if !startup_agents.is_empty() {
-        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-        let client = crate::client::RuntimeClient::new(socket_path.clone());
-        for agent_path in &startup_agents {
-            match client.start_agent(agent_path).await {
-                Ok(v) => {
-                    let name = v
-                        .get("agent_id")
-                        .and_then(|n| n.as_str())
-                        .unwrap_or(agent_path);
-                    println!("  * Agent auto-started: {name} ({agent_path})");
-                }
-                Err(e) => {
-                    eprintln!("  ! Agent auto-start failed: {agent_path}: {e}");
-                    tracing::warn!(path = %agent_path, error = %e, "agent auto-start failed");
-                }
-            }
-        }
-    }
 
     // Wait for shutdown signal (Ctrl+C, SIGTERM, or ShutdownRequested via API)
     let mut shutdown_rx = handles.event_sender.subscribe();

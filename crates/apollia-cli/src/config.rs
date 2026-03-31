@@ -13,9 +13,6 @@
 //! # Exemple TOML minimal
 //!
 //! ```toml
-//! [agents]
-//! startup = ["agents/hello_agent.py"]
-//!
 //! [llm]
 //! default = "anthropic"
 //!
@@ -52,37 +49,15 @@ pub enum ConfigError {
 // Structures de configuration
 // ─────────────────────────────────────────────
 
-/// Configuration de la section `[agents]` dans `apollia.toml`.
-#[derive(Debug, serde::Deserialize, Clone)]
-pub struct AgentsConfig {
-    /// Répertoire de chargement des modules Python agents.
-    pub directory: Option<String>,
-    /// Liste de chemins d'agents Python démarrés automatiquement au démarrage du runtime.
-    ///
-    /// Chemins relatifs résolus depuis le répertoire courant au moment du démarrage.
-    /// Supporte le préfixe `~` (résolu vers `$HOME`).
-    ///
-    /// Exemple :
-    /// ```toml
-    /// [agents]
-    /// startup = ["agents/debug_orchestrator.py", "agents/apollia-reviewer.py"]
-    /// ```
-    #[serde(default)]
-    pub startup: Vec<String>,
-}
-
 /// Configuration globale Apollia OS validée depuis `apollia.toml`.
 ///
-/// Contient uniquement la configuration structurelle : agents, LLM, et paramètres
-/// de démarrage. La configuration opérationnelle (triggers, pipelines, notifications)
-/// est gérée en SQLite.
+/// Contient la configuration structurelle : LLM et STT.
+/// La configuration opérationnelle (triggers, pipelines, notifications, agents) est
+/// gérée en SQLite et n'a plus de chemin TOML.
 ///
 /// Pour désérialiser depuis un fichier, utiliser [`parse_apollia_toml`].
 #[derive(Debug, serde::Deserialize)]
 pub struct ApolliaCConfig {
-    /// Section `[agents]` — répertoire des agents Python.
-    pub agents: Option<AgentsConfig>,
-
     /// Section `[llm]` — configuration des backends LLM.
     ///
     /// Vaut `None` si la section `[llm]` est absente du fichier.
@@ -92,13 +67,6 @@ pub struct ApolliaCConfig {
     ///
     /// Vaut `None` si la section `[stt]` est absente du fichier.
     pub stt: Option<SttConfig>,
-
-    /// Chemins d'agents Python à démarrer automatiquement au démarrage du runtime.
-    ///
-    /// Extrait depuis `[agents] startup = [...]` dans `apollia.toml`.
-    /// Chemins déjà normalisés (`~` résolu). Vide si la section est absente.
-    #[serde(skip)]
-    pub startup_agents: Vec<String>,
 }
 
 /// Noms des sections TOML qui sont désormais obsolètes.
@@ -158,9 +126,7 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
     // Build a filtered table with only known sections.
     let mut filtered = toml::map::Map::new();
     if let toml::Value::Table(table) = &raw_table {
-        for key in &[
-            "agents", "llm", "stt", "runtime", "memory", "tools", "budget", "api",
-        ] {
+        for key in &["llm", "stt", "runtime", "memory", "tools", "budget", "api"] {
             if let Some(v) = table.get(*key) {
                 filtered.insert((*key).to_string(), v.clone());
             }
@@ -185,26 +151,6 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
     if let Some(ref mut stt) = config.stt {
         stt.model_path = expand_tilde(&stt.model_path);
     }
-
-    // Extraire la liste des agents à démarrer automatiquement et normaliser les chemins.
-    let config_dir = path.parent().unwrap_or(Path::new("."));
-    config.startup_agents = config
-        .agents
-        .as_ref()
-        .map(|a| {
-            a.startup
-                .iter()
-                .map(|p| {
-                    let expanded = expand_tilde(Path::new(p));
-                    if expanded.is_absolute() {
-                        expanded.to_string_lossy().into_owned()
-                    } else {
-                        config_dir.join(&expanded).to_string_lossy().into_owned()
-                    }
-                })
-                .collect()
-        })
-        .unwrap_or_default();
 
     Ok(config)
 }
@@ -301,9 +247,6 @@ mod tests {
     fn test_parse_structural_config_only() {
         // GIVEN
         let toml_str = r#"
-[agents]
-startup = ["agents/hello.py"]
-
 [llm]
 default = "local"
 
@@ -326,7 +269,6 @@ quantization = "q4_k_m"
             matches!(llm.backends[0].kind, BackendKind::Embedded(_)),
             "kind should be Embedded"
         );
-        assert_eq!(config.startup_agents.len(), 1);
     }
 
     // GIVEN un TOML avec [[llm.backends]] type = "api"
@@ -367,7 +309,7 @@ model = "claude-haiku-4-5-20251001"
     #[test]
     fn test_no_llm_section_is_none() {
         // GIVEN
-        let file = write_toml("[agents]\ndirectory = \"agents/\"\n");
+        let file = write_toml("");
 
         // WHEN
         let config = parse_apollia_toml(file.path()).expect("parse should succeed");
@@ -554,8 +496,7 @@ events = ["task.completed"]
 
         // THEN
         assert!(config.llm.is_none());
-        assert!(config.agents.is_none());
-        assert!(config.startup_agents.is_empty());
+        assert!(config.stt.is_none());
     }
 
     // GIVEN la constante DEPRECATED_SECTIONS
@@ -575,9 +516,6 @@ events = ["task.completed"]
     fn test_deprecated_pipelines_section_does_not_block_parsing() {
         // GIVEN
         let toml = r#"
-[agents]
-directory = "agents/"
-
 [[pipelines]]
 id          = "old-pipeline"
 description = "obsolete"
@@ -602,17 +540,12 @@ input = "x"
 
     // GIVEN le struct ApolliaCConfig
     // WHEN on vérifie sa structure
-    // THEN il n'a PAS de champs triggers, pipelines, notifications
+    // THEN il n'a PAS de champs agents, startup_agents, triggers, pipelines, notifications
     //       (vérification compile-time — ce test compile seulement si les champs sont absents)
     #[test]
     fn test_config_struct_has_no_operational_fields() {
-        let config = ApolliaCConfig {
-            agents: None,
-            llm: None,
-            stt: None,
-            startup_agents: vec![],
-        };
-        // If this compiles, the struct has exactly these fields (+ serde skip).
-        assert!(config.agents.is_none());
+        let config = ApolliaCConfig { llm: None, stt: None };
+        // If this compiles, the struct has exactly these fields.
+        assert!(config.llm.is_none());
     }
 }
