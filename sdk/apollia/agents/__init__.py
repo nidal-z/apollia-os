@@ -3,5 +3,12 @@
 from apollia.agents.conversational import ConversationalAgent
 from apollia.agents.orchestrated import OrchestratedAgent
 from apollia.agents.react import AIPResult, BaseReActAgent
+from apollia.agents.worker import WorkerAgent
 
-__all__ = ["AIPResult", "BaseReActAgent", "ConversationalAgent", "OrchestratedAgent"]
+__all__ = [
+    "AIPResult",
+    "BaseReActAgent",
+    "ConversationalAgent",
+    "OrchestratedAgent",
+    "WorkerAgent",
+]
