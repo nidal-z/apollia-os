@@ -1,9 +1,9 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
-  import { confirm } from "@tauri-apps/plugin-dialog";
   import { t } from "svelte-i18n";
   import type { AgentListItem } from "$lib/types";
+  import { agents } from "$lib/stores/agents";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Toggle } from "$lib/components/ui/toggle";
@@ -33,6 +33,8 @@
 
   let stopping = $state(false);
   let confirmVisible = $state(false);
+  let uninstallConfirmVisible = $state(false);
+  let deleteMemoryData = $state(false);
   let stopError = $state<string | null>(null);
   let toggleLoading = $state(false);
   let uninstallLoading = $state(false);
@@ -78,16 +80,42 @@
     finally { toggleLoading = false; }
   }
 
-  async function handleUninstall() {
-    const confirmed = await confirm(
-      $t("agents.uninstall_confirm_message", { values: { name: agent.name } }),
-      { title: $t("agents.uninstall_confirm_title"), kind: "warning" },
-    );
-    if (!confirmed) return;
-    uninstallLoading = true; actionError = null;
-    try { await invoke("uninstall_agent", { name: agent.name }); }
-    catch (err: unknown) { actionError = err instanceof Error ? err.message : String(err); }
-    finally { uninstallLoading = false; }
+  function handleUninstall() {
+    confirmVisible = false;
+    deleteMemoryData = false;
+    uninstallConfirmVisible = true;
+  }
+
+  async function confirmUninstall() {
+    uninstallConfirmVisible = false;
+    uninstallLoading = true;
+    actionError = null;
+    try {
+      // Stop from runtime first so it's removed from the in-memory registry.
+      // Without this, list_agents returns it as a "session-only" ghost entry.
+      if (agent.id) {
+        try { await invoke("stop_agent", { agentId: agent.id }); } catch { /* already stopped */ }
+      }
+
+      // Best-effort: delete agent memory entries before removing the agent.
+      if (deleteMemoryData) {
+        try {
+          const entries = await invoke<{ id: string }[]>("list_memory_entries", { namespace: agent.name });
+          for (const entry of entries) {
+            await invoke("delete_memory_entry", { namespace: agent.name, entryId: entry.id });
+          }
+        } catch { /* memory namespace may not exist — not critical */ }
+      }
+
+      await invoke("uninstall_agent", { name: agent.name });
+
+      // Optimistic update: remove immediately so the card doesn't linger.
+      agents.update((list) => list.filter((a) => a.name !== agent.name));
+    } catch (err: unknown) {
+      actionError = err instanceof Error ? err.message : String(err);
+    } finally {
+      uninstallLoading = false;
+    }
   }
 
   async function handleUpdate() {
@@ -194,6 +222,24 @@
       <Button size="sm" variant="ghost" class="h-6 px-2 text-[11px]" onclick={() => { confirmVisible = false; }}>
         {$t("common.cancel")}
       </Button>
+    {:else if uninstallConfirmVisible}
+      <div class="flex flex-col gap-1.5 w-full py-0.5">
+        <span class="text-[11px] font-medium text-destructive pl-1">
+          {$t("agents.uninstall_confirm_warning", { values: { name: agent.name } })}
+        </span>
+        <label class="flex items-center gap-1.5 pl-1 cursor-pointer select-none" onclick={(e) => e.stopPropagation()}>
+          <input type="checkbox" bind:checked={deleteMemoryData} class="h-3 w-3 rounded accent-destructive" />
+          <span class="text-[10px] text-muted-foreground">{$t("agents.uninstall_delete_memory")}</span>
+        </label>
+        <div class="flex items-center gap-1 pl-1">
+          <Button size="sm" variant="destructive" class="h-6 px-2 text-[11px]" onclick={confirmUninstall} disabled={uninstallLoading} data-testid="agent-uninstall-confirm-btn">
+            {uninstallLoading ? $t("common.loading") : $t("agents.uninstall_confirm_action")}
+          </Button>
+          <Button size="sm" variant="ghost" class="h-6 px-2 text-[11px]" onclick={() => { uninstallConfirmVisible = false; deleteMemoryData = false; }}>
+            {$t("common.cancel")}
+          </Button>
+        </div>
+      </div>
     {:else}
       <!-- Primary actions -->
       {#if isRunning && agent.id && onchat}
@@ -206,7 +252,7 @@
           <Square size={10} /> {$t("agents.stop")}
         </Button>
       {/if}
-      {#if !isLoaded && isInstalled && agent.install_path}
+      {#if !isRunning && isInstalled && agent.install_path}
         <Button size="sm" variant="ghost" class="h-6 px-2 text-[11px] gap-1" onclick={handleStart} disabled={startLoading} data-testid="agent-start-btn">
           <Play size={10} /> {startLoading ? $t("agents.starting_agent") : $t("agents.start")}
         </Button>

@@ -344,11 +344,13 @@ pub async fn install_agent(
 
 /// Désinstalle un agent installé.
 ///
-/// Supprime l'entrée de `agents.db` et le répertoire d'installation.
-/// Émet un `RuntimeEvent::AgentUninstalled` sur l'EventBus.
+/// 1. Supprime l'entrée de `agents.db` et le répertoire d'installation.
+/// 2. Retire l'agent du registry runtime (évite le ghost dans `list_agents`).
+/// 3. Émet un `RuntimeEvent::AgentUninstalled` sur l'EventBus.
 #[tauri::command]
 pub async fn uninstall_agent(
     name: String,
+    runtime: State<'_, RuntimeHandle>,
     repo: State<'_, Arc<std::sync::Mutex<AgentRepository>>>,
     event_bus: State<'_, EventBusSender>,
 ) -> Result<(), String> {
@@ -376,6 +378,16 @@ pub async fn uninstall_agent(
     // Remove install directory (best-effort).
     if let Some(parent) = existing.install_path.parent() {
         let _ = std::fs::remove_dir_all(parent);
+    }
+
+    // Remove from in-memory registry so list_agents no longer returns it.
+    // find_by_name returns None if the agent was never started — that is fine.
+    if let Ok(Some(agent_id)) = runtime.registry_handle.find_by_name(&name).await {
+        let _ = runtime
+            .router_handle
+            .unregister_coordinator(&agent_id)
+            .await;
+        let _ = runtime.registry_handle.unregister(agent_id.as_str()).await;
     }
 
     let _ = event_bus.send(apollia_core::events::RuntimeEvent::AgentUninstalled { name });

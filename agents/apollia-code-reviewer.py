@@ -3,21 +3,21 @@
 Triggers on each git commit (via post-commit hook → webhook trigger).
 Uses the ReAct loop to autonomously:
   1. Read each changed file's diff individually
-  2. Investigate ambiguous patterns (reads full files via file_io if needed)
+  2. Investigate ambiguous patterns (reads full files via bash_executor + cat if needed)
   3. Check commit message conventions
   4. Detect documentation pages that need updating
   5. Produce a structured Markdown review report
 
 Apollia features used:
   - BaseReActAgent (ReAct loop — the LLM decides what to investigate)
-  - bash_executor (git commands: diff, log, show)
-  - file_io (read full files to resolve ambiguous violations)
+  - bash_executor (git commands: diff, log, show; cat for full files)
   - ctx.memory (persist review summaries for trend tracking)
 
 Setup:
   1. Install the agent: apollia agent install agents/apollia-code-reviewer.py
-  2. Create a webhook trigger pointing to this agent
-  3. Install the post-commit hook: cp scripts/hooks/post-commit .git/hooks/post-commit && chmod +x .git/hooks/post-commit
+  2. Create a webhook trigger pointing to this agent (note the trigger ID)
+  3. Export APOLLIA_TRIGGER_ID=<id> in your shell
+  4. Install the post-commit hook: cp scripts/post-commit-hook.sh .git/hooks/post-commit
 """
 
 from __future__ import annotations
@@ -118,11 +118,11 @@ Work step by step. Do not rush to a final answer.
 
 2. If you find something ambiguous (e.g., `unwrap()` that might be inside a test
    block, or a pattern that might be intentional), read the full file:
-   `file_io: {{"action": "read", "path": "{repo}/<filepath>"}}`
+   `bash_executor: cat {repo}/<filepath>`
 
 3. To verify whether a violation has an ADR exception:
-   `file_io: {{"action": "list", "path": "{repo}/docs/adr", "pattern": "*.md"}}`
-   then read the relevant ADR.
+   `bash_executor: ls {repo}/docs/adr/`
+   then read the relevant ADR with `cat {repo}/docs/adr/ADR-NNN-....md`
 
 4. When you have reviewed all files, emit your final answer.
 
@@ -184,7 +184,7 @@ class ApolliaCodeReviewer(BaseReActAgent):
             ),
             "execution_mode": "direct",
             "tools_required": ["bash_executor"],
-            "tools_optional": ["file_io"],
+            "tools_optional": [],
             "tools_requiring_approval": [],
             "memory_namespace": "code-reviewer",
             "max_concurrent_tasks": 1,
@@ -208,9 +208,9 @@ class ApolliaCodeReviewer(BaseReActAgent):
             f"Repository: {REPO_PATH}\n"
             f"Commit: {commit_info}\n\n"
             f"Files changed:\n{changed_files}\n\n"
-            "Review each changed file's diff. Use file_io if you need to read a "
-            "full file to resolve an ambiguous violation. Produce a complete "
-            "structured review when you have analyzed all files."
+            "Review each changed file's diff. Use bash_executor with 'cat <path>' "
+            "if you need to read a full file to resolve an ambiguous violation. "
+            "Produce a complete structured review when you have analyzed all files."
         )
 
         result = await self.react(task=task, ctx=ctx, user_message=user_message)
