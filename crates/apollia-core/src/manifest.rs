@@ -90,6 +90,13 @@ pub struct AgentManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     pub llm_backend: Option<String>,
+    /// Paquets pip à installer dans le venv Python de cet agent.
+    ///
+    /// Syntaxe pip standard : `"openpyxl>=3.1.0"`, `"pandas==2.1.4"`, `"requests"`.
+    /// Installés une seule fois au `INITIALIZING` via `PythonExecutor::setup_venv()`.
+    /// Vide par défaut — agents sans dépendances Python tierces.
+    #[serde(default)]
+    pub packages: Vec<String>,
 }
 
 /// Compétence déclarative d'un agent.
@@ -136,6 +143,7 @@ mod tests {
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
+            packages: vec![],
         };
         // WHEN
         let json = serde_json::to_string(&manifest).expect("serialization failed");
@@ -167,6 +175,7 @@ mod tests {
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
+            packages: vec![],
         };
         // THEN
         assert_eq!(manifest.max_concurrent_tasks, 1);
@@ -303,6 +312,7 @@ mod tests {
             system_prompt: None,
             tools_requiring_approval: vec!["smtp".into(), "bash_executor".into()],
             llm_backend: None,
+            packages: vec![],
         };
         // WHEN serde roundtrip JSON
         let json = serde_json::to_string(&manifest).expect("serialize must succeed");
@@ -313,5 +323,38 @@ mod tests {
             restored.tools_requiring_approval,
             vec!["smtp", "bash_executor"]
         );
+    }
+
+    #[test]
+    fn test_packages_field_default() {
+        // GIVEN un manifest JSON sans champ packages
+        let json = r#"{"name":"test","version":"1.0.0","description":"","tools_required":[]}"#;
+        // WHEN désérialisé
+        let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
+        // THEN packages = vec![]
+        assert!(manifest.packages.is_empty());
+    }
+
+    #[test]
+    fn test_packages_field_populated() {
+        // GIVEN un manifest JSON avec packages
+        let json = r#"{"name":"excel","version":"0.1.0","description":"","tools_required":[],"packages":["openpyxl>=3.1.0"]}"#;
+        // WHEN désérialisé
+        let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
+        // THEN packages contient la valeur
+        assert_eq!(manifest.packages, vec!["openpyxl>=3.1.0"]);
+    }
+
+    #[test]
+    fn test_packages_field_roundtrip() {
+        // GIVEN un manifest JSON avec packages
+        let json = r#"{"name":"pandas-agent","version":"0.1.0","description":"","tools_required":[],"packages":["pandas>=2.0.0"]}"#;
+        // WHEN sérialisé puis désérialisé
+        let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize must succeed");
+        let serialized = serde_json::to_string(&manifest).expect("serialize must succeed");
+        let restored: AgentManifest =
+            serde_json::from_str(&serialized).expect("deserialize roundtrip must succeed");
+        // THEN packages est préservé
+        assert_eq!(restored.packages, vec!["pandas>=2.0.0"]);
     }
 }

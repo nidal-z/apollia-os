@@ -23,6 +23,7 @@ fn make_manifest(name: &str) -> AgentManifest {
         system_prompt: None,
         tools_requiring_approval: vec![],
         llm_backend: None,
+        packages: vec![],
     }
 }
 

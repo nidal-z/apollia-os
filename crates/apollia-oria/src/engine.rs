@@ -1424,6 +1424,8 @@ mod orchestrated_tests {
             execution_mode: "orchestrated".into(),
             system_prompt: Some("Planifie les étapes nécessaires.".into()),
             tools_requiring_approval: vec![],
+            llm_backend: None,
+            packages: vec![],
         }
     }
 
@@ -1564,6 +1566,8 @@ mod orchestrated_tests {
                 execution_mode: "orchestrated".into(),
                 system_prompt: None, // ← absent
                 tools_requiring_approval: vec![],
+                llm_backend: None,
+                packages: vec![],
             },
         };
         let task = AIPTask::default();

@@ -79,6 +79,7 @@ impl AgentLoader for StubAgentLoader {
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
+            packages: vec![],
         })
     }
 }
@@ -501,6 +502,7 @@ mod tests {
                 system_prompt: None,
                 tools_requiring_approval: vec![],
                 llm_backend: None,
+                packages: vec![],
             })
         }
     }
@@ -535,6 +537,7 @@ mod tests {
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
+            packages: vec![],
         }
     }
 
@@ -933,6 +936,7 @@ mod tests {
                     system_prompt: None,
                     tools_requiring_approval: vec![],
                     llm_backend: None,
+                    packages: vec![],
                 })
             }
         }

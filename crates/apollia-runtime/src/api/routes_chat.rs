@@ -546,6 +546,7 @@ mod tests {
                 system_prompt: None,
                 tools_requiring_approval: vec![],
                 llm_backend: None,
+                packages: vec![],
             })
         }
     }

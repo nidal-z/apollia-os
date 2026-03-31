@@ -115,6 +115,8 @@ fn make_manifest(
         execution_mode: execution_mode.to_owned(),
         system_prompt: None,
         tools_requiring_approval: vec![],
+        llm_backend: None,
+        packages: vec![],
     }
 }
 

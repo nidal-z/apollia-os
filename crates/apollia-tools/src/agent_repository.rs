@@ -320,6 +320,8 @@ mod tests {
             execution_mode: "auto".to_string(),
             system_prompt: None,
             tools_requiring_approval: Vec::new(),
+            llm_backend: None,
+            packages: vec![],
         }
     }
 

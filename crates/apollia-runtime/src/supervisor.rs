@@ -1003,6 +1003,47 @@ impl Supervisor {
                         let max_concurrent = manifest.max_concurrent_tasks;
                         let agent_name = manifest.name.clone();
 
+                        // Install pip packages into the agent's venv before registration.
+                        // On failure the agent continues in Degraded state — boot is never blocked.
+                        let degraded_reason: Option<String> = if manifest.packages.is_empty() {
+                            None
+                        } else {
+                            let venv_base = self.config.data_dir.join("venvs");
+                            match apollia_tools::tools::python_executor::PythonExecutor::new(
+                                &manifest.name,
+                                &venv_base,
+                            ) {
+                                Ok(executor) => {
+                                    match executor.setup_venv(&manifest.packages).await {
+                                        Ok(()) => {
+                                            info!(
+                                                agent = %manifest.name,
+                                                packages = ?manifest.packages,
+                                                "agent packages installed"
+                                            );
+                                            None
+                                        }
+                                        Err(e) => {
+                                            warn!(
+                                                agent = %manifest.name,
+                                                error = %e,
+                                                "package installation failed — agent will start in DEGRADED state"
+                                            );
+                                            Some(e.to_string())
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        agent = %manifest.name,
+                                        error = %e,
+                                        "failed to create PythonExecutor for venv — agent will start in DEGRADED state"
+                                    );
+                                    Some(e.to_string())
+                                }
+                            }
+                        };
+
                         // Register in AgentRegistry (state = Initializing).
                         let agent_id = match registry_handle.register(manifest).await {
                             Ok(id) => id,
@@ -1016,13 +1057,23 @@ impl Supervisor {
                             }
                         };
 
-                        // Transition to Active.
+                        // Transition: Initializing → Active (required by state machine).
                         if let Err(e) = registry_handle
                             .update_state(agent_id.as_str(), ProcessState::Active)
                             .await
                         {
                             warn!(name = %agent_name, error = %e, "Failed to activate agent");
                             continue;
+                        }
+
+                        // If package installation failed: Active → Degraded.
+                        if degraded_reason.is_some() {
+                            registry_handle
+                                .update_state(agent_id.as_str(), ProcessState::Degraded)
+                                .await
+                                .unwrap_or_else(|e| {
+                                    warn!(name = %agent_name, error = %e, "failed to set Degraded state")
+                                });
                         }
 
                         // Create ExecutionCoordinator with backend factory.
@@ -2130,6 +2181,7 @@ mod tests {
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
+            packages: vec![],
         }
     }
 
@@ -2370,6 +2422,131 @@ mod tests {
         assert!(
             agents.is_empty(),
             "no agents should be registered when agent_repository is None"
+        );
+
+        shutdown_handles(handles, &socket_path).await;
+    }
+
+    // Agent avec packages vide → pas de venv créé, état Active
+    #[tokio::test]
+    async fn test_autoload_empty_packages_agent_is_active() {
+        // GIVEN un agent avec packages: []
+        let repo = open_test_repo();
+        repo.save(&test_installed_agent("no-pkg-agent", true))
+            .expect("save agent");
+
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let (mut config, tmp_dir) = test_config(port, socket_path.clone());
+        config.agent_repository = Some(repo);
+
+        let supervisor = Supervisor::new(config);
+
+        // WHEN le Supervisor démarre
+        let handles = supervisor
+            .start(
+                MockBackend,
+                Arc::new(crate::api::routes_agents::StubAgentLoader),
+                None,
+                None,
+            )
+            .await
+            .expect("start() should succeed");
+
+        // THEN l'agent est en état Active
+        let agents = handles
+            .registry_handle
+            .list_agents()
+            .await
+            .expect("list_agents should succeed");
+        assert_eq!(agents.len(), 1);
+        assert_eq!(agents[0].process_state, ProcessState::Active);
+
+        // ET aucun venv n'a été créé dans data_dir/venvs/
+        let venv_dir = tmp_dir.path().join("venvs").join("no-pkg-agent");
+        assert!(
+            !venv_dir.exists(),
+            "venv directory should not be created for agent with empty packages"
+        );
+
+        shutdown_handles(handles, &socket_path).await;
+    }
+
+    // Agent avec package invalide → état Degraded, autres agents démarrent normalement
+    #[tokio::test]
+    async fn test_autoload_bad_package_agent_is_degraded() {
+        // GIVEN deux agents : un avec package invalide, un sans packages
+        // Install paths use the agent name as file stem so StubAgentLoader resolves correctly.
+        let repo = open_test_repo();
+
+        let mut bad_agent = test_installed_agent("bad-pkg-agent", true);
+        bad_agent.install_path =
+            PathBuf::from("/tmp/agents/bad-pkg-agent/bad-pkg-agent.py");
+        bad_agent.manifest.packages = vec!["nonexistent-pkg-zzz-99999==0.0.1".to_string()];
+        repo.save(&bad_agent).expect("save bad agent");
+
+        let mut good_agent = test_installed_agent("good-agent", true);
+        good_agent.install_path = PathBuf::from("/tmp/agents/good-agent/good-agent.py");
+        repo.save(&good_agent).expect("save good agent");
+
+        let port = free_port().await;
+        let socket_path = temp_socket_path();
+        let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
+        config.agent_repository = Some(repo);
+
+        // Loader that injects packages into the bad agent's manifest using the file stem.
+        struct PackageAwareLoader;
+        impl AgentLoader for PackageAwareLoader {
+            fn load_and_validate(
+                &self,
+                path: &std::path::Path,
+            ) -> Result<apollia_core::AgentManifest, String> {
+                let mut manifest =
+                    crate::api::routes_agents::StubAgentLoader.load_and_validate(path)?;
+                if manifest.name == "bad-pkg-agent" {
+                    manifest.packages = vec!["nonexistent-pkg-zzz-99999==0.0.1".to_string()];
+                }
+                Ok(manifest)
+            }
+        }
+
+        let supervisor = Supervisor::new(config);
+
+        // WHEN le Supervisor démarre
+        let handles = supervisor
+            .start(MockBackend, Arc::new(PackageAwareLoader), None, None)
+            .await
+            .expect("start() should succeed despite bad package");
+
+        // THEN les deux agents sont enregistrés
+        let agents = handles
+            .registry_handle
+            .list_agents()
+            .await
+            .expect("list_agents should succeed");
+        assert_eq!(agents.len(), 2, "both agents should be registered");
+
+        // ET l'agent valide est Active
+        let good = agents
+            .iter()
+            .find(|a| a.manifest.name == "good-agent")
+            .expect("good-agent should be registered");
+        assert_eq!(
+            good.process_state,
+            ProcessState::Active,
+            "good-agent should be Active"
+        );
+
+        // ET l'agent avec mauvais package est Degraded (python3 disponible) ou Active (python3 absent)
+        let bad = agents
+            .iter()
+            .find(|a| a.manifest.name == "bad-pkg-agent")
+            .expect("bad-pkg-agent should be registered");
+        assert!(
+            bad.process_state == ProcessState::Degraded
+                || bad.process_state == ProcessState::Active,
+            "bad-pkg-agent should be Degraded or Active (never Stopped), got {:?}",
+            bad.process_state
         );
 
         shutdown_handles(handles, &socket_path).await;
