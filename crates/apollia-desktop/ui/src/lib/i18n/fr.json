@@ -1298,6 +1298,85 @@
       "memory_search": "{count} résultats trouvés",
       "bash_executor": "Terminé (code {exit_code}, {duration_ms}ms)",
       "python_executor": "Terminé (code {exit_code}, {duration_ms}ms)"
+    },
+    "groups": {
+      "files": {
+        "label_operator": "Fichiers",
+        "label_builder": "Outils fichiers",
+        "desc_operator": "Lire, écrire et rechercher des fichiers sur votre machine"
+      },
+      "execution": {
+        "label_operator": "Commandes",
+        "label_builder": "Exécution",
+        "desc_operator": "Exécuter des commandes terminal et des scripts Python"
+      },
+      "network": {
+        "label_operator": "Web",
+        "label_builder": "Réseau",
+        "desc_operator": "Récupérer des données depuis des sites web et APIs externes"
+      },
+      "memory": {
+        "label_operator": "Mémoire",
+        "label_builder": "Mémoire",
+        "desc_operator": "Rechercher dans les notes et préférences sauvegardées"
+      }
+    },
+    "catalog": {
+      "file_read": {
+        "label_operator": "Lire des fichiers",
+        "desc_operator": "Consulter le contenu de n'importe quel fichier de votre espace de travail",
+        "desc_builder": "file_read — pagination offset/limit — SandboxProfile::ReadOnly"
+      },
+      "file_write": {
+        "label_operator": "Créer des fichiers",
+        "desc_operator": "Enregistrer de nouveaux fichiers ou écraser des fichiers existants",
+        "desc_builder": "file_write — écriture atomique — SandboxProfile::Restricted"
+      },
+      "file_edit": {
+        "label_operator": "Modifier des fichiers",
+        "desc_operator": "Effectuer des modifications précises dans des fichiers existants",
+        "desc_builder": "file_edit — recherche-remplacement, flag replace_all — SandboxProfile::Restricted"
+      },
+      "file_list": {
+        "label_operator": "Explorer des dossiers",
+        "desc_operator": "Lister les fichiers et sous-dossiers d'un répertoire",
+        "desc_builder": "file_list — profondeur récursive, filtre hidden — SandboxProfile::ReadOnly"
+      },
+      "file_glob": {
+        "label_operator": "Trouver des fichiers",
+        "desc_operator": "Rechercher des fichiers correspondant à un motif (ex. *.txt)",
+        "desc_builder": "file_glob — pattern glob, trié par mtime — SandboxProfile::ReadOnly"
+      },
+      "file_grep": {
+        "label_operator": "Rechercher dans les fichiers",
+        "desc_operator": "Trouver du texte ou des motifs de code dans vos fichiers",
+        "desc_builder": "file_grep — regex, context_lines, max_results — SandboxProfile::ReadOnly"
+      },
+      "bash_executor": {
+        "label_operator": "Commandes terminal",
+        "desc_operator": "Exécuter des commandes shell — chaque exécution demande votre approbation",
+        "desc_builder": "bash_executor — timeout_secs, working_dir — SandboxProfile::Full — dangereux"
+      },
+      "python_executor": {
+        "label_operator": "Scripts Python",
+        "desc_operator": "Exécuter du code Python dans un environnement isolé",
+        "desc_builder": "python_executor — venv par agent, timeout_secs — SandboxProfile::Full — dangereux"
+      },
+      "http_fetch": {
+        "label_operator": "Requêtes web",
+        "desc_operator": "Récupérer des données depuis des sites web ou APIs externes",
+        "desc_builder": "http_fetch — liste blanche obligatoire, limite 1 Mo, GET/POST — SandboxProfile::Network"
+      },
+      "memory_search": {
+        "label_operator": "Rechercher en mémoire",
+        "desc_operator": "Retrouver des informations que l'agent a sauvegardées précédemment",
+        "desc_builder": "memory_search — FTS5 BM25, cloisonné par namespace, limit — SandboxProfile::ReadOnly"
+      }
+    },
+    "select": {
+      "title_operator": "Capacités",
+      "title_builder": "Outils disponibles",
+      "group_partial": "{count}/{total} activés"
     }
   }
 }

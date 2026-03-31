@@ -1298,6 +1298,85 @@
       "memory_search": "{count} results found",
       "bash_executor": "Completed (exit code {exit_code}, {duration_ms}ms)",
       "python_executor": "Completed (exit code {exit_code}, {duration_ms}ms)"
+    },
+    "groups": {
+      "files": {
+        "label_operator": "Files",
+        "label_builder": "File Tools",
+        "desc_operator": "Read, write and search files on your computer"
+      },
+      "execution": {
+        "label_operator": "Commands",
+        "label_builder": "Execution",
+        "desc_operator": "Run terminal commands and Python scripts"
+      },
+      "network": {
+        "label_operator": "Web",
+        "label_builder": "Network",
+        "desc_operator": "Fetch data from external websites and APIs"
+      },
+      "memory": {
+        "label_operator": "Memory",
+        "label_builder": "Memory",
+        "desc_operator": "Search through saved notes and preferences"
+      }
+    },
+    "catalog": {
+      "file_read": {
+        "label_operator": "Read files",
+        "desc_operator": "View the content of any file in your workspace",
+        "desc_builder": "file_read — offset/limit pagination — SandboxProfile::ReadOnly"
+      },
+      "file_write": {
+        "label_operator": "Create files",
+        "desc_operator": "Save new files or overwrite existing ones",
+        "desc_builder": "file_write — atomic write — SandboxProfile::Restricted"
+      },
+      "file_edit": {
+        "label_operator": "Edit files",
+        "desc_operator": "Make precise text changes inside existing files",
+        "desc_builder": "file_edit — search-and-replace, replace_all flag — SandboxProfile::Restricted"
+      },
+      "file_list": {
+        "label_operator": "Browse folders",
+        "desc_operator": "List files and subfolders in a directory",
+        "desc_builder": "file_list — recursive depth, hidden filter — SandboxProfile::ReadOnly"
+      },
+      "file_glob": {
+        "label_operator": "Find files by name",
+        "desc_operator": "Search for files matching a pattern (e.g. *.txt)",
+        "desc_builder": "file_glob — glob pattern, sorted by mtime — SandboxProfile::ReadOnly"
+      },
+      "file_grep": {
+        "label_operator": "Search inside files",
+        "desc_operator": "Find text or code patterns across your files",
+        "desc_builder": "file_grep — regex, context_lines, max_results — SandboxProfile::ReadOnly"
+      },
+      "bash_executor": {
+        "label_operator": "Terminal commands",
+        "desc_operator": "Execute shell commands — each run requires your approval",
+        "desc_builder": "bash_executor — timeout_secs, working_dir — SandboxProfile::Full — dangerous"
+      },
+      "python_executor": {
+        "label_operator": "Python scripts",
+        "desc_operator": "Run Python code in an isolated environment",
+        "desc_builder": "python_executor — per-agent venv, timeout_secs — SandboxProfile::Full — dangerous"
+      },
+      "http_fetch": {
+        "label_operator": "Web requests",
+        "desc_operator": "Retrieve data from external websites or APIs",
+        "desc_builder": "http_fetch — allowlist-enforced, 1 MB cap, GET/POST — SandboxProfile::Network"
+      },
+      "memory_search": {
+        "label_operator": "Search memory",
+        "desc_operator": "Look up information the agent has saved previously",
+        "desc_builder": "memory_search — FTS5 BM25, namespace-scoped, limit — SandboxProfile::ReadOnly"
+      }
+    },
+    "select": {
+      "title_operator": "Capabilities",
+      "title_builder": "Available tools",
+      "group_partial": "{count}/{total} enabled"
     }
   }
 }

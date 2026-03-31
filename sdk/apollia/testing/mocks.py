@@ -102,6 +102,30 @@ class MockToolProxy:
             )
 
 
+class MockLlmResponse:
+    """Attribute-accessible wrapper for LLM response dicts.
+
+    The real ``LlmProxy`` (PyO3) returns an object with a ``.content``
+    attribute.  This wrapper bridges the gap so that both
+    ``response.content`` and ``response["text"]`` patterns work in tests.
+    """
+
+    def __init__(self, data: dict[str, object]) -> None:
+        self._data = data
+        text = data.get("text") or data.get("content") or ""
+        self.content: str = str(text)
+        self.text: str = self.content
+
+    def get(self, key: str, default: object = None) -> object:
+        return self._data.get(key, default)
+
+    def __getitem__(self, key: str) -> object:
+        return self._data[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._data
+
+
 class MockLlmProxy:
     """In-memory mock of ``LlmProxy`` for agent unit tests.
 
@@ -123,8 +147,12 @@ class MockLlmProxy:
         self,
         messages: list[dict[str, object]] | str,
         **kwargs: Any,
-    ) -> dict[str, object]:
+    ) -> MockLlmResponse:
         """Consume and return the next queued response.
+
+        Returns a ``MockLlmResponse`` with both ``.content`` attribute
+        access (matching the real PyO3 ``LlmResponse``) and dict-style
+        access for backward compatibility.
 
         Raises:
             IndexError: If no more responses are available.
@@ -136,7 +164,7 @@ class MockLlmProxy:
                 f"MockLlmProxy exhausted after {self.call_count} calls — "
                 "no more responses configured"
             )
-        return self.responses.pop(0)
+        return MockLlmResponse(self.responses.pop(0))
 
     async def chat(
         self,

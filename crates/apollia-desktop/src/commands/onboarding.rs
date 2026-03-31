@@ -31,6 +31,8 @@ const ONBOARDING_AGENT_NAME: &str = "onboarding-agent";
 pub struct OnboardingStatus {
     /// `true` if all 5 topics have been covered.
     pub completed: bool,
+    /// `true` if the mandatory fields (name, role) have been collected.
+    pub mandatory_complete: bool,
     /// Topics already covered by the user.
     pub topics_covered: Vec<String>,
     /// Completion percentage (0–100).
@@ -141,6 +143,8 @@ fn topic_for_memory_key(key: &str) -> Option<&'static str> {
         || key.starts_with("user.role")
         || key.starts_with("user.languages")
         || key.starts_with("user.expertise")
+        || key.starts_with("user.industry")
+        || key.starts_with("user.goals")
     {
         Some("identity")
     } else if key.starts_with("user.preferences") {
@@ -149,11 +153,35 @@ fn topic_for_memory_key(key: &str) -> Option<&'static str> {
         Some("tools")
     } else if key.starts_with("user.domain") {
         Some("domain")
-    } else if key.starts_with("user.agents") {
+    } else if key.starts_with("user.agents") || key.starts_with("user.challenges") {
         Some("agents")
     } else {
         None
     }
+}
+
+/// Checks whether the mandatory onboarding fields (name, role) have been collected.
+///
+/// Scans the onboarding agent's semantic memory namespace for keys `user.name`
+/// and `user.role` with confidence >= 0.5.
+fn mandatory_fields_collected(agent_db_path: &std::path::Path) -> bool {
+    if !agent_db_path.exists() {
+        return false;
+    }
+    let Ok(store) = apollia_memory::store::MemoryStore::open(agent_db_path) else {
+        return false;
+    };
+    let sem = apollia_memory::semantic::SemanticMemory::new(&store);
+    let Ok(entries) = sem.recall_all("onboarding-agent") else {
+        return false;
+    };
+    let has_name = entries
+        .iter()
+        .any(|e| e.key.starts_with("user.name") && e.confidence >= 0.5);
+    let has_role = entries
+        .iter()
+        .any(|e| e.key.starts_with("user.role") && e.confidence >= 0.5);
+    has_name && has_role
 }
 
 /// Reads onboarding status from UserMemory.
@@ -212,8 +240,11 @@ async fn get_onboarding_status_inner(
 
         let skipped = repo.get_onboarding_skipped().unwrap_or(false);
 
+        let mandatory_complete = mandatory_fields_collected(&agent_db_path);
+
         Ok::<OnboardingStatus, OnboardingError>(OnboardingStatus {
             completed,
+            mandatory_complete,
             topics_covered,
             completion_pct,
             last_session_at,
@@ -324,9 +355,11 @@ fn build_onboarding_prompt(topic: &Option<String>) -> String {
              Do not cover other topics.",
         ),
         None => format!(
-            "You are an onboarding assistant. Cover these topics naturally through conversation: {}. \
+            "You are an onboarding assistant for all professionals (not just developers). \
+             First, ALWAYS collect the user's name and role/profession — these are mandatory. \
+             Then cover these topics naturally through conversation: {}. \
              Ask questions one at a time. Be conversational, not rigid. \
-             Adapt based on what the user shares.",
+             Adapt your questions to the user's profession.",
             ONBOARDING_TOPICS.join(", "),
         ),
     }
@@ -438,6 +471,7 @@ mod tests {
         // GIVEN a complete onboarding status
         let status = OnboardingStatus {
             completed: true,
+            mandatory_complete: true,
             topics_covered: vec![
                 "identity".into(),
                 "preferences".into(),
@@ -465,6 +499,7 @@ mod tests {
         // GIVEN a new user status
         let status = OnboardingStatus {
             completed: false,
+            mandatory_complete: false,
             topics_covered: vec![],
             completion_pct: 0,
             last_session_at: None,

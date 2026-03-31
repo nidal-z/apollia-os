@@ -4,6 +4,7 @@
   import { Copy, Check } from "lucide-svelte";
   import type { ChatMessageView } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
+  import { MarkdownContent } from "$lib/components/ui/markdown";
   import OperatorToolCard from "./OperatorToolCard.svelte";
   import BuilderToolCard from "./BuilderToolCard.svelte";
   import OperatorApprovalCard from "./OperatorApprovalCard.svelte";
@@ -71,7 +72,11 @@
     {/if}
 
     {#if message.content}
-      <p class="whitespace-pre-wrap break-words">{message.content}</p>
+      {#if isUser}
+        <p class="whitespace-pre-wrap break-words">{message.content}</p>
+      {:else}
+        <MarkdownContent content={message.content} />
+      {/if}
     {/if}
 
     {#if hasToolCalls}

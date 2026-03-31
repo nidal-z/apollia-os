@@ -1,11 +1,12 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { Terminal, FileText, Code, Save, Cpu, Settings2, Brain } from "lucide-svelte";
+  import { Save, Cpu, Settings2, TriangleAlert, Brain, ChevronDown } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Toggle } from "$lib/components/ui/toggle";
   import { Sheet } from "$lib/components/ui/sheet";
   import type { ChatSessionDetail, UpdateSessionRequest } from "$lib/types";
+  import { TOOL_GROUPS, TOOL_CATALOG, getGroupState, toggleGroup } from "$lib/tools/tool-catalog";
   import { llmBackends } from "$lib/stores/sse";
   import { useUserMemory, chatConversationStats } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
@@ -20,9 +21,9 @@
   let { open, session, onclose, onupdated }: Props = $props();
 
   let systemPrompt = $state("");
-  let toolBash = $state(false);
-  let toolFileIo = $state(false);
-  let toolPython = $state(false);
+  let enabledTools = $state(new Set<string>());
+  /** Groups collapsed in the config panel. Default: all expanded. */
+  let collapsedGroups = $state(new Set<string>());
   let selectedBackend = $state<string | null>(null);
   let saving = $state(false);
   let saveError = $state<string | null>(null);
@@ -31,19 +32,7 @@
   const isProcessing = $derived(session?.status === "processing");
   const isReadOnly = $derived(isClosed || isProcessing);
 
-  const TOOL_META: { id: string; icon: typeof Terminal; label: string }[] = [
-    { id: "bash_executor", icon: Terminal, label: "bash_executor" },
-    { id: "file_io", icon: FileText, label: "file_io" },
-    { id: "python_executor", icon: Code, label: "python_executor" },
-  ];
-
-  const selectedTools = $derived.by(() => {
-    const tools: string[] = [];
-    if (toolBash) tools.push("bash_executor");
-    if (toolFileIo) tools.push("file_io");
-    if (toolPython) tools.push("python_executor");
-    return tools;
-  });
+  const selectedTools = $derived(Array.from(enabledTools));
 
   const memoryToggleLabel = $derived(
     $uiMode === "builder"
@@ -67,9 +56,7 @@
   function syncFromSession(): void {
     if (!session) return;
     systemPrompt = session.system_prompt ?? "";
-    toolBash = (session.available_tools ?? []).includes("bash_executor");
-    toolFileIo = (session.available_tools ?? []).includes("file_io");
-    toolPython = (session.available_tools ?? []).includes("python_executor");
+    enabledTools = new Set(session.available_tools ?? []);
     selectedBackend = session.llm_backend ?? null;
     saveError = null;
   }
@@ -94,17 +81,7 @@
     }
   }
 
-  function getToolChecked(toolId: string): boolean {
-    if (toolId === "bash_executor") return toolBash;
-    if (toolId === "file_io") return toolFileIo;
-    return toolPython;
-  }
-
-  function setToolChecked(toolId: string, checked: boolean): void {
-    if (toolId === "bash_executor") toolBash = checked;
-    else if (toolId === "file_io") toolFileIo = checked;
-    else toolPython = checked;
-  }
+  const isOperator = $derived($uiMode === "operator");
 
   $effect(() => {
     if (open) syncFromSession();
@@ -187,33 +164,93 @@
 
       <!-- Tools section (libre mode only) -->
       {#if session?.mode === "libre"}
-        <div class="glass-card glass-border rounded-xl p-3.5 space-y-2.5">
+        <div class="glass-card glass-border rounded-xl p-3.5 space-y-3">
           <p class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
-            {$t("chat.select_tools")}
+            {isOperator ? $t("tools.select.title_operator") : $t("tools.select.title_builder")}
           </p>
-          <div class="space-y-1">
-            {#each TOOL_META as tool (tool.id)}
-              <div class="flex items-center justify-between rounded-lg px-3 py-2 glass-surface {isReadOnly ? 'opacity-50' : ''}">
-                <div class="flex items-center gap-2.5">
-                  {#if tool.id === "bash_executor"}
-                    <Terminal class="h-3.5 w-3.5 text-muted-foreground" />
-                  {:else if tool.id === "file_io"}
-                    <FileText class="h-3.5 w-3.5 text-muted-foreground" />
-                  {:else}
-                    <Code class="h-3.5 w-3.5 text-muted-foreground" />
+
+          {#each TOOL_GROUPS as group (group.id)}
+            {@const groupTools = TOOL_CATALOG.filter(t => t.group === group.id)}
+            {@const state = getGroupState(group, enabledTools)}
+            {@const GroupIcon = group.icon}
+            {@const isCollapsed = collapsedGroups.has(group.id)}
+            {@const enabledCount = groupTools.filter(t => enabledTools.has(t.id)).length}
+            <div class="space-y-0.5">
+              <!-- Collapsible group header -->
+              <div class="flex items-center justify-between px-1 py-1 rounded hover:bg-muted/20 transition-colors">
+                <!-- Left: collapse toggle -->
+                <button
+                  class="flex items-center gap-1.5 flex-1 text-left"
+                  onclick={() => {
+                    const next = new Set(collapsedGroups);
+                    if (next.has(group.id)) next.delete(group.id); else next.add(group.id);
+                    collapsedGroups = next;
+                  }}
+                  data-testid="config-group-header-{group.id}"
+                >
+                  <GroupIcon class="h-3 w-3 text-muted-foreground/60" />
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                    {isOperator ? $t(group.labelOperatorKey) : $t(group.labelBuilderKey)}
+                  </span>
+                  {#if isCollapsed}
+                    <span class="text-[10px] text-muted-foreground/40 font-normal normal-case tracking-normal">
+                      {state === "all" ? "· all" : state === "some" ? `· ${enabledCount}/${groupTools.length}` : "· none"}
+                    </span>
                   {/if}
-                  <span class="text-xs font-medium">{tool.label}</span>
-                </div>
-                <Toggle
-                  size="sm"
-                  checked={getToolChecked(tool.id)}
-                  onchange={(checked) => setToolChecked(tool.id, checked)}
-                  disabled={isReadOnly}
-                  data-testid="config-tool-{tool.id}"
-                />
+                  <ChevronDown
+                    class="h-3 w-3 text-muted-foreground/30 transition-transform duration-150 ml-auto {isCollapsed ? '' : 'rotate-180'}"
+                  />
+                </button>
+                <!-- Right: toggle all (shown when expanded) -->
+                {#if !isCollapsed && !isReadOnly}
+                  <button
+                    class="text-[9px] text-muted-foreground/30 hover:text-primary transition-colors px-1.5 ml-1"
+                    onclick={() => { enabledTools = toggleGroup(group, enabledTools); }}
+                    data-testid="config-group-toggle-{group.id}"
+                  >
+                    {state === "all" ? "− none" : "+ all"}
+                  </button>
+                {/if}
               </div>
-            {/each}
-          </div>
+
+              <!-- Individual tools (hidden when collapsed) -->
+              {#if !isCollapsed}
+                {#each groupTools as tool (tool.id)}
+                  {@const checked = enabledTools.has(tool.id)}
+                  {@const ToolIcon = tool.icon}
+                  <div class="flex items-center justify-between rounded-lg px-3 py-2 glass-surface {isReadOnly ? 'opacity-50' : ''}">
+                    <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                      <ToolIcon class="h-3.5 w-3.5 shrink-0 {tool.dangerous ? 'text-amber-500/70' : 'text-muted-foreground'}" />
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-xs font-medium truncate">
+                            {isOperator ? $t(tool.labelOperatorKey) : tool.id}
+                          </span>
+                          {#if tool.dangerous && !isOperator}
+                            <TriangleAlert class="h-2.5 w-2.5 text-amber-500/60 shrink-0" />
+                          {/if}
+                        </div>
+                        <p class="text-[10px] text-muted-foreground/50 leading-tight mt-0.5">
+                          {isOperator ? $t(tool.descOperatorKey) : $t(tool.descBuilderKey)}
+                        </p>
+                      </div>
+                    </div>
+                    <Toggle
+                      size="sm"
+                      {checked}
+                      onchange={(v) => {
+                        const next = new Set(enabledTools);
+                        if (v) next.add(tool.id); else next.delete(tool.id);
+                        enabledTools = next;
+                      }}
+                      disabled={isReadOnly}
+                      data-testid="config-tool-{tool.id}"
+                    />
+                  </div>
+                {/each}
+              {/if}
+            </div>
+          {/each}
         </div>
       {/if}
 

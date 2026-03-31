@@ -2,13 +2,15 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { MessageSquare, Plus, Loader2, Bot, X, Terminal, FileText, Code } from "lucide-svelte";
+  import { MessageSquare, Plus, Loader2, Bot, X, ChevronDown } from "lucide-svelte";
   import { connectionStatus } from "$lib/stores/sse";
   import { activeChatSessions, closedChatSessions, pendingChatSessionId } from "$lib/stores/chat";
   import { chatSessions } from "$lib/stores/sse";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { ChatSessionSummary, CreateSessionRequest, AgentListItem } from "$lib/types";
+  import { TOOL_GROUPS, TOOL_CATALOG, DEFAULT_ENABLED_TOOLS, getGroupState, toggleGroup } from "$lib/tools/tool-catalog";
+  import { uiMode } from "$lib/stores/mode";
   import EmptyState from "../components/common/EmptyState.svelte";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import ChatSessionCard from "../components/chat/ChatSessionCard.svelte";
@@ -18,17 +20,10 @@
   let showNewChatPicker = $state(false);
   let agents = $state<AgentListItem[]>([]);
   let loadingAgents = $state(false);
-  let toolBash = $state(true);
-  let toolFileIo = $state(true);
-  let toolPython = $state(false);
-
-  const selectedTools = $derived.by(() => {
-    const tools: string[] = [];
-    if (toolBash) tools.push("bash_executor");
-    if (toolFileIo) tools.push("file_io");
-    if (toolPython) tools.push("python_executor");
-    return tools;
-  });
+  let enabledTools = $state(new Set<string>(DEFAULT_ENABLED_TOOLS));
+  const selectedTools = $derived(Array.from(enabledTools));
+  const isOperator = $derived($uiMode === "operator");
+  let expandedGroup = $state<string | null>(null);
 
   const activeAgents = $derived(agents.filter((a) => a.runtime_status === "active"));
 
@@ -114,57 +109,110 @@
         </button>
       </div>
 
-      <div class="flex items-center gap-2 flex-wrap">
-        <!-- Tool toggles -->
-        {#each [
-          { id: "bash", checked: toolBash, icon: Terminal, label: "bash" },
-          { id: "file", checked: toolFileIo, icon: FileText, label: "file_io" },
-          { id: "python", checked: toolPython, icon: Code, label: "python" },
-        ] as tool (tool.id)}
-          <label class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 cursor-pointer text-[11px] font-medium transition-all
-            {tool.checked ? 'bg-primary/10 text-primary ring-1 ring-primary/20' : 'bg-muted/40 text-muted-foreground hover:bg-muted/60'}">
-            <input
-              type="checkbox"
-              checked={tool.checked}
-              onchange={() => {
-                if (tool.id === "bash") toolBash = !toolBash;
-                else if (tool.id === "file") toolFileIo = !toolFileIo;
-                else toolPython = !toolPython;
-              }}
-              class="sr-only"
-              data-testid="pick-tool-{tool.id}"
-            />
-            <tool.icon size={12} />
-            {tool.label}
-          </label>
-        {/each}
-
-        <button
-          class="flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[11px] font-medium
-            transition-colors hover:bg-primary/90 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none"
-          onclick={createLibreChat}
-          disabled={creating}
-          data-testid="pick-libre"
-        >
-          {#if creating}<Loader2 size={12} class="animate-spin" />{:else}<MessageSquare size={12} />{/if}
-          {$t("chat.start")}
-        </button>
-
-        <!-- Separator + agents -->
-        {#if !loadingAgents && activeAgents.length > 0}
-          <span class="text-muted-foreground/30 mx-1">|</span>
-          {#each activeAgents as agent (agent.name)}
+      <div class="space-y-2">
+        <!-- Row 1: group chips + Start button + agents -->
+        <div class="flex items-center gap-2 flex-wrap">
+          {#each TOOL_GROUPS as group (group.id)}
+            {@const state = getGroupState(group, enabledTools)}
+            {@const GroupIcon = group.icon}
+            {@const partialCount = group.tools.filter(id => enabledTools.has(id)).length}
+            {@const isExpanded = expandedGroup === group.id}
             <button
-              class="flex items-center gap-1.5 rounded-md bg-muted/40 px-2.5 py-1.5 text-[11px] font-medium
-                transition-all hover:bg-primary/10 hover:text-primary active:scale-[0.97] disabled:opacity-50"
-              onclick={() => createAgentChat(agent.name)}
-              disabled={creating}
-              data-testid="pick-agent-{agent.name}"
+              class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-all
+                {isExpanded
+                  ? 'bg-primary/15 text-primary ring-1 ring-primary/30'
+                  : state === 'all'
+                  ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
+                  : state === 'some'
+                  ? 'bg-primary/5 text-primary/60 ring-1 ring-primary/10'
+                  : 'bg-muted/40 text-muted-foreground hover:bg-muted/60'}"
+              onclick={() => { expandedGroup = isExpanded ? null : group.id; }}
+              data-testid="pick-group-{group.id}"
             >
-              <Bot size={12} />
-              {agent.name}
+              <GroupIcon size={12} />
+              {isOperator ? $t(group.labelOperatorKey) : $t(group.labelBuilderKey)}
+              {#if state === "some"}
+                <span class="opacity-50 text-[10px]">{partialCount}/{group.tools.length}</span>
+              {:else if state === "all" && !isOperator}
+                <span class="opacity-50 text-[10px]">{group.tools.length}</span>
+              {/if}
+              <ChevronDown
+                size={10}
+                class="transition-transform duration-150 {isExpanded ? 'rotate-180' : ''}"
+              />
             </button>
           {/each}
+
+          <button
+            class="flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[11px] font-medium
+              transition-colors hover:bg-primary/90 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none"
+            onclick={createLibreChat}
+            disabled={creating}
+            data-testid="pick-libre"
+          >
+            {#if creating}<Loader2 size={12} class="animate-spin" />{:else}<MessageSquare size={12} />{/if}
+            {$t("chat.start")}
+          </button>
+
+          {#if !loadingAgents && activeAgents.length > 0}
+            <span class="text-muted-foreground/30 mx-1">|</span>
+            {#each activeAgents as agent (agent.name)}
+              <button
+                class="flex items-center gap-1.5 rounded-md bg-muted/40 px-2.5 py-1.5 text-[11px] font-medium
+                  transition-all hover:bg-primary/10 hover:text-primary active:scale-[0.97] disabled:opacity-50"
+                onclick={() => createAgentChat(agent.name)}
+                disabled={creating}
+                data-testid="pick-agent-{agent.name}"
+              >
+                <Bot size={12} />
+                {agent.name}
+              </button>
+            {/each}
+          {/if}
+        </div>
+
+        <!-- Row 2: expanded group detail (accordion) -->
+        {#if expandedGroup}
+          {@const group = TOOL_GROUPS.find(g => g.id === expandedGroup)}
+          {#if group}
+            {@const groupTools = TOOL_CATALOG.filter(t => t.group === group.id)}
+            {@const groupState = getGroupState(group, enabledTools)}
+            <div class="flex flex-wrap items-center gap-1.5 pt-2 pl-1 border-t border-border/20 animate-fade-in">
+              <!-- Individual tool chips -->
+              {#each groupTools as tool (tool.id)}
+                {@const checked = enabledTools.has(tool.id)}
+                {@const ToolIcon = tool.icon}
+                <label
+                  class="flex items-center gap-1.5 rounded-md px-2 py-1 cursor-pointer text-[11px] font-medium transition-all
+                    {checked
+                      ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
+                      : 'bg-muted/30 text-muted-foreground hover:bg-muted/50'}"
+                  title={isOperator ? tool.id : $t(tool.descBuilderKey)}
+                  data-testid="pick-tool-{tool.id}"
+                >
+                  <input
+                    type="checkbox"
+                    {checked}
+                    onchange={() => {
+                      const next = new Set(enabledTools);
+                      if (next.has(tool.id)) next.delete(tool.id); else next.add(tool.id);
+                      enabledTools = next;
+                    }}
+                    class="sr-only"
+                  />
+                  <ToolIcon size={11} />
+                  {isOperator ? $t(tool.labelOperatorKey) : tool.id}
+                </label>
+              {/each}
+              <!-- Quick all/none -->
+              <button
+                class="ml-auto text-[10px] text-muted-foreground/40 hover:text-primary transition-colors px-1"
+                onclick={() => { enabledTools = toggleGroup(group, enabledTools); }}
+              >
+                {groupState === "all" ? "− none" : "+ all"}
+              </button>
+            </div>
+          {/if}
         {/if}
       </div>
     </div>

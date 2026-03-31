@@ -317,6 +317,7 @@ name = "apollia-memory"
 version = "0.1.0"
 dependencies = [
  "apollia-core",
+ "chrono",
  "rusqlite",
  "serde",
  "serde_json",

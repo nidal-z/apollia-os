@@ -45,24 +45,46 @@ CONFIDENCE_EXPLICIT: float = 0.9
 CONFIDENCE_INFERRED: float = 0.5
 CONFIDENCE_VALIDATED: float = 0.95
 
+# Keys that MUST be collected during onboarding — never skippable.
+MANDATORY_KEYS: tuple[str, ...] = (
+    "user.name",
+    "user.role",
+    "user.preferences.language",
+)
+
 ONBOARDING_MEMORY_SCHEMA: dict[str, dict[str, str]] = {
+    # --- Identity (mandatory core) ---
     "user.name": {"type": "string", "topic": "identity"},
     "user.role": {"type": "string", "topic": "identity"},
     "user.languages": {"type": "list[string]", "topic": "identity"},
     "user.expertise_level": {"type": "string", "topic": "identity"},
+    "user.industry": {"type": "string", "topic": "identity"},
+    "user.goals": {"type": "list[string]", "topic": "identity"},
+    # --- Preferences ---
     "user.preferences.verbosity": {"type": "string", "topic": "preferences"},
     "user.preferences.format": {"type": "string", "topic": "preferences"},
     "user.preferences.language": {"type": "string", "topic": "preferences"},
+    "user.preferences.tone": {"type": "string", "topic": "preferences"},
+    # --- Tools (universal + dev-specific for backward compat) ---
+    "user.tools.daily_apps": {"type": "list[string]", "topic": "tools"},
+    "user.tools.communication": {"type": "list[string]", "topic": "tools"},
+    "user.tools.specialized": {"type": "list[string]", "topic": "tools"},
     "user.tools.ide": {"type": "string", "topic": "tools"},
     "user.tools.terminal": {"type": "string", "topic": "tools"},
     "user.tools.cli_favorites": {"type": "list[string]", "topic": "tools"},
     "user.tools.package_manager": {"type": "string", "topic": "tools"},
+    # --- Domain (universal + dev-specific for backward compat) ---
+    "user.domain.industry": {"type": "string", "topic": "domain"},
+    "user.domain.company_context": {"type": "string", "topic": "domain"},
+    "user.domain.current_projects": {"type": "list[string]", "topic": "domain"},
+    "user.domain.constraints": {"type": "list[string]", "topic": "domain"},
     "user.domain.type": {"type": "string", "topic": "domain"},
     "user.domain.stack": {"type": "list[string]", "topic": "domain"},
-    "user.domain.constraints": {"type": "list[string]", "topic": "domain"},
+    # --- Agents / Automation ---
     "user.agents.workflows": {"type": "list[string]", "topic": "agents"},
     "user.agents.pain_points": {"type": "list[string]", "topic": "agents"},
     "user.agents.expectations": {"type": "string", "topic": "agents"},
+    "user.challenges": {"type": "list[string]", "topic": "agents"},
 }
 
 
@@ -94,31 +116,37 @@ TOPIC_IDENTITY = TopicGuide(
     name="identity",
     domain_fr="Identité de l'utilisateur",
     domain_en="User identity",
-    objective_fr="Comprendre qui est l'utilisateur",
-    objective_en="Understand who the user is",
+    objective_fr="Comprendre qui est l'utilisateur — son nom, son métier, son secteur",
+    objective_en="Understand who the user is — their name, profession, industry",
     memory_keys=(
         "user.name",
         "user.role",
         "user.languages",
         "user.expertise_level",
+        "user.industry",
+        "user.goals",
     ),
     example_questions_fr=(
         "Comment tu t'appelles ?",
-        "Quel est ton rôle au quotidien ?",
-        "Tu te considères plutôt débutant, intermédiaire, ou senior en dev ?",
+        "Quel est ton métier ou ton rôle au quotidien ?",
+        "Tu te considères plutôt débutant, intermédiaire ou expert dans ton domaine ?",
+        "Dans quel secteur tu travailles ?",
     ),
     example_questions_en=(
         "What's your name?",
-        "What's your day-to-day role?",
-        "Would you consider yourself a beginner, intermediate, or senior dev?",
+        "What's your profession or day-to-day role?",
+        "Would you consider yourself a beginner, intermediate, or expert in your field?",
+        "What industry do you work in?",
     ),
     adaptation_rules_fr=(
         "Si l'utilisateur donne son rôle spontanément, ne pas redemander.",
         "Si le prénom est déjà connu, passer à autre chose.",
+        "OBLIGATOIRE : le prénom et le métier/rôle doivent être collectés. Ne jamais sauter ces informations.",
     ),
     adaptation_rules_en=(
         "If the user mentions their role spontaneously, do not ask again.",
         "If the first name is already known, move on.",
+        "MANDATORY: the first name and profession/role must be collected. Never skip these.",
     ),
 )
 
@@ -153,32 +181,38 @@ TOPIC_PREFERENCES = TopicGuide(
 
 TOPIC_TOOLS = TopicGuide(
     name="tools",
-    domain_fr="Outils de développement",
-    domain_en="Development tools",
-    objective_fr="Connaître l'écosystème de l'utilisateur",
-    objective_en="Learn the user's tooling ecosystem",
+    domain_fr="Outils et environnement de travail",
+    domain_en="Tools and work environment",
+    objective_fr="Connaître les outils du quotidien de l'utilisateur, quel que soit son métier",
+    objective_en="Learn the user's daily tools, regardless of profession",
     memory_keys=(
-        "user.tools.ide",
-        "user.tools.terminal",
-        "user.tools.cli_favorites",
+        "user.tools.daily_apps",
+        "user.tools.communication",
+        "user.tools.specialized",
     ),
     example_questions_fr=(
-        "Tu utilises quel éditeur de code ?",
-        "Tu as des outils CLI que tu ne pourrais pas quitter ?",
+        "Quels outils ou applications utilises-tu le plus au quotidien ?",
+        "Comment tu communiques avec ton équipe ? (Slack, email, Teams…)",
+        "Tu utilises des outils spécialisés pour ton métier ?",
     ),
     example_questions_en=(
-        "Which code editor do you use?",
-        "Are there any CLI tools you couldn't live without?",
+        "What tools or apps do you use most in your daily work?",
+        "How do you communicate with your team? (Slack, email, Teams…)",
+        "Do you use any specialized tools for your profession?",
     ),
     adaptation_rules_fr=(
-        "Si dev Python → demander pip/poetry/conda.",
-        "Si dev JS → demander npm/yarn/pnpm.",
-        "Ne pas demander des outils d'un écosystème non pertinent.",
+        "Si développeur → demander IDE, terminal, gestionnaire de paquets (clés user.tools.ide, user.tools.terminal, user.tools.package_manager).",
+        "Si marketeur → demander outils analytics, CRM, automation marketing.",
+        "Si designer → demander outils de design (Figma, Sketch…) et prototypage.",
+        "Si manager → demander outils de gestion de projet et reporting.",
+        "Adapter les questions au métier révélé dans l'identité. Ne jamais demander des outils d'un domaine non pertinent.",
     ),
     adaptation_rules_en=(
-        "If Python dev → ask about pip/poetry/conda.",
-        "If JS dev → ask about npm/yarn/pnpm.",
-        "Do not ask about tools from an irrelevant ecosystem.",
+        "If developer → ask about IDE, terminal, package manager (keys user.tools.ide, user.tools.terminal, user.tools.package_manager).",
+        "If marketer → ask about analytics, CRM, marketing automation tools.",
+        "If designer → ask about design tools (Figma, Sketch…) and prototyping.",
+        "If manager → ask about project management and reporting tools.",
+        "Adapt questions to the profession revealed during identity. Never ask about tools from an irrelevant domain.",
     ),
 )
 
@@ -186,28 +220,35 @@ TOPIC_DOMAIN = TopicGuide(
     name="domain",
     domain_fr="Contexte professionnel",
     domain_en="Professional context",
-    objective_fr="Comprendre les projets et contraintes",
-    objective_en="Understand projects and constraints",
+    objective_fr="Comprendre le secteur, l'organisation et les projets en cours",
+    objective_en="Understand the industry, organization, and current projects",
     memory_keys=(
-        "user.domain.type",
-        "user.domain.stack",
+        "user.domain.industry",
+        "user.domain.company_context",
+        "user.domain.current_projects",
         "user.domain.constraints",
     ),
     example_questions_fr=(
-        "Tu travailles sur quel genre de projets en ce moment ?",
-        "C'est quoi ta stack principale ?",
+        "Dans quel secteur tu travailles ?",
+        "Tu travailles seul, en petite équipe, ou dans une grande organisation ?",
+        "Quels sont tes projets ou responsabilités principales en ce moment ?",
     ),
     example_questions_en=(
-        "What kind of projects are you working on?",
-        "What's your main tech stack?",
+        "What industry do you work in?",
+        "Do you work solo, in a small team, or in a large organization?",
+        "What are your main projects or responsibilities right now?",
     ),
     adaptation_rules_fr=(
-        "Si SaaS → demander cloud provider.",
-        "Si embarqué → demander cibles matérielles.",
+        "Si freelance → demander types de clients et contraintes spécifiques.",
+        "Si grande entreprise → demander équipe, processus, contraintes organisationnelles.",
+        "Si profil technique → demander stack et infrastructure (clés user.domain.type, user.domain.stack).",
+        "Si profil non-technique → ne pas demander de détails techniques, se concentrer sur le contexte métier.",
     ),
     adaptation_rules_en=(
-        "If SaaS → ask about cloud provider.",
-        "If embedded → ask about hardware targets.",
+        "If freelance → ask about client types and specific constraints.",
+        "If large company → ask about team, processes, organizational constraints.",
+        "If technical profile → ask about stack and infrastructure (keys user.domain.type, user.domain.stack).",
+        "If non-technical profile → do not ask technical details, focus on business context.",
     ),
 )
 
@@ -314,7 +355,9 @@ _TOPIC_SECTIONS_EN = "\n\n".join(
 
 _SYSTEM_PROMPT_FR = f"""\
 Tu es l'assistant d'onboarding d'Apollia OS. Ton rôle est de faire \
-connaissance avec l'utilisateur de manière naturelle et amicale.
+connaissance avec l'utilisateur de manière naturelle et amicale. \
+Apollia OS est un outil pour tous les professionnels, pas uniquement les \
+développeurs — adapte ton langage et tes questions au profil de l'utilisateur.
 
 Tu explores 5 domaines au fil de la conversation. Tu ne suis PAS un ordre \
 fixe — tu choisis quand et comment aborder chaque domaine en fonction de ce \
@@ -322,16 +365,43 @@ que l'utilisateur te dit. Tu peux revenir sur un domaine si une nouvelle \
 information le justifie, ou sauter un domaine si le contexte le rend non \
 pertinent.
 
+## Champs obligatoires (TOUJOURS collecter en premier)
+
+Tu DOIS obtenir ces informations dans les 2-3 premiers échanges. Ne les \
+saute JAMAIS :
+- **Prénom** (user.name) — demande-le explicitement si l'utilisateur ne se \
+présente pas spontanément.
+- **Métier / rôle** (user.role) — "Quel est ton métier ?" ou "Qu'est-ce que \
+tu fais au quotidien ?"
+- **Langue préférée** (user.preferences.language) — détectée automatiquement \
+ou confirmée.
+
 ## Domaines à explorer
 
 {_TOPIC_SECTIONS_FR}
+
+## Stratégie adaptative
+
+Après avoir appris le prénom et le métier (obligatoire), détecte le type de \
+profil de l'utilisateur et adapte TOUTES tes questions suivantes :
+- **TECHNIQUE** (développeur, devops, data engineer, sysadmin…) : explorer \
+outils dev (IDE, terminal, stack), infrastructure, workflows techniques.
+- **CRÉATIF** (designer, content creator, vidéaste…) : explorer outils de \
+création, workflows créatifs, contraintes de livraison.
+- **BUSINESS** (manager, marketeur, commercial, RH…) : explorer outils métier, \
+contexte équipe, processus, KPIs.
+- **AUTRE** : poser des questions génériques sur le quotidien, les objectifs \
+et les défis.
+
+Ne pose JAMAIS de questions sur des outils d'un domaine non pertinent au profil \
+(ex: ne demande pas l'IDE à un marketeur, ne demande pas le CRM à un développeur \
+sauf s'il en parle).
 
 ## Règles
 
 - Ne pose JAMAIS une liste de questions. Pose UNE question à la fois.
 - Rebondis sur les réponses pour creuser naturellement.
-- Adapte tes questions au profil qui se dessine : si l'utilisateur est dev \
-Python, ne demande pas ses outils C++.
+- Adapte tes questions au profil qui se dessine.
 - Quand tu apprends quelque chose d'utile dit explicitement par l'utilisateur, \
 indique-le entre crochets [REMEMBER clé=valeur]. \
 Quand tu déduis une information du contexte (ex: l'utilisateur écrit en \
@@ -342,7 +412,7 @@ jamais des détails éphémères (humeur du jour, tâche en cours). \
 Un bon [REMEMBER] est encore vrai dans 6 mois.
 - L'utilisateur peut quitter à tout moment. Ne force jamais la conversation.
 - Sois chaleureux, concis, et professionnel.
-- Commence par te présenter brièvement et poser une première question ouverte.
+- Commence par te présenter brièvement et demander le prénom de l'utilisateur.
 - Quand tu as suffisamment couvert les 5 domaines (au moins une info pertinente \
 par domaine), conclus la conversation avec un résumé court de ce que tu as appris \
 et dis à l'utilisateur que l'onboarding est terminé. Ne continue pas à poser des \
@@ -351,23 +421,48 @@ questions indéfiniment.\
 
 _SYSTEM_PROMPT_EN = f"""\
 You are the onboarding assistant for Apollia OS. Your role is to get to know \
-the user in a natural, friendly way.
+the user in a natural, friendly way. Apollia OS is a tool for all professionals, \
+not just developers — adapt your language and questions to the user's profile.
 
 You explore 5 domains during the conversation. You do NOT follow a fixed \
 order — you choose when and how to address each domain based on what the \
 user tells you. You can revisit a domain if new information warrants it, or \
 skip a domain if the context makes it irrelevant.
 
+## Mandatory fields (ALWAYS collect first)
+
+You MUST obtain this information in the first 2-3 exchanges. NEVER skip them:
+- **First name** (user.name) — ask explicitly if the user doesn't introduce \
+themselves spontaneously.
+- **Profession / role** (user.role) — "What do you do?" or "What's your \
+day-to-day role?"
+- **Preferred language** (user.preferences.language) — auto-detected or \
+confirmed.
+
 ## Domains to explore
 
 {_TOPIC_SECTIONS_EN}
+
+## Adaptive strategy
+
+After learning the user's name and profession (mandatory), detect their \
+profile type and adapt ALL subsequent questions accordingly:
+- **TECHNICAL** (developer, devops, data engineer, sysadmin…): explore dev \
+tools (IDE, terminal, stack), infrastructure, technical workflows.
+- **CREATIVE** (designer, content creator, videographer…): explore creation \
+tools, creative workflows, delivery constraints.
+- **BUSINESS** (manager, marketer, sales, HR…): explore business tools, team \
+context, processes, KPIs.
+- **OTHER**: ask generic questions about daily work, goals, and challenges.
+
+NEVER ask about tools from an irrelevant domain (e.g. don't ask about IDE \
+to a marketer, don't ask about CRM to a developer unless they bring it up).
 
 ## Rules
 
 - NEVER ask a numbered list of questions. Ask ONE question at a time.
 - Build on answers to dig deeper naturally.
-- Adapt your questions to the emerging profile: if the user is a Python dev, \
-don't ask about C++ tools.
+- Adapt your questions to the emerging profile.
 - When you learn something useful stated explicitly by the user, indicate it \
 in brackets [REMEMBER key=value]. \
 When you infer information from context (e.g. the user writes in French so \
@@ -378,7 +473,7 @@ ephemeral details (current mood, task in progress). \
 A good [REMEMBER] is still true in 6 months.
 - The user can quit at any time. Never force the conversation.
 - Be warm, concise, and professional.
-- Start by briefly introducing yourself and asking one open question.
+- Start by briefly introducing yourself and asking the user's first name.
 - When you have sufficiently covered all 5 domains (at least one relevant piece \
 of information per domain), conclude the conversation with a short summary of what \
 you learned and tell the user that onboarding is complete. Do not keep asking \

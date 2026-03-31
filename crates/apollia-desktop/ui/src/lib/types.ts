@@ -825,6 +825,7 @@ export interface PlanCacheHitEvent {
 /** Onboarding completion status returned by get_onboarding_status. */
 export interface OnboardingStatus {
   completed: boolean;
+  mandatory_complete: boolean;
   topics_covered: string[];
   completion_pct: number;
   last_session_at: string | null;

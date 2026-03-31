@@ -7,11 +7,18 @@ from apollia.testing.assertions import (
     assert_result_input_required,
     assert_tool_called,
 )
-from apollia.testing.mocks import MockContext, MockLlmProxy, MockMemory, MockToolProxy
+from apollia.testing.mocks import (
+    MockContext,
+    MockLlmProxy,
+    MockLlmResponse,
+    MockMemory,
+    MockToolProxy,
+)
 
 __all__ = [
     "MockContext",
     "MockLlmProxy",
+    "MockLlmResponse",
     "MockMemory",
     "MockToolProxy",
     "assert_llm_called",

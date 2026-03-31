@@ -129,6 +129,57 @@ impl NativeChatToolInvoker {
         let output = tool.run(input).await.map_err(|e| e.to_string())?;
         serde_json::to_string(&output).map_err(|e| e.to_string())
     }
+
+    /// Execute `file_edit` with the given JSON arguments.
+    async fn invoke_file_edit(&self, arguments: &serde_json::Value) -> Result<String, String> {
+        use apollia_tools::tools::file_edit::{FileEdit, FileEditInput};
+
+        let tool = FileEdit::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let input: FileEditInput = serde_json::from_value(arguments.clone())
+            .map_err(|e| format!("file_edit: invalid arguments: {e}"))?;
+        let output = tool.run(input).await.map_err(|e| e.to_string())?;
+        serde_json::to_string(&output).map_err(|e| e.to_string())
+    }
+
+    /// Execute `file_glob` with the given JSON arguments.
+    async fn invoke_file_glob(&self, arguments: &serde_json::Value) -> Result<String, String> {
+        use apollia_tools::tools::file_glob::{FileGlob, FileGlobInput};
+
+        let tool = FileGlob::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let input: FileGlobInput = serde_json::from_value(arguments.clone())
+            .map_err(|e| format!("file_glob: invalid arguments: {e}"))?;
+        let output = tool.run(input).await.map_err(|e| e.to_string())?;
+        serde_json::to_string(&output).map_err(|e| e.to_string())
+    }
+
+    /// Execute `file_grep` with the given JSON arguments.
+    async fn invoke_file_grep(&self, arguments: &serde_json::Value) -> Result<String, String> {
+        use apollia_tools::tools::file_grep::{FileGrep, FileGrepInput};
+
+        let tool = FileGrep::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let input: FileGrepInput = serde_json::from_value(arguments.clone())
+            .map_err(|e| format!("file_grep: invalid arguments: {e}"))?;
+        let output = tool.run(input).await.map_err(|e| e.to_string())?;
+        serde_json::to_string(&output).map_err(|e| e.to_string())
+    }
+
+    /// Execute `http_fetch` with the given JSON arguments.
+    ///
+    /// In libre chat mode, the URL's hostname is dynamically added to the allowlist
+    /// since the user explicitly enabled this tool and tool calls are HITL-approved.
+    async fn invoke_http_fetch(&self, arguments: &serde_json::Value) -> Result<String, String> {
+        use apollia_tools::tools::http_fetch::{HttpFetch, HttpFetchInput};
+
+        let input: HttpFetchInput = serde_json::from_value(arguments.clone())
+            .map_err(|e| format!("http_fetch: invalid arguments: {e}"))?;
+
+        let hostname = extract_hostname(&input.url)
+            .ok_or_else(|| "http_fetch: cannot parse hostname from URL".to_string())?;
+
+        let tool = HttpFetch::new(Some(vec![hostname]));
+        let output = tool.run(input).await.map_err(|e| e.to_string())?;
+        serde_json::to_string(&output).map_err(|e| e.to_string())
+    }
 }
 
 #[async_trait::async_trait]
@@ -143,6 +194,10 @@ impl ToolInvoker for NativeChatToolInvoker {
             "file_read" => self.invoke_file_read(arguments).await,
             "file_write" => self.invoke_file_write(arguments).await,
             "file_list" => self.invoke_file_list(arguments).await,
+            "file_edit" => self.invoke_file_edit(arguments).await,
+            "file_glob" => self.invoke_file_glob(arguments).await,
+            "file_grep" => self.invoke_file_grep(arguments).await,
+            "http_fetch" => self.invoke_http_fetch(arguments).await,
             other => Err(format!("unknown tool: {other}")),
         }
     }
@@ -249,13 +304,13 @@ impl BuiltInChatAgent {
 
         if let Some(ref repo_mutex) = self.user_memory {
             match repo_mutex.lock() {
-                Ok(repo) => match repo.recall_all_for_injection(50) {
+                Ok(repo) => match repo.recall_persona_brief(30) {
                     Ok(block) if !block.is_empty() => {
                         prompt.push_str(
-                            "\n\n## User Context\n\
-                             Use this to personalize your responses (adapt language, depth, \
-                             examples to the user's profile). Do not repeat this information \
-                             back to the user unless asked.\n",
+                            "\n\n## User Persona\n\
+                             Follow the adaptation instructions below to personalize every \
+                             response. Do not repeat this information back to the user \
+                             unless asked.\n\n",
                         );
                         prompt.push_str(&block);
                     }
@@ -731,6 +786,35 @@ fn build_llm_messages(
 
     messages.push(LlmChatMessage::user(user_message));
     messages
+}
+
+/// Extract the hostname from a URL string for use as an http_fetch allowlist entry.
+///
+/// Handles common shapes: `https://host/path`, `http://host:port/path`.
+/// Returns `None` for malformed URLs or those without a hostname.
+fn extract_hostname(url: &str) -> Option<String> {
+    let rest = url.find("://").map(|i| &url[i + 3..])?;
+    let host_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let host_and_port = &rest[..host_end];
+    // Strip port if present (skip IPv6 brackets)
+    let host = if !host_and_port.starts_with('[') {
+        if let Some(colon) = host_and_port.rfind(':') {
+            if host_and_port[colon + 1..].chars().all(|c| c.is_ascii_digit()) {
+                &host_and_port[..colon]
+            } else {
+                host_and_port
+            }
+        } else {
+            host_and_port
+        }
+    } else {
+        host_and_port
+    };
+    if host.is_empty() {
+        None
+    } else {
+        Some(host.to_string())
+    }
 }
 
 /// Convert available tool names to LLM-compatible [`ToolSpec`]s via the registry.
@@ -1933,12 +2017,12 @@ mod tests {
         // WHEN building the system prompt
         let prompt = agent.build_system_prompt("Base prompt.");
 
-        // THEN the prompt contains the user context block
+        // THEN the prompt contains the user persona block
         assert!(prompt.starts_with("Base prompt."));
-        assert!(prompt.contains("## User Context (for reference, use as you see fit)"));
-        assert!(prompt.contains("langue: francais"));
-        assert!(prompt.contains("format: markdown"));
-        assert!(prompt.contains("projet: apollia"));
+        assert!(prompt.contains("## User Persona"));
+        assert!(prompt.contains("francais"));
+        assert!(prompt.contains("markdown"));
+        assert!(prompt.contains("apollia"));
     }
 
     #[tokio::test]
@@ -1954,9 +2038,8 @@ mod tests {
         // WHEN building the system prompt
         let prompt = agent.build_system_prompt("Base prompt.");
 
-        // THEN the prompt does NOT contain the user context block
-        assert_eq!(prompt, "Base prompt.");
-        assert!(!prompt.contains("User Context"));
+        // THEN the prompt does NOT contain the user persona block
+        assert!(!prompt.contains("User Persona"));
     }
 
     #[tokio::test]
@@ -1971,9 +2054,8 @@ mod tests {
         // WHEN building the system prompt
         let prompt = agent.build_system_prompt("Base prompt.");
 
-        // THEN the prompt does NOT contain the user context block
-        assert_eq!(prompt, "Base prompt.");
-        assert!(!prompt.contains("User Context"));
+        // THEN the prompt does NOT contain the user persona block
+        assert!(!prompt.contains("User Persona"));
     }
 
     // ── Context window management tests ─────────────────────────────────

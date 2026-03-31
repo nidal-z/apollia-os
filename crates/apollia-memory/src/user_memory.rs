@@ -29,6 +29,8 @@ const KEY_SEPARATOR: char = '.';
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UserMemoryCategory {
+    /// User profile identity (name, role, industry, goals, etc.).
+    Profile,
     /// User preferences (language, output format, tone, etc.).
     Preferences,
     /// Observed user habits (working hours, review frequency, etc.).
@@ -41,6 +43,7 @@ impl UserMemoryCategory {
     /// Returns the string tag used as key prefix in SemanticMemory.
     fn as_str(&self) -> &'static str {
         match self {
+            Self::Profile => "profile",
             Self::Preferences => "preferences",
             Self::Habits => "habits",
             Self::Context => "context",
@@ -49,12 +52,13 @@ impl UserMemoryCategory {
 
     /// Ordered list of all categories, used for grouped recall.
     fn all() -> &'static [Self] {
-        &[Self::Preferences, Self::Habits, Self::Context]
+        &[Self::Profile, Self::Preferences, Self::Habits, Self::Context]
     }
 
     /// Parses a category from its string tag.
     fn from_str(s: &str) -> Option<Self> {
         match s {
+            "profile" => Some(Self::Profile),
             "preferences" => Some(Self::Preferences),
             "habits" => Some(Self::Habits),
             "context" => Some(Self::Context),
@@ -351,6 +355,210 @@ impl UserMemoryRepository {
         }
 
         Ok(output)
+    }
+
+    /// Produces a structured persona brief for LLM system-prompt injection.
+    ///
+    /// Unlike [`recall_all_for_injection`] which dumps raw key-values, this
+    /// method generates a narrative persona summary with adaptation
+    /// instructions.  Entries with `confidence < 0.3` are filtered out.
+    ///
+    /// Falls back gracefully when identity keys are missing — the narrative
+    /// header simply omits unknown fields.
+    pub fn recall_persona_brief(&self, max_entries: usize) -> Result<String, UserMemoryError> {
+        let sem = SemanticMemory::new(&self.store);
+        let all = sem
+            .recall_all(USER_NAMESPACE)
+            .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
+
+        // Early return if no entries with sufficient confidence exist.
+        let qualified: Vec<_> = all.iter().filter(|e| e.confidence >= 0.3).collect();
+        if qualified.is_empty() {
+            return Ok(String::new());
+        }
+
+        // Helper: find a value by scanning all entries for a compound key suffix.
+        let find_value = |suffix: &str| -> Option<String> {
+            all.iter()
+                .find(|e| e.key.ends_with(suffix) && e.confidence >= 0.3)
+                .and_then(|e| e.value.as_str().map(|s| s.to_owned()))
+        };
+
+        let mut output = String::new();
+
+        // --- Narrative header ---
+        let name = find_value(".name").or_else(|| find_value(".user_name"));
+        let role = find_value(".role").or_else(|| find_value(".user_role"));
+        let industry = find_value(".industry");
+        let expertise = find_value(".expertise_level");
+        let language = find_value(".language");
+        let verbosity = find_value(".verbosity");
+        let tone = find_value(".tone");
+
+        // Build the persona headline.
+        let mut headline_parts: Vec<String> = Vec::new();
+        if let Some(ref n) = name {
+            headline_parts.push(n.clone());
+        }
+        if let Some(ref r) = role {
+            if headline_parts.is_empty() {
+                headline_parts.push(format!("Role: {r}"));
+            } else {
+                headline_parts.push(format!("({r})"));
+            }
+        }
+        if let Some(ref ind) = industry {
+            headline_parts.push(format!("— {ind}"));
+        }
+        if !headline_parts.is_empty() {
+            output.push_str(&headline_parts.join(" "));
+            if let Some(ref exp) = expertise {
+                output.push_str(&format!(". Niveau : {exp}"));
+            }
+            output.push('\n');
+        }
+
+        // --- Language & preferences ---
+        let mut pref_parts: Vec<String> = Vec::new();
+        if let Some(ref lang) = language {
+            pref_parts.push(format!("Langue : {lang}"));
+        }
+        if let Some(ref v) = verbosity {
+            pref_parts.push(format!("Réponses : {v}"));
+        }
+        if let Some(ref t) = tone {
+            pref_parts.push(format!("Ton : {t}"));
+        }
+        if !pref_parts.is_empty() {
+            output.push_str(&pref_parts.join(" | "));
+            output.push('\n');
+        }
+
+        // --- Goals ---
+        let goals: Vec<String> = all
+            .iter()
+            .filter(|e| e.key.contains("goal") && e.confidence >= 0.3)
+            .filter_map(|e| e.value.as_str().map(|s| s.to_owned()))
+            .collect();
+        if !goals.is_empty() {
+            output.push_str("\nObjectifs :\n");
+            for g in &goals {
+                output.push_str(&format!("- {g}\n"));
+            }
+        }
+
+        // --- Daily tools ---
+        let tools: Vec<String> = all
+            .iter()
+            .filter(|e| e.key.contains("tools") && e.confidence >= 0.3)
+            .filter_map(|e| e.value.as_str().map(|s| s.to_owned()))
+            .collect();
+        if !tools.is_empty() {
+            output.push_str("\nOutils : ");
+            output.push_str(&tools.join(", "));
+            output.push('\n');
+        }
+
+        // --- Adaptation instructions ---
+        output.push_str("\nAdaptation :\n");
+        if let Some(ref lang) = language {
+            output.push_str(&format!("- Langue : {lang}\n"));
+        }
+        if let Some(ref v) = verbosity {
+            output.push_str(&format!("- Profondeur : {v}\n"));
+        }
+        if let Some(ref r) = role {
+            let r_lower = r.to_lowercase();
+            if r_lower.contains("dev")
+                || r_lower.contains("engineer")
+                || r_lower.contains("data")
+                || r_lower.contains("devops")
+                || r_lower.contains("sysadmin")
+            {
+                output.push_str("- Profil technique : vocabulaire technique approprié\n");
+            } else if r_lower.contains("design")
+                || r_lower.contains("creat")
+                || r_lower.contains("vidéo")
+                || r_lower.contains("video")
+            {
+                output.push_str(
+                    "- Profil créatif : éviter le jargon technique, privilégier les visuels\n",
+                );
+            } else if r_lower.contains("manager")
+                || r_lower.contains("market")
+                || r_lower.contains("commercial")
+                || r_lower.contains("sales")
+                || r_lower.contains("rh")
+                || r_lower.contains("ceo")
+                || r_lower.contains("cto")
+                || r_lower.contains("coo")
+            {
+                output.push_str(
+                    "- Profil business : focus résultats, KPIs, pas de détails techniques inutiles\n",
+                );
+            } else {
+                output.push_str("- Adapter le vocabulaire au profil de l'utilisateur\n");
+            }
+        }
+
+        // --- Remaining context (capped) ---
+        let used_suffixes = [
+            "name", "role", "industry", "expertise_level", "language",
+            "verbosity", "tone",
+        ];
+        let remaining: Vec<_> = all
+            .iter()
+            .filter(|e| e.confidence >= 0.3)
+            .filter(|e| {
+                !used_suffixes.iter().any(|s| e.key.ends_with(s))
+                    && !e.key.contains("goal")
+                    && !e.key.contains("tools")
+                    && !e.key.contains("onboarding_topic_")
+                    && !e.key.contains("onboarding_skipped")
+                    && !e.key.contains("onboarding_last_session")
+                    && !e.key.contains("onboarding.state")
+            })
+            .take(max_entries)
+            .collect();
+
+        if !remaining.is_empty() {
+            output.push_str("\nContexte :\n");
+            for entry in remaining {
+                let short_key = entry
+                    .key
+                    .split(KEY_SEPARATOR)
+                    .last()
+                    .unwrap_or(&entry.key);
+                let value = entry
+                    .value
+                    .as_str()
+                    .map(|s| s.to_owned())
+                    .unwrap_or_else(|| entry.value.to_string());
+
+                // Flag stale entries (older than ~6 months = 180 days).
+                let stale_marker = if Self::is_stale(&entry.updated_at) {
+                    " (peut-être obsolète)"
+                } else {
+                    ""
+                };
+                output.push_str(&format!("- {short_key}: {value}{stale_marker}\n"));
+            }
+        }
+
+        Ok(output)
+    }
+
+    /// Returns `true` if `iso_ts` is older than 180 days from now.
+    fn is_stale(iso_ts: &str) -> bool {
+        // Best-effort: parse the date prefix (YYYY-MM-DD) and compare.
+        let Some(date_str) = iso_ts.get(..10) else {
+            return false;
+        };
+        let Ok(then) = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") else {
+            return false;
+        };
+        let now = chrono::Utc::now().date_naive();
+        now.signed_duration_since(then).num_days() > 180
     }
 
     /// Removes the entry with the given `key` from any category.
