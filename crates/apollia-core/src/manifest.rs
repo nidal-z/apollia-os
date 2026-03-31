@@ -83,6 +83,13 @@ pub struct AgentManifest {
     /// Vide par défaut — aucun outil ne nécessite d'approbation.
     #[serde(default)]
     pub tools_requiring_approval: Vec<String>,
+    /// Nom du backend LLM à utiliser pour cet agent.
+    ///
+    /// Doit correspondre au champ `name` d'une entrée dans `llm_backends` (SQLite system.db).
+    /// Si absent ou `None`, le runtime utilise le backend marqué `is_default = true`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub llm_backend: Option<String>,
 }
 
 /// Compétence déclarative d'un agent.
@@ -128,6 +135,7 @@ mod tests {
             execution_mode: "auto".to_string(),
             system_prompt: None,
             tools_requiring_approval: vec![],
+            llm_backend: None,
         };
         // WHEN
         let json = serde_json::to_string(&manifest).expect("serialization failed");
@@ -158,6 +166,7 @@ mod tests {
             execution_mode: "auto".to_string(),
             system_prompt: None,
             tools_requiring_approval: vec![],
+            llm_backend: None,
         };
         // THEN
         assert_eq!(manifest.max_concurrent_tasks, 1);
@@ -191,6 +200,86 @@ mod tests {
         );
     }
 
+    // GIVEN un manifest JSON avec "llm_backend": "local-code"
+    // WHEN on désérialise
+    // THEN llm_backend == Some("local-code")
+    #[test]
+    fn test_llm_backend_present_extracts_some() {
+        let json = serde_json::json!({
+            "name": "test-agent",
+            "version": "1.0.0",
+            "description": "test",
+            "tools_required": [],
+            "llm_backend": "local-code"
+        });
+        let manifest: AgentManifest = serde_json::from_value(json).unwrap();
+        assert_eq!(manifest.llm_backend, Some("local-code".to_string()));
+    }
+
+    // GIVEN un manifest JSON sans la clé "llm_backend"
+    // WHEN on désérialise
+    // THEN llm_backend == None
+    #[test]
+    fn test_llm_backend_absent_is_none() {
+        let json = serde_json::json!({
+            "name": "test-agent",
+            "version": "1.0.0",
+            "description": "test",
+            "tools_required": []
+        });
+        let manifest: AgentManifest = serde_json::from_value(json).unwrap();
+        assert!(manifest.llm_backend.is_none());
+    }
+
+    // GIVEN un manifest JSON avec "llm_backend": null
+    // WHEN on désérialise
+    // THEN llm_backend == None
+    #[test]
+    fn test_llm_backend_null_is_none() {
+        let json = serde_json::json!({
+            "name": "test-agent",
+            "version": "1.0.0",
+            "description": "test",
+            "tools_required": [],
+            "llm_backend": null
+        });
+        let manifest: AgentManifest = serde_json::from_value(json).unwrap();
+        assert!(manifest.llm_backend.is_none());
+    }
+
+    // GIVEN un manifest avec llm_backend = Some(...)
+    // WHEN on sérialise en JSON
+    // THEN le champ apparaît dans le JSON
+    #[test]
+    fn test_llm_backend_serialized_when_some() {
+        let json = serde_json::json!({
+            "name": "test-agent",
+            "version": "1.0.0",
+            "description": "test",
+            "tools_required": [],
+            "llm_backend": "mistral-small"
+        });
+        let manifest: AgentManifest = serde_json::from_value(json).unwrap();
+        let output = serde_json::to_string(&manifest).unwrap();
+        assert!(output.contains("mistral-small"));
+    }
+
+    // GIVEN un manifest avec llm_backend = None
+    // WHEN on sérialise en JSON
+    // THEN le champ n'apparaît pas (skip_serializing_if)
+    #[test]
+    fn test_llm_backend_absent_from_json_when_none() {
+        let json = serde_json::json!({
+            "name": "test-agent",
+            "version": "1.0.0",
+            "description": "test",
+            "tools_required": []
+        });
+        let manifest: AgentManifest = serde_json::from_value(json).unwrap();
+        let output = serde_json::to_string(&manifest).unwrap();
+        assert!(!output.contains("llm_backend"));
+    }
+
     #[test]
     fn test_ac3_tools_requiring_approval_roundtrip() {
         // GIVEN un AgentManifest avec tools_requiring_approval
@@ -213,6 +302,7 @@ mod tests {
             execution_mode: "auto".into(),
             system_prompt: None,
             tools_requiring_approval: vec!["smtp".into(), "bash_executor".into()],
+            llm_backend: None,
         };
         // WHEN serde roundtrip JSON
         let json = serde_json::to_string(&manifest).expect("serialize must succeed");

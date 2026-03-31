@@ -78,6 +78,7 @@ impl AgentLoader for StubAgentLoader {
             execution_mode: "auto".to_string(),
             system_prompt: None,
             tools_requiring_approval: vec![],
+            llm_backend: None,
         })
     }
 }
