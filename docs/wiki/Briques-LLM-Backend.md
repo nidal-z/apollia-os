@@ -10,11 +10,13 @@
 
 | Backend | Feature flag | Protocole | Souveraineté |
 |---|---|---|---|
-| `EmbeddedBackend` | `local` | In-process (mistral-rs-core) | ✅ 100% local |
+| `EmbeddedBackend` | `local` | In-process (llama.cpp via whisper-rs) | ✅ 100% local |
 | `OpenAICompatibleClient` | `cloud` | HTTP REST (async-openai) | ❌ cloud |
 | `AnthropicClient` | `cloud` | HTTP REST (reqwest) | ❌ cloud |
 
-Le `LlmRouter` instancie les backends au démarrage du Supervisor (position 5, avant `TaskRouter`) et dispatche les requêtes par nom. Il est partageable via `Arc<LlmRouter>`.
+Depuis le Sprint 28 (ADR-047), la configuration des backends est **persistée dans SQLite** (`~/.apollia/system.db`) via `LlmBackendRepository` dans `apollia-core`. Le `LlmRouter` charge les backends au démarrage depuis ce registre. Chaque agent peut déclarer le backend qu'il souhaite utiliser via le champ `llm_backend` de son manifest.
+
+**Principe fondamental :** le modèle `.gguf` n'est jamais compilé dans le binaire — c'est un fichier de données dans `~/.apollia/models/`. Le moteur d'inférence est compilé via `[feature = "local"]`. Les clients cloud sont compilés via `[feature = "cloud"]` (activé par défaut).
 
 **Principe fondamental :** le modèle `.gguf` n'est jamais compilé dans le binaire — c'est un fichier de données dans `~/.apollia/models/`. Le moteur d'inférence est compilé via `[feature = "local"]`. Les clients cloud sont compilés via `[feature = "cloud"]` (activé par défaut).
 
@@ -27,17 +29,23 @@ Toute la crate repose sur ce trait. Implémenter ce trait suffit pour créer un 
 ```rust
 #[async_trait]
 pub trait CompletionModel: Send + Sync {
-    async fn complete(
-        &self,
-        request: CompletionRequest,
-    ) -> Result<CompletionResponse, LlmError>;
+    /// Envoie une requête d'inférence et retourne la réponse complète.
+    async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError>;
 
+    /// Retourne un stream de tokens et d'appels d'outils.
     async fn stream(
         &self,
-        request: CompletionRequest,
-    ) -> Result<impl Stream<Item = Result<String, LlmError>>, LlmError>;
+        req: CompletionRequest,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>;
 
-    fn info(&self) -> BackendInfo;
+    /// Indique si le backend est prêt à accepter des requêtes.
+    fn is_available(&self) -> bool;
+
+    /// Nom logique du backend tel que configuré dans le registre SQLite.
+    fn backend_name(&self) -> &str;
+
+    /// Identifiant du modèle chargé (ex. `llama3.2-3b-q4`, `claude-haiku-4-5-20251001`).
+    fn model_id(&self) -> &str;
 }
 ```
 
@@ -48,19 +56,37 @@ pub trait CompletionModel: Send + Sync {
 ```rust
 pub struct CompletionRequest {
     pub messages: Vec<ChatMessage>,
-    pub tools: Option<Vec<ToolSpec>>,     // outils disponibles pour le modèle
-    pub max_tokens: Option<u32>,
+    pub tools: Vec<ToolSpec>,          // outils disponibles pour le modèle (vide = pas de tool calling)
+    pub model: Option<String>,         // override ponctuel du modèle
     pub temperature: Option<f32>,
-    pub stream: bool,
+    pub max_tokens: Option<u32>,
 }
 
 pub struct CompletionResponse {
     pub content: String,
-    pub finish_reason: FinishReason,
-    pub usage: TokenUsage,
     pub tool_calls: Vec<ToolCall>,
+    pub usage: TokenUsage,
+    pub finish_reason: FinishReason,
     pub latency_ms: u64,
-    pub cost_usd: Option<f64>,           // Some() uniquement pour les backends cloud
+}
+
+pub struct TokenUsage {
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
+    pub cost_usd: Option<f64>,         // None pour les backends locaux
+}
+
+pub struct BackendInfo {
+    pub name: String,
+    pub model_id: String,
+    pub available: bool,
+}
+
+pub enum StreamChunk {
+    /// Token textuel incrémental.
+    Text(String),
+    /// Appel d'outil demandé par le LLM.
+    ToolCall(ToolCall),
 }
 
 pub struct ChatMessage {
@@ -68,16 +94,18 @@ pub struct ChatMessage {
     pub content: MessageContent,
 }
 
-pub enum Role {
-    System,
-    User,
-    Assistant,
-    Tool,
+pub enum Role { System, User, Assistant, Tool }
+
+pub enum MessageContent {
+    Text(String),
+    ToolResult { tool_call_id: String, content: String },
+    WithToolCalls { text: String, tool_calls: Vec<ToolCall> },
 }
 
-pub struct TokenUsage {
-    pub prompt_tokens: u32,
-    pub completion_tokens: u32,
+pub struct ToolSpec {
+    pub name: String,
+    pub description: String,
+    pub parameters: serde_json::Value,  // JSON Schema
 }
 
 pub struct ToolCall {
@@ -86,64 +114,114 @@ pub struct ToolCall {
     pub arguments: serde_json::Value,
 }
 
-pub struct BackendInfo {
-    pub name: String,
-    pub model_id: String,
-    pub backend_type: String,    // "embedded" | "openai-compatible" | "anthropic"
-    pub is_local: bool,
-}
+pub enum FinishReason { Stop, ToolCalls, Length, Error }
 
 pub enum LlmError {
-    /// Backend demandé introuvable dans le LlmRouter.
     BackendUnavailable { backend: String, reason: String },
-    /// Fichier .gguf absent au chemin configuré.
     ModelNotFound { path: PathBuf },
-    /// Erreur interne du moteur d'inférence (mistral-rs-core).
     InferenceError(String),
-    /// Erreur HTTP d'un backend cloud (status, body).
     HttpError { status: u16, body: String },
-    /// Variable d'environnement de clé API absente (ex: ANTHROPIC_API_KEY).
     ApiKeyMissing { var: String },
-    /// StepBudget épuisé pendant la boucle ReAct (ToolCallHelper).
     BudgetExceeded,
-    /// Nombre max d'itérations ToolCallHelper atteint.
     MaxIterationsReached { iterations: u32 },
-    /// Limite de tokens de génération atteinte.
     MaxTokensReached,
-    /// Impossible de parser la réponse JSON du backend.
     ParseError(String),
-    /// Device (CUDA/Metal) non compilé dans ce binaire.
+    UnsupportedModel { architecture: String },
     DeviceNotAvailable { device: String, hint: String },
 }
 ```
 
 ---
 
-## 4. LlmRouter
+## 4. LlmBackendRepository — Registre SQLite *(Sprint 28, ADR-047)*
 
-Le `LlmRouter` est le point d'entrée unique pour les requêtes LLM. Il est construit au démarrage depuis la configuration TOML.
+La configuration des backends LLM est désormais persistée dans `~/.apollia/system.db` (table `llm_backends`). `LlmBackendRepository` est défini dans `apollia-core` et suit le même pattern que `TriggerDefinitionRepository`.
 
 ```rust
-pub struct LlmRouter { /* ... */ }
+// crates/apollia-core/src/llm_backend.rs
+
+/// Configuration d'un backend LLM enregistré dans system.db.
+pub struct LlmBackendConfig {
+    pub name: String,               // identifiant unique, ex. "local-code", "mistral-small"
+    pub provider: LlmProvider,
+    pub model: String,              // nom du modèle ou chemin GGUF absolu
+    pub config_json: serde_json::Value,  // paramètres provider-spécifiques (peut contenir "${VAR}")
+    pub enabled: bool,              // false = non chargé au démarrage
+    pub is_default: bool,           // un seul défaut à la fois (unicité enforced par le repo)
+}
+
+pub enum LlmProvider {
+    LlamaCpp,   // backend llama.cpp embarqué (GGUF local)
+    OpenAi,     // API OpenAI ou compatible (LM Studio, vLLM)
+    Mistral,    // API Mistral AI
+    Anthropic,  // API Anthropic
+    Ollama,     // Ollama local
+}
+
+pub struct LlmBackendRepository { /* conn: RefCell<Connection> */ }
+
+impl LlmBackendRepository {
+    /// Ouvre system.db et applique la migration idempotente.
+    pub fn open(path: &Path) -> Result<Self, LlmBackendError>;
+
+    /// Crée ou met à jour un backend. Si is_default=true, démarcate l'ancien défaut.
+    pub fn save(&self, config: &LlmBackendConfig) -> Result<(), LlmBackendError>;
+
+    /// Retourne tous les backends triés par nom.
+    pub fn list(&self) -> Result<Vec<LlmBackendConfig>, LlmBackendError>;
+
+    /// Trouve un backend par nom exact.
+    pub fn find_by_name(&self, name: &str) -> Result<Option<LlmBackendConfig>, LlmBackendError>;
+
+    /// Retourne le backend marqué is_default=true, ou None si aucun.
+    pub fn find_default(&self) -> Result<Option<LlmBackendConfig>, LlmBackendError>;
+
+    /// Marque name comme défaut (démarcate l'ancien atomiquement).
+    pub fn set_default(&self, name: &str) -> Result<(), LlmBackendError>;
+
+    /// Supprime un backend (interdit sur le backend par défaut).
+    pub fn delete(&self, name: &str) -> Result<(), LlmBackendError>;
+}
+```
+
+**Schéma SQLite :**
+```sql
+CREATE TABLE IF NOT EXISTS llm_backends (
+    name         TEXT PRIMARY KEY,   -- [a-z0-9_-]+
+    provider     TEXT NOT NULL,      -- llama-cpp | openai | mistral | anthropic | ollama
+    model        TEXT NOT NULL,
+    config_json  TEXT NOT NULL DEFAULT '{}',
+    enabled      INTEGER NOT NULL DEFAULT 1,
+    is_default   INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    CHECK (provider IN ('llama-cpp', 'openai', 'mistral', 'anthropic', 'ollama'))
+);
+```
+
+`config_json` contient les paramètres provider-spécifiques :
+- `llama-cpp` : `{ "model_path": "/path/model.gguf", "n_gpu_layers": 35 }`
+- `openai` : `{ "base_url": "https://api.openai.com/v1", "api_key": "${OPENAI_API_KEY}" }`
+- `anthropic` : `{ "api_key": "${ANTHROPIC_API_KEY}" }`
+- `ollama` : `{ "base_url": "http://localhost:11434" }`
+
+Les secrets `${VAR}` sont résolus au démarrage depuis les variables d'environnement (jamais stockés en clair).
+
+---
+
+## 5. LlmRouter — Multi-backend
+
+Le `LlmRouter` est le point d'entrée unique pour les requêtes LLM. Il charge les backends depuis `LlmBackendRepository` au démarrage.
+
+```rust
+pub struct LlmRouter { /* HashMap<String, Arc<dyn CompletionModel>> + default: String */ }
 
 impl LlmRouter {
-    /// Construit le router depuis la config TOML et émet les événements Supervisor.
-    pub async fn from_config(config: &LlmConfig) -> Result<Self, LlmError>;
-
-    /// Version observée — émet `LlmModelLoading/Ready/Failed` sur l'EventBus.
-    pub async fn from_config_with_bus(
-        config: &LlmConfig,
-        event_bus: EventBusSender,
-    ) -> Result<Self, LlmError>;
-
-    /// Résout le backend par nom (None = backend par défaut).
+    /// Résout le backend par nom (None = backend par défaut du registre SQLite).
     pub fn get(&self, name: Option<&str>) -> Option<Arc<dyn CompletionModel>>;
 
     /// Liste tous les backends instanciés.
     pub fn list(&self) -> Vec<BackendInfo>;
-
-    /// Nom du backend par défaut.
-    pub fn default_name(&self) -> &str;
 
     /// Appel avec observabilité intégrée (log tokens, latence, coût, EventBus).
     pub async fn complete_with_observability(
@@ -154,27 +232,24 @@ impl LlmRouter {
 }
 ```
 
+**Routing par agent :** quand un agent déclare `"llm_backend": "local-code"` dans son manifest, le runtime appelle `router.get(Some("local-code"))`. Si le backend est introuvable, un warning est émis et le runtime utilise le défaut (jamais d'erreur fatale pour l'agent).
+
 ---
 
-## 5. EmbeddedBackend — Feature `local`
+## 6. EmbeddedBackend — Feature `local`
 
-Inférence in-process via `mistral-rs-core`. Le modèle `.gguf` est chargé depuis `~/.apollia/models/`.
+Inférence in-process via `llama.cpp` (ADR-042). Le modèle `.gguf` est chargé depuis `~/.apollia/models/`.
 
-```toml
-[[llm.backends]]
-type = "embedded"
-name = "local"
-model_path = "~/.apollia/models/llama3.2-3B-q4_K_M.gguf"
-device = "cpu"        # "cpu" | "cuda" | "metal"
+Depuis Sprint 28, la configuration du backend est dans `system.db` (voir section 4). Exemple de `config_json` pour un backend llama-cpp :
+
+```json
+{
+  "model_path": "~/.apollia/models/llama3.2-3B-q4_K_M.gguf",
+  "n_gpu_layers": 0
+}
 ```
 
 ```rust
-pub struct EmbeddedBackendConfig {
-    pub name: String,
-    pub model_path: PathBuf,   // chemin absolu après tilde-expansion
-    pub device: AcceleratorDevice,
-}
-
 pub enum AcceleratorDevice {
     Cpu,
     Cuda,   // [feature = "local-cuda"]  — nécessite GPU NVIDIA
@@ -213,7 +288,7 @@ MISTRALRS_METAL_PRECOMPILE=1 cargo build --release --features local-metal
 
 ---
 
-## 6. OpenAICompatibleClient — Feature `cloud`
+## 7. OpenAICompatibleClient — Feature `cloud`
 
 Client HTTP via `async-openai`. Compatible avec tout endpoint OpenAI-like (OpenAI, Azure OpenAI, Ollama avec API OpenAI, etc.).
 
@@ -230,7 +305,7 @@ Heuristique de sélection : si `api_url` contient `anthropic.com`, `AnthropicCli
 
 ---
 
-## 7. AnthropicClient — Feature `cloud`
+## 8. AnthropicClient — Feature `cloud`
 
 Client HTTP natif via `reqwest` (sans SDK Anthropic officiel — format natif Messages API).
 
@@ -247,7 +322,7 @@ Calcul du coût estimé (`cost_usd`) disponible pour les modèles haiku/sonnet/o
 
 ---
 
-## 8. Observabilité — EventBus
+## 9. Observabilité — EventBus
 
 Après chaque appel `complete_with_observability()`, Apollia OS émet automatiquement sur l'EventBus :
 
@@ -272,7 +347,7 @@ Si `observability.debug_log_prompt = true` dans `apollia.toml`, le prompt comple
 
 ---
 
-## 9. Persistance des appels LLM *(Sprint 13)*
+## 10. Persistance des appels LLM *(Sprint 13)*
 
 Le `LlmCallRepository` persiste chaque appel LLM dans `~/.apollia/llm_calls.db` (SQLite) pour l'observabilité et le suivi des coûts.
 
@@ -310,7 +385,7 @@ impl LlmCallRepository {
 
 ---
 
-## 10. ToolCallHelper — Boucle ReAct automatique
+## 11. ToolCallHelper — Boucle ReAct automatique
 
 `ToolCallHelper` implémente la boucle ReAct complète pour les agents qui veulent déléguer le raisonnement outil-par-outil au LLM.
 
@@ -347,7 +422,7 @@ La boucle `run_tools()` :
 
 ---
 
-## 11. Intégration dans le Supervisor
+## 12. Intégration dans le Supervisor
 
 Le `LlmRouter` est démarré à la **position 5** dans le Supervisor (avant `TaskRouter`) :
 
@@ -365,7 +440,7 @@ Si tous les backends échouent à démarrer → warning + runtime continue sans 
 
 ---
 
-## 12. Exemple de mock pour les tests
+## 13. Exemple de mock pour les tests
 
 ```rust
 use std::sync::Arc;
@@ -398,7 +473,11 @@ let router = LlmRouter::with_backends(
 
 - [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — `ctx.llm` depuis Python
 - [Briques ORIA Engine](./Briques-ORIA-Engine) — Reasoner LLM en Mode Orchestré
-- [Config apollia.toml](./Config-apollia-toml) — section `[[llm.backends]]`
+- [Briques AIP Specification](./Briques-AIP-Specification) — champ `llm_backend` dans `AgentManifest`
+- [API HTTP Reference](./API-HTTP-Reference) — endpoints CRUD `/api/v1/llm/backends`
+- [Config apollia.toml](./Config-apollia-toml) — section `[llm.observability]`
 - [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) — `apollia-os llm status/ping/chat`
-- [ADR-020](../adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags) — décision feature flags
-- [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature) — observabilité complète et troncature
+- [ADR-047](../adr/ADR-047-multi-llm-backend-registry.md) — Multi-LLM Backend Registry (SQLite, Sprint 28)
+- [ADR-042](../adr/ADR-042-remplacement-mistralrs-par-llamacpp-statique.md) — remplacement mistral-rs par llama.cpp
+- [ADR-020](../adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md) — feature flags LLM
+- [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature.md) — observabilité complète

@@ -389,6 +389,93 @@ Envoyer un prompt direct à un backend LLM et récupérer la réponse.
 
 ---
 
+### GET /api/v1/llm/backends *(Sprint 28)*
+
+Liste tous les backends LLM enregistrés dans `system.db`.
+
+**Réponse 200 :**
+```json
+[
+  {
+    "name":        "local-code",
+    "provider":    "llama-cpp",
+    "model":       "~/.apollia/models/qwen2.5-coder-7b-q4.gguf",
+    "config_json": {},
+    "enabled":     true,
+    "is_default":  false
+  },
+  {
+    "name":        "anthropic",
+    "provider":    "anthropic",
+    "model":       "claude-haiku-4-5-20251001",
+    "config_json": { "api_key": "${ANTHROPIC_API_KEY}" },
+    "enabled":     true,
+    "is_default":  true
+  }
+]
+```
+
+---
+
+### GET /api/v1/llm/backends/:name *(Sprint 28)*
+
+Retourne un backend par nom exact.
+
+**Réponse 200 :** objet `LlmBackendConfig`
+**Réponse 404 :** backend introuvable
+
+---
+
+### POST /api/v1/llm/backends *(Sprint 28)*
+
+Crée un nouveau backend LLM.
+
+**Corps :**
+```json
+{
+  "name":        "mistral-small",
+  "provider":    "mistral",
+  "model":       "mistral-small-latest",
+  "config_json": { "api_key": "${MISTRAL_API_KEY}" },
+  "enabled":     true,
+  "is_default":  false
+}
+```
+
+**Réponse 201 :** objet créé
+**Réponse 400 :** nom invalide (doit correspondre à `[a-z0-9_-]+`) ou provider inconnu
+
+---
+
+### PUT /api/v1/llm/backends/:name *(Sprint 28)*
+
+Met à jour un backend existant (upsert).
+
+**Corps :** objet `LlmBackendConfig` complet
+**Réponse 200 :** objet mis à jour
+**Réponse 404 :** backend introuvable
+
+---
+
+### DELETE /api/v1/llm/backends/:name *(Sprint 28)*
+
+Supprime un backend.
+
+**Réponse 204 :** supprimé avec succès
+**Réponse 404 :** backend introuvable
+**Réponse 409 :** impossible de supprimer le backend par défaut (définir un autre défaut d'abord)
+
+---
+
+### POST /api/v1/llm/backends/:name/set-default *(Sprint 28)*
+
+Marque le backend comme défaut. L'ancien défaut est démarcé automatiquement.
+
+**Réponse 200 :** `{ "default": "mistral-small" }`
+**Réponse 404 :** backend introuvable
+
+---
+
 ## Shutdown
 
 ### POST /api/v1/shutdown
@@ -1310,9 +1397,9 @@ curl -N -H "Accept: text/event-stream" \
 
 ---
 
-## STT — Speech-to-Text *(Sprint 24)*
+## STT — Speech-to-Text *(Sprint 24 + 28)*
 
-5 endpoints pour la transcription audio locale. Tous retournent `503` si le moteur STT est absent (`stt.enabled = false` ou modèle non chargé).
+7 endpoints pour la transcription audio locale et la gestion de la configuration STT. Les endpoints de transcription retournent `503` si le moteur STT est absent (`stt.enabled = false` ou modèle non chargé).
 
 ### GET /api/v1/stt/status
 
@@ -1408,6 +1495,38 @@ Lister les fichiers modèles `.bin` disponibles dans `~/.apollia/models/`.
 }
 ```
 
+### GET /api/v1/stt/config *(Sprint 28)*
+
+Retourne la configuration STT persistée dans `system.db`. Si la table est vide (premier boot), les valeurs par défaut sont insérées et retournées.
+
+**Réponse 200 :**
+```json
+{
+  "enabled": true,
+  "model_path": "~/.apollia/models/whisper-large-v3-fr-q5_0.bin",
+  "hotkey": "ctrl+shift+space",
+  "clipboard_mode": "paste",
+  "clipboard_restore": true,
+  "silence_threshold_db": -40.0,
+  "max_recording_sec": 60,
+  "language": "fr",
+  "trigger_mode": "toggle"
+}
+```
+
+**Réponse 503 :** `{ "error": "STT config repository not available" }`
+
+---
+
+### PUT /api/v1/stt/config *(Sprint 28)*
+
+Met à jour la configuration STT (upsert). Remplace le singleton en base.
+
+**Corps :** objet `SttConfigRow` complet (les champs avec valeurs par défaut peuvent être omis)
+
+**Réponse 200 :** configuration mise à jour
+**Réponse 503 :** dépôt non disponible
+
 ---
 
 ## MCP *(Sprint 26, ADR-044)*
@@ -1448,7 +1567,7 @@ $ curl http://127.0.0.1:7771/api/v1/mcp/servers/notion
 
 ### POST /api/v1/mcp/servers
 
-Ajoute un nouveau serveur MCP à chaud : démarre le subprocess, effectue le handshake, enregistre les outils dans le Tool Registry, et persiste dans `mcp.toml`.
+Ajoute un nouveau serveur MCP à chaud : démarre le subprocess, effectue le handshake, enregistre les outils dans le Tool Registry, et persiste dans `mcp.db` via `McpServerRepository`.
 
 ```bash
 $ curl -X POST http://127.0.0.1:7771/api/v1/mcp/servers \

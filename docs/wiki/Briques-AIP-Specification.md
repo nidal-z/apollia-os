@@ -52,6 +52,9 @@ def manifest(self):
         "dangerous_tools_allowed": False,  # bool — défaut: False
         "tools_requiring_approval": [],    # list[str] — outils nécessitant approbation humaine (Mode Orchestré)
 
+        # LLM backend *(Sprint 28, ADR-047)*
+        "llm_backend": None,           # str | None — nom d'un backend dans system.db ; None = défaut runtime
+
         # Protocoles
         "supports_streaming": False,   # bool — SSE si True
         "supports_a2a": False,         # bool — AgentCard A2A si True
@@ -77,6 +80,7 @@ def manifest(self):
 | `dangerous_tools_allowed` | non | `False` | Outils dangereux bloqués |
 | `tools_requiring_approval` | non | `[]` | Aucun outil ne nécessite d'approbation |
 | `supports_a2a` | non | `False` | Pas de AgentCard A2A |
+| `llm_backend` | non | `None` | Backend LLM par défaut du runtime |
 
 ### tools_requiring_approval (Sprint 11)
 

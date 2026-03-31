@@ -9,12 +9,12 @@
 La crate `apollia-mcp` est le **client MCP d'Apollia OS**. Elle connecte le Tool Registry aux serveurs MCP externes : tout processus tiers (Node.js, Python, binaire natif) qui implémente le Model Context Protocol peut être consommé depuis un agent sans aucun code d'intégration supplémentaire.
 
 **Responsabilités :**
-- Lire `~/.apollia/mcp.toml` et gérer le cycle de vie des processus serveurs
+- Charger les configurations serveurs depuis `~/.apollia/mcp.db` (`McpServerRepository`) et gérer le cycle de vie des processus
 - Implémenter le protocole JSON-RPC 2.0 + MCP (initialize, tools/list, tools/call)
 - Enregistrer les outils découverts dans le `ToolRegistryHandle` sous la convention `mcp:{server}/{tool}`
 - Appliquer la gate HITL avant chaque exécution si `requires_approval = true`
 - Exposer un acteur Tokio (`McpClientManager`) pour les mutations à chaud (ajout, suppression, redémarrage)
-- Persister les mutations de `mcp.toml` via `McpConfigWriter`
+- Persister toutes les configurations via `McpServerRepository` (SQLite, Sprint 28)
 
 ---
 
@@ -22,37 +22,33 @@ La crate `apollia-mcp` est le **client MCP d'Apollia OS**. Elle connecte le Tool
 
 ```
 crates/apollia-mcp/src/
-├── lib.rs            ← exports publics : McpClientManagerHandle, McpToolExecutor, McpConfig, McpServerConfig
-├── config.rs         ← McpConfig, McpServerConfig, désérialisation mcp.toml, interpolation ${VAR}
-├── config_writer.rs  ← McpConfigWriter : add_server / remove_server / update_server
-├── jsonrpc.rs        ← JsonRpcRequest, JsonRpcResponse, JsonRpcError — JSON-RPC 2.0
-├── protocol.rs       ← McpInitializeParams, McpToolsListResult, McpToolDefinition, McpCallResult
-├── session.rs        ← McpSession : spawn subprocess, stdin writer task, stdout reader task, corrélation requête/réponse
-├── manager.rs        ← McpClientManager (acteur Tokio), McpClientManagerHandle, McpServerStatus
-└── executor.rs       ← McpToolExecutor : implémente ToolExecutor, gate HITL, acheminement via manager
+├── lib.rs                ← exports publics : McpClientManagerHandle, McpToolExecutor, McpConfig, McpServerConfig, McpServerRepository
+├── config.rs             ← McpConfig, McpServerConfig, interpolation ${VAR}
+├── server_repository.rs  ← McpServerRepository : SQLite CRUD (save/list/find_by_name/delete/set_enabled/import_from_toml)
+├── jsonrpc.rs            ← JsonRpcRequest, JsonRpcResponse, JsonRpcError — JSON-RPC 2.0
+├── protocol.rs           ← McpInitializeParams, McpToolsListResult, McpToolDefinition, McpCallResult
+├── session.rs            ← McpSession : spawn subprocess, stdin writer task, stdout reader task, corrélation requête/réponse
+├── manager.rs            ← McpClientManager (acteur Tokio), McpClientManagerHandle, McpServerStatus
+└── executor.rs           ← McpToolExecutor : implémente ToolExecutor, gate HITL, acheminement via manager
 ```
 
 ---
 
 ## 3. Types publics
 
-### `McpConfig` et `McpServerConfig`
+### `McpServerConfig`
 
-Désérialisés depuis `~/.apollia/mcp.toml` :
+Type partagé entre le dépôt SQLite et le gestionnaire de sessions :
 
 ```rust
-/// Configuration complète lue depuis mcp.toml.
-pub struct McpConfig {
-    pub servers: Vec<McpServerConfig>,
-}
-
-/// Configuration d'un serveur MCP.
+/// Configuration d'un serveur MCP — persistée dans mcp.db (table mcp_servers).
 pub struct McpServerConfig {
-    pub name: String,                    // identifiant unique — "notion", "sqlite"
+    pub name: String,                    // identifiant unique — "notion", "sqlite" ([a-z0-9_-]+)
     pub command: String,                 // exécutable : "npx", "uvx", binaire
     pub args: Vec<String>,               // arguments de la commande
-    pub env: HashMap<String, String>,    // variables d'environnement (valeurs interpolées)
-    pub transport: McpTransport,         // McpTransport::Stdio (seul supporté en V1)
+    pub env: HashMap<String, String>,    // variables d'environnement (valeurs interpolées ${VAR})
+    pub transport: String,               // "stdio" | "streamable-http" | "sse"
+    pub url: Option<String>,             // URL du serveur distant (transport HTTP/SSE uniquement)
     pub requires_approval: bool,         // gate HITL sur tous les outils du serveur
     pub init_timeout_secs: u64,          // défaut 30 — handshake initialize
     pub call_timeout_secs: u64,          // défaut 60 — tools/call
@@ -68,6 +64,43 @@ Les valeurs du champ `env` supportent deux syntaxes d'interpolation résolues pa
 | `${APOLLIA_SECRET:NOM_VAR}` | OS Keychain (via crate `keyring`, Sprint 27) | `${APOLLIA_SECRET:NOTION_API_KEY}` |
 
 Pour `APOLLIA_SECRET:`, la clé lue dans le keychain suit le format `{server_name}:{nom_var}`. Une variable absente (shell ou keychain) retourne une erreur de configuration explicite. Les secrets sont écrits dans le keychain par la page Intégrations du desktop — voir [Guide Intégrations](./Integrations-Guide).
+
+### `McpServerRepository` *(Sprint 28)*
+
+SQLite-backed repository pour la persistance des `McpServerConfig`. Remplace `McpConfigWriter` (supprimé).
+
+```rust
+pub struct McpServerRepository { /* conn: Connection (WAL mode) */ }
+
+impl McpServerRepository {
+    /// Ouvre mcp.db et applique le schéma (idempotent).
+    pub fn open(path: &Path) -> Result<Self, McpRepoError>;
+
+    /// Insère ou remplace une configuration.
+    pub fn save(&self, config: &McpServerConfig) -> Result<(), McpRepoError>;
+
+    /// Retourne tous les serveurs (actifs et désactivés).
+    pub fn list(&self) -> Result<Vec<McpServerConfig>, McpRepoError>;
+
+    /// Retourne un serveur par nom, ou None.
+    pub fn find_by_name(&self, name: &str) -> Result<Option<McpServerConfig>, McpRepoError>;
+
+    /// Supprime un serveur.
+    pub fn delete(&self, name: &str) -> Result<(), McpRepoError>;
+
+    /// Active ou désactive un serveur sans le supprimer.
+    pub fn set_enabled(&self, name: &str, enabled: bool) -> Result<(), McpRepoError>;
+
+    /// Importe depuis une liste existante — no-op si la table est non-vide.
+    pub fn import_from_toml(&self, configs: Vec<McpServerConfig>) -> Result<usize, McpRepoError>;
+}
+```
+
+**Schéma :** `mcp.db` (table `mcp_servers`) — colonnes `name`, `command`, `args_json`, `env_json`, `transport`, `url`, `requires_approval`, `init_timeout_secs`, `call_timeout_secs`, `tags_json`, `enabled`, `created_at`, `updated_at`.
+
+**Migration depuis mcp.toml :** `import_from_toml()` est une migration one-shot : si la table est déjà peuplée, elle retourne `Ok(0)` sans rien modifier.
+
+---
 
 ### `McpSession`
 

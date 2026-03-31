@@ -127,6 +127,7 @@
   - [ADR-044 — Client MCP : architecture, transport, lifecycle](decisions/adr-044-client-mcp.md)
   - [ADR-045 — Page Intégrations : wizard générique piloté par MCP Registry](decisions/adr-045-page-integrations-wizard-generique.md)
   - [ADR-046 — Transport HTTP/SSE pour MCP](decisions/adr-046-transport-http-sse-mcp.md)
+  - [ADR-047 — Multi-LLM Backend Registry : SQLite + binding par agent](decisions/adr-047-multi-llm-backend-registry.md)
 
 ---
 

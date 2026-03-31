@@ -286,12 +286,36 @@ $ apollia-os tools reset-circuit mcp_erp_acme
 
 ### `apollia-os memory <verb>`
 
+Inspection et gestion de la mémoire des agents. Les commandes `inspect`, `list`, et `clear` opèrent directement sur SQLite sans nécessiter un runtime démarré.
+
 ```bash
+# Inspecter l'état d'un namespace mémoire
 $ apollia-os memory inspect crm-dupont
+Namespace   : crm-dupont
+Fichier     : ~/.apollia/memory/crm-dupont.db (1.2 MB)
+Episodes    : 42
+Semantique  : 18 clés
+Procedures  : 3
+
+# Lister tous les namespaces mémoire présents sur le disque *(Sprint 28)*
+$ apollia-os memory list
+NAMESPACE         EPISODIC  SEMANTIC  PROCEDURAL      SIZE
+agent-crm               42        18           3   1.2 MB
+agent-mail               7         0           0  48.0 KB
+
+$ apollia-os memory list --agent agent-crm   # filtrer par agent
+$ apollia-os memory list --json              # sortie JSON
+
+# Vider la mémoire d'un agent *(Sprint 28)*
+$ apollia-os memory clear --agent agent-crm              # prompt interactif
+$ apollia-os memory clear --agent agent-crm --confirm    # sans prompt
+$ apollia-os memory clear --agent agent-crm --type episodic --confirm  # type: episodic | semantic | procedural | all
+3 entree(s) supprimee(s) (episodic).
+
+# Commandes héritées (lecture fine)
 $ apollia-os memory search crm-dupont "devis refusé client"
 $ apollia-os memory get crm-dupont client.dupont_sa.preferences
 $ apollia-os memory forget crm-dupont client.dupont_sa.old_email
-$ apollia-os memory purge crm-dupont
 $ apollia-os memory export crm-dupont --format json > backup.json
 $ apollia-os memory import crm-dupont backup.json
 ```

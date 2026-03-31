@@ -261,9 +261,11 @@ wall_clock_timeout_secs = 300
 
 ---
 
-### [stt] — Moteur Speech-to-Text *(Sprint 24)*
+### [stt] — Moteur Speech-to-Text *(Sprint 24 — section TOML dépréciée en Sprint 28)*
 
-La section `[stt]` configure le moteur STT embarqué (ADR-041). Elle est **optionnelle** — le runtime démarre sans STT si `enabled = false` ou si la section est absente.
+> **Déprécié depuis Sprint 28 :** la configuration STT est désormais dans `~/.apollia/system.db` (table `stt_config`), gérée via `GET/PUT /api/v1/stt/config` ou l'app desktop. Si cette section est présente dans `apollia.toml`, un warning est émis au démarrage mais le boot continue normalement.
+
+La section `[stt]` configure le moteur STT embarqué (ADR-041). Elle est **optionnelle** — le runtime démarre sans STT si la table `stt_config` est absente.
 
 ```toml
 [stt]
@@ -320,19 +322,22 @@ trigger_mode = "toggle"
 
 ---
 
-## Configuration opérationnelle — migrée vers SQLite *(Sprint 17)*
+## Configuration opérationnelle — migrée vers SQLite *(Sprints 17 + 28)*
 
-Depuis le Sprint 17 (ADR-033), les sections opérationnelles suivantes ne sont plus dans `apollia.toml` :
+Les sections opérationnelles suivantes ne sont plus dans `apollia.toml` :
 
-| Ancienne section TOML | Désormais dans | Gestion via |
-|---|---|---|
-| `[[triggers]]` | `~/.apollia/triggers_def.db` | API REST CRUD + app desktop |
-| `[[pipelines]]` | `~/.apollia/pipelines_def.db` | API REST CRUD + app desktop |
-| `[notifications]` | `~/.apollia/notifications.db` | API REST CRUD + app desktop |
+| Ancienne section TOML | Désormais dans | Gestion via | Sprint |
+|---|---|---|---|
+| `[[triggers]]` | `~/.apollia/triggers_def.db` | API REST CRUD + app desktop | 17 |
+| `[[pipelines]]` | `~/.apollia/pipelines_def.db` | API REST CRUD + app desktop | 17 |
+| `[notifications]` | `~/.apollia/notifications.db` | API REST CRUD + app desktop | 17 |
+| `[stt]` | `~/.apollia/system.db` (table `stt_config`) | `GET/PUT /api/v1/stt/config` + app desktop | 28 |
+| `[[llm.backends]]` | `~/.apollia/system.db` (table `llm_backends`) | `GET/POST/PUT/DELETE /api/v1/llm/backends` + app desktop | 28 |
+| `mcp.toml` / `[mcp]` | `~/.apollia/mcp.db` (table `mcp_servers`) | API REST MCP + app desktop | 28 |
 
-**Pourquoi :** un opérateur non-technique peut créer, modifier et supprimer ses triggers, pipelines et canaux de notification depuis l'interface graphique — sans toucher au TOML, sans redémarrer le runtime.
+**Pourquoi :** un opérateur peut créer, modifier et supprimer ses backends LLM, sa config STT, ses serveurs MCP et ses triggers depuis l'interface graphique — sans toucher au TOML, sans redémarrer le runtime.
 
-`apollia.toml` conserve uniquement la configuration **structurelle** : `[runtime]`, `[memory]`, `[tools]`, `[api]`, `[llm]`, `[budget]`, `[observability]`, `[stt]`.
+`apollia.toml` conserve uniquement la configuration **structurelle** : `[runtime]`, `[memory]`, `[tools]`, `[api]`, `[llm]` (observabilité uniquement), `[budget]`.
 
 Voir :
 - [Briques Triggers](./Briques-Triggers) — CRUD triggers
