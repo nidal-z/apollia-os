@@ -16,7 +16,7 @@ pub mod tray;
 
 use std::sync::Arc;
 
-use apollia_core::PendingApprovals;
+use apollia_core::{PendingApprovals, SttConfigRepository};
 use apollia_llm::LlmRouter;
 use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
@@ -161,12 +161,26 @@ fn main() {
         ..EmbeddedConfig::default()
     });
 
-    // Keep a copy of the STT config for the desktop hotkey listener (the
-    // embedded runtime consumes `config`).
-    let stt_config_for_hotkey = config.stt_config.clone();
-
     let runtime_handle: RuntimeHandle =
         apollia_runtime::init_embedded(config).expect("failed to start embedded runtime");
+
+    // Load the STT config from SQLite for the desktop hotkey listener.
+    let stt_config_for_hotkey = {
+        let system_db = apollia_data_dir.join("system.db");
+        match SttConfigRepository::open(&system_db) {
+            Ok(repo) => match repo.get_or_default() {
+                Ok(cfg) => Some(cfg),
+                Err(e) => {
+                    tracing::warn!(error = %e, "failed to read STT config from SQLite — hotkey disabled");
+                    None
+                }
+            },
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to open system.db for STT config — hotkey disabled");
+                None
+            }
+        }
+    };
 
     // Populate OnceLocks now that the supervisor is fully running.
     let _ = event_bus_lock.set(runtime_handle.event_sender.clone());

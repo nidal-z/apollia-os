@@ -17,6 +17,8 @@ use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
+use apollia_core::SttConfigRow;
+
 use crate::api::server::AppState;
 use crate::coordinator::{DynBackend, ExecutionBackend};
 use crate::stt::TranscriptSource;
@@ -409,6 +411,100 @@ pub async fn list_models<B: ExecutionBackend + Clone + From<DynBackend>>(
     Ok((StatusCode::OK, Json(ModelsListResponse { models })))
 }
 
+/// `GET /api/v1/stt/config` — return the persisted STT configuration.
+///
+/// Returns `200 OK` with the current [`SttConfigRow`] from `system.db`.
+/// If the table is empty (first boot), the defaults are inserted and returned.
+/// Returns `503 Service Unavailable` when the config repository is unavailable.
+pub async fn get_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
+    State(state): State<AppState<B>>,
+) -> RouteResult<SttConfigRow> {
+    let repo = state.stt_config_repo.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(SttErrorResponse {
+                error: "STT config repository not available".into(),
+            }),
+        )
+    })?;
+
+    let config = repo
+        .lock()
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(SttErrorResponse {
+                    error: format!("repository lock error: {e}"),
+                }),
+            )
+        })?
+        .get_or_default()
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to read STT config from database");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(SttErrorResponse {
+                    error: format!("database error: {e}"),
+                }),
+            )
+        })?;
+
+    Ok((StatusCode::OK, Json(config)))
+}
+
+/// `PUT /api/v1/stt/config` — update the persisted STT configuration.
+///
+/// Accepts a JSON body of [`SttConfigRow`] (fields with `#[serde(default)]` may
+/// be omitted — missing fields receive their default values). Replaces the
+/// singleton row in `system.db` via an upsert.
+///
+/// Returns `200 OK` with the updated configuration.
+/// Returns `503 Service Unavailable` when the config repository is unavailable.
+pub async fn update_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
+    State(state): State<AppState<B>>,
+    Json(new_config): Json<SttConfigRow>,
+) -> RouteResult<SttConfigRow> {
+    let repo = state.stt_config_repo.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(SttErrorResponse {
+                error: "STT config repository not available".into(),
+            }),
+        )
+    })?;
+
+    let guard = repo.lock().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(SttErrorResponse {
+                error: format!("repository lock error: {e}"),
+            }),
+        )
+    })?;
+
+    guard.upsert(&new_config).map_err(|e| {
+        tracing::error!(error = %e, "failed to persist STT config");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(SttErrorResponse {
+                error: format!("database error: {e}"),
+            }),
+        )
+    })?;
+
+    let updated = guard.get_or_default().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(SttErrorResponse {
+                error: format!("database error: {e}"),
+            }),
+        )
+    })?;
+
+    tracing::info!(enabled = updated.enabled, "STT configuration updated");
+    Ok((StatusCode::OK, Json(updated)))
+}
+
 // ── WAV decoding ────────────────────────────────────────────────────
 
 /// Decode a WAV byte buffer into f32 samples, returning (samples, sample_rate, channels).
@@ -515,6 +611,7 @@ mod tests {
             user_memory: None,
             stt_engine: None,
             stt_repository: None,
+            stt_config_repo: None,
             mcp_handle: None,
             config_writer: None,
             llm_backend_repo: None,

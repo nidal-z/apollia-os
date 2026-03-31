@@ -605,6 +605,7 @@ mod tests {
             mcp_handle: None,
             config_writer: None,
             llm_backend_repo: None,
+            stt_config_repo: None,
         };
 
         APIServer::build_router_for_test(state)

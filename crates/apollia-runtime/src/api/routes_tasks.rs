@@ -555,6 +555,7 @@ mod tests {
             mcp_handle: None,
             config_writer: None,
             llm_backend_repo: None,
+            stt_config_repo: None,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -621,6 +622,7 @@ mod tests {
             mcp_handle: None,
             config_writer: None,
             llm_backend_repo: None,
+            stt_config_repo: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -687,6 +689,7 @@ mod tests {
             mcp_handle: None,
             config_writer: None,
             llm_backend_repo: None,
+            stt_config_repo: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
@@ -918,6 +921,7 @@ mod tests {
             mcp_handle: None,
             config_writer: None,
             llm_backend_repo: None,
+            stt_config_repo: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/resume", post(resume_task::<MockBackend>))

@@ -16,7 +16,10 @@ use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 use tracing::{error, info, warn};
 
-use apollia_core::{LlmBackendRepository, PendingApprovals, ProcessState, RuntimeEvent};
+use apollia_core::{
+    LlmBackendRepository, PendingApprovals, ProcessState, RuntimeEvent, SttConfigRepository,
+    SttConfigRow,
+};
 use apollia_llm::{LlmCallRepository, LlmConfig, LlmRouter};
 use apollia_mcp::{
     config::McpConfig, config_writer::McpConfigWriter, manager::McpClientManagerHandle,
@@ -103,11 +106,6 @@ pub struct SupervisorConfig {
     /// chargés via `AgentLoader`, validés et enregistrés dans `AgentRegistry`.
     /// `None` → l'auto-load est désactivé (compatibilité tests existants).
     pub agent_repository: Option<AgentRepository>,
-    /// Configuration STT optionnelle parsée depuis la section `[stt]` de `apollia.toml`.
-    ///
-    /// `None` désactive le moteur STT — la Phase 15 est skippée.
-    /// `Some(cfg)` avec `cfg.enabled = false` produit le même comportement.
-    pub stt_config: Option<apollia_core::SttConfig>,
 }
 
 /// Handles returned after successful startup.
@@ -737,19 +735,38 @@ impl Supervisor {
                 }
             };
 
-        // Phase 15: SttEngine — conditional startup based on `[stt]` config.
+        // Phase 15: SttEngine — reads config from system.db, then conditionally starts
+        // the engine when `stt_config.enabled = true`.
         //
-        // When `stt.enabled = true`, opens `SttRepository`, loads the backend
-        // model via `spawn_blocking`, and spawns the actor. On any failure the
-        // engine is `None` and the runtime continues without STT.
+        // Opens `SttConfigRepository` against the same `system.db` used by the
+        // LLM backend registry. On first boot an empty table is initialised with
+        // defaults. The engine is only started when the persisted config has
+        // `enabled = true` and the model file exists on disk.
+        let stt_config_repo = match SttConfigRepository::open(&system_db_path) {
+            Ok(repo) => {
+                info!("Supervisor: SttConfigRepository opened");
+                Some(std::sync::Arc::new(std::sync::Mutex::new(repo)))
+            }
+            Err(e) => {
+                warn!(error = %e, "SttConfigRepository failed to open — STT config disabled");
+                None
+            }
+        };
+
+        let stt_cfg: Option<SttConfigRow> = stt_config_repo.as_ref().and_then(|repo| {
+            repo.lock()
+                .ok()
+                .and_then(|guard| guard.get_or_default().ok())
+        });
+
         let (stt_engine, stt_repository): (
             Option<crate::stt::SttEngineHandle>,
             Option<std::sync::Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
-        ) = if self.config.stt_config.as_ref().is_some_and(|c| c.enabled) {
-            let stt_cfg = self.config.stt_config.as_ref().expect("checked above");
+        ) = if stt_cfg.as_ref().is_some_and(|c| c.enabled) {
+            let cfg = stt_cfg.as_ref().expect("checked above");
             info!("Supervisor: starting SttEngine");
 
-            let model_path = resolve_home(&stt_cfg.model_path);
+            let model_path = resolve_home(std::path::Path::new(&cfg.model_path));
 
             if !model_path.exists() {
                 error!(
@@ -771,7 +788,7 @@ impl Supervisor {
                                 let handle = crate::stt::SttEngineHandle::start(
                                     backend,
                                     repository,
-                                    stt_cfg.clone(),
+                                    cfg.clone(),
                                     event_sender.clone(),
                                 );
                                 info!("Supervisor: SttEngine ready");
@@ -781,34 +798,23 @@ impl Supervisor {
                                 (Some(handle), api_repo)
                             }
                             Ok(Err(e)) => {
-                                error!(
-                                    error = %e,
-                                    "STT model loading failed — SttEngine disabled"
-                                );
+                                error!(error = %e, "STT model loading failed — SttEngine disabled");
                                 (None, None)
                             }
                             Err(e) => {
-                                error!(
-                                    error = %e,
-                                    "STT model loading panicked — SttEngine disabled"
-                                );
+                                error!(error = %e, "STT model loading panicked — SttEngine disabled");
                                 (None, None)
                             }
                         }
                     }
                     Err(e) => {
-                        error!(
-                            error = %e,
-                            "SttRepository failed to open — SttEngine disabled"
-                        );
+                        error!(error = %e, "SttRepository failed to open — SttEngine disabled");
                         (None, None)
                     }
                 }
             }
         } else {
-            if self.config.stt_config.is_some() {
-                info!("Supervisor: STT disabled in config — Phase 15 skipped");
-            }
+            info!("Supervisor: STT disabled in config — Phase 15 skipped");
             (None, None)
         };
 
@@ -844,6 +850,7 @@ impl Supervisor {
             user_memory: user_memory.clone(),
             stt_engine: stt_engine.clone(),
             stt_repository: stt_repository.clone(),
+            stt_config_repo: stt_config_repo.clone(),
             mcp_handle: mcp_handle.clone(),
             config_writer: Some(Arc::new(McpConfigWriter::new(mcp_config_path))),
             llm_backend_repo: llm_backend_repo.clone(),
@@ -1312,7 +1319,6 @@ mod tests {
             data_dir: temp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
-            stt_config: None,
         };
         (config, temp_dir)
     }
@@ -1476,7 +1482,6 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
-            stt_config: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1621,7 +1626,6 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
-            stt_config: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1694,6 +1698,7 @@ mod tests {
             mcp_handle: None,
             config_writer: None,
             llm_backend_repo: None,
+            stt_config_repo: None,
         };
 
         // WHEN on clone l'AppState
@@ -1729,7 +1734,6 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
-            stt_config: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1786,7 +1790,6 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
-            stt_config: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1855,7 +1858,6 @@ mod tests {
             data_dir: tmp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
-            stt_config: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1951,7 +1953,6 @@ mod tests {
             data_dir: tmp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
-            stt_config: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2013,7 +2014,6 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
-            stt_config: None,
         };
         let supervisor = Supervisor::new(config);
 

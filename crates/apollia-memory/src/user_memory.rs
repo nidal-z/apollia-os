@@ -527,7 +527,7 @@ impl UserMemoryRepository {
                 let short_key = entry
                     .key
                     .split(KEY_SEPARATOR)
-                    .last()
+                    .next_back()
                     .unwrap_or(&entry.key);
                 let value = entry
                     .value

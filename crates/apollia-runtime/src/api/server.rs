@@ -19,7 +19,7 @@ use tokio::net::UnixListener;
 use tokio::sync::watch;
 use tracing::info;
 
-use apollia_core::{LlmBackendRepository, PendingApprovals};
+use apollia_core::{LlmBackendRepository, PendingApprovals, SttConfigRepository};
 use apollia_llm::{LlmCallRepository, LlmRouter};
 use apollia_mcp::manager::McpClientManagerHandle;
 use apollia_memory::user_memory::UserMemoryRepository;
@@ -186,6 +186,13 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// Partagé entre le boot (chargement du LlmRouter) et les routes REST CRUD.
     /// `None` en tests unitaires ou quand `system.db` n'a pas pu être ouvert.
     pub llm_backend_repo: Option<Arc<std::sync::Mutex<LlmBackendRepository>>>,
+    /// STT configuration repository — persists and reads the singleton `stt_config`
+    /// row in `system.db`.
+    ///
+    /// `Some` after Phase 15 of the Supervisor startup sequence.
+    /// `None` in tests or when `system.db` could not be opened.
+    /// Config routes return 503 when `None`.
+    pub stt_config_repo: Option<Arc<std::sync::Mutex<SttConfigRepository>>>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -221,6 +228,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             mcp_handle: self.mcp_handle.clone(),
             config_writer: self.config_writer.clone(),
             llm_backend_repo: self.llm_backend_repo.clone(),
+            stt_config_repo: self.stt_config_repo.clone(),
         }
     }
 }
@@ -342,7 +350,8 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     use super::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
     use super::routes_sse::stream_task;
     use super::routes_stt::{
-        delete_transcription, list_models, list_transcriptions, stt_status, transcribe_audio,
+        delete_transcription, get_stt_config, list_models, list_transcriptions, stt_status,
+        transcribe_audio, update_stt_config,
     };
     use super::routes_tasks::{cancel_task, get_task, list_tasks, resume_task, submit_task};
     use super::routes_timeline::get_task_timeline;
@@ -482,6 +491,10 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             axum::routing::delete(delete_transcription::<B>),
         )
         .route("/api/v1/stt/models", get(list_models::<B>))
+        .route(
+            "/api/v1/stt/config",
+            get(get_stt_config::<B>).put(update_stt_config::<B>),
+        )
         // MCP routes
         .merge(mcp_router::<B>())
         .with_state(state)
@@ -699,6 +712,7 @@ mod tests {
             mcp_handle: None,
             config_writer: None,
             llm_backend_repo: None,
+            stt_config_repo: None,
         }
     }
 

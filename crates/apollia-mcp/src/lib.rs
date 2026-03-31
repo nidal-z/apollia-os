@@ -9,5 +9,8 @@ pub mod executor;
 pub mod jsonrpc;
 pub mod manager;
 pub mod protocol;
+pub mod server_repository;
 pub mod session;
 pub mod transport;
+
+pub use server_repository::{McpRepoError, McpServerRepository};

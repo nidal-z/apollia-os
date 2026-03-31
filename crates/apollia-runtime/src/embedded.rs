@@ -142,11 +142,6 @@ pub struct EmbeddedConfig {
     /// Chat Agent runner — enables Chat Agent mode in the ChatSessionManager.
     /// When `None`, Agent mode sessions will fail at message time.
     pub chat_agent_runner: Option<Arc<dyn crate::chat::ChatAgentRunner>>,
-    /// Configuration STT optionnelle parsée depuis `[stt]` dans `apollia.toml`.
-    ///
-    /// `None` désactive le moteur STT. `Some(cfg)` avec `cfg.enabled = false`
-    /// produit le même comportement.
-    pub stt_config: Option<apollia_core::SttConfig>,
 }
 
 impl Default for EmbeddedConfig {
@@ -166,7 +161,6 @@ impl Default for EmbeddedConfig {
             config_path: None,
             agent_repository: None,
             chat_agent_runner: None,
-            stt_config: None,
         }
     }
 }
@@ -186,15 +180,7 @@ impl EmbeddedConfig {
             self.llm_config = s.llm;
         }
 
-        #[derive(serde::Deserialize)]
-        struct SttSection {
-            stt: Option<apollia_core::SttConfig>,
-        }
-        if let Ok(s) = toml::from_str::<SttSection>(content) {
-            self.stt_config = s.stt;
-        }
-
-        // triggers, pipelines, and notifications are now loaded
+        // triggers, pipelines, notifications, and stt are now loaded
         // from SQLite by the Supervisor. TOML sections for these are ignored.
 
         self
@@ -277,7 +263,6 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         data_dir: config.data_dir,
         obs_config: config.obs_config,
         agent_repository: config.agent_repository,
-        stt_config: config.stt_config,
     };
 
     let supervisor = Supervisor::new(supervisor_config);

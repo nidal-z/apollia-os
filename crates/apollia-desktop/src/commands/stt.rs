@@ -74,75 +74,71 @@ impl Default for SttConfigView {
     }
 }
 
-/// Returns the current `[stt]` configuration from `~/.apollia/apollia.toml`.
+/// Returns the current STT configuration from `~/.apollia/system.db`.
 ///
-/// Reads and deserialises only the `[stt]` table. Returns defaults if the
-/// file does not exist or the section is absent.
+/// Opens the repository, reads the singleton row, and returns it as a view.
+/// If the row does not exist yet, defaults are inserted and returned.
 #[tauri::command]
 pub async fn get_stt_config() -> Result<SttConfigView, String> {
-    let config_path = resolve_home("~/.apollia/apollia.toml");
+    let db_path = resolve_home("~/.apollia/system.db");
+    let row = tokio::task::spawn_blocking(move || {
+        let repo = apollia_core::SttConfigRepository::open(&db_path)
+            .map_err(|e| format!("failed to open system.db: {e}"))?;
+        repo.get_or_default()
+            .map_err(|e| format!("failed to read STT config: {e}"))
+    })
+    .await
+    .map_err(|e| format!("task error: {e}"))??;
 
-    if !config_path.exists() {
-        return Ok(SttConfigView::default());
-    }
-
-    let content = tokio::fs::read_to_string(&config_path)
-        .await
-        .map_err(|e| format!("failed to read apollia.toml: {e}"))?;
-
-    #[derive(serde::Deserialize)]
-    struct Wrapper {
-        #[serde(default)]
-        stt: apollia_core::SttConfig,
-    }
-
-    let wrapper: Wrapper =
-        toml::from_str(&content).map_err(|e| format!("failed to parse apollia.toml: {e}"))?;
-
-    let stt = wrapper.stt;
     Ok(SttConfigView {
-        enabled: stt.enabled,
-        model_path: stt.model_path.display().to_string(),
-        hotkey: stt.hotkey,
-        clipboard_mode: stt.clipboard_mode,
-        clipboard_restore: stt.clipboard_restore,
-        silence_threshold_db: stt.silence_threshold_db,
-        max_recording_sec: stt.max_recording_sec,
-        language: stt.language,
-        trigger_mode: stt.trigger_mode,
+        enabled: row.enabled,
+        model_path: row.model_path,
+        hotkey: row.hotkey,
+        clipboard_mode: row.clipboard_mode,
+        clipboard_restore: row.clipboard_restore,
+        silence_threshold_db: row.silence_threshold_db,
+        max_recording_sec: row.max_recording_sec,
+        language: row.language,
+        trigger_mode: row.trigger_mode,
     })
 }
 
-/// Writes the `[stt]` section to `~/.apollia/apollia.toml`.
+/// Persists the STT configuration to `~/.apollia/system.db`.
 ///
-/// Finds and replaces the existing `[stt]` block (preserving all other
-/// sections and comments), or appends it if absent. The caller must restart
-/// the application for the new configuration to take effect.
+/// Upserts the singleton row in `system.db`. The new configuration takes
+/// effect immediately for subsequent reads; an engine restart may be required
+/// to apply model or enable/disable changes.
 #[tauri::command]
 pub async fn update_stt_config(config: SttConfigView) -> Result<(), String> {
-    let config_path = resolve_home("~/.apollia/apollia.toml");
+    let db_path = resolve_home("~/.apollia/system.db");
 
-    // Ensure the config directory exists.
-    if let Some(parent) = config_path.parent() {
+    // Ensure the data directory exists.
+    if let Some(parent) = db_path.parent() {
         tokio::fs::create_dir_all(parent)
             .await
-            .map_err(|e| format!("failed to create config directory: {e}"))?;
+            .map_err(|e| format!("failed to create data directory: {e}"))?;
     }
 
-    let existing = if config_path.exists() {
-        tokio::fs::read_to_string(&config_path)
-            .await
-            .map_err(|e| format!("failed to read apollia.toml: {e}"))?
-    } else {
-        String::new()
+    let row = apollia_core::SttConfigRow {
+        enabled: config.enabled,
+        model_path: config.model_path.clone(),
+        hotkey: config.hotkey,
+        clipboard_mode: config.clipboard_mode,
+        clipboard_restore: config.clipboard_restore,
+        silence_threshold_db: config.silence_threshold_db,
+        max_recording_sec: config.max_recording_sec,
+        language: config.language,
+        trigger_mode: config.trigger_mode,
     };
 
-    let stt_block = format_stt_block(&config);
-    let new_content = replace_or_append_stt_section(&existing, &stt_block);
-
-    tokio::fs::write(&config_path, new_content)
-        .await
-        .map_err(|e| format!("failed to write apollia.toml: {e}"))?;
+    tokio::task::spawn_blocking(move || {
+        let repo = apollia_core::SttConfigRepository::open(&db_path)
+            .map_err(|e| format!("failed to open system.db: {e}"))?;
+        repo.upsert(&row)
+            .map_err(|e| format!("failed to persist STT config: {e}"))
+    })
+    .await
+    .map_err(|e| format!("task error: {e}"))??;
 
     tracing::info!(
         enabled = config.enabled,
@@ -301,73 +297,6 @@ pub async fn list_stt_models(
     }
 
     Ok(models)
-}
-
-// ── STT config helpers ───────────────────────────────────────────────
-
-/// Formats a `[stt]` TOML block from a [`SttConfigView`].
-fn format_stt_block(config: &SttConfigView) -> String {
-    let lang_line = match &config.language {
-        Some(lang) if !lang.is_empty() => format!("language             = \"{lang}\"\n"),
-        _ => String::new(),
-    };
-
-    format!(
-        "[stt]\n\
-         enabled              = {enabled}\n\
-         model_path           = \"{model_path}\"\n\
-         hotkey               = \"{hotkey}\"\n\
-         clipboard_mode       = \"{clipboard_mode}\"\n\
-         clipboard_restore    = {clipboard_restore}\n\
-         silence_threshold_db = {silence:.1}\n\
-         max_recording_sec    = {max_rec}\n\
-         {lang_line}\
-         trigger_mode         = \"{trigger_mode}\"",
-        enabled = config.enabled,
-        model_path = config.model_path,
-        hotkey = config.hotkey,
-        clipboard_mode = config.clipboard_mode,
-        clipboard_restore = config.clipboard_restore,
-        silence = config.silence_threshold_db,
-        max_rec = config.max_recording_sec,
-        lang_line = lang_line,
-        trigger_mode = config.trigger_mode,
-    )
-}
-
-/// Finds the `[stt]` section in `existing` and replaces its content with
-/// `stt_block`. If no `[stt]` section is found, appends the block.
-///
-/// Comments and other sections are preserved.
-fn replace_or_append_stt_section(existing: &str, stt_block: &str) -> String {
-    // Locate "[stt]" at start of a line.
-    let stt_pos = if existing.starts_with("[stt]") {
-        Some(0usize)
-    } else {
-        existing.find("\n[stt]").map(|i| i + 1)
-    };
-
-    if let Some(start) = stt_pos {
-        let prefix = existing[..start].trim_end_matches(['\n', '\r']);
-
-        // Find the end of the [stt] section body: next top-level "[" at start
-        // of a line, or end of file.
-        let rest = &existing[start..]; // starts at "[stt]"
-        let section_end = rest[1..] // skip the "[" to avoid self-match
-            .find("\n[")
-            .map(|i| start + 1 + i + 1)
-            .unwrap_or(existing.len());
-
-        let suffix = existing[section_end..].trim_start_matches(['\n', '\r']);
-
-        if suffix.is_empty() {
-            format!("{prefix}\n\n{stt_block}\n")
-        } else {
-            format!("{prefix}\n\n{stt_block}\n\n{suffix}")
-        }
-    } else {
-        format!("{}\n\n{stt_block}\n", existing.trim_end())
-    }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────

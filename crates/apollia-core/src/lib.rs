@@ -15,7 +15,6 @@
 //! - [`RuntimeEvent`], [`AgentId`], [`TaskId`]
 
 pub mod budget;
-pub mod config;
 pub mod events;
 pub mod llm_backend;
 pub mod manifest;
@@ -24,12 +23,13 @@ pub mod pending_approvals;
 pub mod process;
 pub mod result;
 pub mod sandbox;
+pub mod stt_config;
 pub mod task;
 pub mod user;
 
 pub use budget::StepBudgetConfig;
-pub use config::SttConfig;
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
+pub use stt_config::{SttConfigError, SttConfigRepository, SttConfigRow};
 pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
 pub use manifest::{AgentManifest, AgentSkill};
 pub use observability::{truncate_with_marker, ObservabilityConfig};

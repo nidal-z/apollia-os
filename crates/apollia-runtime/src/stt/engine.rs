@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
 
-use apollia_core::{EventBusSender, RuntimeEvent, SttConfig};
+use apollia_core::{EventBusSender, RuntimeEvent, SttConfigRow};
 use apollia_stt::{SttBackend, SttError, SttRepository, TranscriptResult};
 
 /// Bounded channel capacity for the actor mailbox.
@@ -112,16 +112,15 @@ impl SttEngineHandle {
     pub fn start(
         backend: Box<dyn SttBackend>,
         repository: SttRepository,
-        config: SttConfig,
+        config: SttConfigRow,
         event_bus: EventBusSender,
     ) -> Self {
-        let model_name = config
-            .model_path
+        let model_name = std::path::Path::new(&config.model_path)
             .file_stem()
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
         let backend_name = backend.name().to_owned();
-        let model_path_display = config.model_path.display().to_string();
+        let model_path_display = config.model_path.clone();
 
         let (tx, rx) = mpsc::channel(CHANNEL_CAPACITY);
 
@@ -203,7 +202,7 @@ struct SttEngine {
     backend: Arc<dyn SttBackend>,
     repository: std::sync::Mutex<SttRepository>,
     event_bus: EventBusSender,
-    config: SttConfig,
+    config: SttConfigRow,
     model_name: String,
 }
 
@@ -226,7 +225,7 @@ impl SttEngine {
                     let _ = reply.send(SttStatus {
                         enabled: self.config.enabled,
                         model_loaded: true,
-                        model_path: self.config.model_path.display().to_string(),
+                        model_path: self.config.model_path.clone(),
                         model_name: self.model_name.clone(),
                         backend_name: self.backend.name().to_owned(),
                         metal_enabled: cfg!(feature = "stt-metal"),
@@ -317,7 +316,6 @@ pub(crate) fn try_load_backend(model_path: &str) -> Result<Box<dyn SttBackend>, 
 mod tests {
     use super::*;
     use apollia_stt::TranscriptSegment;
-    use std::path::PathBuf;
     use tokio::sync::broadcast;
 
     /// Fake backend for unit tests — returns a fixed transcript.
@@ -356,12 +354,12 @@ mod tests {
         }
     }
 
-    fn test_config() -> SttConfig {
-        SttConfig {
+    fn test_config() -> SttConfigRow {
+        SttConfigRow {
             enabled: true,
-            model_path: PathBuf::from("/tmp/test-model.bin"),
+            model_path: "/tmp/test-model.bin".to_owned(),
             language: Some("fr".to_owned()),
-            ..SttConfig::default()
+            ..SttConfigRow::default()
         }
     }
 

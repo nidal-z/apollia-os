@@ -4,9 +4,9 @@
 //! et [`validate_llm_config`] pour une validation non-fatale (warnings seulement)
 //! des backends LLM.
 //!
-//! Les sections opérationnelles (`[[triggers]]`, `[[pipelines]]`, `[notifications]`)
-//! ne sont plus gérées par le fichier TOML — elles sont désormais stockées en SQLite
-//! et administrées via l'API REST ou l'application desktop.
+//! Les sections opérationnelles (`[[triggers]]`, `[[pipelines]]`, `[notifications]`,
+//! `[stt]`) ne sont plus gérées par le fichier TOML — elles sont désormais stockées
+//! en SQLite et administrées via l'API REST ou l'application desktop.
 //! Si un ancien fichier TOML contient ces sections, un warning est émis mais le boot
 //! continue normalement.
 //!
@@ -26,7 +26,6 @@
 
 use std::path::{Path, PathBuf};
 
-use apollia_core::SttConfig;
 use apollia_llm::{BackendKind, LlmConfig};
 
 // ─────────────────────────────────────────────
@@ -51,9 +50,8 @@ pub enum ConfigError {
 
 /// Configuration globale Apollia OS validée depuis `apollia.toml`.
 ///
-/// Contient la configuration structurelle : LLM et STT.
-/// La configuration opérationnelle (triggers, pipelines, notifications, agents) est
-/// gérée en SQLite et n'a plus de chemin TOML.
+/// Contient uniquement la configuration LLM. La configuration opérationnelle
+/// (triggers, pipelines, notifications, agents, stt) est gérée en SQLite.
 ///
 /// Pour désérialiser depuis un fichier, utiliser [`parse_apollia_toml`].
 #[derive(Debug, serde::Deserialize)]
@@ -62,18 +60,13 @@ pub struct ApolliaCConfig {
     ///
     /// Vaut `None` si la section `[llm]` est absente du fichier.
     pub llm: Option<LlmConfig>,
-
-    /// Section `[stt]` — configuration du moteur Speech-to-Text.
-    ///
-    /// Vaut `None` si la section `[stt]` est absente du fichier.
-    pub stt: Option<SttConfig>,
 }
 
 /// Noms des sections TOML qui sont désormais obsolètes.
 ///
 /// Utilisé par [`check_deprecated_sections`] pour émettre des warnings
 /// si un ancien fichier `apollia.toml` contient encore ces sections.
-const DEPRECATED_SECTIONS: &[&str] = &["triggers", "pipelines", "notifications"];
+const DEPRECATED_SECTIONS: &[&str] = &["triggers", "pipelines", "notifications", "stt"];
 
 // ─────────────────────────────────────────────
 // Fonctions publiques
@@ -126,7 +119,7 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
     // Build a filtered table with only known sections.
     let mut filtered = toml::map::Map::new();
     if let toml::Value::Table(table) = &raw_table {
-        for key in &["llm", "stt", "runtime", "memory", "tools", "budget", "api"] {
+        for key in &["llm", "runtime", "memory", "tools", "budget", "api"] {
             if let Some(v) = table.get(*key) {
                 filtered.insert((*key).to_string(), v.clone());
             }
@@ -145,11 +138,6 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
                 cfg.model_path = expand_tilde(&cfg.model_path);
             }
         }
-    }
-
-    // Normalise le chemin model_path STT (~ → $HOME).
-    if let Some(ref mut stt) = config.stt {
-        stt.model_path = expand_tilde(&stt.model_path);
     }
 
     Ok(config)
@@ -485,7 +473,7 @@ events = ["task.completed"]
 
     // GIVEN un TOML vide
     // WHEN parse_apollia_toml est appelé
-    // THEN le parsing réussit avec toutes les sections à None/vide
+    // THEN le parsing réussit avec la section llm à None
     #[test]
     fn test_empty_toml_parses_ok() {
         // GIVEN
@@ -496,17 +484,17 @@ events = ["task.completed"]
 
         // THEN
         assert!(config.llm.is_none());
-        assert!(config.stt.is_none());
     }
 
     // GIVEN la constante DEPRECATED_SECTIONS
     // WHEN on l'inspecte
-    // THEN elle contient triggers, pipelines, notifications
+    // THEN elle contient triggers, pipelines, notifications, stt
     #[test]
     fn test_deprecated_sections_constant() {
         assert!(DEPRECATED_SECTIONS.contains(&"triggers"));
         assert!(DEPRECATED_SECTIONS.contains(&"pipelines"));
         assert!(DEPRECATED_SECTIONS.contains(&"notifications"));
+        assert!(DEPRECATED_SECTIONS.contains(&"stt"));
     }
 
     // GIVEN un TOML qui contient [[pipelines]] obsolète
@@ -540,12 +528,11 @@ input = "x"
 
     // GIVEN le struct ApolliaCConfig
     // WHEN on vérifie sa structure
-    // THEN il n'a PAS de champs agents, startup_agents, triggers, pipelines, notifications
-    //       (vérification compile-time — ce test compile seulement si les champs sont absents)
+    // THEN il ne contient que le champ llm (compile-time check)
     #[test]
     fn test_config_struct_has_no_operational_fields() {
-        let config = ApolliaCConfig { llm: None, stt: None };
-        // If this compiles, the struct has exactly these fields.
+        let config = ApolliaCConfig { llm: None };
+        // If this compiles, the struct has exactly this field.
         assert!(config.llm.is_none());
     }
 }

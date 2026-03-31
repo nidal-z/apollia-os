@@ -11,7 +11,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use apollia_core::{EventBusSender, RuntimeEvent, SttConfig};
+use apollia_core::{EventBusSender, RuntimeEvent, SttConfigRow};
 use apollia_stt::{to_whisper_format, trim_silence, AudioCapture, CaptureBuffer};
 use tauri_plugin_notification::NotificationExt;
 
@@ -39,7 +39,7 @@ const MIN_SAMPLES: usize = 1_600;
 /// async runtime side.
 pub struct SttFlow {
     /// STT configuration (thresholds, clipboard mode, etc.).
-    config: SttConfig,
+    config: SttConfigRow,
     /// Handle to the SttEngine actor for transcription requests.
     stt_engine: SttEngineHandle,
     /// EventBus sender for lifecycle event broadcasting.
@@ -58,7 +58,7 @@ pub struct SttFlow {
 impl SttFlow {
     /// Creates a new orchestrator from the STT configuration and runtime handles.
     pub fn new(
-        config: SttConfig,
+        config: SttConfigRow,
         stt_engine: SttEngineHandle,
         event_bus: EventBusSender,
         app: tauri::AppHandle,
