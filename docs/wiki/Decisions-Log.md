@@ -907,5 +907,24 @@
 
 ---
 
+## ADR-048 — Worker Agents : expertise de domaine compilée dans le code Python
+
+**Date :** 2026-03-31
+**Statut :** Accepté
+
+**Contexte :** MCP (Sprint 26) livre 16K+ outils tiers. Mais pour les tâches de domaine complexes (Excel, CSV, PDF...), l'expertise de séquençage — guardrails, patterns d'erreur, imports corrects — se dégrade significativement sur les modèles 7-14B utilisés par les utilisateurs finaux d'Apollia. La fenêtre de contexte limitée (4K-8K tokens) et la fidélité moindre aux instructions longues rendent l'injection Markdown (style "skills" de Claude) inefficace sur ces modèles.
+
+**Décision :** Nous adoptons le pattern Worker Agent : des agents Python built-in dont l'expertise est compilée dans le code (`SYSTEM_PROMPT` constant, imports, guardrails, patterns d'erreur), pas injectée en contexte LLM. Chaque Worker Agent déclare `packages: list[str]` dans son manifest (installés au `INITIALIZING` via `setup_venv`), étend `WorkerAgent(BaseReActAgent)` du SDK Python, et expose `supports_a2a: True`. Le champ `packages` est ajouté à `AgentManifest` dans `apollia-core`.
+
+**Alternatives considérées :** Skills Markdown (rejetée : dégradation sur modèles 7-14B, guardrails contournables, dépend de l'intelligence du modèle), Outils MCP spécialisés (rejetée : atomiques par nature, ne peuvent pas encoder la séquence et les guardrails domaine).
+
+**Conséquences :** Worker Agents model-agnostic (7B à frontier). Guardrails non-contournables. Fail-fast sur packages manquants. Composable via A2A. Compromis : effort développement par domaine, bibliothèques pip à maintenir, temps venv INITIALIZING.
+
+**Principes impactés :** Principe #3 — Contrat minimal (WorkerAgent est une convention, pas une obligation), Principe #4 — Fail fast (packages → setup_venv au INITIALIZING → Degraded immédiat si absent).
+
+[Détail complet → docs/adr/ADR-048-worker-agents-expertise-domaine.md](adr/ADR-048-worker-agents-expertise-domaine.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
