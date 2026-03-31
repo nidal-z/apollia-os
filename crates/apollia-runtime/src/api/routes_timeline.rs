@@ -921,7 +921,7 @@ mod tests {
         setup_test_dbs(dir.path());
 
         // WHEN on cherche une tâche inexistante
-        let mut events: Vec<(String, TimelineEvent)> = Vec::new();
+        let events: Vec<(String, TimelineEvent)> = Vec::new();
         let mut task_found = false;
         let conn = rusqlite::Connection::open(dir.path().join("hitl.db")).expect("open");
         if let Some(_) = read_task_data(&conn, "nonexistent") {
@@ -955,7 +955,7 @@ mod tests {
 
         // WHEN on lit la timeline
         let mut events: Vec<(String, TimelineEvent)> = Vec::new();
-        if let Some((transitions, output_text, duration_ms, status)) =
+        if let Some((transitions, _output_text, _duration_ms, status)) =
             read_task_data(&conn, task_id)
         {
             parse_transitions(&transitions, &mut events);
@@ -1025,7 +1025,12 @@ mod tests {
         assert_eq!(events.len(), 1);
         let (_, event) = &events[0];
         match event {
-            TimelineEvent::ToolCall { input_preview, output_preview, truncated, .. } => {
+            TimelineEvent::ToolCall {
+                input_preview,
+                output_preview,
+                truncated,
+                ..
+            } => {
                 assert_eq!(input_preview.as_deref(), Some("{\"command\":\"ls -la\"}"));
                 assert_eq!(output_preview.as_deref(), Some("file1\nfile2"));
                 assert!(!truncated, "should not be truncated");
@@ -1059,7 +1064,11 @@ mod tests {
 
         assert_eq!(events.len(), 1);
         match &events[0].1 {
-            TimelineEvent::ToolCall { input_preview, truncated, .. } => {
+            TimelineEvent::ToolCall {
+                input_preview,
+                truncated,
+                ..
+            } => {
                 let preview = input_preview.as_deref().expect("should have preview");
                 assert!(preview.ends_with("..."), "should end with ...");
                 assert!(*truncated, "should be marked as truncated");
@@ -1091,9 +1100,15 @@ mod tests {
         read_tool_calls(&audit, task_id, &mut events);
 
         match &events[0].1 {
-            TimelineEvent::ToolCall { output_preview, input_preview, .. } => {
+            TimelineEvent::ToolCall {
+                output_preview,
+                input_preview,
+                ..
+            } => {
                 assert!(input_preview.is_none(), "no args_json → no input_preview");
-                let out = output_preview.as_deref().expect("should have output_preview");
+                let out = output_preview
+                    .as_deref()
+                    .expect("should have output_preview");
                 assert!(out.contains("out"), "should contain stdout");
                 assert!(out.contains("--- stderr ---"), "should contain separator");
                 assert!(out.contains("err"), "should contain stderr");

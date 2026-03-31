@@ -447,6 +447,7 @@ mod tests {
             execution_mode: "auto".to_string(),
             system_prompt: None,
             tools_requiring_approval: vec![],
+            llm_backend: None,
         }
     }
 
@@ -503,6 +504,7 @@ mod tests {
             stt_repository: None,
             mcp_handle: None,
             config_writer: None,
+            llm_backend_repo: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -648,6 +650,7 @@ mod tests {
             stt_repository: None,
             mcp_handle: None,
             config_writer: None,
+            llm_backend_repo: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -746,6 +749,7 @@ mod tests {
             stt_repository: None,
             mcp_handle: None,
             config_writer: None,
+            llm_backend_repo: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -950,6 +954,7 @@ mod tests {
             stt_repository: None,
             mcp_handle: None,
             config_writer: None,
+            llm_backend_repo: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

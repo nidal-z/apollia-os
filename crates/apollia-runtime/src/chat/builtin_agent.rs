@@ -799,7 +799,10 @@ fn extract_hostname(url: &str) -> Option<String> {
     // Strip port if present (skip IPv6 brackets)
     let host = if !host_and_port.starts_with('[') {
         if let Some(colon) = host_and_port.rfind(':') {
-            if host_and_port[colon + 1..].chars().all(|c| c.is_ascii_digit()) {
+            if host_and_port[colon + 1..]
+                .chars()
+                .all(|c| c.is_ascii_digit())
+            {
                 &host_and_port[..colon]
             } else {
                 host_and_port

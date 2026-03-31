@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
+use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
 
 use crate::types::{BackendInfo, CompletionModel, CompletionRequest, CompletionResponse, LlmError};
 
@@ -455,6 +456,107 @@ impl LlmRouter {
         Self { backends, default }
     }
 
+    /// Construit le router depuis un [`LlmBackendRepository`] SQLite.
+    ///
+    /// Charge tous les backends `enabled = true`. Le backend `is_default = true`
+    /// devient le backend par défaut. Les backends qui échouent à l'instanciation
+    /// sont loggués avec `tracing::warn!` et ignorés (dégradation non fatale).
+    ///
+    /// # Errors
+    ///
+    /// - [`LlmError::BackendUnavailable`] si aucun backend n'est marqué `is_default = true`
+    ///   dans `system.db`, ou si le backend par défaut échoue à l'instanciation.
+    pub async fn from_repository(repo: &LlmBackendRepository) -> Result<Self, LlmError> {
+        let all = repo.list().map_err(|e| LlmError::BackendUnavailable {
+            backend: "system.db".to_string(),
+            reason: e.to_string(),
+        })?;
+
+        let default_name = repo
+            .find_default()
+            .map_err(|e| LlmError::BackendUnavailable {
+                backend: "system.db".to_string(),
+                reason: e.to_string(),
+            })?
+            .ok_or_else(|| LlmError::BackendUnavailable {
+                backend: "default".to_string(),
+                reason: "no default LLM backend in system.db — configure one with is_default=true"
+                    .to_string(),
+            })?
+            .name;
+
+        let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
+
+        for cfg in all.into_iter().filter(|c| c.enabled) {
+            let name = cfg.name.clone();
+            match instantiate_from_config(&cfg).await {
+                Ok(backend) => {
+                    backends.insert(name, backend);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        backend = %name,
+                        error = %e,
+                        "LLM backend skipped during repository load"
+                    );
+                }
+            }
+        }
+
+        if !backends.contains_key(&default_name) {
+            return Err(LlmError::BackendUnavailable {
+                backend: default_name,
+                reason: "default backend failed to instantiate".to_string(),
+            });
+        }
+
+        Ok(Self {
+            backends,
+            default: default_name,
+        })
+    }
+
+    /// Retourne le backend pour `llm_backend`, ou le backend par défaut si `None` / inconnu.
+    ///
+    /// Émet `tracing::warn!` si le backend nommé est absent du router (fallback silencieux
+    /// sauf pour le log structuré).
+    ///
+    /// # Panics
+    ///
+    /// Panique si le router ne contient aucun backend. Ne pas appeler `route()` sur un
+    /// router construit via [`LlmRouter::empty()`].
+    pub fn route(&self, llm_backend: Option<&str>) -> Arc<dyn CompletionModel> {
+        match llm_backend {
+            None => self
+                .backends
+                .get(&self.default)
+                .expect("LlmRouter invariant: default backend must be present")
+                .clone(),
+            Some(name) => {
+                if let Some(b) = self.backends.get(name) {
+                    b.clone()
+                } else {
+                    tracing::warn!(
+                        backend = %name,
+                        fallback = %self.default,
+                        "unknown LLM backend requested, falling back to default"
+                    );
+                    self.backends
+                        .get(&self.default)
+                        .expect("LlmRouter invariant: default backend must be present")
+                        .clone()
+                }
+            }
+        }
+    }
+
+    /// Retourne les noms de tous les backends chargés dans le router.
+    pub fn backend_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.backends.keys().cloned().collect();
+        names.sort();
+        names
+    }
+
     /// Crée un `LlmRouter` vide sans aucun backend — pour les tests unitaires.
     ///
     /// Utilisé pour tester les chemins de dégradation :
@@ -482,6 +584,140 @@ impl LlmRouter {
             })
             .collect()
     }
+}
+
+// ─────────────────────────────────────────────
+// Backend instantiation helpers
+// ─────────────────────────────────────────────
+
+/// Instancie un [`CompletionModel`] depuis une [`LlmBackendConfig`] SQLite.
+async fn instantiate_from_config(cfg: &LlmBackendConfig) -> Result<Arc<dyn CompletionModel>, LlmError> {
+    match &cfg.provider {
+        LlmProvider::LlamaCpp => instantiate_embedded_backend(cfg).await,
+        provider => instantiate_cloud_backend(cfg, provider).await,
+    }
+}
+
+/// Instancie le backend llama-cpp embarqué depuis la config SQLite.
+#[cfg(feature = "local")]
+async fn instantiate_embedded_backend(
+    cfg: &LlmBackendConfig,
+) -> Result<Arc<dyn CompletionModel>, LlmError> {
+    use crate::backends::embedded::AcceleratorDevice;
+
+    let model_path_str = cfg
+        .config_json
+        .get("model_path")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| LlmError::BackendUnavailable {
+            backend: cfg.name.clone(),
+            reason: "config_json missing 'model_path' for llama-cpp backend".to_string(),
+        })?;
+
+    let device: AcceleratorDevice = cfg
+        .config_json
+        .get("device")
+        .and_then(|v| v.as_str())
+        .and_then(|s| serde_json::from_value(serde_json::Value::String(s.to_string())).ok())
+        .unwrap_or_default();
+
+    let embedded_cfg = EmbeddedBackendConfig {
+        name: cfg.name.clone(),
+        model_path: model_path_str.into(),
+        quantization: String::new(),
+        device,
+    };
+
+    let backend = EmbeddedBackend::load(&embedded_cfg).await?;
+    Ok(Arc::new(backend) as Arc<dyn CompletionModel>)
+}
+
+/// Retourne `BackendUnavailable` quand la feature `"local"` n'est pas compilée.
+#[cfg(not(feature = "local"))]
+async fn instantiate_embedded_backend(
+    cfg: &LlmBackendConfig,
+) -> Result<Arc<dyn CompletionModel>, LlmError> {
+    Err(LlmError::BackendUnavailable {
+        backend: cfg.name.clone(),
+        reason: "provider 'llama-cpp' requires feature 'local'".to_string(),
+    })
+}
+
+/// Instancie un backend cloud (OpenAI-compatible ou Anthropic) depuis la config SQLite.
+///
+/// Résout la clé API depuis `config_json["api_key"]` si présente.
+#[cfg(feature = "cloud")]
+async fn instantiate_cloud_backend(
+    cfg: &LlmBackendConfig,
+    provider: &LlmProvider,
+) -> Result<Arc<dyn CompletionModel>, LlmError> {
+    let api_key = extract_api_key_value(cfg)?;
+
+    let default_url = match provider {
+        LlmProvider::OpenAi    => "https://api.openai.com/v1",
+        LlmProvider::Mistral   => "https://api.mistral.ai/v1",
+        LlmProvider::Ollama    => "http://localhost:11434/v1",
+        LlmProvider::Anthropic => "https://api.anthropic.com",
+        LlmProvider::LlamaCpp  => unreachable!("LlamaCpp handled by instantiate_embedded_backend"),
+    };
+
+    let base_url = extract_base_url(cfg, default_url);
+
+    let api_cfg = ApiBackendConfig {
+        name:        cfg.name.clone(),
+        api_url:     base_url,
+        api_key_env: String::new(), // clé déjà résolue
+        model:       cfg.model.clone(),
+    };
+
+    if matches!(provider, LlmProvider::Anthropic) {
+        return Ok(Arc::new(AnthropicClient::new(&api_cfg, api_key)) as Arc<dyn CompletionModel>);
+    }
+
+    Ok(Arc::new(OpenAICompatibleClient::new(&api_cfg, api_key)) as Arc<dyn CompletionModel>)
+}
+
+/// Retourne `BackendUnavailable` quand la feature `"cloud"` n'est pas compilée.
+#[cfg(not(feature = "cloud"))]
+async fn instantiate_cloud_backend(
+    cfg: &LlmBackendConfig,
+    provider: &LlmProvider,
+) -> Result<Arc<dyn CompletionModel>, LlmError> {
+    Err(LlmError::BackendUnavailable {
+        backend: cfg.name.clone(),
+        reason: format!("provider '{}' requires feature 'cloud'", provider),
+    })
+}
+
+/// Extrait et résout la clé API depuis `config_json["api_key"]`.
+///
+/// - Absent → `Ok("")` (Ollama-style, pas d'authentification)
+/// - `"${VAR}"` → résout via `std::env::var(VAR)` ; erreur si la variable est absente
+/// - Valeur littérale → retournée telle quelle
+#[cfg(feature = "cloud")]
+fn extract_api_key_value(cfg: &LlmBackendConfig) -> Result<String, LlmError> {
+    let raw = match cfg.config_json.get("api_key").and_then(|v| v.as_str()) {
+        None => return Ok(String::new()),
+        Some(s) => s.to_string(),
+    };
+
+    if let Some(var_name) = raw.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+        std::env::var(var_name).map_err(|_| LlmError::ApiKeyMissing {
+            var: var_name.to_string(),
+        })
+    } else {
+        Ok(raw)
+    }
+}
+
+/// Extrait l'URL de base depuis `config_json["base_url"]`, ou retourne `default`.
+#[cfg(feature = "cloud")]
+fn extract_base_url(cfg: &LlmBackendConfig, default: &str) -> String {
+    cfg.config_json
+        .get("base_url")
+        .and_then(|v| v.as_str())
+        .unwrap_or(default)
+        .to_string()
 }
 
 // ─────────────────────────────────────────────
@@ -557,6 +793,145 @@ mod tests {
         Arc::new(MockCompletionModel {
             name: name.to_owned(),
         })
+    }
+
+    // ── Tests route() ────────────────────────────────────────────────────────
+
+    // GIVEN router with "local-code" and "mistral-small", default = "mistral-small"
+    // WHEN route(Some("local-code"))
+    // THEN the "local-code" backend is returned
+    #[test]
+    fn test_ac1_route_to_explicit_backend() {
+        let mut backends = HashMap::new();
+        backends.insert("local-code".into(), make_mock_backend("local-code"));
+        backends.insert("mistral-small".into(), make_mock_backend("mistral-small"));
+        let router = LlmRouter {
+            backends,
+            default: "mistral-small".into(),
+        };
+
+        let backend = router.route(Some("local-code"));
+        assert_eq!(backend.backend_name(), "local-code");
+    }
+
+    // GIVEN router with default = "local-code"
+    // WHEN route(None)
+    // THEN the default backend is returned
+    #[test]
+    fn test_ac2_route_none_returns_default() {
+        let mut backends = HashMap::new();
+        backends.insert("local-code".into(), make_mock_backend("local-code"));
+        let router = LlmRouter {
+            backends,
+            default: "local-code".into(),
+        };
+
+        let backend = router.route(None);
+        assert_eq!(backend.backend_name(), "local-code");
+    }
+
+    // GIVEN router without "phantom"
+    // WHEN route(Some("phantom"))
+    // THEN the default backend is returned (warning emitted)
+    #[test]
+    fn test_ac3_unknown_backend_falls_back_to_default() {
+        let mut backends = HashMap::new();
+        backends.insert("local-code".into(), make_mock_backend("local-code"));
+        let router = LlmRouter {
+            backends,
+            default: "local-code".into(),
+        };
+
+        let backend = router.route(Some("phantom"));
+        assert_eq!(backend.backend_name(), "local-code");
+    }
+
+    // GIVEN router with 2 backends
+    // WHEN backend_names()
+    // THEN sorted list of names returned
+    #[test]
+    fn test_backend_names_sorted() {
+        let mut backends = HashMap::new();
+        backends.insert("z-backend".into(), make_mock_backend("z-backend"));
+        backends.insert("a-backend".into(), make_mock_backend("a-backend"));
+        let router = LlmRouter {
+            backends,
+            default: "a-backend".into(),
+        };
+
+        let names = router.backend_names();
+        assert_eq!(names, vec!["a-backend", "z-backend"]);
+    }
+
+    // GIVEN a LlmBackendRepository with 2 enabled + 1 disabled Ollama backend
+    // WHEN from_repository(&repo).await
+    // THEN the router contains exactly 2 backends (the disabled one is excluded)
+    #[cfg(feature = "cloud")]
+    #[tokio::test]
+    async fn test_ac4_from_repository_loads_only_enabled() {
+        use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
+        use tempfile::TempDir;
+
+        let dir = TempDir::new().unwrap();
+        let repo = LlmBackendRepository::open(&dir.path().join("system.db")).unwrap();
+
+        let make_ollama = |name: &str, enabled: bool, is_default: bool| LlmBackendConfig {
+            name: name.to_string(),
+            provider: LlmProvider::Ollama,
+            model: "llama3".to_string(),
+            config_json: serde_json::json!({ "base_url": "http://localhost:11434/v1" }),
+            enabled,
+            is_default,
+        };
+
+        repo.save(&make_ollama("ollama-default", true, true)).unwrap();
+        repo.save(&make_ollama("ollama-extra", true, false)).unwrap();
+        repo.save(&make_ollama("ollama-disabled", false, false)).unwrap();
+
+        let router = LlmRouter::from_repository(&repo)
+            .await
+            .expect("from_repository should succeed");
+
+        let names = router.backend_names();
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&"ollama-default".to_string()));
+        assert!(names.contains(&"ollama-extra".to_string()));
+        assert!(!names.contains(&"ollama-disabled".to_string()));
+    }
+
+    // GIVEN a repository with no default backend
+    // WHEN from_repository(&repo).await
+    // THEN BackendUnavailable is returned
+    #[tokio::test]
+    async fn test_from_repository_no_default_returns_error() {
+        use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
+        use tempfile::TempDir;
+
+        let dir = TempDir::new().unwrap();
+        let repo = LlmBackendRepository::open(&dir.path().join("system.db")).unwrap();
+
+        // empty repo — no default
+        let result = LlmRouter::from_repository(&repo).await;
+        assert!(matches!(
+            result,
+            Err(LlmError::BackendUnavailable { .. })
+        ));
+
+        // backend with is_default=false — still no default
+        repo.save(&LlmBackendConfig {
+            name: "orphan".to_string(),
+            provider: LlmProvider::Ollama,
+            model: "llama3".to_string(),
+            config_json: serde_json::json!({}),
+            enabled: true,
+            is_default: false,
+        }).unwrap();
+
+        let result2 = LlmRouter::from_repository(&repo).await;
+        assert!(matches!(
+            result2,
+            Err(LlmError::BackendUnavailable { .. })
+        ));
     }
 
     // ── Tests : get, list, clone, error cases ────────────────────────────────

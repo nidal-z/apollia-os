@@ -1,17 +1,27 @@
-//! LLM routes — `GET /api/v1/llm/status`, `POST /api/v1/llm/ping`, `POST /api/v1/llm/chat`.
+//! LLM routes — status/ping/chat diagnostics + CRUD backends.
 //!
-//! These handlers expose the `LlmRouter` state through the HTTP API so the CLI
-//! can diagnose backends without starting a full agent.
+//! - `GET  /api/v1/llm/status`                     — list backends
+//! - `POST /api/v1/llm/ping`                       — measure backend latency
+//! - `POST /api/v1/llm/chat`                       — one-shot prompt
+//! - `GET  /api/v1/llm/costs`                      — aggregate cost/token stats
+//! - `GET  /api/v1/llm/costs/daily`                — daily cost breakdown
+//! - `GET    /api/v1/llm/backends`                 — list configured backends
+//! - `GET    /api/v1/llm/backends/:name`           — get one backend
+//! - `POST   /api/v1/llm/backends`                 — create backend
+//! - `PUT    /api/v1/llm/backends/:name`           — update backend
+//! - `DELETE /api/v1/llm/backends/:name`           — delete backend
+//! - `POST   /api/v1/llm/backends/:name/set-default` — mark as default
 
 use std::sync::Arc;
 use std::time::Instant;
 
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
+use apollia_core::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
 use apollia_llm::router::ObservabilityConfig;
 use apollia_llm::{BackendInfo, ChatMessage, CompletionRequest};
 
@@ -393,17 +403,387 @@ pub async fn get_llm_daily_costs<B: ExecutionBackend + Clone>(
 }
 
 // ─────────────────────────────────────────────
+// CRUD types
+// ─────────────────────────────────────────────
+
+/// Request body for `POST /api/v1/llm/backends`.
+#[derive(Debug, Deserialize)]
+pub struct CreateLlmBackendRequest {
+    /// Unique name — pattern `^[a-z0-9_-]+$`.
+    pub name: String,
+    /// Provider identifier: `"llama-cpp"`, `"openai"`, `"mistral"`, `"anthropic"`, `"ollama"`.
+    pub provider: String,
+    /// Model identifier (e.g. `"gpt-4o"`, `"mistral-small-latest"`).
+    pub model: String,
+    /// Provider-specific configuration object (must be a JSON object, not null or primitive).
+    pub config_json: serde_json::Value,
+    /// Whether this backend is active (default: `true`).
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Mark this backend as the default (default: `false`).
+    #[serde(default)]
+    pub is_default: bool,
+}
+
+/// Request body for `PUT /api/v1/llm/backends/:name`.
+#[derive(Debug, Deserialize)]
+pub struct UpdateLlmBackendRequest {
+    /// Provider identifier.
+    pub provider: String,
+    /// Model identifier.
+    pub model: String,
+    /// Provider-specific configuration object.
+    pub config_json: serde_json::Value,
+    /// Whether this backend is active.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Whether this backend is the default.
+    #[serde(default)]
+    pub is_default: bool,
+}
+
+/// Response body for a single backend.
+#[derive(Debug, Serialize)]
+pub struct LlmBackendResponse {
+    /// Unique backend name.
+    pub name: String,
+    /// Provider identifier string.
+    pub provider: String,
+    /// Model identifier.
+    pub model: String,
+    /// Provider-specific configuration.
+    pub config_json: serde_json::Value,
+    /// Whether this backend is enabled.
+    pub enabled: bool,
+    /// Whether this is the default backend.
+    pub is_default: bool,
+}
+
+/// Response body for `GET /api/v1/llm/backends`.
+#[derive(Debug, Serialize)]
+pub struct LlmBackendsListResponse {
+    /// All configured backends.
+    pub backends: Vec<LlmBackendResponse>,
+}
+
+/// Response body for `DELETE /api/v1/llm/backends/:name`.
+#[derive(Debug, Serialize)]
+pub struct DeleteBackendResponse {
+    /// Name of the deleted backend.
+    pub deleted: String,
+}
+
+/// Response body for `POST /api/v1/llm/backends/:name/set-default`.
+#[derive(Debug, Serialize)]
+pub struct SetDefaultResponse {
+    /// The backend that is now the default.
+    pub default: String,
+}
+
+/// CRUD error response body.
+#[derive(Debug, Serialize)]
+pub struct BackendErrorResponse {
+    /// Human-readable error message.
+    pub error: String,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// Convert an [`LlmBackendConfig`] to [`LlmBackendResponse`].
+fn config_to_response(cfg: LlmBackendConfig) -> LlmBackendResponse {
+    LlmBackendResponse {
+        name: cfg.name,
+        provider: cfg.provider.to_string(),
+        model: cfg.model,
+        config_json: cfg.config_json,
+        enabled: cfg.enabled,
+        is_default: cfg.is_default,
+    }
+}
+
+/// Map [`LlmBackendError`] to an HTTP status + error body.
+fn map_backend_error(err: LlmBackendError) -> (StatusCode, Json<BackendErrorResponse>) {
+    let (status, msg) = match &err {
+        LlmBackendError::NotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
+        LlmBackendError::DefaultAlreadyExists(_) | LlmBackendError::CannotDeleteDefault => {
+            (StatusCode::CONFLICT, err.to_string())
+        }
+        LlmBackendError::InvalidName(_) | LlmBackendError::Serialization(_) => {
+            (StatusCode::UNPROCESSABLE_ENTITY, err.to_string())
+        }
+        LlmBackendError::Db(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+    };
+    (status, Json(BackendErrorResponse { error: msg }))
+}
+
+/// Extract the `llm_backend_repo` from state, returning 503 if absent.
+fn require_backend_repo<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+) -> Result<&Arc<std::sync::Mutex<LlmBackendRepository>>, (StatusCode, Json<BackendErrorResponse>)>
+{
+    state.llm_backend_repo.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(BackendErrorResponse {
+                error: "LLM backend repository not available".into(),
+            }),
+        )
+    })
+}
+
+/// Validate that `config_json` is a JSON object.
+fn validate_config_json(
+    value: &serde_json::Value,
+) -> Result<(), (StatusCode, Json<BackendErrorResponse>)> {
+    if !value.is_object() {
+        return Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(BackendErrorResponse {
+                error: "config_json must be a JSON object".into(),
+            }),
+        ));
+    }
+    Ok(())
+}
+
+// ─────────────────────────────────────────────
+// CRUD Handlers
+// ─────────────────────────────────────────────
+
+/// Handler for `GET /api/v1/llm/backends`.
+///
+/// Lists all configured backends from `system.db`.
+/// Returns 503 if the repository is not available.
+pub async fn list_llm_backends<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> Result<Json<LlmBackendsListResponse>, (StatusCode, Json<BackendErrorResponse>)> {
+    let repo = require_backend_repo(&state)?;
+    let guard = repo.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(BackendErrorResponse {
+                error: "repository lock poisoned".into(),
+            }),
+        )
+    })?;
+    let configs = guard.list().map_err(map_backend_error)?;
+    let backends = configs.into_iter().map(config_to_response).collect();
+    Ok(Json(LlmBackendsListResponse { backends }))
+}
+
+/// Handler for `GET /api/v1/llm/backends/:name`.
+///
+/// Returns the backend with the given name or 404 if not found.
+pub async fn get_llm_backend<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(name): Path<String>,
+) -> Result<Json<LlmBackendResponse>, (StatusCode, Json<BackendErrorResponse>)> {
+    let repo = require_backend_repo(&state)?;
+    let guard = repo.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(BackendErrorResponse {
+                error: "repository lock poisoned".into(),
+            }),
+        )
+    })?;
+    let cfg = guard
+        .find_by_name(&name)
+        .map_err(map_backend_error)?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(BackendErrorResponse {
+                    error: format!("backend '{name}' not found"),
+                }),
+            )
+        })?;
+    Ok(Json(config_to_response(cfg)))
+}
+
+/// Handler for `POST /api/v1/llm/backends`.
+///
+/// Creates a new backend. Returns 201 on success, 409 if a default already exists
+/// when `is_default` is set, 422 on validation error.
+pub async fn create_llm_backend<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Json(body): Json<CreateLlmBackendRequest>,
+) -> Result<(StatusCode, Json<LlmBackendResponse>), (StatusCode, Json<BackendErrorResponse>)> {
+    validate_config_json(&body.config_json)?;
+
+    let provider = LlmProvider::try_from(body.provider.as_str()).map_err(|_| {
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(BackendErrorResponse {
+                error: format!(
+                    "unknown provider '{}'; valid values: llama-cpp, openai, mistral, anthropic, ollama",
+                    body.provider
+                ),
+            }),
+        )
+    })?;
+
+    let cfg = LlmBackendConfig {
+        name: body.name.clone(),
+        provider,
+        model: body.model,
+        config_json: body.config_json,
+        enabled: body.enabled,
+        is_default: body.is_default,
+    };
+
+    let repo = require_backend_repo(&state)?;
+    let guard = repo.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(BackendErrorResponse {
+                error: "repository lock poisoned".into(),
+            }),
+        )
+    })?;
+    guard.save(&cfg).map_err(map_backend_error)?;
+    let created = guard
+        .find_by_name(&cfg.name)
+        .map_err(map_backend_error)?
+        .ok_or_else(|| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(BackendErrorResponse {
+                    error: "backend saved but not found".into(),
+                }),
+            )
+        })?;
+    Ok((StatusCode::CREATED, Json(config_to_response(created))))
+}
+
+/// Handler for `PUT /api/v1/llm/backends/:name`.
+///
+/// Replaces an existing backend configuration. Returns 404 if the backend does not exist.
+pub async fn update_llm_backend<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(name): Path<String>,
+    Json(body): Json<UpdateLlmBackendRequest>,
+) -> Result<Json<LlmBackendResponse>, (StatusCode, Json<BackendErrorResponse>)> {
+    validate_config_json(&body.config_json)?;
+
+    let provider = LlmProvider::try_from(body.provider.as_str()).map_err(|_| {
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(BackendErrorResponse {
+                error: format!(
+                    "unknown provider '{}'; valid values: llama-cpp, openai, mistral, anthropic, ollama",
+                    body.provider
+                ),
+            }),
+        )
+    })?;
+
+    let repo = require_backend_repo(&state)?;
+    let guard = repo.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(BackendErrorResponse {
+                error: "repository lock poisoned".into(),
+            }),
+        )
+    })?;
+
+    // Verify existence before updating.
+    guard
+        .find_by_name(&name)
+        .map_err(map_backend_error)?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(BackendErrorResponse {
+                    error: format!("backend '{name}' not found"),
+                }),
+            )
+        })?;
+
+    let cfg = LlmBackendConfig {
+        name: name.clone(),
+        provider,
+        model: body.model,
+        config_json: body.config_json,
+        enabled: body.enabled,
+        is_default: body.is_default,
+    };
+    guard.save(&cfg).map_err(map_backend_error)?;
+    let updated = guard
+        .find_by_name(&name)
+        .map_err(map_backend_error)?
+        .ok_or_else(|| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(BackendErrorResponse {
+                    error: "backend updated but not found".into(),
+                }),
+            )
+        })?;
+    Ok(Json(config_to_response(updated)))
+}
+
+/// Handler for `DELETE /api/v1/llm/backends/:name`.
+///
+/// Deletes a backend. Returns 409 if the backend is the current default, 404 if not found.
+pub async fn delete_llm_backend<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(name): Path<String>,
+) -> Result<Json<DeleteBackendResponse>, (StatusCode, Json<BackendErrorResponse>)> {
+    let repo = require_backend_repo(&state)?;
+    let guard = repo.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(BackendErrorResponse {
+                error: "repository lock poisoned".into(),
+            }),
+        )
+    })?;
+    guard.delete(&name).map_err(map_backend_error)?;
+    Ok(Json(DeleteBackendResponse { deleted: name }))
+}
+
+/// Handler for `POST /api/v1/llm/backends/:name/set-default`.
+///
+/// Marks the given backend as the default. Returns 404 if not found.
+pub async fn set_default_llm_backend<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(name): Path<String>,
+) -> Result<Json<SetDefaultResponse>, (StatusCode, Json<BackendErrorResponse>)> {
+    let repo = require_backend_repo(&state)?;
+    let guard = repo.lock().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(BackendErrorResponse {
+                error: "repository lock poisoned".into(),
+            }),
+        )
+    })?;
+    guard.set_default(&name).map_err(map_backend_error)?;
+    Ok(Json(SetDefaultResponse { default: name }))
+}
+
+// ─────────────────────────────────────────────
 // Sub-router builder
 // ─────────────────────────────────────────────
 
-/// Build the axum sub-router for LLM diagnostic endpoints.
+/// Build the axum sub-router for LLM diagnostic and CRUD endpoints.
 ///
 /// Routes registered:
-/// - `GET  /api/v1/llm/status`      — list all backends
-/// - `POST /api/v1/llm/ping`        — measure backend latency
-/// - `POST /api/v1/llm/chat`        — send a one-shot prompt
-/// - `GET  /api/v1/llm/costs`       — aggregate cost/token stats
-/// - `GET  /api/v1/llm/costs/daily`  — daily cost breakdown per backend
+/// - `GET  /api/v1/llm/status`                          — list all backends
+/// - `POST /api/v1/llm/ping`                            — measure backend latency
+/// - `POST /api/v1/llm/chat`                            — send a one-shot prompt
+/// - `GET  /api/v1/llm/costs`                           — aggregate cost/token stats
+/// - `GET  /api/v1/llm/costs/daily`                     — daily cost breakdown per backend
+/// - `GET    /api/v1/llm/backends`                      — list configured backends
+/// - `GET    /api/v1/llm/backends/:name`                — get one backend
+/// - `POST   /api/v1/llm/backends`                      — create backend
+/// - `PUT    /api/v1/llm/backends/:name`                — update backend
+/// - `DELETE /api/v1/llm/backends/:name`                — delete backend
+/// - `POST   /api/v1/llm/backends/:name/set-default`    — mark as default
 pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
         .route("/api/v1/llm/status", get(get_llm_status::<B>))
@@ -411,6 +791,20 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route("/api/v1/llm/chat", post(llm_chat::<B>))
         .route("/api/v1/llm/costs", get(get_llm_costs::<B>))
         .route("/api/v1/llm/costs/daily", get(get_llm_daily_costs::<B>))
+        .route(
+            "/api/v1/llm/backends",
+            get(list_llm_backends::<B>).post(create_llm_backend::<B>),
+        )
+        .route(
+            "/api/v1/llm/backends/:name",
+            get(get_llm_backend::<B>)
+                .put(update_llm_backend::<B>)
+                .delete(delete_llm_backend::<B>),
+        )
+        .route(
+            "/api/v1/llm/backends/:name/set-default",
+            post(set_default_llm_backend::<B>),
+        )
 }
 
 // ─────────────────────────────────────────────
@@ -491,6 +885,7 @@ mod tests {
             stt_repository: None,
             mcp_handle: None,
             config_writer: None,
+            llm_backend_repo: None,
         }
     }
 
@@ -592,5 +987,157 @@ mod tests {
             json["backends"].is_array(),
             "response must contain a 'backends' array"
         );
+    }
+
+    // ── CRUD backend tests ────────────────────────────────────────────────
+
+    /// Build a test `AppState` with a real in-memory `LlmBackendRepository`.
+    fn test_app_state_with_repo(dir: &tempfile::TempDir) -> AppState<MockBackend> {
+        let db_path = dir.path().join("system.db");
+        let repo = LlmBackendRepository::open(&db_path).expect("open system.db");
+        let mut state = test_app_state_no_llm();
+        state.llm_backend_repo = Some(Arc::new(std::sync::Mutex::new(repo)));
+        state
+    }
+
+    async fn body_json(resp: axum::response::Response) -> serde_json::Value {
+        let bytes = axum::body::to_bytes(resp.into_body(), 16 * 1024)
+            .await
+            .unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    // GIVEN a runtime with 2 backends registered
+    // WHEN GET /api/v1/llm/backends
+    // THEN 200 + JSON array of 2 backends
+    #[tokio::test]
+    async fn test_ac1_list_returns_registered_backends() {
+        // GIVEN
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_app_state_with_repo(&dir);
+        {
+            let repo = state.llm_backend_repo.as_ref().unwrap().lock().unwrap();
+            repo.save(&LlmBackendConfig {
+                name: "alpha".into(),
+                provider: apollia_core::LlmProvider::OpenAi,
+                model: "gpt-4o".into(),
+                config_json: serde_json::json!({"api_key": "k1"}),
+                enabled: true,
+                is_default: true,
+            })
+            .unwrap();
+            repo.save(&LlmBackendConfig {
+                name: "beta".into(),
+                provider: apollia_core::LlmProvider::Mistral,
+                model: "mistral-small-latest".into(),
+                config_json: serde_json::json!({}),
+                enabled: true,
+                is_default: false,
+            })
+            .unwrap();
+        }
+        let app_router = llm_routes::<MockBackend>().with_state(state);
+
+        // WHEN
+        let req = Request::builder()
+            .uri("/api/v1/llm/backends")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app_router.oneshot(req).await.unwrap();
+
+        // THEN
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = body_json(resp).await;
+        let backends = json["backends"].as_array().unwrap();
+        assert_eq!(backends.len(), 2);
+    }
+
+    // GIVEN a runtime without "test-backend"
+    // WHEN POST /api/v1/llm/backends with valid body
+    // THEN 201 + backend is in the list
+    #[tokio::test]
+    async fn test_ac2_create_persists_new_backend() {
+        // GIVEN
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_app_state_with_repo(&dir);
+        let app_router = llm_routes::<MockBackend>().with_state(state);
+
+        // WHEN
+        let body = serde_json::json!({
+            "name": "test-backend",
+            "provider": "openai",
+            "model": "gpt-4o",
+            "config_json": {"api_key": "sk-test"},
+            "enabled": true,
+            "is_default": true
+        });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/llm/backends")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let resp = app_router.oneshot(req).await.unwrap();
+
+        // THEN
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let json = body_json(resp).await;
+        assert_eq!(json["name"], "test-backend");
+        assert_eq!(json["provider"], "openai");
+    }
+
+    // GIVEN backend "a" marked is_default=true
+    // WHEN DELETE /api/v1/llm/backends/a
+    // THEN 409 Conflict
+    #[tokio::test]
+    async fn test_ac3_delete_default_returns_409() {
+        // GIVEN
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_app_state_with_repo(&dir);
+        {
+            let repo = state.llm_backend_repo.as_ref().unwrap().lock().unwrap();
+            repo.save(&LlmBackendConfig {
+                name: "a".into(),
+                provider: apollia_core::LlmProvider::OpenAi,
+                model: "gpt-4o".into(),
+                config_json: serde_json::json!({}),
+                enabled: true,
+                is_default: true,
+            })
+            .unwrap();
+        }
+        let app_router = llm_routes::<MockBackend>().with_state(state);
+
+        // WHEN
+        let req = Request::builder()
+            .method("DELETE")
+            .uri("/api/v1/llm/backends/a")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app_router.oneshot(req).await.unwrap();
+
+        // THEN
+        assert_eq!(resp.status(), StatusCode::CONFLICT);
+    }
+
+    // GIVEN no backend named "ghost"
+    // WHEN GET /api/v1/llm/backends/ghost
+    // THEN 404
+    #[tokio::test]
+    async fn test_ac4_unknown_backend_returns_404() {
+        // GIVEN
+        let dir = tempfile::tempdir().unwrap();
+        let state = test_app_state_with_repo(&dir);
+        let app_router = llm_routes::<MockBackend>().with_state(state);
+
+        // WHEN
+        let req = Request::builder()
+            .uri("/api/v1/llm/backends/ghost")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app_router.oneshot(req).await.unwrap();
+
+        // THEN
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 }

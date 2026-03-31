@@ -19,7 +19,7 @@ use tokio::net::UnixListener;
 use tokio::sync::watch;
 use tracing::info;
 
-use apollia_core::PendingApprovals;
+use apollia_core::{LlmBackendRepository, PendingApprovals};
 use apollia_llm::{LlmCallRepository, LlmRouter};
 use apollia_mcp::manager::McpClientManagerHandle;
 use apollia_memory::user_memory::UserMemoryRepository;
@@ -180,6 +180,12 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// Always `Some` in production (built from `data_dir/mcp.toml`).
     /// `None` in unit tests. Mutation routes return 503 when `None`.
     pub config_writer: Option<Arc<apollia_mcp::config_writer::McpConfigWriter>>,
+    /// Repository CRUD des backends LLM.
+    ///
+    /// Ouvert par le Supervisor depuis `data_dir/system.db`.
+    /// Partagé entre le boot (chargement du LlmRouter) et les routes REST CRUD.
+    /// `None` en tests unitaires ou quand `system.db` n'a pas pu être ouvert.
+    pub llm_backend_repo: Option<Arc<std::sync::Mutex<LlmBackendRepository>>>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -214,6 +220,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             stt_repository: self.stt_repository.clone(),
             mcp_handle: self.mcp_handle.clone(),
             config_writer: self.config_writer.clone(),
+            llm_backend_repo: self.llm_backend_repo.clone(),
         }
     }
 }
@@ -691,6 +698,7 @@ mod tests {
             stt_repository: None,
             mcp_handle: None,
             config_writer: None,
+            llm_backend_repo: None,
         }
     }
 

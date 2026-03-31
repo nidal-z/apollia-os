@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 use tracing::{error, info, warn};
 
-use apollia_core::{PendingApprovals, ProcessState, RuntimeEvent};
+use apollia_core::{LlmBackendRepository, PendingApprovals, ProcessState, RuntimeEvent};
 use apollia_llm::{LlmCallRepository, LlmConfig, LlmRouter};
 use apollia_mcp::{
     config::McpConfig, config_writer::McpConfigWriter, manager::McpClientManagerHandle,
@@ -380,29 +380,35 @@ impl Supervisor {
             }
         };
 
-        // Phase 4 (pos 5): LlmRouter — initialized before TaskRouter
-        let llm_router: Option<Arc<LlmRouter>> = if let Some(llm_cfg) = &self.config.llm_config {
-            info!("Supervisor: starting LlmRouter");
-            match LlmRouter::from_config_with_bus(llm_cfg, Some(event_sender.clone())).await {
-                Ok(router) => {
-                    for info in router.list() {
-                        tracing::info!(
-                            backend = %info.name,
-                            model = %info.model_id,
-                            "LLM backend ready"
-                        );
+        // Phase 4 (pos 5): LlmRouter + LlmBackendRepository — loads backends from system.db
+        let system_db_path = self.config.data_dir.join("system.db");
+        let (llm_router, llm_backend_repo) = match LlmBackendRepository::open(&system_db_path) {
+            Ok(repo) => {
+                info!("Supervisor: starting LlmRouter from system.db");
+                let router_result = LlmRouter::from_repository(&repo).await;
+                let repo = Arc::new(std::sync::Mutex::new(repo));
+                match router_result {
+                    Ok(router) => {
+                        for info in router.list() {
+                            tracing::info!(
+                                backend = %info.name,
+                                model = %info.model_id,
+                                "LLM backend ready"
+                            );
+                        }
+                        info!("Supervisor: LlmRouter ready");
+                        (Some(Arc::new(router)), Some(repo))
                     }
-                    info!("Supervisor: LlmRouter ready");
-                    Some(Arc::new(router))
-                }
-                Err(e) => {
-                    warn!(error = %e, "LlmRouter failed to initialize — continuing without LLM");
-                    None
+                    Err(e) => {
+                        warn!(error = %e, "LlmRouter failed to initialize — continuing without LLM");
+                        (None, Some(repo))
+                    }
                 }
             }
-        } else {
-            info!("Supervisor: no [llm] section in config — LLM disabled");
-            None
+            Err(e) => {
+                warn!(error = %e, "failed to open system.db — LLM disabled");
+                (None, None)
+            }
         };
 
         // Phase 4b: LlmCallRepository — subscriber EventBus pour persister les appels LLM
@@ -840,6 +846,7 @@ impl Supervisor {
             stt_repository: stt_repository.clone(),
             mcp_handle: mcp_handle.clone(),
             config_writer: Some(Arc::new(McpConfigWriter::new(mcp_config_path))),
+            llm_backend_repo: llm_backend_repo.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -1686,6 +1693,7 @@ mod tests {
             stt_repository: None,
             mcp_handle: None,
             config_writer: None,
+            llm_backend_repo: None,
         };
 
         // WHEN on clone l'AppState
@@ -2064,6 +2072,7 @@ mod tests {
             execution_mode: "auto".to_string(),
             system_prompt: None,
             tools_requiring_approval: vec![],
+            llm_backend: None,
         }
     }
 

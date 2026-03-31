@@ -500,6 +500,7 @@ mod tests {
                 execution_mode: "auto".to_string(),
                 system_prompt: None,
                 tools_requiring_approval: vec![],
+                llm_backend: None,
             })
         }
     }
@@ -533,6 +534,7 @@ mod tests {
             execution_mode: "auto".to_string(),
             system_prompt: None,
             tools_requiring_approval: vec![],
+            llm_backend: None,
         }
     }
 
@@ -575,6 +577,7 @@ mod tests {
             stt_repository: None,
             mcp_handle: None,
             config_writer: None,
+            llm_backend_repo: None,
         };
         let router = Router::new()
             .route(
@@ -928,6 +931,7 @@ mod tests {
                     execution_mode: "auto".to_string(),
                     system_prompt: None,
                     tools_requiring_approval: vec![],
+                    llm_backend: None,
                 })
             }
         }

@@ -545,6 +545,7 @@ mod tests {
                 execution_mode: "auto".into(),
                 system_prompt: None,
                 tools_requiring_approval: vec![],
+                llm_backend: None,
             })
         }
     }
@@ -603,6 +604,7 @@ mod tests {
             stt_repository: None,
             mcp_handle: None,
             config_writer: None,
+            llm_backend_repo: None,
         };
 
         APIServer::build_router_for_test(state)

@@ -1383,6 +1383,7 @@ mod tests {
                 execution_mode: "auto".into(),
                 system_prompt: None,
                 tools_requiring_approval: vec![],
+                llm_backend: None,
             })
         }
     }
