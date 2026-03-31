@@ -888,5 +888,24 @@
 
 ---
 
+## ADR-047 — Multi-LLM Backend Registry : SQLite + binding par agent
+
+**Date :** 2026-03-31
+**Statut :** Accepté
+
+**Contexte :** Apollia OS ne supporte qu'un seul backend LLM, configuré statiquement dans `[llm]` de `apollia.toml`. Impossible d'avoir un agent code-reviewer sur `lm5-code` et un agent mail sur `mistral-small` simultanément. La config LLM est la seule entité runtime encore dans un fichier TOML — incohérent avec SQLite pour les agents, triggers, et MCP.
+
+**Décision :** Table SQLite `llm_backends` dans `system.db` avec n backends enregistrés (un seul `is_default`). `AgentManifest` gagne un champ optionnel `llm_backend: Option<String>`. `LlmRouter` devient multi-backend avec routing `agent_id → backend_name`, fallback sur le défaut. Suppression de `[llm]` dans `apollia.toml`. V1 : tous les backends `enabled` chargés au boot.
+
+**Alternatives considérées :** Variable d'environnement par agent (rejetée — viole Principe #3, impossible à gérer depuis le desktop), fichier de config par agent (rejetée — prolifération de fichiers, même problème d'éditabilité), LLM directement dans AgentManifest (rejetée — API keys dans le Python, catastrophe sécurité).
+
+**Conséquences :** Multi-LLM simultané natif. Config LLM éditable depuis le desktop sans redémarrage. Cohérence SQLite-first. Compromis : LlmRouter refactorisé (risque régression), backends locaux lourds tous chargés au boot (lazy load reporté à V2), AgentManifest étendu (breaking change optionnel).
+
+**Principes impactés :** Principe #1 — Local-first (respecté : secrets via env vars/keyring), Principe #3 — Contrat minimal (respecté : champ optionnel), Principe #4 — Fail fast (warning immédiat si backend nommé introuvable).
+
+[Détail → docs/adr/ADR-047-multi-llm-backend-registry.md](adr/ADR-047-multi-llm-backend-registry.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
