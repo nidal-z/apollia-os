@@ -21,9 +21,7 @@ use apollia_core::{
     SttConfigRow,
 };
 use apollia_llm::{LlmCallRepository, LlmConfig, LlmRouter};
-use apollia_mcp::{
-    config::McpConfig, config_writer::McpConfigWriter, manager::McpClientManagerHandle,
-};
+use apollia_mcp::{config::McpConfig, manager::McpClientManagerHandle, McpServerRepository};
 use apollia_notifications::{
     build_channels, NotificationConfig, NotificationConfigRepository, NotificationEngine,
     NotificationEngineHandle,
@@ -336,23 +334,58 @@ impl Supervisor {
         }
         info!("Supervisor: ToolRegistry ready (native tools registered)");
 
-        // Phase 3b: MCP Client Manager — optional, no-op when mcp.toml is absent.
+        // Phase 3b: MCP Client Manager — reads server list from mcp.db (SQLite).
         //
-        // Reads `<data_dir>/mcp.toml`, spawns one subprocess per configured server,
-        // performs the MCP initialize + tools/list handshake, and registers discovered
-        // tools in the ToolRegistry with the `mcp:<server>/<tool>` naming convention.
-        // Errors (missing file, parse failure, server crash) are never fatal: the
-        // runtime continues and MCP tools are simply unavailable.
+        // On first boot, if `mcp.db` is empty and `mcp.toml` exists, performs a
+        // one-shot migration and logs the count. After migration, `mcp.toml` is no
+        // longer consulted. Errors are never fatal: the runtime continues and MCP
+        // tools are simply unavailable.
+        let mcp_db_path = self.config.data_dir.join("mcp.db");
         let mcp_config_path = self.config.data_dir.join("mcp.toml");
-        let mcp_handle: Option<McpClientManagerHandle> = {
-            match McpConfig::load(&mcp_config_path) {
-                Ok(config) if config.servers.is_empty() => {
+
+        let (mcp_handle, mcp_server_repo) = match McpServerRepository::open(&mcp_db_path) {
+            Err(e) => {
+                warn!(error = %e, "failed to open mcp.db — continuing without MCP");
+                (None, None)
+            }
+            Ok(repo) => {
+                // One-shot migration from mcp.toml when the database is empty.
+                match repo.list() {
+                    Ok(existing) if existing.is_empty() => {
+                        match McpConfig::load(&mcp_config_path) {
+                            Ok(toml_config) if !toml_config.servers.is_empty() => {
+                                match repo.import_from_toml(toml_config.servers) {
+                                    Ok(n) => info!(
+                                        count = n,
+                                        "imported MCP servers from mcp.toml (one-time migration)"
+                                    ),
+                                    Err(e) => {
+                                        warn!(error = %e, "MCP migration from mcp.toml failed — skipping")
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => warn!(error = %e, "failed to check mcp.db for migration — skipping"),
+                }
+
+                // Load server list and start the manager.
+                let server_configs = match repo.list() {
+                    Ok(v) => v,
+                    Err(e) => {
+                        warn!(error = %e, "failed to list MCP servers from mcp.db");
+                        Vec::new()
+                    }
+                };
+
+                let handle = if server_configs.is_empty() {
                     info!("Supervisor: no MCP servers configured — Phase 3b skipped");
                     None
-                }
-                Ok(config) => {
-                    let server_count = config.servers.len();
-                    match McpClientManagerHandle::start(config.servers, &tool_registry_handle).await
+                } else {
+                    let server_count = server_configs.len();
+                    match McpClientManagerHandle::start(server_configs, &tool_registry_handle).await
                     {
                         Ok(handle) => {
                             let status = handle.status().await;
@@ -370,11 +403,10 @@ impl Supervisor {
                             None
                         }
                     }
-                }
-                Err(e) => {
-                    warn!(error = %e, "failed to load mcp.toml — continuing without MCP");
-                    None
-                }
+                };
+
+                let repo = Arc::new(std::sync::Mutex::new(repo));
+                (handle, Some(repo))
             }
         };
 
@@ -852,7 +884,7 @@ impl Supervisor {
             stt_repository: stt_repository.clone(),
             stt_config_repo: stt_config_repo.clone(),
             mcp_handle: mcp_handle.clone(),
-            config_writer: Some(Arc::new(McpConfigWriter::new(mcp_config_path))),
+            mcp_server_repo: mcp_server_repo.clone(),
             llm_backend_repo: llm_backend_repo.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
@@ -1257,7 +1289,7 @@ mod tests {
     }
 
     #[test]
-    fn mcp_phase3b_missing_config_returns_empty() {
+    fn mcp_phase3b_toml_absent_returns_empty() {
         // GIVEN a path that does not exist
         let path = std::path::Path::new("/tmp/nonexistent-mcp-config-335.toml");
         // WHEN
@@ -1266,29 +1298,54 @@ mod tests {
         assert!(config.servers.is_empty());
     }
 
-    #[test]
-    fn mcp_phase3b_valid_config_parses_two_servers() {
-        // GIVEN a valid mcp.toml with two server entries
-        use std::io::Write;
+    #[tokio::test]
+    async fn test_ac1_boot_with_mcp_toml_imports_servers() {
+        // GIVEN an empty mcp.db and a mcp.toml with one server
+        use std::io::Write as _;
+        let dir = tempfile::TempDir::new().unwrap();
+        let db_path = dir.path().join("mcp.db");
+        let toml_path = dir.path().join("mcp.toml");
+
         let toml_content = r#"
             [[servers]]
             name = "notion"
             command = "npx"
             args = ["-y", "@notionhq/notion-mcp-server"]
-
-            [[servers]]
-            name = "sqlite"
-            command = "uvx"
-            args = ["mcp-server-sqlite"]
         "#;
-        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let mut file = std::fs::File::create(&toml_path).unwrap();
         file.write_all(toml_content.as_bytes()).unwrap();
-        // WHEN
-        let config = McpConfig::load(file.path()).unwrap();
-        // THEN both servers are present
-        assert_eq!(config.servers.len(), 2);
-        assert_eq!(config.servers[0].name, "notion");
-        assert_eq!(config.servers[1].name, "sqlite");
+
+        // WHEN the import logic runs
+        let repo = apollia_mcp::McpServerRepository::open(&db_path).unwrap();
+        assert!(repo.list().unwrap().is_empty());
+        let toml_config = McpConfig::load(&toml_path).unwrap();
+        let n = repo.import_from_toml(toml_config.servers).unwrap();
+
+        // THEN mcp.db contains 1 server and the log count is correct
+        assert_eq!(n, 1);
+        let servers = repo.list().unwrap();
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0].name, "notion");
+    }
+
+    #[tokio::test]
+    async fn test_ac2_boot_without_mcp_toml_ok() {
+        // GIVEN neither mcp.db nor mcp.toml
+        let dir = tempfile::TempDir::new().unwrap();
+        let db_path = dir.path().join("mcp.db");
+        let toml_path = dir.path().join("mcp.toml");
+
+        // WHEN the import logic runs with an absent toml
+        let repo = apollia_mcp::McpServerRepository::open(&db_path).unwrap();
+        let n = repo.import_from_toml(vec![]).unwrap();
+
+        // THEN Ok(0) and no error
+        assert_eq!(n, 0);
+        assert!(repo.list().unwrap().is_empty());
+
+        // AND loading a missing mcp.toml returns empty without error
+        let config = McpConfig::load(&toml_path).unwrap();
+        assert!(config.servers.is_empty());
     }
 
     /// Find a free TCP port.
@@ -1696,7 +1753,7 @@ mod tests {
             stt_engine: None,
             stt_repository: None,
             mcp_handle: None,
-            config_writer: None,
+            mcp_server_repo: None,
             llm_backend_repo: None,
             stt_config_repo: None,
         };

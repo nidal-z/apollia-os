@@ -455,7 +455,7 @@ impl McpClientManagerHandle {
     /// Update the `requires_approval` flag for the named server in-memory.
     ///
     /// The change is applied immediately; callers are responsible for persisting
-    /// the new value to `mcp.toml` via [`McpConfigWriter::set_server_approval`].
+    /// the new value to the [`crate::McpServerRepository`].
     /// Returns [`McpSessionError::ServerExited`] when no session with `server_name`
     /// is connected, or when the actor has already shut down.
     pub async fn set_server_approval(

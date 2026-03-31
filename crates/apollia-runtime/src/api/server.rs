@@ -171,15 +171,15 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     pub stt_repository: Option<Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
     /// Handle to the MCP client manager actor.
     ///
-    /// `Some` when `~/.apollia/mcp.toml` is present and at least one server connected.
-    /// `None` when the config file is absent, empty, or all servers failed to start.
+    /// `Some` when at least one MCP server is configured in `mcp.db` and connected.
+    /// `None` when the database is absent, empty, or all servers failed to start.
     /// MCP routes return 503 when `None`.
     pub mcp_handle: Option<McpClientManagerHandle>,
-    /// Writer for `mcp.toml` — persists server additions, removals, and updates.
+    /// SQLite-backed repository for MCP server configurations.
     ///
-    /// Always `Some` in production (built from `data_dir/mcp.toml`).
+    /// Opened by the Supervisor at startup from `data_dir/mcp.db`.
     /// `None` in unit tests. Mutation routes return 503 when `None`.
-    pub config_writer: Option<Arc<apollia_mcp::config_writer::McpConfigWriter>>,
+    pub mcp_server_repo: Option<Arc<std::sync::Mutex<apollia_mcp::McpServerRepository>>>,
     /// Repository CRUD des backends LLM.
     ///
     /// Ouvert par le Supervisor depuis `data_dir/system.db`.
@@ -226,7 +226,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             stt_engine: self.stt_engine.clone(),
             stt_repository: self.stt_repository.clone(),
             mcp_handle: self.mcp_handle.clone(),
-            config_writer: self.config_writer.clone(),
+            mcp_server_repo: self.mcp_server_repo.clone(),
             llm_backend_repo: self.llm_backend_repo.clone(),
             stt_config_repo: self.stt_config_repo.clone(),
         }
@@ -710,7 +710,7 @@ mod tests {
             stt_engine: None,
             stt_repository: None,
             mcp_handle: None,
-            config_writer: None,
+            mcp_server_repo: None,
             llm_backend_repo: None,
             stt_config_repo: None,
         }

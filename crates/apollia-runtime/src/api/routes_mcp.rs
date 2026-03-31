@@ -1,8 +1,9 @@
 //! REST routes for MCP server management.
 //!
-//! Exposes the MCP client manager through the Apollia HTTP API under `/api/v1/mcp/`.
+//! Exposes the MCP client manager and the SQLite-backed [`McpServerRepository`]
+//! through the Apollia HTTP API under `/api/v1/mcp/`.
 //! Mutation routes require both an active [`McpClientManagerHandle`] and a
-//! [`McpConfigWriter`] in the shared [`AppState`]; they return `503 Service Unavailable`
+//! [`McpServerRepository`] in the shared [`AppState`]; they return `503 Service Unavailable`
 //! when either is absent. The test-connection route operates without a pre-existing
 //! manager so it can be used during first-time server setup.
 
@@ -17,12 +18,12 @@ use axum::{
 };
 
 use apollia_mcp::config::McpServerConfig;
-use apollia_mcp::config_writer::McpConfigWriter;
 use apollia_mcp::manager::{
     McpClientManagerHandle, McpConnectionTestResult, McpServerDetail, McpServerStatus,
     McpToolSummary,
 };
 use apollia_mcp::session::McpSession;
+use apollia_mcp::McpServerRepository;
 
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
@@ -67,13 +68,13 @@ fn require_mcp_handle<B: ExecutionBackend + Clone>(
         .ok_or_else(|| json_err(StatusCode::SERVICE_UNAVAILABLE, "MCP is not configured"))
 }
 
-fn require_config_writer<B: ExecutionBackend + Clone>(
+fn require_mcp_repo<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
-) -> Result<&Arc<McpConfigWriter>, JsonError> {
+) -> Result<&Arc<std::sync::Mutex<McpServerRepository>>, JsonError> {
     state
-        .config_writer
+        .mcp_server_repo
         .as_ref()
-        .ok_or_else(|| json_err(StatusCode::SERVICE_UNAVAILABLE, "MCP config not writable"))
+        .ok_or_else(|| json_err(StatusCode::SERVICE_UNAVAILABLE, "MCP repository not available"))
 }
 
 // ─── read routes ─────────────────────────────────────────────────────────────
@@ -127,9 +128,9 @@ async fn restart_server<B: ExecutionBackend + Clone>(
 
 // ─── mutation routes ──────────────────────────────────────────────────────────
 
-/// `POST /api/v1/mcp/servers` — Add a new MCP server and persist it to `mcp.toml`.
+/// `POST /api/v1/mcp/servers` — Add a new MCP server and persist it to `mcp.db`.
 ///
-/// Spawns the server process and registers its tools, then writes the configuration.
+/// Spawns the server process and registers its tools, then saves the configuration.
 /// Returns `201 Created` with the server status on success.
 /// Returns `409 Conflict` when a server with the same name is already managed.
 /// Returns `400 Bad Request` for invalid configurations or spawn failures.
@@ -139,7 +140,7 @@ async fn add_server<B: ExecutionBackend + Clone>(
     Json(config): Json<McpServerConfig>,
 ) -> Result<(StatusCode, Json<McpServerStatus>), JsonError> {
     let handle = require_mcp_handle(&state)?;
-    let writer = require_config_writer(&state)?;
+    let repo = require_mcp_repo(&state)?;
 
     let status = handle.add_server(config.clone()).await.map_err(|e| {
         let code = if e.to_string().contains("already exists") {
@@ -150,16 +151,21 @@ async fn add_server<B: ExecutionBackend + Clone>(
         json_err(code, e)
     })?;
 
-    writer
-        .add_server(&config)
-        .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    {
+        let guard = repo.lock().map_err(|_| {
+            json_err(StatusCode::INTERNAL_SERVER_ERROR, "repository lock poisoned")
+        })?;
+        guard
+            .save(&config)
+            .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    }
 
     Ok((StatusCode::CREATED, Json(status)))
 }
 
-/// `DELETE /api/v1/mcp/servers/:name` — Remove an MCP server and delete it from `mcp.toml`.
+/// `DELETE /api/v1/mcp/servers/:name` — Remove an MCP server and delete it from `mcp.db`.
 ///
-/// Shuts down the session, unregisters the server, then removes its config entry.
+/// Shuts down the session, unregisters the server, then removes its database entry.
 /// Returns `200 OK` with `{"removed": "<name>"}` on success.
 /// Returns `404 Not Found` when no server with the given name is managed.
 /// Returns `503 Service Unavailable` when MCP is not configured.
@@ -168,7 +174,7 @@ async fn remove_server<B: ExecutionBackend + Clone>(
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, JsonError> {
     let handle = require_mcp_handle(&state)?;
-    let writer = require_config_writer(&state)?;
+    let repo = require_mcp_repo(&state)?;
 
     handle.remove_server(&name).await.map_err(|_| {
         json_err(
@@ -177,9 +183,14 @@ async fn remove_server<B: ExecutionBackend + Clone>(
         )
     })?;
 
-    writer
-        .remove_server(&name)
-        .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    {
+        let guard = repo.lock().map_err(|_| {
+            json_err(StatusCode::INTERNAL_SERVER_ERROR, "repository lock poisoned")
+        })?;
+        guard
+            .delete(&name)
+            .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    }
 
     Ok(Json(serde_json::json!({"removed": name})))
 }
@@ -226,7 +237,7 @@ async fn test_connection(
 /// `PUT /api/v1/mcp/servers/:name/config` — Replace a server configuration and restart the session.
 ///
 /// Removes the current session, starts a new one with the updated configuration, then
-/// updates `mcp.toml` in place. The server's position in the file is preserved.
+/// upserts the entry in `mcp.db`.
 /// Returns `200 OK` with the new [`McpServerStatus`] on success.
 /// Returns `404 Not Found` when no server with `name` is managed.
 /// Returns `400 Bad Request` when the new session fails to start.
@@ -237,7 +248,7 @@ async fn update_server_config<B: ExecutionBackend + Clone>(
     Json(config): Json<McpServerConfig>,
 ) -> Result<Json<McpServerStatus>, JsonError> {
     let handle = require_mcp_handle(&state)?;
-    let writer = require_config_writer(&state)?;
+    let repo = require_mcp_repo(&state)?;
 
     handle.remove_server(&name).await.map_err(|_| {
         json_err(
@@ -251,9 +262,14 @@ async fn update_server_config<B: ExecutionBackend + Clone>(
         .await
         .map_err(|e| json_err(StatusCode::BAD_REQUEST, e))?;
 
-    writer
-        .update_server(&name, &config)
-        .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    {
+        let guard = repo.lock().map_err(|_| {
+            json_err(StatusCode::INTERNAL_SERVER_ERROR, "repository lock poisoned")
+        })?;
+        guard
+            .save(&config)
+            .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    }
 
     Ok(Json(status))
 }
@@ -266,7 +282,7 @@ struct SetApprovalBody {
 
 /// `PATCH /api/v1/mcp/servers/:name/approval` — Update the approval flag without restarting.
 ///
-/// Updates the `requires_approval` flag in-memory and persists the change to `mcp.toml`.
+/// Updates the `requires_approval` flag in-memory and persists the change to `mcp.db`.
 /// The running session is **not** restarted; the new flag takes effect for the next
 /// tool call. Returns `200 OK` with the updated [`McpServerStatus`] on success.
 /// Returns `404 Not Found` when no server with `name` is managed.
@@ -277,16 +293,33 @@ async fn set_server_approval<B: ExecutionBackend + Clone>(
     Json(body): Json<SetApprovalBody>,
 ) -> Result<Json<McpServerStatus>, JsonError> {
     let handle = require_mcp_handle(&state)?;
-    let writer = require_config_writer(&state)?;
+    let repo = require_mcp_repo(&state)?;
 
+    // Apply in-memory change before locking the sync Mutex.
     handle
         .set_server_approval(&name, body.requires_approval)
         .await
         .map_err(|e| json_err(StatusCode::NOT_FOUND, e))?;
 
-    writer
-        .set_server_approval(&name, body.requires_approval)
-        .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    // Persist: read-modify-write (Mutex guard dropped before next await).
+    {
+        let guard = repo.lock().map_err(|_| {
+            json_err(StatusCode::INTERNAL_SERVER_ERROR, "repository lock poisoned")
+        })?;
+        let mut current = guard
+            .find_by_name(&name)
+            .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?
+            .ok_or_else(|| {
+                json_err(
+                    StatusCode::NOT_FOUND,
+                    format!("server '{}' not found", name),
+                )
+            })?;
+        current.requires_approval = body.requires_approval;
+        guard
+            .save(&current)
+            .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    }
 
     handle
         .server_detail(&name)

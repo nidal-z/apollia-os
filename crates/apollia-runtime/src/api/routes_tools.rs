@@ -210,7 +210,7 @@ mod tests {
             stt_engine: None,
             stt_repository: None,
             mcp_handle: None,
-            config_writer: None,
+            mcp_server_repo: None,
             llm_backend_repo: None,
             stt_config_repo: None,
         };
@@ -257,7 +257,7 @@ mod tests {
             stt_engine: None,
             stt_repository: None,
             mcp_handle: None,
-            config_writer: None,
+            mcp_server_repo: None,
             llm_backend_repo: None,
             stt_config_repo: None,
         };
