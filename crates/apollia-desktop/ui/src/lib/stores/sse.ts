@@ -21,7 +21,7 @@ import type {
   TaskSummary,
   PendingApproval,
   ConnectionStatus,
-  LlmBackendStatus,
+  LlmBackendConfig,
   TriggerStatus,
   PipelineRunSummary,
   ChatSessionSummary,
@@ -48,7 +48,7 @@ export const tasks = writable<TaskSummary[]>([]);
 export const pendingApprovals = writable<PendingApproval[]>([]);
 
 /** List of LLM backends from the runtime. */
-export const llmBackends = writable<LlmBackendStatus[]>([]);
+export const llmBackends = writable<LlmBackendConfig[]>([]);
 
 /** List of triggers from the runtime. */
 export const triggers = writable<TriggerStatus[]>([]);
@@ -94,7 +94,7 @@ async function refreshTasksViaIpc(): Promise<void> {
 
 async function refreshLlmBackendsViaIpc(): Promise<void> {
   try {
-    const result: LlmBackendStatus[] = await invoke("list_llm_backends");
+    const result: LlmBackendConfig[] = await invoke("list_llm_backends");
     llmBackends.set(result);
   } catch {
     // runtime not ready yet — keep current state

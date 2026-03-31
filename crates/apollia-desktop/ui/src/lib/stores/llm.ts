@@ -15,12 +15,12 @@ export const llmBackendCount = derived(
   ($backends) => $backends.length,
 );
 
-/** LLM backends currently in 'ready' state. */
+/** LLM backends that are enabled. */
 export const readyLlmBackends = derived(llmBackends, ($backends) =>
-  $backends.filter((b) => b.status === "ready"),
+  $backends.filter((b) => b.enabled),
 );
 
-/** LLM backends currently in 'error' state. */
+/** LLM backends that are disabled. */
 export const errorLlmBackends = derived(llmBackends, ($backends) =>
-  $backends.filter((b) => b.status === "error"),
+  $backends.filter((b) => !b.enabled),
 );

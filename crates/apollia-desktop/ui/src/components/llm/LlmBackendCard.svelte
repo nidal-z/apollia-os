@@ -1,13 +1,13 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import type { LlmBackendStatus, LlmPingResult } from "$lib/types";
+  import type { LlmBackendConfig, LlmPingResult } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
 
   interface Props {
-    backend: LlmBackendStatus;
+    backend: LlmBackendConfig;
   }
 
   let { backend }: Props = $props();
@@ -16,30 +16,39 @@
   let pingResult = $state<number | null>(null);
   let pingError = $state<string | null>(null);
 
+  type StatusKey = "ready" | "error";
+  type TypeKey = "embedded" | "api";
+
   const STATUS_BADGE: Record<
-    LlmBackendStatus["status"],
-    { labelKey: string; variant: "success" | "warning" | "destructive" }
+    StatusKey,
+    { labelKey: string; variant: "success" | "destructive" }
   > = {
     ready: { labelKey: "common.status.ready", variant: "success" },
-    loading: { labelKey: "common.status.loading", variant: "warning" },
     error: { labelKey: "common.status.error", variant: "destructive" },
   };
 
-  const STATUS_BAR_COLOR: Record<LlmBackendStatus["status"], string> = {
+  const STATUS_BAR_COLOR: Record<StatusKey, string> = {
     ready: "bg-primary",
-    loading: "bg-warning",
     error: "bg-destructive",
   };
 
-  const TYPE_BADGE_VARIANT: Record<LlmBackendStatus["backend_type"], "info" | "outline"> = {
+  const TYPE_BADGE_VARIANT: Record<TypeKey, "info" | "outline"> = {
     embedded: "info",
     api: "outline",
   };
 
-  const TYPE_LABEL: Record<LlmBackendStatus["backend_type"], string> = {
+  const TYPE_LABEL: Record<TypeKey, string> = {
     embedded: "EMBEDDED",
     api: "API",
   };
+
+  /** `"llama-cpp"` runs locally; all other providers are remote API calls. */
+  const backendType = $derived<TypeKey>(
+    backend.provider === "llama-cpp" ? "embedded" : "api",
+  );
+
+  /** Derive a display status from the `enabled` flag. */
+  const statusKey = $derived<StatusKey>(backend.enabled ? "ready" : "error");
 
   async function handlePing() {
     pinging = true;
@@ -60,8 +69,8 @@
   }
 
   const isBuilder = $derived($uiMode === "builder");
-  const statusBadge = $derived(STATUS_BADGE[backend.status]);
-  const statusBarColor = $derived(STATUS_BAR_COLOR[backend.status]);
+  const statusBadge = $derived(STATUS_BADGE[statusKey]);
+  const statusBarColor = $derived(STATUS_BAR_COLOR[statusKey]);
 
   function prettifyModelName(model: string): string {
     return model
@@ -70,20 +79,16 @@
   }
 
   const humanizedTitle = $derived.by(() => {
-    const isLocal = backend.backend_type === "embedded";
+    const isLocal = backendType === "embedded";
     const modelName = prettifyModelName(backend.model || backend.name);
-    const status = backend.status === "ready"
-      ? $t("llm.running")
-      : $t("llm.status_error");
+    const status = backend.enabled ? $t("llm.running") : $t("llm.status_error");
     return isLocal
       ? `${$t("llm.local_ai")} (${modelName}) — ${status}`
       : `${modelName} — ${status}`;
   });
 
   const humanizedCost = $derived.by(() => {
-    return backend.backend_type === "embedded"
-      ? $t("llm.free_local")
-      : $t("llm.pay_per_use");
+    return backendType === "embedded" ? $t("llm.free_local") : $t("llm.pay_per_use");
   });
 </script>
 
@@ -97,8 +102,13 @@
       <div class="flex items-center justify-between">
         <h3 class="text-[13px] font-medium">{backend.name}</h3>
         <div class="flex items-center gap-1.5">
-          <Badge variant={TYPE_BADGE_VARIANT[backend.backend_type]} data-testid="llm-backend-type-badge">
-            {TYPE_LABEL[backend.backend_type]}
+          {#if backend.is_default}
+            <Badge variant="outline" class="border-primary text-primary text-[10px]">
+              DEFAULT
+            </Badge>
+          {/if}
+          <Badge variant={TYPE_BADGE_VARIANT[backendType]} data-testid="llm-backend-type-badge">
+            {TYPE_LABEL[backendType]}
           </Badge>
           <Badge variant={statusBadge.variant} data-testid="llm-backend-badge">
             {$t(statusBadge.labelKey)}
@@ -140,7 +150,7 @@
       <div class="mt-2">
         <Badge
           variant="outline"
-          class={backend.backend_type === 'embedded' ? 'border-success text-success' : ''}
+          class={backendType === 'embedded' ? 'border-success text-success' : ''}
           data-testid="llm-backend-badge"
         >
           {humanizedCost}

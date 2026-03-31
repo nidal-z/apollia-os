@@ -120,17 +120,15 @@
                 data-testid="config-backend-{backend.name}"
               >
                 <div class="flex h-7 w-7 items-center justify-center rounded-lg
-                  {backend.backend_type === 'embedded' ? 'bg-success/10' : 'bg-primary/10'}">
-                  <Cpu class="h-3.5 w-3.5 {backend.backend_type === 'embedded' ? 'text-success' : 'text-primary'}" />
+                  {backend.provider === 'llama-cpp' ? 'bg-success/10' : 'bg-primary/10'}">
+                  <Cpu class="h-3.5 w-3.5 {backend.provider === 'llama-cpp' ? 'text-success' : 'text-primary'}" />
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="text-xs font-medium truncate">{backend.name}</p>
                   <p class="text-[10px] text-muted-foreground/60 truncate">{backend.model}</p>
                 </div>
-                {#if backend.status === "ready"}
+                {#if backend.enabled}
                   <span class="h-2 w-2 rounded-full bg-success"></span>
-                {:else if backend.status === "loading"}
-                  <span class="h-2 w-2 rounded-full bg-warning animate-pulse"></span>
                 {:else}
                   <span class="h-2 w-2 rounded-full bg-destructive"></span>
                 {/if}

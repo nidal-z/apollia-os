@@ -238,7 +238,20 @@ export interface TaskFilter {
   agent_id?: string;
 }
 
-/** Statut d'un backend LLM. */
+/** Backend LLM configuré — vue CRUD retournée par `list_llm_backends`. */
+export interface LlmBackendConfig {
+  name: string;
+  provider: "llama-cpp" | "openai" | "mistral" | "anthropic" | "ollama";
+  model: string;
+  config_json: Record<string, unknown>;
+  enabled: boolean;
+  is_default: boolean;
+}
+
+/**
+ * Vue de statut d'un backend LLM dérivée de `LlmBackendConfig`.
+ * Conservée pour la compatibilité avec `LlmBackendCard`.
+ */
 export interface LlmBackendStatus {
   name: string;
   backend_type: "embedded" | "api";
@@ -862,6 +875,19 @@ export interface SttConfigView {
   max_recording_sec: number;
   language: string | null;
   trigger_mode: string;
+}
+
+/** Configuration STT — vue CRUD avec types stricts (miroir de `SttConfigRow`). */
+export interface SttConfig {
+  enabled: boolean;
+  model_path: string;
+  hotkey: string;
+  clipboard_mode: "paste" | "clipboard";
+  clipboard_restore: boolean;
+  silence_threshold_db: number;
+  max_recording_sec: number;
+  language: string | null;
+  trigger_mode: "toggle" | "push-to-talk";
 }
 
 /** Current status of the STT engine reported by `get_stt_status`. */

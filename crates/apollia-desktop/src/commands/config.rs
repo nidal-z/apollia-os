@@ -519,58 +519,6 @@ pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String
     })
 }
 
-/// Hot-reloads the LLM router from `apollia.toml`.
-///
-/// Re-reads the TOML config, builds a new `LlmRouter`, and injects it
-/// into the `ChatSessionManager` so the new model is available immediately
-/// without restarting the application.
-#[tauri::command]
-pub async fn reload_llm(
-    state: tauri::State<'_, apollia_runtime::embedded::RuntimeHandle>,
-    shared_llm: tauri::State<'_, crate::SharedLlmRouter>,
-) -> Result<bool, String> {
-    // 1. Re-read apollia.toml
-    let config_path = default_config_path();
-    if !config_path.exists() {
-        return Err("apollia.toml not found".into());
-    }
-    let content = tokio::fs::read_to_string(&config_path)
-        .await
-        .map_err(|e| format!("failed to read apollia.toml: {e}"))?;
-
-    // 2. Parse the [llm] section
-    #[derive(serde::Deserialize)]
-    struct LlmSection {
-        llm: Option<apollia_llm::LlmConfig>,
-    }
-    let llm_config = toml::from_str::<LlmSection>(&content)
-        .map_err(|e| format!("failed to parse apollia.toml: {e}"))?
-        .llm;
-
-    let Some(config) = llm_config else {
-        return Err("no [llm] section found in apollia.toml".into());
-    };
-
-    // 3. Build a new LlmRouter
-    let router = apollia_llm::LlmRouter::from_config(&config)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let router = std::sync::Arc::new(router);
-
-    tracing::info!("LLM router reloaded from apollia.toml");
-
-    // 4. Inject into the ChatSessionManager
-    if let Some(ref manager) = state.chat_manager {
-        manager.reload_llm(Some(router.clone())).await;
-    }
-
-    // 5. Update the shared lock so ProductionChatAgentRunner sees the new router
-    *shared_llm.write().expect("shared llm_router lock poisoned") = Some(router);
-
-    Ok(true)
-}
-
 /// Infers the quantization type from a GGUF filename.
 ///
 /// Looks for common patterns like `Q8_0`, `Q4_K_M`, `Q5_K_S`, etc.

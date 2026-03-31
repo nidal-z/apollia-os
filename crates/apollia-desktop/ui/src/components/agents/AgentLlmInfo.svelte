@@ -40,24 +40,24 @@
     <p class="text-xs text-muted-foreground">{$t('agent_detail.no_llm')}</p>
   {:else}
     <div class="flex items-start gap-3 rounded-md border px-3 py-2">
-      {#if firstBackend.backend_type === "embedded"}
+      {#if firstBackend.provider === "llama-cpp"}
         <Cpu size={16} class="mt-0.5 shrink-0 text-muted-foreground" />
       {:else}
         <Cloud size={16} class="mt-0.5 shrink-0 text-muted-foreground" />
       {/if}
 
       <div class="min-w-0 flex-1">
-        <span class="text-sm">{humanizeBackend(firstBackend.backend_type, firstBackend.model)}</span>
+        <span class="text-sm">{humanizeBackend(firstBackend.provider === "llama-cpp" ? "embedded" : "api", firstBackend.model)}</span>
 
         {#if $uiMode === "builder"}
           <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span>{$t('agent_detail.llm_backend')}: {firstBackend.name}</span>
             <span>{$t('agent_detail.llm_model')}: {firstBackend.model}</span>
             <Badge
-              variant={firstBackend.status === "ready" ? "success" : "destructive"}
+              variant={firstBackend.enabled ? "success" : "destructive"}
               class="text-[10px]"
             >
-              {firstBackend.status.toUpperCase()}
+              {firstBackend.enabled ? "ENABLED" : "DISABLED"}
             </Badge>
           </div>
         {/if}

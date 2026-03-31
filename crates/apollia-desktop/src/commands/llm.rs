@@ -1,27 +1,63 @@
-//! Commandes IPC Tauri pour le diagnostic LLM.
+//! Commandes IPC Tauri pour la gestion des backends LLM.
 //!
 //! Chaque commande délègue à l'API REST interne (`/api/v1/llm/*`) via
-//! les helpers `http_get_json` / `http_post_json`. Les données transitent
-//! en JSON brut (`serde_json::Value`) pour éviter de dupliquer les types
-//! Rust déjà définis dans `apollia-runtime`.
+//! les helpers HTTP du module parent. Les opérations CRUD ciblent
+//! `/api/v1/llm/backends` ; le ping et les statistiques utilisent leurs
+//! propres routes dédiées.
 
 use apollia_runtime::embedded::RuntimeHandle;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use super::{http_get_json, http_post_json};
+use super::{http_delete_json, http_get_json, http_post_json, http_put_json};
 
-/// Statut d'un backend LLM pour l'affichage dans l'UI.
-#[derive(Debug, Serialize)]
-pub struct LlmBackendStatus {
-    /// Nom logique du backend (clé de configuration).
+/// Vue d'un backend LLM pour les opérations CRUD.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmBackendView {
+    /// Nom logique unique du backend (ex : `"local-code"`).
     pub name: String,
-    /// Type : `"embedded"` ou `"api"`.
-    pub backend_type: String,
+    /// Fournisseur : `"llama-cpp"`, `"openai"`, `"mistral"`, `"anthropic"`, `"ollama"`.
+    pub provider: String,
     /// Identifiant du modèle configuré.
     pub model: String,
-    /// Statut : `"ready"`, `"loading"`, ou `"error"`.
-    pub status: String,
+    /// Configuration JSON supplémentaire propre au fournisseur.
+    pub config_json: serde_json::Value,
+    /// `true` si ce backend est actif.
+    pub enabled: bool,
+    /// `true` si c'est le backend utilisé par défaut.
+    pub is_default: bool,
+}
+
+/// Corps de requête pour la création d'un backend LLM.
+#[derive(Debug, Deserialize)]
+pub struct CreateLlmBackendPayload {
+    /// Nom unique du backend (pattern `^[a-z0-9_-]+$`).
+    pub name: String,
+    /// Fournisseur du backend.
+    pub provider: String,
+    /// Identifiant du modèle.
+    pub model: String,
+    /// Configuration JSON supplémentaire (doit être un objet JSON).
+    pub config_json: serde_json::Value,
+    /// Activer le backend à la création.
+    pub enabled: bool,
+    /// Définir comme backend par défaut à la création.
+    pub is_default: bool,
+}
+
+/// Corps de requête pour la mise à jour d'un backend LLM existant.
+#[derive(Debug, Deserialize)]
+pub struct UpdateLlmBackendPayload {
+    /// Nouveau fournisseur.
+    pub provider: String,
+    /// Nouvel identifiant de modèle.
+    pub model: String,
+    /// Nouvelle configuration JSON (doit être un objet JSON).
+    pub config_json: serde_json::Value,
+    /// Activer ou désactiver le backend.
+    pub enabled: bool,
+    /// Marquer comme backend par défaut.
+    pub is_default: bool,
 }
 
 /// Résultat d'un ping sur un backend LLM.
@@ -61,14 +97,19 @@ pub struct CostStatsResponse {
     pub days: u32,
 }
 
-/// Liste tous les backends LLM configurés avec leur statut.
+/// Désérialise une valeur JSON en `LlmBackendView`.
+fn parse_backend_view(json: serde_json::Value) -> Result<LlmBackendView, String> {
+    serde_json::from_value(json).map_err(|e| format!("invalid backend response: {e}"))
+}
+
+/// Liste tous les backends LLM configurés.
 ///
-/// Délègue à `GET /api/v1/llm/status` sur l'API REST interne.
+/// Délègue à `GET /api/v1/llm/backends`.
 #[tauri::command]
 pub async fn list_llm_backends(
     state: State<'_, RuntimeHandle>,
-) -> Result<Vec<LlmBackendStatus>, String> {
-    let json = http_get_json(state.api_port, "/api/v1/llm/status").await?;
+) -> Result<Vec<LlmBackendView>, String> {
+    let json = http_get_json(state.api_port, "/api/v1/llm/backends").await?;
 
     let backends = json
         .get("backends")
@@ -76,51 +117,83 @@ pub async fn list_llm_backends(
         .cloned()
         .unwrap_or_default();
 
-    let result = backends
-        .into_iter()
-        .map(|b| {
-            let name = b
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
-            let model = b
-                .get("model_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
-            let available = b
-                .get("available")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
+    backends.into_iter().map(parse_backend_view).collect()
+}
 
-            let backend_type = if name.contains("local") || name.contains("embedded") {
-                "embedded".to_string()
-            } else {
-                "api".to_string()
-            };
+/// Crée un nouveau backend LLM.
+///
+/// Délègue à `POST /api/v1/llm/backends`.
+#[tauri::command]
+pub async fn create_llm_backend(
+    state: State<'_, RuntimeHandle>,
+    payload: CreateLlmBackendPayload,
+) -> Result<LlmBackendView, String> {
+    let body = serde_json::json!({
+        "name": payload.name,
+        "provider": payload.provider,
+        "model": payload.model,
+        "config_json": payload.config_json,
+        "enabled": payload.enabled,
+        "is_default": payload.is_default,
+    });
 
-            let status = if available {
-                "ready".to_string()
-            } else {
-                "error".to_string()
-            };
+    let json = http_post_json(state.api_port, "/api/v1/llm/backends", &body).await?;
+    parse_backend_view(json)
+}
 
-            LlmBackendStatus {
-                name,
-                backend_type,
-                model,
-                status,
-            }
-        })
-        .collect();
+/// Met à jour un backend LLM existant.
+///
+/// Délègue à `PUT /api/v1/llm/backends/:name`.
+#[tauri::command]
+pub async fn update_llm_backend(
+    state: State<'_, RuntimeHandle>,
+    name: String,
+    payload: UpdateLlmBackendPayload,
+) -> Result<LlmBackendView, String> {
+    let path = format!("/api/v1/llm/backends/{name}");
+    let body = serde_json::json!({
+        "provider": payload.provider,
+        "model": payload.model,
+        "config_json": payload.config_json,
+        "enabled": payload.enabled,
+        "is_default": payload.is_default,
+    });
 
-    Ok(result)
+    let json = http_put_json(state.api_port, &path, &body).await?;
+    parse_backend_view(json)
+}
+
+/// Supprime un backend LLM.
+///
+/// Délègue à `DELETE /api/v1/llm/backends/:name`.
+/// Retourne une erreur 409 si le backend est le backend par défaut.
+#[tauri::command]
+pub async fn delete_llm_backend(
+    state: State<'_, RuntimeHandle>,
+    name: String,
+) -> Result<(), String> {
+    let path = format!("/api/v1/llm/backends/{name}");
+    http_delete_json(state.api_port, &path).await?;
+    Ok(())
+}
+
+/// Définit un backend LLM comme backend par défaut.
+///
+/// Délègue à `POST /api/v1/llm/backends/:name/set-default`.
+#[tauri::command]
+pub async fn set_default_llm_backend(
+    state: State<'_, RuntimeHandle>,
+    name: String,
+) -> Result<(), String> {
+    let path = format!("/api/v1/llm/backends/{name}/set-default");
+    let body = serde_json::json!({});
+    http_post_json(state.api_port, &path, &body).await?;
+    Ok(())
 }
 
 /// Ping un backend LLM et retourne la latence.
 ///
-/// Délègue à `POST /api/v1/llm/ping` sur l'API REST interne.
+/// Délègue à `POST /api/v1/llm/ping`.
 #[tauri::command]
 pub async fn ping_llm_backend(
     state: State<'_, RuntimeHandle>,
@@ -154,7 +227,7 @@ pub async fn ping_llm_backend(
 
 /// Récupère les statistiques coût/tokens agrégées sur N jours.
 ///
-/// Délègue à `GET /api/v1/llm/costs?days=N` sur l'API REST interne.
+/// Délègue à `GET /api/v1/llm/costs?days=N`.
 #[tauri::command]
 pub async fn get_llm_cost_stats(
     state: State<'_, RuntimeHandle>,
@@ -206,23 +279,40 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_llm_backend_status_serializes() {
-        // GIVEN an LlmBackendStatus
-        let status = LlmBackendStatus {
-            name: "anthropic".to_string(),
-            backend_type: "api".to_string(),
-            model: "claude-sonnet-4-20250514".to_string(),
-            status: "ready".to_string(),
-        };
+    fn test_llm_backend_view_round_trips() {
+        // GIVEN a JSON object matching LlmBackendView
+        let json = serde_json::json!({
+            "name": "local-code",
+            "provider": "llama-cpp",
+            "model": "qwen3-0.6b-q8_0",
+            "config_json": { "device": "metal" },
+            "enabled": true,
+            "is_default": true,
+        });
 
-        // WHEN serialized to JSON
-        let json = serde_json::to_value(&status).expect("serialize");
+        // WHEN deserialized and re-serialized
+        let view: LlmBackendView = serde_json::from_value(json.clone()).expect("deserialize");
+        let back = serde_json::to_value(&view).expect("serialize");
 
-        // THEN all fields are present
-        assert_eq!(json["name"], "anthropic");
-        assert_eq!(json["backend_type"], "api");
-        assert_eq!(json["model"], "claude-sonnet-4-20250514");
-        assert_eq!(json["status"], "ready");
+        // THEN all fields match
+        assert_eq!(back["name"], "local-code");
+        assert_eq!(back["provider"], "llama-cpp");
+        assert_eq!(back["model"], "qwen3-0.6b-q8_0");
+        assert_eq!(back["enabled"], true);
+        assert_eq!(back["is_default"], true);
+    }
+
+    #[test]
+    fn test_parse_backend_view_returns_error_on_invalid_json() {
+        // GIVEN invalid JSON (missing required fields)
+        let json = serde_json::json!({ "name": "only-name" });
+
+        // WHEN parsing
+        let result = parse_backend_view(json);
+
+        // THEN an error is returned
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("invalid backend response"));
     }
 
     #[test]
@@ -235,7 +325,7 @@ mod tests {
             error: None,
         };
 
-        // WHEN serialized to JSON
+        // WHEN serialized
         let json = serde_json::to_value(&result).expect("serialize");
 
         // THEN latency_ms is present and error is null
@@ -254,7 +344,7 @@ mod tests {
             error: Some("connection refused".to_string()),
         };
 
-        // WHEN serialized to JSON
+        // WHEN serialized
         let json = serde_json::to_value(&result).expect("serialize");
 
         // THEN available is false and error is set
@@ -277,7 +367,7 @@ mod tests {
             days: 7,
         };
 
-        // WHEN serialized to JSON
+        // WHEN serialized
         let json = serde_json::to_value(&resp).expect("serialize");
 
         // THEN rows and days are correct
@@ -296,7 +386,7 @@ mod tests {
             days: 30,
         };
 
-        // WHEN serialized to JSON
+        // WHEN serialized
         let json = serde_json::to_value(&resp).expect("serialize");
 
         // THEN rows is empty array
