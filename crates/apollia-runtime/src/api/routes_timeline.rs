@@ -24,6 +24,10 @@ use crate::coordinator::ExecutionBackend;
 const MAX_INPUT_PREVIEW: usize = 200;
 /// Maximum length for output preview in task completed events (chars).
 const MAX_OUTPUT_PREVIEW: usize = 500;
+/// Maximum length for tool call args_json preview (chars).
+const MAX_TOOL_INPUT_PREVIEW: usize = 300;
+/// Maximum length for tool call stdout/stderr output preview (chars).
+const MAX_TOOL_OUTPUT_PREVIEW: usize = 500;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -92,6 +96,12 @@ pub enum TimelineEvent {
         exit_code: Option<i64>,
         /// `true` si les données ont été tronquées.
         truncated: bool,
+        /// Aperçu de l'input (args_json), tronqué à 300 chars.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        input_preview: Option<String>,
+        /// Aperçu de la sortie (stdout + stderr), tronqué à 500 chars.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        output_preview: Option<String>,
         /// Horodatage ISO 8601.
         timestamp: String,
     },
@@ -515,8 +525,7 @@ fn read_tool_calls(
     events: &mut Vec<(String, TimelineEvent)>,
 ) {
     let Ok(mut stmt) = conn.prepare(
-        "SELECT tool_name, duration_ms, exit_code, started_at, \
-                CASE WHEN stdout IS NOT NULL OR stderr IS NOT NULL THEN 1 ELSE 0 END AS has_data \
+        "SELECT tool_name, duration_ms, exit_code, started_at, args_json, stdout, stderr \
          FROM tool_invocations WHERE task_id = ?1 \
          ORDER BY started_at",
     ) else {
@@ -529,16 +538,45 @@ fn read_tool_calls(
             row.get::<_, Option<i64>>(1)?,
             row.get::<_, Option<i64>>(2)?,
             row.get::<_, String>(3)?,
-            row.get::<_, i32>(4)?,
+            row.get::<_, Option<String>>(4)?,
+            row.get::<_, Option<String>>(5)?,
+            row.get::<_, Option<String>>(6)?,
         ))
     }) else {
         return;
     };
 
     for row_result in rows {
-        let Ok((tool_name, duration_ms, exit_code, started_at, _has_data)) = row_result else {
+        let Ok((tool_name, duration_ms, exit_code, started_at, args_json, stdout, stderr)) =
+            row_result
+        else {
             continue;
         };
+
+        let raw_input = args_json.as_deref().unwrap_or("");
+        let input_truncated = raw_input.len() > MAX_TOOL_INPUT_PREVIEW;
+        let input_preview: Option<String> = if raw_input.is_empty() {
+            None
+        } else {
+            Some(truncate_preview(raw_input, MAX_TOOL_INPUT_PREVIEW))
+        };
+
+        let combined_output = match (stdout.as_deref(), stderr.as_deref()) {
+            (Some(out), Some(err)) if !out.is_empty() && !err.is_empty() => {
+                format!("{out}\n--- stderr ---\n{err}")
+            }
+            (Some(out), _) if !out.is_empty() => out.to_string(),
+            (_, Some(err)) if !err.is_empty() => err.to_string(),
+            _ => String::new(),
+        };
+        let output_truncated = combined_output.len() > MAX_TOOL_OUTPUT_PREVIEW;
+        let output_preview: Option<String> = if combined_output.is_empty() {
+            None
+        } else {
+            Some(truncate_preview(&combined_output, MAX_TOOL_OUTPUT_PREVIEW))
+        };
+
+        let truncated = input_truncated || output_truncated;
 
         events.push((
             started_at.clone(),
@@ -546,7 +584,9 @@ fn read_tool_calls(
                 tool_name,
                 duration_ms,
                 exit_code,
-                truncated: false,
+                truncated,
+                input_preview,
+                output_preview,
                 timestamp: started_at,
             },
         ));
@@ -954,5 +994,111 @@ mod tests {
         let result = truncate_preview(&long, 200);
         assert!(result.ends_with("..."));
         assert_eq!(result.len(), 203);
+    }
+
+    // ── tool_call enrichment (input_preview + output_preview) ────────────
+
+    #[test]
+    fn test_ac_tool_call_enrichment_basic() {
+        // GIVEN un tool_invocation avec args_json + stdout
+        let dir = tempfile::tempdir().expect("tempdir");
+        setup_test_dbs(dir.path());
+
+        let task_id = "t-enrich-1";
+        let audit = rusqlite::Connection::open(dir.path().join("audit.db")).expect("open");
+        audit
+            .execute(
+                "INSERT INTO tool_invocations \
+                 (id, agent_id, task_id, tool_name, input_hash, sandbox_profile, \
+                  started_at, success, duration_ms, args_json, stdout, stderr) \
+                 VALUES ('inv-1', 'agent-1', ?1, 'bash_executor', 'hash', 'default', \
+                         '2026-03-13T10:00:02Z', 1, 150, '{\"command\":\"ls -la\"}', 'file1\nfile2', NULL)",
+                params![task_id],
+            )
+            .expect("insert invocation");
+
+        // WHEN on lit les tool calls
+        let mut events: Vec<(String, TimelineEvent)> = Vec::new();
+        read_tool_calls(&audit, task_id, &mut events);
+
+        // THEN l'événement contient input_preview et output_preview
+        assert_eq!(events.len(), 1);
+        let (_, event) = &events[0];
+        match event {
+            TimelineEvent::ToolCall { input_preview, output_preview, truncated, .. } => {
+                assert_eq!(input_preview.as_deref(), Some("{\"command\":\"ls -la\"}"));
+                assert_eq!(output_preview.as_deref(), Some("file1\nfile2"));
+                assert!(!truncated, "should not be truncated");
+            }
+            _ => panic!("expected ToolCall event"),
+        }
+    }
+
+    #[test]
+    fn test_ac_tool_call_enrichment_truncation() {
+        // GIVEN un args_json de 400 chars (> MAX_TOOL_INPUT_PREVIEW=300)
+        let dir = tempfile::tempdir().expect("tempdir");
+        setup_test_dbs(dir.path());
+
+        let task_id = "t-enrich-2";
+        let long_args = "a".repeat(400);
+        let audit = rusqlite::Connection::open(dir.path().join("audit.db")).expect("open");
+        audit
+            .execute(
+                "INSERT INTO tool_invocations \
+                 (id, agent_id, task_id, tool_name, input_hash, sandbox_profile, \
+                  started_at, success, duration_ms, args_json, stdout, stderr) \
+                 VALUES ('inv-2', 'agent-1', ?1, 'file_read', 'hash', 'default', \
+                         '2026-03-13T10:00:03Z', 1, 50, ?2, NULL, NULL)",
+                params![task_id, long_args],
+            )
+            .expect("insert invocation");
+
+        let mut events: Vec<(String, TimelineEvent)> = Vec::new();
+        read_tool_calls(&audit, task_id, &mut events);
+
+        assert_eq!(events.len(), 1);
+        match &events[0].1 {
+            TimelineEvent::ToolCall { input_preview, truncated, .. } => {
+                let preview = input_preview.as_deref().expect("should have preview");
+                assert!(preview.ends_with("..."), "should end with ...");
+                assert!(*truncated, "should be marked as truncated");
+            }
+            _ => panic!("expected ToolCall event"),
+        }
+    }
+
+    #[test]
+    fn test_ac_tool_call_enrichment_stderr_combined() {
+        // GIVEN stdout + stderr non-vides
+        let dir = tempfile::tempdir().expect("tempdir");
+        setup_test_dbs(dir.path());
+
+        let task_id = "t-enrich-3";
+        let audit = rusqlite::Connection::open(dir.path().join("audit.db")).expect("open");
+        audit
+            .execute(
+                "INSERT INTO tool_invocations \
+                 (id, agent_id, task_id, tool_name, input_hash, sandbox_profile, \
+                  started_at, success, duration_ms, args_json, stdout, stderr) \
+                 VALUES ('inv-3', 'agent-1', ?1, 'bash_executor', 'hash', 'default', \
+                         '2026-03-13T10:00:04Z', 0, 200, NULL, 'out', 'err')",
+                params![task_id],
+            )
+            .expect("insert invocation");
+
+        let mut events: Vec<(String, TimelineEvent)> = Vec::new();
+        read_tool_calls(&audit, task_id, &mut events);
+
+        match &events[0].1 {
+            TimelineEvent::ToolCall { output_preview, input_preview, .. } => {
+                assert!(input_preview.is_none(), "no args_json → no input_preview");
+                let out = output_preview.as_deref().expect("should have output_preview");
+                assert!(out.contains("out"), "should contain stdout");
+                assert!(out.contains("--- stderr ---"), "should contain separator");
+                assert!(out.contains("err"), "should contain stderr");
+            }
+            _ => panic!("expected ToolCall event"),
+        }
     }
 }

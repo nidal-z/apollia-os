@@ -200,6 +200,8 @@ export type TimelineEvent =
       duration_ms?: number;
       exit_code?: number;
       truncated: boolean;
+      input_preview?: string;
+      output_preview?: string;
       timestamp: string;
     }
   | { type: "hitl_suspended"; prompt: string; timestamp: string }

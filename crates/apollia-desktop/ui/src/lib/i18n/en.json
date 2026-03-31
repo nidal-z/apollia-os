@@ -56,6 +56,8 @@
     "mcp_servers": "MCP Servers",
     "switch_to_builder": "Switch to Builder",
     "switch_to_operator": "Switch to Operator",
+    "running_task_one": "1 agent running",
+    "running_tasks": "{count} agents running",
     "connection": {
       "connecting": "Connecting...",
       "connected": "Runtime connected",
@@ -401,7 +403,9 @@
     "step_observation_builder": "Step observation persisted",
     "cache_hit_operator": "Cached plan reused",
     "cache_hit_builder": "Plan cache hit — skipped LLM planning",
-    "cache_hit_tooltip": "Identical plan found in cache — direct execution without re-planning"
+    "cache_hit_tooltip": "Identical plan found in cache — direct execution without re-planning",
+    "tool_output_label": "Output",
+    "no_tool_details": "No details available."
   },
   "approvals": {
     "title": "Approvals",

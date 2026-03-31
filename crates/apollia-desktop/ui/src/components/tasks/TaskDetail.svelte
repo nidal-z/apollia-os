@@ -1,6 +1,6 @@
 <!--
-  Task detail drawer — warm glass design with card sections.
-  Layout: Header card → Input card → Result card → Technical (expandable)
+  Task detail drawer — glass panel, no absolute positioning.
+  Layout: header strip (sticky) → scrollable cards
 -->
 <script lang="ts">
   import { t } from "svelte-i18n";
@@ -9,7 +9,11 @@
   import { uiMode } from "$lib/stores/mode";
   import { Sheet } from "$lib/components/ui/sheet";
   import { Badge } from "$lib/components/ui/badge";
-  import { Activity, CheckCircle, XCircle, Clock, AlertTriangle, Ban, Timer, Calendar, ChevronDown, ChevronRight } from "lucide-svelte";
+  import {
+    Activity, CheckCircle, XCircle, Clock, AlertTriangle, Ban,
+    Timer, Calendar, ChevronDown, ChevronRight,
+    Maximize2, Minimize2, X,
+  } from "lucide-svelte";
   import TaskTimeline from "./TaskTimeline.svelte";
   import SmartOutput from "../common/SmartOutput.svelte";
 
@@ -33,15 +37,6 @@
     canceled: { variant: "secondary", icon: Ban },
   };
 
-  let task = $derived<TaskSummary | undefined>($tasks.find((t) => t.id === taskId));
-  let isRunning = $derived(task?.status === "working" || task?.status === "submitted");
-  let inputTruncated = $derived(task?.input_preview?.includes(TRUNCATION_MARKER) ?? false);
-  let outputTruncated = $derived(task?.output_text?.includes(TRUNCATION_MARKER) ?? false);
-  let inputNeedsCollapse = $derived((task?.input_preview?.split("\n").length ?? 0) > INPUT_COLLAPSE_LINE_COUNT);
-  let inputExpanded = $state(false);
-  let technicalExpanded = $state(false);
-  let mode = $derived($uiMode);
-
   const STATUS_I18N: Record<string, string> = {
     working: "dashboard.status_working",
     submitted: "dashboard.status_submitted",
@@ -50,6 +45,16 @@
     input_required: "dashboard.status_approval",
     canceled: "dashboard.status_canceled",
   };
+
+  let task = $derived<TaskSummary | undefined>($tasks.find((t) => t.id === taskId));
+  let isRunning = $derived(task?.status === "working" || task?.status === "submitted");
+  let inputTruncated = $derived(task?.input_preview?.includes(TRUNCATION_MARKER) ?? false);
+  let outputTruncated = $derived(task?.output_text?.includes(TRUNCATION_MARKER) ?? false);
+  let inputNeedsCollapse = $derived((task?.input_preview?.split("\n").length ?? 0) > INPUT_COLLAPSE_LINE_COUNT);
+  let inputExpanded = $state(false);
+  let technicalExpanded = $state(false);
+  let wideMode = $state(false);
+  let mode = $derived($uiMode);
 
   function avatarHue(name: string): number {
     return name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
@@ -72,58 +77,90 @@
   $effect(() => {
     if (open) {
       inputExpanded = false;
-      technicalExpanded = mode === "builder";
+      technicalExpanded = false;
+      wideMode = false;
     }
   });
 </script>
 
-<Sheet open={open} onclose={onclose} class="w-[520px]">
-  <div class="flex h-full flex-col" data-testid="task-detail">
+<Sheet open={open} onclose={onclose} class={wideMode ? "w-[760px]" : "w-[520px]"}>
+  <div class="flex h-full min-h-0 flex-col" data-testid="task-detail">
     {#if !task}
-      <div class="flex-1 flex items-center justify-center">
+      <div class="flex flex-1 items-center justify-center">
         <p class="text-xs text-muted-foreground">{$t('tasks.not_found')}</p>
       </div>
     {:else}
       {@const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.submitted}
       {@const hue = avatarHue(task.agent_name || task.agent_id)}
 
-      <!-- Header card -->
-      <div class="mx-4 mt-6 glass-card glass-border rounded-xl overflow-hidden">
-        <div class="h-0.5 w-full {task.status === 'completed' ? 'bg-success' : task.status === 'failed' ? 'bg-destructive' : task.status === 'working' ? 'bg-primary' : 'bg-muted'}"></div>
-        <div class="px-4 py-4" data-testid="task-detail-header">
-          <div class="flex items-center gap-3">
-            <!-- Agent avatar -->
-            <div
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
-              style="background: hsl({hue}, 60%, 48%); box-shadow: 0 2px 8px -1px hsla({hue}, 60%, 38%, 0.25);"
-            >
-              {(task.agent_name || "?").charAt(0).toUpperCase()}
-            </div>
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-medium truncate" data-testid="task-detail-title">{task.agent_name || task.agent_id}</span>
-                <Badge variant={cfg.variant} class="text-[9px] px-1.5 py-0">{$t(STATUS_I18N[task.status] ?? "dashboard.status_submitted")}</Badge>
-              </div>
-              <code class="text-[10px] text-muted-foreground/40 font-mono">{task.id.slice(0, 12)}</code>
-            </div>
+      <!-- ── Header strip (shrink-0, never scrolls) ───────────────────── -->
+      <div
+        class="shrink-0 border-b border-border/40"
+        data-testid="task-detail-header"
+      >
+        <!-- Status bar -->
+        <div class="h-0.5 w-full {task.status === 'completed' ? 'bg-success' : task.status === 'failed' ? 'bg-destructive' : task.status === 'working' ? 'bg-primary animate-pulse' : 'bg-muted'}"></div>
+
+        <!-- Title row: avatar + name + status | expand + close -->
+        <div class="flex items-center gap-3 px-4 pt-4 pb-0">
+          <div
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
+            style="background: hsl({hue}, 60%, 48%); box-shadow: 0 2px 8px -1px hsla({hue}, 60%, 38%, 0.25);"
+          >
+            {(task.agent_name || "?").charAt(0).toUpperCase()}
           </div>
 
-          <!-- Meta row -->
-          <div class="mt-3 flex items-center gap-4 text-[11px] text-muted-foreground">
-            <span class="flex items-center gap-1">
-              <Timer size={11} />
-              {formatDurationLong(task.duration_ms)}
+          <div class="min-w-0 flex-1">
+            <span class="block text-sm font-medium truncate" data-testid="task-detail-title">
+              {task.agent_name || task.agent_id}
             </span>
-            <span class="flex items-center gap-1">
-              <Calendar size={11} />
-              {formatDate(task.created_at)}
-            </span>
+            <code class="text-[10px] text-muted-foreground/40 font-mono">{task.id.slice(0, 12)}</code>
           </div>
+
+          <Badge variant={cfg.variant} class="shrink-0 text-[9px] px-1.5 py-0">
+            {$t(STATUS_I18N[task.status] ?? "dashboard.status_submitted")}
+          </Badge>
+
+          <!-- Panel controls (inline, no absolute) -->
+          <div class="flex shrink-0 items-center gap-0.5">
+            <button
+              class="rounded-md p-1.5 text-muted-foreground hover:bg-white/10 hover:text-foreground transition-colors"
+              onclick={() => wideMode = !wideMode}
+              title={wideMode ? "Réduire" : "Agrandir"}
+              data-testid="panel-expand-btn"
+            >
+              {#if wideMode}
+                <Minimize2 size={15} />
+              {:else}
+                <Maximize2 size={15} />
+              {/if}
+            </button>
+            <button
+              class="rounded-md p-1.5 text-muted-foreground hover:bg-white/10 hover:text-foreground transition-colors"
+              onclick={onclose}
+              aria-label="Close"
+              data-testid="sheet-close"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+
+        <!-- Meta row: duration + date -->
+        <div class="flex items-center gap-4 px-4 pt-2 pb-3 text-[11px] text-muted-foreground">
+          <span class="flex items-center gap-1">
+            <Timer size={11} />
+            {formatDurationLong(task.duration_ms)}
+          </span>
+          <span class="flex items-center gap-1">
+            <Calendar size={11} />
+            {formatDate(task.created_at)}
+          </span>
         </div>
       </div>
 
-      <!-- Scrollable content -->
-      <div class="flex-1 overflow-auto px-4 pt-3 pb-6 space-y-3">
+      <!-- ── Scrollable content ─────────────────────────────────────────── -->
+      <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-3">
 
         <!-- Input card -->
         <div class="glass-card glass-border rounded-lg px-4 py-3.5" data-testid="task-detail-input">
@@ -173,35 +210,44 @@
           </div>
         {/if}
 
-        <!-- Technical details (expandable card) -->
-        <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="task-detail-technical">
-          <button
-            class="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-primary/5"
-            onclick={() => technicalExpanded = !technicalExpanded}
-          >
-            {#if technicalExpanded}
-              <ChevronDown size={12} class="text-muted-foreground/50" />
-            {:else}
-              <ChevronRight size={12} class="text-muted-foreground/50" />
+        <!-- Timeline card (always visible) -->
+        <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="task-detail-timeline">
+          <div class="flex items-center gap-2 px-4 py-3 border-b border-border/40">
+            <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('tasks.timeline')}</span>
+            {#if isRunning}
+              <span class="ml-1 h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
             {/if}
-            <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('tasks.technical_details')}</span>
-          </button>
-
-          {#if technicalExpanded}
-            <div class="border-t border-border/40 px-4 py-3 space-y-3">
-              <!-- Task ID -->
-              <div class="flex items-center gap-2 text-xs">
-                <span class="text-muted-foreground/60">{$t('tasks.id_label')}:</span>
-                <code class="text-[10px] font-mono text-foreground/70">{task.id}</code>
-              </div>
-
-              <!-- Timeline -->
-              <div data-testid="task-timeline-section">
-                <TaskTimeline taskId={taskId} isRunning={isRunning} />
-              </div>
-            </div>
-          {/if}
+          </div>
+          <div class="px-4 py-3" data-testid="task-timeline-section">
+            <TaskTimeline taskId={taskId} isRunning={isRunning} />
+          </div>
         </div>
+
+        <!-- Technical details (builder only) -->
+        {#if mode === "builder"}
+          <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="task-detail-technical">
+            <button
+              class="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-primary/5"
+              onclick={() => technicalExpanded = !technicalExpanded}
+            >
+              {#if technicalExpanded}
+                <ChevronDown size={12} class="text-muted-foreground/50" />
+              {:else}
+                <ChevronRight size={12} class="text-muted-foreground/50" />
+              {/if}
+              <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('tasks.technical_details')}</span>
+            </button>
+            {#if technicalExpanded}
+              <div class="border-t border-border/40 px-4 py-3">
+                <div class="flex items-center gap-2 text-xs">
+                  <span class="text-muted-foreground/60">{$t('tasks.id_label')}:</span>
+                  <code class="text-[10px] font-mono text-foreground/70 break-all">{task.id}</code>
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/if}
+
       </div>
     {/if}
   </div>

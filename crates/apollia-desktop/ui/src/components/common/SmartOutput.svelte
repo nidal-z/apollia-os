@@ -12,6 +12,7 @@
   import { cn } from "$lib/utils";
   import { uiMode } from "$lib/stores/mode";
   import JsonViewer from "./JsonViewer.svelte";
+  import MarkdownContent from "$lib/components/ui/markdown/MarkdownContent.svelte";
 
   interface Props {
     /** Raw output string (JSON or plain text). */
@@ -91,6 +92,7 @@
   let mode = $derived($uiMode);
 
   const parsed = $derived(tryParseJson(output));
+  const isMarkdown = $derived(parsed.type === "text" && looksLikeMarkdown(parsed.data));
 
   function tryParseJson(str: string): ParseResult {
     try {
@@ -170,6 +172,24 @@
     return Array.from(colSet);
   }
 
+  /**
+   * Heuristic: does this plain-text string look like markdown?
+   * Returns true if it contains a fenced code block or at least 2 markdown signals.
+   */
+  function looksLikeMarkdown(text: string): boolean {
+    if (text.length < 20) return false;
+    if (/```/.test(text)) return true;
+    let signals = 0;
+    if (/^#{1,6}\s/m.test(text)) signals++;
+    if (/\*\*[^*\n]+\*\*/.test(text)) signals++;
+    if (/`[^`\n]+`/.test(text)) signals++;
+    if (/^[-*]\s/m.test(text)) signals++;
+    if (/^\d+\.\s/m.test(text)) signals++;
+    if (/\[.+\]\(.+\)/.test(text)) signals++;
+    if (/\n\n/.test(text)) signals++;
+    return signals >= 2;
+  }
+
   /** Safely access a property on an unknown row. */
   function cellValue(row: unknown, key: string): string {
     if (typeof row === "object" && row !== null && key in row) {
@@ -193,10 +213,16 @@
   {#if showRaw || parsed.type === "text"}
     <!-- Raw / plain text view -->
     {#if parsed.type === "text"}
-      <pre
-        class="whitespace-pre-wrap rounded glass-border glass-surface p-3 font-mono text-sm"
-        data-testid="smart-output-text"
-      >{output}</pre>
+      {#if isMarkdown && !showRaw}
+        <div class="text-sm" data-testid="smart-output-markdown">
+          <MarkdownContent content={output} />
+        </div>
+      {:else}
+        <pre
+          class="whitespace-pre-wrap rounded glass-border glass-surface p-3 font-mono text-sm"
+          data-testid="smart-output-text"
+        >{output}</pre>
+      {/if}
     {:else}
       <JsonViewer json={output} />
     {/if}
@@ -338,8 +364,8 @@
     {/if}
   {/if}
 
-  <!-- Toggle raw/formatted (only for JSON content) -->
-  {#if parsed.type !== "text"}
+  <!-- Toggle raw/formatted (for JSON and markdown content) -->
+  {#if parsed.type !== "text" || isMarkdown}
     <div class={cn("pt-1", mode === "operator" ? "text-right" : "")}>
       <button
         class={cn(

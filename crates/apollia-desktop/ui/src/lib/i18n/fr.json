@@ -56,6 +56,8 @@
     "mcp_servers": "Serveurs MCP",
     "switch_to_builder": "Passer en mode Builder",
     "switch_to_operator": "Passer en mode Opérateur",
+    "running_task_one": "1 agent en cours",
+    "running_tasks": "{count} agents en cours",
     "connection": {
       "connecting": "Connexion...",
       "connected": "Runtime connecté",
@@ -401,7 +403,9 @@
     "step_observation_builder": "Observation de step persistée",
     "cache_hit_operator": "Plan en cache réutilisé",
     "cache_hit_builder": "Cache hit du plan — planification LLM ignorée",
-    "cache_hit_tooltip": "Plan identique trouvé en cache — exécution directe sans re-planification"
+    "cache_hit_tooltip": "Plan identique trouvé en cache — exécution directe sans re-planification",
+    "tool_output_label": "Sortie",
+    "no_tool_details": "Aucun détail disponible."
   },
   "approvals": {
     "title": "Approbations",

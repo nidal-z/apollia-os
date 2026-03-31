@@ -8,6 +8,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
   import { showOnboardingBadge } from "$lib/stores/onboarding";
+  import { runningTasks } from "$lib/stores/tasks";
   import {
     LayoutDashboard,
     Bot,
@@ -96,6 +97,7 @@
 
   const isOperator = $derived($uiMode === "operator");
   const collapsed = $derived($sidebarCollapsed);
+  const runningCount = $derived($runningTasks.length);
 </script>
 
 <aside
@@ -150,7 +152,7 @@
       {#each operatorNav as item}
         {@const isActive = $currentRoute === item.route}
         <button
-          class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {isActive
+          class="relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {isActive
             ? 'bg-primary/10 text-primary'
             : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
           class:justify-center={collapsed}
@@ -160,6 +162,12 @@
           title={collapsed ? $t(item.labelKey) : undefined}
         >
           <item.icon size={18} strokeWidth={1.75} class="shrink-0" />
+          {#if collapsed && item.route === "tasks" && runningCount > 0}
+            <span class="absolute -top-0.5 right-0.5 flex h-2 w-2" data-testid="running-tasks-nav-badge">
+              <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
+              <span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
+            </span>
+          {/if}
           {#if !collapsed}
             <span>{$t(item.labelKey)}</span>
             {#if item.route === "approvals" && $pendingCount > 0}
@@ -189,7 +197,7 @@
         {#each group.items as item}
           {@const isActive = $currentRoute === item.route}
           <button
-            class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {isActive
+            class="relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {isActive
               ? 'bg-primary/10 text-primary'
               : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
             class:justify-center={collapsed}
@@ -199,6 +207,12 @@
             title={collapsed ? $t(item.labelKey) : undefined}
           >
             <item.icon size={18} strokeWidth={1.75} class="shrink-0" />
+            {#if collapsed && item.route === "tasks" && runningCount > 0}
+              <span class="absolute -top-0.5 right-0.5 flex h-2 w-2" data-testid="running-tasks-nav-badge">
+                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
+                <span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
+              </span>
+            {/if}
             {#if !collapsed}
               <span>{$t(item.labelKey)}</span>
               {#if item.route === "approvals" && $pendingCount > 0}
@@ -240,6 +254,28 @@
         <span>{$t(settingsItem.labelKey)}</span>
       {/if}
     </button>
+
+    <!-- Running tasks indicator -->
+    {#if runningCount > 0}
+      <button
+        class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-primary/80 transition-colors hover:bg-primary/[0.06]"
+        class:justify-center={collapsed}
+        class:px-2={collapsed}
+        data-testid="running-tasks-indicator"
+        onclick={() => navigate("tasks")}
+        title={collapsed ? `${runningCount} running` : undefined}
+      >
+        <span class="relative flex h-2 w-2 shrink-0">
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
+          <span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
+        </span>
+        {#if !collapsed}
+          <span class="text-xs">
+            {runningCount === 1 ? $t('nav.running_task_one') : $t('nav.running_tasks', { values: { count: runningCount } })}
+          </span>
+        {/if}
+      </button>
+    {/if}
 
     <!-- Onboarding badge -->
     {#if $showOnboardingBadge}

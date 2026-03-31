@@ -1,7 +1,6 @@
 <script lang="ts">
   import { cn } from "$lib/utils";
   import { fly, fade } from "svelte/transition";
-  import { X } from "lucide-svelte";
 
   interface Props {
     open: boolean;
@@ -46,14 +45,6 @@
     onkeydown={handleKeydown}
     transition:fly={{ x: 400, duration: 250, easing: (t) => 1 - Math.pow(1 - t, 3) }}
   >
-    <button
-      class="absolute right-4 top-4 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-      onclick={onclose}
-      aria-label="Close"
-      data-testid="sheet-close"
-    >
-      <X size={16} />
-    </button>
     {@render children?.()}
   </div>
 {/if}
