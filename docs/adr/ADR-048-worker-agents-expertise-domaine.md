@@ -79,7 +79,7 @@ La classe `WorkerAgent` est une **convention**, pas une contrainte — le contra
 - Les Worker Agents fonctionnent sur tous les modèles, y compris les plus petits (7B)
 - Guardrails domaine non-contournables (const Python, pas du contexte)
 - `packages` déclaré → dépendances visibles dans le manifest, auditables
-- Composable via A2A : un "Director Agent" peut déléguer à `excel-worker` comme à un outil
+- **Fondation A2A posée :** `supports_a2a: True` + skills déclarés dans les manifests → structure nécessaire au routing inter-agents. Le routing lui-même est implémenté dans STORY-392 (Sprint 30). Dans ce sprint, le champ est une déclaration d'intention.
 - Pattern documenté → les builders tiers peuvent créer leurs propres Worker Agents
 
 **Négatives / Compromis :**
@@ -105,3 +105,5 @@ La classe `WorkerAgent` est une **convention**, pas une contrainte — le contra
 - Document d'idéation source : `docs/internal/strategy/capabilities-architecture-ideation.md`
 - ADR précédent sur la couche outil : ADR-043 (décomposition atomique des outils fichier)
 - ADR sur le bridge Python : ADR-003 (duck typing AIP), ADR-014 (spawn_blocking + asyncio.run)
+- Story de suivi A2A : STORY-392 (Sprint 30) — routing inter-agents
+- ADR A2A à venir : ADR-049 (à créer en Sprint 30)
