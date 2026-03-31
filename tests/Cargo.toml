@@ -33,6 +33,7 @@ hex              = "0.4"
 apollia-aip           = { workspace = true, optional = true }
 pyo3                  = { workspace = true, optional = true }
 apollia-memory       = { workspace = true }
+apollia-mcp          = { workspace = true }
 apollia-notifications = { workspace = true }
 apollia-pipelines     = { workspace = true }
 reqwest               = { workspace = true, features = ["json"] }
@@ -144,3 +145,7 @@ path = "integration/test_chat_memory.rs"
 [[test]]
 name = "test_onboarding"
 path = "integration/test_onboarding.rs"
+
+[[test]]
+name = "test_sprint_28_config"
+path = "integration/test_sprint_28_config.rs"

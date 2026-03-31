@@ -251,6 +251,7 @@ dependencies = [
  "apollia-aip",
  "apollia-core",
  "apollia-llm",
+ "apollia-mcp",
  "apollia-memory",
  "apollia-notifications",
  "apollia-oria",
