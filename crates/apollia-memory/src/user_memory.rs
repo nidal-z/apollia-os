@@ -52,7 +52,12 @@ impl UserMemoryCategory {
 
     /// Ordered list of all categories, used for grouped recall.
     fn all() -> &'static [Self] {
-        &[Self::Profile, Self::Preferences, Self::Habits, Self::Context]
+        &[
+            Self::Profile,
+            Self::Preferences,
+            Self::Habits,
+            Self::Context,
+        ]
     }
 
     /// Parses a category from its string tag.
@@ -503,8 +508,13 @@ impl UserMemoryRepository {
 
         // --- Remaining context (capped) ---
         let used_suffixes = [
-            "name", "role", "industry", "expertise_level", "language",
-            "verbosity", "tone",
+            "name",
+            "role",
+            "industry",
+            "expertise_level",
+            "language",
+            "verbosity",
+            "tone",
         ];
         let remaining: Vec<_> = all
             .iter()

@@ -175,6 +175,7 @@ dependencies = [
  "hyper-util",
  "indicatif",
  "pyo3",
+ "rusqlite",
  "serde",
  "serde_json",
  "tempfile",

@@ -60,3 +60,4 @@ indicatif          = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
+rusqlite = { workspace = true }

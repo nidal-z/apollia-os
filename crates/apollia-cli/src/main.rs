@@ -204,7 +204,7 @@ fn main() {
             Commands::Task { command } => commands::task::run(&command, cli.socket, json).await,
             Commands::Tools { command } => commands::tools::run(&command, cli.socket, json).await,
             Commands::Audit { command } => commands::audit::run(&command, cli.socket, json).await,
-            Commands::Memory { command } => match commands::memory::run(&command) {
+            Commands::Memory { command } => match commands::memory::run(&command, json) {
                 Ok(output) => {
                     println!("{output}");
                     exit_codes::SUCCESS
@@ -753,6 +753,7 @@ mod tests {
                 MemoryCommand::Inspect { namespace, .. } => {
                     assert_eq!(namespace, "test-ns");
                 }
+                other => panic!("expected MemoryCommand::Inspect, got {other:?}"),
             },
             other => panic!("expected Commands::Memory, got {other:?}"),
         }

@@ -221,6 +221,39 @@ impl MemoryStore {
         Ok(false)
     }
 
+    /// Deletes all episodic memory entries for the given namespace.
+    ///
+    /// Returns the number of rows deleted.
+    pub fn clear_episodic(&self, namespace: &str) -> Result<u64, MemoryStoreError> {
+        let n = self.conn.execute(
+            "DELETE FROM episodic_memories WHERE namespace = ?1",
+            rusqlite::params![namespace],
+        )?;
+        Ok(n as u64)
+    }
+
+    /// Deletes all semantic memory entries for the given namespace.
+    ///
+    /// Returns the number of rows deleted.
+    pub fn clear_semantic(&self, namespace: &str) -> Result<u64, MemoryStoreError> {
+        let n = self.conn.execute(
+            "DELETE FROM semantic_memories WHERE namespace = ?1",
+            rusqlite::params![namespace],
+        )?;
+        Ok(n as u64)
+    }
+
+    /// Deletes all procedural memory entries for the given namespace.
+    ///
+    /// Returns the number of rows deleted.
+    pub fn clear_procedural(&self, namespace: &str) -> Result<u64, MemoryStoreError> {
+        let n = self.conn.execute(
+            "DELETE FROM procedural_memories WHERE namespace = ?1",
+            rusqlite::params![namespace],
+        )?;
+        Ok(n as u64)
+    }
+
     /// Provides direct access to the underlying connection for backends.
     pub(crate) fn conn(&self) -> &Connection {
         &self.conn
@@ -456,6 +489,137 @@ mod tests {
 
         // THEN
         assert!(!deleted);
+    }
+
+    // clear_episodic returns the count of deleted rows
+    #[test]
+    fn test_clear_episodic_returns_count() {
+        // GIVEN 5 episodic entries in namespace "test"
+        let path = temp_db_path();
+        let store = MemoryStore::open(&path).unwrap();
+        for i in 0..5u32 {
+            store
+                .conn()
+                .execute(
+                    "INSERT INTO episodic_memories (id, namespace, agent_id, content, importance, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    rusqlite::params![
+                        format!("ep-{i}"),
+                        "test",
+                        "agent-1",
+                        format!("content {i}"),
+                        0.5_f64,
+                        "2026-01-01T00:00:00Z"
+                    ],
+                )
+                .unwrap();
+        }
+        // WHEN
+        let n = store.clear_episodic("test").unwrap();
+        // THEN
+        assert_eq!(n, 5);
+        let remaining: u64 = store
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM episodic_memories WHERE namespace = 'test'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(remaining, 0);
+    }
+
+    // clear_semantic returns the count of deleted rows
+    #[test]
+    fn test_clear_semantic_returns_count() {
+        // GIVEN 3 semantic entries in namespace "test"
+        let path = temp_db_path();
+        let store = MemoryStore::open(&path).unwrap();
+        for i in 0..3u32 {
+            store
+                .conn()
+                .execute(
+                    "INSERT INTO semantic_memories (id, namespace, key, value, confidence, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    rusqlite::params![
+                        format!("sem-{i}"),
+                        "test",
+                        format!("key-{i}"),
+                        format!("value-{i}"),
+                        1.0_f64,
+                        "2026-01-01T00:00:00Z",
+                        "2026-01-01T00:00:00Z"
+                    ],
+                )
+                .unwrap();
+        }
+        // WHEN
+        let n = store.clear_semantic("test").unwrap();
+        // THEN
+        assert_eq!(n, 3);
+    }
+
+    // clear_procedural returns the count of deleted rows
+    #[test]
+    fn test_clear_procedural_returns_count() {
+        // GIVEN 2 procedural entries in namespace "test"
+        let path = temp_db_path();
+        let store = MemoryStore::open(&path).unwrap();
+        for i in 0..2u32 {
+            store
+                .conn()
+                .execute(
+                    "INSERT INTO procedural_memories (id, namespace, trigger_text, steps, last_used_at, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    rusqlite::params![
+                        format!("proc-{i}"),
+                        "test",
+                        format!("trigger {i}"),
+                        "[]",
+                        "2026-01-01T00:00:00Z",
+                        "2026-01-01T00:00:00Z"
+                    ],
+                )
+                .unwrap();
+        }
+        // WHEN
+        let n = store.clear_procedural("test").unwrap();
+        // THEN
+        assert_eq!(n, 2);
+    }
+
+    // clear_episodic only affects the given namespace
+    #[test]
+    fn test_clear_episodic_namespace_isolation() {
+        // GIVEN entries in two namespaces
+        let path = temp_db_path();
+        let store = MemoryStore::open(&path).unwrap();
+        for ns in ["ns-a", "ns-b"] {
+            store
+                .conn()
+                .execute(
+                    "INSERT INTO episodic_memories (id, namespace, agent_id, content, importance, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    rusqlite::params![
+                        format!("ep-{ns}"),
+                        ns,
+                        "agent-1",
+                        "content",
+                        0.5_f64,
+                        "2026-01-01T00:00:00Z"
+                    ],
+                )
+                .unwrap();
+        }
+        // WHEN clear only ns-a
+        let n = store.clear_episodic("ns-a").unwrap();
+        // THEN ns-a is empty, ns-b untouched
+        assert_eq!(n, 1);
+        let remaining: u64 = store
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM episodic_memories WHERE namespace = 'ns-b'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(remaining, 1);
     }
 
     // FTS5 virtual table is listed in sqlite_master
