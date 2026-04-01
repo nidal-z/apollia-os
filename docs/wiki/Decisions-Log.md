@@ -945,5 +945,24 @@
 
 ---
 
+## ADR-050 — Distribution des Worker Agents : bundled vs communautaire, registre local et Git
+
+**Date :** 2026-04-01
+**Statut :** Accepté
+
+**Contexte :** Les Sprints 29-31 livrent quatre Worker Agents sans packaging ni séparation formalisée. Avant d'implémenter le packaging bundled (STORY-410) et le registre communautaire (STORY-411), six questions doivent être tranchées : quels agents sont bundled, format du registre, commande d'installation, validation à l'installation, séparation physique `bundled/` vs `community/`, auto-installation au premier boot.
+
+**Décision :** (1) Agents bundled = excel-worker, csv-data-worker, pdf-worker, code-worker (4 agents couvrant les cas PME généraux, maintenus par Apollia). (2) Registre communautaire V1 = répertoire local `agents/community/<agent-name>/` avec `agent.py` + `manifest.json` + `README.md` ; V2 = repo Git public avec `registry.json` d'index. (3) Installation via `apollia-os agent install <path|git-url>` — synchrone, interactif, confirmation requise. (4) Validation en 4 étapes à l'installation : manifest conforme, scan `dangerous_tools_allowed`, résolution packages pip, smoke test optionnel. (5) Séparation stricte `agents/bundled/` (Apollia) vs `agents/community/` (tiers). (6) Auto-installation des bundled au premier boot via `agents/bundled/registry.json`; venvs pip différés au premier `INITIALIZING`.
+
+**Alternatives considérées :** Agents bundled embarqués dans le binaire (binaire trop lourd), endpoint distant pour les bundled (viole Principe #2), registre centralisé hébergé (infrastructure + point de défaillance), validation lazy au premier `agent start` (viole Principe #4), venv installé au boot (dégrade le démarrage).
+
+**Conséquences :** Runtime fonctionnel hors ligne. Séparation physique lisible. Validation à l'installation non-contournable. `sql-worker` et `git-worker` (Sprint 32) servent de template communautaire. V2 compatible V1 sans migration.
+
+**Principes impactés :** Principe #1 — Local-first (bundled inclus dans le repo, zéro réseau obligatoire), Principe #2 — Zéro dépendance externe (packages pip sont des dépendances de l'agent, pas du runtime), Principe #4 — Fail fast (validation complète à l'installation), Principe #7 — Garde-fous non-négociables (scan `dangerous_tools_allowed` non-contournable en mode interactif).
+
+[Détail complet → docs/adr/ADR-050-distribution-worker-agents.md](adr/ADR-050-distribution-worker-agents.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
