@@ -877,6 +877,7 @@ impl Supervisor {
             registry_handle.clone(),
             router_handle.clone(),
             event_sender.clone(),
+            apollia_core::A2AConfig::default(),
         ));
         let chat_manager: Option<crate::chat::ChatSessionManagerHandle> =
             match crate::chat::ChatSessionManagerHandle::spawn(

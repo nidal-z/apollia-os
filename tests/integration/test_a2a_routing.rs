@@ -9,7 +9,8 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use apollia_core::{
-    AIPResult, AIPTask, AgentId, AgentManifest, AgentSkill, ProcessState, RuntimeEvent, TaskStatus,
+    A2AConfig, AIPResult, AIPTask, AgentId, AgentManifest, AgentSkill, ProcessState, RuntimeEvent,
+    TaskStatus,
 };
 use apollia_runtime::{
     coordinator::{ExecutionBackend, ExecutionCoordinator},
@@ -125,7 +126,7 @@ where
         .await
         .expect("enregistrement du coordinator doit réussir");
 
-    let invoker = A2AInvoker::new(registry.clone(), router, event_sender.clone());
+    let invoker = A2AInvoker::new(registry.clone(), router, event_sender.clone(), A2AConfig::default());
 
     (invoker, registry, event_sender, worker_id)
 }
@@ -148,7 +149,7 @@ async fn test_full_a2a_routing_success() {
 
     // WHEN invoke("read-excel", ...) est appelé depuis "director"
     let result = invoker
-        .invoke("read-excel", json!({"text": "test"}), "director", None)
+        .invoke("read-excel", json!({"text": "test"}), "director", 0, None, None)
         .await;
 
     // THEN le résultat est Ok avec agent_name, skill_id et duration correctement renseignés
@@ -185,7 +186,7 @@ async fn test_skill_not_found_lists_available() {
 
     // WHEN invoke("nonexistent-skill", ...) est appelé
     let result = invoker
-        .invoke("nonexistent-skill", json!({}), "director", None)
+        .invoke("nonexistent-skill", json!({}), "director", 0, None, None)
         .await;
 
     // THEN Err(SkillNotFound) avec les skills disponibles dans `available`
@@ -221,7 +222,7 @@ async fn test_degraded_agent_rejected() {
 
     // WHEN invoke("read-excel", ...) est appelé
     let result = invoker
-        .invoke("read-excel", json!({}), "director", None)
+        .invoke("read-excel", json!({}), "director", 0, None, None)
         .await;
 
     // THEN Err(AgentNotActive) avec le nom et l'état courant de l'agent
@@ -256,7 +257,9 @@ async fn test_timeout_respected() {
             "slow-skill",
             json!({}),
             "director",
+            0,
             Some(Duration::from_millis(500)),
+            None,
         )
         .await;
 
@@ -327,7 +330,7 @@ async fn test_events_emitted() {
 
     // WHEN invoke("read-excel", ...) est appelé et complété
     invoker
-        .invoke("read-excel", json!({}), "director", None)
+        .invoke("read-excel", json!({}), "director", 0, None, None)
         .await
         .expect("l'invocation doit réussir");
 

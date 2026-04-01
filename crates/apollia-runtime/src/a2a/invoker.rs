@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use apollia_core::{AIPResult, ProcessState, RuntimeEvent};
+use apollia_core::{A2AConfig, AIPResult, ProcessState, RuntimeEvent};
 
 use crate::a2a::{make_delegate_fn, A2aDelegateFn};
 use crate::coordinator::ExecutionBackend;
@@ -18,8 +18,8 @@ use crate::eventbus::EventBusSender;
 use crate::registry::{AgentEntry, AgentRegistryHandle};
 use crate::router::TaskRouterHandle;
 
-/// Timeout par défaut des invocations A2A (120 secondes).
-const DEFAULT_A2A_TIMEOUT: Duration = Duration::from_secs(120);
+/// Timeout de chaîne A2A par défaut (300 secondes) appliqué quand aucun `chain_deadline` n'est fourni.
+const DEFAULT_MAX_A2A_CHAIN_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// Configuration de contexte d'exécution pour un agent invoqué via A2A.
 ///
@@ -86,6 +86,47 @@ pub enum A2AError {
     /// Erreur de communication avec le registry ou le router.
     #[error("A2A infrastructure error: {0}")]
     RegistryError(String),
+
+    /// La profondeur de récursivité A2A maximale est atteinte.
+    ///
+    /// Appliqué par le runtime avant résolution du skill (Principe #7).
+    /// Protège contre les chaînes récursives infinies entre agents.
+    #[error("a2a max depth {max_depth} exceeded (current: {current_depth}, caller: {caller}, skill: {skill_id})")]
+    MaxDepthExceeded {
+        /// Profondeur courante de l'invocation.
+        current_depth: u32,
+        /// Profondeur maximale configurée.
+        max_depth: u32,
+        /// Nom de l'agent initiateur.
+        caller: String,
+        /// Identifiant du skill demandé.
+        skill_id: String,
+    },
+
+    /// Un agent tente de s'invoquer lui-même via un skill A2A.
+    ///
+    /// Appliqué après résolution du skill cible. Empêche les boucles
+    /// directes où un agent expose un skill et l'invoque ensuite lui-même.
+    #[error("agent '{agent_name}' cannot invoke itself via skill '{skill_id}'")]
+    SelfInvocation {
+        /// Nom de l'agent qui tente l'auto-invocation.
+        agent_name: String,
+        /// Identifiant du skill cible.
+        skill_id: String,
+    },
+
+    /// Le timeout cumulé de la chaîne A2A est dépassé.
+    ///
+    /// Déclenché soit immédiatement si le `chain_deadline` est déjà expiré
+    /// à l'entrée de `invoke()`, soit après la délégation si c'est le
+    /// `chain_deadline` (et non l'`invocation_timeout`) qui a expiré en premier.
+    #[error("a2a chain timeout exceeded (caller: {caller}, skill: {skill_id})")]
+    ChainTimeoutExceeded {
+        /// Nom de l'agent initiateur.
+        caller: String,
+        /// Identifiant du skill demandé.
+        skill_id: String,
+    },
 }
 
 /// Résultat d'une invocation A2A réussie.
@@ -151,11 +192,12 @@ pub struct SkillListing {
 /// Orchestrateur de haut niveau pour les invocations inter-agents par skill ID.
 ///
 /// Orchestre le cycle complet d'une invocation A2A :
-/// 1. Résolution du `skill_id` → agent (état `Active` requis, Principe #4)
-/// 2. Émission de [`RuntimeEvent::A2AInvocationStarted`]
-/// 3. Délégation via le TaskRouter avec timeout appliqué par le runtime (Principe #7)
-/// 4. Émission de [`RuntimeEvent::A2AInvocationCompleted`]
-/// 5. Construction du [`A2AInvocationResult`]
+/// 1. Application des garde-fous (profondeur, auto-invocation, timeout de chaîne)
+/// 2. Résolution du `skill_id` → agent (état `Active` requis, Principe #4)
+/// 3. Émission de [`RuntimeEvent::A2AInvocationStarted`]
+/// 4. Délégation via le TaskRouter avec timeout effectif (Principe #7)
+/// 5. Émission de [`RuntimeEvent::A2AInvocationCompleted`]
+/// 6. Construction du [`A2AInvocationResult`]
 ///
 /// N'est pas un acteur Tokio — struct clonable avec des handles internes.
 #[derive(Clone)]
@@ -163,10 +205,12 @@ pub struct A2AInvoker {
     registry: AgentRegistryHandle,
     delegate_fn: A2aDelegateFn,
     event_bus: EventBusSender,
+    /// Configuration des garde-fous appliqués à chaque invocation.
+    config: A2AConfig,
 }
 
 impl A2AInvoker {
-    /// Construit un `A2AInvoker` depuis les handles runtime.
+    /// Construit un `A2AInvoker` depuis les handles runtime et la configuration A2A.
     ///
     /// Générique sur `B: ExecutionBackend` — le résultat est non-générique grâce
     /// à l'erasure de type opérée par [`make_delegate_fn`].
@@ -174,6 +218,7 @@ impl A2AInvoker {
         registry: AgentRegistryHandle,
         router: TaskRouterHandle<B>,
         event_bus: EventBusSender,
+        config: A2AConfig,
     ) -> Self
     where
         B: ExecutionBackend + Clone + Send + Sync + 'static,
@@ -183,23 +228,38 @@ impl A2AInvoker {
             registry,
             delegate_fn,
             event_bus,
+            config,
         }
     }
 
     /// Invoque un Worker Agent par son `skill_id`.
     ///
-    /// Résout le skill, valide que l'agent cible est en état `Active`,
-    /// délègue l'exécution via le TaskRouter avec un timeout optionnel,
+    /// Applique les garde-fous dans l'ordre suivant avant toute délégation :
+    /// 1. Profondeur de récursivité (`a2a_depth >= config.max_depth` → [`A2AError::MaxDepthExceeded`])
+    /// 2. Timeout de chaîne expiré (`chain_deadline` déjà passé → [`A2AError::ChainTimeoutExceeded`])
+    /// 3. Auto-invocation (caller == agent cible → [`A2AError::SelfInvocation`])
+    ///
+    /// Résout ensuite le skill, valide l'état `Active`, délègue via le TaskRouter,
     /// et retourne un [`A2AInvocationResult`] enrichi.
     ///
-    /// Émet [`RuntimeEvent::A2AInvocationStarted`] avant la délégation
-    /// et [`RuntimeEvent::A2AInvocationCompleted`] après (succès ou échec inclus).
+    /// Le `timeout` effectif est le minimum entre `timeout` et le délai résiduel
+    /// du `chain_deadline`. Si le timeout résulte du `chain_deadline`, l'erreur est
+    /// [`A2AError::ChainTimeoutExceeded`] plutôt que [`A2AError::Timeout`].
+    ///
+    /// # Arguments
+    ///
+    /// - `a2a_depth` : profondeur courante de la chaîne (0 pour l'invocation racine).
+    /// - `chain_deadline` : deadline cumulé de la chaîne ; `None` à la première
+    ///   invocation, initialisé à `now + chain_timeout_secs` et propagé ensuite.
     ///
     /// # Errors
     ///
+    /// - [`A2AError::MaxDepthExceeded`] si `a2a_depth >= config.max_depth`.
+    /// - [`A2AError::ChainTimeoutExceeded`] si le deadline de chaîne est expiré.
+    /// - [`A2AError::SelfInvocation`] si l'agent tente de s'invoquer lui-même.
     /// - [`A2AError::SkillNotFound`] si aucun agent A2A disponible ne déclare le skill.
     /// - [`A2AError::AgentNotActive`] si l'agent cible n'est pas en état `Active`.
-    /// - [`A2AError::Timeout`] si la durée d'exécution dépasse `timeout`.
+    /// - [`A2AError::Timeout`] si la durée d'exécution dépasse le timeout d'invocation.
     /// - [`A2AError::ExecutionFailed`] si le Worker Agent retourne un échec.
     /// - [`A2AError::RegistryError`] en cas d'erreur de communication avec le registry.
     pub async fn invoke(
@@ -207,12 +267,67 @@ impl A2AInvoker {
         skill_id: &str,
         input: serde_json::Value,
         caller: &str,
+        a2a_depth: u32,
         timeout: Option<Duration>,
+        chain_deadline: Option<Instant>,
     ) -> Result<A2AInvocationResult, A2AError> {
-        let timeout_dur = timeout.unwrap_or(DEFAULT_A2A_TIMEOUT);
-        let timeout_secs = timeout_dur.as_secs();
+        // ── Garde-fou 1 : profondeur de récursivité ────────────────────────────
+        if a2a_depth >= self.config.max_depth {
+            let detail = format!(
+                "recursion depth {a2a_depth} reaches max_depth {} (caller: {caller}, skill: {skill_id})",
+                self.config.max_depth
+            );
+            let _ = self.event_bus.send(RuntimeEvent::A2AGuardTriggered {
+                guard_type: "max_depth".to_string(),
+                caller: caller.to_string(),
+                skill_id: skill_id.to_string(),
+                detail,
+            });
+            return Err(A2AError::MaxDepthExceeded {
+                current_depth: a2a_depth,
+                max_depth: self.config.max_depth,
+                caller: caller.to_string(),
+                skill_id: skill_id.to_string(),
+            });
+        }
 
-        // 1. Récupérer tous les agents et construire le pool A2A disponible.
+        // ── Garde-fou 2 : timeout cumulé de chaîne ────────────────────────────
+        // Initialiser le deadline à la première invocation de la chaîne.
+        let effective_deadline =
+            chain_deadline.unwrap_or_else(|| Instant::now() + DEFAULT_MAX_A2A_CHAIN_TIMEOUT);
+
+        let chain_remaining = effective_deadline.checked_duration_since(Instant::now());
+
+        let (effective_timeout_secs, governed_by_chain) = match chain_remaining {
+            None => {
+                // Deadline déjà expiré avant même de commencer.
+                let detail = format!(
+                    "chain deadline already expired before invocation (caller: {caller}, skill: {skill_id})"
+                );
+                let _ = self.event_bus.send(RuntimeEvent::A2AGuardTriggered {
+                    guard_type: "chain_timeout".to_string(),
+                    caller: caller.to_string(),
+                    skill_id: skill_id.to_string(),
+                    detail,
+                });
+                return Err(A2AError::ChainTimeoutExceeded {
+                    caller: caller.to_string(),
+                    skill_id: skill_id.to_string(),
+                });
+            }
+            Some(remaining) => {
+                let invocation_timeout = timeout
+                    .unwrap_or_else(|| Duration::from_secs(self.config.invocation_timeout_secs));
+                if remaining < invocation_timeout {
+                    // Le chain_deadline expire avant l'invocation_timeout.
+                    (remaining.as_secs().max(1), true)
+                } else {
+                    (invocation_timeout.as_secs(), false)
+                }
+            }
+        };
+
+        // ── Résolution du skill ────────────────────────────────────────────────
         let entries = self
             .registry
             .list_agents()
@@ -230,7 +345,6 @@ impl A2AInvoker {
             })
             .collect();
 
-        // 2. Trouver les agents du pool déclarant le skill demandé.
         let matching: Vec<&&AgentEntry> = pool
             .iter()
             .filter(|e| e.manifest.skills.iter().any(|s| s.id == skill_id))
@@ -250,7 +364,6 @@ impl A2AInvoker {
             });
         }
 
-        // 3. Parmi les candidats, exiger l'état Active (fail-fast, Principe #4).
         let target = matching
             .iter()
             .find(|e| e.process_state == ProcessState::Active)
@@ -261,14 +374,31 @@ impl A2AInvoker {
 
         let agent_name = target.manifest.name.clone();
 
+        // ── Garde-fou 3 : auto-invocation ─────────────────────────────────────
+        if agent_name == caller {
+            let detail = format!(
+                "agent '{caller}' resolved as its own target for skill '{skill_id}'"
+            );
+            let _ = self.event_bus.send(RuntimeEvent::A2AGuardTriggered {
+                guard_type: "self_invocation".to_string(),
+                caller: caller.to_string(),
+                skill_id: skill_id.to_string(),
+                detail,
+            });
+            return Err(A2AError::SelfInvocation {
+                agent_name: caller.to_string(),
+                skill_id: skill_id.to_string(),
+            });
+        }
+
         info!(
             skill_id = %skill_id,
             agent = %agent_name,
             caller = %caller,
+            a2a_depth = a2a_depth,
             "A2A invocation starting"
         );
 
-        // 4. Émettre A2AInvocationStarted (fire-and-forget).
         let _ = self.event_bus.send(RuntimeEvent::A2AInvocationStarted {
             caller: caller.to_string(),
             target: agent_name.clone(),
@@ -277,11 +407,10 @@ impl A2AInvoker {
 
         let start = Instant::now();
 
-        // 5. Déléguer via la fn type-erasée (submit → wait → timeout interne).
-        let delegate_result = (self.delegate_fn)(skill_id.to_string(), input, timeout_secs).await;
+        let delegate_result =
+            (self.delegate_fn)(skill_id.to_string(), input, effective_timeout_secs).await;
         let duration_ms = start.elapsed().as_millis() as u64;
 
-        // 6. Émettre A2AInvocationCompleted (fire-and-forget).
         let status = if delegate_result.is_ok() {
             "completed"
         } else {
@@ -295,9 +424,32 @@ impl A2AInvoker {
             duration_ms,
         });
 
-        // 7. Convertir le résultat de délégation.
-        let delegate = delegate_result
-            .map_err(|e| map_delegate_err(e, skill_id, &agent_name, timeout_secs))?;
+        let delegate = match delegate_result {
+            Ok(r) => r,
+            Err(crate::a2a::A2aError::Timeout { .. }) if governed_by_chain => {
+                let detail = format!(
+                    "chain timeout exceeded during invocation (caller: {caller}, skill: {skill_id})"
+                );
+                let _ = self.event_bus.send(RuntimeEvent::A2AGuardTriggered {
+                    guard_type: "chain_timeout".to_string(),
+                    caller: caller.to_string(),
+                    skill_id: skill_id.to_string(),
+                    detail,
+                });
+                return Err(A2AError::ChainTimeoutExceeded {
+                    caller: caller.to_string(),
+                    skill_id: skill_id.to_string(),
+                });
+            }
+            Err(e) => {
+                return Err(map_delegate_err(
+                    e,
+                    skill_id,
+                    &agent_name,
+                    effective_timeout_secs,
+                ))
+            }
+        };
 
         let aip_result = AIPResult::completed(&delegate.output);
 
@@ -396,17 +548,19 @@ impl A2AInvoker {
         }
     }
 
-    /// Constructeur de test — injecte une `A2aDelegateFn` personnalisée.
+    /// Constructeur de test — injecte une `A2aDelegateFn` personnalisée et une config.
     #[cfg(test)]
     pub(crate) fn new_for_test(
         registry: AgentRegistryHandle,
         delegate_fn: A2aDelegateFn,
         event_bus: EventBusSender,
+        config: A2AConfig,
     ) -> Self {
         Self {
             registry,
             delegate_fn,
             event_bus,
+            config,
         }
     }
 }
@@ -467,6 +621,7 @@ mod tests {
     use std::pin::Pin;
     use std::sync::Arc;
     use std::time::Instant;
+    use tokio::time::sleep;
 
     fn make_a2a_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
         let skills = skill_ids
@@ -725,11 +880,12 @@ mod tests {
             .await
             .expect("update state failed");
 
-        let invoker = A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx);
+        let invoker =
+            A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx, A2AConfig::default());
 
         // WHEN
         let result = invoker
-            .invoke("unknown-skill", serde_json::json!({}), "director", None)
+            .invoke("unknown-skill", serde_json::json!({}), "director", 0, None, None)
             .await;
 
         // THEN Err(SkillNotFound) avec available contenant "read-excel" et "edit-excel"
@@ -770,11 +926,12 @@ mod tests {
             .await
             .expect("degraded transition failed");
 
-        let invoker = A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx);
+        let invoker =
+            A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx, A2AConfig::default());
 
         // WHEN
         let result = invoker
-            .invoke("read-excel", serde_json::json!({}), "director", None)
+            .invoke("read-excel", serde_json::json!({}), "director", 0, None, None)
             .await;
 
         // THEN Err(AgentNotActive) avec state == "Degraded"
@@ -801,8 +958,12 @@ mod tests {
             .await
             .expect("update state failed");
 
-        let invoker =
-            A2AInvoker::new_for_test(registry, make_ok_delegate("colonnes: A, B, C"), bus_tx);
+        let invoker = A2AInvoker::new_for_test(
+            registry,
+            make_ok_delegate("colonnes: A, B, C"),
+            bus_tx,
+            A2AConfig::default(),
+        );
 
         // WHEN
         let result = invoker
@@ -810,6 +971,8 @@ mod tests {
                 "read-excel",
                 serde_json::json!({"text": "Lis ventes.xlsx"}),
                 "director",
+                0,
+                None,
                 None,
             )
             .await
@@ -863,7 +1026,8 @@ mod tests {
             .await
             .expect("update state failed");
 
-        let invoker = A2AInvoker::new_for_test(registry, make_timeout_delegate(), bus_tx);
+        let invoker =
+            A2AInvoker::new_for_test(registry, make_timeout_delegate(), bus_tx, A2AConfig::default());
 
         // WHEN
         let result = invoker
@@ -871,7 +1035,9 @@ mod tests {
                 "read-excel",
                 serde_json::json!({}),
                 "director",
+                0,
                 Some(Duration::from_secs(1)),
+                None,
             )
             .await;
 
@@ -899,7 +1065,8 @@ mod tests {
             .await
             .expect("update state failed");
 
-        let invoker = A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx);
+        let invoker =
+            A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx, A2AConfig::default());
 
         // WHEN
         let card = invoker
@@ -918,7 +1085,8 @@ mod tests {
         // GIVEN registry vide
         let (bus_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(bus_tx.clone());
-        let invoker = A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx);
+        let invoker =
+            A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx, A2AConfig::default());
 
         // WHEN
         let result = invoker.discover("unknown").await.expect("discover failed");
@@ -947,7 +1115,8 @@ mod tests {
                 .expect("update state failed");
         }
 
-        let invoker = A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx);
+        let invoker =
+            A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx, A2AConfig::default());
 
         // WHEN
         let cards = invoker.list_agent_cards().await.expect("list failed");
@@ -978,7 +1147,8 @@ mod tests {
                 .expect("update state failed");
         }
 
-        let invoker = A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx);
+        let invoker =
+            A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx, A2AConfig::default());
 
         // WHEN
         let skills = invoker.list_skills().await.expect("list failed");
@@ -988,5 +1158,303 @@ mod tests {
         assert_eq!(skills[0].skill_id, "edit-excel");
         assert_eq!(skills[1].skill_id, "read-csv");
         assert_eq!(skills[2].skill_id, "read-excel");
+    }
+}
+
+// ── A2A garde-fous ────────────────────────────────────────────────────────────
+#[cfg(test)]
+mod a2a_guard_tests {
+    use super::*;
+    use crate::a2a::A2aError as LowLevelA2aError;
+    use crate::eventbus::EventBus;
+    use crate::registry::AgentRegistry;
+    use apollia_core::{AgentManifest, AgentSkill, ProcessState};
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::Arc;
+
+    fn make_a2a_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
+        let skills = skill_ids
+            .iter()
+            .map(|id| AgentSkill {
+                id: id.to_string(),
+                name: id.to_string(),
+                description: String::new(),
+                input_modes: vec!["text".to_string()],
+                output_modes: vec!["text".to_string()],
+            })
+            .collect();
+
+        AgentManifest {
+            name: name.to_string(),
+            version: "0.1.0".to_string(),
+            description: name.to_string(),
+            tools_required: vec![],
+            tools_optional: vec![],
+            supports_streaming: false,
+            supports_a2a: true,
+            memory_namespace: None,
+            shared_memory_namespaces: vec![],
+            max_concurrent_tasks: 1,
+            step_budget: None,
+            network_allowlist: None,
+            dangerous_tools_allowed: false,
+            tags: vec![],
+            skills,
+            execution_mode: "direct".to_string(),
+            system_prompt: None,
+            tools_requiring_approval: vec![],
+            llm_backend: None,
+            packages: vec![],
+        }
+    }
+
+    fn make_ok_delegate() -> A2aDelegateFn {
+        Arc::new(
+            move |_skill_id: String, _input: serde_json::Value, _timeout: u64| {
+                let fut: Pin<
+                    Box<
+                        dyn Future<Output = Result<crate::a2a::A2aDelegateResult, LowLevelA2aError>>
+                            + Send,
+                    >,
+                > = Box::pin(async move {
+                    Ok(crate::a2a::A2aDelegateResult {
+                        task_id: "task-guard-test".to_string(),
+                        agent_name: "excel-worker".to_string(),
+                        output: "ok".to_string(),
+                    })
+                });
+                fut
+            },
+        )
+    }
+
+    async fn make_active_invoker_with_config(
+        agent_name: &str,
+        skill_ids: &[&str],
+        config: A2AConfig,
+    ) -> (A2AInvoker, tokio::sync::broadcast::Receiver<RuntimeEvent>) {
+        let (bus_tx, bus_rx) = EventBus::new();
+        let registry = AgentRegistry::spawn(bus_tx.clone());
+        let id = registry
+            .register(make_a2a_manifest(agent_name, skill_ids))
+            .await
+            .expect("register failed");
+        registry
+            .update_state(id.as_str(), ProcessState::Active)
+            .await
+            .expect("update state failed");
+        let invoker =
+            A2AInvoker::new_for_test(registry, make_ok_delegate(), bus_tx, config);
+        (invoker, bus_rx)
+    }
+
+    #[tokio::test]
+    async fn test_max_depth_blocks_deep_recursion() {
+        // GIVEN A2AInvoker avec max_depth = 2, a2a_depth = 2
+        let config = A2AConfig {
+            max_depth: 2,
+            ..A2AConfig::default()
+        };
+        let (invoker, _) =
+            make_active_invoker_with_config("excel-worker", &["read-excel"], config).await;
+
+        // WHEN invoke avec a2a_depth = 2 (= max_depth)
+        let result = invoker
+            .invoke("read-excel", serde_json::json!({}), "director", 2, None, None)
+            .await;
+
+        // THEN MaxDepthExceeded avec les champs corrects
+        match result.expect_err("expected MaxDepthExceeded") {
+            A2AError::MaxDepthExceeded {
+                current_depth,
+                max_depth,
+                caller,
+                skill_id,
+            } => {
+                assert_eq!(current_depth, 2);
+                assert_eq!(max_depth, 2);
+                assert_eq!(caller, "director");
+                assert_eq!(skill_id, "read-excel");
+            }
+            other => panic!("unexpected error: {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_depth_below_max_passes() {
+        // GIVEN max_depth = 3, a2a_depth = 1
+        let config = A2AConfig {
+            max_depth: 3,
+            ..A2AConfig::default()
+        };
+        let (invoker, _) =
+            make_active_invoker_with_config("excel-worker", &["read-excel"], config).await;
+
+        // WHEN invoke avec a2a_depth = 1 (< max_depth)
+        let result = invoker
+            .invoke("read-excel", serde_json::json!({}), "director", 1, None, None)
+            .await;
+
+        // THEN pas d'erreur de profondeur — invocation réussit
+        assert!(
+            result.is_ok(),
+            "depth 1 < max_depth 3 should succeed, got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_self_invocation_blocked() {
+        // GIVEN excel-worker enregistré avec skill "read-excel"
+        let (invoker, _) = make_active_invoker_with_config(
+            "excel-worker",
+            &["read-excel"],
+            A2AConfig::default(),
+        )
+        .await;
+
+        // WHEN excel-worker s'invoque lui-même via le skill "read-excel"
+        let result = invoker
+            .invoke(
+                "read-excel",
+                serde_json::json!({}),
+                "excel-worker",
+                0,
+                None,
+                None,
+            )
+            .await;
+
+        // THEN SelfInvocation avec les champs corrects
+        match result.expect_err("expected SelfInvocation") {
+            A2AError::SelfInvocation {
+                agent_name,
+                skill_id,
+            } => {
+                assert_eq!(agent_name, "excel-worker");
+                assert_eq!(skill_id, "read-excel");
+            }
+            other => panic!("unexpected error: {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_chain_deadline_initialized_on_first_call() {
+        // GIVEN chain_deadline = None (première invocation de la chaîne)
+        let (invoker, _) = make_active_invoker_with_config(
+            "excel-worker",
+            &["read-excel"],
+            A2AConfig::default(),
+        )
+        .await;
+
+        // WHEN invoke avec chain_deadline = None
+        let result = invoker
+            .invoke("read-excel", serde_json::json!({}), "director", 0, None, None)
+            .await;
+
+        // THEN le deadline est initialisé à l'avenir — pas de ChainTimeoutExceeded
+        assert!(
+            result.is_ok(),
+            "first call with chain_deadline=None must succeed (deadline initialized to future), got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_chain_timeout_exceeded() {
+        // GIVEN chain_deadline dans le passé (expiré il y a 1 seconde)
+        let past_deadline = Instant::now() - Duration::from_secs(1);
+        let (invoker, _) = make_active_invoker_with_config(
+            "excel-worker",
+            &["read-excel"],
+            A2AConfig::default(),
+        )
+        .await;
+
+        // WHEN invoke avec chain_deadline expiré
+        let result = invoker
+            .invoke(
+                "read-excel",
+                serde_json::json!({}),
+                "director",
+                0,
+                None,
+                Some(past_deadline),
+            )
+            .await;
+
+        // THEN ChainTimeoutExceeded immédiat
+        match result.expect_err("expected ChainTimeoutExceeded") {
+            A2AError::ChainTimeoutExceeded { caller, skill_id } => {
+                assert_eq!(caller, "director");
+                assert_eq!(skill_id, "read-excel");
+            }
+            other => panic!("unexpected error: {other}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_guard_event_emitted_on_max_depth() {
+        // GIVEN EventBus receiver + max_depth = 1
+        let config = A2AConfig {
+            max_depth: 1,
+            ..A2AConfig::default()
+        };
+        let (invoker, mut bus_rx) =
+            make_active_invoker_with_config("excel-worker", &["read-excel"], config).await;
+
+        // WHEN invoke avec a2a_depth = max_depth
+        let _ = invoker
+            .invoke("read-excel", serde_json::json!({}), "director", 1, None, None)
+            .await;
+
+        // THEN A2AGuardTriggered { guard_type: "max_depth" } émis
+        let mut found = false;
+        while let Ok(event) = bus_rx.try_recv() {
+            if let RuntimeEvent::A2AGuardTriggered {
+                ref guard_type,
+                ref caller,
+                ref skill_id,
+                ..
+            } = event
+            {
+                assert_eq!(guard_type, "max_depth");
+                assert_eq!(caller, "director");
+                assert_eq!(skill_id, "read-excel");
+                found = true;
+            }
+        }
+        assert!(found, "A2AGuardTriggered with guard_type=max_depth was not emitted");
+    }
+
+    #[test]
+    fn test_a2a_config_defaults() {
+        // GIVEN A2AConfig désérialisé depuis JSON vide (toutes valeurs par défaut)
+        let config: A2AConfig =
+            serde_json::from_str("{}").expect("deserialization of empty object failed");
+
+        // THEN valeurs par défaut saines
+        assert_eq!(config.max_depth, 3);
+        assert_eq!(config.invocation_timeout_secs, 120);
+        assert_eq!(config.chain_timeout_secs, 300);
+    }
+
+    #[test]
+    fn test_a2a_config_round_trip() {
+        // GIVEN une config avec des valeurs personnalisées
+        let config = A2AConfig {
+            max_depth: 5,
+            invocation_timeout_secs: 60,
+            chain_timeout_secs: 600,
+        };
+
+        // WHEN sérialisation/désérialisation
+        let json = serde_json::to_string(&config).expect("serialization failed");
+        let restored: A2AConfig = serde_json::from_str(&json).expect("deserialization failed");
+
+        // THEN valeurs préservées
+        assert_eq!(restored.max_depth, 5);
+        assert_eq!(restored.invocation_timeout_secs, 60);
+        assert_eq!(restored.chain_timeout_secs, 600);
     }
 }

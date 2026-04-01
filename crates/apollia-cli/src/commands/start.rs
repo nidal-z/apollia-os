@@ -692,6 +692,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                     registry,
                     router,
                     event_bus.clone(),
+                    apollia_core::A2AConfig::default(),
                 ));
                 (Some(delegate), Some(invoker))
             }

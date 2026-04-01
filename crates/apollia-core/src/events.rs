@@ -672,6 +672,23 @@ pub enum RuntimeEvent {
         duration_ms: u64,
     },
 
+    // ── A2A Guard events ─────────────────────────
+    /// Un garde-fou A2A a bloqué une invocation inter-agents.
+    ///
+    /// Émis par `A2AInvoker::invoke()` dès qu'une protection automatique
+    /// (profondeur max, auto-invocation, timeout cumulé de chaîne) empêche
+    /// l'invocation de se poursuivre. L'émission précède le retour de l'erreur.
+    A2AGuardTriggered {
+        /// Catégorie du garde-fou : `"max_depth"`, `"self_invocation"` ou `"chain_timeout"`.
+        guard_type: String,
+        /// Nom de l'agent initiateur de l'invocation bloquée.
+        caller: String,
+        /// Identifiant du skill dont l'invocation a été bloquée.
+        skill_id: String,
+        /// Message explicatif destiné aux logs et à l'observabilité.
+        detail: String,
+    },
+
     // ── Onboarding events ────────────────────────
     /// Émis au premier lancement quand la UserMemory est vide.
     ///
@@ -1040,6 +1057,13 @@ mod tests {
                 skill_id: "read-excel".into(),
                 status: "completed".into(),
                 duration_ms: 350,
+            },
+            // ── A2A Guard ────────────────────────────
+            RuntimeEvent::A2AGuardTriggered {
+                guard_type: "max_depth".into(),
+                caller: "director".into(),
+                skill_id: "read-excel".into(),
+                detail: "depth 3 reaches max_depth 3".into(),
             },
             // ── Onboarding ──────────────────────────
             RuntimeEvent::OnboardingRequired,

@@ -469,6 +469,17 @@ pub struct RuntimeContext {
     /// Le comportement est géré par le [`MemoryInterface`] — ce champ est purement
     /// informatif pour l'introspection du contexte.
     user_memory_read_only: bool,
+    /// Profondeur courante dans la chaîne A2A (0 = invocation directe, pas via A2A).
+    ///
+    /// Incrémenté de 1 à chaque niveau d'invocation inter-agents.
+    /// Transmis à [`A2AInvoker::invoke`] pour appliquer le garde-fou de récursivité.
+    a2a_depth: u32,
+    /// Deadline cumulé de la chaîne A2A courante.
+    ///
+    /// `None` avant la première invocation A2A depuis cet agent.
+    /// Initialisé par l'`A2AInvoker` à la première invocation et propagé
+    /// dans les invocations suivantes pour limiter le temps total de la chaîne.
+    chain_deadline: Option<Instant>,
 }
 
 impl RuntimeContext {
@@ -552,6 +563,8 @@ impl RuntimeContext {
             a2a_delegate,
             a2a_invoker,
             user_memory_read_only,
+            a2a_depth: 0,
+            chain_deadline: None,
         }
     }
 }
@@ -788,10 +801,12 @@ impl RuntimeContext {
 
         let caller = self.agent_name.clone();
         let timeout = timeout_secs.map(std::time::Duration::from_secs);
+        let a2a_depth = self.a2a_depth.saturating_add(1);
+        let chain_deadline = self.chain_deadline;
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let out_json = match invoker
-                .invoke(&skill_id, input_value, &caller, timeout)
+                .invoke(&skill_id, input_value, &caller, a2a_depth, timeout, chain_deadline)
                 .await
             {
                 Ok(r) => serde_json::to_string(&r)
@@ -1437,6 +1452,8 @@ mod a2a_tests {
             a2a_delegate: None,
             a2a_invoker: None,
             user_memory_read_only: false,
+            a2a_depth: 0,
+            chain_deadline: None,
         };
 
         // THEN les vérifications internes échouent
@@ -1472,6 +1489,8 @@ mod a2a_tests {
             a2a_delegate: None,
             a2a_invoker: None,
             user_memory_read_only: false,
+            a2a_depth: 0,
+            chain_deadline: None,
         };
 
         // THEN user_context is Some with expected categories
@@ -1496,6 +1515,8 @@ mod a2a_tests {
             a2a_delegate: None,
             a2a_invoker: None,
             user_memory_read_only: false,
+            a2a_depth: 0,
+            chain_deadline: None,
         };
 
         // THEN user_context is None

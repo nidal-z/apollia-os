@@ -249,7 +249,7 @@ pub async fn invoke_by_skill<B: ExecutionBackend + Clone>(
     let timeout = req.timeout_secs.map(std::time::Duration::from_secs);
 
     invoker
-        .invoke(&req.skill_id, req.input, caller, timeout)
+        .invoke(&req.skill_id, req.input, caller, 0, timeout, None)
         .await
         .map(Json)
         .map_err(a2a_invoker_err_response)
@@ -299,6 +299,9 @@ fn a2a_invoker_err_response(err: A2AError) -> (StatusCode, Json<A2aErrorResponse
         A2AError::Timeout { .. } => StatusCode::GATEWAY_TIMEOUT,
         A2AError::ExecutionFailed { .. } => StatusCode::BAD_GATEWAY,
         A2AError::RegistryError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        A2AError::MaxDepthExceeded { .. }
+        | A2AError::SelfInvocation { .. }
+        | A2AError::ChainTimeoutExceeded { .. } => StatusCode::TOO_MANY_REQUESTS,
     };
     let skill_id = match &err {
         A2AError::SkillNotFound { skill_id, .. } => Some(skill_id.clone()),
