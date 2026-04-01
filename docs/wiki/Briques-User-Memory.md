@@ -359,6 +359,32 @@ if user_ctx is not None:
 
 ---
 
+## Accès A2A — user_memory_read_only (Sprint 30)
+
+Lorsqu'un agent est invoqué via A2A (`ctx.a2a_invoke`), le runtime lui octroie un accès en **lecture seule** à la mémoire utilisateur globale. L'agent peut contextualiser sa réponse à partir des préférences de l'utilisateur sans risquer de corrompre les données d'un autre agent.
+
+**Fichier** : `crates/apollia-aip/src/memory.rs`
+
+```rust
+pub struct RuntimeContextConfig {
+    /// Si `true`, `ctx.memory.recall()` lit aussi le namespace `__user__`.
+    /// Les écritures restent confinées au namespace propre de l'agent.
+    pub user_memory_read_only: bool,
+}
+```
+
+Côté Python, ce comportement est transparent :
+
+```python
+# Dans un Worker Agent invoqué via A2A — recall() retourne aussi des résultats __user__
+hits = await ctx.memory.recall("préférence langue")
+# → peut retourner une entrée user_memory si pertinente
+```
+
+L'agent **ne peut pas écrire** dans `__user__` — `ctx.memory.store()` écrit toujours dans son propre namespace. Ce modèle est défini dans [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md).
+
+---
+
 ## Diagrammes
 
 - [seq-chat-user-memory.puml](../diagrams/seq-chat-user-memory.puml) — Injection de la mémoire utilisateur dans le chat
@@ -371,5 +397,8 @@ if user_ctx is not None:
 ## Liens
 
 - [Guide Onboarding](Agents-Onboarding-Guide.md)
+- [ADR-038 — Mémoire utilisateur globale](../adr/ADR-038-global-user-memory.md)
 - [ADR-040 — Onboarding comme agent conversationnel](../adr/ADR-040-onboarding-conversational-agent.md)
+- [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md) — trust model A2A
 - [Brique — CLI](Briques-CLI.md) — Commande `apollia-os onboard`
+- [A2A / ACP](A2A-ACP-Alignement.md) — alignement standards et routing V1

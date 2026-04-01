@@ -41,3 +41,5 @@
 | ADR-034 | [ADR-034 — Chat hybride : sessions, streaming, HITL inline](./adr-034-chat-hybride-sessions-streaming-hitl-inline.md) | Accepté |
 | ADR-035 | [ADR-035 — Per-step observation en mode Orchestré](./adr-035-per-step-observation-orchestrated.md) | Accepté |
 | ADR-036 | [ADR-036 — Stratégie de cache de plans ORIA](./adr-036-plan-cache-strategy.md) | Accepté |
+| ADR-048 | [ADR-048 — Worker Agents : expertise de domaine compilée en Python](./adr-048-worker-agents-expertise-domaine.md) | Accepté |
+| ADR-049 | [ADR-049 — Routing A2A inter-agents : discovery + invocation synchrone](./adr-049-a2a-routing-inter-agents.md) | Accepté |

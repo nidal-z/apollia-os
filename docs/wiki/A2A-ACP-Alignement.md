@@ -62,11 +62,40 @@ curl http://localhost:7771/.well-known/agent.json
 
 L'agent n'écrit pas de code A2A — il déclare ses capacités dans le manifest, Apollia OS fait le reste.
 
+### Routing A2A V1 — livré Sprint 30
+
+**A2AInvoker** — orchestrateur de haut niveau dans `apollia-runtime/src/a2a/` :
+
+```python
+# Depuis un Director Agent — invoquer un Worker par skill_id
+result = await ctx.a2a_invoke("read-excel", {"text": "Lis ventes.xlsx"})
+```
+
+Flux : `SkillIndex.resolve(skill_id)` → validation état `Active` → construction contexte A2A (trust model) → délégation via `TaskRouter` avec timeout 120s → résultat `A2AInvocationResult`.
+
+**SkillIndex** — index inversé `skill_id → agent_name` intégré à l'`AgentRegistry` :
+- Alimenté automatiquement lors des `register()` / `unregister()` (agents avec `supports_a2a: True`)
+- Conflit de skill_id détecté au `register()` — pas au runtime (Principe #4 — fail fast)
+- `A2AError::SkillNotFound` inclut la liste des skills disponibles si résolution échoue
+
+**Trust model A2A** (ADR-049) :
+- L'agent invoqué lit la mémoire utilisateur globale (`__user__`) **en lecture seule**
+- Les écritures restent confinées au namespace propre de l'agent invoqué
+- Encodé dans `RuntimeContextConfig { user_memory_read_only: bool }`
+
+**Endpoint REST** : `GET /api/v1/a2a/agents` — liste les AgentCards avec leurs skills.
+
+```bash
+# CLI — lister uniquement les agents A2A
+$ apollia-os agent list --supports-a2a
+```
+
+Décision architecturale : [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
+
 ### Ce qui n'est pas encore implémenté
 
-- Communication agent-to-agent (routing entre agents)
 - Authentification A2A (JWT, OAuth)
-- Discovery de serveurs d'agents
+- Discovery de serveurs d'agents externes (cross-runtime)
 
 ---
 
@@ -108,3 +137,6 @@ Cela signifie que la migration vers A2A ou ACP complets, si et quand ces standar
 - [Architecture Protocoles Standards](./Architecture-Protocoles-Standards) — analyse complète des trois protocoles
 - [Briques AIP Specification](./Briques-AIP-Specification) — AIPTask et AIPResult détaillés
 - [Architecture Machines d'État](./Architecture-Machines-Etat) — ProcessState et TaskState
+- [Worker Agent Pattern](./Worker-Agent-Pattern) — créer un Worker invocable via A2A
+- [Matrice de décision — Capabilities](./Decision-Matrix-Capabilities) — quand utiliser A2A vs MCP vs Worker
+- [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)

@@ -114,6 +114,24 @@ Source de vérité pour l'état de tous les agents actifs.
 | `UpdateState(agent_id, state)` | Transition de `ProcessState` |
 | `GetAgent(agent_id)` | Retourne `AgentEntry` ou `None` |
 | `ListAgents(filter)` | Liste tous les agents (filtrable par `ProcessState`) |
+| `ResolveSkill(skill_id)` | Résout un `skill_id` → `AgentEntry` via `SkillIndex` (Sprint 30) |
+
+### 3.1 SkillIndex — Résolution A2A par skill_id (Sprint 30)
+
+**Fichier** : `crates/apollia-runtime/src/registry.rs`
+
+L'`AgentRegistry` intègre un `SkillIndex` — index inversé `skill_id → agent_name` alimenté automatiquement lors des `register()` / `unregister()` pour les agents avec `supports_a2a: true`.
+
+```rust
+pub enum SkillIndexError {
+    SkillConflict { skill_id: String, existing_agent: String, new_agent: String },
+    SkillNotFound  { skill_id: String, available: Vec<String> },
+}
+```
+
+- **Fail-fast** : conflit de `skill_id` détecté au `Register()`, pas au runtime (Principe #4)
+- **Unregister propre** : le `SkillIndex` est dépilé lors du `Unregister()`
+- **Pas un acteur séparé** : le `SkillIndex` est un composant interne de l'`AgentRegistry` (Principe #5)
 
 **Cycle de vie d'enregistrement :**
 
@@ -211,6 +229,14 @@ GET    /api/v1/agents                       → Lister les agents
 POST   /api/v1/agents                       → Démarrer un agent
 GET    /api/v1/agents/{id}                  → Détail d'un agent
 DELETE /api/v1/agents/{id}                  → Arrêter un agent
+GET    /api/v1/agents?supports_a2a=true     → Filtrer agents A2A [Sprint 30]
+
+# A2A [Sprint 30]
+GET    /api/v1/a2a/agents                   → Lister les AgentCards avec skills
+GET    /api/v1/a2a/agents/{name}            → AgentCard d'un agent par nom
+GET    /api/v1/a2a/skills                   → Lister tous les skills disponibles
+POST   /api/v1/a2a/invoke                   → Invoquer un agent par skill_id
+GET    /.well-known/agent.json              → AgentCard A2A standard (si un agent A2A est actif)
 
 GET    /api/v1/tools                        → Lister les outils
 GET    /api/v1/health                       → Santé du runtime
@@ -423,6 +449,8 @@ debug_log_prompt      = false               # persister les prompts LLM (RGPD �
 | `NotificationEngine` optionnel (Phase 9) | Zéro overhead si `[notifications]` absent — runtime léger par défaut |
 | Timeline API agrégée server-side (ADR-026) | 5 sources SQLite lues en parallèle, triées, retournées en JSON — pas de calcul client |
 | Troncature configurable `ObservabilityConfig` (ADR-026) | UTF-8 safe, marqueur `[TRONQUÉ — N octets total]`, jamais de rejet — observabilité partielle > aucune |
+| `SkillIndex` dans `AgentRegistry` (Sprint 30, ADR-049) | Index inversé skill_id → agent_name — pas un acteur séparé, cohérence garantie par le même acteur que l'état agent (Principe #5) |
+| `A2AInvoker` timeout 120s (Sprint 30) | Invocations A2A synchrones — timeout explicite évite que le Director Agent soit bloqué indéfiniment si le Worker Agent plante |
 
 ---
 

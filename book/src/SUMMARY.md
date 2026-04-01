@@ -13,6 +13,8 @@
 # Guides Agents
 
 - [Vue d'ensemble](agents/index.md)
+  - [Matrice de décision — Capabilities](agents/decision-matrix.md)
+  - [Worker Agent Pattern](agents/worker-agent-pattern.md)
   - [Tutoriel Hello Agent](agents/tutorial.md)
   - [RuntimeContext (ctx.*)](agents/runtime-context.md)
   - [Adapter LangGraph / CrewAI](agents/adapters.md)
@@ -128,6 +130,8 @@
   - [ADR-045 — Page Intégrations : wizard générique piloté par MCP Registry](decisions/adr-045-page-integrations-wizard-generique.md)
   - [ADR-046 — Transport HTTP/SSE pour MCP](decisions/adr-046-transport-http-sse-mcp.md)
   - [ADR-047 — Multi-LLM Backend Registry : SQLite + binding par agent](decisions/adr-047-multi-llm-backend-registry.md)
+  - [ADR-048 — Worker Agents : expertise de domaine compilée en Python](decisions/adr-048-worker-agents-expertise-domaine.md)
+  - [ADR-049 — Routing A2A inter-agents : discovery + invocation synchrone](decisions/adr-049-a2a-routing-inter-agents.md)
 
 ---
 

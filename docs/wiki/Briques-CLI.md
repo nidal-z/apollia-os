@@ -160,8 +160,14 @@ $ apollia-os run devis-generator "..." --timeout 60 --wait
 ### `apollia-os agent <verb>`
 
 ```bash
-# Lister
+# Lister tous les agents
 $ apollia-os agent list
+
+# Lister uniquement les agents A2A (Sprint 30)
+$ apollia-os agent list --supports-a2a
+  A2A-capable agents (2):
+  excel-worker   v0.1.0  active  skills: read-excel, write-excel, list-sheets
+  csv-worker     v0.1.0  active  skills: read-csv, analyze-csv
 
 # Démarrer
 $ apollia-os agent start ./agents/mon-agent.py
