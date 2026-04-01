@@ -173,10 +173,19 @@ async fn test_bundled_agents_auto_installed() {
         .await
         .expect("list agents");
 
-    assert_eq!(agents.len(), 4, "les 4 agents bundled doivent être installés");
+    assert_eq!(
+        agents.len(),
+        4,
+        "les 4 agents bundled doivent être installés"
+    );
 
     let names: Vec<String> = agents.iter().map(|a| a.manifest.name.clone()).collect();
-    for expected in &["excel-worker", "csv-data-worker", "pdf-worker", "code-worker"] {
+    for expected in &[
+        "excel-worker",
+        "csv-data-worker",
+        "pdf-worker",
+        "code-worker",
+    ] {
         assert!(
             names.contains(&expected.to_string()),
             "l'agent '{}' doit être dans le registry, trouvé : {:?}",
@@ -232,7 +241,10 @@ async fn test_bundled_agents_skip_existing() {
         .iter()
         .filter(|a| a.manifest.name == "excel-worker")
         .count();
-    assert_eq!(excel_count, 1, "excel-worker doit apparaître exactement une fois");
+    assert_eq!(
+        excel_count, 1,
+        "excel-worker doit apparaître exactement une fois"
+    );
 
     // ET l'horodatage d'installation d'excel-worker est inchangé
     let repo3 = AgentRepository::open(&db_path).expect("recheck repo");

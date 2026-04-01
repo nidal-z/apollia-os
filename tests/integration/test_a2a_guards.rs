@@ -157,7 +157,14 @@ async fn test_max_depth_blocks_deep_recursion() {
 
     // WHEN invoke est appelé avec a2a_depth = 2 (atteint le plafond)
     let result = invoker
-        .invoke("read-excel", json!({"text": "data"}), "director", 2, None, None)
+        .invoke(
+            "read-excel",
+            json!({"text": "data"}),
+            "director",
+            2,
+            None,
+            None,
+        )
         .await;
 
     // THEN MaxDepthExceeded est retourné avec le contexte complet
@@ -214,12 +221,8 @@ async fn test_self_invocation_blocked() {
 async fn test_chain_timeout_propagated() {
     // GIVEN excel-worker actif et un chain_deadline dans le passé
     let manifest = make_worker_manifest("excel-worker", &["read-excel"]);
-    let (invoker, _, _, _) = setup_a2a_runtime(
-        manifest,
-        BlockingBackend,
-        A2AConfig::default(),
-    )
-    .await;
+    let (invoker, _, _, _) =
+        setup_a2a_runtime(manifest, BlockingBackend, A2AConfig::default()).await;
 
     let expired_deadline = Instant::now() - Duration::from_secs(1);
 
@@ -279,7 +282,10 @@ async fn test_guard_event_emitted() {
                 ref skill_id,
                 ..
             }) if guard_type == "max_depth" => {
-                assert_eq!(skill_id, "extract-pdf", "skill_id incorrect dans l'événement");
+                assert_eq!(
+                    skill_id, "extract-pdf",
+                    "skill_id incorrect dans l'événement"
+                );
                 guard_found = true;
                 break;
             }

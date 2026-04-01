@@ -126,7 +126,12 @@ where
         .await
         .expect("enregistrement du coordinator doit réussir");
 
-    let invoker = A2AInvoker::new(registry.clone(), router, event_sender.clone(), A2AConfig::default());
+    let invoker = A2AInvoker::new(
+        registry.clone(),
+        router,
+        event_sender.clone(),
+        A2AConfig::default(),
+    );
 
     (invoker, registry, event_sender, worker_id)
 }
@@ -149,7 +154,14 @@ async fn test_full_a2a_routing_success() {
 
     // WHEN invoke("read-excel", ...) est appelé depuis "director"
     let result = invoker
-        .invoke("read-excel", json!({"text": "test"}), "director", 0, None, None)
+        .invoke(
+            "read-excel",
+            json!({"text": "test"}),
+            "director",
+            0,
+            None,
+            None,
+        )
         .await;
 
     // THEN le résultat est Ok avec agent_name, skill_id et duration correctement renseignés

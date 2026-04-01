@@ -29,6 +29,7 @@ use apollia_runtime::registry::AgentRegistryHandle;
 use apollia_runtime::router::TaskRouterHandle;
 use apollia_runtime::shutdown::{ShutdownConfig, ShutdownController};
 use apollia_runtime::supervisor::{Supervisor, SupervisorConfig};
+use apollia_runtime::A2AToolsProvider;
 use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use futures::stream;
 use pyo3::prelude::*;
@@ -539,16 +540,35 @@ impl AgentRunner for BridgeRunner {
                 Arc::new(NoopToolInvoker),
             ));
 
+            // Extend allowed_tools with virtual A2A skill names before creating the proxy.
+            let mut allowed_tools = allowed_tools;
+            if let Some(ref invoker) = a2a_invoker {
+                let a2a_descriptors = A2AToolsProvider::new(Arc::clone(invoker))
+                    .build_tool_descriptors()
+                    .await;
+                for desc in a2a_descriptors {
+                    allowed_tools.push(desc.name);
+                }
+            }
+
             let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref())
             {
-                (Some(registry), Some(audit)) => Some(ToolProxy::new(
-                    registry.clone(),
-                    audit.clone(),
-                    Arc::new(NativeToolExecutor::new()),
-                    allowed_tools,
-                    agent_id.clone(),
-                    task.task_id.clone(),
-                )),
+                (Some(registry), Some(audit)) => {
+                    let proxy = ToolProxy::new(
+                        registry.clone(),
+                        audit.clone(),
+                        Arc::new(NativeToolExecutor::new()),
+                        allowed_tools,
+                        agent_id.clone(),
+                        task.task_id.clone(),
+                    );
+                    let proxy = if let Some(invoker) = a2a_invoker.clone() {
+                        proxy.with_a2a(invoker, 0, None)
+                    } else {
+                        proxy
+                    };
+                    Some(proxy)
+                }
                 _ => {
                     tracing::warn!(
                         agent = %agent_id,

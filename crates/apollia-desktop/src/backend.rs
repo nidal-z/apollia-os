@@ -321,7 +321,7 @@ impl AgentRunner for BridgeRunner {
                     agent_id.clone().into(),
                     tool_proxy,
                     memory_interface,
-                    None,  // mailbox — not wired in desktop task mode
+                    None, // mailbox — not wired in desktop task mode
                     agent_id,
                     false, // supports_a2a — desktop backend does not participate in A2A routing
                     None,  // user_context — task mode, not chat

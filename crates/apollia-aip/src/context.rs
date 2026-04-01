@@ -64,6 +64,11 @@ pub fn describe_inner(descriptor: &ToolDescriptor) -> serde_json::Value {
 /// Each agent receives its own `ToolProxy` instance configured with
 /// the tools allowed by its manifest. All calls are permission-checked,
 /// audited, and counted.
+///
+/// When configured via [`with_a2a`], tool names prefixed with `"a2a:"` are
+/// routed to the [`A2AInvoker`] instead of the native [`ToolExecutor`].
+///
+/// [`with_a2a`]: ToolProxy::with_a2a
 #[pyclass]
 pub struct ToolProxy {
     registry: ToolRegistryHandle,
@@ -73,6 +78,12 @@ pub struct ToolProxy {
     agent_id: String,
     task_id: String,
     tool_calls: AtomicU32,
+    /// A2A invoker for routing `"a2a:{skill_id}"` tool calls — `None` if not configured.
+    a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
+    /// Current A2A recursion depth for the owning agent (0 = direct invocation).
+    a2a_depth: u32,
+    /// Cumulative deadline for the current A2A chain — `None` before the first invocation.
+    chain_deadline: Option<Instant>,
 }
 
 #[pymethods]
@@ -102,6 +113,48 @@ impl ToolProxy {
 
         // Increment counter unconditionally
         self.tool_calls.fetch_add(1, Ordering::Relaxed);
+
+        // A2A path: intercept before registry lookup
+        if let Some(skill_id_ref) = tool_name.strip_prefix("a2a:") {
+            if !self.allowed_tools.iter().any(|t| t == &tool_name) {
+                return Err(PyRuntimeError::new_err(
+                    ToolProxyError::ToolNotAllowed(tool_name).to_string(),
+                ));
+            }
+            let skill_id = skill_id_ref.to_string();
+            let invoker = self.a2a_invoker.clone().ok_or_else(|| {
+                PyRuntimeError::new_err("A2A invoker not configured for this agent")
+            })?;
+            let caller = self.agent_id.clone();
+            let a2a_depth = self.a2a_depth;
+            let chain_deadline = self.chain_deadline;
+
+            return pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                let result = invoke_a2a_tool(
+                    &invoker,
+                    &skill_id,
+                    input_value,
+                    &caller,
+                    a2a_depth,
+                    chain_deadline,
+                )
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+                let json_str = serde_json::to_string(&result)
+                    .map_err(|e| PyRuntimeError::new_err(format!("result serialization: {e}")))?;
+                Python::with_gil(|py| {
+                    let json_mod = py
+                        .import_bound("json")
+                        .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+                    let py_obj: PyObject = json_mod
+                        .call_method1("loads", (json_str,))
+                        .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
+                        .unbind();
+                    Ok(py_obj)
+                })
+            });
+        }
 
         // Clone fields for the 'static async future
         let registry = self.registry.clone();
@@ -210,7 +263,30 @@ impl ToolProxy {
             agent_id,
             task_id,
             tool_calls: AtomicU32::new(0),
+            a2a_invoker: None,
+            a2a_depth: 0,
+            chain_deadline: None,
         }
+    }
+
+    /// Configures A2A routing on this proxy, enabling `"a2a:{skill_id}"` tool calls.
+    ///
+    /// Must be called after [`new`] when the owning agent has `supports_a2a: true`
+    /// and an [`A2AInvoker`] is available. Returns `self` for ergonomic chaining.
+    ///
+    /// - `invoker` — high-level A2A orchestrator.
+    /// - `a2a_depth` — current recursion depth (0 for direct invocations).
+    /// - `chain_deadline` — cumulative chain deadline propagated from the parent invocation.
+    pub fn with_a2a(
+        mut self,
+        invoker: Arc<apollia_runtime::a2a::A2AInvoker>,
+        a2a_depth: u32,
+        chain_deadline: Option<Instant>,
+    ) -> Self {
+        self.a2a_invoker = Some(invoker);
+        self.a2a_depth = a2a_depth;
+        self.chain_deadline = chain_deadline;
+        self
     }
 
     /// Core tool execution logic — testable without PyO3.
@@ -223,6 +299,26 @@ impl ToolProxy {
         input: serde_json::Value,
     ) -> Result<serde_json::Value, ToolProxyError> {
         self.tool_calls.fetch_add(1, Ordering::Relaxed);
+
+        if let Some(skill_id) = tool_name.strip_prefix("a2a:") {
+            if !self.allowed_tools.iter().any(|t| t == tool_name) {
+                return Err(ToolProxyError::ToolNotAllowed(tool_name.to_string()));
+            }
+            let invoker = self.a2a_invoker.as_ref().ok_or_else(|| {
+                ToolProxyError::ExecutionFailed(
+                    "A2A invoker not configured for this agent".to_string(),
+                )
+            })?;
+            return invoke_a2a_tool(
+                invoker,
+                skill_id,
+                input,
+                &self.agent_id,
+                self.a2a_depth,
+                self.chain_deadline,
+            )
+            .await;
+        }
 
         execute_tool(
             &ToolCallContext {
@@ -238,6 +334,48 @@ impl ToolProxy {
         )
         .await
     }
+}
+
+/// Routes an `"a2a:{skill_id}"` tool call to the [`A2AInvoker`].
+///
+/// Calls `invoker.invoke()` with `a2a_depth + 1` and formats the result as
+/// `"[{skill_id} via {agent_name}]\n{output_text}"` where `output_text` is
+/// the concatenation of all [`AIPPart::Text`] parts from the worker's output.
+///
+/// Returns `ToolProxyError::ExecutionFailed` if the invocation fails.
+async fn invoke_a2a_tool(
+    invoker: &apollia_runtime::a2a::A2AInvoker,
+    skill_id: &str,
+    input: serde_json::Value,
+    caller: &str,
+    a2a_depth: u32,
+    chain_deadline: Option<Instant>,
+) -> Result<serde_json::Value, ToolProxyError> {
+    let result = invoker
+        .invoke(
+            skill_id,
+            input,
+            caller,
+            a2a_depth.saturating_add(1),
+            None,
+            chain_deadline,
+        )
+        .await
+        .map_err(|e| ToolProxyError::ExecutionFailed(e.to_string()))?;
+
+    let output_text: String = result
+        .result
+        .output
+        .iter()
+        .filter_map(|part| match part {
+            AIPPart::Text(t) => Some(t.text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let formatted = format!("[{skill_id} via {}]\n{output_text}", result.agent_name);
+    Ok(serde_json::json!({ "text": formatted }))
 }
 
 /// Grouped parameters for [`execute_tool`] to avoid too many function arguments.
@@ -416,6 +554,7 @@ fn is_leap(y: i32) -> bool {
 use std::collections::HashMap;
 
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
+use apollia_core::AIPPart;
 use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
 use apollia_runtime::a2a::{A2AInvoker, A2aDelegateFn, A2aDelegateResult};
 use apollia_runtime::mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
@@ -806,7 +945,14 @@ impl RuntimeContext {
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let out_json = match invoker
-                .invoke(&skill_id, input_value, &caller, a2a_depth, timeout, chain_deadline)
+                .invoke(
+                    &skill_id,
+                    input_value,
+                    &caller,
+                    a2a_depth,
+                    timeout,
+                    chain_deadline,
+                )
                 .await
             {
                 Ok(r) => serde_json::to_string(&r)
@@ -1521,5 +1667,180 @@ mod a2a_tests {
 
         // THEN user_context is None
         assert!(ctx.user_context.is_none());
+    }
+}
+
+#[cfg(test)]
+mod tool_proxy_a2a_tests {
+    use super::*;
+    use apollia_core::{A2AConfig, AgentManifest, AgentSkill, ProcessState};
+    use apollia_runtime::a2a::A2aError as LowLevelA2aError;
+    use apollia_runtime::registry::AgentRegistry;
+    use apollia_runtime::{A2AInvoker, A2aDelegateFn, A2aDelegateResult, EventBus};
+    use std::future::Future;
+    use std::pin::Pin;
+
+    struct AlwaysOkExecutor;
+
+    impl ToolExecutor for AlwaysOkExecutor {
+        fn execute(&self, _: &str, _: serde_json::Value) -> Result<serde_json::Value, String> {
+            Ok(serde_json::json!({}))
+        }
+    }
+
+    fn make_ok_delegate() -> A2aDelegateFn {
+        Arc::new(
+            |skill_id: String, _input: serde_json::Value, _timeout: u64| {
+                let fut: Pin<
+                    Box<dyn Future<Output = Result<A2aDelegateResult, LowLevelA2aError>> + Send>,
+                > = Box::pin(async move {
+                    Ok(A2aDelegateResult {
+                        task_id: "task-a2a".to_string(),
+                        agent_name: "excel-worker".to_string(),
+                        output: format!("processed {skill_id}"),
+                    })
+                });
+                fut
+            },
+        )
+    }
+
+    fn make_excel_manifest() -> AgentManifest {
+        AgentManifest {
+            name: "excel-worker".to_string(),
+            version: "0.1.0".to_string(),
+            description: "Excel worker".to_string(),
+            tools_required: vec![],
+            tools_optional: vec![],
+            supports_streaming: false,
+            supports_a2a: true,
+            memory_namespace: None,
+            shared_memory_namespaces: vec![],
+            max_concurrent_tasks: 1,
+            step_budget: None,
+            network_allowlist: None,
+            dangerous_tools_allowed: false,
+            tags: vec!["worker".to_string()],
+            skills: vec![AgentSkill {
+                id: "read-excel".to_string(),
+                name: "read-excel".to_string(),
+                description: "Reads Excel files".to_string(),
+                input_modes: vec!["text".to_string()],
+                output_modes: vec!["text".to_string()],
+            }],
+            execution_mode: "direct".to_string(),
+            system_prompt: None,
+            tools_requiring_approval: vec![],
+            llm_backend: None,
+            packages: vec![],
+        }
+    }
+
+    async fn make_invoker_with_excel() -> Arc<A2AInvoker> {
+        let (bus_tx, _) = EventBus::new();
+        let registry = AgentRegistry::spawn(bus_tx.clone());
+        let agent_id = registry
+            .register(make_excel_manifest())
+            .await
+            .expect("register failed");
+        registry
+            .update_state(agent_id.as_str(), ProcessState::Active)
+            .await
+            .expect("update state");
+
+        Arc::new(A2AInvoker::new_for_test(
+            registry,
+            make_ok_delegate(),
+            bus_tx,
+            A2AConfig::default(),
+        ))
+    }
+
+    async fn make_base_proxy(allowed: Vec<&str>) -> (ToolProxy, apollia_tools::AuditTrailHandle) {
+        let db_path =
+            std::env::temp_dir().join(format!("apollia_a2a_test_{}.db", uuid::Uuid::new_v4()));
+        let audit = apollia_tools::AuditTrailHandle::open(&db_path)
+            .await
+            .expect("failed to open audit");
+        let registry = apollia_tools::ToolRegistryHandle::start();
+        let executor = Arc::new(AlwaysOkExecutor);
+        let proxy = ToolProxy::new(
+            registry,
+            audit.clone(),
+            executor,
+            allowed.into_iter().map(String::from).collect(),
+            "director-agent".to_string(),
+            "task-001".to_string(),
+        );
+        (proxy, audit)
+    }
+
+    /// A2A tool call is routed to the A2AInvoker and output is formatted correctly.
+    #[tokio::test]
+    async fn test_a2a_prefix_routes_to_invoker() {
+        // GIVEN a ToolProxy with "a2a:read-excel" allowed and an A2AInvoker with excel-worker
+        let invoker = make_invoker_with_excel().await;
+        let (proxy, audit) = make_base_proxy(vec!["a2a:read-excel"]).await;
+        let proxy = proxy.with_a2a(invoker, 0, None);
+
+        // WHEN we call "a2a:read-excel"
+        let result = proxy
+            .call_inner(
+                "a2a:read-excel",
+                serde_json::json!({"text": "process file.xlsx"}),
+            )
+            .await;
+
+        // THEN the result is Ok and contains "[read-excel via excel-worker]" header
+        let val = result.expect("should succeed");
+        let text = val["text"].as_str().expect("text field");
+        assert!(
+            text.contains("[read-excel via excel-worker]"),
+            "expected formatted header in: {text}"
+        );
+
+        audit.shutdown().await;
+    }
+
+    /// Native tool calls are not affected by A2A routing.
+    #[tokio::test]
+    async fn test_native_tool_not_routed_through_a2a() {
+        // GIVEN a ToolProxy with A2A configured but calling a native tool name
+        let invoker = make_invoker_with_excel().await;
+        let (proxy, audit) = make_base_proxy(vec!["a2a:read-excel"]).await;
+        let proxy = proxy.with_a2a(invoker, 0, None);
+
+        // WHEN we call "a2a:unknown-skill" (not in allowed_tools)
+        let result = proxy
+            .call_inner("a2a:unknown-skill", serde_json::json!({}))
+            .await;
+
+        // THEN we get ToolNotAllowed (permission check fires before routing)
+        assert!(
+            matches!(result, Err(ToolProxyError::ToolNotAllowed(ref n)) if n == "a2a:unknown-skill"),
+            "expected ToolNotAllowed, got: {result:?}"
+        );
+
+        audit.shutdown().await;
+    }
+
+    /// A2A tool without configured invoker returns ExecutionFailed.
+    #[tokio::test]
+    async fn test_a2a_tool_without_invoker_returns_error() {
+        // GIVEN a ToolProxy with "a2a:read-excel" allowed but NO a2a_invoker configured
+        let (proxy, audit) = make_base_proxy(vec!["a2a:read-excel"]).await;
+
+        // WHEN we call "a2a:read-excel"
+        let result = proxy
+            .call_inner("a2a:read-excel", serde_json::json!({"text": "test"}))
+            .await;
+
+        // THEN we get ExecutionFailed
+        assert!(
+            matches!(result, Err(ToolProxyError::ExecutionFailed(_))),
+            "expected ExecutionFailed, got: {result:?}"
+        );
+
+        audit.shutdown().await;
     }
 }

@@ -97,7 +97,14 @@ impl ToolInvoker for CompositeToolInvoker {
 
             match self
                 .a2a
-                .invoke(skill_id, input, "chat-libre", 0, Some(CHAT_A2A_TIMEOUT), None)
+                .invoke(
+                    skill_id,
+                    input,
+                    "chat-libre",
+                    0,
+                    Some(CHAT_A2A_TIMEOUT),
+                    None,
+                )
                 .await
             {
                 Ok(result) => {
@@ -218,7 +225,12 @@ mod tests {
             .await
             .expect("transition to active");
 
-        A2AInvoker::new_for_test(registry, delegate, bus_tx, apollia_core::A2AConfig::default())
+        A2AInvoker::new_for_test(
+            registry,
+            delegate,
+            bus_tx,
+            apollia_core::A2AConfig::default(),
+        )
     }
 
     #[tokio::test]
@@ -282,7 +294,12 @@ mod tests {
         // GIVEN A2AInvoker with no registered agents
         let (bus_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(bus_tx.clone());
-        let invoker = A2AInvoker::new_for_test(registry, make_ok_delegate("ok"), bus_tx, apollia_core::A2AConfig::default());
+        let invoker = A2AInvoker::new_for_test(
+            registry,
+            make_ok_delegate("ok"),
+            bus_tx,
+            apollia_core::A2AConfig::default(),
+        );
 
         // WHEN generate_a2a_tool_specs()
         let specs = super::generate_a2a_tool_specs(&invoker).await;

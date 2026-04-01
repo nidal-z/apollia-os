@@ -48,7 +48,8 @@ pub use mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
 // A2A routing
 pub use a2a::{
     make_delegate_fn, resolve_skill, A2AAgentCard, A2AError, A2AInvocationResult, A2AInvoker,
-    A2ASkillInfo, A2aDelegateFn, A2aDelegateResult, A2aError, A2aErrorResponse, SkillListing,
+    A2ASkillInfo, A2AToolsProvider, A2aDelegateFn, A2aDelegateResult, A2aError, A2aErrorResponse,
+    SkillListing,
 };
 
 // Chat subsystem

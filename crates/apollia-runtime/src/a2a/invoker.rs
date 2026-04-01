@@ -376,9 +376,8 @@ impl A2AInvoker {
 
         // ── Garde-fou 3 : auto-invocation ─────────────────────────────────────
         if agent_name == caller {
-            let detail = format!(
-                "agent '{caller}' resolved as its own target for skill '{skill_id}'"
-            );
+            let detail =
+                format!("agent '{caller}' resolved as its own target for skill '{skill_id}'");
             let _ = self.event_bus.send(RuntimeEvent::A2AGuardTriggered {
                 guard_type: "self_invocation".to_string(),
                 caller: caller.to_string(),
@@ -549,8 +548,8 @@ impl A2AInvoker {
     }
 
     /// Constructeur de test — injecte une `A2aDelegateFn` personnalisée et une config.
-    #[cfg(test)]
-    pub(crate) fn new_for_test(
+    #[doc(hidden)]
+    pub fn new_for_test(
         registry: AgentRegistryHandle,
         delegate_fn: A2aDelegateFn,
         event_bus: EventBusSender,
@@ -880,12 +879,23 @@ mod tests {
             .await
             .expect("update state failed");
 
-        let invoker =
-            A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx, A2AConfig::default());
+        let invoker = A2AInvoker::new_for_test(
+            registry,
+            make_never_called_delegate(),
+            bus_tx,
+            A2AConfig::default(),
+        );
 
         // WHEN
         let result = invoker
-            .invoke("unknown-skill", serde_json::json!({}), "director", 0, None, None)
+            .invoke(
+                "unknown-skill",
+                serde_json::json!({}),
+                "director",
+                0,
+                None,
+                None,
+            )
             .await;
 
         // THEN Err(SkillNotFound) avec available contenant "read-excel" et "edit-excel"
@@ -926,12 +936,23 @@ mod tests {
             .await
             .expect("degraded transition failed");
 
-        let invoker =
-            A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx, A2AConfig::default());
+        let invoker = A2AInvoker::new_for_test(
+            registry,
+            make_never_called_delegate(),
+            bus_tx,
+            A2AConfig::default(),
+        );
 
         // WHEN
         let result = invoker
-            .invoke("read-excel", serde_json::json!({}), "director", 0, None, None)
+            .invoke(
+                "read-excel",
+                serde_json::json!({}),
+                "director",
+                0,
+                None,
+                None,
+            )
             .await;
 
         // THEN Err(AgentNotActive) avec state == "Degraded"
@@ -1026,8 +1047,12 @@ mod tests {
             .await
             .expect("update state failed");
 
-        let invoker =
-            A2AInvoker::new_for_test(registry, make_timeout_delegate(), bus_tx, A2AConfig::default());
+        let invoker = A2AInvoker::new_for_test(
+            registry,
+            make_timeout_delegate(),
+            bus_tx,
+            A2AConfig::default(),
+        );
 
         // WHEN
         let result = invoker
@@ -1065,8 +1090,12 @@ mod tests {
             .await
             .expect("update state failed");
 
-        let invoker =
-            A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx, A2AConfig::default());
+        let invoker = A2AInvoker::new_for_test(
+            registry,
+            make_never_called_delegate(),
+            bus_tx,
+            A2AConfig::default(),
+        );
 
         // WHEN
         let card = invoker
@@ -1085,8 +1114,12 @@ mod tests {
         // GIVEN registry vide
         let (bus_tx, _) = EventBus::new();
         let registry = AgentRegistry::spawn(bus_tx.clone());
-        let invoker =
-            A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx, A2AConfig::default());
+        let invoker = A2AInvoker::new_for_test(
+            registry,
+            make_never_called_delegate(),
+            bus_tx,
+            A2AConfig::default(),
+        );
 
         // WHEN
         let result = invoker.discover("unknown").await.expect("discover failed");
@@ -1115,8 +1148,12 @@ mod tests {
                 .expect("update state failed");
         }
 
-        let invoker =
-            A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx, A2AConfig::default());
+        let invoker = A2AInvoker::new_for_test(
+            registry,
+            make_never_called_delegate(),
+            bus_tx,
+            A2AConfig::default(),
+        );
 
         // WHEN
         let cards = invoker.list_agent_cards().await.expect("list failed");
@@ -1147,8 +1184,12 @@ mod tests {
                 .expect("update state failed");
         }
 
-        let invoker =
-            A2AInvoker::new_for_test(registry, make_never_called_delegate(), bus_tx, A2AConfig::default());
+        let invoker = A2AInvoker::new_for_test(
+            registry,
+            make_never_called_delegate(),
+            bus_tx,
+            A2AConfig::default(),
+        );
 
         // WHEN
         let skills = invoker.list_skills().await.expect("list failed");
@@ -1244,8 +1285,7 @@ mod a2a_guard_tests {
             .update_state(id.as_str(), ProcessState::Active)
             .await
             .expect("update state failed");
-        let invoker =
-            A2AInvoker::new_for_test(registry, make_ok_delegate(), bus_tx, config);
+        let invoker = A2AInvoker::new_for_test(registry, make_ok_delegate(), bus_tx, config);
         (invoker, bus_rx)
     }
 
@@ -1261,7 +1301,14 @@ mod a2a_guard_tests {
 
         // WHEN invoke avec a2a_depth = 2 (= max_depth)
         let result = invoker
-            .invoke("read-excel", serde_json::json!({}), "director", 2, None, None)
+            .invoke(
+                "read-excel",
+                serde_json::json!({}),
+                "director",
+                2,
+                None,
+                None,
+            )
             .await;
 
         // THEN MaxDepthExceeded avec les champs corrects
@@ -1293,7 +1340,14 @@ mod a2a_guard_tests {
 
         // WHEN invoke avec a2a_depth = 1 (< max_depth)
         let result = invoker
-            .invoke("read-excel", serde_json::json!({}), "director", 1, None, None)
+            .invoke(
+                "read-excel",
+                serde_json::json!({}),
+                "director",
+                1,
+                None,
+                None,
+            )
             .await;
 
         // THEN pas d'erreur de profondeur — invocation réussit
@@ -1306,12 +1360,9 @@ mod a2a_guard_tests {
     #[tokio::test]
     async fn test_self_invocation_blocked() {
         // GIVEN excel-worker enregistré avec skill "read-excel"
-        let (invoker, _) = make_active_invoker_with_config(
-            "excel-worker",
-            &["read-excel"],
-            A2AConfig::default(),
-        )
-        .await;
+        let (invoker, _) =
+            make_active_invoker_with_config("excel-worker", &["read-excel"], A2AConfig::default())
+                .await;
 
         // WHEN excel-worker s'invoque lui-même via le skill "read-excel"
         let result = invoker
@@ -1341,16 +1392,20 @@ mod a2a_guard_tests {
     #[tokio::test]
     async fn test_chain_deadline_initialized_on_first_call() {
         // GIVEN chain_deadline = None (première invocation de la chaîne)
-        let (invoker, _) = make_active_invoker_with_config(
-            "excel-worker",
-            &["read-excel"],
-            A2AConfig::default(),
-        )
-        .await;
+        let (invoker, _) =
+            make_active_invoker_with_config("excel-worker", &["read-excel"], A2AConfig::default())
+                .await;
 
         // WHEN invoke avec chain_deadline = None
         let result = invoker
-            .invoke("read-excel", serde_json::json!({}), "director", 0, None, None)
+            .invoke(
+                "read-excel",
+                serde_json::json!({}),
+                "director",
+                0,
+                None,
+                None,
+            )
             .await;
 
         // THEN le deadline est initialisé à l'avenir — pas de ChainTimeoutExceeded
@@ -1364,12 +1419,9 @@ mod a2a_guard_tests {
     async fn test_chain_timeout_exceeded() {
         // GIVEN chain_deadline dans le passé (expiré il y a 1 seconde)
         let past_deadline = Instant::now() - Duration::from_secs(1);
-        let (invoker, _) = make_active_invoker_with_config(
-            "excel-worker",
-            &["read-excel"],
-            A2AConfig::default(),
-        )
-        .await;
+        let (invoker, _) =
+            make_active_invoker_with_config("excel-worker", &["read-excel"], A2AConfig::default())
+                .await;
 
         // WHEN invoke avec chain_deadline expiré
         let result = invoker
@@ -1405,7 +1457,14 @@ mod a2a_guard_tests {
 
         // WHEN invoke avec a2a_depth = max_depth
         let _ = invoker
-            .invoke("read-excel", serde_json::json!({}), "director", 1, None, None)
+            .invoke(
+                "read-excel",
+                serde_json::json!({}),
+                "director",
+                1,
+                None,
+                None,
+            )
             .await;
 
         // THEN A2AGuardTriggered { guard_type: "max_depth" } émis
@@ -1424,7 +1483,10 @@ mod a2a_guard_tests {
                 found = true;
             }
         }
-        assert!(found, "A2AGuardTriggered with guard_type=max_depth was not emitted");
+        assert!(
+            found,
+            "A2AGuardTriggered with guard_type=max_depth was not emitted"
+        );
     }
 
     #[test]
