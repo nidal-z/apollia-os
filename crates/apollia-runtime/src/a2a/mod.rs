@@ -8,7 +8,8 @@
 pub mod invoker;
 
 pub use invoker::{
-    A2AAgentCard, A2AError, A2AInvocationResult, A2AInvoker, A2ASkillInfo, SkillListing,
+    A2AAgentCard, A2AError, A2AInvocationResult, A2AInvoker, A2ASkillInfo, RuntimeContextConfig,
+    SkillListing,
 };
 
 use std::collections::HashSet;

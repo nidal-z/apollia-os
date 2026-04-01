@@ -21,6 +21,20 @@ use crate::router::TaskRouterHandle;
 /// Timeout par défaut des invocations A2A (120 secondes).
 const DEFAULT_A2A_TIMEOUT: Duration = Duration::from_secs(120);
 
+/// Configuration de contexte d'exécution pour un agent invoqué via A2A.
+///
+/// Produite par [`A2AInvoker::build_a2a_context`] et consommée par le runtime
+/// lors de la construction du [`RuntimeContext`] PyO3 pour la tâche déléguée.
+///
+/// Encode le trust model A2A : l'agent invoqué lit la mémoire utilisateur globale
+/// en lecture seule mais écrit exclusivement dans son propre namespace.
+#[derive(Debug, Clone)]
+pub struct RuntimeContextConfig {
+    /// Si `true`, la mémoire utilisateur globale est accessible en lecture via
+    /// `ctx.memory.recall()`. Les écritures restent confinées au namespace de l'agent.
+    pub user_memory_read_only: bool,
+}
+
 /// Erreurs structurées retournées par [`A2AInvoker`].
 ///
 /// Surface d'erreur orientée métier, distincte des erreurs de bas niveau
@@ -369,6 +383,17 @@ impl A2AInvoker {
 
         skills.sort_by(|a, b| a.skill_id.cmp(&b.skill_id));
         Ok(skills)
+    }
+
+    /// Construit la configuration de contexte d'exécution pour un agent invoqué via A2A.
+    ///
+    /// Retourne une [`RuntimeContextConfig`] avec `user_memory_read_only = true`,
+    /// appliquant le trust model A2A : l'agent peut lire la mémoire utilisateur
+    /// globale mais écrit uniquement dans son propre namespace.
+    pub fn build_a2a_context(&self) -> RuntimeContextConfig {
+        RuntimeContextConfig {
+            user_memory_read_only: true,
+        }
     }
 
     /// Constructeur de test — injecte une `A2aDelegateFn` personnalisée.

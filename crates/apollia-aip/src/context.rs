@@ -463,6 +463,12 @@ pub struct RuntimeContext {
     ///
     /// Expose `ctx.a2a_invoke`, `ctx.a2a_discover`, `ctx.a2a_list_skills` aux agents Python.
     a2a_invoker: Option<Arc<A2AInvoker>>,
+    /// Si `true`, la mémoire utilisateur globale (`__user__`) est accessible en lecture
+    /// seule via `ctx.memory.recall()`. Activé quand l'agent est invoqué via A2A.
+    ///
+    /// Le comportement est géré par le [`MemoryInterface`] — ce champ est purement
+    /// informatif pour l'introspection du contexte.
+    user_memory_read_only: bool,
 }
 
 impl RuntimeContext {
@@ -506,6 +512,7 @@ impl RuntimeContext {
         user_context: Option<HashMap<String, Vec<(String, String)>>>,
         a2a_delegate: Option<A2aDelegateFn>,
         a2a_invoker: Option<Arc<A2AInvoker>>,
+        user_memory_read_only: bool,
     ) -> Self {
         let llm = llm_router.and_then(|router| {
             if router.list().is_empty() {
@@ -544,6 +551,7 @@ impl RuntimeContext {
             user_context,
             a2a_delegate,
             a2a_invoker,
+            user_memory_read_only,
         }
     }
 }
@@ -846,6 +854,16 @@ impl RuntimeContext {
         })
     }
 
+    /// Indique si cet agent s'exécute dans un contexte A2A avec accès en lecture
+    /// à la mémoire utilisateur globale.
+    ///
+    /// Propriété Python `ctx.user_memory_read_only`. Retourne `True` quand
+    /// l'agent a été invoqué via A2A (trust model).
+    #[getter]
+    fn user_memory_read_only(&self) -> bool {
+        self.user_memory_read_only
+    }
+
     /// Liste tous les skills A2A disponibles dans le runtime.
     ///
     /// Retourne un Python awaitable qui résout en `list[dict]`.
@@ -997,6 +1015,7 @@ mod runtime_context_tests {
             None,          // user_context
             None,          // a2a_delegate
             None,          // a2a_invoker
+            false,         // user_memory_read_only
         );
         // THEN
         assert!(ctx.llm.is_none());
@@ -1025,6 +1044,7 @@ mod runtime_context_tests {
             None,          // user_context
             None,          // a2a_delegate
             None,          // a2a_invoker
+            false,         // user_memory_read_only
         );
         // THEN un événement AgentDegraded est présent sur le bus
         let event = rx.try_recv().expect("un événement doit être présent");
@@ -1059,6 +1079,7 @@ mod runtime_context_tests {
             None,          // user_context
             None,          // a2a_delegate
             None,          // a2a_invoker
+            false,         // user_memory_read_only
         );
         // THEN
         assert!(ctx.llm.is_none());
@@ -1415,6 +1436,7 @@ mod a2a_tests {
             user_context: None,
             a2a_delegate: None,
             a2a_invoker: None,
+            user_memory_read_only: false,
         };
 
         // THEN les vérifications internes échouent
@@ -1449,6 +1471,7 @@ mod a2a_tests {
             user_context: Some(uc),
             a2a_delegate: None,
             a2a_invoker: None,
+            user_memory_read_only: false,
         };
 
         // THEN user_context is Some with expected categories
@@ -1472,6 +1495,7 @@ mod a2a_tests {
             user_context: None,
             a2a_delegate: None,
             a2a_invoker: None,
+            user_memory_read_only: false,
         };
 
         // THEN user_context is None

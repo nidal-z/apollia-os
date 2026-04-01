@@ -152,7 +152,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         let memory_interface: Option<MemoryInterface> =
             manifest.memory_namespace.as_deref().and_then(|ns| {
                 let manager = MemoryManager::new(&memory_base_dir, Some(ns.to_string()), vec![]);
-                MemoryInterface::new(manager, ns.to_string(), agent_name.to_string())
+                MemoryInterface::new(manager, ns.to_string(), agent_name.to_string(), false, None)
             });
 
         let supports_a2a = manifest.supports_a2a;
@@ -177,12 +177,13 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 agent_name.to_string().into(),
                 tool_proxy,
                 memory_interface,
-                None, // mailbox — not available in chat runner context
+                None,  // mailbox — not available in chat runner context
                 agent_name.to_string(),
                 supports_a2a,
                 user_context,
-                None, // a2a_delegate — chat runner does not participate in A2A delegation
-                None, // a2a_invoker — not available in chat mode
+                None,  // a2a_delegate — chat runner does not participate in A2A delegation
+                None,  // a2a_invoker — not available in chat mode
+                false, // user_memory_read_only — direct start, not A2A
             );
             Py::new(py, ctx)
                 .map(|p| p.into_any())
@@ -562,7 +563,7 @@ impl AgentRunner for BridgeRunner {
                 memory_namespace.as_deref().and_then(|ns| {
                     let manager =
                         MemoryManager::new(&memory_base_dir, Some(ns.to_string()), vec![]);
-                    MemoryInterface::new(manager, ns.to_string(), agent_id.clone())
+                    MemoryInterface::new(manager, ns.to_string(), agent_id.clone(), false, None)
                 });
 
             let ctx: PyObject = Python::with_gil(|py| {
@@ -575,12 +576,13 @@ impl AgentRunner for BridgeRunner {
                     agent_id.clone().into(),
                     tool_proxy,
                     memory_interface,
-                    None, // mailbox — not wired in task mode
+                    None,  // mailbox — not wired in task mode
                     agent_id,
                     supports_a2a,
-                    None, // user_context — task mode, not chat
+                    None,  // user_context — task mode, not chat
                     a2a_delegate,
                     a2a_invoker,
+                    false, // user_memory_read_only — direct start, not A2A
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())

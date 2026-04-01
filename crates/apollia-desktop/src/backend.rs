@@ -308,7 +308,7 @@ impl AgentRunner for BridgeRunner {
 
             let memory_interface = memory_namespace.as_deref().and_then(|ns| {
                 let manager = MemoryManager::new(&memory_base_dir, Some(ns.to_string()), vec![]);
-                MemoryInterface::new(manager, ns.to_string(), agent_id.clone())
+                MemoryInterface::new(manager, ns.to_string(), agent_id.clone(), false, None)
             });
 
             let ctx: PyObject = Python::with_gil(|py| {
@@ -321,12 +321,13 @@ impl AgentRunner for BridgeRunner {
                     agent_id.clone().into(),
                     tool_proxy,
                     memory_interface,
-                    None, // mailbox — not wired in desktop task mode
+                    None,  // mailbox — not wired in desktop task mode
                     agent_id,
                     false, // supports_a2a — desktop backend does not participate in A2A routing
                     None,  // user_context — task mode, not chat
                     None,  // a2a_delegate — not available in desktop backend
                     None,  // a2a_invoker — not available in desktop backend
+                    false, // user_memory_read_only — direct start, not A2A
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())

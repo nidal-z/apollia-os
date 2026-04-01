@@ -37,11 +37,26 @@ pub enum MemoryInterfaceError {
 /// Each agent receives its own `MemoryInterface` configured with
 /// its namespace. Write operations are only allowed on the agent's
 /// primary namespace (ReadWrite). Shared namespaces are read-only.
+///
+/// When `user_memory_read_only` is `true` (A2A invocation context),
+/// `recall()` falls back to the global `__user__` namespace if the key
+/// is not found in the agent's own namespace. Writes always target the
+/// agent's namespace — the namespace is enforced by the runtime.
 #[pyclass]
 pub struct MemoryInterface {
     manager: Arc<Mutex<MemoryManager>>,
     namespace: String,
     agent_id: String,
+    /// When `true`, `recall()` also reads from the global user memory namespace.
+    ///
+    /// Set by the runtime when the agent is invoked via A2A. The agent Python
+    /// code is not aware of this flag — it calls `ctx.memory.recall()` normally.
+    user_memory_read_only: bool,
+    /// Secondary memory manager pointing at the `__user__` namespace.
+    ///
+    /// `None` when `user_memory_read_only` is `false` or when user memory
+    /// is not available in the current runtime environment.
+    user_manager: Option<Arc<Mutex<MemoryManager>>>,
 }
 
 #[pymethods]
@@ -121,16 +136,29 @@ impl MemoryInterface {
 
     /// Retrieves a value by key from semantic memory.
     ///
+    /// Searches the agent's own namespace first. When `user_memory_read_only`
+    /// is `true` and the key is absent from the agent namespace, also reads
+    /// from the global user memory namespace.
+    ///
     /// Returns the value (str) or None if the key doesn't exist.
     fn recall<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
         let manager = Arc::clone(&self.manager);
         let namespace = self.namespace.clone();
+        let user_memory_read_only = self.user_memory_read_only;
+        let user_manager = self.user_manager.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result =
-                tokio::task::spawn_blocking(move || recall_inner(&manager, &namespace, &key))
-                    .await
-                    .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
+            let result = tokio::task::spawn_blocking(move || {
+                recall_inner(
+                    &manager,
+                    &namespace,
+                    &key,
+                    user_memory_read_only,
+                    user_manager.as_ref(),
+                )
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
 
             match result {
                 Ok(Some(value)) => Ok(Python::with_gil(|py| value.into_py(py))),
@@ -203,8 +231,18 @@ impl MemoryInterface {
 impl MemoryInterface {
     /// Creates a new MemoryInterface for a given agent.
     ///
-    /// Returns None if the namespace is empty or absent.
-    pub fn new(manager: MemoryManager, namespace: String, agent_id: String) -> Option<Self> {
+    /// `user_memory_read_only` enables read-through to the global `__user__`
+    /// namespace on `recall()` misses. Pass `None` for `user_manager` when
+    /// user memory is not needed or not available.
+    ///
+    /// Returns `None` if `namespace` is empty.
+    pub fn new(
+        manager: MemoryManager,
+        namespace: String,
+        agent_id: String,
+        user_memory_read_only: bool,
+        user_manager: Option<MemoryManager>,
+    ) -> Option<Self> {
         if namespace.is_empty() {
             return None;
         }
@@ -212,6 +250,8 @@ impl MemoryInterface {
             manager: Arc::new(Mutex::new(manager)),
             namespace,
             agent_id,
+            user_memory_read_only,
+            user_manager: user_manager.map(|m| Arc::new(Mutex::new(m))),
         })
     }
 }
@@ -286,21 +326,55 @@ fn remember_inner(
         .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))
 }
 
+/// The reserved namespace for global user memory.
+const USER_MEMORY_NAMESPACE: &str = "__user__";
+
 /// Retrieves a value by key from semantic memory.
+///
+/// Checks the agent's primary namespace first. When `user_memory_read_only`
+/// is `true` and the key is absent, also reads from the `__user__` namespace
+/// via `user_manager` if one is provided.
 fn recall_inner(
     manager: &Arc<Mutex<MemoryManager>>,
     namespace: &str,
     key: &str,
+    user_memory_read_only: bool,
+    user_manager: Option<&Arc<Mutex<MemoryManager>>>,
 ) -> Result<Option<String>, MemoryInterfaceError> {
-    let mut mgr = lock(manager)?;
+    // Search agent's own namespace first.
+    let agent_result = {
+        let mut mgr = lock(manager)?;
+        let store = mgr
+            .store(namespace)
+            .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+        let sem = SemanticMemory::new(store);
+        let entry = sem
+            .recall(namespace, key)
+            .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+        entry.map(|e| match &e.value {
+            serde_json::Value::String(s) => s.clone(),
+            other => other.to_string(),
+        })
+    };
 
-    let store = mgr
-        .store(namespace)
-        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+    if agent_result.is_some() || !user_memory_read_only {
+        return Ok(agent_result);
+    }
 
+    // Key absent from agent namespace — try global user memory as fallback.
+    let Some(umgr) = user_manager else {
+        return Ok(None);
+    };
+
+    let mut mgr = lock(umgr)?;
+    let store = match mgr.store(USER_MEMORY_NAMESPACE) {
+        Ok(s) => s,
+        // User memory DB not available — treat as not found, not an error.
+        Err(_) => return Ok(None),
+    };
     let sem = SemanticMemory::new(store);
     let entry = sem
-        .recall(namespace, key)
+        .recall(USER_MEMORY_NAMESPACE, key)
         .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
 
     Ok(entry.map(|e| match &e.value {
@@ -388,8 +462,14 @@ mod tests {
     fn setup_interface(namespace: &str) -> (MemoryInterface, TempDir) {
         let dir = TempDir::new().expect("create temp dir");
         let manager = MemoryManager::new(dir.path(), Some(namespace.to_string()), vec![]);
-        let iface = MemoryInterface::new(manager, namespace.to_string(), "test-agent".to_string())
-            .expect("should create interface");
+        let iface = MemoryInterface::new(
+            manager,
+            namespace.to_string(),
+            "test-agent".to_string(),
+            false,
+            None,
+        )
+        .expect("should create interface");
         (iface, dir)
     }
 
@@ -404,8 +484,14 @@ mod tests {
             Some(primary.to_string()),
             vec![shared.to_string()],
         );
-        let iface = MemoryInterface::new(manager, shared.to_string(), "test-agent".to_string())
-            .expect("should create interface");
+        let iface = MemoryInterface::new(
+            manager,
+            shared.to_string(),
+            "test-agent".to_string(),
+            false,
+            None,
+        )
+        .expect("should create interface");
         (iface, dir)
     }
 
@@ -466,7 +552,13 @@ mod tests {
         .expect("remember");
 
         // WHEN we recall the key
-        let result = recall_inner(&iface.manager, &iface.namespace, "client.dupont.email");
+        let result = recall_inner(
+            &iface.manager,
+            &iface.namespace,
+            "client.dupont.email",
+            false,
+            None,
+        );
 
         // THEN we get the stored value
         assert_eq!(result.expect("recall"), Some("marie@dupont.fr".to_string()));
@@ -479,7 +571,13 @@ mod tests {
         let (iface, _dir) = setup_interface("agent-alpha");
 
         // WHEN we recall a nonexistent key
-        let result = recall_inner(&iface.manager, &iface.namespace, "cle.inexistante");
+        let result = recall_inner(
+            &iface.manager,
+            &iface.namespace,
+            "cle.inexistante",
+            false,
+            None,
+        );
 
         // THEN we get None
         assert_eq!(result.expect("recall"), None);
@@ -543,7 +641,13 @@ mod tests {
         assert!(removed.expect("forget"));
 
         // THEN recall returns None
-        let result = recall_inner(&iface.manager, &iface.namespace, "client.dupont.email");
+        let result = recall_inner(
+            &iface.manager,
+            &iface.namespace,
+            "client.dupont.email",
+            false,
+            None,
+        );
         assert_eq!(result.expect("recall"), None);
     }
 
@@ -555,7 +659,8 @@ mod tests {
         let manager = MemoryManager::new(dir.path(), None, vec![]);
 
         // WHEN we construct with empty namespace
-        let result = MemoryInterface::new(manager, String::new(), "agent-1".to_string());
+        let result =
+            MemoryInterface::new(manager, String::new(), "agent-1".to_string(), false, None);
 
         // THEN we get None
         assert!(result.is_none());
@@ -599,7 +704,8 @@ mod tests {
         ));
 
         // WHEN we try to read (recall) — should work
-        let recall_result = recall_inner(&iface.manager, &iface.namespace, "nonexistent");
+        let recall_result =
+            recall_inner(&iface.manager, &iface.namespace, "nonexistent", false, None);
         assert!(recall_result.is_ok());
 
         // WHEN we try to search — should work (empty results is ok)
@@ -625,7 +731,7 @@ mod tests {
 
         // THEN the entry is stored with the given confidence
         assert!(id.is_ok());
-        let value = recall_inner(&iface.manager, &iface.namespace, "user.name");
+        let value = recall_inner(&iface.manager, &iface.namespace, "user.name", false, None);
         assert_eq!(value.expect("recall"), Some("Nidal".to_string()));
     }
 
@@ -656,7 +762,7 @@ mod tests {
         .expect("remember");
 
         // THEN the original value is preserved
-        let value = recall_inner(&iface.manager, &iface.namespace, "user.name");
+        let value = recall_inner(&iface.manager, &iface.namespace, "user.name", false, None);
         assert_eq!(value.expect("recall"), Some("Nidal".to_string()));
     }
 
@@ -687,7 +793,7 @@ mod tests {
         .expect("remember");
 
         // THEN the new value replaces the old one
-        let value = recall_inner(&iface.manager, &iface.namespace, "user.role");
+        let value = recall_inner(&iface.manager, &iface.namespace, "user.role", false, None);
         assert_eq!(value.expect("recall"), Some("CTO".to_string()));
     }
 
@@ -709,5 +815,198 @@ mod tests {
 
         // THEN it succeeds
         assert!(id.is_ok());
+    }
+}
+
+#[cfg(test)]
+mod trust_model_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    /// Builds a MemoryManager with the given namespace as primary.
+    fn make_manager(dir: &TempDir, namespace: &str) -> MemoryManager {
+        MemoryManager::new(dir.path(), Some(namespace.to_string()), vec![])
+    }
+
+    /// Stores a key directly in the given manager/namespace using recall_inner helpers.
+    fn seed_memory(mgr_arc: &Arc<Mutex<MemoryManager>>, namespace: &str, key: &str, value: &str) {
+        remember_inner(mgr_arc, namespace, key, value, None, None).expect("seed memory");
+    }
+
+    // Agent invoked via A2A reads global user memory when key is absent from agent namespace
+    #[test]
+    fn test_a2a_context_reads_user_memory() {
+        // GIVEN user memory containing ("user_pref", "dark_mode")
+        let dir = TempDir::new().expect("create temp dir");
+        let user_mgr = make_manager(&dir, USER_MEMORY_NAMESPACE);
+        let user_mgr_arc = Arc::new(Mutex::new(user_mgr));
+        seed_memory(
+            &user_mgr_arc,
+            USER_MEMORY_NAMESPACE,
+            "user_pref",
+            "dark_mode",
+        );
+
+        // AND a MemoryInterface with user_memory_read_only = true
+        let agent_mgr = make_manager(&dir, "excel-worker");
+        let iface = MemoryInterface::new(
+            agent_mgr,
+            "excel-worker".to_string(),
+            "excel-worker".to_string(),
+            true,
+            Some(make_manager(&dir, USER_MEMORY_NAMESPACE)),
+        )
+        .expect("create interface");
+
+        // WHEN recall("user_pref")
+        let result = recall_inner(
+            &iface.manager,
+            &iface.namespace,
+            "user_pref",
+            iface.user_memory_read_only,
+            iface.user_manager.as_ref(),
+        );
+
+        // THEN returns "dark_mode" from user memory
+        assert_eq!(result.expect("recall"), Some("dark_mode".to_string()));
+    }
+
+    // Agent invoked via A2A writes only into its own namespace
+    #[test]
+    fn test_a2a_context_writes_own_namespace_only() {
+        // GIVEN a MemoryInterface for "excel-worker" with user_memory_read_only = true
+        let dir = TempDir::new().expect("create temp dir");
+        let iface = MemoryInterface::new(
+            make_manager(&dir, "excel-worker"),
+            "excel-worker".to_string(),
+            "excel-worker".to_string(),
+            true,
+            None,
+        )
+        .expect("create interface");
+
+        // WHEN remember("last_file", "ventes.xlsx")
+        remember_inner(
+            &iface.manager,
+            &iface.namespace,
+            "last_file",
+            "ventes.xlsx",
+            None,
+            None,
+        )
+        .expect("remember");
+
+        // THEN the data is in the "excel-worker" namespace
+        let in_agent = recall_inner(&iface.manager, &iface.namespace, "last_file", false, None);
+        assert_eq!(
+            in_agent.expect("recall agent"),
+            Some("ventes.xlsx".to_string())
+        );
+
+        // AND not visible through a separate "director" namespace manager
+        let director_mgr_arc = Arc::new(Mutex::new(make_manager(&dir, "director")));
+        let in_director = recall_inner(&director_mgr_arc, "director", "last_file", false, None);
+        assert_eq!(in_director.expect("recall director"), None);
+    }
+
+    // Agent invoked via A2A cannot see a key that is only in agent namespace through user-memory fallback
+    #[test]
+    fn test_a2a_agent_key_not_leaked_to_user_memory_fallback() {
+        // GIVEN "excel-worker" has a key "secret" in its namespace
+        let dir = TempDir::new().expect("create temp dir");
+        let agent_mgr = make_manager(&dir, "excel-worker");
+        let agent_mgr_arc = Arc::new(Mutex::new(agent_mgr));
+        seed_memory(&agent_mgr_arc, "excel-worker", "secret", "classified");
+
+        // AND user memory is empty
+        let user_mgr = make_manager(&dir, USER_MEMORY_NAMESPACE);
+        let user_mgr_arc = Arc::new(Mutex::new(user_mgr));
+
+        // WHEN another interface with user_memory_read_only reads "secret" via user memory only
+        // (agent_mgr_arc is moved, so we construct a fresh interface with a different agent_mgr)
+        let iface = MemoryInterface::new(
+            make_manager(&dir, "excel-worker"),
+            "excel-worker".to_string(),
+            "excel-worker".to_string(),
+            true,
+            Some(make_manager(&dir, USER_MEMORY_NAMESPACE)),
+        )
+        .expect("create interface");
+
+        // Recall from user memory only (simulate: key exists in agent ns — should return it from agent ns)
+        let result = recall_inner(
+            &iface.manager,
+            &iface.namespace,
+            "secret",
+            iface.user_memory_read_only,
+            iface.user_manager.as_ref(),
+        );
+
+        // THEN returns the agent's own value (agent namespace takes priority)
+        assert_eq!(result.expect("recall"), Some("classified".to_string()));
+
+        // AND user memory does not contain the key
+        let user_result = recall_inner(&user_mgr_arc, USER_MEMORY_NAMESPACE, "secret", false, None);
+        assert_eq!(user_result.expect("user recall"), None);
+    }
+
+    // Agent started directly (not via A2A) has user_memory_read_only = false
+    #[test]
+    fn test_direct_context_has_normal_permissions() {
+        // GIVEN a MemoryInterface with user_memory_read_only = false
+        let dir = TempDir::new().expect("create temp dir");
+        let iface = MemoryInterface::new(
+            make_manager(&dir, "direct-agent"),
+            "direct-agent".to_string(),
+            "direct-agent".to_string(),
+            false,
+            None,
+        )
+        .expect("create interface");
+
+        // THEN user_memory_read_only is false
+        assert!(!iface.user_memory_read_only);
+
+        // WHEN remember and recall
+        remember_inner(
+            &iface.manager,
+            &iface.namespace,
+            "my_key",
+            "my_value",
+            None,
+            None,
+        )
+        .expect("remember");
+        let result = recall_inner(&iface.manager, &iface.namespace, "my_key", false, None);
+
+        // THEN standard behavior — value is found
+        assert_eq!(result.expect("recall"), Some("my_value".to_string()));
+    }
+
+    // user_memory_read_only = true but no user_manager — returns None gracefully
+    #[test]
+    fn test_user_memory_read_only_without_manager_returns_none() {
+        // GIVEN user_memory_read_only = true but no user_manager provided
+        let dir = TempDir::new().expect("create temp dir");
+        let iface = MemoryInterface::new(
+            make_manager(&dir, "agent-x"),
+            "agent-x".to_string(),
+            "agent-x".to_string(),
+            true,
+            None, // no user memory
+        )
+        .expect("create interface");
+
+        // WHEN recall a key that does not exist in agent namespace
+        let result = recall_inner(
+            &iface.manager,
+            &iface.namespace,
+            "absent_key",
+            iface.user_memory_read_only,
+            iface.user_manager.as_ref(),
+        );
+
+        // THEN None (graceful — no panic)
+        assert_eq!(result.expect("recall"), None);
     }
 }
