@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import textwrap
 
@@ -118,3 +119,77 @@ class TestScaffoldAgent:
             test_src = open(test_path, encoding="utf-8").read()
             compile(agent_src, agent_path, "exec")
             compile(test_src, test_path, "exec")
+
+
+class TestScaffoldWorkerAgent:
+    """Verify file generation for the worker agent type."""
+
+    def test_scaffold_worker_creates_files(self, tmp_path: str) -> None:
+        """The scaffolding creates agent and test files at the expected paths."""
+        agent_path, test_path = scaffold_agent(
+            "test-worker", agent_type="worker", output_dir=str(tmp_path),
+        )
+
+        assert os.path.isfile(agent_path)
+        assert os.path.isfile(test_path)
+
+        # Agent lands in agents/ subdirectory with the original kebab-case name.
+        assert agent_path == str(
+            os.path.join(str(tmp_path), "agents", "test-worker.py")
+        )
+        # Test lands in agents/tests/ with snake_case prefix.
+        assert test_path == str(
+            os.path.join(str(tmp_path), "agents", "tests", "test_test_worker.py")
+        )
+
+    def test_scaffold_worker_agent_content(self, tmp_path: str) -> None:
+        """Generated agent file contains all required Worker Agent constructs."""
+        agent_path, _ = scaffold_agent(
+            "test-worker", agent_type="worker", output_dir=str(tmp_path),
+        )
+        src = open(agent_path, encoding="utf-8").read()
+
+        assert "from apollia.agents import AIPResult, WorkerAgent" in src
+        assert "class TestWorkerAgent(WorkerAgent):" in src
+        assert "RÈGLES ABSOLUES" in src
+        assert '"supports_a2a": True' in src
+        assert '"skills"' in src
+        assert "agent = TestWorkerAgent()" in src
+
+    def test_scaffold_worker_agent_importable(self, tmp_path: str) -> None:
+        """The generated agent can be imported without error."""
+        agent_path, _ = scaffold_agent(
+            "test-worker", agent_type="worker", output_dir=str(tmp_path),
+        )
+        spec = importlib.util.spec_from_file_location("test_worker", agent_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+        assert hasattr(module, "agent")
+        assert hasattr(module, "SYSTEM_PROMPT")
+        assert hasattr(module, "manifest")
+
+    def test_scaffold_worker_manifest_valid(self, tmp_path: str) -> None:
+        """The manifest of the generated agent conforms to the Worker Agent contract."""
+        agent_path, _ = scaffold_agent(
+            "test-worker", agent_type="worker", output_dir=str(tmp_path),
+        )
+        spec = importlib.util.spec_from_file_location("test_worker", agent_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+
+        m = module.agent.manifest()
+        assert m["name"] == "test-worker"
+        assert m["supports_a2a"] is True
+        assert len(m["skills"]) >= 1
+
+    def test_scaffold_worker_generated_files_are_valid_python(
+        self, tmp_path: str,
+    ) -> None:
+        """Both generated files are syntactically valid Python."""
+        agent_path, test_path = scaffold_agent(
+            "my-domain", agent_type="worker", output_dir=str(tmp_path),
+        )
+        compile(open(agent_path, encoding="utf-8").read(), agent_path, "exec")
+        compile(open(test_path, encoding="utf-8").read(), test_path, "exec")
