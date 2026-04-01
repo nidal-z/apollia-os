@@ -21,8 +21,11 @@ use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_tools::ToolRegistryHandle;
 
+use super::a2a_tools::CompositeToolInvoker;
 use super::agent_chat::{AgentChatExecutor, ChatAgentRunner};
-use super::builtin_agent::{BuiltInChatAgent, ChatAgentResponse, DEFAULT_CONTEXT_WINDOW_SIZE};
+use super::builtin_agent::{
+    BuiltInChatAgent, ChatAgentResponse, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
+};
 use super::extractor::UserMemoryExtractor;
 use super::repository::{AppendMessageParams, ChatSessionRepository};
 use super::types::{
@@ -30,6 +33,7 @@ use super::types::{
     PendingChatApprovals, SessionDetail, SessionId, SessionInfo, SessionStatus, ToolCallRecord,
     ToolDecision,
 };
+use crate::a2a::A2AInvoker;
 use crate::api::routes_agents::AgentLoader;
 use crate::eventbus::EventBusSender;
 use crate::registry::AgentRegistryHandle;
@@ -192,6 +196,8 @@ struct ChatSessionManager {
     enrichment_extractor: Option<Arc<tokio::sync::Mutex<UserMemoryExtractor>>>,
     /// Sender clone for spawned tasks to send commands back to the actor.
     tx: mpsc::Sender<ChatCommand>,
+    /// Optional A2A invoker — when present, worker agent skills are exposed as virtual tools.
+    a2a_invoker: Option<Arc<A2AInvoker>>,
 }
 
 impl ChatSessionManager {
@@ -534,6 +540,7 @@ impl ChatSessionManager {
                 Arc::clone(&self.tool_invoker),
                 self.event_bus.clone(),
                 self.user_memory.clone(),
+                self.a2a_invoker.clone(),
             );
 
             let history = session.history.clone();
@@ -1093,13 +1100,14 @@ impl ChatSessionManagerHandle {
         db_path: &Path,
         llm_router: Option<Arc<LlmRouter>>,
         tool_registry: ToolRegistryHandle,
-        tool_invoker: Arc<dyn ToolInvoker>,
+        _tool_invoker: Arc<dyn ToolInvoker>,
         _agent_loader: Arc<dyn AgentLoader>,
         agent_runner: Option<Arc<dyn ChatAgentRunner>>,
         event_bus: EventBusSender,
         runtime_budget: StepBudgetConfig,
         user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
         registry_handle: AgentRegistryHandle,
+        a2a_invoker: Option<Arc<A2AInvoker>>,
     ) -> Result<Self, ChatError> {
         let repository = ChatSessionRepository::open(db_path)?;
         let pending_chat_approvals = PendingChatApprovals::new();
@@ -1110,6 +1118,15 @@ impl ChatSessionManagerHandle {
                 Some(Arc::new(tokio::sync::Mutex::new(ext)))
             }
             _ => None,
+        };
+
+        let tool_invoker: Arc<dyn ToolInvoker> = if let Some(ref a2a) = a2a_invoker {
+            Arc::new(CompositeToolInvoker::new(
+                NativeChatToolInvoker::new(),
+                a2a.clone(),
+            ))
+        } else {
+            Arc::new(NativeChatToolInvoker::new())
         };
 
         let (tx, rx) = mpsc::channel(256);
@@ -1128,6 +1145,7 @@ impl ChatSessionManagerHandle {
             user_memory,
             enrichment_extractor,
             tx: tx.clone(),
+            a2a_invoker,
         };
 
         // Restore active sessions from SQLite before entering the actor loop
@@ -1433,6 +1451,7 @@ mod tests {
             StepBudgetConfig::default(),
             None, // no user memory in basic tests
             registry_handle,
+            None, // no A2A invoker in basic tests
         )
         .expect("spawn manager")
     }
@@ -1568,6 +1587,7 @@ mod tests {
             StepBudgetConfig::default(),
             None,
             registry_handle,
+            None,
         )
         .expect("spawn");
 
@@ -1665,6 +1685,7 @@ mod tests {
             user_memory: None,
             enrichment_extractor: None,
             tx,
+            a2a_invoker: None,
         };
 
         // Insert a dummy session so the lookup succeeds
@@ -1784,6 +1805,7 @@ mod tests {
             user_memory: None,
             enrichment_extractor: None,
             tx,
+            a2a_invoker: None,
         };
 
         // WHEN building cross-session context with a substantive first message
@@ -1840,6 +1862,7 @@ mod tests {
             user_memory: None,
             enrichment_extractor: None,
             tx,
+            a2a_invoker: None,
         };
 
         // WHEN building cross-session context with a trivial message
@@ -1875,6 +1898,7 @@ mod tests {
             user_memory: None,
             enrichment_extractor: None,
             tx,
+            a2a_invoker: None,
         };
 
         // WHEN building cross-session context with a substantive message but no past sessions

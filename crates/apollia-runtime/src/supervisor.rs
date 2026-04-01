@@ -744,6 +744,11 @@ impl Supervisor {
         let chat_db_path = self.config.data_dir.join("chat.db");
         let chat_tool_invoker: std::sync::Arc<dyn apollia_llm::ToolInvoker> =
             std::sync::Arc::new(crate::chat::NativeChatToolInvoker::new());
+        let a2a_invoker = std::sync::Arc::new(crate::a2a::A2AInvoker::new(
+            registry_handle.clone(),
+            router_handle.clone(),
+            event_sender.clone(),
+        ));
         let chat_manager: Option<crate::chat::ChatSessionManagerHandle> =
             match crate::chat::ChatSessionManagerHandle::spawn(
                 &chat_db_path,
@@ -756,6 +761,7 @@ impl Supervisor {
                 apollia_core::StepBudgetConfig::default(),
                 user_memory.clone(),
                 registry_handle.clone(),
+                Some(a2a_invoker.clone()),
             ) {
                 Ok(handle) => {
                     info!("Supervisor: ChatSessionManager ready");
@@ -886,7 +892,7 @@ impl Supervisor {
             mcp_handle: mcp_handle.clone(),
             mcp_server_repo: mcp_server_repo.clone(),
             llm_backend_repo: llm_backend_repo.clone(),
-            a2a_invoker: None,
+            a2a_invoker: Some(a2a_invoker),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 

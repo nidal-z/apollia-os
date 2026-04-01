@@ -5,6 +5,7 @@
 //! `BuiltInChatAgent` build on top of these primitives.
 //! `AgentChatExecutor` handles Chat Agent mode via Python agents.
 
+pub mod a2a_tools;
 pub mod agent_chat;
 pub mod builtin_agent;
 pub mod extractor;
@@ -13,6 +14,7 @@ pub mod repository;
 pub mod summarizer;
 pub mod types;
 
+pub use a2a_tools::{generate_a2a_tool_specs, CompositeToolInvoker};
 pub use agent_chat::{AgentChatExecutor, ChatAgentRunner};
 pub use builtin_agent::{
     BuiltInChatAgent, ChatAgentResponse, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,

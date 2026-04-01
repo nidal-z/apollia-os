@@ -1117,12 +1117,10 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert!(
-            json["error"]
-                .as_str()
-                .map(|s| s.contains("unknown_role"))
-                .unwrap_or(false)
-        );
+        assert!(json["error"]
+            .as_str()
+            .map(|s| s.contains("unknown_role"))
+            .unwrap_or(false));
     }
 
     // GIVEN an AppState with llm_router = Some(LlmRouter::empty())

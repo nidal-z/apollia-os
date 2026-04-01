@@ -572,6 +572,7 @@ mod tests {
             StepBudgetConfig::default(),
             None,
             registry_handle.clone(),
+            None,
         )
         .expect("spawn chat manager");
 

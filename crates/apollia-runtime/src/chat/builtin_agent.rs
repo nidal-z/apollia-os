@@ -28,6 +28,8 @@ use super::types::{
     ChatError, ChatMessage, ChatRole, PendingChatApprovals, ToolCallRecord, ToolCallStatus,
     ToolDecision,
 };
+use crate::a2a::A2AInvoker;
+use crate::chat::a2a_tools::generate_a2a_tool_specs;
 use crate::eventbus::EventBusSender;
 
 /// Default timeout for chat tool approval requests (5 minutes).
@@ -264,6 +266,8 @@ pub struct BuiltInChatAgent {
     event_bus: EventBusSender,
     /// Optional user memory repository for injecting user context into the system prompt.
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+    /// Optional A2A invoker for discovering worker agent skills as virtual tools.
+    a2a_invoker: Option<Arc<A2AInvoker>>,
 }
 
 impl BuiltInChatAgent {
@@ -274,6 +278,7 @@ impl BuiltInChatAgent {
         tool_invoker: Arc<dyn ToolInvoker>,
         event_bus: EventBusSender,
         user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+        a2a_invoker: Option<Arc<A2AInvoker>>,
     ) -> Self {
         Self {
             llm_router,
@@ -281,6 +286,7 @@ impl BuiltInChatAgent {
             tool_invoker,
             event_bus,
             user_memory,
+            a2a_invoker,
         }
     }
 
@@ -361,7 +367,10 @@ impl BuiltInChatAgent {
         };
         let effective_prompt = self.build_system_prompt(base_prompt);
 
-        let tool_specs = build_tool_specs(available_tools, &self.tool_registry).await;
+        let mut tool_specs = build_tool_specs(available_tools, &self.tool_registry).await;
+        if let Some(ref a2a) = self.a2a_invoker {
+            tool_specs.extend(generate_a2a_tool_specs(a2a).await);
+        }
         info!(
             session_id = %session_id,
             available = available_tools.len(),
@@ -1218,7 +1227,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
+        let agent = BuiltInChatAgent::new(
+            router,
+            tool_registry.clone(),
+            invoker,
+            event_bus,
+            None,
+            None,
+        );
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1266,7 +1282,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("hello\n"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
+        let agent = BuiltInChatAgent::new(
+            router,
+            tool_registry.clone(),
+            invoker,
+            event_bus,
+            None,
+            None,
+        );
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1318,7 +1341,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("file content"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
+        let agent = BuiltInChatAgent::new(
+            router,
+            tool_registry.clone(),
+            invoker,
+            event_bus,
+            None,
+            None,
+        );
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1377,7 +1407,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("unused"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
+        let agent = BuiltInChatAgent::new(
+            router,
+            tool_registry.clone(),
+            invoker,
+            event_bus,
+            None,
+            None,
+        );
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1438,7 +1475,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
+        let agent = BuiltInChatAgent::new(
+            router,
+            tool_registry.clone(),
+            invoker,
+            event_bus,
+            None,
+            None,
+        );
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1487,7 +1531,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
+        let agent = BuiltInChatAgent::new(
+            router,
+            tool_registry.clone(),
+            invoker,
+            event_bus,
+            None,
+            None,
+        );
 
         let budget = make_budget(1);
         let mut authorized = HashSet::new();
@@ -1592,7 +1643,8 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("output"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None);
+        let agent =
+            BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None, None);
 
         let budget = make_budget(10);
         let mut authorized = HashSet::new();
@@ -1692,7 +1744,8 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None);
+        let agent =
+            BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None, None);
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1740,7 +1793,14 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_bus, None);
+        let agent = BuiltInChatAgent::new(
+            router,
+            tool_registry.clone(),
+            invoker,
+            event_bus,
+            None,
+            None,
+        );
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1823,7 +1883,8 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None);
+        let agent =
+            BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None, None);
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -1933,7 +1994,8 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("file content"));
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
-        let agent = BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None);
+        let agent =
+            BuiltInChatAgent::new(router, tool_registry.clone(), invoker, event_tx, None, None);
 
         let budget = make_budget(10);
         let approvals = PendingChatApprovals::new();
@@ -2015,7 +2077,8 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry, invoker, event_bus, Some(repo));
+        let agent =
+            BuiltInChatAgent::new(router, tool_registry, invoker, event_bus, Some(repo), None);
 
         // WHEN building the system prompt
         let prompt = agent.build_system_prompt("Base prompt.");
@@ -2036,7 +2099,8 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry, invoker, event_bus, Some(repo));
+        let agent =
+            BuiltInChatAgent::new(router, tool_registry, invoker, event_bus, Some(repo), None);
 
         // WHEN building the system prompt
         let prompt = agent.build_system_prompt("Base prompt.");
@@ -2052,7 +2116,7 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
         let invoker: Arc<dyn ToolInvoker> = Arc::new(MockToolInvoker::new("ok"));
         let event_bus = make_event_bus();
-        let agent = BuiltInChatAgent::new(router, tool_registry, invoker, event_bus, None);
+        let agent = BuiltInChatAgent::new(router, tool_registry, invoker, event_bus, None, None);
 
         // WHEN building the system prompt
         let prompt = agent.build_system_prompt("Base prompt.");
