@@ -10,6 +10,7 @@
 
 pub mod client;
 pub mod commands;
+pub mod community;
 pub mod config;
 pub mod exit_codes;
 
@@ -489,7 +490,7 @@ mod tests {
         // THEN Commands::Agent { command: AgentCommand::Install { path } }
         match &cli.command {
             Commands::Agent { command } => match command {
-                AgentCommand::Install { path } => {
+                AgentCommand::Install { path, .. } => {
                     assert_eq!(path, &PathBuf::from("./agents/mon-agent.py"));
                 }
                 other => panic!("expected AgentCommand::Install, got {other:?}"),

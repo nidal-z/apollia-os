@@ -9,6 +9,8 @@ use apollia_runtime::api::routes_agents::AgentLoader;
 use apollia_tools::{AgentRepository, InstalledAgent};
 use clap::Subcommand;
 
+use crate::community::{validate_community_agent, AgentValidationError};
+
 use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
 use crate::exit_codes;
 
@@ -40,6 +42,10 @@ pub enum AgentCommand {
     Install {
         /// Path to the agent Python module.
         path: PathBuf,
+
+        /// Skip the agent test suite (not recommended — reduces validation coverage).
+        #[arg(long)]
+        skip_tests: bool,
     },
     /// Uninstall a permanently installed agent.
     Uninstall {
@@ -86,7 +92,9 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
         AgentCommand::Start { path } => run_start(&client, path, json).await,
         AgentCommand::Stop { agent_id } => run_stop(&client, agent_id, json).await,
         AgentCommand::Info { agent_id } => run_info(&client, agent_id, json).await,
-        AgentCommand::Install { path } => run_install(path, &client, json).await,
+        AgentCommand::Install { path, skip_tests } => {
+            run_install(path, &client, json, *skip_tests).await
+        }
         AgentCommand::Uninstall { name } => run_uninstall(name, json),
         AgentCommand::Enable { name } => run_enable(name, json),
         AgentCommand::Disable { name } => run_disable(name, json),
@@ -285,11 +293,42 @@ async fn run_info(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
 // New commands (install/uninstall/enable/disable/update)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `apollia-os agent install <path>` — install an agent permanently.
-async fn run_install(source_path: &Path, client: &RuntimeClient, json: bool) -> i32 {
-    // Validate source file exists.
-    if !source_path.exists() {
-        return print_error_and_exit(&format!("file not found: {}", source_path.display()), json);
+/// `apollia-os agent install <path> [--skip-tests]` — validate and install an agent permanently.
+///
+/// Validation covers AIP duck-typing, manifest conformance, a `dangerous_tools_allowed`
+/// security check, and the agent's own test suite (unless `--skip-tests` is passed).
+async fn run_install(
+    source_path: &Path,
+    client: &RuntimeClient,
+    json: bool,
+    skip_tests: bool,
+) -> i32 {
+    // Validate the agent and load its manifest.
+    let manifest = match validate_community_agent(source_path, skip_tests).await {
+        Ok(m) => m,
+        Err(AgentValidationError::FileNotFound(_)) => {
+            return print_error_and_exit(
+                &format!("file not found: {}", source_path.display()),
+                json,
+            );
+        }
+        Err(e) => {
+            return print_error_and_exit(&format!("agent validation failed: {e}"), json);
+        }
+    };
+
+    // Surface security and skip-tests warnings to the operator.
+    if manifest.dangerous_tools_allowed {
+        eprintln!(
+            "Warning: community agent '{}' requests dangerous_tools_allowed — user approval required",
+            manifest.name
+        );
+    }
+    if skip_tests {
+        eprintln!(
+            "Warning: installing '{}' without running its test suite — not recommended",
+            manifest.name
+        );
     }
 
     // Canonicalize the source path for reliable storage.
@@ -300,15 +339,6 @@ async fn run_install(source_path: &Path, client: &RuntimeClient, json: bool) -> 
                 &format!("cannot resolve path {}: {e}", source_path.display()),
                 json,
             );
-        }
-    };
-
-    // Load and validate the Python module via PyO3.
-    let loader = CliAgentLoader;
-    let manifest = match loader.load_and_validate(&canonical) {
-        Ok(m) => m,
-        Err(e) => {
-            return print_error_and_exit(&format!("failed to load agent: {e}"), json);
         }
     };
 
