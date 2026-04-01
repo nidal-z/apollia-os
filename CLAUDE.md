@@ -11,7 +11,7 @@
 
 **Auteur :** Nidal — CTO & Co-fondateur Apollia  
 **Développement :** soir/weekend, 8-10h/semaine  
-**Phase actuelle :** Sprint 24 livré (apollia-stt : moteur STT embarqué, 17/17 stories). Sprint 21 livré (Python SDK). Sprint 20 livré (Système Agentique Amélioré).
+**Phase actuelle :** Sprint 31 livré (Worker Agents V2 : pdf-worker + code-worker + A2A chat libre, 6/6 stories). Sprint 30 livré (A2A routing V1). Sprint 24 livré (apollia-stt).
 
 ---
 
@@ -123,8 +123,8 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Dernier sprint livré :** Sprint 24 — apollia-stt : moteur STT embarqué (17/17 stories, ADR-041)
+**Dernier sprint livré :** Sprint 31 — Worker Agents V2 : pdf-worker + code-worker + A2A chat libre (6/6 stories, ADR-048 + ADR-049)
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
-**Dernière décision :** ADR-041 — Moteur STT embarqué : whisper-rs V1, trait SttBackend
+**Dernière décision :** ADR-049 — Routing A2A inter-agents + CompositeToolInvoker chat libre
 
 Pour l'état détaillé : lire `docs/internal/STORIES/sprint-index.md`.

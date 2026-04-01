@@ -1,7 +1,7 @@
 # Chat — Sous-systeme conversationnel
 
 > Page source de verite pour le sous-systeme Chat introduit au Sprint 18.
-> Derniere mise a jour : Sprint 25.
+> Derniere mise a jour : Sprint 31.
 
 ---
 
@@ -70,6 +70,45 @@ Flux d'execution par echange :
 6. Le `StepBudget` est decremente a chaque iteration de la boucle
 
 Le prompt systeme est configurable par session. La valeur par defaut fournit les instructions ReAct standard avec la liste des outils disponibles.
+
+### CompositeToolInvoker — routing A2A depuis le chat libre *(Sprint 31)*
+
+Le `CompositeToolInvoker` est introduit par STORY-403 pour permettre au Chat Libre d'invoquer des Worker Agents via A2A sans que l'utilisateur ne sache que la délégation a eu lieu.
+
+**Principe** : chaque skill des agents actifs avec `supports_a2a: true` est exposé comme un outil virtuel préfixé `a2a:` dans la liste des outils disponibles du `BuiltInChatAgent`. Le LLM voit `[file_read, bash_executor, ..., a2a:read-pdf, a2a:extract-tables, ...]` et choisit naturellement l'outil A2A quand le domaine correspond.
+
+**Architecture** :
+
+```
+BuiltInChatAgent
+  └── tool_invoker: Arc<dyn ToolInvoker>
+        ├── NativeChatToolInvoker  (outils natifs — comportement inchangé)
+        └── CompositeToolInvoker   (si agents A2A actifs, Sprint 31)
+              ├── native: NativeChatToolInvoker
+              └── a2a: Arc<A2AInvoker>
+```
+
+Le `ChatSessionManager` instancie un `CompositeToolInvoker` si `a2a_invoker` est disponible, sinon revient au `NativeChatToolInvoker` seul (backward-compatible).
+
+**Comportement de routage** :
+
+1. `tool_name.strip_prefix("a2a:")` → extrait le `skill_id`
+2. `arguments["text"]` → extrait la requête textuelle
+3. `A2AInvoker.invoke(skill_id, ...)` → délègue à l'agent Worker
+4. Si `status == "completed"` → `Ok("[{skill_id} via {agent_name}]\n{output_text}")`
+5. Si `status == "failed"` → `Err("Agent {name} a échoué : {message}")` propagé au chat
+6. Si pas de préfixe `a2a:` → `NativeChatToolInvoker.invoke(...)` (fallback)
+
+**Génération des ToolSpec virtuels** :
+
+La fonction `generate_a2a_tool_specs(a2a_invoker)` (fichier `chat/a2a_tools.rs`) itère les agents actifs et crée une `ToolSpec` par skill :
+- Nom : `"a2a:{skill_id}"`
+- Description : `"{skill.description} (via {agent_name})"`
+- Input schema : `{"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}`
+
+Si aucun agent n'a `supports_a2a: true`, la liste des outils virtuels est vide — pas d'outils `a2a:` exposés.
+
+**Approbation HITL** : les outils `a2a:*` sont auto-approuvés dans la session chat. L'agent Worker cible gère ses propres gardes-fous internes.
 
 ### Chat Agent — AgentChatExecutor
 
