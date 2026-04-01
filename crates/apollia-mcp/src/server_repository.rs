@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use thiserror::Error;
 
 use crate::config::McpServerConfig;
@@ -189,9 +189,9 @@ impl McpServerRepository {
     ///
     /// [`save`]: McpServerRepository::save
     pub fn import_from_toml(&self, configs: Vec<McpServerConfig>) -> Result<usize, McpRepoError> {
-        let count: i64 =
-            self.conn
-                .query_row("SELECT COUNT(*) FROM mcp_servers", [], |row| row.get(0))?;
+        let count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM mcp_servers", [], |row| row.get(0))?;
         if count > 0 {
             return Ok(0);
         }
@@ -225,12 +225,9 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<McpServerConfig> {
     let init_timeout_secs: i64 = row.get(7)?;
     let call_timeout_secs: i64 = row.get(8)?;
 
-    let args: Vec<String> =
-        serde_json::from_str(&args_json).unwrap_or_default();
-    let env: HashMap<String, String> =
-        serde_json::from_str(&env_json).unwrap_or_default();
-    let tags: Vec<String> =
-        serde_json::from_str(&tags_json).unwrap_or_default();
+    let args: Vec<String> = serde_json::from_str(&args_json).unwrap_or_default();
+    let env: HashMap<String, String> = serde_json::from_str(&env_json).unwrap_or_default();
+    let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
 
     Ok(McpServerConfig {
         name: row.get(0)?,
@@ -294,9 +291,7 @@ mod tests {
         repo.save(&stdio_config("notion")).unwrap();
 
         // WHEN import_from_toml is called
-        let count = repo
-            .import_from_toml(vec![stdio_config("notion")])
-            .unwrap();
+        let count = repo.import_from_toml(vec![stdio_config("notion")]).unwrap();
 
         // THEN nothing is imported
         assert_eq!(count, 0);

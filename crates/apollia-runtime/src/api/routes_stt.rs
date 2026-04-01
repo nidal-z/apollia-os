@@ -615,6 +615,7 @@ mod tests {
             mcp_handle: None,
             mcp_server_repo: None,
             llm_backend_repo: None,
+            a2a_invoker: None,
         }
     }
 

@@ -221,6 +221,11 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::SttTranscribed { .. }
         | RuntimeEvent::SttTranscriptionFailed { .. } => "stt-changed",
 
+        // ── A2A invocations ──────────────────────────────────────────────
+        RuntimeEvent::A2AInvocationStarted { .. } | RuntimeEvent::A2AInvocationCompleted { .. } => {
+            "a2a"
+        }
+
         // ── System-level ─────────────────────────────────────────────────
         RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested | RuntimeEvent::FatalError(_) => {
             "system"

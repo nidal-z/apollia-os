@@ -417,7 +417,7 @@ use std::collections::HashMap;
 
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
 use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
-use apollia_runtime::a2a::{A2aDelegateFn, A2aDelegateResult};
+use apollia_runtime::a2a::{A2AInvoker, A2aDelegateFn, A2aDelegateResult};
 use apollia_runtime::mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
 
 use crate::llm::LlmProxy;
@@ -459,6 +459,10 @@ pub struct RuntimeContext {
     /// Permet à un Director Agent d'appeler `ctx.delegate(skill_id, payload)` sans
     /// connaître le backend d'exécution sous-jacent.
     a2a_delegate: Option<A2aDelegateFn>,
+    /// Orchestrateur A2A de haut niveau — `None` si non disponible dans ce contexte.
+    ///
+    /// Expose `ctx.a2a_invoke`, `ctx.a2a_discover`, `ctx.a2a_list_skills` aux agents Python.
+    a2a_invoker: Option<Arc<A2AInvoker>>,
 }
 
 impl RuntimeContext {
@@ -501,6 +505,7 @@ impl RuntimeContext {
         supports_a2a: bool,
         user_context: Option<HashMap<String, Vec<(String, String)>>>,
         a2a_delegate: Option<A2aDelegateFn>,
+        a2a_invoker: Option<Arc<A2AInvoker>>,
     ) -> Self {
         let llm = llm_router.and_then(|router| {
             if router.list().is_empty() {
@@ -538,6 +543,7 @@ impl RuntimeContext {
             supports_a2a,
             user_context,
             a2a_delegate,
+            a2a_invoker,
         }
     }
 }
@@ -743,6 +749,133 @@ impl RuntimeContext {
             })
         })
     }
+
+    /// Invoque un Worker Agent par skill ID via l'[`A2AInvoker`] de haut niveau.
+    ///
+    /// Retourne un Python awaitable qui résout en `dict` avec les clés
+    /// `result`, `agent_name`, `skill_id`, `duration_ms` en cas de succès,
+    /// ou un dict `AIPResult` d'échec si une erreur survient (jamais d'exception Python).
+    #[pyo3(signature = (skill_id, input, timeout_secs=None))]
+    fn a2a_invoke<'py>(
+        &self,
+        py: Python<'py>,
+        skill_id: String,
+        input: PyObject,
+        timeout_secs: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let invoker = self.a2a_invoker.clone().ok_or_else(|| {
+            PyRuntimeError::new_err("A2A invoker not available in this runtime context")
+        })?;
+
+        let json_mod = py
+            .import_bound("json")
+            .map_err(|e| PyRuntimeError::new_err(format!("failed to import json: {e}")))?;
+        let json_str: String = json_mod
+            .call_method1("dumps", (input.bind(py),))
+            .map_err(|e| PyRuntimeError::new_err(format!("json.dumps failed: {e}")))?
+            .extract()
+            .map_err(|e| PyRuntimeError::new_err(format!("extract failed: {e}")))?;
+        let input_value: serde_json::Value = serde_json::from_str(&json_str)
+            .map_err(|e| PyRuntimeError::new_err(format!("JSON parse failed: {e}")))?;
+
+        let caller = self.agent_name.clone();
+        let timeout = timeout_secs.map(std::time::Duration::from_secs);
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let out_json = match invoker
+                .invoke(&skill_id, input_value, &caller, timeout)
+                .await
+            {
+                Ok(r) => serde_json::to_string(&r)
+                    .map_err(|e| PyRuntimeError::new_err(format!("serialization error: {e}")))?,
+                Err(e) => {
+                    let failed =
+                        apollia_core::AIPResult::failed("a2a_invoke_error", &e.to_string());
+                    serde_json::to_string(&failed).map_err(|err| {
+                        PyRuntimeError::new_err(format!("serialization error: {err}"))
+                    })?
+                }
+            };
+
+            Python::with_gil(|py| {
+                let json_mod = py
+                    .import_bound("json")
+                    .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+                let py_obj: PyObject = json_mod
+                    .call_method1("loads", (out_json,))
+                    .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
+                    .unbind();
+                Ok(py_obj)
+            })
+        })
+    }
+
+    /// Découvre l'agent qui expose `skill_id` et retourne sa carte de découverte.
+    ///
+    /// Retourne un Python awaitable qui résout en `dict | None`.
+    /// `None` si aucun agent disponible ne déclare le skill.
+    fn a2a_discover<'py>(&self, py: Python<'py>, skill_id: String) -> PyResult<Bound<'py, PyAny>> {
+        let invoker = self.a2a_invoker.clone().ok_or_else(|| {
+            PyRuntimeError::new_err("A2A invoker not available in this runtime context")
+        })?;
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let card_opt = invoker
+                .discover(&skill_id)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+            match card_opt {
+                None => Ok(Python::with_gil(|py| py.None())),
+                Some(card) => {
+                    let json_str = serde_json::to_string(&card).map_err(|e| {
+                        PyRuntimeError::new_err(format!("serialization error: {e}"))
+                    })?;
+                    Python::with_gil(|py| {
+                        let json_mod = py
+                            .import_bound("json")
+                            .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+                        let py_obj: PyObject = json_mod
+                            .call_method1("loads", (json_str,))
+                            .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
+                            .unbind();
+                        Ok(py_obj)
+                    })
+                }
+            }
+        })
+    }
+
+    /// Liste tous les skills A2A disponibles dans le runtime.
+    ///
+    /// Retourne un Python awaitable qui résout en `list[dict]`.
+    /// Chaque dict a les clés `skill_id`, `agent_name`, `skill_name`, `description`.
+    fn a2a_list_skills<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let invoker = self.a2a_invoker.clone().ok_or_else(|| {
+            PyRuntimeError::new_err("A2A invoker not available in this runtime context")
+        })?;
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let skills = invoker
+                .list_skills()
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+            let json_str = serde_json::to_string(&skills)
+                .map_err(|e| PyRuntimeError::new_err(format!("serialization error: {e}")))?;
+
+            Python::with_gil(|py| {
+                let json_mod = py
+                    .import_bound("json")
+                    .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+                let py_obj: PyObject = json_mod
+                    .call_method1("loads", (json_str,))
+                    .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
+                    .unbind();
+                Ok(py_obj)
+            })
+        })
+    }
 }
 
 /// Envoie un message d'un agent à un autre via la mailbox — testable sans PyO3.
@@ -863,6 +996,7 @@ mod runtime_context_tests {
             false,         // supports_a2a
             None,          // user_context
             None,          // a2a_delegate
+            None,          // a2a_invoker
         );
         // THEN
         assert!(ctx.llm.is_none());
@@ -890,6 +1024,7 @@ mod runtime_context_tests {
             false,         // supports_a2a
             None,          // user_context
             None,          // a2a_delegate
+            None,          // a2a_invoker
         );
         // THEN un événement AgentDegraded est présent sur le bus
         let event = rx.try_recv().expect("un événement doit être présent");
@@ -923,6 +1058,7 @@ mod runtime_context_tests {
             false,         // supports_a2a
             None,          // user_context
             None,          // a2a_delegate
+            None,          // a2a_invoker
         );
         // THEN
         assert!(ctx.llm.is_none());
@@ -1278,6 +1414,7 @@ mod a2a_tests {
             supports_a2a: false,
             user_context: None,
             a2a_delegate: None,
+            a2a_invoker: None,
         };
 
         // THEN les vérifications internes échouent
@@ -1311,6 +1448,7 @@ mod a2a_tests {
             supports_a2a: false,
             user_context: Some(uc),
             a2a_delegate: None,
+            a2a_invoker: None,
         };
 
         // THEN user_context is Some with expected categories
@@ -1333,6 +1471,7 @@ mod a2a_tests {
             supports_a2a: false,
             user_context: None,
             a2a_delegate: None,
+            a2a_invoker: None,
         };
 
         // THEN user_context is None

@@ -476,6 +476,7 @@ mod tests {
             mcp_server_repo: None,
             llm_backend_repo: None,
             stt_config_repo: None,
+            a2a_invoker: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))

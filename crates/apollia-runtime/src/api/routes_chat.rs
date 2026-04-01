@@ -607,6 +607,7 @@ mod tests {
             mcp_server_repo: None,
             llm_backend_repo: None,
             stt_config_repo: None,
+            a2a_invoker: None,
         };
 
         APIServer::build_router_for_test(state)

@@ -2,7 +2,14 @@
 //!
 //! Ce module implémente la résolution d'un `skill_id` vers un [`AgentEntry`] actif,
 //! les types d'erreur structurés retournés au Director Agent, la fonction de délégation
-//! type-erasée [`A2aDelegateFn`], et la factory [`make_delegate_fn`].
+//! type-erasée [`A2aDelegateFn`], la factory [`make_delegate_fn`], et l'orchestrateur
+//! de haut niveau [`invoker::A2AInvoker`].
+
+pub mod invoker;
+
+pub use invoker::{
+    A2AAgentCard, A2AError, A2AInvocationResult, A2AInvoker, A2ASkillInfo, SkillListing,
+};
 
 use std::collections::HashSet;
 use std::future::Future;

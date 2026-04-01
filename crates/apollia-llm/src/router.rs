@@ -591,7 +591,9 @@ impl LlmRouter {
 // ─────────────────────────────────────────────
 
 /// Instancie un [`CompletionModel`] depuis une [`LlmBackendConfig`] SQLite.
-async fn instantiate_from_config(cfg: &LlmBackendConfig) -> Result<Arc<dyn CompletionModel>, LlmError> {
+async fn instantiate_from_config(
+    cfg: &LlmBackendConfig,
+) -> Result<Arc<dyn CompletionModel>, LlmError> {
     match &cfg.provider {
         LlmProvider::LlamaCpp => instantiate_embedded_backend(cfg).await,
         provider => instantiate_cloud_backend(cfg, provider).await,
@@ -654,20 +656,20 @@ async fn instantiate_cloud_backend(
     let api_key = extract_api_key_value(cfg)?;
 
     let default_url = match provider {
-        LlmProvider::OpenAi    => "https://api.openai.com/v1",
-        LlmProvider::Mistral   => "https://api.mistral.ai/v1",
-        LlmProvider::Ollama    => "http://localhost:11434/v1",
+        LlmProvider::OpenAi => "https://api.openai.com/v1",
+        LlmProvider::Mistral => "https://api.mistral.ai/v1",
+        LlmProvider::Ollama => "http://localhost:11434/v1",
         LlmProvider::Anthropic => "https://api.anthropic.com",
-        LlmProvider::LlamaCpp  => unreachable!("LlamaCpp handled by instantiate_embedded_backend"),
+        LlmProvider::LlamaCpp => unreachable!("LlamaCpp handled by instantiate_embedded_backend"),
     };
 
     let base_url = extract_base_url(cfg, default_url);
 
     let api_cfg = ApiBackendConfig {
-        name:        cfg.name.clone(),
-        api_url:     base_url,
+        name: cfg.name.clone(),
+        api_url: base_url,
         api_key_env: String::new(), // clé déjà résolue
-        model:       cfg.model.clone(),
+        model: cfg.model.clone(),
     };
 
     if matches!(provider, LlmProvider::Anthropic) {
@@ -884,9 +886,12 @@ mod tests {
             is_default,
         };
 
-        repo.save(&make_ollama("ollama-default", true, true)).unwrap();
-        repo.save(&make_ollama("ollama-extra", true, false)).unwrap();
-        repo.save(&make_ollama("ollama-disabled", false, false)).unwrap();
+        repo.save(&make_ollama("ollama-default", true, true))
+            .unwrap();
+        repo.save(&make_ollama("ollama-extra", true, false))
+            .unwrap();
+        repo.save(&make_ollama("ollama-disabled", false, false))
+            .unwrap();
 
         let router = LlmRouter::from_repository(&repo)
             .await
@@ -912,10 +917,7 @@ mod tests {
 
         // empty repo — no default
         let result = LlmRouter::from_repository(&repo).await;
-        assert!(matches!(
-            result,
-            Err(LlmError::BackendUnavailable { .. })
-        ));
+        assert!(matches!(result, Err(LlmError::BackendUnavailable { .. })));
 
         // backend with is_default=false — still no default
         repo.save(&LlmBackendConfig {
@@ -925,13 +927,11 @@ mod tests {
             config_json: serde_json::json!({}),
             enabled: true,
             is_default: false,
-        }).unwrap();
+        })
+        .unwrap();
 
         let result2 = LlmRouter::from_repository(&repo).await;
-        assert!(matches!(
-            result2,
-            Err(LlmError::BackendUnavailable { .. })
-        ));
+        assert!(matches!(result2, Err(LlmError::BackendUnavailable { .. })));
     }
 
     // ── Tests : get, list, clone, error cases ────────────────────────────────

@@ -28,9 +28,8 @@ pub mod task;
 pub mod user;
 
 pub use budget::StepBudgetConfig;
-pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
-pub use stt_config::{SttConfigError, SttConfigRepository, SttConfigRow};
 pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
+pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
 pub use manifest::{AgentManifest, AgentSkill};
 pub use observability::{truncate_with_marker, ObservabilityConfig};
 pub use pending_approvals::{PendingApprovalError, PendingApprovals};
@@ -39,5 +38,6 @@ pub use result::{
     AIPArtifact, AIPError, AIPResult, InputRequiredData, InputResponseData, TaskStatus,
 };
 pub use sandbox::SandboxProfile;
+pub use stt_config::{SttConfigError, SttConfigRepository, SttConfigRow};
 pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, TextPart};
 pub use user::{UpdateProfileRequest, UserMemoryEntryResponse, UserMemoryResponse, UserProfile};

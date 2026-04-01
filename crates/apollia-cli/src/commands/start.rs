@@ -182,6 +182,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 supports_a2a,
                 user_context,
                 None, // a2a_delegate — chat runner does not participate in A2A delegation
+                None, // a2a_invoker — not available in chat mode
             );
             Py::new(py, ctx)
                 .map(|p| p.into_any())
@@ -458,6 +459,8 @@ struct AIPProductionBackend {
     supports_a2a: bool,
     /// Fonction de délégation A2A type-erasée — `None` si non disponible.
     a2a_delegate: Option<apollia_runtime::a2a::A2aDelegateFn>,
+    /// Orchestrateur A2A de haut niveau — `None` si registry ou router non initialisés.
+    a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
 }
 
 impl Clone for AIPProductionBackend {
@@ -476,6 +479,7 @@ impl Clone for AIPProductionBackend {
             pending_approvals: self.pending_approvals.clone(),
             task_repository: self.task_repository.clone(),
             a2a_delegate: self.a2a_delegate.clone(),
+            a2a_invoker: self.a2a_invoker.clone(),
         }
     }
 }
@@ -503,6 +507,8 @@ struct BridgeRunner {
     supports_a2a: bool,
     /// Type-erased delegation function — `None` if not available at runner level.
     a2a_delegate: Option<apollia_runtime::a2a::A2aDelegateFn>,
+    /// High-level A2A invoker — `None` if not available.
+    a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -521,6 +527,7 @@ impl AgentRunner for BridgeRunner {
         let memory_base_dir = self.memory_base_dir.clone();
         let supports_a2a = self.supports_a2a;
         let a2a_delegate = self.a2a_delegate.clone();
+        let a2a_invoker = self.a2a_invoker.clone();
 
         Box::pin(async move {
             let router_for_helper = llm_router
@@ -573,6 +580,7 @@ impl AgentRunner for BridgeRunner {
                     supports_a2a,
                     None, // user_context — task mode, not chat
                     a2a_delegate,
+                    a2a_invoker,
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
@@ -601,6 +609,7 @@ impl ExecutionBackend for AIPProductionBackend {
             memory_base_dir: self.memory_base_dir.clone(),
             supports_a2a: self.supports_a2a,
             a2a_delegate: self.a2a_delegate.clone(),
+            a2a_invoker: self.a2a_invoker.clone(),
         };
 
         // Build a per-task ORIAEngine wired with HITL components (execute_direct).
@@ -669,20 +678,29 @@ impl AgentBackendFactory for ProductionBackendFactory {
         let pending_approvals = self.pending_approvals.get().cloned();
         let task_repository = self.task_repository.get().cloned();
 
-        // Build A2A delegate if registry + router are available.
-        let a2a_delegate: Option<apollia_runtime::a2a::A2aDelegateFn> =
-            match (self.registry.get().cloned(), self.router.get().cloned()) {
-                (Some(registry), Some(router)) => {
-                    Some(make_delegate_fn(registry, router, event_bus.clone()))
-                }
-                _ => {
-                    tracing::warn!(
-                        agent = %agent_id,
-                        "A2A delegate not available — registry or router not yet initialized"
-                    );
-                    None
-                }
-            };
+        // Build A2A delegate and invoker if registry + router are available.
+        let (a2a_delegate, a2a_invoker) = match (
+            self.registry.get().cloned(),
+            self.router.get().cloned(),
+        ) {
+            (Some(registry), Some(router)) => {
+                let delegate =
+                    make_delegate_fn(registry.clone(), router.clone(), event_bus.clone());
+                let invoker = Arc::new(apollia_runtime::a2a::A2AInvoker::new(
+                    registry,
+                    router,
+                    event_bus.clone(),
+                ));
+                (Some(delegate), Some(invoker))
+            }
+            _ => {
+                tracing::warn!(
+                    agent = %agent_id,
+                    "A2A delegate/invoker not available — registry or router not yet initialized"
+                );
+                (None, None)
+            }
+        };
 
         let result: Result<AIPProductionBackend, String> = (|| {
             let module =
@@ -707,6 +725,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 task_repository,
                 supports_a2a,
                 a2a_delegate,
+                a2a_invoker,
             })
         })();
 

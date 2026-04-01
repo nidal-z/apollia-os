@@ -326,6 +326,7 @@ impl AgentRunner for BridgeRunner {
                     false, // supports_a2a — desktop backend does not participate in A2A routing
                     None,  // user_context — task mode, not chat
                     None,  // a2a_delegate — not available in desktop backend
+                    None,  // a2a_invoker — not available in desktop backend
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())

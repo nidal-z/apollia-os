@@ -418,7 +418,12 @@ mod tests {
         // THEN Commands::Agent { command: AgentCommand::List }
         match &cli.command {
             Commands::Agent { command } => {
-                assert!(matches!(command, AgentCommand::List { supports_a2a: false }));
+                assert!(matches!(
+                    command,
+                    AgentCommand::List {
+                        supports_a2a: false
+                    }
+                ));
                 assert!(!cli.json);
             }
             other => panic!("expected Commands::Agent, got {other:?}"),

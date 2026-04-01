@@ -3,6 +3,8 @@
 //! Expose :
 //! - `GET  /api/v1/a2a/agents`   — liste les agents A2A actifs avec leurs skills
 //! - `POST /api/v1/a2a/delegate` — délègue une tâche à un Worker Agent par skill ID
+//! - `GET  /api/v1/a2a/skills`   — liste plate de tous les skills A2A disponibles
+//! - `POST /api/v1/a2a/invoke`   — invocation haut niveau via [`A2AInvoker`]
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -11,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use apollia_core::ProcessState;
 
+use crate::a2a::invoker::{A2AError, SkillListing};
 use crate::a2a::{delegate_inner, A2aDelegateResult, A2aError, A2aErrorResponse};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
@@ -154,6 +157,105 @@ pub async fn delegate<B: ExecutionBackend + Clone>(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Types de réponse — GET /api/v1/a2a/skills
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Corps de réponse pour `GET /api/v1/a2a/skills`.
+#[derive(Debug, Serialize)]
+pub struct A2aSkillsResponse {
+    /// Liste plate de tous les skills A2A disponibles.
+    pub skills: Vec<SkillListing>,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types de requête — POST /api/v1/a2a/invoke
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Corps de requête pour `POST /api/v1/a2a/invoke`.
+#[derive(Debug, Deserialize)]
+pub struct InvokeRequest {
+    /// Identifiant du skill cible (ex: `"read-excel"`).
+    pub skill_id: String,
+    /// Payload JSON transmis au Worker Agent comme input.
+    pub input: serde_json::Value,
+    /// Nom du caller (Director Agent) — utilisé pour l'observabilité.
+    #[serde(default)]
+    pub caller: Option<String>,
+    /// Timeout de l'invocation en secondes (défaut: 120).
+    #[serde(default)]
+    pub timeout_secs: Option<u64>,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Handlers — GET /api/v1/a2a/skills
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Handler pour `GET /api/v1/a2a/skills`.
+///
+/// Retourne la liste plate de tous les skills A2A disponibles via l'[`A2AInvoker`].
+/// Retourne 503 si l'invoker n'est pas initialisé.
+pub async fn list_a2a_skills<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+) -> Result<Json<A2aSkillsResponse>, (StatusCode, Json<A2aErrorResponse>)> {
+    let invoker = state.a2a_invoker.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(A2aErrorResponse {
+                error: "A2A invoker not initialized".to_string(),
+                skill_id: None,
+                available_skills: None,
+                conflicting_agents: None,
+            }),
+        )
+    })?;
+
+    let skills = invoker.list_skills().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(A2aErrorResponse {
+                error: e.to_string(),
+                skill_id: None,
+                available_skills: None,
+                conflicting_agents: None,
+            }),
+        )
+    })?;
+
+    Ok(Json(A2aSkillsResponse { skills }))
+}
+
+/// Handler pour `POST /api/v1/a2a/invoke`.
+///
+/// Invoque un Worker Agent par skill ID via l'[`A2AInvoker`].
+/// Retourne 503 si l'invoker n'est pas initialisé.
+/// Retourne 404 si le skill est introuvable, 503 si l'agent n'est pas actif.
+pub async fn invoke_by_skill<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Json(req): Json<InvokeRequest>,
+) -> Result<Json<crate::a2a::invoker::A2AInvocationResult>, (StatusCode, Json<A2aErrorResponse>)> {
+    let invoker = state.a2a_invoker.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(A2aErrorResponse {
+                error: "A2A invoker not initialized".to_string(),
+                skill_id: None,
+                available_skills: None,
+                conflicting_agents: None,
+            }),
+        )
+    })?;
+
+    let caller = req.caller.as_deref().unwrap_or("api");
+    let timeout = req.timeout_secs.map(std::time::Duration::from_secs);
+
+    invoker
+        .invoke(&req.skill_id, req.input, caller, timeout)
+        .await
+        .map(Json)
+        .map_err(a2a_invoker_err_response)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -186,5 +288,30 @@ fn registry_err_response(err: A2aError) -> (StatusCode, Json<A2aErrorResponse>) 
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(A2aErrorResponse::from_error(&err)),
+    )
+}
+
+/// Convertit une [`A2AError`] (invoker de haut niveau) en réponse HTTP axum.
+fn a2a_invoker_err_response(err: A2AError) -> (StatusCode, Json<A2aErrorResponse>) {
+    let status = match &err {
+        A2AError::SkillNotFound { .. } => StatusCode::NOT_FOUND,
+        A2AError::AgentNotActive { .. } => StatusCode::SERVICE_UNAVAILABLE,
+        A2AError::Timeout { .. } => StatusCode::GATEWAY_TIMEOUT,
+        A2AError::ExecutionFailed { .. } => StatusCode::BAD_GATEWAY,
+        A2AError::RegistryError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    };
+    let skill_id = match &err {
+        A2AError::SkillNotFound { skill_id, .. } => Some(skill_id.clone()),
+        A2AError::Timeout { skill_id, .. } => Some(skill_id.clone()),
+        _ => None,
+    };
+    (
+        status,
+        Json(A2aErrorResponse {
+            error: err.to_string(),
+            skill_id,
+            available_skills: None,
+            conflicting_agents: None,
+        }),
     )
 }

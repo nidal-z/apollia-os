@@ -1245,7 +1245,10 @@ mod tests {
 
         // WHEN reading the skill identifier
         let id = skill.get("id").and_then(|v| v.as_str()).unwrap_or("?");
-        let legacy = skill.get("skill_id").and_then(|v| v.as_str()).unwrap_or("?");
+        let legacy = skill
+            .get("skill_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
 
         // THEN "id" resolves correctly and "skill_id" is absent
         assert_eq!(id, "read-excel");

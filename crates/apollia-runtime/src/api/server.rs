@@ -193,6 +193,12 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `None` in tests or when `system.db` could not be opened.
     /// Config routes return 503 when `None`.
     pub stt_config_repo: Option<Arc<std::sync::Mutex<SttConfigRepository>>>,
+    /// Orchestrateur A2A de haut niveau — invocations inter-agents par skill ID.
+    ///
+    /// `Some` après l'initialisation du runtime avec registry + router + event_bus.
+    /// `None` en tests unitaires. Les routes `/api/v1/a2a/skills` et
+    /// `/api/v1/a2a/invoke` retournent 503 quand `None`.
+    pub a2a_invoker: Option<Arc<crate::a2a::A2AInvoker>>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -229,6 +235,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             mcp_server_repo: self.mcp_server_repo.clone(),
             llm_backend_repo: self.llm_backend_repo.clone(),
             stt_config_repo: self.stt_config_repo.clone(),
+            a2a_invoker: self.a2a_invoker.clone(),
         }
     }
 }
@@ -329,7 +336,7 @@ async fn shutdown_handler<B: ExecutionBackend + Clone>(
 
 /// Build the axum Router with all routes and shared state.
 fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<B>) -> Router {
-    use super::routes_a2a::{delegate, list_a2a_agents};
+    use super::routes_a2a::{delegate, invoke_by_skill, list_a2a_agents, list_a2a_skills};
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use super::routes_approvals::{list_pending_approvals, list_resolved_approvals};
     use super::routes_audit::{get_audit_stats, list_audit};
@@ -397,6 +404,8 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         // A2A routing routes
         .route("/api/v1/a2a/agents", get(list_a2a_agents::<B>))
         .route("/api/v1/a2a/delegate", post(delegate::<B>))
+        .route("/api/v1/a2a/skills", get(list_a2a_skills::<B>))
+        .route("/api/v1/a2a/invoke", post(invoke_by_skill::<B>))
         // Plan cache routes
         .route("/api/v1/plan-cache/stats", get(get_plan_cache_stats::<B>))
         .route("/api/v1/plan-cache/clear", post(clear_plan_cache::<B>))
@@ -717,6 +726,7 @@ mod tests {
             mcp_server_repo: None,
             llm_backend_repo: None,
             stt_config_repo: None,
+            a2a_invoker: None,
         }
     }
 

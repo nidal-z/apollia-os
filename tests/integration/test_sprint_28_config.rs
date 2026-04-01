@@ -256,9 +256,7 @@ fn test_memory_clear_episodic() {
         .expect("clear_episodic failed");
     assert_eq!(deleted, 3, "expected 3 rows deleted");
 
-    let stats = store
-        .stats("test-agent", &db_path)
-        .expect("stats failed");
+    let stats = store.stats("test-agent", &db_path).expect("stats failed");
     assert_eq!(
         stats.episodic_count, 0,
         "episodic_count must be 0 after clear"

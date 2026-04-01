@@ -886,6 +886,7 @@ impl Supervisor {
             mcp_handle: mcp_handle.clone(),
             mcp_server_repo: mcp_server_repo.clone(),
             llm_backend_repo: llm_backend_repo.clone(),
+            a2a_invoker: None,
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -1807,6 +1808,7 @@ mod tests {
             mcp_server_repo: None,
             llm_backend_repo: None,
             stt_config_repo: None,
+            a2a_invoker: None,
         };
 
         // WHEN on clone l'AppState

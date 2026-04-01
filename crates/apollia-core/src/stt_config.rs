@@ -171,8 +171,17 @@ impl SttConfigRepository {
 
         match rows.next() {
             Some(row) => {
-                let (enabled, model_path, hotkey, clipboard_mode, clipboard_restore,
-                     silence_threshold_db, max_recording_sec, language, trigger_mode) = row?;
+                let (
+                    enabled,
+                    model_path,
+                    hotkey,
+                    clipboard_mode,
+                    clipboard_restore,
+                    silence_threshold_db,
+                    max_recording_sec,
+                    language,
+                    trigger_mode,
+                ) = row?;
                 Ok(SttConfigRow {
                     enabled: enabled != 0,
                     model_path,

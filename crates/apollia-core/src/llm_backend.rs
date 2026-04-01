@@ -488,7 +488,12 @@ mod tests {
 
         repo.set_default("b").unwrap();
 
-        let defaults: Vec<_> = repo.list().unwrap().into_iter().filter(|c| c.is_default).collect();
+        let defaults: Vec<_> = repo
+            .list()
+            .unwrap()
+            .into_iter()
+            .filter(|c| c.is_default)
+            .collect();
         assert_eq!(defaults.len(), 1);
         assert_eq!(defaults[0].name, "b");
     }
@@ -598,7 +603,12 @@ mod tests {
         repo.save(&make_config("first", true)).unwrap();
         repo.save(&make_config("second", true)).unwrap();
 
-        let defaults: Vec<_> = repo.list().unwrap().into_iter().filter(|c| c.is_default).collect();
+        let defaults: Vec<_> = repo
+            .list()
+            .unwrap()
+            .into_iter()
+            .filter(|c| c.is_default)
+            .collect();
         assert_eq!(defaults.len(), 1);
         assert_eq!(defaults[0].name, "second");
     }

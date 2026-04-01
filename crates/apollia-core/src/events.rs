@@ -643,6 +643,35 @@ pub enum RuntimeEvent {
         to: String,
     },
 
+    // ── A2A Invocation events ─────────────────────
+    /// Une invocation A2A a démarré — émise par `A2AInvoker` avant la soumission de la tâche.
+    ///
+    /// Émis en fire-and-forget avant l'appel au TaskRouter.
+    /// Suivi de [`RuntimeEvent::A2AInvocationCompleted`] après exécution.
+    A2AInvocationStarted {
+        /// Nom de l'agent initiateur (Director).
+        caller: String,
+        /// Nom de l'agent cible (Worker).
+        target: String,
+        /// Identifiant du skill invoqué.
+        skill_id: String,
+    },
+    /// Une invocation A2A s'est terminée — émise après réception du résultat ou d'un échec.
+    ///
+    /// `status` vaut `"completed"` en cas de succès ou `"failed"` en cas d'erreur.
+    A2AInvocationCompleted {
+        /// Nom de l'agent initiateur (Director).
+        caller: String,
+        /// Nom de l'agent cible (Worker).
+        target: String,
+        /// Identifiant du skill invoqué.
+        skill_id: String,
+        /// Statut final : `"completed"` ou `"failed"`.
+        status: String,
+        /// Durée totale de l'invocation en millisecondes.
+        duration_ms: u64,
+    },
+
     // ── Onboarding events ────────────────────────
     /// Émis au premier lancement quand la UserMemory est vide.
     ///
@@ -998,6 +1027,19 @@ mod tests {
             RuntimeEvent::PlanCacheHit {
                 task_id: "task-1".into(),
                 cache_key: "abc123def456".into(),
+            },
+            // ── A2A Invocation ────────────────────────
+            RuntimeEvent::A2AInvocationStarted {
+                caller: "director".into(),
+                target: "excel-worker".into(),
+                skill_id: "read-excel".into(),
+            },
+            RuntimeEvent::A2AInvocationCompleted {
+                caller: "director".into(),
+                target: "excel-worker".into(),
+                skill_id: "read-excel".into(),
+                status: "completed".into(),
+                duration_ms: 350,
             },
             // ── Onboarding ──────────────────────────
             RuntimeEvent::OnboardingRequired,

@@ -57,4 +57,3 @@ fn test_config_unresolved_env_var_fails() {
         Err(McpConfigError::UnresolvedEnvVar { .. })
     ));
 }
-
