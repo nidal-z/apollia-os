@@ -417,6 +417,7 @@ use std::collections::HashMap;
 
 use apollia_core::events::{AgentId, EventBusSender, RuntimeEvent};
 use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
+use apollia_runtime::a2a::{A2aDelegateFn, A2aDelegateResult};
 use apollia_runtime::mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
 
 use crate::llm::LlmProxy;
@@ -452,6 +453,12 @@ pub struct RuntimeContext {
     /// Structure : `{"preferences": [("key", "value"), ...], "habits": [...], "context": [...]}`.
     /// L'agent décide quoi en faire — ce n'est jamais déterministe.
     user_context: Option<HashMap<String, Vec<(String, String)>>>,
+    /// Fonction de délégation A2A type-erasée — `None` si le routing A2A n'est pas disponible.
+    ///
+    /// Injectée depuis `make_delegate_fn(registry, router, event_bus)` en production.
+    /// Permet à un Director Agent d'appeler `ctx.delegate(skill_id, payload)` sans
+    /// connaître le backend d'exécution sous-jacent.
+    a2a_delegate: Option<A2aDelegateFn>,
 }
 
 impl RuntimeContext {
@@ -493,6 +500,7 @@ impl RuntimeContext {
         agent_name: String,
         supports_a2a: bool,
         user_context: Option<HashMap<String, Vec<(String, String)>>>,
+        a2a_delegate: Option<A2aDelegateFn>,
     ) -> Self {
         let llm = llm_router.and_then(|router| {
             if router.list().is_empty() {
@@ -529,6 +537,7 @@ impl RuntimeContext {
             agent_name,
             supports_a2a,
             user_context,
+            a2a_delegate,
         }
     }
 }
@@ -676,6 +685,64 @@ impl RuntimeContext {
             }
         })
     }
+
+    /// Délègue une tâche à un Worker Agent identifié par son skill ID.
+    ///
+    /// Retourne un Python awaitable qui résout en `dict` avec les clés
+    /// `task_id`, `agent_name`, `output`.
+    /// Lève `RuntimeError` si `supports_a2a` est `false` ou si la délégation
+    /// A2A n'est pas disponible dans ce contexte d'exécution.
+    #[pyo3(signature = (skill_id, payload, timeout_secs=None))]
+    fn delegate<'py>(
+        &self,
+        py: Python<'py>,
+        skill_id: String,
+        payload: PyObject,
+        timeout_secs: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        if !self.supports_a2a {
+            return Err(PyRuntimeError::new_err(
+                "A2A delegation requires supports_a2a: true in manifest",
+            ));
+        }
+        let delegate_fn = self.a2a_delegate.clone().ok_or_else(|| {
+            PyRuntimeError::new_err("A2A delegation not available in this runtime context")
+        })?;
+
+        // Convert Python dict → JSON Value.
+        let json_mod = py
+            .import_bound("json")
+            .map_err(|e| PyRuntimeError::new_err(format!("failed to import json: {e}")))?;
+        let json_str: String = json_mod
+            .call_method1("dumps", (payload.bind(py),))
+            .map_err(|e| PyRuntimeError::new_err(format!("json.dumps failed: {e}")))?
+            .extract()
+            .map_err(|e| PyRuntimeError::new_err(format!("extract failed: {e}")))?;
+        let input_value: serde_json::Value = serde_json::from_str(&json_str)
+            .map_err(|e| PyRuntimeError::new_err(format!("JSON parse failed: {e}")))?;
+
+        let timeout = timeout_secs.unwrap_or(120);
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let result: A2aDelegateResult = (delegate_fn)(skill_id, input_value, timeout)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+            let json_str = serde_json::to_string(&result)
+                .map_err(|e| PyRuntimeError::new_err(format!("serialization error: {e}")))?;
+
+            Python::with_gil(|py| {
+                let json_mod = py
+                    .import_bound("json")
+                    .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+                let py_obj: PyObject = json_mod
+                    .call_method1("loads", (json_str,))
+                    .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
+                    .unbind();
+                Ok(py_obj)
+            })
+        })
+    }
 }
 
 /// Envoie un message d'un agent à un autre via la mailbox — testable sans PyO3.
@@ -795,6 +862,7 @@ mod runtime_context_tests {
             String::new(), // agent_name
             false,         // supports_a2a
             None,          // user_context
+            None,          // a2a_delegate
         );
         // THEN
         assert!(ctx.llm.is_none());
@@ -821,6 +889,7 @@ mod runtime_context_tests {
             String::new(), // agent_name
             false,         // supports_a2a
             None,          // user_context
+            None,          // a2a_delegate
         );
         // THEN un événement AgentDegraded est présent sur le bus
         let event = rx.try_recv().expect("un événement doit être présent");
@@ -853,6 +922,7 @@ mod runtime_context_tests {
             String::new(), // agent_name
             false,         // supports_a2a
             None,          // user_context
+            None,          // a2a_delegate
         );
         // THEN
         assert!(ctx.llm.is_none());
@@ -1207,6 +1277,7 @@ mod a2a_tests {
             agent_name: "test-agent".to_string(),
             supports_a2a: false,
             user_context: None,
+            a2a_delegate: None,
         };
 
         // THEN les vérifications internes échouent
@@ -1239,6 +1310,7 @@ mod a2a_tests {
             agent_name: "chat-agent".to_string(),
             supports_a2a: false,
             user_context: Some(uc),
+            a2a_delegate: None,
         };
 
         // THEN user_context is Some with expected categories
@@ -1260,6 +1332,7 @@ mod a2a_tests {
             agent_name: "task-agent".to_string(),
             supports_a2a: false,
             user_context: None,
+            a2a_delegate: None,
         };
 
         // THEN user_context is None

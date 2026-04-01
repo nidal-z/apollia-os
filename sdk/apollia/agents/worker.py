@@ -69,6 +69,23 @@ class WorkerAgent(BaseReActAgent):
         })
         return result.get("entries", [])
 
+    # ── A2A delegation ────────────────────────────────────────────────────
+
+    async def delegate_skill(
+        self,
+        ctx: Any,
+        skill_id: str,
+        payload: dict[str, Any],
+        timeout_secs: int = 120,
+    ) -> dict[str, Any]:
+        """Delegate a task to another agent by skill ID via A2A routing.
+
+        Resolves the skill at runtime, submits the task, and waits for
+        the result.  Raises ``RuntimeError`` on skill-not-found, ambiguity,
+        or timeout.
+        """
+        return await ctx.delegate(skill_id, payload, timeout_secs)
+
     # ── Error helpers ──────────────────────────────────────────────────────
 
     def domain_error(

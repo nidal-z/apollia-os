@@ -16,7 +16,11 @@ use crate::exit_codes;
 #[derive(Debug, Subcommand)]
 pub enum AgentCommand {
     /// List all agents (installed and/or runtime).
-    List,
+    List {
+        /// Show only A2A-capable agents with their skill descriptors.
+        #[arg(long)]
+        supports_a2a: bool,
+    },
     /// Start (register) a new agent from a Python module path.
     Start {
         /// Path to the agent Python module.
@@ -78,7 +82,7 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
     let client = RuntimeClient::new(socket_path);
 
     match cmd {
-        AgentCommand::List => run_list(&client, json).await,
+        AgentCommand::List { supports_a2a } => run_list(&client, *supports_a2a, json).await,
         AgentCommand::Start { path } => run_start(&client, path, json).await,
         AgentCommand::Stop { agent_id } => run_stop(&client, agent_id, json).await,
         AgentCommand::Info { agent_id } => run_info(&client, agent_id, json).await,
@@ -96,7 +100,14 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// `apollia-os agent list` — display all agents (installed + runtime).
-async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
+///
+/// When `supports_a2a` is `true`, fetches from `/api/v1/a2a/agents` instead
+/// and displays only A2A-capable agents with their skill descriptors.
+async fn run_list(client: &RuntimeClient, supports_a2a: bool, json: bool) -> i32 {
+    if supports_a2a {
+        return run_list_a2a(client, json).await;
+    }
+
     // Fetch installed agents from local DB.
     let installed = open_repository()
         .and_then(|repo| repo.list().ok())
@@ -115,6 +126,59 @@ async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
         format_enriched_agent_list(&installed, &runtime_agents);
     }
     exit_codes::SUCCESS
+}
+
+/// `apollia-os agent list --supports-a2a` — display A2A-capable agents with skills.
+async fn run_list_a2a(client: &RuntimeClient, json: bool) -> i32 {
+    match client.list_a2a_agents().await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                format_a2a_agent_list(&resp);
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => handle_error(e, json),
+    }
+}
+
+/// Formats the A2A agent list for human-readable output.
+fn format_a2a_agent_list(resp: &serde_json::Value) {
+    let agents = resp.get("agents").and_then(|v| v.as_array());
+    match agents {
+        None => println!("No A2A-capable agents running."),
+        Some(list) if list.is_empty() => println!("No A2A-capable agents running."),
+        Some(list) => {
+            println!("A2A-capable agents ({}):", list.len());
+            for agent in list {
+                let name = agent.get("name").and_then(|v| v.as_str()).unwrap_or("?");
+                let state = agent.get("state").and_then(|v| v.as_str()).unwrap_or("?");
+                println!("  {name}  [{state}]");
+                if let Some(skills) = agent.get("skills").and_then(|v| v.as_array()) {
+                    if skills.is_empty() {
+                        println!("    skills: (none declared)");
+                    } else {
+                        for skill in skills {
+                            let id = skill.get("skill_id").and_then(|v| v.as_str()).unwrap_or("?");
+                            let desc = skill
+                                .get("description")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("");
+                            if desc.is_empty() {
+                                println!("    - {id}");
+                            } else {
+                                println!("    - {id}: {desc}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// `apollia-os agent start <path>` — register a new agent.

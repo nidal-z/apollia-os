@@ -8,6 +8,7 @@
 //! - `APIServer` — axum HTTP server on Unix socket + TCP 7771.
 //! - `Supervisor` — ordered startup + watchdog.
 
+pub mod a2a;
 pub mod api;
 pub mod chat;
 pub mod coordinator;
@@ -41,6 +42,12 @@ pub use apollia_tools::ToolRegistryHandle;
 
 // Agent-to-agent messaging
 pub use mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
+
+// A2A routing
+pub use a2a::{
+    make_delegate_fn, resolve_skill, A2aDelegateFn, A2aDelegateResult, A2aError,
+    A2aErrorResponse,
+};
 
 // Chat subsystem
 pub use chat::ChatSessionManagerHandle;

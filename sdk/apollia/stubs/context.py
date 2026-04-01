@@ -60,3 +60,20 @@ class RuntimeContext:
         (defaults to 5.0).  Raises ``RuntimeError`` if A2A is not enabled.
         """
         ...
+
+    def delegate(
+        self,
+        skill_id: str,
+        payload: dict[str, object],
+        timeout_secs: int | None = None,
+    ) -> Awaitable[dict[str, object]]:
+        """Delegate a task to a Worker Agent by skill ID.
+
+        The runtime resolves the skill to an active agent, submits the task,
+        and waits for the result.  ``timeout_secs`` defaults to 120.
+
+        Returns the task result as a dict.  Raises ``RuntimeError`` if
+        ``supports_a2a`` is not enabled, the skill is not found, the skill is
+        ambiguous, or the delegation times out.
+        """
+        ...

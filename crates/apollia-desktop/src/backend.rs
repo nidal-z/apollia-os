@@ -321,10 +321,11 @@ impl AgentRunner for BridgeRunner {
                     agent_id.clone().into(),
                     tool_proxy,
                     memory_interface,
-                    None, // mailbox — not wired yet in desktop BridgeRunner
+                    None, // mailbox — not wired in desktop task mode
                     agent_id,
-                    false, // supports_a2a — not available at BridgeRunner level
+                    false, // supports_a2a — desktop backend does not participate in A2A routing
                     None,  // user_context — task mode, not chat
+                    None,  // a2a_delegate — not available in desktop backend
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())

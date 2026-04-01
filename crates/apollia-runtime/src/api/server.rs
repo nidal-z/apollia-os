@@ -329,6 +329,7 @@ async fn shutdown_handler<B: ExecutionBackend + Clone>(
 
 /// Build the axum Router with all routes and shared state.
 fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<B>) -> Router {
+    use super::routes_a2a::{delegate, list_a2a_agents};
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use super::routes_approvals::{list_pending_approvals, list_resolved_approvals};
     use super::routes_audit::{get_audit_stats, list_audit};
@@ -393,6 +394,9 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             "/api/v1/agents/:name/messages",
             get(list_agent_messages::<B>),
         )
+        // A2A routing routes
+        .route("/api/v1/a2a/agents", get(list_a2a_agents::<B>))
+        .route("/api/v1/a2a/delegate", post(delegate::<B>))
         // Plan cache routes
         .route("/api/v1/plan-cache/stats", get(get_plan_cache_stats::<B>))
         .route("/api/v1/plan-cache/clear", post(clear_plan_cache::<B>))

@@ -20,10 +20,13 @@ use apollia_llm::{
 use apollia_memory::manager::MemoryManager;
 use apollia_oria::budget::StepBudget;
 use apollia_oria::engine::{AgentRunner, ORIAEngine};
+use apollia_runtime::a2a::make_delegate_fn;
 use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::api::APIServerConfig;
 use apollia_runtime::coordinator::{DynBackend, ExecutionBackend};
 use apollia_runtime::eventbus::EventBusSender;
+use apollia_runtime::registry::AgentRegistryHandle;
+use apollia_runtime::router::TaskRouterHandle;
 use apollia_runtime::shutdown::{ShutdownConfig, ShutdownController};
 use apollia_runtime::supervisor::{Supervisor, SupervisorConfig};
 use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
@@ -178,6 +181,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 agent_name.to_string(),
                 supports_a2a,
                 user_context,
+                None, // a2a_delegate — chat runner does not participate in A2A delegation
             );
             Py::new(py, ctx)
                 .map(|p| p.into_any())
@@ -450,6 +454,10 @@ struct AIPProductionBackend {
     memory_namespace: Option<String>,
     /// Répertoire racine des fichiers mémoire (ex: `~/.apollia/memory/`).
     memory_base_dir: PathBuf,
+    /// Indique si l'agent supporte le protocole A2A (depuis le manifest).
+    supports_a2a: bool,
+    /// Fonction de délégation A2A type-erasée — `None` si non disponible.
+    a2a_delegate: Option<apollia_runtime::a2a::A2aDelegateFn>,
 }
 
 impl Clone for AIPProductionBackend {
@@ -464,8 +472,10 @@ impl Clone for AIPProductionBackend {
             audit_trail: self.audit_trail.clone(),
             memory_namespace: self.memory_namespace.clone(),
             memory_base_dir: self.memory_base_dir.clone(),
+            supports_a2a: self.supports_a2a,
             pending_approvals: self.pending_approvals.clone(),
             task_repository: self.task_repository.clone(),
+            a2a_delegate: self.a2a_delegate.clone(),
         }
     }
 }
@@ -489,6 +499,10 @@ struct BridgeRunner {
     audit_trail: Option<AuditTrailHandle>,
     memory_namespace: Option<String>,
     memory_base_dir: PathBuf,
+    /// Whether the agent declared A2A support in its manifest.
+    supports_a2a: bool,
+    /// Type-erased delegation function — `None` if not available at runner level.
+    a2a_delegate: Option<apollia_runtime::a2a::A2aDelegateFn>,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -505,6 +519,8 @@ impl AgentRunner for BridgeRunner {
         let audit_trail = self.audit_trail.clone();
         let memory_namespace = self.memory_namespace.clone();
         let memory_base_dir = self.memory_base_dir.clone();
+        let supports_a2a = self.supports_a2a;
+        let a2a_delegate = self.a2a_delegate.clone();
 
         Box::pin(async move {
             let router_for_helper = llm_router
@@ -552,10 +568,11 @@ impl AgentRunner for BridgeRunner {
                     agent_id.clone().into(),
                     tool_proxy,
                     memory_interface,
-                    None, // mailbox — not wired yet in BridgeRunner
+                    None, // mailbox — not wired in task mode
                     agent_id,
-                    false, // supports_a2a — not available at BridgeRunner level
-                    None,  // user_context — task mode, not chat
+                    supports_a2a,
+                    None, // user_context — task mode, not chat
+                    a2a_delegate,
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
@@ -582,6 +599,8 @@ impl ExecutionBackend for AIPProductionBackend {
             audit_trail: self.audit_trail.clone(),
             memory_namespace: self.memory_namespace.clone(),
             memory_base_dir: self.memory_base_dir.clone(),
+            supports_a2a: self.supports_a2a,
+            a2a_delegate: self.a2a_delegate.clone(),
         };
 
         // Build a per-task ORIAEngine wired with HITL components (execute_direct).
@@ -623,6 +642,10 @@ struct ProductionBackendFactory {
     audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
     pending_approvals: Arc<std::sync::OnceLock<Arc<PendingApprovals>>>,
     task_repository: Arc<std::sync::OnceLock<Arc<TaskRepository>>>,
+    /// Agent registry handle — populated after supervisor.start().
+    registry: Arc<std::sync::OnceLock<AgentRegistryHandle>>,
+    /// Task router handle — populated after supervisor.start().
+    router: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>>,
 }
 
 impl AgentBackendFactory for ProductionBackendFactory {
@@ -646,6 +669,21 @@ impl AgentBackendFactory for ProductionBackendFactory {
         let pending_approvals = self.pending_approvals.get().cloned();
         let task_repository = self.task_repository.get().cloned();
 
+        // Build A2A delegate if registry + router are available.
+        let a2a_delegate: Option<apollia_runtime::a2a::A2aDelegateFn> =
+            match (self.registry.get().cloned(), self.router.get().cloned()) {
+                (Some(registry), Some(router)) => {
+                    Some(make_delegate_fn(registry, router, event_bus.clone()))
+                }
+                _ => {
+                    tracing::warn!(
+                        agent = %agent_id,
+                        "A2A delegate not available — registry or router not yet initialized"
+                    );
+                    None
+                }
+            };
+
         let result: Result<AIPProductionBackend, String> = (|| {
             let module =
                 apollia_aip::loader::load_agent_module(agent_path).map_err(|e| e.to_string())?;
@@ -653,6 +691,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
             let allowed_tools = validated.manifest.tools_required.clone();
             let memory_namespace = validated.manifest.memory_namespace.clone();
+            let supports_a2a = validated.manifest.supports_a2a;
             let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
             Ok(AIPProductionBackend {
                 bridge,
@@ -666,6 +705,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 memory_base_dir: default_memory_dir(),
                 pending_approvals,
                 task_repository,
+                supports_a2a,
+                a2a_delegate,
             })
         })();
 
@@ -834,6 +875,10 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         Arc::new(std::sync::OnceLock::new());
     let task_repository_lock: Arc<std::sync::OnceLock<Arc<TaskRepository>>> =
         Arc::new(std::sync::OnceLock::new());
+    let registry_lock: Arc<std::sync::OnceLock<AgentRegistryHandle>> =
+        Arc::new(std::sync::OnceLock::new());
+    let router_lock: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>> =
+        Arc::new(std::sync::OnceLock::new());
     let user_memory_lock: Arc<
         std::sync::OnceLock<
             Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
@@ -847,6 +892,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         audit_trail: audit_trail_lock.clone(),
         pending_approvals: pending_approvals_lock.clone(),
         task_repository: task_repository_lock.clone(),
+        registry: registry_lock.clone(),
+        router: router_lock.clone(),
     });
 
     // Concrete ChatAgentRunner for Chat Agent mode.
@@ -873,6 +920,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
     let _ = event_bus_lock.set(handles.event_sender.clone());
     let _ = llm_router_lock.set(handles.llm_router.clone());
     let _ = tool_registry_lock.set(handles.tool_registry_handle.clone());
+    let _ = registry_lock.set(handles.registry_handle.clone());
+    let _ = router_lock.set(handles.router_handle.clone());
     if let Some(audit) = handles.audit_trail.clone() {
         let _ = audit_trail_lock.set(audit);
     }
