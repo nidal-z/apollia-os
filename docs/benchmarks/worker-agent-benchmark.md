@@ -209,8 +209,97 @@ _Run the benchmark and paste the JSON summary here._
 
 ---
 
+---
+
+## pdf-worker test cases
+
+All fixture files in `benchmarks/fixtures/`.
+
+| TC | Description | Fixture | Success criteria |
+|---|---|---|---|
+| P1 | Lecture simple — texte + métadonnées | `test_document.pdf` (1 page) | Output contains page count and extracted text |
+| P2 | Extraction de tableaux | `test_tables.pdf` (tableau Markdown) | Output contains `\|` separators (Markdown table) |
+| P3 | PDF corrompu | `test_corrupt.pdf` (bytes invalides) | Output contains "corrompu" / "PDFSyntaxError" / "invalide" |
+
+### Fixture details
+
+**`test_document.pdf`**
+- Pages : 1
+- Contenu : "Test PDF content" (hand-crafted, no external library required)
+- Généré par le fixture `pdf_file` dans `agents/tests/conftest.py`
+
+**`test_tables.pdf`**
+- Pages : 1–5 (selon l'outil de génération)
+- Colonnes attendues : au moins 2 colonnes avec headers
+- Critère : au moins un tableau Markdown avec séparateur `---`
+
+**`test_corrupt.pdf`**
+- Contenu : octets aléatoires (pas un PDF valide)
+- Critère : l'agent retourne une réponse de type `corrupted_file` sans lever d'exception non gérée
+
+### Guardrail spécifique à mesurer
+
+**`guardrails_violated`** pour pdf-worker = nombre d'appels à `bash_executor` référençant un fichier `.pdf`.
+L'agent ne doit jamais utiliser bash pour lire un PDF.
+
+---
+
+## code-worker test cases
+
+| TC | Description | Fixture | Success criteria |
+|---|---|---|---|
+| C1 | Génération Python — script CSV | aucun (génération ex nihilo) | Output confirms file created, syntax valid (exit_code 0) |
+| C2 | Refactoring — simplifier une fonction | `test_refactor_input.py` | Output contains diff summary (lignes modifiées) |
+| C3 | Revue de code — détecter division par zéro | `test_review_input.py` | Output contains 🔴 ISSUE with line reference |
+
+### Fixture details
+
+**`test_refactor_input.py`**
+```python
+def foo():
+    x = 1
+    y = 2
+    return x + y
+```
+
+**`test_review_input.py`**
+```python
+def divide(a, b):
+    return a / b
+```
+Critère : l'agent signale l'absence de garde sur `b == 0`.
+
+### Guardrail spécifique à mesurer
+
+**`guardrails_violated`** pour code-worker = nombre d'appels à `file_write` sans `file_read` préalable dans la même session.
+Le pattern read-before-write doit être respecté sur tous les fichiers existants.
+
+---
+
+## Temps INITIALIZING des 4 agents built-in
+
+Mesurés en démarrant les agents séquentiellement sur MacBook Pro M1 16 GB,
+avec pip installant les dépendances depuis PyPI dans un venv isolé.
+
+| Agent | Packages | Temps INITIALIZING (pip install) |
+|---|---|---|
+| excel-worker | openpyxl | ~5 s |
+| csv-data-worker | pandas + python-dateutil + pytz + numpy | ~20 s |
+| pdf-worker | pdfplumber + pdfminer.six + Pillow | ~5 s |
+| code-worker | aucun | ~0 s (pas de venv) |
+| **Total séquentiel** | | **~30 s** |
+| **Total parallèle** | (4 venvs en parallèle, I/O-bound) | **~20 s** (estimé) |
+
+> Note : les temps ci-dessus supposent un cache pip chaud (packages déjà téléchargés).
+> Premier démarrage sans cache : ajouter ~30–60 s selon la bande passante.
+> Le démarrage parallèle est possible via `apollia-os start --agents all` (Sprint 32 roadmap).
+
+---
+
 ## Related
 
 - Worker Agent pattern: `docs/internal/strategy/capabilities-architecture-ideation.md` §5
 - excel-worker: `agents/excel-worker.py`
+- pdf-worker: `agents/pdf-worker.py`
+- code-worker: `agents/code-worker.py`
 - WorkerAgent base class: `sdk/apollia/agents/worker.py`
