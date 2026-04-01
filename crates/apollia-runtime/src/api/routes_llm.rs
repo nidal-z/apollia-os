@@ -3,6 +3,7 @@
 //! - `GET  /api/v1/llm/status`                     — list backends
 //! - `POST /api/v1/llm/ping`                       — measure backend latency
 //! - `POST /api/v1/llm/chat`                       — one-shot prompt
+//! - `POST /api/v1/llm/complete`                   — multi-turn completion
 //! - `GET  /api/v1/llm/costs`                      — aggregate cost/token stats
 //! - `GET  /api/v1/llm/costs/daily`                — daily cost breakdown
 //! - `GET    /api/v1/llm/backends`                 — list configured backends
@@ -79,7 +80,7 @@ pub struct ChatRequest {
     pub backend: Option<String>,
 }
 
-/// Response body for `POST /api/v1/llm/chat`.
+/// Response body for `POST /api/v1/llm/chat` and `POST /api/v1/llm/complete`.
 #[derive(Debug, Serialize)]
 pub struct ChatResponse {
     /// LLM-generated response text.
@@ -88,6 +89,26 @@ pub struct ChatResponse {
     pub usage: TokenUsageResponse,
     /// Total round-trip latency in milliseconds.
     pub latency_ms: u64,
+}
+
+/// A single message in a multi-turn conversation request.
+///
+/// `role` accepts `"system"`, `"user"`, `"assistant"`, or `"tool"`.
+#[derive(Debug, Deserialize)]
+pub struct MessageDto {
+    /// Role of the message sender.
+    pub role: String,
+    /// Text content of the message.
+    pub content: String,
+}
+
+/// Request body for `POST /api/v1/llm/complete`.
+#[derive(Debug, Deserialize)]
+pub struct CompleteRequest {
+    /// Ordered list of messages forming the conversation history.
+    pub messages: Vec<MessageDto>,
+    /// Backend to use; falls back to the router default if omitted.
+    pub backend: Option<String>,
 }
 
 // ─────────────────────────────────────────────
@@ -204,6 +225,84 @@ pub async fn llm_chat<B: ExecutionBackend + Clone>(
     let response = router
         .complete_with_observability(
             backend_name,
+            completion_req,
+            Some(&state.event_sender),
+            &obs,
+        )
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(serde_json::json!({"error": e.to_string()})),
+            )
+        })?;
+
+    Ok(Json(ChatResponse {
+        content: response.content,
+        usage: TokenUsageResponse {
+            prompt_tokens: response.usage.prompt_tokens,
+            completion_tokens: response.usage.completion_tokens,
+            cost_usd: response.usage.cost_usd,
+        },
+        latency_ms: response.latency_ms,
+    }))
+}
+
+/// Handler for `POST /api/v1/llm/complete`.
+///
+/// Accepts a multi-turn conversation history and dispatches it through
+/// `LlmRouter::complete_with_observability`. Each `MessageDto` is mapped
+/// to a `ChatMessage` based on its `role` field:
+///
+/// - `"system"`    → `ChatMessage::system`
+/// - `"user"`      → `ChatMessage::user`
+/// - `"assistant"` → `ChatMessage::assistant`
+/// - `"tool"`      → `ChatMessage::tool_result` (empty call id)
+///
+/// Returns `400 Bad Request` when an unknown role is encountered.
+/// Returns `503 Service Unavailable` when no router is configured or the call fails.
+pub async fn llm_complete<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Json(req): Json<CompleteRequest>,
+) -> Result<Json<ChatResponse>, (StatusCode, Json<serde_json::Value>)> {
+    let router = state.llm_router.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error": "no LLM router configured"})),
+        )
+    })?;
+
+    let mut messages = Vec::with_capacity(req.messages.len());
+    for dto in req.messages {
+        let msg = match dto.role.as_str() {
+            "system" => ChatMessage::system(dto.content),
+            "user" => ChatMessage::user(dto.content),
+            "assistant" => ChatMessage::assistant(dto.content),
+            "tool" => ChatMessage::tool_result("", &dto.content),
+            other => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({
+                        "error": format!(
+                            "unknown role '{}'; expected system|user|assistant|tool",
+                            other
+                        )
+                    })),
+                ));
+            }
+        };
+        messages.push(msg);
+    }
+
+    let completion_req = CompletionRequest {
+        messages,
+        ..Default::default()
+    };
+    let obs = ObservabilityConfig::default();
+
+    let response = router
+        .complete_with_observability(
+            req.backend.as_deref(),
             completion_req,
             Some(&state.event_sender),
             &obs,
@@ -789,6 +888,7 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route("/api/v1/llm/status", get(get_llm_status::<B>))
         .route("/api/v1/llm/ping", post(ping_llm_backend::<B>))
         .route("/api/v1/llm/chat", post(llm_chat::<B>))
+        .route("/api/v1/llm/complete", post(llm_complete::<B>))
         .route("/api/v1/llm/costs", get(get_llm_costs::<B>))
         .route("/api/v1/llm/costs/daily", get(get_llm_daily_costs::<B>))
         .route(
@@ -962,6 +1062,67 @@ mod tests {
         let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert!(json["error"].as_str().is_some());
+    }
+
+    // GIVEN an AppState with llm_router = None
+    // WHEN POST /api/v1/llm/complete {"messages": [{"role": "user", "content": "bonjour"}]}
+    // THEN 503 {"error": "no LLM router configured"}
+    #[tokio::test]
+    async fn test_complete_no_router_returns_503() {
+        // GIVEN
+        let app_router = llm_routes::<MockBackend>().with_state(test_app_state_no_llm());
+
+        // WHEN
+        let body_json = serde_json::json!({
+            "messages": [{"role": "user", "content": "bonjour"}]
+        });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/llm/complete")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body_json).unwrap()))
+            .unwrap();
+        let resp = app_router.oneshot(req).await.unwrap();
+
+        // THEN
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(json["error"].as_str().is_some());
+    }
+
+    // GIVEN an AppState with llm_router = Some(LlmRouter::empty())
+    // WHEN POST /api/v1/llm/complete with an unknown role
+    // THEN 400 {"error": "unknown role '...'"}
+    #[tokio::test]
+    async fn test_complete_unknown_role_returns_400() {
+        // GIVEN
+        let mut state = test_app_state_no_llm();
+        state.llm_router = Some(Arc::new(LlmRouter::empty()));
+        let app_router = llm_routes::<MockBackend>().with_state(state);
+
+        // WHEN
+        let body_json = serde_json::json!({
+            "messages": [{"role": "unknown_role", "content": "test"}]
+        });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/llm/complete")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body_json).unwrap()))
+            .unwrap();
+        let resp = app_router.oneshot(req).await.unwrap();
+
+        // THEN
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(
+            json["error"]
+                .as_str()
+                .map(|s| s.contains("unknown_role"))
+                .unwrap_or(false)
+        );
     }
 
     // GIVEN an AppState with llm_router = Some(LlmRouter::empty())
