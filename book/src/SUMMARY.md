@@ -15,6 +15,7 @@
 - [Vue d'ensemble](agents/index.md)
   - [Matrice de décision — Capabilities](agents/decision-matrix.md)
   - [Worker Agent Pattern](agents/worker-agent-pattern.md)
+  - [Community Agent Registry](agents/community-registry.md)
   - [Tutoriel Hello Agent](agents/tutorial.md)
   - [RuntimeContext (ctx.*)](agents/runtime-context.md)
   - [Adapter LangGraph / CrewAI](agents/adapters.md)
@@ -60,6 +61,7 @@
 - [Vue d'ensemble](api/index.md)
   - [API HTTP REST](api/http-reference.md)
   - [MCP Integration](api/mcp.md)
+  - [MCP — Guide Utilisateur](api/mcp-guide.md)
   - [Guide Intégrations Desktop](api/integrations-guide.md)
   - [A2A / ACP](api/a2a-acp.md)
 
@@ -133,6 +135,14 @@
   - [ADR-048 — Worker Agents : expertise de domaine compilée en Python](decisions/adr-048-worker-agents-expertise-domaine.md)
   - [ADR-049 — Routing A2A inter-agents : discovery + invocation synchrone](decisions/adr-049-a2a-routing-inter-agents.md)
   - [ADR-050 — Distribution Worker Agents : bundled vs communautaire](decisions/adr-050-distribution-worker-agents.md)
+
+# Vision
+
+- [Vue d'ensemble](vision/index.md)
+  - [Pivot & Renouveau](vision/pivot.md)
+  - [Problème & Solution](vision/problem-solution.md)
+  - [Ambition Open-Source](vision/open-source.md)
+  - [Positionnement Concurrentiel](vision/positioning.md)
 
 ---
 

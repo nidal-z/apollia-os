@@ -41,6 +41,17 @@
 | ADR-034 | [ADR-034 — Chat hybride : sessions, streaming, HITL inline](./adr-034-chat-hybride-sessions-streaming-hitl-inline.md) | Accepté |
 | ADR-035 | [ADR-035 — Per-step observation en mode Orchestré](./adr-035-per-step-observation-orchestrated.md) | Accepté |
 | ADR-036 | [ADR-036 — Stratégie de cache de plans ORIA](./adr-036-plan-cache-strategy.md) | Accepté |
+| ADR-037 | [ADR-037 — Packaging Python SDK](./adr-037-python-sdk-packaging.md) | Accepté |
+| ADR-038 | [ADR-038 — Mémoire utilisateur globale](./adr-038-global-user-memory.md) | Accepté |
+| ADR-039 | [ADR-039 — Conversation memory management](./adr-039-conversation-memory-management.md) | Accepté |
+| ADR-040 | [ADR-040 — Onboarding comme agent conversationnel](./adr-040-onboarding-conversational-agent.md) | Accepté |
+| ADR-041 | [ADR-041 — Moteur STT embarqué : whisper-rs, trait SttBackend](./adr-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md) | Accepté |
+| ADR-042 | [ADR-042 — Remplacement de mistral.rs par llama.cpp statique](./adr-042-remplacement-mistralrs-par-llamacpp-statique.md) | Accepté |
+| ADR-043 | [ADR-043 — Décomposition atomique des outils natifs](./adr-043-decomposition-atomique-outils.md) | Accepté |
+| ADR-044 | [ADR-044 — Client MCP : architecture, transport, lifecycle](./adr-044-client-mcp.md) | Accepté |
+| ADR-045 | [ADR-045 — Page Intégrations : wizard générique piloté par MCP Registry](./adr-045-page-integrations-wizard-generique.md) | Accepté |
+| ADR-046 | [ADR-046 — Transport HTTP/SSE pour MCP](./adr-046-transport-http-sse-mcp.md) | Accepté |
+| ADR-047 | [ADR-047 — Multi-LLM Backend Registry : SQLite + binding par agent](./adr-047-multi-llm-backend-registry.md) | Accepté |
 | ADR-048 | [ADR-048 — Worker Agents : expertise de domaine compilée en Python](./adr-048-worker-agents-expertise-domaine.md) | Accepté |
 | ADR-049 | [ADR-049 — Routing A2A inter-agents : discovery + invocation synchrone](./adr-049-a2a-routing-inter-agents.md) | Accepté |
 | ADR-050 | [ADR-050 — Distribution Worker Agents : bundled vs communautaire](./adr-050-distribution-worker-agents.md) | Accepté |

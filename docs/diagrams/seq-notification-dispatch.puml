@@ -1,0 +1,81 @@
+@startuml seq-notification-dispatch
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+
+title Sequence — Notification Event Dispatch — Apollia OS
+
+participant "EventBus" as bus #1a1a2e/e0e0ff
+participant "NotificationEngine\n(acteur Tokio)" as engine #1a1a2e/e0e0ff
+participant "ChannelRouter" as router #1a1a2e/e0e0ff
+participant "DesktopChannel\n(notify-rust)" as desktop #1a1a2e/e0e0ff
+participant "WebhookChannel\n(reqwest)" as webhook #4a3728/f5e6d3
+participant "System Notification\n(OS)" as os #3a3a3a/ffffff
+participant "External Endpoint" as endpoint #4a3728/f5e6d3
+
+note over bus, engine
+  RuntimeEvents: TaskCompleted, TaskFailed,
+  PipelineCompleted, TaskInputRequired,
+  AgentStarted, AgentStopped, CircuitBroken, etc.
+end note
+
+== Standard Event Flow ==
+
+bus -> engine : RuntimeEvent (e.g. TaskCompleted)
+engine -> engine : map_event()\nmatches event to NotificationType
+
+engine -> router : dispatch(notification)
+router -> router : check event_filter\nper configured channel
+
+note right of router
+  Only events present in the
+  channel's event_filter list
+  are dispatched. Others are
+  silently dropped.
+end note
+
+alt DesktopChannel matches event_filter
+  router -> desktop : send(notification)
+  desktop -> os : notify-rust notification\ntitle + body + urgency:normal
+  os --> desktop : displayed
+  desktop --> router : Ok
+end
+
+alt WebhookChannel matches event_filter
+  router -> webhook : send(notification)
+  webhook -> endpoint : POST /webhook\nContent-Type: application/json\nX-Apollia-Event: task.completed\ntimeout: 5s
+  alt success (2xx)
+    endpoint --> webhook : 200 OK
+    webhook --> router : Ok
+  else timeout or error
+    endpoint --> webhook : timeout / 5xx
+    webhook --> router : Err(WebhookFailed)\nlogged, not retried
+  end
+end
+
+== HITL — TaskInputRequired (Approve/Reject/Inspect) ==
+
+bus -> engine : RuntimeEvent::TaskInputRequired\n{ task_id, agent_id, prompt }
+engine -> engine : map_event()\n-> NotificationType::HumanInputRequired\nseverity: Critical
+
+engine -> router : dispatch(notification, severity=Critical)
+
+router -> desktop : send(notification, urgency=critical)
+desktop -> os : notify-rust notification\ntitle: "Action Required"\nbody: agent prompt\nactions: [Approve, Reject, Inspect]\nurgency: critical
+os --> desktop : user action received
+
+alt user clicks Approve
+  desktop --> engine : HitlResponse::Approved
+  engine -> bus : TaskInputProvided { task_id, approved: true }
+else user clicks Reject
+  desktop --> engine : HitlResponse::Rejected
+  engine -> bus : TaskInputProvided { task_id, approved: false }
+else user clicks Inspect
+  desktop --> engine : HitlResponse::Inspect
+  note right : Opens Desktop UI\nat /approvals/:task_id
+end
+
+@enduml

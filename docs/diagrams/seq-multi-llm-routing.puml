@@ -1,0 +1,54 @@
+@startuml seq-multi-llm-routing
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+title Séquence — Routing Multi-LLM par agent — Apollia OS
+
+participant "code-worker\n(llm_backend\n= 'local-code')" as cw #2d4a22
+participant "mail-agent\n(llm_backend\n= null)" as ma #2d4a22
+participant "LlmRouter" as router #1a1a2e
+participant "LlmBackendRepository\n(system.db)" as repo #2a3a4a
+participant "local-code\n(EmbeddedBackend)" as local #4a3728
+participant "anthropic-cloud\n(is_default=true)" as cloud #4a3728
+participant "EventBus" as bus #2a3a4a
+
+== Démarrage — Chargement des backends ==
+
+router -> repo : load_all_backends()
+repo --> router : [local-code, anthropic-cloud (default)]
+router -> local : load("codestral.gguf")
+local --> router : Ok (model loaded)
+router -> cloud : validate(api_key)
+cloud --> router : Ok
+router -> bus : LlmModelReady { backend: "local-code" }
+router -> bus : LlmModelReady { backend: "anthropic-cloud" }
+
+== code-worker — binding explicite ==
+
+cw -> router : ctx.llm.complete(request)
+router -> router : resolve("code-worker")\n→ llm_backend = "local-code"
+router -> local : complete(request)
+local --> router : Response {tokens: 847}
+router -> bus : LlmCallCompleted\n{ backend: "local-code",\ncost_usd: None }
+router --> cw : response
+
+== mail-agent — fallback défaut ==
+
+ma -> router : ctx.llm.complete(request)
+router -> router : resolve("mail-agent")\n→ llm_backend = None\n→ use default
+router -> cloud : complete(request)
+cloud --> router : Response {tokens: 312}
+router -> bus : LlmCallCompleted\n{ backend: "anthropic-cloud",\ncost_usd: 0.0047 }
+router --> ma : response
+
+note over router
+  **Routing :**
+  1. manifest.llm_backend → named backend
+  2. Sinon → is_default=true
+  3. Backend absent → AgentDegraded
+end note
+
+@enduml

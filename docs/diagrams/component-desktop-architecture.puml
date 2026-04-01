@@ -1,0 +1,49 @@
+@startuml component-desktop-architecture
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+
+title Architecture — Application Desktop (Tauri v2 + Svelte 5) — Apollia OS
+
+rectangle "Apollia Desktop" as app #1a1a2e {
+
+  rectangle "Tauri v2 (Rust)" as tauri #1a1a2e {
+    rectangle "init_embedded(config)\nthread apollia-runtime\ntokio::Runtime" as init #1a1a2e
+    rectangle "RuntimeHandle\n(handles acteurs)" as handle #1a1a2e
+    rectangle "#[tauri::command]\n29+ commandes IPC" as commands #1a1a2e
+    rectangle "EventBus → Tauri Events\nbridge (ADR-030)" as bridge #1a1a2e
+    rectangle "System Tray" as tray #1a1a2e
+  }
+
+  rectangle "Svelte 5 (WebView)" as svelte #2d4a22 {
+    rectangle "12 Routes\nAgents · Tasks · Chat\nLLM · Triggers · Pipelines\nMemory · Notifications\nSettings · Integrations\nTranscriptions · Observability" as routes #2d4a22
+    rectangle "SSE Stores\nagents · tasks · chat\nllm · triggers · pipelines" as stores #2d4a22
+    rectangle "shadcn-svelte\ni18n FR/EN\nLight + Dark" as design #2d4a22
+  }
+}
+
+rectangle "apollia-runtime\n(acteurs Tokio)" as runtime #1a1a2e
+database "SQLite" as db #2a3a4a
+rectangle "OS Keychain" as keychain #4a3728
+actor "CLI" as cli #3a3a3a/white
+
+init --> handle : spawn thread
+handle --> runtime : acteur handles
+commands --> handle : IPC direct\n(pas de HTTP)
+bridge --> stores : Tauri events
+routes --> commands : invoke()
+runtime --> db : persistance
+commands --> keychain : secrets MCP
+cli --> runtime : HTTP / socket
+
+note bottom of handle
+  RuntimeHandle (ADR-027) :
+  Pas de sérialisation HTTP —
+  latence minimale.
+  CLI fonctionne en parallèle.
+end note
+
+@enduml

@@ -1,0 +1,85 @@
+@startuml seq-graceful-shutdown
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+
+title Sequence — Graceful Shutdown — Apollia OS
+
+actor "User / Signal" as user #3a3a3a/ffffff
+participant "ShutdownController" as shutdown #1a1a2e/e0e0ff
+participant "EventBus" as bus #1a1a2e/e0e0ff
+participant "APIServer\n(axum)" as api #1a1a2e/e0e0ff
+participant "TaskRouter" as router #1a1a2e/e0e0ff
+participant "AgentSupervisor" as supervisor #1a1a2e/e0e0ff
+participant "Agent Python\n(per active agent)" as agent #2d4a22/d4edda
+participant "McpClientManager" as mcp #1a1a2e/e0e0ff
+participant "MCP Server\n(subprocess)" as mcp_s #4a3728/f5e6d3
+participant "MemoryEngine\n(SQLite)" as memory #2a3a4a/cce5ff
+participant "ToolRegistry" as tools #1a1a2e/e0e0ff
+
+user -> shutdown : SIGTERM / SIGINT /\napollia-os stop
+
+shutdown -> bus : broadcast ShutdownRequested
+
+== Phase 1 — Refuse new work ==
+
+bus -> api : ShutdownRequested
+api -> api : refuse new connections\nclose listener
+
+bus -> router : ShutdownRequested
+router -> router : refuse new task submissions\nreturn SubmitError::ShuttingDown
+
+== Phase 2 — Drain active agents (timeout: 30s) ==
+
+supervisor -> supervisor : enumerate ACTIVE agents
+
+loop for each active agent
+  supervisor -> agent : ProcessState -> STOPPING
+
+  agent -> agent : drain running tasks\n(wait for completion)
+
+  alt drain completes within 30s
+    agent -> agent : call on_stop()\nPython callback
+    agent --> supervisor : ProcessState -> STOPPED
+  else drain exceeds 30s
+    agent -> agent : CANCEL remaining tasks
+    note right of agent
+      Canceled tasks logged
+      in audit trail with
+      reason: "shutdown_timeout"
+    end note
+    agent -> agent : call on_stop()\nPython callback (best-effort)
+    agent --> supervisor : ProcessState -> STOPPED
+  end
+end
+
+== Phase 3 — Close infrastructure ==
+
+supervisor -> mcp : close all McpSessions
+loop for each MCP session
+  mcp -> mcp_s : close stdin
+  alt server exits within 5s
+    mcp_s --> mcp : process exited
+  else server hangs
+    mcp -> mcp_s : SIGKILL
+  end
+end
+
+supervisor -> memory : flush + close
+memory -> memory : flush WAL\nclose SQLite connections
+memory --> supervisor : done
+
+supervisor -> tools : close MCP connections
+tools --> supervisor : done
+
+== Phase 4 — Final cleanup ==
+
+shutdown -> supervisor : stop all Tokio actors
+supervisor -> supervisor : drop all actor handles\njoin all JoinHandles
+
+shutdown -> shutdown : exit(0)
+
+@enduml

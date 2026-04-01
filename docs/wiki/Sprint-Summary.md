@@ -1,7 +1,7 @@
 # Sprint Summary — Apollia OS
 
 > Vue consolidée de tous les sprints : ce qui a été livré, les primitives agent disponibles, et les écarts par rapport aux specs.
-> Dernière mise à jour : 2026-03-24.
+> Dernière mise à jour : 2026-04-02.
 
 ---
 
@@ -537,6 +537,159 @@ Aucune — configuration opérateur uniquement.
 
 ---
 
+## Sprint 24 — apollia-stt : moteur STT embarqué
+
+**Statut :** LIVRÉ ✅ | **Stories :** 17/17 | **ADR :** ADR-041
+
+### Ce qui a été implémenté
+- Nouvelle crate `apollia-stt` avec trait `SttBackend` (object-safe, Send+Sync)
+- Backend `WhisperCppBackend` via `whisper-rs` 0.16 (compilation statique, Metal natif)
+- Pipeline audio : capture microphone, resample 16kHz, silence trim
+- `SttRepository` SQLite pour l'historique des transcriptions
+- `SttEngine` acteur Tokio (Phase 12 Supervisor, conditionnel `stt.enabled`)
+- 5 `RuntimeEvent` STT + 5 endpoints REST (`/api/v1/stt/*`)
+- Desktop : `HotkeyListener` (Ctrl+Shift+Space), `ClipboardManager`, overlay d'enregistrement
+- 5 commandes Tauri IPC + Vue Transcriptions + Settings STT
+- CLI `apollia-os stt transcribe/status/models` + téléchargement modèle
+
+### Primitives agent disponibles
+Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une API agent.
+
+---
+
+## Sprint 25 — Surface outil complète : outils atomiques + HTTP + mémoire
+
+**Statut :** LIVRÉ ✅ | **Stories :** 22/22 | **ADR :** ADR-043
+
+### Ce qui a été implémenté
+- Décomposition `file_io` en 4 outils atomiques : `file_read`, `file_write`, `file_edit`, `file_list`
+- 2 outils de recherche : `file_glob`, `file_grep`
+- `http_fetch` (requêtes HTTP GET/POST)
+- `memory_search` (recherche FTS5+BM25 depuis un outil)
+- Dépréciation `file_io` (warning, code conservé)
+- Affichage mode-aware (operator/builder) dans le chat desktop
+
+### Primitives agent disponibles
+- `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep` (6 outils atomiques)
+- `http_fetch` (requêtes HTTP)
+- `memory_search` (recherche mémoire depuis un outil)
+
+---
+
+## Sprint 26 — Client MCP : intégration universelle des outils externes
+
+**Statut :** LIVRÉ ✅ | **Stories :** 19/19 | **ADR :** ADR-044
+
+### Ce qui a été implémenté
+- Nouvelle crate `apollia-mcp` : implémentation native JSON-RPC 2.0 + MCP
+- Transport stdio (spawn subprocess + stdin/stdout async)
+- Configuration via `~/.apollia/mcp.toml` (secrets interpolés env vars)
+- `McpClientManager` acteur Tokio + `McpSession` (handshake, tools/list, tools/call)
+- Naming `mcp:{server}/{tool}` dans le ToolRegistry
+- HITL à deux niveaux : serveur (`requires_approval`) et agent (`tools_requiring_approval`)
+- Lazy start des sous-processus serveurs
+- API REST `/mcp/*` + CLI `apollia-os mcp list/status/restart`
+
+### Primitives agent disponibles
+- `ctx.tools.call("mcp:notion/search", ...)` — tout outil MCP accessible via le même pattern
+
+---
+
+## Sprint 28 — Configuration Runtime Unifiée : SQLite-first
+
+**Statut :** LIVRÉ ✅ | **Stories :** 12/12 | **ADR :** ADR-047
+
+### Ce qui a été implémenté
+- `LlmBackendRepository` SQLite + `AgentManifest.llm_backend` optionnel
+- `LlmRouter` multi-backend avec routing `agent_id → backend_name`
+- API REST `/api/v1/llm/backends` CRUD
+- STT config → SQLite + API REST `/api/v1/stt/config`
+- `McpServerRepository` SQLite (migration TOML → DB)
+- Suppression `[agents] startup` et `reload_triggers` de `apollia.toml`
+- CLI `memory list` + `memory clear`
+
+### Primitives agent disponibles
+- `manifest()["llm_backend"]` — binding agent → backend LLM spécifique
+
+---
+
+## Sprint 29 — Worker Agents V1 : excel-worker + csv-data-worker
+
+**Statut :** LIVRÉ ✅ | **Stories :** 6/7 (STORY-392 différée Sprint 30) | **ADR :** ADR-048
+
+### Ce qui a été implémenté
+- Pattern Worker Agent : `WorkerAgent(BaseReActAgent)` dans le SDK Python
+- `AgentManifest.packages` + `setup_venv` au `INITIALIZING`
+- `excel-worker` : manipulation Excel via openpyxl (guardrail : jamais bash sur .xlsx)
+- `csv-data-worker` : analyse CSV via pandas (guardrail : détection encodage + dtypes)
+- Tests + benchmark Worker Agent vs generic-agent sur Llama 13B
+
+### Primitives agent disponibles
+- `WorkerAgent` base class SDK (héritage `BaseReActAgent`)
+- `manifest()["packages"]` — déclaration dépendances pip
+- `manifest()["supports_a2a"]` + `manifest()["skills"]` — déclaration skills A2A
+
+---
+
+## Sprint 30 — A2A Routing V1 + Benchmark Worker Agent Pattern
+
+**Statut :** LIVRÉ ✅ | **Stories :** 9/9 | **ADR :** ADR-049
+
+### Ce qui a été implémenté
+- `SkillIndex` dans `AgentRegistry` : index inversé `skill_id → agent_name`
+- `A2AInvoker` : invocation inter-agents par `skill_id` (timeout 120s configurable)
+- Trust model A2A : user memory read-only pour les Workers invoqués
+- `RuntimeContextConfig { user_memory_read_only: bool }`
+- Endpoint REST `GET /api/v1/a2a/agents` + `/.well-known/agent.json`
+- CLI `agent list --supports-a2a`
+- Matrice de décision wiki (Worker vs MCP vs Pipeline)
+
+### Primitives agent disponibles
+- `ctx.delegate(skill_id, payload, timeout_secs=120)` — délégation A2A
+- `ctx.a2a_invoke(skill_id, payload)` — alias d'invocation
+
+---
+
+## Sprint 31 — Worker Agents V2 : pdf-worker + code-worker + A2A chat libre
+
+**Statut :** LIVRÉ ✅ | **Stories :** 6/6 | **ADR :** —
+
+### Ce qui a été implémenté
+- `pdf-worker` : extraction texte/tableaux PDF via pdfplumber (guardrail : chunking > 50 pages)
+- `code-worker` : génération/refactoring/revue code Python+Rust (guardrail : file_read avant file_write)
+- `CompositeToolInvoker` : A2A intégré dans le chat libre (`BuiltInChatAgent`)
+- Template `apollia new --type worker` : scaffolding Worker Agent complet
+- Documentation Worker Agent Pattern builders
+
+### Primitives agent disponibles
+- 4 Worker Agents built-in opérationnels (`excel-worker`, `csv-data-worker`, `pdf-worker`, `code-worker`)
+
+---
+
+## Sprint 32 — A2A complet + Distribution locale + Worker Agents communautaires
+
+**Statut :** LIVRÉ ✅ | **Stories :** 8/8 | **ADR :** ADR-050
+
+### Ce qui a été implémenté
+- ADR-050 : stratégie distribution bundled vs communautaire formalisée
+- `sql-worker` : interrogation SQLite (guardrail : SELECT-only, paramétrage `?` anti-injection)
+- `git-worker` : opérations Git (guardrail : bloque push --force, reset --hard, etc.)
+- `agents/bundled/manifest.json` + auto-installation au premier boot (4 agents)
+- `agents/community/` : structure + README + sql-worker + git-worker
+- `A2AConfig` : `max_depth`, `invocation_timeout_secs`, `chain_timeout_secs`
+- 3 garde-fous A2A runtime : `MaxDepthExceeded`, `SelfInvocation`, `ChainTimeoutExceeded`
+- `RuntimeEvent::A2AGuardTriggered` émis sur EventBus
+- `A2AToolsProvider` : injection dynamique des skills A2A comme outils virtuels `a2a:{skill_id}` dans ORIA
+- `apollia-os agent install <path> [--skip-tests]` avec validation communautaire
+- Tests E2E distribution + A2A guards
+
+### Primitives agent disponibles
+- 6 Worker Agents total (4 bundled + 2 communautaires)
+- `ctx.tools.call("a2a:read-excel", ...)` — invocation A2A transparente via outil ORIA
+- Garde-fous A2A appliqués par le runtime (non contournables depuis Python)
+
+---
+
 ## Sprints non livrés
 
 ### Sprint 16 — MVP Demo-Ready UI/UX bimodale
@@ -563,6 +716,12 @@ Objectif : Aligner les 8 pages desktop sur le Design System "Warm Glass".
 | 20 | `ctx.tools.describe()`, `ctx.send()`, `ctx.receive()`, `model_hint` |
 | 21 | SDK classes (`ReactAgent`, `ConversationalAgent`, `OrchestratedAgent`), `MockContext`, `apollia new` |
 | 22 | `ctx.user_context`, `ctx.memory.remember(..., confidence=)` |
+| 25 | `file_read`, `file_write`, `file_edit`, `file_list`, `file_glob`, `file_grep`, `http_fetch`, `memory_search` |
+| 26 | `ctx.tools.call("mcp:{server}/{tool}", ...)` — outils MCP externes |
+| 28 | `manifest()["llm_backend"]` — binding agent → backend LLM |
+| 29 | `WorkerAgent` base class, `manifest()["packages"]`, `manifest()["supports_a2a"]` |
+| 30 | `ctx.delegate(skill_id, payload)`, `ctx.a2a_invoke(skill_id, payload)` |
+| 32 | `ctx.tools.call("a2a:{skill_id}", ...)` — invocation A2A via outils ORIA |
 
 ---
 

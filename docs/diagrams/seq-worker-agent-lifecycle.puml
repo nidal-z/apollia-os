@@ -1,0 +1,108 @@
+@startuml seq-worker-agent-lifecycle
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+title Séquence Worker Agent — Lifecycle complet — Apollia OS
+
+participant "Runtime Core" as runtime #1a1a2e
+participant "AIP Bridge\n(PyO3)" as aip #1a1a2e
+participant "Agent Python\n(worker file)" as agent #2d4a22
+participant "VenvManager" as venv #1a1a2e
+participant "SkillIndex" as skills #1a1a2e
+participant "ProcessState\nRegistry" as state #2a3a4a
+participant "LLM Backend" as llm #4a3728
+participant "Tool Registry" as tools #1a1a2e
+
+== Phase 1 : Load Agent Python File ==
+
+runtime -> aip : load_agent("agents/excel-worker.py")
+aip -> agent : PyO3 import module
+agent --> aip : module loaded
+
+== Phase 2 : Extract Manifest ==
+
+aip -> agent : manifest()
+agent --> aip : AgentManifest {\n  name: "excel-worker",\n  packages: ["openpyxl"],\n  skills: ["read-excel", "write-excel"],\n  supports_a2a: true\n}
+
+== Phase 3 : Virtual Environment Setup ==
+
+aip -> venv : setup_venv(["openpyxl"])
+venv -> venv : pip install openpyxl
+alt Success
+  venv --> aip : venv ready
+else Failure
+  venv --> aip : error
+  aip -> state : set DEGRADED
+  note right of state #FFCCCC
+    Agent remains DEGRADED
+    Skills NOT registered
+    A2A calls will fail
+  end note
+end
+
+== Phase 4 : Activation ==
+
+aip -> state : set ACTIVE
+aip -> skills : register skills\n["read-excel", "write-excel"]\nfor agent "excel-worker"
+note right of skills #cce5ff
+  SkillIndex updated:
+  read-excel → excel-worker
+  write-excel → excel-worker
+  (only if supports_a2a = true)
+end note
+
+== Phase 5 : Task Arrival ==
+
+runtime -> aip : dispatch_task(task_payload)
+aip -> agent : inject SYSTEM_PROMPT\n(constant, compiled expertise)
+
+note over agent #d4edda
+  **SYSTEM_PROMPT (compiled at load):**
+  ────────────────────────────────
+  You are excel-worker, a specialist agent.
+  Your expertise: Excel file manipulation.
+
+  **Guardrails:**
+  - step_budget: 15 (hard limit)
+  - No file writes outside sandbox
+  - No network access
+  - user_memory: read-only in A2A
+
+  **Patterns:**
+  - Always validate input file exists
+  - Return structured JSON output
+  - Report errors with context
+
+  **Error handling:**
+  - On tool failure: retry once, then abort
+  - On timeout: return partial result
+end note
+
+== Phase 6 : ReAct Loop ==
+
+loop ReAct iteration (within step_budget)
+  agent -> llm : prompt (SYSTEM_PROMPT + context\n+ previous tool results)
+  llm --> agent : response with tool_calls[]
+
+  alt Has tool calls
+    agent -> tools : execute tool_call
+    tools --> agent : tool result
+    note right of tools #e0e0ff
+      Guardrails enforced:
+      step_budget decremented
+      sandbox boundaries checked
+    end note
+  else Final answer
+    agent -> agent : format result
+  end
+end
+
+== Phase 7 : Result Return ==
+
+agent --> aip : AIPResult.completed() {\n  output: "{structured result}",\n  steps_used: 4\n}
+aip --> runtime : task completed
+
+@enduml

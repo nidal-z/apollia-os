@@ -1,0 +1,102 @@
+@startuml seq-agent-install
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+title Séquence Agent Install — Bundled & Community — Apollia OS
+
+participant "Supervisor" as sup #1a1a2e
+participant "Filesystem" as fs #3a3a3a
+participant "AgentRegistry\n(SQLite)" as db #2a3a4a
+participant "AIP Bridge\n(PyO3)" as aip #1a1a2e
+participant "VenvManager" as venv #1a1a2e
+participant "SkillIndex" as skills #1a1a2e
+
+== Flow 1 : Bundled Agents — First Boot ==
+
+sup -> fs : read agents/bundled/manifest.json
+fs --> sup : manifest {\n  agents: [\n    "excel-worker",\n    "csv-worker",\n    "pdf-worker",\n    "code-worker"\n  ]\n}
+
+loop for each bundled agent
+  sup -> db : check if agent exists in DB
+  alt Already installed
+    db --> sup : found → skip
+  else Not installed
+    db --> sup : not found
+    sup -> db : register agent\n(state: INITIALIZING)
+    sup -> aip : load_agent(path)
+    aip -> aip : manifest() → extract\npackages, skills, supports_a2a
+    sup -> venv : setup_venv(packages)
+    venv --> sup : venv ready
+    sup -> db : set state → ACTIVE
+    sup -> skills : register skills\n(if supports_a2a)
+  end
+end
+
+note over sup #e0e0ff
+  Result: 4 bundled agents
+  registered and ACTIVE
+  (excel, csv, pdf, code workers)
+end note
+
+== ════════════════════════════════════════════ ==
+
+participant "User (CLI)" as user #3a3a3a
+participant "Validator" as val #1a1a2e
+
+== Flow 2 : Community Agent — Manual Install ==
+
+user -> sup : apollia-os agent install\n  /path/to/agent
+sup -> val : validate_community_agent(path)
+
+== Step 1 : Manifest Conformity ==
+
+val -> fs : read agent manifest
+fs --> val : manifest found
+val -> val : check required fields:\n  name, version, skills,\n  run() async, manifest()
+alt Manifest invalid
+  val --> user : Error: manifest non-conforme\n(missing fields: ...)
+end
+
+== Step 2 : Scan Dangerous Tools ==
+
+val -> val : scan dangerous_tools_allowed
+alt dangerous_tools_allowed = true
+  val --> user : WARNING: cet agent demande\ndes permissions dangereuses\n(shell_exec, file_write_any)
+  note right of user #FFCCCC
+    User must confirm with
+    --allow-dangerous flag
+    or interactive prompt
+  end note
+end
+
+== Step 3 : Run Tests ==
+
+alt --skip-tests NOT passed
+  val -> aip : run agent tests
+  aip --> val : test results
+  alt Tests fail
+    val --> user : Error: tests en echec\n(use --skip-tests to override)
+  end
+else --skip-tests
+  val -> val : skip test execution
+  note right of val #e0e0ff
+    User explicitly chose
+    to skip safety tests
+  end note
+end
+
+== Step 4 : Install ==
+
+val --> sup : validation passed
+sup -> db : register community agent\n(source: "community",\npath, manifest)
+sup -> aip : load_agent(path)
+sup -> venv : setup_venv(packages)
+venv --> sup : venv ready
+sup -> db : set state → ACTIVE
+sup -> skills : register skills\n(if supports_a2a)
+sup --> user : Agent installed successfully\nname: "my-agent"\nskills: ["skill-a", "skill-b"]\nstate: ACTIVE
+
+@enduml
