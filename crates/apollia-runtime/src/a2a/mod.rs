@@ -92,7 +92,10 @@ impl A2aErrorResponse {
     /// Construit depuis une [`A2aError`].
     pub fn from_error(err: &A2aError) -> Self {
         match err {
-            A2aError::SkillNotFound { skill_id, available } => Self {
+            A2aError::SkillNotFound {
+                skill_id,
+                available,
+            } => Self {
                 error: err.to_string(),
                 skill_id: Some(skill_id.clone()),
                 available_skills: Some(
@@ -248,19 +251,18 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
 
     // 3. Construire l'input AIP depuis le payload JSON.
     let input = AIPInput {
-        parts: vec![AIPPart::Data(DataPart { data: input_payload })],
+        parts: vec![AIPPart::Data(DataPart {
+            data: input_payload,
+        })],
     };
 
     // 4. Soumettre la tâche via le TaskRouter.
-    let task_id = router
-        .submit(&agent_id, input)
-        .await
-        .map_err(|e| match e {
-            SubmitError::ActorDead => A2aError::RouterDead,
-            other => A2aError::WorkerFailed {
-                reason: other.to_string(),
-            },
-        })?;
+    let task_id = router.submit(&agent_id, input).await.map_err(|e| match e {
+        SubmitError::ActorDead => A2aError::RouterDead,
+        other => A2aError::WorkerFailed {
+            reason: other.to_string(),
+        },
+    })?;
 
     let task_id_str = task_id.to_string();
     info!(task_id = %task_id_str, agent = %agent_name, "A2A task submitted");
@@ -406,7 +408,10 @@ mod tests {
         // THEN erreur SkillNotFound avec la liste des skills disponibles
         assert!(result.is_err());
         match result.unwrap_err() {
-            A2aError::SkillNotFound { skill_id, available } => {
+            A2aError::SkillNotFound {
+                skill_id,
+                available,
+            } => {
                 assert_eq!(skill_id, "unknown-skill");
                 assert!(
                     available.contains("read-excel"),
@@ -512,7 +517,10 @@ mod tests {
 
         // THEN skill_id et available_skills sont présents, conflicting_agents absent
         assert_eq!(resp.skill_id.as_deref(), Some("my-skill"));
-        let avail = resp.available_skills.as_ref().expect("available_skills must be Some");
+        let avail = resp
+            .available_skills
+            .as_ref()
+            .expect("available_skills must be Some");
         assert!(avail.iter().any(|s| s == "read-excel"));
         assert!(avail.iter().any(|s| s == "read-csv"));
         assert!(resp.conflicting_agents.is_none());

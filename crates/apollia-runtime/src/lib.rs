@@ -25,7 +25,9 @@ pub mod timeout_watcher;
 pub use api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
 pub use coordinator::{CoordinatorError, ExecutionBackend, ExecutionCoordinator};
 pub use eventbus::{EventBus, EventBusReceiver, EventBusSender};
-pub use registry::{AgentEntry, AgentRegistry, AgentRegistryError, AgentRegistryHandle};
+pub use registry::{
+    AgentEntry, AgentRegistry, AgentRegistryError, AgentRegistryHandle, SkillEntry, SkillIndexError,
+};
 pub use router::{SubmitError, TaskRouterHandle};
 pub use shutdown::{wait_for_shutdown_signal, ShutdownConfig, ShutdownController, ShutdownError};
 pub use supervisor::{
@@ -45,8 +47,7 @@ pub use mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
 
 // A2A routing
 pub use a2a::{
-    make_delegate_fn, resolve_skill, A2aDelegateFn, A2aDelegateResult, A2aError,
-    A2aErrorResponse,
+    make_delegate_fn, resolve_skill, A2aDelegateFn, A2aDelegateResult, A2aError, A2aErrorResponse,
 };
 
 // Chat subsystem

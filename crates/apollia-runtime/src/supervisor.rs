@@ -2480,8 +2480,7 @@ mod tests {
         let repo = open_test_repo();
 
         let mut bad_agent = test_installed_agent("bad-pkg-agent", true);
-        bad_agent.install_path =
-            PathBuf::from("/tmp/agents/bad-pkg-agent/bad-pkg-agent.py");
+        bad_agent.install_path = PathBuf::from("/tmp/agents/bad-pkg-agent/bad-pkg-agent.py");
         bad_agent.manifest.packages = vec!["nonexistent-pkg-zzz-99999==0.0.1".to_string()];
         repo.save(&bad_agent).expect("save bad agent");
 

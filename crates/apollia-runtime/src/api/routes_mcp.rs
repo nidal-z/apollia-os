@@ -71,10 +71,12 @@ fn require_mcp_handle<B: ExecutionBackend + Clone>(
 fn require_mcp_repo<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
 ) -> Result<&Arc<std::sync::Mutex<McpServerRepository>>, JsonError> {
-    state
-        .mcp_server_repo
-        .as_ref()
-        .ok_or_else(|| json_err(StatusCode::SERVICE_UNAVAILABLE, "MCP repository not available"))
+    state.mcp_server_repo.as_ref().ok_or_else(|| {
+        json_err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "MCP repository not available",
+        )
+    })
 }
 
 // ─── read routes ─────────────────────────────────────────────────────────────
@@ -153,7 +155,10 @@ async fn add_server<B: ExecutionBackend + Clone>(
 
     {
         let guard = repo.lock().map_err(|_| {
-            json_err(StatusCode::INTERNAL_SERVER_ERROR, "repository lock poisoned")
+            json_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "repository lock poisoned",
+            )
         })?;
         guard
             .save(&config)
@@ -185,7 +190,10 @@ async fn remove_server<B: ExecutionBackend + Clone>(
 
     {
         let guard = repo.lock().map_err(|_| {
-            json_err(StatusCode::INTERNAL_SERVER_ERROR, "repository lock poisoned")
+            json_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "repository lock poisoned",
+            )
         })?;
         guard
             .delete(&name)
@@ -264,7 +272,10 @@ async fn update_server_config<B: ExecutionBackend + Clone>(
 
     {
         let guard = repo.lock().map_err(|_| {
-            json_err(StatusCode::INTERNAL_SERVER_ERROR, "repository lock poisoned")
+            json_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "repository lock poisoned",
+            )
         })?;
         guard
             .save(&config)
@@ -304,7 +315,10 @@ async fn set_server_approval<B: ExecutionBackend + Clone>(
     // Persist: read-modify-write (Mutex guard dropped before next await).
     {
         let guard = repo.lock().map_err(|_| {
-            json_err(StatusCode::INTERNAL_SERVER_ERROR, "repository lock poisoned")
+            json_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "repository lock poisoned",
+            )
         })?;
         let mut current = guard
             .find_by_name(&name)
