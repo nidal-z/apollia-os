@@ -613,7 +613,7 @@ Ce modèle permet au Director de partager du contexte en mémoire avec le Worker
 
 ```bash
 apollia-os agent list --supports-a2a
-# A2A-capable agents (4):
+# A2A-capable agents (6):
 #   csv-data-worker  [Active]
 #     - read-csv: Lit et retourne le contenu d'un CSV
 #     - analyze-csv: Statistiques descriptives, groupby
@@ -630,25 +630,61 @@ apollia-os agent list --supports-a2a
 #     - generate-code: Génère un fichier source (Python ou Rust)
 #     - refactor-code: Améliore la structure sans changer le comportement
 #     - review-code: Retourne LGTM / SUGGESTION / ISSUE par ligne
+#   sql-worker  [Active]
+#     - query-sql: Exécute une requête SELECT sur une base SQLite
+#     - schema-inspect: Inspecte le schéma d'une base SQLite
+#     - data-export: Exporte les résultats en CSV ou JSON
+#   git-worker  [Active]
+#     - git-status: Affiche l'état du dépôt Git
+#     - git-diff: Affiche les modifications en cours
+#     - git-commit: Crée un commit conventionnel
 ```
 
 ---
 
-## 8. Exemples — les 4 agents built-in
+## 8. Exemples — les 6 agents disponibles
+
+### 8.1 Agents bundled (distribués avec le runtime)
 
 | Agent | Domaine | Package requis | Skills | Guardrail central |
 |---|---|---|---|---|
-| [`excel-worker`](../../agents/excel-worker.py) | Fichiers Excel `.xlsx` / `.xlsm` | `openpyxl>=3.1.0` | `read-excel`, `edit-excel`, `analyze-excel` | Jamais `bash_executor` sur `.xlsx` (archive ZIP) |
-| [`csv-data-worker`](../../agents/csv-data-worker.py) | Fichiers CSV (multi-encodage, multi-séparateur) | `pandas>=2.0.0` | `read-csv`, `analyze-csv`, `transform-csv` | Toujours détecter l'encodage et inspecter `dtypes` avant calcul |
-| [`pdf-worker`](../../agents/pdf-worker.py) | Documents PDF | `pdfplumber>=0.10.0` | `read-pdf`, `extract-text`, `extract-tables` | Jamais `bash` sur PDF ; chunking auto > 50 pages ; pas de crack de mot de passe |
-| [`code-worker`](../../agents/code-worker.py) | Génération, refactoring, revue de code (Python + Rust) | aucun | `generate-code`, `refactor-code`, `review-code` | Toujours `file_read` avant `file_write` ; vérification syntaxe/compilation obligatoire |
+| [`excel-worker`](../../agents/bundled/excel-worker.py) | Fichiers Excel `.xlsx` / `.xlsm` | `openpyxl>=3.1.0` | `read-excel`, `edit-excel`, `analyze-excel` | Jamais `bash_executor` sur `.xlsx` (archive ZIP) |
+| [`csv-data-worker`](../../agents/bundled/csv-data-worker.py) | Fichiers CSV (multi-encodage, multi-séparateur) | `pandas>=2.0.0` | `read-csv`, `analyze-csv`, `transform-csv` | Toujours détecter l'encodage et inspecter `dtypes` avant calcul |
+| [`pdf-worker`](../../agents/bundled/pdf-worker.py) | Documents PDF | `pdfplumber>=0.10.0` | `read-pdf`, `extract-text`, `extract-tables` | Jamais `bash` sur PDF ; chunking auto > 50 pages ; pas de crack de mot de passe |
+| [`code-worker`](../../agents/bundled/code-worker.py) | Génération, refactoring, revue de code (Python + Rust) | aucun | `generate-code`, `refactor-code`, `review-code` | Toujours `file_read` avant `file_write` ; vérification syntaxe/compilation obligatoire |
+
+Les 4 agents bundled sont auto-installés au premier démarrage du runtime via `agents/bundled/manifest.json`. Si un agent est déjà installé, il n'est pas réinstallé (idempotence).
+
+### 8.2 Agents communautaires (installables séparément)
+
+| Agent | Domaine | Package requis | Skills | Guardrail central |
+|---|---|---|---|---|
+| [`sql-worker`](../../agents/community/sql-worker.py) | Bases de données SQLite | aucun (sqlite3 stdlib) | `query-sql`, `schema-inspect`, `data-export` | SELECT uniquement par défaut ; paramétrage `?` obligatoire (anti-injection SQL) |
+| [`git-worker`](../../agents/community/git-worker.py) | Versioning Git | aucun (bash_executor) | `git-status`, `git-diff`, `git-commit` | Jamais `push --force`, `reset --hard`, `clean -fd`, `branch -D` ; commits conventionnels obligatoires |
+
+Ces agents servent de template pour la communauté. Ils sont installés via :
+
+```bash
+$ apollia-os agent install agents/community/sql-worker.py
+  → Validation du manifest...
+  ✔ Manifest valide (name: sql-worker, version: 0.1.0)
+  → Scan dangerous_tools_allowed...
+  ✔ Aucun outil dangereux déclaré
+  ✔ Agent "sql-worker" installé
+
+$ apollia-os agent install agents/community/git-worker.py --skip-tests
+  ⚠ Tests ignorés (--skip-tests)
+  ✔ Agent "git-worker" installé
+```
+
+Pour créer un agent communautaire : voir [Community Agent Registry](./Community-Agent-Registry).
 
 ### `excel-worker`
 
 Spécialité : manipulation de classeurs Excel via openpyxl. Guardrail central : n'utilise jamais `bash_executor` pour lire ou modifier un `.xlsx` (un `.xlsx` est une archive ZIP — bash corromprait silencieusement l'archive). Inspecte toujours `wb.sheetnames` avant d'accéder à une feuille.
 
 ```bash
-apollia-os agent start agents/excel-worker.py
+apollia-os agent start agents/bundled/excel-worker.py
 apollia-os agent run excel-worker "Analyse la feuille Ventes de /data/rapport.xlsx"
 ```
 
@@ -657,7 +693,7 @@ apollia-os agent run excel-worker "Analyse la feuille Ventes de /data/rapport.xl
 Spécialité : analyse et transformation de CSVs via pandas. Gère automatiquement la détection d'encodage (UTF-8, latin-1, utf-8-sig) et de séparateur (`,` ou `;`). Guardrail central : inspecter `df.dtypes` avant tout calcul numérique — une colonne lue comme `object` ne peut pas être sommée directement.
 
 ```bash
-apollia-os agent start agents/csv-data-worker.py
+apollia-os agent start agents/bundled/csv-data-worker.py
 apollia-os agent run csv-data-worker "Calcule le total de la colonne CA dans /data/ventes.csv"
 ```
 
@@ -666,17 +702,35 @@ apollia-os agent run csv-data-worker "Calcule le total de la colonne CA dans /da
 Spécialité : extraction de texte, métadonnées et tableaux depuis des PDFs via pdfplumber (licence MIT). Gère les PDFs multi-pages (chunking auto au-delà de 50 pages), détecte les PDFs protégés par mot de passe (erreur structurée `password_protected`) et les PDFs scannés (erreur `scanned_pdf` — OCR non supporté en V1).
 
 ```bash
-apollia-os agent start agents/pdf-worker.py
+apollia-os agent start agents/bundled/pdf-worker.py
 apollia-os agent run pdf-worker "Extrais le texte des pages 1 à 10 de /data/contrat.pdf"
 ```
 
 ### `code-worker`
 
-Spécialité : génération, refactoring et revue de code source Python et Rust. N'utilise pas de packages pip — s'appuie sur `bash_executor`, `file_read`, `file_write`, `file_edit`. Guardrail central : toujours lire un fichier avant de l'écrire (`file_read` → `file_write`). Vérifie la syntaxe Python (`ast.parse`) et la compilation Rust (`cargo check`) après toute génération. Revue structurée en 🟢 LGTM / 🟡 SUGGESTION / 🔴 ISSUE.
+Spécialité : génération, refactoring et revue de code source Python et Rust. N'utilise pas de packages pip — s'appuie sur `bash_executor`, `file_read`, `file_write`, `file_edit`. Guardrail central : toujours lire un fichier avant de l'écrire (`file_read` → `file_write`). Vérifie la syntaxe Python (`ast.parse`) et la compilation Rust (`cargo check`) après toute génération. Revue structurée en LGTM / SUGGESTION / ISSUE.
 
 ```bash
-apollia-os agent start agents/code-worker.py
+apollia-os agent start agents/bundled/code-worker.py
 apollia-os agent run code-worker "Génère une classe Python pour valider des adresses email, avec tests"
+```
+
+### `sql-worker` (communautaire)
+
+Spécialité : interrogation de bases SQLite locales. SELECT uniquement par défaut — INSERT/UPDATE/DELETE nécessitent `dangerous_tools_allowed: True` dans le manifest. Guardrail central : paramétrage `?` obligatoire pour toutes les requêtes (protection contre l'injection SQL), jamais de f-string dans les requêtes. Timeout 30s par requête, validation existence + intégrité du fichier SQLite à la connexion.
+
+```bash
+apollia-os agent install agents/community/sql-worker.py
+apollia-os agent run sql-worker "Liste les clients dont le CA dépasse 10000"
+```
+
+### `git-worker` (communautaire)
+
+Spécialité : opérations Git en lecture et commit. Bloque les opérations destructives (`push --force`, `reset --hard`, `clean -fd`, `branch -D`, `checkout -- .`). Guardrail central : commits conventionnels obligatoires (`type(scope): description`), `git status` systématique avant tout commit, pas de `git add .` sans inspection. Opérations distantes (push, pull, fetch) interdites sans approbation.
+
+```bash
+apollia-os agent install agents/community/git-worker.py
+apollia-os agent run git-worker "Montre-moi les modifications en cours et committe-les"
 ```
 
 ---
@@ -701,6 +755,8 @@ apollia-os agent run code-worker "Génère une classe Python pour valider des ad
 - [Matrice de décision — Capabilities](Decision-Matrix-Capabilities.md)
 - [ADR-048 — Worker Agents : expertise de domaine compilée](../adr/ADR-048-worker-agents-expertise-domaine.md)
 - [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
+- [ADR-050 — Distribution Worker Agents](../adr/ADR-050-distribution-worker-agents.md)
+- [Community Agent Registry](Community-Agent-Registry.md)
 - [Benchmark : Worker Agent vs generic-agent](../benchmarks/worker-agent-benchmark.md)
 - [Guide SDK Agent](Agents-SDK-Guide.md)
 - [RuntimeContext guide](Agents-RuntimeContext-Guide.md)

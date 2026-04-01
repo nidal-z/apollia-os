@@ -1,0 +1,70 @@
+@startuml seq-a2a-guards
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 12
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+title Séquence A2A — Garde-fous d'invocation — Apollia OS
+
+participant "Director Agent\n(ORIA ReAct)" as director #2d4a22
+participant "RuntimeContext\n(PyO3)" as ctx #1a1a2e
+participant "A2AInvoker" as invoker #1a1a2e
+participant "AgentRegistry\n+ SkillIndex" as reg #1a1a2e
+participant "EventBus" as bus #2a3a4a
+participant "Worker Agent" as worker #2d4a22
+
+== Invocation A2A via outil virtuel ==
+
+director -> ctx : ctx.tools.call("a2a:read-excel", args)
+ctx -> ctx : name starts with "a2a:" ?\n→ route to A2AInvoker
+
+ctx -> invoker : invoke("read-excel", args,\ncaller="director", depth=0,\nchain_deadline=None)
+
+== Garde-fou 1 : Profondeur maximale ==
+
+invoker -> invoker : depth (0) >= max_depth (3) ?\n→ Non → passe
+note right of invoker #FFCCCC
+  Si depth >= max_depth :
+  return Err(MaxDepthExceeded)
+  + emit A2AGuardTriggered
+end note
+
+== Garde-fou 2 : Chain deadline ==
+
+invoker -> invoker : chain_deadline = None ?\n→ Oui → init à now() + 300s
+note right of invoker #FFCCCC
+  Si chain_deadline expirée :
+  return Err(ChainTimeoutExceeded)
+  + emit A2AGuardTriggered
+end note
+
+== Garde-fou 3 : Résolution skill ==
+
+invoker -> reg : resolve("read-excel")
+reg --> invoker : AgentEntry(excel-worker, Active)
+
+== Garde-fou 4 : Self-invocation ==
+
+invoker -> invoker : caller == target ?\n"director" != "excel-worker"\n→ Non → passe
+note right of invoker #FFCCCC
+  Si caller == target :
+  return Err(SelfInvocation)
+  + emit A2AGuardTriggered
+end note
+
+== Invocation effective ==
+
+invoker -> bus : A2AInvocationStarted\n{caller, skill_id, target}
+
+invoker -> worker : delegate(task, ctx_a2a)\ntimeout = min(120s, chain_remaining)
+note over worker : user_memory_read_only = true\na2a_depth = 1
+
+worker --> invoker : A2AInvocationResult\n{result, duration_ms}
+
+invoker -> bus : A2AInvocationCompleted\n{caller, skill_id, duration_ms, success}
+
+invoker --> ctx : Ok(result)
+ctx --> director : "[read-excel via excel-worker]\n{output_text}"
+
+@enduml

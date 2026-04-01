@@ -11,7 +11,7 @@
 
 **Auteur :** Nidal — CTO & Co-fondateur Apollia  
 **Développement :** soir/weekend, 8-10h/semaine  
-**Phase actuelle :** Sprint 31 livré (Worker Agents V2 : pdf-worker + code-worker + A2A chat libre, 6/6 stories). Sprint 30 livré (A2A routing V1). Sprint 24 livré (apollia-stt).
+**Phase actuelle :** Sprint 32 livré (A2A complet + Distribution locale + Worker Agents communautaires, 8/8 stories, ADR-050). Sprint 31 livré (Worker Agents V2). Sprint 30 livré (A2A routing V1).
 
 ---
 
@@ -123,8 +123,8 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Dernier sprint livré :** Sprint 31 — Worker Agents V2 : pdf-worker + code-worker + A2A chat libre (6/6 stories, ADR-048 + ADR-049)
+**Dernier sprint livré :** Sprint 32 — A2A complet + Distribution locale + Worker Agents communautaires (8/8 stories, ADR-050)
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
-**Dernière décision :** ADR-049 — Routing A2A inter-agents + CompositeToolInvoker chat libre
+**Dernière décision :** ADR-050 — Distribution Worker Agents : bundled vs communautaire, registre local et Git
 
 Pour l'état détaillé : lire `docs/internal/STORIES/sprint-index.md`.

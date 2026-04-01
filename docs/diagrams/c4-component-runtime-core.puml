@@ -39,7 +39,9 @@ rectangle "ORIA Engine" as oriabox #1a1a2e {
   database "PlanRepository\n(~/.apollia/plans.db)\nmigration 004" as plandb #2a3a4a
   database "PlanCacheRepository\n(~/.apollia/plan_cache.db)\nSHA-256 key, TTL 7j" as cachedb #2a3a4a
 }
-rectangle "AIP Bridge (PyO3)\n(RuntimeContext + LlmProxy\n+ on_plan_complete hook)" as aip #1a1a2e
+rectangle "A2AToolsProvider\nbuild_tool_descriptors()\na2a:{skill_id} → ToolDescriptor" as a2aprov #1a1a2e
+
+rectangle "AIP Bridge (PyO3)\n(RuntimeContext + LlmProxy\n+ on_plan_complete hook\n+ a2a: prefix routing)" as aip #1a1a2e
 database "chat.db\n(sessions, messages,\nautorisations)" as chatdb #2a3a4a
 
 actor "CLI / Client HTTP / Browser" as cli #3a3a3a/white
@@ -98,5 +100,9 @@ oria --> cachedb : lookup / store\n(plan_cache.db)
 api --> oria     : GET /plan-cache/stats\nPOST /plan-cache/clear
 
 cli --> api : HTTP REST\n/ SSE
+
+a2aprov --> reg : list_skills()\n(query A2A agents)
+coord --> a2aprov : inject_a2a_tools()\n(at task start)
+aip --> reg  : route a2a:{skill_id}\n→ A2AInvoker.invoke()
 
 @enduml

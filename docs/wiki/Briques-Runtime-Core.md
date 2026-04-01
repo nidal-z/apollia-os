@@ -62,6 +62,8 @@ Le Runtime Core n'est **pas un monolithe interne**. C'est un ensemble d'acteurs 
     └── ouvre ChatSessionRepository (chat.db), restaure autorisations
 12. SttEngine           → moteur Speech-to-Text embarqué [Sprint 24]
     └── ouvre SttRepository (stt.db), charge WhisperCppBackend (conditionnel : stt.enabled)
+13. BundledAgents        → auto-installation des agents bundled [Sprint 32]
+    └── lit agents/bundled/manifest.json, installe les 4 agents si absents de la DB
 ```
 
 Depuis le Sprint 17 (ADR-033), le Supervisor ouvre les repositories SQLite pour les triggers, pipelines et notifications au démarrage. Les définitions sont chargées depuis SQLite (plus depuis `apollia.toml`). Chaque repository est wrappé dans `Arc<Mutex<>>` et stocké dans `AppState` pour les routes CRUD.
@@ -344,6 +346,11 @@ pub enum RuntimeEvent {
     TriggerDisabled { trigger_id: TriggerId },
     TriggersReloaded { count: usize },
 
+    // A2A [Sprint 30 + Sprint 32]
+    A2AInvocationStarted { caller: String, skill_id: String, target: String },
+    A2AInvocationCompleted { caller: String, skill_id: String, duration_ms: u64, success: bool },
+    A2AGuardTriggered { guard_type: String, caller: String, skill_id: String, detail: String },
+
     // Système
     AllReady,
     FatalError(String),
@@ -422,6 +429,11 @@ level              = "info"
 format             = "text"
 path               = "~/.apollia/runtime.log"
 
+[a2a]                                        # Sprint 32
+max_depth                 = 3                # Profondeur max chaîne A2A (défaut : 3)
+invocation_timeout_secs   = 120              # Timeout par invocation A2A (défaut : 120)
+chain_timeout_secs        = 300              # Budget cumulé chaîne A2A (défaut : 300)
+
 [observability]                              # Sprint 13
 max_input_bytes       = 32768               # troncature input tâches/steps (32 KB)
 max_output_bytes      = 32768               # troncature output tâches/steps (32 KB)
@@ -451,6 +463,9 @@ debug_log_prompt      = false               # persister les prompts LLM (RGPD �
 | Troncature configurable `ObservabilityConfig` (ADR-026) | UTF-8 safe, marqueur `[TRONQUÉ — N octets total]`, jamais de rejet — observabilité partielle > aucune |
 | `SkillIndex` dans `AgentRegistry` (Sprint 30, ADR-049) | Index inversé skill_id → agent_name — pas un acteur séparé, cohérence garantie par le même acteur que l'état agent (Principe #5) |
 | `A2AInvoker` timeout 120s (Sprint 30) | Invocations A2A synchrones — timeout explicite évite que le Director Agent soit bloqué indéfiniment si le Worker Agent plante |
+| Auto-installation des agents bundled (Sprint 32, ADR-050) | 4 agents bundled auto-installés au premier boot via `agents/bundled/manifest.json` — idempotent (pas de réinstallation si déjà présent) |
+| `A2AToolsProvider` (Sprint 32) | Injecte dynamiquement les skills A2A comme outils virtuels `a2a:{skill_id}` dans la boucle ReAct ORIA — backward-compatible (sans agents A2A = pas de changement) |
+| Garde-fous A2A (Sprint 32) | `max_depth`, `chain_timeout`, self-invocation — trois protections runtime non contournables pour les chaînes A2A (Principe #7) |
 
 ---
 
@@ -464,3 +479,4 @@ debug_log_prompt      = false               # persister les prompts LLM (RGPD �
 - [Chat Libre sequence](../diagrams/seq-chat-libre.puml) — boucle ReAct + streaming token-by-token (Sprint 18)
 - [Chat session state machine](../diagrams/state-chat-session.puml) — Active → Processing → Closed (Sprint 18)
 - [STT Flow](../diagrams/seq-stt-flow.puml) — hotkey → capture → transcribe → clipboard (Sprint 24)
+- [A2A Guards sequence](../diagrams/seq-a2a-guards.puml) — garde-fous invocation A2A : depth, self-invocation, chain timeout (Sprint 32)

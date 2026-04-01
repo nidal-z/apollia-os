@@ -7,6 +7,7 @@
 **Guides Agents**
 - [[Decision-Matrix-Capabilities|Matrice de décision — Capabilities]]
 - [[Worker-Agent-Pattern|Worker Agent Pattern — Guide builders]]
+- [[Community-Agent-Registry|Community Agent Registry]]
 - [[Agents-Tutoriel-Hello-Agent|Tutoriel Hello Agent]]
 - [[Agents-RuntimeContext-Guide|RuntimeContext (ctx.*)]]
 - [[Agents-Mode-Orchestre|Mode Orchestré (ORIA)]]

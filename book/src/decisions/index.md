@@ -43,3 +43,4 @@
 | ADR-036 | [ADR-036 — Stratégie de cache de plans ORIA](./adr-036-plan-cache-strategy.md) | Accepté |
 | ADR-048 | [ADR-048 — Worker Agents : expertise de domaine compilée en Python](./adr-048-worker-agents-expertise-domaine.md) | Accepté |
 | ADR-049 | [ADR-049 — Routing A2A inter-agents : discovery + invocation synchrone](./adr-049-a2a-routing-inter-agents.md) | Accepté |
+| ADR-050 | [ADR-050 — Distribution Worker Agents : bundled vs communautaire](./adr-050-distribution-worker-agents.md) | Accepté |

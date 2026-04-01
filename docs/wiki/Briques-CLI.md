@@ -217,6 +217,30 @@ $ apollia-os agent validate ./agents/mon-agent.py
   ✔ Outils requis disponibles : file_io, python_executor
   ⚠ Outil optionnel absent : mcp_erp_acme (démarrera en DEGRADED)
   ✔ Namespace "crm-dupont" accessible
+
+# Installer un agent communautaire [Sprint 32]
+$ apollia-os agent install agents/community/sql-worker.py
+  → Validation du manifest...
+  ✔ Manifest valide (name: sql-worker, version: 0.1.0)
+  → Scan dangerous_tools_allowed...
+  ✔ Aucun outil dangereux déclaré
+  → Exécution des tests...
+  ✔ 4 tests passent
+  ✔ Agent "sql-worker" installé
+
+# Installer sans exécuter les tests
+$ apollia-os agent install agents/community/git-worker.py --skip-tests
+  → Validation du manifest...
+  ✔ Manifest valide (name: git-worker, version: 0.1.0)
+  ⚠ Tests ignorés (--skip-tests)
+  ✔ Agent "git-worker" installé
+
+# Agent avec dangerous_tools_allowed → warning
+$ apollia-os agent install agents/community/my-admin-agent.py
+  → Validation du manifest...
+  ✔ Manifest valide
+  ⚠ L'agent déclare dangerous_tools_allowed: true — approbation requise
+  Confirmer l'installation ? [o/N]
 ```
 
 ### `apollia-os task <verb>`

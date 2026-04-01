@@ -208,8 +208,71 @@ Ce mécanisme garantit qu'un agent ne peut pas accidentellement accéder à des 
 
 ---
 
+## Garde-fous A2A — protection des chaînes d'invocations inter-agents (Sprint 32)
+
+Quand un Director Agent invoque un Worker via A2A (`ctx.delegate(skill_id, ...)`), le runtime applique trois garde-fous automatiques non contournables depuis Python.
+
+### Les trois protections
+
+| Garde-fou | Défaut | Protection contre |
+|---|---|---|
+| `max_depth` | 3 | Récursivité infinie (A invoque B qui invoque A...) |
+| `chain_timeout_secs` | 300 (5 min) | Chaîne A2A monopolisant les ressources indéfiniment |
+| Self-invocation | Bloqué | Agent qui s'invoque lui-même via A2A |
+
+### Configuration dans `apollia.toml`
+
+```toml
+[a2a]
+max_depth = 3                 # Profondeur maximale de la chaîne A2A
+invocation_timeout_secs = 120 # Timeout par invocation individuelle
+chain_timeout_secs = 300      # Budget cumulé pour toute la chaîne
+```
+
+### Comportement quand un garde-fou se déclenche
+
+L'invocation retourne immédiatement une erreur structurée `A2AError` et un événement `RuntimeEvent::A2AGuardTriggered` est émis sur l'EventBus :
+
+```rust
+// apollia-runtime/src/a2a/invoker.rs
+pub enum A2AError {
+    // ...
+    MaxDepthExceeded { current_depth: u32, max_depth: u32, caller: String, skill_id: String },
+    SelfInvocation { agent_name: String, skill_id: String },
+    ChainTimeoutExceeded { caller: String, skill_id: String },
+}
+```
+
+```rust
+// apollia-core/src/events.rs
+A2AGuardTriggered {
+    guard_type: String,  // "max_depth" | "self_invocation" | "chain_timeout"
+    caller: String,
+    skill_id: String,
+    detail: String,
+},
+```
+
+### Ordre d'application des garde-fous
+
+```
+1. max_depth → MaxDepthExceeded
+2. chain_deadline expirée → ChainTimeoutExceeded
+3. caller == target → SelfInvocation
+4. Skill résolu → invocation normale
+```
+
+Le `chain_deadline` est initialisé lors de la première invocation A2A à `Instant::now() + chain_timeout_secs` et propagé dans toute la chaîne. Le timeout effectif par invocation est `min(invocation_timeout, chain_remaining)`.
+
+### Interaction avec StepBudget
+
+Le StepBudget du Director Agent continue de s'appliquer pendant l'invocation A2A. Si le budget du Director est épuisé pendant qu'un Worker exécute, la tâche du Director échoue avec `BUDGET_EXCEEDED` — le Worker est interrompu par le timeout A2A.
+
+---
+
 ## Voir aussi
 
 - [Architecture Principes](./Architecture-Principes) — Principe #7 Garde-fous non négociables
 - [Briques ORIA Engine](./Briques-ORIA-Engine) — implémentation StepBudget et ResilienceLayer
 - [Agents Bonnes Pratiques](./Agents-Bonnes-Pratiques) — comment anticiper le budget dans le code agent
+- [A2A / ACP](./A2A-ACP-Alignement) — routing A2A, trust model, A2AToolsProvider

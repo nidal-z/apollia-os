@@ -73,3 +73,10 @@
 
 ## Séquence — Timeline Aggregation (5 sources → chronologie unifiée)
 ![Timeline Aggregation](seq-timeline-aggregation.svg)
+
+---
+
+## A2A Routing *(Sprint 30 + 32)*
+
+## Séquence — Garde-fous A2A (max_depth, self-invocation, chain_timeout)
+![A2A Guards](seq-a2a-guards.svg)

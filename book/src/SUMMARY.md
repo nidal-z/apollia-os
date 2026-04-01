@@ -132,6 +132,7 @@
   - [ADR-047 — Multi-LLM Backend Registry : SQLite + binding par agent](decisions/adr-047-multi-llm-backend-registry.md)
   - [ADR-048 — Worker Agents : expertise de domaine compilée en Python](decisions/adr-048-worker-agents-expertise-domaine.md)
   - [ADR-049 — Routing A2A inter-agents : discovery + invocation synchrone](decisions/adr-049-a2a-routing-inter-agents.md)
+  - [ADR-050 — Distribution Worker Agents : bundled vs communautaire](decisions/adr-050-distribution-worker-agents.md)
 
 ---
 

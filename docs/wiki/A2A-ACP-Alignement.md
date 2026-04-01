@@ -92,6 +92,72 @@ $ apollia-os agent list --supports-a2a
 
 Décision architecturale : [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
 
+### Garde-fous A2A — livré Sprint 32
+
+L'`A2AInvoker` applique trois garde-fous automatiques configurables via `A2AConfig` :
+
+| Garde-fou | Défaut | Erreur retournée |
+|---|---|---|
+| Profondeur max de récursivité | 3 | `A2AError::MaxDepthExceeded` |
+| Self-invocation (agent s'invoque lui-même) | Bloqué | `A2AError::SelfInvocation` |
+| Timeout cumulé de la chaîne | 300s | `A2AError::ChainTimeoutExceeded` |
+
+Configuration dans `apollia.toml` :
+
+```toml
+[a2a]
+max_depth = 3
+invocation_timeout_secs = 120
+chain_timeout_secs = 300
+```
+
+Chaque déclenchement de garde-fou émet un `RuntimeEvent::A2AGuardTriggered` sur l'EventBus avec `guard_type`, `caller`, `skill_id` et `detail`.
+
+Décision architecturale : [ADR-050 — Distribution Worker Agents](../adr/ADR-050-distribution-worker-agents.md)
+
+### A2AToolsProvider — Workers comme outils ORIA — livré Sprint 32
+
+`A2AToolsProvider` injecte dynamiquement les skills A2A comme des outils virtuels préfixés `a2a:` dans la boucle ReAct des agents ORIA :
+
+```
+ExecutionCoordinator
+  └── start_task(agent_entry, aip_task)
+        ├── ToolRegistry (outils natifs)
+        └── A2AToolsProvider.build_tool_descriptors()
+              → ajoute ToolDescriptor pour chaque skill A2A actif
+```
+
+Concrètement, un Director Agent ORIA voit les Workers comme des outils natifs :
+
+```python
+# Le LLM voit "a2a:read-excel" dans sa liste d'outils
+# et peut l'appeler comme n'importe quel autre outil
+ctx.tools.call("a2a:read-excel", {"text": "Lis ventes.xlsx"})
+```
+
+Le routing est transparent :
+- Nom d'outil commençant par `a2a:` → `A2AInvoker.invoke(skill_id, ...)`
+- Sinon → `ToolExecutor` natif (comportement inchangé)
+
+**Backward-compatible** : sans agents A2A actifs, aucun outil `a2a:` n'apparaît dans la liste.
+
+**Profondeur propagée** : le compteur `a2a_depth` est incrémenté à chaque invocation via outil A2A, empêchant les boucles infinies (Principe #7).
+
+```rust
+// crates/apollia-runtime/src/a2a/tools_provider.rs
+pub struct A2AToolsProvider {
+    a2a_invoker: Arc<A2AInvoker>,
+}
+
+impl A2AToolsProvider {
+    /// Génère les descripteurs pour tous les skills A2A actifs.
+    /// Chaque skill devient un ToolDescriptor avec :
+    /// - name: "a2a:{skill_id}"
+    /// - description: "{skill_description} (via {agent_name})"
+    pub async fn build_tool_descriptors(&self) -> Vec<ToolDescriptor>;
+}
+```
+
 ### Ce qui n'est pas encore implémenté
 
 - Authentification A2A (JWT, OAuth)
@@ -140,3 +206,6 @@ Cela signifie que la migration vers A2A ou ACP complets, si et quand ces standar
 - [Worker Agent Pattern](./Worker-Agent-Pattern) — créer un Worker invocable via A2A
 - [Matrice de décision — Capabilities](./Decision-Matrix-Capabilities) — quand utiliser A2A vs MCP vs Worker
 - [ADR-049 — Routing A2A inter-agents](../adr/ADR-049-a2a-routing-inter-agents.md)
+- [ADR-050 — Distribution Worker Agents](../adr/ADR-050-distribution-worker-agents.md)
+- [Sécurité Guardrails](./Securite-Guardrails) — garde-fous A2A détaillés
+- [Community Agent Registry](./Community-Agent-Registry) — registre communautaire
