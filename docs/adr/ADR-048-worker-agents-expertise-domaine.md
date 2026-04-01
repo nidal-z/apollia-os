@@ -105,5 +105,5 @@ La classe `WorkerAgent` est une **convention**, pas une contrainte — le contra
 - Document d'idéation source : `docs/internal/strategy/capabilities-architecture-ideation.md`
 - ADR précédent sur la couche outil : ADR-043 (décomposition atomique des outils fichier)
 - ADR sur le bridge Python : ADR-003 (duck typing AIP), ADR-014 (spawn_blocking + asyncio.run)
-- Story de suivi A2A : STORY-392 (Sprint 30) — routing inter-agents
-- ADR A2A à venir : ADR-049 (à créer en Sprint 30)
+- Story de suivi A2A : STORY-392 (Sprint 29) — spec routing inter-agents
+- ADR routing A2A : [ADR-049 — Routing A2A inter-agents : discovery + invocation](ADR-049-a2a-routing-inter-agents.md)

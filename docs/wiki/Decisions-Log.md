@@ -926,5 +926,24 @@
 
 ---
 
+## ADR-049 — Routing A2A inter-agents : discovery + invocation
+
+**Date :** 2026-04-01
+**Statut :** Accepté
+
+**Contexte :** Sprint 29 (ADR-048) a posé la fondation Worker Agent (`supports_a2a: True` + `skills` dans les manifests) mais sans routing effectif. Sprint 30 implémente ce routing — cinq questions architecturales doivent être formalisées avant l'implémentation : gestion des conflits de skills, mode d'invocation, format du résultat, trust model mémoire, profondeur de récursivité.
+
+**Décision :** (1) Conflit de skills → erreur `AmbiguousSkill` à la résolution, premier enregistré gagne en cas de coexistence transitoire. (2) Invocation synchrone pour V1, timeout configurable (défaut 120 s). (3) Résultat encapsulé dans `A2aDelegateResult { task_id, output: serde_json::Value }`, aligné sur `AIPResult`. (4) Trust model explicite : le Worker reçoit uniquement le payload transmis par le Director, aucune injection de mémoire automatique. (5) Récursivité non limitée en V1, garde-fous de profondeur planifiés pour Sprint 32. Type alias `A2aDelegateFn` pour contourner la contrainte `#[pyclass]` sans paramètre générique.
+
+**Alternatives considérées :** Résolution par nom d'agent (rejetée — couplage fort), routing via EventBus seul (rejetée — pas de request/response natif), invocation asynchrone V1 (rejetée — complexité injustifiée), injection automatique de mémoire vers le Worker (rejetée — viole ADR-007).
+
+**Conséquences :** Director Agent peut déléguer via `ctx.delegate(skill_id, payload)` sans couplage. Ambiguïté de skills détectée explicitement. Trust model préserve l'isolation des namespaces mémoire. Risque théorique de récursion infinie mitigé par `StepBudget` et timeout A2A.
+
+**Principes impactés :** Principe #5 — Un acteur, une responsabilité (SkillIndex dans AgentRegistry, pas un acteur séparé), Principe #6 — Mémoire à initiative de l'agent (renforcé aux délégations inter-agents), Principe #7 — Garde-fous non-négociables (timeout A2A appliqué par le runtime).
+
+[Détail complet → docs/adr/ADR-049-a2a-routing-inter-agents.md](adr/ADR-049-a2a-routing-inter-agents.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*
