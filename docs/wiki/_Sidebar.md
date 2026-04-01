@@ -5,6 +5,7 @@
 - [[Agents-Quickstart|Premier agent (5 min)]]
 
 **Guides Agents**
+- [[Decision-Matrix-Capabilities|Matrice de décision — Capabilities]]
 - [[Agents-Tutoriel-Hello-Agent|Tutoriel Hello Agent]]
 - [[Agents-RuntimeContext-Guide|RuntimeContext (ctx.*)]]
 - [[Agents-Mode-Orchestre|Mode Orchestré (ORIA)]]
