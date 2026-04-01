@@ -9,7 +9,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use axum::extract::{Path as AxumPath, State};
+use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -84,6 +84,22 @@ impl AgentLoader for StubAgentLoader {
     }
 }
 
+/// Query parameters for `GET /api/v1/agents`.
+#[derive(Debug, Deserialize)]
+pub struct AgentListQuery {
+    /// When present and `true`, restrict results to agents declaring `supports_a2a = true`.
+    pub supports_a2a: Option<bool>,
+}
+
+/// Abridged skill descriptor included in the agent list response.
+#[derive(Debug, Serialize)]
+pub struct SkillDto {
+    /// Unique skill identifier (e.g. `"read-excel"`).
+    pub id: String,
+    /// Human-readable skill name.
+    pub name: String,
+}
+
 /// Request body for `POST /api/v1/agents`.
 #[derive(Debug, Deserialize)]
 pub struct StartAgentRequest {
@@ -99,8 +115,15 @@ pub struct AgentResponse {
     /// Agent name from manifest (always present).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// Agent version from manifest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
     /// Current process state as string.
     pub state: String,
+    /// Whether this agent supports A2A inter-agent communication.
+    pub supports_a2a: bool,
+    /// Skills declared by this agent (populated in list and detail responses).
+    pub skills: Vec<SkillDto>,
     /// Agent manifest (present in detail view).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub manifest: Option<serde_json::Value>,
@@ -163,9 +186,12 @@ fn registry_error_to_response(err: AgentRegistryError) -> (StatusCode, Json<Erro
 
 /// Handler for `GET /api/v1/agents`.
 ///
-/// Lists all registered agents with their current state.
+/// Lists registered agents. When `?supports_a2a=true` is present, only agents
+/// that declare `supports_a2a = true` in their manifest are returned, and each
+/// entry includes the agent's `skills` and `version`.
 pub async fn list_agents<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
+    Query(query): Query<AgentListQuery>,
 ) -> Result<Json<AgentListResponse>, (StatusCode, Json<ErrorResponse>)> {
     let entries = state
         .registry_handle
@@ -175,11 +201,26 @@ pub async fn list_agents<B: ExecutionBackend + Clone>(
 
     let agents = entries
         .into_iter()
-        .map(|entry| AgentResponse {
-            agent_id: entry.id.to_string(),
-            name: Some(entry.manifest.name.clone()),
-            state: state_to_string(&entry.process_state),
-            manifest: None,
+        .filter(|entry| query.supports_a2a != Some(true) || entry.manifest.supports_a2a)
+        .map(|entry| {
+            let skills = entry
+                .manifest
+                .skills
+                .iter()
+                .map(|s| SkillDto {
+                    id: s.id.clone(),
+                    name: s.name.clone(),
+                })
+                .collect();
+            AgentResponse {
+                agent_id: entry.id.to_string(),
+                name: Some(entry.manifest.name.clone()),
+                version: Some(entry.manifest.version.clone()),
+                state: state_to_string(&entry.process_state),
+                supports_a2a: entry.manifest.supports_a2a,
+                skills,
+                manifest: None,
+            }
         })
         .collect();
 
@@ -274,12 +315,24 @@ pub async fn start_agent<B: ExecutionBackend + Clone + From<DynBackend>>(
         .register_coordinator(agent_id.clone(), coordinator)
         .await;
 
+    let start_skills = manifest_for_factory
+        .skills
+        .iter()
+        .map(|s| SkillDto {
+            id: s.id.clone(),
+            name: s.name.clone(),
+        })
+        .collect();
+
     Ok((
         StatusCode::CREATED,
         Json(AgentResponse {
             agent_id: agent_id.to_string(),
             name: Some(manifest_for_factory.name.clone()),
+            version: Some(manifest_for_factory.version.clone()),
             state: final_state.to_string(),
+            supports_a2a: manifest_for_factory.supports_a2a,
+            skills: start_skills,
             manifest: None,
         }),
     ))
@@ -343,11 +396,23 @@ pub async fn get_agent<B: ExecutionBackend + Clone>(
         )
     })?;
 
+    let detail_skills = entry
+        .manifest
+        .skills
+        .iter()
+        .map(|s| SkillDto {
+            id: s.id.clone(),
+            name: s.name.clone(),
+        })
+        .collect();
     let manifest_json = serde_json::to_value(&entry.manifest).ok();
     Ok(Json(AgentResponse {
         agent_id: entry.id.to_string(),
         name: Some(entry.manifest.name.clone()),
+        version: Some(entry.manifest.version.clone()),
         state: state_to_string(&entry.process_state),
+        supports_a2a: entry.manifest.supports_a2a,
+        skills: detail_skills,
         manifest: manifest_json,
     }))
 }
@@ -423,7 +488,10 @@ pub async fn stop_agent<B: ExecutionBackend + Clone>(
     Ok(Json(AgentResponse {
         agent_id: agent_id.to_string(),
         name: None,
+        version: None,
         state: "stopped".to_string(),
+        supports_a2a: false,
+        skills: vec![],
         manifest: None,
     }))
 }
@@ -910,6 +978,74 @@ mod tests {
         let error = json["error"].as_str().expect("error str");
         assert!(error.contains("failed to load agent"));
         assert!(error.contains("syntax error"));
+    }
+
+    #[test]
+    fn test_agent_list_query_deserializes_supports_a2a() {
+        // GIVEN a JSON object with supports_a2a = true (mirrors URL-decoded query)
+        // WHEN deserialized into AgentListQuery
+        let with_flag: AgentListQuery =
+            serde_json::from_value(serde_json::json!({ "supports_a2a": true }))
+                .expect("deserialize");
+        // THEN supports_a2a == Some(true)
+        assert_eq!(with_flag.supports_a2a, Some(true));
+
+        // AND an absent field gives None (no filtering)
+        let without_flag: AgentListQuery =
+            serde_json::from_value(serde_json::json!({})).expect("deserialize");
+        assert_eq!(without_flag.supports_a2a, None);
+    }
+
+    #[tokio::test]
+    async fn test_agent_list_filter_a2a_only() {
+        // GIVEN 3 agents: 2 A2A + 1 non-A2A
+        let (router, registry) = test_router();
+
+        let mut m1 = test_manifest("excel-worker");
+        m1.supports_a2a = true;
+        let id1 = registry.register(m1).await.expect("register excel-worker");
+        registry
+            .update_state(id1.as_str(), ProcessState::Active)
+            .await
+            .expect("activate excel-worker");
+
+        let mut m2 = test_manifest("csv-data-worker");
+        m2.supports_a2a = true;
+        let id2 = registry
+            .register(m2)
+            .await
+            .expect("register csv-data-worker");
+        registry
+            .update_state(id2.as_str(), ProcessState::Active)
+            .await
+            .expect("activate csv-data-worker");
+
+        let m3 = test_manifest("sdk-demo");
+        let id3 = registry.register(m3).await.expect("register sdk-demo");
+        registry
+            .update_state(id3.as_str(), ProcessState::Active)
+            .await
+            .expect("activate sdk-demo");
+
+        // WHEN GET /api/v1/agents?supports_a2a=true
+        let req = Request::builder()
+            .uri("/api/v1/agents?supports_a2a=true")
+            .body(Body::empty())
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+
+        // THEN only 2 A2A agents are returned, sdk-demo is absent
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = body_json(resp).await;
+        let agents = json["agents"].as_array().expect("agents array");
+        assert_eq!(agents.len(), 2);
+        assert!(agents
+            .iter()
+            .all(|a| a["supports_a2a"].as_bool().unwrap_or(false)));
+        let names: Vec<&str> = agents.iter().filter_map(|a| a["name"].as_str()).collect();
+        assert!(names.contains(&"excel-worker"));
+        assert!(names.contains(&"csv-data-worker"));
+        assert!(!names.contains(&"sdk-demo"));
     }
 
     #[tokio::test]

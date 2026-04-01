@@ -177,7 +177,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 agent_name.to_string().into(),
                 tool_proxy,
                 memory_interface,
-                None,  // mailbox — not available in chat runner context
+                None, // mailbox — not available in chat runner context
                 agent_name.to_string(),
                 supports_a2a,
                 user_context,
@@ -576,10 +576,10 @@ impl AgentRunner for BridgeRunner {
                     agent_id.clone().into(),
                     tool_proxy,
                     memory_interface,
-                    None,  // mailbox — not wired in task mode
+                    None, // mailbox — not wired in task mode
                     agent_id,
                     supports_a2a,
-                    None,  // user_context — task mode, not chat
+                    None, // user_context — task mode, not chat
                     a2a_delegate,
                     a2a_invoker,
                     false, // user_memory_read_only — direct start, not A2A

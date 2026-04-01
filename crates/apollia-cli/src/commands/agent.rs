@@ -146,38 +146,50 @@ async fn run_list_a2a(client: &RuntimeClient, json: bool) -> i32 {
     }
 }
 
-/// Formats the A2A agent list for human-readable output.
+/// Formats the A2A agent list as a human-readable table.
+///
+/// Output columns: NAME, VERSION, STATUS, SKILLS (comma-separated skill IDs).
 fn format_a2a_agent_list(resp: &serde_json::Value) {
     let agents = resp.get("agents").and_then(|v| v.as_array());
-    match agents {
-        None => println!("No A2A-capable agents running."),
-        Some(list) if list.is_empty() => println!("No A2A-capable agents running."),
-        Some(list) => {
-            println!("A2A-capable agents ({}):", list.len());
-            for agent in list {
-                let name = agent.get("name").and_then(|v| v.as_str()).unwrap_or("?");
-                let state = agent.get("state").and_then(|v| v.as_str()).unwrap_or("?");
-                println!("  {name}  [{state}]");
-                if let Some(skills) = agent.get("skills").and_then(|v| v.as_array()) {
-                    if skills.is_empty() {
-                        println!("    skills: (none declared)");
-                    } else {
-                        for skill in skills {
-                            let id = skill.get("id").and_then(|v| v.as_str()).unwrap_or("?");
-                            let desc = skill
-                                .get("description")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("");
-                            if desc.is_empty() {
-                                println!("    - {id}");
-                            } else {
-                                println!("    - {id}: {desc}");
-                            }
-                        }
-                    }
-                }
-            }
+    let list = match agents {
+        None => {
+            println!("No A2A-capable agents running.");
+            return;
         }
+        Some(v) if v.is_empty() => {
+            println!("No A2A-capable agents running.");
+            return;
+        }
+        Some(v) => v,
+    };
+
+    println!("  {:<24} {:<10} {:<10} SKILLS", "NAME", "VERSION", "STATUS");
+
+    for agent in list {
+        let name = agent.get("name").and_then(|v| v.as_str()).unwrap_or("?");
+        let version = agent.get("version").and_then(|v| v.as_str()).unwrap_or("-");
+        let state = agent.get("state").and_then(|v| v.as_str()).unwrap_or("?");
+        let skills_label = agent
+            .get("skills")
+            .and_then(|v| v.as_array())
+            .map(|skills| {
+                skills
+                    .iter()
+                    .filter_map(|s| s.get("id").and_then(|id| id.as_str()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .unwrap_or_default();
+        let skills_display = if skills_label.is_empty() {
+            "(none)".to_string()
+        } else {
+            skills_label
+        };
+
+        println!(
+            "  {:<24} {:<10} {:<10} {}",
+            name, version, state, skills_display
+        );
     }
 }
 

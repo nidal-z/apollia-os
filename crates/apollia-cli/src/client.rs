@@ -178,12 +178,12 @@ impl RuntimeClient {
         Ok(json)
     }
 
-    /// List A2A-capable agents via `GET /api/v1/a2a/agents`.
+    /// List A2A-capable agents via `GET /api/v1/agents?supports_a2a=true`.
     ///
-    /// Returns all active or degraded agents that declare `supports_a2a = true`
-    /// along with their skill descriptors.
+    /// Returns all agents that declare `supports_a2a = true` in their manifest,
+    /// including their skill descriptors and version.
     pub async fn list_a2a_agents(&self) -> Result<serde_json::Value, ClientError> {
-        let resp = self.get("/api/v1/a2a/agents").await?;
+        let resp = self.get("/api/v1/agents?supports_a2a=true").await?;
         if resp.status != 200 {
             return Err(ClientError::ServerError {
                 status: resp.status,
