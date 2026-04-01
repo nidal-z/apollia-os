@@ -163,7 +163,7 @@ fn format_a2a_agent_list(resp: &serde_json::Value) {
                         println!("    skills: (none declared)");
                     } else {
                         for skill in skills {
-                            let id = skill.get("skill_id").and_then(|v| v.as_str()).unwrap_or("?");
+                            let id = skill.get("id").and_then(|v| v.as_str()).unwrap_or("?");
                             let desc = skill
                                 .get("description")
                                 .and_then(|v| v.as_str())
@@ -1230,6 +1230,81 @@ mod tests {
             }
             other => panic!("expected AgentCommand::New, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn test_a2a_skill_id_field_name() {
+        // GIVEN a skill DTO JSON as returned by GET /api/v1/a2a/agents
+        let skill = serde_json::json!({
+            "id": "read-excel",
+            "name": "Read Excel",
+            "description": "Read an Excel workbook.",
+            "input_modes": ["text"],
+            "output_modes": ["text"]
+        });
+
+        // WHEN reading the skill identifier
+        let id = skill.get("id").and_then(|v| v.as_str()).unwrap_or("?");
+        let legacy = skill.get("skill_id").and_then(|v| v.as_str()).unwrap_or("?");
+
+        // THEN "id" resolves correctly and "skill_id" is absent
+        assert_eq!(id, "read-excel");
+        assert_eq!(legacy, "?");
+    }
+
+    #[test]
+    fn test_format_a2a_agent_list_empty_no_agents_key() {
+        // GIVEN a response with no "agents" key
+        let resp = serde_json::json!({});
+
+        // WHEN extracting the agents array
+        let agents = resp.get("agents").and_then(|v| v.as_array());
+
+        // THEN agents is None
+        assert!(agents.is_none());
+    }
+
+    #[test]
+    fn test_format_a2a_agent_list_empty_array() {
+        // GIVEN a response with an empty agents array
+        let resp = serde_json::json!({ "agents": [] });
+
+        // WHEN extracting the agents array
+        let agents = resp
+            .get("agents")
+            .and_then(|v| v.as_array())
+            .expect("agents array");
+
+        // THEN the array is empty
+        assert!(agents.is_empty());
+    }
+
+    #[test]
+    fn test_format_a2a_agent_list_skills_read_from_id_field() {
+        // GIVEN an A2A agents response with skills using the "id" key
+        let resp = serde_json::json!({
+            "agents": [{
+                "agent_id": "uuid-1",
+                "name": "excel-worker",
+                "version": "0.1.0",
+                "state": "active",
+                "skills": [
+                    { "id": "read-excel", "name": "Read Excel", "description": "Reads an Excel file.", "input_modes": ["text"], "output_modes": ["text"] },
+                    { "id": "edit-excel", "name": "Edit Excel", "description": "", "input_modes": ["text"], "output_modes": ["file"] }
+                ]
+            }]
+        });
+
+        // WHEN extracting skill IDs
+        let agents = resp["agents"].as_array().expect("agents");
+        let skills = agents[0]["skills"].as_array().expect("skills");
+        let ids: Vec<&str> = skills
+            .iter()
+            .filter_map(|s| s.get("id").and_then(|v| v.as_str()))
+            .collect();
+
+        // THEN both skill IDs are correctly resolved
+        assert_eq!(ids, vec!["read-excel", "edit-excel"]);
     }
 
     #[test]
