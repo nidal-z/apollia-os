@@ -153,3 +153,11 @@ path = "integration/test_sprint_28_config.rs"
 [[test]]
 name = "test_a2a_routing"
 path = "integration/test_a2a_routing.rs"
+
+[[test]]
+name = "test_distribution"
+path = "integration/test_distribution.rs"
+
+[[test]]
+name = "test_a2a_guards"
+path = "integration/test_a2a_guards.rs"

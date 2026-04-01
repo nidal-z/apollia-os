@@ -191,7 +191,7 @@ fn test_supervisor_config(
         data_dir: tmp_dir.path().to_path_buf(),
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository,
-        stt_config: None,
+        bundled_agents_path: None,
     }
 }
 
