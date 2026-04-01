@@ -139,6 +139,10 @@ pub struct EmbeddedConfig {
     pub config_path: Option<PathBuf>,
     /// Repository des agents installés — requis pour l'auto-load au boot.
     pub agent_repository: Option<AgentRepository>,
+    /// Répertoire des agents bundled pour l'auto-install au premier boot.
+    ///
+    /// Si `None` ou si `manifest.json` est absent, l'auto-install est ignoré.
+    pub bundled_agents_path: Option<PathBuf>,
     /// Chat Agent runner — enables Chat Agent mode in the ChatSessionManager.
     /// When `None`, Agent mode sessions will fail at message time.
     pub chat_agent_runner: Option<Arc<dyn crate::chat::ChatAgentRunner>>,
@@ -160,6 +164,7 @@ impl Default for EmbeddedConfig {
             llm_config: None,
             config_path: None,
             agent_repository: None,
+            bundled_agents_path: None,
             chat_agent_runner: None,
         }
     }
@@ -263,6 +268,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         data_dir: config.data_dir,
         obs_config: config.obs_config,
         agent_repository: config.agent_repository,
+        bundled_agents_path: config.bundled_agents_path,
     };
 
     let supervisor = Supervisor::new(supervisor_config);

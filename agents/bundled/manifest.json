@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0",
+  "bundled_agents": [
+    {
+      "name": "excel-worker",
+      "file": "excel-worker.py",
+      "auto_install": true,
+      "description": "Manipulation de fichiers Excel (.xlsx)"
+    },
+    {
+      "name": "csv-data-worker",
+      "file": "csv-data-worker.py",
+      "auto_install": true,
+      "description": "Analyse de fichiers CSV"
+    },
+    {
+      "name": "pdf-worker",
+      "file": "pdf-worker.py",
+      "auto_install": true,
+      "description": "Extraction de contenu PDF"
+    },
+    {
+      "name": "code-worker",
+      "file": "code-worker.py",
+      "auto_install": true,
+      "description": "Génération et refactoring de code"
+    }
+  ]
+}

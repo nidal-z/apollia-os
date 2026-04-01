@@ -13,6 +13,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tracing::{error, info, warn};
 
@@ -104,6 +105,41 @@ pub struct SupervisorConfig {
     /// chargés via `AgentLoader`, validés et enregistrés dans `AgentRegistry`.
     /// `None` → l'auto-load est désactivé (compatibilité tests existants).
     pub agent_repository: Option<AgentRepository>,
+    /// Répertoire des agents bundled (ex: `agents/bundled/`).
+    ///
+    /// Si `Some`, `auto_load_bundled_agents` est appelé au boot pour enregistrer
+    /// automatiquement les agents déclarés dans `manifest.json`.
+    /// Si `None` ou si `manifest.json` est absent, l'auto-install est ignoré silencieusement.
+    pub bundled_agents_path: Option<std::path::PathBuf>,
+}
+
+impl SupervisorConfig {
+    /// Retourne le répertoire des agents bundled, ou `None` s'il n'est pas configuré.
+    pub fn bundled_agents_dir(&self) -> Option<&std::path::Path> {
+        self.bundled_agents_path.as_deref()
+    }
+}
+
+/// Manifest des agents bundled distribués avec le runtime.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BundledManifest {
+    /// Version du format de manifest (ex : `"1.0.0"`).
+    pub version: String,
+    /// Liste des agents bundled.
+    pub bundled_agents: Vec<BundledAgentEntry>,
+}
+
+/// Entrée d'un agent dans le manifest bundled.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BundledAgentEntry {
+    /// Nom unique de l'agent (doit correspondre à `manifest().name` dans le fichier Python).
+    pub name: String,
+    /// Nom du fichier source relatif au répertoire bundled (ex : `"excel-worker.py"`).
+    pub file: String,
+    /// Si `true`, l'agent est installé automatiquement au premier boot.
+    pub auto_install: bool,
+    /// Description courte de l'agent.
+    pub description: String,
 }
 
 /// Handles returned after successful startup.
@@ -289,6 +325,99 @@ impl RestartTracker {
 /// The Supervisor holds no business state — it only manages actor lifecycles.
 pub struct Supervisor {
     config: SupervisorConfig,
+}
+
+/// Installe les agents bundled au premier boot.
+///
+/// Lit `<bundled_agents_path>/manifest.json` et, pour chaque entrée avec
+/// `auto_install: true` absente de la base, charge le manifest via `loader`
+/// et persiste un [`apollia_tools::InstalledAgent`] dans `repo`.
+///
+/// Phase 11 (`list_enabled`) prend ensuite en charge le chargement et
+/// l'enregistrement dans l'`AgentRegistry`. Les erreurs sont toujours loggées
+/// mais ne bloquent jamais le boot.
+fn auto_load_bundled_agents(
+    bundled_agents_path: Option<&std::path::Path>,
+    repo: &AgentRepository,
+    loader: &Arc<dyn AgentLoader>,
+) {
+    let bundled_dir = match bundled_agents_path {
+        Some(d) => d,
+        None => {
+            tracing::debug!("no bundled agents path configured");
+            return;
+        }
+    };
+
+    let manifest_path = bundled_dir.join("manifest.json");
+    if !manifest_path.exists() {
+        tracing::debug!("no bundled agents manifest found");
+        return;
+    }
+
+    let manifest_content = match std::fs::read_to_string(&manifest_path) {
+        Ok(c) => c,
+        Err(e) => {
+            warn!(error = %e, "failed to read bundled agents manifest");
+            return;
+        }
+    };
+
+    let manifest: BundledManifest = match serde_json::from_str(&manifest_content) {
+        Ok(m) => m,
+        Err(e) => {
+            warn!(error = %e, "failed to parse bundled agents manifest");
+            return;
+        }
+    };
+
+    for entry in &manifest.bundled_agents {
+        if !entry.auto_install {
+            continue;
+        }
+
+        match repo.get(&entry.name) {
+            Ok(Some(_)) => {
+                tracing::debug!(agent = %entry.name, "bundled agent already installed");
+                continue;
+            }
+            Ok(None) => {}
+            Err(e) => {
+                warn!(agent = %entry.name, error = %e, "failed to check bundled agent in repository");
+                continue;
+            }
+        }
+
+        let source_path = bundled_dir.join(&entry.file);
+        info!(agent = %entry.name, "installing bundled agent");
+
+        let agent_manifest = match loader.load_and_validate(&source_path) {
+            Ok(m) => m,
+            Err(e) => {
+                warn!(agent = %entry.name, error = %e, "failed to load bundled agent manifest");
+                continue;
+            }
+        };
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let installed = apollia_tools::InstalledAgent {
+            name: agent_manifest.name.clone(),
+            version: agent_manifest.version.clone(),
+            install_path: source_path.clone(),
+            source_path,
+            manifest: agent_manifest,
+            enabled: true,
+            installed_at: now.clone(),
+            updated_at: now,
+        };
+
+        if let Err(e) = repo.save(&installed) {
+            warn!(agent = %entry.name, error = %e, "failed to persist bundled agent to repository");
+            continue;
+        }
+
+        info!(agent = %entry.name, "bundled agent registered for auto-load");
+    }
 }
 
 impl Supervisor {
@@ -971,6 +1100,19 @@ impl Supervisor {
             }
         }
 
+        // Phase 10.5: Auto-install bundled agents
+        //
+        // If bundled_agents_path is configured and manifest.json is present,
+        // register each auto_install agent in the DB so Phase 11 picks them up.
+        // Agents already in the DB are skipped. Errors are logged, never fatal.
+        if let Some(ref repo) = self.config.agent_repository {
+            auto_load_bundled_agents(
+                self.config.bundled_agents_path.as_deref(),
+                repo,
+                &agent_loader_for_autoload,
+            );
+        }
+
         // Phase 11: Auto-load installed agents
         //
         // After AllReady, load all enabled agents from the repository,
@@ -1434,6 +1576,7 @@ mod tests {
             data_dir: temp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            bundled_agents_path: None,
         };
         (config, temp_dir)
     }
@@ -1597,6 +1740,7 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            bundled_agents_path: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1741,6 +1885,7 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            bundled_agents_path: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1850,6 +1995,7 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            bundled_agents_path: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1906,6 +2052,7 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            bundled_agents_path: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -1974,6 +2121,7 @@ mod tests {
             data_dir: tmp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            bundled_agents_path: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2069,6 +2217,7 @@ mod tests {
             data_dir: tmp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            bundled_agents_path: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2130,6 +2279,7 @@ mod tests {
             },
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
+            bundled_agents_path: None,
         };
         let supervisor = Supervisor::new(config);
 
@@ -2651,5 +2801,146 @@ mod tests {
         );
 
         shutdown_handles(handles, &socket_path).await;
+    }
+
+    // ── Bundled agents auto-install ──────────────────────────────
+
+    /// Crée un répertoire bundled temporaire avec un manifest.json et des stubs Python.
+    fn setup_bundled_dir(tmp: &tempfile::TempDir, agents: &[(&str, &str)]) -> std::path::PathBuf {
+        let bundled_dir = tmp.path().join("bundled");
+        std::fs::create_dir_all(&bundled_dir).expect("create bundled dir");
+
+        let entries: Vec<serde_json::Value> = agents
+            .iter()
+            .map(|(name, file)| {
+                serde_json::json!({
+                    "name": name,
+                    "file": file,
+                    "auto_install": true,
+                    "description": format!("Test agent {name}")
+                })
+            })
+            .collect();
+
+        let manifest = serde_json::json!({
+            "version": "1.0.0",
+            "bundled_agents": entries
+        });
+        std::fs::write(
+            bundled_dir.join("manifest.json"),
+            serde_json::to_string_pretty(&manifest).expect("serialize"),
+        )
+        .expect("write manifest.json");
+
+        for (name, file) in agents {
+            // Stub Python files — named so StubAgentLoader derives the agent name from stem.
+            std::fs::write(bundled_dir.join(file), format!("# {name}\n"))
+                .expect("write stub agent");
+        }
+
+        bundled_dir
+    }
+
+    // Pas de manifest.json → pas d'agent installé, pas d'erreur
+    #[test]
+    fn test_no_manifest_no_error() {
+        // GIVEN aucun manifest.json dans le répertoire bundled
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let bundled_dir = tmp.path().join("bundled");
+        std::fs::create_dir_all(&bundled_dir).expect("create dir");
+
+        let repo = open_test_repo();
+
+        // WHEN
+        let loader: Arc<dyn AgentLoader> = Arc::new(crate::api::routes_agents::StubAgentLoader);
+        auto_load_bundled_agents(Some(&bundled_dir), &repo, &loader);
+
+        // THEN aucun agent dans la base
+        let agents = repo.list().expect("list should succeed");
+        assert!(agents.is_empty(), "no agents should be installed");
+    }
+
+    // bundled_agents_path = None → aucun agent installé, pas d'erreur
+    #[test]
+    fn test_no_bundled_path_no_error() {
+        // GIVEN bundled_agents_path non configuré
+        let repo = open_test_repo();
+        let loader: Arc<dyn AgentLoader> = Arc::new(crate::api::routes_agents::StubAgentLoader);
+
+        // WHEN
+        auto_load_bundled_agents(None, &repo, &loader);
+
+        // THEN aucun agent dans la base
+        let agents = repo.list().expect("list should succeed");
+        assert!(
+            agents.is_empty(),
+            "no agents should be installed when path is None"
+        );
+    }
+
+    // 4 agents dans le manifest, DB vide → 4 agents enregistrés
+    #[test]
+    fn test_bundled_agents_auto_installed() {
+        // GIVEN manifest.json avec 4 agents ET aucun agent en DB
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let bundled_dir = setup_bundled_dir(
+            &tmp,
+            &[
+                ("excel-worker", "excel-worker.py"),
+                ("csv-data-worker", "csv-data-worker.py"),
+                ("pdf-worker", "pdf-worker.py"),
+                ("code-worker", "code-worker.py"),
+            ],
+        );
+
+        let repo = open_test_repo();
+        let loader: Arc<dyn AgentLoader> = Arc::new(crate::api::routes_agents::StubAgentLoader);
+
+        // WHEN
+        auto_load_bundled_agents(Some(&bundled_dir), &repo, &loader);
+
+        // THEN 4 agents dans la base, tous enabled
+        let agents = repo.list().expect("list should succeed");
+        assert_eq!(agents.len(), 4, "all 4 bundled agents should be installed");
+        assert!(
+            agents.iter().all(|a| a.enabled),
+            "all agents should be enabled"
+        );
+        let names: Vec<&str> = agents.iter().map(|a| a.name.as_str()).collect();
+        assert!(names.contains(&"excel-worker"));
+        assert!(names.contains(&"csv-data-worker"));
+        assert!(names.contains(&"pdf-worker"));
+        assert!(names.contains(&"code-worker"));
+    }
+
+    // excel-worker déjà en DB → pas ré-installé, 3 autres installés
+    #[test]
+    fn test_bundled_agents_skip_existing() {
+        // GIVEN excel-worker déjà installé en DB
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let bundled_dir = setup_bundled_dir(
+            &tmp,
+            &[
+                ("excel-worker", "excel-worker.py"),
+                ("csv-data-worker", "csv-data-worker.py"),
+                ("pdf-worker", "pdf-worker.py"),
+                ("code-worker", "code-worker.py"),
+            ],
+        );
+
+        let repo = open_test_repo();
+        repo.save(&test_installed_agent("excel-worker", true))
+            .expect("pre-install excel-worker");
+
+        let loader: Arc<dyn AgentLoader> = Arc::new(crate::api::routes_agents::StubAgentLoader);
+
+        // WHEN
+        auto_load_bundled_agents(Some(&bundled_dir), &repo, &loader);
+
+        // THEN 4 agents en DB (1 préexistant + 3 nouveaux), excel-worker non dupliqué
+        let agents = repo.list().expect("list should succeed");
+        assert_eq!(agents.len(), 4, "4 agents total (1 existing + 3 new)");
+        let excel_count = agents.iter().filter(|a| a.name == "excel-worker").count();
+        assert_eq!(excel_count, 1, "excel-worker should not be duplicated");
     }
 }

@@ -873,6 +873,18 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         data_dir,
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository,
+        bundled_agents_path: {
+            // Look for agents/bundled/ adjacent to the binary, then in the current directory.
+            let from_exe = std::env::current_exe()
+                .ok()
+                .and_then(|exe| exe.parent().map(|d| d.join("agents").join("bundled")))
+                .filter(|p| p.exists());
+            let from_cwd = std::env::current_dir()
+                .ok()
+                .map(|d| d.join("agents").join("bundled"))
+                .filter(|p| p.exists());
+            from_exe.or(from_cwd)
+        },
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);
