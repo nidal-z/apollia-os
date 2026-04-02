@@ -5,7 +5,7 @@
   import { get } from "svelte/store";
   import { t } from "svelte-i18n";
   import { onboardingStore } from "$lib/stores/onboarding";
-  import { tourPrefill, tourCompanionOverride } from "$lib/stores/tour";
+  import { tourPrefill, tourCompanionOverride, tourOpenAgentDetail } from "$lib/stores/tour";
   import { navigateTo } from "$lib/stores/navigation";
   import TourSpotlight from "./TourSpotlight.svelte";
   import TourStepCard from "./TourStepCard.svelte";
@@ -22,6 +22,8 @@
 
   let steps = $state<TourStep[]>([]);
   let stepIndex = $state(0);
+  /** i18n namespace prefix derived from the active profile: `"op"` or `"bld"`. */
+  let profileNs = $state("op");
   let targetRect = $state<DOMRect | null>(null);
   let loading = $state(true);
   let skipping = $state(false);
@@ -54,6 +56,7 @@
       clearWaitEvent();
       tourPrefill.set(null);
       tourCompanionOverride.set(null);
+      tourOpenAgentDetail.set(null);
     };
   });
 
@@ -62,6 +65,7 @@
   async function loadAndStart(): Promise<void> {
     const state = get(onboardingStore);
     const profile = state.profile ?? "operator";
+    profileNs = profile === "builder" ? "bld" : "op";
 
     let loaded: TourStep[];
     try {
@@ -96,6 +100,8 @@
 
     // Publish prefilled data for target pages to read.
     tourPrefill.set(step.interaction ?? null);
+    // Clear any pending programmatic panel open from the previous step.
+    tourOpenAgentDetail.set(null);
 
     // Navigate to the step's route before DOM operations.
     const route = step.route.replace(/^\//, "") as Route;
@@ -104,6 +110,14 @@
     // Wait for Svelte to flush and the browser to paint.
     await tick();
     await sleep(80);
+
+    // For the agent-detail step, open the detail panel programmatically.
+    if (step.id === "bld-agent-detail") {
+      tourOpenAgentDetail.set("csv-data-worker");
+      // Allow an extra tick for the panel to mount before resolving the selector.
+      await tick();
+      await sleep(200);
+    }
 
     // Resolve the spotlight target with retry logic.
     targetRect = await resolveSelector(step.spotlight_selector);
@@ -118,7 +132,7 @@
       if (typeof agentId === "string") {
         const alreadyRunning = await isDemoAgentRunning(agentId);
         if (alreadyRunning) {
-          tourCompanionOverride.set("onboarding.tour.op.agents.already_active");
+          tourCompanionOverride.set(`onboarding.tour.${profileNs}.agents.already_active`);
           await advanceStep();
           return;
         }
@@ -186,7 +200,7 @@
 
           // Auto-skip after INTERACTION_TIMEOUT_S if no event arrives.
           timeoutTimer = setTimeout(() => {
-            tourCompanionOverride.set("onboarding.tour.op.timeout_skip");
+            tourCompanionOverride.set(`onboarding.tour.${profileNs}.timeout_skip`);
             void advanceStep();
           }, INTERACTION_TIMEOUT_S * 1000);
         }
@@ -240,6 +254,7 @@
     skipping = true;
     tourPrefill.set(null);
     tourCompanionOverride.set(null);
+    tourOpenAgentDetail.set(null);
     try {
       await onboardingStore.advancePhase("graduation" as OnboardingPhase);
     } catch (err) {

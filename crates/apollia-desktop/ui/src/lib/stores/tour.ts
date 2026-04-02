@@ -25,3 +25,13 @@ export const tourPrefill = writable<TourInteraction | null>(null);
  * step title.
  */
 export const tourCompanionOverride = writable<string | null>(null);
+
+/**
+ * The name of the agent whose detail panel should be opened programmatically,
+ * or `null` when no programmatic open is requested.
+ *
+ * Written by the orchestrator for steps that require the detail panel to be
+ * visible before the user interacts. The Agents page reads this store and opens
+ * the corresponding panel. Reset to `null` at the start of each step activation.
+ */
+export const tourOpenAgentDetail = writable<string | null>(null);

@@ -1102,6 +1102,53 @@
           "message": "You've mastered the essentials of Apollia OS. Explore freely and come back any time."
         },
         "timeout_skip": "No worries, you can try this later!"
+      },
+      "bld": {
+        "dashboard": {
+          "title": "Your architecture at a glance",
+          "message": "This is your workspace. You'll build and run agents from here — each agent is a Python module with a manifest() and run() contract."
+        },
+        "agents": {
+          "title": "Start csv-data-worker",
+          "message": "Click Start to activate this demo agent. Watch how the runtime boots the Python module and registers it.",
+          "success": "Agent active! The runtime has loaded the manifest and started the run() loop.",
+          "already_active": "This agent is already running — the runtime detected it automatically."
+        },
+        "agent_detail": {
+          "title": "The agent manifest",
+          "message": "Every agent exposes two async functions: manifest() returns metadata, run() is the main loop. That's the full contract."
+        },
+        "memory": {
+          "title": "Query agent memory",
+          "message": "Agents write to memory at their own initiative. Search the 'onboarding-agent' namespace to see what csv-data-worker stored.",
+          "success": "Memory results loaded — you can see what the agent persisted during its run."
+        },
+        "chat": {
+          "title": "Chat with your agent",
+          "message": "The form is pre-filled. Send this message to see how an agent processes a memory-related query.",
+          "success": "Message sent. The agent will use memory.search() internally to answer you."
+        },
+        "integrations": {
+          "title": "MCP integrations",
+          "message": "Connect external tools via MCP servers. Your agents call these tools through the native client — no Python dependencies required."
+        },
+        "triggers": {
+          "title": "Trigger types",
+          "message": "Cron, interval, file-watch, webhook. Each trigger fires the agent's run() function automatically when its condition is met."
+        },
+        "pipelines": {
+          "title": "DAG pipelines",
+          "message": "Wire agents together in directed acyclic graphs. Fan-out, fan-in, conditional branches — all handled by the pipeline engine."
+        },
+        "observability": {
+          "title": "Observability",
+          "message": "Every tool call, memory write, and LLM token is logged in the audit trail. Use it to debug, profile, and audit your agents."
+        },
+        "graduation": {
+          "title": "You're ready to build",
+          "message": "You know the architecture. Create your first agent with manifest() + run(), install it, and let the runtime handle the rest."
+        },
+        "timeout_skip": "Take your time — you can replay any step from the progress bar."
       }
     }
   },

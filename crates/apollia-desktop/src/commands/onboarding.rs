@@ -1730,109 +1730,130 @@ fn operator_steps() -> Vec<TourStep> {
 }
 
 /// Returns the ordered tour steps for the Builder profile (10 steps).
+///
+/// Steps 2, 4, and 5 (indices 1, 3, 4) are interactive: they wait for a backend
+/// event before the orchestrator advances. The other steps are passive.
+/// Step 3 (bld-agent-detail) triggers a programmatic panel open on the frontend.
 fn builder_steps() -> Vec<TourStep> {
     vec![
+        // Step 1 — Dashboard overview (passive, auto-advances after 10 s)
         TourStep {
-            id: "bl-welcome".to_string(),
+            id: "bld-dashboard".to_string(),
             route: "/dashboard".to_string(),
-            spotlight_selector: None,
-            companion_message_key: "onboarding.tour.bl.welcome".to_string(),
+            spotlight_selector: Some("#dashboard-stats".to_string()),
+            companion_message_key: "onboarding.tour.bld.dashboard.title".to_string(),
             interaction: None,
-            completion_mode: "click_next".to_string(),
+            completion_mode: "auto".to_string(),
             estimated_seconds: 10,
         },
+        // Step 2 — Start csv-data-worker (interactive, waits for AgentReady)
         TourStep {
-            id: "bl-agents-create".to_string(),
+            id: "bld-agents-start".to_string(),
             route: "/agents".to_string(),
-            spotlight_selector: Some("[data-testid=\"create-agent-btn\"]".to_string()),
-            companion_message_key: "onboarding.tour.bl.agents_create".to_string(),
-            interaction: None,
-            completion_mode: "click_next".to_string(),
-            estimated_seconds: 20,
-        },
-        TourStep {
-            id: "bl-agents-detail".to_string(),
-            route: "/agents".to_string(),
-            spotlight_selector: Some("[data-testid=\"agent-detail\"]".to_string()),
-            companion_message_key: "onboarding.tour.bl.agents_detail".to_string(),
-            interaction: None,
-            completion_mode: "click_next".to_string(),
-            estimated_seconds: 20,
-        },
-        TourStep {
-            id: "bl-chat".to_string(),
-            route: "/chat".to_string(),
-            spotlight_selector: Some("[data-testid=\"chat-input\"]".to_string()),
-            companion_message_key: "onboarding.tour.bl.chat".to_string(),
+            spotlight_selector: Some("#agent-csv-data-worker".to_string()),
+            companion_message_key: "onboarding.tour.bld.agents.title".to_string(),
             interaction: Some(TourInteraction {
-                interaction_type: "send_chat".to_string(),
-                prefilled_data: Some(serde_json::json!({ "message": "Hello Apollia!" })),
-                validation_event: Some("ChatMessageSent".to_string()),
+                interaction_type: "start_agent".to_string(),
+                prefilled_data: Some(serde_json::json!({ "agent_id": "csv-data-worker" })),
+                validation_event: Some("AgentReady".to_string()),
             }),
             completion_mode: "wait_event".to_string(),
             estimated_seconds: 30,
         },
+        // Step 3 — Agent detail with manifest (passive, panel opened programmatically)
         TourStep {
-            id: "bl-memory".to_string(),
+            id: "bld-agent-detail".to_string(),
+            route: "/agents".to_string(),
+            spotlight_selector: Some("#agent-detail-manifest".to_string()),
+            companion_message_key: "onboarding.tour.bld.agent_detail.title".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 20,
+        },
+        // Step 4 — Memory search (interactive, waits for MemorySearchCompleted)
+        TourStep {
+            id: "bld-memory-search".to_string(),
             route: "/memory".to_string(),
-            spotlight_selector: Some("[data-testid=\"memory-search\"]".to_string()),
-            companion_message_key: "onboarding.tour.bl.memory".to_string(),
+            spotlight_selector: Some("#memory-search-form".to_string()),
+            companion_message_key: "onboarding.tour.bld.memory.title".to_string(),
             interaction: Some(TourInteraction {
                 interaction_type: "search_memory".to_string(),
-                prefilled_data: None,
-                validation_event: Some("MemorySearchDone".to_string()),
-            }),
-            completion_mode: "wait_event".to_string(),
-            estimated_seconds: 20,
-        },
-        TourStep {
-            id: "bl-pipelines".to_string(),
-            route: "/pipelines".to_string(),
-            spotlight_selector: Some("[data-testid=\"pipeline-list\"]".to_string()),
-            companion_message_key: "onboarding.tour.bl.pipelines".to_string(),
-            interaction: None,
-            completion_mode: "click_next".to_string(),
-            estimated_seconds: 20,
-        },
-        TourStep {
-            id: "bl-triggers".to_string(),
-            route: "/triggers".to_string(),
-            spotlight_selector: Some("[data-testid=\"trigger-list\"]".to_string()),
-            companion_message_key: "onboarding.tour.bl.triggers".to_string(),
-            interaction: Some(TourInteraction {
-                interaction_type: "create_trigger".to_string(),
-                prefilled_data: None,
-                validation_event: Some("TriggerCreated".to_string()),
+                prefilled_data: Some(serde_json::json!({
+                    "namespace": "onboarding-agent",
+                    "query": "user",
+                    "limit": 10
+                })),
+                validation_event: Some("MemorySearchCompleted".to_string()),
             }),
             completion_mode: "wait_event".to_string(),
             estimated_seconds: 30,
         },
+        // Step 5 — Send chat message (interactive, waits for ChatMessageReceived)
         TourStep {
-            id: "bl-mcp".to_string(),
-            route: "/integrations".to_string(),
-            spotlight_selector: Some("[data-testid=\"mcp-server-list\"]".to_string()),
-            companion_message_key: "onboarding.tour.bl.mcp".to_string(),
-            interaction: None,
-            completion_mode: "click_next".to_string(),
-            estimated_seconds: 20,
+            id: "bld-chat-send".to_string(),
+            route: "/chat".to_string(),
+            spotlight_selector: Some("#chat-input".to_string()),
+            companion_message_key: "onboarding.tour.bld.chat.title".to_string(),
+            interaction: Some(TourInteraction {
+                interaction_type: "send_chat".to_string(),
+                prefilled_data: Some(serde_json::json!({
+                    "message": "Montre-moi comment un agent utilise la mémoire",
+                    "channel": "libre"
+                })),
+                validation_event: Some("ChatMessageReceived".to_string()),
+            }),
+            completion_mode: "wait_event".to_string(),
+            estimated_seconds: 30,
         },
+        // Step 6 — MCP integrations overview (passive, user clicks Next)
         TourStep {
-            id: "bl-observability".to_string(),
-            route: "/observability".to_string(),
-            spotlight_selector: Some("[data-testid=\"timeline-global\"]".to_string()),
-            companion_message_key: "onboarding.tour.bl.observability".to_string(),
+            id: "bld-integrations".to_string(),
+            route: "/integrations".to_string(),
+            spotlight_selector: Some("#mcp-server-list".to_string()),
+            companion_message_key: "onboarding.tour.bld.integrations.title".to_string(),
             interaction: None,
             completion_mode: "click_next".to_string(),
             estimated_seconds: 15,
         },
+        // Step 7 — Triggers overview (passive, user clicks Next)
         TourStep {
-            id: "bl-done".to_string(),
-            route: "/dashboard".to_string(),
-            spotlight_selector: None,
-            companion_message_key: "onboarding.tour.bl.done".to_string(),
+            id: "bld-triggers".to_string(),
+            route: "/triggers".to_string(),
+            spotlight_selector: Some("#trigger-type-list".to_string()),
+            companion_message_key: "onboarding.tour.bld.triggers.title".to_string(),
             interaction: None,
             completion_mode: "click_next".to_string(),
-            estimated_seconds: 10,
+            estimated_seconds: 15,
+        },
+        // Step 8 — Pipelines DAG view (passive, user clicks Next)
+        TourStep {
+            id: "bld-pipelines".to_string(),
+            route: "/pipelines".to_string(),
+            spotlight_selector: Some("#pipeline-dag-view".to_string()),
+            companion_message_key: "onboarding.tour.bld.pipelines.title".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 15,
+        },
+        // Step 9 — Observability audit trail (passive, user clicks Next)
+        TourStep {
+            id: "bld-observability".to_string(),
+            route: "/observability".to_string(),
+            spotlight_selector: Some("#audit-trail-panel".to_string()),
+            companion_message_key: "onboarding.tour.bld.observability.title".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 15,
+        },
+        // Step 10 — Graduation (passive, auto-advances after 5 s)
+        TourStep {
+            id: "bld-graduation".to_string(),
+            route: "/dashboard".to_string(),
+            spotlight_selector: Some("#graduation-card".to_string()),
+            companion_message_key: "onboarding.tour.bld.graduation.title".to_string(),
+            interaction: None,
+            completion_mode: "auto".to_string(),
+            estimated_seconds: 5,
         },
     ]
 }
@@ -2090,6 +2111,77 @@ mod tour_tests {
         let steps = operator_steps();
         // WHEN checking routes
         // THEN all routes start with "/"
+        for step in &steps {
+            assert!(
+                step.route.starts_with('/'),
+                "invalid route '{}' for step '{}'",
+                step.route,
+                step.id
+            );
+        }
+    }
+
+    #[test]
+    fn test_builder_steps_count() {
+        // GIVEN the builder profile
+        // WHEN the steps are generated
+        // THEN there are exactly 10 steps
+        let steps = builder_steps();
+        assert_eq!(steps.len(), 10);
+    }
+
+    #[test]
+    fn test_builder_steps_order() {
+        // GIVEN the builder step catalogue
+        // WHEN checking the ids by position
+        // THEN the order matches the specified sequence
+        let steps = builder_steps();
+        assert_eq!(steps[0].id, "bld-dashboard");
+        assert_eq!(steps[1].id, "bld-agents-start");
+        assert_eq!(steps[2].id, "bld-agent-detail");
+        assert_eq!(steps[3].id, "bld-memory-search");
+        assert_eq!(steps[9].id, "bld-graduation");
+    }
+
+    #[test]
+    fn test_builder_interactive_steps_have_interaction() {
+        // GIVEN the builder step catalogue
+        // WHEN filtering the interactive steps (indices 1, 3, 4)
+        // THEN each one has an interaction descriptor
+        let steps = builder_steps();
+        assert!(steps[1].interaction.is_some(), "bld-agents-start must have interaction");
+        assert!(steps[3].interaction.is_some(), "bld-memory-search must have interaction");
+        assert!(steps[4].interaction.is_some(), "bld-chat-send must have interaction");
+    }
+
+    #[test]
+    fn test_builder_agent_detail_step_is_passive() {
+        // GIVEN the builder step catalogue
+        // WHEN checking the agent-detail step
+        // THEN it is passive (click_next) with no interaction
+        let steps = builder_steps();
+        assert!(steps[2].interaction.is_none(), "bld-agent-detail must be passive");
+        assert_eq!(steps[2].completion_mode, "click_next");
+    }
+
+    #[test]
+    fn test_builder_memory_step_has_prefilled_data() {
+        // GIVEN the builder step catalogue
+        // WHEN checking the memory-search step
+        // THEN prefilled_data contains namespace and query
+        let steps = builder_steps();
+        let interaction = steps[3].interaction.as_ref().unwrap();
+        let data = interaction.prefilled_data.as_ref().unwrap();
+        assert_eq!(data["namespace"], "onboarding-agent");
+        assert_eq!(data["query"], "user");
+    }
+
+    #[test]
+    fn test_builder_steps_have_valid_routes() {
+        // GIVEN the builder step catalogue
+        // WHEN checking routes
+        // THEN all routes start with "/"
+        let steps = builder_steps();
         for step in &steps {
             assert!(
                 step.route.starts_with('/'),

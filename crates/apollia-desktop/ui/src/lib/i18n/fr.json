@@ -1102,6 +1102,53 @@
           "message": "Vous maîtrisez l'essentiel d'Apollia OS. Explorez librement et revenez quand vous voulez."
         },
         "timeout_skip": "Pas de souci, vous pourrez essayer plus tard !"
+      },
+      "bld": {
+        "dashboard": {
+          "title": "Votre architecture en un coup d'œil",
+          "message": "C'est votre espace de travail. Vous construirez et exécuterez des agents depuis ici — chaque agent est un module Python avec un contrat manifest() + run()."
+        },
+        "agents": {
+          "title": "Démarrez csv-data-worker",
+          "message": "Cliquez sur Démarrer pour activer cet agent de démo. Observez comment le runtime charge le module Python et l'enregistre.",
+          "success": "Agent actif ! Le runtime a chargé le manifest et démarré la boucle run().",
+          "already_active": "Cet agent tourne déjà — le runtime l'a détecté automatiquement."
+        },
+        "agent_detail": {
+          "title": "Le manifest de l'agent",
+          "message": "Chaque agent expose deux fonctions async : manifest() retourne les métadonnées, run() est la boucle principale. C'est tout le contrat."
+        },
+        "memory": {
+          "title": "Interroger la mémoire de l'agent",
+          "message": "Les agents écrivent en mémoire à leur propre initiative. Cherchez dans le namespace 'onboarding-agent' ce que csv-data-worker a stocké.",
+          "success": "Résultats chargés — vous voyez ce que l'agent a persisté pendant son exécution."
+        },
+        "chat": {
+          "title": "Dialoguez avec votre agent",
+          "message": "Le formulaire est prérempli. Envoyez ce message pour voir comment un agent traite une requête liée à la mémoire.",
+          "success": "Message envoyé. L'agent utilisera memory.search() en interne pour vous répondre."
+        },
+        "integrations": {
+          "title": "Intégrations MCP",
+          "message": "Connectez des outils externes via des serveurs MCP. Vos agents appellent ces outils via le client natif — sans dépendances Python requises."
+        },
+        "triggers": {
+          "title": "Types de déclencheurs",
+          "message": "Cron, intervalle, surveillance de fichier, webhook. Chaque déclencheur appelle automatiquement run() quand sa condition est remplie."
+        },
+        "pipelines": {
+          "title": "Pipelines DAG",
+          "message": "Connectez des agents en graphes acycliques dirigés. Fan-out, fan-in, branches conditionnelles — tout géré par le moteur de pipeline."
+        },
+        "observability": {
+          "title": "Observabilité",
+          "message": "Chaque appel d'outil, écriture mémoire et token LLM est enregistré dans l'audit trail. Utilisez-le pour déboguer, profiler et auditer vos agents."
+        },
+        "graduation": {
+          "title": "Vous êtes prêt à construire",
+          "message": "Vous connaissez l'architecture. Créez votre premier agent avec manifest() + run(), installez-le, et laissez le runtime faire le reste."
+        },
+        "timeout_skip": "Prenez votre temps — vous pouvez rejouer n'importe quelle étape depuis la barre de progression."
       }
     }
   },

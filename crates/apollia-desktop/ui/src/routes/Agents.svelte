@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
+  import { get } from "svelte/store";
   import { fly } from "svelte/transition";
   import { flip } from "svelte/animate";
   import { t } from "svelte-i18n";
@@ -9,6 +10,7 @@
   import { connectionStatus } from "$lib/stores/sse";
   import { navigateTo } from "$lib/stores/navigation";
   import { pendingChatSessionId } from "$lib/stores/chat";
+  import { tourOpenAgentDetail } from "$lib/stores/tour";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { Bot, Download, Sparkles } from "lucide-svelte";
@@ -66,6 +68,17 @@
       navigateTo("chat");
     }
   }
+
+  // Open the agent detail panel when the tour requests it programmatically.
+  $effect(() => {
+    return tourOpenAgentDetail.subscribe((agentName) => {
+      if (agentName === null) return;
+      const found = get(agents).find((a) => a.name === agentName);
+      if (found !== undefined) {
+        openDetail(found);
+      }
+    });
+  });
 </script>
 
 <div class="max-w-6xl" data-testid="agents-page">
