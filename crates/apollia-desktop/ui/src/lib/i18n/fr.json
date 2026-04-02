@@ -32,6 +32,10 @@
     },
     "back": "Retour"
   },
+  "companion": {
+    "toggle_label": "Aide Apollia",
+    "no_llm_tooltip": "Configurez un modèle LLM pour activer l'aide contextuelle"
+  },
   "nav": {
     "dashboard": "Tableau de bord",
     "home": "Accueil",

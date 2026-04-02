@@ -7,7 +7,8 @@
   import { uiMode } from "$lib/stores/mode";
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
-  import { showOnboardingBadge } from "$lib/stores/onboarding";
+  import { showOnboardingBadge, onboardingStore } from "$lib/stores/onboarding";
+  import CompanionToggle from "../companion/CompanionToggle.svelte";
   import { runningTasks } from "$lib/stores/tasks";
   import {
     LayoutDashboard,
@@ -237,6 +238,11 @@
     <div class="flex-1"></div>
 
     <Separator class="my-2" />
+
+    <!-- Companion toggle (post-onboarding only) -->
+    {#if $onboardingStore.completed || $onboardingStore.phase === "done"}
+      <CompanionToggle {collapsed} />
+    {/if}
 
     <!-- Settings -->
     <button

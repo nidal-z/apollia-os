@@ -4,6 +4,7 @@
   import {
     companionStore,
     isCompanionPanelVisible,
+    isCompanionRestoreVisible,
     type CompanionPosition,
   } from "$lib/stores/companion";
   import ChatConversation from "../chat/ChatConversation.svelte";
@@ -11,6 +12,7 @@
   // ── Panel state ────────────────────────────────────────────────────────────
 
   const panelVisible = $derived(isCompanionPanelVisible($companionStore));
+  const restoreVisible = $derived(isCompanionRestoreVisible($companionStore));
   const sessionId = $derived($companionStore.sessionId);
   const position = $derived($companionStore.position);
   const size = $derived($companionStore.size);
@@ -151,6 +153,19 @@
     companionStore.closeCompanion();
   }
 </script>
+
+{#if restoreVisible}
+  <button
+    class="fixed z-[65] flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    style:bottom="24px"
+    style:right="24px"
+    onclick={() => companionStore.restoreCompanion()}
+    aria-label="Restaurer le Companion"
+    data-testid="companion-restore"
+  >
+    <Bot size={22} />
+  </button>
+{/if}
 
 {#if panelVisible}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->

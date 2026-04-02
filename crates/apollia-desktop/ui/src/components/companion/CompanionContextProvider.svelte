@@ -9,27 +9,29 @@
 
   let { children }: Props = $props();
 
-  // Track the previous route to avoid redundant IPC calls.
   let previousRoute = $state<string>("");
 
+  /**
+   * Debounced route observer: waits 500 ms after the last navigation before
+   * fetching the new context. Rapid navigations cancel previous timers so
+   * only the final destination triggers an IPC round-trip.
+   */
   $effect(() => {
     const route = $currentRoute;
-    if (route === previousRoute) return;
-    previousRoute = route;
-
-    companionStore.updateRoute(route);
-
-    // Pre-fetch context so it is ready when the panel opens.
-    companionStore.fetchContext(route).catch(() => {
-      // Non-critical — companion still works without pre-loaded context.
-    });
+    const timer = setTimeout(() => {
+      if (route === previousRoute) return;
+      previousRoute = route;
+      companionStore.updateRoute(route);
+      void companionStore.updateContext(route);
+    }, 500);
+    return () => clearTimeout(timer);
   });
 
   onMount(() => {
-    // Sync the initial route on mount.
     const route = $currentRoute;
+    previousRoute = route;
     companionStore.updateRoute(route);
-    companionStore.fetchContext(route).catch(() => {});
+    void companionStore.updateContext(route);
   });
 </script>
 

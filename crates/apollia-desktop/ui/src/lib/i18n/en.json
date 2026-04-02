@@ -32,6 +32,10 @@
     },
     "back": "Back"
   },
+  "companion": {
+    "toggle_label": "Apollia Help",
+    "no_llm_tooltip": "Configure an LLM model to enable contextual help"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "home": "Home",

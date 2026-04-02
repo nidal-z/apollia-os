@@ -2,10 +2,11 @@
  * Companion panel state store.
  *
  * The Companion is a floating chat panel that provides contextual help on
- * every page. Its position, size, and visibility are persisted in
- * localStorage so they survive page reloads.
+ * every page. Panel geometry (position, size, visibility) is persisted in
+ * localStorage. The enabled preference is persisted in UserMemory so it
+ * survives application reinstalls.
  */
-import { writable } from "svelte/store";
+import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 
 export interface CompanionPosition {
@@ -19,6 +20,11 @@ export interface CompanionSize {
 }
 
 export interface CompanionState {
+  /**
+   * Whether the companion is enabled by the user (persisted in UserMemory).
+   * Initialised to `false`; call `initFromMemory()` on app startup to restore.
+   */
+  enabled: boolean;
   /** Companion panel is open (not hidden). */
   visible: boolean;
   /** Active chat session identifier, `null` when no session has been created. */
@@ -31,17 +37,21 @@ export interface CompanionState {
   size: CompanionSize;
   /** Application route currently shown, used to build contextual prompts. */
   currentRoute: string;
+  /** Contextual help text for the current route, populated by `updateContext`. */
+  currentContext: string;
 }
 
 const STORAGE_KEY = "apollia_companion";
 
 const DEFAULT_COMPANION_STATE: CompanionState = {
+  enabled: false,
   visible: false,
   sessionId: null,
   minimized: false,
   position: { x: -1, y: -1 },
   size: { width: 380, height: 520 },
   currentRoute: "dashboard",
+  currentContext: "",
 };
 
 /** Clamps a position so the panel stays within the visible viewport. */
@@ -58,14 +68,22 @@ function clampPosition(
   };
 }
 
-/** Reads persisted state from localStorage, falling back to defaults. */
+/**
+ * Reads persisted geometry from localStorage, falling back to defaults.
+ * `enabled` and `currentContext` are always initialised to their defaults
+ * so they are never restored from the local cache.
+ */
 function loadFromStorage(): CompanionState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_COMPANION_STATE };
     const parsed = JSON.parse(raw) as Partial<CompanionState>;
-    const merged: CompanionState = { ...DEFAULT_COMPANION_STATE, ...parsed };
-    // Clamp saved position to the current viewport on load.
+    const merged: CompanionState = {
+      ...DEFAULT_COMPANION_STATE,
+      ...parsed,
+      enabled: false,
+      currentContext: "",
+    };
     merged.position = clampPosition(merged.position, merged.size);
     return merged;
   } catch {
@@ -73,17 +91,22 @@ function loadFromStorage(): CompanionState {
   }
 }
 
-/** Writes the current state to localStorage. */
+/**
+ * Writes panel geometry to localStorage.
+ * `enabled` and `currentContext` are excluded: they are owned by UserMemory
+ * and the IPC layer respectively.
+ */
 function saveToStorage(state: CompanionState): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { enabled: _e, currentContext: _ctx, ...rest } = state;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(rest));
   } catch {
-    // Silently ignore quota errors.
+    // Silently ignore quota errors or missing localStorage (SSR/tests).
   }
 }
 
 function createCompanionStore() {
-  // Defer localStorage access to avoid SSR issues in tests.
   const initial =
     typeof localStorage !== "undefined"
       ? loadFromStorage()
@@ -91,7 +114,7 @@ function createCompanionStore() {
 
   const { subscribe, update, set } = writable<CompanionState>(initial);
 
-  /** Persist on every mutation. */
+  /** Applies a state mutation and persists geometry to localStorage. */
   function mutate(fn: (s: CompanionState) => CompanionState): void {
     update((s) => {
       const next = fn(s);
@@ -100,15 +123,37 @@ function createCompanionStore() {
     });
   }
 
-  return {
+  const store = {
     subscribe,
 
-    /** Opens or closes the companion panel. */
+    /**
+     * Toggles enabled and visible together (sidebar button action).
+     * When enabling, the panel is shown; when disabling, the panel is hidden.
+     * The new enabled state is persisted asynchronously to UserMemory.
+     */
     toggleCompanion(): void {
+      let nextEnabled = false;
+      mutate((s) => {
+        nextEnabled = !s.enabled;
+        return {
+          ...s,
+          enabled: nextEnabled,
+          visible: nextEnabled,
+          minimized: false,
+        };
+      });
+      invoke("set_companion_enabled", { enabled: nextEnabled }).catch(() => {});
+    },
+
+    /**
+     * Toggles visibility without changing the enabled preference.
+     * Used by the Cmd+/ (macOS) / Ctrl+/ keyboard shortcut.
+     */
+    toggleVisibility(): void {
       mutate((s) => ({ ...s, visible: !s.visible, minimized: false }));
     },
 
-    /** Shows the companion panel. */
+    /** Shows the companion panel without changing the enabled preference. */
     openCompanion(): void {
       mutate((s) => ({ ...s, visible: true, minimized: false }));
     },
@@ -128,7 +173,7 @@ function createCompanionStore() {
       mutate((s) => ({ ...s, minimized: false }));
     },
 
-    /** Updates the tracked application route. */
+    /** Updates the tracked application route without fetching context. */
     updateRoute(route: string): void {
       mutate((s) => ({ ...s, currentRoute: route }));
     },
@@ -169,9 +214,54 @@ function createCompanionStore() {
       return session_id;
     },
 
-    /** Fetches contextual help text for a route from the backend. */
-    async fetchContext(route: string): Promise<string> {
-      return invoke<string>("get_companion_context", { route });
+    /**
+     * Fetches the contextual help text for the given route from the backend,
+     * stores it in `currentContext`, updates `currentRoute`, and refreshes
+     * the active session's system prompt when a session is open.
+     */
+    async updateContext(route: string): Promise<void> {
+      try {
+        const text = await invoke<string>("get_companion_context", { route });
+        let currentSessionId: string | null = null;
+        update((s) => {
+          currentSessionId = s.sessionId;
+          const next = { ...s, currentRoute: route, currentContext: text };
+          saveToStorage(next);
+          return next;
+        });
+        if (currentSessionId) {
+          await invoke("update_chat_session", {
+            session_id: currentSessionId,
+            update: { system_prompt: text, tools: null, llm_backend: null },
+          });
+        }
+      } catch {
+        // Non-critical — companion still functions without updated context.
+      }
+    },
+
+    /**
+     * Reads `companion_enabled` from UserMemory and initialises the store.
+     * Should be called once at application startup, after the runtime is ready.
+     */
+    async initFromMemory(): Promise<void> {
+      try {
+        const entries = await invoke<Array<{ key: string; value: string }>>(
+          "get_user_memory",
+          { category: "context" },
+        );
+        const entry = entries.find((e) => e.key === "companion_enabled");
+        if (entry?.value === "true") {
+          mutate((s) => ({
+            ...s,
+            enabled: true,
+            visible: true,
+            minimized: false,
+          }));
+        }
+      } catch {
+        // Non-critical — companion defaults to disabled on error.
+      }
     },
 
     /** Resets the store to defaults and clears localStorage. */
@@ -181,16 +271,25 @@ function createCompanionStore() {
       saveToStorage(next);
     },
   };
+
+  return store;
 }
 
 export const companionStore = createCompanionStore();
 
-/** Whether the floating toggle button should be visible. */
-export function isCompanionToggleVisible(state: CompanionState): boolean {
+/** Whether the minimized floating restore button should be visible. */
+export function isCompanionRestoreVisible(state: CompanionState): boolean {
   return state.visible && state.minimized;
 }
 
 /** Whether the full companion panel should be rendered. */
 export function isCompanionPanelVisible(state: CompanionState): boolean {
   return state.visible && !state.minimized;
+}
+
+/**
+ * @deprecated Use {@link isCompanionRestoreVisible}.
+ */
+export function isCompanionToggleVisible(state: CompanionState): boolean {
+  return isCompanionRestoreVisible(state);
 }

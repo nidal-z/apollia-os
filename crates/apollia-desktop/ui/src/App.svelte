@@ -15,7 +15,7 @@
   import ExtractionNotifier from "./components/chat/ExtractionNotifier.svelte";
   import CompanionContextProvider from "./components/companion/CompanionContextProvider.svelte";
   import CompanionPanel from "./components/companion/CompanionPanel.svelte";
-  import CompanionToggle from "./components/companion/CompanionToggle.svelte";
+  import { companionStore } from "$lib/stores/companion";
   import { Tooltip } from "bits-ui";
   import { createSSEConnection } from "$lib/stores/sse";
   import { initTheme } from "$lib/stores/theme";
@@ -66,6 +66,8 @@
         }
       });
 
+    void companionStore.initFromMemory();
+
     return cleanup;
   });
 
@@ -93,7 +95,6 @@
         <Main />
       </div>
       <CompanionPanel />
-      <CompanionToggle />
     </CompanionContextProvider>
     <ExtractionNotifier />
     <ToastContainer />
@@ -116,7 +117,6 @@
         </div>
       </div>
       <CompanionPanel />
-      <CompanionToggle />
     </CompanionContextProvider>
     <ExtractionNotifier />
     <ToastContainer />
@@ -137,7 +137,6 @@
         <Main />
       </div>
       <CompanionPanel />
-      <CompanionToggle />
     </CompanionContextProvider>
     <ExtractionNotifier />
     <ToastContainer />

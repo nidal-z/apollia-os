@@ -1,0 +1,217 @@
+import { vi, describe, test, expect, beforeEach } from "vitest";
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn().mockResolvedValue(""),
+}));
+
+import { get } from "svelte/store";
+import { invoke } from "@tauri-apps/api/core";
+import { companionStore } from "./companion";
+
+const mockedInvoke = vi.mocked(invoke);
+
+beforeEach(() => {
+  companionStore.reset();
+  vi.clearAllMocks();
+  mockedInvoke.mockResolvedValue("");
+});
+
+// ── toggleCompanion ───────────────────────────────────────────────────────────
+
+describe("companionStore — toggleCompanion", () => {
+  test("flips enabled and visible from false to true", () => {
+    // GIVEN companion disabled (enabled=false, visible=false)
+    const before = get(companionStore);
+    expect(before.enabled).toBe(false);
+    expect(before.visible).toBe(false);
+
+    // WHEN
+    companionStore.toggleCompanion();
+
+    // THEN
+    const after = get(companionStore);
+    expect(after.enabled).toBe(true);
+    expect(after.visible).toBe(true);
+    expect(after.minimized).toBe(false);
+  });
+
+  test("flips enabled and visible from true to false", () => {
+    // GIVEN companion already enabled
+    companionStore.toggleCompanion();
+    expect(get(companionStore).enabled).toBe(true);
+
+    // WHEN toggled again
+    companionStore.toggleCompanion();
+
+    // THEN both are false
+    const state = get(companionStore);
+    expect(state.enabled).toBe(false);
+    expect(state.visible).toBe(false);
+  });
+
+  test("persists enabled state via set_companion_enabled IPC", () => {
+    // GIVEN companion disabled
+    // WHEN toggled to enabled
+    companionStore.toggleCompanion();
+
+    // THEN IPC is called with enabled=true
+    expect(mockedInvoke).toHaveBeenCalledWith("set_companion_enabled", {
+      enabled: true,
+    });
+  });
+});
+
+// ── toggleVisibility ──────────────────────────────────────────────────────────
+
+describe("companionStore — toggleVisibility", () => {
+  test("flips visible without changing enabled", () => {
+    // GIVEN companion enabled and visible
+    companionStore.toggleCompanion(); // enabled=true, visible=true
+
+    // WHEN keyboard shortcut hides
+    companionStore.toggleVisibility();
+
+    // THEN visible=false but enabled stays true
+    const state = get(companionStore);
+    expect(state.visible).toBe(false);
+    expect(state.enabled).toBe(true);
+  });
+
+  test("does not call set_companion_enabled IPC", () => {
+    // GIVEN companion enabled
+    companionStore.toggleCompanion();
+    vi.clearAllMocks();
+
+    // WHEN visibility is toggled via keyboard shortcut
+    companionStore.toggleVisibility();
+
+    // THEN no IPC persistence call is made
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "set_companion_enabled",
+      expect.anything(),
+    );
+  });
+});
+
+// ── updateContext ─────────────────────────────────────────────────────────────
+
+describe("companionStore — updateContext", () => {
+  test("stores fetched context text and updates currentRoute", async () => {
+    // GIVEN
+    mockedInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "get_companion_context") return Promise.resolve("Vous êtes sur la page Agents.");
+      return Promise.resolve(null);
+    });
+
+    // WHEN
+    await companionStore.updateContext("agents");
+
+    // THEN
+    const state = get(companionStore);
+    expect(state.currentContext).toBe("Vous êtes sur la page Agents.");
+    expect(state.currentRoute).toBe("agents");
+  });
+
+  test("session id is preserved across route changes", async () => {
+    // GIVEN a companion session was created
+    mockedInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "create_companion_session")
+        return Promise.resolve({ session_id: "abc123" });
+      if (cmd === "get_companion_context")
+        return Promise.resolve("Context text.");
+      return Promise.resolve(null);
+    });
+    await companionStore.createSession("agents");
+    expect(get(companionStore).sessionId).toBe("abc123");
+
+    // WHEN context is updated for a different route
+    await companionStore.updateContext("tasks");
+
+    // THEN the session id is unchanged
+    expect(get(companionStore).sessionId).toBe("abc123");
+  });
+
+  test("updates session system prompt when session is active", async () => {
+    // GIVEN an active companion session
+    mockedInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "create_companion_session")
+        return Promise.resolve({ session_id: "sess-1" });
+      if (cmd === "get_companion_context")
+        return Promise.resolve("Tasks context.");
+      return Promise.resolve(null);
+    });
+    await companionStore.createSession("agents");
+
+    // WHEN context is updated
+    await companionStore.updateContext("tasks");
+
+    // THEN update_chat_session IPC is called with the new context as system prompt
+    expect(mockedInvoke).toHaveBeenCalledWith("update_chat_session", {
+      session_id: "sess-1",
+      update: { system_prompt: "Tasks context.", tools: null, llm_backend: null },
+    });
+  });
+});
+
+// ── initFromMemory ────────────────────────────────────────────────────────────
+
+describe("companionStore — initFromMemory", () => {
+  test("enables and shows companion when UserMemory key is true", async () => {
+    // GIVEN UserMemory has companion_enabled = "true"
+    mockedInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "get_user_memory")
+        return Promise.resolve([{ key: "companion_enabled", value: "true" }]);
+      return Promise.resolve([]);
+    });
+
+    // WHEN
+    await companionStore.initFromMemory();
+
+    // THEN companion is active
+    const state = get(companionStore);
+    expect(state.enabled).toBe(true);
+    expect(state.visible).toBe(true);
+  });
+
+  test("leaves companion disabled when UserMemory key is false", async () => {
+    // GIVEN UserMemory has companion_enabled = "false"
+    mockedInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "get_user_memory")
+        return Promise.resolve([
+          { key: "companion_enabled", value: "false" },
+        ]);
+      return Promise.resolve([]);
+    });
+
+    // WHEN
+    await companionStore.initFromMemory();
+
+    // THEN companion remains disabled
+    const state = get(companionStore);
+    expect(state.enabled).toBe(false);
+    expect(state.visible).toBe(false);
+  });
+
+  test("leaves companion disabled when UserMemory key is absent", async () => {
+    // GIVEN UserMemory has no companion_enabled key
+    mockedInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "get_user_memory") return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
+    // WHEN
+    await companionStore.initFromMemory();
+
+    // THEN companion remains disabled
+    expect(get(companionStore).enabled).toBe(false);
+  });
+
+  test("gracefully handles IPC failure without throwing", async () => {
+    // GIVEN IPC fails
+    mockedInvoke.mockRejectedValue(new Error("IPC error"));
+
+    // WHEN / THEN — no error thrown, companion remains disabled
+    await expect(companionStore.initFromMemory()).resolves.toBeUndefined();
+    expect(get(companionStore).enabled).toBe(false);
+  });
+});

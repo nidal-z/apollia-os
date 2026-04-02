@@ -1,38 +1,65 @@
 <script lang="ts">
-  import { companionStore, isCompanionToggleVisible } from "$lib/stores/companion";
-  import { Bot } from "lucide-svelte";
+  import { onMount } from "svelte";
+  import { get } from "svelte/store";
+  import { t } from "svelte-i18n";
+  import { Sparkles } from "lucide-svelte";
+  import { companionStore } from "$lib/stores/companion";
+  import { readyLlmBackends } from "$lib/stores/llm";
 
   interface Props {
-    /** Number of unread messages to show as a badge. */
-    unreadCount?: number;
+    /** Whether the parent sidebar is collapsed to icon-only mode. */
+    collapsed?: boolean;
   }
 
-  let { unreadCount = 0 }: Props = $props();
+  let { collapsed = false }: Props = $props();
 
-  const visible = $derived(isCompanionToggleVisible($companionStore));
+  const isEnabled = $derived($companionStore.enabled);
+  const hasLlm = $derived($readyLlmBackends.length > 0);
+
+  onMount(() => {
+    const isMac = navigator.platform.includes("Mac");
+
+    function handleKeydown(event: KeyboardEvent) {
+      const isModifier = isMac ? event.metaKey : event.ctrlKey;
+      if (isModifier && event.key === "/") {
+        event.preventDefault();
+        const state = get(companionStore);
+        if (state.enabled) {
+          companionStore.toggleVisibility();
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+  });
 
   function handleClick() {
-    companionStore.restoreCompanion();
+    if (!hasLlm) return;
+    companionStore.toggleCompanion();
   }
 </script>
 
-{#if visible}
-  <button
-    class="fixed z-[65] flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    style:bottom="24px"
-    style:right="24px"
-    onclick={handleClick}
-    aria-label="Ouvrir le Companion Apollia"
-    data-testid="companion-toggle"
-  >
-    <Bot size={22} />
-    {#if unreadCount > 0}
-      <span
-        class="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground"
-        aria-label="{unreadCount} message(s) non lu(s)"
-      >
-        {unreadCount > 9 ? "9+" : unreadCount}
-      </span>
-    {/if}
-  </button>
-{/if}
+<button
+  class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {isEnabled
+    ? 'text-secondary hover:bg-secondary/10'
+    : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
+  class:justify-center={collapsed}
+  class:px-2={collapsed}
+  class:opacity-50={!hasLlm}
+  class:cursor-not-allowed={!hasLlm}
+  onclick={handleClick}
+  aria-pressed={isEnabled}
+  aria-label={$t("companion.toggle_label")}
+  title={!hasLlm
+    ? $t("companion.no_llm_tooltip")
+    : collapsed
+      ? $t("companion.toggle_label")
+      : undefined}
+  data-testid="companion-sidebar-toggle"
+>
+  <Sparkles size={18} strokeWidth={1.75} class="shrink-0" />
+  {#if !collapsed}
+    <span>{$t("companion.toggle_label")}</span>
+  {/if}
+</button>
