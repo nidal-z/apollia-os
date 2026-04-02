@@ -711,6 +711,19 @@ pub enum RuntimeEvent {
         topic: Option<String>,
     },
 
+    /// Émis quand la machine à états onboarding atteint la phase `Done`.
+    ///
+    /// Le frontend utilise cet événement pour masquer définitivement le
+    /// bandeau de reprise et activer toutes les fonctionnalités de l'application.
+    OnboardingCompleted {
+        /// Profil choisi par l'utilisateur (`"operator"` ou `"builder"`).
+        profile: String,
+        /// Durée totale de l'onboarding en secondes.
+        duration_sec: u64,
+        /// Nombre total d'actions complétées pendant le flux.
+        actions_count: u32,
+    },
+
     // ── STT events ───────────────────────────────────
     /// L'enregistrement audio STT a démarré (hotkey activée).
     ///
@@ -1071,6 +1084,11 @@ mod tests {
                 session_id: "sess-123".into(),
                 mode: "full".into(),
                 topic: None,
+            },
+            RuntimeEvent::OnboardingCompleted {
+                profile: "operator".into(),
+                duration_sec: 1200,
+                actions_count: 18,
             },
             // ── STT ──────────────────────────────────
             RuntimeEvent::SttRecordingStarted,

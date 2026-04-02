@@ -210,9 +210,9 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::AgentMessageSent { .. } => "agent-changed",
 
         // ── Onboarding ─────────────────────────────────────────────────────
-        RuntimeEvent::OnboardingRequired | RuntimeEvent::OnboardingStarted { .. } => {
-            "onboarding-changed"
-        }
+        RuntimeEvent::OnboardingRequired
+        | RuntimeEvent::OnboardingStarted { .. }
+        | RuntimeEvent::OnboardingCompleted { .. } => "onboarding-changed",
 
         // ── STT ──────────────────────────────────────────────────────────
         RuntimeEvent::SttRecordingStarted
