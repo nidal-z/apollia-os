@@ -1,150 +1,120 @@
 # Summary
 
 [Introduction](introduction.md)
-[Pourquoi Apollia OS ?](why-apollia.md)
 
 ---
 
-# Démarrage rapide
+# Premiers pas
 
-- [Installation](quickstart/install.md)
-- [Premier agent](quickstart/hello-agent.md)
+- [Mise en route](ch01-00-getting-started.md)
+  - [Installation](ch01-01-installation.md)
+  - [Bonjour, Agent !](ch01-02-hello-agent.md)
+  - [Anatomie d'un agent Apollia](ch01-03-anatomy.md)
 
-# Guides Agents
+# Projet : l'assistant fichier
 
-- [Vue d'ensemble](agents/index.md)
-  - [Matrice de décision — Capabilities](agents/decision-matrix.md)
-  - [Worker Agent Pattern](agents/worker-agent-pattern.md)
-  - [Community Agent Registry](agents/community-registry.md)
-  - [Tutoriel Hello Agent](agents/tutorial.md)
-  - [RuntimeContext (ctx.*)](agents/runtime-context.md)
-  - [Adapter LangGraph / CrewAI](agents/adapters.md)
-  - [Mode Orchestré (ORIA)](agents/mode-orchestre.md)
-  - [Intégration dans un pipeline](agents/pipeline-integration.md)
-  - [Python SDK Guide](agents/sdk-guide.md)
-  - [Onboarding](agents/onboarding-guide.md)
-  - [Bonnes pratiques](agents/best-practices.md)
-  - [Troubleshooting](agents/troubleshooting.md)
+- [Votre premier agent](ch02-00-first-agent.md)
+  - [Concevoir l'agent](ch02-01-design.md)
+  - [Le manifest](ch02-02-manifest.md)
+  - [Implémenter run()](ch02-03-run.md)
+  - [Utiliser les outils](ch02-04-tools.md)
+  - [Tester et exécuter](ch02-05-testing.md)
 
-# Architecture
+# Concepts fondamentaux
 
-- [Vue d'ensemble](architecture/index.md)
-  - [Présentation générale](architecture/overview.md)
-  - [8 Principes](architecture/principles.md)
-  - [Modèle Acteur Tokio](architecture/actor-model.md)
-  - [Machines d'état](architecture/state-machines.md)
-  - [Standards MCP · A2A · ACP](architecture/protocols.md)
-  - [Diagrammes](architecture/diagrams/index.md)
+- [Le contrat AIP](ch03-00-aip-contract.md)
+  - [manifest() — déclarer ses capacités](ch03-01-manifest.md)
+  - [run() — exécuter une tâche](ch03-02-run.md)
+  - [Cycle de vie : ProcessState et TaskState](ch03-03-lifecycle.md)
 
-# Composants
+- [Les outils](ch04-00-tools.md)
+  - [Les 10 outils natifs](ch04-01-native-tools.md)
+  - [Appeler un outil depuis Python](ch04-02-calling.md)
+  - [Sandbox et sécurité](ch04-03-sandbox.md)
+  - [Outils MCP externes](ch04-04-mcp.md)
 
-- [Vue d'ensemble](components/index.md)
-  - [AIP Bridge (PyO3)](components/aip-spec.md)
-  - [Runtime Core](components/runtime-core.md)
-  - [Tool Registry](components/tool-registry.md)
-  - [Référence des Outils Natifs](components/outils-reference.md)
-  - [Client MCP](components/mcp.md)
-  - [Memory Engine](components/memory-engine.md)
-  - [User Memory](components/user-memory.md)
-  - [ORIA Engine](components/oria-engine.md)
-  - [LLM Backend](components/llm-backend.md)
-  - [Triggers Engine](components/triggers.md)
-  - [Notifications Engine](components/notifications.md)
-  - [Pipelines Engine](components/pipelines.md)
-  - [Application Desktop](components/desktop.md)
-  - [Speech-to-Text](components/stt.md)
-  - [Chat](components/chat.md)
-  - [CLI](components/cli.md)
+- [La mémoire](ch05-00-memory.md)
+  - [Trois types de mémoire](ch05-01-types.md)
+  - [Recherche FTS5](ch05-02-search.md)
+  - [Namespaces et isolation](ch05-03-namespaces.md)
 
-# API & Intégration
+- [Le LLM](ch06-00-llm.md)
+  - [Backends locaux et cloud](ch06-01-backends.md)
+  - [ctx.llm : chat, complete, stream](ch06-02-api.md)
+  - [La boucle ReAct](ch06-03-react-loop.md)
 
-- [Vue d'ensemble](api/index.md)
-  - [API HTTP REST](api/http-reference.md)
-  - [MCP Integration](api/mcp.md)
-  - [MCP — Guide Utilisateur](api/mcp-guide.md)
-  - [Guide Intégrations Desktop](api/integrations-guide.md)
-  - [A2A / ACP](api/a2a-acp.md)
+- [Les garde-fous](ch07-00-guardrails.md)
+  - [StepBudget](ch07-01-step-budget.md)
+  - [Circuit breakers](ch07-02-resilience.md)
+  - [Garde-fous A2A](ch07-03-a2a-guards.md)
 
-# Sécurité
+# Projet : un Worker Agent
 
-- [Vue d'ensemble](security/index.md)
-  - [Local-First](security/local-first.md)
-  - [Sandbox Isolation](security/sandbox.md)
-  - [Guardrails](security/guardrails.md)
+- [Construire un Worker Agent](ch08-00-worker-project.md)
+  - [Le pattern Worker](ch08-01-pattern.md)
+  - [Le SYSTEM_PROMPT](ch08-02-system-prompt.md)
+  - [Guardrails de domaine](ch08-03-domain-guardrails.md)
+  - [Tests et benchmark](ch08-04-testing.md)
+  - [Publier dans le registre](ch08-05-publishing.md)
 
-# Opérations
+# Fonctionnalités avancées
 
-- [Vue d'ensemble](ops/index.md)
-  - [Installation complète](ops/install.md)
-  - [Production Linux](ops/production.md)
-  - [Configuration apollia.toml](ops/config.md)
-  - [Exploitation & Debug](ops/debug.md)
-  - [Dashboard Observabilité](ops/dashboard.md)
-  - [Sprint Summary](ops/sprint-summary.md)
+- [Le mode orchestré](ch09-00-orchestrated.md)
+  - [ORIA : Observer → Reasoner → Actor](ch09-01-oria.md)
+  - [Plans et replanification](ch09-02-plans.md)
+  - [on_plan_complete()](ch09-03-hook.md)
 
-# Décisions Architecturales
+- [L'humain dans la boucle](ch10-00-hitl.md)
+  - [Suspendre et reprendre](ch10-01-suspend-resume.md)
+  - [Approbation d'outils](ch10-02-tool-approval.md)
+  - [Notifications](ch10-03-notifications.md)
 
-- [Index des ADRs](decisions/index.md)
-  - [ADR-001 — Rust comme langage principal du runtime](decisions/adr-001-rust-comme-langage-runtime.md)
-  - [ADR-002 — SQLite comme seul moteur de persistance](decisions/adr-002-sqlite-moteur-persistance.md)
-  - [ADR-003 — Duck typing pour l'Agent Interface Protocol (AIP)](decisions/adr-003-duck-typing-aip.md)
-  - [ADR-004 — Deux modes d'exécution ORIA (Direct + Orchestré)](decisions/adr-004-deux-modes-execution-oria.md)
-  - [ADR-005 — Sandbox sans Docker (Linux namespaces natifs)](decisions/adr-005-sandbox-sans-docker.md)
-  - [ADR-006 — REST JSON (pas gRPC) pour l'API locale](decisions/adr-006-rest-json-api-locale.md)
-  - [ADR-007 — Mémoire à l'initiative de l'agent](decisions/adr-007-memoire-initiative-agent.md)
-  - [ADR-008 — Pattern `noun verb` pour la CLI](decisions/adr-008-pattern-noun-verb-cli.md)
-  - [ADR-009 — Tokenizer FTS5 `unicode61` pour la recherche mémorielle](decisions/adr-009-tokenizer-fts5-unicode61.md)
-  - [ADR-010 — Pivot du SaaS Python vers le Runtime Rust open-source](decisions/adr-010-pivot-saas-vers-runtime-rust-open-source.md)
-  - [ADR-011 — AgentId et TaskId comme type aliases String dans apollia-core](decisions/adr-011-agentid-taskid-string-aliases-dans-core.md)
-  - [ADR-012 — Mode DevSandbox sur macOS : pas de sandbox réel en développement](decisions/adr-012-sandbox-devmode-macos.md)
-  - [ADR-013 — Configuration PyO3 Python sur macOS via PYO3_PYTHON](decisions/adr-013-pyo3-python-config-macos.md)
-  - [ADR-014 — Bridge AIP utilise spawn_blocking + asyncio.run() au lieu de into_future](decisions/adr-014-bridge-spawn-blocking-asyncio-run.md)
-  - [ADR-015 — Trait ToolExecutor pour abstraire l'execution des outils](decisions/adr-015-tool-executor-trait-abstraction.md)
-  - [ADR-016 — Trait AgentRunner pour decoupler ORIAEngine de AIPBridge](decisions/adr-016-agent-runner-trait-abstraction.md)
-  - [ADR-017 — hyper-util explicite pour Unix socket serving](decisions/adr-017-hyper-util-unix-socket-serving.md)
-  - [ADR-018 — CLI Bootstrap sans Supervisor](decisions/adr-018-cli-bootstrap-sans-supervisor.md)
-  - [ADR-019 — Trait AgentLoader pour decoupler apollia-runtime de PyO3](decisions/adr-019-agent-loader-trait-decouplage-runtime-pyo3.md)
-  - [ADR-020 — apollia-llm : moteur d'inférence embarqué, modèles fichiers externes, feature flags](decisions/adr-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md)
-  - [ADR-021 — apollia-triggers : TOML-only, HMAC-SHA256 webhooks, hot reload sans restart](decisions/adr-021-apollia-triggers-toml-hmac-hot-reload.md)
-  - [ADR-022 — ORIA Mode Orchestré : Option B (exécution directe outils) + hook on_plan_complete](decisions/adr-022-oria-mode-orchestre-option-b.md)
-  - [ADR-023 — HITL : AIPTask.is_resumed + InputResponse + tools_requiring_approval](decisions/adr-023-hitl-is-resumed-input-response-tools-requiring-approval.md)
-  - [ADR-024 — apollia-notifications : trait NotificationChannel, canaux, payload JSON fixe](decisions/adr-024-apollia-notifications-trait-channel-json-fixe.md)
-  - [ADR-025 — apollia-pipelines : TOML déclaratif, topologies natives, HITL intégré](decisions/adr-025-apollia-pipelines-toml-declaratif-topologies-natives-hitl-integre.md)
-  - [ADR-026 — Observabilité complète : persistance, timeline, troncature](decisions/adr-026-observabilite-complete-persistance-timeline-troncature.md)
-  - [ADR-027 — apollia-desktop : processus unique Tauri + runtime embarqué](decisions/adr-027-apollia-desktop-processus-unique-tauri-runtime-embarque.md)
-  - [ADR-028 — Frontend Svelte : UX first, UI sprint dédié](decisions/adr-028-frontend-svelte-ux-first-ui-sprint-dedie.md)
-  - [ADR-029 — Settings lecture seule dans l'application desktop](decisions/adr-029-settings-lecture-seule.md)
-  - [ADR-030 — EventBus → Tauri events remplace le polling IPC](decisions/adr-030-eventbus-tauri-events-remplace-polling.md)
-  - [ADR-031 — Stratégie i18n : svelte-i18n avec fichiers JSON FR/EN](decisions/adr-031-i18n-svelte-i18n-fr-en.md)
-  - [ADR-032 — Agent Install & Persistence dans ~/.apollia/agents/](decisions/adr-032-agent-install-persistence.md)
-  - [ADR-033 — Config opérateur SQLite : séparation structurel / opérationnel](decisions/adr-033-config-operateur-sqlite.md)
-  - [ADR-034 — Chat hybride : sessions, streaming, HITL inline](decisions/adr-034-chat-hybride-sessions-streaming-hitl-inline.md)
-  - [ADR-035 — Per-step observation en mode Orchestré](decisions/adr-035-per-step-observation-orchestrated.md)
-  - [ADR-036 — Stratégie de cache de plans](decisions/adr-036-plan-cache-strategy.md)
-  - [ADR-037 — Packaging Python SDK](decisions/adr-037-python-sdk-packaging.md)
-  - [ADR-038 — Mémoire utilisateur globale](decisions/adr-038-global-user-memory.md)
-  - [ADR-039 — Conversation memory management](decisions/adr-039-conversation-memory-management.md)
-  - [ADR-040 — Onboarding comme agent conversationnel](decisions/adr-040-onboarding-conversational-agent.md)
-  - [ADR-041 — Moteur STT embarqué : whisper-rs, trait SttBackend](decisions/adr-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md)
-  - [ADR-042 — Remplacement de mistral.rs par llama.cpp statique](decisions/adr-042-remplacement-mistralrs-par-llamacpp-statique.md)
-  - [ADR-043 — Décomposition atomique des outils natifs](decisions/adr-043-decomposition-atomique-outils.md)
-  - [ADR-044 — Client MCP : architecture, transport, lifecycle](decisions/adr-044-client-mcp.md)
-  - [ADR-045 — Page Intégrations : wizard générique piloté par MCP Registry](decisions/adr-045-page-integrations-wizard-generique.md)
-  - [ADR-046 — Transport HTTP/SSE pour MCP](decisions/adr-046-transport-http-sse-mcp.md)
-  - [ADR-047 — Multi-LLM Backend Registry : SQLite + binding par agent](decisions/adr-047-multi-llm-backend-registry.md)
-  - [ADR-048 — Worker Agents : expertise de domaine compilée en Python](decisions/adr-048-worker-agents-expertise-domaine.md)
-  - [ADR-049 — Routing A2A inter-agents : discovery + invocation synchrone](decisions/adr-049-a2a-routing-inter-agents.md)
-  - [ADR-050 — Distribution Worker Agents : bundled vs communautaire](decisions/adr-050-distribution-worker-agents.md)
+- [Agents qui collaborent : A2A](ch11-00-a2a.md)
+  - [Skills et discovery](ch11-01-skills.md)
+  - [Déléguer à un Worker](ch11-02-delegate.md)
+  - [Outils A2A dans ORIA](ch11-03-tools-provider.md)
 
-# Vision
+- [Le chat interactif](ch12-00-chat.md)
+  - [Sessions et streaming](ch12-01-sessions.md)
+  - [Chat Libre vs Chat Agent](ch12-02-modes.md)
+  - [Mémoire utilisateur](ch12-03-user-memory.md)
 
-- [Vue d'ensemble](vision/index.md)
-  - [Pivot & Renouveau](vision/pivot.md)
-  - [Problème & Solution](vision/problem-solution.md)
-  - [Ambition Open-Source](vision/open-source.md)
-  - [Positionnement Concurrentiel](vision/positioning.md)
+- [Pipelines multi-agents](ch13-00-pipelines.md)
+  - [Topologie et dépendances](ch13-01-topology.md)
+  - [Conditions et fallbacks](ch13-02-conditions.md)
 
----
+- [Triggers](ch14-00-triggers.md)
+  - [Cron, FileWatch, Webhook](ch14-01-sources.md)
+  - [Hot reload](ch14-02-hot-reload.md)
 
-[Glossaire](glossary.md)
-[Roadmap](roadmap.md)
+# Projet : une solution PME complète
+
+- [Solution de bout en bout](ch15-00-full-project.md)
+  - [Architecture cible](ch15-01-architecture.md)
+  - [Les Worker Agents](ch15-02-workers.md)
+  - [Le Director Agent](ch15-03-director.md)
+  - [Le pipeline](ch15-04-pipeline.md)
+  - [Résultat final](ch15-05-result.md)
+
+# Aller plus loin
+
+- [Le runtime Rust](ch16-00-runtime.md)
+  - [Architecture acteurs Tokio](ch16-01-actors.md)
+  - [Le Supervisor](ch16-02-supervisor.md)
+  - [L'API REST](ch16-03-api.md)
+  - [Configuration](ch16-04-config.md)
+
+- [L'application Desktop](ch17-00-desktop.md)
+
+- [Adapter LangGraph / CrewAI](ch18-00-adapters.md)
+
+- [La CLI complète](ch19-00-cli.md)
+
+# Annexes
+
+- [A — Diagrammes d'architecture](appendix-a-diagrams/index.md)
+- [B — Glossaire](appendix-b-glossary.md)
+- [C — Principes architecturaux](appendix-c-principles.md)
+- [D — Roadmap](appendix-d-roadmap.md)
+- [E — Sprint Summary](appendix-e-sprint-summary.md)
+- [F — Vision et positionnement](appendix-f-vision.md)
