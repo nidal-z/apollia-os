@@ -2090,9 +2090,18 @@ mod tour_tests {
         let steps = operator_steps();
         // WHEN filtering the interactive steps (indices 1, 2, 3)
         // THEN each one has an interaction descriptor
-        assert!(steps[1].interaction.is_some(), "op-agents-start must have interaction");
-        assert!(steps[2].interaction.is_some(), "op-chat-send must have interaction");
-        assert!(steps[3].interaction.is_some(), "op-triggers-create must have interaction");
+        assert!(
+            steps[1].interaction.is_some(),
+            "op-agents-start must have interaction"
+        );
+        assert!(
+            steps[2].interaction.is_some(),
+            "op-chat-send must have interaction"
+        );
+        assert!(
+            steps[3].interaction.is_some(),
+            "op-triggers-create must have interaction"
+        );
     }
 
     #[test]
@@ -2101,8 +2110,14 @@ mod tour_tests {
         let steps = operator_steps();
         // WHEN checking passive steps
         // THEN their interaction field is None
-        assert!(steps[0].interaction.is_none(), "op-dashboard must be passive");
-        assert!(steps[4].interaction.is_none(), "op-approvals must be passive");
+        assert!(
+            steps[0].interaction.is_none(),
+            "op-dashboard must be passive"
+        );
+        assert!(
+            steps[4].interaction.is_none(),
+            "op-approvals must be passive"
+        );
     }
 
     #[test]
@@ -2149,9 +2164,18 @@ mod tour_tests {
         // WHEN filtering the interactive steps (indices 1, 3, 4)
         // THEN each one has an interaction descriptor
         let steps = builder_steps();
-        assert!(steps[1].interaction.is_some(), "bld-agents-start must have interaction");
-        assert!(steps[3].interaction.is_some(), "bld-memory-search must have interaction");
-        assert!(steps[4].interaction.is_some(), "bld-chat-send must have interaction");
+        assert!(
+            steps[1].interaction.is_some(),
+            "bld-agents-start must have interaction"
+        );
+        assert!(
+            steps[3].interaction.is_some(),
+            "bld-memory-search must have interaction"
+        );
+        assert!(
+            steps[4].interaction.is_some(),
+            "bld-chat-send must have interaction"
+        );
     }
 
     #[test]
@@ -2160,7 +2184,10 @@ mod tour_tests {
         // WHEN checking the agent-detail step
         // THEN it is passive (click_next) with no interaction
         let steps = builder_steps();
-        assert!(steps[2].interaction.is_none(), "bld-agent-detail must be passive");
+        assert!(
+            steps[2].interaction.is_none(),
+            "bld-agent-detail must be passive"
+        );
         assert_eq!(steps[2].completion_mode, "click_next");
     }
 
@@ -2626,5 +2653,288 @@ mod tests {
         // THEN human-readable output matches expected strings
         assert_eq!(format_size_human(4_500_000_000), "4.2 GB");
         assert_eq!(format_size_human(500_000_000), "476.8 MB");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Voice commands — types
+// ---------------------------------------------------------------------------
+
+/// Action resulting from parsing a voice command during the guided tour.
+///
+/// Variants are matched in priority order: navigation (next/back/skip) >
+/// explain > natural language (AskCompanion). `Unrecognized` is reserved
+/// for empty or purely non-alphabetic transcripts.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "action")]
+pub enum TourVoiceAction {
+    /// Advance to the next tour step.
+    NextStep,
+    /// Go back to the previous tour step.
+    PreviousStep,
+    /// Exit the tour entirely.
+    SkipTour,
+    /// Forward a natural-language question to the AI Companion.
+    AskCompanion {
+        /// The original transcript to forward.
+        message: String,
+    },
+    /// Transcript is empty or contains only whitespace/non-alphabetic content.
+    Unrecognized {
+        /// The raw transcript that could not be matched.
+        transcript: String,
+    },
+}
+
+// ---------------------------------------------------------------------------
+// Voice commands — pure parsing logic
+// ---------------------------------------------------------------------------
+
+/// Parses a transcript into a [`TourVoiceAction`].
+///
+/// Matching is case-insensitive and based on substring presence. Priority:
+/// 1. Next navigation keywords (FR + EN)
+/// 2. Back navigation keywords (FR + EN)
+/// 3. Skip / exit keywords (FR + EN)
+/// 4. Explain / question keywords → `AskCompanion`
+/// 5. Any other non-empty transcript → `AskCompanion`
+/// 6. Empty transcript → `Unrecognized`
+pub fn parse_voice_command(transcript: &str) -> TourVoiceAction {
+    let lower = transcript.to_lowercase();
+    let trimmed = lower.trim();
+
+    if trimmed.is_empty() {
+        return TourVoiceAction::Unrecognized {
+            transcript: transcript.to_owned(),
+        };
+    }
+
+    const NEXT_KEYWORDS: &[&str] = &[
+        "suivant",
+        "suivante",
+        "next",
+        "continue",
+        "continuer",
+        "avance",
+    ];
+    if NEXT_KEYWORDS.iter().any(|kw| trimmed.contains(kw)) {
+        return TourVoiceAction::NextStep;
+    }
+
+    const BACK_KEYWORDS: &[&str] = &["retour", "précédent", "precedent", "back", "previous"];
+    if BACK_KEYWORDS.iter().any(|kw| trimmed.contains(kw)) {
+        return TourVoiceAction::PreviousStep;
+    }
+
+    const SKIP_KEYWORDS: &[&str] = &["passer", "skip", "sauter", "quitter le tour"];
+    if SKIP_KEYWORDS.iter().any(|kw| trimmed.contains(kw)) {
+        return TourVoiceAction::SkipTour;
+    }
+
+    const EXPLAIN_KEYWORDS: &[&str] = &[
+        "explique",
+        "explain",
+        "c'est quoi",
+        "what is",
+        "comment",
+        "how",
+    ];
+    if EXPLAIN_KEYWORDS.iter().any(|kw| trimmed.contains(kw)) {
+        return TourVoiceAction::AskCompanion {
+            message: transcript.to_owned(),
+        };
+    }
+
+    // All other non-empty phrases go to the companion rather than Unrecognized.
+    TourVoiceAction::AskCompanion {
+        message: transcript.to_owned(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Voice commands — Tauri command
+// ---------------------------------------------------------------------------
+
+/// Parses a voice transcript into a guided-tour navigation action.
+///
+/// Recognises FR and EN navigation keywords:
+/// - next: `"suivant"`, `"suivante"`, `"next"`, `"continue"`, `"continuer"`, `"avance"`
+/// - back: `"retour"`, `"précédent"`, `"back"`, `"previous"`
+/// - skip: `"passer"`, `"skip"`, `"sauter"`, `"quitter le tour"`
+/// - explain: `"explique"`, `"explain"`, `"c'est quoi"`, `"what is"`, `"comment"`, `"how"`
+/// - anything else → `AskCompanion` with the original transcript
+#[tauri::command]
+pub async fn process_tour_voice_command(transcript: String) -> Result<TourVoiceAction, String> {
+    let action = parse_voice_command(&transcript);
+    tracing::info!(
+        transcript = %transcript,
+        action = ?action,
+        "tour voice command parsed"
+    );
+    Ok(action)
+}
+
+// ---------------------------------------------------------------------------
+// Voice commands — tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod voice_command_tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_next_fr() {
+        // GIVEN a transcript containing "suivant"
+        // WHEN parsed
+        // THEN NextStep is returned
+        assert_eq!(parse_voice_command("suivant"), TourVoiceAction::NextStep);
+    }
+
+    #[test]
+    fn test_parse_next_en() {
+        // GIVEN a transcript containing "next"
+        // WHEN parsed
+        // THEN NextStep is returned
+        assert_eq!(parse_voice_command("next"), TourVoiceAction::NextStep);
+    }
+
+    #[test]
+    fn test_parse_next_continue_fr() {
+        // GIVEN a transcript containing "continuer"
+        // WHEN parsed
+        // THEN NextStep is returned (contains "continuer")
+        assert_eq!(
+            parse_voice_command("continuer s'il te plaît"),
+            TourVoiceAction::NextStep
+        );
+    }
+
+    #[test]
+    fn test_parse_back_fr() {
+        // GIVEN a transcript containing "retour"
+        // WHEN parsed
+        // THEN PreviousStep is returned
+        assert_eq!(parse_voice_command("retour"), TourVoiceAction::PreviousStep);
+    }
+
+    #[test]
+    fn test_parse_back_en() {
+        // GIVEN a transcript containing "back"
+        // WHEN parsed
+        // THEN PreviousStep is returned
+        assert_eq!(
+            parse_voice_command("go back"),
+            TourVoiceAction::PreviousStep
+        );
+    }
+
+    #[test]
+    fn test_parse_skip_fr() {
+        // GIVEN a transcript containing "passer"
+        // WHEN parsed
+        // THEN SkipTour is returned
+        assert_eq!(
+            parse_voice_command("passer cette étape"),
+            TourVoiceAction::SkipTour
+        );
+    }
+
+    #[test]
+    fn test_parse_skip_en() {
+        // GIVEN a transcript "skip"
+        // WHEN parsed
+        // THEN SkipTour is returned
+        assert_eq!(parse_voice_command("skip"), TourVoiceAction::SkipTour);
+    }
+
+    #[test]
+    fn test_parse_explain_fr() {
+        // GIVEN a transcript containing "explique"
+        // WHEN parsed
+        // THEN AskCompanion with the original message is returned
+        assert!(matches!(
+            parse_voice_command("explique-moi ça"),
+            TourVoiceAction::AskCompanion { .. }
+        ));
+    }
+
+    #[test]
+    fn test_parse_explain_en() {
+        // GIVEN a transcript containing "explain"
+        // WHEN parsed
+        // THEN AskCompanion with the original message is returned
+        match parse_voice_command("explain this feature") {
+            TourVoiceAction::AskCompanion { message } => {
+                assert_eq!(message, "explain this feature");
+            }
+            other => panic!("expected AskCompanion, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_natural_question_fr() {
+        // GIVEN a natural French question with no navigation keywords
+        // WHEN parsed
+        // THEN AskCompanion is returned (not Unrecognized)
+        assert!(matches!(
+            parse_voice_command("quel temps fait-il"),
+            TourVoiceAction::AskCompanion { .. }
+        ));
+    }
+
+    #[test]
+    fn test_parse_natural_question_en() {
+        // GIVEN a natural English question with no navigation keywords
+        // WHEN parsed
+        // THEN AskCompanion is returned (not Unrecognized)
+        assert!(matches!(
+            parse_voice_command("what can this agent do"),
+            TourVoiceAction::AskCompanion { .. }
+        ));
+    }
+
+    #[test]
+    fn test_parse_empty_transcript() {
+        // GIVEN an empty transcript
+        // WHEN parsed
+        // THEN Unrecognized is returned
+        assert!(matches!(
+            parse_voice_command(""),
+            TourVoiceAction::Unrecognized { .. }
+        ));
+    }
+
+    #[test]
+    fn test_parse_whitespace_only() {
+        // GIVEN a transcript with only whitespace
+        // WHEN parsed
+        // THEN Unrecognized is returned
+        assert!(matches!(
+            parse_voice_command("   "),
+            TourVoiceAction::Unrecognized { .. }
+        ));
+    }
+
+    #[test]
+    fn test_parse_case_insensitive() {
+        // GIVEN transcripts in uppercase
+        // WHEN parsed
+        // THEN navigation keywords are recognised regardless of case
+        assert_eq!(parse_voice_command("SUIVANT"), TourVoiceAction::NextStep);
+        assert_eq!(parse_voice_command("NEXT"), TourVoiceAction::NextStep);
+    }
+
+    #[test]
+    fn test_ask_companion_preserves_original_transcript() {
+        // GIVEN an explain transcript
+        // WHEN parsed
+        // THEN the AskCompanion message equals the original (not lowercased)
+        let original = "Explique-Moi Ça";
+        match parse_voice_command(original) {
+            TourVoiceAction::AskCompanion { message } => {
+                assert_eq!(message, original);
+            }
+            other => panic!("expected AskCompanion, got {other:?}"),
+        }
     }
 }

@@ -10,7 +10,8 @@
   import TourSpotlight from "./TourSpotlight.svelte";
   import TourStepCard from "./TourStepCard.svelte";
   import TourProgressRail from "./TourProgressRail.svelte";
-  import type { TourStep, OnboardingPhase, AgentListItem } from "$lib/types";
+  import VoiceIndicator from "./VoiceIndicator.svelte";
+  import type { TourStep, OnboardingPhase, AgentListItem, TourVoiceAction, SttStatus } from "$lib/types";
   import type { Route } from "$lib/stores/navigation";
 
   // ─── Constants ────────────────────────────────────────────────────────────────
@@ -32,6 +33,19 @@
   let timeoutTimer = $state<ReturnType<typeof setTimeout> | null>(null);
   let waitEventUnlisten = $state<UnlistenFn | null>(null);
 
+  // ─── Voice command state ───────────────────────────────────────────────────
+
+  /** True when the STT engine is loaded and the mic button should be shown. */
+  let sttAvailable = $state(false);
+  /** True while the mic button is held down (recording active). */
+  let isVoiceRecording = $state(false);
+  /**
+   * Set to true on mousedown so the next stt-transcribed event is processed.
+   * Cleared after the action is dispatched or recording is cancelled.
+   */
+  let voiceCommandPending = $state(false);
+  let sttTranscribedUnlisten = $state<UnlistenFn | null>(null);
+
   // ─── Derived helpers ────────────────────────────────────────────────────────
 
   let currentStep = $derived(steps[stepIndex] ?? null);
@@ -49,16 +63,117 @@
 
   onMount(() => {
     void loadAndStart();
+    void checkSttAvailability();
+    void registerSttListener();
 
     return () => {
       clearAutoTimer();
       clearTimeoutTimer();
       clearWaitEvent();
+      clearSttListener();
       tourPrefill.set(null);
       tourCompanionOverride.set(null);
       tourOpenAgentDetail.set(null);
     };
   });
+
+  // ─── STT availability ──────────────────────────────────────────────────────
+
+  async function checkSttAvailability(): Promise<void> {
+    try {
+      const status = await invoke<SttStatus>("get_stt_status");
+      sttAvailable = status.enabled && status.model_loaded;
+    } catch {
+      // STT engine not available — mic button will not be shown.
+      sttAvailable = false;
+    }
+  }
+
+  async function registerSttListener(): Promise<void> {
+    sttTranscribedUnlisten = await listen<string>(
+      "stt-transcribed",
+      (event: Event<string>) => {
+        if (voiceCommandPending) {
+          voiceCommandPending = false;
+          void dispatchVoiceTranscript(event.payload);
+        }
+      },
+    );
+  }
+
+  function clearSttListener(): void {
+    if (sttTranscribedUnlisten !== null) {
+      sttTranscribedUnlisten();
+      sttTranscribedUnlisten = null;
+    }
+  }
+
+  // ─── Voice push-to-talk ────────────────────────────────────────────────────
+
+  async function handleMicDown(): Promise<void> {
+    if (!sttAvailable || isVoiceRecording) return;
+    voiceCommandPending = true;
+    isVoiceRecording = true;
+    try {
+      await invoke("start_tour_recording");
+    } catch (err) {
+      console.warn("[GuidedTour] start_tour_recording failed:", err);
+      isVoiceRecording = false;
+      voiceCommandPending = false;
+    }
+  }
+
+  async function handleMicUp(): Promise<void> {
+    if (!isVoiceRecording) return;
+    isVoiceRecording = false;
+    try {
+      await invoke("stop_tour_recording");
+    } catch (err) {
+      console.warn("[GuidedTour] stop_tour_recording failed:", err);
+      voiceCommandPending = false;
+    }
+  }
+
+  async function dispatchVoiceTranscript(transcript: string): Promise<void> {
+    let action: TourVoiceAction;
+    try {
+      action = await invoke<TourVoiceAction>("process_tour_voice_command", {
+        transcript,
+      });
+    } catch (err) {
+      console.warn("[GuidedTour] process_tour_voice_command failed:", err);
+      return;
+    }
+
+    switch (action.action) {
+      case "NextStep":
+        void advanceStep();
+        break;
+      case "PreviousStep":
+        void retreatStep();
+        break;
+      case "SkipTour":
+        requestExit();
+        break;
+      case "AskCompanion": {
+        const sessionId = get(onboardingStore).companion_session_id;
+        if (sessionId !== null && sessionId !== undefined && sessionId !== "") {
+          try {
+            await invoke("send_chat_message", {
+              sessionId,
+              content: action.message,
+            });
+          } catch (err) {
+            console.warn("[GuidedTour] send_chat_message failed:", err);
+          }
+        }
+        break;
+      }
+      case "Unrecognized":
+        // Empty transcript — no action.
+        break;
+    }
+  }
 
   // ─── Load & start ──────────────────────────────────────────────────────────
 
@@ -366,6 +481,20 @@
       onprev={() => void retreatStep()}
       onskip={requestExit}
     />
+
+    {#if sttAvailable}
+      <button
+        class="mic-btn"
+        class:active={isVoiceRecording}
+        data-testid="tour-mic-btn"
+        aria-label={isVoiceRecording ? "Enregistrement en cours…" : "Commande vocale (maintenir)"}
+        onmousedown={() => void handleMicDown()}
+        onmouseup={() => void handleMicUp()}
+        onmouseleave={() => void handleMicUp()}
+      >
+        <VoiceIndicator {sttAvailable} isRecording={isVoiceRecording} />
+      </button>
+    {/if}
   {/if}
 
   {#if showConfirmExit}
@@ -432,6 +561,40 @@
 
   .skip-action-btn:hover {
     opacity: 0.85;
+  }
+
+  /* Mic push-to-talk button */
+  .mic-btn {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 60;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow:
+      0 0 0 1px rgba(52, 53, 245, 0.12),
+      0 4px 16px -2px rgba(0, 0, 0, 0.14);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: box-shadow 120ms ease, transform 120ms ease;
+    padding: 0;
+    user-select: none;
+  }
+
+  .mic-btn:hover {
+    box-shadow:
+      0 0 0 1px rgba(52, 53, 245, 0.2),
+      0 6px 20px -2px rgba(0, 0, 0, 0.18);
+  }
+
+  .mic-btn.active {
+    background: rgba(52, 53, 245, 0.06);
+    transform: scale(1.08);
   }
 
   /* Exit confirmation dialog */

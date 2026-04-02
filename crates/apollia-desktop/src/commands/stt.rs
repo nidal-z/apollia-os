@@ -1,13 +1,15 @@
 //! Tauri IPC commands for STT (Speech-to-Text) functionality.
 //!
-//! Exposes 7 commands to the Svelte frontend:
-//! - `get_stt_config`      — read [stt] section from apollia.toml
-//! - `update_stt_config`   — write [stt] section to apollia.toml
-//! - `get_stt_status`      — query runtime engine status
-//! - `list_transcriptions` — list transcription history
-//! - `delete_transcription`— delete a transcription by ID
-//! - `transcribe_file`     — transcribe a WAV file
-//! - `list_stt_models`     — list available .bin model files
+//! Exposes 9 commands to the Svelte frontend:
+//! - `get_stt_config`         — read [stt] section from apollia.toml
+//! - `update_stt_config`      — write [stt] section to apollia.toml
+//! - `get_stt_status`         — query runtime engine status
+//! - `list_transcriptions`    — list transcription history
+//! - `delete_transcription`   — delete a transcription by ID
+//! - `transcribe_file`        — transcribe a WAV file
+//! - `list_stt_models`        — list available .bin model files
+//! - `start_tour_recording`   — begin push-to-talk recording for the guided tour
+//! - `stop_tour_recording`    — stop recording and trigger transcription
 
 use std::io::Cursor;
 use std::sync::Arc;
@@ -577,5 +579,56 @@ mod tests {
         // THEN an error is returned
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("invalid WAV"));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Push-to-talk commands for the guided tour
+// ---------------------------------------------------------------------------
+
+/// Convenience type alias for the shared SttFlow state managed by Tauri.
+///
+/// Populated during app setup when the STT engine is configured and loaded.
+/// Remains `None` when STT is unavailable so all callers can degrade gracefully.
+pub type SttFlowState = Arc<std::sync::Mutex<Option<Arc<crate::stt::flow::SttFlow>>>>;
+
+/// Starts microphone capture for a push-to-talk voice command in the guided tour.
+///
+/// Returns an error (without panicking) when the STT engine is not configured,
+/// allowing the frontend to hide the microphone button gracefully.
+#[tauri::command]
+pub async fn start_tour_recording(
+    flow_state: tauri::State<'_, SttFlowState>,
+) -> Result<(), String> {
+    let guard = flow_state.lock().map_err(|e| format!("lock error: {e}"))?;
+
+    match guard.as_ref() {
+        Some(flow) => {
+            flow.start_recording();
+            Ok(())
+        }
+        None => Err("STT engine not available".to_owned()),
+    }
+}
+
+/// Stops microphone capture and triggers Whisper transcription.
+///
+/// The transcription result is broadcast as a `stt-transcribed` Tauri event
+/// with the recognised text, which the guided tour consumes to execute the
+/// corresponding navigation action.
+#[tauri::command]
+pub async fn stop_tour_recording(flow_state: tauri::State<'_, SttFlowState>) -> Result<(), String> {
+    // Clone the Arc out of the lock so transcription runs outside the guard.
+    let maybe_flow = {
+        let guard = flow_state.lock().map_err(|e| format!("lock error: {e}"))?;
+        guard.as_ref().cloned()
+    };
+
+    match maybe_flow {
+        Some(flow) => {
+            flow.stop_and_transcribe().await;
+            Ok(())
+        }
+        None => Err("STT engine not available".to_owned()),
     }
 }

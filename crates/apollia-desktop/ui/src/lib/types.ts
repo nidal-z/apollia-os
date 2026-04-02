@@ -916,6 +916,20 @@ export interface TourStep {
   estimated_seconds: number;
 }
 
+// ─── Voice commands ──────────────────────────────────────────────────────────
+
+/**
+ * Action returned by `process_tour_voice_command`.
+ *
+ * Mirrors the Rust `TourVoiceAction` enum serialised with `#[serde(tag = "action")]`.
+ */
+export type TourVoiceAction =
+  | { action: "NextStep" }
+  | { action: "PreviousStep" }
+  | { action: "SkipTour" }
+  | { action: "AskCompanion"; message: string }
+  | { action: "Unrecognized"; transcript: string };
+
 // ─── STT (Speech-to-Text) ────────────────────────────────────────────────────
 
 /** Description of an available STT model file on disk. */

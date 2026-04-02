@@ -102,6 +102,11 @@ fn main() {
         task_repository: task_repository_lock.clone(),
     });
 
+    // Shared SttFlow state for push-to-talk IPC commands (`start_tour_recording`,
+    // `stop_tour_recording`). Populated inside the Tauri setup closure once the
+    // STT engine is confirmed available; remains `None` for graceful degradation.
+    let stt_flow_state: commands::stt::SttFlowState = Arc::new(std::sync::Mutex::new(None));
+
     // Open AgentRepository for auto-load at boot (passed to Supervisor).
     // A separate instance is created later for Tauri IPC commands.
     let apollia_data_dir = {
@@ -324,6 +329,7 @@ fn main() {
         .manage(llm_router_lock.clone())
         .manage(mcp_registry_client)
         .manage(SecretStore::new())
+        .manage(stt_flow_state.clone())
         .setup(move |app| {
             tray::setup_tray(app)?;
 
@@ -346,6 +352,11 @@ fn main() {
                             stt::hotkey::TriggerMode::from_config(&stt_cfg.trigger_mode);
                         let listener =
                             stt::hotkey::HotkeyListener::new(stt_cfg.hotkey.clone(), mode);
+
+                        // Make the flow accessible to push-to-talk IPC commands.
+                        if let Ok(mut guard) = stt_flow_state.lock() {
+                            *guard = Some(Arc::clone(&flow));
+                        }
 
                         let flow_start = Arc::clone(&flow);
                         let flow_stop = Arc::clone(&flow);
@@ -521,6 +532,9 @@ fn main() {
             commands::stt::delete_transcription,
             commands::stt::transcribe_file,
             commands::stt::list_stt_models,
+            commands::stt::start_tour_recording,
+            commands::stt::stop_tour_recording,
+            commands::onboarding::process_tour_voice_command,
             commands::mcp::list_mcp_enrichments,
             commands::mcp::list_mcp_servers,
             commands::mcp::get_mcp_server_detail,
