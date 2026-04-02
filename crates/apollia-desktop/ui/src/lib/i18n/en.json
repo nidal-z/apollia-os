@@ -1385,5 +1385,25 @@
       "title_builder": "Available tools",
       "group_partial": "{count}/{total} enabled"
     }
+  },
+  "onboarding_v2": {
+    "welcome": {
+      "tagline": "Your sovereign runtime for AI agents",
+      "subtitle": "Run Python agents locally, with zero cloud dependency.",
+      "cta": "Get Started",
+      "loading": "Starting…"
+    },
+    "profile": {
+      "title": "What is your profile?",
+      "subtitle": "Choose the path that fits your use case.",
+      "operator_title": "Operator",
+      "operator_desc": "You use ready-made AI agents to automate your workflows.",
+      "operator_examples": "Automation · Assistants · Business pipelines",
+      "builder_title": "Builder",
+      "builder_desc": "You develop and deploy custom Python agents.",
+      "builder_examples": "LangGraph · CrewAI · Custom agents",
+      "both_profiles": "Both",
+      "selecting": "Configuring…"
+    }
   }
 }

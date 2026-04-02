@@ -1385,5 +1385,25 @@
       "title_builder": "Outils disponibles",
       "group_partial": "{count}/{total} activés"
     }
+  },
+  "onboarding_v2": {
+    "welcome": {
+      "tagline": "Votre runtime souverain pour agents IA",
+      "subtitle": "Exécutez des agents Python localement, sans aucune dépendance cloud.",
+      "cta": "Commencer",
+      "loading": "Démarrage…"
+    },
+    "profile": {
+      "title": "Quel est votre profil ?",
+      "subtitle": "Choisissez le parcours adapté à votre usage.",
+      "operator_title": "Opérateur",
+      "operator_desc": "Vous utilisez des agents IA prêts à l'emploi pour automatiser vos workflows.",
+      "operator_examples": "Automatisation · Assistants · Pipelines métier",
+      "builder_title": "Builder",
+      "builder_desc": "Vous développez et déployez des agents Python personnalisés.",
+      "builder_examples": "LangGraph · CrewAI · Agents custom",
+      "both_profiles": "Les deux",
+      "selecting": "Configuration…"
+    }
   }
 }

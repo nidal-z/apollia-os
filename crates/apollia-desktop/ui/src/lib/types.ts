@@ -854,6 +854,44 @@ export interface TriggerResult {
   topic?: string;
 }
 
+/** Seven ordered phases of the Sprint 33 onboarding flow. */
+export type OnboardingPhase =
+  | "welcome"
+  | "profile_choice"
+  | "ai_setup"
+  | "acquaintance"
+  | "guided_tour"
+  | "graduation"
+  | "done";
+
+/** Cumulative statistics accumulated across the full onboarding flow. */
+export interface OnboardingStats {
+  total_time_sec: number;
+  actions_completed: number;
+  companion_questions: number;
+  voice_commands_used: number;
+}
+
+/** Full onboarding state returned by get_onboarding_state (Sprint 33). */
+export interface OnboardingState {
+  phase: OnboardingPhase;
+  profile: string | null;
+  llm_configured: boolean;
+  stt_configured: boolean;
+  topics_covered: string[];
+  mandatory_complete: boolean;
+  tour_step_index: number;
+  tour_total_steps: number;
+  tour_completed: boolean;
+  companion_session_id: string | null;
+  voice_enabled: boolean;
+  skipped: boolean;
+  completed: boolean;
+  started_at: string | null;
+  completed_at: string | null;
+  stats: OnboardingStats;
+}
+
 // ─── STT (Speech-to-Text) ────────────────────────────────────────────────────
 
 /** Description of an available STT model file on disk. */
