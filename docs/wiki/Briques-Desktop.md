@@ -19,7 +19,7 @@ main() Tauri
   │
   └── tauri::Builder
         ├── .manage(RuntimeHandle)     ← etat partage
-        ├── .invoke_handler(commands)  ← 29 commandes IPC
+        ├── .invoke_handler(commands)  ← 114 commandes IPC
         ├── .plugin(dialog)            ← file picker natif
         ├── .plugin(notification)      ← notifications natives
         └── .run()                     ← ouvre la WebView
@@ -94,7 +94,7 @@ crates/apollia-desktop/
         │   ├── observability/ ← TimelineGlobal.svelte, LlmCostChart.svelte, AuditTrailTable.svelte, PlanCacheStats.svelte [Sprint 20]
         │   ├── stt/           ← TranscriptCard.svelte, TranscribeFileDialog.svelte, RecordingOverlay.svelte [Sprint 24]
         │   └── onboarding/    ← StepEnvironment.svelte, StepFirstAgent.svelte, StepFirstTask.svelte
-        └── routes/            ← 12 fichiers .svelte (un par route, dont Transcriptions.svelte — Sprint 24)
+        └── routes/            ← 15 fichiers .svelte (un par route : Agents, Tasks, Approvals, Chat, Transcriptions, Integrations, Llm, Triggers, Pipelines, Memory, Notifications, Observability, Settings, Dashboard, Onboarding)
 ```
 
 ### 2.2 `RuntimeHandle` (apollia-runtime)
@@ -142,9 +142,9 @@ pub enum EmbeddedError {
 
 ## 3. Commandes Tauri IPC
 
-54 commandes exposees au frontend Svelte via `#[tauri::command]` (29 Sprint 15 + 11 Sprint 17 + 6 Sprint 18 + 3 Sprint 21 + 5 Sprint 24) :
+114 commandes exposees au frontend Svelte via `#[tauri::command]` (source de vérité : `invoke_handler` dans `src/main.rs`) :
 
-### Agents (3)
+### Agents (6)
 
 | Commande | Parametres | Retour |
 |---|---|---|
@@ -179,7 +179,7 @@ pub enum EmbeddedError {
 | `ping_llm_backend` | `name: String` | `u64` (latency_ms) |
 | `get_llm_cost_stats` | `days: Option<u32>` | `LlmCostStats` |
 
-### Triggers (8 — 5 Sprint 15 + 3 Sprint 17)
+### Triggers (9 — 5 Sprint 15 + 3 Sprint 17 + 1 Sprint 20)
 
 | Commande | Parametres | Retour |
 |---|---|---|
@@ -193,7 +193,7 @@ pub enum EmbeddedError {
 | `fire_trigger` | `id: String` | `String` (task_id) |
 | `get_trigger_logs` | `id: String` | `Vec<TriggerLogEntry>` |
 
-### Pipelines (8 — 5 Sprint 15 + 3 Sprint 17)
+### Pipelines (9 — 5 Sprint 15 + 3 Sprint 17 + 1 Sprint 20)
 
 | Commande | Parametres | Retour |
 |---|---|---|
@@ -291,10 +291,11 @@ pub enum EmbeddedError {
 
 ### 4.2 Navigation
 
-Store Svelte `currentRoute` avec 13 routes :
+Store Svelte `currentRoute` avec 15 routes (source de vérité : `ui/src/lib/stores/navigation.ts`) :
 
 ```typescript
 type Route =
+  | "dashboard"      // Vue d'accueil (route par defaut au demarrage)
   | "agents"         // Gestion agents (Sprint 14)
   | "tasks"          // Liste et detail taches (Sprint 14)
   | "approvals"      // Approbations HITL (Sprint 14)
@@ -307,7 +308,8 @@ type Route =
   | "memory"         // Namespaces, recherche FTS5, suppression
   | "notifications"  // Canaux, test, historique
   | "observability"  // Timeline, audit trail, couts LLM
-  | "settings";      // Configuration lecture seule (ADR-029)
+  | "settings"       // Configuration lecture seule (ADR-029)
+  | "onboarding";    // Wizard premier lancement (gere separement via showOnboarding)
 ```
 
 Rendu conditionnel `{#if}` dans `Main.svelte`. Pas de router externe — routing par store client-side.

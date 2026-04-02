@@ -15,8 +15,11 @@ Le `RuntimeContext` (`ctx`) est votre agent's interface avec le runtime. Quatre 
 | `ctx.memory` | Stocker/retrouver des souvenirs persistants | Enrichir le contexte entre les tâches |
 | `ctx.llm` | Appeler un LLM (raisonnement, résumé, extraction) | Tout ce qui nécessite de l'intelligence |
 | `ctx.step_budget` | Lire le budget restant (lecture seule) | Adapter le comportement avant épuisement |
+| `ctx.send()` / `ctx.receive()` | Messagerie inter-agents (AgentMailbox) | Coordination entre agents en parallèle |
+| `ctx.delegate()` | Déléguer une tâche à un Worker Agent via A2A | Appeler une compétence spécialisée d'un autre agent |
+| `ctx.user_context` | Lire le profil utilisateur (mode chat uniquement) | Personnaliser la réponse selon les préférences utilisateur |
 
-`ctx.tools` est toujours disponible. `ctx.memory` nécessite `memory_namespace` dans le manifest. `ctx.llm` nécessite un backend LLM configuré. `ctx.step_budget` est toujours disponible (lecture seule, le runtime gère le décompte).
+`ctx.tools` et `ctx.step_budget` sont toujours disponibles. `ctx.memory` nécessite `memory_namespace` dans le manifest. `ctx.llm` nécessite un backend LLM configuré. `ctx.send()`, `ctx.receive()` et `ctx.delegate()` nécessitent `supports_a2a: True` dans le manifest. `ctx.user_context` est disponible uniquement en mode chat.
 
 ## Détail
 
@@ -30,6 +33,10 @@ async def run(self, task, ctx):
     # ctx.llm           — LlmProxy | None : appels LLM (None si aucun backend configuré)
     # ctx.log           — AgentLogger : logs structurés
     # ctx.step_budget   — StepBudgetView : budget restant (lecture seule)
+    # ctx.send()        — messagerie inter-agents (supports_a2a requis)
+    # ctx.receive()     — réception messages inter-agents (supports_a2a requis)
+    # ctx.delegate()    — délégation A2A vers Worker Agent (supports_a2a requis)
+    # ctx.user_context  — profil utilisateur (mode chat uniquement, None sinon)
 ```
 
 ---
@@ -510,6 +517,229 @@ elapsed_seconds      = ctx.step_budget.elapsed_seconds        # float
 ```
 
 **Note :** l'agent ne peut pas modifier le budget. Le runtime le plafonne toujours via `from_capped(agent_budget, runtime_defaults)`.
+
+---
+
+## ctx.send() / ctx.receive() — Messagerie inter-agents *(Sprint 20)*
+
+**Nécessite `supports_a2a: True` dans le manifest.**
+
+Permet à un agent d'envoyer et de recevoir des messages asynchrones avec d'autres agents via l'`AgentMailbox` — un acteur Tokio séparé du `TaskRouter`.
+
+### ctx.send()
+
+Envoie un message JSON à un autre agent identifié par son nom.
+
+```python
+# Signature : async send(agent_name: str, payload: dict) -> None
+await ctx.send(
+    "worker-agent",                          # str — nom de l'agent destinataire
+    {"type": "data", "content": "résultat"}, # dict — payload JSON arbitraire
+)
+```
+
+| Paramètre | Type | Description |
+|---|---|---|
+| `agent_name` | `str` | Nom de l'agent destinataire (doit être démarré) |
+| `payload` | `dict` | Données JSON à envoyer (serde_json::Value) |
+
+**Erreurs :**
+- `RuntimeError: "A2A messaging requires supports_a2a: true in manifest"` — manifest incorrect
+- `RuntimeError: "A2A mailbox not available in this runtime context"` — mailbox non disponible
+- `RuntimeError` (MailboxError::QueueFull) — file pleine (max 100 messages par agent)
+
+### ctx.receive()
+
+Attend le prochain message dans la mailbox de l'agent courant avec un timeout.
+
+```python
+# Signature : async receive(timeout_seconds: float = 5.0) -> dict | None
+msg = await ctx.receive(timeout=10.0)  # timeout en secondes, défaut: 5.0
+if msg is not None:
+    sender   = msg["from"]     # str — nom de l'agent émetteur
+    payload  = msg["payload"]  # dict — données reçues
+    sent_at  = msg["sent_at"]  # str — horodatage ISO 8601
+```
+
+**Retour :** `dict` avec les clés `from`, `payload`, `sent_at` — ou `None` si timeout expiré.
+
+**Erreurs :**
+- `RuntimeError: "A2A messaging requires supports_a2a: true in manifest"` — manifest incorrect
+- `RuntimeError: "A2A mailbox not available in this runtime context"` — mailbox non disponible
+
+### Contraintes
+
+- Max **100 messages** en file par agent — au-delà : `RuntimeError` (MailboxError::QueueFull)
+- Les messages sont des `serde_json::Value` (JSON arbitraire côté Rust)
+- L'agent destinataire **doit être démarré** — pas de persistance hors-mémoire
+- L'`AgentMailbox` est un acteur Tokio **séparé** du `TaskRouter`
+
+### Exemple — coordination pipeline
+
+```python
+# agent-coordinator.py
+class CoordinatorAgent:
+    def manifest(self):
+        return {
+            "name": "coordinator",
+            "version": "1.0.0",
+            "description": "Coordonne deux agents en parallèle",
+            "tools_required": [],
+            "supports_a2a": True,  # obligatoire pour send/receive
+        }
+
+    async def run(self, task, ctx):
+        input_data = task["input"]["parts"][0]["text"]
+
+        # Envoyer à deux workers en parallèle
+        await ctx.send("worker-a", {"job": "analyser", "data": input_data})
+        await ctx.send("worker-b", {"job": "résumer",  "data": input_data})
+
+        # Récupérer les réponses (dans l'ordre d'arrivée)
+        results = []
+        for _ in range(2):
+            msg = await ctx.receive(timeout=30.0)
+            if msg:
+                results.append(msg["payload"])
+
+        return {
+            "task_id": task["task_id"],
+            "status": "completed",
+            "output": [{"type": "data", "data": {"results": results}}],
+        }
+```
+
+---
+
+## ctx.delegate() — Délégation A2A vers Worker Agent *(Sprint 32)*
+
+**Nécessite `supports_a2a: True` dans le manifest.**
+
+Délègue une tâche à un Worker Agent identifié par son `skill_id`. Méthode A2A de bas niveau — expose directement la `A2aDelegateFn` injectée par le runtime dans les Director Agents en Mode Orchestré.
+
+```python
+# Signature : async delegate(skill_id: str, payload: dict, timeout_secs: int = 120) -> dict
+result = await ctx.delegate(
+    skill_id="generate-quote",                  # str — ID de la compétence
+    payload={"client": "Acme", "amount": 5000}, # dict — données d'entrée JSON
+    timeout_secs=120,                           # int | None — défaut: 120s
+)
+```
+
+| Paramètre | Type | Obligatoire | Défaut | Description |
+|---|---|---|---|---|
+| `skill_id` | `str` | oui | — | Identifiant de la compétence du Worker Agent cible |
+| `payload` | `dict` | oui | — | Données d'entrée JSON sérialisables |
+| `timeout_secs` | `int \| None` | non | `120` | Timeout total de la délégation en secondes |
+
+**Retour :** `dict` avec les clés :
+
+| Clé | Type | Description |
+|---|---|---|
+| `task_id` | `str` | UUID de la tâche déléguée |
+| `agent_name` | `str` | Nom de l'agent qui a exécuté la compétence |
+| `output` | `list[dict]` | Résultat : liste d'`AIPPart` (même format que AIPResult) |
+
+**Erreurs :**
+- `RuntimeError: "A2A delegation requires supports_a2a: true in manifest"` — manifest incorrect
+- `RuntimeError: "A2A delegation not available in this runtime context"` — contexte non-orchestré (injectée uniquement pour les Director Agents)
+
+### Exemple — Director Agent qui délègue
+
+```python
+# director_agent.py
+class DirectorAgent:
+    def manifest(self):
+        return {
+            "name": "director",
+            "version": "1.0.0",
+            "description": "Orchestre plusieurs workers spécialisés",
+            "tools_required": [],
+            "supports_a2a": True,
+            "execution_mode": "orchestrated",
+        }
+
+    async def run(self, task, ctx):
+        brief = task["input"]["parts"][0]["text"]
+
+        # Déléguer la génération de devis à un Worker Agent
+        result = await ctx.delegate(
+            skill_id="generate-quote",
+            payload={"brief": brief},
+            timeout_secs=60,
+        )
+
+        # Extraire le résultat
+        output_parts = result["output"]  # list[AIPPart]
+        agent_used   = result["agent_name"]
+        ctx.log.info("delegation_done", agent=agent_used, parts=len(output_parts))
+
+        return {
+            "task_id": task["task_id"],
+            "status": "completed",
+            "output": output_parts,
+        }
+```
+
+---
+
+## ctx.user_context — Contexte utilisateur global *(Sprint 28)*
+
+**Disponible uniquement en mode chat.** `None` en mode task.
+
+Propriété (pas une méthode) qui expose les entrées de mémoire utilisateur (`__user__`) chargées depuis le namespace global via `recall_all()` au démarrage de la session chat. L'agent décide quoi en faire — jamais d'injection automatique dans les prompts (Principe #6).
+
+```python
+# ctx.user_context : dict[str, list[tuple[str, str]]] | None
+uc = ctx.user_context
+if uc is not None:
+    # Catégories disponibles
+    prefs  = uc.get("preferences", [])  # list[tuple[str, str]] — préférences explicites
+    habits = uc.get("habits", [])       # list[tuple[str, str]] — habitudes détectées
+    ctxts  = uc.get("context", [])      # list[tuple[str, str]] — contexte situationnel
+```
+
+### Structure des catégories
+
+| Catégorie | Description | Exemple |
+|---|---|---|
+| `preferences` | Préférences explicites de l'utilisateur | `("langue", "français")` |
+| `habits` | Habitudes détectées par le système de mémoire | `("format_réponse", "bullet points")` |
+| `context` | Contexte situationnel courant | `("projet_courant", "apollia-os")` |
+
+### Exemple — personnalisation de réponse
+
+```python
+async def run(self, task, ctx):
+    user_input = task["input"]["parts"][0]["text"]
+
+    # Construire un system prompt personnalisé selon le profil
+    system = "Tu es un assistant bienveillant."
+    uc = ctx.user_context
+    if uc:
+        # Appliquer les préférences de langue
+        for key, val in uc.get("preferences", []):
+            if key == "langue":
+                system += f" Réponds toujours en {val}."
+        # Appliquer les habitudes de format
+        for key, val in uc.get("habits", []):
+            if key == "format_réponse":
+                system += f" Format : {val}."
+
+    if ctx.llm:
+        response = await ctx.llm.chat(system=system, user=user_input)
+        return {
+            "task_id": task["task_id"],
+            "status": "completed",
+            "output": [{"type": "text", "text": response.content}],
+        }
+```
+
+**Règles :**
+- `None` si l'agent n'est pas invoqué depuis une `ChatSession`
+- `None` si le namespace `__user__` est vide (aucune entrée mémorisée)
+- Lecture seule — l'agent ne peut pas modifier `user_context` directement (utiliser `ctx.memory` pour écrire dans `__user__`)
+- L'agent est responsable de décider si et comment utiliser ce contexte (Principe #6)
 
 ---
 

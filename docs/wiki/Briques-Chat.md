@@ -447,10 +447,161 @@ Les 10 outils natifs documentes : `read_file`, `write_file`, `list_dir`, `bash`,
 
 ---
 
+## Injection memoire utilisateur
+
+Le mode Chat Libre enrichit automatiquement le prompt systeme avec le profil memorise de l'utilisateur a chaque nouvelle session. Ce mecanisme est implementé dans `build_system_prompt()` (`chat/builtin_agent.rs`).
+
+### Fonctionnement
+
+Quand `BuiltInChatAgent` est cree avec un `UserMemoryRepository` (parametre optionnel), il appelle `repo.recall_persona_brief(30)` avant chaque echange. Cette methode :
+
+1. Appelle `SemanticMemory::recall_all("__user__")` — lit toutes les entrees stockees sous le namespace reserve `__user__`
+2. Filtre les entrees avec `confidence < 0.3` (entrées de faible confiance ignorées)
+3. Retourne au maximum 30 entrees formatees sous forme de bloc narratif
+
+Si le bloc retourne est non-vide, il est injecte dans le prompt systeme sous la section `## User Persona` :
+
+```
+## User Persona
+Follow the adaptation instructions below to personalize every response.
+Do not repeat this information back to the user unless asked.
+
+<bloc narrative des entrees __user__>
+```
+
+Le prompt systeme inclut egalement une section `## System Environment` (OS, architecture, home dir, working dir) injectee inconditionnellement.
+
+### Principe #6 respecte
+
+Conformement au Principe #6 (Mémoire à initiative de l'agent), les entrées `__user__` ne sont **jamais** injectées automatiquement dans le contexte des taches en arriere-plan ni dans le mode Chat Agent. L'injection est limitée au prompt systeme du mode Chat Libre (`BuiltInChatAgent`). L'agent reste maitre de l'utilisation de cette information.
+
+### Source de verite
+
+- Injection : `crates/apollia-runtime/src/chat/builtin_agent.rs` — `BuiltInChatAgent::build_system_prompt()`
+- Stockage et format : `crates/apollia-memory/src/user_memory.rs` — `UserMemoryRepository::recall_persona_brief()`
+- Namespace reserve : `const USER_NAMESPACE: &str = "__user__"`
+
+---
+
+## Resume de conversation
+
+Quand une session Chat Libre depasse le seuil de la fenetre de contexte, le sous-systeme declenche automatiquement une summarisation de la partie ancienne de l'historique.
+
+### Seuil de declenchement
+
+Le seuil est defini par `DEFAULT_CONTEXT_WINDOW_SIZE = 20` (messages). Apres chaque echange, la condition suivante est evaluee :
+
+```
+history.len() > DEFAULT_CONTEXT_WINDOW_SIZE && stored_summary.is_none()
+```
+
+Si vraie, les `history.len() - 20` messages les plus anciens (ceux hors de la fenetre glissante) sont soumis a la summarisation. La summarisation n'est declenchee qu'une seule fois par session : si un resume est deja stocke (`stored_summary.is_some()`), il est reutilise tel quel.
+
+### ConversationSummarizer
+
+La summarisation est realisee par une fonction async `summarize(messages, llm)` dans `chat/summarizer.rs`. Elle construit un `CompletionRequest` avec :
+
+- Prompt systeme : instruction de produire un resume en 2-3 paragraphes, focusse sur les decisions cles, le contexte etabli, et les questions non resolues
+- Contenu : la transcription des messages anciens (`role: contenu\n`)
+- `max_tokens: Some(500)` — cap absolu a **500 tokens** pour eviter de surcharger la fenetre de contexte lors de la reinsertion
+
+Le LLM appele est le router par defaut de la session (`LlmRouter`). Le resume est retourne comme `String` brute.
+
+### Persistance et indexation FTS5
+
+Apres la generation, le resume est envoye via la commande interne `PersistSummary` au `ChatSessionManager`. L'acteur le stocke dans la colonne `summary` de la table `chat_sessions` (migration v3).
+
+Simultanement, la table virtuelle FTS5 `chat_sessions_fts` (migration v4) est mise a jour :
+
+```sql
+CREATE VIRTUAL TABLE IF NOT EXISTS chat_sessions_fts USING fts5(
+    session_id UNINDEXED,
+    created_at UNINDEXED,
+    summary
+);
+```
+
+Seule la colonne `summary` est indexee en full-text. Les colonnes `session_id` et `created_at` sont `UNINDEXED` (stockees mais non recherchables).
+
+### Source de verite
+
+- Seuil et logique de declenchement : `crates/apollia-runtime/src/chat/manager.rs`, fonction `handle_send_message`
+- Summariseur : `crates/apollia-runtime/src/chat/summarizer.rs`
+- Migration FTS5 : `crates/apollia-runtime/src/chat/repository.rs`, migration v4
+
+---
+
+## Cross-session recall
+
+Lors de la **premiere** requete d'une nouvelle session Chat Libre, le `ChatSessionManager` peut injecter des resumes de sessions passees pertinentes dans le prompt systeme.
+
+### Declenchement
+
+La logique de recall est activee uniquement quand `history.len() == 1` (premiere reponse de la session). Elle est ignoree si le premier message est trop court :
+
+```rust
+const MIN_MESSAGE_LENGTH_FOR_RECALL: usize = 20;
+```
+
+Les messages courts (salutations comme "bonjour", "hello") ne declenchent pas de recall — evite d'injecter un contexte hors-sujet.
+
+### Recherche FTS5 (BM25)
+
+La methode `repository.find_relevant_sessions(query, limit)` execute une requete FTS5 sur la table `chat_sessions_fts` :
+
+```sql
+SELECT session_id, created_at, summary
+FROM chat_sessions_fts
+WHERE summary MATCH ?1
+ORDER BY rank
+LIMIT ?2
+```
+
+Le classement `ORDER BY rank` utilise le scoring **BM25** natif de FTS5. La requete est sanitisee avant envoi (`sanitize_fts_query()`) pour echapper les caracteres speciaux FTS.
+
+Le nombre maximum de sessions retournees est defini par :
+
+```rust
+const MAX_PAST_SESSIONS: usize = 3;
+```
+
+Seules les sessions **fermees** (`status = 'closed'`) avec un resume non-null sont indexees dans `chat_sessions_fts`.
+
+### Injection dans le prompt systeme
+
+Les sessions trouvees sont formatees et prepend au prompt systeme de la session courante :
+
+```
+## Previous conversations (for reference)
+- [2026-03-15T14:22:00Z] The conversation covered the migration of the billing module...
+- [2026-03-08T09:11:00Z] The user set up the CI/CD pipeline with GitHub Actions...
+```
+
+Ce bloc est injecte **une seule fois**, au premier echange. Les echanges suivants de la meme session utilisent le prompt enrichi tel quel, sans nouvelle recherche FTS.
+
+### Type PastSessionSummary
+
+```rust
+pub struct PastSessionSummary {
+    pub session_id: String,
+    pub created_at: String,
+    pub summary: String,
+}
+```
+
+### Source de verite
+
+- Constantes et logique : `crates/apollia-runtime/src/chat/manager.rs` — `build_cross_session_context()` et constantes `MAX_PAST_SESSIONS`, `MIN_MESSAGE_LENGTH_FOR_RECALL`
+- Requete FTS5 : `crates/apollia-runtime/src/chat/repository.rs` — `find_relevant_sessions()`
+- Type : `crates/apollia-runtime/src/chat/types.rs` — `PastSessionSummary`
+
+---
+
 ## Voir aussi
 
 - [ADR-034 — Chat hybride](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md) — decision architecturale
 - [Runtime Core](./Briques-Runtime-Core.md) — Supervisor et acteurs Tokio
+- [Memory Engine](./Briques-Memory-Engine.md) — UserMemoryRepository et namespace `__user__`
 - [Notifications](./Briques-Notifications.md) — evenement `chat.approval_required`
 - [Desktop](./Briques-Desktop.md) — commandes Tauri IPC
 - [API HTTP Reference](./API-HTTP-Reference.md) — reference complete des endpoints

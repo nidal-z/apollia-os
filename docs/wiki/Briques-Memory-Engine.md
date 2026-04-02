@@ -286,9 +286,40 @@ class MemoryInterface(Protocol):
     async def purge_expired(self) -> int: ...
 ```
 
+### `MemoryStats` — champs retournés par `stats()`
+
+```python
+# Obtenir les statistiques d'un namespace
+s = await ctx.memory.stats()
+
+s.namespace         # str    — nom du namespace
+s.episodic_count    # int    — nombre d'entrées épisodiques
+s.semantic_count    # int    — nombre de faits sémantiques
+s.procedural_count  # int    — nombre de procédures
+s.fts_entries       # int    — nombre d'entrées dans l'index FTS5
+s.db_size_bytes     # int    — taille du fichier .db en octets
+```
+
+Exemple d'usage :
+
+```python
+async def run(self, task, ctx):
+    if ctx.memory:
+        s = await ctx.memory.stats()
+        ctx.log.info(
+            "memory_stats",
+            episodic=s.episodic_count,
+            semantic=s.semantic_count,
+            db_kb=s.db_size_bytes // 1024,
+        )
+        # Alerte si la base dépasse 50 MB
+        if s.db_size_bytes > 50 * 1024 * 1024:
+            ctx.log.warn("memory_db_large", size_bytes=s.db_size_bytes)
+```
+
 ---
 
-## 6. Isolation par namespace
+## 6. Isolation par namespace et modèle d'accès
 
 ```
 memory_namespace = "crm-dupont"
@@ -305,10 +336,57 @@ Un agent peut aussi déclarer des namespaces partagés en lecture :
 
 ```python
 AgentManifest(
-    memory_namespace="crm-dupont",              # Namespace privé (lecture/écriture)
-    shared_memory_namespaces=["shared"],         # Namespaces partagés (lecture par défaut)
+    memory_namespace="crm-dupont",              # Namespace privé (ReadWrite)
+    shared_memory_namespaces=["shared", "kb"],  # Namespaces partagés (ReadOnly)
 )
 ```
+
+### `MemoryAccess` — niveaux d'accès
+
+```rust
+pub enum MemoryAccess {
+    ReadWrite,  // namespace_privé de l'agent (memory_namespace)
+    ReadOnly,   // namespace partagé (shared_memory_namespaces)
+}
+```
+
+| Niveau | Qui peut l'avoir | Opérations autorisées |
+|---|---|---|
+| `ReadWrite` | L'agent propriétaire du namespace (`memory_namespace`) | `record`, `remember`, `recall`, `search`, `forget`, `learn_procedure`, `stats`, `purge_expired` |
+| `ReadOnly` | Tout agent ayant le namespace dans `shared_memory_namespaces` | `recall`, `search`, `history` uniquement |
+
+La méthode `MemoryManager::access_level(namespace)` retourne `Some(ReadWrite)`, `Some(ReadOnly)`, ou `None` (namespace non autorisé).
+
+### Modèle d'accès multi-agents — qui lit quoi, qui écrit quoi
+
+```
+Agent A
+  memory_namespace          = "crm-dupont"        ← ReadWrite (A écrit ici)
+  shared_memory_namespaces  = ["shared", "kb"]    ← ReadOnly (A lit seulement)
+
+Agent B
+  memory_namespace          = "shared"             ← ReadWrite (B écrit ici)
+  shared_memory_namespaces  = []
+
+Agent C (lecture seule, pas de mémoire privée)
+  memory_namespace          = None
+  shared_memory_namespaces  = ["shared", "crm-dupont"]  ← ReadOnly (C lit seulement)
+```
+
+**Règles immuables :**
+- Un agent ne peut **jamais écrire** dans un namespace `shared_memory_namespaces` — c'est `ReadOnly`
+- Tenter une écriture dans un namespace partagé lève `MemoryManagerError::ReadOnlyNamespace`
+- Accéder à un namespace non déclaré lève `MemoryManagerError::NamespaceNotAllowed`
+- `memory_namespace = None` → `ctx.memory` est `None` — pas d'accès mémoire du tout
+
+**Erreurs `MemoryManager` :**
+
+| Erreur | Cause |
+|---|---|
+| `NoNamespace` | `memory_namespace = None` (pas de mémoire configurée) |
+| `ReadOnlyNamespace(ns)` | Tentative d'écriture dans un namespace `shared_memory_namespaces` |
+| `NamespaceNotAllowed(ns)` | Accès à un namespace ni privé ni partagé |
+| `OpenFailed { namespace, reason }` | Échec d'ouverture du fichier `.db` |
 
 La concurrence SQLite est gérée par WAL (Write-Ahead Logging) : plusieurs lecteurs simultanés, un seul writer, sans blocage.
 
@@ -328,7 +406,62 @@ La purge est **asynchrone et non-bloquante** au démarrage. Elle ne ralentit pas
 
 ---
 
-## 8. CLI de gestion
+## 8. `MemoryStore` — référence pour contributeurs
+
+`MemoryStore` est la couche bas niveau qui gère un fichier SQLite unique par namespace. C'est la brique sur laquelle s'appuient `EpisodicMemory`, `SemanticMemory` et `ProceduralMemory`.
+
+### Responsabilités
+
+- Ouverture / création du fichier `<namespace>.db`
+- Activation du mode WAL (`PRAGMA journal_mode=WAL`)
+- Migrations de schéma versionnées (`_schema_version`, `SCHEMA_VERSION = 1`)
+- Accès à la `rusqlite::Connection` pour les backends mémoire
+
+### Méthodes publiques
+
+| Méthode | Description |
+|---|---|
+| `open(path: &Path) -> Result<Self, MemoryStoreError>` | Ouvre ou crée la base, applique les migrations |
+| `schema_version() -> Result<u32, MemoryStoreError>` | Retourne la version du schéma actuel |
+| `stats(namespace, db_path) -> Result<MemoryStats, MemoryStoreError>` | Statistiques du namespace |
+| `delete_entry_by_id(id: &str) -> Result<bool, MemoryStoreError>` | Supprime une entrée par UUID (toutes tables + FTS5) |
+| `clear_episodic(namespace) -> Result<u64, MemoryStoreError>` | Vide la mémoire épisodique du namespace |
+| `clear_semantic(namespace) -> Result<u64, MemoryStoreError>` | Vide la mémoire sémantique du namespace |
+| `clear_procedural(namespace) -> Result<u64, MemoryStoreError>` | Vide la mémoire procédurale du namespace |
+
+### Migration de schéma
+
+```
+Versioning : table _schema_version (INTEGER)
+Version 1 (actuelle) : créée au premier open() si absente
+  → episodic_memories + index (namespace, created_at DESC)
+  → semantic_memories + index (namespace, key) + contrainte UNIQUE(namespace, key)
+  → procedural_memories + index (namespace, trigger_text)
+  → memory_fts (FTS5 virtual table, tokenize='unicode61')
+```
+
+Les futures migrations incrémentent `SCHEMA_VERSION` et appliquent uniquement les étapes manquantes via `apply_migrations(current_version)`.
+
+### Relation avec `MemoryManager`
+
+```
+MemoryManager
+  ├── primary_namespace: Option<String>          → ReadWrite
+  ├── shared_namespaces: Vec<String>             → ReadOnly
+  └── stores: HashMap<String, MemoryStore>       → lazy-opened au premier accès
+
+MemoryStore
+  └── conn: rusqlite::Connection                 → une connexion par namespace.db
+       ├── EpisodicMemory::new(store)
+       ├── SemanticMemory::new(store)
+       └── ProceduralMemory (lecture via trigger_text)
+```
+
+`MemoryManager` est le seul point d'entrée autorisé — ne pas instancier `MemoryStore` directement dans les agents. L'interface Python `MemoryInterface` passe toujours par `MemoryManager`.
+
+---
+
+## 9. CLI de gestion
 
 ```bash
 # Inspecter un namespace
@@ -360,7 +493,7 @@ $ apollia-os memory purge crm-dupont
 
 ---
 
-## 9. Décisions architecturales clés
+## 10. Décisions architecturales clés
 
 | Décision | Justification |
 |---|---|

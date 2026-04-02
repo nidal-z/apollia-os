@@ -83,7 +83,14 @@ Flux : `SkillIndex.resolve(skill_id)` → validation état `Active` → construc
 - Les écritures restent confinées au namespace propre de l'agent invoqué
 - Encodé dans `RuntimeContextConfig { user_memory_read_only: bool }`
 
-**Endpoint REST** : `GET /api/v1/a2a/agents` — liste les AgentCards avec leurs skills.
+**Endpoints REST** :
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/v1/a2a/agents` | Liste les agents A2A actifs avec leurs skills |
+| `GET /api/v1/a2a/skills` | Liste plate de tous les skills A2A disponibles |
+| `POST /api/v1/a2a/delegate` | Délégation synchrone bas-niveau (via `delegate_inner`) |
+| `POST /api/v1/a2a/invoke` | Invocation haut-niveau avec garde-fous (via `A2AInvoker`) |
 
 ```bash
 # CLI — lister uniquement les agents A2A
@@ -157,6 +164,109 @@ impl A2AToolsProvider {
     pub async fn build_tool_descriptors(&self) -> Vec<ToolDescriptor>;
 }
 ```
+
+### Erreurs A2A — Référence complète
+
+Il existe deux enums d'erreur distincts selon la couche d'invocation :
+
+#### `A2AError` — Invocateur haut niveau (`invoker.rs`)
+
+Retourné par `A2AInvoker::invoke()` et `POST /api/v1/a2a/invoke`. Applique les garde-fous avant délégation.
+
+| Variant | HTTP | Déclencheur |
+|---|---|---|
+| `SkillNotFound` | 404 | Aucun agent actif ne déclare le skill |
+| `AgentNotActive` | 503 | Agent trouvé mais pas en état `Active` |
+| `Timeout` | 504 | Délai d'invocation dépassé (`invocation_timeout_secs`) |
+| `ExecutionFailed` | 502 | Worker Agent a retourné un échec |
+| `RegistryError` | 500 | Erreur d'infrastructure (registry ou router) |
+| `MaxDepthExceeded` | 429 | Profondeur max récursivité dépassée (`max_depth`) |
+| `SelfInvocation` | 429 | Agent tente de s'invoquer lui-même |
+| `ChainTimeoutExceeded` | 429 | Budget cumulé de chaîne dépassé (`chain_timeout_secs`) |
+
+**Exemples JSON :**
+
+```json
+// SkillNotFound — 404
+{
+  "error": "skill 'read-excel' not found — available: [\"send-email\", \"parse-pdf\"]",
+  "skill_id": "read-excel",
+  "available_skills": ["send-email", "parse-pdf"]
+}
+
+// AgentNotActive — 503
+{
+  "error": "agent 'excel-reader' is not active (state: Degraded)"
+}
+
+// Timeout — 504
+{
+  "error": "A2A invocation timed out after 120s (skill: read-excel, agent: excel-reader)"
+}
+
+// ExecutionFailed — 502
+{
+  "error": "agent 'excel-reader' execution failed: file not found: ventes.xlsx"
+}
+
+// MaxDepthExceeded — 429
+{
+  "error": "a2a max depth 3 exceeded (current: 4, caller: director, skill: read-excel)"
+}
+
+// SelfInvocation — 429
+{
+  "error": "agent 'director' cannot invoke itself via skill 'summarize'"
+}
+
+// ChainTimeoutExceeded — 429
+{
+  "error": "a2a chain timeout exceeded (caller: director, skill: parse-pdf)"
+}
+```
+
+#### `A2aError` — Délégation bas niveau (`mod.rs`)
+
+Retourné par `delegate_inner()` et `POST /api/v1/a2a/delegate`. Couche sans garde-fous.
+
+| Variant | HTTP | Déclencheur |
+|---|---|---|
+| `SkillNotFound` | 404 | Aucun agent actif ne déclare le skill (inclut liste des skills disponibles) |
+| `AmbiguousSkill` | 409 | Plusieurs agents déclarent le même skill |
+| `Registry` | 500 | Erreur du registry sous-jacent |
+| `RouterDead` | 500 | TaskRouter mort ou indisponible |
+| `Timeout` | 504 | Délégation expirée avant fin du Worker Agent |
+| `WorkerFailed` | 502 | Worker Agent a retourné un échec |
+
+**Exemples JSON :**
+
+```json
+// SkillNotFound — 404
+{
+  "error": "no active agent declares skill 'read-excel' (available: send-email, parse-pdf)",
+  "skill_id": "read-excel",
+  "available_skills": ["send-email", "parse-pdf"]
+}
+
+// AmbiguousSkill — 409
+{
+  "error": "skill 'parse-pdf' is declared by multiple agents: excel-reader, pdf-agent",
+  "skill_id": "parse-pdf",
+  "conflicting_agents": ["excel-reader", "pdf-agent"]
+}
+
+// WorkerFailed — 502
+{
+  "error": "worker agent failed: budget exhausted: 10/10 steps used"
+}
+
+// Timeout — 504
+{
+  "error": "delegation timed out after 120s"
+}
+```
+
+> **Quelle surface utiliser ?** `POST /api/v1/a2a/invoke` (haut niveau) pour les intégrations externes — il applique les garde-fous. `POST /api/v1/a2a/delegate` (bas niveau) pour les scripts et les tests unitaires — pas de garde-fous, délégation directe.
 
 ### Ce qui n'est pas encore implémenté
 

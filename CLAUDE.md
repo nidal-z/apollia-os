@@ -11,7 +11,7 @@
 
 **Auteur :** Nidal — CTO & Co-fondateur Apollia  
 **Développement :** soir/weekend, 8-10h/semaine  
-**Phase actuelle :** Sprint 32 livré (A2A complet + Distribution locale + Worker Agents communautaires, 8/8 stories, ADR-050). Sprint 31 livré (Worker Agents V2). Sprint 30 livré (A2A routing V1).
+**Phase actuelle :** Sprint book-rewrite livré (20/20 stories — réécriture complète du book mdBook, structure pédagogique "The Rust Book", chapitres ch01–ch19 + annexes A-F). Sprint 32 livré précédemment (A2A complet + Distribution locale + Worker Agents communautaires, 8/8 stories, ADR-050).
 
 ---
 
@@ -34,15 +34,20 @@
 
 ```
 crates/
-├── apollia-core/     ← types partagés, dépendance de tout le reste
-├── apollia-runtime/  ← Runtime Core (acteurs Tokio, API, EventBus)
-├── apollia-oria/     ← ORIA Engine (Observer-Reasoner-Actor)
-├── apollia-tools/    ← Tool Registry + outils natifs + sandbox
-├── apollia-memory/   ← Memory Engine (SQLite, FTS5)
-├── apollia-aip/      ← Bridge PyO3 (Rust ↔ Python async)
-├── apollia-stt/      ← Speech-to-Text (trait SttBackend, whisper-rs, audio pipeline)
-├── apollia-desktop/  ← Application Desktop (Tauri v2 + Svelte 5)
-└── apollia-cli/      ← Binaire final (clap)
+├── apollia-core/          ← types partagés, dépendance de tout le reste
+├── apollia-runtime/       ← Runtime Core (acteurs Tokio, API, EventBus, Supervisor)
+├── apollia-oria/          ← ORIA Engine (Observer-Reasoner-Actor, StepBudget, ResilienceLayer)
+├── apollia-tools/         ← Tool Registry + outils natifs + sandbox + audit trail
+├── apollia-memory/        ← Memory Engine (SQLite, FTS5, épisodique/sémantique/procédurale)
+├── apollia-aip/           ← Bridge PyO3 (Rust ↔ Python async, RuntimeContext)
+├── apollia-llm/           ← LLM Backend (llama.cpp local, Anthropic, OpenAI, Ollama, LlmRouter)
+├── apollia-mcp/           ← Client MCP natif (JSON-RPC 2.0, stdio/HTTP/SSE, McpClientManager)
+├── apollia-triggers/      ← Trigger Engine (cron, interval, filewatch, webhook, hot reload)
+├── apollia-notifications/ ← Notification Engine (desktop notify-rust, webhook reqwest)
+├── apollia-pipelines/     ← Pipeline Engine (topologie DAG, fan-out/fan-in, HITL, fallback)
+├── apollia-stt/           ← Speech-to-Text (trait SttBackend, whisper-rs, audio pipeline)
+├── apollia-desktop/       ← Application Desktop (Tauri v2 + Svelte 5, 114 commandes IPC, 15 routes)
+└── apollia-cli/           ← Binaire final (clap, 13 sous-commandes)
 ```
 
 ---
@@ -90,6 +95,13 @@ Ces principes ne peuvent pas être violés sans créer un ADR explicite.
 - Déviation par rapport à la spec → note dans la story concernée
 - Jamais de TODO/FIXME dans le code — créer une story ou corriger maintenant
 
+**Convention book/wiki (sprint book-wiki-separation) :**
+- `book/src/` = contenu pédagogique ("The Rust Book") — apprendre en faisant, exemples concrets, 1-2 patterns
+- `docs/wiki/` = référence technique exhaustive ("docs.rs") — specs complètes, tables de paramètres, codes d'erreur
+- Le book explique le concept et montre 1-2 exemples → lien wiki pour les specs complètes
+- **Règle absolue : le book ne duplique JAMAIS une table de référence présente dans le wiki**
+- Pattern de lien obligatoire : `> **Référence technique :** [Nom-Page](https://github.com/nidal-z/apollia-os/wiki/Nom-Page)`
+
 ---
 
 ## Skills disponibles
@@ -123,8 +135,12 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Dernier sprint livré :** Sprint 32 — A2A complet + Distribution locale + Worker Agents communautaires (8/8 stories, ADR-050)
+**Dernier sprint livré :** Sprint book-wiki-separation — séparation book (pédagogique) / wiki (référence technique), 20/20 stories. 24/24 pages wiki COMPLETE. 6 chapitres book allégés avec liens wiki.
+**Sprint précédent :** Sprint book-rewrite — réécriture complète du book mdBook (20/20 stories)
+**Avant :** Sprint 32 — A2A complet + Distribution locale + Worker Agents communautaires (8/8 stories, ADR-050)
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
 **Dernière décision :** ADR-050 — Distribution Worker Agents : bundled vs communautaire, registre local et Git
+
+**Book mdBook :** structure pédagogique complète dans `book/src/` — ch01 (Premiers pas) → ch19 (CLI) + annexes A-F. Build propre : `mdbook build book`. Sources des chapitres : `docs/wiki/`. Convention : book = apprendre, wiki = référence (voir règle Documentation ci-dessus).
 
 Pour l'état détaillé : lire `docs/internal/STORIES/sprint-index.md`.

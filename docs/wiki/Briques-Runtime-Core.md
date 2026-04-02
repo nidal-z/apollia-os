@@ -307,58 +307,432 @@ L'`EventBus` interne alimente les streams SSE. L'`ExecutionCoordinator` émet de
 
 ## 7. EventBus — Découplage interne
 
+Basé sur `tokio::sync::broadcast` — abonnement multiple, non-bloquant, buffer borné (1024 événements). Défini dans `apollia-core` pour éviter les dépendances circulaires : toutes les crates importent `RuntimeEvent` sans créer de cycle.
+
+### 7.1 Agents — Lifecycle
+
 ```rust
-pub enum RuntimeEvent {
-    // Lifecycle agents
-    AgentRegistered(AgentId),
-    AgentReady(AgentId),
-    AgentDegraded { agent_id: AgentId, reason: String },
-    AgentStopped(AgentId),
+/// Agent enregistré dans le Registry (état: Initializing).
+AgentRegistered(AgentId),
 
-    // Lifecycle tâches
-    TaskStarted { agent_id: AgentId, task_id: TaskId },
-    TaskCompleted { agent_id: AgentId, task_id: TaskId, success: bool },
-    TaskCanceled { task_id: TaskId },
+/// Agent initialisé, opérationnel (état: Active).
+AgentReady(AgentId),
 
-    // Exécution
-    StepExecuted { task_id: TaskId, step: u32, tool: Option<String> },
-    ToolCircuitBroken { tool_name: String },
-    ToolCircuitRestored { tool_name: String },
+/// Agent passé en état dégradé (outil manquant, erreur Python, etc.).
+AgentDegraded { agent_id: AgentId, reason: String },
 
-    // LLM [Sprint 8]
-    LlmModelLoading { backend: String },
-    LlmModelReady   { backend: String },
-    LlmModelFailed  { backend: String, error: String },
-    LlmCallCompleted { backend: String, model: String, cost_usd: Option<f64> },
+/// Agent en cours d'arrêt (drain des tâches, état: Stopping).
+AgentStopping(AgentId),
 
-    // STT [Sprint 24]
-    SttRecordingStarted,
-    SttRecordingStopped { audio_duration_ms: u64 },
-    SttModelLoaded { backend: String, model_path: String, model_name: String },
-    SttTranscribed { text: String, language: Option<String>, source: String, duration_ms: u64, processing_time_ms: u64 },
-    SttTranscriptionFailed { reason: String },
-
-    // Triggers [Sprint 9]
-    TriggerFired    { trigger_id: TriggerId, agent: String, task_id: TaskId },
-    TriggerSkipped  { trigger_id: TriggerId, reason: String },
-    TriggerError    { trigger_id: TriggerId, error: String },
-    TriggerEnabled  { trigger_id: TriggerId },
-    TriggerDisabled { trigger_id: TriggerId },
-    TriggersReloaded { count: usize },
-
-    // A2A [Sprint 30 + Sprint 32]
-    A2AInvocationStarted { caller: String, skill_id: String, target: String },
-    A2AInvocationCompleted { caller: String, skill_id: String, duration_ms: u64, success: bool },
-    A2AGuardTriggered { guard_type: String, caller: String, skill_id: String, detail: String },
-
-    // Système
-    AllReady,
-    FatalError(String),
-    ShutdownRequested,
-}
+/// Agent arrêté proprement.
+AgentStopped(AgentId),
 ```
 
-Basé sur `tokio::sync::broadcast` — abonnement multiple, non-bloquant, buffer borné (1024 événements).
+### 7.2 Agents — Installation *(Sprint 32)*
+
+```rust
+/// Chargement d'un agent installé échoué au boot (runtime continue, dégradation gracieuse).
+AgentLoadFailed { name: String, error: String },
+
+/// Agent installé de façon permanente.
+AgentInstalled { name: String, version: String },
+
+/// Agent installé supprimé.
+AgentUninstalled { name: String },
+
+/// Agent activé pour l'auto-start au boot.
+AgentEnabled { name: String },
+
+/// Agent désactivé (ne sera plus chargé au boot).
+AgentDisabled { name: String },
+```
+
+### 7.3 Tâches — Lifecycle
+
+```rust
+/// Tâche démarrée sur un agent.
+TaskStarted { agent_id: AgentId, task_id: TaskId },
+
+/// Tâche terminée (succès ou échec).
+/// Le champ `output` contient la sortie texte sur succès ; `None` sur échec.
+TaskCompleted {
+    agent_id: AgentId,
+    task_id:  TaskId,
+    success:  bool,
+    output:   Option<String>,
+},
+
+/// Tâche annulée.
+TaskCanceled { task_id: TaskId },
+```
+
+### 7.4 Tâches — HITL *(Sprint 11)*
+
+```rust
+/// Tâche suspendue en attente d'une décision humaine.
+/// `step_id` est `Some` en mode orchestré (step spécifique), `None` en mode direct.
+TaskInputRequired { task_id: TaskId, prompt: String, step_id: Option<String> },
+
+/// Tâche reprise après décision humaine.
+TaskResumed { task_id: TaskId, approved: bool },
+
+/// Tâche `input_required` expirée — annulée automatiquement par le TimeoutWatcher.
+/// Suivi immédiatement de `TaskCanceled` pour la même tâche.
+TaskApprovalTimeout { task_id: TaskId, after_secs: u64 },
+```
+
+### 7.5 Exécution réactive — Step legacy
+
+```rust
+/// Un step de la boucle ReAct a été exécuté (mode direct).
+/// Champ `tool` est `None` si l'agent a seulement réfléchi sans appeler d'outil.
+StepExecuted { task_id: TaskId, step: u32, tool: Option<String> },
+```
+
+### 7.6 Plan / Step — Mode orchestré *(Sprint 10)*
+
+```rust
+/// Plan généré par le Reasoner et persisté en SQLite.
+PlanGenerated {
+    task_id:    TaskId,
+    agent_name: String,
+    plan_id:    String,
+    step_count: usize,
+},
+
+/// Step démarré (émis par ActorLoop avant chaque appel outil ou LLM).
+StepStarted {
+    task_id:  TaskId,
+    plan_id:  String,
+    step_id:  String,
+    step_num: usize,   // 1-based
+    total:    usize,
+    desc:     String,
+},
+
+/// Step terminé avec succès.
+StepCompleted {
+    task_id:     TaskId,
+    plan_id:     String,
+    step_id:     String,
+    duration_ms: u64,
+},
+
+/// Step échoué.
+StepFailed {
+    task_id:   TaskId,
+    plan_id:   String,
+    step_id:   String,
+    error:     String,
+    retryable: bool,   // true = peut déclencher une replanification
+},
+
+/// Replanification déclenchée après un step retryable échoué.
+PlanReplanning {
+    task_id:     TaskId,
+    plan_id:     String,
+    attempt:     u32,    // 1-based, max MAX_REPLANS=2
+    failed_step: String,
+    reason:      String,
+},
+
+/// Tous les steps complétés — plan terminé avec succès.
+PlanCompleted {
+    task_id:     TaskId,
+    plan_id:     String,
+    step_count:  usize,
+    duration_ms: u64,
+},
+
+/// Plan échoué de manière irrémédiable (MAX_REPLANS dépassé ou erreur permanente).
+PlanFailed { task_id: TaskId, plan_id: String, reason: String },
+```
+
+### 7.7 Plan Cache *(Sprint 20)*
+
+```rust
+/// Plan récupéré depuis le cache au lieu d'être régénéré par le Reasoner.
+PlanCacheHit { task_id: TaskId, cache_key: String },
+```
+
+### 7.8 Outils — Circuit Breaker
+
+```rust
+/// Circuit breaker d'un outil ouvert (seuil d'échecs dépassé).
+ToolCircuitBroken { tool_name: String },
+
+/// Circuit breaker d'un outil refermé après recovery (HalfOpen → Closed).
+ToolCircuitRestored { tool_name: String },
+```
+
+### 7.9 LLM *(Sprint 8 + 28)*
+
+```rust
+/// Backend LLM en cours de chargement (avant load() ou init HTTP).
+LlmModelLoading { backend: String, model_path: String },
+
+/// Backend LLM prêt — modèle chargé ou connexion cloud vérifiée.
+LlmModelReady { backend: String, model_id: String },
+
+/// Chargement d'un backend LLM échoué — backend ignoré, runtime continue.
+LlmModelFailed { backend: String, reason: String },
+
+/// Appel LLM terminé (émis par complete_with_observability()).
+LlmCallCompleted {
+    backend:           String,
+    model:             String,
+    task_id:           Option<String>,   // None hors contexte task
+    step_id:           Option<String>,   // None en mode direct
+    prompt_tokens:     u32,
+    completion_tokens: u32,
+    latency_ms:        u64,
+    cost_usd:          Option<f64>,      // None = inférence locale
+},
+```
+
+### 7.10 Triggers *(Sprint 9)*
+
+```rust
+/// Trigger déclenché — tâche soumise au TaskRouter.
+TriggerFired    { trigger_id: String, agent: String, task_id: TaskId },
+
+/// Trigger ignoré (OnBusyPolicy::Drop ou agent occupé).
+TriggerSkipped  { trigger_id: String, reason: String },
+
+/// Erreur lors du traitement d'un trigger.
+TriggerError    { trigger_id: String, error: String },
+
+/// Trigger activé via CLI ou API.
+TriggerEnabled  { trigger_id: String },
+
+/// Trigger désactivé via CLI ou API.
+TriggerDisabled { trigger_id: String },
+
+/// TriggerEngine rechargé (hot reload ou démarrage).
+TriggersReloaded { count: usize },
+```
+
+### 7.11 Pipelines *(Sprint 12)*
+
+```rust
+/// Run de pipeline démarré.
+PipelineStarted {
+    run_id:      String,
+    pipeline_id: String,
+    trigger_id:  Option<String>,  // None si démarrage manuel
+    step_count:  usize,
+},
+
+/// Step de pipeline soumis au TaskRouter.
+PipelineStepStarted  { run_id: String, step_id: String, task_id: String, agent: String },
+
+/// Step de pipeline terminé avec succès.
+PipelineStepCompleted { run_id: String, step_id: String },
+
+/// Step de pipeline échoué.
+PipelineStepFailed {
+    run_id:     String,
+    step_id:    String,
+    reason:     String,
+    on_failure: String,   // "skip" | "fallback" | "fail"
+},
+
+/// Step de pipeline sauté (condition=false ou on_failure=skip).
+PipelineStepSkipped  { run_id: String, step_id: String, reason: String },
+
+/// Pipeline suspendu en attente d'une approbation HITL.
+PipelineSuspended    { run_id: String, step_id: String, task_id: String },
+
+/// Pipeline repris après approbation HITL.
+PipelineResumed      { run_id: String, step_id: String },
+
+/// Tous les steps complétés — pipeline terminé avec succès.
+PipelineCompleted    { run_id: String, pipeline_id: String, duration_ms: u64 },
+
+/// Pipeline échoué suite à un step avec on_failure=fail.
+PipelineFailed       { run_id: String, pipeline_id: String, step_id: String, reason: String },
+```
+
+### 7.12 Chat *(Sprint 18)*
+
+```rust
+/// Session de chat créée.
+ChatSessionCreated  { session_id: String, mode: String, agent_name: Option<String> },
+
+/// Session de chat fermée.
+ChatSessionClosed   { session_id: String },
+
+/// Message utilisateur envoyé dans une session.
+ChatMessageSent     { session_id: String, message_id: String },
+
+/// Runtime commence à générer une réponse.
+ChatResponseStarted { session_id: String, message_id: String },
+
+/// Token LLM produit en streaming (Chat Libre uniquement).
+ChatToken           { session_id: String, message_id: String, token: String },
+
+/// Réponse complète générée.
+ChatResponseCompleted { session_id: String, message_id: String, content: String },
+
+/// Erreur dans une session de chat.
+ChatError           { session_id: String, message_id: Option<String>, error: String },
+
+/// Appel outil démarré dans une session de chat.
+ChatToolCallStarted {
+    session_id:    String,
+    message_id:    String,
+    tool_name:     String,
+    input_preview: String,   // tronqué
+},
+
+/// Appel outil terminé dans une session de chat.
+ChatToolCallCompleted {
+    session_id:     String,
+    message_id:     String,
+    tool_name:      String,
+    success:        bool,
+    output_preview: Option<String>,   // tronqué
+},
+
+/// Approbation humaine requise pour un appel outil dans le chat.
+ChatApprovalRequired {
+    session_id: String,
+    message_id: String,
+    tool_name:  String,
+    prompt:     String,
+},
+
+/// Décision prise par l'utilisateur sur un appel outil.
+/// `decision` vaut `"accept"`, `"refuse"` ou `"always_accept"`.
+ChatApprovalResolved {
+    session_id: String,
+    message_id: String,
+    tool_name:  String,
+    decision:   String,
+},
+
+/// Approbation expirée (timeout sans décision utilisateur).
+ChatApprovalTimeout  { session_id: String, message_id: String, tool_name: String },
+```
+
+### 7.13 Messagerie inter-agents *(Sprint 20)*
+
+```rust
+/// Message envoyé entre deux agents via AgentMailbox.
+AgentMessageSent { from: String, to: String },
+```
+
+### 7.14 A2A — Invocation *(Sprint 30 + 32)*
+
+```rust
+/// Invocation A2A démarrée (émis avant soumission de la tâche au TaskRouter).
+A2AInvocationStarted {
+    caller:   String,   // nom du Director Agent
+    target:   String,   // nom du Worker Agent résolu
+    skill_id: String,
+},
+
+/// Invocation A2A terminée.
+/// `status` vaut `"completed"` ou `"failed"`.
+A2AInvocationCompleted {
+    caller:      String,
+    target:      String,
+    skill_id:    String,
+    status:      String,
+    duration_ms: u64,
+},
+```
+
+### 7.15 A2A — Garde-fous *(Sprint 32)*
+
+```rust
+/// Garde-fou A2A déclenché — invocation bloquée avant soumission.
+/// `guard_type` vaut `"max_depth"`, `"self_invocation"` ou `"chain_timeout"`.
+A2AGuardTriggered {
+    guard_type: String,
+    caller:     String,
+    skill_id:   String,
+    detail:     String,
+},
+```
+
+### 7.16 STT *(Sprint 24)*
+
+```rust
+/// Enregistrement audio démarré (hotkey activée).
+SttRecordingStarted,
+
+/// Enregistrement audio arrêté (hotkey relâchée ou silence détecté).
+SttRecordingStopped { audio_duration_ms: u64 },
+
+/// Modèle STT chargé avec succès — moteur opérationnel.
+SttModelLoaded { backend: String, model_path: String, model_name: String },
+
+/// Transcription terminée avec succès.
+/// `source` vaut `"hotkey"`, `"file"` ou `"api"`.
+SttTranscribed {
+    text:                String,
+    language:            Option<String>,
+    source:              String,
+    duration_ms:         u64,
+    processing_time_ms:  u64,
+},
+
+/// Erreur de transcription STT.
+SttTranscriptionFailed { reason: String },
+```
+
+### 7.17 Onboarding *(Sprint 18)*
+
+```rust
+/// Premier lancement détecté — UserMemory vide.
+/// Le frontend intercepte cet événement via SSE pour afficher l'écran d'accueil.
+OnboardingRequired,
+
+/// Session d'onboarding déclenchée.
+/// `mode` vaut `"full"` ou `"partial"` ; `topic` précise le domaine en mode partial.
+OnboardingStarted { session_id: String, mode: String, topic: Option<String> },
+```
+
+### 7.18 Système
+
+```rust
+/// Tous les composants prêts — runtime opérationnel.
+AllReady,
+
+/// Arrêt demandé (SIGTERM, SIGINT ou commande CLI).
+ShutdownRequested,
+
+/// Erreur fatale non récupérable.
+FatalError(String),
+```
+
+---
+
+### Récapitulatif par catégorie
+
+| Catégorie | Variants | Sprint |
+|---|---|---|
+| Agent lifecycle | `AgentRegistered`, `AgentReady`, `AgentDegraded`, `AgentStopping`, `AgentStopped` | Cœur |
+| Agent install | `AgentLoadFailed`, `AgentInstalled`, `AgentUninstalled`, `AgentEnabled`, `AgentDisabled` | 32 |
+| Task lifecycle | `TaskStarted`, `TaskCompleted`, `TaskCanceled` | Cœur |
+| Task HITL | `TaskInputRequired`, `TaskResumed`, `TaskApprovalTimeout` | 11 |
+| Step legacy | `StepExecuted` | Cœur |
+| Plan / Step | `PlanGenerated`, `StepStarted`, `StepCompleted`, `StepFailed`, `PlanReplanning`, `PlanCompleted`, `PlanFailed` | 10 |
+| Plan Cache | `PlanCacheHit` | 20 |
+| Outils | `ToolCircuitBroken`, `ToolCircuitRestored` | Cœur |
+| LLM | `LlmModelLoading`, `LlmModelReady`, `LlmModelFailed`, `LlmCallCompleted` | 8 / 28 |
+| Triggers | `TriggerFired`, `TriggerSkipped`, `TriggerError`, `TriggerEnabled`, `TriggerDisabled`, `TriggersReloaded` | 9 |
+| Pipelines | `PipelineStarted`, `PipelineStepStarted`, `PipelineStepCompleted`, `PipelineStepFailed`, `PipelineStepSkipped`, `PipelineSuspended`, `PipelineResumed`, `PipelineCompleted`, `PipelineFailed` | 12 |
+| Chat | `ChatSessionCreated`, `ChatSessionClosed`, `ChatMessageSent`, `ChatResponseStarted`, `ChatToken`, `ChatResponseCompleted`, `ChatError`, `ChatToolCallStarted`, `ChatToolCallCompleted`, `ChatApprovalRequired`, `ChatApprovalResolved`, `ChatApprovalTimeout` | 18 |
+| Agent messaging | `AgentMessageSent` | 20 |
+| A2A invocation | `A2AInvocationStarted`, `A2AInvocationCompleted` | 30 |
+| A2A gardes-fous | `A2AGuardTriggered` | 32 |
+| STT | `SttRecordingStarted`, `SttRecordingStopped`, `SttModelLoaded`, `SttTranscribed`, `SttTranscriptionFailed` | 24 |
+| Onboarding | `OnboardingRequired`, `OnboardingStarted` | 18 |
+| Système | `AllReady`, `ShutdownRequested`, `FatalError` | Cœur |
+
+**Total : 75 variants** (source de vérité : `crates/apollia-core/src/events.rs`)
 
 ---
 

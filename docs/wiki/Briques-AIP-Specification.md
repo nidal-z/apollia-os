@@ -59,6 +59,11 @@ def manifest(self):
         "supports_streaming": False,   # bool — SSE si True
         "supports_a2a": False,         # bool — AgentCard A2A si True
 
+        # Dépendances Python *(Worker Agents)*
+        "packages": [],                # list[str] — pip packages installés au INITIALIZING
+                                       # Syntaxe pip standard : "openpyxl>=3.1.0", "pandas==2.1.4"
+                                       # Installés une seule fois via PythonExecutor::setup_venv()
+
         # Métadonnées
         "tags": ["finance", "crm"],    # list[str]
         "skills": [],                  # list[AgentSkill dict]
@@ -81,6 +86,7 @@ def manifest(self):
 | `tools_requiring_approval` | non | `[]` | Aucun outil ne nécessite d'approbation |
 | `supports_a2a` | non | `False` | Pas de AgentCard A2A |
 | `llm_backend` | non | `None` | Backend LLM par défaut du runtime |
+| `packages` | non | `[]` | Aucune dépendance pip — venv Python standard |
 
 ### tools_requiring_approval (Sprint 11)
 
@@ -105,6 +111,33 @@ Règles d'application :
 - N'a d'effet qu'en `execution_mode: "orchestrated"`. En mode `direct` ou `auto`, ce champ est ignoré.
 - Une liste vide (défaut) signifie qu'aucun outil ne nécessite d'approbation.
 - L'outil doit également figurer dans `tools_required` ou `tools_optional` pour être résolu par le runtime.
+
+### packages — Dépendances pip (Worker Agents)
+
+Liste les paquets pip à installer dans le venv Python isolé de l'agent. Le runtime les installe une seule fois à l'état `INITIALIZING` via `PythonExecutor::setup_venv()`. Si un paquet manque ou échoue à l'installation, l'agent passe en `STOPPED`.
+
+```python
+def manifest(self):
+    return {
+        "name": "excel-agent",
+        "version": "1.0.0",
+        "description": "Analyse des fichiers Excel",
+        "tools_required": ["file_io"],
+
+        # Dépendances pip — syntaxe pip standard
+        "packages": [
+            "openpyxl>=3.1.0",
+            "pandas==2.1.4",
+            "requests",
+        ],
+    }
+```
+
+Règles d'application :
+- Syntaxe pip standard (`"nom"`, `"nom>=version"`, `"nom==version"`) — toute contrainte pip acceptée.
+- Installés dans un venv Python **isolé par agent** — pas de conflit entre agents.
+- Liste vide (défaut) : aucune installation, démarrage immédiat.
+- Principalement utilisé par les **Worker Agents** déclarés dans le registre communautaire.
 
 ### Structure AgentSkill
 
@@ -377,6 +410,66 @@ if msg:
 - Les messages sont des `serde_json::Value` (JSON arbitraire)
 - L'agent destinataire doit être démarré (pas de persistance hors-mémoire)
 - L'`AgentMailbox` est un acteur Tokio séparé du `TaskRouter`
+
+### ctx.delegate() — Délégation A2A *(Sprint 32)*
+
+Délègue une tâche à un Worker Agent identifié par son `skill_id`. Méthode A2A de bas niveau — expose directement la fonction `A2aDelegateFn` injectée par le runtime.
+
+```python
+# Déléguer une tâche à un Worker Agent
+result = await ctx.delegate(
+    skill_id="generate-quote",              # str — ID de la compétence du worker
+    payload={"client": "Acme", "amount": 5000},  # dict — données d'entrée JSON
+    timeout_secs=120                        # int | None — défaut: 120s
+)
+# result : dict avec les clés task_id, agent_name, output
+task_id    = result["task_id"]    # str — UUID de la tâche déléguée
+agent_name = result["agent_name"] # str — nom de l'agent qui a exécuté
+output     = result["output"]     # list[dict] — AIPPart[] — résultat de la tâche
+```
+
+| Paramètre | Type | Obligatoire | Défaut | Description |
+|---|---|---|---|---|
+| `skill_id` | `str` | oui | — | Identifiant de la compétence du Worker Agent cible |
+| `payload` | `dict` | oui | — | Données d'entrée JSON sérialisables |
+| `timeout_secs` | `int \| None` | non | `120` | Timeout en secondes |
+
+**Prérequis :**
+- `supports_a2a: True` dans le manifest (sinon `RuntimeError`)
+- La fonction de délégation A2A doit être disponible dans le contexte d'exécution (injectée uniquement pour les Director Agents en Mode Orchestré)
+
+**Erreurs :**
+- `RuntimeError: "A2A delegation requires supports_a2a: true in manifest"` — manifest incorrect
+- `RuntimeError: "A2A delegation not available in this runtime context"` — contexte non-orchestré
+
+### ctx.user_context — Contexte utilisateur global *(Sprint 28)*
+
+Propriété (pas une méthode) qui expose les entrées de mémoire utilisateur injectées en **mode chat uniquement**. `None` en mode task.
+
+```python
+async def run(self, task, ctx):
+    uc = ctx.user_context
+    if uc is not None:
+        # uc : dict[str, list[tuple[str, str]]]
+        # Catégories : "preferences", "habits", "context"
+        prefs  = uc.get("preferences", [])  # list[tuple[str, str]]
+        habits = uc.get("habits", [])
+        ctxts  = uc.get("context", [])
+
+        for key, value in prefs:
+            ctx.log.info("user_pref", key=key, value=value)
+```
+
+**Contenu :**
+- `preferences` : préférences explicites de l'utilisateur (ex: `("langue", "français")`)
+- `habits` : habitudes détectées (ex: `("format_réponse", "bullet points")`)
+- `context` : contexte situationnel (ex: `("projet_courant", "apollia-os")`)
+
+**Règles d'application :**
+- Disponible uniquement en **mode chat** (`ChatSession`) — `None` sinon
+- Chargé depuis le namespace mémoire `__user__` via `recall_all()` au démarrage de la session
+- L'agent décide quoi en faire — jamais d'injection automatique dans le prompt (Principe #6)
+- `None` si la mémoire utilisateur est vide ou si le mode ne supporte pas ce contexte
 
 ### ctx.step_budget — StepBudgetView
 

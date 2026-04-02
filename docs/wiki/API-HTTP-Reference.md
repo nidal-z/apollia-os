@@ -116,6 +116,35 @@ Arrêter un agent (graceful drain).
 
 ## Tâches
 
+### GET /api/v1/tasks
+
+Lister toutes les tâches connues du runtime.
+
+**Query params :**
+- `status` (optionnel) — filtre par statut exact (`submitted`, `working`, `completed`, `failed`, `canceled`, `input_required`)
+
+**Réponse 200 :**
+```json
+{
+  "tasks": [
+    {
+      "task_id": "t-abc123",
+      "agent_id": "agent-def456",
+      "status": "working"
+    },
+    {
+      "task_id": "t-xyz789",
+      "agent_id": "agent-def456",
+      "status": "completed"
+    }
+  ]
+}
+```
+
+Si aucune tâche ne correspond au filtre : `{ "tasks": [] }`.
+
+---
+
 ### POST /api/v1/tasks
 
 Soumettre une tâche à un agent.
@@ -389,6 +418,102 @@ Envoyer un prompt direct à un backend LLM et récupérer la réponse.
 
 ---
 
+### POST /api/v1/llm/complete
+
+Envoyer un historique de conversation multi-tours à un backend LLM.
+
+**Corps :**
+```json
+{
+  "messages": [
+    { "role": "system",    "content": "Tu es un assistant technique Apollia." },
+    { "role": "user",      "content": "Qu'est-ce que le StepBudget ?" },
+    { "role": "assistant", "content": "Le StepBudget est un garde-fou appliqué par..." },
+    { "role": "user",      "content": "Combien de steps par défaut ?" }
+  ],
+  "backend": "anthropic"   // optionnel — backend par défaut si absent
+}
+```
+
+Rôles valides : `"system"`, `"user"`, `"assistant"`, `"tool"`.
+
+**Réponse 200 :**
+```json
+{
+  "content":    "Par défaut, le StepBudget est fixé à 10 steps...",
+  "usage": {
+    "prompt_tokens":     284,
+    "completion_tokens": 52,
+    "cost_usd":          0.000178
+  },
+  "latency_ms": 892
+}
+```
+
+**Erreurs :**
+- `400` — rôle inconnu dans les messages
+- `503` — aucun router LLM configuré ou backend indisponible
+
+---
+
+### GET /api/v1/llm/costs
+
+Statistiques agrégées de coût et de tokens sur une fenêtre glissante.
+
+**Query params :**
+- `days` (optionnel, défaut: 7) — nombre de jours à agréger
+
+**Réponse 200 :**
+```json
+{
+  "rows": [
+    {
+      "backend":        "anthropic",
+      "model":          "claude-haiku-4-5-20251001",
+      "call_count":     142,
+      "total_tokens":   48320,
+      "total_cost_usd": 0.0241
+    },
+    {
+      "backend":        "local",
+      "model":          "llama3.2-3B-q4_K_M.gguf",
+      "call_count":     89,
+      "total_tokens":   21400,
+      "total_cost_usd": 0.0
+    }
+  ],
+  "days": 7
+}
+```
+
+**Réponse 503 :** `{ "error": "no LLM call repository configured" }`
+
+---
+
+### GET /api/v1/llm/costs/daily
+
+Coûts LLM ventilés par jour et par backend. Utile pour générer un graphique d'évolution.
+
+**Query params :**
+- `days` (optionnel, défaut: 7) — profondeur historique
+
+**Réponse 200 :**
+```json
+{
+  "entries": [
+    { "date": "2026-03-26", "backend": "anthropic", "cost_usd": 0.0038 },
+    { "date": "2026-03-27", "backend": "anthropic", "cost_usd": 0.0021 },
+    { "date": "2026-03-27", "backend": "local",     "cost_usd": 0.0    },
+    { "date": "2026-03-28", "backend": "anthropic", "cost_usd": 0.0055 }
+  ],
+  "days": 7
+}
+```
+
+**Réponse 503 :** `{ "error": "no LLM call repository configured" }`
+
+---
+
 ### GET /api/v1/llm/backends *(Sprint 28)*
 
 Liste tous les backends LLM enregistrés dans `system.db`.
@@ -555,6 +680,146 @@ Liste les messages en file pour un agent. Max 200 messages par requête.
 
 ---
 
+## A2A — Routing Agent-to-Agent *(Sprint 32)*
+
+### GET /api/v1/a2a/agents
+
+Liste tous les agents actifs qui déclarent `supports_a2a: true` avec leurs skills.
+
+**Réponse 200 :**
+```json
+{
+  "agents": [
+    {
+      "agent_id": "agent-abc123",
+      "name":     "excel-reader",
+      "version":  "1.0.0",
+      "state":    "active",
+      "skills": [
+        {
+          "id":           "read-excel",
+          "name":         "Lecture Excel",
+          "description":  "Lit et extrait des données depuis un fichier .xlsx",
+          "input_modes":  ["text", "file"],
+          "output_modes": ["data", "text"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Seuls les agents en état `active` ou `degraded` apparaissent dans la liste.
+
+---
+
+### GET /api/v1/a2a/skills
+
+Liste plate de tous les skills A2A disponibles sur tous les agents actifs.
+
+**Réponse 200 :**
+```json
+{
+  "skills": [
+    {
+      "skill_id":    "read-excel",
+      "agent_name":  "excel-reader",
+      "skill_name":  "Lecture Excel",
+      "description": "Lit et extrait des données depuis un fichier .xlsx"
+    },
+    {
+      "skill_id":    "send-email",
+      "agent_name":  "email-agent",
+      "skill_name":  "Envoi Email",
+      "description": "Compose et envoie un email via SMTP"
+    }
+  ]
+}
+```
+
+**Réponse 503 :** `{ "error": "A2A invoker not initialized" }`
+
+---
+
+### POST /api/v1/a2a/delegate
+
+Délègue une tâche à un Worker Agent par `skill_id`. Soumet la tâche, attend la complétion (sync), retourne le résultat.
+
+**Corps :**
+```json
+{
+  "skill_id":     "read-excel",
+  "input":        { "file_path": "/data/clients.xlsx", "sheet": "Clients" },
+  "timeout_secs": 60
+}
+```
+
+| Champ | Requis | Défaut |
+|---|---|---|
+| `skill_id` | ✅ | — |
+| `input` | ✅ | — |
+| `timeout_secs` | — | 120 |
+
+**Réponse 200 :**
+```json
+{
+  "task_id":    "t-abc123",
+  "agent_name": "excel-reader",
+  "output":     "Trouvé 142 clients dans la feuille Clients."
+}
+```
+
+**Erreurs :**
+- `404` — `skill_id` introuvable, champ `available_skills` listé dans la réponse
+- `409` — skill ambigu (plusieurs agents déclarent le même skill), champ `conflicting_agents` listé
+- `504` — timeout dépassé
+- `502` — Worker Agent a retourné une erreur
+
+---
+
+### POST /api/v1/a2a/invoke
+
+Invocation haut niveau via l'`A2AInvoker` — applique les garde-fous (profondeur max, auto-invocation, timeout de chaîne).
+
+**Corps :**
+```json
+{
+  "skill_id":     "send-email",
+  "input":        { "to": "admin@acme.com", "subject": "Rapport", "body": "..." },
+  "caller":       "director-agent",
+  "timeout_secs": 30
+}
+```
+
+| Champ | Requis | Défaut |
+|---|---|---|
+| `skill_id` | ✅ | — |
+| `input` | ✅ | — |
+| `caller` | — | `"api"` |
+| `timeout_secs` | — | 120 |
+
+**Réponse 200 :**
+```json
+{
+  "result": {
+    "status": "completed",
+    "output": [{ "type": "text", "text": "Email envoyé." }]
+  },
+  "agent_name":  "email-agent",
+  "skill_id":    "send-email",
+  "duration_ms": 1842
+}
+```
+
+**Erreurs :**
+- `404` — skill introuvable
+- `503` — agent non actif ou A2A invoker non initialisé
+- `429` — profondeur max dépassée (`MAX_DEPTH`), auto-invocation, ou timeout de chaîne global dépassé
+- `504` — timeout par invocation dépassé
+- `502` — agent a retourné une erreur
+
+---
+
 ## Plan Cache *(Sprint 20)*
 
 ### GET /api/v1/plan-cache/stats
@@ -586,6 +851,63 @@ Purge toutes les entrées du cache de plans.
   "cleared_count": 42
 }
 ```
+
+---
+
+## Audit Trail *(Sprint 13)*
+
+### GET /api/v1/audit
+
+Dernières invocations d'outils enregistrées dans l'audit trail. Utile pour debug et conformité.
+
+**Query params :**
+- `limit` (optionnel, défaut: 20, max: 500) — nombre d'événements à retourner
+
+**Réponse 200 :**
+```json
+{
+  "events": [
+    {
+      "id":              "01J9X...",
+      "agent_id":        "agent-abc123",
+      "task_id":         "t-def456",
+      "tool_name":       "bash_executor",
+      "input_hash":      "sha256:abcd1234",
+      "sandbox_profile": "FileSystem",
+      "started_at":      "2026-03-28T10:00:00Z",
+      "duration_ms":     42,
+      "exit_code":       0,
+      "success":         true,
+      "error_code":      null,
+      "args_json":       "{\"command\":\"ls -la /tmp\"}",
+      "stdout":          "total 8\n...",
+      "stderr":          null
+    }
+  ],
+  "count": 1
+}
+```
+
+Les champs `args_json`, `stdout`, `stderr` sont omis si absents.
+
+**Réponse 503 :** `{ "error": "audit trail not configured" }`
+
+---
+
+### GET /api/v1/audit/stats
+
+Statistiques agrégées de l'audit trail (toute l'histoire, pas de fenêtre de temps).
+
+**Réponse 200 :**
+```json
+{
+  "total_events":  2847,
+  "unique_tools":  8,
+  "unique_agents": 4
+}
+```
+
+**Réponse 503 :** `{ "error": "audit trail not configured" }`
 
 ---
 
@@ -684,19 +1006,189 @@ L'agrégation est faite côté serveur dans un seul `spawn_blocking` (5 lectures
 
 ---
 
+## Approbations HITL *(Sprint 11)*
+
+### GET /api/v1/approvals/pending
+
+Liste toutes les tâches actuellement suspendues en attente d'une approbation humaine.
+
+**Réponse 200 :**
+```json
+[
+  {
+    "task_id":      "t-abc123",
+    "agent_name":   "director-agent",
+    "prompt":       "Confirmer l'envoi du devis à Dupont SA (5 100 €) ?",
+    "context":      { "client": "Dupont SA", "amount_eur": 5100 },
+    "suspended_at": "2026-03-28T14:32:01Z"
+  }
+]
+```
+
+Retourne `[]` si aucune tâche n'est en attente ou si HITL n'est pas configuré.
+
+---
+
+### GET /api/v1/approvals/resolved
+
+Historique des approbations résolues (approuvées ou rejetées).
+
+**Query params :**
+- `limit` (optionnel, défaut: 20) — nombre d'entrées
+- `days` (optionnel, défaut: 7) — fenêtre temporelle en jours
+
+**Réponse 200 :**
+```json
+[
+  {
+    "task_id":          "t-xyz789",
+    "agent_name":       "director-agent",
+    "approved":         true,
+    "reason":           null,
+    "wait_duration_ms": 45000,
+    "responded_at":     "2026-03-28T14:33:26Z"
+  },
+  {
+    "task_id":          "t-mno456",
+    "agent_name":       "director-agent",
+    "approved":         false,
+    "reason":           "Budget insuffisant",
+    "wait_duration_ms": 12000,
+    "responded_at":     "2026-03-27T09:10:05Z"
+  }
+]
+```
+
+Retourne `[]` si aucune approbation ou si TaskRepository n'est pas configuré.
+
+---
+
+## Profil Utilisateur *(Sprint 18)*
+
+### GET /api/v1/user/profile
+
+Retourne le profil utilisateur agrégé depuis les trois catégories de mémoire.
+
+**Réponse 200 :**
+```json
+{
+  "name": "Nidal",
+  "preferences": {
+    "language":       "fr",
+    "output_format":  "markdown",
+    "tone":           "direct"
+  },
+  "habits": {
+    "working_hours":  "soir 20h-23h",
+    "review_freq":    "quotidien"
+  },
+  "context": {
+    "project":        "Apollia OS",
+    "role":           "CTO",
+    "team":           "Apollia"
+  }
+}
+```
+
+**Réponse 503 :** `{ "error": "user memory not configured" }`
+
+---
+
+### PUT /api/v1/user/profile
+
+Met à jour le profil utilisateur (upsert, fusion par catégorie — les champs absents ne sont pas supprimés).
+
+**Corps :**
+```json
+{
+  "name": "Nidal",
+  "preferences": {
+    "language": "fr",
+    "tone":     "concis"
+  },
+  "habits": {
+    "working_hours": "soir 20h-23h"
+  },
+  "context": {
+    "project": "Apollia OS v2"
+  }
+}
+```
+
+Tous les champs sont optionnels. Seules les catégories fournies sont fusionnées.
+
+**Réponse 200 :** corps vide (succès silencieux).
+
+**Réponse 503 :** `{ "error": "user memory not configured" }`
+
+---
+
+### GET /api/v1/user/memory
+
+Liste les entrées de mémoire utilisateur brutes avec filtres optionnels.
+
+**Query params :**
+- `category` (optionnel) — `preferences`, `habits`, ou `context`
+- `limit` (optionnel, défaut: 100) — nombre maximum d'entrées
+
+**Réponse 200 :**
+```json
+{
+  "entries": [
+    {
+      "key":        "language",
+      "value":      "fr",
+      "source":     "user_explicit",
+      "updated_at": "2026-03-20T10:30:00Z"
+    },
+    {
+      "key":        "working_hours",
+      "value":      "soir 20h-23h",
+      "source":     "agent_inferred",
+      "updated_at": "2026-03-22T21:00:00Z"
+    }
+  ]
+}
+```
+
+Sources possibles : `user_explicit`, `agent_inferred`.
+
+**Erreurs :**
+- `422` — valeur `category` invalide (n'est pas `preferences`, `habits`, ou `context`)
+- `503` — mémoire utilisateur non configurée
+
+---
+
+### DELETE /api/v1/user/memory/:key
+
+Supprime une entrée de mémoire par clé (toutes les catégories sont scrutées).
+
+**Réponse 204 :** suppression réussie.
+
+**Erreurs :**
+- `404` — clé introuvable dans aucune catégorie
+- `503` — mémoire utilisateur non configurée
+
+---
+
 ## Codes d'erreur HTTP
 
 | Code | Signification |
 |---|---|
 | `200` | Succès |
-| `201` | Créé avec succès (POST /api/v1/agents) |
-| `202` | Accepté (POST /api/v1/tasks — tâche soumise, exécution asynchrone) |
-| `400` | Requête invalide (manifest, champs manquants) |
+| `201` | Créé avec succès (`POST /api/v1/agents`, `POST /api/v1/mcp/servers`) |
+| `202` | Accepté (`POST /api/v1/tasks` — tâche soumise, exécution asynchrone) |
+| `204` | Supprimé avec succès (`DELETE /api/v1/llm/backends/:name`, `DELETE /api/v1/user/memory/:key`) |
+| `400` | Requête invalide (manifest, champs manquants, rôle LLM inconnu) |
+| `401` | Non autorisé (signature HMAC invalide sur webhook) |
 | `404` | Ressource introuvable |
-| `409` | Conflit d'état (agent déjà démarré, tâche déjà terminée, tâche non en `input_required`) |
-| `422` | Erreur de traitement (fichier Python invalide, corps de requête invalide) |
+| `409` | Conflit d'état (agent déjà démarré, tâche déjà terminée, skill A2A ambigu) |
+| `422` | Erreur de traitement (fichier Python invalide, corps de requête invalide, catégorie mémoire inconnue) |
+| `429` | Trop de requêtes (garde-fous A2A : profondeur max, auto-invocation, timeout de chaîne) |
 | `500` | Erreur interne (SQLite, rebuild HITL) |
-| `503` | Service indisponible (capacité saturée, HITL non configuré) |
+| `502` | Bad gateway — Worker Agent a retourné une erreur (`POST /api/v1/a2a/delegate|invoke`) |
+| `503` | Service indisponible (capacité saturée, composant non configuré) |
+| `504` | Gateway timeout — timeout A2A dépassé (`POST /api/v1/a2a/delegate|invoke`) |
 
 **Statut `input_required` :** statut intermédiaire émis par ORIA en mode Direct quand l'agent requiert une validation humaine. La tâche est suspendue et attend une décision via `POST /api/v1/tasks/:id/resume`. Ce n'est pas un état terminal — le flux SSE reste ouvert.
 
@@ -986,6 +1478,31 @@ Définir les événements globaux (remplacement atomique via transaction SQLite)
 Si aucune section `[notifications]` n'est configurée dans `apollia.toml` : `{"channels": []}`.
 
 Les canaux de type `"sse"` apparaissent également dans cette liste. Le champ `events` liste les événements que le canal accepte (hérité de la config globale `events` si non surchargé au niveau du canal).
+
+### POST /api/v1/notifications/channels/:id/test
+
+Envoyer une notification de test (`"test.ping"`) à un canal spécifique.
+
+**Corps :** aucun
+
+**Réponse 200 :**
+```json
+{
+  "results": [
+    {
+      "channel_id": "slack-erreurs",
+      "type":       "webhook",
+      "status":     "ok",
+      "error":      null,
+      "latency_ms": 187
+    }
+  ]
+}
+```
+
+**Réponse 404 :** canal introuvable.
+
+---
 
 ### POST /api/v1/notifications/test
 
@@ -1631,6 +2148,23 @@ $ curl -X POST http://127.0.0.1:7771/api/v1/mcp/servers/test \
 
 Retourne `{ "tools": [...], "server_info": "..." }` ou une erreur si le handshake échoue.
 
+### PATCH /api/v1/mcp/servers/:name/approval
+
+Met à jour le flag `requires_approval` d'un serveur MCP sans redémarrer la session. Le nouveau flag prend effet au prochain appel d'outil.
+
+**Corps :**
+```json
+{
+  "requires_approval": true
+}
+```
+
+**Réponse 200 :** `McpServerStatus` mis à jour (même format que `GET /api/v1/mcp/servers`).
+
+**Erreurs :**
+- `404` — serveur introuvable
+- `503` — MCP non configuré
+
 ---
 
 ## Voir aussi
@@ -1640,6 +2174,7 @@ Retourne `{ "tools": [...], "server_info": "..." }` ou une erreur si le handshak
 - [Briques Triggers](./Briques-Triggers) — moteur de déclenchement
 - [Briques Notifications](./Briques-Notifications) — canaux de notification et moteur HITL
 - [Dashboard Observabilité](./Dashboard-Observabilite) — dashboard embarqué
+- [A2A-ACP-Alignement](./A2A-ACP-Alignement) — spécification des guards et de l'A2AInvoker
 - [ADR-006](../adr/ADR-006-rest-json-api-locale) — pourquoi REST JSON plutôt qu'une autre API
 - [ADR-017](../adr/ADR-017-hyper-util-unix-socket-serving) — Unix socket avec hyper-util
 - [ADR-021](../adr/ADR-021-apollia-triggers-toml-hmac-hot-reload.md) — décisions TOML/HMAC/hot reload
@@ -1649,6 +2184,7 @@ Retourne `{ "tools": [...], "server_info": "..." }` ou une erreur si le handshak
 - [ADR-026](../adr/ADR-026-observabilite-complete-persistance-timeline-troncature) — observabilité complète, timeline, troncature
 - [ADR-033](../adr/ADR-033-config-operateur-sqlite.md) — config opérateur SQLite (CRUD triggers/pipelines/notifications)
 - [ADR-034](../adr/ADR-034-chat-hybride-sessions-streaming-hitl-inline.md) — chat hybride : sessions, streaming, HITL inline
+- [ADR-050](../adr/ADR-050) — distribution Worker Agents, registre communautaire
 - [Briques Chat](./Briques-Chat) — sous-système de chat complet
 - [Briques STT](./Briques-STT) — moteur Speech-to-Text embarqué (Sprint 24)
 - [ADR-041](../adr/ADR-041-moteur-stt-embarque-whisper-rs-trait-stt-backend.md) — décisions moteur STT (whisper-rs, trait SttBackend)

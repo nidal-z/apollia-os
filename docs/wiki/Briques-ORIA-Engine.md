@@ -620,21 +620,40 @@ pub enum CircuitState {
 
 ### 7.2 Machine d'état du circuit breaker
 
+Chaque outil possède son propre `CircuitBreaker` indépendant — une défaillance de `file_io` n'affecte pas `python_executor`.
+
 ```
 CLOSED (normal)
-  → Succès : reset failure_count
-  → Échec transient : retry (RetryPolicy)
-  → failure_count ≥ threshold : → OPEN
+  → Succès : reset failure_count → 0, last_failure_at = None
+  → Échec Transient : RetryPolicy (backoff exponentiel)
+      └─ Si retries épuisés : failure_count += 1
+         └─ Si failure_count ≥ failure_threshold (3) : → OPEN
 
 OPEN (circuit ouvert)
-  → Toute requête : BrokenCircuit error immédiate (pas d'appel outil)
-  → Après cooldown : → HALF_OPEN
+  → Toute requête : ResilienceError::CircuitOpen immédiate (outil non appelé)
+  → Après cooldown (30s) écoulé, au prochain pre_check() : → HALF_OPEN
 
-HALF_OPEN (test)
-  → Une requête sonde autorisée
-  → Succès : → CLOSED + reset compteurs
-  → Échec : → OPEN + reset cooldown
+HALF_OPEN (probe — une sonde autorisée)
+  → Succès :  record_success() → CLOSED + failure_count = 0 + last_failure_at = None
+              Émet RuntimeEvent::ToolCircuitRestored
+  → Échec Transient : record_failure() → OPEN + last_failure_at = now() (cooldown reset)
+              Émet RuntimeEvent::ToolCircuitBroken
+
+  Note : les erreurs Permanent/BudgetExceeded/SandboxViolation en HalfOpen
+         ne font PAS retransitionner vers Open.
+
+Réinitialisation manuelle : reset() → CLOSED forcé, failure_count = 0
 ```
+
+**Table des transitions :**
+
+| De | Vers | Condition | Qui appelle |
+|---|---|---|---|
+| `Closed` | `Open` | `failure_count >= failure_threshold` (3 Transient) | `record_failure()` |
+| `Open` | `HalfOpen` | `cooldown` (30s) écoulé | `pre_check()` |
+| `HalfOpen` | `Closed` | Appel outil réussi | `record_success()` |
+| `HalfOpen` | `Open` | Appel outil échoue (Transient) | `record_failure()` |
+| Tout état | `Closed` | Réinitialisation manuelle | `reset()` |
 
 **Affichage dans le status CLI :**
 ```bash
@@ -700,18 +719,92 @@ La clé est un hash SHA-256 de `{agent_name}:{agent_version}:{sorted_tools}:{nor
 
 ### 7.4 Classification des erreurs
 
-La classification est critique pour savoir quand retenter.
+La classification est critique pour savoir quand retenter et quand incrémenter le circuit breaker.
 
 ```rust
 pub enum ErrorClass {
-    Transient,          // Timeout réseau, rate limit LLM temporaire — retryable
-    Permanent,          // SIRET invalide, fichier non trouvé — ne jamais retenter
-    BudgetExceeded,     // StepBudget atteint — ne pas retenter
-    SandboxViolation,   // Tentative de path traversal, accès réseau non autorisé
+    /// Timeout réseau, rate limit LLM temporaire.
+    /// → Retryable. Incrémente failure_count du circuit breaker.
+    Transient,
+
+    /// Input invalide (SIRET incorrect, fichier non trouvé, paramètre manquant).
+    /// → Jamais retentée. N'incrémente PAS le circuit (problème input, pas outil).
+    Permanent,
+
+    /// StepBudget épuisé (max_steps ou max_tool_calls atteint).
+    /// → Jamais retentée. N'incrémente PAS le circuit (limite normale de l'agent).
+    BudgetExceeded,
+
+    /// Violation sandbox (path traversal, accès réseau non autorisé par SandboxProfile).
+    /// → Jamais retentée. N'incrémente PAS le circuit (problème de sécurité, pas de défaillance outil).
+    SandboxViolation,
 }
 ```
 
-Le circuit breaker ne s'incrémente que sur les erreurs `Transient`. Une erreur `Permanent` n'ouvre pas le circuit — elle indique un problème avec l'input, pas avec l'outil.
+**Tableau de comportement par variante :**
+
+| Variante | Retentée (RetryPolicy) | Circuit incrémenté | Exemples |
+|---|---|---|---|
+| `Transient` | Oui | Oui | Timeout réseau, rate limit LLM, connexion refusée |
+| `Permanent` | Non | Non | Fichier non trouvé, SIRET invalide, paramètre manquant |
+| `BudgetExceeded` | Non | Non | `max_steps` atteint, `max_tool_calls` dépassé |
+| `SandboxViolation` | Non | Non | `../../../etc/passwd`, accès à une IP hors whitelist |
+
+**Intégration dans `ResilienceLayer::execute()` :**
+
+```
+execute(tool, retry_policy, classifier, operation) :
+  ├── pre_check()                      ← lève CircuitOpen si état Open
+  ├── Pour chaque tentative (1..max_attempts) :
+  │   ├── Appel operation()
+  │   ├── Succès → record_success() → Ok(value)
+  │   └── Erreur → classifier(&msg) → ErrorClass
+  │       ├── Permanent / BudgetExceeded / SandboxViolation → Err immédiat (pas de retry)
+  │       └── Transient :
+  │           ├── Si tentatives restantes → sleep(backoff) → retry
+  │           └── Si épuisé → record_failure(Transient) → Err
+```
+
+Seules les erreurs `Transient` affectent le circuit breaker. Une erreur `Permanent` signifie que l'outil fonctionne mais que l'input est invalide.
+
+### 7.5 Constantes de résilience
+
+Toutes les constantes sont définies dans le code Rust. Certaines sont configurables via `apollia.toml`, d'autres sont des valeurs de défaut surchargeable à l'instanciation.
+
+**Circuit Breaker (`ResilienceLayer::default()` — `crates/apollia-oria/src/resilience.rs`) :**
+
+| Constante | Valeur par défaut | Description |
+|---|---|---|
+| `default_failure_threshold` | `3` | Échecs `Transient` consécutifs pour passer `Closed → Open` |
+| `default_cooldown` | `30s` | Délai avant transition `Open → HalfOpen` |
+
+**RetryPolicy (`RetryPolicy::default()` — `crates/apollia-oria/src/resilience.rs`) :**
+
+| Champ | Valeur par défaut | Description |
+|---|---|---|
+| `max_attempts` | `3` | Nombre de tentatives max (inclut l'appel initial) |
+| `base_delay_ms` | `500ms` | Délai de base pour le backoff exponentiel |
+| `max_delay_ms` | `10_000ms` | Plafond du délai (évite des attentes infinies) |
+| `jitter` | `true` | Jitter ±25% pour désynchroniser les retries concurrents |
+
+**Formule backoff :** `min(base_delay_ms × 2^(attempt-1), max_delay_ms)` avec jitter optionnel.
+Exemples (sans jitter) : tentative 1 → 500ms, tentative 2 → 1000ms, tentative 3 → 2000ms.
+
+**ORIA Engine (`engine.rs`) :**
+
+| Constante | Valeur | Description |
+|---|---|---|
+| `MAX_REPLANS` | `2` | Nombre maximum de replanifications LLM par tâche Orchestrée |
+| `ORCHESTRATED_THRESHOLD` | `0.40` | Score de complexité au-delà duquel le Mode Orchestré est sélectionné |
+
+**StepBudget (défauts configurables via `apollia.toml` section `[oria]`) :**
+
+| Paramètre TOML | Valeur par défaut | Description |
+|---|---|---|
+| `max_steps` | `10` | Nombre de steps maximum par tâche |
+| `max_tool_calls` | `20` | Appels d'outils maximum par tâche |
+| `wall_clock_timeout` | `300s` | Durée maximale d'une tâche (5 minutes) |
+| `max_replans` | `2` | Identique à `MAX_REPLANS` — configurable par déploiement |
 
 ---
 

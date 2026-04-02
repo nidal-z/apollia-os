@@ -292,18 +292,250 @@ pub enum McpConfigWriteError {
 
 ---
 
-## 7. Décisions architecturales
+## 7. Transports HTTP/SSE *(ADR-046)*
 
-Voir [ADR-044](./Decisions-Log#adr-044--client-mcp--architecture-transport-lifecycle) pour la justification complète.
+Sprint 27 (ADR-046) introduit une architecture de **transport abstrait** pour connecter des serveurs MCP distants. La crate expose le trait `McpTransport` avec trois implémentations selectionnées dynamiquement selon le champ `transport` de `McpServerConfig`.
+
+### Trait McpTransport
+
+```rust
+// crates/apollia-mcp/src/transport/mod.rs
+#[async_trait]
+pub trait McpTransport: Send + Sync + 'static {
+    /// Envoie un message JSON-RPC (le transport ajoute le \n).
+    async fn send(&self, message: &str) -> Result<(), TransportError>;
+    /// Attend le prochain message JSON-RPC depuis le serveur.
+    async fn recv(&self) -> Result<String, TransportError>;
+    /// Ferme proprement la connexion.
+    async fn shutdown(&self) -> Result<(), TransportError>;
+    /// PID du processus serveur (None pour les transports réseau).
+    fn pid(&self) -> Option<u32> { None }
+}
+```
+
+### StdioTransport
+
+Transport historique : spawn d'un subprocess, stdin/stdout pipes.
+
+- Spawn : `tokio::process::Command` avec `stdin(Stdio::piped())` + `stdout(Stdio::piped())`
+- Une tâche `stdin_writer_task` consomme un channel `mpsc` et écrit vers stdin
+- Une tâche `stdout_reader_task` lit ligne par ligne et route vers les `oneshot` de corrélation
+- `shutdown()` : envoie `SIGTERM`, attend 5 secondes, puis `SIGKILL`
+- `pid()` : retourne le PID du subprocess
+
+### StreamableHttpTransport *(ADR-046)*
+
+Fichier : `crates/apollia-mcp/src/transport/http.rs`
+
+Implémente le protocole MCP *Streamable HTTP* : **un POST HTTP par requête/réponse**.
+
+```
+Client → POST {url}  Content-Type: application/json
+                     Accept: application/json, text/event-stream
+                     Mcp-Session-Id: {session-id}   ← après le 1er échange
+                     Authorization: Bearer {token}   ← si configuré
+              body:  {"jsonrpc":"2.0","id":1,"method":"tools/call",...}
+
+Server → 200 OK      Mcp-Session-Id: abc123          ← extrait au 1er échange
+              body:  {"jsonrpc":"2.0","id":1,"result":{...}}
+```
+
+**Caractéristiques :**
+- **Lazy** : aucune connexion ouverte avant le premier `send()` — construction synchrone, réseau différé
+- **Session affinity** : le header `Mcp-Session-Id` reçu dans la première réponse est mémorisé et renvoyé sur toutes les requêtes suivantes
+- **Timeout** : `call_timeout_secs` de la config (défaut 60s), appliqué par requête
+- **Auth** : les `env` résolus sont injectés comme headers HTTP (ex. `Authorization: Bearer …`)
+- **shutdown()** : no-op — HTTP n'a pas de connexion persistante à fermer
+- **Erreurs** : `TransportError::Io("HTTP 401")` pour code non-2xx, `TransportError::Io("timeout")` si dépassement
+
+### SseTransport *(ADR-046)*
+
+Fichier : `crates/apollia-mcp/src/transport/sse.rs`
+
+Connexion **SSE persistante** en lecture + HTTP POST en écriture.
+
+```
+Construction :
+  Client → GET {sse_url}      ← connexion persistante ouverte en tâche background
+  Server → event: endpoint\n
+           data: {post_url}\n ← URL de POST extraite par la tâche SSE
+
+Premier send() :
+  Client → POST {post_url}    Content-Type: application/json
+                              Authorization: Bearer {token}  ← si configuré
+
+Réponses :
+  Server → data: {"jsonrpc":"2.0","id":1,"result":{...}}\n ← sur le flux SSE
+```
+
+**Caractéristiques :**
+- **Background task** : une tâche Tokio ouverte au moment de la construction (`SseTransport::new()`) consomme le flux SSE et transfère les réponses via `mpsc::channel(64)`
+- **Endpoint discovery** : `send()` attend (jusqu'à `timeout`) que la tâche SSE ait reçu l'événement `endpoint` avant d'envoyer le POST
+- **Reconnection** : **non implémentée** — si la connexion SSE se coupe, `recv()` retourne `TransportError::Closed`. L'opérateur doit déclencher un `restart_server` explicite
+- **Shutdown** : `shutdown_tx.send(true)` signale la tâche background de s'arrêter
+- **Auth** : headers injectés sur le GET initial ET sur chaque POST
+
+---
+
+## 8. Sélection du transport
+
+La fonction factory `create_transport(config, resolved_env)` (`transport/mod.rs`) dispatche sur `config.transport` :
+
+| Valeur `transport` | Implémentation | Champ `url` requis | Processus local |
+|---|---|---|---|
+| `"stdio"` | `StdioTransport` | Non | Oui (subprocess) |
+| `"streamable-http"` | `StreamableHttpTransport` | Oui | Non |
+| `"sse"` | `SseTransport` | Oui | Non |
+| autre valeur | `TransportError::Unsupported` | — | — |
+
+**Règles de configuration :**
+
+```json
+// Serveur local stdio (npm/pip)
+{
+  "name": "filesystem",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/docs"],
+  "transport": "stdio"
+}
+
+// Serveur distant HTTP (ex. Notion MCP officiel)
+{
+  "name": "notion",
+  "command": "",
+  "args": [],
+  "transport": "streamable-http",
+  "url": "https://mcp.notion.com/mcp",
+  "env": { "Authorization": "Bearer ${APOLLIA_SECRET:NOTION_API_KEY}" }
+}
+
+// Serveur distant SSE
+{
+  "name": "brave-search",
+  "command": "",
+  "args": [],
+  "transport": "sse",
+  "url": "https://api.search.brave.com/sse",
+  "env": { "Authorization": "Bearer ${BRAVE_API_KEY}" }
+}
+```
+
+Pour les transports réseau (`streamable-http`, `sse`), les entrées de `resolved_env` sont transmises comme **headers HTTP** sur chaque requête. La résolution `${VAR}` et `${APOLLIA_SECRET:VAR}` est effectuée avant l'appel à `create_transport()`.
+
+---
+
+## 9. Error recovery
+
+### Comportement au démarrage
+
+Un serveur qui échoue à démarrer (spawn, handshake timeout, erreur de protocole) est **loggué au niveau `error` et ignoré** — les autres serveurs continuent. L'acteur `McpClientManager` ne s'arrête pas sur un seul serveur défaillant.
+
+```
+tracing::error!(server = %name, error = %e, "MCP server failed to start, skipping");
+```
+
+### Erreurs de session
+
+| Erreur | Cause | Surface |
+|---|---|---|
+| `InitializeTimeout { timeout_secs }` | Handshake non terminé dans `init_timeout_secs` (défaut 30s) | Démarrage |
+| `ToolCallTimeout { timeout_secs }` | `tools/call` non terminé dans `call_timeout_secs` (défaut 60s) | Exécution |
+| `ServerExited` | Subprocess terminé prématurément ou canal transport fermé | Exécution |
+| `JsonRpcError { code, message }` | Le serveur a retourné un objet d'erreur JSON-RPC | Exécution |
+| `ToolCallFailed { cause }` | Erreur côté serveur lors de l'exécution de l'outil | Exécution |
+| `InitializeFailed { cause }` | Réponse `initialize` malformée ou protocole non supporté | Démarrage |
+
+### Reconnexion manuelle
+
+Il n'y a **pas de reconnexion automatique** : si une session meurt après démarrage, elle reste déconnectée jusqu'à intervention explicite. L'opérateur dispose de deux mécanismes :
+
+```bash
+# Via CLI
+$ apollia-os mcp restart notion
+
+# Via API REST
+$ curl -X POST http://localhost:7771/api/v1/mcp/servers/notion/restart
+```
+
+`restart_server()` dans le `McpClientManagerHandle` :
+1. Appelle `shutdown()` sur la session existante (SIGTERM + attente pour stdio, no-op pour HTTP/SSE)
+2. Spawne une nouvelle `McpSession` avec la même configuration
+3. Re-enregistre les outils découverts dans le `ToolRegistry`
+4. Retourne le nouveau `McpServerStatus`
+
+### Timeout per-request vs per-session
+
+Les timeouts sont configurés **par serveur** dans `McpServerConfig`, pas globalement :
+
+| Champ | Défaut | Scope |
+|---|---|---|
+| `init_timeout_secs` | 30s | Handshake `initialize` uniquement |
+| `call_timeout_secs` | 60s | Chaque `tools/call` individuellement |
+
+Pour les transports HTTP et SSE, `call_timeout_secs` est transmis au `reqwest::Client` comme timeout de requête.
+
+---
+
+## 10. Convention de nommage : mcp:{server}/{tool}
+
+Tous les outils MCP sont enregistrés dans le `ToolRegistry` sous la convention `mcp:{server_name}/{tool_name}`.
+
+### Garantie d'unicité
+
+Le séparateur `/` garantit qu'il n'y a jamais de collision entre :
+- deux serveurs différents exposant un outil de même nom
+- un outil MCP et un outil natif (les natifs n'ont jamais le préfixe `mcp:`)
+
+```
+mcp:notion/search_pages          ← serveur "notion", outil "search_pages"
+mcp:brave-search/web_search      ← serveur "brave-search", outil "web_search"
+mcp:notion/create_page           ← même serveur "notion", outil différent
+```
+
+### Construction et décomposition
+
+**Construction** (à l'enregistrement dans le ToolRegistry) :
+```rust
+// manager.rs
+let full_name = format!("mcp:{}/{}", server_name, tool_def.name);
+```
+
+**Décomposition** (au routage d'un appel) :
+```rust
+// executor.rs
+pub fn parse_tool_name(name: &str) -> Option<(&str, &str)> {
+    let stripped = name.strip_prefix("mcp:")?;
+    let slash = stripped.find('/')?;
+    Some((&stripped[..slash], &stripped[slash + 1..]))
+}
+// "mcp:notion/search_pages" → Some(("notion", "search_pages"))
+// "bash_executor"           → None  (outil natif, routage différent)
+```
+
+`parse_tool_name()` retourne `None` si :
+- pas de préfixe `mcp:`
+- pas de séparateur `/`
+- segment serveur ou outil vide
+
+### Enregistrement en conflit
+
+Si deux outils produisent le même `full_name` (impossible par construction, mais possible si deux serveurs ont le même `name`), le second `tool_registry.register()` logue un avertissement et l'enregistrement échoue silencieusement. La contrainte d'unicité du nom de serveur est portée par `McpServerRepository` (UNIQUE sur `name` en SQLite).
+
+---
+
+## 11. Décisions architecturales
+
+Voir [ADR-044](./Decisions-Log#adr-044--client-mcp--architecture-transport-lifecycle) et [ADR-046](../adr/ADR-046-transport-http-sse-mcp.md) pour les justifications complètes.
 
 | Décision | Raison |
 |---|---|
 | Crate `apollia-mcp` dédiée (pas dans `apollia-tools`) | Responsabilité unique — subprocess lifecycle + protocole réseau orthogonal aux outils Rust purs |
-| Transport stdio uniquement en V1 | Local-first : ~90 % des serveurs MCP communautaires sont stdio ; pas de réseau distant sans action explicite |
+| Transport stdio uniquement en V1, HTTP/SSE en Sprint 27 | Local-first ; HTTP/SSE ajoutés quand ~70% du MCP Registry a migré vers les remotes (ADR-046) |
 | Implémentation native JSON-RPC 2.0 | Principe #2 — zéro SDK MCP tiers dans le binaire |
 | `McpClientManager` comme acteur Tokio | Principe #5 — zéro état partagé, toutes les mutations via channel `mpsc` |
-| `McpConfigWriter` séparé du manager | Séparation I/O disque / état runtime — le writer est synchrone, le manager ne touche jamais le disque |
+| Trait `McpTransport` au lieu de type enum | Architecture extensible, facilite le testing (mock transport), aligne avec l'enum dans `apollia-tools` |
 | `McpToolExecutor` implémente `ToolExecutor` | Les outils MCP passent par le même `ToolDispatcher` que les natifs — ajout sans modifier le chemin d'exécution |
+| Pas de reconnexion automatique | Principe #4 — fail fast. La reconnexion silencieuse masquerait les erreurs ; l'opérateur choisit explicitement de redémarrer |
 
 ---
 
@@ -313,3 +545,4 @@ Voir [ADR-044](./Decisions-Log#adr-044--client-mcp--architecture-transport-lifec
 - [MCP — Intégration](./MCP-Integration) — alignement Apollia OS ↔ standard MCP
 - [Briques Tool Registry](./Briques-Tool-Registry) — section 10 : outils MCP dans le registry
 - [API HTTP Reference](./API-HTTP-Reference) — section MCP : `/api/v1/mcp/*`
+- [ADR-046](../adr/ADR-046-transport-http-sse-mcp.md) — décision transport HTTP/SSE pour serveurs MCP distants

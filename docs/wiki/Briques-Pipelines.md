@@ -474,6 +474,165 @@ while let Some(result) = futures.next().await {
 
 ---
 
+## 11. Sémantique de concurrence
+
+### FuturesUnordered — exécution parallèle intra-layer
+
+Les steps d'un même layer topologique sont soumis simultanément et surveillés via `FuturesUnordered<StepFut>` :
+
+```rust
+// Extrait de PipelineExecutor::execute() — executor.rs
+let mut futs: FuturesUnordered<StepFut> = FuturesUnordered::new();
+
+for step_id in &active_steps {
+    // Subscribe BEFORE submit (subscribe-before-submit invariant)
+    let rx = self.event_bus.subscribe();
+    let task_id = self.submitter.submit_task(&step_def.agent, &input).await?;
+    futs.push(Box::pin(Self::wait_for_task_completion(step_id, task_id, rx, timeout)));
+}
+
+// Fan-in : les résultats arrivent dans l'ordre de complétion, pas de soumission
+while let Some((step_id, result)) = futs.next().await {
+    // traitement du résultat
+}
+```
+
+**Garanties et absence de garanties :**
+
+| Propriété | Comportement |
+|---|---|
+| Soumission | Les steps d'un même layer sont soumis dans l'ordre de définition du pipeline |
+| Complétion | **Aucune garantie d'ordre** — `FuturesUnordered::next()` retourne le premier future complété |
+| Isolation entre layers | Le layer N ne démarre qu'après que **tous** les steps du layer N-1 ont atteint un état terminal |
+| Timeout par step | `DEFAULT_STEP_TIMEOUT = 60 secondes` — un step qui dépasse ce délai produit `StepResult::Failed` |
+
+### Invariant subscribe-before-submit
+
+L'EventBus receiver est créé **avant** l'appel à `submit_task` pour chaque step. Cela garantit qu'un agent très rapide ne peut pas émettre `TaskCompleted` avant que l'executor ait commencé à écouter — une race condition classique dans les systèmes event-driven.
+
+```rust
+// Ordre impératif — TOUJOURS dans cet ordre
+let rx = self.event_bus.subscribe();               // 1. S'abonner
+let task_id = submitter.submit_task(...).await?;   // 2. Soumettre
+// Puis attendre TaskCompleted sur rx
+```
+
+### Restart de layer pour fallback
+
+Quand un step échoue avec `on_failure: fallback`, l'executor active le step de fallback et relance la boucle de layers (`continue 'restart`). Le `PipelineExecutor` maintient deux ensembles internes :
+
+- `active_fallbacks: HashSet<StepId>` — fallbacks actuellement actifs
+- `done_steps: HashSet<StepId>` — steps déjà dans un état terminal (évite la re-soumission)
+
+Le `topological_layers()` est recalculé à chaque restart, mais les steps dans `done_steps` sont filtrés avant soumission.
+
+---
+
+## 12. Propagation d'erreurs entre steps
+
+Chaque step déclare une politique d'échec (`on_failure`) qui détermine comment l'executor réagit quand la tâche associée échoue.
+
+### Tableau des politiques
+
+| `on_failure` | Statut du step | Effet sur le pipeline | `{{steps.x.output}}` downstream |
+|---|---|---|---|
+| `fail` *(défaut)* | `Failed` | Pipeline s'arrête après avoir drainé le layer | N/A (pipeline arrêté) |
+| `skip` | `Skipped` | Pipeline continue | Chaîne vide `""` |
+| `fallback` | `FallbackActive` | Fallback activé, restart du layer | Via le step fallback |
+
+### Politique `fail` — drain avant abandon
+
+Quand un step échoue avec `on_failure: fail`, l'executor **ne s'arrête pas immédiatement** : il continue à drainer les autres futures du même layer avant d'appeler `fail_pipeline_internal`. Ce comportement évite des tâches orphelines qui s'exécuteraient en fond sans supervision.
+
+```
+Layer [A, B, C] — B échoue avec on_failure=fail :
+1. B échoue → layer_failed = Some((B, raison))
+2. A et C continuent jusqu'à leur propre complétion
+3. Après drain complet du layer → fail_pipeline_internal(B, raison)
+4. PipelineFailed { run_id, step_id: B, reason } emis
+```
+
+### Politique `skip` — propagation vers downstream
+
+Quand un step est skippé (échec avec `on_failure: skip` **ou** condition évaluée à false), son output est injecté comme chaîne vide dans le `TemplateContext` :
+
+```rust
+self.template_ctx.insert_step_output(step_id.clone(), String::new());
+```
+
+Les steps downstream qui référencent `{{steps.x.output}}` recoivent `""`. Le pipeline ne s'arrête pas — les steps en aval s'exécutent avec un input potentiellement vide.
+
+### Politique `fallback` — restart de graph
+
+Le step de fallback est un step ordinaire marqué `fallback_for: Some(StepId)`. Il est placé dans le même layer topologique que le step primaire (mêmes dépendances `depends_on`). Par défaut, il est filtré avant soumission (`active_fallbacks` ne le contient pas).
+
+Quand le step primaire échoue avec `on_failure: fallback` :
+1. `activate_fallback(step_id, reason)` est appelé
+2. Le step primaire passe à `FallbackActive` en SQLite
+3. Le fallback est inséré dans `active_fallbacks`
+4. `continue 'restart` — la boucle de layers redémarre depuis le début
+5. Le fallback est soumis comme step normal lors de la nouvelle passe
+
+Si aucun fallback n'est déclaré pour le step → `ExecutorError::NoFallbackDeclared` → pipeline échoue.
+
+### Fallback et output downstream
+
+Quand un step fallback termine avec succès, son output est injecté **sous deux clés** dans le `TemplateContext` :
+- `steps.<fallback_id>.output` — nom du step fallback
+- `steps.<step_primaire>.output` — nom du step primaire (fallback_for)
+
+Cela garantit que les steps downstream utilisant `{{steps.validation.output}}` reçoivent le résultat du fallback sans modification.
+
+### GlobalFailurePolicy
+
+Le champ `on_failure` de `PipelineDefinition` accepte `fail | continue` (défaut : `fail`). En pratique, `GlobalFailurePolicy::Continue` est défini dans les types mais **non implémenté** dans l'executor courant — toute erreur non absorbée par une politique step-level arrête le pipeline.
+
+---
+
+## 13. Détection de cycles
+
+La détection de cycles fait partie intégrante de la validation du DAG. Elle est invoquée à deux moments :
+
+1. **CRUD validation** (`validation.rs`) — avant toute écriture en SQLite via les endpoints REST
+2. **Exécution** (`executor.rs::execute()`) — au démarrage de chaque run, comme filet de sécurité
+
+### Algorithme : Kahn BFS
+
+L'implémentation utilise l'**algorithme de Kahn** (BFS), non un DFS. Le fichier source est `crates/apollia-pipelines/src/topo.rs`.
+
+```
+1. Construire in_degree[step] = nombre de dépendances déclarées
+2. Construire successors[dep] = liste des steps qui dépendent de dep
+3. Initialiser la queue avec tous les steps dont in_degree == 0
+4. Boucle BFS :
+   a. Drainer la queue → une couche de steps parallèles
+   b. Pour chaque step de la couche :
+      - Pour chaque successeur : décrémenter in_degree
+      - Si in_degree == 0 : ajouter à next
+   c. Ajouter la couche à layers[]
+   d. Étendre la queue avec next
+5. Si processed < steps.len() : des steps ont encore in_degree > 0 → cycle
+```
+
+### Erreurs produites
+
+| Erreur | Condition | Exemple |
+|---|---|---|
+| `TopologicalError::CycleDetected(step_id)` | `processed < steps.len()` après BFS | A → B → A |
+| `TopologicalError::UnknownDependency { dependent, dependency }` | `depends_on` référence un `step_id` inexistant | `"depends_on": ["inexistant"]` |
+
+La détection `UnknownDependency` est effectuée **avant** le BFS. Si toutes les dépendances sont valides mais un cycle existe, `CycleDetected` est retourné en nommant **un** des steps impliqués (le premier trouvé avec `in_degree > 0`).
+
+### Complexité
+
+O(V + E) où V = nombre de steps, E = nombre total de dépendances déclarées dans le pipeline.
+
+### Fallback steps et topologie
+
+Les steps fallback (`fallback_for: Some(...)`) sont traités comme des steps normaux par `topological_layers`. Ils sont placés dans le layer déterminé par leur propre `depends_on`. L'executor filtre les fallbacks inactifs **après** le calcul des layers, pas pendant.
+
+---
+
 ## Voir aussi
 
 - [API HTTP Reference](./API-HTTP-Reference) — endpoints CRUD `/api/v1/pipelines`

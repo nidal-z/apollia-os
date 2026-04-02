@@ -12,7 +12,7 @@ Le SDK Apollia fournit des classes de base, des type stubs, des utilitaires de p
 **Caractéristiques :**
 - Pur Python, zéro dépendance runtime (ADR-037)
 - Type stubs PEP 561 pour `RuntimeContext`, `ToolProxy`, `LlmProxy`, `MemoryInterface`
-- 3 classes de base : `BaseReActAgent`, `ConversationalAgent`, `OrchestratedAgent`
+- 4 classes de base : `BaseReActAgent`, `ConversationalAgent`, `OrchestratedAgent`, `WorkerAgent`
 - Mocks + assertions pour tests unitaires sans runtime
 - CLI scaffolding : `apollia-os agent new <name> --type react` (ou `python -m apollia new <name>`)
 - Compatible Python 3.10+
@@ -43,7 +43,8 @@ sdk/apollia/
 ├── agents/
 │   ├── react.py           ← BaseReActAgent
 │   ├── conversational.py  ← ConversationalAgent
-│   └── orchestrated.py    ← OrchestratedAgent
+│   ├── orchestrated.py    ← OrchestratedAgent
+│   └── worker.py          ← WorkerAgent
 ├── utils/
 │   ├── parsing.py         ← extract_json, truncate, validate_action
 │   ├── formatting.py      ← format_as_markdown, aip_result_text
@@ -185,6 +186,169 @@ agent = AnalyseAgent()
 | `on_plan_complete(step_results)` | (overridable) Post-traitement des résultats du plan |
 | `format_step_results(results)` | (statique) Formate les résultats en texte lisible |
 | `run(task, ctx)` | Lève `RuntimeError` — ORIA gère l'exécution |
+
+### 1.4 `WorkerAgent` *(Sprint 32)*
+
+Agent spécialisé dans un domaine métier. Hérite de `BaseReActAgent` — même boucle ReAct, même contrat AIP. La différence est dans les **helpers** fournis et la convention de `SYSTEM_PROMPT` structuré.
+
+#### Héritage
+
+```
+BaseReActAgent
+    └── WorkerAgent         ← ajoute helpers tools + domain errors
+```
+
+`WorkerAgent` ne redéfinit pas la boucle ReAct — il l'enrichit avec des méthodes utilitaires qui éliminent le boilerplate des `ctx.tools.call()` répétitifs.
+
+#### Exemple minimal
+
+```python
+from apollia.agents import AIPResult, WorkerAgent
+
+class ExcelAgent(WorkerAgent):
+    SYSTEM_PROMPT = """
+    Tu es ExcelAgent, un expert Python/openpyxl.
+
+    ## RÈGLES ABSOLUES
+    1. Toujours utiliser openpyxl pour lire/écrire des fichiers Excel.
+    2. Retourner domain_error("file_not_found", ...) si le fichier est absent.
+
+    ## FORMAT DE RÉPONSE
+    - Indiquer le nombre de lignes/colonnes lues.
+    """
+    MAX_STEPS = 8       # plus court qu'un agent générique
+    TEMPERATURE = 0.1   # plus déterministe pour du code Python
+
+    def manifest(self):
+        return {
+            "name": "excel-agent",
+            "version": "1.0.0",
+            "description": "Analyse et génère des fichiers Excel",
+            "tools_required": ["python_executor", "file_read"],
+            "packages": ["openpyxl>=3.1.0"],  # pip installé au démarrage
+            "supports_a2a": True,              # accessible via A2A routing
+            "skills": [
+                {
+                    "id": "read-excel",
+                    "name": "Lecture Excel",
+                    "description": "Lit et analyse un fichier .xlsx",
+                    "input_modes": ["text", "data"],
+                    "output_modes": ["data", "text"],
+                }
+            ],
+        }
+
+    async def run(self, task, ctx):
+        user_msg = task["input"]["parts"][0]["text"]
+        result = await self.react(task, ctx, user_msg)
+        if isinstance(result, dict):
+            return result
+        return AIPResult.completed(result).to_dict()
+
+agent = ExcelAgent()
+```
+
+#### Constantes de classe
+
+| Constante | Défaut recommandé | Description |
+|---|---|---|
+| `SYSTEM_PROMPT` | *voir ci-dessous* | Prompt expert compilé — guardrails, patterns, gestion erreurs domaine |
+| `MAX_STEPS` | `8` | Plus court que `BaseReActAgent` (15) — scope délimité |
+| `TEMPERATURE` | `0.1` | Déterministe — le Worker exécute, ne raisonne pas |
+
+**Convention `SYSTEM_PROMPT` pour un Worker Agent :**
+```python
+SYSTEM_PROMPT = """
+Tu es {Nom}, un agent expert de {domaine}.
+
+## RÈGLES ABSOLUES (non-négociables)
+1. [Guardrail 1] — RAISON : ...
+2. [Guardrail 2] — RAISON : ...
+
+## IMPORTS ET PATTERNS CORRECTS
+```python
+import openpyxl                  # toujours utiliser openpyxl
+wb = openpyxl.load_workbook(path)
+```
+
+## GESTION DES ERREURS DOMAINE
+- FileNotFoundError → domain_error("file_not_found", ...)
+- KeyError           → domain_error("sheet_not_found", ...)
+
+## FORMAT DE RÉPONSE
+- Toujours indiquer ce qui a été fait et le résultat.
+"""
+```
+
+#### Helpers fournis
+
+`WorkerAgent` expose des méthodes utilitaires sur `self` :
+
+**Exécution Python :**
+
+```python
+# Exécuter du code Python (python_executor)
+result = await self.run_python(ctx, code="import json; print(json.dumps({'x': 1}))")
+# result : {"stdout": '{"x": 1}\n', "stderr": "", "exit_code": 0, "duration_ms": 42}
+
+# Valider le résultat et extraire stdout (ou retourner AIPResult.failed())
+output = self.check_python_result(result, operation="excel_parse")
+if isinstance(output, dict):
+    return output  # AIPResult.failed avec "python_execution_failed"
+# output : str — contenu de stdout
+```
+
+**Opérations fichier :**
+
+```python
+# Lire un fichier → str
+content = await self.read_file(ctx, path="data/rapport.xlsx")
+
+# Écrire un fichier (crée les répertoires si nécessaire)
+await self.write_file(ctx, path="output/resultat.json", content=json.dumps(data))
+
+# Lister un répertoire → list[str]
+files = await self.list_files(ctx, path="data/", recursive=True)
+```
+
+**Délégation A2A :**
+
+```python
+# Déléguer à un autre Worker Agent par skill ID
+result = await self.delegate_skill(ctx, skill_id="generate-pdf", payload={"data": data})
+# Raccourci pour : await ctx.delegate(skill_id, payload, timeout_secs)
+```
+
+**Erreurs domaine :**
+
+```python
+# Retourner une erreur typée (codes standardisés)
+return self.domain_error("file_not_found", "Le fichier rapport.xlsx est introuvable",
+                          details={"path": path})
+```
+
+Codes d'erreur standardisés : `file_not_found`, `corrupted_file`, `parse_error`, `sheet_not_found`, `column_not_found`, `encoding_error`, `python_execution_failed`, `permission_denied`.
+
+#### Différences avec les autres classes de base
+
+| | `BaseReActAgent` | `WorkerAgent` | `OrchestratedAgent` |
+|---|---|---|---|
+| Boucle ReAct | oui | oui (héritée) | non (ORIA gère) |
+| Helpers tools | non | oui | non |
+| Helpers erreurs domaine | non | oui | non |
+| Usage typique | Agent générique | Expert domaine métier | Agent piloté par ORIA |
+| `supports_a2a` | optionnel | recommandé (`True`) | optionnel |
+| `MAX_STEPS` recommandé | 15 | 8 | — |
+| `TEMPERATURE` recommandée | 0.3 | 0.1 | — |
+
+#### Scaffolding Worker Agent
+
+```bash
+$ apollia-os agent new excel-agent --type worker
+# génère : excel_agent_agent.py + test_excel_agent_agent.py
+```
+
+> **Voir aussi :** [Worker Agent Pattern](./Worker-Agent-Pattern) — guide complet concept, anatomie, bonnes pratiques, publishing.
 
 ---
 
@@ -382,6 +546,7 @@ async def test_mon_agent_analyse():
 $ apollia-os agent new mon-agent
 $ apollia-os agent new assistant --type conversational
 $ apollia-os agent new analyseur --type orchestrated
+$ apollia-os agent new excel-agent --type worker
 
 # Ou directement via le SDK Python
 $ python -m apollia new mon-agent
@@ -488,4 +653,5 @@ L'ancien fichier `apollia_base.py` reste un wrapper de compatibilité et continu
 - [Agents Quickstart](./Agents-Quickstart) — premier agent en 5 minutes
 - [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — référence complète `ctx.*`
 - [Briques AIP Specification](./Briques-AIP-Specification) — contrat AIP complet
+- [Worker Agent Pattern](./Worker-Agent-Pattern) — guide complet pour créer un Worker Agent de A à Z
 - [ADR-037](../adr/ADR-037-python-sdk-packaging) — décision packaging SDK
