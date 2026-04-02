@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { Send } from "lucide-svelte";
+  import { tourPrefill } from "$lib/stores/tour";
 
   interface Props {
     disabled: boolean;
@@ -11,6 +13,26 @@
 
   let value = $state("");
   let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
+
+  // Pre-fill the input when the tour requests a chat send.
+  onMount(() => {
+    const unsubscribe = tourPrefill.subscribe((interaction) => {
+      if (
+        interaction !== null &&
+        interaction.interaction_type === "send_chat" &&
+        interaction.prefilled_data !== null &&
+        interaction.prefilled_data !== undefined
+      ) {
+        const msg = interaction.prefilled_data["message"];
+        if (typeof msg === "string" && value === "") {
+          value = msg;
+          autoResize();
+        }
+      }
+    });
+
+    return unsubscribe;
+  });
 
   function autoResize() {
     if (!textareaEl) return;

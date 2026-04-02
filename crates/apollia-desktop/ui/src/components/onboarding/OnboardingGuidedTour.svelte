@@ -1,15 +1,22 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+  import { listen, type UnlistenFn, type Event } from "@tauri-apps/api/event";
   import { get } from "svelte/store";
+  import { t } from "svelte-i18n";
   import { onboardingStore } from "$lib/stores/onboarding";
+  import { tourPrefill, tourCompanionOverride } from "$lib/stores/tour";
   import { navigateTo } from "$lib/stores/navigation";
   import TourSpotlight from "./TourSpotlight.svelte";
   import TourStepCard from "./TourStepCard.svelte";
   import TourProgressRail from "./TourProgressRail.svelte";
-  import type { TourStep, OnboardingPhase } from "$lib/types";
+  import type { TourStep, OnboardingPhase, AgentListItem } from "$lib/types";
   import type { Route } from "$lib/stores/navigation";
+
+  // ─── Constants ────────────────────────────────────────────────────────────────
+
+  /** Seconds before an interactive step is auto-skipped. */
+  const INTERACTION_TIMEOUT_S = 30;
 
   // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -20,12 +27,21 @@
   let skipping = $state(false);
   let showConfirmExit = $state(false);
   let autoTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+  let timeoutTimer = $state<ReturnType<typeof setTimeout> | null>(null);
   let waitEventUnlisten = $state<UnlistenFn | null>(null);
 
   // ─── Derived helpers ────────────────────────────────────────────────────────
 
   let currentStep = $derived(steps[stepIndex] ?? null);
   let totalSteps = $derived(steps.length);
+
+  /** Resolved companion title: override key takes precedence over step key. */
+  let companionTitle = $derived.by(() => {
+    const override = get(tourCompanionOverride);
+    if (override !== null) return $t(override);
+    if (currentStep !== null) return $t(currentStep.companion_message_key);
+    return "";
+  });
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -34,7 +50,10 @@
 
     return () => {
       clearAutoTimer();
+      clearTimeoutTimer();
       clearWaitEvent();
+      tourPrefill.set(null);
+      tourCompanionOverride.set(null);
     };
   });
 
@@ -68,10 +87,15 @@
 
   async function activateStep(index: number): Promise<void> {
     clearAutoTimer();
+    clearTimeoutTimer();
     clearWaitEvent();
+    tourCompanionOverride.set(null);
 
     const step = steps[index];
     if (step === undefined) return;
+
+    // Publish prefilled data for target pages to read.
+    tourPrefill.set(step.interaction ?? null);
 
     // Navigate to the step's route before DOM operations.
     const route = step.route.replace(/^\//, "") as Route;
@@ -84,8 +108,39 @@
     // Resolve the spotlight target with retry logic.
     targetRect = await resolveSelector(step.spotlight_selector);
 
+    // For the agent-start step, check if the demo agent is already running.
+    if (
+      step.interaction?.interaction_type === "start_agent" &&
+      step.interaction.prefilled_data !== null &&
+      step.interaction.prefilled_data !== undefined
+    ) {
+      const agentId = step.interaction.prefilled_data["agent_id"];
+      if (typeof agentId === "string") {
+        const alreadyRunning = await isDemoAgentRunning(agentId);
+        if (alreadyRunning) {
+          tourCompanionOverride.set("onboarding.tour.op.agents.already_active");
+          await advanceStep();
+          return;
+        }
+      }
+    }
+
     // Set up completion based on the mode.
     scheduleCompletion(step);
+  }
+
+  // ─── Demo agent pre-check ─────────────────────────────────────────────────
+
+  async function isDemoAgentRunning(agentName: string): Promise<boolean> {
+    try {
+      const agents = await invoke<AgentListItem[]>("list_agents");
+      return agents.some(
+        (a) => a.name === agentName && a.runtime_status === "active",
+      );
+    } catch (err) {
+      console.warn("[GuidedTour] list_agents failed, skipping pre-check:", err);
+      return false;
+    }
   }
 
   // ─── Selector resolution (3 retries × 500 ms) ─────────────────────────────
@@ -120,11 +175,20 @@
       case "wait_event": {
         const eventName = step.interaction?.validation_event;
         if (eventName !== null && eventName !== undefined) {
-          void listen(eventName, () => {
-            void advanceStep();
+          // Listen for the validation event on the generic "runtime-event" channel.
+          void listen<{ event_type: string }>("runtime-event", (event: Event<{ event_type: string }>) => {
+            if (event.payload.event_type === eventName) {
+              void advanceStep();
+            }
           }).then((fn) => {
             waitEventUnlisten = fn;
           });
+
+          // Auto-skip after INTERACTION_TIMEOUT_S if no event arrives.
+          timeoutTimer = setTimeout(() => {
+            tourCompanionOverride.set("onboarding.tour.op.timeout_skip");
+            void advanceStep();
+          }, INTERACTION_TIMEOUT_S * 1000);
         }
         break;
       }
@@ -145,6 +209,7 @@
     if (step === null) return;
 
     clearAutoTimer();
+    clearTimeoutTimer();
     clearWaitEvent();
 
     try {
@@ -165,6 +230,7 @@
   async function retreatStep(): Promise<void> {
     if (skipping || stepIndex === 0) return;
     clearAutoTimer();
+    clearTimeoutTimer();
     clearWaitEvent();
     stepIndex -= 1;
     await activateStep(stepIndex);
@@ -172,6 +238,8 @@
 
   async function finishTour(): Promise<void> {
     skipping = true;
+    tourPrefill.set(null);
+    tourCompanionOverride.set(null);
     try {
       await onboardingStore.advancePhase("graduation" as OnboardingPhase);
     } catch (err) {
@@ -228,6 +296,13 @@
     }
   }
 
+  function clearTimeoutTimer(): void {
+    if (timeoutTimer !== null) {
+      clearTimeout(timeoutTimer);
+      timeoutTimer = null;
+    }
+  }
+
   function clearWaitEvent(): void {
     if (waitEventUnlisten !== null) {
       waitEventUnlisten();
@@ -264,7 +339,7 @@
     <TourProgressRail {totalSteps} currentStep={stepIndex} />
 
     <TourStepCard
-      title={currentStep.companion_message_key}
+      title={companionTitle}
       description=""
       stepIndex={stepIndex}
       {totalSteps}

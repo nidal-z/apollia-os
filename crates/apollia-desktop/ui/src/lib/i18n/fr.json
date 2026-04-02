@@ -1062,7 +1062,48 @@
     "explore_llm_desc": "Configurer les backends de modèles IA",
     "explore_triggers_desc": "Automatiser l'exécution des agents",
     "explore_observability_desc": "Surveiller les performances et les coûts",
-    "explore_done": "Aller au tableau de bord"
+    "explore_done": "Aller au tableau de bord",
+    "tour": {
+      "op": {
+        "dashboard": {
+          "title": "Voici votre tableau de bord",
+          "message": "C'est le point central d'Apollia OS. Vous voyez vos agents actifs et l'activité récente."
+        },
+        "agents": {
+          "title": "Démarrons un agent",
+          "message": "Cliquez sur Démarrer pour activer csv-data-worker, votre premier agent de démo.",
+          "success": "Bravo ! L'agent est maintenant actif.",
+          "already_active": "L'agent est déjà actif, passons à la suite !"
+        },
+        "chat": {
+          "title": "Envoyez un message",
+          "message": "Un message est prérempli pour vous. Cliquez sur Envoyer ou appuyez sur Entrée.",
+          "success": "Message envoyé ! L'assistant traite votre demande."
+        },
+        "triggers": {
+          "title": "Créez un déclencheur",
+          "message": "Les déclencheurs automatisent vos agents. Le formulaire est prérempli, cliquez sur Créer.",
+          "success": "Déclencheur créé ! Votre agent s'exécutera automatiquement."
+        },
+        "approvals": {
+          "title": "File d'attente des approbations",
+          "message": "Certaines actions demandent votre accord avant d'être exécutées. Vous les gérez ici."
+        },
+        "notifications": {
+          "title": "Vos notifications",
+          "message": "Restez informé des événements importants via desktop ou webhook."
+        },
+        "observability": {
+          "title": "Observabilité",
+          "message": "Suivez l'activité de vos agents, les coûts LLM et les journaux d'outils en temps réel."
+        },
+        "graduation": {
+          "title": "Tour terminé !",
+          "message": "Vous maîtrisez l'essentiel d'Apollia OS. Explorez librement et revenez quand vous voulez."
+        },
+        "timeout_skip": "Pas de souci, vous pourrez essayer plus tard !"
+      }
+    }
   },
   "agent_detail": {
     "activity_title": "Activité récente",

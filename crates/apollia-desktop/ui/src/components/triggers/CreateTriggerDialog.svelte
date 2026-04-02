@@ -1,6 +1,8 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { get } from "svelte/store";
   import { t } from "svelte-i18n";
+  import { tourPrefill } from "$lib/stores/tour";
   import type {
     AgentListItem,
     PipelineInfo,
@@ -186,6 +188,38 @@
     if (open) {
       resetForm();
       void loadOptions();
+
+      // Pre-fill from tour context if available.
+      const prefill = get(tourPrefill);
+      if (
+        prefill !== null &&
+        prefill.interaction_type === "create_trigger" &&
+        prefill.prefilled_data !== null &&
+        prefill.prefilled_data !== undefined
+      ) {
+        const data = prefill.prefilled_data;
+        const agentId = data["agent_id"];
+        const type = data["type"];
+        const everySeconds = data["every_seconds"];
+
+        if (typeof agentId === "string") {
+          selectedAgent = agentId;
+          targetKind = "agent";
+        }
+        if (type === "interval") {
+          sourceType = "interval";
+          if (typeof everySeconds === "number") {
+            intervalEvery = `${everySeconds}s`;
+          }
+        }
+        const label = data["label"];
+        if (typeof label === "string") {
+          triggerId = label
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "");
+        }
+      }
     }
   });
 </script>

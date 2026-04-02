@@ -1062,7 +1062,48 @@
     "explore_llm_desc": "Configure AI model backends",
     "explore_triggers_desc": "Automate agent execution",
     "explore_observability_desc": "Monitor performance and costs",
-    "explore_done": "Go to dashboard"
+    "explore_done": "Go to dashboard",
+    "tour": {
+      "op": {
+        "dashboard": {
+          "title": "Welcome to your dashboard",
+          "message": "This is your central hub. You can see active agents and recent activity here."
+        },
+        "agents": {
+          "title": "Start an agent",
+          "message": "Click Start to activate csv-data-worker, your first demo agent.",
+          "success": "Great job! The agent is now active.",
+          "already_active": "The agent is already active, let's move on!"
+        },
+        "chat": {
+          "title": "Send a message",
+          "message": "A message has been pre-filled for you. Click Send or press Enter.",
+          "success": "Message sent! The assistant is processing your request."
+        },
+        "triggers": {
+          "title": "Create a trigger",
+          "message": "Triggers automate your agents. The form is pre-filled — just click Create.",
+          "success": "Trigger created! Your agent will now run automatically."
+        },
+        "approvals": {
+          "title": "Approval queue",
+          "message": "Some agent actions require your consent before they run. You manage them here."
+        },
+        "notifications": {
+          "title": "Your notifications",
+          "message": "Stay informed about important events via desktop or webhook."
+        },
+        "observability": {
+          "title": "Observability",
+          "message": "Monitor your agents' activity, LLM costs and tool logs in real time."
+        },
+        "graduation": {
+          "title": "Tour complete!",
+          "message": "You've mastered the essentials of Apollia OS. Explore freely and come back any time."
+        },
+        "timeout_skip": "No worries, you can try this later!"
+      }
+    }
   },
   "agent_detail": {
     "activity_title": "Recent activity",
