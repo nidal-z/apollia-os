@@ -1493,6 +1493,11 @@
       "both_profiles": "Les deux",
       "selecting": "Configuration…"
     },
+    "resume_bar": {
+      "step_label": "Étape {current} sur {total}",
+      "resume_btn": "Reprendre",
+      "dismiss_btn": "Plus tard"
+    },
     "graduation": {
       "title": "Vous êtes prêt !",
       "subtitle": "Voici un résumé de votre parcours d'onboarding.",

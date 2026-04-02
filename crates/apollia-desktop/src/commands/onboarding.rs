@@ -348,15 +348,22 @@ pub async fn get_onboarding_status(
 ///
 /// Pass `topic = None` for a full onboarding (all 5 topics).
 /// Pass `topic = Some("preferences")` for a single-topic re-run.
+///
+/// Pass `profile = Some("operator")` or `profile = Some("builder")` to inject
+/// the selected profile into the onboarding agent's memory before the session
+/// starts.  Passing `None` preserves backward-compatible generic behaviour.
 #[tauri::command]
 pub async fn trigger_onboarding(
     topic: Option<String>,
+    profile: Option<String>,
     state: State<'_, RuntimeHandle>,
 ) -> Result<TriggerResult, String> {
-    trigger_onboarding_inner(topic, &state).await.map_err(|e| {
-        tracing::error!(error = %e, "trigger_onboarding failed");
-        e.to_string()
-    })
+    trigger_onboarding_inner(topic, profile, &state)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "trigger_onboarding failed");
+            e.to_string()
+        })
 }
 
 /// Marks the onboarding as dismissed (skipped) by the user.
@@ -850,9 +857,45 @@ async fn get_onboarding_status_inner(
     status
 }
 
+/// Writes the active onboarding profile to the onboarding agent's semantic
+/// memory so the Python agent can read it via `ctx.memory.recall()` on its
+/// first conversational turn.
+///
+/// Writes to the agent's own namespace (`"onboarding-agent"`) under the key
+/// `"onboarding.active_profile"`.  A missing or unwritable memory store is
+/// treated as a non-fatal degradation — the agent falls back to generic
+/// questioning without the profile section.
+fn write_profile_to_agent_memory(profile: &str) {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let db_path = std::path::PathBuf::from(home)
+        .join(".apollia")
+        .join("memory")
+        .join("onboarding-agent.db");
+
+    let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
+        tracing::warn!("onboarding agent memory store not found — profile not injected");
+        return;
+    };
+    let sem = apollia_memory::semantic::SemanticMemory::new(&store);
+    if let Err(e) = sem.remember(
+        "onboarding-agent",
+        "onboarding.active_profile",
+        &serde_json::Value::String(profile.to_string()),
+        0.95,
+        Some("onboarding"),
+        None,
+    ) {
+        tracing::warn!(error = %e, "failed to write profile to agent memory");
+    }
+}
+
 /// Creates an onboarding chat session.
+///
+/// When `profile` is provided it is validated, then persisted to the onboarding
+/// agent's semantic memory so the Python agent can adapt its questions.
 async fn trigger_onboarding_inner(
     topic: Option<String>,
+    profile: Option<String>,
     state: &RuntimeHandle,
 ) -> Result<TriggerResult, OnboardingError> {
     // Validate topic if provided
@@ -860,6 +903,13 @@ async fn trigger_onboarding_inner(
         if !ONBOARDING_TOPICS.contains(&t.as_str()) {
             return Err(OnboardingError::InvalidTopic(t.clone()));
         }
+    }
+
+    // Validate and inject profile before creating the session.
+    if let Some(ref p) = profile {
+        validate_profile(p)?;
+        write_profile_to_agent_memory(p);
+        tracing::info!(profile = %p, "onboarding profile injected into agent memory");
     }
 
     // Verify the onboarding agent is registered
@@ -2672,6 +2722,38 @@ mod tests {
         // THEN human-readable output matches expected strings
         assert_eq!(format_size_human(4_500_000_000), "4.2 GB");
         assert_eq!(format_size_human(500_000_000), "476.8 MB");
+    }
+
+    #[test]
+    fn test_trigger_onboarding_with_operator_profile_validates() {
+        // GIVEN a valid operator profile
+        // WHEN validate_profile is called
+        let result = validate_profile("operator");
+        // THEN it succeeds — the profile will be injected into agent memory
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_trigger_onboarding_without_profile_is_retrocompatible() {
+        // GIVEN no profile (None)
+        // WHEN building the onboarding prompt without profile
+        let prompt = build_onboarding_prompt(&None);
+        // THEN the prompt covers all 5 generic topics (no profile-specific section)
+        for topic in &ONBOARDING_TOPICS {
+            assert!(prompt.contains(topic), "generic prompt must mention: {topic}");
+        }
+    }
+
+    #[test]
+    fn test_trigger_onboarding_rejects_invalid_profile() {
+        // GIVEN an unrecognised profile string
+        let result = validate_profile("hacker");
+        // THEN InvalidProfile error is returned
+        assert!(matches!(result, Err(OnboardingError::InvalidProfile(_))));
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("hacker"));
+        assert!(err_msg.contains("operator"));
+        assert!(err_msg.contains("builder"));
     }
 }
 

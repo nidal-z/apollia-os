@@ -41,6 +41,8 @@ MEMORY_KEY_LANGUAGE: str = "user.preferences.language"
 
 MEMORY_KEY_ONBOARDING_STATE: str = "onboarding.state"
 
+MEMORY_KEY_ACTIVE_PROFILE: str = "onboarding.active_profile"
+
 CONFIDENCE_EXPLICIT: float = 0.9
 CONFIDENCE_INFERRED: float = 0.5
 CONFIDENCE_VALIDATED: float = 0.95
@@ -482,6 +484,79 @@ questions indefinitely.\
 
 
 # ---------------------------------------------------------------------------
+# Profile-specific system prompt sections
+# ---------------------------------------------------------------------------
+
+OPERATOR_SECTION_FR = """\
+
+## Profil Operator détecté
+
+Tu parles à un Operator — quelqu'un qui veut utiliser des agents IA pour
+automatiser des tâches récurrentes sans écrire de code.
+Oriente tes questions vers :
+- Les tâches répétitives qu'il aimerait automatiser
+- Son niveau de confort avec la supervision d'agents autonomes
+- Ses préférences en matière de notifications et alertes
+Ne demande pas les détails techniques (stack, IDE, frameworks).\
+"""
+
+OPERATOR_SECTION_EN = """\
+
+## Operator profile detected
+
+You are talking to an Operator — someone who wants to use AI agents to
+automate recurring tasks without writing code.
+Focus your questions on:
+- The repetitive tasks they would like to automate
+- Their comfort level with supervising autonomous agents
+- Their preferences for notifications and alerts
+Do not ask technical details (stack, IDE, frameworks).\
+"""
+
+BUILDER_SECTION_FR = """\
+
+## Profil Builder détecté
+
+Tu parles à un Builder — un développeur qui veut créer ses propres agents.
+Oriente tes questions vers :
+- Son expérience avec Python et la programmation async
+- Les frameworks d'agents qu'il connaît (LangGraph, CrewAI, AutoGen…)
+- Sa stack technique actuelle et ses outils préférés
+Tu peux utiliser le vocabulaire technique (async/await, SDKs, manifests).\
+"""
+
+BUILDER_SECTION_EN = """\
+
+## Builder profile detected
+
+You are talking to a Builder — a developer who wants to create their own agents.
+Focus your questions on:
+- Their experience with Python and async programming
+- The agent frameworks they know (LangGraph, CrewAI, AutoGen…)
+- Their current tech stack and preferred tools
+You may use technical vocabulary (async/await, SDKs, manifests).\
+"""
+
+
+def build_system_prompt_with_profile(lang: str, profile: str | None) -> str:
+    """Build the full system prompt for the given language and optional profile.
+
+    Returns the base system prompt for ``lang`` with an appended
+    profile-specific section when ``profile`` is ``"operator"`` or
+    ``"builder"``.  Falls back to the generic prompt for ``None`` or
+    unrecognised values.
+    """
+    base = _SYSTEM_PROMPT_FR if lang == "fr" else _SYSTEM_PROMPT_EN
+    if profile == "operator":
+        section = OPERATOR_SECTION_FR if lang == "fr" else OPERATOR_SECTION_EN
+        return base + section
+    if profile == "builder":
+        section = BUILDER_SECTION_FR if lang == "fr" else BUILDER_SECTION_EN
+        return base + section
+    return base
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -623,9 +698,18 @@ class OnboardingAgent(ConversationalAgent):
         if is_first_message:
             lang = _detect_language(user_message)
             self._current_language = lang
-            self.SYSTEM_PROMPT = (
-                _SYSTEM_PROMPT_FR if lang == "fr" else _SYSTEM_PROMPT_EN
-            )
+
+            # Read the active profile injected by the runtime before session
+            # creation — None when no profile was set.
+            active_profile: str | None = None
+            if ctx.memory is not None:
+                try:
+                    active_profile = await ctx.memory.recall(MEMORY_KEY_ACTIVE_PROFILE)
+                except Exception:
+                    active_profile = None
+
+            self.SYSTEM_PROMPT = build_system_prompt_with_profile(lang, active_profile)
+
             if ctx.memory is not None:
                 await persist_insight(
                     ctx, MEMORY_KEY_LANGUAGE, lang, explicit=False,
