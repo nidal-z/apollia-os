@@ -504,6 +504,8 @@ fn main() {
             commands::onboarding::scan_for_gguf_models,
             commands::onboarding::scan_for_whisper_models,
             commands::onboarding::setup_whisper_model,
+            commands::onboarding::get_companion_context,
+            commands::onboarding::create_companion_session,
             commands::user_memory::get_user_memory_profile,
             commands::user_memory::update_user_memory_entry,
             commands::user_memory::validate_user_memory,

@@ -11,6 +11,9 @@
   import OnboardingGraduation from "./components/onboarding/OnboardingGraduation.svelte";
   import { ToastContainer } from "$lib/components/ui/toast";
   import ExtractionNotifier from "./components/chat/ExtractionNotifier.svelte";
+  import CompanionContextProvider from "./components/companion/CompanionContextProvider.svelte";
+  import CompanionPanel from "./components/companion/CompanionPanel.svelte";
+  import CompanionToggle from "./components/companion/CompanionToggle.svelte";
   import { Tooltip } from "bits-ui";
   import { createSSEConnection } from "$lib/stores/sse";
   import { initTheme } from "$lib/stores/theme";
@@ -44,10 +47,14 @@
       <p class="text-sm text-muted-foreground">Loading…</p>
     </div>
   {:else if $onboardingStore.completed || $onboardingStore.phase === "done"}
-    <div class="flex h-screen w-screen overflow-hidden" data-testid="app-main">
-      <Sidebar />
-      <Main />
-    </div>
+    <CompanionContextProvider>
+      <div class="flex h-screen w-screen overflow-hidden" data-testid="app-main">
+        <Sidebar />
+        <Main />
+      </div>
+      <CompanionPanel />
+      <CompanionToggle />
+    </CompanionContextProvider>
     <ExtractionNotifier />
     <ToastContainer />
   {:else if $onboardingStore.phase === "welcome"}
@@ -63,10 +70,14 @@
   {:else if $onboardingStore.phase === "graduation"}
     <OnboardingGraduation />
   {:else}
-    <div class="flex h-screen w-screen overflow-hidden" data-testid="app-main">
-      <Sidebar />
-      <Main />
-    </div>
+    <CompanionContextProvider>
+      <div class="flex h-screen w-screen overflow-hidden" data-testid="app-main">
+        <Sidebar />
+        <Main />
+      </div>
+      <CompanionPanel />
+      <CompanionToggle />
+    </CompanionContextProvider>
     <ExtractionNotifier />
     <ToastContainer />
   {/if}

@@ -951,6 +951,191 @@ fn build_onboarding_prompt(topic: &Option<String>) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Companion — context table
+// ---------------------------------------------------------------------------
+
+/// Per-route contextual help texts displayed in the Companion panel.
+const COMPANION_CONTEXTS: &[(&str, &str)] = &[
+    ("dashboard", "Vous êtes sur le tableau de bord. Ici vous voyez un aperçu de vos agents actifs, les événements récents, et l'état du système. Posez-moi des questions sur la gestion de vos agents."),
+    ("agents", "Vous êtes sur la page Agents. Vous pouvez créer, configurer et surveiller vos agents IA. Chaque agent a un manifest Python avec les fonctions manifest() et run()."),
+    ("chat", "Vous êtes sur la page Chat. Vous pouvez converser avec un LLM local ou interagir avec vos agents via le Chat Libre. Les sessions sont sauvegardées localement."),
+    ("triggers", "Vous êtes sur la page Triggers. Les triggers déclenchent automatiquement des agents selon des conditions : cron, intervalle, surveillance de fichiers, ou webhooks."),
+    ("pipelines", "Vous êtes sur la page Pipelines. Les pipelines orchestrent plusieurs agents en séquence ou en parallèle avec topologie DAG, fan-out/fan-in, et points de validation humaine."),
+    ("memory", "Vous êtes sur la page Mémoire. Apollia offre 3 types de mémoire : épisodique (événements), sémantique (connaissances), et procédurale (savoir-faire). Recherche FTS5 intégrée."),
+    ("integrations", "Vous êtes sur la page Intégrations MCP. Connectez des serveurs MCP externes pour donner de nouveaux outils à vos agents via le protocole standard JSON-RPC 2.0."),
+    ("approvals", "Vous êtes sur la page Approbations. Les actions sensibles de vos agents peuvent nécessiter votre validation avant exécution (Human-in-the-Loop)."),
+    ("observability", "Vous êtes sur la page Observabilité. Suivez les traces d'exécution de vos agents, les métriques de performance, et les logs structurés en temps réel."),
+    ("notifications", "Vous êtes sur la page Notifications. Configurez les alertes desktop et webhooks pour être informé des événements importants de vos agents."),
+    ("transcriptions", "Vous êtes sur la page Transcriptions. Visualisez les transcriptions audio générées par le moteur STT Whisper intégré."),
+    ("llm", "Vous êtes sur la page LLM. Configurez les backends de modèles de langage : llama.cpp local, Ollama, ou API cloud (Anthropic, OpenAI) pour vos agents."),
+    ("settings", "Vous êtes sur la page Paramètres. Configurez les options globales d'Apollia : chemins, logs, limites de ressources, et préférences utilisateur."),
+    ("onboarding", "Vous êtes en cours d'onboarding. Je suis là pour vous guider à travers la découverte d'Apollia. N'hésitez pas à me poser des questions à chaque étape."),
+];
+
+/// Generic fallback when no route-specific context is available.
+const COMPANION_CONTEXT_FALLBACK: &str =
+    "Je suis votre assistant Apollia. Posez-moi n'importe quelle question sur l'application, vos agents, ou les fonctionnalités disponibles.";
+
+/// Returns the contextual help text for the given application route.
+///
+/// Falls back to a generic message for unknown routes.
+pub fn get_companion_context_text(route: &str) -> &'static str {
+    COMPANION_CONTEXTS
+        .iter()
+        .find(|(r, _)| *r == route)
+        .map(|(_, ctx)| *ctx)
+        .unwrap_or(COMPANION_CONTEXT_FALLBACK)
+}
+
+/// Return payload for companion session creation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompanionSessionResult {
+    /// Unique identifier of the newly created companion session.
+    pub session_id: String,
+}
+
+// ---------------------------------------------------------------------------
+// Companion — Tauri commands
+// ---------------------------------------------------------------------------
+
+/// Returns the contextual help text for the given application route.
+///
+/// Exposes [`get_companion_context_text`] over IPC so the frontend can
+/// pre-load context before opening the panel.
+#[tauri::command]
+pub async fn get_companion_context(route: String) -> Result<String, String> {
+    Ok(get_companion_context_text(&route).to_string())
+}
+
+/// Creates a Chat Libre companion session with a route-contextual system prompt.
+///
+/// The session is persisted normally through the chat subsystem. On success,
+/// the `session_id` is stored in the onboarding state so other commands can
+/// reference the active companion session.
+#[tauri::command]
+pub async fn create_companion_session(
+    context: Option<String>,
+    state: State<'_, RuntimeHandle>,
+) -> Result<CompanionSessionResult, String> {
+    create_companion_session_inner(context, &state)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "create_companion_session failed");
+            e.to_string()
+        })
+}
+
+async fn create_companion_session_inner(
+    context: Option<String>,
+    state: &RuntimeHandle,
+) -> Result<CompanionSessionResult, OnboardingError> {
+    let context_text = context
+        .as_deref()
+        .map(get_companion_context_text)
+        .unwrap_or(COMPANION_CONTEXT_FALLBACK);
+
+    let system_prompt = format!(
+        "Tu es le Companion Apollia, un assistant contextuel intégré à l'interface. \
+         {context_text} \
+         Réponds de manière concise et adaptée au contexte de la page. \
+         Tu n'injectes jamais de mémoire automatiquement — c'est l'utilisateur qui décide."
+    );
+
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or(OnboardingError::ChatNotAvailable)?;
+
+    let info = manager
+        .create_session(ChatMode::Libre, None, Some(system_prompt), Vec::new())
+        .await
+        .map_err(|e| OnboardingError::SessionCreationFailed(e.to_string()))?;
+
+    let session_id = info.id.clone();
+
+    // Best-effort: persist the companion session id in the onboarding state.
+    if let Ok(repo) = get_repo(state) {
+        let sid = session_id.clone();
+        let _ = tokio::task::spawn_blocking(move || {
+            if let Ok(repo) = repo.lock() {
+                let mut ob_state = load_state_from_memory(&repo).unwrap_or_default();
+                ob_state.companion_session_id = Some(sid);
+                let _ = persist_state(&repo, &ob_state);
+            }
+        })
+        .await;
+    }
+
+    tracing::info!(
+        session_id = %session_id,
+        context = ?context,
+        "companion session created"
+    );
+
+    Ok(CompanionSessionResult { session_id })
+}
+
+// ---------------------------------------------------------------------------
+// Companion — tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod companion_tests {
+    use super::*;
+
+    #[test]
+    fn test_companion_context_for_all_routes() {
+        // GIVEN the 15 defined routes
+        let routes = [
+            "dashboard",
+            "agents",
+            "chat",
+            "triggers",
+            "pipelines",
+            "memory",
+            "integrations",
+            "approvals",
+            "observability",
+            "notifications",
+            "transcriptions",
+            "llm",
+            "settings",
+            "onboarding",
+        ];
+        // WHEN getting context for each route
+        // THEN all return non-empty strings
+        for route in routes {
+            let ctx = get_companion_context_text(route);
+            assert!(
+                !ctx.is_empty(),
+                "context for route '{}' should not be empty",
+                route
+            );
+        }
+    }
+
+    #[test]
+    fn test_companion_context_unknown_route() {
+        // GIVEN an unknown route
+        let ctx = get_companion_context_text("nonexistent");
+        // THEN a non-empty fallback is returned
+        assert!(!ctx.is_empty());
+        assert_eq!(ctx, COMPANION_CONTEXT_FALLBACK);
+    }
+
+    #[test]
+    fn test_companion_context_all_routes_distinct() {
+        // GIVEN the defined route table
+        // WHEN extracting all context strings
+        let mut seen = std::collections::HashSet::new();
+        for (_, ctx) in COMPANION_CONTEXTS {
+            // THEN each route has a unique context text
+            assert!(seen.insert(*ctx), "duplicate context text: {ctx}");
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // AI Setup — types
 // ---------------------------------------------------------------------------
 
