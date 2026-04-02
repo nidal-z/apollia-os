@@ -1492,6 +1492,26 @@
       "builder_examples": "LangGraph · CrewAI · Custom agents",
       "both_profiles": "Both",
       "selecting": "Configuring…"
+    },
+    "graduation": {
+      "title": "You're ready!",
+      "subtitle": "Here's a summary of your onboarding journey.",
+      "profile_label": "Profile",
+      "profile_operator": "Operator",
+      "profile_builder": "Builder",
+      "stat_features": "Steps explored",
+      "stat_actions": "Actions completed",
+      "stat_time": "Total time",
+      "stat_time_unit": "min",
+      "companion_toggle": "Keep Apollia assistant",
+      "companion_desc": "Get contextual help in every section of the app.",
+      "card_agents": "Agents",
+      "card_agents_desc": "Launch and manage your AI agents",
+      "card_chat": "Chat",
+      "card_chat_desc": "Talk to your agents or a local LLM",
+      "card_settings": "Settings",
+      "card_settings_desc": "Configure your Apollia environment",
+      "cta": "Get Started"
     }
   }
 }

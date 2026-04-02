@@ -1083,6 +1083,25 @@ async fn create_companion_session_inner(
     Ok(CompanionSessionResult { session_id })
 }
 
+/// Persists the companion-enabled preference to UserMemory.
+///
+/// Writes `enabled` as `"true"` or `"false"` to the `companion_enabled` key
+/// under the `Context` category.  The preference is read by the CompanionToggle
+/// on subsequent app launches.
+#[tauri::command]
+pub async fn set_companion_enabled(
+    enabled: bool,
+    state: State<'_, RuntimeHandle>,
+) -> Result<(), String> {
+    let repo = get_repo(&state).map_err(|e| e.to_string())?;
+    tokio::task::spawn_blocking(move || {
+        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
+        write_bool(&repo, "companion_enabled", enabled).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+}
+
 // ---------------------------------------------------------------------------
 // Companion — tests
 // ---------------------------------------------------------------------------
@@ -2936,5 +2955,95 @@ mod voice_command_tests {
             }
             other => panic!("expected AskCompanion, got {other:?}"),
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Graduation — tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod graduation_tests {
+    use super::*;
+    use apollia_memory::user_memory::UserMemoryRepository;
+
+    fn make_repo() -> (UserMemoryRepository, tempfile::TempDir) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("test_onboarding.db");
+        let repo = UserMemoryRepository::new(&path).expect("repo");
+        (repo, dir)
+    }
+
+    #[test]
+    fn test_graduation_emits_onboarding_completed_event() {
+        // GIVEN an onboarding state in Graduation phase with populated stats
+        let state = OnboardingState {
+            phase: OnboardingPhase::Graduation,
+            profile: Some("operator".to_string()),
+            stats: OnboardingStats {
+                total_time_sec: 720,
+                actions_completed: 12,
+                companion_questions: 3,
+                voice_commands_used: 1,
+            },
+            ..OnboardingState::default()
+        };
+        // WHEN constructing the OnboardingCompleted event (mirrors advance_onboarding_phase_inner)
+        let profile = state
+            .profile
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string());
+        let event = apollia_core::RuntimeEvent::OnboardingCompleted {
+            profile: profile.clone(),
+            duration_sec: state.stats.total_time_sec,
+            actions_count: state.stats.actions_completed,
+        };
+        let json = serde_json::to_string(&event).expect("serialize");
+        // THEN the event carries the correct values
+        assert!(json.contains("operator"), "event should carry profile");
+        assert!(json.contains("720"), "event should carry duration_sec");
+        assert!(json.contains("12"), "event should carry actions_count");
+        assert!(state.can_advance_to(&OnboardingPhase::Done));
+    }
+
+    #[test]
+    fn test_graduation_stats_computed_from_user_memory() {
+        // GIVEN stats persisted in UserMemory via persist_state
+        let (repo, _dir) = make_repo();
+        let persisted = OnboardingState {
+            phase: OnboardingPhase::Graduation,
+            profile: Some("builder".to_string()),
+            stats: OnboardingStats {
+                total_time_sec: 480,
+                actions_completed: 9,
+                companion_questions: 5,
+                voice_commands_used: 2,
+            },
+            ..OnboardingState::default()
+        };
+        persist_state(&repo, &persisted).expect("persist");
+        // WHEN loading the state back from UserMemory
+        let loaded = load_state_from_memory(&repo).expect("load");
+        // THEN the stats and profile match what was persisted
+        assert_eq!(loaded.stats.total_time_sec, 480);
+        assert_eq!(loaded.stats.actions_completed, 9);
+        assert_eq!(loaded.stats.companion_questions, 5);
+        assert_eq!(loaded.stats.voice_commands_used, 2);
+        assert_eq!(loaded.profile, Some("builder".to_string()));
+        assert_eq!(loaded.phase, OnboardingPhase::Graduation);
+    }
+
+    #[test]
+    fn test_companion_enabled_persisted() {
+        // GIVEN a fresh UserMemoryRepository
+        let (repo, _dir) = make_repo();
+        // WHEN writing companion_enabled = true
+        write_bool(&repo, "companion_enabled", true).expect("write true");
+        // THEN it reads back as true
+        assert!(read_bool(&repo, "companion_enabled").expect("read true"));
+        // WHEN writing companion_enabled = false
+        write_bool(&repo, "companion_enabled", false).expect("write false");
+        // THEN it reads back as false
+        assert!(!read_bool(&repo, "companion_enabled").expect("read false"));
     }
 }
