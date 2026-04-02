@@ -299,6 +299,91 @@ pub async fn list_stt_models(
     Ok(models)
 }
 
+// ── TOML helpers ─────────────────────────────────────────────────────
+
+/// Formats an `[stt]` TOML block from a config view.
+///
+/// Keys are padded to 21 characters for alignment. The `language` key is
+/// omitted when its value is `None`.
+#[cfg(test)]
+fn format_stt_block(config: &SttConfigView) -> String {
+    let mut lines = vec![
+        "[stt]".to_owned(),
+        format!("{:<21}= {}", "enabled", config.enabled),
+        format!("{:<21}= \"{}\"", "model_path", config.model_path),
+        format!("{:<21}= \"{}\"", "hotkey", config.hotkey),
+        format!("{:<21}= \"{}\"", "clipboard_mode", config.clipboard_mode),
+        format!("{:<21}= {}", "clipboard_restore", config.clipboard_restore),
+        format!(
+            "{:<21}= {}",
+            "silence_threshold_db", config.silence_threshold_db
+        ),
+        format!("{:<21}= {}", "max_recording_sec", config.max_recording_sec),
+        format!("{:<21}= \"{}\"", "trigger_mode", config.trigger_mode),
+    ];
+    if let Some(ref lang) = config.language {
+        lines.push(format!("{:<21}= \"{}\"", "language", lang));
+    }
+    lines.join("\n")
+}
+
+/// Replaces the `[stt]` section in `toml_content` with `new_block`,
+/// or appends `new_block` when no `[stt]` section exists.
+///
+/// Sections other than `[stt]` are preserved in their original order.
+#[cfg(test)]
+fn replace_or_append_stt_section(toml_content: &str, new_block: &str) -> String {
+    // Find the byte offset of "[stt]" in the content
+    if let Some(start) = find_section_start(toml_content, "[stt]") {
+        // Find where the next section starts (or end of string)
+        let after_stt = &toml_content[start + "[stt]".len()..];
+        let end_offset = find_next_section_offset(after_stt)
+            .map(|o| start + "[stt]".len() + o)
+            .unwrap_or(toml_content.len());
+
+        let before = toml_content[..start].trim_end_matches('\n');
+        let after = toml_content[end_offset..].trim_start_matches('\n');
+
+        if after.is_empty() {
+            format!("{}\n\n{}\n", before, new_block)
+        } else {
+            format!("{}\n\n{}\n\n{}\n", before, new_block, after)
+        }
+    } else {
+        let base = toml_content.trim_end_matches('\n');
+        format!("{}\n\n{}\n", base, new_block)
+    }
+}
+
+/// Returns the byte offset of the line starting with `header` in `content`.
+#[cfg(test)]
+fn find_section_start(content: &str, header: &str) -> Option<usize> {
+    let mut offset = 0;
+    for line in content.lines() {
+        if line.trim() == header {
+            return Some(offset);
+        }
+        offset += line.len() + 1; // +1 for '\n'
+    }
+    None
+}
+
+/// Returns the byte offset within `content` where the next TOML section
+/// header (`[…]`) begins, or `None` if no such header is found.
+#[cfg(test)]
+fn find_next_section_offset(content: &str) -> Option<usize> {
+    let mut offset = 0;
+    let mut first = true;
+    for line in content.lines() {
+        if !first && line.starts_with('[') && !line.starts_with("[[") {
+            return Some(offset);
+        }
+        first = false;
+        offset += line.len() + 1;
+    }
+    None
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────
 
 /// Extracts the `SttRepository` from the runtime handle.

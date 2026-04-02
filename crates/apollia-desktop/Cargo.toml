@@ -58,6 +58,7 @@ tauri          = { version = "2", features = ["devtools", "tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
+sysinfo          = { workspace = true }
 arboard          = { workspace = true }
 enigo            = { workspace = true }
 hound            = { workspace = true }

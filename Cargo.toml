@@ -100,6 +100,9 @@ hf-hub = "0.3"
 # --- Progress bars (CLI download) ---
 indicatif = "0.17"
 
+# --- System information (RAM, OS, GPU detection — apollia-desktop onboarding) ---
+sysinfo = "0.31"
+
 # --- Clipboard + keyboard simulation (apollia-desktop STT injection) ---
 arboard = "3"
 enigo = "0.5"
