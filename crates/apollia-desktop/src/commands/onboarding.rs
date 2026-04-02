@@ -17,9 +17,7 @@
 
 use std::sync::Arc;
 
-use apollia_memory::user_memory::{
-    UserMemoryCategory, UserMemoryRepository, UserMemorySource,
-};
+use apollia_memory::user_memory::{UserMemoryCategory, UserMemoryRepository, UserMemorySource};
 use apollia_runtime::chat::ChatMode;
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
@@ -393,8 +391,9 @@ async fn advance_onboarding_phase_inner(
     target_phase: String,
     state: &RuntimeHandle,
 ) -> Result<OnboardingState, OnboardingError> {
-    let target = OnboardingPhase::from_str(&target_phase)
-        .ok_or_else(|| OnboardingError::PersistenceError(format!("unknown phase: {target_phase}")))?;
+    let target = OnboardingPhase::from_str(&target_phase).ok_or_else(|| {
+        OnboardingError::PersistenceError(format!("unknown phase: {target_phase}"))
+    })?;
 
     let repo = get_repo(state)?;
     let event_sender = state.event_sender.clone();
@@ -513,9 +512,7 @@ fn load_state_from_memory(repo: &UserMemoryRepository) -> Result<OnboardingState
     let topics_covered = repo
         .recall_by_key(ctx, "onboarding_topics_covered")
         .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?
-        .map(|e| {
-            serde_json::from_str::<Vec<String>>(&e.value).unwrap_or_default()
-        })
+        .map(|e| serde_json::from_str::<Vec<String>>(&e.value).unwrap_or_default())
         .unwrap_or_default();
 
     let mandatory_complete = read_bool(repo, "onboarding_mandatory_complete")?;
@@ -599,7 +596,11 @@ fn persist_state(
     repo.store(ctx, "onboarding_topics_covered", &topics_json, src)
         .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
 
-    write_bool(repo, "onboarding_mandatory_complete", state.mandatory_complete)?;
+    write_bool(
+        repo,
+        "onboarding_mandatory_complete",
+        state.mandatory_complete,
+    )?;
     write_u32(repo, "onboarding_tour_step_index", state.tour_step_index)?;
     write_u32(repo, "onboarding_tour_total_steps", state.tour_total_steps)?;
     write_bool(repo, "onboarding_tour_completed", state.tour_completed)?;
@@ -632,10 +633,26 @@ fn persist_state(
     )
     .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
 
-    write_u64(repo, "onboarding_stats_total_time_sec", state.stats.total_time_sec)?;
-    write_u32(repo, "onboarding_stats_actions_completed", state.stats.actions_completed)?;
-    write_u32(repo, "onboarding_stats_companion_questions", state.stats.companion_questions)?;
-    write_u32(repo, "onboarding_stats_voice_commands_used", state.stats.voice_commands_used)?;
+    write_u64(
+        repo,
+        "onboarding_stats_total_time_sec",
+        state.stats.total_time_sec,
+    )?;
+    write_u32(
+        repo,
+        "onboarding_stats_actions_completed",
+        state.stats.actions_completed,
+    )?;
+    write_u32(
+        repo,
+        "onboarding_stats_companion_questions",
+        state.stats.companion_questions,
+    )?;
+    write_u32(
+        repo,
+        "onboarding_stats_voice_commands_used",
+        state.stats.voice_commands_used,
+    )?;
 
     Ok(())
 }
@@ -651,11 +668,7 @@ fn read_bool(repo: &UserMemoryRepository, key: &str) -> Result<bool, OnboardingE
     Ok(entry.map(|e| e.value == "true").unwrap_or(false))
 }
 
-fn write_bool(
-    repo: &UserMemoryRepository,
-    key: &str,
-    value: bool,
-) -> Result<(), OnboardingError> {
+fn write_bool(repo: &UserMemoryRepository, key: &str, value: bool) -> Result<(), OnboardingError> {
     repo.store(
         UserMemoryCategory::Context,
         key,
@@ -669,9 +682,7 @@ fn read_u32(repo: &UserMemoryRepository, key: &str) -> Result<u32, OnboardingErr
     let entry = repo
         .recall_by_key(UserMemoryCategory::Context, key)
         .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
-    Ok(entry
-        .and_then(|e| e.value.parse::<u32>().ok())
-        .unwrap_or(0))
+    Ok(entry.and_then(|e| e.value.parse::<u32>().ok()).unwrap_or(0))
 }
 
 fn write_u32(repo: &UserMemoryRepository, key: &str, value: u32) -> Result<(), OnboardingError> {
@@ -688,9 +699,7 @@ fn read_u64(repo: &UserMemoryRepository, key: &str) -> Result<u64, OnboardingErr
     let entry = repo
         .recall_by_key(UserMemoryCategory::Context, key)
         .map_err(|e| OnboardingError::PersistenceError(e.to_string()))?;
-    Ok(entry
-        .and_then(|e| e.value.parse::<u64>().ok())
-        .unwrap_or(0))
+    Ok(entry.and_then(|e| e.value.parse::<u64>().ok()).unwrap_or(0))
 }
 
 fn write_u64(repo: &UserMemoryRepository, key: &str, value: u64) -> Result<(), OnboardingError> {
@@ -924,8 +933,7 @@ async fn dismiss_onboarding_inner(state: &RuntimeHandle) -> Result<(), Onboardin
         Ok::<(), OnboardingError>(())
     })
     .await
-    .map_err(|e| OnboardingError::SessionCreationFailed(format!("spawn_blocking failed: {e}")))?
-    ?;
+    .map_err(|e| OnboardingError::SessionCreationFailed(format!("spawn_blocking failed: {e}")))??;
 
     tracing::info!("onboarding dismissed by user");
     Ok(())
@@ -1220,10 +1228,7 @@ pub async fn scan_for_gguf_models() -> Result<Vec<GgufModelInfo>, String> {
             home_path.join(".apollia").join("models"),
             home_path.join("Downloads"),
         ];
-        let lm_studio_root = home_path
-            .join(".cache")
-            .join("lm-studio")
-            .join("models");
+        let lm_studio_root = home_path.join(".cache").join("lm-studio").join("models");
 
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut models: Vec<GgufModelInfo> = Vec::new();
@@ -1436,9 +1441,7 @@ fn collect_gguf_recursive(
         };
         if file_type.is_dir() {
             collect_gguf_recursive(&path, out, depth + 1, max_depth);
-        } else if file_type.is_file()
-            && path.extension().and_then(|e| e.to_str()) == Some("gguf")
-        {
+        } else if file_type.is_file() && path.extension().and_then(|e| e.to_str()) == Some("gguf") {
             let size_bytes = entry.metadata().map(|m| m.len()).unwrap_or(0);
             let filename = path
                 .file_name()
@@ -1572,6 +1575,445 @@ fn detect_gpu_basic() -> bool {
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     {
         false
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Guided Tour — types
+// ---------------------------------------------------------------------------
+
+/// Interaction descriptor for a tour step that requires user action.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TourInteraction {
+    /// Kind of interaction: `"start_agent"` | `"send_chat"` | `"create_trigger"` | `"search_memory"`.
+    pub interaction_type: String,
+    /// Optional data pre-filled in the relevant UI form.
+    pub prefilled_data: Option<serde_json::Value>,
+    /// SSE event name that marks the step as completed when received.
+    pub validation_event: Option<String>,
+}
+
+/// Descriptor for a single step of the guided tour.
+///
+/// Each step specifies a route to navigate to, a DOM element to highlight,
+/// a companion message key (i18n), an optional user interaction, a completion
+/// mode, and an estimated duration the user should spend on the step.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TourStep {
+    /// Stable identifier used for persistence.
+    pub id: String,
+    /// Application route to navigate to (e.g. `"/agents"`).
+    pub route: String,
+    /// CSS selector of the element to highlight via the spotlight overlay.
+    pub spotlight_selector: Option<String>,
+    /// i18n key for the companion message shown on this step.
+    pub companion_message_key: String,
+    /// Optional interactive action required to complete the step.
+    pub interaction: Option<TourInteraction>,
+    /// How the step is completed: `"auto"` | `"click_next"` | `"wait_event"`.
+    pub completion_mode: String,
+    /// Suggested time to spend on the step, in seconds. Used by `"auto"` mode.
+    pub estimated_seconds: u32,
+}
+
+// ---------------------------------------------------------------------------
+// Guided Tour — step catalogue
+// ---------------------------------------------------------------------------
+
+/// Returns the ordered tour steps for the Operator profile (8 steps).
+fn operator_steps() -> Vec<TourStep> {
+    vec![
+        TourStep {
+            id: "op-welcome".to_string(),
+            route: "/dashboard".to_string(),
+            spotlight_selector: None,
+            companion_message_key: "onboarding.tour.op.welcome".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+        },
+        TourStep {
+            id: "op-agents-list".to_string(),
+            route: "/agents".to_string(),
+            spotlight_selector: Some("[data-testid=\"agent-list\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.agents_list".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 15,
+        },
+        TourStep {
+            id: "op-agents-start".to_string(),
+            route: "/agents".to_string(),
+            spotlight_selector: Some("[data-testid=\"start-agent-btn\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.agents_start".to_string(),
+            interaction: Some(TourInteraction {
+                interaction_type: "start_agent".to_string(),
+                prefilled_data: Some(serde_json::json!({ "agent": "csv-data-worker" })),
+                validation_event: Some("AgentReady".to_string()),
+            }),
+            completion_mode: "wait_event".to_string(),
+            estimated_seconds: 30,
+        },
+        TourStep {
+            id: "op-tasks".to_string(),
+            route: "/tasks".to_string(),
+            spotlight_selector: Some("[data-testid=\"task-list\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.tasks".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 15,
+        },
+        TourStep {
+            id: "op-triggers".to_string(),
+            route: "/triggers".to_string(),
+            spotlight_selector: Some("[data-testid=\"trigger-list\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.triggers".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 20,
+        },
+        TourStep {
+            id: "op-observability".to_string(),
+            route: "/observability".to_string(),
+            spotlight_selector: Some("[data-testid=\"timeline-global\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.observability".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 20,
+        },
+        TourStep {
+            id: "op-llm".to_string(),
+            route: "/llm".to_string(),
+            spotlight_selector: Some("[data-testid=\"llm-backend-list\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.llm".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 15,
+        },
+        TourStep {
+            id: "op-done".to_string(),
+            route: "/dashboard".to_string(),
+            spotlight_selector: None,
+            companion_message_key: "onboarding.tour.op.done".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+        },
+    ]
+}
+
+/// Returns the ordered tour steps for the Builder profile (10 steps).
+fn builder_steps() -> Vec<TourStep> {
+    vec![
+        TourStep {
+            id: "bl-welcome".to_string(),
+            route: "/dashboard".to_string(),
+            spotlight_selector: None,
+            companion_message_key: "onboarding.tour.bl.welcome".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+        },
+        TourStep {
+            id: "bl-agents-create".to_string(),
+            route: "/agents".to_string(),
+            spotlight_selector: Some("[data-testid=\"create-agent-btn\"]".to_string()),
+            companion_message_key: "onboarding.tour.bl.agents_create".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 20,
+        },
+        TourStep {
+            id: "bl-agents-detail".to_string(),
+            route: "/agents".to_string(),
+            spotlight_selector: Some("[data-testid=\"agent-detail\"]".to_string()),
+            companion_message_key: "onboarding.tour.bl.agents_detail".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 20,
+        },
+        TourStep {
+            id: "bl-chat".to_string(),
+            route: "/chat".to_string(),
+            spotlight_selector: Some("[data-testid=\"chat-input\"]".to_string()),
+            companion_message_key: "onboarding.tour.bl.chat".to_string(),
+            interaction: Some(TourInteraction {
+                interaction_type: "send_chat".to_string(),
+                prefilled_data: Some(serde_json::json!({ "message": "Hello Apollia!" })),
+                validation_event: Some("ChatMessageSent".to_string()),
+            }),
+            completion_mode: "wait_event".to_string(),
+            estimated_seconds: 30,
+        },
+        TourStep {
+            id: "bl-memory".to_string(),
+            route: "/memory".to_string(),
+            spotlight_selector: Some("[data-testid=\"memory-search\"]".to_string()),
+            companion_message_key: "onboarding.tour.bl.memory".to_string(),
+            interaction: Some(TourInteraction {
+                interaction_type: "search_memory".to_string(),
+                prefilled_data: None,
+                validation_event: Some("MemorySearchDone".to_string()),
+            }),
+            completion_mode: "wait_event".to_string(),
+            estimated_seconds: 20,
+        },
+        TourStep {
+            id: "bl-pipelines".to_string(),
+            route: "/pipelines".to_string(),
+            spotlight_selector: Some("[data-testid=\"pipeline-list\"]".to_string()),
+            companion_message_key: "onboarding.tour.bl.pipelines".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 20,
+        },
+        TourStep {
+            id: "bl-triggers".to_string(),
+            route: "/triggers".to_string(),
+            spotlight_selector: Some("[data-testid=\"trigger-list\"]".to_string()),
+            companion_message_key: "onboarding.tour.bl.triggers".to_string(),
+            interaction: Some(TourInteraction {
+                interaction_type: "create_trigger".to_string(),
+                prefilled_data: None,
+                validation_event: Some("TriggerCreated".to_string()),
+            }),
+            completion_mode: "wait_event".to_string(),
+            estimated_seconds: 30,
+        },
+        TourStep {
+            id: "bl-mcp".to_string(),
+            route: "/integrations".to_string(),
+            spotlight_selector: Some("[data-testid=\"mcp-server-list\"]".to_string()),
+            companion_message_key: "onboarding.tour.bl.mcp".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 20,
+        },
+        TourStep {
+            id: "bl-observability".to_string(),
+            route: "/observability".to_string(),
+            spotlight_selector: Some("[data-testid=\"timeline-global\"]".to_string()),
+            companion_message_key: "onboarding.tour.bl.observability".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 15,
+        },
+        TourStep {
+            id: "bl-done".to_string(),
+            route: "/dashboard".to_string(),
+            spotlight_selector: None,
+            companion_message_key: "onboarding.tour.bl.done".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+        },
+    ]
+}
+
+// ---------------------------------------------------------------------------
+// Guided Tour — synchronous helper (also used in tests)
+// ---------------------------------------------------------------------------
+
+/// Returns the tour steps for the given profile synchronously.
+///
+/// Returns `Ok(Vec<TourStep>)` for `"operator"` (8 steps) and `"builder"` (10 steps).
+/// Returns `Err` for any other profile string.
+pub fn get_tour_steps_sync(profile: &str) -> Result<Vec<TourStep>, String> {
+    match profile {
+        "operator" => Ok(operator_steps()),
+        "builder" => Ok(builder_steps()),
+        other => Err(format!(
+            "unknown profile: {other}. Expected 'operator' or 'builder'"
+        )),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Guided Tour — Tauri commands
+// ---------------------------------------------------------------------------
+
+/// Returns the ordered tour steps for the given user profile.
+///
+/// Returns 8 steps for `"operator"` and 10 steps for `"builder"`. Any
+/// other profile string is rejected immediately (Principle #4).
+#[tauri::command]
+pub async fn get_tour_steps(profile: String) -> Result<Vec<TourStep>, String> {
+    get_tour_steps_sync(&profile)
+}
+
+/// Marks a guided-tour step as completed and advances `tour_step_index` in
+/// UserMemory.
+///
+/// The new `tour_step_index` is set to `current_index + 1`. When the index
+/// reaches `tour_total_steps`, `tour_completed` is set to `true` as well.
+#[tauri::command]
+pub async fn complete_tour_step(
+    step_id: String,
+    state: State<'_, RuntimeHandle>,
+) -> Result<(), String> {
+    complete_tour_step_inner(step_id, &state)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "complete_tour_step failed");
+            e.to_string()
+        })
+}
+
+async fn complete_tour_step_inner(
+    step_id: String,
+    state: &RuntimeHandle,
+) -> Result<(), OnboardingError> {
+    let repo = get_repo(state)?;
+
+    tokio::task::spawn_blocking(move || {
+        let repo = repo
+            .lock()
+            .map_err(|e| OnboardingError::PersistenceError(format!("mutex poisoned: {e}")))?;
+
+        let mut onboarding = load_state_from_memory(&repo)?;
+
+        let next_index = onboarding.tour_step_index + 1;
+        onboarding.tour_step_index = next_index;
+
+        if onboarding.tour_total_steps > 0 && next_index >= onboarding.tour_total_steps {
+            onboarding.tour_completed = true;
+        }
+
+        persist_state(&repo, &onboarding)?;
+
+        tracing::info!(
+            step_id = %step_id,
+            tour_step_index = %next_index,
+            tour_completed = %onboarding.tour_completed,
+            "tour step completed"
+        );
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| OnboardingError::PersistenceError(format!("spawn_blocking failed: {e}")))?
+}
+
+// ---------------------------------------------------------------------------
+// Guided Tour — tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tour_tests {
+    use super::*;
+
+    #[test]
+    fn test_get_tour_steps_operator_returns_8_steps() {
+        // GIVEN the profile "operator"
+        // WHEN get_tour_steps_sync is called
+        let steps = get_tour_steps_sync("operator").unwrap();
+        // THEN 8 steps are returned
+        assert_eq!(steps.len(), 8);
+    }
+
+    #[test]
+    fn test_get_tour_steps_builder_returns_10_steps() {
+        // GIVEN the profile "builder"
+        // WHEN get_tour_steps_sync is called
+        let steps = get_tour_steps_sync("builder").unwrap();
+        // THEN 10 steps are returned
+        assert_eq!(steps.len(), 10);
+    }
+
+    #[test]
+    fn test_get_tour_steps_unknown_profile_returns_error() {
+        // GIVEN an unknown profile
+        // WHEN get_tour_steps_sync is called
+        let result = get_tour_steps_sync("unknown");
+        // THEN an error is returned
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_tour_step_serialization_roundtrip() {
+        // GIVEN a TourStep with an interaction
+        let step = TourStep {
+            id: "agents-start".to_string(),
+            route: "/agents".to_string(),
+            spotlight_selector: Some("[data-testid=\"agent-list\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.agents".to_string(),
+            interaction: Some(TourInteraction {
+                interaction_type: "start_agent".to_string(),
+                prefilled_data: Some(serde_json::json!({ "agent": "csv-data-worker" })),
+                validation_event: Some("AgentReady".to_string()),
+            }),
+            completion_mode: "wait_event".to_string(),
+            estimated_seconds: 30,
+        };
+        // WHEN serialized then deserialized
+        let json = serde_json::to_string(&step).unwrap();
+        let restored: TourStep = serde_json::from_str(&json).unwrap();
+        // THEN the data is identical
+        assert_eq!(restored.id, "agents-start");
+        assert_eq!(restored.route, "/agents");
+        assert_eq!(restored.completion_mode, "wait_event");
+        assert_eq!(restored.estimated_seconds, 30);
+        let interaction = restored.interaction.unwrap();
+        assert_eq!(interaction.interaction_type, "start_agent");
+        assert_eq!(interaction.validation_event.as_deref(), Some("AgentReady"));
+    }
+
+    #[test]
+    fn test_all_operator_steps_have_valid_ids() {
+        // GIVEN the operator step catalogue
+        let steps = get_tour_steps_sync("operator").unwrap();
+        // WHEN checking each step
+        for step in &steps {
+            // THEN id and route are non-empty
+            assert!(!step.id.is_empty(), "step id must not be empty");
+            assert!(!step.route.is_empty(), "step route must not be empty");
+            assert!(
+                matches!(
+                    step.completion_mode.as_str(),
+                    "auto" | "click_next" | "wait_event"
+                ),
+                "unexpected completion_mode: {}",
+                step.completion_mode
+            );
+        }
+    }
+
+    #[test]
+    fn test_all_builder_steps_have_valid_ids() {
+        // GIVEN the builder step catalogue
+        let steps = get_tour_steps_sync("builder").unwrap();
+        // WHEN checking each step
+        for step in &steps {
+            // THEN id and route are non-empty
+            assert!(!step.id.is_empty(), "step id must not be empty");
+            assert!(!step.route.is_empty(), "step route must not be empty");
+            assert!(
+                matches!(
+                    step.completion_mode.as_str(),
+                    "auto" | "click_next" | "wait_event"
+                ),
+                "unexpected completion_mode: {}",
+                step.completion_mode
+            );
+        }
+    }
+
+    #[test]
+    fn test_step_ids_are_unique_within_profile() {
+        // GIVEN both profiles
+        for profile in ["operator", "builder"] {
+            let steps = get_tour_steps_sync(profile).unwrap();
+            let mut seen = std::collections::HashSet::new();
+            for step in &steps {
+                // THEN each step id is unique
+                assert!(
+                    seen.insert(step.id.clone()),
+                    "duplicate step id '{}' in profile '{}'",
+                    step.id,
+                    profile
+                );
+            }
+        }
     }
 }
 
@@ -1930,7 +2372,12 @@ mod tests {
         for phase in &phases {
             let s = phase.as_str();
             let recovered = OnboardingPhase::from_str(s);
-            assert_eq!(recovered.as_ref(), Some(phase), "phase {:?} should roundtrip via as_str/from_str", phase);
+            assert_eq!(
+                recovered.as_ref(),
+                Some(phase),
+                "phase {:?} should roundtrip via as_str/from_str",
+                phase
+            );
         }
     }
 

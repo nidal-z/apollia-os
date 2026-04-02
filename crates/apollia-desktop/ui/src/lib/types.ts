@@ -892,6 +892,30 @@ export interface OnboardingState {
   stats: OnboardingStats;
 }
 
+// ─── Guided Tour ─────────────────────────────────────────────────────────────
+
+/** Interaction descriptor attached to an interactive tour step. */
+export interface TourInteraction {
+  interaction_type: string;
+  prefilled_data: Record<string, unknown> | null;
+  validation_event: string | null;
+}
+
+/**
+ * Descriptor for a single guided-tour step returned by `get_tour_steps`.
+ *
+ * `completion_mode` is one of `"auto"` | `"click_next"` | `"wait_event"`.
+ */
+export interface TourStep {
+  id: string;
+  route: string;
+  spotlight_selector: string | null;
+  companion_message_key: string;
+  interaction: TourInteraction | null;
+  completion_mode: string;
+  estimated_seconds: number;
+}
+
 // ─── STT (Speech-to-Text) ────────────────────────────────────────────────────
 
 /** Description of an available STT model file on disk. */
