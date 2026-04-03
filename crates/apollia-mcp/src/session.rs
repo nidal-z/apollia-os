@@ -23,6 +23,82 @@ use crate::protocol::{
 };
 use crate::transport::{create_transport, McpTransport};
 
+// ─── retry ───────────────────────────────────────────────────────────────────
+
+/// Retry policy applied to tool calls that fail with a transport-level error.
+///
+/// Backoff formula: `delay = min(base_delay_secs × 2^attempt, max_delay_secs)`.
+struct McpRetryConfig {
+    /// Maximum number of additional attempts after the first failure.
+    max_retries: u32,
+    /// Base delay in seconds for the first retry.
+    base_delay_secs: u64,
+    /// Upper bound on the computed delay.
+    max_delay_secs: u64,
+}
+
+impl McpRetryConfig {
+    /// Default retry policy: 3 retries, 1s base, 8s cap.
+    const DEFAULT: Self = Self {
+        max_retries: 3,
+        base_delay_secs: 1,
+        max_delay_secs: 8,
+    };
+}
+
+/// Returns `true` for errors that originate from a transport failure and are
+/// therefore candidates for a retry.
+fn is_transport_error(err: &McpSessionError) -> bool {
+    matches!(
+        err,
+        McpSessionError::StdinClosed { .. } | McpSessionError::ServerExited { .. }
+    )
+}
+
+/// Compute the exponential backoff delay for a given attempt index.
+///
+/// `attempt` is zero-based: attempt 0 → `base`, attempt 1 → `base × 2`, etc.
+fn compute_backoff_delay(attempt: u32, base_delay_secs: u64, max_delay_secs: u64) -> u64 {
+    let factor = 2u64.saturating_pow(attempt);
+    base_delay_secs.saturating_mul(factor).min(max_delay_secs)
+}
+
+/// Run `f` up to `retry_cfg.max_retries + 1` times, sleeping between retries on
+/// transport errors.  Non-transport errors are propagated immediately.
+async fn with_transport_retry<F, Fut, T>(
+    retry_cfg: &McpRetryConfig,
+    server_name: &str,
+    mut f: F,
+) -> Result<T, McpSessionError>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, McpSessionError>>,
+{
+    for attempt in 0..=retry_cfg.max_retries {
+        match f().await {
+            Ok(val) => return Ok(val),
+            Err(err) if is_transport_error(&err) && attempt < retry_cfg.max_retries => {
+                let delay_secs = compute_backoff_delay(
+                    attempt,
+                    retry_cfg.base_delay_secs,
+                    retry_cfg.max_delay_secs,
+                );
+                tracing::warn!(
+                    attempt = attempt + 1,
+                    max = retry_cfg.max_retries,
+                    delay_ms = delay_secs * 1000,
+                    server = %server_name,
+                    "retrying MCP call after transport error"
+                );
+                tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
+            }
+            Err(err) => return Err(err),
+        }
+    }
+    // Unreachable: the loop always returns on the last attempt.
+    unreachable!("retry loop must return within max_retries + 1 iterations")
+}
+
 // ─── errors ──────────────────────────────────────────────────────────────────
 
 /// Errors that can arise during MCP session operations.
@@ -368,10 +444,25 @@ impl McpSession {
     /// sends it through the transport, and waits for the response. The timeout
     /// applied is `call_timeout_secs` from the server configuration.
     ///
+    /// Transport errors (`StdinClosed`, `ServerExited`) are retried up to 3 times with
+    /// exponential backoff (1s, 2s, 4s, capped at 8s) before the error is propagated.
+    ///
     /// Returns the raw [`ToolCallResult`] so the caller can inspect `is_error` and
     /// route content accordingly. Deserialisation failures are surfaced as
     /// [`McpSessionError::ToolCallFailed`].
     pub async fn call_tool(
+        &self,
+        tool_name: &str,
+        arguments: Option<serde_json::Value>,
+    ) -> Result<ToolCallResult, McpSessionError> {
+        with_transport_retry(&McpRetryConfig::DEFAULT, &self.config.name, || {
+            self.call_tool_once(tool_name, arguments.clone())
+        })
+        .await
+    }
+
+    /// Single attempt at a `tools/call` request, without retry.
+    async fn call_tool_once(
         &self,
         tool_name: &str,
         arguments: Option<serde_json::Value>,
@@ -616,5 +707,69 @@ mod tests {
         let display = error.to_string();
         assert!(display.contains("60s"));
         assert!(display.contains("search"));
+    }
+
+    #[test]
+    fn test_mcp_transport_error_backoff_exponential() {
+        // GIVEN the default retry config
+        let cfg = McpRetryConfig::DEFAULT;
+
+        // WHEN computing delays for attempts 0, 1, 2
+        let delay0 = compute_backoff_delay(0, cfg.base_delay_secs, cfg.max_delay_secs);
+        let delay1 = compute_backoff_delay(1, cfg.base_delay_secs, cfg.max_delay_secs);
+        let delay2 = compute_backoff_delay(2, cfg.base_delay_secs, cfg.max_delay_secs);
+
+        // THEN delays follow base * 2^attempt, capped at max_delay_secs
+        assert_eq!(delay0, 1, "attempt 0 → 1s");
+        assert_eq!(delay1, 2, "attempt 1 → 2s");
+        assert_eq!(delay2, 4, "attempt 2 → 4s");
+
+        // AND large attempts are capped at max_delay_secs
+        let delay_large = compute_backoff_delay(10, cfg.base_delay_secs, cfg.max_delay_secs);
+        assert_eq!(
+            delay_large, cfg.max_delay_secs,
+            "large attempt → max_delay_secs"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_mcp_transport_error_retries_3_times() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        use std::sync::Arc;
+
+        // GIVEN a call that fails with StdinClosed for the first 3 attempts and succeeds on the 4th.
+        // Zero-delay config so the test does not sleep.
+        let call_count = Arc::new(AtomicU32::new(0));
+        let call_count_clone = call_count.clone();
+
+        let cfg = McpRetryConfig {
+            max_retries: 3,
+            base_delay_secs: 0,
+            max_delay_secs: 0,
+        };
+
+        let result = with_transport_retry(&cfg, "test-server", || {
+            let count = call_count_clone.clone();
+            async move {
+                let attempt = count.fetch_add(1, Ordering::SeqCst);
+                if attempt < 3 {
+                    Err(McpSessionError::StdinClosed {
+                        server: "test-server".to_string(),
+                    })
+                } else {
+                    Ok(42u32)
+                }
+            }
+        })
+        .await;
+
+        // THEN the call succeeds after 3 retries (4 total attempts)
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 42u32);
+        assert_eq!(
+            call_count.load(Ordering::SeqCst),
+            4,
+            "expected 4 total attempts (1 + 3 retries)"
+        );
     }
 }

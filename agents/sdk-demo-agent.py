@@ -210,7 +210,8 @@ async def _recall_previous(ctx: Any) -> str | None:
         return None
     try:
         return await ctx.memory.recall(MEMORY_KEY_LAST_ANALYSIS)
-    except Exception:
+    except Exception as e:
+        await ctx.log(f"memory recall failed: {e}")
         return None
 
 
@@ -227,7 +228,8 @@ async def _gather_project_data(
             {"command": "ls -la", "timeout_seconds": 10},
         )
         return truncate(str(result), OBSERVATION_MAX_CHARS)
-    except Exception:
+    except Exception as e:
+        await ctx.log(f"project data gathering failed: {e}")
         return ""
 
 
@@ -253,6 +255,7 @@ async def _analyze_with_llm(
             return parsed
         return {"summary": content}
     except Exception as exc:
+        await ctx.log(f"LLM analysis failed: {exc}")
         return {"summary": f"Analysis failed: {exc}"}
 
 
@@ -276,8 +279,8 @@ async def _persist_to_memory(
             value=json.dumps(analysis),
             source="sdk-demo-agent",
         )
-    except Exception:
-        pass
+    except Exception as e:
+        await ctx.log(f"memory persistence failed: {e}")
 
 
 # ---------------------------------------------------------------------------

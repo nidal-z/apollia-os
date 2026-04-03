@@ -43,7 +43,12 @@ const WEIGHT_MEMORY_DEPTH: f32 = 0.10;
 /// Weight for planning keywords in the system prompt.
 const WEIGHT_PLANNING_PROMPT: f32 = 0.10;
 
-/// Minimum weighted score to classify a task as Orchestrated.
+/// Default minimum weighted score to classify a task as Orchestrated.
+///
+/// Used as the default threshold value in tests. In production, the threshold
+/// is read from [`apollia_core::ORIAConfig::orchestrated_threshold`] and passed
+/// directly to [`classify`].
+#[cfg(test)]
 const ORCHESTRATED_THRESHOLD: f32 = 0.40;
 
 /// Input text length (in chars) above which `WEIGHT_INPUT_LENGTH` is added.
@@ -201,13 +206,15 @@ pub fn compute_complexity_score(
 /// - `"direct"` → always [`ExecutionMode::Direct`], skipping scoring.
 /// - `"auto"` (or any unknown value) → falls through to [`compute_complexity_score`].
 ///
-/// If the weighted score ≥ [`ORCHESTRATED_THRESHOLD`] (0.40), the task is Orchestrated.
+/// If the weighted score ≥ `threshold`, the task is Orchestrated.
+/// Pass [`ORCHESTRATED_THRESHOLD`] as the default when no config is available.
 ///
 /// This is a **pure function** — no side effects, deterministic output.
 pub fn classify(
     task: &AIPTask,
     manifest: &AgentManifest,
     memory_snapshot: Option<&MemorySnapshot>,
+    threshold: f32,
 ) -> ExecutionMode {
     // Override explicite — priorité absolue sur le scoring.
     match manifest.execution_mode.as_str() {
@@ -218,7 +225,7 @@ pub fn classify(
 
     let score = compute_complexity_score(manifest, &task.input, memory_snapshot);
 
-    if score >= ORCHESTRATED_THRESHOLD {
+    if score >= threshold {
         ExecutionMode::Orchestrated
     } else {
         ExecutionMode::Direct
@@ -233,10 +240,14 @@ pub fn classify(
 ///
 /// The memory snapshot is built first so it can inform [`classify`]
 /// (the `WEIGHT_MEMORY_DEPTH` factor uses episode count).
+///
+/// `threshold` is forwarded to [`classify`] — pass [`ORCHESTRATED_THRESHOLD`]
+/// as the default when no config is available.
 pub fn observe(
     task: AIPTask,
     manifest: &AgentManifest,
     memory: Option<&mut MemoryManager>,
+    threshold: f32,
 ) -> Result<ContextBundle, ObserverError> {
     let manifest_system_prompt = manifest.system_prompt.clone();
 
@@ -253,7 +264,7 @@ pub fn observe(
             let namespace = match &manifest.memory_namespace {
                 Some(ns) => ns.clone(),
                 None => {
-                    let execution_mode = classify(&task, manifest, None);
+                    let execution_mode = classify(&task, manifest, None, threshold);
                     return Ok(ContextBundle {
                         task,
                         memory_snapshot: None,
@@ -294,7 +305,7 @@ pub fn observe(
         None => None,
     };
 
-    let execution_mode = classify(&task, manifest, memory_snapshot.as_ref());
+    let execution_mode = classify(&task, manifest, memory_snapshot.as_ref(), threshold);
 
     Ok(ContextBundle {
         task,
@@ -469,7 +480,8 @@ mod tests {
         let task = simple_task();
 
         // WHEN
-        let bundle = observe(task, &manifest, Some(&mut mgr)).expect("observe");
+        let bundle =
+            observe(task, &manifest, Some(&mut mgr), ORCHESTRATED_THRESHOLD).expect("observe");
 
         // THEN
         assert!(bundle.memory_snapshot.is_some());
@@ -487,7 +499,7 @@ mod tests {
         let manifest = simple_manifest();
 
         // WHEN
-        let bundle = observe(task, &manifest, None).expect("observe");
+        let bundle = observe(task, &manifest, None, ORCHESTRATED_THRESHOLD).expect("observe");
 
         // THEN
         assert!(bundle.memory_snapshot.is_none());
@@ -502,7 +514,7 @@ mod tests {
         let manifest = simple_manifest();
 
         // WHEN
-        let mode = classify(&task, &manifest, None);
+        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
         // THEN
         assert_eq!(mode, ExecutionMode::Direct);
@@ -516,7 +528,7 @@ mod tests {
         let manifest = complex_manifest();
 
         // WHEN
-        let mode = classify(&task, &manifest, None);
+        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
         // THEN
         assert_eq!(mode, ExecutionMode::Orchestrated);
@@ -531,7 +543,7 @@ mod tests {
         let task = simple_task();
 
         // WHEN
-        let mode = classify(&task, &manifest, None);
+        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
         // THEN
         assert_eq!(mode, ExecutionMode::Orchestrated);
@@ -546,7 +558,7 @@ mod tests {
         let task = multi_part_task();
 
         // WHEN — score = WEIGHT_PARTS (0.20) < ORCHESTRATED_THRESHOLD (0.40)
-        let mode = classify(&task, &manifest, None);
+        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
         // THEN — weighted scoring reduces false positives vs old boolean OR
         assert_eq!(mode, ExecutionMode::Direct);
@@ -561,7 +573,7 @@ mod tests {
         let task = simple_task();
 
         // WHEN
-        let mode = classify(&task, &manifest, None);
+        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
         // THEN : override prime, même pour un agent simple
         assert_eq!(mode, ExecutionMode::Orchestrated);
@@ -580,7 +592,7 @@ mod tests {
         let task = simple_task();
 
         // WHEN
-        let mode = classify(&task, &manifest, None);
+        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
         // THEN : l'override prime sur l'heuristique
         assert_eq!(mode, ExecutionMode::Direct);
@@ -605,7 +617,7 @@ mod tests {
         let task = simple_task();
 
         // WHEN — score = WEIGHT_TOOLS (0.20) + WEIGHT_STEPS (0.30) = 0.50 ≥ 0.40
-        let mode = classify(&task, &manifest, None);
+        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
         // THEN : scoring → Orchestrated
         assert_eq!(mode, ExecutionMode::Orchestrated);
@@ -621,7 +633,7 @@ mod tests {
         let task = simple_task();
 
         // WHEN
-        let mode = classify(&task, &manifest, None);
+        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
         // THEN : heuristique → Direct
         assert_eq!(mode, ExecutionMode::Direct);
@@ -636,7 +648,7 @@ mod tests {
 
         // WHEN
         let score = compute_complexity_score(&manifest, &task.input, None);
-        let mode = classify(&task, &manifest, None);
+        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
         // THEN
         assert!(score < f32::EPSILON, "score should be ~0.0, got {score}");
@@ -669,7 +681,7 @@ mod tests {
 
         // WHEN — steps(0.30) + parts(0) + tag(0.40) + tools(0.20) + input_len(0.10) = 1.0
         let score = compute_complexity_score(&manifest, &task.input, None);
-        let mode = classify(&task, &manifest, None);
+        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
         // THEN
         assert!(score >= 0.90, "score should be >= 0.90, got {score}");
@@ -692,7 +704,7 @@ mod tests {
 
         // WHEN
         let score = compute_complexity_score(&manifest, &task.input, None);
-        let mode = classify(&task, &manifest, None);
+        let mode = classify(&task, &manifest, None, ORCHESTRATED_THRESHOLD);
 
         // THEN — score = WEIGHT_MULTI_STEP_TAG (0.40) ≥ 0.40
         assert!(score >= 0.40, "score should be >= 0.40, got {score}");

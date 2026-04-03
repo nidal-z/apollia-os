@@ -242,6 +242,8 @@ impl ToolProxy {
     }
 }
 
+// Les méthodes de ce bloc sont appelées depuis Python via PyO3 (pas depuis Rust),
+// ce qui fait que le compilateur Rust les considère comme du code mort à tort.
 #[allow(dead_code)]
 impl ToolProxy {
     /// Creates a new ToolProxy for an agent.
@@ -1548,7 +1550,7 @@ mod a2a_tests {
     async fn test_send_inner_delivers_message() {
         // GIVEN une mailbox active
         let (event_tx, _event_rx) = EventBus::new();
-        let handle = AgentMailboxHandle::spawn(event_tx);
+        let handle = AgentMailboxHandle::spawn(event_tx, 100);
 
         // WHEN agent-a envoie un message à agent-b
         let payload = serde_json::json!({"greeting": "hello"});
@@ -1572,7 +1574,7 @@ mod a2a_tests {
     async fn test_receive_inner_returns_none_on_timeout() {
         // GIVEN une mailbox active sans messages
         let (event_tx, _event_rx) = EventBus::new();
-        let handle = AgentMailboxHandle::spawn(event_tx);
+        let handle = AgentMailboxHandle::spawn(event_tx, 100);
 
         // WHEN on essaie de recevoir avec un timeout court
         let result = receive_inner(&handle, "agent-c", Duration::from_millis(50)).await;

@@ -18,8 +18,8 @@ use tokio::sync::broadcast;
 use tracing::{error, info, warn};
 
 use apollia_core::{
-    LlmBackendRepository, PendingApprovals, ProcessState, RuntimeEvent, SttConfigRepository,
-    SttConfigRow,
+    HitlConfig, LlmBackendRepository, PendingApprovals, PipelinesConfig, ProcessState,
+    RuntimeConfig, RuntimeEvent, SttConfigRepository, SttConfigRow,
 };
 use apollia_llm::{LlmCallRepository, LlmConfig, LlmRouter};
 use apollia_mcp::{config::McpConfig, manager::McpClientManagerHandle, McpServerRepository};
@@ -82,12 +82,18 @@ pub struct SupervisorConfig {
     /// `None` when the runtime starts without a config file (e.g. tests, `apollia-os start`
     /// without a config file). The `POST /api/v1/triggers/reload` route returns 503 when absent.
     pub config_path: Option<std::path::PathBuf>,
-    /// Durée (en heures) au-delà de laquelle une tâche `input_required` est annulée.
+    /// Configuration du runtime core (capacités EventBus et mailbox).
     ///
-    /// Configurable via `[runtime] input_required_timeout_hours` dans `apollia.toml`.
-    /// Le `TimeoutWatcher` utilise cette valeur. Défaut : 24 heures.
+    /// Correspond à la section `[runtime]` dans `apollia.toml`.
+    /// Défaut : [`RuntimeConfig::default()`].
+    pub runtime_config: RuntimeConfig,
+
+    /// Configuration Human-in-the-Loop (timeout et intervalle de scan).
+    ///
+    /// Correspond à la section `[hitl]` dans `apollia.toml`.
     /// Ignoré si `AppState.task_repository` est `None`.
-    pub input_required_timeout_hours: u64,
+    /// Défaut : [`HitlConfig::default()`] (24 heures, scan 60 secondes).
+    pub hitl_config: HitlConfig,
     /// Répertoire de données du runtime (ex: `~/.apollia/`).
     ///
     /// Utilisé pour localiser les bases SQLite (`triggers.db`, `pipelines.db`,
@@ -111,6 +117,12 @@ pub struct SupervisorConfig {
     /// automatiquement les agents déclarés dans `manifest.json`.
     /// Si `None` ou si `manifest.json` est absent, l'auto-install est ignoré silencieusement.
     pub bundled_agents_path: Option<std::path::PathBuf>,
+
+    /// Configuration du moteur de pipelines (section `[pipelines]` dans `apollia.toml`).
+    ///
+    /// Contrôle le timeout par défaut des steps de pipeline.
+    /// Défaut : [`PipelinesConfig::default()`] (60 secondes).
+    pub pipelines_config: PipelinesConfig,
 }
 
 impl SupervisorConfig {
@@ -445,7 +457,8 @@ impl Supervisor {
 
         // Phase 1: EventBus
         info!("Supervisor: starting EventBus");
-        let (event_sender, mut startup_rx) = EventBus::new();
+        let (event_sender, mut startup_rx) =
+            EventBus::with_capacity(self.config.runtime_config.eventbus_capacity);
         info!("Supervisor: EventBus ready");
 
         // Phase 2: AgentRegistry
@@ -711,8 +724,13 @@ impl Supervisor {
             let submitter: std::sync::Arc<dyn apollia_pipelines::TaskSubmitter> =
                 std::sync::Arc::new(router_handle.clone());
             let pipeline_count = pipeline_definitions.len();
-            let handle =
-                PipelineEngine::spawn(pipeline_definitions, repo, submitter, event_sender.clone());
+            let handle = PipelineEngine::spawn(
+                pipeline_definitions,
+                repo,
+                submitter,
+                event_sender.clone(),
+                self.config.pipelines_config.clone(),
+            );
             tracing::info!(
                 count = pipeline_count,
                 "✔ PipelineEngine — {} pipeline(s) chargé(s)",
@@ -813,10 +831,15 @@ impl Supervisor {
                     .map_err(|e| SupervisorError::NotificationConfig(e.to_string()))?;
                 let active = notif_config.channels.iter().filter(|c| c.enabled).count();
                 let notif_log_db_path = Some(self.config.data_dir.join("hitl.db"));
+                let api_base_url = format!(
+                    "http://{}:{}",
+                    self.config.api_config.bind_addr, self.config.api_config.tcp_port
+                );
                 let engine = NotificationEngine::new(
                     notif_config.clone(),
                     channels,
                     event_sender.clone(),
+                    api_base_url,
                     notif_log_db_path,
                 );
                 let handle = engine.spawn();
@@ -847,7 +870,10 @@ impl Supervisor {
         };
 
         // Phase 12c: AgentMailbox — lightweight actor, always spawned.
-        let mailbox_handle = crate::mailbox::AgentMailboxHandle::spawn(event_sender.clone());
+        let mailbox_handle = crate::mailbox::AgentMailboxHandle::spawn(
+            event_sender.clone(),
+            self.config.runtime_config.mailbox_capacity,
+        );
         info!("Supervisor: AgentMailbox ready");
 
         // Phase 13: UserMemoryRepository — global user memory (preferences, habits, context).
@@ -1061,9 +1087,9 @@ impl Supervisor {
             let watcher = TimeoutWatcher::new(
                 TimeoutWatcherConfig {
                     input_required_timeout: Duration::from_secs(
-                        self.config.input_required_timeout_hours * 3600,
+                        self.config.hitl_config.timeout_hours * 3600,
                     ),
-                    ..TimeoutWatcherConfig::default()
+                    scan_interval: Duration::from_secs(self.config.hitl_config.scan_interval_secs),
                 },
                 Arc::clone(repo),
                 event_sender.clone(),
@@ -1575,11 +1601,13 @@ mod tests {
             startup_timeout_secs: 10,
             llm_config: None,
             config_path: None,
-            input_required_timeout_hours: 24,
+            runtime_config: apollia_core::RuntimeConfig::default(),
+            hitl_config: apollia_core::HitlConfig::default(),
             data_dir: temp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
             bundled_agents_path: None,
+            pipelines_config: PipelinesConfig::default(),
         };
         (config, temp_dir)
     }
@@ -1736,7 +1764,8 @@ mod tests {
             startup_timeout_secs: 1,
             llm_config: None,
             config_path: None,
-            input_required_timeout_hours: 24,
+            runtime_config: apollia_core::RuntimeConfig::default(),
+            hitl_config: apollia_core::HitlConfig::default(),
             data_dir: {
                 let d = tempfile::tempdir().expect("tempdir");
                 let p = d.path().to_path_buf();
@@ -1746,6 +1775,7 @@ mod tests {
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
             bundled_agents_path: None,
+            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -1883,7 +1913,8 @@ mod tests {
             startup_timeout_secs: 10,
             llm_config: None,
             config_path: None,
-            input_required_timeout_hours: 24,
+            runtime_config: apollia_core::RuntimeConfig::default(),
+            hitl_config: apollia_core::HitlConfig::default(),
             data_dir: {
                 let d = tempfile::tempdir().expect("tempdir");
                 let p = d.path().to_path_buf();
@@ -1893,6 +1924,7 @@ mod tests {
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
             bundled_agents_path: None,
+            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -1995,7 +2027,8 @@ mod tests {
             startup_timeout_secs: 10,
             llm_config: None,
             config_path: None,
-            input_required_timeout_hours: 24,
+            runtime_config: apollia_core::RuntimeConfig::default(),
+            hitl_config: apollia_core::HitlConfig::default(),
             data_dir: {
                 let d = tempfile::tempdir().expect("tempdir");
                 let p = d.path().to_path_buf();
@@ -2005,6 +2038,7 @@ mod tests {
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
             bundled_agents_path: None,
+            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2054,7 +2088,8 @@ mod tests {
             startup_timeout_secs: 10,
             llm_config: None,
             config_path: None,
-            input_required_timeout_hours: 24,
+            runtime_config: apollia_core::RuntimeConfig::default(),
+            hitl_config: apollia_core::HitlConfig::default(),
             data_dir: {
                 let d = tempfile::tempdir().expect("tempdir");
                 let p = d.path().to_path_buf();
@@ -2064,6 +2099,7 @@ mod tests {
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
             bundled_agents_path: None,
+            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2130,11 +2166,13 @@ mod tests {
             startup_timeout_secs: 10,
             llm_config: None,
             config_path: None,
-            input_required_timeout_hours: 24,
+            runtime_config: apollia_core::RuntimeConfig::default(),
+            hitl_config: apollia_core::HitlConfig::default(),
             data_dir: tmp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
             bundled_agents_path: None,
+            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2228,11 +2266,13 @@ mod tests {
             startup_timeout_secs: 10,
             llm_config: None,
             config_path: None,
-            input_required_timeout_hours: 24,
+            runtime_config: apollia_core::RuntimeConfig::default(),
+            hitl_config: apollia_core::HitlConfig::default(),
             data_dir: tmp_dir.path().to_path_buf(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
             bundled_agents_path: None,
+            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 
@@ -2287,7 +2327,8 @@ mod tests {
             startup_timeout_secs: 10,
             llm_config: None,
             config_path: None,
-            input_required_timeout_hours: 24,
+            runtime_config: apollia_core::RuntimeConfig::default(),
+            hitl_config: apollia_core::HitlConfig::default(),
             data_dir: {
                 let d = tempfile::tempdir().expect("tempdir");
                 let p = d.path().to_path_buf();
@@ -2297,6 +2338,7 @@ mod tests {
             obs_config: apollia_core::ObservabilityConfig::default(),
             agent_repository: None,
             bundled_agents_path: None,
+            pipelines_config: PipelinesConfig::default(),
         };
         let supervisor = Supervisor::new(config);
 

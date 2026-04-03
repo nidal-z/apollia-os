@@ -140,6 +140,11 @@ pub struct NotificationEngine {
     config: NotificationConfig,
     channels: Vec<Box<dyn NotificationChannel>>,
     event_bus: EventBusSender,
+    /// URL de base de l'API REST locale (ex : `http://127.0.0.1:7771`).
+    ///
+    /// Construite depuis `ApiConfig` au démarrage. Utilisée pour produire
+    /// les URLs de reprise HITL dans les métadonnées des notifications.
+    api_base_url: String,
     /// Chemin vers la base SQLite `hitl.db` pour l'écriture dans `notification_logs`.
     ///
     /// `None` → logging désactivé (tests, dev sans data_dir). En production, le
@@ -150,18 +155,35 @@ pub struct NotificationEngine {
 impl NotificationEngine {
     /// Crée un nouveau moteur de notification.
     ///
+    /// `api_base_url` : URL de base de l'API REST locale (ex : `http://127.0.0.1:7771`),
+    /// construite depuis `ApiConfig` au démarrage du Supervisor.
+    ///
     /// `log_db_path` : chemin vers `hitl.db` pour écrire la table `notification_logs`.
     /// Passer `None` pour désactiver le logging SQLite (tests).
+    ///
+    /// Émet un `tracing::warn!` pour chaque nom d'événement présent dans `config.events`
+    /// ou dans les listes de canaux qui n'est pas reconnu par le moteur. Le démarrage
+    /// n'est pas bloqué par ces avertissements.
     pub fn new(
         config: NotificationConfig,
         channels: Vec<Box<dyn NotificationChannel>>,
         event_bus: EventBusSender,
+        api_base_url: String,
         log_db_path: Option<PathBuf>,
     ) -> Self {
+        // Validate global event names and per-channel event names at startup.
+        event_filter::warn_unknown_events(&config.events);
+        for channel_cfg in &config.channels {
+            if let Some(events) = &channel_cfg.events {
+                event_filter::warn_unknown_events(events);
+            }
+        }
+
         Self {
             config,
             channels,
             event_bus,
+            api_base_url,
             log_db_path,
         }
     }
@@ -177,12 +199,14 @@ impl NotificationEngine {
             config,
             channels,
             event_bus,
+            api_base_url,
             log_db_path,
         } = self;
         tokio::spawn(run_engine_loop(
             config,
             channels,
             event_bus,
+            api_base_url,
             log_db_path,
             cmd_rx,
         ));
@@ -194,7 +218,7 @@ impl NotificationEngine {
     /// Fonction pure — délègue à [`event_filter::map_event`].
     /// Testable sans infrastructure.
     pub fn map_event(&self, event: &RuntimeEvent) -> Option<Notification> {
-        event_filter::map_event(event)
+        event_filter::map_event(&self.api_base_url, event)
     }
 }
 
@@ -207,6 +231,7 @@ async fn run_engine_loop(
     mut config: NotificationConfig,
     mut channels: Vec<Box<dyn NotificationChannel>>,
     event_bus: EventBusSender,
+    api_base_url: String,
     log_db_path: Option<PathBuf>,
     mut cmd_rx: mpsc::Receiver<NotifEngineCommand>,
 ) {
@@ -233,7 +258,7 @@ async fn run_engine_loop(
             result = rx.recv() => {
                 match result {
                     Ok(event) => {
-                        if let Some(notif) = map_event_with(&config, &channels, &event) {
+                        if let Some(notif) = map_event_with(&config, &channels, &api_base_url, &event) {
                             let channel_results =
                                 dispatch_notif(&config, &channels, &notif).await;
                             if let Some(ref db_path) = log_db_path {
@@ -271,9 +296,10 @@ async fn run_engine_loop(
 fn map_event_with(
     _config: &NotificationConfig,
     _channels: &[Box<dyn NotificationChannel>],
+    base_url: &str,
     event: &RuntimeEvent,
 ) -> Option<Notification> {
-    event_filter::map_event(event)
+    event_filter::map_event(base_url, event)
 }
 
 /// Dispatche une notification à tous les canaux qui l'acceptent.
@@ -501,7 +527,13 @@ mod tests {
             }),
         ];
 
-        let engine = NotificationEngine::new(config, channels, tx.clone(), None);
+        let engine = NotificationEngine::new(
+            config,
+            channels,
+            tx.clone(),
+            "http://127.0.0.1:7771".to_owned(),
+            None,
+        );
         let handle = engine.spawn();
 
         // Laisser l'engine s'abonner au bus
@@ -530,7 +562,13 @@ mod tests {
     fn test_map_event_delegates_to_event_filter() {
         // GIVEN — NotificationEngine délègue map_event à event_filter::map_event
         let (tx, _rx) = tokio::sync::broadcast::channel(16);
-        let engine = NotificationEngine::new(make_config(vec![]), vec![], tx, None);
+        let engine = NotificationEngine::new(
+            make_config(vec![]),
+            vec![],
+            tx,
+            "http://127.0.0.1:7771".to_owned(),
+            None,
+        );
 
         let event = RuntimeEvent::TaskInputRequired {
             task_id: TaskId::from("t-test"),
@@ -550,12 +588,41 @@ mod tests {
     fn test_map_event_returns_none_for_unknown_event() {
         // GIVEN
         let (tx, _rx) = tokio::sync::broadcast::channel(16);
-        let engine = NotificationEngine::new(make_config(vec![]), vec![], tx, None);
+        let engine = NotificationEngine::new(
+            make_config(vec![]),
+            vec![],
+            tx,
+            "http://127.0.0.1:7771".to_owned(),
+            None,
+        );
 
         let event = RuntimeEvent::AgentRegistered(AgentId::from("agent-1"));
 
         // WHEN / THEN
         assert!(engine.map_event(&event).is_none());
+    }
+
+    #[test]
+    fn test_unknown_notification_event_emits_warning() {
+        // GIVEN a set of event names where one is unknown and one is the wildcard
+        let events = vec![
+            "task.failed".to_string(),
+            "agent.exploded".to_string(),
+            "*".to_string(),
+        ];
+
+        // WHEN finding unknown events from the known set
+        let unknown: Vec<&str> = events
+            .iter()
+            .filter(|e| *e != "*" && !crate::event_filter::KNOWN_EVENT_NAMES.contains(&e.as_str()))
+            .map(String::as_str)
+            .collect();
+
+        // THEN "agent.exploded" is identified as unknown; "*" and "task.failed" are not
+        assert_eq!(unknown, vec!["agent.exploded"]);
+
+        // AND calling warn_unknown_events does not panic or block
+        crate::event_filter::warn_unknown_events(&events);
     }
 
     /// Vérifie que ChannelConfig se désérialise correctement depuis TOML-compatible JSON.

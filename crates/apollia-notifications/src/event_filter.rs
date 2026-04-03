@@ -5,9 +5,68 @@ use chrono::Utc;
 
 use crate::{config::Severity, engine::Notification};
 
+/// Complete list of event names that [`map_event`] can produce.
+///
+/// Used to validate event names declared in `apollia.toml` at startup.
+pub const KNOWN_EVENT_NAMES: &[&str] = &[
+    "task.input_required",
+    "task.failed",
+    "task.completed",
+    "agent.degraded",
+    "llm.backend_down",
+    "trigger.error",
+    "pipeline.completed",
+    "pipeline.failed",
+    "pipeline.suspended",
+    "chat.approval_required",
+];
+
+/// Emit a `tracing::warn!` for every event name in `events` that is not in
+/// [`KNOWN_EVENT_NAMES`].
+///
+/// The wildcard `"*"` is silently accepted without a warning.
+/// This function never blocks the caller — unknown events are non-fatal.
+pub fn warn_unknown_events(events: &[String]) {
+    for event in events {
+        if event == "*" {
+            continue;
+        }
+        if !KNOWN_EVENT_NAMES.contains(&event.as_str()) {
+            tracing::warn!(
+                event = %event,
+                "notification config: unknown event name — it will never fire"
+            );
+        }
+    }
+}
+
+/// Construit l'URL de reprise HITL depuis la base d'URL de l'API.
+///
+/// `base_url` — ex : `http://127.0.0.1:7771` (sans slash final).
+fn build_resume_url(base_url: &str, task_id: &str) -> String {
+    format!("{}/api/v1/tasks/{}/resume", base_url, task_id)
+}
+
+/// Construit l'URL d'inspection de tâche dans le dashboard.
+///
+/// `base_url` — ex : `http://127.0.0.1:7771` (sans slash final).
+fn build_inspect_url(base_url: &str, task_id: &str) -> String {
+    format!("{}/dashboard#tasks/{}", base_url, task_id)
+}
+
+/// Construit l'URL du dashboard général (sans ancre de tâche).
+///
+/// `base_url` — ex : `http://127.0.0.1:7771` (sans slash final).
+fn build_dashboard_url(base_url: &str) -> String {
+    format!("{}/dashboard", base_url)
+}
+
 /// Transforme un [`RuntimeEvent`] en [`Notification`].
 ///
 /// Fonction pure — pas d'effet de bord, testable sans infrastructure.
+///
+/// `base_url` — URL de base de l'API REST locale (ex : `http://127.0.0.1:7771`),
+/// utilisée pour construire les URLs de reprise HITL dans les métadonnées.
 ///
 /// Les événements qui produisent une notification :
 /// - `TaskInputRequired`, `TaskCompleted` (succès et échec), `AgentDegraded`,
@@ -15,7 +74,9 @@ use crate::{config::Severity, engine::Notification};
 /// - `PipelineCompleted`, `PipelineFailed`, `PipelineSuspended` — ajoutés.
 ///
 /// Tous les autres retournent `None`.
-pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
+pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
+    let dashboard_url = build_dashboard_url(base_url);
+
     match event {
         RuntimeEvent::TaskInputRequired {
             task_id,
@@ -25,12 +86,13 @@ pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
             let mut metadata = HashMap::new();
             metadata.insert(
                 "resume_url".into(),
-                format!("http://localhost:7771/api/v1/tasks/{}/resume", task_id),
+                build_resume_url(base_url, task_id.as_ref()),
             );
             metadata.insert(
                 "inspect_url".into(),
-                format!("http://localhost:7771/dashboard#tasks/{}", task_id),
+                build_inspect_url(base_url, task_id.as_ref()),
             );
+            metadata.insert("dashboard_url".into(), dashboard_url);
             Some(Notification {
                 event: "task.input_required".into(),
                 timestamp: Utc::now(),
@@ -47,44 +109,57 @@ pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
             task_id,
             success: false,
             ..
-        } => Some(Notification {
-            event: "task.failed".into(),
-            timestamp: Utc::now(),
-            task_id: Some(task_id.to_string()),
-            agent: Some(agent_id.to_string()),
-            message: "Tâche échouée".into(),
-            metadata: HashMap::new(),
-            severity: Severity::Error,
-        }),
+        } => {
+            let mut metadata = HashMap::new();
+            metadata.insert("dashboard_url".into(), dashboard_url);
+            Some(Notification {
+                event: "task.failed".into(),
+                timestamp: Utc::now(),
+                task_id: Some(task_id.to_string()),
+                agent: Some(agent_id.to_string()),
+                message: "Tâche échouée".into(),
+                metadata,
+                severity: Severity::Error,
+            })
+        }
 
         RuntimeEvent::TaskCompleted {
             agent_id,
             task_id,
             success: true,
             ..
-        } => Some(Notification {
-            event: "task.completed".into(),
-            timestamp: Utc::now(),
-            task_id: Some(task_id.to_string()),
-            agent: Some(agent_id.to_string()),
-            message: "Tâche terminée avec succès".into(),
-            metadata: HashMap::new(),
-            severity: Severity::Info,
-        }),
+        } => {
+            let mut metadata = HashMap::new();
+            metadata.insert("dashboard_url".into(), dashboard_url);
+            Some(Notification {
+                event: "task.completed".into(),
+                timestamp: Utc::now(),
+                task_id: Some(task_id.to_string()),
+                agent: Some(agent_id.to_string()),
+                message: "Tâche terminée avec succès".into(),
+                metadata,
+                severity: Severity::Info,
+            })
+        }
 
-        RuntimeEvent::AgentDegraded { agent_id, reason } => Some(Notification {
-            event: "agent.degraded".into(),
-            timestamp: Utc::now(),
-            task_id: None,
-            agent: Some(agent_id.to_string()),
-            message: format!("Agent dégradé : {}", reason),
-            metadata: HashMap::new(),
-            severity: Severity::Warning,
-        }),
+        RuntimeEvent::AgentDegraded { agent_id, reason } => {
+            let mut metadata = HashMap::new();
+            metadata.insert("dashboard_url".into(), dashboard_url);
+            Some(Notification {
+                event: "agent.degraded".into(),
+                timestamp: Utc::now(),
+                task_id: None,
+                agent: Some(agent_id.to_string()),
+                message: format!("Agent dégradé : {}", reason),
+                metadata,
+                severity: Severity::Warning,
+            })
+        }
 
         RuntimeEvent::LlmModelFailed { backend, reason } => {
             let mut metadata = HashMap::new();
             metadata.insert("backend".into(), backend.clone());
+            metadata.insert("dashboard_url".into(), dashboard_url);
             Some(Notification {
                 event: "llm.backend_down".into(),
                 timestamp: Utc::now(),
@@ -99,6 +174,7 @@ pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
         RuntimeEvent::TriggerError { trigger_id, error } => {
             let mut metadata = HashMap::new();
             metadata.insert("trigger_id".into(), trigger_id.clone());
+            metadata.insert("dashboard_url".into(), dashboard_url);
             Some(Notification {
                 event: "trigger.error".into(),
                 timestamp: Utc::now(),
@@ -120,6 +196,7 @@ pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
             let mut metadata = HashMap::new();
             metadata.insert("run_id".into(), run_id.clone());
             metadata.insert("pipeline_id".into(), pipeline_id.clone());
+            metadata.insert("dashboard_url".into(), dashboard_url);
             Some(Notification {
                 event: "pipeline.completed".into(),
                 timestamp: Utc::now(),
@@ -142,6 +219,7 @@ pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
             let mut metadata = HashMap::new();
             metadata.insert("run_id".into(), run_id.clone());
             metadata.insert("step_id".into(), step_id.clone());
+            metadata.insert("dashboard_url".into(), dashboard_url);
             Some(Notification {
                 event: "pipeline.failed".into(),
                 timestamp: Utc::now(),
@@ -168,6 +246,7 @@ pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
                 "resume_reject".into(),
                 format!("apollia-os task resume {task_id} --reject"),
             );
+            metadata.insert("dashboard_url".into(), dashboard_url);
             Some(Notification {
                 event: "pipeline.suspended".into(),
                 timestamp: Utc::now(),
@@ -191,6 +270,7 @@ pub fn map_event(event: &RuntimeEvent) -> Option<Notification> {
             metadata.insert("session_id".into(), session_id.clone());
             metadata.insert("tool_name".into(), tool_name.clone());
             metadata.insert("action_url".into(), format!("/chat/{session_id}"));
+            metadata.insert("dashboard_url".into(), dashboard_url);
             Some(Notification {
                 event: "chat.approval_required".into(),
                 timestamp: Utc::now(),
@@ -211,6 +291,8 @@ mod tests {
     use super::*;
     use apollia_core::{AgentId, TaskId};
 
+    const DEFAULT_BASE_URL: &str = "http://127.0.0.1:7771";
+
     #[test]
     fn test_ac1_map_event_task_input_required() {
         // GIVEN
@@ -220,7 +302,7 @@ mod tests {
             step_id: None,
         };
         // WHEN
-        let notif = map_event(&event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
         // THEN
         assert_eq!(notif.event, "task.input_required");
         assert_eq!(notif.severity, Severity::Warning);
@@ -241,7 +323,7 @@ mod tests {
             output: None,
         };
         // WHEN
-        let notif = map_event(&event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
         // THEN
         assert_eq!(notif.event, "task.failed");
         assert_eq!(notif.severity, Severity::Error);
@@ -257,7 +339,7 @@ mod tests {
             reason: "outil manquant : smtp".into(),
         };
         // WHEN
-        let notif = map_event(&event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
         // THEN
         assert_eq!(notif.event, "agent.degraded");
         assert_eq!(notif.severity, Severity::Warning);
@@ -276,7 +358,7 @@ mod tests {
             output: None,
         };
         // WHEN
-        let notif = map_event(&event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
         // THEN
         assert_eq!(notif.event, "task.completed");
         assert_eq!(notif.severity, Severity::Info);
@@ -291,7 +373,7 @@ mod tests {
             reason: "API key invalide".into(),
         };
         // WHEN
-        let notif = map_event(&event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
         // THEN
         assert_eq!(notif.event, "llm.backend_down");
         assert_eq!(notif.severity, Severity::Error);
@@ -309,7 +391,7 @@ mod tests {
             error: "agent non trouvé".into(),
         };
         // WHEN
-        let notif = map_event(&event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
         // THEN
         assert_eq!(notif.event, "trigger.error");
         assert_eq!(notif.severity, Severity::Error);
@@ -327,7 +409,7 @@ mod tests {
             task_id: TaskId::from("t-004"),
         };
         // WHEN
-        let result = map_event(&event);
+        let result = map_event(DEFAULT_BASE_URL, &event);
         // THEN
         assert!(result.is_none());
     }
@@ -337,7 +419,7 @@ mod tests {
         // GIVEN
         let event = RuntimeEvent::AgentRegistered("agent-1".into());
         // WHEN / THEN
-        assert!(map_event(&event).is_none());
+        assert!(map_event(DEFAULT_BASE_URL, &event).is_none());
     }
 
     #[test]
@@ -345,7 +427,7 @@ mod tests {
         // GIVEN
         let event = RuntimeEvent::AllReady;
         // WHEN / THEN
-        assert!(map_event(&event).is_none());
+        assert!(map_event(DEFAULT_BASE_URL, &event).is_none());
     }
 
     // ── Pipeline notifications ────────────────────────────────────────────
@@ -359,7 +441,7 @@ mod tests {
             duration_ms: 9400,
         };
         // WHEN
-        let notif = map_event(&event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
         // THEN
         assert_eq!(notif.severity, Severity::Info);
         assert_eq!(notif.event, "pipeline.completed");
@@ -385,7 +467,7 @@ mod tests {
             reason: "timeout".into(),
         };
         // WHEN
-        let notif = map_event(&event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
         // THEN
         assert_eq!(notif.severity, Severity::Warning);
         assert_eq!(notif.event, "pipeline.failed");
@@ -406,7 +488,7 @@ mod tests {
             task_id: "t-0051".into(),
         };
         // WHEN
-        let notif = map_event(&event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
         // THEN
         assert_eq!(notif.severity, Severity::Warning);
         assert_eq!(notif.event, "pipeline.suspended");
@@ -430,7 +512,7 @@ mod tests {
             prompt: "L'outil 'bash_executor' demande à être exécuté".into(),
         };
         // WHEN
-        let notif = map_event(&event).expect("doit retourner Some");
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
         // THEN
         assert_eq!(notif.event, "chat.approval_required");
         assert_eq!(notif.severity, Severity::Warning);
@@ -458,7 +540,7 @@ mod tests {
             tool_name: "bash_executor".into(),
         };
         // WHEN / THEN — no notification produced
-        assert!(map_event(&event).is_none());
+        assert!(map_event(DEFAULT_BASE_URL, &event).is_none());
     }
 
     #[test]
@@ -466,6 +548,110 @@ mod tests {
         // GIVEN — non-pipeline event : comportement inchangé (non-régression)
         let event = RuntimeEvent::AgentReady("agent-1".into());
         // WHEN / THEN — aucune notification, pas de panic
-        let _result = map_event(&event);
+        let _result = map_event(DEFAULT_BASE_URL, &event);
+    }
+
+    // ── URL dynamiques depuis la config ──────────────────────────────────
+
+    #[test]
+    fn test_default_config_produces_default_url() {
+        // GIVEN config par défaut (127.0.0.1:7771)
+        let event = RuntimeEvent::TaskInputRequired {
+            task_id: TaskId::from("t-100"),
+            prompt: "Valider ?".into(),
+            step_id: None,
+        };
+        // WHEN
+        let notif = map_event("http://127.0.0.1:7771", &event).expect("doit retourner Some");
+        // THEN
+        let resume_url = notif.metadata.get("resume_url").expect("clé présente");
+        assert_eq!(
+            resume_url,
+            "http://127.0.0.1:7771/api/v1/tasks/t-100/resume"
+        );
+    }
+
+    #[test]
+    fn test_custom_port_reflected_in_url() {
+        // GIVEN config [api] port = 8080
+        let event = RuntimeEvent::TaskInputRequired {
+            task_id: TaskId::from("t-200"),
+            prompt: "Valider ?".into(),
+            step_id: None,
+        };
+        // WHEN
+        let notif = map_event("http://127.0.0.1:8080", &event).expect("doit retourner Some");
+        // THEN
+        let resume_url = notif.metadata.get("resume_url").expect("clé présente");
+        assert_eq!(
+            resume_url,
+            "http://127.0.0.1:8080/api/v1/tasks/t-200/resume"
+        );
+    }
+
+    #[test]
+    fn test_custom_bind_and_port_reflected_in_url() {
+        // GIVEN config [api] bind = "0.0.0.0", port = 9090
+        let event = RuntimeEvent::TaskInputRequired {
+            task_id: TaskId::from("t-300"),
+            prompt: "Valider ?".into(),
+            step_id: None,
+        };
+        // WHEN
+        let notif = map_event("http://0.0.0.0:9090", &event).expect("doit retourner Some");
+        // THEN
+        let resume_url = notif.metadata.get("resume_url").expect("clé présente");
+        assert_eq!(resume_url, "http://0.0.0.0:9090/api/v1/tasks/t-300/resume");
+    }
+
+    #[test]
+    fn test_resume_url_format_contains_task_id() {
+        // GIVEN
+        let task_id = "task-abc-123";
+        let event = RuntimeEvent::TaskInputRequired {
+            task_id: TaskId::from(task_id),
+            prompt: "Confirmer ?".into(),
+            step_id: None,
+        };
+        // WHEN
+        let notif = map_event("http://127.0.0.1:7771", &event).expect("doit retourner Some");
+        // THEN
+        let resume_url = notif.metadata.get("resume_url").expect("clé présente");
+        assert!(
+            resume_url.contains(task_id),
+            "resume_url doit contenir le task_id : {resume_url}"
+        );
+        assert!(
+            resume_url.ends_with("/resume"),
+            "resume_url doit se terminer par /resume : {resume_url}"
+        );
+    }
+
+    #[test]
+    fn test_different_base_urls_produce_different_resume_urls() {
+        // GIVEN deux configs différentes
+        let event = RuntimeEvent::TaskInputRequired {
+            task_id: TaskId::from("t-999"),
+            prompt: "Confirmer ?".into(),
+            step_id: None,
+        };
+        // WHEN
+        let notif_a = map_event("http://127.0.0.1:7771", &event).expect("doit retourner Some (a)");
+        let notif_b = map_event("http://127.0.0.1:8080", &event).expect("doit retourner Some (b)");
+        // THEN — les URLs de reprise sont différentes selon la config
+        let url_a = notif_a
+            .metadata
+            .get("resume_url")
+            .expect("clé présente (a)");
+        let url_b = notif_b
+            .metadata
+            .get("resume_url")
+            .expect("clé présente (b)");
+        assert_ne!(
+            url_a, url_b,
+            "des configs différentes doivent produire des URLs différentes"
+        );
+        assert!(url_a.contains("7771"));
+        assert!(url_b.contains("8080"));
     }
 }

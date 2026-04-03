@@ -41,6 +41,7 @@ default-members = [
 
 # --- Async runtime ---
 tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7" }
 
 # --- Serialization ---
 serde = { version = "1", features = ["derive"] }
@@ -73,6 +74,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 
 # --- Cryptography ---
 sha2 = "0.10"
+hmac = "0.12"
 
 # --- Random ---
 rand = "0.8"

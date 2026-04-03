@@ -8,6 +8,8 @@
 //!
 //! La migration [`include_str`] est idempotente (`CREATE TABLE IF NOT EXISTS`).
 
+use std::collections::HashMap;
+
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
 
@@ -63,6 +65,17 @@ pub struct TriggerStateRow {
     pub skip_count: u64,
     /// Indique si le trigger est activé dans `trigger_state`.
     pub enabled: bool,
+}
+
+/// Statistiques d'un trigger recalculées depuis la table `trigger_history`.
+#[derive(Debug, Clone)]
+pub struct TriggerStats {
+    /// Nombre de fires réussis.
+    pub fire_count: u64,
+    /// Nombre de skips.
+    pub skip_count: u64,
+    /// Horodatage du dernier fire réussi — `None` si jamais déclenché.
+    pub last_fired: Option<DateTime<Utc>>,
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -261,6 +274,55 @@ impl TriggerPersistence {
         Ok(entries)
     }
 
+    /// Recalcule les compteurs de tous les triggers depuis `trigger_history`.
+    ///
+    /// Retourne une map `trigger_id → TriggerStats`. Les triggers sans historique
+    /// n'apparaissent pas dans la map — leurs compteurs restent à zéro côté moteur.
+    /// La requête utilise `SUM(CASE WHEN …)` pour une compatibilité maximale avec
+    /// toutes les versions de SQLite embarquées dans rusqlite.
+    pub fn load_counters(&self) -> Result<HashMap<String, TriggerStats>, TriggerPersistenceError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT trigger_id, \
+                    SUM(CASE WHEN status = 'fired'   THEN 1 ELSE 0 END) AS fire_count, \
+                    SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) AS skip_count, \
+                    MAX(CASE WHEN status = 'fired'   THEN fired_at ELSE NULL END) AS last_fired \
+             FROM trigger_history \
+             GROUP BY trigger_id",
+        )?;
+
+        let mut map = HashMap::new();
+        let rows = stmt.query_map([], |row| {
+            Ok(RawCounterRow {
+                trigger_id: row.get(0)?,
+                fire_count: row.get::<_, i64>(1)?,
+                skip_count: row.get::<_, i64>(2)?,
+                last_fired: row.get(3)?,
+            })
+        })?;
+
+        for row_result in rows {
+            let row = row_result?;
+            let last_fired = row
+                .last_fired
+                .map(|s: String| {
+                    DateTime::parse_from_rfc3339(&s)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .map_err(|e| TriggerPersistenceError::TimestampParse(e.to_string()))
+                })
+                .transpose()?;
+            map.insert(
+                row.trigger_id,
+                TriggerStats {
+                    fire_count: row.fire_count as u64,
+                    skip_count: row.skip_count as u64,
+                    last_fired,
+                },
+            );
+        }
+
+        Ok(map)
+    }
+
     /// Retourne l'état courant d'un trigger (`last_fired`, `fire_count`, `skip_count`).
     ///
     /// Retourne `None` si aucun état n'existe encore pour ce trigger.
@@ -321,6 +383,14 @@ struct RawHistoryRow {
     reason: Option<String>,
     payload_json: Option<String>,
     dispatch_ms: Option<i64>,
+}
+
+/// Ligne brute de `trigger_history` agrégée par `load_counters`.
+struct RawCounterRow {
+    trigger_id: String,
+    fire_count: i64,
+    skip_count: i64,
+    last_fired: Option<String>,
 }
 
 /// Ligne brute de `trigger_state` telle que lue depuis SQLite.
@@ -584,6 +654,130 @@ mod tests {
             Some(r#"{"action":"sync"}"#)
         );
         assert!(entries[0].dispatch_ms.is_none());
+    }
+
+    // ── load_counters ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_load_counters_empty_history_table() {
+        // GIVEN une base vide
+        let (_dir, persistence) = open_test_db();
+        // WHEN
+        let counters = persistence.load_counters().unwrap();
+        // THEN aucune entrée, pas d'erreur
+        assert!(counters.is_empty());
+    }
+
+    #[test]
+    fn test_load_counters_after_3_fires() {
+        // GIVEN 3 fires insérés
+        let (_dir, mut persistence) = open_test_db();
+        let base = Utc::now();
+        for i in 0..3u64 {
+            persistence
+                .record_fired(
+                    "t-fires",
+                    "agent",
+                    &format!("task-{i}"),
+                    base + chrono::Duration::seconds(i as i64),
+                    None,
+                    None,
+                )
+                .unwrap();
+        }
+        // WHEN
+        let counters = persistence.load_counters().unwrap();
+        // THEN fire_count = 3
+        let stats = counters.get("t-fires").expect("trigger absent de la map");
+        assert_eq!(stats.fire_count, 3);
+        assert_eq!(stats.skip_count, 0);
+    }
+
+    #[test]
+    fn test_load_counters_after_2_skips() {
+        // GIVEN 2 skips insérés
+        let (_dir, mut persistence) = open_test_db();
+        for _ in 0..2 {
+            persistence
+                .record_skipped("t-skips", "agent", "busy", Utc::now(), None)
+                .unwrap();
+        }
+        // WHEN
+        let counters = persistence.load_counters().unwrap();
+        // THEN skip_count = 2
+        let stats = counters.get("t-skips").expect("trigger absent de la map");
+        assert_eq!(stats.skip_count, 2);
+        assert_eq!(stats.fire_count, 0);
+    }
+
+    #[test]
+    fn test_load_counters_preserves_last_fired() {
+        // GIVEN des fires avec timestamps distincts
+        let (_dir, mut persistence) = open_test_db();
+        let base = Utc::now();
+        let t0 = base;
+        let t1 = base + chrono::Duration::seconds(10);
+        persistence
+            .record_fired("t-last", "agent", "task-a", t0, None, None)
+            .unwrap();
+        persistence
+            .record_fired("t-last", "agent", "task-b", t1, None, None)
+            .unwrap();
+        // WHEN
+        let counters = persistence.load_counters().unwrap();
+        // THEN last_fired = t1 (le plus récent)
+        let stats = counters.get("t-last").expect("trigger absent de la map");
+        let last = stats.last_fired.expect("last_fired doit être Some");
+        // Comparer à la seconde près (RFC3339 ne préserve pas les sub-secondes de Utc::now)
+        assert_eq!(last.timestamp(), t1.timestamp());
+    }
+
+    #[test]
+    fn test_load_counters_new_trigger_zero() {
+        // GIVEN une base sans entrée pour ce trigger
+        let (_dir, persistence) = open_test_db();
+        // WHEN
+        let counters = persistence.load_counters().unwrap();
+        // THEN le trigger inconnu n'est pas dans la map (compteurs à zéro côté moteur)
+        assert!(counters.get("non-existant").is_none());
+    }
+
+    #[test]
+    fn test_load_counters_mixed_triggers() {
+        // GIVEN deux triggers avec des historiques différents
+        let (_dir, mut persistence) = open_test_db();
+        let now = Utc::now();
+        // trigger-a : 5 fires, 1 skip
+        for i in 0..5u64 {
+            persistence
+                .record_fired(
+                    "trigger-a",
+                    "agent",
+                    &format!("t{i}"),
+                    now + chrono::Duration::seconds(i as i64),
+                    None,
+                    None,
+                )
+                .unwrap();
+        }
+        persistence
+            .record_skipped("trigger-a", "agent", "busy", now, None)
+            .unwrap();
+        // trigger-b : 0 fires, 3 skips
+        for _ in 0..3 {
+            persistence
+                .record_skipped("trigger-b", "agent", "busy", now, None)
+                .unwrap();
+        }
+        // WHEN
+        let counters = persistence.load_counters().unwrap();
+        // THEN compteurs indépendants
+        let a = counters.get("trigger-a").expect("trigger-a absent");
+        assert_eq!(a.fire_count, 5);
+        assert_eq!(a.skip_count, 1);
+        let b = counters.get("trigger-b").expect("trigger-b absent");
+        assert_eq!(b.fire_count, 0);
+        assert_eq!(b.skip_count, 3);
     }
 
     #[test]

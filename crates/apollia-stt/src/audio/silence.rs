@@ -58,6 +58,20 @@ fn rms_energy(window: &[f32]) -> f32 {
 mod tests {
     use super::*;
 
+    mod test_helpers {
+        /// Returns a buffer of `samples` zero-valued samples (pure silence).
+        pub(super) fn generate_silence(samples: usize) -> Vec<f32> {
+            vec![0.0f32; samples]
+        }
+
+        /// Returns a buffer filled with a constant amplitude (acts as voice for any threshold below it).
+        pub(super) fn generate_voice(samples: usize, amplitude: f32) -> Vec<f32> {
+            vec![amplitude; samples]
+        }
+    }
+
+    use test_helpers::*;
+
     // GIVEN audio with silence at start and end, voice in the middle
     // WHEN trim_silence is called
     // THEN leading and trailing silence is removed
@@ -116,5 +130,121 @@ mod tests {
             .collect();
         let trimmed = trim_silence(&audio, -40.0);
         assert_eq!(trimmed.len(), window * 5);
+    }
+
+    // GIVEN a buffer with silence at the start only (voice reaches the end)
+    // WHEN trim_silence is called
+    // THEN only the leading silence is removed; the voice region is fully preserved
+    #[test]
+    fn test_trim_silence_at_start_only() {
+        let window = 160;
+        let silence = generate_silence(3 * window);
+        let voice = generate_voice(5 * window, 0.5);
+        let audio: Vec<f32> = silence.into_iter().chain(voice).collect();
+
+        // WHEN
+        let trimmed = trim_silence(&audio, -40.0);
+
+        // THEN voice region (5 windows) is returned
+        assert_eq!(trimmed.len(), 5 * window);
+        assert!(trimmed.iter().all(|&s| s == 0.5));
+    }
+
+    // GIVEN a buffer with silence at the end only (voice starts at the beginning)
+    // WHEN trim_silence is called
+    // THEN only the trailing silence is removed; the voice region is fully preserved
+    #[test]
+    fn test_trim_silence_at_end_only() {
+        let window = 160;
+        let voice = generate_voice(5 * window, 0.5);
+        let silence = generate_silence(3 * window);
+        let audio: Vec<f32> = voice.into_iter().chain(silence).collect();
+
+        // WHEN
+        let trimmed = trim_silence(&audio, -40.0);
+
+        // THEN voice region (5 windows) is returned
+        assert_eq!(trimmed.len(), 5 * window);
+        assert!(trimmed.iter().all(|&s| s == 0.5));
+    }
+
+    // GIVEN a signal just above and just below the RMS threshold
+    // WHEN trim_silence is called for each case
+    // THEN a signal above threshold is detected as voice; one below is treated as silence
+    #[test]
+    fn test_rms_threshold_boundary() {
+        let window = 160;
+        let threshold_db = -40.0_f32;
+        // threshold_linear = 10^(threshold_db/20) = 10^(-2) ≈ 0.01
+        let threshold_linear = f32::powf(10.0, threshold_db / 20.0);
+
+        // Signal clearly above threshold: RMS is unambiguously >= threshold_linear.
+        // Using a 1% margin avoids f32 accumulation drift in the sum-of-squares.
+        let just_above = threshold_linear * 1.01;
+        let just_below = threshold_linear * 0.99;
+
+        // --- above-threshold case: voice windows are preserved ---
+        // GIVEN 6 windows: 2 silent, 2 just-above-threshold, 2 silent
+        let mut audio_above = generate_silence(6 * window);
+        for sample in audio_above.iter_mut().skip(2 * window).take(2 * window) {
+            *sample = just_above;
+        }
+        // WHEN
+        let trimmed_above = trim_silence(&audio_above, threshold_db);
+        // THEN the 2 voice windows are kept
+        assert_eq!(
+            trimmed_above.len(),
+            2 * window,
+            "just-above-threshold signal should be classified as voice"
+        );
+
+        // --- below-threshold case: buffer is returned as-is (no voice found) ---
+        // GIVEN 6 windows all just below threshold
+        let audio_below = generate_voice(6 * window, just_below);
+        // WHEN
+        let trimmed_below = trim_silence(&audio_below, threshold_db);
+        // THEN no voice is found → original slice returned unchanged
+        assert_eq!(
+            trimmed_below.len(),
+            audio_below.len(),
+            "just-below-threshold signal should not be detected as voice"
+        );
+    }
+
+    // GIVEN a buffer with two voice regions separated by internal silence
+    // WHEN trim_silence is called
+    // THEN only leading and trailing silence are removed; the internal gap is preserved
+    #[test]
+    fn test_trim_multiple_voice_regions() {
+        let window = 160;
+        // Layout: [2 silent][3 voice][2 silent][3 voice][2 silent] = 12 windows
+        let mut audio = generate_silence(12 * window);
+        for sample in audio.iter_mut().skip(2 * window).take(3 * window) {
+            *sample = 0.5;
+        }
+        for sample in audio.iter_mut().skip(7 * window).take(3 * window) {
+            *sample = 0.5;
+        }
+
+        // WHEN
+        let trimmed = trim_silence(&audio, -40.0);
+
+        // THEN windows 2..10 are kept (first_voice=2, last_voice=9)
+        assert_eq!(trimmed.len(), 8 * window);
+    }
+
+    // GIVEN a window of all-zero samples
+    // WHEN rms_energy is called
+    // THEN the result is exactly 0.0 (silence has zero energy)
+    #[test]
+    fn test_rms_energy_zero_is_silence() {
+        // GIVEN
+        let zeros = generate_silence(160);
+
+        // WHEN
+        let rms = rms_energy(&zeros);
+
+        // THEN
+        assert_eq!(rms, 0.0);
     }
 }

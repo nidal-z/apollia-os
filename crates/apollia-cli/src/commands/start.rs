@@ -842,20 +842,34 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         .map(PathBuf::from)
         .unwrap_or_else(|_| std::env::temp_dir());
 
-    // Load apollia.toml if found (LLM only — agents, triggers, pipelines,
-    // notifications, and stt are all loaded from SQLite by the Supervisor).
-    let (llm_config, api_file_config, config_path) = match find_config_file() {
+    // Load apollia.toml if found — agents, triggers, pipelines, notifications, and stt
+    // are loaded from SQLite by the Supervisor; only static sections are parsed here.
+    let (
+        llm_config,
+        api_file_config,
+        runtime_file_config,
+        hitl_file_config,
+        pipelines_file_config,
+        config_path,
+    ) = match find_config_file() {
         Some(path) => {
             tracing::info!(config = %path.display(), "loading config");
             let cfg = crate::config::parse_apollia_toml(&path).map_err(|e| StartError::Config {
                 path: path.clone(),
                 reason: e.to_string(),
             })?;
-            (cfg.llm, cfg.api, Some(path))
+            (
+                cfg.llm,
+                cfg.api,
+                cfg.runtime,
+                cfg.hitl,
+                cfg.pipelines,
+                Some(path),
+            )
         }
         None => {
             tracing::info!("no apollia.toml found — starting with defaults");
-            (None, None, None)
+            (None, None, None, None, None, None)
         }
     };
 
@@ -900,6 +914,9 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
     };
 
     // Start all actors via Supervisor (ordered, with timeout + rollback)
+    let runtime_config = runtime_file_config.unwrap_or_default();
+    let hitl_config = hitl_file_config.unwrap_or_default();
+    let pipelines_config = pipelines_file_config.unwrap_or_default();
     let config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: socket_path.clone(),
@@ -910,10 +927,12 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         startup_timeout_secs: 10,
         llm_config,
         config_path,
-        input_required_timeout_hours: 24,
+        runtime_config,
+        hitl_config,
         data_dir,
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository,
+        pipelines_config,
         bundled_agents_path: {
             // Look for agents/bundled/ adjacent to the binary, then in the current directory.
             let from_exe = std::env::current_exe()

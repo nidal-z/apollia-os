@@ -38,6 +38,11 @@ pub enum PendingApprovalError {
 /// [`resolve`]: PendingApprovals::resolve
 #[derive(Debug, Clone)]
 pub struct PendingApprovals {
+    // Exception au principe #5 (un acteur, une responsabilité) :
+    // PendingApprovals est partagé entre ORIAEngine (qui enregistre le oneshot lors
+    // d'une suspension HITL) et les routes REST (qui résolvent l'approbation depuis
+    // un thread HTTP distinct). Un refactoring vers un acteur dédié introduirait une
+    // latence inacceptable sur le chemin critique d'approbation humaine.
     inner: Arc<Mutex<HashMap<String, oneshot::Sender<InputResponseData>>>>,
 }
 

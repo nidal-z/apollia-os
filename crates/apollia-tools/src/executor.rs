@@ -256,6 +256,7 @@ impl ToolExecutor for FileGlob {
                 FileGlobError::SandboxViolation { .. } => "sandbox_violation",
                 FileGlobError::InvalidPattern(_) => "invalid_pattern",
                 FileGlobError::IoError(_) => "io_error",
+                FileGlobError::GlobLimitExceeded { .. } => "glob_limit_exceeded",
             };
             ToolExecutionError::ExecutionFailed {
                 code: code.to_string(),

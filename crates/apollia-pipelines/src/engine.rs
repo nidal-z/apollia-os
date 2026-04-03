@@ -21,6 +21,7 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -29,10 +30,10 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-use apollia_core::{EventBusSender, RuntimeEvent};
+use apollia_core::{EventBusSender, PipelinesConfig, RuntimeEvent};
 
 use crate::{
-    executor::{ExecutorError, PipelineExecutor, TaskSubmitter},
+    executor::{ExecutorError, PipelineExecutor, StepCancelRegistry, TaskSubmitter},
     repository::{PipelineRepository, PipelineRepositoryError},
     types::{PipelineDefinition, PipelineId, PipelineRun, PipelineStatus, RunId},
 };
@@ -53,6 +54,10 @@ pub enum PipelineEngineError {
     /// A repository (SQLite) operation failed.
     #[error("repository error: {0}")]
     Repository(#[from] PipelineRepositoryError),
+
+    /// The given step run is not currently active and cannot be cancelled.
+    #[error("step not running: {0}")]
+    StepNotRunning(String),
 }
 
 // ── Internal messages ─────────────────────────────────────────────────────────
@@ -96,9 +101,13 @@ enum PipelineEngineMessage {
 ///
 /// All methods are `async` and communicate with the actor over an mpsc channel.
 /// If the actor has stopped, methods return [`PipelineEngineError::EngineUnavailable`].
+/// [`cancel_step`](PipelineEngineHandle::cancel_step) operates directly on the
+/// shared [`StepCancelRegistry`] without going through the actor channel.
 #[derive(Clone)]
 pub struct PipelineEngineHandle {
     tx: mpsc::Sender<PipelineEngineMessage>,
+    /// Shared registry of active cancellation tokens, one per running step.
+    cancel_registry: Arc<StepCancelRegistry>,
 }
 
 impl PipelineEngineHandle {
@@ -223,6 +232,24 @@ impl PipelineEngineHandle {
     pub async fn shutdown(&self) {
         let _ = self.tx.send(PipelineEngineMessage::Shutdown).await;
     }
+
+    /// Cancels a running step identified by `step_run_id` (format `"{run_id}/{step_id}"`).
+    ///
+    /// Triggers the `CancellationToken` registered by the executor for that step.
+    /// The executor transitions the step to [`StepRunStatus::Cancelled`] and marks
+    /// the pipeline run as failed without overwriting the step's terminal status.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PipelineEngineError::StepNotRunning`] if no active token is found
+    /// for `step_run_id` (step already completed, was never started, or was already cancelled).
+    pub fn cancel_step(&self, step_run_id: &str) -> Result<(), PipelineEngineError> {
+        if self.cancel_registry.cancel_step(step_run_id) {
+            Ok(())
+        } else {
+            Err(PipelineEngineError::StepNotRunning(step_run_id.to_owned()))
+        }
+    }
 }
 
 // ── ArcTaskSubmitter adapter ──────────────────────────────────────────────────
@@ -259,6 +286,13 @@ pub struct PipelineEngine {
     submitter: Arc<dyn TaskSubmitter>,
     /// Runtime EventBus sender.
     event_bus: EventBusSender,
+    /// Per-step timeout applied to every [`PipelineExecutor`] spawned by this engine.
+    step_timeout: Duration,
+    /// Shared registry of active cancellation tokens for all running steps.
+    ///
+    /// The same `Arc` is cloned into each spawned [`PipelineExecutor`] and into
+    /// the [`PipelineEngineHandle`], so external callers can cancel individual steps.
+    cancel_registry: Arc<StepCancelRegistry>,
 }
 
 impl PipelineEngine {
@@ -273,20 +307,27 @@ impl PipelineEngine {
         repo: Arc<Mutex<PipelineRepository>>,
         submitter: Arc<dyn TaskSubmitter>,
         event_bus: EventBusSender,
+        pipelines_config: PipelinesConfig,
     ) -> PipelineEngineHandle {
         let (tx, rx) = mpsc::channel(256);
         let pipelines_map = pipelines
             .into_iter()
             .map(|d| (d.id.clone(), d))
             .collect::<HashMap<_, _>>();
+        let cancel_registry = Arc::new(StepCancelRegistry::new());
         let engine = PipelineEngine {
             pipelines: pipelines_map,
             repo,
             submitter,
             event_bus,
+            step_timeout: Duration::from_secs(pipelines_config.default_step_timeout_secs),
+            cancel_registry: Arc::clone(&cancel_registry),
         };
         tokio::spawn(engine.run(rx));
-        PipelineEngineHandle { tx }
+        PipelineEngineHandle {
+            tx,
+            cancel_registry,
+        }
     }
 
     /// Main actor loop — processes messages until `Shutdown` is received.
@@ -481,7 +522,9 @@ impl PipelineEngine {
             submitter,
             self.event_bus.clone(),
             Arc::clone(&self.repo),
-        );
+        )
+        .with_step_timeout(self.step_timeout)
+        .with_cancel_registry(Arc::clone(&self.cancel_registry));
         let executor = if is_resume {
             executor.as_resume()
         } else {
@@ -549,6 +592,7 @@ mod tests {
                     on_failure: StepFailurePolicy::Fail,
                     condition: None,
                     fallback_for: None,
+                    timeout_secs: None,
                 },
                 PipelineStepDef {
                     id: StepId("step-b".into()),
@@ -558,6 +602,7 @@ mod tests {
                     on_failure: StepFailurePolicy::Fail,
                     condition: None,
                     fallback_for: None,
+                    timeout_secs: None,
                 },
             ],
         }
@@ -580,7 +625,13 @@ mod tests {
         repo: Arc<Mutex<PipelineRepository>>,
     ) -> PipelineEngineHandle {
         let submitter: Arc<dyn TaskSubmitter> = Arc::new(NeverCompletingSubmitter);
-        PipelineEngine::spawn(pipelines, repo, submitter, make_event_bus())
+        PipelineEngine::spawn(
+            pipelines,
+            repo,
+            submitter,
+            make_event_bus(),
+            apollia_core::PipelinesConfig::default(),
+        )
     }
 
     // ── list_pipelines returns all registered pipelines ────────────────

@@ -23,16 +23,27 @@ pub type EventBusReceiver = broadcast::Receiver<RuntimeEvent>;
 pub struct EventBus;
 
 impl EventBus {
-    /// Crée un nouveau bus avec un buffer de 1024 événements.
+    /// Crée un nouveau bus avec un buffer de `capacity` événements.
     ///
     /// Retourne le [`EventBusSender`] partageable et un premier [`EventBusReceiver`].
     /// Les receivers supplémentaires s'obtiennent via `sender.subscribe()`.
     ///
+    /// La `capacity` doit être validée en amont via [`apollia_core::RuntimeConfig::validate`]
+    /// (bornes : [64, 65536]). Cette fonction ne valide pas elle-même la valeur.
+    ///
     /// Intentionnellement factory (pas un constructeur Self) : `EventBus` est
     /// un namespace sans état propre — il délègue entièrement au canal broadcast.
+    pub fn with_capacity(capacity: usize) -> (EventBusSender, EventBusReceiver) {
+        broadcast::channel(capacity)
+    }
+
+    /// Crée un nouveau bus avec le buffer par défaut de 1024 événements.
+    ///
+    /// Raccourci pour [`EventBus::with_capacity`]`(1024)`. Utile dans les tests
+    /// et les contextes où la configuration n'est pas disponible.
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> (EventBusSender, EventBusReceiver) {
-        broadcast::channel(1024)
+        Self::with_capacity(1024)
     }
 }
 

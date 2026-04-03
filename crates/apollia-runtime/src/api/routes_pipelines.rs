@@ -947,7 +947,13 @@ mod tests {
         let repo = PipelineRepository::open_in_memory().expect("in-memory repo must open");
         let repo = Arc::new(Mutex::new(repo));
         let submitter: Arc<dyn TaskSubmitter> = Arc::new(NeverCompletingSubmitter);
-        let engine = PipelineEngine::spawn(pipelines, repo, submitter, event_tx.clone());
+        let engine = PipelineEngine::spawn(
+            pipelines,
+            repo,
+            submitter,
+            event_tx.clone(),
+            apollia_core::PipelinesConfig::default(),
+        );
 
         let def_repo =
             PipelineDefinitionRepository::open_in_memory().expect("in-memory def repo must open");

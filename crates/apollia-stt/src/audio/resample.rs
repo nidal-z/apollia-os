@@ -195,4 +195,105 @@ mod tests {
             "expected InvalidAudio, got {err:?}"
         );
     }
+
+    // GIVEN 1 second of mono audio at 44.1 kHz
+    // WHEN to_whisper_format is called
+    // THEN the output length approximates 16000 samples (1 s at 16 kHz, ±2%)
+    #[test]
+    fn test_resample_44100_to_16000_mono_preserves_duration() {
+        use std::f32::consts::TAU;
+        let sample_rate = 44_100u32;
+        let input: Vec<f32> = (0..sample_rate as usize)
+            .map(|i| (TAU * 440.0 * i as f32 / sample_rate as f32).sin())
+            .collect();
+
+        // WHEN
+        let out = to_whisper_format(&input, sample_rate, 1).expect("resample should succeed");
+
+        // THEN
+        let expected = 16_000usize;
+        let tolerance = (expected as f32 * 0.02) as usize;
+        assert!(
+            out.len().abs_diff(expected) <= tolerance,
+            "expected ~{expected} samples, got {}",
+            out.len()
+        );
+    }
+
+    // GIVEN 1 second of mono audio at 8 kHz (below Whisper's target)
+    // WHEN to_whisper_format is called
+    // THEN the output is upsampled to approximately 16000 samples
+    #[test]
+    fn test_resample_upsample_8000_to_16000() {
+        use std::f32::consts::TAU;
+        let sample_rate = 8_000u32;
+        let input: Vec<f32> = (0..sample_rate as usize)
+            .map(|i| (TAU * 200.0 * i as f32 / sample_rate as f32).sin())
+            .collect();
+
+        // WHEN
+        let out = to_whisper_format(&input, sample_rate, 1).expect("upsample should succeed");
+
+        // THEN
+        let expected = 16_000usize;
+        let tolerance = (expected as f32 * 0.05) as usize;
+        assert!(
+            out.len().abs_diff(expected) <= tolerance,
+            "expected ~{expected} samples, got {}",
+            out.len()
+        );
+    }
+
+    // GIVEN 4-channel interleaved audio at 16 kHz with known per-channel values
+    // WHEN to_whisper_format mixes to mono
+    // THEN each output sample equals the arithmetic mean of the 4 input channels
+    #[test]
+    fn test_multichannel_mix_averages_correctly() {
+        // GIVEN 400 frames × 4 channels = 1600 samples
+        let frames = 400usize;
+        let channels = 4u16;
+        let mut input = Vec::with_capacity(frames * channels as usize);
+        for _ in 0..frames {
+            input.push(1.0f32); // ch0
+            input.push(0.5f32); // ch1
+            input.push(0.0f32); // ch2
+            input.push(-0.5f32); // ch3  →  mean = (1.0 + 0.5 + 0.0 - 0.5) / 4 = 0.25
+        }
+
+        // WHEN
+        let out = to_whisper_format(&input, 16_000, channels).expect("mix should succeed");
+
+        // THEN
+        assert_eq!(out.len(), frames);
+        for (i, &s) in out.iter().enumerate() {
+            assert!((s - 0.25).abs() < 1e-5, "frame {i}: expected 0.25, got {s}");
+        }
+    }
+
+    // GIVEN stereo audio at 16 kHz where the two channels are equal and opposite
+    // WHEN to_whisper_format mixes to mono
+    // THEN the channels cancel out and each output sample is near zero
+    #[test]
+    fn test_stereo_mix_cancels_opposing_channels() {
+        // GIVEN
+        let frames = 800usize;
+        let mut stereo = Vec::with_capacity(frames * 2);
+        for i in 0..frames {
+            let v = (i as f32 * 0.01).sin();
+            stereo.push(v);
+            stereo.push(-v); // equal and opposite
+        }
+
+        // WHEN
+        let out = to_whisper_format(&stereo, 16_000, 2).expect("stereo mix should succeed");
+
+        // THEN
+        assert_eq!(out.len(), frames);
+        for &s in &out {
+            assert!(
+                s.abs() < 1e-5,
+                "expected near-zero from channel cancellation, got {s}"
+            );
+        }
+    }
 }

@@ -18,16 +18,18 @@
 //! step. This guarantees that even a very fast task router cannot emit
 //! `TaskCompleted` before the executor has started listening.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
+use chrono::Utc;
 use futures::StreamExt as _;
 use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-use apollia_core::{EventBusSender, RuntimeEvent};
+use apollia_core::{EventBusSender, PipelinesConfig, RuntimeEvent};
 
 use crate::{
     repository::PipelineRepository,
@@ -76,6 +78,8 @@ pub enum StepResult {
         /// Identifier of the suspended task awaiting human approval.
         task_id: String,
     },
+    /// The step was explicitly cancelled by the operator via [`StepCancelRegistry::cancel_step`].
+    Cancelled,
 }
 
 // ── HitlResume ────────────────────────────────────────────────────────────────
@@ -97,6 +101,76 @@ pub enum StepResult {
 pub struct HitlResume {
     /// `true` if the operator approved the suspended step; `false` if rejected.
     pub approved: bool,
+    /// Identifier of the approving operator; `None` if rejected or runtime shut down.
+    pub approved_by: Option<String>,
+    /// Duration in milliseconds between the HITL request and this response.
+    pub approval_duration_ms: Option<i64>,
+}
+
+// ── StepCancelRegistry ────────────────────────────────────────────────────────
+
+/// Thread-safe registry that maps a `step_run_id` to a [`CancellationToken`].
+///
+/// The `step_run_id` is the composite key `"{run_id}/{step_id}"`.
+/// [`PipelineExecutor`] registers tokens when steps start executing and deregisters
+/// them when steps reach any terminal state.  [`crate::engine::PipelineEngineHandle`]
+/// (and tests) call [`cancel_step`](Self::cancel_step) to trigger cancellation.
+pub struct StepCancelRegistry {
+    tokens: Mutex<HashMap<String, CancellationToken>>,
+}
+
+impl Default for StepCancelRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl StepCancelRegistry {
+    /// Creates a new, empty registry.
+    pub fn new() -> Self {
+        Self {
+            tokens: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Registers a cancellation token for the step identified by `step_run_id`.
+    ///
+    /// Called by the executor immediately after `submit_task` returns so that
+    /// an in-flight step can be cancelled via [`cancel_step`](Self::cancel_step).
+    pub(crate) fn register(&self, step_run_id: &str, token: CancellationToken) {
+        self.tokens
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(step_run_id.to_owned(), token);
+    }
+
+    /// Removes the token for the given step.  No-op if the step is not registered.
+    ///
+    /// Called when a step reaches any terminal state (completed, failed, cancelled, skipped).
+    pub(crate) fn deregister(&self, step_run_id: &str) {
+        self.tokens
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(step_run_id);
+    }
+
+    /// Cancels the step identified by `step_run_id`.
+    ///
+    /// Triggers the [`CancellationToken`] for the step, causing
+    /// [`PipelineExecutor::wait_for_task_completion`] to return
+    /// [`StepResult::Cancelled`] instead of waiting for the task event.
+    ///
+    /// Returns `true` if the token was found and triggered, `false` if no
+    /// running step with that `step_run_id` is currently registered.
+    pub fn cancel_step(&self, step_run_id: &str) -> bool {
+        let guard = self.tokens.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(token) = guard.get(step_run_id) {
+            token.cancel();
+            true
+        } else {
+            false
+        }
+    }
 }
 
 // ── TaskSubmitter trait ───────────────────────────────────────────────────────
@@ -163,6 +237,12 @@ pub struct PipelineExecutor<S: TaskSubmitter> {
     /// When `true`, `init_step_rows` is skipped because the step rows already
     /// exist in SQLite (resume after restart).  Set by [`as_resume`](Self::as_resume).
     is_resume: bool,
+    /// Shared registry of per-step cancellation tokens.
+    ///
+    /// Steps register their token on submission and deregister on completion.
+    /// The registry is Arc-shared with the `PipelineEngineHandle` so the engine
+    /// can cancel individual steps from outside the executor task.
+    cancel_registry: Arc<StepCancelRegistry>,
 }
 
 impl<S: TaskSubmitter> PipelineExecutor<S> {
@@ -205,7 +285,18 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
             template_ctx,
             started_at: Instant::now(),
             is_resume: false,
+            cancel_registry: Arc::new(StepCancelRegistry::new()),
         }
+    }
+
+    /// Overrides the shared [`StepCancelRegistry`] (builder pattern).
+    ///
+    /// Used by [`PipelineEngine`](crate::engine::PipelineEngine) to inject the
+    /// engine-wide registry so that `PipelineEngineHandle::cancel_step` can reach
+    /// running steps.
+    pub fn with_cancel_registry(mut self, registry: Arc<StepCancelRegistry>) -> Self {
+        self.cancel_registry = registry;
+        self
     }
 
     /// Marks this executor as resuming an existing run after a process restart.
@@ -232,6 +323,14 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
     /// Overrides the per-step timeout (builder pattern, mainly for tests).
     pub fn with_step_timeout(mut self, timeout: Duration) -> Self {
         self.step_timeout = timeout;
+        self
+    }
+
+    /// Applies pipeline configuration read from `apollia.toml`.
+    ///
+    /// Sets `step_timeout` from [`PipelinesConfig::default_step_timeout_secs`].
+    pub fn with_pipelines_config(mut self, config: &PipelinesConfig) -> Self {
+        self.step_timeout = Duration::from_secs(config.default_step_timeout_secs);
         self
     }
 
@@ -356,18 +455,41 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                         agent: step_def.agent.clone(),
                     });
 
+                    // Create a per-step cancellation token and register it in the
+                    // shared registry so the engine can cancel this step by ID.
+                    let cancel_token = CancellationToken::new();
+                    let step_run_id = format!("{}/{}", self.run.run_id.0, step_id.0);
+                    self.cancel_registry.register(&step_run_id, cancel_token.clone());
+
+                    // Per-step timeout: use the step's own value if set, else
+                    // fall back to the engine's configured global default.
+                    let effective_timeout = step_def
+                        .timeout_secs
+                        .map(|s| Duration::from_secs(u64::from(s)))
+                        .unwrap_or(self.step_timeout);
+
                     futs.push(Box::pin(Self::wait_for_task_completion(
                         step_id.clone(),
                         task_id,
                         rx,
-                        self.step_timeout,
+                        effective_timeout,
+                        cancel_token,
                     )));
                 }
 
                 // Fan-in: collect all results for this layer.
+                //
+                // NOTE: branch conditions are NOT re-evaluated after a cancel
+                // or timeout — the DAG continues with the step's terminal status
+                // as input. Cascading cancellation of dependent steps is out of scope.
                 let mut layer_failed: Option<(StepId, String)> = None;
 
                 while let Some((step_id, result)) = futs.next().await {
+                    // Deregister the cancel token regardless of outcome — the step
+                    // has reached a terminal state and the token is no longer needed.
+                    let step_run_id = format!("{}/{}", self.run.run_id.0, step_id.0);
+                    self.cancel_registry.deregister(&step_run_id);
+
                     let step_def = match self.find_step(&step_id) {
                         Some(d) => d.clone(),
                         None => continue,
@@ -450,6 +572,31 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                             }
                         }
 
+                        StepResult::Cancelled => {
+                            // The operator explicitly cancelled this step.
+                            // Record Cancelled status in SQLite, then abort the pipeline.
+                            self.done_steps.insert(step_id.clone());
+                            self.set_step_cancelled(&step_id)?;
+                            {
+                                let mut repo =
+                                    self.repo.lock().unwrap_or_else(|e| e.into_inner());
+                                repo.fail_run_keep_step(&self.run.run_id, &step_id)?;
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::PipelineFailed {
+                                run_id: self.run.run_id.0.clone(),
+                                pipeline_id: self.definition.id.0.clone(),
+                                step_id: step_id.0.clone(),
+                                reason: "cancelled by operator".to_string(),
+                            });
+                            info!(
+                                run_id   = %self.run.run_id,
+                                step_id  = %step_id,
+                                status   = "cancelled",
+                                "step cancelled by operator",
+                            );
+                            return Ok(());
+                        }
+
                         StepResult::InputRequired { task_id } => {
                             // ── HITL suspend/resume ──────────────
                             //
@@ -459,12 +606,29 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                             let rx_resume = self.event_bus.subscribe();
 
                             // Persist WaitingApproval + emit PipelineSuspended.
-                            self.suspend_for_hitl(&step_id, &task_id)?;
+                            // Capture the request time for HITL audit.
+                            let hitl_request_time = self.suspend_for_hitl(&step_id, &task_id)?;
 
                             // Block until the operator approves or rejects.
-                            let resume = Self::wait_for_resume(&task_id, rx_resume).await;
+                            let resume =
+                                Self::wait_for_resume(&task_id, rx_resume, hitl_request_time)
+                                    .await;
 
                             if resume.approved {
+                                // Record HITL audit fields before restoring run status.
+                                if let (Some(ref by), Some(dur)) =
+                                    (&resume.approved_by, resume.approval_duration_ms)
+                                {
+                                    let mut repo =
+                                        self.repo.lock().unwrap_or_else(|e| e.into_inner());
+                                    repo.record_hitl_approval(
+                                        &self.run.run_id,
+                                        &step_id,
+                                        by,
+                                        dur,
+                                    )?;
+                                }
+
                                 // Restore run status to Running in SQLite.
                                 {
                                     let mut repo =
@@ -485,13 +649,20 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                                 // NOTE: RuntimeEvent::TaskResumed (apollia-core Sprint 11)
                                 // does not carry `new_task_id`. ORIA resumes the original
                                 // task, so we subscribe fresh and wait for TaskCompleted on
-                                // the same task_id.
+                                // the same task_id.  The resumed wait uses the step's
+                                // configured timeout (per-step or global default).
+                                let hitl_step_timeout = self
+                                    .find_step(&step_id)
+                                    .and_then(|d| d.timeout_secs)
+                                    .map(|s| Duration::from_secs(u64::from(s)))
+                                    .unwrap_or(self.step_timeout);
                                 let rx_complete = self.event_bus.subscribe();
                                 let (_, final_result) = Self::wait_for_task_completion(
                                     step_id.clone(),
                                     task_id,
                                     rx_complete,
-                                    self.step_timeout,
+                                    hitl_step_timeout,
+                                    CancellationToken::new(),
                                 )
                                 .await;
 
@@ -554,6 +725,30 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                                             }
                                         }
                                     },
+
+                                    StepResult::Cancelled => {
+                                        // Operator cancelled the resumed step.
+                                        self.done_steps.insert(step_id.clone());
+                                        self.set_step_cancelled(&step_id)?;
+                                        {
+                                            let mut repo =
+                                                self.repo.lock().unwrap_or_else(|e| e.into_inner());
+                                            repo.fail_run_keep_step(&self.run.run_id, &step_id)?;
+                                        }
+                                        let _ = self.event_bus.send(RuntimeEvent::PipelineFailed {
+                                            run_id: self.run.run_id.0.clone(),
+                                            pipeline_id: self.definition.id.0.clone(),
+                                            step_id: step_id.0.clone(),
+                                            reason: "cancelled by operator".to_string(),
+                                        });
+                                        info!(
+                                            run_id  = %self.run.run_id,
+                                            step_id = %step_id,
+                                            status  = "cancelled",
+                                            "step cancelled by operator after HITL resume",
+                                        );
+                                        return Ok(());
+                                    }
 
                                     StepResult::InputRequired { .. } => {
                                         // Nested HITL not supported — fail fast (Principle #4).
@@ -618,6 +813,8 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                 error: None,
                 started_at: None,
                 ended_at: None,
+                approved_by: None,
+                approval_duration_ms: None,
             };
             repo.insert_step(&self.run.run_id, &step_run, &step_def.agent)?;
         }
@@ -696,6 +893,24 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
             &StepRunStatus::FallbackActive,
             None,
             Some(reason),
+            None,
+        )?;
+        Ok(())
+    }
+
+    /// Updates the step row to `Cancelled`.
+    ///
+    /// Called when the operator explicitly cancels a running step via
+    /// [`StepCancelRegistry::cancel_step`]. The `Cancelled` status is distinct from
+    /// `Failed` — it represents a deliberate operator action, not an error condition.
+    fn set_step_cancelled(&self, step_id: &StepId) -> Result<(), ExecutorError> {
+        let mut repo = self.repo.lock().unwrap_or_else(|e| e.into_inner());
+        repo.update_step(
+            &self.run.run_id,
+            step_id,
+            &StepRunStatus::Cancelled,
+            None,
+            None,
             None,
         )?;
         Ok(())
@@ -826,6 +1041,9 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
     /// Transitions the run to [`PipelineStatus::WaitingApproval`] in SQLite and
     /// broadcasts `PipelineSuspended` on the EventBus.
     ///
+    /// Returns the wall-clock time of the suspension request so the caller can
+    /// compute `approval_duration_ms` once the operator responds.
+    ///
     /// # Protocol
     ///
     /// The caller **must** subscribe to the EventBus for
@@ -836,7 +1054,12 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
     /// # Errors
     ///
     /// Returns [`ExecutorError::Repository`] if the SQLite update fails.
-    fn suspend_for_hitl(&self, step_id: &StepId, task_id: &str) -> Result<(), ExecutorError> {
+    fn suspend_for_hitl(
+        &self,
+        step_id: &StepId,
+        task_id: &str,
+    ) -> Result<chrono::DateTime<Utc>, ExecutorError> {
+        let request_time = Utc::now();
         {
             let mut repo = self.repo.lock().unwrap_or_else(|e| e.into_inner());
             repo.suspend_run(&self.run.run_id, step_id, task_id)?;
@@ -852,14 +1075,15 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
             task_id = %task_id,
             "pipeline suspended — awaiting HITL approval",
         );
-        Ok(())
+        Ok(request_time)
     }
 
     /// Blocks until a [`RuntimeEvent::TaskResumed`] matching `task_id` arrives
     /// on the pre-subscribed `rx`.
     ///
-    /// Returns a [`HitlResume`] indicating whether the operator approved or
-    /// rejected the suspended step.
+    /// Returns a [`HitlResume`] with the approval decision and HITL audit fields
+    /// (`approved_by`, `approval_duration_ms`).  The duration is computed from
+    /// `request_time` to the moment the resume event arrives.
     ///
     /// # Deadlock safety
     ///
@@ -867,11 +1091,12 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
     /// [`suspend_for_hitl`](Self::suspend_for_hitl) call so that a very fast
     /// operator response cannot be missed.
     ///
-    /// On `EventBus` closure (runtime shutdown), the function returns
-    /// `HitlResume { approved: false }` to avoid an infinite wait.
+    /// On `EventBus` closure (runtime shutdown), the function returns a rejected
+    /// [`HitlResume`] to avoid an infinite wait.
     async fn wait_for_resume(
         task_id: &str,
         mut rx: broadcast::Receiver<RuntimeEvent>,
+        request_time: chrono::DateTime<Utc>,
     ) -> HitlResume {
         loop {
             match rx.recv().await {
@@ -879,7 +1104,16 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                     task_id: tid,
                     approved,
                 }) if tid == task_id => {
-                    return HitlResume { approved };
+                    let duration_ms = (Utc::now() - request_time).num_milliseconds();
+                    return HitlResume {
+                        approved,
+                        approved_by: if approved {
+                            Some("operator".to_string())
+                        } else {
+                            None
+                        },
+                        approval_duration_ms: if approved { Some(duration_ms) } else { None },
+                    };
                 }
 
                 Ok(_) => {
@@ -902,7 +1136,11 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                         "EventBus closed while waiting for HITL resume \
                          — treating as rejected",
                     );
-                    return HitlResume { approved: false };
+                    return HitlResume {
+                        approved: false,
+                        approved_by: None,
+                        approval_duration_ms: None,
+                    };
                 }
             }
         }
@@ -916,7 +1154,12 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
     // ── Static async helper ───────────────────────────────────────────────────
 
     /// Waits for `TaskCompleted` or `TaskInputRequired` on an already-subscribed
-    /// EventBus receiver, bounded by `step_timeout`.
+    /// EventBus receiver, bounded by `step_timeout` and interruptible by `cancel_token`.
+    ///
+    /// The function races three futures:
+    /// 1. The cancellation token — returns [`StepResult::Cancelled`] immediately.
+    /// 2. The timeout — returns [`StepResult::Failed`] with a reason string.
+    /// 3. The EventBus listener — returns `Completed`, `Failed`, or `InputRequired`.
     ///
     /// Accepting a pre-subscribed `rx` upholds the subscribe-before-submit
     /// invariant: the subscription is established in `execute` before the
@@ -926,9 +1169,11 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
         task_id: String,
         mut rx: broadcast::Receiver<RuntimeEvent>,
         step_timeout: Duration,
+        cancel_token: CancellationToken,
     ) -> (StepId, StepResult) {
         let timeout_secs = step_timeout.as_secs();
-        let result = tokio::time::timeout(step_timeout, async move {
+
+        let event_future = async move {
             loop {
                 match rx.recv().await {
                     Ok(RuntimeEvent::TaskCompleted {
@@ -967,15 +1212,21 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                     }
                 }
             }
-        })
-        .await;
+        };
 
-        match result {
-            Ok(step_result) => (step_id, step_result),
-            Err(_elapsed) => (
-                step_id,
-                StepResult::Failed(format!("step timeout after {timeout_secs}s")),
-            ),
+        tokio::select! {
+            _ = cancel_token.cancelled() => {
+                (step_id, StepResult::Cancelled)
+            }
+            result = tokio::time::timeout(step_timeout, event_future) => {
+                match result {
+                    Ok(step_result) => (step_id, step_result),
+                    Err(_elapsed) => (
+                        step_id,
+                        StepResult::Failed(format!("step timeout after {timeout_secs}s")),
+                    ),
+                }
+            }
         }
     }
 }
@@ -1062,9 +1313,6 @@ mod tests {
             self
         }
 
-        fn submitted_inputs(&self) -> Vec<(String, String)> {
-            self.submitted.lock().unwrap().clone()
-        }
     }
 
     #[async_trait]
@@ -1142,6 +1390,7 @@ mod tests {
             on_failure,
             condition: None,
             fallback_for: None,
+            timeout_secs: None,
         }
     }
 
@@ -1481,6 +1730,7 @@ mod tests {
             on_failure: StepFailurePolicy::Fallback,
             condition: None,
             fallback_for: None,
+            timeout_secs: None,
         };
         let validation_manuelle = PipelineStepDef {
             id: StepId("validation-manuelle".into()),
@@ -1490,6 +1740,7 @@ mod tests {
             on_failure: StepFailurePolicy::Fail,
             condition: None,
             fallback_for: Some(StepId("validation".into())),
+            timeout_secs: None,
         };
         let notification = PipelineStepDef {
             id: StepId("notification".into()),
@@ -1499,6 +1750,7 @@ mod tests {
             on_failure: StepFailurePolicy::Fail,
             condition: None,
             fallback_for: None,
+            timeout_secs: None,
         };
 
         let def = make_pipeline(vec![ocr, validation, validation_manuelle, notification]);
@@ -1579,6 +1831,7 @@ mod tests {
                 on_failure: StepFailurePolicy::Fallback,
                 condition: None,
                 fallback_for: None,
+                timeout_secs: None,
             },
         ];
         let def = make_pipeline(steps);
@@ -1629,6 +1882,7 @@ mod tests {
                 on_failure: StepFailurePolicy::Fallback,
                 condition: None,
                 fallback_for: None,
+                timeout_secs: None,
             },
             PipelineStepDef {
                 id: StepId("validation-manuelle".into()),
@@ -1638,6 +1892,7 @@ mod tests {
                 on_failure: StepFailurePolicy::Fail,
                 condition: None,
                 fallback_for: Some(StepId("validation".into())),
+                timeout_secs: None,
             },
         ];
         let def = make_pipeline(steps);
@@ -2000,6 +2255,373 @@ mod tests {
         assert!(
             !completed,
             "PipelineCompleted must NOT be emitted on rejection"
+        );
+    }
+
+    // ── PipelinesConfig — step timeout enforcement ──────────────────────────
+
+    #[tokio::test]
+    async fn test_pipeline_step_timeout_enforced() {
+        // GIVEN a pipeline with a hanging step and a 50 ms timeout via with_pipelines_config
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(64);
+        let steps = vec![make_step(
+            "slow",
+            "slow-agent",
+            "run",
+            &[],
+            StepFailurePolicy::Fail,
+        )];
+        let def = make_pipeline(steps);
+        let run = make_run(&def);
+        let repo = make_repo();
+        {
+            let mut r = repo.lock().unwrap();
+            r.insert_run(&run).unwrap();
+        }
+        let mock = MockSubmitter::new(tx.clone()).with_hang("slow-agent");
+
+        // WHEN — use with_pipelines_config with a 1-second timeout (fast enough for a test)
+        let config = apollia_core::PipelinesConfig {
+            default_step_timeout_secs: 1,
+        };
+        let executor = PipelineExecutor::new(def, run, mock, tx, Arc::clone(&repo))
+            .with_pipelines_config(&config);
+        let result = executor.execute().await;
+
+        // THEN — execution completes without an Err (timeout → Failed step → PipelineFailed)
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+
+        // AND a PipelineFailed event is emitted
+        let mut events = Vec::new();
+        while let Ok(e) = rx.try_recv() {
+            events.push(e);
+        }
+        let pipeline_failed = events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::PipelineFailed { .. }));
+        assert!(
+            pipeline_failed,
+            "PipelineFailed must be emitted after step timeout; events: {events:?}"
+        );
+    }
+
+    // ── Per-step timeout overrides global ───────────────────────────────────
+
+    #[tokio::test]
+    async fn test_step_custom_timeout_overrides_global() {
+        // GIVEN — a step with timeout_secs: 1 and a global timeout of 30s; agent hangs
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(64);
+        let step = PipelineStepDef {
+            id: StepId("slow".into()),
+            agent: "slow-agent".into(),
+            input: "start".into(),
+            depends_on: vec![],
+            on_failure: StepFailurePolicy::Fail,
+            condition: None,
+            fallback_for: None,
+            timeout_secs: Some(1),
+        };
+        let def = make_pipeline(vec![step]);
+        let run = make_run(&def);
+        let repo = make_repo();
+        {
+            let mut r = repo.lock().unwrap();
+            r.insert_run(&run).unwrap();
+        }
+        let mock = MockSubmitter::new(tx.clone()).with_hang("slow-agent");
+
+        // WHEN — global timeout is 30s but step timeout is 1s
+        let executor = PipelineExecutor::new(def, run.clone(), mock, tx, Arc::clone(&repo))
+            .with_step_timeout(Duration::from_secs(30));
+
+        // Bounded outer timeout: expect the step to time out within 3s (well under 30s)
+        let start = std::time::Instant::now();
+        let result = tokio::time::timeout(Duration::from_secs(3), executor.execute())
+            .await
+            .expect("executor must finish within 3s using the per-step 1s timeout");
+
+        // THEN — pipeline failed (not Err), elapsed < 30s proves per-step timeout was used
+        assert!(result.is_ok());
+        assert!(
+            start.elapsed() < Duration::from_secs(10),
+            "per-step timeout must fire before the 30s global default"
+        );
+
+        let found = repo.lock().unwrap().find_run(&run.run_id).unwrap().unwrap();
+        assert!(
+            matches!(found.status, PipelineStatus::Failed { .. }),
+            "pipeline must be Failed after step timeout"
+        );
+    }
+
+    // ── Cancel running step → Cancelled status ──────────────────────────────
+
+    #[tokio::test]
+    async fn test_cancel_running_step_returns_cancelled_status() {
+        // GIVEN — a single hanging step and a shared cancel registry
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(64);
+        let steps = vec![make_step("A", "hang-agent", "in", &[], StepFailurePolicy::Fail)];
+        let def = make_pipeline(steps);
+        let run = make_run(&def);
+        let repo = make_repo();
+        {
+            let mut r = repo.lock().unwrap();
+            r.insert_run(&run).unwrap();
+        }
+        let mock = MockSubmitter::new(tx.clone()).with_hang("hang-agent");
+
+        let registry = Arc::new(StepCancelRegistry::new());
+        let step_run_id = format!("{}/A", run.run_id.0);
+        let registry_clone = Arc::clone(&registry);
+
+        let executor = PipelineExecutor::new(def, run.clone(), mock, tx, Arc::clone(&repo))
+            .with_step_timeout(Duration::from_secs(30))
+            .with_cancel_registry(Arc::clone(&registry));
+
+        // Spawn a task that cancels the step after a short delay
+        tokio::spawn(async move {
+            // Give the executor time to register the cancel token
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            registry_clone.cancel_step(&step_run_id);
+        });
+
+        // WHEN
+        let result = tokio::time::timeout(Duration::from_secs(3), executor.execute())
+            .await
+            .expect("executor must finish within 3s after cancel");
+        assert!(result.is_ok());
+
+        // THEN — step has Cancelled status in SQLite
+        let found = repo.lock().unwrap().find_run(&run.run_id).unwrap().unwrap();
+        let step = found
+            .step_runs
+            .get(&StepId("A".into()))
+            .expect("step A must be in SQLite");
+        assert_eq!(
+            step.status,
+            StepRunStatus::Cancelled,
+            "step must have Cancelled status after cancel_step()"
+        );
+    }
+
+    // ── HITL approval records approved_by and approval_duration_ms ──────────
+
+    #[tokio::test]
+    async fn test_hitl_approval_records_approved_by_and_duration() {
+        // GIVEN — a single HITL step
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(128);
+        let steps = vec![make_step(
+            "approval-step",
+            "hitl-agent",
+            "approve this",
+            &[],
+            StepFailurePolicy::Fail,
+        )];
+        let def = make_pipeline(steps);
+        let run = make_run(&def);
+        let repo = make_repo();
+        {
+            let mut r = repo.lock().unwrap();
+            r.insert_run(&run).unwrap();
+        }
+        let mock = MockSubmitter::new(tx.clone()).with_input_required("hitl-agent");
+
+        // Watcher: approve the step, then emit TaskCompleted so the executor finishes
+        let tx_watcher = tx.clone();
+        let mut rx_watcher = tx.subscribe();
+        tokio::spawn(async move {
+            while let Ok(event) = rx_watcher.recv().await {
+                if let RuntimeEvent::PipelineSuspended { task_id, .. } = event {
+                    let _ = tx_watcher.send(RuntimeEvent::TaskResumed {
+                        task_id: TaskId::from(task_id.as_str()),
+                        approved: true,
+                    });
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    let _ = tx_watcher.send(RuntimeEvent::TaskCompleted {
+                        agent_id: "hitl-agent".into(),
+                        task_id: TaskId::from(task_id.as_str()),
+                        success: true,
+                        output: Some("approved-output".into()),
+                    });
+                    break;
+                }
+            }
+        });
+
+        // WHEN
+        let executor = PipelineExecutor::new(def, run.clone(), mock, tx, Arc::clone(&repo))
+            .with_step_timeout(Duration::from_millis(500));
+        let result = tokio::time::timeout(Duration::from_secs(3), executor.execute())
+            .await
+            .expect("executor must finish");
+        assert!(result.is_ok());
+
+        // THEN — approved_by and approval_duration_ms are populated in SQLite
+        let found = repo.lock().unwrap().find_run(&run.run_id).unwrap().unwrap();
+        let step = found
+            .step_runs
+            .get(&StepId("approval-step".into()))
+            .expect("approval-step must be in SQLite");
+        assert!(
+            step.approved_by.is_some(),
+            "approved_by must be set after HITL approval"
+        );
+        assert!(
+            step.approval_duration_ms.is_some(),
+            "approval_duration_ms must be set after HITL approval"
+        );
+        assert!(
+            step.approval_duration_ms.unwrap() >= 0,
+            "approval_duration_ms must be non-negative"
+        );
+    }
+
+    // ── Step without custom timeout uses global default ──────────────────────
+
+    #[tokio::test]
+    async fn test_step_without_custom_timeout_uses_global_default() {
+        // GIVEN — a step with no timeout_secs and a global timeout of 100ms; agent hangs
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(64);
+        let steps = vec![make_step("A", "hang-agent", "in", &[], StepFailurePolicy::Fail)];
+        let def = make_pipeline(steps);
+        let run = make_run(&def);
+        let repo = make_repo();
+        {
+            let mut r = repo.lock().unwrap();
+            r.insert_run(&run).unwrap();
+        }
+        let mock = MockSubmitter::new(tx.clone()).with_hang("hang-agent");
+
+        // WHEN — global timeout is 100ms; step has no override
+        let executor = PipelineExecutor::new(def, run.clone(), mock, tx, Arc::clone(&repo))
+            .with_step_timeout(Duration::from_millis(100));
+
+        let start = std::time::Instant::now();
+        let result = tokio::time::timeout(Duration::from_secs(3), executor.execute())
+            .await
+            .expect("executor must finish within 3s");
+        assert!(result.is_ok());
+
+        // THEN — elapsed is close to 100ms (global timeout applied)
+        assert!(
+            start.elapsed() < Duration::from_millis(800),
+            "global 100ms timeout must fire well before 800ms"
+        );
+
+        let found = repo.lock().unwrap().find_run(&run.run_id).unwrap().unwrap();
+        assert!(
+            matches!(found.status, PipelineStatus::Failed { .. }),
+            "pipeline must be Failed after timeout"
+        );
+    }
+
+    // ── Cancelled status is distinct from Failed in the history ─────────────
+
+    #[tokio::test]
+    async fn test_cancelled_status_distinct_from_failed() {
+        // GIVEN — two independent runs: one times out (Failed), one gets cancelled (Cancelled)
+
+        // Run 1: step times out → status Failed
+        let (tx1, _rx1) = broadcast::channel::<RuntimeEvent>(64);
+        let def1 = make_pipeline(vec![make_step(
+            "A",
+            "hang-agent",
+            "in",
+            &[],
+            StepFailurePolicy::Fail,
+        )]);
+        let run1 = PipelineRun {
+            run_id: RunId("r-timeout-test".into()),
+            pipeline_id: def1.id.clone(),
+            trigger_id: None,
+            status: PipelineStatus::Running,
+            step_runs: HashMap::new(),
+            trigger_payload: None,
+            started_at: chrono::Utc::now(),
+            ended_at: None,
+        };
+        let repo1 = make_repo();
+        repo1.lock().unwrap().insert_run(&run1).unwrap();
+        let mock1 = MockSubmitter::new(tx1.clone()).with_hang("hang-agent");
+        let executor1 = PipelineExecutor::new(def1, run1.clone(), mock1, tx1, Arc::clone(&repo1))
+            .with_step_timeout(Duration::from_millis(100));
+        tokio::time::timeout(Duration::from_secs(3), executor1.execute())
+            .await
+            .expect("executor1 must finish")
+            .unwrap();
+        let run1_result = repo1.lock().unwrap().find_run(&run1.run_id).unwrap().unwrap();
+        let step_a_timeout = run1_result.step_runs.get(&StepId("A".into())).unwrap();
+
+        // Run 2: step gets cancelled → status Cancelled
+        let (tx2, _rx2) = broadcast::channel::<RuntimeEvent>(64);
+        let def2 = make_pipeline(vec![make_step(
+            "A",
+            "hang-agent",
+            "in",
+            &[],
+            StepFailurePolicy::Fail,
+        )]);
+        let run2 = PipelineRun {
+            run_id: RunId("r-cancel-test".into()),
+            pipeline_id: def2.id.clone(),
+            trigger_id: None,
+            status: PipelineStatus::Running,
+            step_runs: HashMap::new(),
+            trigger_payload: None,
+            started_at: chrono::Utc::now(),
+            ended_at: None,
+        };
+        let repo2 = make_repo();
+        repo2.lock().unwrap().insert_run(&run2).unwrap();
+        let mock2 = MockSubmitter::new(tx2.clone()).with_hang("hang-agent");
+        let registry2 = Arc::new(StepCancelRegistry::new());
+        let step_run_id2 = format!("{}/A", run2.run_id.0);
+        let registry2_clone = Arc::clone(&registry2);
+        let executor2 = PipelineExecutor::new(def2, run2.clone(), mock2, tx2, Arc::clone(&repo2))
+            .with_step_timeout(Duration::from_secs(30))
+            .with_cancel_registry(Arc::clone(&registry2));
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            registry2_clone.cancel_step(&step_run_id2);
+        });
+        tokio::time::timeout(Duration::from_secs(3), executor2.execute())
+            .await
+            .expect("executor2 must finish")
+            .unwrap();
+        let run2_result = repo2.lock().unwrap().find_run(&run2.run_id).unwrap().unwrap();
+        let step_a_cancel = run2_result.step_runs.get(&StepId("A".into())).unwrap();
+
+        // THEN — the two statuses are distinct
+        assert_eq!(
+            step_a_timeout.status,
+            StepRunStatus::Failed,
+            "timed-out step must have Failed status"
+        );
+        assert_eq!(
+            step_a_cancel.status,
+            StepRunStatus::Cancelled,
+            "cancelled step must have Cancelled status"
+        );
+        assert_ne!(
+            step_a_timeout.status, step_a_cancel.status,
+            "Cancelled and Failed must be distinct statuses"
+        );
+    }
+
+    // ── Cancel non-existent step returns false ───────────────────────────────
+
+    #[tokio::test]
+    async fn test_cancel_nonexistent_step_returns_error() {
+        // GIVEN — an empty registry
+        let registry = StepCancelRegistry::new();
+
+        // WHEN — cancel a step that was never registered
+        let cancelled = registry.cancel_step("r-unknown/step-x");
+
+        // THEN — returns false (no token registered for that id)
+        assert!(
+            !cancelled,
+            "cancel_step on a non-registered step must return false"
         );
     }
 }

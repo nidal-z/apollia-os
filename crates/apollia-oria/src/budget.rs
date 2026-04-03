@@ -12,7 +12,10 @@
 //! between ORIAEngine and ToolProxy.
 
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
+
+use tokio::sync::oneshot;
 
 use apollia_core::StepBudgetConfig;
 
@@ -20,6 +23,12 @@ use apollia_core::StepBudgetConfig;
 ///
 /// Thread-safe grace a `AtomicU32` pour les compteurs et `Instant` pour le chrono.
 /// Partage via `Arc<StepBudget>` entre ORIAEngine et ToolProxy.
+///
+/// Quand le budget est épuisé (steps ou tool_calls), le sender `exhaustion_tx` est
+/// consommé pour notifier les waiters via [`wait_for_exhaustion`]. La dimension
+/// wall_clock est gérée par un `tokio::time::sleep` sur la durée restante.
+///
+/// [`wait_for_exhaustion`]: StepBudget::wait_for_exhaustion
 pub struct StepBudget {
     /// Nombre maximal de steps autorisees.
     pub max_steps: u32,
@@ -30,11 +39,16 @@ pub struct StepBudget {
     current_steps: AtomicU32,
     current_tool_calls: AtomicU32,
     started_at: Instant,
+    /// Sender fired once when steps or tool_calls reaches its limit.
+    exhaustion_tx: Mutex<Option<oneshot::Sender<()>>>,
+    /// Receiver consumed once by [`wait_for_exhaustion`].
+    exhaustion_rx: Mutex<Option<oneshot::Receiver<()>>>,
 }
 
 impl StepBudget {
     /// Cree un nouveau StepBudget a partir de la config.
     pub fn new(config: &StepBudgetConfig) -> Self {
+        let (tx, rx) = oneshot::channel();
         Self {
             max_steps: config.max_steps,
             max_tool_calls: config.max_tool_calls,
@@ -42,6 +56,8 @@ impl StepBudget {
             current_steps: AtomicU32::new(0),
             current_tool_calls: AtomicU32::new(0),
             started_at: Instant::now(),
+            exhaustion_tx: Mutex::new(Some(tx)),
+            exhaustion_rx: Mutex::new(Some(rx)),
         }
     }
 
@@ -63,13 +79,66 @@ impl StepBudget {
     }
 
     /// Incremente le compteur de steps.
+    ///
+    /// Si ce compteur atteint `max_steps`, notifie les waiters de [`wait_for_exhaustion`].
+    ///
+    /// [`wait_for_exhaustion`]: StepBudget::wait_for_exhaustion
     pub fn increment_steps(&self) {
-        self.current_steps.fetch_add(1, Ordering::Relaxed);
+        let prev = self.current_steps.fetch_add(1, Ordering::Relaxed);
+        if prev + 1 >= self.max_steps {
+            self.try_notify_exhaustion();
+        }
     }
 
     /// Incremente le compteur d'appels outils.
+    ///
+    /// Si ce compteur atteint `max_tool_calls`, notifie les waiters de [`wait_for_exhaustion`].
+    ///
+    /// [`wait_for_exhaustion`]: StepBudget::wait_for_exhaustion
     pub fn increment_tool_calls(&self) {
-        self.current_tool_calls.fetch_add(1, Ordering::Relaxed);
+        let prev = self.current_tool_calls.fetch_add(1, Ordering::Relaxed);
+        if prev + 1 >= self.max_tool_calls {
+            self.try_notify_exhaustion();
+        }
+    }
+
+    /// Fires the exhaustion oneshot at most once.
+    fn try_notify_exhaustion(&self) {
+        if let Ok(mut guard) = self.exhaustion_tx.lock() {
+            if let Some(tx) = guard.take() {
+                let _ = tx.send(());
+            }
+        }
+    }
+
+    /// Returns a future that resolves when the budget is exhausted.
+    ///
+    /// Resolves when either:
+    /// - `increment_steps` / `increment_tool_calls` fires the exhaustion oneshot, or
+    /// - the `wall_clock_limit` elapses.
+    ///
+    /// Can only be awaited once per `StepBudget` instance (the receiver is consumed).
+    /// Subsequent calls fall back to waiting on the remaining wall-clock duration only.
+    pub async fn wait_for_exhaustion(&self) {
+        let rx = {
+            let mut guard = self.exhaustion_rx.lock().unwrap_or_else(|p| p.into_inner());
+            guard.take()
+        };
+        let wall_clock_remaining = self
+            .wall_clock_limit
+            .saturating_sub(self.started_at.elapsed());
+
+        match rx {
+            Some(rx) => {
+                tokio::select! {
+                    _ = rx => {}
+                    _ = tokio::time::sleep(wall_clock_remaining) => {}
+                }
+            }
+            None => {
+                tokio::time::sleep(wall_clock_remaining).await;
+            }
+        }
     }
 
     /// Nombre de steps restantes.
@@ -302,5 +371,33 @@ mod tests {
         // THEN current_steps == 1000 et is_exhausted() == true
         assert!(budget.is_exhausted());
         assert_eq!(budget.steps_left(), 0);
+    }
+
+    /// `wait_for_exhaustion` completes via the oneshot when `increment_steps` exhausts the budget.
+    #[tokio::test]
+    async fn test_budget_exhaustion_oneshot_notification() {
+        // GIVEN un budget avec max_steps = 1
+        let config = StepBudgetConfig {
+            max_steps: 1,
+            max_tool_calls: 100,
+            wall_clock_secs: 60,
+        };
+        let budget = Arc::new(StepBudget::new(&config));
+        let budget_clone = Arc::clone(&budget);
+
+        // WHEN on incrémente dans une tâche concurrente et attend l'épuisement
+        let waiter = tokio::spawn(async move { budget_clone.wait_for_exhaustion().await });
+
+        // Give the waiter time to start
+        tokio::task::yield_now().await;
+
+        // THEN incrémenter les steps déclenche la notification oneshot
+        budget.increment_steps();
+
+        // La future doit se compléter sans atteindre le wall_clock_limit (60s)
+        tokio::time::timeout(std::time::Duration::from_secs(1), waiter)
+            .await
+            .expect("wait_for_exhaustion should complete within 1s, not poll for 60s")
+            .expect("task should not panic");
     }
 }

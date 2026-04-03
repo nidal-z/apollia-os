@@ -392,17 +392,26 @@ La concurrence SQLite est gérée par WAL (Write-Ahead Logging) : plusieurs lect
 
 ---
 
-## 7. Configuration TTL
+## 7. Configuration TTL et constantes
 
 ```toml
 [memory]
-episodic_ttl_days    = 90     # Épisodes purgés après 90 jours
-semantic_ttl_days    = null   # Faits permanents par défaut
-procedural_ttl_days  = null   # Workflows permanents par défaut
-purge_on_startup     = true   # Purge au démarrage (async, non-bloquant)
+episodic_ttl_days       = 90     # Épisodes purgés après 90 jours
+semantic_ttl_days       = null   # Faits permanents par défaut
+procedural_ttl_days     = null   # Workflows permanents par défaut
+purge_on_startup        = true   # Purge au démarrage (async, non-bloquant)
+step_output_max_chars   = 200    # Limite de troncature de la sortie mémorisée par step
 ```
 
 La purge est **asynchrone et non-bloquante** au démarrage. Elle ne ralentit pas le démarrage de l'agent.
+
+### Constantes de configuration
+
+| Constante | Valeur par défaut | Description |
+|---|---|---|
+| `STEP_MEMORY_OUTPUT_MAX_CHARS` | `200` | Limite maximale en caractères de la sortie d'un step mémorisée dans la mémoire épisodique. Au-delà, le contenu est tronqué avec un suffixe `[truncated]`. Configurable via `memory.step_output_max_chars` dans `apollia.toml`. |
+
+La troncature est appliquée systématiquement par le runtime lors de l'appel `ctx.memory.record()` depuis ORIA. Elle borne la croissance de la base épisodique sans heuristique de consolidation (voir [ADR-054](../adr/ADR-054-memory-episodic-consolidation.md)).
 
 ---
 

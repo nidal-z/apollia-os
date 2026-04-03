@@ -97,6 +97,7 @@ mod tests {
             on_failure: StepFailurePolicy::Fail,
             condition: None,
             fallback_for: None,
+            timeout_secs: None,
         }
     }
 
@@ -274,6 +275,7 @@ mod tests {
                     value: "OK".into(),
                 }),
                 fallback_for: None,
+                timeout_secs: None,
             },
             PipelineStepDef {
                 id: StepId("B-fallback".into()),
@@ -283,6 +285,7 @@ mod tests {
                 on_failure: StepFailurePolicy::Fail,
                 condition: None,
                 fallback_for: Some(StepId("B".into())),
+                timeout_secs: None,
             },
         ];
 

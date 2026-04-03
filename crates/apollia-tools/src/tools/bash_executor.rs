@@ -285,7 +285,7 @@ mod tests {
     #[tokio::test]
     async fn test_ac1_echo_returns_stdout() {
         if !can_run_shell() {
-            eprintln!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
             return;
         }
         // GIVEN
@@ -305,7 +305,7 @@ mod tests {
     #[tokio::test]
     async fn test_ac2_failed_command_returns_nonzero_exit_code() {
         if !can_run_shell() {
-            eprintln!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
             return;
         }
         // GIVEN
@@ -327,7 +327,7 @@ mod tests {
     #[tokio::test]
     async fn test_ac3_timeout_kills_process() {
         if !can_run_shell() {
-            eprintln!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
             return;
         }
         // GIVEN
@@ -376,7 +376,7 @@ mod tests {
     #[tokio::test]
     async fn test_ac5_stderr_captured_separately() {
         if !can_run_shell() {
-            eprintln!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
             return;
         }
         // GIVEN

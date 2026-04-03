@@ -385,7 +385,41 @@ impl LlmCallRepository {
 
 ---
 
-## 11. ToolCallHelper — Boucle ReAct automatique
+## 11. Tarification des backends cloud
+
+> **Note :** Tarifs indicatifs en USD par million de tokens (MTok) au moment de la rédaction (avril 2026). Vérifier les sources officielles avant de budgéter.
+
+### Backends cloud facturés
+
+| Backend | Modèle | Input (USD/MTok) | Output (USD/MTok) | Remarques |
+|---|---|---|---|---|
+| `anthropic` | claude-haiku-4-5 | $0.80 | $4.00 | Modèle rapide, idéal pour tâches légères |
+| `anthropic` | claude-sonnet-4-6 | $3.00 | $15.00 | Équilibre performance/coût |
+| `anthropic` | claude-opus-4-6 | $15.00 | $75.00 | Modèle le plus capable |
+| `openai` | gpt-4o-mini | $0.15 | $0.60 | Alternative économique |
+| `openai` | gpt-4o | $2.50 | $10.00 | Polyvalent OpenAI |
+| `openai` | o1-mini | $1.10 | $4.40 | Raisonnement avancé, latence élevée |
+
+### Backends locaux (gratuits)
+
+| Backend | Modèle | Coût | Remarques |
+|---|---|---|---|
+| `local` (llama.cpp) | Llama 3, Mistral, Qwen, etc. | **Gratuit** | CPU/GPU local, latence dépend du hardware |
+| `ollama` | Tout modèle Ollama | **Gratuit** | Requiert Ollama installé localement |
+
+### Suivi des coûts
+
+Le champ `cost_usd` dans `RuntimeEvent::LlmCallCompleted` est calculé à partir d'une table de
+lookup compilée dans `crates/apollia-llm/src/pricing.rs`. Si le modèle n'est pas dans la table,
+`cost_usd = None`. La CLI `apollia-os llm costs` agrège les coûts depuis `~/.apollia/llm_calls.db`.
+
+Sources officielles :
+- Anthropic : https://www.anthropic.com/pricing
+- OpenAI : https://openai.com/api/pricing
+
+---
+
+## 12. ToolCallHelper — Boucle ReAct automatique
 
 `ToolCallHelper` implémente la boucle ReAct complète pour les agents qui veulent déléguer le raisonnement outil-par-outil au LLM.
 

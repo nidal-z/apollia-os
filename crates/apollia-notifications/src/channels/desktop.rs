@@ -92,10 +92,23 @@ impl NotificationChannel for DesktopChannel {
             .get("inspect_url")
             .cloned()
             .unwrap_or_default();
+        let dashboard_url = notif
+            .metadata
+            .get("dashboard_url")
+            .cloned()
+            .unwrap_or_default();
         let severity = notif.severity;
 
         tokio::task::spawn_blocking(move || {
-            show_os_notification(summary, body, severity, is_hitl, resume_url, inspect_url);
+            show_os_notification(
+                summary,
+                body,
+                severity,
+                is_hitl,
+                resume_url,
+                inspect_url,
+                dashboard_url,
+            );
         });
 
         Ok(())
@@ -112,9 +125,18 @@ fn show_os_notification(
     is_hitl: bool,
     resume_url: String,
     inspect_url: String,
+    dashboard_url: String,
 ) {
     #[cfg(all(unix, not(target_os = "macos")))]
-    show_os_notification_xdg(summary, body, severity, is_hitl, resume_url, inspect_url);
+    show_os_notification_xdg(
+        summary,
+        body,
+        severity,
+        is_hitl,
+        resume_url,
+        inspect_url,
+        dashboard_url,
+    );
 
     // macOS : osascript est la seule API fiable pour les binaires CLI sans bundle ID.
     // mac-notification-sys (défaut notify-rust) nécessite un bundle identifier
@@ -129,7 +151,7 @@ fn show_os_notification(
     // Paramètres non utilisés sur macOS/Windows — silence les warnings.
     #[cfg(not(all(unix, not(target_os = "macos"))))]
     {
-        let _ = (severity, is_hitl, resume_url, inspect_url);
+        let _ = (severity, is_hitl, resume_url, inspect_url, dashboard_url);
     }
 }
 
@@ -142,11 +164,11 @@ fn show_os_notification_xdg(
     is_hitl: bool,
     resume_url: String,
     inspect_url: String,
+    dashboard_url: String,
 ) {
     use notify_rust::Urgency;
 
     let urgency = severity_to_urgency(severity);
-    let dashboard_url = "http://localhost:7771/dashboard".to_string();
 
     if is_hitl {
         let mut os_notif = OsNotif::new();

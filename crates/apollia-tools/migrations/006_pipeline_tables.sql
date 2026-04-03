@@ -19,17 +19,19 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
 -- État d'exécution de chaque step au sein d'un run.
 -- La PRIMARY KEY composite (run_id, step_id) garantit l'unicité des entrées.
 CREATE TABLE IF NOT EXISTS pipeline_step_runs (
-    run_id      TEXT NOT NULL REFERENCES pipeline_runs(run_id),
-    step_id     TEXT NOT NULL,
-    task_id     TEXT,                        -- NULL si pending/skipped/fallback_active
-    agent_name  TEXT NOT NULL,
-    status      TEXT NOT NULL DEFAULT 'pending',
-                -- pending | running | waiting_approval | completed
-                -- failed | skipped | fallback_active
-    output      TEXT,
-    error       TEXT,
-    started_at  TIMESTAMP,
-    ended_at    TIMESTAMP,
+    run_id               TEXT NOT NULL REFERENCES pipeline_runs(run_id),
+    step_id              TEXT NOT NULL,
+    task_id              TEXT,                        -- NULL si pending/skipped/fallback_active
+    agent_name           TEXT NOT NULL,
+    status               TEXT NOT NULL DEFAULT 'pending',
+                         -- pending | running | waiting_approval | completed
+                         -- failed | skipped | fallback_active | cancelled
+    output               TEXT,
+    error                TEXT,
+    started_at           TIMESTAMP,
+    ended_at             TIMESTAMP,
+    approved_by          TEXT,                        -- NULL pour les steps non-HITL
+    approval_duration_ms INTEGER,                     -- durée d'attente HITL en ms
     PRIMARY KEY (run_id, step_id)
 );
 

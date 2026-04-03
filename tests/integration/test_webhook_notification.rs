@@ -50,6 +50,7 @@ fn make_channel(url: &str) -> WebhookChannel {
         url: url.to_string(),
         enabled: true,
         events: None,
+        signing_secret: None,
     })
 }
 

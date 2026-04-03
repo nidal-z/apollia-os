@@ -401,7 +401,7 @@ mod tests {
                 assert_eq!(text, "Bonjour le monde");
                 assert_eq!(source, "hotkey");
             }
-            other => panic!("unexpected event: {other:?}"),
+            other => unreachable!("unexpected event in test mock: {other:?}"),
         }
     }
 
@@ -484,7 +484,7 @@ mod tests {
                 assert_eq!(backend, "fake");
                 assert_eq!(model_name, "test-model");
             }
-            other => panic!("unexpected event: {other:?}"),
+            other => unreachable!("unexpected event in test mock: {other:?}"),
         }
     }
 

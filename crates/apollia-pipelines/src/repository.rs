@@ -39,7 +39,7 @@ type PipelineRunRow = (
 );
 
 /// Columns selected by `load_step_runs`: step_id, task_id, status, output,
-/// error, started_at, ended_at.
+/// error, started_at, ended_at, approved_by, approval_duration_ms.
 type StepRunRow = (
     String,
     Option<String>,
@@ -48,6 +48,8 @@ type StepRunRow = (
     Option<String>,
     Option<String>,
     Option<String>,
+    Option<String>,
+    Option<i64>,
 );
 
 // ── Errors ────────────────────────────────────────────────────────────────────
@@ -100,6 +102,16 @@ impl PipelineRepository {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
         conn.execute_batch(MIGRATION_SQL)?;
+        // Idempotent column additions for databases created before the HITL
+        // audit columns were added to the CREATE TABLE definition.
+        // SQLite returns "duplicate column name" if the column already exists;
+        // that error is silently ignored here — it is not a failure condition.
+        let _ = conn.execute_batch(
+            "ALTER TABLE pipeline_step_runs ADD COLUMN approved_by TEXT;",
+        );
+        let _ = conn.execute_batch(
+            "ALTER TABLE pipeline_step_runs ADD COLUMN approval_duration_ms INTEGER;",
+        );
         Ok(Self { conn })
     }
 
@@ -232,6 +244,7 @@ impl PipelineRepository {
             status,
             StepRunStatus::Completed
                 | StepRunStatus::Failed
+                | StepRunStatus::Cancelled
                 | StepRunStatus::Skipped
                 | StepRunStatus::FallbackActive
         );
@@ -298,13 +311,62 @@ impl PipelineRepository {
              WHERE run_id = ?1",
             params![run_id.0, failed_step.0],
         )?;
-        // Best-effort update on the step run — the step may not have been
-        // inserted yet if the failure occurred before submission.
+        // Best-effort update on the step run — the step may not have been inserted
+        // yet if the failure occurred before submission. The WHERE clause preserves
+        // any terminal status already recorded (e.g. `cancelled`).
         self.conn.execute(
             "UPDATE pipeline_step_runs \
              SET status = 'failed', error = ?3, ended_at = CURRENT_TIMESTAMP \
-             WHERE run_id = ?1 AND step_id = ?2",
+             WHERE run_id = ?1 AND step_id = ?2 \
+               AND status NOT IN ('cancelled', 'completed', 'skipped', 'fallback_active')",
             params![run_id.0, failed_step.0, reason],
+        )?;
+        Ok(())
+    }
+
+    /// Marks the pipeline run as `failed` without touching the step run row.
+    ///
+    /// Used when the step has already been set to a terminal status (e.g. `cancelled`)
+    /// and that status must not be overwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PipelineRepositoryError::Sqlite`] on database errors.
+    pub fn fail_run_keep_step(
+        &mut self,
+        run_id: &RunId,
+        failed_step: &StepId,
+    ) -> Result<(), PipelineRepositoryError> {
+        self.conn.execute(
+            "UPDATE pipeline_runs \
+             SET status = 'failed', failed_step = ?2, ended_at = CURRENT_TIMESTAMP \
+             WHERE run_id = ?1",
+            params![run_id.0, failed_step.0],
+        )?;
+        Ok(())
+    }
+
+    /// Records the HITL approval audit fields for a step run.
+    ///
+    /// Sets `approved_by` and `approval_duration_ms` on the step identified by
+    /// `(run_id, step_id)`. Called immediately after an operator approves a
+    /// suspended HITL step.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PipelineRepositoryError::Sqlite`] on database errors.
+    pub fn record_hitl_approval(
+        &mut self,
+        run_id: &RunId,
+        step_id: &StepId,
+        approved_by: &str,
+        approval_duration_ms: i64,
+    ) -> Result<(), PipelineRepositoryError> {
+        self.conn.execute(
+            "UPDATE pipeline_step_runs \
+             SET approved_by = ?3, approval_duration_ms = ?4 \
+             WHERE run_id = ?1 AND step_id = ?2",
+            params![run_id.0, step_id.0, approved_by, approval_duration_ms],
         )?;
         Ok(())
     }
@@ -529,7 +591,8 @@ impl PipelineRepository {
         reset_running_to_pending: bool,
     ) -> Result<HashMap<StepId, StepRun>, PipelineRepositoryError> {
         let mut stmt = self.conn.prepare(
-            "SELECT step_id, task_id, status, output, error, started_at, ended_at \
+            "SELECT step_id, task_id, status, output, error, started_at, ended_at, \
+                    approved_by, approval_duration_ms \
              FROM pipeline_step_runs WHERE run_id = ?1",
         )?;
 
@@ -543,12 +606,25 @@ impl PipelineRepository {
                     row.get::<_, Option<String>>(4)?,
                     row.get::<_, Option<String>>(5)?,
                     row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<i64>>(8)?,
                 ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
 
         let mut step_runs = HashMap::with_capacity(rows.len());
-        for (sid, task_id, status_str, output, error, started_at_str, ended_at_str) in rows {
+        for (
+            sid,
+            task_id,
+            status_str,
+            output,
+            error,
+            started_at_str,
+            ended_at_str,
+            approved_by,
+            approval_duration_ms,
+        ) in rows
+        {
             let mut status = str_to_step_status(&status_str);
             if reset_running_to_pending && status == StepRunStatus::Running {
                 status = StepRunStatus::Pending;
@@ -566,6 +642,8 @@ impl PipelineRepository {
                     error,
                     started_at,
                     ended_at,
+                    approved_by,
+                    approval_duration_ms,
                 },
             );
         }
@@ -634,6 +712,7 @@ fn step_status_to_str(status: &StepRunStatus) -> &'static str {
         StepRunStatus::WaitingApproval => "waiting_approval",
         StepRunStatus::Completed => "completed",
         StepRunStatus::Failed => "failed",
+        StepRunStatus::Cancelled => "cancelled",
         StepRunStatus::Skipped => "skipped",
         StepRunStatus::FallbackActive => "fallback_active",
     }
@@ -649,6 +728,7 @@ fn str_to_step_status(s: &str) -> StepRunStatus {
         "waiting_approval" => StepRunStatus::WaitingApproval,
         "completed" => StepRunStatus::Completed,
         "failed" => StepRunStatus::Failed,
+        "cancelled" => StepRunStatus::Cancelled,
         "skipped" => StepRunStatus::Skipped,
         "fallback_active" => StepRunStatus::FallbackActive,
         _ => StepRunStatus::Pending,
@@ -711,6 +791,8 @@ mod tests {
             error: None,
             started_at: None,
             ended_at: None,
+            approved_by: None,
+            approval_duration_ms: None,
         }
     }
 

@@ -2740,7 +2740,10 @@ mod tests {
         let prompt = build_onboarding_prompt(&None);
         // THEN the prompt covers all 5 generic topics (no profile-specific section)
         for topic in &ONBOARDING_TOPICS {
-            assert!(prompt.contains(topic), "generic prompt must mention: {topic}");
+            assert!(
+                prompt.contains(topic),
+                "generic prompt must mention: {topic}"
+            );
         }
     }
 

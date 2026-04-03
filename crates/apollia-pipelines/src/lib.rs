@@ -26,7 +26,7 @@ pub use definition_repository::{
     PipelineDefinitionError, PipelineDefinitionRepository, PipelineDefinitionRow,
 };
 pub use engine::{PipelineEngine, PipelineEngineError, PipelineEngineHandle};
-pub use executor::{ExecutorError, PipelineExecutor, StepResult, TaskSubmitter};
+pub use executor::{ExecutorError, PipelineExecutor, StepCancelRegistry, StepResult, TaskSubmitter};
 pub use repository::{PipelineRepository, PipelineRepositoryError};
 pub use template::TemplateContext;
 pub use topo::{topological_layers, TopologicalError};

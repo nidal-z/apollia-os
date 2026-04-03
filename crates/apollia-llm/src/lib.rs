@@ -10,6 +10,7 @@
 //! disponibles quelle que soit la feature activée.
 
 pub mod backends;
+pub mod pricing;
 pub mod repository;
 pub mod router;
 pub mod tool_helper;

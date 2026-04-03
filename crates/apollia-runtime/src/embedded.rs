@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use apollia_core::{ObservabilityConfig, PendingApprovals};
+use apollia_core::{A2AConfig, HitlConfig, ObservabilityConfig, PendingApprovals, RuntimeConfig};
 use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationEngineHandle;
 use apollia_pipelines::PipelineEngineHandle;
@@ -146,6 +146,30 @@ pub struct EmbeddedConfig {
     /// Chat Agent runner — enables Chat Agent mode in the ChatSessionManager.
     /// When `None`, Agent mode sessions will fail at message time.
     pub chat_agent_runner: Option<Arc<dyn crate::chat::ChatAgentRunner>>,
+
+    /// Configuration du runtime core (EventBus, mailbox).
+    ///
+    /// Correspond à la section `[runtime]` dans `apollia.toml`.
+    /// Peuplé par [`EmbeddedConfig::apply_toml`].
+    pub runtime_config: RuntimeConfig,
+
+    /// Configuration Human-in-the-Loop (timeout HITL, scan interval).
+    ///
+    /// Correspond à la section `[hitl]` dans `apollia.toml`.
+    /// Peuplé par [`EmbeddedConfig::apply_toml`].
+    pub hitl_config: HitlConfig,
+
+    /// Configuration A2A (chain timeout).
+    ///
+    /// Correspond à la section `[a2a]` dans `apollia.toml`.
+    /// Peuplé par [`EmbeddedConfig::apply_toml`].
+    pub a2a_config: A2AConfig,
+
+    /// Configuration du moteur de pipelines (timeout step).
+    ///
+    /// Correspond à la section `[pipelines]` dans `apollia.toml`.
+    /// Peuplé par [`EmbeddedConfig::apply_toml`].
+    pub pipelines_config: apollia_core::PipelinesConfig,
 }
 
 impl Default for EmbeddedConfig {
@@ -166,6 +190,10 @@ impl Default for EmbeddedConfig {
             agent_repository: None,
             bundled_agents_path: None,
             chat_agent_runner: None,
+            runtime_config: RuntimeConfig::default(),
+            hitl_config: HitlConfig::default(),
+            a2a_config: A2AConfig::default(),
+            pipelines_config: apollia_core::PipelinesConfig::default(),
         }
     }
 }
@@ -173,20 +201,41 @@ impl Default for EmbeddedConfig {
 impl EmbeddedConfig {
     /// Applique toutes les sections parsables de `apollia.toml` à cette config.
     ///
-    /// Parse `[llm]`, `[[triggers]]` et `[notifications]` en une seule passe.
+    /// Parse `[llm]`, `[runtime]`, `[hitl]`, `[a2a]`, et `[api]` en une seule passe.
     /// Les erreurs de parsing sont ignorées silencieusement — le runtime démarre
     /// avec les valeurs par défaut si une section est absente ou invalide.
     pub fn apply_toml(mut self, content: &str) -> Self {
         #[derive(serde::Deserialize)]
-        struct LlmSection {
+        struct TomlSections {
             llm: Option<apollia_llm::LlmConfig>,
+            runtime: Option<RuntimeConfig>,
+            hitl: Option<HitlConfig>,
+            a2a: Option<A2AConfig>,
+            api: Option<apollia_core::ApiConfig>,
+            pipelines: Option<apollia_core::PipelinesConfig>,
         }
-        if let Ok(s) = toml::from_str::<LlmSection>(content) {
+        if let Ok(s) = toml::from_str::<TomlSections>(content) {
             self.llm_config = s.llm;
+            if let Some(rc) = s.runtime {
+                self.runtime_config = rc;
+            }
+            if let Some(hc) = s.hitl {
+                self.hitl_config = hc;
+            }
+            if let Some(ac) = s.a2a {
+                self.a2a_config = ac;
+            }
+            if let Some(api) = s.api {
+                // Update socket_path from [api].unix_socket when explicitly configured.
+                self.socket_path = api.unix_socket;
+            }
+            if let Some(pc) = s.pipelines {
+                self.pipelines_config = pc;
+            }
         }
 
-        // triggers, pipelines, notifications, and stt are now loaded
-        // from SQLite by the Supervisor. TOML sections for these are ignored.
+        // triggers and notifications are now loaded from SQLite by the Supervisor.
+        // TOML sections for these are ignored.
 
         self
     }
@@ -266,11 +315,13 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         startup_timeout_secs: config.startup_timeout_secs,
         llm_config: config.llm_config,
         config_path: config.config_path,
-        input_required_timeout_hours: 24,
+        runtime_config: config.runtime_config,
+        hitl_config: config.hitl_config,
         data_dir: config.data_dir,
         obs_config: config.obs_config,
         agent_repository: config.agent_repository,
         bundled_agents_path: config.bundled_agents_path,
+        pipelines_config: config.pipelines_config,
     };
 
     let supervisor = Supervisor::new(supervisor_config);

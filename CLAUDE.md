@@ -135,11 +135,11 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Dernier sprint livré :** Sprint 33 — onboarding interactif multi-phases : i18n zéro string hardcodée (8 composants, ~70 clés FR+EN), documentation book (first-launch + onboarding-tour) et wiki (Onboarding-System, Onboarding-Tour-Steps, Briques-Desktop sections 5-6), 13/13 stories.
-**Sprint précédent :** Sprint book-wiki-separation — séparation book (pédagogique) / wiki (référence technique), 20/20 stories. 24/24 pages wiki COMPLETE.
-**Avant :** Sprint book-rewrite — réécriture complète du book mdBook (20/20 stories)
+**Dernier sprint livré :** Sprint 34 — Beta Hardening (auth API TCP token statique, sandbox Windows Chromium 3 couches, pipeline fan-out + boucles conditionnelles, `cargo audit`/`cargo deny` CI, 3 agents communautaires browser/email/slack, `apollia-os agent install <git-url>`, 25/25 stories, ADR-051→055).
+**Sprint précédent :** Sprint 33 — onboarding interactif multi-phases : i18n zéro string hardcodée (8 composants, ~70 clés FR+EN), documentation book + wiki, 13/13 stories.
+**Avant :** Sprint book-wiki-separation — séparation book/wiki, 20/20 stories. 24/24 pages wiki COMPLETE.
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
-**Dernière décision :** ADR-050 — Distribution Worker Agents : bundled vs communautaire, registre local et Git
+**Dernière décision :** ADR-055 — Community Registry : distribution Git-based peer-to-peer
 
 **Book mdBook :** structure pédagogique complète dans `book/src/` — ch01 (Premiers pas) → ch19 (CLI) + annexes A-F. Build propre : `mdbook build book`. Sources des chapitres : `docs/wiki/`. Convention : book = apprendre, wiki = référence (voir règle Documentation ci-dessus).
 

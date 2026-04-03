@@ -121,6 +121,33 @@ pub enum McpConfigError {
     #[error("server '{server}': transport '{transport}' requires a 'url' field")]
     MissingUrl { server: String, transport: String },
 
+    /// `init_timeout_secs` is outside the valid range `[1, 300]`.
+    #[error("server '{server}': init_timeout_secs must be in [1, 300], got {value}")]
+    InvalidInitTimeout {
+        /// Server name.
+        server: String,
+        /// The out-of-range value.
+        value: u64,
+    },
+
+    /// `call_timeout_secs` is outside the valid range `[1, 600]`.
+    #[error("server '{server}': call_timeout_secs must be in [1, 600], got {value}")]
+    InvalidCallTimeout {
+        /// Server name.
+        server: String,
+        /// The out-of-range value.
+        value: u64,
+    },
+
+    /// The `url` field does not carry an `http://` or `https://` scheme.
+    #[error("server '{server}': URL must have http:// or https:// scheme, got: {url}")]
+    InvalidUrlScheme {
+        /// Server name.
+        server: String,
+        /// The malformed URL value.
+        url: String,
+    },
+
     /// An `${VAR}` placeholder in an env value has no corresponding environment variable.
     #[error("server '{server}': unresolved environment variable: ${{{var}}}")]
     UnresolvedEnvVar { server: String, var: String },
@@ -170,8 +197,13 @@ impl McpConfig {
 impl McpServerConfig {
     /// Validate this server's fields independently of other servers.
     ///
-    /// Checks that `name` matches `[a-z0-9_-]+`, `command` is non-empty,
-    /// and `transport` is `"stdio"`.
+    /// Checks:
+    /// - `name` matches `[a-z0-9_-]+`
+    /// - `command` is non-empty for stdio transport
+    /// - `transport` is a supported value
+    /// - `url` is present and carries an `http://` or `https://` scheme for network transports
+    /// - `init_timeout_secs` is in `[1, 300]`
+    /// - `call_timeout_secs` is in `[1, 600]`
     pub fn validate(&self) -> Result<(), McpConfigError> {
         if self.name.is_empty() {
             return Err(McpConfigError::EmptyServerName);
@@ -185,6 +217,20 @@ impl McpServerConfig {
             return Err(McpConfigError::InvalidServerName(self.name.clone()));
         }
 
+        if !(1..=300).contains(&self.init_timeout_secs) {
+            return Err(McpConfigError::InvalidInitTimeout {
+                server: self.name.clone(),
+                value: self.init_timeout_secs,
+            });
+        }
+
+        if !(1..=600).contains(&self.call_timeout_secs) {
+            return Err(McpConfigError::InvalidCallTimeout {
+                server: self.name.clone(),
+                value: self.call_timeout_secs,
+            });
+        }
+
         match self.transport.as_str() {
             "stdio" => {
                 if self.command.is_empty() {
@@ -194,11 +240,19 @@ impl McpServerConfig {
                 }
             }
             "streamable-http" | "sse" => {
-                let url_empty = self.url.as_deref().map(str::is_empty).unwrap_or(true);
-                if url_empty {
-                    return Err(McpConfigError::MissingUrl {
+                let url = match self.url.as_deref() {
+                    Some(u) if !u.is_empty() => u,
+                    _ => {
+                        return Err(McpConfigError::MissingUrl {
+                            server: self.name.clone(),
+                            transport: self.transport.clone(),
+                        });
+                    }
+                };
+                if !url.starts_with("http://") && !url.starts_with("https://") {
+                    return Err(McpConfigError::InvalidUrlScheme {
                         server: self.name.clone(),
-                        transport: self.transport.clone(),
+                        url: url.to_string(),
                     });
                 }
             }
@@ -644,6 +698,113 @@ mod tests {
             config.resolve_env(None),
             Err(McpConfigError::UnresolvedEnvVar { .. })
         ));
+    }
+
+    #[test]
+    fn test_mcp_init_timeout_zero_returns_validation_error() {
+        // GIVEN init_timeout_secs = 0 (below minimum of 1)
+        let config = McpServerConfig {
+            name: "notion".to_string(),
+            command: "npx".to_string(),
+            args: vec![],
+            env: HashMap::new(),
+            transport: "stdio".to_string(),
+            url: None,
+            requires_approval: false,
+            init_timeout_secs: 0,
+            call_timeout_secs: 60,
+            tags: vec![],
+        };
+        // WHEN / THEN
+        assert!(matches!(
+            config.validate(),
+            Err(McpConfigError::InvalidInitTimeout { value: 0, .. })
+        ));
+    }
+
+    #[test]
+    fn test_mcp_init_timeout_301_returns_validation_error() {
+        // GIVEN init_timeout_secs = 301 (above maximum of 300)
+        let config = McpServerConfig {
+            name: "notion".to_string(),
+            command: "npx".to_string(),
+            args: vec![],
+            env: HashMap::new(),
+            transport: "stdio".to_string(),
+            url: None,
+            requires_approval: false,
+            init_timeout_secs: 301,
+            call_timeout_secs: 60,
+            tags: vec![],
+        };
+        // WHEN / THEN
+        assert!(matches!(
+            config.validate(),
+            Err(McpConfigError::InvalidInitTimeout { value: 301, .. })
+        ));
+    }
+
+    #[test]
+    fn test_mcp_call_timeout_zero_returns_validation_error() {
+        // GIVEN call_timeout_secs = 0 (below minimum of 1)
+        let config = McpServerConfig {
+            name: "notion".to_string(),
+            command: "npx".to_string(),
+            args: vec![],
+            env: HashMap::new(),
+            transport: "stdio".to_string(),
+            url: None,
+            requires_approval: false,
+            init_timeout_secs: 30,
+            call_timeout_secs: 0,
+            tags: vec![],
+        };
+        // WHEN / THEN
+        assert!(matches!(
+            config.validate(),
+            Err(McpConfigError::InvalidCallTimeout { value: 0, .. })
+        ));
+    }
+
+    #[test]
+    fn test_mcp_url_without_scheme_returns_validation_error() {
+        // GIVEN transport = "streamable-http" with a URL that has no scheme
+        let config = McpServerConfig {
+            name: "notion".to_string(),
+            command: String::new(),
+            args: vec![],
+            env: HashMap::new(),
+            transport: "streamable-http".to_string(),
+            url: Some("localhost:8080".to_string()),
+            requires_approval: false,
+            init_timeout_secs: 30,
+            call_timeout_secs: 60,
+            tags: vec![],
+        };
+        // WHEN / THEN
+        assert!(matches!(
+            config.validate(),
+            Err(McpConfigError::InvalidUrlScheme { .. })
+        ));
+    }
+
+    #[test]
+    fn test_mcp_url_with_http_scheme_passes_validation() {
+        // GIVEN transport = "streamable-http" with an http:// URL
+        let config = McpServerConfig {
+            name: "local-mcp".to_string(),
+            command: String::new(),
+            args: vec![],
+            env: HashMap::new(),
+            transport: "streamable-http".to_string(),
+            url: Some("http://localhost:8080/mcp".to_string()),
+            requires_approval: false,
+            init_timeout_secs: 30,
+            call_timeout_secs: 60,
+            tags: vec![],
+        };
+        // WHEN / THEN
+        assert!(config.validate().is_ok());
     }
 
     #[test]

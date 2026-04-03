@@ -154,6 +154,7 @@ mod tests {
             on_failure: StepFailurePolicy::Fail,
             condition: None,
             fallback_for: None,
+            timeout_secs: None,
         }
     }
 
@@ -240,6 +241,7 @@ mod tests {
             on_failure: StepFailurePolicy::Fail,
             condition: None,
             fallback_for: Some(StepId("B".into())),
+            timeout_secs: None,
         };
         let steps = vec![step("A", &[]), step("B", &["A"]), fallback_b];
         // WHEN

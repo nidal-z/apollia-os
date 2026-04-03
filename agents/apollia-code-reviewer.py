@@ -240,7 +240,8 @@ class ApolliaCodeReviewer(BaseReActAgent):
                 },
             )
             return str(result).strip().strip("'")
-        except Exception:
+        except Exception as e:
+            await ctx.log(f"commit info retrieval failed: {e}")
             return "unknown"
 
     async def _get_changed_files(self, ctx: Any) -> str:
@@ -257,7 +258,8 @@ class ApolliaCodeReviewer(BaseReActAgent):
                 },
             )
             return str(result).strip()
-        except Exception:
+        except Exception as e:
+            await ctx.log(f"changed files retrieval failed: {e}")
             return "unknown"
 
     async def _persist_review_summary(
@@ -285,8 +287,8 @@ class ApolliaCodeReviewer(BaseReActAgent):
                 source="apollia-code-reviewer",
                 confidence=0.9,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            await ctx.log(f"review summary persistence failed: {e}")
 
 
 agent = ApolliaCodeReviewer()

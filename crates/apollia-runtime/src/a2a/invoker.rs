@@ -18,9 +18,6 @@ use crate::eventbus::EventBusSender;
 use crate::registry::{AgentEntry, AgentRegistryHandle};
 use crate::router::TaskRouterHandle;
 
-/// Timeout de chaîne A2A par défaut (300 secondes) appliqué quand aucun `chain_deadline` n'est fourni.
-const DEFAULT_MAX_A2A_CHAIN_TIMEOUT: Duration = Duration::from_secs(300);
-
 /// Configuration de contexte d'exécution pour un agent invoqué via A2A.
 ///
 /// Produite par [`A2AInvoker::build_a2a_context`] et consommée par le runtime
@@ -293,8 +290,9 @@ impl A2AInvoker {
 
         // ── Garde-fou 2 : timeout cumulé de chaîne ────────────────────────────
         // Initialiser le deadline à la première invocation de la chaîne.
-        let effective_deadline =
-            chain_deadline.unwrap_or_else(|| Instant::now() + DEFAULT_MAX_A2A_CHAIN_TIMEOUT);
+        let effective_deadline = chain_deadline.unwrap_or_else(|| {
+            Instant::now() + Duration::from_secs(self.config.chain_timeout_secs)
+        });
 
         let chain_remaining = effective_deadline.checked_duration_since(Instant::now());
 

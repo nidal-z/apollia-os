@@ -125,8 +125,11 @@ impl StepError {
 /// appear in standard memory queries, but below critical events (1.0).
 const STEP_MEMORY_IMPORTANCE: f64 = 0.6;
 
-/// Maximum character length for step output stored in episodic memory.
-const STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
+/// Default maximum character length for step output stored in episodic memory.
+///
+/// Used as the field default in [`ActorLoop`]. The configurable value is
+/// injected via [`ActorLoop::with_step_memory_max_chars`].
+const DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
 
 // ────────────────────────────────────────────────────────────────────────────
 // StepContext
@@ -217,6 +220,11 @@ pub struct ActorLoop {
     /// in the agent's namespace. `Arc<Mutex<MemoryManager>>` follows the ADR-033
     /// precedent (rare mutations, operator-level writes).
     memory_manager: Option<Arc<Mutex<MemoryManager>>>,
+    /// Maximum character length for step output stored in episodic memory.
+    ///
+    /// Injected from `ORIAConfig::step_memory_max_chars`. Defaults to
+    /// [`DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS`] when not configured.
+    step_memory_max_chars: usize,
 }
 
 impl ActorLoop {
@@ -248,6 +256,7 @@ impl ActorLoop {
             pending_approvals: None,
             obs_config: ObservabilityConfig::default(),
             memory_manager: None,
+            step_memory_max_chars: DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS,
         }
     }
 
@@ -278,6 +287,15 @@ impl ActorLoop {
     /// `Arc<Mutex<MemoryManager>>` suit le précédent ADR-033 (mutations rares).
     pub fn with_memory_manager(mut self, mm: Option<Arc<Mutex<MemoryManager>>>) -> Self {
         self.memory_manager = mm;
+        self
+    }
+
+    /// Overrides the maximum character length for step output stored in episodic memory.
+    ///
+    /// Injected from `ORIAConfig::step_memory_max_chars`. When not called,
+    /// defaults to [`DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS`] (200 chars).
+    pub fn with_step_memory_max_chars(mut self, max_chars: usize) -> Self {
+        self.step_memory_max_chars = max_chars;
         self
     }
 
@@ -798,8 +816,7 @@ impl ActorLoop {
             None => return,
         };
 
-        // truncate output to 200 chars.
-        let truncated_output = truncate_chars(output, STEP_MEMORY_OUTPUT_MAX_CHARS);
+        let truncated_output = truncate_chars(output, self.step_memory_max_chars);
         let content = format!("step {step_id}: {description} -> {truncated_output}");
         let task_id = self.plan.task_id.clone();
         let agent_name = self.manifest.name.clone();

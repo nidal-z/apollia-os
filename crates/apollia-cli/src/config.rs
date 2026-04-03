@@ -26,7 +26,7 @@
 
 use std::path::{Path, PathBuf};
 
-use apollia_core::ApiConfig;
+use apollia_core::{A2AConfig, ApiConfig, HitlConfig, ORIAConfig, PipelinesConfig, RuntimeConfig};
 use apollia_llm::{BackendKind, LlmConfig};
 
 // ─────────────────────────────────────────────
@@ -51,7 +51,7 @@ pub enum ConfigError {
 
 /// Configuration globale Apollia OS validée depuis `apollia.toml`.
 ///
-/// Contient la configuration LLM et la configuration de l'API REST.
+/// Contient la configuration LLM, l'API REST, le runtime core, le HITL et le routing A2A.
 /// La configuration opérationnelle (triggers, pipelines, notifications, agents, stt)
 /// est gérée en SQLite.
 ///
@@ -68,13 +68,38 @@ pub struct ApolliaCConfig {
     /// Vaut `None` si la section `[api]` est absente du fichier ; les valeurs
     /// par défaut de [`ApiConfig`] sont alors appliquées.
     pub api: Option<ApiConfig>,
+
+    /// Section `[runtime]` — capacités EventBus et mailbox.
+    ///
+    /// Vaut `None` si absente ; les valeurs par défaut de [`RuntimeConfig`] s'appliquent.
+    pub runtime: Option<RuntimeConfig>,
+
+    /// Section `[hitl]` — timeout et scan interval Human-in-the-Loop.
+    ///
+    /// Vaut `None` si absente ; les valeurs par défaut de [`HitlConfig`] s'appliquent.
+    pub hitl: Option<HitlConfig>,
+
+    /// Section `[a2a]` — routing inter-agents.
+    ///
+    /// Vaut `None` si absente ; les valeurs par défaut de [`A2AConfig`] s'appliquent.
+    pub a2a: Option<A2AConfig>,
+
+    /// Section `[oria]` — moteur Observer-Reasoner-Actor.
+    ///
+    /// Vaut `None` si absente ; les valeurs par défaut de [`ORIAConfig`] s'appliquent.
+    pub oria: Option<ORIAConfig>,
+
+    /// Section `[pipelines]` — configuration du moteur de pipelines.
+    ///
+    /// Vaut `None` si absente ; les valeurs par défaut de [`PipelinesConfig`] s'appliquent.
+    pub pipelines: Option<PipelinesConfig>,
 }
 
 /// Noms des sections TOML qui sont désormais obsolètes.
 ///
 /// Utilisé par [`check_deprecated_sections`] pour émettre des warnings
 /// si un ancien fichier `apollia.toml` contient encore ces sections.
-const DEPRECATED_SECTIONS: &[&str] = &["triggers", "pipelines", "notifications", "stt"];
+const DEPRECATED_SECTIONS: &[&str] = &["triggers", "notifications", "stt"];
 
 // ─────────────────────────────────────────────
 // Fonctions publiques
@@ -127,7 +152,18 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
     // Build a filtered table with only known sections.
     let mut filtered = toml::map::Map::new();
     if let toml::Value::Table(table) = &raw_table {
-        for key in &["llm", "runtime", "memory", "tools", "budget", "api"] {
+        for key in &[
+            "llm",
+            "runtime",
+            "memory",
+            "tools",
+            "budget",
+            "api",
+            "hitl",
+            "a2a",
+            "oria",
+            "pipelines",
+        ] {
             if let Some(v) = table.get(*key) {
                 filtered.insert((*key).to_string(), v.clone());
             }
@@ -536,11 +572,19 @@ input = "x"
 
     // GIVEN le struct ApolliaCConfig
     // WHEN on vérifie sa structure
-    // THEN il ne contient que le champ llm (compile-time check)
+    // THEN il contient les champs config statique (llm, api, runtime, hitl, a2a)
     #[test]
-    fn test_config_struct_has_no_operational_fields() {
-        let config = ApolliaCConfig { llm: None };
-        // If this compiles, the struct has exactly this field.
+    fn test_config_struct_has_expected_fields() {
+        let config = ApolliaCConfig {
+            llm: None,
+            api: None,
+            runtime: None,
+            hitl: None,
+            a2a: None,
+        };
         assert!(config.llm.is_none());
+        assert!(config.runtime.is_none());
+        assert!(config.hitl.is_none());
+        assert!(config.a2a.is_none());
     }
 }

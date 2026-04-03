@@ -207,6 +207,56 @@ impl SttRepository {
         }
     }
 
+    /// Returns transcriptions whose `created_at` falls within `[from_iso8601, to_iso8601]`.
+    ///
+    /// Both bounds are inclusive ISO 8601 strings (e.g. `"2026-01-01T00:00:00.000Z"`).
+    /// Results are ordered by `created_at DESC`, capped to `limit` rows.
+    pub fn search_by_date_range(
+        &self,
+        from_iso8601: &str,
+        to_iso8601: &str,
+        limit: u32,
+    ) -> Result<Vec<TranscriptRow>, SttError> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, full_text, language, source, audio_duration_ms, processing_time_ms, model_name, created_at
+                 FROM stt_transcriptions
+                 WHERE created_at >= ?1 AND created_at <= ?2
+                 ORDER BY created_at DESC
+                 LIMIT ?3",
+            )
+            .map_err(|e| SttError::Repository {
+                reason: format!("search_by_date_range prepare failed: {e}"),
+            })?;
+
+        let rows = stmt
+            .query_map(rusqlite::params![from_iso8601, to_iso8601, limit], |row| {
+                Ok(TranscriptRow {
+                    id: row.get(0)?,
+                    full_text: row.get(1)?,
+                    language: row.get(2)?,
+                    source: row.get(3)?,
+                    audio_duration_ms: row.get(4)?,
+                    processing_time_ms: row.get(5)?,
+                    model_name: row.get(6)?,
+                    created_at: row.get(7)?,
+                })
+            })
+            .map_err(|e| SttError::Repository {
+                reason: format!("search_by_date_range query failed: {e}"),
+            })?;
+
+        let mut entries = Vec::new();
+        for row in rows {
+            entries.push(row.map_err(|e| SttError::Repository {
+                reason: format!("search_by_date_range row read failed: {e}"),
+            })?);
+        }
+
+        Ok(entries)
+    }
+
     /// Deletes a transcription by ID. No-op if the ID does not exist.
     pub fn delete(&self, id: &str) -> Result<(), SttError> {
         self.conn
@@ -296,6 +346,11 @@ mod tests {
     use super::*;
     use crate::types::TranscriptResult;
     use std::path::PathBuf;
+
+    /// Opens an isolated in-memory SQLite repository for test isolation and performance.
+    fn open_in_memory() -> SttRepository {
+        SttRepository::open(Path::new(":memory:")).expect("in-memory db should open")
+    }
 
     fn setup() -> (SttRepository, PathBuf) {
         let dir = std::env::temp_dir().join(format!("apollia_stt_test_{}", std::process::id()));
@@ -408,5 +463,124 @@ mod tests {
         let (repo, _path) = setup();
         let row = repo.get("nonexistent-id").unwrap();
         assert!(row.is_none());
+    }
+
+    // GIVEN an empty in-memory repository
+    // WHEN list is called
+    // THEN an empty vector is returned without error
+    #[test]
+    fn test_repository_list_empty_returns_empty_vec() {
+        // GIVEN
+        let repo = open_in_memory();
+
+        // WHEN
+        let rows = repo.list(100, 0).expect("list on empty db should succeed");
+
+        // THEN
+        assert!(
+            rows.is_empty(),
+            "expected empty list, got {} rows",
+            rows.len()
+        );
+    }
+
+    // GIVEN 3 transcriptions inserted into an in-memory repository
+    // WHEN search_by_date_range spans the current epoch (2026 → 2099)
+    // THEN all 3 rows are returned
+    #[test]
+    fn test_repository_search_by_date_range_all_rows() {
+        // GIVEN
+        let repo = open_in_memory();
+        let result = sample_result();
+        for _ in 0..3 {
+            repo.insert("hotkey", &result, None)
+                .expect("insert should succeed");
+        }
+
+        // WHEN
+        let rows = repo
+            .search_by_date_range("2026-01-01T00:00:00.000Z", "2099-12-31T23:59:59.999Z", 100)
+            .expect("search should succeed");
+
+        // THEN
+        assert_eq!(rows.len(), 3);
+    }
+
+    // GIVEN transcriptions inserted in the current epoch
+    // WHEN search_by_date_range uses a past range ending in 2020
+    // THEN the result is empty
+    #[test]
+    fn test_repository_search_empty_result() {
+        // GIVEN
+        let repo = open_in_memory();
+        let result = sample_result();
+        repo.insert("file", &result, None)
+            .expect("insert should succeed");
+
+        // WHEN
+        let rows = repo
+            .search_by_date_range("2000-01-01T00:00:00.000Z", "2020-12-31T23:59:59.999Z", 100)
+            .expect("search with empty result should succeed");
+
+        // THEN
+        assert!(rows.is_empty());
+    }
+
+    // GIVEN 10 transcriptions inserted in an in-memory repository
+    // WHEN list is called with limit 5 and then offset 5
+    // THEN each page returns 5 distinct rows covering all 10 entries
+    #[test]
+    fn test_repository_pagination() {
+        // GIVEN
+        let repo = open_in_memory();
+        let mut result = sample_result();
+        for i in 0..10 {
+            result.full_text = format!("Transcription {i}");
+            repo.insert("api", &result, None)
+                .expect("insert should succeed");
+        }
+
+        // WHEN
+        let page1 = repo.list(5, 0).expect("page 1 should succeed");
+        let page2 = repo.list(5, 5).expect("page 2 should succeed");
+
+        // THEN
+        assert_eq!(page1.len(), 5);
+        assert_eq!(page2.len(), 5);
+
+        let mut all_ids: Vec<_> = page1
+            .iter()
+            .chain(page2.iter())
+            .map(|r| r.id.clone())
+            .collect();
+        all_ids.sort();
+        all_ids.dedup();
+        assert_eq!(
+            all_ids.len(),
+            10,
+            "all 10 IDs must be distinct across pages"
+        );
+    }
+
+    // GIVEN an in-memory repository with all 3 valid source types inserted
+    // WHEN each row is retrieved by ID
+    // THEN the source field is stored and returned correctly
+    #[test]
+    fn test_repository_all_source_types_accepted() {
+        // GIVEN
+        let repo = open_in_memory();
+        let result = sample_result();
+
+        // WHEN / THEN
+        for source in &["hotkey", "file", "api"] {
+            let id = repo
+                .insert(source, &result, None)
+                .expect("insert should succeed");
+            let row = repo
+                .get(&id)
+                .expect("get should succeed")
+                .expect("row should exist");
+            assert_eq!(&row.source, source, "source mismatch for '{source}'");
+        }
     }
 }

@@ -315,12 +315,18 @@ impl NotificationChannelRow {
             .get("url")
             .and_then(|v| v.as_str())
             .map(String::from);
+        let signing_secret = self
+            .config_json
+            .get("signing_secret")
+            .and_then(|v| v.as_str())
+            .map(String::from);
         crate::config::ChannelConfig {
             id: self.id.clone(),
             kind,
             enabled: self.enabled,
             events: self.events_json.clone(),
             url,
+            signing_secret,
         }
     }
 }

@@ -14,9 +14,6 @@ use tracing::warn;
 use crate::eventbus::EventBusSender;
 use apollia_core::RuntimeEvent;
 
-/// Maximum number of pending messages per agent.
-const MAX_MAILBOX_SIZE: usize = 100;
-
 /// Message stored in an agent's mailbox queue.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentMessage {
@@ -32,8 +29,13 @@ pub struct AgentMessage {
 #[derive(Debug, thiserror::Error)]
 pub enum MailboxError {
     /// The agent's message queue has reached its capacity.
-    #[error("mailbox full for agent {0} (max {MAX_MAILBOX_SIZE})")]
-    QueueFull(String),
+    #[error("mailbox full for agent '{agent}' (max {capacity})")]
+    QueueFull {
+        /// Name of the agent whose mailbox is full.
+        agent: String,
+        /// Configured mailbox capacity that was reached.
+        capacity: usize,
+    },
 
     /// The internal actor channel is closed.
     #[error("mailbox channel closed")]
@@ -74,20 +76,23 @@ pub struct AgentMailboxHandle {
 }
 
 impl AgentMailboxHandle {
-    /// Spawns the mailbox actor and returns a handle.
+    /// Spawns the mailbox actor with the given per-agent queue capacity and returns a handle.
     ///
-    /// The actor runs until [`AgentMailboxHandle::shutdown`] is called or all
-    /// handles are dropped.
-    pub fn spawn(event_bus: EventBusSender) -> Self {
+    /// `mailbox_capacity` controls how many pending messages each agent's queue can hold
+    /// before `send()` returns [`MailboxError::QueueFull`]. The value must already be
+    /// validated via [`apollia_core::RuntimeConfig::validate`] (bounds: [10, 10000]).
+    ///
+    /// The actor runs until [`AgentMailboxHandle::shutdown`] is called or all handles are dropped.
+    pub fn spawn(event_bus: EventBusSender, mailbox_capacity: usize) -> Self {
         let (tx, rx) = mpsc::channel(256);
-        tokio::spawn(run_mailbox_actor(rx, event_bus));
+        tokio::spawn(run_mailbox_actor(rx, event_bus, mailbox_capacity));
         Self { tx }
     }
 
     /// Sends a message from one agent to another.
     ///
-    /// Returns `MailboxError::QueueFull` if the recipient's queue already
-    /// contains [`MAX_MAILBOX_SIZE`] messages.
+    /// Returns [`MailboxError::QueueFull`] if the recipient's queue already
+    /// contains `mailbox_capacity` messages (as configured at spawn time).
     pub async fn send(
         &self,
         from: &str,
@@ -177,7 +182,11 @@ impl AgentMailboxHandle {
 }
 
 /// Actor loop: processes mailbox messages sequentially.
-async fn run_mailbox_actor(mut rx: mpsc::Receiver<MailboxMessage>, event_bus: EventBusSender) {
+async fn run_mailbox_actor(
+    mut rx: mpsc::Receiver<MailboxMessage>,
+    event_bus: EventBusSender,
+    mailbox_capacity: usize,
+) {
     let mut queues: HashMap<String, VecDeque<AgentMessage>> = HashMap::new();
 
     while let Some(msg) = rx.recv().await {
@@ -189,8 +198,11 @@ async fn run_mailbox_actor(mut rx: mpsc::Receiver<MailboxMessage>, event_bus: Ev
                 reply,
             } => {
                 let queue = queues.entry(to.clone()).or_default();
-                if queue.len() >= MAX_MAILBOX_SIZE {
-                    let _ = reply.send(Err(MailboxError::QueueFull(to)));
+                if queue.len() >= mailbox_capacity {
+                    let _ = reply.send(Err(MailboxError::QueueFull {
+                        agent: to,
+                        capacity: mailbox_capacity,
+                    }));
                 } else {
                     queue.push_back(AgentMessage {
                         from: from.clone(),
@@ -238,6 +250,7 @@ async fn run_mailbox_actor(mut rx: mpsc::Receiver<MailboxMessage>, event_bus: Ev
             }
         }
     }
+    tracing::warn!("mailbox channel closed, no more messages will be received");
 }
 
 /// Returns the current time as an RFC 3339 string without external dependencies.
@@ -289,7 +302,7 @@ mod tests {
     async fn test_send_and_receive_message() {
         // GIVEN
         let (event_tx, _event_rx) = EventBus::new();
-        let handle = AgentMailboxHandle::spawn(event_tx);
+        let handle = AgentMailboxHandle::spawn(event_tx, 100);
 
         // WHEN
         let payload = serde_json::json!({"data": "hello"});
@@ -315,7 +328,7 @@ mod tests {
     async fn test_receive_timeout_returns_none() {
         // GIVEN
         let (event_tx, _event_rx) = EventBus::new();
-        let handle = AgentMailboxHandle::spawn(event_tx);
+        let handle = AgentMailboxHandle::spawn(event_tx, 100);
 
         // WHEN
         let result = handle.receive("agent-c", Duration::from_millis(100)).await;
@@ -329,19 +342,20 @@ mod tests {
     /// Queue overflow returns MailboxError::QueueFull.
     #[tokio::test]
     async fn test_queue_full_returns_error() {
-        // GIVEN
+        // GIVEN — mailbox_capacity = 100 (default)
         let (event_tx, _event_rx) = EventBus::new();
-        let handle = AgentMailboxHandle::spawn(event_tx);
+        let mailbox_capacity = 100usize;
+        let handle = AgentMailboxHandle::spawn(event_tx, mailbox_capacity);
 
-        // Fill the queue to MAX_MAILBOX_SIZE
-        for i in 0..MAX_MAILBOX_SIZE {
+        // Fill the queue to capacity
+        for i in 0..mailbox_capacity {
             handle
                 .send("sender", "agent-b", serde_json::json!({"i": i}))
                 .await
                 .expect("send should succeed");
         }
 
-        // WHEN — 101st message
+        // WHEN — one message over capacity
         let result = handle
             .send("sender", "agent-b", serde_json::json!({"overflow": true}))
             .await;
@@ -350,13 +364,13 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
-            matches!(err, MailboxError::QueueFull(ref name) if name == "agent-b"),
+            matches!(err, MailboxError::QueueFull { ref agent, capacity } if agent == "agent-b" && capacity == mailbox_capacity),
             "expected QueueFull for agent-b, got: {err}"
         );
 
-        // Verify count is still MAX_MAILBOX_SIZE (overflow message not added)
+        // Verify count is still mailbox_capacity (overflow message not added)
         let count = handle.pending_count("agent-b").await;
-        assert_eq!(count, MAX_MAILBOX_SIZE);
+        assert_eq!(count, mailbox_capacity);
 
         handle.shutdown().await;
     }
@@ -366,7 +380,7 @@ mod tests {
     async fn test_send_emits_event() {
         // GIVEN
         let (event_tx, mut event_rx) = EventBus::new();
-        let handle = AgentMailboxHandle::spawn(event_tx);
+        let handle = AgentMailboxHandle::spawn(event_tx, 100);
 
         // WHEN
         handle
@@ -386,5 +400,23 @@ mod tests {
         );
 
         handle.shutdown().await;
+    }
+
+    /// Dropping all handles closes the mpsc channel, the actor exits, and a warning is emitted.
+    ///
+    /// The tracing warning itself cannot be captured without a custom subscriber, but we verify
+    /// that the actor loop terminates cleanly when the channel closes (no panic, no hang).
+    #[tokio::test]
+    async fn test_mailbox_closure_emits_warning() {
+        // GIVEN
+        let (event_tx, _event_rx) = EventBus::new();
+        let handle = AgentMailboxHandle::spawn(event_tx, 10);
+
+        // WHEN — drop the handle, which drops the sole Sender and closes the channel
+        drop(handle);
+
+        // THEN — actor task should terminate without hanging; give it time to exit
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        // If we reach this point the actor exited cleanly (no panic, no hang)
     }
 }

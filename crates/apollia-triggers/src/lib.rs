@@ -25,7 +25,7 @@ pub use definition_repository::{
 };
 pub use engine::{TaskSubmitter, TriggerEngineError, TriggerEngineHandle, TriggerStatus};
 pub use persistence::{
-    TriggerHistoryEntry, TriggerPersistence, TriggerPersistenceError, TriggerStateRow,
+    TriggerHistoryEntry, TriggerPersistence, TriggerPersistenceError, TriggerStateRow, TriggerStats,
 };
 pub use toml_config::{parse_triggers_from_toml_str, TriggerTomlError};
 pub use types::{

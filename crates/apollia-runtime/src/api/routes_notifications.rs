@@ -1143,6 +1143,7 @@ mod tests {
                 enabled: true,
                 events: None,
                 url: None,
+                signing_secret: None,
             }],
         };
         assert_eq!(channel_kind_by_id("mon-desktop", &config), "desktop");

@@ -94,6 +94,10 @@ pub struct PipelineStepDef {
     /// If set, this step is the fallback for the referenced step and is inactive by default.
     #[serde(default)]
     pub fallback_for: Option<StepId>,
+    /// Per-step timeout in seconds. When set, overrides the engine's global default for this step.
+    /// If `None`, the engine's configured default applies.
+    #[serde(default)]
+    pub timeout_secs: Option<u32>,
 }
 
 /// Per-step failure policy controlling what happens when the step's task fails.
@@ -206,6 +210,12 @@ pub struct StepRun {
     pub started_at: Option<DateTime<Utc>>,
     /// Wall-clock time when the step reached a terminal state.
     pub ended_at: Option<DateTime<Utc>>,
+    /// Identifier of the operator who approved this HITL step.
+    /// `None` for non-HITL steps.
+    pub approved_by: Option<String>,
+    /// Duration in milliseconds between the HITL approval request and the operator's response.
+    /// `None` for non-HITL steps.
+    pub approval_duration_ms: Option<i64>,
 }
 
 /// Status of an individual step within a pipeline run.
@@ -223,6 +233,9 @@ pub enum StepRunStatus {
     Completed,
     /// Task failed; `error` is populated.
     Failed,
+    /// Step was explicitly cancelled by the operator via `cancel_step`.
+    /// Distinct from `Failed`: a cancellation is a deliberate operator action, not an error.
+    Cancelled,
     /// Step was skipped due to `on_failure = skip` or `condition = false`.
     Skipped,
     /// Step was superseded by its designated fallback step.
@@ -252,6 +265,7 @@ mod tests {
                     on_failure: StepFailurePolicy::Fail,
                     condition: None,
                     fallback_for: None,
+                    timeout_secs: None,
                 },
                 PipelineStepDef {
                     id: StepId("validation".into()),
@@ -265,6 +279,7 @@ mod tests {
                         value: "FRAUDE".into(),
                     }),
                     fallback_for: None,
+                    timeout_secs: None,
                 },
             ],
         };
@@ -394,6 +409,8 @@ mod tests {
             error: None,
             started_at: None,
             ended_at: None,
+            approved_by: None,
+            approval_duration_ms: None,
         };
 
         // WHEN

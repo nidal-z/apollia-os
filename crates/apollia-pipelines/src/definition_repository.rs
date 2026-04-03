@@ -300,6 +300,7 @@ mod tests {
             on_failure: StepFailurePolicy::Fail,
             condition: None,
             fallback_for: None,
+            timeout_secs: None,
         }
     }
 

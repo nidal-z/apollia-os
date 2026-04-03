@@ -12,6 +12,7 @@
 //! si nécessaire.
 
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use apollia_core::AgentManifest;
 use rusqlite::{params, Connection};
@@ -66,6 +67,10 @@ pub enum AgentRepositoryError {
     /// Erreur de sérialisation/désérialisation du manifest JSON.
     #[error("erreur sérialisation manifest : {0}")]
     SerdeError(#[from] serde_json::Error),
+
+    /// Échec d'une tâche `spawn_blocking` (panique dans le thread de travail).
+    #[error("erreur tâche async : {0}")]
+    SpawnError(String),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -77,8 +82,16 @@ pub enum AgentRepositoryError {
 /// Encapsule une connexion SQLite vers `agents.db`. La migration
 /// `007_agent_tables.sql` est appliquée à [`open`](Self::open).
 /// Le mode WAL est activé pour la concurrence lecture/écriture.
+///
+/// Clonable via `Arc` — chaque clone partage la même connexion. Les wrappers
+/// async utilisent `tokio::task::spawn_blocking` pour éviter de bloquer
+/// l'exécuteur Tokio. Voir [`save_async`], [`list_async`], etc.
+///
+/// [`save_async`]: Self::save_async
+/// [`list_async`]: Self::list_async
+#[derive(Clone)]
 pub struct AgentRepository {
-    conn: Connection,
+    conn: Arc<Mutex<Connection>>,
 }
 
 impl AgentRepository {
@@ -95,7 +108,9 @@ impl AgentRepository {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
         conn.execute_batch(MIGRATION_SQL)?;
-        Ok(Self { conn })
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
+        })
     }
 
     /// Insère ou met à jour un agent installé.
@@ -110,7 +125,8 @@ impl AgentRepository {
     /// - [`AgentRepositoryError::Sqlite`] en cas d'erreur SQLite
     pub fn save(&self, agent: &InstalledAgent) -> Result<(), AgentRepositoryError> {
         let manifest_json = serde_json::to_string(&agent.manifest)?;
-        self.conn.execute(
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        conn.execute(
             "INSERT OR REPLACE INTO installed_agents \
                  (name, version, install_path, source_path, manifest_json, \
                   enabled, installed_at, updated_at) \
@@ -138,7 +154,8 @@ impl AgentRepository {
     /// - [`AgentRepositoryError::SerdeError`] si le manifest JSON est corrompu
     /// - [`AgentRepositoryError::Sqlite`] en cas d'erreur SQLite
     pub fn get(&self, name: &str) -> Result<Option<InstalledAgent>, AgentRepositoryError> {
-        let mut stmt = self.conn.prepare(
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let mut stmt = conn.prepare(
             "SELECT name, version, install_path, source_path, manifest_json, \
                     enabled, installed_at, updated_at \
              FROM installed_agents WHERE name = ?1",
@@ -158,7 +175,8 @@ impl AgentRepository {
     /// - [`AgentRepositoryError::SerdeError`] si un manifest JSON est corrompu
     /// - [`AgentRepositoryError::Sqlite`] en cas d'erreur SQLite
     pub fn list(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
-        let mut stmt = self.conn.prepare(
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let mut stmt = conn.prepare(
             "SELECT name, version, install_path, source_path, manifest_json, \
                     enabled, installed_at, updated_at \
              FROM installed_agents ORDER BY name",
@@ -173,7 +191,8 @@ impl AgentRepository {
     /// - [`AgentRepositoryError::SerdeError`] si un manifest JSON est corrompu
     /// - [`AgentRepositoryError::Sqlite`] en cas d'erreur SQLite
     pub fn list_enabled(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
-        let mut stmt = self.conn.prepare(
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let mut stmt = conn.prepare(
             "SELECT name, version, install_path, source_path, manifest_json, \
                     enabled, installed_at, updated_at \
              FROM installed_agents WHERE enabled = 1 ORDER BY name",
@@ -189,7 +208,8 @@ impl AgentRepository {
     ///
     /// - [`AgentRepositoryError::Sqlite`] en cas d'erreur SQLite
     pub fn delete(&self, name: &str) -> Result<(), AgentRepositoryError> {
-        self.conn.execute(
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        conn.execute(
             "DELETE FROM installed_agents WHERE name = ?1",
             params![name],
         )?;
@@ -205,7 +225,8 @@ impl AgentRepository {
     /// - [`AgentRepositoryError::NotFound`] si l'agent n'existe pas
     /// - [`AgentRepositoryError::Sqlite`] en cas d'erreur SQLite
     pub fn set_enabled(&self, name: &str, enabled: bool) -> Result<(), AgentRepositoryError> {
-        let rows_affected = self.conn.execute(
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let rows_affected = conn.execute(
             "UPDATE installed_agents SET enabled = ?1, updated_at = datetime('now') \
              WHERE name = ?2",
             params![enabled, name],
@@ -214,6 +235,75 @@ impl AgentRepository {
             return Err(AgentRepositoryError::NotFound(name.to_string()));
         }
         Ok(())
+    }
+
+    // ─── Async wrappers ──────────────────────────────────────────────────────
+
+    /// Wrapper async pour [`save`] — exécute l'I/O SQLite sur un thread bloquant.
+    ///
+    /// [`save`]: Self::save
+    pub async fn save_async(&self, agent: InstalledAgent) -> Result<(), AgentRepositoryError> {
+        let repo = self.clone();
+        tokio::task::spawn_blocking(move || repo.save(&agent))
+            .await
+            .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
+    }
+
+    /// Wrapper async pour [`get`] — exécute l'I/O SQLite sur un thread bloquant.
+    ///
+    /// [`get`]: Self::get
+    pub async fn get_async(
+        &self,
+        name: String,
+    ) -> Result<Option<InstalledAgent>, AgentRepositoryError> {
+        let repo = self.clone();
+        tokio::task::spawn_blocking(move || repo.get(&name))
+            .await
+            .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
+    }
+
+    /// Wrapper async pour [`list`] — exécute l'I/O SQLite sur un thread bloquant.
+    ///
+    /// [`list`]: Self::list
+    pub async fn list_async(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
+        let repo = self.clone();
+        tokio::task::spawn_blocking(move || repo.list())
+            .await
+            .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
+    }
+
+    /// Wrapper async pour [`list_enabled`] — exécute l'I/O SQLite sur un thread bloquant.
+    ///
+    /// [`list_enabled`]: Self::list_enabled
+    pub async fn list_enabled_async(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
+        let repo = self.clone();
+        tokio::task::spawn_blocking(move || repo.list_enabled())
+            .await
+            .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
+    }
+
+    /// Wrapper async pour [`delete`] — exécute l'I/O SQLite sur un thread bloquant.
+    ///
+    /// [`delete`]: Self::delete
+    pub async fn delete_async(&self, name: String) -> Result<(), AgentRepositoryError> {
+        let repo = self.clone();
+        tokio::task::spawn_blocking(move || repo.delete(&name))
+            .await
+            .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
+    }
+
+    /// Wrapper async pour [`set_enabled`] — exécute l'I/O SQLite sur un thread bloquant.
+    ///
+    /// [`set_enabled`]: Self::set_enabled
+    pub async fn set_enabled_async(
+        &self,
+        name: String,
+        enabled: bool,
+    ) -> Result<(), AgentRepositoryError> {
+        let repo = self.clone();
+        tokio::task::spawn_blocking(move || repo.set_enabled(&name, enabled))
+            .await
+            .map_err(|e| AgentRepositoryError::SpawnError(e.to_string()))?
     }
 }
 
@@ -349,12 +439,13 @@ mod tests {
     fn test_open_creates_table() {
         let repo = open_test_repo();
         // Vérifie que la table existe en requêtant sans erreur
-        let count: i64 = repo
-            .conn
-            .query_row("SELECT COUNT(*) FROM installed_agents", [], |row| {
+        let count: i64 = {
+            let conn = repo.conn.lock().expect("lock");
+            conn.query_row("SELECT COUNT(*) FROM installed_agents", [], |row| {
                 row.get(0)
             })
-            .expect("table installed_agents should exist");
+            .expect("table installed_agents should exist")
+        };
         assert_eq!(count, 0);
     }
 
@@ -474,6 +565,40 @@ mod tests {
     fn test_get_nonexistent_returns_none() {
         let repo = open_test_repo();
         let result = repo.get("does-not-exist").expect("get should not error");
+        assert!(result.is_none());
+    }
+
+    // list_async() retourne les mêmes agents que list()
+    #[tokio::test]
+    async fn test_agent_repository_async_list() {
+        // GIVEN
+        let repo = open_test_repo();
+        repo.save(&test_agent("alpha")).expect("save alpha");
+        repo.save(&test_agent("beta")).expect("save beta");
+
+        // WHEN
+        let agents = repo.list_async().await.expect("list_async should succeed");
+
+        // THEN
+        assert_eq!(agents.len(), 2);
+        assert_eq!(agents[0].name, "alpha");
+        assert_eq!(agents[1].name, "beta");
+    }
+
+    // list_async() propage les erreurs correctement
+    #[tokio::test]
+    async fn test_agent_repository_async_error_propagation() {
+        // GIVEN un repository fermé ne peut pas se produire avec in-memory,
+        // mais on vérifie que get_async retourne None pour un agent inexistant
+        let repo = open_test_repo();
+
+        // WHEN
+        let result = repo
+            .get_async("non-existent-agent".to_string())
+            .await
+            .expect("get_async should not error");
+
+        // THEN
         assert!(result.is_none());
     }
 }

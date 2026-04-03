@@ -40,6 +40,10 @@ pub struct ChannelConfig {
     pub events: Option<Vec<String>>,
     /// URL du webhook (uniquement pour le canal `webhook`).
     pub url: Option<String>,
+    /// Secret HMAC-SHA256 pour signer les payloads sortants (uniquement pour `webhook`).
+    ///
+    /// Si absent, le webhook est envoyé sans header de signature.
+    pub signing_secret: Option<String>,
 }
 
 /// Type de canal de notification.
@@ -147,6 +151,7 @@ pub fn build_channels(
                     url,
                     enabled: cfg.enabled,
                     events: cfg.events.clone(),
+                    signing_secret: cfg.signing_secret.clone(),
                 })));
             }
             ChannelKind::Sse => {
@@ -255,6 +260,7 @@ mod tests {
             enabled: true,
             events: None,
             url: None,
+            signing_secret: None,
         }];
 
         // WHEN
@@ -276,6 +282,7 @@ mod tests {
             enabled: false,
             events: None,
             url: Some("https://hooks.slack.com/test".into()),
+            signing_secret: None,
         }];
 
         // WHEN
@@ -296,6 +303,7 @@ mod tests {
             enabled: true,
             events: None,
             url: None,
+            signing_secret: None,
         }];
 
         // WHEN

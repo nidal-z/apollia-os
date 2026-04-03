@@ -22,6 +22,7 @@ use std::time::Instant;
 use futures::{Stream, StreamExt};
 use reqwest::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 
+use crate::pricing::{self, PricingTier};
 use crate::types::{
     CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, MessageContent,
     Role, StreamChunk, TokenUsage, ToolCall,
@@ -41,23 +42,6 @@ const ANTHROPIC_API_KEY_HEADER: &str = "x-api-key";
 
 /// Nom du header de version de l'API Anthropic.
 const ANTHROPIC_VERSION_HEADER: &str = "anthropic-version";
-
-// ─────────────────────────────────────────────
-// Table de prix Claude (par token, en USD)
-// ─────────────────────────────────────────────
-
-/// Prix d'entrée pour les modèles Claude Haiku par token.
-const CLAUDE_HAIKU_PROMPT_RATE: f64 = 0.80e-6;
-/// Prix de sortie pour les modèles Claude Haiku par token.
-const CLAUDE_HAIKU_COMPLETION_RATE: f64 = 4.00e-6;
-/// Prix d'entrée pour les modèles Claude Sonnet par token.
-const CLAUDE_SONNET_PROMPT_RATE: f64 = 3.00e-6;
-/// Prix de sortie pour les modèles Claude Sonnet par token.
-const CLAUDE_SONNET_COMPLETION_RATE: f64 = 15.00e-6;
-/// Prix d'entrée pour les modèles Claude Opus par token.
-const CLAUDE_OPUS_PROMPT_RATE: f64 = 15.00e-6;
-/// Prix de sortie pour les modèles Claude Opus par token.
-const CLAUDE_OPUS_COMPLETION_RATE: f64 = 75.00e-6;
 
 // ─────────────────────────────────────────────
 // Types internes — sérialisation requête
@@ -185,6 +169,10 @@ pub struct AnthropicClient {
     /// Clé API Anthropic — incluse dans chaque requête via `x-api-key`.
     /// Jamais loggée ni sérialisée (Principe #1).
     api_key: String,
+    /// Table de pricing par défaut construite au démarrage via [`pricing::default_pricing`].
+    pricing_table: std::collections::HashMap<&'static str, PricingTier>,
+    /// Surcharges opérateur chargées depuis `[llm.pricing_overrides]` dans `apollia.toml`.
+    pricing_overrides: std::collections::HashMap<String, PricingTier>,
 }
 
 impl AnthropicClient {
@@ -194,13 +182,22 @@ impl AnthropicClient {
     /// [`ApiBackendConfig::resolve_api_key`] — elle est transmise ici
     /// et non re-lue depuis l'environnement pour éviter les TOCTOU (Principe #1).
     ///
+    /// Les `pricing_overrides` sont chargés depuis `[llm.pricing_overrides]` dans
+    /// `apollia.toml` et ont priorité sur la table par défaut lors du calcul du coût.
+    ///
     /// Les headers Anthropic obligatoires (`x-api-key`, `anthropic-version`,
     /// `content-type`) sont ajoutés à chaque requête via [`request_builder`](Self::request_builder).
-    pub fn new(config: &ApiBackendConfig, api_key: String) -> Self {
+    pub fn new(
+        config: &ApiBackendConfig,
+        api_key: String,
+        pricing_overrides: std::collections::HashMap<String, PricingTier>,
+    ) -> Self {
         Self {
             client: reqwest::Client::new(),
             config: config.clone(),
             api_key,
+            pricing_table: pricing::default_pricing(),
+            pricing_overrides,
         }
     }
 
@@ -378,11 +375,18 @@ impl CompletionModel for AnthropicClient {
 
         let mut result = Self::parse_response(&json)?;
         result.latency_ms = started.elapsed().as_millis() as u64;
-        result.usage.cost_usd = estimate_cost_usd(
-            &model,
-            result.usage.prompt_tokens,
-            result.usage.completion_tokens,
-        );
+        result.usage.cost_usd =
+            match pricing::lookup_pricing(&model, &self.pricing_table, &self.pricing_overrides) {
+                Some(tier) => Some(
+                    result.usage.prompt_tokens as f64 * tier.input_per_mtok / 1_000_000.0
+                        + result.usage.completion_tokens as f64 * tier.output_per_mtok
+                            / 1_000_000.0,
+                ),
+                None => {
+                    tracing::warn!(model_id = %model, "unknown model for pricing");
+                    None
+                }
+            };
 
         tracing::info!(
             backend = %self.config.name,
@@ -532,25 +536,6 @@ fn map_stop_reason(stop_reason: &str) -> FinishReason {
         "max_tokens" => FinishReason::Length,
         _ => FinishReason::Stop,
     }
-}
-
-/// Estime le coût en USD depuis le nombre de tokens consommés et le nom du modèle.
-///
-/// Retourne `None` pour les modèles non référencés dans la table de prix.
-/// La détection se fait par sous-chaîne sur le nom du modèle :
-/// `"haiku"` → Haiku, `"sonnet"` → Sonnet, `"opus"` → Opus.
-fn estimate_cost_usd(model: &str, prompt_tokens: u32, completion_tokens: u32) -> Option<f64> {
-    let (prompt_rate, completion_rate) = if model.contains("haiku") {
-        (CLAUDE_HAIKU_PROMPT_RATE, CLAUDE_HAIKU_COMPLETION_RATE)
-    } else if model.contains("sonnet") {
-        (CLAUDE_SONNET_PROMPT_RATE, CLAUDE_SONNET_COMPLETION_RATE)
-    } else if model.contains("opus") {
-        (CLAUDE_OPUS_PROMPT_RATE, CLAUDE_OPUS_COMPLETION_RATE)
-    } else {
-        return None;
-    };
-
-    Some(prompt_tokens as f64 * prompt_rate + completion_tokens as f64 * completion_rate)
 }
 
 /// Convertit un stream de bytes en stream de chunks SSE Anthropic.
@@ -780,7 +765,11 @@ mod tests {
             model: "claude-haiku-4-5-20251001".into(),
         };
 
-        let client = AnthropicClient::new(&config, "sk-ant-test".into());
+        let client = AnthropicClient::new(
+            &config,
+            "sk-ant-test".into(),
+            std::collections::HashMap::new(),
+        );
 
         std::env::remove_var("APOLLIA_ANT_TEST_KEY");
         assert!(client.is_available());
@@ -802,30 +791,6 @@ mod tests {
         let response = AnthropicClient::parse_response(&json).unwrap();
 
         assert_eq!(response.finish_reason, FinishReason::Length);
-    }
-
-    // GIVEN le modèle "claude-haiku-4-5-20251001" avec des tokens non nuls
-    // WHEN on appelle estimate_cost_usd
-    // THEN Some(valeur > 0.0) est retourné
-    #[test]
-    fn test_estimate_cost_usd_haiku_nonzero() {
-        let cost = estimate_cost_usd("claude-haiku-4-5-20251001", 1000, 500);
-
-        assert!(cost.is_some(), "cost_usd must be Some for Claude Haiku");
-        assert!(cost.unwrap() > 0.0, "cost_usd must be positive");
-    }
-
-    // GIVEN un modèle inconnu
-    // WHEN on appelle estimate_cost_usd
-    // THEN None est retourné
-    #[test]
-    fn test_estimate_cost_usd_none_for_unknown_model() {
-        let cost = estimate_cost_usd("some-unknown-model-xyz", 1000, 500);
-
-        assert!(
-            cost.is_none(),
-            "cost_usd must be None for unknown model pricing"
-        );
     }
 
     // GIVEN une réponse avec text + tool_use dans le contenu

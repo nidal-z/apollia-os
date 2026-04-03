@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::pricing::PricingTier;
+
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
 
@@ -39,6 +41,19 @@ pub struct LlmConfig {
     /// Paramètres d'observabilité (tokens, latence, coût, prompt debug).
     #[serde(default)]
     pub observability: ObservabilityConfig,
+    /// Surcharges de pricing opérateur (section `[llm.pricing_overrides]`).
+    ///
+    /// Les entrées ici ont priorité sur la table interne de [`crate::pricing::default_pricing`].
+    /// Permet d'ajouter des modèles custom ou de corriger les prix sans mise à jour du code.
+    ///
+    /// Exemple `apollia.toml` :
+    /// ```toml
+    /// [llm.pricing_overrides]
+    /// "custom-local-model" = { input_per_mtok = 0.0, output_per_mtok = 0.0 }
+    /// "claude-sonnet-4-5"  = { input_per_mtok = 2.5, output_per_mtok = 12.0 }
+    /// ```
+    #[serde(default)]
+    pub pricing_overrides: HashMap<String, PricingTier>,
 }
 
 /// Paramètres d'observabilité pour le router LLM.
@@ -178,7 +193,11 @@ impl LlmRouter {
                         // Heuristique : API Anthropic → AnthropicClient,
                         // tout autre fournisseur → OpenAICompatibleClient.
                         if cfg.api_url.contains("anthropic.com") {
-                            Arc::new(AnthropicClient::new(cfg, key))
+                            Arc::new(AnthropicClient::new(
+                                cfg,
+                                key,
+                                config.pricing_overrides.clone(),
+                            ))
                         } else {
                             Arc::new(OpenAICompatibleClient::new(cfg, key))
                         }
@@ -258,7 +277,11 @@ impl LlmRouter {
                 BackendKind::Api(cfg) => match cfg.resolve_api_key() {
                     Ok(key) => {
                         let b: Arc<dyn CompletionModel> = if cfg.api_url.contains("anthropic.com") {
-                            Arc::new(AnthropicClient::new(cfg, key))
+                            Arc::new(AnthropicClient::new(
+                                cfg,
+                                key,
+                                config.pricing_overrides.clone(),
+                            ))
                         } else {
                             Arc::new(OpenAICompatibleClient::new(cfg, key))
                         };
@@ -673,7 +696,10 @@ async fn instantiate_cloud_backend(
     };
 
     if matches!(provider, LlmProvider::Anthropic) {
-        return Ok(Arc::new(AnthropicClient::new(&api_cfg, api_key)) as Arc<dyn CompletionModel>);
+        return Ok(
+            Arc::new(AnthropicClient::new(&api_cfg, api_key, HashMap::new()))
+                as Arc<dyn CompletionModel>,
+        );
     }
 
     Ok(Arc::new(OpenAICompatibleClient::new(&api_cfg, api_key)) as Arc<dyn CompletionModel>)
@@ -1067,6 +1093,7 @@ mod tests {
             default: "local".to_owned(),
             backends: vec![],
             observability: ObservabilityConfig::default(),
+            pricing_overrides: HashMap::new(),
         };
 
         // WHEN
@@ -1179,6 +1206,7 @@ mod tests {
             default: "local".to_owned(),
             backends: vec![],
             observability: ObservabilityConfig::default(),
+            pricing_overrides: HashMap::new(),
         };
 
         // WHEN

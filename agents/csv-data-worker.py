@@ -54,17 +54,15 @@ def read_csv_safe(path):
 
 ### Statistiques descriptives
 ```python
-print(df.describe())
-print("\\nValeurs manquantes :")
-print(df.isnull().sum())
-print("\\nTypes de colonnes :")
-print(df.dtypes)
+await ctx.log(f"DataFrame summary:\\n{df.describe()}")
+await ctx.log(f"Valeurs manquantes :\\n{df.isnull().sum()}")
+await ctx.log(f"Types de colonnes :\\n{df.dtypes}")
 ```
 
 ### Groupby et agrégation
 ```python
 grouped = df.groupby("colonne_cle")["colonne_valeur"].agg(["sum", "mean", "count"])
-print(grouped.to_markdown())
+await ctx.log(f"Groupby result:\\n{grouped.to_markdown()}")
 ```
 
 ### Filtrage
@@ -75,7 +73,7 @@ filtered = df[df["colonne"] > valeur].copy()
 ### Export
 ```python
 df.to_csv(output_path, index=False, encoding="utf-8")
-print(f"Exporté {len(df)} lignes vers {output_path}")
+await ctx.log(f"Exporté {len(df)} lignes vers {output_path}")
 ```
 
 ## GESTION DES ERREURS DOMAINE

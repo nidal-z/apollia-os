@@ -320,11 +320,14 @@ impl EmbeddedBackend {
     }
 
     /// Exécute l'inférence et retourne le texte généré.
+    ///
+    /// Quand `grammar` est `Some`, applique la contrainte GBNF via `LlamaSampler::grammar`
+    /// enchaîné avec le sampler glouton, ce qui force le modèle à produire un JSON valide.
     fn run_inference(
         model: &LlamaModel,
         backend: &LlamaBackend,
         prompt: &str,
-        _grammar: Option<&str>,
+        grammar: Option<&str>,
         max_tokens: u32,
     ) -> Result<String, LlmError> {
         let tokens = model
@@ -360,7 +363,16 @@ impl EmbeddedBackend {
         let mut n_cur = batch.n_tokens();
         let n_max = n_cur + max_tokens as i32;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
-        let mut sampler = LlamaSampler::greedy();
+        let mut sampler = match grammar {
+            Some(grammar_str) => {
+                let grammar_sampler =
+                    LlamaSampler::grammar(model, grammar_str, "root").map_err(|e| {
+                        LlmError::InferenceError(format!("grammar sampler init failed: {e}"))
+                    })?;
+                LlamaSampler::chain_simple([grammar_sampler, LlamaSampler::greedy()])
+            }
+            None => LlamaSampler::greedy(),
+        };
         let mut generated = String::new();
 
         while n_cur < n_max {
@@ -558,7 +570,7 @@ impl CompletionModel for EmbeddedBackend {
         let model = Arc::clone(&self.model);
         let backend = Arc::clone(&self.backend);
 
-        let (prompt, _grammar) = Self::build_prompt(&model, &req)?;
+        let (prompt, grammar) = Self::build_prompt(&model, &req)?;
 
         let (tx, rx) = tokio::sync::mpsc::channel::<Result<StreamChunk, LlmError>>(32);
 
@@ -593,7 +605,18 @@ impl CompletionModel for EmbeddedBackend {
                 let mut n_cur = batch.n_tokens();
                 let n_max = n_cur + max_tokens as i32;
                 let mut decoder = encoding_rs::UTF_8.new_decoder();
-                let mut sampler = LlamaSampler::greedy();
+                let mut sampler = match grammar.as_deref() {
+                    Some(grammar_str) => {
+                        let gs =
+                            LlamaSampler::grammar(&model, grammar_str, "root").map_err(|e| {
+                                LlmError::InferenceError(format!(
+                                    "grammar sampler init failed: {e}"
+                                ))
+                            })?;
+                        LlamaSampler::chain_simple([gs, LlamaSampler::greedy()])
+                    }
+                    None => LlamaSampler::greedy(),
+                };
 
                 while n_cur < n_max {
                     let token = sampler.sample(&ctx, batch.n_tokens() - 1);

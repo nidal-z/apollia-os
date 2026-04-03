@@ -30,7 +30,7 @@ pub struct TranscriptResult {
 /// Segment individuel d'une transcription avec timestamps.
 ///
 /// Chaque segment représente une portion continue de parole
-/// avec ses bornes temporelles et un score de confiance.
+/// avec ses bornes temporelles et un score de confiance optionnel.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscriptSegment {
     /// Texte transcrit pour ce segment.
@@ -42,8 +42,12 @@ pub struct TranscriptSegment {
     /// Fin du segment en millisecondes depuis le début de l'audio.
     pub end_ms: u64,
 
-    /// Score de confiance du modèle pour ce segment (0.0 – 1.0).
-    pub confidence: f32,
+    /// Score de confiance du backend pour ce segment (0.0 – 1.0).
+    ///
+    /// `None` signifie que le backend ne fournit pas de score de confiance —
+    /// à ne pas confondre avec `Some(0.0)` qui signifierait "confiance nulle".
+    /// Par exemple, whisper.cpp ne remonte pas cette métrique par segment.
+    pub confidence: Option<f32>,
 }
 
 /// Erreurs du moteur STT.
@@ -168,6 +172,68 @@ mod tests {
         );
     }
 
+    // GIVEN a TranscriptSegment with confidence = None
+    // WHEN serialized to JSON
+    // THEN the confidence field is `null`, not `0.0`
+    #[test]
+    fn test_confidence_none_serialization() {
+        // GIVEN
+        let seg = TranscriptSegment {
+            text: "hello".to_owned(),
+            start_ms: 0,
+            end_ms: 500,
+            confidence: None,
+        };
+
+        // WHEN
+        let json = serde_json::to_string(&seg).expect("serialization should succeed");
+
+        // THEN
+        assert!(
+            json.contains("\"confidence\":null"),
+            "None confidence must serialize as null, got: {json}"
+        );
+        assert!(
+            !json.contains("0.0"),
+            "None confidence must not serialize as 0.0, got: {json}"
+        );
+
+        let deserialized: TranscriptSegment =
+            serde_json::from_str(&json).expect("deserialization should succeed");
+        assert!(
+            deserialized.confidence.is_none(),
+            "deserialized confidence should be None"
+        );
+    }
+
+    // GIVEN a TranscriptSegment with confidence = Some(0.95)
+    // WHEN serialized to JSON and deserialized
+    // THEN the score is preserved exactly
+    #[test]
+    fn test_transcript_segment_confidence_option_some() {
+        // GIVEN
+        let seg = TranscriptSegment {
+            text: "world".to_owned(),
+            start_ms: 100,
+            end_ms: 800,
+            confidence: Some(0.95),
+        };
+
+        // WHEN
+        let json = serde_json::to_string(&seg).expect("serialization should succeed");
+        let deserialized: TranscriptSegment =
+            serde_json::from_str(&json).expect("deserialization should succeed");
+
+        // THEN
+        let score = deserialized
+            .confidence
+            .expect("confidence should be Some after round-trip");
+        assert!(
+            (score - 0.95).abs() < f32::EPSILON,
+            "confidence score should be preserved, got: {score}"
+        );
+    }
+
     // GIVEN un TranscriptResult
     // WHEN on le sérialise en JSON puis le désérialise
     // THEN le round-trip est fidèle
@@ -179,7 +245,7 @@ mod tests {
                 text: "Bonjour le monde".to_owned(),
                 start_ms: 0,
                 end_ms: 1500,
-                confidence: 0.95,
+                confidence: Some(0.95),
             }],
             language: Some("fr".to_owned()),
             audio_duration_ms: 2000,

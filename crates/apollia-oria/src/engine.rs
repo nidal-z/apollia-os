@@ -35,9 +35,6 @@ use crate::resilience::ResilienceLayer;
 // Constants
 // ─────────────────────────────────────────────
 
-/// Interval for polling budget exhaustion during `execute_direct`.
-const BUDGET_POLL_INTERVAL: Duration = Duration::from_millis(100);
-
 // ─────────────────────────────────────────────
 // Traits
 // ─────────────────────────────────────────────
@@ -183,6 +180,11 @@ pub struct ORIAEngine {
     ///
     /// Passed to [`ActorLoop`] during orchestrated execution. When `Some`, each completed
     /// step records an episodic memory entry in the agent's namespace.
+    ///
+    /// Exception au principe #5 (un acteur, une responsabilité) : `Arc<Mutex<MemoryManager>>`
+    /// est partagé entre l'`ORIAEngine` (configuration) et l'`ActorLoop` (écriture épisodique
+    /// par step). Les mutations sont rares (une écriture par step, fire-and-forget) et
+    /// `MemoryManager` encapsule une connexion SQLite non-`Sync`. Voir précédent ADR-033.
     memory_manager: Option<Arc<Mutex<MemoryManager>>>,
     /// Cache de plans d'exécution.
     ///
@@ -330,7 +332,12 @@ impl ORIAEngine {
     /// validate → plan → persist → ActorLoop → concat outputs.
     pub async fn execute(&self, task: AIPTask, agent: &dyn AIPAgent) -> AIPResult {
         let manifest = agent.manifest();
-        let mode = classify(&task, &manifest, None);
+        let mode = classify(
+            &task,
+            &manifest,
+            None,
+            self.oria_config.orchestrated_threshold as f32,
+        );
 
         match mode {
             ExecutionMode::Direct => {
@@ -500,7 +507,8 @@ impl ORIAEngine {
             manifest.clone(),
         )
         .with_pending_approvals(self.pending_approvals.clone())
-        .with_memory_manager(self.memory_manager.clone());
+        .with_memory_manager(self.memory_manager.clone())
+        .with_step_memory_max_chars(self.oria_config.step_memory_max_chars);
         let step_result = actor
             .execute(
                 tool_proxy,
@@ -587,7 +595,8 @@ impl ORIAEngine {
             manifest.clone(),
         )
         .with_pending_approvals(self.pending_approvals.clone())
-        .with_memory_manager(self.memory_manager.clone());
+        .with_memory_manager(self.memory_manager.clone())
+        .with_step_memory_max_chars(self.oria_config.step_memory_max_chars);
         let step_result = actor
             .execute(
                 tool_proxy,
@@ -782,6 +791,10 @@ impl ORIAEngine {
     /// Retourne immédiatement avec `ORIAError::BudgetExceeded` si le budget expire
     /// avant la fin de l'exécution. Utilisé pour le premier appel et pour la reprise
     /// après HITL.
+    ///
+    /// La supervision utilise un `oneshot` notifié par `StepBudget::increment_steps` /
+    /// `increment_tool_calls`, combiné à un sleep sur la durée wall-clock restante.
+    /// Aucun polling périodique.
     async fn run_with_budget(
         runner: &dyn AgentRunner,
         task: AIPTask,
@@ -791,22 +804,11 @@ impl ORIAEngine {
             result = runner.call_run(task) => {
                 result.map_err(ORIAError::BridgeError)
             }
-            _ = Self::poll_budget_exhaustion(budget) => {
+            _ = budget.wait_for_exhaustion() => {
                 let reason = budget
                     .exhaustion_reason()
                     .unwrap_or_else(|| "budget exhausted during execution".into());
                 Err(ORIAError::BudgetExceeded { reason })
-            }
-        }
-    }
-
-    /// Polls `budget.is_exhausted()` at regular intervals until exhausted.
-    async fn poll_budget_exhaustion(budget: &StepBudget) {
-        let mut interval = tokio::time::interval(BUDGET_POLL_INTERVAL);
-        loop {
-            interval.tick().await;
-            if budget.is_exhausted() {
-                return;
             }
         }
     }
@@ -1805,7 +1807,10 @@ mod orchestrated_tests {
     #[test]
     fn test_max_replans_eleven_fails_validation() {
         // GIVEN
-        let config = ORIAConfig { max_replans: 11 };
+        let config = ORIAConfig {
+            max_replans: 11,
+            ..ORIAConfig::default()
+        };
 
         // WHEN
         let result = config.validate();
@@ -1829,7 +1834,10 @@ mod orchestrated_tests {
     #[test]
     fn test_max_replans_ten_is_valid() {
         // GIVEN
-        let config = ORIAConfig { max_replans: 10 };
+        let config = ORIAConfig {
+            max_replans: 10,
+            ..ORIAConfig::default()
+        };
 
         // WHEN
         let result = config.validate();
@@ -1844,7 +1852,10 @@ mod orchestrated_tests {
     #[test]
     fn test_max_replans_zero_disallows_replan() {
         // GIVEN
-        let config = ORIAConfig { max_replans: 0 };
+        let config = ORIAConfig {
+            max_replans: 0,
+            ..ORIAConfig::default()
+        };
 
         // WHEN
         let engine = ORIAEngine::new().with_oria_config(config);
@@ -1859,7 +1870,10 @@ mod orchestrated_tests {
     #[test]
     fn test_max_replans_five_allows_up_to_five() {
         // GIVEN
-        let config = ORIAConfig { max_replans: 5 };
+        let config = ORIAConfig {
+            max_replans: 5,
+            ..ORIAConfig::default()
+        };
 
         // WHEN
         let engine = ORIAEngine::new().with_oria_config(config);

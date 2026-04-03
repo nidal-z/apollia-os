@@ -230,6 +230,37 @@ impl TriggerEngine {
             .map(|d| spawn_source(d.clone(), event_tx.clone()))
             .collect();
 
+        // Restore counters from history so they survive runtime restarts.
+        let (fire_counts, skip_counts, last_fired) = match &persistence {
+            Some(p) => match p.load_counters() {
+                Ok(counters) => {
+                    let mut fc: HashMap<String, u64> = HashMap::new();
+                    let mut sc: HashMap<String, u64> = HashMap::new();
+                    let mut lf: HashMap<String, DateTime<Utc>> = HashMap::new();
+                    for (id, stats) in counters {
+                        if stats.fire_count > 0 {
+                            fc.insert(id.clone(), stats.fire_count);
+                        }
+                        if stats.skip_count > 0 {
+                            sc.insert(id.clone(), stats.skip_count);
+                        }
+                        if let Some(ts) = stats.last_fired {
+                            lf.insert(id, ts);
+                        }
+                    }
+                    (fc, sc, lf)
+                }
+                Err(e) => {
+                    tracing::error!(
+                        error = %e,
+                        "failed to restore trigger counters from history — starting with zeros"
+                    );
+                    (HashMap::new(), HashMap::new(), HashMap::new())
+                }
+            },
+            None => (HashMap::new(), HashMap::new(), HashMap::new()),
+        };
+
         let engine = TriggerEngine {
             definitions,
             event_tx: event_tx.clone(),
@@ -237,9 +268,9 @@ impl TriggerEngine {
             pipeline_engine,
             event_bus,
             handles,
-            fire_counts: HashMap::new(),
-            skip_counts: HashMap::new(),
-            last_fired: HashMap::new(),
+            fire_counts,
+            skip_counts,
+            last_fired,
             persistence,
             obs_config,
         };
@@ -997,6 +1028,7 @@ impl TriggerEngineHandle {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::persistence::TriggerPersistence;
     use crate::types::{InputTemplate, TriggerSourceConfig};
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
@@ -1502,6 +1534,61 @@ mod tests {
             1,
             "TaskRouter doit être appelé exactement une fois"
         );
+    }
+
+    // ── Compteurs persistés ────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_engine_start_restores_counters() {
+        // GIVEN une base avec 3 fires et 2 skips pour "my-trigger"
+        let dir = tempfile::TempDir::new().unwrap();
+        let db_path = dir.path().join("test.db");
+        let base = chrono::Utc::now();
+        {
+            let mut p = TriggerPersistence::open(&db_path).unwrap();
+            for i in 0..3u64 {
+                p.record_fired(
+                    "my-trigger",
+                    "test-agent",
+                    &format!("task-{i}"),
+                    base + chrono::Duration::seconds(i as i64),
+                    None,
+                    None,
+                )
+                .unwrap();
+            }
+            for _ in 0..2 {
+                p.record_skipped("my-trigger", "test-agent", "busy", base, None)
+                    .unwrap();
+            }
+        }
+
+        // WHEN TriggerEngine démarre avec cette base
+        let def = make_definition("my-trigger", OnBusyPolicy::Queue);
+        let (router, _) = MockTaskRouterHandle::new();
+        let persistence = TriggerPersistence::open(&db_path).unwrap();
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            make_bus(),
+            Some(persistence),
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
+
+        // THEN les compteurs historiques sont restaurés
+        let list = handle.list().await;
+        assert_eq!(list.len(), 1);
+        assert_eq!(
+            list[0].fire_count, 3,
+            "fire_count doit être 3 après restart"
+        );
+        assert_eq!(
+            list[0].skip_count, 2,
+            "skip_count doit être 2 après restart"
+        );
+        assert!(list[0].last_fired.is_some(), "last_fired doit être Some");
     }
 
     /// Le champ `pipeline` de TriggerDefinition est backward-compatible.

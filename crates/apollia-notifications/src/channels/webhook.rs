@@ -1,12 +1,16 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use hmac::{Hmac, Mac};
 use reqwest::Client;
+use sha2::Sha256;
 
 use crate::{
     config::{channel_accepts_event, NotificationConfig},
     engine::{NotifError, Notification, NotificationChannel},
 };
+
+type HmacSha256 = Hmac<Sha256>;
 
 /// Configuration d'un canal webhook.
 ///
@@ -27,6 +31,11 @@ pub struct WebhookChannelConfig {
     /// - `Some(["*"])` → tous les événements de la liste globale
     /// - `Some(liste)` → sous-ensemble d'événements explicites
     pub events: Option<Vec<String>>,
+    /// Secret partagé pour signer les payloads sortants avec HMAC-SHA256.
+    ///
+    /// Si `Some`, chaque requête reçoit un header `X-Apollia-Signature: sha256=<hex>`.
+    /// Si `None`, le webhook est envoyé sans signature (rétrocompatible).
+    pub signing_secret: Option<String>,
 }
 
 /// Canal de notification via HTTP POST — format JSON fixe Apollia.
@@ -70,6 +79,21 @@ impl WebhookChannel {
     }
 }
 
+/// Calcule la signature HMAC-SHA256 d'un body avec le secret donné.
+///
+/// Retourne la chaîne au format `sha256=<hex>` tel qu'attendu dans le header
+/// `X-Apollia-Signature`. Conforme à la convention GitHub/Stripe.
+///
+/// HMAC accepte des clés de toute taille, le `expect` interne ne peut donc
+/// jamais se déclencher en pratique.
+pub fn compute_signature(secret: &str, body: &[u8]) -> String {
+    let mut mac =
+        HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC accepts keys of any size");
+    mac.update(body);
+    let result = mac.finalize();
+    format!("sha256={}", hex::encode(result.into_bytes()))
+}
+
 /// Construit le payload JSON Apollia à partir d'une [`Notification`].
 ///
 /// Le format est fixe et documenté :
@@ -111,21 +135,35 @@ impl NotificationChannel for WebhookChannel {
     /// Envoie la notification via HTTP POST vers l'URL configurée.
     ///
     /// - **Payload** : format JSON fixe Apollia (voir [`build_payload`])
-    /// - **Headers** : `Content-Type: application/json` (via `.json()`),
-    ///   `X-Apollia-Event: <event>`, `User-Agent: apollia-os/<version>` (via le client)
+    /// - **Headers** : `Content-Type: application/json`, `X-Apollia-Event: <event>`,
+    ///   `User-Agent: apollia-os/<version>` (via le client),
+    ///   `X-Apollia-Signature: sha256=<hex>` si `signing_secret` est configuré
     /// - **Timeout** : 5 s (configuré sur le client dans [`new`])
+    ///
+    /// La signature est calculée sur le body JSON sérialisé final avant envoi.
     ///
     /// Retourne [`NotifError::WebhookFailed`] pour toute erreur réseau ou
     /// réponse HTTP non-2xx. L'erreur est non-critique : le runtime la logge en
     /// `warn!` sans interrompre le dispatch.
     async fn send(&self, notif: &Notification) -> Result<(), NotifError> {
         let payload = build_payload(notif);
+        let body_bytes =
+            serde_json::to_vec(&payload).map_err(|e| NotifError::WebhookFailed(e.to_string()))?;
 
-        let resp = self
+        let mut builder = self
             .client
             .post(&self.config.url)
-            .header("X-Apollia-Event", &notif.event)
-            .json(&payload)
+            .header("Content-Type", "application/json")
+            .header("X-Apollia-Event", &notif.event);
+
+        if let Some(secret) = &self.config.signing_secret {
+            let signature = compute_signature(secret, &body_bytes);
+            tracing::debug!(channel = %self.config.id, "webhook request signed with HMAC-SHA256");
+            builder = builder.header("X-Apollia-Signature", signature);
+        }
+
+        let resp = builder
+            .body(body_bytes)
             .send()
             .await
             .map_err(|e| NotifError::WebhookFailed(e.to_string()))?;
@@ -184,6 +222,17 @@ mod tests {
             url: url.into(),
             enabled: true,
             events: None,
+            signing_secret: None,
+        })
+    }
+
+    fn make_channel_with_secret(url: &str, secret: &str) -> WebhookChannel {
+        WebhookChannel::new(WebhookChannelConfig {
+            id: "test-signed-webhook".into(),
+            url: url.into(),
+            enabled: true,
+            events: None,
+            signing_secret: Some(secret.into()),
         })
     }
 
@@ -197,6 +246,7 @@ mod tests {
             url: "http://test".into(),
             enabled: false,
             events: None,
+            signing_secret: None,
         });
         let config = make_config(vec!["task.input_required"]);
 
@@ -225,6 +275,7 @@ mod tests {
             url: "http://example.com".into(),
             enabled: true,
             events: Some(vec!["task.input_required".into(), "task.failed".into()]),
+            signing_secret: None,
         });
         let config = make_config(vec!["task.input_required", "task.failed", "agent.degraded"]);
 
@@ -327,6 +378,7 @@ mod tests {
             url: format!("http://127.0.0.1:{}", addr.port()),
             enabled: true,
             events: None,
+            signing_secret: None,
         };
         let client = Client::builder()
             .timeout(Duration::from_millis(300))
@@ -376,6 +428,7 @@ mod tests {
             url: format!("http://127.0.0.1:{}", addr.port()),
             enabled: true,
             events: None,
+            signing_secret: None,
         });
 
         // WHEN
@@ -447,6 +500,154 @@ mod tests {
         assert!(
             request.to_lowercase().contains("apollia-os/"),
             "header User-Agent absent ou incorrect\n---\n{request}"
+        );
+    }
+
+    // ─── HMAC-SHA256 : calcul de signature ────────────────────────────
+
+    #[test]
+    fn test_hmac_signature_matches_expected_value() {
+        // GIVEN secret = "secret", body = b"payload"
+        let signature = compute_signature("secret", b"payload");
+
+        // WHEN recompute independently with raw HMAC
+        let mut mac = HmacSha256::new_from_slice(b"secret").expect("valid key");
+        mac.update(b"payload");
+        let expected = format!("sha256={}", hex::encode(mac.finalize().into_bytes()));
+
+        // THEN both computations produce the same result
+        assert_eq!(
+            signature, expected,
+            "compute_signature doit correspondre au calcul HMAC direct"
+        );
+    }
+
+    #[test]
+    fn test_empty_body_produces_valid_signature() {
+        // GIVEN secret = "secret", body vide
+        let signature = compute_signature("secret", b"");
+
+        // WHEN recompute with empty body
+        let mut mac = HmacSha256::new_from_slice(b"secret").expect("valid key");
+        mac.update(b"");
+        let expected = format!("sha256={}", hex::encode(mac.finalize().into_bytes()));
+
+        // THEN signature est valide et correspond (edge case : body vide)
+        assert_eq!(signature, expected);
+        assert!(signature.starts_with("sha256="));
+        assert_eq!(signature.len(), "sha256=".len() + 64);
+    }
+
+    #[test]
+    fn test_different_secrets_produce_different_signatures() {
+        // GIVEN même body, secrets différents
+        let body = b"same payload";
+        let sig1 = compute_signature("secret_a", body);
+        let sig2 = compute_signature("secret_b", body);
+
+        // THEN signatures distinctes
+        assert_ne!(
+            sig1, sig2,
+            "des secrets différents doivent produire des signatures différentes"
+        );
+    }
+
+    #[test]
+    fn test_signature_format_is_sha256_prefix_hex() {
+        // GIVEN un secret et un body quelconques
+        let signature = compute_signature("whsec_test123", b"{\"event\":\"agent.started\"}");
+
+        // THEN format "sha256=<64 hex chars>"
+        assert!(
+            signature.starts_with("sha256="),
+            "la signature doit commencer par 'sha256='"
+        );
+        let hex_part = &signature["sha256=".len()..];
+        assert_eq!(
+            hex_part.len(),
+            64,
+            "la partie hex doit faire 64 caractères (HMAC-SHA256 = 32 octets)"
+        );
+        assert!(
+            hex_part.chars().all(|c| c.is_ascii_hexdigit()),
+            "la partie hex ne doit contenir que des caractères hexadécimaux"
+        );
+    }
+
+    // ─── header X-Apollia-Signature dans les requêtes HTTP ───────────
+
+    #[tokio::test]
+    async fn test_webhook_with_secret_adds_signature_header() {
+        // GIVEN un serveur HTTP qui capture la requête brute
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind échoue");
+        let addr = listener.local_addr().expect("local_addr");
+
+        let (tx, rx) = tokio::sync::oneshot::channel::<String>();
+
+        tokio::spawn(async move {
+            if let Ok((mut stream, _)) = listener.accept().await {
+                let mut buf = [0u8; 8192];
+                let n = stream.read(&mut buf).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..n]).to_string();
+                let _ = tx.send(request);
+                let response = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+                let _ = stream.write_all(response).await;
+            }
+        });
+
+        let channel = make_channel_with_secret(
+            &format!("http://127.0.0.1:{}", addr.port()),
+            "whsec_test123",
+        );
+        let notif = make_notif("agent.started", None, Severity::Info);
+
+        // WHEN
+        let _ = channel.send(&notif).await;
+        let request = rx.await.expect("requête non capturée");
+
+        // THEN X-Apollia-Signature présent avec le bon format
+        let request_lower = request.to_lowercase();
+        assert!(
+            request_lower.contains("x-apollia-signature: sha256="),
+            "header X-Apollia-Signature absent ou malformé\n---\n{request}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_webhook_without_secret_no_signature_header() {
+        // GIVEN un serveur HTTP qui capture la requête brute
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind échoue");
+        let addr = listener.local_addr().expect("local_addr");
+
+        let (tx, rx) = tokio::sync::oneshot::channel::<String>();
+
+        tokio::spawn(async move {
+            if let Ok((mut stream, _)) = listener.accept().await {
+                let mut buf = [0u8; 8192];
+                let n = stream.read(&mut buf).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..n]).to_string();
+                let _ = tx.send(request);
+                let response = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+                let _ = stream.write_all(response).await;
+            }
+        });
+
+        // Canal sans signing_secret
+        let channel = make_channel_url(&format!("http://127.0.0.1:{}", addr.port()));
+        let notif = make_notif("agent.started", None, Severity::Info);
+
+        // WHEN
+        let _ = channel.send(&notif).await;
+        let request = rx.await.expect("requête non capturée");
+
+        // THEN X-Apollia-Signature absent
+        assert!(
+            !request.to_lowercase().contains("x-apollia-signature"),
+            "X-Apollia-Signature ne doit pas être présent sans secret\n---\n{request}"
         );
     }
 }

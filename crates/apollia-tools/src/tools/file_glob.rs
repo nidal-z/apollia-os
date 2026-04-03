@@ -3,6 +3,13 @@
 use std::path::PathBuf;
 use std::time::SystemTime;
 
+/// Maximum number of file results returned by a single [`FileGlob`] call.
+///
+/// Prevents unbounded memory usage when a glob pattern matches a large directory tree.
+/// When exceeded, [`FileGlobError::GlobLimitExceeded`] is returned and no partial
+/// results are provided.
+const MAX_GLOB_RESULTS: usize = 10_000;
+
 use apollia_core::SandboxProfile;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -34,6 +41,16 @@ pub enum FileGlobError {
     /// I/O error during glob traversal.
     #[error("I/O error: {0}")]
     IoError(String),
+
+    /// The glob matched more than [`MAX_GLOB_RESULTS`] files.
+    ///
+    /// The caller must narrow the pattern or base directory to reduce the result set.
+    /// No partial results are returned.
+    #[error("glob result limit exceeded: found more than {limit} matches")]
+    GlobLimitExceeded {
+        /// The hard limit that was exceeded.
+        limit: usize,
+    },
 }
 
 impl From<SandboxPathError> for FileGlobError {
@@ -168,6 +185,12 @@ fn glob_files(
         // Exclude directories and any path that escaped the sandbox.
         if path.is_dir() || !path.starts_with(sandbox_root) {
             continue;
+        }
+
+        if entries.len() >= MAX_GLOB_RESULTS {
+            return Err(FileGlobError::GlobLimitExceeded {
+                limit: MAX_GLOB_RESULTS,
+            });
         }
 
         let mtime = std::fs::metadata(&path)
@@ -367,6 +390,53 @@ mod tests {
         assert_eq!(result.matches.len(), 1);
         assert_eq!(result.matches[0], "src/main.rs");
         assert!(!result.matches[0].starts_with('/'));
+    }
+
+    #[tokio::test]
+    async fn test_file_glob_within_limit_returns_results() {
+        // GIVEN a sandbox with 5 files — well below MAX_GLOB_RESULTS
+        let tmp = TempDir::new().expect("temp dir");
+        for i in 0..5 {
+            create_file(tmp.path(), &format!("file{i}.txt"), b"content");
+        }
+        let tool = FileGlob::new(tmp.path().to_path_buf()).expect("FileGlob::new");
+
+        // WHEN matching all .txt files
+        let result = tool
+            .run(FileGlobInput {
+                pattern: "*.txt".to_string(),
+                path: None,
+            })
+            .await
+            .expect("should succeed within limit");
+
+        // THEN all 5 files are returned
+        assert_eq!(result.matches.len(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_file_glob_exceeds_limit_returns_error() {
+        // GIVEN a sandbox with MAX_GLOB_RESULTS + 1 files
+        let tmp = TempDir::new().expect("temp dir");
+        let over_limit = MAX_GLOB_RESULTS + 1;
+        for i in 0..over_limit {
+            create_file(tmp.path(), &format!("f{i}.txt"), b"x");
+        }
+        let tool = FileGlob::new(tmp.path().to_path_buf()).expect("FileGlob::new");
+
+        // WHEN matching all .txt files
+        let result = tool
+            .run(FileGlobInput {
+                pattern: "*.txt".to_string(),
+                path: None,
+            })
+            .await;
+
+        // THEN GlobLimitExceeded is returned with the correct limit
+        assert!(
+            matches!(result, Err(FileGlobError::GlobLimitExceeded { limit }) if limit == MAX_GLOB_RESULTS),
+            "expected GlobLimitExceeded, got: {result:?}"
+        );
     }
 
     #[test]
