@@ -4,6 +4,20 @@
 //! (inotify sur Linux, kqueue sur macOS, ReadDirectoryChanges sur Windows)
 //! et forwarde les événements filtrés vers le channel async du `TriggerEngine`.
 //!
+//! ## Filtrage des événements
+//!
+//! Avant propagation, chaque événement est soumis à deux filtres :
+//! - **Exclusion de chemin** : tout segment ou pattern correspondant à `exclude_patterns`
+//!   est ignoré silencieusement (ex : `.git/`, `node_modules/`, `*.log`).
+//! - **Liens symboliques** : si `follow_symlinks = false` (défaut), les chemins
+//!   identifiés comme symlinks via `fs::symlink_metadata` sont ignorés.
+//!
+//! ## Déduplication
+//!
+//! Les événements répétés sur le même chemin dans une fenêtre de 1 seconde sont
+//! dédupliqués : un seul événement est propagé, les doublons sont loggés en
+//! `tracing::debug!`.
+//!
 //! ## Pont sync→async
 //!
 //! `notify` utilise une API synchrone (`std::sync::mpsc::Sender`). Le pont est
@@ -102,6 +116,10 @@ impl FileWatchTrigger {
                                     if dedup.get(file_path).is_some_and(|last| {
                                         last.elapsed() < std::time::Duration::from_secs(1)
                                     }) {
+                                        tracing::debug!(
+                                            path = %file_path.display(),
+                                            "deduplicated file event"
+                                        );
                                         continue;
                                     }
                                     dedup.insert(file_path.clone(), now);
@@ -147,17 +165,30 @@ impl FileWatchTrigger {
 
 /// Mappe un événement `notify` vers un [`TriggerPayload::File`] selon les filtres déclarés.
 ///
-/// Retourne `None` si l'événement ne correspond pas aux filtres configurés,
-/// si le type d'événement est inconnu (`Access`, `Other`, …), ou si le path
-/// du fichier est absent de l'événement.
+/// Retourne `None` si :
+/// - L'événement ne correspond pas aux filtres configurés (`events`).
+/// - Le type d'événement est inconnu (`Access`, `Other`, …).
+/// - Le chemin du fichier est absent de l'événement.
+/// - Le chemin correspond à un pattern d'exclusion (`exclude_patterns`).
+/// - `follow_symlinks = false` et le chemin est un lien symbolique.
 ///
-/// Cette fonction est pure et testable sans filesystem réel.
+/// Cette fonction est pure et testable sans filesystem réel (sauf les vérifications
+/// de métadonnées et de symlinks qui requièrent un vrai chemin).
 pub fn map_notify_event(
     event: notify::Event,
     source: &TriggerSourceConfig,
 ) -> Option<TriggerPayload> {
-    let desired_kinds = match source {
-        TriggerSourceConfig::FileWatch { events, .. } => events.as_slice(),
+    let (desired_kinds, follow_symlinks, exclude_patterns) = match source {
+        TriggerSourceConfig::FileWatch {
+            events,
+            follow_symlinks,
+            exclude_patterns,
+            ..
+        } => (
+            events.as_slice(),
+            *follow_symlinks,
+            exclude_patterns.as_slice(),
+        ),
         _ => return None,
     };
 
@@ -169,12 +200,26 @@ pub fn map_notify_event(
     };
 
     let matches = desired_kinds.contains(&FileEventKind::Any) || desired_kinds.contains(&file_kind);
-
     if !matches {
         return None;
     }
 
     let path = event.paths.into_iter().next()?;
+
+    // Exclusion check — avant tout accès filesystem pour minimiser les allocations
+    if is_excluded(&path, exclude_patterns) {
+        return None;
+    }
+
+    // Symlink guard — symlink_metadata ne suit PAS les liens, contrairement à metadata
+    if !follow_symlinks {
+        if let Ok(meta) = std::fs::symlink_metadata(&path) {
+            if meta.file_type().is_symlink() {
+                return None;
+            }
+        }
+    }
+
     let filename = path.file_name()?.to_string_lossy().into_owned();
 
     // For Create events: verify the file actually exists as a regular file.
@@ -182,6 +227,7 @@ pub fn map_notify_event(
     // deleted (the backend rescans the directory and may fire a Create for the parent
     // directory or a stale entry). Semantically, a FileWatch Create must point to a
     // real file — if the path is gone or is a directory, skip the event.
+    // std::fs::metadata follows symlinks intentionally (size of the target, not the link).
     let size_bytes = if file_kind == FileEventKind::Create {
         match std::fs::metadata(&path) {
             Ok(m) if !m.is_dir() => m.len(),
@@ -197,6 +243,33 @@ pub fn map_notify_event(
         size_bytes,
         event_kind: file_kind,
     })
+}
+
+/// Retourne `true` si le chemin correspond à au moins un pattern d'exclusion.
+///
+/// Patterns supportés :
+/// - `"nom"` ou `"nom/"` — correspond si un segment du chemin égale `nom`
+/// - `"*.ext"` — correspond si le nom de fichier se termine par `.ext`
+fn is_excluded(path: &Path, patterns: &[String]) -> bool {
+    patterns.iter().any(|p| matches_exclude_pattern(path, p))
+}
+
+/// Teste si le chemin correspond au pattern d'exclusion donné.
+fn matches_exclude_pattern(path: &Path, pattern: &str) -> bool {
+    let pattern = pattern.trim_end_matches('/');
+    if let Some(ext_suffix) = pattern.strip_prefix("*.") {
+        // Extension pattern : *.log, *.tmp
+        return path
+            .file_name()
+            .map(|n| {
+                let name = n.to_string_lossy();
+                name.ends_with(&format!(".{ext_suffix}"))
+            })
+            .unwrap_or(false);
+    }
+    // Segment match : .git, node_modules, __pycache__, .apollia
+    path.components()
+        .any(|c| c.as_os_str().to_string_lossy() == pattern)
 }
 
 /// Résout le tilde `~` vers le répertoire HOME de l'utilisateur.
@@ -228,6 +301,8 @@ mod tests {
             source: TriggerSourceConfig::FileWatch {
                 path: dir.to_path_buf(),
                 events,
+                follow_symlinks: false,
+                exclude_patterns: vec![],
             },
             input_template: InputTemplate("{{filename}}".into()),
         }
@@ -323,6 +398,8 @@ mod tests {
         let source = TriggerSourceConfig::FileWatch {
             path: "/tmp".into(),
             events: vec![FileEventKind::Create],
+            follow_symlinks: false,
+            exclude_patterns: vec![],
         };
 
         // WHEN
@@ -354,6 +431,8 @@ mod tests {
         let source = TriggerSourceConfig::FileWatch {
             path: "/tmp".into(),
             events: vec![FileEventKind::Create],
+            follow_symlinks: false,
+            exclude_patterns: vec![],
         };
 
         // WHEN
@@ -380,6 +459,8 @@ mod tests {
         let source = TriggerSourceConfig::FileWatch {
             path: "/tmp".into(),
             events: vec![FileEventKind::Any],
+            follow_symlinks: false,
+            exclude_patterns: vec![],
         };
 
         // WHEN
@@ -417,5 +498,271 @@ mod tests {
 
         // THEN — path inchangé
         assert_eq!(expanded, path);
+    }
+
+    // ── STORY-442 : patterns d'exclusion ──────────────────────────────────
+
+    #[test]
+    fn test_default_exclude_patterns_applied() {
+        // GIVEN / WHEN
+        let patterns = crate::config::default_exclude_patterns();
+
+        // THEN — les 4 patterns attendus sont présents
+        assert!(patterns.contains(&".git".to_string()));
+        assert!(patterns.contains(&"node_modules".to_string()));
+        assert!(patterns.contains(&"__pycache__".to_string()));
+        assert!(patterns.contains(&".apollia".to_string()));
+        assert_eq!(patterns.len(), 4);
+    }
+
+    #[test]
+    fn test_git_dir_excluded_by_default() {
+        // GIVEN — chemin contenant un segment .git/
+        use notify::{
+            event::{DataChange, EventAttributes, ModifyKind},
+            Event, EventKind,
+        };
+        let event = Event {
+            kind: EventKind::Modify(ModifyKind::Data(DataChange::Any)),
+            paths: vec!["/project/.git/HEAD".into()],
+            attrs: EventAttributes::default(),
+        };
+        let source = TriggerSourceConfig::FileWatch {
+            path: "/project".into(),
+            events: vec![FileEventKind::Any],
+            follow_symlinks: false,
+            exclude_patterns: crate::config::default_exclude_patterns(),
+        };
+
+        // WHEN
+        let payload = map_notify_event(event, &source);
+
+        // THEN — .git/ est filtré par les patterns par défaut
+        assert!(
+            payload.is_none(),
+            "events from .git/ must be excluded by default"
+        );
+    }
+
+    #[test]
+    fn test_custom_exclude_pattern_respected() {
+        // GIVEN — patterns *.log et tmp/
+        use notify::{
+            event::{DataChange, EventAttributes, ModifyKind},
+            Event, EventKind,
+        };
+        let source = TriggerSourceConfig::FileWatch {
+            path: "/app".into(),
+            events: vec![FileEventKind::Any],
+            follow_symlinks: false,
+            exclude_patterns: vec!["*.log".into(), "tmp".into()],
+        };
+
+        // WHEN — fichier .log
+        let log_event = Event {
+            kind: EventKind::Modify(ModifyKind::Data(DataChange::Any)),
+            paths: vec!["/app/app.log".into()],
+            attrs: EventAttributes::default(),
+        };
+        let payload_log = map_notify_event(log_event, &source);
+
+        // WHEN — fichier dans tmp/
+        let tmp_event = Event {
+            kind: EventKind::Modify(ModifyKind::Data(DataChange::Any)),
+            paths: vec!["/app/tmp/data.txt".into()],
+            attrs: EventAttributes::default(),
+        };
+        let payload_tmp = map_notify_event(tmp_event, &source);
+
+        // THEN
+        assert!(payload_log.is_none(), "*.log pattern must exclude app.log");
+        assert!(
+            payload_tmp.is_none(),
+            "tmp pattern must exclude tmp/data.txt"
+        );
+    }
+
+    #[test]
+    fn test_empty_exclude_patterns_allows_all() {
+        // GIVEN — exclude_patterns vide, chemin .git/
+        use notify::{
+            event::{DataChange, EventAttributes, ModifyKind},
+            Event, EventKind,
+        };
+        let event = Event {
+            kind: EventKind::Modify(ModifyKind::Data(DataChange::Any)),
+            paths: vec!["/project/.git/HEAD".into()],
+            attrs: EventAttributes::default(),
+        };
+        let source = TriggerSourceConfig::FileWatch {
+            path: "/project".into(),
+            events: vec![FileEventKind::Any],
+            follow_symlinks: false,
+            exclude_patterns: vec![],
+        };
+
+        // WHEN
+        let payload = map_notify_event(event, &source);
+
+        // THEN — rien n'est filtré si la liste est vide
+        assert!(
+            payload.is_some(),
+            "empty exclude_patterns must not filter any path"
+        );
+    }
+
+    // ── STORY-442 : symlinks ───────────────────────────────────────────────
+
+    #[cfg(unix)]
+    #[test]
+    fn test_symlink_metadata_used_not_metadata() {
+        // GIVEN — un vrai lien symbolique
+        use notify::{
+            event::{DataChange, EventAttributes, ModifyKind},
+            Event, EventKind,
+        };
+        let dir = TempDir::new().unwrap();
+        let real_file = dir.path().join("real.txt");
+        std::fs::write(&real_file, b"content").unwrap();
+        let symlink_path = dir.path().join("link.txt");
+        std::os::unix::fs::symlink(&real_file, &symlink_path).unwrap();
+
+        let event = Event {
+            kind: EventKind::Modify(ModifyKind::Data(DataChange::Any)),
+            paths: vec![symlink_path],
+            attrs: EventAttributes::default(),
+        };
+        let source = TriggerSourceConfig::FileWatch {
+            path: dir.path().to_path_buf(),
+            events: vec![FileEventKind::Any],
+            follow_symlinks: false,
+            exclude_patterns: vec![],
+        };
+
+        // WHEN
+        let payload = map_notify_event(event, &source);
+
+        // THEN — symlink_metadata détecte le lien → filtré quand follow_symlinks = false
+        assert!(
+            payload.is_none(),
+            "symlink must be filtered when follow_symlinks = false"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_symlink_outside_watch_dir_no_event() {
+        // GIVEN — symlink dans le répertoire surveillé pointant vers un fichier extérieur
+        use notify::{
+            event::{DataChange, EventAttributes, ModifyKind},
+            Event, EventKind,
+        };
+        let watch_dir = TempDir::new().unwrap();
+        let target_dir = TempDir::new().unwrap();
+        let target_file = target_dir.path().join("external.txt");
+        std::fs::write(&target_file, b"external content").unwrap();
+        let symlink_in_watch = watch_dir.path().join("link_to_external.txt");
+        std::os::unix::fs::symlink(&target_file, &symlink_in_watch).unwrap();
+
+        let event = Event {
+            kind: EventKind::Modify(ModifyKind::Data(DataChange::Any)),
+            paths: vec![symlink_in_watch],
+            attrs: EventAttributes::default(),
+        };
+        let source = TriggerSourceConfig::FileWatch {
+            path: watch_dir.path().to_path_buf(),
+            events: vec![FileEventKind::Any],
+            follow_symlinks: false,
+            exclude_patterns: vec![],
+        };
+
+        // WHEN
+        let payload = map_notify_event(event, &source);
+
+        // THEN — symlink pointant hors périmètre filtré quand follow_symlinks = false
+        assert!(
+            payload.is_none(),
+            "symlink pointing outside watch dir must be excluded when follow_symlinks = false"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_follow_symlinks_true_generates_events() {
+        // GIVEN — lien symbolique avec follow_symlinks = true
+        use notify::{
+            event::{DataChange, EventAttributes, ModifyKind},
+            Event, EventKind,
+        };
+        let dir = TempDir::new().unwrap();
+        let real_file = dir.path().join("real.txt");
+        std::fs::write(&real_file, b"content").unwrap();
+        let symlink_path = dir.path().join("link.txt");
+        std::os::unix::fs::symlink(&real_file, &symlink_path).unwrap();
+
+        let event = Event {
+            kind: EventKind::Modify(ModifyKind::Data(DataChange::Any)),
+            paths: vec![symlink_path],
+            attrs: EventAttributes::default(),
+        };
+        let source = TriggerSourceConfig::FileWatch {
+            path: dir.path().to_path_buf(),
+            events: vec![FileEventKind::Any],
+            follow_symlinks: true,
+            exclude_patterns: vec![],
+        };
+
+        // WHEN
+        let payload = map_notify_event(event, &source);
+
+        // THEN — événement propagé quand follow_symlinks = true
+        assert!(
+            payload.is_some(),
+            "symlink event must pass through when follow_symlinks = true"
+        );
+    }
+
+    // ── STORY-442 : déduplication loggée en debug ──────────────────────────
+
+    #[tokio::test]
+    async fn test_deduplicated_events_logged_debug() {
+        // GIVEN — watcher actif sur un répertoire
+        let dir = TempDir::new().unwrap();
+        let (tx, mut rx) = tokio::sync::mpsc::channel(10);
+        let def = TriggerDefinition {
+            id: "dedup-test".into(),
+            agent: "dedup-agent".into(),
+            pipeline: None,
+            enabled: true,
+            on_busy: OnBusyPolicy::Queue,
+            source: TriggerSourceConfig::FileWatch {
+                path: dir.path().to_path_buf(),
+                events: vec![FileEventKind::Any],
+                follow_symlinks: false,
+                exclude_patterns: vec![],
+            },
+            input_template: InputTemplate("{{filename}}".into()),
+        };
+        let _handle = FileWatchTrigger::spawn(def, tx);
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        // WHEN — créer puis réécrire rapidement le même fichier (< 1s entre les deux)
+        let file = dir.path().join("report.pdf");
+        std::fs::write(&file, b"first write").unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        std::fs::write(&file, b"second write").unwrap();
+
+        // Attendre la fenêtre de déduplication (1s) + marge
+        tokio::time::sleep(std::time::Duration::from_millis(1300)).await;
+
+        // THEN — au plus 1 événement propagé dans la fenêtre de déduplication
+        let mut count = 0;
+        while rx.try_recv().is_ok() {
+            count += 1;
+        }
+        assert!(
+            count <= 1,
+            "deduplicated writes must result in at most 1 event within the debounce window, got {count}"
+        );
     }
 }

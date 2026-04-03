@@ -511,7 +511,9 @@ mod tests {
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
+            bind_addr: "127.0.0.1".to_owned(),
             tcp_port: port,
+            api_token: None,
         };
         let api_server = APIServer::new(config, state);
         let api_handle = api_server.start().await.unwrap();
@@ -659,7 +661,9 @@ mod tests {
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
+            bind_addr: "127.0.0.1".to_owned(),
             tcp_port: port,
+            api_token: None,
         };
         let api = crate::api::APIServer::new(api_config, state);
         let api_handle = api.start().await.unwrap();
@@ -761,7 +765,9 @@ mod tests {
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
                 socket_path: socket_path.clone(),
+                bind_addr: "127.0.0.1".to_owned(),
                 tcp_port: port,
+                api_token: None,
             },
             state,
         );
@@ -968,7 +974,9 @@ mod tests {
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
                 socket_path: socket_path.clone(),
+                bind_addr: "127.0.0.1".to_owned(),
                 tcp_port: port,
+                api_token: None,
             },
             state,
         );

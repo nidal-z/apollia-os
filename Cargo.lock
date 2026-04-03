@@ -421,6 +421,7 @@ dependencies = [
  "hound",
  "http-body-util",
  "hyper-util",
+ "rand 0.8.5",
  "rusqlite",
  "serde",
  "serde_json",

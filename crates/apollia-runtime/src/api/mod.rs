@@ -2,6 +2,7 @@
 //!
 //! Provides the external API surface for the runtime (CLI, SDK, integrations).
 
+pub mod middleware;
 pub mod routes_a2a;
 pub mod routes_agents;
 pub mod routes_approvals;
@@ -23,4 +24,5 @@ pub mod routes_user;
 pub mod routes_webhooks;
 pub mod server;
 
+pub use middleware::{load_or_generate_token, AuthError, TokenAuthLayer, TokenFileError};
 pub use server::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};

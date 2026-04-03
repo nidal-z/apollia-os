@@ -171,9 +171,19 @@ fn parse_source_config(
                 .get("events")
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
                 .unwrap_or_else(|| vec![FileEventKind::Any]);
+            let follow_symlinks = source_config
+                .get("follow_symlinks")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let exclude_patterns = source_config
+                .get("exclude_patterns")
+                .and_then(|v| serde_json::from_value::<Vec<String>>(v.clone()).ok())
+                .unwrap_or_else(crate::config::default_exclude_patterns);
             Ok(TriggerSourceConfig::FileWatch {
                 path: std::path::PathBuf::from(path),
                 events,
+                follow_symlinks,
+                exclude_patterns,
             })
         }
         "webhook" => {

@@ -29,7 +29,7 @@ pub mod task;
 pub mod user;
 
 pub use budget::StepBudgetConfig;
-pub use config::A2AConfig;
+pub use config::{A2AConfig, ApiConfig, ConfigError, ORIAConfig};
 pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
 pub use manifest::{AgentManifest, AgentSkill};

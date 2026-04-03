@@ -26,6 +26,7 @@
 
 use std::path::{Path, PathBuf};
 
+use apollia_core::ApiConfig;
 use apollia_llm::{BackendKind, LlmConfig};
 
 // ─────────────────────────────────────────────
@@ -50,8 +51,9 @@ pub enum ConfigError {
 
 /// Configuration globale Apollia OS validée depuis `apollia.toml`.
 ///
-/// Contient uniquement la configuration LLM. La configuration opérationnelle
-/// (triggers, pipelines, notifications, agents, stt) est gérée en SQLite.
+/// Contient la configuration LLM et la configuration de l'API REST.
+/// La configuration opérationnelle (triggers, pipelines, notifications, agents, stt)
+/// est gérée en SQLite.
 ///
 /// Pour désérialiser depuis un fichier, utiliser [`parse_apollia_toml`].
 #[derive(Debug, serde::Deserialize)]
@@ -60,6 +62,12 @@ pub struct ApolliaCConfig {
     ///
     /// Vaut `None` si la section `[llm]` est absente du fichier.
     pub llm: Option<LlmConfig>,
+
+    /// Section `[api]` — configuration du listener TCP et de l'authentification.
+    ///
+    /// Vaut `None` si la section `[api]` est absente du fichier ; les valeurs
+    /// par défaut de [`ApiConfig`] sont alors appliquées.
+    pub api: Option<ApiConfig>,
 }
 
 /// Noms des sections TOML qui sont désormais obsolètes.

@@ -43,6 +43,7 @@ hmac               = "0.12"
 sha2               = "0.10"
 hex                = "0.4"
 constant_time_eq   = "0.3"
+rand               = { workspace = true }
 tokio              = { workspace = true }
 serde              = { workspace = true }
 serde_json         = { workspace = true }

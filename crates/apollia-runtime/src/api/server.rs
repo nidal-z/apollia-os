@@ -244,8 +244,24 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
 pub struct APIServerConfig {
     /// Path to the Unix domain socket (e.g. `/tmp/apollia.sock`).
     pub socket_path: PathBuf,
+    /// IP address to bind the TCP listener on.
+    ///
+    /// Defaults to `"127.0.0.1"` (loopback only). Set to `"0.0.0.0"` to accept
+    /// connections from any interface (not recommended in production).
+    pub bind_addr: String,
     /// TCP port to listen on (e.g. `7771`).
     pub tcp_port: u16,
+    /// Bearer token required on TCP connections.
+    ///
+    /// `Some(token)` — every incoming TCP request must supply
+    /// `Authorization: Bearer <token>`. Requests without it or with an incorrect
+    /// value receive `401 Unauthorized`.
+    ///
+    /// `None` — no authentication check is performed (equivalent to
+    /// `require_token = false` in `apollia.toml`).
+    ///
+    /// The Unix socket listener is never subject to token authentication.
+    pub api_token: Option<String>,
 }
 
 /// Handle to control a running APIServer.
@@ -535,42 +551,54 @@ impl APIServer {
     ///
     /// Returns an [`APIServerHandle`] for graceful shutdown.
     /// Both listeners run as spawned Tokio tasks sharing the same router.
+    /// Token authentication (when configured) is applied only to the TCP router.
     /// The stale Unix socket file is removed before binding if it exists.
     pub async fn start(self) -> Result<APIServerHandle, APIServerError> {
-        let (shutdown_tx, _) = watch::channel(false);
+        use crate::api::middleware::TokenAuthLayer;
 
-        // Bind TCP listener
-        let tcp_addr = format!("127.0.0.1:{}", self.config.tcp_port);
+        let (shutdown_tx, _) = watch::channel(false);
+        let Self { config, router } = self;
+
+        // Bind TCP listener on the configured address.
+        let tcp_addr = format!("{}:{}", config.bind_addr, config.tcp_port);
         let tcp_listener =
             TcpListener::bind(&tcp_addr)
                 .await
                 .map_err(|source| APIServerError::BindFailed {
-                    port: self.config.tcp_port,
+                    port: config.tcp_port,
                     source,
                 })?;
 
-        // Clean up stale Unix socket file if present
-        if self.config.socket_path.exists() {
-            let _ = std::fs::remove_file(&self.config.socket_path);
+        // Clean up stale Unix socket file if present.
+        if config.socket_path.exists() {
+            let _ = std::fs::remove_file(&config.socket_path);
         }
 
-        // Bind Unix socket listener
+        // Bind Unix socket listener.
         #[cfg(unix)]
-        let unix_listener = UnixListener::bind(&self.config.socket_path).map_err(|source| {
+        let unix_listener = UnixListener::bind(&config.socket_path).map_err(|source| {
             APIServerError::SocketBindFailed {
-                path: self.config.socket_path.display().to_string(),
+                path: config.socket_path.display().to_string(),
                 source,
             }
         })?;
 
+        // Apply token authentication only to the TCP-facing router.
+        let tcp_router = match &config.api_token {
+            Some(token) => router.clone().layer(TokenAuthLayer::new(token.as_str())),
+            None => router.clone(),
+        };
+        // Unix socket router: no authentication layer — filesystem permissions suffice.
+        let unix_router = router;
+
         info!(
-            tcp_port = %self.config.tcp_port,
-            socket_path = %self.config.socket_path.display(),
+            tcp_port = %config.tcp_port,
+            socket_path = %config.socket_path.display(),
+            auth_enabled = config.api_token.is_some(),
             "APIServer started on TCP and Unix socket"
         );
 
-        // Spawn TCP listener task with graceful shutdown
-        let tcp_router = self.router.clone();
+        // Spawn TCP listener task with graceful shutdown.
         let mut tcp_shutdown_rx = shutdown_tx.subscribe();
         tokio::spawn(async move {
             let result = axum::serve(tcp_listener, tcp_router)
@@ -583,10 +611,9 @@ impl APIServer {
             }
         });
 
-        // Spawn Unix socket listener task (manual accept loop with hyper-util)
+        // Spawn Unix socket listener task (manual accept loop with hyper-util).
         #[cfg(unix)]
         {
-            let unix_router = self.router;
             let mut unix_shutdown_rx = shutdown_tx.subscribe();
             tokio::spawn(async move {
                 serve_unix(unix_listener, unix_router, &mut unix_shutdown_rx).await;
@@ -774,7 +801,9 @@ mod tests {
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
+            bind_addr: "127.0.0.1".to_owned(),
             tcp_port: port,
+            api_token: None,
         };
         let server = APIServer::new(config, state);
 
@@ -800,7 +829,9 @@ mod tests {
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
+            bind_addr: "127.0.0.1".to_owned(),
             tcp_port: port,
+            api_token: None,
         };
         let server = APIServer::new(config, state);
 
@@ -829,7 +860,9 @@ mod tests {
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
+            bind_addr: "127.0.0.1".to_owned(),
             tcp_port: port,
+            api_token: None,
         };
         let server = APIServer::new(config, state);
 
@@ -855,7 +888,9 @@ mod tests {
         let state = test_app_state();
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
+            bind_addr: "127.0.0.1".to_owned(),
             tcp_port: port,
+            api_token: None,
         };
         let server = APIServer::new(config, state);
         let handle = server.start().await.unwrap();

@@ -1568,7 +1568,9 @@ mod tests {
         let config = SupervisorConfig {
             api_config: APIServerConfig {
                 socket_path,
+                bind_addr: "127.0.0.1".to_owned(),
                 tcp_port: port,
+                api_token: None,
             },
             startup_timeout_secs: 10,
             llm_config: None,
@@ -1727,7 +1729,9 @@ mod tests {
         let config = SupervisorConfig {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
+                bind_addr: "127.0.0.1".to_owned(),
                 tcp_port: port,
+                api_token: None,
             },
             startup_timeout_secs: 1,
             llm_config: None,
@@ -1872,7 +1876,9 @@ mod tests {
         let config = SupervisorConfig {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
+                bind_addr: "127.0.0.1".to_owned(),
                 tcp_port: port,
+                api_token: None,
             },
             startup_timeout_secs: 10,
             llm_config: None,
@@ -1982,7 +1988,9 @@ mod tests {
         let config = SupervisorConfig {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
+                bind_addr: "127.0.0.1".to_owned(),
                 tcp_port: port,
+                api_token: None,
             },
             startup_timeout_secs: 10,
             llm_config: None,
@@ -2039,7 +2047,9 @@ mod tests {
         let config = SupervisorConfig {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
+                bind_addr: "127.0.0.1".to_owned(),
                 tcp_port: port,
+                api_token: None,
             },
             startup_timeout_secs: 10,
             llm_config: None,
@@ -2113,7 +2123,9 @@ mod tests {
         let config = SupervisorConfig {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
+                bind_addr: "127.0.0.1".to_owned(),
                 tcp_port: port,
+                api_token: None,
             },
             startup_timeout_secs: 10,
             llm_config: None,
@@ -2209,7 +2221,9 @@ mod tests {
         let config = SupervisorConfig {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
+                bind_addr: "127.0.0.1".to_owned(),
                 tcp_port: port,
+                api_token: None,
             },
             startup_timeout_secs: 10,
             llm_config: None,
@@ -2266,7 +2280,9 @@ mod tests {
         let config = SupervisorConfig {
             api_config: APIServerConfig {
                 socket_path: socket_path.clone(),
+                bind_addr: "127.0.0.1".to_owned(),
                 tcp_port: port,
+                api_token: None,
             },
             startup_timeout_secs: 10,
             llm_config: None,

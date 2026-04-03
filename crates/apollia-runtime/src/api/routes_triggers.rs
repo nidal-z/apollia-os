@@ -301,7 +301,7 @@ fn source_kind_and_detail(source: &apollia_triggers::TriggerSourceConfig) -> (St
         TriggerSourceConfig::Cron { schedule } => ("cron".into(), schedule.clone()),
         TriggerSourceConfig::Interval { every } => ("interval".into(), every.clone()),
         TriggerSourceConfig::Oneshot { fire_at } => ("oneshot".into(), fire_at.to_rfc3339()),
-        TriggerSourceConfig::FileWatch { path, events } => {
+        TriggerSourceConfig::FileWatch { path, events, .. } => {
             let evts: Vec<_> = events.iter().map(|e| e.to_string()).collect();
             (
                 "file_watch".into(),

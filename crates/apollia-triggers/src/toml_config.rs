@@ -73,6 +73,12 @@ struct RawTriggerSource {
     path: Option<String>,
     events: Option<Vec<String>>,
     secret: Option<String>,
+    /// Suivre les symlinks pour les sources `file_watch` (défaut : false).
+    #[serde(default)]
+    follow_symlinks: bool,
+    /// Patterns d'exclusion pour les sources `file_watch`.
+    /// Absent du TOML → défauts appliqués.
+    exclude_patterns: Option<Vec<String>>,
 }
 
 /// Retourne `true` — valeur par défaut pour le champ `enabled`.
@@ -182,7 +188,16 @@ fn validate_trigger_source(
             }
             let path = expand_tilde(Path::new(&path_str));
             let events = parse_file_event_kinds(raw.events.as_deref().unwrap_or(&[]));
-            Ok(TriggerSourceConfig::FileWatch { path, events })
+            let exclude_patterns = raw
+                .exclude_patterns
+                .clone()
+                .unwrap_or_else(crate::config::default_exclude_patterns);
+            Ok(TriggerSourceConfig::FileWatch {
+                path,
+                events,
+                follow_symlinks: raw.follow_symlinks,
+                exclude_patterns,
+            })
         }
 
         "webhook" => {
@@ -264,7 +279,16 @@ fn parse_trigger_source_unchecked(raw: &RawTriggerSource) -> TriggerSourceConfig
         "file_watch" => {
             let path = expand_tilde(Path::new(raw.path.as_deref().unwrap_or("")));
             let events = parse_file_event_kinds(raw.events.as_deref().unwrap_or(&[]));
-            TriggerSourceConfig::FileWatch { path, events }
+            let exclude_patterns = raw
+                .exclude_patterns
+                .clone()
+                .unwrap_or_else(crate::config::default_exclude_patterns);
+            TriggerSourceConfig::FileWatch {
+                path,
+                events,
+                follow_symlinks: raw.follow_symlinks,
+                exclude_patterns,
+            }
         }
         _ => TriggerSourceConfig::Webhook {
             secret: raw.secret.clone().unwrap_or_default(),

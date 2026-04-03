@@ -95,6 +95,18 @@ pub enum TriggerSourceConfig {
         path: PathBuf,
         /// Types d'événements déclencheurs.
         events: Vec<FileEventKind>,
+        /// Suivre les liens symboliques (défaut : `false`).
+        ///
+        /// Lorsque `false`, les événements dont le chemin est un lien symbolique
+        /// sont ignorés avant propagation. Détecté via `fs::symlink_metadata`.
+        #[serde(default)]
+        follow_symlinks: bool,
+        /// Segments de chemin et patterns fichiers à exclure des événements.
+        ///
+        /// Défaut : `[".git", "node_modules", "__pycache__", ".apollia"]`.
+        /// Pattern `"*.ext"` pour les extensions, `"nom"` ou `"nom/"` pour les segments.
+        #[serde(default = "crate::config::default_exclude_patterns")]
+        exclude_patterns: Vec<String>,
     },
     /// Webhook HTTP avec vérification HMAC-SHA256.
     Webhook {

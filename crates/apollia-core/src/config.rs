@@ -1,6 +1,9 @@
-//! Configuration A2A du runtime Apollia OS.
+//! Configuration du runtime Apollia OS.
 //!
-//! Définit [`A2AConfig`] correspondant à la section `[a2a]` dans `apollia.toml`.
+//! Définit les sections de configuration lues depuis `apollia.toml` :
+//! - [`A2AConfig`] — section `[a2a]` pour le routing inter-agents.
+//! - [`ORIAConfig`] — section `[oria]` pour le moteur Observer-Reasoner-Actor.
+//!
 //! Tous les champs ont des valeurs par défaut saines via [`Default`].
 
 use serde::{Deserialize, Serialize};
@@ -61,4 +64,124 @@ fn default_invocation_timeout() -> u64 {
 
 fn default_chain_timeout() -> u64 {
     300
+}
+
+// ─────────────────────────────────────────────
+// ORIAConfig
+// ─────────────────────────────────────────────
+
+/// Erreur de validation de la configuration au démarrage.
+///
+/// Produite par les méthodes `validate()` des configs de section.
+/// Le runtime doit traiter ces erreurs comme des erreurs fatales (Principe #4 — Fail fast).
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    /// Une valeur de configuration est hors des bornes acceptables.
+    #[error("invalid configuration value for '{field}': {reason}")]
+    InvalidValue {
+        /// Chemin du champ en notation pointée, par exemple `"oria.max_replans"`.
+        field: String,
+        /// Description lisible de la contrainte non respectée.
+        reason: String,
+    },
+}
+
+/// Configuration du moteur ORIA (Observer-Reasoner-Actor).
+///
+/// Correspond à la section `[oria]` dans `apollia.toml`.
+/// Tous les champs ont des valeurs par défaut saines via [`Default`].
+#[derive(Debug, Clone, Deserialize)]
+pub struct ORIAConfig {
+    /// Nombre maximal de replans autorisés par exécution orchestrée.
+    ///
+    /// Contrôle combien de fois l'agent peut re-planifier suite à un échec
+    /// ou un changement de contexte. Validé au démarrage : doit être compris
+    /// entre 0 et 10 inclus.
+    ///
+    /// - `0` : aucun replan autorisé — la tâche échoue au premier plan raté.
+    /// - `2` : valeur par défaut (comportement historique).
+    /// - `10` : borne haute acceptée.
+    #[serde(default = "default_max_replans")]
+    pub max_replans: u32,
+}
+
+impl Default for ORIAConfig {
+    fn default() -> Self {
+        Self {
+            max_replans: default_max_replans(),
+        }
+    }
+}
+
+impl ORIAConfig {
+    /// Valide la configuration ORIA au démarrage (Principe #4 — Fail fast).
+    ///
+    /// Retourne une erreur si `max_replans` est supérieur à 10.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.max_replans > 10 {
+            return Err(ConfigError::InvalidValue {
+                field: "oria.max_replans".into(),
+                reason: "must be between 0 and 10".into(),
+            });
+        }
+        Ok(())
+    }
+}
+
+fn default_max_replans() -> u32 {
+    2
+}
+
+// ─────────────────────────────────────────────
+// ApiConfig
+// ─────────────────────────────────────────────
+
+/// Configuration de l'API REST locale (section `[api]` dans `apollia.toml`).
+///
+/// Contrôle le binding TCP et l'authentification par token statique.
+/// Le socket Unix reste non authentifié — seul le propriétaire du fichier socket y accède.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ApiConfig {
+    /// Adresse IP sur laquelle binder le listener TCP.
+    ///
+    /// Défaut : `"127.0.0.1"` — loopback uniquement, inaccessible depuis le réseau.
+    #[serde(default = "default_api_bind")]
+    pub bind: String,
+
+    /// Port TCP du serveur REST.
+    ///
+    /// Défaut : `7771`.
+    #[serde(default = "default_api_port")]
+    pub port: u16,
+
+    /// Exiger un token Bearer sur toutes les connexions TCP entrantes.
+    ///
+    /// Quand `true` (défaut), chaque requête TCP doit porter un header
+    /// `Authorization: Bearer <token>` valide. Les requêtes sans header ou avec
+    /// un token invalide reçoivent un `401 Unauthorized`.
+    /// Le socket Unix n'est jamais soumis à cette vérification.
+    #[serde(default = "default_require_token")]
+    pub require_token: bool,
+}
+
+impl Default for ApiConfig {
+    fn default() -> Self {
+        Self {
+            bind: default_api_bind(),
+            port: default_api_port(),
+            require_token: default_require_token(),
+        }
+    }
+}
+
+fn default_api_bind() -> String {
+    "127.0.0.1".to_owned()
+}
+
+fn default_api_port() -> u16 {
+    7771
+}
+
+fn default_require_token() -> bool {
+    true
 }

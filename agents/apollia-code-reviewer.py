@@ -22,12 +22,13 @@ Setup:
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from apollia.agents import AIPResult, BaseReActAgent
 
-# Absolute path to the repository root — the agent always reviews this repo.
-REPO_PATH: str = "/Users/nidalzoumita/dev/apollia-v2"
+# Repository root resolved from the environment, falling back to the working directory.
+REPO_PATH: str = os.environ.get("APOLLIA_REPO_PATH", os.getcwd())
 
 # Higher step budget: one step per changed file + possible deep dives + synthesis.
 MAX_REVIEW_STEPS: int = 30

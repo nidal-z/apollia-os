@@ -844,18 +844,18 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
 
     // Load apollia.toml if found (LLM only — agents, triggers, pipelines,
     // notifications, and stt are all loaded from SQLite by the Supervisor).
-    let (llm_config, config_path) = match find_config_file() {
+    let (llm_config, api_file_config, config_path) = match find_config_file() {
         Some(path) => {
             tracing::info!(config = %path.display(), "loading config");
             let cfg = crate::config::parse_apollia_toml(&path).map_err(|e| StartError::Config {
                 path: path.clone(),
                 reason: e.to_string(),
             })?;
-            (cfg.llm, Some(path))
+            (cfg.llm, cfg.api, Some(path))
         }
         None => {
             tracing::info!("no apollia.toml found — starting with defaults");
-            (None, None)
+            (None, None, None)
         }
     };
 
@@ -881,11 +881,31 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         }
     };
 
+    // Resolve [api] section (absent = all defaults).
+    let api_cfg = api_file_config.unwrap_or_default();
+    let bind_addr = api_cfg.bind.clone();
+
+    // Load or generate the API token when require_token = true.
+    let api_token: Option<String> = if api_cfg.require_token {
+        match apollia_runtime::api::load_or_generate_token(&data_dir) {
+            Ok(token) => Some(token),
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to load api-token — starting without auth");
+                None
+            }
+        }
+    } else {
+        tracing::info!("API token auth disabled via require_token = false");
+        None
+    };
+
     // Start all actors via Supervisor (ordered, with timeout + rollback)
     let config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: socket_path.clone(),
+            bind_addr,
             tcp_port,
+            api_token,
         },
         startup_timeout_secs: 10,
         llm_config,

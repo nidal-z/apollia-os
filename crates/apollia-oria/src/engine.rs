@@ -16,8 +16,8 @@ use std::time::Duration;
 use std::time::Instant;
 
 use apollia_core::{
-    AIPPart, AIPResult, AIPTask, AgentManifest, DataPart, EventBusSender, PendingApprovals,
-    RuntimeEvent, StepBudgetConfig, TaskStatus,
+    AIPPart, AIPResult, AIPTask, AgentManifest, DataPart, EventBusSender, ORIAConfig,
+    PendingApprovals, RuntimeEvent, StepBudgetConfig, TaskStatus,
 };
 use apollia_llm::{CompletionModel, LlmRouter};
 use apollia_memory::manager::MemoryManager;
@@ -37,9 +37,6 @@ use crate::resilience::ResilienceLayer;
 
 /// Interval for polling budget exhaustion during `execute_direct`.
 const BUDGET_POLL_INTERVAL: Duration = Duration::from_millis(100);
-
-/// Maximum number of replanning attempts in orchestrated execution.
-const MAX_REPLANS: u32 = 2;
 
 // ─────────────────────────────────────────────
 // Traits
@@ -169,6 +166,8 @@ pub struct ORIAEngine {
     resilience: ResilienceLayer,
     event_bus: EventBusSender,
     runtime_config: StepBudgetConfig,
+    /// Configuration du moteur ORIA injectée depuis `apollia.toml`.
+    oria_config: ORIAConfig,
     db_path: Option<String>,
     /// Registre HITL des approbations en attente — partagé avec le `ResumeHandler`.
     ///
@@ -212,6 +211,7 @@ impl ORIAEngine {
             resilience: ResilienceLayer::new(3, Duration::from_secs(30)),
             event_bus,
             runtime_config: StepBudgetConfig::default(),
+            oria_config: ORIAConfig::default(),
             db_path: None,
             pending_approvals: None,
             task_repository: None,
@@ -252,6 +252,16 @@ impl ORIAEngine {
     /// Configure le budget runtime global (plafond appliqué via `StepBudget::from_capped`).
     pub fn with_runtime_config(mut self, config: StepBudgetConfig) -> Self {
         self.runtime_config = config;
+        self
+    }
+
+    /// Injecte la configuration ORIA lue depuis `apollia.toml`.
+    ///
+    /// Si non appelé, [`ORIAConfig::default`] est utilisé (`max_replans = 2`).
+    /// La valeur `max_replans` contrôle le nombre de re-planifications autorisées
+    /// en mode Orchestrated avant d'échouer définitivement.
+    pub fn with_oria_config(mut self, config: ORIAConfig) -> Self {
+        self.oria_config = config;
         self
     }
 
@@ -484,7 +494,7 @@ impl ORIAEngine {
         let plan_start = Instant::now();
         let mut actor = ActorLoop::new(
             plan,
-            MAX_REPLANS,
+            self.oria_config.max_replans,
             repo,
             self.event_bus.clone(),
             manifest.clone(),
@@ -571,7 +581,7 @@ impl ORIAEngine {
         };
         let mut actor = ActorLoop::new(
             plan,
-            MAX_REPLANS,
+            self.oria_config.max_replans,
             repo,
             self.event_bus.clone(),
             manifest.clone(),
@@ -1773,5 +1783,106 @@ mod orchestrated_tests {
             }
             other => panic!("expected PlanCacheHit, got: {other:?}"),
         }
+    }
+
+    // ─── ORIAConfig — max_replans ────────────────────────────────────────
+
+    /// ÉTANT DONNÉ ORIAConfig sans champ explicite
+    /// QUAND Default::default() est appelé
+    /// ALORS max_replans vaut 2
+    #[test]
+    fn test_default_max_replans_is_two() {
+        // GIVEN / WHEN
+        let config = ORIAConfig::default();
+
+        // THEN
+        assert_eq!(config.max_replans, 2);
+    }
+
+    /// ÉTANT DONNÉ ORIAConfig avec max_replans = 11
+    /// QUAND validate() est appelé
+    /// ALORS une erreur ConfigError::InvalidValue est retournée
+    #[test]
+    fn test_max_replans_eleven_fails_validation() {
+        // GIVEN
+        let config = ORIAConfig { max_replans: 11 };
+
+        // WHEN
+        let result = config.validate();
+
+        // THEN
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("oria.max_replans"),
+            "error should name the field, got: {msg}"
+        );
+        assert!(
+            msg.contains("must be between 0 and 10"),
+            "error should contain the bound description, got: {msg}"
+        );
+    }
+
+    /// ÉTANT DONNÉ ORIAConfig avec max_replans = 10
+    /// QUAND validate() est appelé
+    /// ALORS Ok(()) est retourné (borne haute acceptée)
+    #[test]
+    fn test_max_replans_ten_is_valid() {
+        // GIVEN
+        let config = ORIAConfig { max_replans: 10 };
+
+        // WHEN
+        let result = config.validate();
+
+        // THEN
+        assert!(result.is_ok());
+    }
+
+    /// ÉTANT DONNÉ ORIAConfig avec max_replans = 0
+    /// QUAND with_oria_config est injecté dans ORIAEngine
+    /// ALORS oria_config.max_replans vaut 0 (aucun replan autorisé)
+    #[test]
+    fn test_max_replans_zero_disallows_replan() {
+        // GIVEN
+        let config = ORIAConfig { max_replans: 0 };
+
+        // WHEN
+        let engine = ORIAEngine::new().with_oria_config(config);
+
+        // THEN
+        assert_eq!(engine.oria_config.max_replans, 0);
+    }
+
+    /// ÉTANT DONNÉ ORIAConfig avec max_replans = 5
+    /// QUAND with_oria_config est injecté dans ORIAEngine
+    /// ALORS oria_config.max_replans vaut 5
+    #[test]
+    fn test_max_replans_five_allows_up_to_five() {
+        // GIVEN
+        let config = ORIAConfig { max_replans: 5 };
+
+        // WHEN
+        let engine = ORIAEngine::new().with_oria_config(config);
+
+        // THEN
+        assert_eq!(engine.oria_config.max_replans, 5);
+    }
+
+    /// ÉTANT DONNÉ une valeur négative dans le JSON (`max_replans: -1`)
+    /// QUAND serde_json tente de désérialiser la valeur en ORIAConfig (u32)
+    /// ALORS la désérialisation échoue car u32 rejette les négatifs nativement
+    #[test]
+    fn test_max_replans_negative_handled() {
+        // GIVEN — JSON avec valeur négative
+        let json = serde_json::json!({ "max_replans": -1 });
+
+        // WHEN
+        let result = serde_json::from_value::<ORIAConfig>(json);
+
+        // THEN — serde refuse -1 pour un champ u32
+        assert!(
+            result.is_err(),
+            "serde should reject negative values for u32 max_replans"
+        );
     }
 }

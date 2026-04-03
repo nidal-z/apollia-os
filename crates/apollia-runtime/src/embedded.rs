@@ -259,7 +259,9 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
     let supervisor_config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: config.socket_path,
+            bind_addr: "127.0.0.1".to_owned(),
             tcp_port,
+            api_token: None,
         },
         startup_timeout_secs: config.startup_timeout_secs,
         llm_config: config.llm_config,
