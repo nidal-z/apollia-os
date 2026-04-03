@@ -70,6 +70,62 @@ pub enum GlobalFailurePolicy {
     Continue,
 }
 
+/// Fan-out configuration for a pipeline step.
+///
+/// When present, the step produces an array output; each element spawns an
+/// ephemeral sub-step executed in parallel. Results are merged by [`MergeStrategy`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FanOutConfig {
+    /// Dot-path into the step's JSON output that holds the array to distribute,
+    /// e.g. `"items"` or `"data.results"`.
+    pub split_on: String,
+    /// Maximum number of sub-steps running concurrently.
+    /// `None` means unbounded — all sub-steps run in parallel.
+    #[serde(default)]
+    pub max_parallel: Option<u32>,
+    /// How sub-step results are combined into the parent step's final output.
+    pub merge_strategy: MergeStrategy,
+}
+
+/// Merge strategy applied to fan-out sub-step results.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MergeStrategy {
+    /// All sub-step outputs collected into a JSON array.
+    Collect,
+    /// Output of the first sub-step that succeeds; others are abandoned.
+    First,
+    /// Output of whichever sub-step completes first (success or failure).
+    Any,
+}
+
+/// Conditional retry for a pipeline step.
+///
+/// Retry is local to the step and invisible to the static DAG topology.
+/// The retry counter is bounded by [`max_retries`](Self::max_retries).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetryConfig {
+    /// Maximum number of re-executions after the initial failure.
+    /// Total executions = `max_retries` + 1. Defaults to 3.
+    #[serde(default = "defaults::max_retries")]
+    pub max_retries: u32,
+    /// Condition that must be satisfied for the retry to trigger.
+    /// When not satisfied, the configured `on_failure` policy applies immediately.
+    pub condition: StepCondition,
+    /// Seconds to wait between each attempt (linear backoff). Defaults to 5.
+    #[serde(default = "defaults::backoff_secs")]
+    pub backoff_secs: u32,
+}
+
+mod defaults {
+    pub(super) fn max_retries() -> u32 {
+        3
+    }
+    pub(super) fn backoff_secs() -> u32 {
+        5
+    }
+}
+
 /// Definition of a single step within a pipeline.
 ///
 /// A step maps one agent to one input template. Dependencies between steps
@@ -98,6 +154,13 @@ pub struct PipelineStepDef {
     /// If `None`, the engine's configured default applies.
     #[serde(default)]
     pub timeout_secs: Option<u32>,
+    /// Fan-out configuration. When present, the step's output is an array split
+    /// into one ephemeral sub-step per element.
+    #[serde(default)]
+    pub fan_out: Option<FanOutConfig>,
+    /// Conditional retry configuration.
+    #[serde(default)]
+    pub retry: Option<RetryConfig>,
 }
 
 /// Per-step failure policy controlling what happens when the step's task fails.
@@ -266,6 +329,8 @@ mod tests {
                     condition: None,
                     fallback_for: None,
                     timeout_secs: None,
+                    fan_out: None,
+                    retry: None,
                 },
                 PipelineStepDef {
                     id: StepId("validation".into()),
@@ -280,6 +345,8 @@ mod tests {
                     }),
                     fallback_for: None,
                     timeout_secs: None,
+                    fan_out: None,
+                    retry: None,
                 },
             ],
         };

@@ -1,0 +1,61 @@
+name: E2E Desktop Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'  # Monday at 06:00 UTC
+
+jobs:
+  e2e-desktop:
+    name: E2E Desktop
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build artefacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-e2e-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-e2e-
+
+      - name: Build runtime CLI
+        run: cargo build -p apollia-cli
+
+      - name: Pre-build E2E test binary
+        run: cargo test -p apollia-desktop --test e2e --no-run
+
+      - name: Start runtime in background
+        run: ./target/debug/apollia start &
+
+      - name: Wait for runtime to become ready
+        run: |
+          for i in $(seq 1 30); do
+            TOKEN_FILE="${HOME}/.apollia/api-token"
+            if [ -f "${TOKEN_FILE}" ]; then
+              TOKEN=$(cat "${TOKEN_FILE}")
+              if curl -sf \
+                   -H "Authorization: Bearer ${TOKEN}" \
+                   http://127.0.0.1:7771/api/v1/health > /dev/null 2>&1; then
+                echo "Runtime is ready (${i}s elapsed)"
+                exit 0
+              fi
+            fi
+            sleep 1
+          done
+          echo "Runtime did not become ready within 30s" >&2
+          exit 1
+
+      - name: Run E2E tests
+        run: cargo test -p apollia-desktop --test e2e -- --ignored --test-threads=1
+
+      - name: Stop runtime
+        if: always()
+        run: ./target/debug/apollia stop || true

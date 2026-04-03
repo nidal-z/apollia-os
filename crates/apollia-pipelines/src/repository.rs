@@ -106,9 +106,7 @@ impl PipelineRepository {
         // audit columns were added to the CREATE TABLE definition.
         // SQLite returns "duplicate column name" if the column already exists;
         // that error is silently ignored here — it is not a failure condition.
-        let _ = conn.execute_batch(
-            "ALTER TABLE pipeline_step_runs ADD COLUMN approved_by TEXT;",
-        );
+        let _ = conn.execute_batch("ALTER TABLE pipeline_step_runs ADD COLUMN approved_by TEXT;");
         let _ = conn.execute_batch(
             "ALTER TABLE pipeline_step_runs ADD COLUMN approval_duration_ms INTEGER;",
         );

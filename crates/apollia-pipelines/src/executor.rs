@@ -36,8 +36,8 @@ use crate::{
     template::TemplateContext,
     topo::{topological_layers, TopologicalError},
     types::{
-        PipelineDefinition, PipelineRun, PipelineStepDef, StepFailurePolicy, StepId, StepRun,
-        StepRunStatus,
+        FanOutConfig, MergeStrategy, PipelineDefinition, PipelineRun, PipelineStepDef,
+        StepFailurePolicy, StepId, StepRun, StepRunStatus,
     },
 };
 
@@ -62,6 +62,16 @@ pub enum ExecutorError {
     /// declared for it. The pipeline is immediately terminated.
     #[error("no fallback declared for step '{0}'")]
     NoFallbackDeclared(String),
+
+    /// The `split_on` dot-path was not found in the step's output or the value
+    /// at that path is not a JSON array.
+    #[error("fan-out path '{path}' not found or not a JSON array in step '{step_id}' output")]
+    InvalidFanOutPath {
+        /// The `split_on` path that could not be resolved.
+        path: String,
+        /// The step whose output did not match expectations.
+        step_id: String,
+    },
 }
 
 // ── StepResult ────────────────────────────────────────────────────────────────
@@ -245,6 +255,28 @@ pub struct PipelineExecutor<S: TaskSubmitter> {
     cancel_registry: Arc<StepCancelRegistry>,
 }
 
+/// Resolves a dot-path within a JSON string and returns the array at that path.
+///
+/// Supports paths like `"items"` or `"data.results"`. Returns `None` when:
+/// - the string is not valid JSON,
+/// - any path segment is missing,
+/// - the resolved value is not an array.
+fn extract_json_array(json_str: &str, path: &str) -> Option<Vec<serde_json::Value>> {
+    let value: serde_json::Value = serde_json::from_str(json_str).ok()?;
+    let mut current = &value;
+    for key in path.split('.') {
+        current = current.get(key)?;
+    }
+    current.as_array().cloned()
+}
+
+/// Attempts to parse `s` as a JSON value; falls back to a JSON string.
+///
+/// Used to avoid double-encoding when a step output is already valid JSON.
+fn output_to_json(s: String) -> serde_json::Value {
+    serde_json::from_str(&s).unwrap_or(serde_json::Value::String(s))
+}
+
 impl<S: TaskSubmitter> PipelineExecutor<S> {
     /// Default per-step timeout: 60 seconds.
     pub const DEFAULT_STEP_TIMEOUT: Duration = Duration::from_secs(60);
@@ -399,6 +431,9 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                 let mut futs: futures::stream::FuturesUnordered<StepFut> =
                     futures::stream::FuturesUnordered::new();
 
+                // Maps step_id → (rendered_input, effective_timeout) for potential retry.
+                let mut step_inputs: HashMap<StepId, (String, Duration)> = HashMap::new();
+
                 for step_id in &active_steps {
                     let step_def = match self.find_step(step_id) {
                         Some(d) => d.clone(),
@@ -459,7 +494,8 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                     // shared registry so the engine can cancel this step by ID.
                     let cancel_token = CancellationToken::new();
                     let step_run_id = format!("{}/{}", self.run.run_id.0, step_id.0);
-                    self.cancel_registry.register(&step_run_id, cancel_token.clone());
+                    self.cancel_registry
+                        .register(&step_run_id, cancel_token.clone());
 
                     // Per-step timeout: use the step's own value if set, else
                     // fall back to the engine's configured global default.
@@ -467,6 +503,8 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                         .timeout_secs
                         .map(|s| Duration::from_secs(u64::from(s)))
                         .unwrap_or(self.step_timeout);
+
+                    step_inputs.insert(step_id.clone(), (input.clone(), effective_timeout));
 
                     futs.push(Box::pin(Self::wait_for_task_completion(
                         step_id.clone(),
@@ -493,6 +531,42 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                     let step_def = match self.find_step(&step_id) {
                         Some(d) => d.clone(),
                         None => continue,
+                    };
+
+                    // Apply retry for Failed results before on_failure policy.
+                    let result = if matches!(result, StepResult::Failed(_)) {
+                        let (rendered_input, eff_timeout) = step_inputs
+                            .get(&step_id)
+                            .map(|(i, t)| (i.clone(), *t))
+                            .unwrap_or_else(|| (String::new(), self.step_timeout));
+                        self.run_with_retry(
+                            &step_id,
+                            &step_def,
+                            &rendered_input,
+                            eff_timeout,
+                            result,
+                        )
+                        .await?
+                    } else {
+                        result
+                    };
+
+                    // Apply fan-out if the step completed and fan_out is configured.
+                    let result = match result {
+                        StepResult::Completed(output) if step_def.fan_out.is_some() => {
+                            let fan_out_cfg = step_def
+                                .fan_out
+                                .as_ref()
+                                .expect("checked above with is_some");
+                            match self
+                                .run_fan_out(&step_id, &step_def, fan_out_cfg, output)
+                                .await
+                            {
+                                Ok(merged) => StepResult::Completed(merged),
+                                Err(e) => StepResult::Failed(e.to_string()),
+                            }
+                        }
+                        other => other,
                     };
 
                     match result {
@@ -578,8 +652,7 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                             self.done_steps.insert(step_id.clone());
                             self.set_step_cancelled(&step_id)?;
                             {
-                                let mut repo =
-                                    self.repo.lock().unwrap_or_else(|e| e.into_inner());
+                                let mut repo = self.repo.lock().unwrap_or_else(|e| e.into_inner());
                                 repo.fail_run_keep_step(&self.run.run_id, &step_id)?;
                             }
                             let _ = self.event_bus.send(RuntimeEvent::PipelineFailed {
@@ -611,8 +684,7 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
 
                             // Block until the operator approves or rejects.
                             let resume =
-                                Self::wait_for_resume(&task_id, rx_resume, hitl_request_time)
-                                    .await;
+                                Self::wait_for_resume(&task_id, rx_resume, hitl_request_time).await;
 
                             if resume.approved {
                                 // Record HITL audit fields before restoring run status.
@@ -621,12 +693,7 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
                                 {
                                     let mut repo =
                                         self.repo.lock().unwrap_or_else(|e| e.into_inner());
-                                    repo.record_hitl_approval(
-                                        &self.run.run_id,
-                                        &step_id,
-                                        by,
-                                        dur,
-                                    )?;
+                                    repo.record_hitl_approval(&self.run.run_id, &step_id, by, dur)?;
                                 }
 
                                 // Restore run status to Running in SQLite.
@@ -668,13 +735,39 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
 
                                 match final_result {
                                     StepResult::Completed(output) => {
+                                        let final_output =
+                                            if let Some(ref fan_out_cfg) = step_def.fan_out {
+                                                match self
+                                                    .run_fan_out(
+                                                        &step_id,
+                                                        &step_def,
+                                                        fan_out_cfg,
+                                                        output,
+                                                    )
+                                                    .await
+                                                {
+                                                    Ok(merged) => merged,
+                                                    Err(e) => {
+                                                        return self.fail_pipeline_internal(
+                                                            &step_id,
+                                                            &e.to_string(),
+                                                        );
+                                                    }
+                                                }
+                                            } else {
+                                                output
+                                            };
                                         self.done_steps.insert(step_id.clone());
-                                        self.set_step_completed(&step_id, &output)?;
-                                        self.template_ctx
-                                            .insert_step_output(step_id.clone(), output.clone());
+                                        self.set_step_completed(&step_id, &final_output)?;
+                                        self.template_ctx.insert_step_output(
+                                            step_id.clone(),
+                                            final_output.clone(),
+                                        );
                                         if let Some(ref fb_for) = step_def.fallback_for {
-                                            self.template_ctx
-                                                .insert_step_output(fb_for.clone(), output.clone());
+                                            self.template_ctx.insert_step_output(
+                                                fb_for.clone(),
+                                                final_output.clone(),
+                                            );
                                         }
                                         let _ = self.event_bus.send(
                                             RuntimeEvent::PipelineStepCompleted {
@@ -1146,6 +1239,225 @@ impl<S: TaskSubmitter> PipelineExecutor<S> {
         }
     }
 
+    /// Executes fan-out sub-steps derived from the parent step's array output.
+    ///
+    /// Extracts the array at `fan_out.split_on` from `parent_output`, submits one
+    /// ephemeral sub-step per element via the shared [`TaskSubmitter`], and merges
+    /// results using `fan_out.merge_strategy`.
+    ///
+    /// Sub-steps are ephemeral: they are not part of the static DAG and are not
+    /// persisted in `pipeline_steps`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExecutorError::InvalidFanOutPath`] when `split_on` cannot be
+    /// resolved to a JSON array in `parent_output`.
+    async fn run_fan_out(
+        &self,
+        step_id: &StepId,
+        step_def: &PipelineStepDef,
+        fan_out: &FanOutConfig,
+        parent_output: String,
+    ) -> Result<String, ExecutorError> {
+        let items = extract_json_array(&parent_output, &fan_out.split_on).ok_or_else(|| {
+            ExecutorError::InvalidFanOutPath {
+                path: fan_out.split_on.clone(),
+                step_id: step_id.0.clone(),
+            }
+        })?;
+
+        if items.is_empty() {
+            info!(
+                run_id  = %self.run.run_id,
+                step_id = %step_id,
+                path    = %fan_out.split_on,
+                "fan-out array is empty — no sub-steps",
+            );
+            return Ok("[]".to_string());
+        }
+
+        let max_par = fan_out
+            .max_parallel
+            .map(|n| n as usize)
+            .unwrap_or(usize::MAX);
+
+        let agent = step_def.agent.clone();
+        let submitter = Arc::clone(&self.submitter);
+        let event_bus = self.event_bus.clone();
+        let timeout = self.step_timeout;
+        let run_id_str = self.run.run_id.0.clone();
+        let step_id_str = step_id.0.clone();
+
+        info!(
+            run_id     = %run_id_str,
+            step_id    = %step_id_str,
+            item_count = items.len(),
+            max_par    = max_par,
+            "fan-out: spawning sub-steps",
+        );
+
+        // Build one future per item.
+        let sub_futures = items.into_iter().enumerate().map(move |(i, item)| {
+            let submitter = Arc::clone(&submitter);
+            let mut rx = event_bus.subscribe();
+            let agent = agent.clone();
+            let item_str = item.to_string();
+            let sub_label = format!("{step_id_str}-substep-{i}");
+
+            async move {
+                // Subscribe happened above (before submit — invariant preserved).
+                let task_id = match submitter.submit_task(&agent, &item_str).await {
+                    Ok(id) => id,
+                    Err(e) => return Err(format!("sub-step {sub_label} submit failed: {e}")),
+                };
+
+                let deadline = tokio::time::Instant::now() + timeout;
+                loop {
+                    match tokio::time::timeout_at(deadline, rx.recv()).await {
+                        Ok(Ok(RuntimeEvent::TaskCompleted {
+                            task_id: tid,
+                            success,
+                            output,
+                            ..
+                        })) if tid.as_str() == task_id.as_str() => {
+                            return if success {
+                                Ok(output.unwrap_or_default())
+                            } else {
+                                Err(format!("sub-step {sub_label} task failed"))
+                            };
+                        }
+                        Ok(Ok(_)) => {} // unrelated event
+                        Ok(Err(broadcast::error::RecvError::Lagged(_))) => {} // keep waiting
+                        Ok(Err(broadcast::error::RecvError::Closed)) => {
+                            return Err(format!(
+                                "sub-step {sub_label}: event bus closed unexpectedly"
+                            ));
+                        }
+                        Err(_elapsed) => {
+                            return Err(format!(
+                                "sub-step {sub_label} timed out after {}s",
+                                timeout.as_secs()
+                            ));
+                        }
+                    }
+                }
+            }
+        });
+
+        // buffer_unordered returns results in completion order.
+        let all_results: Vec<Result<String, String>> = futures::stream::iter(sub_futures)
+            .buffer_unordered(max_par)
+            .collect()
+            .await;
+
+        match fan_out.merge_strategy {
+            MergeStrategy::Collect => {
+                let arr: Vec<serde_json::Value> = all_results
+                    .into_iter()
+                    .map(|r| match r {
+                        Ok(out) => output_to_json(out),
+                        Err(e) => serde_json::json!({ "error": e }),
+                    })
+                    .collect();
+                serde_json::to_string(&arr).map_err(|e| ExecutorError::InvalidFanOutPath {
+                    path: fan_out.split_on.clone(),
+                    step_id: format!("merge serialization failed: {e}"),
+                })
+            }
+            MergeStrategy::First => Ok(all_results
+                .into_iter()
+                .filter_map(|r| r.ok())
+                .next()
+                .unwrap_or_default()),
+            MergeStrategy::Any => Ok(match all_results.into_iter().next() {
+                Some(Ok(out)) => out,
+                Some(Err(e)) => e,
+                None => String::new(),
+            }),
+        }
+    }
+
+    /// Re-executes a step up to `retry.max_retries` times when the step fails
+    /// and `retry.condition` is satisfied against the current template context.
+    ///
+    /// Uses linear backoff (`retry.backoff_secs` between each attempt).
+    /// Returns the final [`StepResult`], which may still be [`StepResult::Failed`]
+    /// when retries are exhausted or the condition stops matching.
+    async fn run_with_retry(
+        &self,
+        step_id: &StepId,
+        step_def: &PipelineStepDef,
+        rendered_input: &str,
+        effective_timeout: Duration,
+        initial_result: StepResult,
+    ) -> Result<StepResult, ExecutorError> {
+        let retry_cfg = match step_def.retry.as_ref() {
+            Some(cfg) => cfg,
+            None => return Ok(initial_result),
+        };
+
+        let mut current = initial_result;
+        let mut attempts_done = 0u32;
+
+        loop {
+            match current {
+                StepResult::Failed(_) => {
+                    if attempts_done >= retry_cfg.max_retries {
+                        return Ok(current);
+                    }
+                    if !crate::condition::evaluate_condition(
+                        &retry_cfg.condition,
+                        &self.template_ctx,
+                    ) {
+                        return Ok(current);
+                    }
+                    attempts_done += 1;
+                    info!(
+                        step_id = %step_id,
+                        attempt = attempts_done,
+                        max     = retry_cfg.max_retries,
+                        "retrying step",
+                    );
+                    tokio::time::sleep(Duration::from_secs(u64::from(retry_cfg.backoff_secs)))
+                        .await;
+
+                    // Subscribe BEFORE re-submit (invariant preserved).
+                    let rx = self.event_bus.subscribe();
+                    let new_task_id = match self
+                        .submitter
+                        .submit_task(&step_def.agent, rendered_input)
+                        .await
+                    {
+                        Ok(id) => id,
+                        Err(e) => {
+                            current = StepResult::Failed(format!("retry submission failed: {e}"));
+                            continue;
+                        }
+                    };
+                    self.set_step_running(step_id, &new_task_id)?;
+
+                    let cancel_token = CancellationToken::new();
+                    let step_run_id = format!("{}/{}", self.run.run_id.0, step_id.0);
+                    self.cancel_registry
+                        .register(&step_run_id, cancel_token.clone());
+
+                    let (_, new_result) = Self::wait_for_task_completion(
+                        step_id.clone(),
+                        new_task_id,
+                        rx,
+                        effective_timeout,
+                        cancel_token,
+                    )
+                    .await;
+                    self.cancel_registry.deregister(&step_run_id);
+
+                    current = new_result;
+                }
+                other => return Ok(other),
+            }
+        }
+    }
+
     /// Returns the step definition matching `step_id`, or `None`.
     fn find_step(&self, step_id: &StepId) -> Option<&PipelineStepDef> {
         self.definition.steps.iter().find(|s| &s.id == step_id)
@@ -1241,8 +1553,9 @@ mod tests {
     use tokio::sync::broadcast;
 
     use crate::types::{
-        GlobalFailurePolicy, PipelineDefinition, PipelineId, PipelineRun, PipelineStatus,
-        PipelineStepDef, RunId, StepFailurePolicy, StepId,
+        ConditionKind, FanOutConfig, GlobalFailurePolicy, MergeStrategy, PipelineDefinition,
+        PipelineId, PipelineRun, PipelineStatus, PipelineStepDef, RetryConfig, RunId,
+        StepCondition, StepFailurePolicy, StepId,
     };
 
     // ── MockSubmitter ─────────────────────────────────────────────────────────
@@ -1313,6 +1626,10 @@ mod tests {
             self
         }
 
+        /// Returns the total number of `submit_task` calls so far.
+        fn submitted_count(&self) -> usize {
+            self.submitted.lock().unwrap().len()
+        }
     }
 
     #[async_trait]
@@ -1391,6 +1708,8 @@ mod tests {
             condition: None,
             fallback_for: None,
             timeout_secs: None,
+            fan_out: None,
+            retry: None,
         }
     }
 
@@ -1731,6 +2050,8 @@ mod tests {
             condition: None,
             fallback_for: None,
             timeout_secs: None,
+            fan_out: None,
+            retry: None,
         };
         let validation_manuelle = PipelineStepDef {
             id: StepId("validation-manuelle".into()),
@@ -1741,6 +2062,8 @@ mod tests {
             condition: None,
             fallback_for: Some(StepId("validation".into())),
             timeout_secs: None,
+            fan_out: None,
+            retry: None,
         };
         let notification = PipelineStepDef {
             id: StepId("notification".into()),
@@ -1751,6 +2074,8 @@ mod tests {
             condition: None,
             fallback_for: None,
             timeout_secs: None,
+            fan_out: None,
+            retry: None,
         };
 
         let def = make_pipeline(vec![ocr, validation, validation_manuelle, notification]);
@@ -1832,6 +2157,8 @@ mod tests {
                 condition: None,
                 fallback_for: None,
                 timeout_secs: None,
+                fan_out: None,
+                retry: None,
             },
         ];
         let def = make_pipeline(steps);
@@ -1883,6 +2210,8 @@ mod tests {
                 condition: None,
                 fallback_for: None,
                 timeout_secs: None,
+                fan_out: None,
+                retry: None,
             },
             PipelineStepDef {
                 id: StepId("validation-manuelle".into()),
@@ -1893,6 +2222,8 @@ mod tests {
                 condition: None,
                 fallback_for: Some(StepId("validation".into())),
                 timeout_secs: None,
+                fan_out: None,
+                retry: None,
             },
         ];
         let def = make_pipeline(steps);
@@ -2320,6 +2651,8 @@ mod tests {
             condition: None,
             fallback_for: None,
             timeout_secs: Some(1),
+            fan_out: None,
+            retry: None,
         };
         let def = make_pipeline(vec![step]);
         let run = make_run(&def);
@@ -2360,7 +2693,13 @@ mod tests {
     async fn test_cancel_running_step_returns_cancelled_status() {
         // GIVEN — a single hanging step and a shared cancel registry
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(64);
-        let steps = vec![make_step("A", "hang-agent", "in", &[], StepFailurePolicy::Fail)];
+        let steps = vec![make_step(
+            "A",
+            "hang-agent",
+            "in",
+            &[],
+            StepFailurePolicy::Fail,
+        )];
         let def = make_pipeline(steps);
         let run = make_run(&def);
         let repo = make_repo();
@@ -2482,7 +2821,13 @@ mod tests {
     async fn test_step_without_custom_timeout_uses_global_default() {
         // GIVEN — a step with no timeout_secs and a global timeout of 100ms; agent hangs
         let (tx, _rx) = broadcast::channel::<RuntimeEvent>(64);
-        let steps = vec![make_step("A", "hang-agent", "in", &[], StepFailurePolicy::Fail)];
+        let steps = vec![make_step(
+            "A",
+            "hang-agent",
+            "in",
+            &[],
+            StepFailurePolicy::Fail,
+        )];
         let def = make_pipeline(steps);
         let run = make_run(&def);
         let repo = make_repo();
@@ -2549,7 +2894,12 @@ mod tests {
             .await
             .expect("executor1 must finish")
             .unwrap();
-        let run1_result = repo1.lock().unwrap().find_run(&run1.run_id).unwrap().unwrap();
+        let run1_result = repo1
+            .lock()
+            .unwrap()
+            .find_run(&run1.run_id)
+            .unwrap()
+            .unwrap();
         let step_a_timeout = run1_result.step_runs.get(&StepId("A".into())).unwrap();
 
         // Run 2: step gets cancelled → status Cancelled
@@ -2588,7 +2938,12 @@ mod tests {
             .await
             .expect("executor2 must finish")
             .unwrap();
-        let run2_result = repo2.lock().unwrap().find_run(&run2.run_id).unwrap().unwrap();
+        let run2_result = repo2
+            .lock()
+            .unwrap()
+            .find_run(&run2.run_id)
+            .unwrap()
+            .unwrap();
         let step_a_cancel = run2_result.step_runs.get(&StepId("A".into())).unwrap();
 
         // THEN — the two statuses are distinct
@@ -2622,6 +2977,427 @@ mod tests {
         assert!(
             !cancelled,
             "cancel_step on a non-registered step must return false"
+        );
+    }
+
+    // ── Fan-out: 3 elements create 3 parallel sub-steps ─────────────────────
+
+    #[tokio::test]
+    async fn test_fan_out_3_elements_creates_3_parallel_substeps() {
+        // GIVEN — parent step returns {"items":["a","b","c"]}, fan_out on "items" with Collect
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(128);
+        let parent = PipelineStepDef {
+            id: StepId("parent".into()),
+            agent: "parent-agent".into(),
+            input: "start".into(),
+            depends_on: vec![],
+            on_failure: StepFailurePolicy::Fail,
+            condition: None,
+            fallback_for: None,
+            timeout_secs: None,
+            fan_out: Some(FanOutConfig {
+                split_on: "items".into(),
+                max_parallel: None,
+                merge_strategy: MergeStrategy::Collect,
+            }),
+            retry: None,
+        };
+        let def = make_pipeline(vec![parent]);
+        let run = make_run(&def);
+        // sub-steps use the same "parent-agent"; the JSON output is reused but that is fine
+        let mock = MockSubmitter::new(tx.clone())
+            .with_success("parent-agent", r#"{"items":["a","b","c"]}"#);
+        let submitted = mock.submitted.clone();
+
+        // WHEN
+        let result = make_executor(def, run, mock, tx, 500).execute().await;
+
+        // THEN — pipeline completes
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+
+        // AND 4 total submissions: 1 parent + 3 sub-steps
+        let count = submitted.lock().unwrap().len();
+        assert_eq!(count, 4, "expected 1 parent + 3 sub-steps = 4 submissions");
+    }
+
+    // ── Fan-out: max_parallel=1 still produces all sub-steps ────────────────
+
+    #[tokio::test]
+    async fn test_fan_out_max_parallel_1_sequential_execution() {
+        // GIVEN — same as above but max_parallel = Some(1)
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(128);
+        let parent = PipelineStepDef {
+            id: StepId("parent".into()),
+            agent: "parent-agent".into(),
+            input: "start".into(),
+            depends_on: vec![],
+            on_failure: StepFailurePolicy::Fail,
+            condition: None,
+            fallback_for: None,
+            timeout_secs: None,
+            fan_out: Some(FanOutConfig {
+                split_on: "items".into(),
+                max_parallel: Some(1),
+                merge_strategy: MergeStrategy::Collect,
+            }),
+            retry: None,
+        };
+        let def = make_pipeline(vec![parent]);
+        let run = make_run(&def);
+        // sub-steps use the same "parent-agent"; the JSON output is reused but that is fine
+        let mock = MockSubmitter::new(tx.clone())
+            .with_success("parent-agent", r#"{"items":["a","b","c"]}"#);
+        let submitted = mock.submitted.clone();
+
+        // WHEN
+        let result = make_executor(def, run, mock, tx, 500).execute().await;
+
+        // THEN — pipeline completes
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+
+        // AND 4 total submissions: 1 parent + 3 sub-steps
+        let count = submitted.lock().unwrap().len();
+        assert_eq!(count, 4, "expected 1 parent + 3 sub-steps = 4 submissions");
+    }
+
+    // ── Fan-out: Collect merge returns JSON array ────────────────────────────
+
+    #[tokio::test]
+    async fn test_merge_collect_returns_array_of_results() {
+        // GIVEN — parent returns {"results":["x","y"]}, next step receives the merged array
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(128);
+        let parent = PipelineStepDef {
+            id: StepId("parent".into()),
+            agent: "parent-agent".into(),
+            input: "start".into(),
+            depends_on: vec![],
+            on_failure: StepFailurePolicy::Fail,
+            condition: None,
+            fallback_for: None,
+            timeout_secs: None,
+            fan_out: Some(FanOutConfig {
+                split_on: "results".into(),
+                max_parallel: None,
+                merge_strategy: MergeStrategy::Collect,
+            }),
+            retry: None,
+        };
+        let consumer = PipelineStepDef {
+            id: StepId("consumer".into()),
+            agent: "consumer-agent".into(),
+            input: "{{steps.parent.output}}".into(),
+            depends_on: vec![StepId("parent".into())],
+            on_failure: StepFailurePolicy::Fail,
+            condition: None,
+            fallback_for: None,
+            timeout_secs: None,
+            fan_out: None,
+            retry: None,
+        };
+        let def = make_pipeline(vec![parent, consumer]);
+        let run = make_run(&def);
+        // sub-steps use the same "parent-agent"; the mock output is reused as sub-step result
+        let mock = MockSubmitter::new(tx.clone())
+            .with_success("parent-agent", r#"{"results":["x","y"]}"#)
+            .with_success("consumer-agent", "done");
+        let submitted = mock.submitted.clone();
+
+        // WHEN
+        let result = make_executor(def, run, mock, tx, 500).execute().await;
+
+        // THEN — pipeline completes
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+
+        // AND consumer received a JSON array as input (Collect merge produces an array)
+        let inputs = submitted.lock().unwrap().clone();
+        let consumer_input = inputs
+            .iter()
+            .find(|(a, _)| a == "consumer-agent")
+            .map(|(_, i)| i.as_str())
+            .unwrap_or("");
+        assert!(
+            consumer_input.starts_with('['),
+            "consumer input must be a JSON array, got: {consumer_input}"
+        );
+    }
+
+    // ── Retry: max_retries=2, condition always true, step always fails ───────
+
+    #[tokio::test]
+    async fn test_retry_2x_on_matching_condition_3_executions_max() {
+        // GIVEN — step configured with max_retries=2, condition always matches, step always fails
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(128);
+        let step = PipelineStepDef {
+            id: StepId("flaky".into()),
+            agent: "flaky-agent".into(),
+            input: "run".into(),
+            depends_on: vec![],
+            on_failure: StepFailurePolicy::Fail,
+            condition: None,
+            fallback_for: None,
+            timeout_secs: None,
+            fan_out: None,
+            retry: Some(RetryConfig {
+                max_retries: 2,
+                condition: StepCondition {
+                    when: ConditionKind::Contains,
+                    field: "trigger.payload".into(),
+                    value: "invoice".into(),
+                },
+                backoff_secs: 0,
+            }),
+        };
+        let def = make_pipeline(vec![step]);
+        let run = make_run(&def); // trigger_payload = "invoice.pdf" → condition matches
+        let mock = MockSubmitter::new(tx.clone()).with_failure("flaky-agent");
+        let counter = mock.counter.clone();
+
+        // WHEN
+        let result = make_executor(def, run, mock, tx, 500).execute().await;
+
+        // THEN — execute returns Ok (failure is terminal)
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+
+        // AND exactly 3 submissions (1 initial + 2 retries)
+        let total = counter.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(
+            total, 3,
+            "expected 3 total submissions (1 initial + 2 retries)"
+        );
+    }
+
+    // ── Retry: condition not satisfied → no retry ────────────────────────────
+
+    #[tokio::test]
+    async fn test_retry_no_condition_match_no_retry() {
+        // GIVEN — step with retry but condition field that never matches trigger payload
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(128);
+        let step = PipelineStepDef {
+            id: StepId("picky".into()),
+            agent: "picky-agent".into(),
+            input: "run".into(),
+            depends_on: vec![],
+            on_failure: StepFailurePolicy::Fail,
+            condition: None,
+            fallback_for: None,
+            timeout_secs: None,
+            fan_out: None,
+            retry: Some(RetryConfig {
+                max_retries: 5,
+                condition: StepCondition {
+                    when: ConditionKind::Contains,
+                    field: "trigger.payload".into(),
+                    // "invoice.pdf" does NOT contain "never-matches"
+                    value: "never-matches".into(),
+                },
+                backoff_secs: 0,
+            }),
+        };
+        let def = make_pipeline(vec![step]);
+        let run = make_run(&def);
+        let mock = MockSubmitter::new(tx.clone()).with_failure("picky-agent");
+        let counter = mock.counter.clone();
+
+        // WHEN
+        let result = make_executor(def, run, mock, tx, 500).execute().await;
+
+        // THEN — execute returns Ok
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+
+        // AND only 1 submission (condition not met, no retry triggered)
+        let total = counter.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(total, 1, "condition not matched: must not retry");
+    }
+
+    // ── Fan-out does not introduce cycles in topo ────────────────────────────
+
+    #[tokio::test]
+    async fn test_cycle_detection_with_ephemeral_substeps() {
+        // GIVEN — pipeline with a step having fan_out configured
+        let step_with_fanout = PipelineStepDef {
+            id: StepId("A".into()),
+            agent: "agent-a".into(),
+            input: "start".into(),
+            depends_on: vec![],
+            on_failure: StepFailurePolicy::Fail,
+            condition: None,
+            fallback_for: None,
+            timeout_secs: None,
+            fan_out: Some(FanOutConfig {
+                split_on: "items".into(),
+                max_parallel: None,
+                merge_strategy: MergeStrategy::Collect,
+            }),
+            retry: None,
+        };
+        let steps = vec![step_with_fanout];
+
+        // WHEN — topological_layers must succeed (fan-out sub-steps are ephemeral, not DAG nodes)
+        let result = crate::topo::topological_layers(&steps);
+
+        // THEN
+        assert!(
+            result.is_ok(),
+            "fan_out config must not introduce cycles in topology: {result:?}"
+        );
+        let layers = result.unwrap();
+        assert_eq!(layers.len(), 1);
+    }
+
+    // ── Existing pipeline without fan_out/retry is unchanged ─────────────────
+
+    #[tokio::test]
+    async fn test_existing_pipeline_without_fan_out_unchanged() {
+        // GIVEN — simple A → B → C without fan_out or retry
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(64);
+        let steps = vec![
+            make_step("A", "agent-a", "start", &[], StepFailurePolicy::Fail),
+            make_step(
+                "B",
+                "agent-b",
+                "{{steps.A.output}}",
+                &["A"],
+                StepFailurePolicy::Fail,
+            ),
+            make_step(
+                "C",
+                "agent-c",
+                "{{steps.B.output}}",
+                &["B"],
+                StepFailurePolicy::Fail,
+            ),
+        ];
+        let def = make_pipeline(steps);
+        let run = make_run(&def);
+        let mock = MockSubmitter::new(tx.clone())
+            .with_success("agent-a", "out-A")
+            .with_success("agent-b", "out-B")
+            .with_success("agent-c", "out-C");
+        let counter = mock.counter.clone();
+
+        // WHEN
+        let result = make_executor(def, run, mock, tx, 500).execute().await;
+
+        // THEN — pipeline completes and exactly 3 submissions (no sub-steps)
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+        let total = counter.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(
+            total, 3,
+            "simple pipeline must produce exactly 3 submissions"
+        );
+    }
+
+    // ── Fan-out: empty array → no sub-steps, next step receives "[]" ─────────
+
+    #[tokio::test]
+    async fn test_fan_out_empty_array_no_substeps() {
+        // GIVEN — parent returns {"items":[]}, fan_out on "items"
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(128);
+        let parent = PipelineStepDef {
+            id: StepId("parent".into()),
+            agent: "parent-agent".into(),
+            input: "start".into(),
+            depends_on: vec![],
+            on_failure: StepFailurePolicy::Fail,
+            condition: None,
+            fallback_for: None,
+            timeout_secs: None,
+            fan_out: Some(FanOutConfig {
+                split_on: "items".into(),
+                max_parallel: None,
+                merge_strategy: MergeStrategy::Collect,
+            }),
+            retry: None,
+        };
+        let consumer = PipelineStepDef {
+            id: StepId("consumer".into()),
+            agent: "consumer-agent".into(),
+            input: "{{steps.parent.output}}".into(),
+            depends_on: vec![StepId("parent".into())],
+            on_failure: StepFailurePolicy::Fail,
+            condition: None,
+            fallback_for: None,
+            timeout_secs: None,
+            fan_out: None,
+            retry: None,
+        };
+        let def = make_pipeline(vec![parent, consumer]);
+        let run = make_run(&def);
+        let mock = MockSubmitter::new(tx.clone())
+            .with_success("parent-agent", r#"{"items":[]}"#)
+            .with_success("consumer-agent", "done");
+        let submitted = mock.submitted.clone();
+
+        // WHEN
+        let result = make_executor(def, run, mock, tx, 500).execute().await;
+
+        // THEN — pipeline completes (empty array is not an error)
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+
+        // AND only 2 submissions: parent + consumer (no sub-steps from empty array)
+        let count = submitted.lock().unwrap().len();
+        assert_eq!(count, 2, "empty fan-out array must produce no sub-steps");
+
+        // AND consumer received "[]" as input
+        let inputs = submitted.lock().unwrap().clone();
+        let consumer_input = inputs
+            .iter()
+            .find(|(a, _)| a == "consumer-agent")
+            .map(|(_, i)| i.as_str())
+            .unwrap_or("");
+        assert_eq!(
+            consumer_input, "[]",
+            "consumer input must be empty JSON array"
+        );
+    }
+
+    // ── Fan-out: invalid split_on path → pipeline fails ──────────────────────
+
+    #[tokio::test]
+    async fn test_fan_out_invalid_split_path_returns_error() {
+        // GIVEN — parent returns {"data":"not an array"}, fan_out split_on "items"
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(128);
+        let parent = PipelineStepDef {
+            id: StepId("parent".into()),
+            agent: "parent-agent".into(),
+            input: "start".into(),
+            depends_on: vec![],
+            on_failure: StepFailurePolicy::Fail,
+            condition: None,
+            fallback_for: None,
+            timeout_secs: None,
+            fan_out: Some(FanOutConfig {
+                split_on: "items".into(),
+                max_parallel: None,
+                merge_strategy: MergeStrategy::Collect,
+            }),
+            retry: None,
+        };
+        let def = make_pipeline(vec![parent]);
+        let run = make_run(&def);
+        let mock = MockSubmitter::new(tx.clone())
+            .with_success("parent-agent", r#"{"data":"not an array"}"#);
+
+        // WHEN
+        let result = make_executor(def, run, mock, tx, 500).execute().await;
+
+        // THEN — execute returns Ok (pipeline failure is a terminal state)
+        assert!(
+            result.is_ok(),
+            "execute must return Ok even on fan-out error"
+        );
+
+        // AND PipelineFailed was emitted
+        let mut events = Vec::new();
+        while let Ok(e) = rx.try_recv() {
+            events.push(e);
+        }
+        let failed = events
+            .iter()
+            .any(|e| matches!(e, RuntimeEvent::PipelineFailed { .. }));
+        assert!(
+            failed,
+            "PipelineFailed must be emitted when split_on path is invalid"
         );
     }
 }

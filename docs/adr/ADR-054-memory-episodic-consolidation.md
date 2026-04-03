@@ -66,14 +66,44 @@ dans `apollia.toml` (`memory.step_output_max_chars`).
 
 ### 4. Consolidation opt-in post-v1
 
-La consolidation automatique est différée à post-v1 avec les conditions d'activation requises :
+La consolidation automatique est différée à post-v1. Le design retenu respecte le Principe #6 : c'est l'agent qui décide quand et comment consolider, pas le runtime.
 
-- Consentement explicite de l'opérateur (`memory.auto_consolidate = true` — désactivé par défaut)
-- Intervalle de consolidation configurable (pas de consolidation en temps réel)
+**Activation par manifest (opt-in par agent) :**
+
+```json
+{
+  "memory_consolidation": {
+    "enabled": true,
+    "interval": "24h",
+    "min_episodes": 100
+  }
+}
+```
+
+- `enabled` : désactivé par défaut — l'agent déclare explicitement vouloir la consolidation.
+- `interval` : fréquence minimale entre deux consolidations (ex. `"6h"`, `"24h"`, `"7d"`).
+- `min_episodes` : seuil de déclenchement — aucune consolidation si la base contient moins d'épisodes.
+
+**API runtime (post-v1) :**
+
+```python
+# L'agent déclenche la consolidation à l'initiative de sa propre logique
+async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
+    stats = await ctx.memory.stats()
+    if stats.episodic_count > 500:
+        consolidated = await ctx.memory.consolidate(
+            older_than=timedelta(days=30),
+            target_namespace="crm-dupont",
+        )
+        ctx.log.info("memory_consolidated", episodes_merged=consolidated)
+```
+
+Le runtime expose `ctx.memory.consolidate()` — l'agent contrôle quand consolider, avec quels paramètres, et peut inspecter le résultat. Aucun processus background ne se déclenche sans cet appel explicite.
+
+Les conditions d'implémentation requises avant livraison :
 - Préservation des épisodes originaux pendant une période de rétention configurable avant suppression
-- Log d'audit des épisodes consolidés et des prompts utilisés
-
-Cette spécification sera formalisée dans une ADR dédiée avant implémentation.
+- Log d'audit des épisodes consolidés et des prompts LLM utilisés
+- ADR dédiée avant implémentation (cette ADR est le design préliminaire)
 
 ---
 

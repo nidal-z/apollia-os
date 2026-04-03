@@ -98,6 +98,8 @@ mod tests {
             condition: None,
             fallback_for: None,
             timeout_secs: None,
+            fan_out: None,
+            retry: None,
         }
     }
 
@@ -276,6 +278,8 @@ mod tests {
                 }),
                 fallback_for: None,
                 timeout_secs: None,
+                fan_out: None,
+                retry: None,
             },
             PipelineStepDef {
                 id: StepId("B-fallback".into()),
@@ -286,6 +290,8 @@ mod tests {
                 condition: None,
                 fallback_for: Some(StepId("B".into())),
                 timeout_secs: None,
+                fan_out: None,
+                retry: None,
             },
         ];
 

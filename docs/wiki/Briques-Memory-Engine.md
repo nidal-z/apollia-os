@@ -197,9 +197,9 @@ Le tokenizer `unicode61` est indispensable pour une cible PME française. Sans l
 
 ---
 
-## 4. Stratégie d'embedding — dégradation gracieuse
+## 4. Embeddings vectoriels (opt-in)
 
-La recherche sémantique (vectorielle) est puissante mais nécessite un modèle d'embedding. Apollia OS adopte une stratégie de dégradation gracieuse :
+La recherche sémantique (vectorielle) est puissante mais nécessite un modèle d'embedding. Apollia OS adopte une stratégie de dégradation gracieuse : FTS5 fonctionne toujours, les embeddings s'activent uniquement si le matériel et les modèles sont présents.
 
 ```
 Niveau 1 — FTS5 uniquement (défaut, toujours disponible)
@@ -220,15 +220,75 @@ Niveau 3 — sqlite-vec + Ollama (opt-in avancé)
 
 **Règle absolue : Apollia OS ne télécharge jamais automatiquement un modèle.**
 
+### 4.1 Activation
+
+La feature `embeddings` est désactivée par défaut dans `apollia-memory`. Pour l'activer dans un agent ou un projet utilisant le SDK :
+
 ```toml
-# apollia.toml — configuration embedding
-[memory]
-embedding_strategy = "auto"     # "fts_only" | "local_gguf" | "ollama" | "auto"
-gguf_model_path    = ""         # Rempli si local_gguf souhaité
-ollama_url         = ""         # Rempli si Ollama souhaité
+# Cargo.toml de l'agent ou du workspace consommateur
+apollia-memory = { path = "../apollia-memory", features = ["embeddings"] }
 ```
 
-En mode `auto`, le runtime détecte ce qui est disponible et utilise le niveau le plus élevé sans intervention manuelle.
+La feature active la dépendance `sqlite-vec` et le moteur d'embedding local via `sqlite-lembed`. Sans elle, toutes les recherches passent par FTS5 — le binaire reste plus léger et aucune erreur n'est levée.
+
+La configuration dans `apollia.toml` sélectionne le backend :
+
+```toml
+[memory]
+embedding_strategy = "auto"     # "fts_only" | "local_gguf" | "ollama" | "auto"
+gguf_model_path    = ""         # Chemin absolu vers le fichier .gguf (local_gguf)
+ollama_url         = ""         # URL Ollama si embedding_strategy = "ollama"
+```
+
+En mode `auto`, le runtime détecte ce qui est disponible et utilise le niveau le plus élevé sans intervention manuelle. Si `embedding_strategy = "fts_only"`, les embeddings sont désactivés même si la feature est compilée.
+
+### 4.2 Modèles GGUF supportés
+
+| Modèle | Dimensions | Taille fichier | Usage recommandé |
+|---|---|---|---|
+| `all-MiniLM-L6-v2.gguf` | 384 | ~23 MB | Défaut — bon compromis vitesse/qualité, multilingue |
+| `nomic-embed-text-v1.5.gguf` | 768 | ~137 MB | Meilleure qualité sémantique, phrases longues |
+
+Les fichiers `.gguf` doivent être téléchargés manuellement et placés dans un répertoire accessible au runtime. Le chemin est renseigné dans `memory.gguf_model_path`. Apollia OS ne télécharge jamais un modèle automatiquement.
+
+### 4.3 Limitations connues
+
+- **Pas d'index HNSW** : `sqlite-vec` effectue un scan linéaire sur tous les vecteurs — la recherche est en O(n). Acceptable jusqu'à environ 100 000 vecteurs ; au-delà, les latences de recherche augmentent notablement.
+- **CPU uniquement** : le calcul des embeddings via `sqlite-lembed` s'exécute sur CPU. Pas de GPU requis, mais le temps de génération d'un embedding est de l'ordre de 5-20 ms selon le modèle et le matériel.
+- **Un modèle par namespace** : la table `memory_vec` est créée avec une dimension fixe lors de la première activation. Changer de modèle (ex. de 384 à 768 dims) nécessite de recréer la table vectorielle du namespace.
+- **Feature additive** : activer `embeddings` sur un namespace existant indexe uniquement les nouveaux enregistrements. Les entrées antérieures ne sont pas rétroactivement vectorisées.
+
+### 4.4 Exemple d'utilisation depuis un agent Python
+
+La recherche sémantique est transparente pour l'agent : `ctx.memory.search()` utilise automatiquement les embeddings si disponibles, FTS5 sinon.
+
+```python
+async def run(self, task: AIPTask, ctx: RuntimeContext) -> AIPResult:
+    # Recherche hybride : embeddings vectoriels si activés, FTS5 sinon
+    results = await ctx.memory.search(
+        "devis client refusé budget insuffisant",
+        limit=5,
+        sources=["episodic"],
+        min_importance=0.6,
+    )
+
+    for entry in results:
+        ctx.log.info(
+            "memory_hit",
+            score=entry.score,
+            content=entry.content[:80],
+            source=entry.source_table,
+        )
+
+    # Enregistrer un épisode — sera vectorisé automatiquement si embeddings activés
+    await ctx.memory.record(
+        content=f"Analyse terminée : {len(results)} épisodes pertinents trouvés",
+        importance=0.7,
+        task_id=task.task_id,
+    )
+```
+
+L'agent ne distingue pas FTS5 d'un embedding vectoriel — le runtime gère la dégradation gracieuse. Si le modèle GGUF n'est pas disponible au démarrage, le runtime bascule sur FTS5 et l'indique dans les logs (`tracing::warn`).
 
 ---
 

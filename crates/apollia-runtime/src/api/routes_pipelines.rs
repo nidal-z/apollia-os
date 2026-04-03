@@ -135,6 +135,9 @@ pub struct PipelineStepInput {
     pub condition: Option<StepConditionInput>,
     /// If set, this step acts as a fallback for the referenced step.
     pub fallback_for: Option<String>,
+    /// Per-step timeout in seconds. Overrides the engine's global default when set.
+    #[serde(default)]
+    pub timeout_secs: Option<u32>,
 }
 
 /// Condition within a step input request.
@@ -224,6 +227,7 @@ fn engine_error_to_response(err: PipelineEngineError) -> (StatusCode, Json<Pipel
             (StatusCode::SERVICE_UNAVAILABLE, err.to_string())
         }
         PipelineEngineError::Repository(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+        PipelineEngineError::StepNotRunning(_) => (StatusCode::CONFLICT, err.to_string()),
     };
     (code, Json(PipelineErrorResponse { error: message }))
 }
@@ -445,6 +449,9 @@ fn step_input_to_def(
         on_failure,
         condition,
         fallback_for: input.fallback_for.as_ref().map(|s| StepId(s.clone())),
+        timeout_secs: input.timeout_secs,
+        fan_out: None,
+        retry: None,
     })
 }
 

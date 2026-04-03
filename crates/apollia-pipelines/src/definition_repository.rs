@@ -301,6 +301,8 @@ mod tests {
             condition: None,
             fallback_for: None,
             timeout_secs: None,
+            fan_out: None,
+            retry: None,
         }
     }
 
