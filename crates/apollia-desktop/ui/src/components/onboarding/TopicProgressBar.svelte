@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import { User, Settings, Wrench, Building2, Bot } from "lucide-svelte";
   import { Check } from "lucide-svelte";
 
@@ -10,11 +11,11 @@
   let { topicsCovered, activeTopic = null }: Props = $props();
 
   const TOPICS = [
-    { id: "identity", label: "Identit\u00e9", icon: User },
-    { id: "preferences", label: "Pr\u00e9f\u00e9rences", icon: Settings },
-    { id: "tools", label: "Outils", icon: Wrench },
-    { id: "domain", label: "Domaine", icon: Building2 },
-    { id: "agents", label: "Agents", icon: Bot },
+    { id: "identity", icon: User },
+    { id: "preferences", icon: Settings },
+    { id: "tools", icon: Wrench },
+    { id: "domain", icon: Building2 },
+    { id: "agents", icon: Bot },
   ] as const;
 
   function getTopicState(topicId: string): "pending" | "active" | "completed" {
@@ -46,7 +47,7 @@
           <topic.icon size={14} strokeWidth={1.75} />
         {/if}
       </div>
-      <span class="topic-label">{topic.label}</span>
+      <span class="topic-label">{$t(`onboarding_v2.acquaintance.topic_${topic.id}`)}</span>
     </div>
   {/each}
 </div>

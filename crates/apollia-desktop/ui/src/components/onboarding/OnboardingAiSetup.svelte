@@ -12,6 +12,7 @@
     MemoryStick,
     MonitorCog,
   } from "lucide-svelte";
+  import { t } from "svelte-i18n";
   import { onboardingStore } from "$lib/stores/onboarding";
 
   interface SystemInfo {
@@ -133,11 +134,8 @@
       <div class="ai-setup-logo">
         <Sparkles size={26} strokeWidth={1.5} class="text-white" />
       </div>
-      <h1 class="ai-setup-title">Configurer l'IA</h1>
-      <p class="ai-setup-subtitle">
-        Apollia d&eacute;tecte les mod&egrave;les d&eacute;j&agrave; pr&eacute;sents sur votre machine.<br />
-        Aucun t&eacute;l&eacute;chargement n'est initialis&eacute; automatiquement.
-      </p>
+      <h1 class="ai-setup-title">{$t("onboarding_v2.ai_setup.title")}</h1>
+      <p class="ai-setup-subtitle">{$t("onboarding_v2.ai_setup.subtitle")}</p>
     </header>
 
     <!-- System info bar -->
@@ -160,26 +158,26 @@
     {#if loading}
       <div class="scan-loading" data-testid="scan-loading">
         <Loader2 size={20} class="animate-spin text-indigo-500" />
-        <span>Scan en cours&hellip;</span>
+        <span>{$t("onboarding_v2.ai_setup.scanning")}</span>
       </div>
     {:else}
       <!-- LLM section -->
       <section class="setup-section" data-testid="llm-section">
         <div class="section-header">
           <HardDrive size={15} strokeWidth={2} class="text-indigo-500" />
-          <span class="section-title">Mod&egrave;le de langage (LLM)</span>
+          <span class="section-title">{$t("onboarding_v2.ai_setup.llm_section.title")}</span>
           {#if llmSuccess}
             <span class="section-badge-ok">
-              <Check size={11} strokeWidth={2.5} /> Configur&eacute;
+              <Check size={11} strokeWidth={2.5} /> {$t("onboarding_v2.ai_setup.llm_section.configured")}
             </span>
           {/if}
         </div>
 
         {#if ggufModels.length === 0}
           <p class="empty-hint" data-testid="llm-empty-hint">
-            Aucun fichier <code>.gguf</code> trouv&eacute;. Placez un mod&egrave;le dans
+            {$t("onboarding_v2.ai_setup.llm_section.no_models")}
             <code>~/.apollia/models/</code> ou <code>~/Downloads/</code>, puis
-            <button class="inline-link" onclick={loadData}>rescanner</button>.
+            <button class="inline-link" onclick={loadData}>{$t("onboarding_v2.ai_setup.llm_section.rescan")}</button>.
           </p>
         {:else if llmSuccess}
           <div class="success-row" data-testid="llm-success">
@@ -211,7 +209,7 @@
                     <span class="model-meta">{model.size_human}</span>
                   </div>
                   {#if model.recommended}
-                    <span class="badge-recommended">Recommand&eacute;</span>
+                    <span class="badge-recommended">{$t("onboarding_v2.ai_setup.llm_section.recommended")}</span>
                   {/if}
                   <ChevronRight size={14} class="text-gray-300" />
                 </button>
@@ -230,7 +228,7 @@
       <section class="setup-section" data-testid="stt-section">
         <div class="section-header">
           <Mic size={15} strokeWidth={2} class="text-violet-500" />
-          <span class="section-title">Reconnaissance vocale (STT)</span>
+          <span class="section-title">{$t("onboarding_v2.ai_setup.stt_section.title")}</span>
           <label class="toggle-label">
             <input
               type="checkbox"
@@ -245,8 +243,7 @@
 
         {#if whisperModels.length === 0}
           <p class="empty-hint" data-testid="stt-empty-hint">
-            Aucun mod&egrave;le Whisper trouv&eacute;. Placez un fichier
-            <code>ggml-base.bin</code> dans <code>~/.apollia/models/</code>.
+            {$t("onboarding_v2.ai_setup.llm_section.no_whisper")}
           </p>
         {:else if sttEnabled}
           <ul class="model-list" data-testid="whisper-model-list">
@@ -266,7 +263,7 @@
                     <span class="model-meta capitalize">{model.model_size}</span>
                   </div>
                   {#if model.recommended}
-                    <span class="badge-recommended badge-recommended-stt">Recommand&eacute;</span>
+                    <span class="badge-recommended badge-recommended-stt">{$t("onboarding_v2.ai_setup.stt_section.recommended")}</span>
                   {/if}
                   {#if selectedWhisper?.path === model.path}
                     <Check size={14} strokeWidth={2.5} class="text-violet-500" />
@@ -298,9 +295,9 @@
       >
         {#if advancing}
           <Loader2 size={15} class="animate-spin" />
-          Chargement&hellip;
+          {$t("onboarding_v2.ai_setup.loading")}
         {:else}
-          Continuer
+          {$t("onboarding_v2.ai_setup.continue")}
           <ChevronRight size={15} strokeWidth={2} />
         {/if}
       </button>
@@ -310,7 +307,7 @@
         disabled={advancing}
         data-testid="ai-setup-skip"
       >
-        Configurer plus tard
+        {$t("onboarding_v2.ai_setup.configure_later")}
       </button>
     </footer>
 

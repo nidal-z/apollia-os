@@ -8,6 +8,8 @@
 
 - [Mise en route](ch01-00-getting-started.md)
   - [Installation](ch01-01-installation.md)
+  - [Premier lancement](ch01-getting-started/first-launch.md)
+  - [Tour guidé interactif](ch01-getting-started/onboarding-tour.md)
   - [Bonjour, Agent !](ch01-02-hello-agent.md)
   - [Anatomie d'un agent Apollia](ch01-03-anatomy.md)
 

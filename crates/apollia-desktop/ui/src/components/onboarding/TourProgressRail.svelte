@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from 'svelte-i18n';
   import { Check } from 'lucide-svelte';
 
   interface Props {
@@ -23,7 +24,7 @@
 
 <nav
   class="progress-rail"
-  aria-label="Progression du tour"
+  aria-label={$t("onboarding_v2.tour.progress_label")}
   data-testid="tour-progress-rail"
 >
   <ol class="steps-list">

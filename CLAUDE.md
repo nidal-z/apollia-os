@@ -135,9 +135,9 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Dernier sprint livré :** Sprint book-wiki-separation — séparation book (pédagogique) / wiki (référence technique), 20/20 stories. 24/24 pages wiki COMPLETE. 6 chapitres book allégés avec liens wiki.
-**Sprint précédent :** Sprint book-rewrite — réécriture complète du book mdBook (20/20 stories)
-**Avant :** Sprint 32 — A2A complet + Distribution locale + Worker Agents communautaires (8/8 stories, ADR-050)
+**Dernier sprint livré :** Sprint 33 — onboarding interactif multi-phases : i18n zéro string hardcodée (8 composants, ~70 clés FR+EN), documentation book (first-launch + onboarding-tour) et wiki (Onboarding-System, Onboarding-Tour-Steps, Briques-Desktop sections 5-6), 13/13 stories.
+**Sprint précédent :** Sprint book-wiki-separation — séparation book (pédagogique) / wiki (référence technique), 20/20 stories. 24/24 pages wiki COMPLETE.
+**Avant :** Sprint book-rewrite — réécriture complète du book mdBook (20/20 stories)
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
 **Dernière décision :** ADR-050 — Distribution Worker Agents : bundled vs communautaire, registre local et Git
 

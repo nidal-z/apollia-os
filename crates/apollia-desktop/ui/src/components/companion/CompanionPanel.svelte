@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { t } from "svelte-i18n";
   import { Bot, Minus, X } from "lucide-svelte";
   import {
     companionStore,
@@ -160,7 +161,7 @@
     style:bottom="24px"
     style:right="24px"
     onclick={() => companionStore.restoreCompanion()}
-    aria-label="Restaurer le Companion"
+    aria-label={$t("companion.restore")}
     data-testid="companion-restore"
   >
     <Bot size={22} />
@@ -171,7 +172,7 @@
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
     role="complementary"
-    aria-label="Companion Apollia"
+    aria-label={$t("companion.aria_label")}
     class="fixed flex flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl"
     style:z-index="65"
     style:left="{computedPos.x}px"
@@ -188,12 +189,12 @@
     >
       <Bot size={16} class="shrink-0 text-primary" />
       <span class="flex-1 truncate text-sm font-medium text-foreground">
-        Companion
+        {$t("companion.title")}
       </span>
       <button
         class="flex h-6 w-6 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
         onclick={handleMinimize}
-        aria-label="Réduire le Companion"
+        aria-label={$t("companion.minimize")}
         data-testid="companion-minimize"
       >
         <Minus size={14} />
@@ -201,7 +202,7 @@
       <button
         class="flex h-6 w-6 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
         onclick={handleClose}
-        aria-label="Fermer le Companion"
+        aria-label={$t("companion.close")}
         data-testid="companion-close"
       >
         <X size={14} />
@@ -212,7 +213,7 @@
     <div class="min-h-0 flex-1 overflow-hidden">
       {#if isCreatingSession}
         <div class="flex h-full items-center justify-center text-muted-foreground">
-          <span class="text-sm">Démarrage du Companion…</span>
+          <span class="text-sm">{$t("companion.starting")}</span>
         </div>
       {:else if sessionError}
         <div class="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
@@ -221,7 +222,7 @@
             class="rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:bg-primary/90 transition-colors"
             onclick={() => void ensureSession()}
           >
-            Réessayer
+            {$t("companion.retry")}
           </button>
         </div>
       {:else if sessionId}
@@ -233,7 +234,7 @@
         />
       {:else}
         <div class="flex h-full items-center justify-center text-muted-foreground">
-          <span class="text-sm">Aucune session active.</span>
+          <span class="text-sm">{$t("companion.no_session")}</span>
         </div>
       {/if}
     </div>

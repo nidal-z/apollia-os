@@ -429,34 +429,77 @@ Traitement HITL specifique : `TaskInputRequired` → ajout dans `pendingApproval
 
 ---
 
-## 5. Onboarding wizard (premier lancement)
+## 5. Onboarding multi-phases (Sprint 33)
 
-Wizard affiche au premier lancement si `~/.apollia/.onboarded` n'existe pas. Modal fullscreen avec stepper visible.
+Onboarding interactif affiche au premier lancement si `get_onboarding_state()` retourne `phase != "done"`. Ecrans fullscreen séquentiels avec machine a etats persistee.
 
-### Etape 1 — Verification environnement
+### 5.1 Machine a etats — 7 phases
 
-Verifie automatiquement :
-- Runtime Apollia : toujours ✓ (embarque)
-- Python 3 : `check_python()` execute `python3 --version`
-- LLM configure : `check_llm_configured()` verifie via `/api/v1/llm/status`
+```
+welcome → llm_setup → ai_setup → acquaintance → guided_tour → graduation → done
+```
 
-Indicateurs visuels ✓/✗ pour chaque verification. Bouton "Continuer" actif si Python OK.
+Chaque transition est persisted via `advance_onboarding_phase(phase)`. L'interruption est possible a tout moment — la barre de reprise `OnboardingResumeBar` s'affiche a la prochaine ouverture.
 
-### Etape 2 — Premier agent
+### 5.2 Composants Svelte (onboarding/)
 
-File picker natif Tauri pour selectionner un fichier `.py`. Appel `start_agent(path)` → affichage etat de chargement → confirmation ACTIVE.
+| Composant | Phase | Description |
+|---|---|---|
+| `OnboardingWelcome` | `welcome` | Accroche + selection profil (Operator / Builder) |
+| `OnboardingLlmSetup` | `llm_setup` | File picker `.gguf` ou "configurer plus tard" |
+| `OnboardingAiSetup` | `ai_setup` | Scan auto LLM + STT, selection avec badge Recommande |
+| `OnboardingAcquaintance` | `acquaintance` | Chat embarque avec agent d'onboarding |
+| `OnboardingGuidedTour` | `guided_tour` | Tour interactif (voir §5.3) |
+| `OnboardingGraduation` | `graduation` | Stats parcours + quick-cards + toggle companion |
+| `OnboardingResumeBar` | toutes | Bandeau de reprise post-interruption |
 
-Raccourci : `check_hello_agent_exists()` verifie si `agents/hello_agent.py` existe et propose le chemin.
+### 5.3 Tour guide
 
-### Etape 3 — Premiere tache
+Le `OnboardingGuidedTour` orchestre :
+- `TourSpotlight` — overlay SVG avec decoupage de zone
+- `TourStepCard` — carte flottante positionnee via `calculateCardPosition()`
+- `TourProgressRail` — barre de progression verticale fixe a gauche
+- `VoiceIndicator` — indicateur STT push-to-talk
 
-Textarea pour saisir l'input. Appel `submit_task(agentId, input)` avec l'agent de l'etape 2. Affichage progression SSE → output → bouton "Terminer".
+**Etapes :** 8 etapes pour Operator, 10 pour Builder. La sequence est chargee via `get_tour_steps(profile)`.
 
-**Skip :** Bouton "Passer" sur chaque etape → appelle `mark_onboarded()` → redirige vers /agents.
+**Interactions :** navigation clavier (→ / ← / Echap), commandes vocales STT (suivant / precedent / passer / question libre), actions interactives per-etape avec timeout auto-skip (30s).
+
+Voir [Onboarding-Tour-Steps](./Onboarding-Tour-Steps) pour les tables completes des etapes.
+
+### 5.4 IPC Onboarding (17 commandes — Sprint 33)
+
+Voir [Onboarding-System](./Onboarding-System) pour la spec IPC complete, les types TypeScript, les cles UserMemory et les RuntimeEvents.
 
 ---
 
-## 6. System tray (STORY-151)
+## 6. Companion Apollia (Sprint 33)
+
+Panneau flottant draggable/resizable disponible pendant et apres l'onboarding.
+
+### 6.1 Composants
+
+| Composant | Description |
+|---|---|
+| `CompanionPanel` | Panneau principal (drag, resize, minimise, ferme) |
+| `CompanionToggle` | Bouton d'ouverture/fermeture avec label i18n |
+| `CompanionContextProvider` | Injecte le contexte route dans le store |
+
+### 6.2 Etats du companion
+
+| Etat | Description |
+|---|---|
+| `hidden` | Masque completement (post-graduation si desactive) |
+| `minimized` | Bouton "Restaurer" en bas a droite |
+| `visible` | Panneau complet — session chat active |
+
+### 6.3 Sessions chat
+
+Le companion utilise une session de chat ordinaire (`create_chat_session` avec `mode: "free"`). La session est creee a la demande lors de la premiere ouverture. Les messages s'echangent via `send_chat_message`.
+
+---
+
+## 7. System tray (STORY-151)
 
 ### Menu contextuel
 
@@ -487,32 +530,32 @@ Declenchees quand la fenetre est masquee + `TaskInputRequired` recu via SSE :
 
 ---
 
-## 7. Build et packaging
+## 8. Build et packaging
 
-### 7.1 Formats de sortie
+### 8.1 Formats de sortie
 
 | Plateforme | Format | Commande |
 |---|---|---|
 | macOS | `.dmg` + `.app` | `cargo tauri build` |
 | Linux | `.AppImage` + `.deb` | `cargo tauri build` |
 
-### 7.2 Configuration Tauri
+### 8.2 Configuration Tauri
 
 - Fenetre : 1280×800 par defaut, minimum 900×600
 - Plugins : `tauri-plugin-dialog` (file picker), `tauri-plugin-notification` (notifications natives)
 - Build : Vite dev server sur port 5173, frontend dist dans `ui/dist`
 
-### 7.3 CI
+### 8.3 CI
 
 Le workflow `.github/workflows/build-desktop.yml` se declenche sur les tags `v*` et produit les artefacts pour macOS (macos-latest) et Linux (ubuntu-latest).
 
-### 7.4 Installation
+### 8.4 Installation
 
 Voir la section "Installation application desktop" dans [INSTALL](./INSTALL.md).
 
 ---
 
-## 8. Coexistence CLI + Desktop
+## 9. Coexistence CLI + Desktop
 
 Les deux modes d'acces (CLI et Desktop) partagent le meme runtime :
 
@@ -524,7 +567,7 @@ Un seul processus, un seul Supervisor, un seul jeu d'acteurs Tokio. Pas de confl
 
 ---
 
-## 9. Attributs de test
+## 10. Attributs de test
 
 Elements `data-testid` sur les composants principaux pour les tests e2e :
 
@@ -536,7 +579,7 @@ Elements `data-testid` sur les composants principaux pour les tests e2e :
 
 ---
 
-## 10. Decisions architecturales
+## 11. Decisions architecturales
 
 - **ADR-027** — Processus unique Tauri + runtime embarque
 - **ADR-028** — Frontend Svelte : UX first, UI sprint dedie

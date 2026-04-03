@@ -449,13 +449,13 @@
 
 {#if loading}
   <div class="tour-loading" data-testid="tour-loading">
-    <div class="loading-spinner" aria-label="Chargement du tour…"></div>
+    <div class="loading-spinner" aria-label={$t("onboarding_v2.tour.loading")}></div>
   </div>
 {:else if steps.length === 0}
   <!-- Graceful empty state: no steps returned — skip to graduation. -->
   <div class="tour-loading" data-testid="tour-empty">
     <button class="skip-action-btn" onclick={() => void finishTour()}>
-      Continuer →
+      {$t("onboarding_v2.tour.continue")}
     </button>
   </div>
 {:else}
@@ -487,7 +487,7 @@
         class="mic-btn"
         class:active={isVoiceRecording}
         data-testid="tour-mic-btn"
-        aria-label={isVoiceRecording ? "Enregistrement en cours…" : "Commande vocale (maintenir)"}
+        aria-label={isVoiceRecording ? $t("onboarding_v2.tour.mic_recording") : $t("onboarding_v2.tour.mic_hold")}
         onmousedown={() => void handleMicDown()}
         onmouseup={() => void handleMicUp()}
         onmouseleave={() => void handleMicUp()}
@@ -506,16 +506,16 @@
       data-testid="tour-exit-confirm"
     >
       <div class="confirm-card">
-        <h3 id="confirm-title" class="confirm-title">Interrompre le tour ?</h3>
+        <h3 id="confirm-title" class="confirm-title">{$t("onboarding_v2.tour.exit_title")}</h3>
         <p class="confirm-body">
-          Votre progression est sauvegardée. Vous pouvez reprendre le tour plus tard.
+          {$t("onboarding_v2.tour.exit_body")}
         </p>
         <div class="confirm-actions">
           <button class="btn-cancel" onclick={cancelExit}>
-            Continuer le tour
+            {$t("onboarding_v2.tour.exit_cancel")}
           </button>
           <button class="btn-confirm" onclick={() => void confirmExit()}>
-            Terminer maintenant
+            {$t("onboarding_v2.tour.exit_confirm")}
           </button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { t } from 'svelte-i18n';
   import { ChevronLeft, ChevronRight, X } from 'lucide-svelte';
   import { calculateCardPosition } from './tour-utils';
 
@@ -103,7 +104,7 @@
       <button
         class="skip-btn"
         onclick={() => onskip?.()}
-        aria-label="Passer le tour"
+        aria-label={$t("onboarding_v2.tour.skip_label")}
         data-testid="tour-skip"
       >
         <X size={14} strokeWidth={2} />
@@ -123,7 +124,7 @@
         data-testid="tour-prev"
       >
         <ChevronLeft size={16} strokeWidth={2} />
-        Précédent
+        {$t("onboarding_v2.tour.prev")}
       </button>
     {/if}
 
@@ -135,7 +136,7 @@
         onclick={() => onnext?.()}
         data-testid="tour-next"
       >
-        {stepIndex === totalSteps - 1 ? 'Terminer' : 'Suivant'}
+        {stepIndex === totalSteps - 1 ? $t("onboarding_v2.tour.finish") : $t("onboarding_v2.tour.next")}
         {#if stepIndex < totalSteps - 1}
           <ChevronRight size={16} strokeWidth={2} />
         {/if}

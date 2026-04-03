@@ -34,7 +34,16 @@
   },
   "companion": {
     "toggle_label": "Aide Apollia",
-    "no_llm_tooltip": "Configurez un modèle LLM pour activer l'aide contextuelle"
+    "no_llm_tooltip": "Configurez un modèle LLM pour activer l'aide contextuelle",
+    "restore": "Restaurer le Companion",
+    "aria_label": "Companion Apollia",
+    "title": "Companion",
+    "minimize": "Réduire le Companion",
+    "close": "Fermer le Companion",
+    "starting": "Démarrage du Companion…",
+    "retry": "Réessayer",
+    "no_session": "Aucune session active.",
+    "shortcut_hint": "Appuyez sur ⌘K pour ouvrir"
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -1105,7 +1114,15 @@
           "title": "Tour terminé !",
           "message": "Vous maîtrisez l'essentiel d'Apollia OS. Explorez librement et revenez quand vous voulez."
         },
-        "timeout_skip": "Pas de souci, vous pourrez essayer plus tard !"
+        "timeout_skip": "Pas de souci, vous pourrez essayer plus tard !",
+        "step_1": "C'est votre tableau de bord. Vous voyez vos agents actifs et l'activité récente.",
+        "step_2": "Cliquez Démarrer pour activer csv-data-worker, votre premier agent de démo.",
+        "step_3": "Un message est prérempli. Cliquez sur Envoyer ou appuyez sur Entrée.",
+        "step_4": "Les déclencheurs automatisent vos agents. Le formulaire est prérempli, cliquez Créer.",
+        "step_5": "Certaines actions demandent votre accord. Gérez-les ici avant qu'elles s'exécutent.",
+        "step_6": "Restez informé des événements importants via desktop ou webhook.",
+        "step_7": "Suivez l'activité de vos agents, les coûts LLM et les journaux d'outils.",
+        "step_8": "Vous maîtrisez l'essentiel d'Apollia OS. Explorez librement !"
       },
       "bld": {
         "dashboard": {
@@ -1152,7 +1169,17 @@
           "title": "Vous êtes prêt à construire",
           "message": "Vous connaissez l'architecture. Créez votre premier agent avec manifest() + run(), installez-le, et laissez le runtime faire le reste."
         },
-        "timeout_skip": "Prenez votre temps — vous pouvez rejouer n'importe quelle étape depuis la barre de progression."
+        "timeout_skip": "Prenez votre temps — vous pouvez rejouer n'importe quelle étape depuis la barre de progression.",
+        "step_1": "Votre espace de travail. Chaque agent est un module Python avec un contrat manifest() + run().",
+        "step_2": "Démarrez csv-data-worker. Observez comment le runtime charge le module et l'enregistre.",
+        "step_3": "Chaque agent expose manifest() pour les métadonnées et run() pour la boucle principale.",
+        "step_4": "Les agents écrivent en mémoire à leur initiative. Cherchez ce qu'ils ont stocké.",
+        "step_5": "Envoyez ce message pour voir comment un agent traite une requête liée à la mémoire.",
+        "step_6": "Connectez des outils externes via MCP. Vos agents les appellent sans dépendances Python.",
+        "step_7": "Cron, intervalle, filewatch, webhook. Chaque trigger appelle run() automatiquement.",
+        "step_8": "Connectez des agents en graphes DAG. Fan-out, fan-in, branches — moteur de pipeline.",
+        "step_9": "Chaque appel d'outil, écriture mémoire et token LLM est enregistré dans l'audit trail.",
+        "step_10": "Vous connaissez l'architecture. Créez votre premier agent avec manifest() + run()."
       }
     }
   },
@@ -1521,6 +1548,73 @@
       "card_settings": "Paramètres",
       "card_settings_desc": "Configurez votre environnement Apollia",
       "cta": "Commencer"
+    },
+    "ai_setup": {
+      "title": "Configurer l'IA",
+      "subtitle": "Apollia détecte les modèles déjà présents sur votre machine. Aucun téléchargement n'est initialisé automatiquement.",
+      "llm_section": {
+        "title": "Modèle de langage (LLM)",
+        "description": "Sélectionnez un fichier .gguf pour activer les capacités IA locales.",
+        "configured": "Configuré",
+        "no_models": "Aucun fichier .gguf trouvé. Placez un modèle dans ~/.apollia/models/ ou ~/Downloads/, puis",
+        "rescan": "rescanner",
+        "recommended": "Recommandé",
+        "no_whisper": "Aucun modèle Whisper trouvé. Placez un fichier ggml-base.bin dans ~/.apollia/models/."
+      },
+      "stt_section": {
+        "title": "Reconnaissance vocale (STT)",
+        "description": "Activez la commande vocale pour naviguer dans le tour avec la voix.",
+        "recommended": "Recommandé"
+      },
+      "scanning": "Scan en cours…",
+      "loading": "Chargement…",
+      "continue": "Continuer",
+      "configure_later": "Configurer plus tard",
+      "recommendations": "Apollia recommande les modèles marqués Recommandé pour votre configuration matérielle."
+    },
+    "llm_setup": {
+      "title": "Moteur IA",
+      "subtitle": "Apollia a besoin d'un modèle de langage pour converser avec vous. Sélectionnez un fichier .gguf déjà présent sur votre machine.",
+      "success": "Modèle configuré avec succès",
+      "local_title": "Sélectionner mon modèle",
+      "local_desc": "Fichier .gguf local (Llama, Mistral, Qwen, Phi…)",
+      "divider": "ou",
+      "later_title": "Je configurerai plus tard",
+      "later_desc": "Provider cloud (Anthropic, OpenAI…) ou modèle local",
+      "hint": "Pas de modèle ? Téléchargez-en un sur HuggingFace (recommandé : ≥ 0.5B paramètres, format Q4_K_M ou Q8_0).",
+      "skip": "Passer pour l'instant",
+      "dialog_title": "Sélectionner un modèle GGUF"
+    },
+    "acquaintance": {
+      "title": "Bienvenue",
+      "subtitle": "Faisons connaissance pour personnaliser votre expérience.",
+      "error": "Impossible de démarrer la conversation d'onboarding.",
+      "continue_dashboard": "Continuer vers le tableau de bord",
+      "completed_text": "Merci ! Apollia est maintenant personnalisé pour vous.",
+      "continue": "Continuer",
+      "skip": "Passer pour l'instant",
+      "progress_label": "Sujets abordés",
+      "topic_complete": "Sujet complété",
+      "topic_identity": "Identité",
+      "topic_preferences": "Préférences",
+      "topic_tools": "Outils",
+      "topic_domain": "Domaine",
+      "topic_agents": "Agents"
+    },
+    "tour": {
+      "loading": "Chargement du tour…",
+      "continue": "Continuer →",
+      "mic_recording": "Enregistrement en cours…",
+      "mic_hold": "Commande vocale (maintenir)",
+      "exit_title": "Interrompre le tour ?",
+      "exit_body": "Votre progression est sauvegardée. Vous pouvez reprendre le tour plus tard.",
+      "exit_cancel": "Continuer le tour",
+      "exit_confirm": "Terminer maintenant",
+      "skip_label": "Passer le tour",
+      "prev": "Précédent",
+      "finish": "Terminer",
+      "next": "Suivant",
+      "progress_label": "Progression du tour"
     }
   }
 }

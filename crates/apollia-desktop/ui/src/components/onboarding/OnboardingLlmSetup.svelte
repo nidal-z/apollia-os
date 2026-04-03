@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
+  import { t } from "svelte-i18n";
   import { Sparkles, HardDrive, Cloud, ChevronRight, Loader2, Check, AlertCircle } from "lucide-svelte";
 
   interface Props {
@@ -47,7 +48,7 @@
       const selected = await open({
         multiple: false,
         filters: [{ name: "GGUF Models", extensions: ["gguf"] }],
-        title: "Sélectionner un modèle GGUF",
+        title: $t("onboarding_v2.llm_setup.dialog_title"),
       });
 
       if (!selected) {
@@ -87,12 +88,8 @@
     <div class="llm-setup-logo">
       <Sparkles size={28} strokeWidth={1.5} class="text-white" />
     </div>
-    <h1 class="llm-setup-title">Moteur IA</h1>
-    <p class="llm-setup-subtitle">
-      Apollia a besoin d'un mod&egrave;le de langage pour converser avec vous.
-      <br />
-      S&eacute;lectionnez un fichier <strong>.gguf</strong> d&eacute;j&agrave; pr&eacute;sent sur votre machine.
-    </p>
+    <h1 class="llm-setup-title">{$t("onboarding_v2.llm_setup.title")}</h1>
+    <p class="llm-setup-subtitle">{$t("onboarding_v2.llm_setup.subtitle")}</p>
   </header>
 
   <main class="llm-setup-content">
@@ -101,7 +98,7 @@
         <div class="success-icon">
           <Check size={28} strokeWidth={2.5} class="text-white" />
         </div>
-        <p class="success-text">Mod&egrave;le configur&eacute; avec succ&egrave;s</p>
+        <p class="success-text">{$t("onboarding_v2.llm_setup.success")}</p>
       </div>
     {:else}
       <button
@@ -114,8 +111,8 @@
           <HardDrive size={20} strokeWidth={1.5} />
         </div>
         <div class="option-text">
-          <span class="option-title">S&eacute;lectionner mon mod&egrave;le</span>
-          <span class="option-desc">Fichier .gguf local (Llama, Mistral, Qwen, Phi&hellip;)</span>
+          <span class="option-title">{$t("onboarding_v2.llm_setup.local_title")}</span>
+          <span class="option-desc">{$t("onboarding_v2.llm_setup.local_desc")}</span>
         </div>
         <div class="option-action">
           {#if configuring}
@@ -127,7 +124,7 @@
       </button>
 
       <div class="llm-setup-divider">
-        <span>ou</span>
+        <span>{$t("onboarding_v2.llm_setup.divider")}</span>
       </div>
 
       <button
@@ -140,8 +137,8 @@
           <Cloud size={20} strokeWidth={1.5} />
         </div>
         <div class="option-text">
-          <span class="option-title">Je configurerai plus tard</span>
-          <span class="option-desc">Provider cloud (Anthropic, OpenAI&hellip;) ou mod&egrave;le local</span>
+          <span class="option-title">{$t("onboarding_v2.llm_setup.later_title")}</span>
+          <span class="option-desc">{$t("onboarding_v2.llm_setup.later_desc")}</span>
         </div>
         <ChevronRight size={16} class="text-gray-400" />
       </button>
@@ -157,18 +154,14 @@
 
   <footer class="llm-setup-footer">
     <p class="llm-setup-hint">
-      Pas de mod&egrave;le ? T&eacute;l&eacute;chargez-en un sur
-      <a href="https://huggingface.co/models?library=gguf" target="_blank" rel="noopener noreferrer">
-        HuggingFace
-      </a>
-      (recommand&eacute; : &ge; 0.5B param&egrave;tres, format Q4_K_M ou Q8_0).
+      {$t("onboarding_v2.llm_setup.hint")}
     </p>
     <button
       class="btn-skip"
       data-testid="llm-setup-skip"
       onclick={onskip}
     >
-      Passer pour l'instant
+      {$t("onboarding_v2.llm_setup.skip")}
     </button>
   </footer>
 </div>

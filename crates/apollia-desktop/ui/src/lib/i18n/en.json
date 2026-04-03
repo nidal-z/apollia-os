@@ -34,7 +34,16 @@
   },
   "companion": {
     "toggle_label": "Apollia Help",
-    "no_llm_tooltip": "Configure an LLM model to enable contextual help"
+    "no_llm_tooltip": "Configure an LLM model to enable contextual help",
+    "restore": "Restore Companion",
+    "aria_label": "Apollia Companion",
+    "title": "Companion",
+    "minimize": "Minimize Companion",
+    "close": "Close Companion",
+    "starting": "Starting Companion…",
+    "retry": "Retry",
+    "no_session": "No active session.",
+    "shortcut_hint": "Press ⌘K to open"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -1105,7 +1114,15 @@
           "title": "Tour complete!",
           "message": "You've mastered the essentials of Apollia OS. Explore freely and come back any time."
         },
-        "timeout_skip": "No worries, you can try this later!"
+        "timeout_skip": "No worries, you can try this later!",
+        "step_1": "This is your dashboard. You can see active agents and recent activity here.",
+        "step_2": "Click Start to activate csv-data-worker, your first demo agent.",
+        "step_3": "A message has been pre-filled. Click Send or press Enter.",
+        "step_4": "Triggers automate your agents. The form is pre-filled — just click Create.",
+        "step_5": "Some actions require your consent before they run. Manage them here.",
+        "step_6": "Stay informed about important events via desktop or webhook.",
+        "step_7": "Monitor your agents' activity, LLM costs, and tool logs.",
+        "step_8": "You've mastered the essentials of Apollia OS. Explore freely!"
       },
       "bld": {
         "dashboard": {
@@ -1152,7 +1169,17 @@
           "title": "You're ready to build",
           "message": "You know the architecture. Create your first agent with manifest() + run(), install it, and let the runtime handle the rest."
         },
-        "timeout_skip": "Take your time — you can replay any step from the progress bar."
+        "timeout_skip": "Take your time — you can replay any step from the progress bar.",
+        "step_1": "Your workspace. Every agent is a Python module with a manifest() + run() contract.",
+        "step_2": "Start csv-data-worker. Watch how the runtime loads the module and registers it.",
+        "step_3": "Every agent exposes manifest() for metadata and run() as the main loop.",
+        "step_4": "Agents write to memory at their own initiative. Search what they stored.",
+        "step_5": "Send this message to see how an agent handles a memory-related query.",
+        "step_6": "Connect external tools via MCP. Your agents call them with no Python dependencies.",
+        "step_7": "Cron, interval, file-watch, webhook. Each trigger fires run() automatically.",
+        "step_8": "Wire agents in DAG graphs. Fan-out, fan-in, conditions — pipeline engine.",
+        "step_9": "Every tool call, memory write, and LLM token is logged in the audit trail.",
+        "step_10": "You know the architecture. Create your first agent with manifest() + run()."
       }
     }
   },
@@ -1521,6 +1548,73 @@
       "card_settings": "Settings",
       "card_settings_desc": "Configure your Apollia environment",
       "cta": "Get Started"
+    },
+    "ai_setup": {
+      "title": "Configure AI",
+      "subtitle": "Apollia detects models already on your machine. No downloads are started automatically.",
+      "llm_section": {
+        "title": "Language model (LLM)",
+        "description": "Select a .gguf file to enable local AI capabilities.",
+        "configured": "Configured",
+        "no_models": "No .gguf file found. Place a model in ~/.apollia/models/ or ~/Downloads/, then",
+        "rescan": "rescan",
+        "recommended": "Recommended",
+        "no_whisper": "No Whisper model found. Place a ggml-base.bin file in ~/.apollia/models/."
+      },
+      "stt_section": {
+        "title": "Voice recognition (STT)",
+        "description": "Enable voice commands to navigate the tour hands-free.",
+        "recommended": "Recommended"
+      },
+      "scanning": "Scanning…",
+      "loading": "Loading…",
+      "continue": "Continue",
+      "configure_later": "Configure later",
+      "recommendations": "Apollia recommends models marked Recommended for your hardware configuration."
+    },
+    "llm_setup": {
+      "title": "AI Engine",
+      "subtitle": "Apollia needs a language model to converse with you. Select a .gguf file already on your machine.",
+      "success": "Model configured successfully",
+      "local_title": "Select my model",
+      "local_desc": "Local .gguf file (Llama, Mistral, Qwen, Phi…)",
+      "divider": "or",
+      "later_title": "I'll configure later",
+      "later_desc": "Cloud provider (Anthropic, OpenAI…) or local model",
+      "hint": "No model? Download one from HuggingFace (recommended: ≥ 0.5B parameters, format Q4_K_M or Q8_0).",
+      "skip": "Skip for now",
+      "dialog_title": "Select a GGUF Model"
+    },
+    "acquaintance": {
+      "title": "Welcome",
+      "subtitle": "Let's get acquainted to personalize your experience.",
+      "error": "Unable to start the onboarding conversation.",
+      "continue_dashboard": "Continue to dashboard",
+      "completed_text": "Thank you! Apollia is now personalized for you.",
+      "continue": "Continue",
+      "skip": "Skip for now",
+      "progress_label": "Topics covered",
+      "topic_complete": "Topic completed",
+      "topic_identity": "Identity",
+      "topic_preferences": "Preferences",
+      "topic_tools": "Tools",
+      "topic_domain": "Domain",
+      "topic_agents": "Agents"
+    },
+    "tour": {
+      "loading": "Loading tour…",
+      "continue": "Continue →",
+      "mic_recording": "Recording…",
+      "mic_hold": "Voice command (hold)",
+      "exit_title": "Interrupt tour?",
+      "exit_body": "Your progress is saved. You can resume the tour later.",
+      "exit_cancel": "Continue tour",
+      "exit_confirm": "Finish now",
+      "skip_label": "Skip tour",
+      "prev": "Previous",
+      "finish": "Finish",
+      "next": "Next",
+      "progress_label": "Tour progress"
     }
   }
 }
