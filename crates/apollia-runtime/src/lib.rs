@@ -9,6 +9,7 @@
 //! - `Supervisor` — ordered startup + watchdog.
 
 pub mod a2a;
+pub mod agents;
 pub mod api;
 pub mod chat;
 pub mod coordinator;
@@ -57,3 +58,10 @@ pub use chat::ChatSessionManagerHandle;
 
 // STT engine
 pub use stt::{SttEngineError, SttEngineHandle, SttStatus, TranscriptSource};
+
+// Community agent registry
+pub use agents::registry_remote::{
+    check_git_available, find_agent_file, git_clone, install_agent, install_from_dir,
+    parse_install_source, read_manifest_file, update_registry, AgentInstallSource, RegistryEntry,
+    RemoteInstallError, TempInstallDir,
+};

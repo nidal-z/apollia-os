@@ -130,6 +130,33 @@ jobs:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v2
 
+  compile-cuda:
+    name: "Compile check — CUDA feature flags"
+    runs-on: ubuntu-latest
+    # Ce job vérifie la compilation CUDA sans exécution (pas de GPU sur le runner).
+    # Autorisé à échouer si le SDK CUDA n'est pas disponible sur l'image ubuntu-latest.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Installer les headers CUDA minimaux requis pour la compilation
+      - name: Install CUDA toolkit (headers only)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y nvidia-cuda-toolkit
+
+      # cargo check : vérifie la compilation sans générer de binaire
+      # Feature flags testés (workspace virtuel → on cible les crates concernées) :
+      #   - local-cuda  : llama.cpp avec support GPU NVIDIA (apollia-llm)
+      #   - stt-cuda    : whisper-rs avec support GPU NVIDIA (apollia-stt)
+      - name: Check CUDA compilation — apollia-llm (local-cuda)
+        run: cargo check -p apollia-llm --features local-cuda
+
+      - name: Check CUDA compilation — apollia-stt (stt-cuda)
+        run: cargo check -p apollia-stt --features stt-cuda
+
   book:
     name: mdBook Build
     runs-on: ubuntu-latest

@@ -5,6 +5,7 @@
 
 use std::path::{Path, PathBuf};
 
+use apollia_runtime::agents::registry_remote::{self, parse_install_source, AgentInstallSource};
 use apollia_runtime::api::routes_agents::AgentLoader;
 use apollia_tools::{AgentRepository, InstalledAgent};
 use clap::Subcommand;
@@ -38,10 +39,15 @@ pub enum AgentCommand {
         /// Agent identifier.
         agent_id: String,
     },
-    /// Install an agent permanently from a Python module.
+    /// Install an agent permanently from a local path or a Git URL.
+    ///
+    /// Accepts a local filesystem path (e.g. `./agents/my-agent.py`) or a Git
+    /// remote URL (e.g. `https://github.com/user/my-agent.git`).  An optional
+    /// `#<tag>` suffix pins the clone to a specific tag or branch
+    /// (e.g. `https://github.com/user/my-agent.git#v1.2.0`).
     Install {
-        /// Path to the agent Python module.
-        path: PathBuf,
+        /// Local path to a Python module or a Git URL (with optional #tag).
+        source: String,
 
         /// Skip the agent test suite (not recommended — reduces validation coverage).
         #[arg(long)]
@@ -92,8 +98,8 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
         AgentCommand::Start { path } => run_start(&client, path, json).await,
         AgentCommand::Stop { agent_id } => run_stop(&client, agent_id, json).await,
         AgentCommand::Info { agent_id } => run_info(&client, agent_id, json).await,
-        AgentCommand::Install { path, skip_tests } => {
-            run_install(path, &client, json, *skip_tests).await
+        AgentCommand::Install { source, skip_tests } => {
+            run_install(source, &client, json, *skip_tests).await
         }
         AgentCommand::Uninstall { name } => run_uninstall(name, json),
         AgentCommand::Enable { name } => run_enable(name, json),
@@ -293,11 +299,124 @@ async fn run_info(client: &RuntimeClient, agent_id: &str, json: bool) -> i32 {
 // New commands (install/uninstall/enable/disable/update)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// `apollia-os agent install <path> [--skip-tests]` — validate and install an agent permanently.
+/// `apollia-os agent install <source> [--skip-tests]` — install an agent permanently.
 ///
-/// Validation covers AIP duck-typing, manifest conformance, a `dangerous_tools_allowed`
-/// security check, and the agent's own test suite (unless `--skip-tests` is passed).
+/// `source` may be a local Python file path or a Git URL with an optional
+/// `#<tag>` fragment.
+///
+/// **Local path**: performs AIP duck-typing validation (PyO3), manifest
+/// conformance check, an optional pytest run, and copies the file into
+/// `~/.apollia/agents/<name>/`.
+///
+/// **Git URL**: checks that `git` is available, clones the repository
+/// (depth 1), performs AIP duck-typing validation on the discovered `.py`
+/// file, installs to `~/.apollia/agents/community/<name>/`, and writes
+/// `registry.json`.
 async fn run_install(
+    source_arg: &str,
+    client: &RuntimeClient,
+    json: bool,
+    skip_tests: bool,
+) -> i32 {
+    match parse_install_source(source_arg) {
+        AgentInstallSource::Git { url, tag } => {
+            run_install_git(&url, tag.as_deref(), client, json, skip_tests).await
+        }
+        AgentInstallSource::Local(path) => run_install_local(&path, client, json, skip_tests).await,
+    }
+}
+
+/// Install a community agent from a Git remote URL.
+async fn run_install_git(
+    url: &str,
+    tag: Option<&str>,
+    client: &RuntimeClient,
+    json: bool,
+    skip_tests: bool,
+) -> i32 {
+    // Verify git is reachable before doing any work.
+    if let Err(e) = registry_remote::check_git_available() {
+        return print_error_and_exit(&e.to_string(), json);
+    }
+
+    // Create a temporary clone directory — removed when `temp` is dropped.
+    let temp = match registry_remote::TempInstallDir::new() {
+        Ok(t) => t,
+        Err(e) => return print_error_and_exit(&format!("cannot create temp dir: {e}"), json),
+    };
+
+    // Clone the repository.
+    if let Err(e) = registry_remote::git_clone(url, tag, temp.path()).await {
+        return print_error_and_exit(&e.to_string(), json);
+    }
+
+    // Find the Python agent file in the clone root.
+    let agent_py = match registry_remote::find_agent_file(temp.path()) {
+        Some(p) => p,
+        None => {
+            return print_error_and_exit("no Python agent file found in the repository root", json);
+        }
+    };
+
+    // AIP duck-typing validation (PyO3).
+    let manifest = match validate_community_agent(&agent_py, skip_tests).await {
+        Ok(m) => m,
+        Err(AgentValidationError::FileNotFound(_)) => {
+            return print_error_and_exit(
+                &format!("agent file not found: {}", agent_py.display()),
+                json,
+            );
+        }
+        Err(e) => return print_error_and_exit(&format!("agent validation failed: {e}"), json),
+    };
+
+    if manifest.dangerous_tools_allowed {
+        eprintln!(
+            "Warning: community agent '{}' requests dangerous_tools_allowed — user approval required",
+            manifest.name
+        );
+    }
+
+    // Install files, pip packages, and update registry.json.
+    let data_dir = apollia_data_dir();
+    let source = AgentInstallSource::Git {
+        url: url.to_string(),
+        tag: tag.map(|t| t.to_string()),
+    };
+    let entry = match registry_remote::install_from_dir(temp.path(), &manifest, source, &data_dir) {
+        Ok(e) => e,
+        Err(e) => return print_error_and_exit(&format!("installation failed: {e}"), json),
+    };
+
+    // Check if runtime is running — informational only.
+    if client.list_agents().await.is_err() {
+        eprintln!("Info: Runtime not running — agent will auto-start on next boot");
+    }
+
+    if json {
+        let install_path = data_dir.join("agents").join("community").join(&entry.name);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": entry.name,
+                "version": entry.version,
+                "install_path": install_path.to_string_lossy(),
+                "source": "git",
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!(
+            "Agent '{}' v{} installed from Git successfully",
+            entry.name, entry.version,
+        );
+    }
+
+    exit_codes::SUCCESS
+}
+
+/// Install a community agent from a local Python file (non-regression path).
+async fn run_install_local(
     source_path: &Path,
     client: &RuntimeClient,
     json: bool,
