@@ -1,0 +1,19 @@
+[package]
+name = "apollia-permissions"
+version = "0.1.0"
+edition = "2021"
+description = "Apollia OS — 3-layer permission engine (SafeList, PrefixRuleEngine, InjectionDetector)"
+license = "MIT"
+
+[dependencies]
+apollia-core = { workspace = true }
+rusqlite     = { workspace = true }
+regex        = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+thiserror    = { workspace = true }
+tracing      = { workspace = true }
+chrono       = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

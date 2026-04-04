@@ -388,6 +388,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "apollia-permissions"
+version = "0.1.0"
+dependencies = [
+ "apollia-core",
+ "chrono",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "apollia-pipelines"
 version = "0.1.0"
 dependencies = [
@@ -471,6 +486,7 @@ version = "0.1.0"
 dependencies = [
  "apollia-core",
  "apollia-memory",
+ "apollia-permissions",
  "async-trait",
  "futures",
  "glob",

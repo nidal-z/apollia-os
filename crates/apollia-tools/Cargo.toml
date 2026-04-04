@@ -6,7 +6,8 @@ description = "Apollia OS — Tool Registry, native tools (bash, python, file_io
 license = "MIT"
 
 [dependencies]
-apollia-core = { workspace = true }
+apollia-core        = { workspace = true }
+apollia-permissions = { workspace = true }
 tokio        = { workspace = true }
 tokio-util   = { workspace = true }
 serde        = { workspace = true }

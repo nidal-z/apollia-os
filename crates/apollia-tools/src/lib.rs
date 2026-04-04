@@ -28,6 +28,7 @@ pub mod task_repository;
 pub mod tools;
 
 pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent};
+pub use apollia_permissions::{PermissionDecision, PermissionEngine, PermissionError};
 pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
 };

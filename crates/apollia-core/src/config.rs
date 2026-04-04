@@ -605,6 +605,71 @@ fn default_max_output_chars() -> usize {
 }
 
 // ─────────────────────────────────────────────
+// PermissionsConfig
+// ─────────────────────────────────────────────
+
+/// Configuration du moteur de permissions (section `[permissions]` dans `apollia.toml`).
+///
+/// Contrôle les trois couches du moteur de permissions :
+/// - SafeList (couche 1) : commandes auto-approuvées sans HITL.
+/// - PrefixRuleEngine (couche 2) : règles préfixe persistées en SQLite.
+/// - InjectionDetector (couche 3) : détection des patterns shell dangereux.
+///
+/// La SafeList est **vide par défaut** — l'opérateur définit explicitement
+/// ce qui est sûr (principe de moindre privilège, OWASP ASVS V1.4, CWE-272).
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct PermissionsConfig {
+    /// Commandes auto-approuvées sans HITL, configurées par l'opérateur.
+    ///
+    /// Format : `"tool_name(arg_text)"` ou `"tool_name"`.
+    /// Exemples : `"bash_executor(git status)"`, `"bash_executor(git log)"`.
+    /// **Vide par défaut** — aucune commande n'est auto-approuvée sans configuration explicite.
+    #[serde(default)]
+    pub safe_commands: Vec<String>,
+
+    /// Active la détection d'injections shell (couche 3, priorité absolue).
+    ///
+    /// Défaut : `true`. Désactiver uniquement pour les environnements de test contrôlés.
+    #[serde(default = "default_injection_detection")]
+    pub injection_detection: bool,
+
+    /// Durée de vie des règles préfixe SQLite, en heures.
+    ///
+    /// Défaut : 168 (7 jours). Les règles plus anciennes peuvent être purgées par maintenance.
+    #[serde(default = "default_prefix_rule_ttl_hours")]
+    pub prefix_rule_ttl_hours: u64,
+
+    /// Chemin de la base SQLite pour les règles préfixe et l'audit log.
+    ///
+    /// Défaut : `~/.apollia/permissions.db`.
+    #[serde(default = "default_permissions_db_path")]
+    pub db_path: std::path::PathBuf,
+}
+
+impl Default for PermissionsConfig {
+    fn default() -> Self {
+        Self {
+            safe_commands: vec![],
+            injection_detection: default_injection_detection(),
+            prefix_rule_ttl_hours: default_prefix_rule_ttl_hours(),
+            db_path: default_permissions_db_path(),
+        }
+    }
+}
+
+fn default_injection_detection() -> bool {
+    true
+}
+
+fn default_prefix_rule_ttl_hours() -> u64 {
+    168
+}
+
+fn default_permissions_db_path() -> std::path::PathBuf {
+    std::path::PathBuf::from("~/.apollia/permissions.db")
+}
+
+// ─────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────
 

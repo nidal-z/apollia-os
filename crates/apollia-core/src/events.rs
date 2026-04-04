@@ -805,6 +805,21 @@ pub enum RuntimeEvent {
         /// Nombre de messages originaux remplacés par le résumé.
         original_messages: usize,
     },
+
+    // ── Permission events ────────────────────────
+    /// Une invocation d'outil nécessite une approbation humaine.
+    ///
+    /// Émis par `ToolDispatcher::dispatch()` quand `PermissionEngine::decide()` retourne
+    /// `PermissionDecision::NeedsApproval`. Le frontend (STORY-472) intercepte cet
+    /// événement via SSE pour afficher la boîte de dialogue HITL appropriée.
+    PermissionRequired {
+        /// Nom de l'outil dont l'invocation est suspendue.
+        tool_name: String,
+        /// Input JSON sérialisé de l'invocation.
+        input: serde_json::Value,
+        /// Identifiant unique de cette demande d'approbation (UUID v4).
+        request_id: String,
+    },
 }
 
 #[cfg(test)]
