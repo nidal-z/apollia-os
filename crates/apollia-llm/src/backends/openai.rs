@@ -11,6 +11,10 @@ use std::time::Instant;
 
 use std::collections::HashMap;
 
+use tokio_util::sync::CancellationToken;
+
+use crate::retry::RetryPolicy;
+
 use async_openai::{
     config::OpenAIConfig,
     types::{
@@ -106,6 +110,10 @@ pub struct OpenAICompatibleClient {
     client: Client<OpenAIConfig>,
     /// Configuration du backend (nom, URL, modèle par défaut).
     config: ApiBackendConfig,
+    /// Politique de retry exponentiel partagée avec les autres backends.
+    retry_policy: RetryPolicy,
+    /// Token d'annulation de session — `cancel()` interrompt les appels et délais en cours.
+    cancel: CancellationToken,
 }
 
 impl OpenAICompatibleClient {
@@ -114,25 +122,29 @@ impl OpenAICompatibleClient {
     /// La `api_key` doit être obtenue au préalable via
     /// [`ApiBackendConfig::resolve_api_key`] — elle est transmise ici
     /// et non re-lue depuis l'environnement pour éviter les TOCTOU.
-    pub fn new(config: &ApiBackendConfig, api_key: String) -> Self {
+    ///
+    /// Le `cancel` est le `CancellationToken` de la session LLM — partagé par
+    /// le `LlmRouter`. Un appel à `cancel.cancel()` interrompt les appels en cours
+    /// et les délais de retry.
+    pub fn new(config: &ApiBackendConfig, api_key: String, cancel: CancellationToken) -> Self {
         let openai_config = OpenAIConfig::new()
             .with_api_key(api_key)
             .with_api_base(config.api_url.clone());
         Self {
             client: Client::with_config(openai_config),
             config: config.clone(),
+            retry_policy: RetryPolicy::default(),
+            cancel,
         }
     }
-}
-
-#[async_trait::async_trait]
-impl CompletionModel for OpenAICompatibleClient {
-    /// Envoie une requête d'inférence et retourne la réponse complète.
+    /// Effectue un unique appel vers l'API OpenAI-compatible sans retry.
     ///
-    /// Le modèle est celui de `req.model` si présent, sinon celui de `config.model`.
-    /// Les `tool_calls` de la réponse sont mappés vers [`ToolCall`].
-    /// Le `cost_usd` est estimé via la table de prix intégrée.
-    async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+    /// Mappe les status HTTP transitoires vers les variantes retryables de [`LlmError`] :
+    /// - 429 → [`LlmError::RateLimit`]
+    /// - 503 → [`LlmError::ServiceUnavailable`]
+    /// - 529 → [`LlmError::Overload`]
+    /// - 401 → [`LlmError::Unauthorized`]
+    async fn do_complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         let started = Instant::now();
         let model = req
             .model
@@ -222,6 +234,23 @@ impl CompletionModel for OpenAICompatibleClient {
             finish_reason,
             latency_ms,
         })
+    }
+}
+
+#[async_trait::async_trait]
+impl CompletionModel for OpenAICompatibleClient {
+    /// Envoie une requête d'inférence et retourne la réponse complète.
+    ///
+    /// Délègue à [`do_complete`](Self::do_complete) via [`RetryPolicy::execute`] :
+    /// les erreurs transitoires (429, 503, 529) sont retentées avec backoff exponentiel.
+    /// Une annulation via le `CancellationToken` interrompt immédiatement l'attente.
+    async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+        self.retry_policy
+            .execute(self.cancel.clone(), || {
+                let req = req.clone();
+                async move { self.do_complete(req).await }
+            })
+            .await
     }
 
     /// Retourne un stream de chunks texte via SSE.
@@ -499,13 +528,25 @@ fn map_finish_reason(reason: Option<&async_openai::types::FinishReason>) -> Fini
 }
 
 /// Mappe une erreur `async-openai` vers [`LlmError`].
+///
+/// Les status HTTP transitoires (429, 503, 529) sont mappés vers les variantes
+/// retryables de [`LlmError`] pour que [`RetryPolicy`] puisse les détecter.
 fn map_openai_error(err: async_openai::error::OpenAIError) -> LlmError {
     use async_openai::error::OpenAIError;
     match err {
-        OpenAIError::Reqwest(req_err) => LlmError::HttpError {
-            status: req_err.status().map(|s| s.as_u16()).unwrap_or(0),
-            body: req_err.to_string(),
-        },
+        OpenAIError::Reqwest(req_err) => {
+            let status = req_err.status().map(|s| s.as_u16()).unwrap_or(0);
+            match status {
+                401 => LlmError::Unauthorized,
+                429 => LlmError::RateLimit,
+                503 => LlmError::ServiceUnavailable,
+                529 => LlmError::Overload,
+                _ => LlmError::HttpError {
+                    status,
+                    body: req_err.to_string(),
+                },
+            }
+        }
         OpenAIError::ApiError(api_err) => LlmError::HttpError {
             status: 0,
             body: api_err.message,
@@ -679,7 +720,11 @@ mod tests {
             api_key_env: "OPENAI_API_KEY".into(),
             model: "gpt-4o-mini".into(),
         };
-        let client = OpenAICompatibleClient::new(&config, "sk-fake-key".into());
+        let client = OpenAICompatibleClient::new(
+            &config,
+            "sk-fake-key".into(),
+            tokio_util::sync::CancellationToken::new(),
+        );
 
         assert!(client.is_available(), "is_available() must return true");
         assert_eq!(client.backend_name(), "test-openai");

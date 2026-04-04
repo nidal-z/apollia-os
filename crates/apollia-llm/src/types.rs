@@ -408,6 +408,29 @@ pub enum LlmError {
         /// Feature Cargo à activer (ex. `"local-cuda"`, `"local-metal"`).
         hint: String,
     },
+
+    /// L'API a retourné HTTP 429 (trop de requêtes) — erreur transitoire, retryable.
+    #[error("rate limited (429)")]
+    RateLimit,
+
+    /// L'API Anthropic a retourné HTTP 529 (serveur surchargé) — erreur transitoire, retryable.
+    #[error("server overloaded (529)")]
+    Overload,
+
+    /// L'API a retourné HTTP 503 (service indisponible) — erreur transitoire, retryable.
+    #[error("service unavailable (503)")]
+    ServiceUnavailable,
+
+    /// L'API a retourné HTTP 401 — clé API invalide ou expirée.
+    ///
+    /// Différent de [`LlmError::ApiKeyMissing`] qui indique que la variable
+    /// d'environnement n'est pas définie. Ici, la clé est présente mais refusée.
+    #[error("unauthorized (401)")]
+    Unauthorized,
+
+    /// L'appel LLM a été annulé par le `CancellationToken` de la session.
+    #[error("cancelled by caller")]
+    Cancelled,
 }
 
 // ─────────────────────────────────────────────
@@ -652,6 +675,11 @@ mod tests {
                 device: "cuda".into(),
                 hint: "local-cuda".into(),
             },
+            LlmError::RateLimit,
+            LlmError::Overload,
+            LlmError::ServiceUnavailable,
+            LlmError::Unauthorized,
+            LlmError::Cancelled,
         ];
         for err in &errors {
             assert!(

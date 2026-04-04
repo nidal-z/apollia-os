@@ -12,6 +12,7 @@
 pub mod backends;
 pub mod pricing;
 pub mod repository;
+pub mod retry;
 pub mod router;
 pub mod tool_helper;
 pub mod types;
@@ -20,6 +21,7 @@ pub use repository::{
     spawn_subscriber as spawn_llm_subscriber, LlmCallRecord, LlmCallRepository, LlmCostSummary,
     LlmDailyCostSummary, LlmRepositoryError,
 };
+pub use retry::{IsCancelled, IsRetryable, RetryPolicy};
 pub use router::{BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig};
 pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{

@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
+use tokio_util::sync::CancellationToken;
+
 use crate::pricing::PricingTier;
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
@@ -157,10 +159,15 @@ pub enum BackendKind {
 ///
 /// `Debug` est implémenté manuellement : `Arc<dyn CompletionModel>` n'implémente
 /// pas `Debug` (le trait objet ne l'exporte pas).
+///
+/// Le `CancellationToken` de session permet à `ORIAEngine::abort()` d'annuler
+/// tous les appels LLM en cours et leurs délais de retry via [`cancellation_token`](Self::cancellation_token).
 #[derive(Clone)]
 pub struct LlmRouter {
     backends: HashMap<String, Arc<dyn CompletionModel>>,
     default: String,
+    /// Token d'annulation partagé par tous les backends de ce router.
+    cancellation_token: CancellationToken,
 }
 
 impl LlmRouter {
@@ -178,6 +185,7 @@ impl LlmRouter {
     /// - [`LlmError::ModelNotFound`] / [`LlmError::InferenceError`] — chargement `.gguf` échoué.
     /// - [`LlmError::BackendUnavailable`] — le backend par défaut est introuvable ou indisponible.
     pub async fn from_config(config: &LlmConfig) -> Result<Self, LlmError> {
+        let cancellation_token = CancellationToken::new();
         let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
 
         for backend_cfg in &config.backends {
@@ -197,9 +205,14 @@ impl LlmRouter {
                                 cfg,
                                 key,
                                 config.pricing_overrides.clone(),
+                                cancellation_token.clone(),
                             ))
                         } else {
-                            Arc::new(OpenAICompatibleClient::new(cfg, key))
+                            Arc::new(OpenAICompatibleClient::new(
+                                cfg,
+                                key,
+                                cancellation_token.clone(),
+                            ))
                         }
                     }
                     Err(e) => {
@@ -227,6 +240,7 @@ impl LlmRouter {
         Ok(Self {
             backends,
             default: config.default.clone(),
+            cancellation_token,
         })
     }
 
@@ -253,6 +267,7 @@ impl LlmRouter {
         config: &LlmConfig,
         bus: Option<EventBusSender>,
     ) -> Result<Self, LlmError> {
+        let cancellation_token = CancellationToken::new();
         let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
 
         for backend_cfg in &config.backends {
@@ -281,9 +296,14 @@ impl LlmRouter {
                                 cfg,
                                 key,
                                 config.pricing_overrides.clone(),
+                                cancellation_token.clone(),
                             ))
                         } else {
-                            Arc::new(OpenAICompatibleClient::new(cfg, key))
+                            Arc::new(OpenAICompatibleClient::new(
+                                cfg,
+                                key,
+                                cancellation_token.clone(),
+                            ))
                         };
                         Ok(b)
                     }
@@ -333,6 +353,7 @@ impl LlmRouter {
         Ok(Self {
             backends,
             default: config.default.clone(),
+            cancellation_token,
         })
     }
 
@@ -476,7 +497,11 @@ impl LlmRouter {
             backends.contains_key(&default),
             "LlmRouter::with_backends — backend '{default}' must be present in backends map"
         );
-        Self { backends, default }
+        Self {
+            backends,
+            default,
+            cancellation_token: CancellationToken::new(),
+        }
     }
 
     /// Construit le router depuis un [`LlmBackendRepository`] SQLite.
@@ -508,11 +533,12 @@ impl LlmRouter {
             })?
             .name;
 
+        let cancellation_token = CancellationToken::new();
         let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
 
         for cfg in all.into_iter().filter(|c| c.enabled) {
             let name = cfg.name.clone();
-            match instantiate_from_config(&cfg).await {
+            match instantiate_from_config(&cfg, cancellation_token.clone()).await {
                 Ok(backend) => {
                     backends.insert(name, backend);
                 }
@@ -536,6 +562,7 @@ impl LlmRouter {
         Ok(Self {
             backends,
             default: default_name,
+            cancellation_token,
         })
     }
 
@@ -588,12 +615,24 @@ impl LlmRouter {
         Self {
             backends: HashMap::new(),
             default: String::new(),
+            cancellation_token: CancellationToken::new(),
         }
     }
 
     /// Retourne le nom du backend par défaut configuré dans `apollia.toml`.
     pub fn default_name(&self) -> &str {
         &self.default
+    }
+
+    /// Retourne le `CancellationToken` de session pour annuler les appels en cours.
+    ///
+    /// Appelé par `ORIAEngine::abort()` pour interrompre tous les appels LLM
+    /// et délais de retry en cours sur l'ensemble des backends du router.
+    ///
+    /// Le token est `Clone` — chaque backend en possède un clone,
+    /// tous annulés simultanément par `token.cancel()`.
+    pub fn cancellation_token(&self) -> CancellationToken {
+        self.cancellation_token.clone()
     }
 
     /// Liste tous les backends disponibles avec leurs informations synthétiques.
@@ -616,10 +655,11 @@ impl LlmRouter {
 /// Instancie un [`CompletionModel`] depuis une [`LlmBackendConfig`] SQLite.
 async fn instantiate_from_config(
     cfg: &LlmBackendConfig,
+    cancel: CancellationToken,
 ) -> Result<Arc<dyn CompletionModel>, LlmError> {
     match &cfg.provider {
         LlmProvider::LlamaCpp => instantiate_embedded_backend(cfg).await,
-        provider => instantiate_cloud_backend(cfg, provider).await,
+        provider => instantiate_cloud_backend(cfg, provider, cancel).await,
     }
 }
 
@@ -675,6 +715,7 @@ async fn instantiate_embedded_backend(
 async fn instantiate_cloud_backend(
     cfg: &LlmBackendConfig,
     provider: &LlmProvider,
+    cancel: CancellationToken,
 ) -> Result<Arc<dyn CompletionModel>, LlmError> {
     let api_key = extract_api_key_value(cfg)?;
 
@@ -696,13 +737,18 @@ async fn instantiate_cloud_backend(
     };
 
     if matches!(provider, LlmProvider::Anthropic) {
-        return Ok(
-            Arc::new(AnthropicClient::new(&api_cfg, api_key, HashMap::new()))
-                as Arc<dyn CompletionModel>,
-        );
+        return Ok(Arc::new(AnthropicClient::new(
+            &api_cfg,
+            api_key,
+            HashMap::new(),
+            cancel,
+        )) as Arc<dyn CompletionModel>);
     }
 
-    Ok(Arc::new(OpenAICompatibleClient::new(&api_cfg, api_key)) as Arc<dyn CompletionModel>)
+    Ok(
+        Arc::new(OpenAICompatibleClient::new(&api_cfg, api_key, cancel))
+            as Arc<dyn CompletionModel>,
+    )
 }
 
 /// Retourne `BackendUnavailable` quand la feature `"cloud"` n'est pas compilée.
@@ -710,6 +756,7 @@ async fn instantiate_cloud_backend(
 async fn instantiate_cloud_backend(
     cfg: &LlmBackendConfig,
     provider: &LlmProvider,
+    _cancel: CancellationToken,
 ) -> Result<Arc<dyn CompletionModel>, LlmError> {
     Err(LlmError::BackendUnavailable {
         backend: cfg.name.clone(),
@@ -824,6 +871,17 @@ mod tests {
         })
     }
 
+    fn make_test_router(
+        backends: HashMap<String, Arc<dyn CompletionModel>>,
+        default: &str,
+    ) -> LlmRouter {
+        LlmRouter {
+            backends,
+            default: default.into(),
+            cancellation_token: CancellationToken::new(),
+        }
+    }
+
     // ── Tests route() ────────────────────────────────────────────────────────
 
     // GIVEN router with "local-code" and "mistral-small", default = "mistral-small"
@@ -834,10 +892,7 @@ mod tests {
         let mut backends = HashMap::new();
         backends.insert("local-code".into(), make_mock_backend("local-code"));
         backends.insert("mistral-small".into(), make_mock_backend("mistral-small"));
-        let router = LlmRouter {
-            backends,
-            default: "mistral-small".into(),
-        };
+        let router = make_test_router(backends, "mistral-small");
 
         let backend = router.route(Some("local-code"));
         assert_eq!(backend.backend_name(), "local-code");
@@ -850,10 +905,7 @@ mod tests {
     fn test_ac2_route_none_returns_default() {
         let mut backends = HashMap::new();
         backends.insert("local-code".into(), make_mock_backend("local-code"));
-        let router = LlmRouter {
-            backends,
-            default: "local-code".into(),
-        };
+        let router = make_test_router(backends, "local-code");
 
         let backend = router.route(None);
         assert_eq!(backend.backend_name(), "local-code");
@@ -866,10 +918,7 @@ mod tests {
     fn test_ac3_unknown_backend_falls_back_to_default() {
         let mut backends = HashMap::new();
         backends.insert("local-code".into(), make_mock_backend("local-code"));
-        let router = LlmRouter {
-            backends,
-            default: "local-code".into(),
-        };
+        let router = make_test_router(backends, "local-code");
 
         let backend = router.route(Some("phantom"));
         assert_eq!(backend.backend_name(), "local-code");
@@ -883,10 +932,7 @@ mod tests {
         let mut backends = HashMap::new();
         backends.insert("z-backend".into(), make_mock_backend("z-backend"));
         backends.insert("a-backend".into(), make_mock_backend("a-backend"));
-        let router = LlmRouter {
-            backends,
-            default: "a-backend".into(),
-        };
+        let router = make_test_router(backends, "a-backend");
 
         let names = router.backend_names();
         assert_eq!(names, vec!["a-backend", "z-backend"]);
@@ -971,10 +1017,7 @@ mod tests {
         // GIVEN
         let mut backends = HashMap::new();
         backends.insert("local".into(), make_mock_backend("local"));
-        let router = LlmRouter {
-            backends,
-            default: "local".into(),
-        };
+        let router = make_test_router(backends, "local");
 
         // WHEN
         let result = router.get(None);
@@ -999,10 +1042,7 @@ mod tests {
         // GIVEN
         let mut backends = HashMap::new();
         backends.insert("anthropic".into(), make_mock_backend("anthropic"));
-        let router = LlmRouter {
-            backends,
-            default: "anthropic".into(),
-        };
+        let router = make_test_router(backends, "anthropic");
 
         // WHEN
         let result = router.get(Some("anthropic"));
@@ -1023,10 +1063,7 @@ mod tests {
         // GIVEN
         let mut backends = HashMap::new();
         backends.insert("local".into(), make_mock_backend("local"));
-        let router = LlmRouter {
-            backends,
-            default: "local".into(),
-        };
+        let router = make_test_router(backends, "local");
 
         // WHEN / THEN
         assert!(
@@ -1044,10 +1081,7 @@ mod tests {
         let mut backends = HashMap::new();
         backends.insert("a".into(), make_mock_backend("a"));
         backends.insert("b".into(), make_mock_backend("b"));
-        let router = LlmRouter {
-            backends,
-            default: "a".into(),
-        };
+        let router = make_test_router(backends, "a");
 
         // WHEN
         let list = router.list();
@@ -1068,10 +1102,7 @@ mod tests {
         // GIVEN
         let mut backends = HashMap::new();
         backends.insert("local".into(), make_mock_backend("local"));
-        let router = LlmRouter {
-            backends,
-            default: "local".into(),
-        };
+        let router = make_test_router(backends, "local");
 
         // WHEN
         let cloned = router.clone();
@@ -1127,10 +1158,7 @@ mod tests {
             "mock".into(),
             Arc::new(MockCompletionModel::default()) as Arc<dyn CompletionModel>,
         );
-        let router = LlmRouter {
-            backends,
-            default: "mock".into(),
-        };
+        let router = make_test_router(backends, "mock");
         let req = CompletionRequest {
             messages: vec![crate::types::ChatMessage::user("test")],
             ..Default::default()
@@ -1175,10 +1203,7 @@ mod tests {
             "mock".into(),
             Arc::new(MockCompletionModel::default()) as Arc<dyn CompletionModel>,
         );
-        let router = LlmRouter {
-            backends,
-            default: "mock".into(),
-        };
+        let router = make_test_router(backends, "mock");
 
         // WHEN — ne doit pas panic, bus absent est acceptable (Option::None)
         let result = router

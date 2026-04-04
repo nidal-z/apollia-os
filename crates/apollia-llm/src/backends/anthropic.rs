@@ -33,8 +33,10 @@ use std::time::Instant;
 
 use futures::{Stream, StreamExt};
 use reqwest::header::{HeaderName, HeaderValue, CONTENT_TYPE};
+use tokio_util::sync::CancellationToken;
 
 use crate::pricing::{self, PricingTier};
+use crate::retry::RetryPolicy;
 use crate::types::{
     CacheControl, CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError,
     MessageContent, Role, StreamChunk, TokenUsage, ToolCall,
@@ -257,6 +259,10 @@ pub struct AnthropicClient {
     pricing_table: std::collections::HashMap<&'static str, PricingTier>,
     /// Surcharges opérateur chargées depuis `[llm.pricing_overrides]` dans `apollia.toml`.
     pricing_overrides: std::collections::HashMap<String, PricingTier>,
+    /// Politique de retry exponentiel partagée avec les autres backends.
+    retry_policy: RetryPolicy,
+    /// Token d'annulation de session — `cancel()` interrompt les appels et délais en cours.
+    cancel: CancellationToken,
 }
 
 impl AnthropicClient {
@@ -268,10 +274,15 @@ impl AnthropicClient {
     ///
     /// Les `pricing_overrides` sont chargés depuis `[llm.pricing_overrides]` dans
     /// `apollia.toml` et ont priorité sur la table par défaut lors du calcul du coût.
+    ///
+    /// Le `cancel` est le `CancellationToken` de la session LLM — partagé par
+    /// le `LlmRouter`. Un appel à `cancel.cancel()` interrompt les appels en cours
+    /// et les délais de retry.
     pub fn new(
         config: &ApiBackendConfig,
         api_key: String,
         pricing_overrides: std::collections::HashMap<String, PricingTier>,
+        cancel: CancellationToken,
     ) -> Self {
         Self {
             client: reqwest::Client::new(),
@@ -279,6 +290,8 @@ impl AnthropicClient {
             api_key,
             pricing_table: pricing::default_pricing(),
             pricing_overrides,
+            retry_policy: RetryPolicy::default(),
+            cancel,
         }
     }
 
@@ -362,6 +375,90 @@ impl AnthropicClient {
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json")))
     }
 
+    /// Effectue un unique appel HTTP POST `/v1/messages` sans retry.
+    ///
+    /// Mappe les status HTTP transitoires vers les variantes retryables de [`LlmError`] :
+    /// - 429 → [`LlmError::RateLimit`]
+    /// - 503 → [`LlmError::ServiceUnavailable`]
+    /// - 529 → [`LlmError::Overload`]
+    /// - 401 → [`LlmError::Unauthorized`]
+    /// - 400 → [`LlmError::BadRequest`]
+    /// - autre ≥ 400 → [`LlmError::HttpError`]
+    async fn do_complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+        let started = Instant::now();
+        let body = self.build_request(&req, false);
+        let model = body.model.clone();
+        let url = format!("{}/v1/messages", self.config.api_url);
+
+        let http_response = self
+            .request_builder(&url)?
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| LlmError::HttpError {
+                status: e.status().map(|s| s.as_u16()).unwrap_or(0),
+                body: e.to_string(),
+            })?;
+
+        let status = http_response.status();
+        if !status.is_success() {
+            let body_text = http_response.text().await.unwrap_or_default();
+            return Err(match status.as_u16() {
+                400 => LlmError::BadRequest(body_text),
+                401 => LlmError::Unauthorized,
+                429 => LlmError::RateLimit,
+                503 => LlmError::ServiceUnavailable,
+                529 => LlmError::Overload,
+                code => LlmError::HttpError {
+                    status: code,
+                    body: body_text,
+                },
+            });
+        }
+
+        let json: serde_json::Value = http_response.json().await.map_err(|e| {
+            LlmError::ParseError(format!("failed to decode Anthropic response body: {e}"))
+        })?;
+
+        let mut result = Self::parse_response(&json)?;
+        result.latency_ms = started.elapsed().as_millis() as u64;
+        result.usage.cost_usd =
+            match pricing::lookup_pricing(&model, &self.pricing_table, &self.pricing_overrides) {
+                Some(tier) => {
+                    let input_cost =
+                        result.usage.prompt_tokens as f64 * tier.input_per_mtok / 1_000_000.0;
+                    let output_cost =
+                        result.usage.completion_tokens as f64 * tier.output_per_mtok / 1_000_000.0;
+                    let cache_write_cost = result.usage.cache_write_input_tokens as f64
+                        * tier.input_per_mtok
+                        * CACHE_WRITE_COST_MULTIPLIER
+                        / 1_000_000.0;
+                    let cache_read_cost = result.usage.cache_read_input_tokens as f64
+                        * tier.input_per_mtok
+                        * CACHE_READ_COST_MULTIPLIER
+                        / 1_000_000.0;
+                    Some(input_cost + output_cost + cache_write_cost + cache_read_cost)
+                }
+                None => {
+                    tracing::warn!(model_id = %model, "unknown model for pricing");
+                    None
+                }
+            };
+
+        tracing::info!(
+            backend = %self.config.name,
+            model = %model,
+            prompt_tokens = result.usage.prompt_tokens,
+            completion_tokens = result.usage.completion_tokens,
+            cache_read_tokens = result.usage.cache_read_input_tokens,
+            cache_write_tokens = result.usage.cache_write_input_tokens,
+            latency_ms = result.latency_ms,
+            "Anthropic complete() done"
+        );
+
+        Ok(result)
+    }
+
     /// Convertit une [`CompletionRequest`] en [`AnthropicRequest`] avec breakpoints de cache.
     ///
     /// Extrait le message de rôle `System` (premier trouvé) vers le champ `system`
@@ -434,83 +531,16 @@ impl AnthropicClient {
 impl CompletionModel for AnthropicClient {
     /// Envoie une requête d'inférence et retourne la réponse complète.
     ///
-    /// Mappe `CompletionRequest` → format Anthropic, POST `/v1/messages`,
-    /// parse la réponse via [`parse_response`](Self::parse_response), et remplit
-    /// `latency_ms` et `cost_usd` (estimatif depuis la table de prix intégrée,
-    /// avec prise en compte des tokens de cache lus/écrits).
-    ///
-    /// Retourne `LlmError::BadRequest` pour un status HTTP 400 (ex. paramètre
-    /// invalide) et `LlmError::HttpError` pour tout autre status HTTP ≥ 400.
+    /// Délègue à [`do_complete`](Self::do_complete) via [`RetryPolicy::execute`] :
+    /// les erreurs transitoires (429, 503, 529) sont retentées avec backoff exponentiel.
+    /// Une annulation via le `CancellationToken` interrompt immédiatement l'attente.
     async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
-        let started = Instant::now();
-        let body = self.build_request(&req, false);
-        let model = body.model.clone();
-
-        let url = format!("{}/v1/messages", self.config.api_url);
-
-        let http_response = self
-            .request_builder(&url)?
-            .json(&body)
-            .send()
+        self.retry_policy
+            .execute(self.cancel.clone(), || {
+                let req = req.clone();
+                async move { self.do_complete(req).await }
+            })
             .await
-            .map_err(|e| LlmError::HttpError {
-                status: e.status().map(|s| s.as_u16()).unwrap_or(0),
-                body: e.to_string(),
-            })?;
-
-        let status = http_response.status();
-        if !status.is_success() {
-            let body_text = http_response.text().await.unwrap_or_default();
-            if status.as_u16() == 400 {
-                return Err(LlmError::BadRequest(body_text));
-            }
-            return Err(LlmError::HttpError {
-                status: status.as_u16(),
-                body: body_text,
-            });
-        }
-
-        let json: serde_json::Value = http_response.json().await.map_err(|e| {
-            LlmError::ParseError(format!("failed to decode Anthropic response body: {e}"))
-        })?;
-
-        let mut result = Self::parse_response(&json)?;
-        result.latency_ms = started.elapsed().as_millis() as u64;
-        result.usage.cost_usd =
-            match pricing::lookup_pricing(&model, &self.pricing_table, &self.pricing_overrides) {
-                Some(tier) => {
-                    let input_cost =
-                        result.usage.prompt_tokens as f64 * tier.input_per_mtok / 1_000_000.0;
-                    let output_cost =
-                        result.usage.completion_tokens as f64 * tier.output_per_mtok / 1_000_000.0;
-                    let cache_write_cost = result.usage.cache_write_input_tokens as f64
-                        * tier.input_per_mtok
-                        * CACHE_WRITE_COST_MULTIPLIER
-                        / 1_000_000.0;
-                    let cache_read_cost = result.usage.cache_read_input_tokens as f64
-                        * tier.input_per_mtok
-                        * CACHE_READ_COST_MULTIPLIER
-                        / 1_000_000.0;
-                    Some(input_cost + output_cost + cache_write_cost + cache_read_cost)
-                }
-                None => {
-                    tracing::warn!(model_id = %model, "unknown model for pricing");
-                    None
-                }
-            };
-
-        tracing::info!(
-            backend = %self.config.name,
-            model = %model,
-            prompt_tokens = result.usage.prompt_tokens,
-            completion_tokens = result.usage.completion_tokens,
-            cache_read_tokens = result.usage.cache_read_input_tokens,
-            cache_write_tokens = result.usage.cache_write_input_tokens,
-            latency_ms = result.latency_ms,
-            "Anthropic complete() done"
-        );
-
-        Ok(result)
     }
 
     /// Retourne un stream de chunks texte via SSE Anthropic.
@@ -1017,6 +1047,7 @@ mod tests {
             &config,
             "sk-ant-test".into(),
             std::collections::HashMap::new(),
+            tokio_util::sync::CancellationToken::new(),
         );
 
         std::env::remove_var("APOLLIA_ANT_TEST_KEY");
