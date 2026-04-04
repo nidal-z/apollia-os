@@ -1,0 +1,31 @@
+//! Apollia OS — OAuth2 PKCE authentication crate.
+//!
+//! Provides an interactive OAuth2 PKCE login flow (RFC 7636) with:
+//! - A local callback HTTP server for the authorization redirect
+//! - OS-native keyring storage (macOS Keychain / Linux Secret Service / Windows Credential Store)
+//! - Support for Anthropic, OpenAI, and Google Vertex AI providers
+//!
+//! # Typical login flow
+//!
+//! ```text
+//! 1. bind_ephemeral_port()      → get (listener, port)
+//! 2. OAuth2PkceFlow::new(port)  → generate verifier, challenge, state, redirect_uri
+//! 3. build_auth_url(provider, flow) → full authorization URL
+//! 4. open::that(&url)           → open browser
+//! 5. wait_for_callback(listener, &flow.state) → authorization code
+//! 6. exchange_code(provider, flow, code)      → StoredToken
+//! 7. KeyringStorage::store(name, &token)      → persisted
+//! ```
+
+pub mod callback;
+pub mod error;
+pub mod pkce;
+pub mod providers;
+pub mod storage;
+pub mod token;
+
+pub use error::AuthError;
+pub use pkce::{build_auth_url, generate_code_challenge, generate_code_verifier, OAuth2PkceFlow};
+pub use providers::{get_provider, ProviderConfig, SUPPORTED_PROVIDERS};
+pub use storage::KeyringStorage;
+pub use token::StoredToken;

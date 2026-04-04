@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/apollia-auth",
     "crates/apollia-core",
     "crates/apollia-runtime",
     "crates/apollia-oria",
@@ -21,6 +22,7 @@ members = [
 ]
 # apollia-desktop excluded from default builds (heavy tauri dep — use `cargo build -p apollia-desktop`)
 default-members = [
+    "crates/apollia-auth",
     "crates/apollia-core",
     "crates/apollia-runtime",
     "crates/apollia-oria",
@@ -122,6 +124,11 @@ regex = "1"
 # --- Shell word splitting (POSIX quoting) ---
 shell-words = "1"
 
+# --- Auth / OAuth2 PKCE ---
+base64      = "0.22"
+keyring     = "3"
+urlencoding = "2"
+
 # --- Triggers (apollia-triggers) ---
 chrono = { version = "0.4", features = ["serde"] }
 cron   = "0.12"
@@ -146,6 +153,7 @@ apollia-pipelines     = { path = "crates/apollia-pipelines" }
 apollia-mcp           = { path = "crates/apollia-mcp" }
 apollia-workspace     = { path = "crates/apollia-workspace" }
 apollia-permissions   = { path = "crates/apollia-permissions" }
+apollia-auth          = { path = "crates/apollia-auth" }
 
 [profile.release]
 opt-level = 3

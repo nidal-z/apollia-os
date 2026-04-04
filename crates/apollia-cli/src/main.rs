@@ -20,6 +20,7 @@ use clap::Parser;
 
 use commands::agent::AgentCommand;
 use commands::audit::AuditCommand;
+use commands::auth::AuthCommand;
 use commands::chat;
 use commands::llm::LlmCommand;
 use commands::mcp_server::McpServerArgs;
@@ -105,6 +106,13 @@ enum Commands {
         /// Takes priority over `--allowed-tools` when the same tool appears in both.
         #[arg(long, value_delimiter = ',', value_name = "TOOL")]
         disallowed_tools: Vec<String>,
+    },
+
+    /// OAuth2 PKCE authentication management (login, status, logout).
+    Auth {
+        /// Auth subcommand.
+        #[command(subcommand)]
+        command: AuthCommand,
     },
 
     /// Agent management (list, start, stop, info, install, uninstall, enable, disable, update, new).
@@ -264,6 +272,7 @@ fn main() {
                 })
                 .await
             }
+            Commands::Auth { command } => commands::auth::run(&command, json).await,
             Commands::Agent { command } => commands::agent::run(&command, cli.socket, json).await,
             Commands::Task { command } => commands::task::run(&command, cli.socket, json).await,
             Commands::Tools { command } => commands::tools::run(&command, cli.socket, json).await,

@@ -31,6 +31,7 @@ stt-metal = ["apollia-stt/stt-metal"]
 stt-cuda = ["apollia-stt/stt-cuda"]
 
 [dependencies]
+apollia-auth      = { workspace = true }
 apollia-core      = { workspace = true }
 apollia-workspace = { workspace = true }
 apollia-aip      = { workspace = true }
@@ -61,6 +62,7 @@ hf-hub             = { workspace = true }
 indicatif          = { workspace = true }
 rustyline          = "14"
 dirs               = "5"
+open               = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
