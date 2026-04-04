@@ -27,6 +27,7 @@ use apollia_workspace::{WorkspaceAssembler, WorkspaceConfig};
 
 use crate::actor::{ActorLoop, ToolProxyTrait};
 use crate::budget::StepBudget;
+use crate::context_manager::ContextManager;
 use crate::observer::{classify, ContextBundle, ExecutionMode, ObserverError};
 use crate::plan::ExecutionPlan;
 use crate::plan_cache::{compute_cache_key, PlanCacheRepository};
@@ -205,6 +206,12 @@ pub struct ORIAEngine {
     ///
     /// Initialisé à `"."` par défaut ; surchargeable via [`with_cwd`](ORIAEngine::with_cwd).
     cwd: PathBuf,
+    /// Gestionnaire de fenêtre de contexte LLM — compacte l'historique quand nécessaire.
+    ///
+    /// Initialisé depuis `ORIAConfig::context_compact_threshold` et
+    /// `ORIAConfig::context_summary_max_chars`. Passé à l'`ActorLoop` lors de
+    /// l'exécution orchestrée pour protéger les étapes LLM longues.
+    context_manager: ContextManager,
 }
 
 impl ORIAEngine {
@@ -218,6 +225,8 @@ impl ORIAEngine {
     /// [`with_task_repository`]: ORIAEngine::with_task_repository
     pub fn new() -> Self {
         let (event_bus, _) = tokio::sync::broadcast::channel(64);
+        let oria_config = ORIAConfig::default();
+        let context_manager = ContextManager::from_config(&oria_config);
         Self {
             reasoner: None,
             tool_proxy: None,
@@ -225,7 +234,7 @@ impl ORIAEngine {
             resilience: ResilienceLayer::new(3, Duration::from_secs(30)),
             event_bus,
             runtime_config: StepBudgetConfig::default(),
-            oria_config: ORIAConfig::default(),
+            oria_config,
             db_path: None,
             pending_approvals: None,
             task_repository: None,
@@ -233,6 +242,7 @@ impl ORIAEngine {
             plan_cache: None,
             workspace_assembler: WorkspaceAssembler::new(WorkspaceConfig::default()),
             cwd: PathBuf::from("."),
+            context_manager,
         }
     }
 
@@ -276,7 +286,9 @@ impl ORIAEngine {
     /// Si non appelé, [`ORIAConfig::default`] est utilisé (`max_replans = 2`).
     /// La valeur `max_replans` contrôle le nombre de re-planifications autorisées
     /// en mode Orchestrated avant d'échouer définitivement.
+    /// Met également à jour le `ContextManager` avec les seuils de compactage configurés.
     pub fn with_oria_config(mut self, config: ORIAConfig) -> Self {
+        self.context_manager = ContextManager::from_config(&config);
         self.oria_config = config;
         self
     }
@@ -568,7 +580,8 @@ impl ORIAEngine {
         )
         .with_pending_approvals(self.pending_approvals.clone())
         .with_memory_manager(self.memory_manager.clone())
-        .with_step_memory_max_chars(self.oria_config.step_memory_max_chars);
+        .with_step_memory_max_chars(self.oria_config.step_memory_max_chars)
+        .with_context_manager(self.context_manager.clone());
         let step_result = actor
             .execute(
                 tool_proxy,
@@ -666,7 +679,8 @@ impl ORIAEngine {
         )
         .with_pending_approvals(self.pending_approvals.clone())
         .with_memory_manager(self.memory_manager.clone())
-        .with_step_memory_max_chars(self.oria_config.step_memory_max_chars);
+        .with_step_memory_max_chars(self.oria_config.step_memory_max_chars)
+        .with_context_manager(self.context_manager.clone());
         let step_result = actor
             .execute(
                 tool_proxy,

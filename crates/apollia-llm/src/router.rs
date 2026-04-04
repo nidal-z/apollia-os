@@ -655,6 +655,17 @@ impl LlmRouter {
         &self.default
     }
 
+    /// Retourne la taille estimée de la fenêtre de contexte en tokens.
+    ///
+    /// Utilisé par `ContextManager` pour calculer le taux d'utilisation et décider
+    /// si un compactage est nécessaire. La valeur `200_000` correspond à la fenêtre
+    /// de `claude-sonnet` — conservatrice et valide pour tous les backends cloud.
+    /// Les backends locaux disposent généralement de fenêtres plus petites ; le
+    /// compactage précoce est préférable à un `context_length_exceeded`.
+    pub fn context_limit(&self) -> usize {
+        200_000
+    }
+
     /// Retourne le `CancellationToken` de session pour annuler les appels en cours.
     ///
     /// Appelé par `ORIAEngine::abort()` pour interrompre tous les appels LLM

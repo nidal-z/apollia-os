@@ -15,13 +15,14 @@ use std::time::Duration;
 use futures::StreamExt;
 use tracing::{info, warn};
 
-use apollia_core::RuntimeEvent;
+use apollia_core::{ORIAConfig, RuntimeEvent};
 use apollia_llm::types::{
     ChatMessage as LlmChatMessage, CompletionRequest, StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };
 use apollia_llm::{LlmRouter, ObservabilityConfig, ToolInvoker};
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
+use apollia_oria::context_manager::ContextManager;
 use apollia_tools::ToolRegistryHandle;
 
 use super::types::{
@@ -268,6 +269,9 @@ pub struct BuiltInChatAgent {
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     /// Optional A2A invoker for discovering worker agent skills as virtual tools.
     a2a_invoker: Option<Arc<A2AInvoker>>,
+    /// Gestionnaire de fenêtre de contexte — compacte `llm_messages` dans la boucle ReAct
+    /// quand les messages accumulés dépassent le seuil de la fenêtre du modèle.
+    context_manager: ContextManager,
 }
 
 impl BuiltInChatAgent {
@@ -287,6 +291,7 @@ impl BuiltInChatAgent {
             event_bus,
             user_memory,
             a2a_invoker,
+            context_manager: ContextManager::from_config(&ORIAConfig::default()),
         }
     }
 
@@ -402,6 +407,30 @@ impl BuiltInChatAgent {
                 return Err(ChatError::BudgetExhausted);
             }
             budget.increment_steps();
+
+            // Compact context if messages approach the model's context limit.
+            let (compacted, was_compacted) = self
+                .context_manager
+                .maybe_compact(&llm_messages, &self.llm_router)
+                .await;
+            if was_compacted {
+                let summary_chars = compacted
+                    .get(1)
+                    .map(apollia_oria::context_manager::message_char_len)
+                    .unwrap_or(0);
+                let original_messages = llm_messages.len();
+                llm_messages = compacted;
+                tracing::info!(
+                    summary_chars,
+                    original_messages,
+                    session_id = %session_id,
+                    "ReAct context compacted before LLM call"
+                );
+                let _ = self.event_bus.send(apollia_core::RuntimeEvent::ContextCompacted {
+                    summary_chars,
+                    original_messages,
+                });
+            }
 
             let request = CompletionRequest {
                 messages: llm_messages.clone(),

@@ -315,6 +315,24 @@ pub struct ORIAConfig {
     /// Défaut : 100. Bornes : [10, 5000].
     #[serde(default = "default_budget_poll_ms")]
     pub budget_poll_ms: u64,
+
+    /// Seuil de déclenchement du compactage automatique (0.0–1.0).
+    ///
+    /// Fraction de la fenêtre de contexte LLM à partir de laquelle `ContextManager`
+    /// compacte l'historique de conversation avant chaque appel au Reasoner.
+    /// `0.80` laisse 20% de headroom pour au moins 1 tour supplémentaire complet.
+    /// Défaut : 0.80. Bornes : [0.0, 1.0].
+    #[serde(default = "default_compact_threshold")]
+    pub context_compact_threshold: f32,
+
+    /// Longueur maximale du résumé généré lors du compactage, en caractères.
+    ///
+    /// Borne haute appliquée à la sortie LLM lors de la synthèse de l'historique.
+    /// `4000` correspond à ~1000 tokens — suffisant pour capturer l'état d'une
+    /// tâche complexe avec fichiers modifiés et prochaines étapes.
+    /// Défaut : 4000. Bornes : [500, 32000].
+    #[serde(default = "default_summary_max_chars")]
+    pub context_summary_max_chars: usize,
 }
 
 impl Default for ORIAConfig {
@@ -324,6 +342,8 @@ impl Default for ORIAConfig {
             orchestrated_threshold: default_orchestrated_threshold(),
             step_memory_max_chars: default_step_memory_max_chars(),
             budget_poll_ms: default_budget_poll_ms(),
+            context_compact_threshold: default_compact_threshold(),
+            context_summary_max_chars: default_summary_max_chars(),
         }
     }
 }
@@ -335,6 +355,8 @@ impl ORIAConfig {
     /// - `orchestrated_threshold` : doit être dans [0.0, 1.0].
     /// - `step_memory_max_chars` : doit être dans [50, 10000].
     /// - `budget_poll_ms` : doit être dans [10, 5000].
+    /// - `context_compact_threshold` : doit être dans [0.0, 1.0].
+    /// - `context_summary_max_chars` : doit être dans [500, 32000].
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.max_replans > 10 {
             return Err(ConfigError::InvalidValue {
@@ -360,6 +382,18 @@ impl ORIAConfig {
             10_u64,
             5_000_u64,
         )?;
+        validate_bounds(
+            "oria.context_compact_threshold",
+            self.context_compact_threshold,
+            0.0_f32,
+            1.0_f32,
+        )?;
+        validate_bounds(
+            "oria.context_summary_max_chars",
+            self.context_summary_max_chars,
+            500_usize,
+            32_000_usize,
+        )?;
         Ok(())
     }
 }
@@ -378,6 +412,14 @@ fn default_step_memory_max_chars() -> usize {
 
 fn default_budget_poll_ms() -> u64 {
     100
+}
+
+fn default_compact_threshold() -> f32 {
+    0.80
+}
+
+fn default_summary_max_chars() -> usize {
+    4000
 }
 
 // ─────────────────────────────────────────────

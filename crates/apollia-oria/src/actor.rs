@@ -35,13 +35,14 @@ use std::time::Instant;
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::manifest::AgentManifest;
 use apollia_core::observability::ObservabilityConfig;
-use apollia_core::{AIPResult, PendingApprovals};
+use apollia_core::{AIPResult, ORIAConfig, PendingApprovals};
 use apollia_llm::{
     router::ObservabilityConfig as LlmObsConfig, ChatMessage, CompletionRequest, LlmRouter,
 };
 use apollia_memory::manager::MemoryManager;
 
 use crate::budget::StepBudget;
+use crate::context_manager::{message_char_len, ContextManager};
 use crate::observer::{ContextBundle, ExecutionMode};
 use crate::plan::{ExecutionPlan, PlanStep};
 use crate::plan_repository::PlanRepository;
@@ -244,6 +245,14 @@ pub struct ActorLoop {
     /// Injected from `ORIAConfig::step_memory_max_chars`. Defaults to
     /// [`DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS`] when not configured.
     step_memory_max_chars: usize,
+    /// Gestionnaire de fenêtre de contexte LLM pour les steps de type LLM.
+    ///
+    /// Injecté depuis `ORIAEngine` via [`with_context_manager`].
+    /// Compacte les messages d'un step LLM si leur taille estimée dépasse le seuil
+    /// configuré dans `[oria] context_compact_threshold`.
+    ///
+    /// [`with_context_manager`]: ActorLoop::with_context_manager
+    context_manager: ContextManager,
 }
 
 impl ActorLoop {
@@ -276,6 +285,7 @@ impl ActorLoop {
             obs_config: ObservabilityConfig::default(),
             memory_manager: None,
             step_memory_max_chars: DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS,
+            context_manager: ContextManager::from_config(&ORIAConfig::default()),
         }
     }
 
@@ -315,6 +325,16 @@ impl ActorLoop {
     /// defaults to [`DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS`] (200 chars).
     pub fn with_step_memory_max_chars(mut self, max_chars: usize) -> Self {
         self.step_memory_max_chars = max_chars;
+        self
+    }
+
+    /// Injecte le `ContextManager` pour compacter les messages LLM si nécessaire.
+    ///
+    /// Appelé par `ORIAEngine` avec le `ContextManager` initialisé depuis `ORIAConfig`.
+    /// Sans cet appel, les valeurs par défaut (`threshold = 0.80`, `max_chars = 4000`)
+    /// sont utilisées.
+    pub fn with_context_manager(mut self, cm: ContextManager) -> Self {
+        self.context_manager = cm;
         self
     }
 
@@ -1073,12 +1093,45 @@ impl ActorLoop {
         llm_router: &LlmRouter,
         step_ctx: &StepContext,
     ) -> Result<String, StepError> {
-        let mut messages = Vec::new();
-        // inject previous step outputs as system context.
-        if let Some(context_text) = step_ctx.format_previous_outputs() {
-            messages.push(ChatMessage::system(context_text));
+        // Build messages: combine manifest system prompt and previous step outputs into a single
+        // system message (preserved verbatim by ContextManager during compaction).
+        // Omit the system message entirely when neither the manifest nor previous outputs
+        // provide any content — preserving existing behaviour for simple steps.
+        let system_text_opt = match (
+            self.manifest.system_prompt.as_deref(),
+            step_ctx.format_previous_outputs(),
+        ) {
+            (Some(sp), Some(ctx)) => Some(format!("{sp}\n\n{ctx}")),
+            (Some(sp), None) => Some(sp.to_owned()),
+            (None, Some(ctx)) => Some(ctx),
+            (None, None) => None,
+        };
+        let mut messages: Vec<ChatMessage> = system_text_opt
+            .map(|text| vec![ChatMessage::system(text), ChatMessage::user(input.clone())])
+            .unwrap_or_else(|| vec![ChatMessage::user(input)]);
+
+        // Compact context if it approaches the model's context limit.
+        let (compacted, was_compacted) = self
+            .context_manager
+            .maybe_compact(&messages, llm_router)
+            .await;
+        if was_compacted {
+            let summary_chars = compacted.get(1).map(message_char_len).unwrap_or(0);
+            let original_messages = messages.len();
+            messages = compacted;
+            tracing::info!(
+                summary_chars,
+                original_messages,
+                step_id = %step.step_id,
+                "step context compacted before LLM call"
+            );
+            let _ = self
+                .event_bus
+                .send(apollia_core::RuntimeEvent::ContextCompacted {
+                    summary_chars,
+                    original_messages,
+                });
         }
-        messages.push(ChatMessage::user(input));
 
         let request = CompletionRequest {
             messages,

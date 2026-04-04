@@ -13,6 +13,7 @@
 
 pub mod actor;
 pub mod budget;
+pub mod context_manager;
 pub mod engine;
 pub mod observer;
 pub mod plan;

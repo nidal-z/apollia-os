@@ -792,6 +792,19 @@ pub enum RuntimeEvent {
         /// Budget de tokens accumulé sur l'ensemble des appels LLM de la tâche.
         budget: crate::token_budget::TokenBudget,
     },
+
+    // ── Context Manager events ───────────────────
+    /// Émis par `ContextManager` quand l'historique de conversation a été compacté.
+    ///
+    /// Déclenché dans la boucle ReAct de `BuiltInChatAgent` quand les messages
+    /// accumulés dépassent `context_compact_threshold` × la fenêtre du modèle.
+    /// Le système prompt original (messages[0]) est toujours préservé.
+    ContextCompacted {
+        /// Nombre de caractères dans le résumé généré.
+        summary_chars: usize,
+        /// Nombre de messages originaux remplacés par le résumé.
+        original_messages: usize,
+    },
 }
 
 #[cfg(test)]
@@ -1132,6 +1145,11 @@ mod tests {
                     cache_read_tokens: 240,
                     ..Default::default()
                 },
+            },
+            // ── Context Manager ───────────────────────────────
+            RuntimeEvent::ContextCompacted {
+                summary_chars: 3800,
+                original_messages: 42,
             },
         ];
 
