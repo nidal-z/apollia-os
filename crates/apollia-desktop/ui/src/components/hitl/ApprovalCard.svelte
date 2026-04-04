@@ -2,18 +2,32 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onDestroy } from "svelte";
   import { t } from "svelte-i18n";
-  import type { PendingApproval } from "$lib/types";
+  import type { PendingApproval, ApollaPermission } from "$lib/types";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Dialog } from "$lib/components/ui/dialog";
   import { Textarea } from "$lib/components/ui/textarea";
   import { addToast } from "$lib/components/ui/toast/store";
+  import PermissionDispatcher from "../permissions/PermissionDispatcher.svelte";
 
   interface Props {
     approval: PendingApproval;
   }
 
   let { approval }: Props = $props();
+
+  /**
+   * Si le contexte porte un `permission_type` reconnu, retourne la demande
+   * de permission typée. Sinon retourne `null` (affichage générique).
+   */
+  function extractPermission(
+    ctx: Record<string, unknown> | undefined,
+  ): ApollaPermission | null {
+    if (ctx === undefined || typeof ctx.permission_type !== "string") return null;
+    return ctx as unknown as ApollaPermission;
+  }
+
+  const permission = $derived(extractPermission(approval.context));
 
   const WARNING_THRESHOLD_MS = 1_800_000;
   const MIN_REASON_LENGTH = 10;
@@ -127,43 +141,52 @@
         </Badge>
       </div>
 
-      <!-- Prompt -->
-      <div class="mt-2">
-        <p class="text-[11px] text-muted-foreground mb-1">{$t("approvals.prompt_label")}</p>
-        <div class="max-h-[400px] overflow-auto rounded glass-border glass-inset p-2.5">
-          <p class="whitespace-pre-wrap text-[13px]">{approval.prompt || $t("approvals.no_prompt")}</p>
+      {#if permission}
+        <!-- Typed permission view: badge + preview + 3 buttons -->
+        <div class="mt-2">
+          <PermissionDispatcher
+            taskId={approval.task_id}
+            {permission}
+            onResolved={() => { resolved = true; }}
+          />
         </div>
-      </div>
+      {:else}
+        <!-- Generic prompt + context JSON + approve/reject -->
+        <div class="mt-2">
+          <p class="text-[11px] text-muted-foreground mb-1">{$t("approvals.prompt_label")}</p>
+          <div class="max-h-[400px] overflow-auto rounded glass-border glass-inset p-2.5">
+            <p class="whitespace-pre-wrap text-[13px]">{approval.prompt || $t("approvals.no_prompt")}</p>
+          </div>
+        </div>
 
-      <!-- Context JSON collapsible -->
-      {#if approval.context}
-        <details class="mt-2 glass-border glass-inset rounded-md" data-testid="approval-context-details">
-          <summary class="text-[11px] text-muted-foreground px-2 py-1 cursor-pointer">
-            {$t("approvals.show_context")}
-          </summary>
-          <pre class="text-[11px] px-2 py-1 overflow-x-auto">{JSON.stringify(approval.context, null, 2)}</pre>
-        </details>
+        {#if approval.context}
+          <details class="mt-2 glass-border glass-inset rounded-md" data-testid="approval-context-details">
+            <summary class="text-[11px] text-muted-foreground px-2 py-1 cursor-pointer">
+              {$t("approvals.show_context")}
+            </summary>
+            <pre class="text-[11px] px-2 py-1 overflow-x-auto">{JSON.stringify(approval.context, null, 2)}</pre>
+          </details>
+        {/if}
+
+        <div class="flex gap-2 mt-3">
+          <Button
+            size="sm"
+            variant="success"
+            onclick={openApproveDialog}
+            data-testid="approval-approve-btn"
+          >
+            {$t("approvals.approve")}
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onclick={openRejectDialog}
+            data-testid="approval-reject-btn"
+          >
+            {$t("approvals.reject")}
+          </Button>
+        </div>
       {/if}
-
-      <!-- Actions -->
-      <div class="flex gap-2 mt-3">
-        <Button
-          size="sm"
-          variant="success"
-          onclick={openApproveDialog}
-          data-testid="approval-approve-btn"
-        >
-          {$t("approvals.approve")}
-        </Button>
-        <Button
-          size="sm"
-          variant="destructive"
-          onclick={openRejectDialog}
-          data-testid="approval-reject-btn"
-        >
-          {$t("approvals.reject")}
-        </Button>
-      </div>
     </div>
   </div>
 
