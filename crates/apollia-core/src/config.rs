@@ -515,6 +515,54 @@ fn default_unix_socket() -> PathBuf {
 }
 
 // ─────────────────────────────────────────────
+// ToolsConfig
+// ─────────────────────────────────────────────
+
+/// Configuration des outputs d'outils natifs (section `[tools]` dans `apollia.toml`).
+///
+/// Contrôle les limites appliquées par le runtime aux outputs des outils natifs
+/// avant leur transmission au LLM. Protège la fenêtre de contexte LLM contre
+/// les outputs volumineux (Principe #7 — Garde-fous non-négociables).
+#[derive(Debug, Clone, Deserialize)]
+pub struct ToolsConfig {
+    /// Taille maximale d'un output d'outil transmis au LLM, en bytes UTF-8.
+    ///
+    /// Les outputs dépassant cette limite sont tronqués par la stratégie
+    /// "middle-trim" : le début et la fin sont préservés, le milieu supprimé
+    /// et remplacé par un message indiquant le nombre de lignes perdues.
+    /// Défaut : 30 000. Bornes : [10, 1 000 000].
+    #[serde(default = "default_max_output_chars")]
+    pub max_output_chars: usize,
+}
+
+impl Default for ToolsConfig {
+    fn default() -> Self {
+        Self {
+            max_output_chars: default_max_output_chars(),
+        }
+    }
+}
+
+impl ToolsConfig {
+    /// Valide les bornes de la configuration tools au démarrage (Principe #4 — Fail fast).
+    ///
+    /// - `max_output_chars` : doit être dans [10, 1 000 000].
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        validate_bounds(
+            "tools.max_output_chars",
+            self.max_output_chars,
+            10_usize,
+            1_000_000_usize,
+        )?;
+        Ok(())
+    }
+}
+
+fn default_max_output_chars() -> usize {
+    30_000
+}
+
+// ─────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────
 
@@ -982,5 +1030,57 @@ mod tests {
         oria_max.validate().expect("max ORIAConfig valid");
         pipelines_min.validate().expect("min PipelinesConfig valid");
         pipelines_max.validate().expect("max PipelinesConfig valid");
+    }
+
+    // ── ToolsConfig ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_tools_config_default_values() {
+        // GIVEN config par défaut
+        let cfg = ToolsConfig::default();
+        // THEN
+        assert_eq!(cfg.max_output_chars, 30_000);
+        cfg.validate().expect("default ToolsConfig must be valid");
+    }
+
+    #[test]
+    fn test_tools_config_serde_override() {
+        // GIVEN un TOML avec une valeur custom
+        let toml = r#"max_output_chars = 100"#;
+        // WHEN
+        let cfg: ToolsConfig = toml::from_str(toml).expect("valid toml");
+        // THEN
+        assert_eq!(cfg.max_output_chars, 100);
+        cfg.validate().expect("100 is within bounds");
+    }
+
+    #[test]
+    fn test_tools_config_below_min_fails() {
+        // GIVEN max_output_chars below minimum (min = 10)
+        let cfg = ToolsConfig {
+            max_output_chars: 5,
+        };
+        // WHEN
+        let result = cfg.validate();
+        // THEN
+        assert!(
+            matches!(result, Err(ConfigError::OutOfBounds { ref key, .. }) if key == "tools.max_output_chars"),
+            "expected OutOfBounds for tools.max_output_chars, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_tools_config_above_max_fails() {
+        // GIVEN max_output_chars above maximum
+        let cfg = ToolsConfig {
+            max_output_chars: 2_000_000,
+        };
+        // WHEN
+        let result = cfg.validate();
+        // THEN
+        assert!(
+            matches!(result, Err(ConfigError::OutOfBounds { ref key, .. }) if key == "tools.max_output_chars"),
+            "expected OutOfBounds for tools.max_output_chars, got: {result:?}"
+        );
     }
 }

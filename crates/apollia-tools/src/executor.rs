@@ -8,6 +8,7 @@
 //! and serialising the output back to JSON. Domain errors are mapped to
 //! [`ToolExecutionError::ExecutionFailed`] with a stable `code` string.
 
+use apollia_core::utils::truncate_middle;
 use serde_json::Value;
 use thiserror::Error;
 
@@ -72,25 +73,58 @@ pub trait ToolExecutor: Send + Sync {
     async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError>;
 }
 
+/// Taille maximale par défaut d'un output d'outil transmis au LLM, en bytes UTF-8.
+const DEFAULT_MAX_OUTPUT_CHARS: usize = 30_000;
+
 /// Routes tool calls to the appropriate executor by name.
 ///
 /// The dispatcher holds a list of pre-built executors and delegates each call to the
-/// one whose [`ToolExecutor::name`] matches `tool_name`.
+/// one whose [`ToolExecutor::name`] matches `tool_name`. After execution, outputs
+/// exceeding `max_output_chars` are automatically trimmed via the middle-trim strategy:
+/// the start and end of the output are preserved, the middle is replaced with a
+/// truncation marker indicating the number of discarded lines.
 pub struct ToolDispatcher {
     executors: Vec<Box<dyn ToolExecutor>>,
+    max_output_chars: usize,
 }
 
 impl ToolDispatcher {
     /// Create a new dispatcher from a list of pre-built executors.
+    ///
+    /// Uses [`DEFAULT_MAX_OUTPUT_CHARS`] (30 000 bytes) as the output limit.
+    /// Call [`with_max_output_chars`] to override from config.
+    ///
+    /// [`with_max_output_chars`]: ToolDispatcher::with_max_output_chars
     pub fn new(executors: Vec<Box<dyn ToolExecutor>>) -> Self {
-        Self { executors }
+        Self {
+            executors,
+            max_output_chars: DEFAULT_MAX_OUTPUT_CHARS,
+        }
+    }
+
+    /// Override the maximum output size for middle-trim truncation.
+    ///
+    /// Should be set from `apollia.toml` `[tools] max_output_chars` via
+    /// [`ToolsConfig`]. Returns `self` for ergonomic chaining.
+    ///
+    /// [`ToolsConfig`]: apollia_core::ToolsConfig
+    pub fn with_max_output_chars(mut self, max_output_chars: usize) -> Self {
+        self.max_output_chars = max_output_chars;
+        self
     }
 
     /// Dispatch a tool call to the executor registered under `tool_name`.
     ///
+    /// After a successful execution, the output is serialized to a JSON string.
+    /// If the serialized length exceeds `max_output_chars`, the middle is trimmed
+    /// and the result is returned as a [`Value::String`] containing the truncated
+    /// content with a marker indicating the number of discarded lines.
+    ///
     /// # Errors
     ///
     /// - [`ToolExecutionError::UnknownTool`] if no executor is registered for `tool_name`.
+    /// - [`ToolExecutionError::ExecutionFailed`] with code `"serialization_error"` if the
+    ///   executor output cannot be serialized.
     /// - All other errors are forwarded unchanged from the matched executor.
     pub async fn dispatch(
         &self,
@@ -105,7 +139,25 @@ impl ToolDispatcher {
                 name: tool_name.to_string(),
             })?;
 
-        executor.execute(input).await
+        let value = executor.execute(input).await?;
+
+        let raw =
+            serde_json::to_string(&value).map_err(|e| ToolExecutionError::ExecutionFailed {
+                code: "serialization_error".to_string(),
+                message: e.to_string(),
+            })?;
+
+        let (output, truncated) = truncate_middle(&raw, self.max_output_chars);
+        if let Some(lines) = truncated {
+            tracing::debug!(
+                lines_truncated = lines,
+                tool = %tool_name,
+                "output tronqué middle-trim"
+            );
+            Ok(Value::String(output))
+        } else {
+            Ok(value)
+        }
     }
 }
 
@@ -574,5 +626,71 @@ mod tests {
             }
             other => panic!("expected ExecutionFailed(not_found), got: {other:?}"),
         }
+    }
+
+    /// Executor that returns a fixed string payload of configurable length.
+    struct LargeOutputExecutor {
+        size: usize,
+    }
+
+    #[async_trait::async_trait]
+    impl ToolExecutor for LargeOutputExecutor {
+        fn name(&self) -> &str {
+            "large_tool"
+        }
+
+        async fn execute(&self, _input: Value) -> Result<Value, ToolExecutionError> {
+            Ok(Value::String("x".repeat(self.size)))
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatcher_output_under_limit_returned_as_value() {
+        // GIVEN: a dispatcher with a 100-char limit and an executor producing 10 chars
+        let dispatcher = ToolDispatcher::new(vec![Box::new(LargeOutputExecutor { size: 10 })])
+            .with_max_output_chars(100);
+
+        // WHEN
+        let result = dispatcher.dispatch("large_tool", json!({})).await;
+
+        // THEN: the original Value is returned unchanged (no truncation)
+        let val = result.expect("should succeed");
+        assert_eq!(val, Value::String("x".repeat(10)));
+    }
+
+    #[tokio::test]
+    async fn dispatcher_output_over_limit_truncated_with_marker() {
+        // GIVEN: a dispatcher with a 40-char limit and an executor producing a 200-char JSON string
+        // The serialized form of Value::String("x".repeat(200)) is `"xxx...xxx"` = 202 chars (with quotes)
+        let dispatcher = ToolDispatcher::new(vec![Box::new(LargeOutputExecutor { size: 200 })])
+            .with_max_output_chars(40);
+
+        // WHEN
+        let result = dispatcher.dispatch("large_tool", json!({})).await;
+
+        // THEN: truncated output is a Value::String containing the truncation marker
+        let val = result.expect("should succeed");
+        let content = val
+            .as_str()
+            .expect("truncated output must be a JSON string");
+        assert!(
+            content.contains("lignes tronquées"),
+            "expected truncation marker, got: {content}"
+        );
+    }
+
+    #[tokio::test]
+    async fn dispatcher_with_max_output_chars_builder() {
+        // GIVEN: default dispatcher then overridden to 50 chars
+        let dispatcher = ToolDispatcher::new(vec![Box::new(LargeOutputExecutor { size: 100 })])
+            .with_max_output_chars(50);
+
+        // WHEN
+        let result = dispatcher.dispatch("large_tool", json!({})).await;
+
+        // THEN: truncated (serialized "x".repeat(100) is 102 chars > 50)
+        let val = result.expect("should succeed");
+        assert!(val.is_string());
+        assert!(val.as_str().unwrap().contains("lignes tronquées"));
     }
 }
