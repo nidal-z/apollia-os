@@ -87,7 +87,7 @@ pub fn validate_agent(agent: &Py<PyAny>) -> Result<ValidatedAgent, AIPValidation
 
         // Check run() is async (coroutine function)
         let inspect = py
-            .import_bound("inspect")
+            .import("inspect")
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
         let run_method = agent_ref
             .getattr("run")
@@ -106,7 +106,7 @@ pub fn validate_agent(agent: &Py<PyAny>) -> Result<ValidatedAgent, AIPValidation
             .call_method0("manifest")
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
         let json_mod = py
-            .import_bound("json")
+            .import("json")
             .map_err(|e| AIPValidationError::PythonError(e.to_string()))?;
         let json_str: String = json_mod
             .call_method1("dumps", (&manifest_dict,))
@@ -149,7 +149,8 @@ mod tests {
     /// Helper: create a Python agent object from inline code.
     fn create_py_agent(code: &str) -> Py<PyAny> {
         Python::with_gil(|py| {
-            let module = PyModule::from_code_bound(py, code, "test_agent.py", "test_agent")
+            let code_c = std::ffi::CString::new(code).expect("code contains NUL byte");
+            let module = PyModule::from_code(py, &code_c, c"test_agent.py", c"test_agent")
                 .expect("failed to create test module");
             module.getattr("agent").expect("failed to get agent").into()
         })

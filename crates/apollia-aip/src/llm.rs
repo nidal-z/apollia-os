@@ -333,7 +333,7 @@ impl LlmProxy {
             };
 
             Python::with_gil(|py| {
-                let py_list = pyo3::types::PyList::new_bound(py, &chunks);
+                let py_list = pyo3::types::PyList::new(py, &chunks).unwrap();
                 Ok(py_list.into_any().unbind())
             })
         })
@@ -377,7 +377,7 @@ impl LlmProxy {
                 .await
                 .map_err(llm_err_to_py)?;
 
-            Python::with_gil(|py| Ok(result.into_py(py)))
+            Python::with_gil(|py| Ok(result.into_pyobject(py).unwrap().into_any().unbind()))
         })
     }
 }
@@ -448,7 +448,7 @@ fn py_dict_to_tool_spec(py: Python<'_>, obj: &PyObject) -> PyResult<ToolSpec> {
     let parameters: serde_json::Value = match bound.get_item("parameters") {
         Ok(params_obj) => {
             let json_mod = py
-                .import_bound("json")
+                .import("json")
                 .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
             let json_str: String = json_mod
                 .call_method1("dumps", (params_obj,))
@@ -487,7 +487,7 @@ mod tests {
         // GIVEN
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
-            let dict = pyo3::types::PyDict::new_bound(py);
+            let dict = pyo3::types::PyDict::new(py);
             dict.set_item("role", "user").unwrap();
             dict.set_item("content", "bonjour").unwrap();
             // WHEN
@@ -504,7 +504,7 @@ mod tests {
         // GIVEN
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
-            let dict = pyo3::types::PyDict::new_bound(py);
+            let dict = pyo3::types::PyDict::new(py);
             dict.set_item("role", "invalid_role").unwrap();
             dict.set_item("content", "...").unwrap();
             // WHEN
@@ -522,10 +522,10 @@ mod tests {
         // GIVEN
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
-            let dict = pyo3::types::PyDict::new_bound(py);
+            let dict = pyo3::types::PyDict::new(py);
             dict.set_item("name", "file_io").unwrap();
             dict.set_item("description", "lit un fichier").unwrap();
-            dict.set_item("parameters", pyo3::types::PyDict::new_bound(py))
+            dict.set_item("parameters", pyo3::types::PyDict::new(py))
                 .unwrap();
             // WHEN
             let spec = py_dict_to_tool_spec(py, &dict.into()).unwrap();
@@ -541,7 +541,7 @@ mod tests {
         // GIVEN
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
-            let dict = pyo3::types::PyDict::new_bound(py);
+            let dict = pyo3::types::PyDict::new(py);
             dict.set_item("content", "test").unwrap();
             // WHEN — pas de clé "role"
             let result = py_dict_to_chat_message(py, &dict.into());
@@ -556,7 +556,7 @@ mod tests {
         // GIVEN
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
-            let dict = pyo3::types::PyDict::new_bound(py);
+            let dict = pyo3::types::PyDict::new(py);
             dict.set_item("role", "system").unwrap();
             dict.set_item("content", "tu es utile").unwrap();
             // WHEN
@@ -572,7 +572,7 @@ mod tests {
         // GIVEN
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
-            let dict = pyo3::types::PyDict::new_bound(py);
+            let dict = pyo3::types::PyDict::new(py);
             dict.set_item("description", "test").unwrap();
             // WHEN — pas de clé "name"
             let result = py_dict_to_tool_spec(py, &dict.into());
@@ -587,7 +587,7 @@ mod tests {
         // GIVEN
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
-            let dict = pyo3::types::PyDict::new_bound(py);
+            let dict = pyo3::types::PyDict::new(py);
             dict.set_item("name", "echo").unwrap();
             dict.set_item("description", "echo input").unwrap();
             // WHEN — pas de clé "parameters"

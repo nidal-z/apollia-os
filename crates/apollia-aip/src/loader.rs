@@ -4,6 +4,7 @@
 //! The file must define a module-level `agent` variable (e.g. `agent = MyAgent()`).
 //! The parent directory is added to `sys.path` so relative imports work.
 
+use std::ffi::CString;
 use std::path::Path;
 
 use pyo3::prelude::*;
@@ -81,7 +82,7 @@ pub fn load_agent_module(path: &Path) -> Result<Py<PyAny>, AIPLoaderError> {
         // Add parent directory to sys.path
         let parent = path.parent().unwrap_or(Path::new("."));
         let sys = py
-            .import_bound("sys")
+            .import("sys")
             .map_err(|e| AIPLoaderError::PythonError(format!("failed to import sys: {e}")))?;
         let sys_path = sys
             .getattr("path")
@@ -93,7 +94,13 @@ pub fn load_agent_module(path: &Path) -> Result<Py<PyAny>, AIPLoaderError> {
             })?;
 
         // Execute the module code
-        let module = PyModule::from_code_bound(py, &code, file_name, module_name).map_err(|e| {
+        let code_c = CString::new(code.as_bytes())
+            .map_err(|e| AIPLoaderError::PythonError(format!("code contains NUL byte: {e}")))?;
+        let file_c = CString::new(file_name)
+            .map_err(|e| AIPLoaderError::PythonError(format!("file name contains NUL byte: {e}")))?;
+        let module_c = CString::new(module_name)
+            .map_err(|e| AIPLoaderError::PythonError(format!("module name contains NUL byte: {e}")))?;
+        let module = PyModule::from_code(py, &code_c, &file_c, &module_c).map_err(|e| {
             AIPLoaderError::ImportFailed {
                 module: module_name.to_owned(),
                 reason: e.to_string(),

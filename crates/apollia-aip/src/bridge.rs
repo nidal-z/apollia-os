@@ -154,11 +154,14 @@ impl AIPBridge {
     /// be defined (should never happen with the bundled static source).
     pub fn new(validated: ValidatedAgent) -> Result<Self, AIPBridgeError> {
         let (aip_result_class, input_response_class) = Python::with_gil(|py| {
-            let module = pyo3::types::PyModule::from_code_bound(
+            let code_c = std::ffi::CString::new(AIP_TYPES_PY).map_err(|e| {
+                AIPBridgeError::Internal(format!("AIP_TYPES_PY contains NUL byte: {e}"))
+            })?;
+            let module = pyo3::types::PyModule::from_code(
                 py,
-                AIP_TYPES_PY,
-                "apollia_aip_types.py",
-                "apollia_aip_types",
+                &code_c,
+                c"apollia_aip_types.py",
+                c"apollia_aip_types",
             )
             .map_err(|e| {
                 AIPBridgeError::Internal(format!("failed to define AIP Python types: {e}"))
@@ -341,7 +344,7 @@ impl AIPBridge {
         tokio::task::spawn_blocking(move || {
             Python::with_gil(|py| -> Result<AIPResult, AIPBridgeError> {
                 // Build PyDict from HashMap
-                let py_dict = PyDict::new_bound(py);
+                let py_dict = PyDict::new(py);
                 for (k, v) in &step_results {
                     py_dict
                         .set_item(k, v)
@@ -407,7 +410,7 @@ fn run_coroutine<'py>(
     coroutine: &Bound<'py, PyAny>,
 ) -> Result<PyObject, AIPBridgeError> {
     let asyncio = py
-        .import_bound("asyncio")
+        .import("asyncio")
         .map_err(|e| AIPBridgeError::Internal(e.to_string()))?;
 
     let result = asyncio
@@ -419,14 +422,14 @@ fn run_coroutine<'py>(
 
 /// Parses a JSON string into a Python object via `json.loads()`.
 fn json_loads<'py>(py: Python<'py>, json_str: &str) -> Result<Bound<'py, PyAny>, PyErr> {
-    let json_mod = py.import_bound("json")?;
+    let json_mod = py.import("json")?;
     json_mod.call_method1("loads", (json_str,))
 }
 
 /// Converts a Python object to a JSON string via `json.dumps()`.
 fn py_obj_to_json_string(py: Python<'_>, obj: &PyObject) -> Result<String, AIPBridgeError> {
     let json_mod = py
-        .import_bound("json")
+        .import("json")
         .map_err(|e| AIPBridgeError::Internal(e.to_string()))?;
 
     json_mod
@@ -450,7 +453,8 @@ mod tests {
     /// Creates an `AIPBridge` from inline Python code (test helper).
     fn create_bridge(code: &str) -> AIPBridge {
         let agent = Python::with_gil(|py| {
-            let module = PyModule::from_code_bound(py, code, "test_bridge.py", "test_bridge")
+            let code_c = std::ffi::CString::new(code).expect("code contains NUL byte");
+            let module = PyModule::from_code(py, &code_c, c"test_bridge.py", c"test_bridge")
                 .expect("failed to create test module");
             module.getattr("agent").expect("failed to get agent").into()
         });
@@ -461,7 +465,8 @@ mod tests {
     /// Creates a `ValidatedAgent` from inline Python code (for flag-inspection tests).
     fn create_validated(code: &str) -> crate::validator::ValidatedAgent {
         let agent = Python::with_gil(|py| {
-            let module = PyModule::from_code_bound(py, code, "test_bridge.py", "test_bridge")
+            let code_c = std::ffi::CString::new(code).expect("code contains NUL byte");
+            let module = PyModule::from_code(py, &code_c, c"test_bridge.py", c"test_bridge")
                 .expect("failed to create test module");
             module.getattr("agent").expect("failed to get agent").into()
         });
@@ -471,7 +476,7 @@ mod tests {
     /// Creates an empty Python dict for use as ctx.
     fn empty_ctx() -> PyObject {
         Python::with_gil(|py| {
-            let dict = PyDict::new_bound(py);
+            let dict = PyDict::new(py);
             dict.into()
         })
     }

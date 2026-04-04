@@ -101,7 +101,7 @@ impl ToolProxy {
     ) -> PyResult<Bound<'py, PyAny>> {
         // Convert Python dict -> JSON string -> serde_json::Value
         let json_mod = py
-            .import_bound("json")
+            .import("json")
             .map_err(|e| PyRuntimeError::new_err(format!("failed to import json: {e}")))?;
         let input_str: String = json_mod
             .call_method1("dumps", (input.bind(py),))
@@ -145,7 +145,7 @@ impl ToolProxy {
                     .map_err(|e| PyRuntimeError::new_err(format!("result serialization: {e}")))?;
                 Python::with_gil(|py| {
                     let json_mod = py
-                        .import_bound("json")
+                        .import("json")
                         .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
                     let py_obj: PyObject = json_mod
                         .call_method1("loads", (json_str,))
@@ -186,7 +186,7 @@ impl ToolProxy {
                     })?;
                     Python::with_gil(|py| {
                         let json_mod = py
-                            .import_bound("json")
+                            .import("json")
                             .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
                         let py_obj: PyObject = json_mod
                             .call_method1("loads", (json_str,))
@@ -227,7 +227,7 @@ impl ToolProxy {
                     })?;
                     Python::with_gil(|py| {
                         let json_mod = py
-                            .import_bound("json")
+                            .import("json")
                             .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
                         let py_obj: PyObject = json_mod
                             .call_method1("loads", (json_str,))
@@ -758,7 +758,7 @@ impl RuntimeContext {
     #[getter]
     fn user_context(&self, py: Python<'_>) -> PyObject {
         match &self.user_context {
-            Some(ctx) => ctx.to_object(py),
+            Some(ctx) => ctx.clone().into_pyobject(py).unwrap().into_any().unbind(),
             None => py.None(),
         }
     }
@@ -784,7 +784,7 @@ impl RuntimeContext {
 
         // Convert Python dict → JSON
         let json_mod = py
-            .import_bound("json")
+            .import("json")
             .map_err(|e| PyRuntimeError::new_err(format!("failed to import json: {e}")))?;
         let json_str: String = json_mod
             .call_method1("dumps", (message.bind(py),))
@@ -840,7 +840,7 @@ impl RuntimeContext {
                     })?;
                     Python::with_gil(|py| {
                         let json_mod = py
-                            .import_bound("json")
+                            .import("json")
                             .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
                         let py_obj: PyObject = json_mod
                             .call_method1("loads", (json_str,))
@@ -879,7 +879,7 @@ impl RuntimeContext {
 
         // Convert Python dict → JSON Value.
         let json_mod = py
-            .import_bound("json")
+            .import("json")
             .map_err(|e| PyRuntimeError::new_err(format!("failed to import json: {e}")))?;
         let json_str: String = json_mod
             .call_method1("dumps", (payload.bind(py),))
@@ -901,7 +901,7 @@ impl RuntimeContext {
 
             Python::with_gil(|py| {
                 let json_mod = py
-                    .import_bound("json")
+                    .import("json")
                     .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
                 let py_obj: PyObject = json_mod
                     .call_method1("loads", (json_str,))
@@ -930,7 +930,7 @@ impl RuntimeContext {
         })?;
 
         let json_mod = py
-            .import_bound("json")
+            .import("json")
             .map_err(|e| PyRuntimeError::new_err(format!("failed to import json: {e}")))?;
         let json_str: String = json_mod
             .call_method1("dumps", (input.bind(py),))
@@ -970,7 +970,7 @@ impl RuntimeContext {
 
             Python::with_gil(|py| {
                 let json_mod = py
-                    .import_bound("json")
+                    .import("json")
                     .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
                 let py_obj: PyObject = json_mod
                     .call_method1("loads", (out_json,))
@@ -1004,7 +1004,7 @@ impl RuntimeContext {
                     })?;
                     Python::with_gil(|py| {
                         let json_mod = py
-                            .import_bound("json")
+                            .import("json")
                             .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
                         let py_obj: PyObject = json_mod
                             .call_method1("loads", (json_str,))
@@ -1047,7 +1047,7 @@ impl RuntimeContext {
 
             Python::with_gil(|py| {
                 let json_mod = py
-                    .import_bound("json")
+                    .import("json")
                     .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
                 let py_obj: PyObject = json_mod
                     .call_method1("loads", (json_str,))
