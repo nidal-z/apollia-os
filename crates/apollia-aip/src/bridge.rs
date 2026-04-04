@@ -139,6 +139,11 @@ pub struct AIPBridge {
     aip_result_class: Py<PyAny>,
     /// Python `InputResponse` class — wraps the input_response dict for attribute access.
     input_response_class: Py<PyAny>,
+    /// Working directory for `APOLLIA.md` discovery — `None` if not configured.
+    ///
+    /// When set, `call_run()` fetches `APOLLIA.md` asynchronously and injects its content
+    /// into `ctx.workspace.apollia_md` before invoking `agent.run(task, ctx)`.
+    cwd: Option<std::path::PathBuf>,
 }
 
 impl AIPBridge {
@@ -189,7 +194,18 @@ impl AIPBridge {
             has_on_plan_complete: validated.has_on_plan_complete,
             aip_result_class,
             input_response_class,
+            cwd: None,
         })
+    }
+
+    /// Configures the working directory for `APOLLIA.md` discovery.
+    ///
+    /// When set, `call_run()` looks up `APOLLIA.md` from `cwd` upward and injects
+    /// its content into `ctx.workspace.apollia_md` before calling the Python agent.
+    /// Fails silently if `APOLLIA.md` is not found — the agent call continues unchanged.
+    pub fn with_cwd(mut self, cwd: std::path::PathBuf) -> Self {
+        self.cwd = Some(cwd);
+        self
     }
 
     /// Returns `true` if the agent exposes an `on_plan_complete()` hook.
@@ -229,6 +245,20 @@ impl AIPBridge {
         let aip_result_class = Python::with_gil(|py| self.aip_result_class.clone_ref(py));
         let input_response_class = Python::with_gil(|py| self.input_response_class.clone_ref(py));
 
+        // Fetch APOLLIA.md asynchronously (before spawn_blocking) if cwd is configured.
+        let apollia_md_content: Option<String> = if let Some(ref cwd) = self.cwd {
+            let config = apollia_workspace::WorkspaceConfig::default();
+            apollia_workspace::apollia_md::ApolliamdFinder::find(
+                cwd,
+                config.apollia_md_max_bytes,
+                config.apollia_md_search_depth,
+            )
+            .await
+            .map(|(_, content)| content)
+        } else {
+            None
+        };
+
         let result_json = tokio::task::spawn_blocking(move || {
             Python::with_gil(|py| -> Result<String, AIPBridgeError> {
                 // 1. Inject AIPResult and InputResponse into the agent's run method globals
@@ -249,6 +279,22 @@ impl AIPBridge {
                     .map_err(|e| {
                         AIPBridgeError::Internal(format!("inject InputResponse failed: {e}"))
                     })?;
+
+                // 1b. Inject APOLLIA.md content into ctx.workspace if available.
+                if let Some(ref content) = apollia_md_content {
+                    if let Ok(ctx_bound) = ctx.bind(py).downcast::<crate::context::RuntimeContext>()
+                    {
+                        // Clone the Py<WorkspaceContextPy> handle to avoid borrow conflicts.
+                        let ws_py_opt = ctx_bound
+                            .borrow()
+                            .workspace
+                            .as_ref()
+                            .map(|w| w.clone_ref(py));
+                        if let Some(ws_py) = ws_py_opt {
+                            ws_py.borrow_mut(py).apollia_md = Some(content.clone());
+                        }
+                    }
+                }
 
                 // 2. Deserialise AIPTask into a Python dict.
                 let task_dict = json_loads(py, &task_json)
@@ -879,6 +925,100 @@ agent = A()
                 "expected 'False|Remise' in output, got: {}",
                 t.text
             );
+        } else {
+            panic!("expected TextPart output");
+        }
+    }
+
+    // APOLLIA.md injection — workspace context enriched before agent call
+
+    #[tokio::test]
+    async fn test_apollia_md_injected_into_workspace_context() {
+        // GIVEN a tmpdir with APOLLIA.md and a bridge configured with that cwd
+        let dir = tempfile::tempdir().expect("tempdir");
+        tokio::fs::write(
+            dir.path().join("APOLLIA.md"),
+            "Répondre toujours en français",
+        )
+        .await
+        .expect("write");
+
+        let code = r#"
+class WorkspaceReader:
+    def manifest(self):
+        return {
+            "name": "ws-reader", "version": "1.0.0",
+            "description": "reads workspace", "tools_required": [],
+        }
+    async def run(self, task, ctx):
+        md = ctx.workspace.apollia_md if ctx.workspace is not None else None
+        return {
+            "status": "completed",
+            "output": [{"type": "text", "text": md or "no-apollia-md"}],
+        }
+agent = WorkspaceReader()
+"#;
+        let bridge = create_bridge(code).with_cwd(dir.path().to_owned());
+
+        // Build a RuntimeContext with an empty WorkspaceContextPy so ctx.workspace is not None
+        let ws_ctx = apollia_core::WorkspaceContext::default();
+        let ctx = Python::with_gil(|py| {
+            let rc = crate::context::RuntimeContext::for_test().with_workspace(ws_ctx);
+            pyo3::Py::new(py, rc).expect("ctx").into_any()
+        });
+
+        // WHEN call_run() is invoked
+        let result = bridge.call_run(&AIPTask::default(), ctx).await;
+
+        // THEN the agent received the APOLLIA.md content via ctx.workspace.apollia_md
+        assert!(result.is_ok(), "call_run failed: {:?}", result.err());
+        let aip_result = result.expect("should succeed");
+        if let Some(apollia_core::AIPPart::Text(t)) = aip_result.output.first() {
+            assert!(
+                t.text.contains("français"),
+                "expected APOLLIA.md content in output, got: {}",
+                t.text
+            );
+        } else {
+            panic!("expected TextPart output");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_no_apollia_md_workspace_not_modified() {
+        // GIVEN a bridge with cwd pointing to a dir without APOLLIA.md
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        let code = r#"
+class WsReaderNoMd:
+    def manifest(self):
+        return {
+            "name": "ws-reader-no-md", "version": "1.0.0",
+            "description": "reads workspace", "tools_required": [],
+        }
+    async def run(self, task, ctx):
+        md = ctx.workspace.apollia_md if ctx.workspace is not None else None
+        return {
+            "status": "completed",
+            "output": [{"type": "text", "text": md or "no-apollia-md"}],
+        }
+agent = WsReaderNoMd()
+"#;
+        let bridge = create_bridge(code).with_cwd(dir.path().to_owned());
+        let ws_ctx = apollia_core::WorkspaceContext::default();
+        let ctx = Python::with_gil(|py| {
+            let rc = crate::context::RuntimeContext::for_test().with_workspace(ws_ctx);
+            pyo3::Py::new(py, rc).expect("ctx").into_any()
+        });
+
+        // WHEN call_run() is invoked without APOLLIA.md
+        let result = bridge.call_run(&AIPTask::default(), ctx).await;
+
+        // THEN the agent received "no-apollia-md" (workspace.apollia_md is None)
+        assert!(result.is_ok(), "call_run failed: {:?}", result.err());
+        let aip_result = result.expect("should succeed");
+        if let Some(apollia_core::AIPPart::Text(t)) = aip_result.output.first() {
+            assert_eq!(t.text, "no-apollia-md", "unexpected: {}", t.text);
         } else {
             panic!("expected TextPart output");
         }

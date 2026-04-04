@@ -234,6 +234,8 @@ impl McpClientManagerHandle {
                             },
                             tags: tool_tags,
                             dangerous: requires_approval,
+                            is_read_only: false,
+                            risk_score: 3,
                         };
 
                         match tool_registry.register(descriptor).await {
@@ -525,6 +527,8 @@ impl McpClientManager {
                 },
                 tags: tags.clone(),
                 dangerous: requires_approval,
+                is_read_only: false,
+                risk_score: 3,
             };
 
             match self.tool_registry.register(descriptor).await {

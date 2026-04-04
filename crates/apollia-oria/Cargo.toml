@@ -6,10 +6,11 @@ description = "Apollia OS — ORIA Engine (Observer-Reasoner-Actor, StepBudget e
 license = "MIT"
 
 [dependencies]
-apollia-core   = { workspace = true }
-apollia-tools  = { workspace = true }
-apollia-memory = { workspace = true }
-apollia-llm    = { workspace = true, features = ["cloud"] }
+apollia-core      = { workspace = true }
+apollia-tools     = { workspace = true }
+apollia-memory    = { workspace = true }
+apollia-llm       = { workspace = true, features = ["cloud"] }
+apollia-workspace = { path = "../apollia-workspace" }
 tokio          = { workspace = true }
 serde          = { workspace = true }
 serde_json     = { workspace = true }

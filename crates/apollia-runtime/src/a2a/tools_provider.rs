@@ -80,6 +80,8 @@ impl A2AToolsProvider {
                     sandbox_profile: SandboxProfile::ReadOnly,
                     tags: vec!["a2a".to_string()],
                     dangerous: false,
+                    is_read_only: false,
+                    risk_score: 0,
                 }
             })
             .collect()

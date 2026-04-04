@@ -550,6 +550,63 @@ fn is_leap(y: i32) -> bool {
 }
 
 // ─────────────────────────────────────────────
+// WorkspaceContextPy
+// ─────────────────────────────────────────────
+
+/// Contexte workspace exposé à l'agent Python via `ctx.workspace`.
+///
+/// Construit depuis un [`apollia_core::WorkspaceContext`] collecté par
+/// `apollia-workspace`. Les champs sont accessibles en lecture seule depuis Python
+/// via des getters `#[pymethods]`. Mutable depuis Rust (champs `pub`) pour
+/// permettre au bridge d'injecter le contenu d'`APOLLIA.md` lors de `call_run()`.
+#[pyclass]
+pub struct WorkspaceContextPy {
+    /// Branche git courante, ou `None` si hors dépôt git ou git non disponible.
+    pub git_branch: Option<String>,
+    /// Statut git court (`git status --short`), ou `None` si le working tree est propre.
+    pub git_status: Option<String>,
+    /// `true` si le working tree ne contient aucune modification non committée.
+    pub git_is_clean: bool,
+    /// Contenu de `APOLLIA.md` (tronqué via middle-trim), ou `None` si absent.
+    pub apollia_md: Option<String>,
+    /// Chemin absolu de `APOLLIA.md`, ou `None` si non trouvé.
+    pub apollia_md_path: Option<String>,
+}
+
+#[pymethods]
+impl WorkspaceContextPy {
+    /// Branche git courante.
+    #[getter]
+    fn git_branch(&self) -> Option<&str> {
+        self.git_branch.as_deref()
+    }
+
+    /// Statut git court.
+    #[getter]
+    fn git_status(&self) -> Option<&str> {
+        self.git_status.as_deref()
+    }
+
+    /// `True` si le working tree est propre.
+    #[getter]
+    fn git_is_clean(&self) -> bool {
+        self.git_is_clean
+    }
+
+    /// Contenu d'`APOLLIA.md`, ou `None` si absent.
+    #[getter]
+    fn apollia_md(&self) -> Option<&str> {
+        self.apollia_md.as_deref()
+    }
+
+    /// Chemin absolu d'`APOLLIA.md`, ou `None` si non trouvé.
+    #[getter]
+    fn apollia_md_path(&self) -> Option<&str> {
+        self.apollia_md_path.as_deref()
+    }
+}
+
+// ─────────────────────────────────────────────
 // RuntimeContext
 // ─────────────────────────────────────────────
 
@@ -621,6 +678,12 @@ pub struct RuntimeContext {
     /// Initialisé par l'`A2AInvoker` à la première invocation et propagé
     /// dans les invocations suivantes pour limiter le temps total de la chaîne.
     chain_deadline: Option<Instant>,
+    /// Contexte workspace collecté au démarrage de la tâche.
+    ///
+    /// Peuplé par [`with_workspace`](RuntimeContext::with_workspace) ou via le bridge
+    /// lors de `call_run()`. Expose `ctx.workspace.git_branch`, `ctx.workspace.apollia_md`, etc.
+    /// `None` si le runtime n'a pas collecté le contexte workspace pour cette tâche.
+    pub workspace: Option<Py<WorkspaceContextPy>>,
 }
 
 impl RuntimeContext {
@@ -706,7 +769,49 @@ impl RuntimeContext {
             user_memory_read_only,
             a2a_depth: 0,
             chain_deadline: None,
+            workspace: None,
         }
+    }
+
+    /// Construit un contexte minimal pour les tests unitaires intra-crate.
+    ///
+    /// Tous les champs optionnels sont à `None`. Ne doit jamais être appelé
+    /// dans le code de production.
+    #[cfg(test)]
+    pub(crate) fn for_test() -> Self {
+        Self {
+            tools: None,
+            llm: None,
+            memory: None,
+            mailbox: None,
+            agent_name: "test-agent".to_string(),
+            supports_a2a: false,
+            user_context: None,
+            a2a_delegate: None,
+            a2a_invoker: None,
+            user_memory_read_only: false,
+            a2a_depth: 0,
+            chain_deadline: None,
+            workspace: None,
+        }
+    }
+
+    /// Injecte un [`apollia_core::WorkspaceContext`] collecté dans ce `RuntimeContext`.
+    ///
+    /// Convertit le contexte Rust en [`WorkspaceContextPy`] accessible depuis Python
+    /// via `ctx.workspace`. Doit être appelé après [`new_with_llm`](RuntimeContext::new_with_llm).
+    pub fn with_workspace(mut self, ctx: apollia_core::WorkspaceContext) -> Self {
+        let workspace_py = WorkspaceContextPy {
+            git_branch: ctx.git_branch,
+            git_status: ctx.git_status,
+            git_is_clean: ctx.git_is_clean,
+            apollia_md: ctx.apollia_md,
+            apollia_md_path: ctx
+                .apollia_md_path
+                .map(|p| p.to_string_lossy().into_owned()),
+        };
+        self.workspace = pyo3::Python::with_gil(|py| pyo3::Py::new(py, workspace_py).ok());
+        self
     }
 }
 
@@ -746,6 +851,19 @@ impl RuntimeContext {
     fn memory(&self, py: Python<'_>) -> PyObject {
         match &self.memory {
             Some(mem) => mem.clone_ref(py).into_any(),
+            None => py.None(),
+        }
+    }
+
+    /// Contexte workspace collecté au démarrage de la tâche.
+    ///
+    /// Propriété Python `ctx.workspace`. Expose `ctx.workspace.git_branch`,
+    /// `ctx.workspace.git_is_clean`, `ctx.workspace.apollia_md`, etc.
+    /// Retourne `None` Python si le runtime n'a pas collecté le contexte workspace.
+    #[getter]
+    fn workspace(&self, py: Python<'_>) -> PyObject {
+        match &self.workspace {
+            Some(ws) => ws.clone_ref(py).into_any(),
             None => py.None(),
         }
     }
@@ -1283,6 +1401,8 @@ mod tests {
             sandbox_profile: SandboxProfile::FileSystem,
             tags: vec![],
             dangerous: false,
+            is_read_only: false,
+            risk_score: 5,
         }
     }
 
@@ -1297,6 +1417,8 @@ mod tests {
             sandbox_profile: SandboxProfile::FileSystem,
             tags: vec![],
             dangerous: false,
+            is_read_only: false,
+            risk_score: 8,
         }
     }
 
@@ -1495,6 +1617,8 @@ mod tests {
             sandbox_profile: SandboxProfile::FileSystem,
             tags: vec!["shell".to_string(), "execution".to_string()],
             dangerous: false,
+            is_read_only: false,
+            risk_score: 8,
         };
 
         // WHEN on appelle describe_inner
@@ -1527,6 +1651,8 @@ mod tests {
             sandbox_profile: SandboxProfile::ReadOnly,
             tags: vec![],
             dangerous: false,
+            is_read_only: true,
+            risk_score: 0,
         };
 
         // WHEN on appelle describe_inner
@@ -1604,6 +1730,7 @@ mod a2a_tests {
             user_memory_read_only: false,
             a2a_depth: 0,
             chain_deadline: None,
+            workspace: None,
         };
 
         // THEN les vérifications internes échouent
@@ -1641,6 +1768,7 @@ mod a2a_tests {
             user_memory_read_only: false,
             a2a_depth: 0,
             chain_deadline: None,
+            workspace: None,
         };
 
         // THEN user_context is Some with expected categories
@@ -1667,6 +1795,7 @@ mod a2a_tests {
             user_memory_read_only: false,
             a2a_depth: 0,
             chain_deadline: None,
+            workspace: None,
         };
 
         // THEN user_context is None
@@ -1846,5 +1975,110 @@ mod tool_proxy_a2a_tests {
         );
 
         audit.shutdown().await;
+    }
+}
+
+// ─────────────────────────────────────────────
+// Tests — WorkspaceContextPy
+// ─────────────────────────────────────────────
+
+#[cfg(test)]
+mod workspace_context_tests {
+    use super::*;
+    use apollia_core::WorkspaceContext;
+
+    #[test]
+    fn test_workspace_context_py_getters() {
+        // GIVEN a WorkspaceContextPy with all fields populated
+        let ws = WorkspaceContextPy {
+            git_branch: Some("main".to_string()),
+            git_status: Some("M src/lib.rs".to_string()),
+            git_is_clean: false,
+            apollia_md: Some("# Rules\nReply in French".to_string()),
+            apollia_md_path: Some("/repo/APOLLIA.md".to_string()),
+        };
+        // THEN Rust-side getters return the expected values
+        assert_eq!(ws.git_branch(), Some("main"));
+        assert_eq!(ws.git_status(), Some("M src/lib.rs"));
+        assert!(!ws.git_is_clean());
+        assert_eq!(ws.apollia_md(), Some("# Rules\nReply in French"));
+        assert_eq!(ws.apollia_md_path(), Some("/repo/APOLLIA.md"));
+    }
+
+    #[test]
+    fn test_workspace_context_py_none_fields() {
+        // GIVEN a WorkspaceContextPy outside a git repo with no APOLLIA.md
+        let ws = WorkspaceContextPy {
+            git_branch: None,
+            git_status: None,
+            git_is_clean: false,
+            apollia_md: None,
+            apollia_md_path: None,
+        };
+        // THEN optional getters return None
+        assert!(ws.git_branch().is_none());
+        assert!(ws.git_status().is_none());
+        assert!(ws.apollia_md().is_none());
+        assert!(ws.apollia_md_path().is_none());
+    }
+
+    #[test]
+    fn test_runtime_context_with_workspace() {
+        // GIVEN a WorkspaceContext with git branch and APOLLIA.md
+        let ws_ctx = WorkspaceContext {
+            git_branch: Some("feature/test".to_string()),
+            git_is_clean: true,
+            apollia_md: Some("Reply in English".to_string()),
+            ..WorkspaceContext::default()
+        };
+        // WHEN a RuntimeContext is enriched via with_workspace()
+        // (struct literal accessible from within the same crate via use super::*)
+        let ctx = RuntimeContext {
+            tools: None,
+            llm: None,
+            memory: None,
+            mailbox: None,
+            agent_name: "test-ws-agent".to_string(),
+            supports_a2a: false,
+            user_context: None,
+            a2a_delegate: None,
+            a2a_invoker: None,
+            user_memory_read_only: false,
+            a2a_depth: 0,
+            chain_deadline: None,
+            workspace: None,
+        }
+        .with_workspace(ws_ctx);
+        // THEN workspace is populated with the expected values
+        assert!(ctx.workspace.is_some());
+        pyo3::Python::with_gil(|py| {
+            let ws = ctx.workspace.as_ref().expect("workspace should be Some");
+            let borrowed = ws.borrow(py);
+            assert_eq!(borrowed.git_branch(), Some("feature/test"));
+            assert!(borrowed.git_is_clean());
+            assert_eq!(borrowed.apollia_md(), Some("Reply in English"));
+        });
+    }
+
+    #[test]
+    fn test_runtime_context_workspace_none_by_default() {
+        // GIVEN a RuntimeContext built without workspace
+        let ctx = RuntimeContext {
+            tools: None,
+            llm: None,
+            memory: None,
+            mailbox: None,
+            agent_name: "test-ws-none".to_string(),
+            supports_a2a: false,
+            user_context: None,
+            a2a_delegate: None,
+            a2a_invoker: None,
+            user_memory_read_only: false,
+            a2a_depth: 0,
+            chain_deadline: None,
+            workspace: None,
+        };
+        // THEN workspace is None
+        assert!(ctx.workspace.is_none());
     }
 }

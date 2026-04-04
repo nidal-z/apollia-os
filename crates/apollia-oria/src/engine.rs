@@ -11,6 +11,7 @@
 //! remains available for callers that already hold an [`AgentRunner`].
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::time::Instant;
@@ -21,6 +22,8 @@ use apollia_core::{
 };
 use apollia_llm::{CompletionModel, LlmRouter};
 use apollia_memory::manager::MemoryManager;
+
+use apollia_workspace::{WorkspaceAssembler, WorkspaceConfig};
 
 use crate::actor::{ActorLoop, ToolProxyTrait};
 use crate::budget::StepBudget;
@@ -193,6 +196,15 @@ pub struct ORIAEngine {
     /// Un cache hit évite l'appel LLM et émet [`RuntimeEvent::PlanCacheHit`].
     /// Les erreurs de cache sont loguées en `warn` et n'empêchent jamais l'exécution.
     plan_cache: Option<Mutex<PlanCacheRepository>>,
+    /// Assembleur de contexte workspace avec cache TTL.
+    ///
+    /// Collecte la branche git, l'état des fichiers et le contenu d'`APOLLIA.md`
+    /// au démarrage d'une tâche orchestrée, puis injecte le résultat dans le system prompt.
+    workspace_assembler: WorkspaceAssembler,
+    /// Répertoire de travail utilisé comme racine pour la collecte workspace.
+    ///
+    /// Initialisé à `"."` par défaut ; surchargeable via [`with_cwd`](ORIAEngine::with_cwd).
+    cwd: PathBuf,
 }
 
 impl ORIAEngine {
@@ -219,6 +231,8 @@ impl ORIAEngine {
             task_repository: None,
             memory_manager: None,
             plan_cache: None,
+            workspace_assembler: WorkspaceAssembler::new(WorkspaceConfig::default()),
+            cwd: PathBuf::from("."),
         }
     }
 
@@ -316,6 +330,38 @@ impl ORIAEngine {
         self
     }
 
+    /// Configure le répertoire de travail pour la collecte du contexte workspace.
+    ///
+    /// Utilisé par `execute_orchestrated_plan` pour collecter la branche git,
+    /// l'état des fichiers et le contenu d'`APOLLIA.md` avant chaque exécution.
+    pub fn with_cwd(mut self, cwd: PathBuf) -> Self {
+        self.cwd = cwd;
+        self
+    }
+
+    /// Crée un `ORIAEngine` avec un répertoire de travail spécifique.
+    ///
+    /// Raccourci équivalent à `ORIAEngine::new().with_cwd(cwd)`.
+    /// Principalement utilisé dans les tests unitaires.
+    pub fn new_with_cwd(cwd: PathBuf) -> Self {
+        Self::new().with_cwd(cwd)
+    }
+
+    /// Collecte le contexte workspace et retourne le bloc `<context name="workspace">`.
+    ///
+    /// Utilise [`WorkspaceAssembler`] avec le cache TTL configuré pour éviter
+    /// les I/O répétées. Retourne une chaîne vide si aucun contexte n'est disponible
+    /// (répertoire hors dépôt git, aucun `APOLLIA.md`, ou timeout de collecte dépassé).
+    pub async fn build_system_prompt(&self) -> String {
+        let workspace = self.workspace_assembler.collect(&self.cwd).await;
+        let body = workspace.format_for_prompt();
+        if body.is_empty() {
+            String::new()
+        } else {
+            format!("<context name=\"workspace\">\n{}\n</context>", body)
+        }
+    }
+
     // ─── Point d'entrée unifié ────────────────────────────────────────────
 
     /// Point d'entrée principal — route la tâche vers le mode Direct ou Orchestrated.
@@ -381,6 +427,17 @@ impl ORIAEngine {
             );
         }
 
+        // ── Collect workspace context and enrich system prompt ────────────
+        let workspace_block = self.build_system_prompt().await;
+        let enriched_system_prompt = if workspace_block.is_empty() {
+            manifest.system_prompt.clone()
+        } else {
+            manifest
+                .system_prompt
+                .as_ref()
+                .map(|sp| format!("{}\n\n{}", sp, workspace_block))
+        };
+
         // ── Build ContextBundle ───────────────────────────────────────────
         let available_tools: Vec<String> = manifest
             .tools_required
@@ -394,7 +451,7 @@ impl ORIAEngine {
             memory_snapshot: None,
             execution_mode: ExecutionMode::Orchestrated,
             available_tools,
-            manifest_system_prompt: manifest.system_prompt.clone(),
+            manifest_system_prompt: enriched_system_prompt,
             llm_backend_names: vec![],
         };
 
@@ -1248,6 +1305,64 @@ mod tests {
         );
         // run() was called exactly once (first call only)
         assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+}
+
+// ─────────────────────────────────────────────
+// Tests — workspace context injection
+// ─────────────────────────────────────────────
+
+#[cfg(test)]
+mod workspace_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_workspace_context_in_system_prompt() {
+        // GIVEN a tmpdir with APOLLIA.md containing "Test rules"
+        let dir = tempfile::tempdir().expect("tempdir");
+        tokio::fs::write(dir.path().join("APOLLIA.md"), "Test rules")
+            .await
+            .expect("write");
+        let engine = ORIAEngine::new_with_cwd(dir.path().to_owned());
+        // WHEN
+        let prompt = engine.build_system_prompt().await;
+        // THEN
+        assert!(
+            prompt.contains("<context name=\"workspace\">"),
+            "expected workspace context tag in: {prompt}"
+        );
+        assert!(
+            prompt.contains("Test rules"),
+            "expected APOLLIA.md content in: {prompt}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_no_apollia_md_no_workspace_rules_section() {
+        // GIVEN a tmpdir without APOLLIA.md
+        let dir = tempfile::tempdir().expect("tempdir");
+        let engine = ORIAEngine::new_with_cwd(dir.path().to_owned());
+        // WHEN
+        let prompt = engine.build_system_prompt().await;
+        // THEN — build_system_prompt retourne une chaîne vide (pas de section vide)
+        assert!(
+            !prompt.contains("Project rules"),
+            "no 'Project rules' section expected when APOLLIA.md is absent"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_build_system_prompt_empty_without_workspace() {
+        // GIVEN a tmpdir with no git repo and no APOLLIA.md
+        let dir = tempfile::tempdir().expect("tempdir");
+        let engine = ORIAEngine::new_with_cwd(dir.path().to_owned());
+        // WHEN
+        let prompt = engine.build_system_prompt().await;
+        // THEN — no workspace context block emitted
+        assert!(
+            prompt.is_empty() || !prompt.contains("<context name=\"workspace\">"),
+            "no context block expected in empty workspace: {prompt}"
+        );
     }
 }
 
