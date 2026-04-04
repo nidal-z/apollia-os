@@ -209,12 +209,7 @@ pub async fn get_task<B: ExecutionBackend + Clone>(
             };
             // Fetch token budget for terminal tasks.
             let token_budget = if is_terminal {
-                state
-                    .router_handle
-                    .get_budget(&task_id)
-                    .await
-                    .ok()
-                    .flatten()
+                state.router_handle.get_budget().await.ok().flatten()
             } else {
                 None
             };

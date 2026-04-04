@@ -74,9 +74,8 @@ enum RouterMessage<B: ExecutionBackend> {
     },
     /// Retirer le coordinateur d'un agent (agent stopping).
     UnregisterCoordinator { agent_id: AgentId },
-    /// Obtenir le budget de tokens d'une tache terminee.
+    /// Obtenir le dernier snapshot de budget de session.
     GetBudget {
-        task_id: TaskId,
         reply: oneshot::Sender<Option<TokenBudget>>,
     },
     /// Arreter l'acteur.
@@ -99,8 +98,8 @@ struct TaskRouter<B: ExecutionBackend> {
     task_agents: HashMap<TaskId, AgentId>,
     /// Output text stored when TaskCompleted is received (for GET /api/v1/tasks/:id).
     task_outputs: HashMap<TaskId, String>,
-    /// Token budget stored when TokenBudgetUpdated is received (for GET /api/v1/tasks/:id).
-    task_budgets: HashMap<TaskId, TokenBudget>,
+    /// Latest session budget snapshot — updated on each TokenBudgetUpdated event.
+    latest_budget: Option<TokenBudget>,
 }
 
 impl<B: ExecutionBackend> TaskRouter<B> {
@@ -165,9 +164,8 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                             info!(agent_id = %agent_id, "Coordinator retire");
                             self.coordinators.remove(&agent_id);
                         }
-                        RouterMessage::GetBudget { task_id, reply } => {
-                            let budget = self.task_budgets.get(&task_id).cloned();
-                            let _ = reply.send(budget);
+                        RouterMessage::GetBudget { reply } => {
+                            let _ = reply.send(self.latest_budget.clone());
                         }
                         RouterMessage::Shutdown => {
                             info!("TaskRouter arret demande");
@@ -194,8 +192,20 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                                 self.task_outputs.insert(task_id, text);
                             }
                         }
-                        Ok(RuntimeEvent::TokenBudgetUpdated { task_id, budget }) => {
-                            self.task_budgets.insert(task_id, budget);
+                        Ok(RuntimeEvent::TokenBudgetUpdated {
+                            session_cost_usd,
+                            total_input_tokens,
+                            total_output_tokens,
+                            total_cache_read_tokens,
+                            ..
+                        }) => {
+                            self.latest_budget = Some(TokenBudget {
+                                input_tokens: total_input_tokens,
+                                output_tokens: total_output_tokens,
+                                cache_read_tokens: total_cache_read_tokens,
+                                cost_usd: session_cost_usd,
+                                ..Default::default()
+                            });
                         }
                         _ => {}
                     }
@@ -350,7 +360,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             task_statuses: HashMap::new(),
             task_agents: HashMap::new(),
             task_outputs: HashMap::new(),
-            task_budgets: HashMap::new(),
+            latest_budget: None,
         };
         tokio::spawn(router.run());
         Self { tx }
@@ -423,14 +433,11 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             .map_err(|_| SubmitError::ActorDead)
     }
 
-    /// Obtient le budget de tokens d'une tache terminee, s'il est disponible.
-    pub async fn get_budget(&self, task_id: &str) -> Result<Option<TokenBudget>, SubmitError> {
+    /// Retourne le dernier snapshot de budget de session LLM, s'il est disponible.
+    pub async fn get_budget(&self) -> Result<Option<TokenBudget>, SubmitError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
-            .send(RouterMessage::GetBudget {
-                task_id: TaskId::from(task_id),
-                reply: reply_tx,
-            })
+            .send(RouterMessage::GetBudget { reply: reply_tx })
             .await
             .map_err(|_| SubmitError::ActorDead)?;
         reply_rx.await.map_err(|_| SubmitError::ActorDead)

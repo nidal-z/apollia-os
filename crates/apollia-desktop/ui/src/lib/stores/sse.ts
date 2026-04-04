@@ -71,6 +71,19 @@ export const lastAgentMessage = writable<AgentMessage | null>(null);
 /** Insights extracted from the most recent session by LLM analysis. */
 export const extractedInsights = writable<InsightEntry[]>([]);
 
+/** Real-time session LLM cost — updated on every TokenBudgetUpdated event. */
+export const sessionBudget = writable<SessionBudgetState | null>(null);
+
+/** Shape of the TokenBudgetUpdated event payload (Rust enum, externally tagged). */
+export interface SessionBudgetState {
+  session_cost_usd: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cache_read_tokens: number;
+  threshold_usd: number;
+  threshold_exceeded: boolean;
+}
+
 // ─── IPC refresh helpers ──────────────────────────────────────────────────────
 
 async function refreshAgentsViaIpc(): Promise<void> {
@@ -212,7 +225,16 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       void refreshTasksViaIpc();
       break;
     case "llm-changed":
-      void refreshLlmBackendsViaIpc();
+      if (event.event_type === "TokenBudgetUpdated") {
+        // Direct store update — no IPC round-trip needed, payload carries all fields.
+        const raw = event.payload as { TokenBudgetUpdated?: SessionBudgetState };
+        const budget = raw.TokenBudgetUpdated;
+        if (budget) {
+          sessionBudget.set(budget);
+        }
+      } else {
+        void refreshLlmBackendsViaIpc();
+      }
       break;
     case "trigger-fired":
       void refreshTriggersViaIpc();

@@ -14,6 +14,8 @@ use crate::pricing::PricingTier;
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::token_budget::TokenBudget;
+
+use crate::token_budget::SessionBudgetTracker;
 use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider, LlmRoutingConfig};
 
 use crate::types::{BackendInfo, CompletionModel, CompletionRequest, CompletionResponse, LlmError};
@@ -65,6 +67,18 @@ pub struct LlmConfig {
     /// ```
     #[serde(default)]
     pub pricing_overrides: HashMap<String, PricingTier>,
+    /// Seuil de coût en USD au-delà duquel [`RuntimeEvent::TokenBudgetUpdated`]
+    /// est émis avec `threshold_exceeded = true`.
+    ///
+    /// `None` (défaut) désactive les alertes de seuil.
+    ///
+    /// Exemple `apollia.toml` :
+    /// ```toml
+    /// [llm]
+    /// cost_alert_threshold_usd = 0.50
+    /// ```
+    #[serde(default)]
+    pub cost_alert_threshold_usd: Option<f64>,
 }
 
 /// Paramètres d'observabilité pour le router LLM.
@@ -183,11 +197,11 @@ pub struct LlmRouter {
     routing: Option<LlmRoutingConfig>,
     /// Token d'annulation partagé par tous les backends de ce router.
     cancellation_token: CancellationToken,
-    /// Budget de tokens cumulé sur la session courante.
+    /// Budget de session cumulé avec émission d'événements temps réel.
     ///
     /// Protégé par un `Mutex` standard (verrou court, jamais tenu pendant
     /// un appel async) pour permettre le `Clone` sans `Arc` supplémentaire.
-    session_budget: Arc<Mutex<TokenBudget>>,
+    session_budget: Arc<Mutex<SessionBudgetTracker>>,
 }
 
 impl LlmRouter {
@@ -276,7 +290,7 @@ impl LlmRouter {
             default: config.default.clone(),
             routing: config.routing.clone(),
             cancellation_token,
-            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
+            session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         })
     }
 
@@ -404,7 +418,10 @@ impl LlmRouter {
             default: config.default.clone(),
             routing: config.routing.clone(),
             cancellation_token,
-            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
+            session_budget: Arc::new(Mutex::new(SessionBudgetTracker::new(
+                bus,
+                config.cost_alert_threshold_usd,
+            ))),
         })
     }
 
@@ -450,24 +467,10 @@ impl LlmRouter {
         let response = backend.complete(req).await?;
         let latency_ms = started.elapsed().as_millis() as u64;
 
-        // Accumulate into the session budget — lock held only for the duration of merge().
-        {
-            let cost = response.usage.cost_usd.unwrap_or(0.0);
-            if let Ok(mut budget) = self.session_budget.lock() {
-                budget.merge(
-                    response.usage.prompt_tokens,
-                    response.usage.completion_tokens,
-                    response.usage.cache_read_input_tokens,
-                    response.usage.cache_write_input_tokens,
-                    cost,
-                    latency_ms,
-                );
-                if budget.ttft_ms.is_none() {
-                    if let Some(ttft) = response.ttft_ms {
-                        budget.ttft_ms = Some(ttft);
-                    }
-                }
-            }
+        // Accumulate into the session budget and emit TokenBudgetUpdated.
+        // Lock held only for the duration of record_usage() — never across awaits.
+        if let Ok(mut tracker) = self.session_budget.lock() {
+            tracker.record_usage(&response.usage, latency_ms, response.ttft_ms);
         }
 
         // : émission fire-and-forget — erreurs send() silencieusement ignorées.
@@ -575,7 +578,7 @@ impl LlmRouter {
             default,
             routing: None,
             cancellation_token: CancellationToken::new(),
-            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
+            session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         }
     }
 
@@ -639,7 +642,7 @@ impl LlmRouter {
             default: default_name,
             routing: None,
             cancellation_token,
-            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
+            session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         })
     }
 
@@ -694,7 +697,7 @@ impl LlmRouter {
             default: String::new(),
             routing: None,
             cancellation_token: CancellationToken::new(),
-            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
+            session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         }
     }
 
@@ -769,23 +772,22 @@ impl LlmRouter {
 
     /// Retourne un snapshot du budget de tokens cumulé depuis le dernier reset.
     ///
-    /// Appelé par `ORIAEngine` en fin de tâche pour émettre
-    /// [`RuntimeEvent::TokenBudgetUpdated`] et persister le coût dans
+    /// Appelé par `ORIAEngine` en fin de tâche pour persister le coût dans
     /// `~/.apollia/session_costs.jsonl`.
     pub fn session_budget(&self) -> TokenBudget {
         self.session_budget
             .lock()
-            .map(|b| b.clone())
+            .map(|t| t.to_token_budget())
             .unwrap_or_default()
     }
 
-    /// Remet à zéro le budget de session.
+    /// Remet à zéro les compteurs de session.
     ///
     /// Appelé par `ORIAEngine` au début de chaque tâche pour isoler
-    /// les compteurs par exécution.
+    /// les compteurs par exécution. La configuration du tracker (bus, seuil) est préservée.
     pub fn reset_session_budget(&self) {
-        if let Ok(mut budget) = self.session_budget.lock() {
-            *budget = TokenBudget::default();
+        if let Ok(mut tracker) = self.session_budget.lock() {
+            tracker.reset();
         }
     }
 
@@ -1035,7 +1037,7 @@ mod tests {
             default: default.into(),
             routing: None,
             cancellation_token: CancellationToken::new(),
-            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
+            session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         }
     }
 
@@ -1054,7 +1056,7 @@ mod tests {
             backends,
             routing,
             cancellation_token: CancellationToken::new(),
-            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
+            session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         }
     }
 
@@ -1303,6 +1305,7 @@ mod tests {
             observability: ObservabilityConfig::default(),
             routing: None,
             pricing_overrides: HashMap::new(),
+            cost_alert_threshold_usd: None,
         };
 
         // WHEN
@@ -1411,6 +1414,7 @@ mod tests {
             observability: ObservabilityConfig::default(),
             routing: None,
             pricing_overrides: HashMap::new(),
+            cost_alert_threshold_usd: None,
         };
 
         // WHEN

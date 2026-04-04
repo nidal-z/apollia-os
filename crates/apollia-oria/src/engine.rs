@@ -649,11 +649,15 @@ impl ORIAEngine {
             .await;
         let duration_ms = plan_start.elapsed().as_millis() as u64;
 
-        // Emit accumulated token budget for this task.
+        // Emit final session budget snapshot at end of task.
         let token_budget = self.llm_router.session_budget();
         let _ = self.event_bus.send(RuntimeEvent::TokenBudgetUpdated {
-            task_id: task_id_str.clone().into(),
-            budget: token_budget,
+            session_cost_usd: token_budget.cost_usd,
+            total_input_tokens: token_budget.input_tokens,
+            total_output_tokens: token_budget.output_tokens,
+            total_cache_read_tokens: token_budget.cache_read_tokens,
+            threshold_usd: f64::MAX,
+            threshold_exceeded: false,
         });
 
         // ── Post-process ──────────────────────────────────────────────────
@@ -748,11 +752,15 @@ impl ORIAEngine {
             .await;
         let duration_ms = plan_start.elapsed().as_millis() as u64;
 
-        // Emit accumulated token budget for this task.
+        // Emit final session budget snapshot at end of task.
         let token_budget = self.llm_router.session_budget();
         let _ = self.event_bus.send(RuntimeEvent::TokenBudgetUpdated {
-            task_id: task_id_str.clone().into(),
-            budget: token_budget,
+            session_cost_usd: token_budget.cost_usd,
+            total_input_tokens: token_budget.input_tokens,
+            total_output_tokens: token_budget.output_tokens,
+            total_cache_read_tokens: token_budget.cache_read_tokens,
+            threshold_usd: f64::MAX,
+            threshold_exceeded: false,
         });
 
         if step_result.status == TaskStatus::Completed {

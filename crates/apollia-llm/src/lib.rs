@@ -15,6 +15,7 @@ pub mod repository;
 pub mod retry;
 pub mod router;
 pub mod routing_level;
+pub mod token_budget;
 pub mod tool_helper;
 pub mod types;
 
@@ -25,6 +26,7 @@ pub use repository::{
 pub use retry::{IsCancelled, IsRetryable, RetryPolicy};
 pub use router::{BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig};
 pub use routing_level::LlmRoutingLevel;
+pub use token_budget::SessionBudgetTracker;
 pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{
     BackendInfo, CacheControl, ChatMessage, CompletionModel, CompletionRequest, CompletionResponse,

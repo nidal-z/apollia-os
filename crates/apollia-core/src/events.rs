@@ -781,16 +781,24 @@ pub enum RuntimeEvent {
     },
 
     // ── Token Budget events ──────────────────────
-    /// Le budget de tokens d'une tâche a été mis à jour.
+    /// Mise à jour du budget de session — émis après chaque appel LLM.
     ///
-    /// Émis par `ORIAEngine` à la fin de l'exécution d'une tâche orchestrée.
-    /// Le `TaskRouter` écoute cet événement pour associer le budget final
-    /// au `task_id` et l'inclure dans la réponse HTTP `GET /api/v1/tasks/{id}`.
+    /// Émis par `LlmRouter::complete_with_observability` après chaque appel backend.
+    /// Le desktop widget écoute cet événement pour afficher le coût en temps réel.
+    /// L'émission est non-bloquante (broadcast channel).
     TokenBudgetUpdated {
-        /// Identifiant de la tâche ayant produit ce budget.
-        task_id: TaskId,
-        /// Budget de tokens accumulé sur l'ensemble des appels LLM de la tâche.
-        budget: crate::token_budget::TokenBudget,
+        /// Coût total de la session en USD depuis le dernier reset.
+        session_cost_usd: f64,
+        /// Tokens en entrée cumulés depuis le dernier reset.
+        total_input_tokens: u64,
+        /// Tokens en sortie cumulés depuis le dernier reset.
+        total_output_tokens: u64,
+        /// Tokens lus depuis le cache cumulés depuis le dernier reset.
+        total_cache_read_tokens: u64,
+        /// Seuil de coût configuré par l'opérateur en USD. `f64::MAX` si non configuré.
+        threshold_usd: f64,
+        /// `true` si `session_cost_usd > threshold_usd`.
+        threshold_exceeded: bool,
     },
 
     // ── Context Manager events ───────────────────
@@ -1185,13 +1193,12 @@ mod tests {
             },
             // ── Token Budget ─────────────────────────────────
             RuntimeEvent::TokenBudgetUpdated {
-                task_id: "task-1".into(),
-                budget: crate::token_budget::TokenBudget {
-                    input_tokens: 300,
-                    output_tokens: 150,
-                    cache_read_tokens: 240,
-                    ..Default::default()
-                },
+                session_cost_usd: 0.0023,
+                total_input_tokens: 300,
+                total_output_tokens: 150,
+                total_cache_read_tokens: 240,
+                threshold_usd: 0.50,
+                threshold_exceeded: false,
             },
             // ── Context Manager ───────────────────────────────
             RuntimeEvent::ContextCompacted {
