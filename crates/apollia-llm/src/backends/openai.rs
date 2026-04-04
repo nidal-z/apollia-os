@@ -205,11 +205,13 @@ impl CompletionModel for OpenAICompatibleClient {
                 prompt_tokens: u.prompt_tokens,
                 completion_tokens: u.completion_tokens,
                 cost_usd: estimate_cost_usd(&model, u.prompt_tokens, u.completion_tokens),
+                ..Default::default()
             },
             None => TokenUsage {
                 prompt_tokens: 0,
                 completion_tokens: 0,
                 cost_usd: None,
+                ..Default::default()
             },
         };
 

@@ -80,10 +80,26 @@ pub struct CompletionResponse {
 // Tokens & coût
 // ─────────────────────────────────────────────
 
+/// Marquage de cache Anthropic pour le prompt caching.
+///
+/// Peut être positionné sur un `ChatMessage` pour indiquer que ce message
+/// doit être inclus dans un breakpoint de cache lors de la sérialisation
+/// vers l'API Anthropic. Seule la variante `Ephemeral` est supportée par
+/// l'API actuelle.
+///
+/// Les backends non-Anthropic (OpenAI, Ollama, local) ignorent ce champ.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CacheControl {
+    /// Cache éphémère : le préfixe est mis en cache pour 5 minutes maximum.
+    Ephemeral,
+}
+
 /// Statistiques de consommation de tokens et coût estimatif.
 ///
 /// `cost_usd` est `None` pour les backends locaux (coût = 0).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+/// Les champs `cache_*` sont `0` pour les backends non-Anthropic.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct TokenUsage {
     /// Nombre de tokens dans le prompt (entrée).
     pub prompt_tokens: u32,
@@ -91,6 +107,33 @@ pub struct TokenUsage {
     pub completion_tokens: u32,
     /// Coût estimatif en USD — `None` pour `EmbeddedBackend`.
     pub cost_usd: Option<f64>,
+    /// Tokens lus depuis le cache Anthropic (coût réduit ~90%).
+    /// Vaut `0` pour les backends qui ne supportent pas le prompt caching.
+    #[serde(default)]
+    pub cache_read_input_tokens: u32,
+    /// Tokens écrits dans le cache Anthropic (coût légèrement supérieur à l'input normal).
+    /// Vaut `0` pour les backends qui ne supportent pas le prompt caching.
+    #[serde(default)]
+    pub cache_write_input_tokens: u32,
+}
+
+impl TokenUsage {
+    /// Fusionne les compteurs d'un autre `TokenUsage` dans celui-ci.
+    ///
+    /// Additionne tous les champs de tokens. `cost_usd` est additionné
+    /// si les deux valeurs sont `Some`, sinon le `Some` disponible est conservé.
+    pub fn merge(&mut self, other: &TokenUsage) {
+        self.prompt_tokens += other.prompt_tokens;
+        self.completion_tokens += other.completion_tokens;
+        self.cache_read_input_tokens += other.cache_read_input_tokens;
+        self.cache_write_input_tokens += other.cache_write_input_tokens;
+        self.cost_usd = match (self.cost_usd, other.cost_usd) {
+            (Some(a), Some(b)) => Some(a + b),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
+        };
+    }
 }
 
 // ─────────────────────────────────────────────
@@ -121,6 +164,12 @@ pub struct ChatMessage {
     pub role: Role,
     /// Contenu du message (texte, résultat d'outil, ou texte + appels d'outils).
     pub content: MessageContent,
+    /// Marquage de cache Anthropic pour le prompt caching.
+    ///
+    /// Quand `Some(CacheControl::Ephemeral)`, le backend Anthropic inclut ce message
+    /// dans un breakpoint de cache lors de la construction de la requête.
+    /// Les backends non-Anthropic ignorent ce champ.
+    pub cache_control: Option<CacheControl>,
 }
 
 impl ChatMessage {
@@ -129,6 +178,7 @@ impl ChatMessage {
         Self {
             role: Role::System,
             content: MessageContent::Text(text.into()),
+            cache_control: None,
         }
     }
 
@@ -137,6 +187,7 @@ impl ChatMessage {
         Self {
             role: Role::User,
             content: MessageContent::Text(text.into()),
+            cache_control: None,
         }
     }
 
@@ -145,6 +196,7 @@ impl ChatMessage {
         Self {
             role: Role::Assistant,
             content: MessageContent::Text(text.into()),
+            cache_control: None,
         }
     }
 
@@ -156,6 +208,7 @@ impl ChatMessage {
                 text: text.to_owned(),
                 tool_calls: calls.to_vec(),
             },
+            cache_control: None,
         }
     }
 
@@ -167,6 +220,7 @@ impl ChatMessage {
                 tool_call_id: call_id.to_owned(),
                 content: content.to_owned(),
             },
+            cache_control: None,
         }
     }
 }
@@ -324,6 +378,13 @@ pub enum LlmError {
     #[error("max tokens reached")]
     MaxTokensReached,
 
+    /// Requête rejetée par l'API (erreur 400).
+    ///
+    /// Peut survenir si un paramètre invalide est envoyé (ex. `cache_control`
+    /// sans le header beta correspondant, ou modèle inexistant).
+    #[error("bad request: {0}")]
+    BadRequest(String),
+
     /// Impossible de parser la réponse du backend.
     #[error("response parse error: {0}")]
     ParseError(String),
@@ -476,9 +537,72 @@ mod tests {
             prompt_tokens: 10,
             completion_tokens: 20,
             cost_usd: None,
+            ..Default::default()
         };
         let json = serde_json::to_string(&usage).expect("serialization must succeed");
         assert!(json.contains("\"cost_usd\":null"));
+    }
+
+    // GIVEN CacheControl::Ephemeral
+    // WHEN serialized to JSON
+    // THEN produces the string "ephemeral"
+    #[test]
+    fn test_cache_control_serialization() {
+        let cc = CacheControl::Ephemeral;
+        let json = serde_json::to_string(&cc).expect("serialization must succeed");
+        assert_eq!(json, r#""ephemeral""#);
+    }
+
+    // GIVEN a ChatMessage with cache_control = None
+    // WHEN the field is inspected
+    // THEN it is None by default from all constructors
+    #[test]
+    fn test_chat_message_cache_control_none_by_default() {
+        let sys = ChatMessage::system("prompt");
+        let usr = ChatMessage::user("hello");
+        let ast = ChatMessage::assistant("reply");
+        assert!(sys.cache_control.is_none());
+        assert!(usr.cache_control.is_none());
+        assert!(ast.cache_control.is_none());
+    }
+
+    // GIVEN two TokenUsage values
+    // WHEN merge() is called
+    // THEN all fields are summed, cost_usd is accumulated
+    #[test]
+    fn test_token_usage_merge() {
+        let mut base = TokenUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            cost_usd: Some(0.001),
+            cache_read_input_tokens: 0,
+            cache_write_input_tokens: 200,
+        };
+        let extra = TokenUsage {
+            prompt_tokens: 30,
+            completion_tokens: 10,
+            cost_usd: Some(0.0005),
+            cache_read_input_tokens: 150,
+            cache_write_input_tokens: 0,
+        };
+        base.merge(&extra);
+        assert_eq!(base.prompt_tokens, 130);
+        assert_eq!(base.completion_tokens, 60);
+        assert_eq!(base.cache_read_input_tokens, 150);
+        assert_eq!(base.cache_write_input_tokens, 200);
+        let cost = base.cost_usd.expect("cost must be Some");
+        assert!((cost - 0.0015).abs() < f64::EPSILON);
+    }
+
+    // GIVEN a TokenUsage with cache fields
+    // WHEN deserialized from JSON without cache fields
+    // THEN cache fields default to 0
+    #[test]
+    fn test_token_usage_cache_fields_default_on_deserialize() {
+        let json = r#"{"prompt_tokens":10,"completion_tokens":5,"cost_usd":null}"#;
+        let usage: TokenUsage = serde_json::from_str(json).expect("must deserialize");
+        assert_eq!(usage.cache_read_input_tokens, 0);
+        assert_eq!(usage.cache_write_input_tokens, 0);
     }
 
     // GIVEN a ToolCall
@@ -519,6 +643,7 @@ mod tests {
             LlmError::BudgetExceeded,
             LlmError::MaxIterationsReached { iterations: 3 },
             LlmError::MaxTokensReached,
+            LlmError::BadRequest("invalid cache_control".into()),
             LlmError::ParseError("invalid json".into()),
             LlmError::UnsupportedModel {
                 architecture: "qwen35moe".into(),

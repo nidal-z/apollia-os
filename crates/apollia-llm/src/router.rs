@@ -788,6 +788,7 @@ mod tests {
                     prompt_tokens: 10,
                     completion_tokens: 5,
                     cost_usd: None,
+                    ..Default::default()
                 },
                 finish_reason: FinishReason::Stop,
                 latency_ms: 1,

@@ -356,6 +356,7 @@ fn build_response(content: String, newly_authorized: Vec<String>) -> ChatAgentRe
             prompt_tokens: 0,
             completion_tokens: 0,
             cost_usd: None,
+            ..Default::default()
         },
     }
 }

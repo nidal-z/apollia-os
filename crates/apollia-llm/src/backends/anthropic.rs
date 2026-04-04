@@ -3,18 +3,30 @@
 //! Ce module est compilé uniquement avec `feature = "cloud"`.
 //!
 //! Utilise l'API Anthropic Messages (`/v1/messages`) avec les headers natifs
-//! `x-api-key` et `anthropic-version: 2023-06-01`. Pas de SDK tiers.
+//! `x-api-key`, `anthropic-version: 2023-06-01` et le header beta
+//! `prompt-caching-2024-07-31` pour le prompt caching.
 //!
 //! # Architecture
 //!
 //! ```text
 //! apollia-llm [feature = "cloud"]
 //!   └── AnthropicClient : CompletionModel
-//!         ├── new()            — construit reqwest::Client avec clé API
-//!         ├── parse_response() — fonction pure testable sans HTTP
-//!         ├── complete()       — POST /v1/messages → CompletionResponse
-//!         └── stream()         — POST /v1/messages (stream=true) → SSE chunks
+//!         ├── new()                    — construit reqwest::Client avec clé API
+//!         ├── parse_response()         — fonction pure testable sans HTTP
+//!         ├── complete()               — POST /v1/messages → CompletionResponse
+//!         └── stream()                 — POST /v1/messages (stream=true) → SSE chunks
 //! ```
+//!
+//! # Prompt caching
+//!
+//! Chaque requête inclut le header beta `prompt-caching-2024-07-31`.
+//! `build_request()` applique trois breakpoints automatiques :
+//! - system prompt (breakpoint stable)
+//! - dernier outil (breakpoint stable)
+//! - 3ème message depuis la fin (breakpoint glissant)
+//!
+//! Les messages avec `ChatMessage.cache_control = Some(CacheControl::Ephemeral)`
+//! sont également marqués lors de la conversion.
 
 use std::pin::Pin;
 use std::time::Instant;
@@ -24,8 +36,8 @@ use reqwest::header::{HeaderName, HeaderValue, CONTENT_TYPE};
 
 use crate::pricing::{self, PricingTier};
 use crate::types::{
-    CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError, MessageContent,
-    Role, StreamChunk, TokenUsage, ToolCall,
+    CacheControl, CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError,
+    MessageContent, Role, StreamChunk, TokenUsage, ToolCall,
 };
 
 use super::openai::ApiBackendConfig;
@@ -43,6 +55,40 @@ const ANTHROPIC_API_KEY_HEADER: &str = "x-api-key";
 /// Nom du header de version de l'API Anthropic.
 const ANTHROPIC_VERSION_HEADER: &str = "anthropic-version";
 
+/// Header beta Anthropic activant le prompt caching.
+const PROMPT_CACHING_BETA_HEADER: &str = "anthropic-beta";
+
+/// Valeur du header beta pour le prompt caching.
+const PROMPT_CACHING_BETA: &str = "prompt-caching-2024-07-31";
+
+/// Multiplicateur de coût pour l'écriture dans le cache (25% plus cher que l'input normal).
+const CACHE_WRITE_COST_MULTIPLIER: f64 = 1.25;
+
+/// Multiplicateur de coût pour la lecture depuis le cache (90% moins cher que l'input normal).
+const CACHE_READ_COST_MULTIPLIER: f64 = 0.1;
+
+// ─────────────────────────────────────────────
+// Types internes — cache_control
+// ─────────────────────────────────────────────
+
+/// Représentation du `cache_control` dans le format API Anthropic.
+///
+/// Sérialisé en `{"type": "ephemeral"}`.
+#[derive(serde::Serialize, Clone)]
+struct AnthropicCacheControl {
+    #[serde(rename = "type")]
+    cache_type: &'static str,
+}
+
+impl AnthropicCacheControl {
+    /// Construit un `cache_control` de type `ephemeral`.
+    fn ephemeral() -> Self {
+        Self {
+            cache_type: "ephemeral",
+        }
+    }
+}
+
 // ─────────────────────────────────────────────
 // Types internes — sérialisation requête
 // ─────────────────────────────────────────────
@@ -54,7 +100,7 @@ struct AnthropicRequest {
     max_tokens: u32,
     messages: Vec<AnthropicMessage>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    system: Option<String>,
+    system: Option<AnthropicSystem>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tools: Option<Vec<AnthropicTool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -63,15 +109,38 @@ struct AnthropicRequest {
     temperature: Option<f32>,
 }
 
+/// Contenu du system prompt — soit une chaîne simple, soit un tableau de blocs avec cache_control.
+///
+/// L'API Anthropic accepte les deux formes. Le tableau est utilisé quand le prompt caching
+/// est activé pour permettre d'inclure `cache_control` sur le dernier bloc.
+#[derive(serde::Serialize, Clone)]
+#[serde(untagged)]
+enum AnthropicSystem {
+    /// System prompt sans caching — sérialisé comme une chaîne JSON.
+    Plain(String),
+    /// System prompt avec caching — sérialisé comme un tableau de blocs.
+    Blocks(Vec<AnthropicSystemBlock>),
+}
+
+/// Bloc de contenu dans le champ `system` de la requête Anthropic.
+#[derive(serde::Serialize, Clone)]
+struct AnthropicSystemBlock {
+    #[serde(rename = "type")]
+    block_type: &'static str,
+    text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_control: Option<AnthropicCacheControl>,
+}
+
 /// Message dans le format Anthropic (`role` + `content`).
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 struct AnthropicMessage {
     role: &'static str,
     content: AnthropicContent,
 }
 
 /// Contenu d'un message Anthropic — texte simple ou tableau de blocs.
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 #[serde(untagged)]
 enum AnthropicContent {
     /// Contenu textuel simple.
@@ -81,31 +150,39 @@ enum AnthropicContent {
 }
 
 /// Bloc de contenu dans le format Anthropic.
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum AnthropicBlock {
-    /// Bloc de texte.
-    Text { text: String },
+    /// Bloc de texte avec support optionnel du cache.
+    Text {
+        text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<AnthropicCacheControl>,
+    },
     /// Appel d'outil demandé par le modèle.
     ToolUse {
         id: String,
         name: String,
         input: serde_json::Value,
     },
-    /// Résultat d'un appel d'outil retourné au modèle.
+    /// Résultat d'un appel d'outil retourné au modèle, avec support optionnel du cache.
     ToolResult {
         tool_use_id: String,
         content: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<AnthropicCacheControl>,
     },
 }
 
 /// Spécification d'un outil au format Anthropic.
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 struct AnthropicTool {
     name: String,
     description: String,
     /// Schéma JSON des paramètres (équivalent de `parameters` en format OpenAI).
     input_schema: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_control: Option<AnthropicCacheControl>,
 }
 
 // ─────────────────────────────────────────────
@@ -134,11 +211,17 @@ enum AnthropicResponseContent {
     },
 }
 
-/// Statistiques de tokens dans la réponse Anthropic.
+/// Statistiques de tokens dans la réponse Anthropic, incluant les champs de cache.
 #[derive(serde::Deserialize)]
 struct AnthropicUsage {
     input_tokens: u32,
     output_tokens: u32,
+    /// Tokens lus depuis le cache — présents uniquement si le prompt caching est actif.
+    #[serde(default)]
+    cache_read_input_tokens: u32,
+    /// Tokens écrits dans le cache — présents uniquement si le prompt caching est actif.
+    #[serde(default)]
+    cache_write_input_tokens: u32,
 }
 
 // ─────────────────────────────────────────────
@@ -160,6 +243,7 @@ struct AnthropicUsage {
 /// Chaque requête inclut :
 /// - `x-api-key: {api_key}`
 /// - `anthropic-version: 2023-06-01`
+/// - `anthropic-beta: prompt-caching-2024-07-31`
 /// - `content-type: application/json`
 pub struct AnthropicClient {
     /// Client HTTP reqwest de base.
@@ -184,9 +268,6 @@ impl AnthropicClient {
     ///
     /// Les `pricing_overrides` sont chargés depuis `[llm.pricing_overrides]` dans
     /// `apollia.toml` et ont priorité sur la table par défaut lors du calcul du coût.
-    ///
-    /// Les headers Anthropic obligatoires (`x-api-key`, `anthropic-version`,
-    /// `content-type`) sont ajoutés à chaque requête via [`request_builder`](Self::request_builder).
     pub fn new(
         config: &ApiBackendConfig,
         api_key: String,
@@ -208,14 +289,10 @@ impl AnthropicClient {
     /// - `stop_reason = "tool_use"` → [`FinishReason::ToolCalls`]
     /// - `content[].type = "text"` → `response.content`
     /// - `content[].type = "tool_use"` → `response.tool_calls`
+    /// - `usage.cache_read_input_tokens` / `cache_write_input_tokens` → `TokenUsage`
     ///
     /// Retourne `LlmError::ParseError` si le JSON ne respecte pas le format
     /// attendu de l'API Anthropic Messages.
-    ///
-    /// # Note
-    ///
-    /// `latency_ms` et `usage.cost_usd` sont initialisés à `0` / `None` —
-    /// ils sont remplis par [`complete`](Self::complete) après l'appel HTTP.
     pub fn parse_response(json: &serde_json::Value) -> Result<CompletionResponse, LlmError> {
         let response: AnthropicResponse = serde_json::from_value(json.clone())
             .map_err(|e| LlmError::ParseError(format!("invalid Anthropic response: {e}")))?;
@@ -248,6 +325,8 @@ impl AnthropicClient {
                 prompt_tokens: response.usage.input_tokens,
                 completion_tokens: response.usage.output_tokens,
                 cost_usd: None, // rempli par complete() avec l'id du modèle
+                cache_read_input_tokens: response.usage.cache_read_input_tokens,
+                cache_write_input_tokens: response.usage.cache_write_input_tokens,
             },
             finish_reason,
             latency_ms: 0, // rempli par complete() après l'appel HTTP
@@ -255,6 +334,9 @@ impl AnthropicClient {
     }
 
     /// Construit un [`reqwest::RequestBuilder`] avec les headers Anthropic obligatoires.
+    ///
+    /// Inclut le header beta `prompt-caching-2024-07-31` sur toutes les requêtes
+    /// pour activer le prompt caching.
     ///
     /// Retourne `LlmError::InferenceError` si la clé API contient des caractères
     /// non-ASCII (ne peut pas arriver avec une clé Anthropic valide).
@@ -273,14 +355,24 @@ impl AnthropicClient {
                 HeaderName::from_static(ANTHROPIC_VERSION_HEADER),
                 HeaderValue::from_static(ANTHROPIC_VERSION),
             )
+            .header(
+                HeaderName::from_static(PROMPT_CACHING_BETA_HEADER),
+                HeaderValue::from_static(PROMPT_CACHING_BETA),
+            )
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json")))
     }
 
-    /// Convertit une [`CompletionRequest`] en [`AnthropicRequest`].
+    /// Convertit une [`CompletionRequest`] en [`AnthropicRequest`] avec breakpoints de cache.
     ///
     /// Extrait le message de rôle `System` (premier trouvé) vers le champ `system`
     /// de la requête Anthropic. Les autres messages sont convertis via
     /// [`convert_message`].
+    ///
+    /// Applique ensuite trois breakpoints de cache automatiques via
+    /// [`apply_cache_breakpoints`] :
+    /// 1. System prompt
+    /// 2. Dernier outil
+    /// 3. 3ème message depuis la fin de l'historique (breakpoint glissant)
     fn build_request(&self, req: &CompletionRequest, stream: bool) -> AnthropicRequest {
         let model = req
             .model
@@ -289,17 +381,17 @@ impl AnthropicClient {
             .to_owned();
 
         // Premier message System → champ `system` séparé (format Anthropic)
-        let system = req.messages.iter().find_map(|msg| {
+        let mut system: Option<AnthropicSystem> = req.messages.iter().find_map(|msg| {
             if msg.role == Role::System {
                 if let MessageContent::Text(text) = &msg.content {
-                    return Some(text.clone());
+                    return Some(AnthropicSystem::Plain(text.clone()));
                 }
             }
             None
         });
 
         // Messages non-System convertis au format Anthropic
-        let messages: Vec<AnthropicMessage> = req
+        let mut messages: Vec<AnthropicMessage> = req
             .messages
             .iter()
             .filter(|msg| msg.role != Role::System)
@@ -307,7 +399,7 @@ impl AnthropicClient {
             .collect();
 
         // Outils Apollia → format Anthropic (input_schema au lieu de parameters)
-        let tools = if req.tools.is_empty() {
+        let mut tools: Option<Vec<AnthropicTool>> = if req.tools.is_empty() {
             None
         } else {
             Some(
@@ -317,10 +409,14 @@ impl AnthropicClient {
                         name: spec.name.clone(),
                         description: spec.description.clone(),
                         input_schema: spec.parameters.clone(),
+                        cache_control: None,
                     })
                     .collect(),
             )
         };
+
+        // Applique les breakpoints de cache automatiques
+        apply_cache_breakpoints(&mut messages, &mut system, &mut tools);
 
         AnthropicRequest {
             model,
@@ -340,9 +436,11 @@ impl CompletionModel for AnthropicClient {
     ///
     /// Mappe `CompletionRequest` → format Anthropic, POST `/v1/messages`,
     /// parse la réponse via [`parse_response`](Self::parse_response), et remplit
-    /// `latency_ms` et `cost_usd` (estimatif depuis la table de prix intégrée).
+    /// `latency_ms` et `cost_usd` (estimatif depuis la table de prix intégrée,
+    /// avec prise en compte des tokens de cache lus/écrits).
     ///
-    /// Retourne `LlmError::HttpError` pour tout status HTTP ≥ 400.
+    /// Retourne `LlmError::BadRequest` pour un status HTTP 400 (ex. paramètre
+    /// invalide) et `LlmError::HttpError` pour tout autre status HTTP ≥ 400.
     async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
         let started = Instant::now();
         let body = self.build_request(&req, false);
@@ -363,6 +461,9 @@ impl CompletionModel for AnthropicClient {
         let status = http_response.status();
         if !status.is_success() {
             let body_text = http_response.text().await.unwrap_or_default();
+            if status.as_u16() == 400 {
+                return Err(LlmError::BadRequest(body_text));
+            }
             return Err(LlmError::HttpError {
                 status: status.as_u16(),
                 body: body_text,
@@ -377,11 +478,21 @@ impl CompletionModel for AnthropicClient {
         result.latency_ms = started.elapsed().as_millis() as u64;
         result.usage.cost_usd =
             match pricing::lookup_pricing(&model, &self.pricing_table, &self.pricing_overrides) {
-                Some(tier) => Some(
-                    result.usage.prompt_tokens as f64 * tier.input_per_mtok / 1_000_000.0
-                        + result.usage.completion_tokens as f64 * tier.output_per_mtok
-                            / 1_000_000.0,
-                ),
+                Some(tier) => {
+                    let input_cost =
+                        result.usage.prompt_tokens as f64 * tier.input_per_mtok / 1_000_000.0;
+                    let output_cost =
+                        result.usage.completion_tokens as f64 * tier.output_per_mtok / 1_000_000.0;
+                    let cache_write_cost = result.usage.cache_write_input_tokens as f64
+                        * tier.input_per_mtok
+                        * CACHE_WRITE_COST_MULTIPLIER
+                        / 1_000_000.0;
+                    let cache_read_cost = result.usage.cache_read_input_tokens as f64
+                        * tier.input_per_mtok
+                        * CACHE_READ_COST_MULTIPLIER
+                        / 1_000_000.0;
+                    Some(input_cost + output_cost + cache_write_cost + cache_read_cost)
+                }
                 None => {
                     tracing::warn!(model_id = %model, "unknown model for pricing");
                     None
@@ -393,7 +504,9 @@ impl CompletionModel for AnthropicClient {
             model = %model,
             prompt_tokens = result.usage.prompt_tokens,
             completion_tokens = result.usage.completion_tokens,
-            latency_ms = result.usage.completion_tokens,
+            cache_read_tokens = result.usage.cache_read_input_tokens,
+            cache_write_tokens = result.usage.cache_write_input_tokens,
+            latency_ms = result.latency_ms,
             "Anthropic complete() done"
         );
 
@@ -428,6 +541,9 @@ impl CompletionModel for AnthropicClient {
         let status = http_response.status();
         if !status.is_success() {
             let body_text = http_response.text().await.unwrap_or_default();
+            if status.as_u16() == 400 {
+                return Err(LlmError::BadRequest(body_text));
+            }
             return Err(LlmError::HttpError {
                 status: status.as_u16(),
                 body: body_text,
@@ -463,7 +579,88 @@ impl CompletionModel for AnthropicClient {
 }
 
 // ─────────────────────────────────────────────
-// Helpers privés
+// Helpers privés — prompt caching
+// ─────────────────────────────────────────────
+
+/// Applique les trois breakpoints de cache automatiques sur la requête Anthropic.
+///
+/// Breakpoint 1 — system prompt : converti en tableau de blocs avec `cache_control: ephemeral`.
+/// Breakpoint 2 — dernier outil : marqué avec `cache_control: ephemeral`.
+/// Breakpoint 3 — 3ème message depuis la fin : dernier bloc de contenu marqué.
+///
+/// Les breakpoints sont cumulatifs avec les marques individuelles issues de
+/// `ChatMessage.cache_control` (déjà appliquées par [`convert_message`]).
+fn apply_cache_breakpoints(
+    messages: &mut [AnthropicMessage],
+    system: &mut Option<AnthropicSystem>,
+    tools: &mut Option<Vec<AnthropicTool>>,
+) {
+    // Breakpoint 1 : system prompt → bloc avec cache_control
+    if let Some(sys) = system.as_mut() {
+        *sys = match sys.clone() {
+            AnthropicSystem::Plain(text) => AnthropicSystem::Blocks(vec![AnthropicSystemBlock {
+                block_type: "text",
+                text,
+                cache_control: Some(AnthropicCacheControl::ephemeral()),
+            }]),
+            AnthropicSystem::Blocks(mut blocks) => {
+                if let Some(last) = blocks.last_mut() {
+                    last.cache_control = Some(AnthropicCacheControl::ephemeral());
+                }
+                AnthropicSystem::Blocks(blocks)
+            }
+        };
+    }
+
+    // Breakpoint 2 : dernier outil
+    if let Some(tools_vec) = tools.as_mut() {
+        if let Some(last_tool) = tools_vec.last_mut() {
+            last_tool.cache_control = Some(AnthropicCacheControl::ephemeral());
+        }
+    }
+
+    // Breakpoint 3 : 3ème message depuis la fin (breakpoint glissant)
+    let len = messages.len();
+    if len >= 3 {
+        mark_message_cache_control(&mut messages[len - 3]);
+    }
+}
+
+/// Marque le dernier bloc de contenu d'un message avec `cache_control: ephemeral`.
+///
+/// Si le contenu est `Text(String)`, le convertit en `Blocks([Text { cache_control }])`.
+/// Si le contenu est `Blocks(...)`, applique `cache_control` au dernier bloc `Text` ou `ToolResult`.
+fn mark_message_cache_control(msg: &mut AnthropicMessage) {
+    let new_content = match msg.content.clone() {
+        AnthropicContent::Text(text) => AnthropicContent::Blocks(vec![AnthropicBlock::Text {
+            text,
+            cache_control: Some(AnthropicCacheControl::ephemeral()),
+        }]),
+        AnthropicContent::Blocks(mut blocks) => {
+            if let Some(last) = blocks.last_mut() {
+                match last {
+                    AnthropicBlock::Text { cache_control, .. } => {
+                        *cache_control = Some(AnthropicCacheControl::ephemeral());
+                    }
+                    AnthropicBlock::ToolResult { cache_control, .. } => {
+                        *cache_control = Some(AnthropicCacheControl::ephemeral());
+                    }
+                    AnthropicBlock::ToolUse { .. } => {
+                        // ToolUse ne supporte pas cache_control — breakpoint ignoré
+                        tracing::debug!(
+                            "cache breakpoint on message ending with tool_use block — ignored"
+                        );
+                    }
+                }
+            }
+            AnthropicContent::Blocks(blocks)
+        }
+    };
+    msg.content = new_content;
+}
+
+// ─────────────────────────────────────────────
+// Helpers privés — conversion messages
 // ─────────────────────────────────────────────
 
 /// Convertit un [`ChatMessage`](crate::types::ChatMessage) Apollia en
@@ -471,20 +668,52 @@ impl CompletionModel for AnthropicClient {
 ///
 /// Retourne `None` pour les messages `System` (gérés séparément dans le champ
 /// `system` de la requête) et pour les combinaisons rôle/contenu non supportées.
+///
+/// Quand `ChatMessage.cache_control` est `Some(CacheControl::Ephemeral)`, le contenu
+/// texte est converti en bloc avec `cache_control: ephemeral`.
 fn convert_message(msg: &crate::types::ChatMessage) -> Option<AnthropicMessage> {
+    let cache = msg
+        .cache_control
+        .as_ref()
+        .filter(|cc| **cc == CacheControl::Ephemeral)
+        .map(|_| AnthropicCacheControl::ephemeral());
+
     match (&msg.role, &msg.content) {
-        (Role::User, MessageContent::Text(text)) => Some(AnthropicMessage {
-            role: "user",
-            content: AnthropicContent::Text(text.clone()),
-        }),
-        (Role::Assistant, MessageContent::Text(text)) => Some(AnthropicMessage {
-            role: "assistant",
-            content: AnthropicContent::Text(text.clone()),
-        }),
+        (Role::User, MessageContent::Text(text)) => {
+            let content = if let Some(cc) = cache {
+                AnthropicContent::Blocks(vec![AnthropicBlock::Text {
+                    text: text.clone(),
+                    cache_control: Some(cc),
+                }])
+            } else {
+                AnthropicContent::Text(text.clone())
+            };
+            Some(AnthropicMessage {
+                role: "user",
+                content,
+            })
+        }
+        (Role::Assistant, MessageContent::Text(text)) => {
+            let content = if let Some(cc) = cache {
+                AnthropicContent::Blocks(vec![AnthropicBlock::Text {
+                    text: text.clone(),
+                    cache_control: Some(cc),
+                }])
+            } else {
+                AnthropicContent::Text(text.clone())
+            };
+            Some(AnthropicMessage {
+                role: "assistant",
+                content,
+            })
+        }
         (Role::Assistant, MessageContent::WithToolCalls { text, tool_calls }) => {
             let mut blocks: Vec<AnthropicBlock> = Vec::new();
             if !text.is_empty() {
-                blocks.push(AnthropicBlock::Text { text: text.clone() });
+                blocks.push(AnthropicBlock::Text {
+                    text: text.clone(),
+                    cache_control: None,
+                });
             }
             for tc in tool_calls {
                 blocks.push(AnthropicBlock::ToolUse {
@@ -492,6 +721,22 @@ fn convert_message(msg: &crate::types::ChatMessage) -> Option<AnthropicMessage> 
                     name: tc.name.clone(),
                     input: tc.arguments.clone(),
                 });
+            }
+            // cache_control sur le dernier bloc si marqué
+            if let Some(cc) = cache {
+                if let Some(last) = blocks.last_mut() {
+                    match last {
+                        AnthropicBlock::Text { cache_control, .. } => {
+                            *cache_control = Some(cc);
+                        }
+                        AnthropicBlock::ToolUse { .. } => {
+                            // ToolUse ne supporte pas cache_control — ignoré
+                        }
+                        AnthropicBlock::ToolResult { cache_control, .. } => {
+                            *cache_control = Some(cc);
+                        }
+                    }
+                }
             }
             Some(AnthropicMessage {
                 role: "assistant",
@@ -511,6 +756,7 @@ fn convert_message(msg: &crate::types::ChatMessage) -> Option<AnthropicMessage> 
                 content: AnthropicContent::Blocks(vec![AnthropicBlock::ToolResult {
                     tool_use_id: tool_call_id.clone(),
                     content: content.clone(),
+                    cache_control: cache,
                 }]),
             })
         }
@@ -713,6 +959,8 @@ mod tests {
         assert_eq!(response.content, "Bonjour !");
         assert_eq!(response.usage.prompt_tokens, 10);
         assert_eq!(response.usage.completion_tokens, 5);
+        assert_eq!(response.usage.cache_read_input_tokens, 0);
+        assert_eq!(response.usage.cache_write_input_tokens, 0);
     }
 
     // GIVEN une réponse Anthropic avec stop_reason = "tool_use" et content[].type = "tool_use"
@@ -815,5 +1063,186 @@ mod tests {
         assert_eq!(response.tool_calls.len(), 1);
         assert_eq!(response.tool_calls[0].id, "toolu_02");
         assert_eq!(response.tool_calls[0].name, "bash_executor");
+    }
+
+    // GIVEN une réponse avec cache_read_input_tokens et cache_write_input_tokens
+    // WHEN on appelle parse_response()
+    // THEN les champs cache sont correctement extraits dans TokenUsage
+    #[test]
+    fn test_parse_response_extracts_cache_tokens() {
+        let json = json!({
+            "content": [{"type": "text", "text": "response"}],
+            "stop_reason": "end_turn",
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "cache_read_input_tokens": 150,
+                "cache_write_input_tokens": 300
+            }
+        });
+
+        let response = AnthropicClient::parse_response(&json).unwrap();
+
+        assert_eq!(response.usage.cache_read_input_tokens, 150);
+        assert_eq!(response.usage.cache_write_input_tokens, 300);
+        assert_eq!(response.usage.prompt_tokens, 10);
+        assert_eq!(response.usage.completion_tokens, 5);
+    }
+
+    // GIVEN un system prompt + liste de messages (>= 3)
+    // WHEN apply_cache_breakpoints() est appelé
+    // THEN le system est en forme Blocks avec cache_control
+    //   ET le 3ème message depuis la fin a cache_control
+    #[test]
+    fn test_apply_cache_breakpoints_system_and_sliding() {
+        let mut system = Some(AnthropicSystem::Plain("Be helpful".to_string()));
+        let mut messages = vec![
+            AnthropicMessage {
+                role: "user",
+                content: AnthropicContent::Text("msg1".to_string()),
+            },
+            AnthropicMessage {
+                role: "assistant",
+                content: AnthropicContent::Text("msg2".to_string()),
+            },
+            AnthropicMessage {
+                role: "user",
+                content: AnthropicContent::Text("msg3".to_string()),
+            },
+            AnthropicMessage {
+                role: "assistant",
+                content: AnthropicContent::Text("msg4".to_string()),
+            },
+            AnthropicMessage {
+                role: "user",
+                content: AnthropicContent::Text("msg5".to_string()),
+            },
+        ];
+        let mut tools: Option<Vec<AnthropicTool>> = None;
+
+        apply_cache_breakpoints(&mut messages, &mut system, &mut tools);
+
+        // System doit être en Blocks avec cache_control
+        match &system {
+            Some(AnthropicSystem::Blocks(blocks)) => {
+                assert_eq!(blocks.len(), 1);
+                assert!(blocks[0].cache_control.is_some());
+            }
+            _ => panic!("system must be Blocks after apply_cache_breakpoints"),
+        }
+
+        // messages[2] = 3ème depuis la fin (index len-3 = 5-3 = 2) doit avoir cache_control
+        match &messages[2].content {
+            AnthropicContent::Blocks(blocks) => {
+                assert!(
+                    blocks.iter().any(|b| matches!(
+                        b,
+                        AnthropicBlock::Text {
+                            cache_control: Some(_),
+                            ..
+                        }
+                    )),
+                    "messages[2] must have cache_control"
+                );
+            }
+            _ => panic!("messages[2] must be Blocks after breakpoint"),
+        }
+
+        // messages[4] (dernier) ne doit PAS avoir cache_control auto
+        match &messages[4].content {
+            AnthropicContent::Text(_) => {}
+            _ => panic!("messages[4] must remain Text (no auto breakpoint)"),
+        }
+    }
+
+    // GIVEN une liste d'outils
+    // WHEN apply_cache_breakpoints() est appelé
+    // THEN le dernier outil a cache_control: ephemeral
+    #[test]
+    fn test_apply_cache_breakpoints_last_tool() {
+        let mut system: Option<AnthropicSystem> = None;
+        let mut messages: Vec<AnthropicMessage> = Vec::new();
+        let mut tools = Some(vec![
+            AnthropicTool {
+                name: "tool_a".to_string(),
+                description: "first".to_string(),
+                input_schema: json!({}),
+                cache_control: None,
+            },
+            AnthropicTool {
+                name: "tool_b".to_string(),
+                description: "last".to_string(),
+                input_schema: json!({}),
+                cache_control: None,
+            },
+        ]);
+
+        apply_cache_breakpoints(&mut messages, &mut system, &mut tools);
+
+        let tools_vec = tools.as_ref().unwrap();
+        assert!(
+            tools_vec[0].cache_control.is_none(),
+            "tool_a must not be marked"
+        );
+        assert!(
+            tools_vec[1].cache_control.is_some(),
+            "tool_b (last) must be marked"
+        );
+    }
+
+    // GIVEN un message avec ChatMessage.cache_control = Some(Ephemeral)
+    // WHEN convert_message() est appelé
+    // THEN le contenu texte est converti en bloc avec cache_control: ephemeral
+    #[test]
+    fn test_convert_message_respects_cache_control() {
+        use crate::types::ChatMessage;
+
+        let mut msg = ChatMessage::user("hello");
+        msg.cache_control = Some(CacheControl::Ephemeral);
+
+        let anthropic_msg = convert_message(&msg).expect("must convert");
+
+        match &anthropic_msg.content {
+            AnthropicContent::Blocks(blocks) => {
+                assert_eq!(blocks.len(), 1);
+                assert!(
+                    matches!(
+                        &blocks[0],
+                        AnthropicBlock::Text {
+                            cache_control: Some(_),
+                            ..
+                        }
+                    ),
+                    "user message with cache_control must produce a cached text block"
+                );
+            }
+            _ => panic!("expected Blocks content for cached user message"),
+        }
+    }
+
+    // GIVEN un message sans cache_control
+    // WHEN convert_message() est appelé
+    // THEN le contenu est Text simple (pas de blocs)
+    #[test]
+    fn test_convert_message_no_cache_control_stays_text() {
+        use crate::types::ChatMessage;
+
+        let msg = ChatMessage::user("hello");
+        let anthropic_msg = convert_message(&msg).expect("must convert");
+
+        assert!(
+            matches!(anthropic_msg.content, AnthropicContent::Text(_)),
+            "user message without cache_control must remain Text"
+        );
+    }
+
+    // GIVEN AnthropicCacheControl::ephemeral()
+    // WHEN sérialisé
+    // THEN produit {"type": "ephemeral"}
+    #[test]
+    fn test_anthropic_cache_control_serialization() {
+        let cc = AnthropicCacheControl::ephemeral();
+        let json = serde_json::to_value(&cc).unwrap();
+        assert_eq!(json["type"], "ephemeral");
     }
 }

@@ -549,6 +549,7 @@ impl CompletionModel for EmbeddedBackend {
                 prompt_tokens,
                 completion_tokens,
                 cost_usd: None,
+                ..Default::default()
             },
             finish_reason,
             latency_ms: started.elapsed().as_millis() as u64,

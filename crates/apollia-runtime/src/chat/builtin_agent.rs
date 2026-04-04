@@ -391,6 +391,7 @@ impl BuiltInChatAgent {
             prompt_tokens: 0,
             completion_tokens: 0,
             cost_usd: None,
+            ..Default::default()
         };
         let mut authorized = authorized_tools.clone();
         let obs = ObservabilityConfig::default();
@@ -973,6 +974,7 @@ mod tests {
                     prompt_tokens: 10,
                     completion_tokens: 5,
                     cost_usd: None,
+                    ..Default::default()
                 },
                 finish_reason: LlmFinishReason::Stop,
                 latency_ms: 1,
@@ -1033,6 +1035,7 @@ mod tests {
                         prompt_tokens: 10,
                         completion_tokens: 5,
                         cost_usd: None,
+                        ..Default::default()
                     },
                     finish_reason: LlmFinishReason::ToolCalls,
                     latency_ms: 1,
@@ -1045,6 +1048,7 @@ mod tests {
                         prompt_tokens: 15,
                         completion_tokens: 8,
                         cost_usd: None,
+                        ..Default::default()
                     },
                     finish_reason: LlmFinishReason::Stop,
                     latency_ms: 1,
@@ -1116,6 +1120,7 @@ mod tests {
                     prompt_tokens: 5,
                     completion_tokens: 3,
                     cost_usd: None,
+                    ..Default::default()
                 },
                 finish_reason: LlmFinishReason::ToolCalls,
                 latency_ms: 1,

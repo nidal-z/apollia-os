@@ -420,6 +420,7 @@ fn py_dict_to_chat_message(py: Python<'_>, obj: &PyObject) -> PyResult<ChatMessa
     Ok(ChatMessage {
         role,
         content: MessageContent::Text(content_str),
+        cache_control: None,
     })
 }
 

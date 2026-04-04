@@ -1392,6 +1392,7 @@ mod tests {
                     prompt_tokens: 0,
                     completion_tokens: 0,
                     cost_usd: None,
+                    ..Default::default()
                 },
                 finish_reason: FinishReason::Stop,
                 latency_ms: 0,
@@ -2143,6 +2144,7 @@ mod tests {
                     prompt_tokens: 0,
                     completion_tokens: 0,
                     cost_usd: None,
+                    ..Default::default()
                 },
                 finish_reason: FinishReason::Stop,
                 latency_ms: 0,
@@ -2484,6 +2486,7 @@ mod tests {
                         prompt_tokens: 0,
                         completion_tokens: 0,
                         cost_usd: None,
+                        ..Default::default()
                     },
                     finish_reason: FinishReason::Stop,
                     latency_ms: 0,
