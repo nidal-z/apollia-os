@@ -568,6 +568,90 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// Create a new chat session via `POST /api/v1/sessions`.
+    pub async fn create_chat_session(&self, mode: &str) -> Result<serde_json::Value, ClientError> {
+        let body = serde_json::json!({ "mode": mode });
+        let resp = self.post("/api/v1/sessions", Some(&body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Send a message in a chat session via `POST /api/v1/sessions/:id/messages`.
+    pub async fn send_chat_message(
+        &self,
+        session_id: &str,
+        content: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let body = serde_json::json!({ "content": content });
+        let resp = self
+            .post(
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Some(&body),
+            )
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Get session detail (with message history) via `GET /api/v1/sessions/:id`.
+    pub async fn get_chat_session(
+        &self,
+        session_id: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get(&format!("/api/v1/sessions/{session_id}")).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// List recent sessions via `GET /api/v1/sessions/recent?limit=N`.
+    pub async fn list_recent_chat_sessions(
+        &self,
+        limit: usize,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .get(&format!("/api/v1/sessions/recent?limit={limit}"))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Resume an existing session via `POST /api/v1/sessions/:id/resume`.
+    pub async fn resume_chat_session(
+        &self,
+        session_id: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .post(&format!("/api/v1/sessions/{session_id}/resume"), None)
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// Open a streaming GET connection for SSE endpoints.
     ///
     /// Unlike [`get`], this method does **not** buffer the entire response body.

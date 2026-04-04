@@ -358,7 +358,8 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
     use super::routes_audit::{get_audit_stats, list_audit};
     use super::routes_chat::{
         authorize_tool as chat_authorize_tool, close_session, create_session,
-        get_session as chat_get_session, list_sessions, send_message, stream_session,
+        get_session as chat_get_session, list_recent_sessions, list_sessions,
+        resume_session as chat_resume_session, send_message, stream_session,
     };
     use super::routes_llm::llm_routes;
     use super::routes_mcp::mcp_router;
@@ -491,6 +492,8 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             "/api/v1/sessions",
             get(list_sessions::<B>).post(create_session::<B>),
         )
+        // /recent must be registered before /:id to avoid the path param capturing "recent"
+        .route("/api/v1/sessions/recent", get(list_recent_sessions::<B>))
         .route(
             "/api/v1/sessions/:id",
             get(chat_get_session::<B>).delete(close_session::<B>),
@@ -501,6 +504,10 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
             post(chat_authorize_tool::<B>),
         )
         .route("/api/v1/sessions/:id/stream", get(stream_session::<B>))
+        .route(
+            "/api/v1/sessions/:id/resume",
+            post(chat_resume_session::<B>),
+        )
         // User profile + memory routes
         .route(
             "/api/v1/user/profile",

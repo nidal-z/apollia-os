@@ -382,6 +382,21 @@ impl Default for ChatSessionConfig {
     }
 }
 
+/// Lightweight summary of a recent session for CLI list display.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentSessionSummary {
+    /// Session identifier.
+    pub id: String,
+    /// Chat mode string (`"libre"` or `"agent"`).
+    pub mode: String,
+    /// Session status string.
+    pub status: String,
+    /// Content of the first user message in the session, if any.
+    pub first_message: Option<String>,
+    /// ISO-8601 creation timestamp.
+    pub created_at: String,
+}
+
 /// Summary of a past session for cross-session context injection.
 ///
 /// Returned by [`ChatSessionRepository::find_relevant_sessions`] and used

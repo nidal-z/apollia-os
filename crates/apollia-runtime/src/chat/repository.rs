@@ -9,7 +9,10 @@ use std::path::Path;
 
 use rusqlite::{params, Connection};
 
-use super::types::{ChatError, ChatMode, ChatRole, PastSessionSummary, SessionStatus};
+use super::types::{
+    ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, PastSessionSummary,
+    RecentSessionSummary, SessionStatus, ToolCallRecord,
+};
 
 /// SQL migration applied on first open.
 const MIGRATION_SQL: &str = include_str!("../../migrations/001_chat_tables.sql");
@@ -597,6 +600,105 @@ impl ChatSessionRepository {
         Ok(result)
     }
 
+    /// List the N most recent sessions with the content of their first user message.
+    ///
+    /// Uses a LEFT JOIN between `chat_sessions` and `chat_messages` (seq=1, role='user')
+    /// so that sessions with no messages are still included (first_message = None).
+    /// Results are ordered by `created_at DESC`, limited to `limit` rows.
+    pub fn list_recent_summaries(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<RecentSessionSummary>, ChatError> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT s.id, s.mode, s.status, m.content, s.created_at
+                 FROM chat_sessions s
+                 LEFT JOIN chat_messages m
+                   ON m.session_id = s.id AND m.seq = 1 AND m.role = 'user'
+                 ORDER BY s.created_at DESC
+                 LIMIT ?1",
+            )
+            .map_err(|e| ChatError::InternalError(format!("list_recent_summaries prepare: {e}")))?;
+
+        let rows = stmt
+            .query_map(params![limit], |row| {
+                Ok(RecentSessionSummary {
+                    id: row.get(0)?,
+                    mode: row.get(1)?,
+                    status: row.get(2)?,
+                    first_message: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            })
+            .map_err(|e| ChatError::InternalError(format!("list_recent_summaries query: {e}")))?;
+
+        let mut result = Vec::new();
+        for r in rows {
+            result.push(r.map_err(|e| {
+                ChatError::InternalError(format!("list_recent_summaries row: {e}"))
+            })?);
+        }
+        Ok(result)
+    }
+
+    /// Load a session and its full message history from SQLite.
+    ///
+    /// Returns `Err(ChatError::SessionNotFound)` if no session with `session_id` exists.
+    /// Authorized tools and message history are eagerly fetched and embedded into the
+    /// returned [`ChatSession`].
+    pub fn load_session_with_history(&self, session_id: &str) -> Result<ChatSession, ChatError> {
+        let row = self
+            .get_session(session_id)?
+            .ok_or_else(|| ChatError::SessionNotFound(session_id.to_string()))?;
+
+        let message_rows = self.get_messages(session_id, None)?;
+        let authorized_tools = self.get_authorized_tools(session_id)?;
+
+        let mode = ChatMode::from_sql(&row.mode)
+            .ok_or_else(|| ChatError::InternalError(format!("unknown mode: {}", row.mode)))?;
+        let status = SessionStatus::from_sql(&row.status)
+            .ok_or_else(|| ChatError::InternalError(format!("unknown status: {}", row.status)))?;
+        let available_tools: Vec<String> =
+            serde_json::from_str(&row.available_tools).unwrap_or_default();
+
+        let history: Vec<ChatMessage> = message_rows
+            .into_iter()
+            .map(|m| {
+                let role = ChatRole::from_sql(&m.role).unwrap_or(ChatRole::User);
+                let tool_calls: Option<Vec<ToolCallRecord>> = m
+                    .tool_calls_json
+                    .as_deref()
+                    .and_then(|j| serde_json::from_str(j).ok());
+                ChatMessage {
+                    id: m.id,
+                    role,
+                    content: m.content,
+                    tool_calls,
+                    tool_name: m.tool_name,
+                    created_at: m.created_at,
+                    seq: m.seq,
+                    metadata: None,
+                }
+            })
+            .collect();
+
+        Ok(ChatSession {
+            id: row.id,
+            mode,
+            agent_name: row.agent_name,
+            system_prompt: row.system_prompt,
+            status,
+            history,
+            authorized_tools,
+            available_tools,
+            created_at: row.created_at,
+            active_exchange: None,
+            llm_backend: row.llm_backend,
+            title: row.title,
+        })
+    }
+
     /// Get the set of authorized tool names for a session.
     pub fn get_authorized_tools(&self, session_id: &str) -> Result<HashSet<String>, ChatError> {
         let mut stmt = self
@@ -1083,5 +1185,123 @@ mod tests {
 
         // THEN no results (sanitized query is empty)
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_list_recent_summaries() {
+        // GIVEN 2 sessions, each with a first user message
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        repo.create_session(
+            "s1",
+            &ChatMode::Libre,
+            None,
+            "",
+            &[],
+            "2026-03-20T10:00:00Z",
+            None,
+        )
+        .expect("create s1");
+        repo.append_message(&AppendMessageParams {
+            id: "m1",
+            session_id: "s1",
+            role: &ChatRole::User,
+            content: "Hello from s1",
+            tool_calls_json: None,
+            tool_name: None,
+            created_at: "2026-03-20T10:01:00Z",
+        })
+        .expect("append s1");
+
+        repo.create_session(
+            "s2",
+            &ChatMode::Agent,
+            Some("my-agent"),
+            "",
+            &[],
+            "2026-03-20T11:00:00Z",
+            None,
+        )
+        .expect("create s2");
+        repo.append_message(&AppendMessageParams {
+            id: "m2",
+            session_id: "s2",
+            role: &ChatRole::User,
+            content: "Hello from s2",
+            tool_calls_json: None,
+            tool_name: None,
+            created_at: "2026-03-20T11:01:00Z",
+        })
+        .expect("append s2");
+
+        // WHEN we list recent summaries with limit=10
+        let summaries = repo.list_recent_summaries(10).expect("list");
+
+        // THEN we get 2 entries ordered DESC (s2 first because 11:00 > 10:00)
+        assert_eq!(summaries.len(), 2);
+        assert_eq!(summaries[0].id, "s2");
+        assert_eq!(summaries[0].first_message.as_deref(), Some("Hello from s2"));
+        assert_eq!(summaries[1].id, "s1");
+        assert_eq!(summaries[1].first_message.as_deref(), Some("Hello from s1"));
+    }
+
+    #[test]
+    fn test_load_session_with_history() {
+        // GIVEN a session with 2 messages
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        repo.create_session(
+            "s1",
+            &ChatMode::Libre,
+            None,
+            "System prompt",
+            &["bash_executor".to_string()],
+            "2026-03-20T10:00:00Z",
+            None,
+        )
+        .expect("create");
+        repo.append_message(&AppendMessageParams {
+            id: "m1",
+            session_id: "s1",
+            role: &ChatRole::User,
+            content: "User message",
+            tool_calls_json: None,
+            tool_name: None,
+            created_at: "2026-03-20T10:01:00Z",
+        })
+        .expect("m1");
+        repo.append_message(&AppendMessageParams {
+            id: "m2",
+            session_id: "s1",
+            role: &ChatRole::Assistant,
+            content: "Assistant reply",
+            tool_calls_json: None,
+            tool_name: None,
+            created_at: "2026-03-20T10:02:00Z",
+        })
+        .expect("m2");
+        repo.authorize_tool("s1", "bash_executor", "2026-03-20T10:03:00Z")
+            .expect("authorize");
+
+        // WHEN we load the session with history
+        let session = repo.load_session_with_history("s1").expect("load");
+
+        // THEN the session has 2 messages and 1 authorized tool
+        assert_eq!(session.id, "s1");
+        assert_eq!(session.history.len(), 2);
+        assert_eq!(session.history[0].content, "User message");
+        assert_eq!(session.history[1].content, "Assistant reply");
+        assert!(session.authorized_tools.contains("bash_executor"));
+        assert_eq!(session.system_prompt, "System prompt");
+    }
+
+    #[test]
+    fn test_load_session_not_found() {
+        // GIVEN an empty repository
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+
+        // WHEN we try to load a nonexistent session
+        let result = repo.load_session_with_history("nonexistent");
+
+        // THEN we get SessionNotFound
+        assert!(matches!(result, Err(ChatError::SessionNotFound(_))));
     }
 }

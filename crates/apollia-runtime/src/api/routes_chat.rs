@@ -81,6 +81,13 @@ pub struct ListSessionsQuery {
     pub status: Option<String>,
 }
 
+/// Query params for `GET /api/v1/sessions/recent`.
+#[derive(Debug, Deserialize)]
+pub struct RecentSessionsQuery {
+    /// Maximum number of sessions to return (default 10, capped at 50).
+    pub limit: Option<usize>,
+}
+
 /// Handler for `POST /api/v1/sessions` — create a new chat session.
 pub async fn create_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
@@ -458,6 +465,56 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<Result<Ev
     let _ = is_terminal; // Terminal flag available for future TakeWhileInclusive usage.
 
     Some(Ok(event_builder))
+}
+
+/// Handler for `GET /api/v1/sessions/recent` — list recent sessions with first message.
+///
+/// Query param `?limit=N` (default 10, max 50).
+pub async fn list_recent_sessions<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Query(query): Query<RecentSessionsQuery>,
+) -> impl IntoResponse {
+    let manager = match &state.chat_manager {
+        Some(m) => m,
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(serde_json::json!({ "error": "chat subsystem not available" })),
+            )
+                .into_response();
+        }
+    };
+
+    let limit = query.limit.unwrap_or(10).min(50);
+    let summaries = manager.list_recent_summaries(limit).await;
+    (StatusCode::OK, Json(summaries)).into_response()
+}
+
+/// Handler for `POST /api/v1/sessions/:id/resume` — resume an existing session.
+///
+/// Loads the session from SQLite if not already in memory, resets any stale
+/// Processing status to Active, and returns the full session detail.
+pub async fn resume_session<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let manager = match &state.chat_manager {
+        Some(m) => m,
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "chat subsystem not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    match manager.resume_session(id).await {
+        Ok(detail) => (StatusCode::OK, Json(detail)).into_response(),
+        Err(e) => chat_error_to_response(e).into_response(),
+    }
 }
 
 /// Map [`ChatError`] to an HTTP response.

@@ -20,6 +20,7 @@ use clap::Parser;
 
 use commands::agent::AgentCommand;
 use commands::audit::AuditCommand;
+use commands::chat;
 use commands::llm::LlmCommand;
 use commands::memory::MemoryCommand;
 use commands::model::ModelCommand;
@@ -167,6 +168,16 @@ enum Commands {
         #[command(subcommand)]
         command: PipelineCommand,
     },
+
+    /// Interactive chat session with an LLM (resume with --resume <id>, list with --list).
+    Chat {
+        /// Resume an existing session from its last message.
+        #[arg(long, value_name = "SESSION_ID")]
+        resume: Option<String>,
+        /// List the 10 most recent sessions.
+        #[arg(long)]
+        list: bool,
+    },
 }
 
 fn main() {
@@ -227,6 +238,9 @@ fn main() {
             }
             Commands::Pipeline { command } => {
                 commands::pipeline::run(&command, cli.socket, json).await
+            }
+            Commands::Chat { resume, list } => {
+                chat::run(resume.as_deref(), list, cli.socket, json).await
             }
         }
     });

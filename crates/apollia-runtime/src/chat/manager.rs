@@ -30,8 +30,8 @@ use super::extractor::UserMemoryExtractor;
 use super::repository::{AppendMessageParams, ChatSessionRepository};
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId,
-    PendingChatApprovals, SessionDetail, SessionId, SessionInfo, SessionStatus, ToolCallRecord,
-    ToolDecision,
+    PendingChatApprovals, RecentSessionSummary, SessionDetail, SessionId, SessionInfo,
+    SessionStatus, ToolCallRecord, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
 use crate::api::routes_agents::AgentLoader;
@@ -158,6 +158,21 @@ pub enum ChatCommand {
         session_id: SessionId,
         /// Summary text to store.
         summary: String,
+    },
+    /// List the N most recent sessions with their first message content.
+    GetRecentSummaries {
+        /// Maximum number of sessions to return.
+        limit: usize,
+        /// Response channel.
+        reply: oneshot::Sender<Vec<RecentSessionSummary>>,
+    },
+    /// Load a session from SQLite into memory (if not already loaded) and reset
+    /// Processing status to Active.
+    ResumeSession {
+        /// Target session identifier.
+        session_id: SessionId,
+        /// Response channel.
+        reply: oneshot::Sender<Result<SessionDetail, ChatError>>,
     },
     /// Hot-reload the LLM router (e.g. after onboarding setup).
     ReloadLlm {
@@ -299,6 +314,14 @@ impl ChatSessionManager {
                     if let Err(e) = self.repository.update_summary(&session_id, &summary) {
                         warn!(session_id = %session_id, error = %e, "Failed to persist conversation summary");
                     }
+                }
+                ChatCommand::GetRecentSummaries { limit, reply } => {
+                    let result = self.handle_get_recent_summaries(limit);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::ResumeSession { session_id, reply } => {
+                    let result = self.handle_resume_session(&session_id);
+                    let _ = reply.send(result);
                 }
                 ChatCommand::ReloadLlm { router } => {
                     info!("ChatSessionManager: LLM router reloaded");
@@ -1002,6 +1025,66 @@ impl ChatSessionManager {
         Ok(())
     }
 
+    /// Return a lightweight summary of the N most recent sessions.
+    ///
+    /// Calls the repository and logs on error, returning an empty vec on failure.
+    fn handle_get_recent_summaries(&self, limit: usize) -> Vec<RecentSessionSummary> {
+        match self.repository.list_recent_summaries(limit) {
+            Ok(summaries) => summaries,
+            Err(e) => {
+                error!(error = %e, "Failed to list recent session summaries from SQLite");
+                Vec::new()
+            }
+        }
+    }
+
+    /// Load a session from SQLite into memory (if not already there) and return its detail.
+    ///
+    /// If the session is already in memory, its current state is returned immediately.
+    /// If the loaded session has status `Processing`, it is reset to `Active` both in
+    /// memory and in SQLite before being returned.
+    fn handle_resume_session(&mut self, session_id: &str) -> Result<SessionDetail, ChatError> {
+        // If already in memory, return current state directly.
+        if let Some(session) = self.sessions.get(session_id) {
+            let message_count = session.history.len() as u32;
+            return Ok(SessionDetail {
+                session: session.clone(),
+                message_count,
+            });
+        }
+
+        // Load from SQLite.
+        let mut session = self.repository.load_session_with_history(session_id)?;
+
+        // If the session was left in Processing state, reset it to Active.
+        if session.status == SessionStatus::Processing {
+            if let Err(e) = self
+                .repository
+                .update_status(session_id, &SessionStatus::Active)
+            {
+                warn!(
+                    session_id = %session_id,
+                    error = %e,
+                    "Failed to reset Processing session to Active in SQLite during resume"
+                );
+            }
+            session.status = SessionStatus::Active;
+            session.active_exchange = None;
+        }
+
+        let message_count = session.history.len() as u32;
+        let detail = SessionDetail {
+            session: session.clone(),
+            message_count,
+        };
+
+        self.sessions.insert(session_id.to_string(), session);
+
+        info!(session_id = %session_id, "chat session resumed from SQLite");
+
+        Ok(detail)
+    }
+
     /// Restore active sessions from SQLite at boot.
     fn restore_sessions(&mut self) {
         let rows = match self.repository.list_sessions(Some("active")) {
@@ -1348,6 +1431,45 @@ impl ChatSessionManagerHandle {
     /// onboarding). The new router is used for all subsequent requests.
     pub async fn reload_llm(&self, router: Option<Arc<LlmRouter>>) {
         let _ = self.tx.send(ChatCommand::ReloadLlm { router }).await;
+    }
+
+    /// List the N most recent sessions with their first user message.
+    ///
+    /// Returns an empty vec if the actor is unreachable or the query fails.
+    pub async fn list_recent_summaries(&self, limit: usize) -> Vec<RecentSessionSummary> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let sent = self
+            .tx
+            .send(ChatCommand::GetRecentSummaries {
+                limit,
+                reply: reply_tx,
+            })
+            .await;
+
+        if sent.is_err() {
+            return Vec::new();
+        }
+
+        reply_rx.await.unwrap_or_default()
+    }
+
+    /// Load a session from SQLite (if not already in memory) and return its full detail.
+    ///
+    /// Resets `Processing` status to `Active` so the session can immediately accept
+    /// new messages. Returns `Err(ChatError::SessionNotFound)` if the ID is unknown.
+    pub async fn resume_session(&self, session_id: SessionId) -> Result<SessionDetail, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::ResumeSession {
+                session_id,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
     pub async fn shutdown(&self) {
