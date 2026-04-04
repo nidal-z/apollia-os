@@ -108,8 +108,16 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - name: Install PlantUML
-        run: sudo apt-get install -y plantuml
+      - name: Install Java & PlantUML JAR
+        run: |
+          sudo apt-get install -y default-jre-headless graphviz
+          mkdir -p ~/.local/bin
+          curl -fsSL -o ~/.local/bin/plantuml.jar \
+            https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar
+          printf '#!/bin/sh\nexec java -jar ~/.local/bin/plantuml.jar "$@"\n' \
+            > ~/.local/bin/plantuml
+          chmod +x ~/.local/bin/plantuml
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
       - uses: taiki-e/install-action@just
       - name: Generate SVG diagrams
         run: just diagrams

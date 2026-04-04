@@ -247,10 +247,7 @@ mod tests {
         let score = deserialized.segments[0]
             .confidence
             .expect("confidence should be Some after round-trip");
-        assert!(
-            (score - 0.87).abs() < f32::EPSILON,
-            "confidence mismatch"
-        );
+        assert!((score - 0.87).abs() < f32::EPSILON, "confidence mismatch");
         assert_eq!(deserialized.language.as_deref(), Some("en"));
         assert_eq!(deserialized.audio_duration_ms, 1500);
     }
