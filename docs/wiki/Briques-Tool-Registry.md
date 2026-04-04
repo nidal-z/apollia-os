@@ -678,6 +678,149 @@ Chaque méthode : lit le fichier courant, applique la mutation en mémoire, vali
 
 ---
 
+## 12. Concurrence d'outils *(Sprint 35, ADR-059)*
+
+### 12.1 Champ `is_read_only` sur `ToolDescriptor`
+
+```rust
+pub struct ToolDescriptor {
+    // champs existants...
+    pub is_read_only: bool,  // Défaut : false (conservateur)
+}
+```
+
+**Défaut `false` = conservateur :** tout nouvel outil est considéré avec effets de bord jusqu'à annotation explicite.
+
+**Outils marqués `is_read_only = true` :**
+
+| Outil | Justification |
+|-------|---------------|
+| `file_read` | Lecture seule |
+| `file_glob` | Parcours d'arborescence, lecture seule |
+| `file_grep` | Recherche regex, lecture seule |
+| `file_list` | Listage, lecture seule |
+| `memory_search` | SELECT-only FTS5 |
+| `git_status` | `git status --porcelain`, lecture seule |
+
+**Outils NON marqués (`is_read_only = false`) :**
+
+| Outil | Justification |
+|-------|---------------|
+| `bash_executor` | Effets de bord arbitraires |
+| `file_write` | Écriture disque |
+| `file_edit` | Modification disque |
+| `persistent_bash` | Shell stateful avec effets de bord |
+| `mcp:*` | Effets de bord inconnus côté serveur MCP |
+
+### 12.2 `execute_batch()` sur `ToolDispatcher`
+
+```rust
+impl ToolDispatcher {
+    /// Exécute un batch d'invocations d'outils.
+    ///
+    /// - Si TOUS les outils sont `is_read_only = true` → `join_all` + `Semaphore(10)`
+    /// - Si au moins un outil n'est pas read-only → exécution sérielle (ordre garanti)
+    ///
+    /// Les résultats sont toujours dans l'ordre d'entrée.
+    pub async fn execute_batch(
+        &self,
+        calls: Vec<ToolCall>,
+    ) -> Vec<Result<Value, ToolExecutionError>>;
+}
+```
+
+**Règle fondamentale : batch mixte → sériel obligatoire.** Un seul outil avec effets de bord force l'exécution séquentielle de l'ensemble — l'ordre des effets est garanti.
+
+**`Semaphore(10)` pour les batches read-only :** limite la concurrence pour éviter la saturation des file descriptors et les pics CPU.
+
+**Gain mesuré :** 20 appels `file_grep` sériels × 50ms = 1 000ms → `join_all` ≈ 50ms (facteur 20×).
+
+> **Référence technique :** [ADR-059](../adr/ADR-059-concurrent-tool-execution.md)
+
+---
+
+## 13. `persistent_bash` — Shell Persistant *(Sprint 35)*
+
+`PersistentBashExecutor` maintient un processus shell (`/bin/bash`) vivant entre les steps. L'état du shell (répertoire courant, variables d'environnement, fonctions définies) est préservé.
+
+### 13.1 Protocole marker UUID
+
+La détection de fin de commande utilise un marqueur UUID unique pour distinguer la fin de l'output de la commande de la fin du processus :
+
+```bash
+# Commande exécutée par PersistentBashExecutor
+<commande utilisateur>; echo "__APOLLIA_DONE_<uuid>__:$?"
+```
+
+`PersistentBashExecutor` lit stdout ligne par ligne jusqu'à trouver la ligne `__APOLLIA_DONE_<uuid>__:<exit_code>`. La partie avant le marqueur est le stdout de la commande ; l'`exit_code` est extrait du marqueur.
+
+L'UUID est regénéré à chaque commande pour éviter les collisions si l'output de la commande contient une chaîne similaire.
+
+### 13.2 `ShellSession` et `ShellSessionRegistry`
+
+```rust
+/// Session shell persistante pour un agent.
+pub struct ShellSession {
+    pub session_id: String,
+    stdin: tokio::process::ChildStdin,
+    stdout_reader: tokio::io::BufReader<tokio::process::ChildStdout>,
+    marker_prefix: String,
+}
+
+impl ShellSession {
+    /// Exécute une commande et attend le marqueur de fin.
+    /// Retourne (stdout, stderr, exit_code).
+    pub async fn run(
+        &mut self,
+        command: &str,
+        timeout: Duration,
+        cancel: CancellationToken,
+    ) -> Result<ShellOutput, ShellError>;
+}
+
+/// Registre des sessions actives par agent_id.
+pub struct ShellSessionRegistry {
+    sessions: HashMap<String, ShellSession>,
+}
+```
+
+### 13.3 `is_read_only = false`
+
+`PersistentBashExecutor` est toujours `is_read_only = false` — le shell peut avoir des effets de bord arbitraires. Il n'est jamais inclus dans un batch concurrent.
+
+### 13.4 Exemple d'usage Python
+
+```python
+# Step 1 : change de répertoire
+result = await ctx.tools.persistent_bash.run(command="cd /workspace/mon-projet && pwd")
+# → "/workspace/mon-projet"
+
+# Step 2 : la session se souvient du cwd
+result = await ctx.tools.persistent_bash.run(command="ls -la")
+# → liste le contenu de /workspace/mon-projet
+
+# Step 3 : les variables sont persistées
+result = await ctx.tools.persistent_bash.run(command="export API_KEY=test && echo $API_KEY")
+# Step 4 :
+result = await ctx.tools.persistent_bash.run(command="echo $API_KEY")
+# → "test"
+```
+
+---
+
+## Décisions architecturales clés (mises à jour Sprint 35)
+
+| Décision | Justification |
+|---|---|
+| `is_read_only = false` par défaut | Conservateur — pas de régression sur les outils futurs (ADR-059) |
+| Batch mixte → sériel | Ordre des effets garanti — sécurité > performance sur les batches hétérogènes |
+| Semaphore(10) sur les batches read-only | Évite la saturation des fd système et les pics CPU sur les machines contraintes |
+| Marqueur UUID dans `persistent_bash` | Détection fiable de fin de commande même si l'output contient des chaînes arbitraires |
+| `ShellSessionRegistry` par agent_id | Isolation stricte — deux agents ne partagent jamais une session shell |
+
+---
+
 *Prochaine lecture recommandée : [Memory Engine](./Briques-Memory-Engine)*
 
 > Voir aussi [MCP Integration](./MCP-Integration) pour la configuration utilisateur des serveurs MCP (ajout/suppression à chaud, `mcp.toml`).
+> Voir aussi [Briques-Workspace](./Briques-Workspace) pour le ContextProvider trait et les providers de contexte.

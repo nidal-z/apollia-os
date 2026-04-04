@@ -62,3 +62,16 @@
 | 2026-04-03 | ADR-053 | Pipeline fan-out et boucles conditionnelles | [docs/adr/ADR-053-pipeline-fanout-loops.md](adr/ADR-053-pipeline-fanout-loops.md) |
 | 2026-04-03 | ADR-054 | Consolidation mémoire épisodique : report justifié post-v1 | [docs/adr/ADR-054-memory-episodic-consolidation.md](adr/ADR-054-memory-episodic-consolidation.md) |
 | 2026-04-03 | ADR-055 | Community Registry : distribution Git-based peer-to-peer | [docs/adr/ADR-055-community-registry.md](adr/ADR-055-community-registry.md) |
+| 2026-04-04 | ADR-056 | Workspace Context Assembly : subprocess git, TTL, APOLLIA.md | [docs/adr/ADR-056-workspace-context-assembly.md](adr/ADR-056-workspace-context-assembly.md) |
+| 2026-04-04 | ADR-057 | Prompt Caching Strategy : 3 breakpoints ephemeral, −80% coût | [docs/adr/ADR-057-prompt-caching-strategy.md](adr/ADR-057-prompt-caching-strategy.md) |
+| 2026-04-04 | ADR-058 | Context Window Management : auto-compact 80%, résumé LLM | [docs/adr/ADR-058-context-window-management.md](adr/ADR-058-context-window-management.md) |
+| 2026-04-04 | ADR-059 | Concurrent Tool Execution : is_read_only + execute_batch + Semaphore(10) | [docs/adr/ADR-059-concurrent-tool-execution.md](adr/ADR-059-concurrent-tool-execution.md) |
+| 2026-04-04 | ADR-060 | ContextProvider Trait : agnostique domaine, 3 niveaux d'extension | [docs/adr/ADR-060-context-provider-trait.md](adr/ADR-060-context-provider-trait.md) |
+| 2026-04-04 | ADR-061 | Permission Engine 3 Couches : SafeList + RiskClassifier + InjectionDetector | [docs/adr/ADR-061-permission-engine-3-layers.md](adr/ADR-061-permission-engine-3-layers.md) |
+| 2026-04-04 | ADR-062 | MCP Server Mode : StdioServerTransport, 9 outils natifs + submit_task | [docs/adr/ADR-062-mcp-server-mode.md](adr/ADR-062-mcp-server-mode.md) |
+| 2026-04-04 | ADR-063 | Binary Feedback RLHF : 2 plans parallèles tokio::join!, log SQLite | [docs/adr/ADR-063-binary-feedback-rlhf.md](adr/ADR-063-binary-feedback-rlhf.md) |
+| 2026-04-04 | ADR-064 | OAuth2 PKCE : keyring multi-plateforme vs fichier chiffré | [docs/adr/ADR-064-oauth2-pkce-keyring.md](adr/ADR-064-oauth2-pkce-keyring.md) |
+| 2026-04-04 | ADR-065 | Auto-Updater : binaire direct + SHA256, lock file | [docs/adr/ADR-065-auto-updater-distribution.md](adr/ADR-065-auto-updater-distribution.md) |
+| 2026-04-04 | ADR-066 | Memory Export/Import : format JSONL gzip, migration de schéma versionnée | [docs/adr/ADR-066-memory-export-import-format.md](adr/ADR-066-memory-export-import-format.md) |
+| 2026-04-04 | ADR-067 | AWS Bedrock : aws-sigv4 natif vs SDK complet | [docs/adr/ADR-067-bedrock-sigv4-vs-sdk.md](adr/ADR-067-bedrock-sigv4-vs-sdk.md) |
+| 2026-04-04 | ADR-068 | Google Vertex AI : ADC vs clé de service JSON | [docs/adr/ADR-068-vertex-adc-vs-service-account.md](adr/ADR-068-vertex-adc-vs-service-account.md) |

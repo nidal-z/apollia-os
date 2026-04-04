@@ -526,6 +526,119 @@ let router = LlmRouter::with_backends(
 
 ---
 
+## 14. Prompt Caching *(Sprint 35, ADR-057)*
+
+`AnthropicClient` envoie systématiquement l'en-tête `anthropic-beta: prompt-caching-2024-07-31` et pose trois breakpoints `cache_control: { type: "ephemeral" }` dans chaque requête :
+
+1. **System prompt** — stable pour toute la session
+2. **Liste des outils (`tools`)** — change rarement
+3. **3ème message depuis la fin** — breakpoint glissant, maximise le hit-rate sur l'historique stable
+
+**Champs ajoutés dans `TokenUsage` :**
+
+```rust
+pub struct TokenUsage {
+    pub prompt_tokens: u32,
+    pub completion_tokens: u32,
+    pub cache_read_input_tokens: u32,    // Tokens lus depuis le cache Anthropic
+    pub cache_write_input_tokens: u32,   // Tokens écrits dans le cache lors de cet appel
+    pub cost_usd: Option<f64>,
+}
+```
+
+Les backends `OpenAICompatibleClient` et `OllamaClient` ne supportent pas le prompt caching : les champs `cache_*` restent à 0, sans régression.
+
+**Impact estimé :** −80% de coût sur les tokens en entrée pour les sessions répétant le même contexte (système + outils stables).
+
+**Monitoring :** `~/.apollia/session_costs.jsonl` trace `cache_read_input_tokens` et `cache_write_input_tokens` par session pour vérifier le hit-rate.
+
+> **Référence technique :** [ADR-057](../adr/ADR-057-prompt-caching-strategy.md)
+
+---
+
+## 15. Retry Policy *(Sprint 35, ADR-057)*
+
+Tous les backends cloud implémentent une politique de retry exponentiel avec jitter. La `RetryPolicy` est définie dans `crates/apollia-llm/src/retry.rs` :
+
+```rust
+pub struct RetryPolicy {
+    pub max_attempts: u32,    // Défaut : 3
+    pub base_delay_ms: u64,   // Défaut : 500ms
+    pub max_delay_ms: u64,    // Défaut : 30 000ms
+    pub jitter: bool,         // Défaut : true — évite les retry storms
+}
+```
+
+**Trait `IsRetryable` :**
+
+```rust
+pub trait IsRetryable {
+    /// Retourne true si l'erreur est transitoire et peut être retentée.
+    fn is_retryable(&self) -> bool;
+}
+
+impl IsRetryable for LlmError {
+    fn is_retryable(&self) -> bool {
+        matches!(
+            self,
+            LlmError::HttpError { status, .. } if matches!(status, 429 | 500 | 502 | 503 | 504)
+        )
+    }
+}
+```
+
+**Codes HTTP retryables :** 429 (rate limit), 500/502/503/504 (erreurs serveur transitoires).
+
+**`CancellationToken` pendant le délai :** la boucle de retry utilise `tokio::select!` pour interrompre immédiatement le délai d'attente si le token d'annulation est déclenché :
+
+```rust
+tokio::select! {
+    _ = tokio::time::sleep(delay) => { /* retry */ }
+    _ = cancellation_token.cancelled() => { return Err(LlmError::Cancelled); }
+}
+```
+
+**Backends couverts :** `AnthropicClient`, `OpenAICompatibleClient`, `OllamaClient`.
+
+> **Référence technique :** `crates/apollia-llm/src/retry.rs`
+
+---
+
+## 16. TokenBudget *(Sprint 35)*
+
+`TokenBudget` agrège les tokens consommés sur toute la durée d'une session ou d'une tâche. Il est accumulé par `LlmRouter` et affiché en fin de tâche par la CLI.
+
+```rust
+pub struct TokenBudget {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub cache_write_tokens: u64,
+    pub total_cost_usd: f64,
+    pub ttft_ms: Option<u64>,    // Time To First Token — uniquement en mode streaming
+    pub wall_ms: u64,            // Durée totale de la tâche
+}
+
+impl TokenBudget {
+    /// Résumé formaté pour la CLI.
+    /// Ex: "Tokens: 1 234 input / 456 output / 789 cache-read — $0.0023 USD (TTFT: 312ms, wall: 4.2s)"
+    pub fn format_summary(&self) -> String;
+}
+```
+
+**Affichage CLI en fin de tâche :**
+```
+✓ Tâche terminée en 4.2s
+  Tokens: 1 234 input / 456 output / 789 cache-read — $0.0023 USD (TTFT: 312ms, wall: 4.2s)
+```
+
+**Persistance :** chaque tâche terminée appende une ligne dans `~/.apollia/session_costs.jsonl` :
+```json
+{"session_id":"s-001","task_id":"t-042","input":1234,"output":456,"cache_read":789,"cost_usd":0.0023,"ttft_ms":312,"wall_ms":4200,"ts":"2026-04-04T12:00:00Z"}
+```
+
+---
+
 ## Voir aussi
 
 - [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — `ctx.llm` depuis Python
@@ -534,6 +647,7 @@ let router = LlmRouter::with_backends(
 - [API HTTP Reference](./API-HTTP-Reference) — endpoints CRUD `/api/v1/llm/backends`
 - [Config apollia.toml](./Config-apollia-toml) — section `[llm.observability]`
 - [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) — `apollia-os llm status/ping/chat`
+- [ADR-057](../adr/ADR-057-prompt-caching-strategy.md) — Prompt Caching Strategy (Sprint 35)
 - [ADR-047](../adr/ADR-047-multi-llm-backend-registry.md) — Multi-LLM Backend Registry (SQLite, Sprint 28)
 - [ADR-042](../adr/ADR-042-remplacement-mistralrs-par-llamacpp-statique.md) — remplacement mistral-rs par llama.cpp
 - [ADR-020](../adr/ADR-020-apollia-llm-moteur-embarque-modeles-externes-feature-flags.md) — feature flags LLM

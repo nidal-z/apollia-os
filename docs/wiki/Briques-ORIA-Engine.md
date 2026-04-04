@@ -930,4 +930,140 @@ AIPResult → Runtime Core
 
 ---
 
+## 11. Gestion de la fenêtre de contexte *(Sprint 35, ADR-058)*
+
+### 11.1 `ContextManager`
+
+`ContextManager` est appelé avant chaque appel Reasoner pour vérifier si l'historique de messages dépasse le seuil de compactage.
+
+```rust
+pub struct ContextManager {
+    /// Seuil d'utilisation de la fenêtre de contexte avant compactage (défaut : 0.80).
+    pub threshold: f32,
+    /// Nombre maximum de tokens du modèle actif.
+    pub context_limit: u32,
+}
+
+impl ContextManager {
+    /// Vérifie si le compactage est nécessaire et le déclenche si besoin.
+    /// Retourne les messages (potentiellement compactés) et un bool indiquant si le compactage a eu lieu.
+    pub async fn maybe_compact(
+        &self,
+        messages: Vec<ChatMessage>,
+        router: &LlmRouter,
+        event_bus: &EventBusHandle,
+    ) -> Result<(Vec<ChatMessage>, bool), ContextManagerError>;
+}
+```
+
+### 11.2 Algorithme de compactage
+
+```
+maybe_compact(messages) :
+  ├── estimate_tokens(messages) → u32
+  │     (approximation : chars / 4 × 1.2 — conservateur)
+  ├── Si estimated_tokens ≤ context_limit × threshold → retourne messages inchangés
+  └── Si estimated_tokens > context_limit × threshold :
+      ├── Appelle route_light(résumé de l'historique)
+      ├── Si succès :
+      │   ├── messages compactés = [system_msg_original, summary_msg]
+      │   └── EventBus: RuntimeEvent::ContextCompacted { original_tokens, compacted_tokens, session_id }
+      └── Si échec (timeout, erreur LLM) :
+          ├── summary_msg = "[Résumé indisponible — contexte tronqué]"
+          └── Session continue (pas d'échec fatal)
+```
+
+**System prompt toujours préservé :** `messages[0]` (system) n'est jamais supprimé par le compactage.
+
+### 11.3 `estimate_tokens()`
+
+```rust
+/// Estimation approximative du nombre de tokens dans un vecteur de messages.
+/// Formule : somme des longueurs de contenu en caractères / 4, multipliée par 1.2.
+/// Conservateur intentionnel — préférable à des faux négatifs (dépassement non détecté).
+pub fn estimate_tokens(messages: &[ChatMessage]) -> u32 {
+    let chars: usize = messages.iter()
+        .map(|m| m.content.len())
+        .sum();
+    ((chars as f64 / 4.0) * 1.2) as u32
+}
+```
+
+### 11.4 Configuration
+
+```toml
+[runtime]
+context_compact_threshold = 0.80    # Seuil de déclenchement (défaut : 80%)
+```
+
+> **Référence technique :** [ADR-058](../adr/ADR-058-context-window-management.md)
+
+---
+
+## 12. Workspace Context *(Sprint 35, ADR-056)*
+
+### 12.1 Injection dans le system prompt
+
+Avant chaque appel Reasoner, ORIA demande au `WorkspaceAssembler` de collecter le contexte workspace courant. Ce contexte est injecté dans le system prompt de l'agent.
+
+**Contenu typique du `WorkspaceContext` :**
+
+```
+## Contexte workspace
+
+**Branche :** main (3 fichiers modifiés)
+**Répertoire :** /Users/alice/dev/mon-projet
+**APOLLIA.md :** Répondre toujours en français. Utiliser des noms de variables explicites.
+
+**Arborescence (3 niveaux) :**
+src/
+  main.rs
+  lib.rs
+  utils/
+    parser.rs
+tests/
+  integration_test.rs
+```
+
+### 12.2 `WorkspaceContext` type
+
+```rust
+pub struct WorkspaceContext {
+    pub cwd: PathBuf,
+    pub git: Option<GitContext>,
+    pub apollia_md: Option<String>,       // Contenu du fichier APOLLIA.md trouvé
+    pub apollia_md_path: Option<PathBuf>, // Chemin du fichier APOLLIA.md
+    pub directory_tree: Option<String>,   // Arborescence Markdown (max 3 niveaux)
+    pub collected_at: Instant,
+}
+
+pub struct GitContext {
+    pub branch: String,
+    pub head_sha: String,            // 8 premiers caractères
+    pub modified_files: Vec<String>, // Fichiers modifiés (git status)
+    pub is_dirty: bool,
+}
+```
+
+### 12.3 TTL et cache
+
+Le `WorkspaceAssembler` met en cache le `WorkspaceContext` avec un TTL de 30 secondes. Cela évite les I/O répétées sur les sessions avec de nombreux appels LLM successifs.
+
+Le cache est invalidé si le `cwd` change entre deux collectes.
+
+### 12.4 `apollia workspace status` CLI
+
+```bash
+$ apollia-os workspace status
+  Répertoire : /Users/alice/dev/mon-projet
+  Branche    : main (3 fichiers modifiés)
+  APOLLIA.md : /Users/alice/dev/mon-projet/APOLLIA.md ✓
+  Providers  : git ✓, tree ✓, apollia-md ✓
+  Cache      : frais (collecté il y a 2s)
+```
+
+> **Référence technique :** [ADR-056](../adr/ADR-056-workspace-context-assembly.md) | [Briques-Workspace](./Briques-Workspace.md)
+
+---
+
 *Prochaine lecture recommandée : [Runtime Core](./Briques-Runtime-Core)*
