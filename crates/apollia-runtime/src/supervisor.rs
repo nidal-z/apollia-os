@@ -818,6 +818,7 @@ impl Supervisor {
                 Some(NotificationConfig {
                     events: notif_global_events,
                     channels: notif_channel_configs,
+                    inactivity_timeout_secs: 30,
                 })
             };
         let notification_config_for_state = notification_config_from_db.clone();

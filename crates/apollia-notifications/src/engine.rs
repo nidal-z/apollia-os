@@ -80,6 +80,8 @@ enum NotifEngineCommand {
         config: NotificationConfig,
         channels: Vec<Box<dyn NotificationChannel>>,
     },
+    /// Publie une notification directement sans passer par l'EventBus.
+    Publish { notification: Notification },
     /// Demande un arrêt propre du moteur.
     Shutdown,
 }
@@ -116,6 +118,17 @@ impl NotificationEngineHandle {
         let _ = self
             .tx
             .send(NotifEngineCommand::Reload { config, channels })
+            .await;
+    }
+
+    /// Publie une notification directement, sans passer par l'EventBus.
+    ///
+    /// La notification est dispatchée à tous les canaux dont [`NotificationChannel::accepts`]
+    /// retourne `true`. Utilisé par [`crate::inactivity_watcher::InactivityWatcher`].
+    pub async fn publish(&self, notification: Notification) {
+        let _ = self
+            .tx
+            .send(NotifEngineCommand::Publish { notification })
             .await;
     }
 
@@ -248,6 +261,16 @@ async fn run_engine_loop(
                         config = new_config;
                         channels = new_channels;
                         tracing::info!(channels = count, "NotificationEngine : configuration rechargée");
+                    }
+                    Some(NotifEngineCommand::Publish { notification }) => {
+                        let channel_results = dispatch_notif(&config, &channels, &notification).await;
+                        if let Some(ref db_path) = log_db_path {
+                            let db_path = db_path.clone();
+                            let notif_clone = notification.clone();
+                            tokio::task::spawn_blocking(move || {
+                                write_notification_log(&db_path, &notif_clone, &channel_results);
+                            });
+                        }
                     }
                     Some(NotifEngineCommand::Shutdown) | None => {
                         tracing::info!("NotificationEngine : signal d'arrêt reçu — arrêt propre");
@@ -452,6 +475,7 @@ mod tests {
         NotificationConfig {
             events: global_events,
             channels: vec![],
+            inactivity_timeout_secs: 30,
         }
     }
 

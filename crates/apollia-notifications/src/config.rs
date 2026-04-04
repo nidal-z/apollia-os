@@ -1,9 +1,13 @@
 use crate::{
-    channels::{DesktopChannel, WebhookChannel},
+    channels::{terminal::TerminalChannel, DesktopChannel, WebhookChannel},
     engine::NotificationChannel,
     WebhookChannelConfig,
 };
 use serde::Deserialize;
+
+fn default_inactivity_timeout_secs() -> u64 {
+    30
+}
 
 /// Configuration globale du système de notifications.
 ///
@@ -18,6 +22,9 @@ pub struct NotificationConfig {
     pub events: Vec<String>,
     /// Canaux de notification configurés.
     pub channels: Vec<ChannelConfig>,
+    /// Durée d'inactivité en secondes avant déclenchement d'une notification (défaut : 30).
+    #[serde(default = "default_inactivity_timeout_secs")]
+    pub inactivity_timeout_secs: u64,
 }
 
 /// Configuration d'un canal de notification individuel.
@@ -44,6 +51,11 @@ pub struct ChannelConfig {
     ///
     /// Si absent, le webhook est envoyé sans header de signature.
     pub signing_secret: Option<String>,
+    /// Sévérité minimale pour ce canal (uniquement pour le canal `terminal`).
+    ///
+    /// Les notifications dont la sévérité est inférieure à ce seuil sont silencieusement
+    /// ignorées. Défaut : `Info` (toutes les notifications sont transmises).
+    pub min_severity: Option<Severity>,
 }
 
 /// Type de canal de notification.
@@ -56,10 +68,13 @@ pub enum ChannelKind {
     Webhook,
     /// Server-Sent Events via le dashboard local.
     Sse,
+    /// Notification dans le terminal via séquences OSC (iTerm2, GNOME/VTE, ou bell).
+    Terminal,
 }
 
-/// Sévérité d'une notification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Sévérité d'une notification, du moins critique au plus critique.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Severity {
     /// Information — événement non bloquant.
     Info,
@@ -122,6 +137,7 @@ pub enum NotifConfigError {
 /// - `enabled = false` → canal ignoré silencieusement
 /// - `type = "desktop"` → [`DesktopChannel`] ajouté
 /// - `type = "webhook"` → [`WebhookChannel`] ajouté (erreur si `url` absent)
+/// - `type = "terminal"` → [`TerminalChannel`] ajouté (détection automatique de l'émulateur)
 /// - `type = "sse"` → ignoré (géré directement par le dashboard)
 ///
 /// Retourne une erreur si un canal `webhook` actif n'a pas de `url`.
@@ -153,6 +169,15 @@ pub fn build_channels(
                     events: cfg.events.clone(),
                     signing_secret: cfg.signing_secret.clone(),
                 })));
+            }
+            ChannelKind::Terminal => {
+                let min_severity = cfg.min_severity.unwrap_or(Severity::Info);
+                channels.push(Box::new(TerminalChannel::detect(
+                    cfg.id.clone(),
+                    cfg.enabled,
+                    cfg.events.clone(),
+                    min_severity,
+                )));
             }
             ChannelKind::Sse => {
                 // Le canal SSE est géré directement par le dashboard.
@@ -261,6 +286,7 @@ mod tests {
             events: None,
             url: None,
             signing_secret: None,
+            min_severity: None,
         }];
 
         // WHEN
@@ -283,6 +309,7 @@ mod tests {
             events: None,
             url: Some("https://hooks.slack.com/test".into()),
             signing_secret: None,
+            min_severity: None,
         }];
 
         // WHEN
@@ -304,6 +331,7 @@ mod tests {
             events: None,
             url: None,
             signing_secret: None,
+            min_severity: None,
         }];
 
         // WHEN

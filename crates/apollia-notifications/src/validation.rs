@@ -16,6 +16,7 @@ pub const KNOWN_EVENTS: &[&str] = &[
     "task.failed",
     "task.input_required",
     "agent.degraded",
+    "agent.inactivity",
     "trigger.error",
     "pipeline.completed",
     "pipeline.failed",

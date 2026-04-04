@@ -862,6 +862,23 @@ pub enum RuntimeEvent {
     },
 }
 
+impl RuntimeEvent {
+    /// Retourne `true` si cet événement réarme le timer d'inactivité.
+    ///
+    /// Les événements significatifs couvrent les transitions de tâche, l'exécution
+    /// de steps et d'outils, les réponses LLM, et les demandes d'approbation humaine.
+    pub fn is_significant_for_inactivity(&self) -> bool {
+        matches!(
+            self,
+            RuntimeEvent::TaskStarted { .. }
+                | RuntimeEvent::StepCompleted { .. }
+                | RuntimeEvent::StepExecuted { .. }
+                | RuntimeEvent::LlmCallCompleted { .. }
+                | RuntimeEvent::PermissionRequired { .. }
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

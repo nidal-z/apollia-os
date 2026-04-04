@@ -597,6 +597,7 @@ async fn reload_notification_engine<B: ExecutionBackend + Clone>(
     let config = NotificationConfig {
         events: global_events,
         channels: channel_configs,
+        inactivity_timeout_secs: 30,
     };
 
     let channels = match build_channels(&config.channels) {
@@ -629,6 +630,7 @@ fn channel_kind_str(kind: &ChannelKind) -> String {
         ChannelKind::Desktop => "desktop".to_string(),
         ChannelKind::Webhook => "webhook".to_string(),
         ChannelKind::Sse => "sse".to_string(),
+        ChannelKind::Terminal => "terminal".to_string(),
     }
 }
 
@@ -1144,7 +1146,9 @@ mod tests {
                 events: None,
                 url: None,
                 signing_secret: None,
+                min_severity: None,
             }],
+            inactivity_timeout_secs: 30,
         };
         assert_eq!(channel_kind_by_id("mon-desktop", &config), "desktop");
     }
@@ -1154,6 +1158,7 @@ mod tests {
         let config = NotificationConfig {
             events: vec![],
             channels: vec![],
+            inactivity_timeout_secs: 30,
         };
         assert_eq!(channel_kind_by_id("inconnu", &config), "unknown");
     }

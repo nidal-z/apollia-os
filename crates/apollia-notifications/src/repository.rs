@@ -320,6 +320,11 @@ impl NotificationChannelRow {
             .get("signing_secret")
             .and_then(|v| v.as_str())
             .map(String::from);
+        let min_severity = self
+            .config_json
+            .get("min_severity")
+            .and_then(|v| v.as_str())
+            .and_then(|s| serde_json::from_value(serde_json::Value::String(s.to_string())).ok());
         crate::config::ChannelConfig {
             id: self.id.clone(),
             kind,
@@ -327,6 +332,7 @@ impl NotificationChannelRow {
             events: self.events_json.clone(),
             url,
             signing_secret,
+            min_severity,
         }
     }
 }

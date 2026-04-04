@@ -190,6 +190,7 @@ mod tests {
         NotificationConfig {
             events: events.into_iter().map(String::from).collect(),
             channels: vec![],
+            inactivity_timeout_secs: 30,
         }
     }
 

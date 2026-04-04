@@ -373,6 +373,7 @@ mod tests {
         let config = NotificationConfig {
             events: vec!["task.input_required".into(), "task.failed".into()],
             channels: vec![],
+            inactivity_timeout_secs: 30,
         };
         // WHEN / THEN — événements de la liste globale acceptés
         assert!(channel.accepts("task.input_required", &config));
@@ -388,6 +389,7 @@ mod tests {
         let config = NotificationConfig {
             events: vec!["task.input_required".into()],
             channels: vec![],
+            inactivity_timeout_secs: 30,
         };
         // WHEN / THEN — aucun événement accepté si canal désactivé
         assert!(!channel.accepts("task.input_required", &config));
@@ -401,6 +403,7 @@ mod tests {
         let config = NotificationConfig {
             events: vec!["task.input_required".into(), "task.failed".into()],
             channels: vec![],
+            inactivity_timeout_secs: 30,
         };
         // WHEN / THEN
         assert!(channel.accepts("task.input_required", &config));
