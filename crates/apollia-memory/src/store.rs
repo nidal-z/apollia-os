@@ -28,7 +28,7 @@ pub struct MemoryStats {
 }
 
 /// Current schema version for the memory database.
-const SCHEMA_VERSION: u32 = 1;
+const SCHEMA_VERSION: u32 = 2;
 
 /// SQL statements for schema version 1.
 const SCHEMA_V1: &str = "
@@ -286,6 +286,9 @@ impl MemoryStore {
         if current_version < 1 {
             Self::migrate_to_v1(conn)?;
         }
+        if current_version < 2 {
+            Self::migrate_to_v2(conn)?;
+        }
         Ok(())
     }
 
@@ -317,6 +320,36 @@ impl MemoryStore {
         }
 
         tracing::info!(version = SCHEMA_VERSION, "schema migrated");
+        Ok(())
+    }
+
+    /// Migration to schema version 2: adds `plan_choices` for binary feedback RLHF signals.
+    fn migrate_to_v2(conn: &Connection) -> Result<(), MemoryStoreError> {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS plan_choices (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id  TEXT NOT NULL UNIQUE,
+                chosen      TEXT NOT NULL,
+                plan_a_json TEXT NOT NULL,
+                plan_b_json TEXT NOT NULL,
+                chosen_at   INTEGER NOT NULL
+            );",
+        )
+        .map_err(|e| MemoryStoreError::MigrationFailed {
+            version: 2,
+            reason: e.to_string(),
+        })?;
+
+        conn.execute("UPDATE _schema_version SET version = 2", [])
+            .map_err(|e| MemoryStoreError::MigrationFailed {
+                version: 2,
+                reason: format!("version bump failed: {e}"),
+            })?;
+
+        tracing::info!(
+            version = 2,
+            "schema migrated to v2: plan_choices table added"
+        );
         Ok(())
     }
 }

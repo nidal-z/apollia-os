@@ -15,6 +15,7 @@
 
 pub mod episodic;
 pub mod manager;
+pub mod plan_choice_store;
 pub mod procedural;
 pub mod search;
 pub mod semantic;

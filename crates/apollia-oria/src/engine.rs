@@ -391,6 +391,45 @@ impl ORIAEngine {
         WorkspaceAssembler::format_for_prompt(&snapshots)
     }
 
+    // ─── Binary Feedback ─────────────────────────────────────────────────
+
+    /// Génère deux plans alternatifs pour une tâche et émet l'événement sur l'EventBus.
+    ///
+    /// Appelle [`Reasoner::plan_with_alternatives`] via `tokio::join!` (les deux plans
+    /// sont produits en parallèle) puis émet `RuntimeEvent::PlanAlternativesGenerated`.
+    ///
+    /// Le frontend (CLI `--alternatives` ou `PlanAlternativesView.svelte`) intercepte
+    /// l'événement, affiche les deux plans, et demande le choix à l'opérateur.
+    /// La persistance du choix est assurée par `PlanChoiceStore::log_plan_choice()`.
+    ///
+    /// # Erreurs
+    ///
+    /// - [`ORIAError::NoLlmConfigured`] si aucun Reasoner n'est configuré.
+    /// - [`ORIAError::PlanFailed`] si la génération d'un des deux plans échoue.
+    pub async fn run_task_with_alternatives(
+        &self,
+        ctx: &ContextBundle,
+    ) -> Result<apollia_core::PlanAlternatives, ORIAError> {
+        let reasoner = self.reasoner.as_ref().ok_or(ORIAError::NoLlmConfigured)?;
+
+        let alternatives = reasoner
+            .plan_with_alternatives(ctx, &self.oria_config)
+            .await?;
+
+        let _ = self
+            .event_bus
+            .send(apollia_core::RuntimeEvent::PlanAlternativesGenerated {
+                alternatives: alternatives.clone(),
+            });
+
+        tracing::info!(
+            session_id = %alternatives.session_id,
+            "plan alternatives emitted on EventBus"
+        );
+
+        Ok(alternatives)
+    }
+
     // ─── Point d'entrée unifié ────────────────────────────────────────────
 
     /// Point d'entrée principal — route la tâche vers le mode Direct ou Orchestrated.

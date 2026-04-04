@@ -821,7 +821,7 @@ pub enum RuntimeEvent {
     /// Une invocation d'outil nécessite une approbation humaine.
     ///
     /// Émis par `ToolDispatcher::dispatch()` quand `PermissionEngine::decide()` retourne
-    /// `PermissionDecision::NeedsApproval`. Le frontend (STORY-472) intercepte cet
+    /// `PermissionDecision::NeedsApproval`. Le frontend intercepte cet
     /// événement via SSE pour afficher la boîte de dialogue HITL appropriée.
     PermissionRequired {
         /// Nom de l'outil dont l'invocation est suspendue.
@@ -830,6 +830,27 @@ pub enum RuntimeEvent {
         input: serde_json::Value,
         /// Identifiant unique de cette demande d'approbation (UUID v4).
         request_id: String,
+    },
+
+    // ── Binary Feedback / Plan Alternatives events ──
+    /// Deux plans alternatifs ont été générés en parallèle par le Reasoner.
+    ///
+    /// Émis par `ORIAEngine::run_task_with_alternatives()` après que les deux
+    /// plans (conservateur et exploratoire) ont été produits via `tokio::join!`.
+    /// Le CLI et le Desktop interceptent cet événement pour afficher les deux
+    /// plans et demander à l'opérateur lequel exécuter.
+    PlanAlternativesGenerated {
+        /// Les deux plans alternatifs produits en parallèle.
+        alternatives: crate::plan_alternatives::PlanAlternatives,
+    },
+
+    /// L'opérateur a choisi un plan parmi les deux alternatives.
+    ///
+    /// Émis après que l'opérateur a effectué son choix. Suivi de
+    /// `PlanChoiceStore::log_plan_choice()` pour la persistance SQLite.
+    PlanChosen {
+        /// Choix de l'opérateur avec la corrélation `session_id`.
+        choice: crate::plan_alternatives::PlanChoice,
     },
 }
 

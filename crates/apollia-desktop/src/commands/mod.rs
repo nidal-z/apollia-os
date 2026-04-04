@@ -17,6 +17,7 @@ pub mod notifications;
 pub mod observability;
 pub mod onboarding;
 pub mod pipelines;
+pub mod plan_alternatives;
 pub mod stt;
 pub mod tasks;
 pub mod tools;

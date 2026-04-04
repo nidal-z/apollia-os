@@ -333,6 +333,22 @@ pub struct ORIAConfig {
     /// Défaut : 4000. Bornes : [500, 32000].
     #[serde(default = "default_summary_max_chars")]
     pub context_summary_max_chars: usize,
+
+    /// Température LLM pour le Plan A (conservateur) lors du binary feedback.
+    ///
+    /// Basse température → sortie déterministe et conservatrice.
+    /// Technique standard de sampling LLM : basse temp = conservateur.
+    /// Défaut : 0.3. Bornes : [0.0, 2.0].
+    #[serde(default = "default_plan_alternatives_temp_a")]
+    pub plan_alternatives_temp_a: f32,
+
+    /// Température LLM pour le Plan B (exploratoire) lors du binary feedback.
+    ///
+    /// Haute température → sortie créative et exploratoire.
+    /// Technique standard de sampling LLM : haute temp = exploratoire.
+    /// Défaut : 0.8. Bornes : [0.0, 2.0].
+    #[serde(default = "default_plan_alternatives_temp_b")]
+    pub plan_alternatives_temp_b: f32,
 }
 
 impl Default for ORIAConfig {
@@ -344,6 +360,8 @@ impl Default for ORIAConfig {
             budget_poll_ms: default_budget_poll_ms(),
             context_compact_threshold: default_compact_threshold(),
             context_summary_max_chars: default_summary_max_chars(),
+            plan_alternatives_temp_a: default_plan_alternatives_temp_a(),
+            plan_alternatives_temp_b: default_plan_alternatives_temp_b(),
         }
     }
 }
@@ -357,6 +375,8 @@ impl ORIAConfig {
     /// - `budget_poll_ms` : doit être dans [10, 5000].
     /// - `context_compact_threshold` : doit être dans [0.0, 1.0].
     /// - `context_summary_max_chars` : doit être dans [500, 32000].
+    /// - `plan_alternatives_temp_a` : doit être dans [0.0, 2.0].
+    /// - `plan_alternatives_temp_b` : doit être dans [0.0, 2.0].
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.max_replans > 10 {
             return Err(ConfigError::InvalidValue {
@@ -394,8 +414,28 @@ impl ORIAConfig {
             500_usize,
             32_000_usize,
         )?;
+        validate_bounds(
+            "oria.plan_alternatives_temp_a",
+            self.plan_alternatives_temp_a,
+            0.0_f32,
+            2.0_f32,
+        )?;
+        validate_bounds(
+            "oria.plan_alternatives_temp_b",
+            self.plan_alternatives_temp_b,
+            0.0_f32,
+            2.0_f32,
+        )?;
         Ok(())
     }
+}
+
+fn default_plan_alternatives_temp_a() -> f32 {
+    0.3
+}
+
+fn default_plan_alternatives_temp_b() -> f32 {
+    0.8
 }
 
 fn default_max_replans() -> u32 {

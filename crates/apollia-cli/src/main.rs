@@ -84,6 +84,13 @@ enum Commands {
         /// The task ID is printed so it can be tracked with `apollia-os task status <id>`.
         #[arg(long)]
         detach: bool,
+
+        /// Display two alternative plans (conservative vs. exploratory) and choose
+        /// which one to execute before submitting the task.
+        ///
+        /// Requires the runtime to support plan alternatives (ORIA engine with LLM).
+        #[arg(long)]
+        alternatives: bool,
     },
 
     /// Agent management (list, start, stop, info, install, uninstall, enable, disable, update, new).
@@ -219,7 +226,19 @@ fn main() {
                 input,
                 stream,
                 detach,
-            } => commands::run::run(&agent_id, &input, cli.socket, json, stream, detach).await,
+                alternatives,
+            } => {
+                commands::run::run(
+                    &agent_id,
+                    &input,
+                    cli.socket,
+                    json,
+                    stream,
+                    detach,
+                    alternatives,
+                )
+                .await
+            }
             Commands::Agent { command } => commands::agent::run(&command, cli.socket, json).await,
             Commands::Task { command } => commands::task::run(&command, cli.socket, json).await,
             Commands::Tools { command } => commands::tools::run(&command, cli.socket, json).await,
@@ -348,6 +367,7 @@ mod tests {
                 input,
                 stream,
                 detach,
+                ..
             } => {
                 assert_eq!(agent_id, "hello-agent");
                 assert_eq!(input, "Bonjour");

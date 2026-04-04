@@ -22,6 +22,7 @@ pub mod llm_backend;
 pub mod manifest;
 pub mod observability;
 pub mod pending_approvals;
+pub mod plan_alternatives;
 pub mod process;
 pub mod result;
 pub mod sandbox;
@@ -43,6 +44,7 @@ pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, L
 pub use manifest::{AgentManifest, AgentSkill};
 pub use observability::{truncate_with_marker, ObservabilityConfig};
 pub use pending_approvals::{PendingApprovalError, PendingApprovals};
+pub use plan_alternatives::{ChosenPlan, PlanAlternatives, PlanChoice, TaskPlan, TaskPlanStep};
 pub use process::ProcessState;
 pub use result::{
     AIPArtifact, AIPError, AIPResult, InputRequiredData, InputResponseData, TaskStatus,

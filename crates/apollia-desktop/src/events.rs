@@ -233,6 +233,11 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         // ── Permissions ──────────────────────────────────────────────────
         RuntimeEvent::PermissionRequired { .. } => "approval-changed",
 
+        // ── Binary feedback / plan alternatives ───────────────────────────
+        RuntimeEvent::PlanAlternativesGenerated { .. } | RuntimeEvent::PlanChosen { .. } => {
+            "task-changed"
+        }
+
         // ── Context manager ──────────────────────────────────────────────
         RuntimeEvent::ContextCompacted { .. } => "system",
 

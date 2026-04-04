@@ -4,14 +4,20 @@
 //! In orchestrated mode, the stream displays the execution plan, step-by-step
 //! progression, and replanning events. In direct mode, the pre-Sprint 10
 //! behaviour is preserved.
+//!
+//! With `--alternatives`, displays two plan alternatives (conservative vs. exploratory)
+//! received via the `plan_alternatives_generated` SSE event and prompts for a choice
+//! before the task proceeds.
 
-use std::io::Write;
+use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::time::Instant;
 
 use futures::StreamExt;
 
+use apollia_core::plan_alternatives::{ChosenPlan, PlanAlternatives};
 use apollia_core::token_budget::TokenBudget;
+use apollia_core::ORIAConfig;
 
 use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
 use crate::exit_codes;
@@ -45,6 +51,11 @@ pub struct RunDisplayState {
     /// Used by the default (non-`--stream`) `run` invocation to display only the final
     /// result while still using SSE internally to receive the agent output.
     pub quiet: bool,
+    /// When `true`, the stream should pause on `plan_alternatives_generated` and prompt
+    /// for a plan choice before continuing.
+    pub alternatives_mode: bool,
+    /// The chosen plan captured after an `plan_alternatives_generated` event, if any.
+    pub chosen_plan: Option<ChosenPlan>,
 }
 
 impl RunDisplayState {
@@ -56,7 +67,72 @@ impl RunDisplayState {
             current_num: 0,
             json_mode,
             quiet,
+            alternatives_mode: false,
+            chosen_plan: None,
         }
+    }
+
+    /// Create a display state with alternatives mode enabled.
+    pub fn with_alternatives(json_mode: bool) -> Self {
+        Self {
+            alternatives_mode: true,
+            ..Self::new(json_mode, false)
+        }
+    }
+}
+
+// ─── Binary feedback ──────────────────────────────────────────────────────────
+
+/// Displays two alternative plans and prompts the operator to choose one.
+///
+/// Reads the choice from stdin (expecting `"1"` for Plan A or `"2"` for Plan B).
+/// Returns an error string if stdin is unavailable or the input is invalid.
+///
+/// This function is intentionally synchronous — it blocks until the operator
+/// has made a choice, which is the correct behaviour for an interactive terminal.
+pub fn handle_alternatives(
+    alternatives: &PlanAlternatives,
+    config: &ORIAConfig,
+) -> Result<ChosenPlan, String> {
+    println!(
+        "\n--- Plan A (conservateur, température {:.1}) ---",
+        config.plan_alternatives_temp_a
+    );
+    for (i, step) in alternatives.plan_a.steps.iter().enumerate() {
+        println!("  {}. {}", i + 1, step.description);
+    }
+    if alternatives.plan_a.steps.is_empty() {
+        println!("  (aucun step)");
+    }
+
+    println!(
+        "\n--- Plan B (exploratoire, température {:.1}) ---",
+        config.plan_alternatives_temp_b
+    );
+    for (i, step) in alternatives.plan_b.steps.iter().enumerate() {
+        println!("  {}. {}", i + 1, step.description);
+    }
+    if alternatives.plan_b.steps.is_empty() {
+        println!("  (aucun step)");
+    }
+
+    print!("\nChoisissez un plan [1/2] : ");
+    io::stdout()
+        .flush()
+        .map_err(|e| format!("stdout flush failed: {e}"))?;
+
+    let stdin = io::stdin();
+    let line = stdin
+        .lock()
+        .lines()
+        .next()
+        .ok_or_else(|| "stdin closed before input".to_string())?
+        .map_err(|e| format!("stdin read error: {e}"))?;
+
+    match line.trim() {
+        "1" => Ok(ChosenPlan::PlanA),
+        "2" => Ok(ChosenPlan::PlanB),
+        other => Err(format!("choix invalide : '{other}' (attendu 1 ou 2)")),
     }
 }
 
@@ -252,6 +328,31 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
             false
         }
 
+        // ── Plan alternatives: display plans, read choice ─────────────────
+        "plan_alternatives_generated" => {
+            if state.alternatives_mode {
+                if let Ok(alternatives) =
+                    serde_json::from_value::<PlanAlternatives>(event.data.clone())
+                {
+                    let config = ORIAConfig::default();
+                    match handle_alternatives(&alternatives, &config) {
+                        Ok(chosen) => {
+                            let label = match &chosen {
+                                ChosenPlan::PlanA => "Plan A (conservateur)",
+                                ChosenPlan::PlanB => "Plan B (exploratoire)",
+                            };
+                            println!("  -> {label} sélectionné.");
+                            state.chosen_plan = Some(chosen);
+                        }
+                        Err(e) => {
+                            eprintln!("  x Erreur lors du choix : {e}");
+                        }
+                    }
+                }
+            }
+            false
+        }
+
         _ => false,
     }
 }
@@ -262,6 +363,8 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
 ///
 /// Submits a task to the specified agent and waits for the result.
 /// With `--detach`, returns immediately after submission and prints the task ID.
+/// With `--alternatives`, activates the binary feedback mode: the SSE stream will
+/// pause on `plan_alternatives_generated` and prompt the operator to choose a plan.
 /// Returns the process exit code.
 pub async fn run(
     agent_id: &str,
@@ -270,6 +373,7 @@ pub async fn run(
     json: bool,
     stream: bool,
     detach: bool,
+    alternatives: bool,
 ) -> i32 {
     let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
     let client = RuntimeClient::new(socket_path);
@@ -332,9 +436,9 @@ pub async fn run(
     // The router now stores task output alongside status (see router.rs), so polling
     // correctly surfaces the agent result without SSE race conditions.
     //
-    // With `--stream`: SSE streaming shows plan/step events in real time.
-    if stream {
-        stream_task(&client, &task_id, json, start, false).await
+    // With `--stream` or `--alternatives`: SSE streaming shows plan/step events in real time.
+    if stream || alternatives {
+        stream_task(&client, &task_id, json, start, false, alternatives).await
     } else {
         poll_task(&client, &task_id, json, start).await
     }
@@ -424,12 +528,16 @@ async fn poll_task(client: &RuntimeClient, task_id: &str, json: bool, start: Ins
 ///
 /// When `quiet` is `true`, intermediate events are suppressed and only the final
 /// agent output is printed (used by the default non-`--stream` path).
+///
+/// When `alternatives` is `true`, the stream pauses on `plan_alternatives_generated`
+/// and prompts the operator for a plan choice before continuing.
 async fn stream_task(
     client: &RuntimeClient,
     task_id: &str,
     json: bool,
     start: Instant,
     quiet: bool,
+    alternatives: bool,
 ) -> i32 {
     let uri = format!("/api/v1/tasks/{task_id}/stream");
     let mut line_stream = match client.stream_sse_lines(&uri).await {
@@ -446,7 +554,11 @@ async fn stream_task(
         }
     };
 
-    let mut state = RunDisplayState::new(json, quiet);
+    let mut state = if alternatives {
+        RunDisplayState::with_alternatives(json)
+    } else {
+        RunDisplayState::new(json, quiet)
+    };
     let mut terminal_event_type = String::new();
 
     // Each line arrives as soon as the server flushes it — true streaming.

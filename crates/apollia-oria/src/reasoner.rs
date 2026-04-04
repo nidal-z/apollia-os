@@ -12,7 +12,8 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use apollia_core::AIPPart;
+use apollia_core::plan_alternatives::{PlanAlternatives, TaskPlan, TaskPlanStep};
+use apollia_core::{AIPPart, ORIAConfig};
 use apollia_llm::{ChatMessage, CompletionModel, CompletionRequest};
 
 use crate::observer::ContextBundle;
@@ -139,11 +140,69 @@ impl Reasoner {
 
     /// Génère un plan d'exécution initial depuis le [`ContextBundle`].
     ///
-    /// Appelle le LLM et tente de valider la réponse via [`parse_and_validate`].
-    /// En cas de plan invalide, injecte l'erreur dans le prompt utilisateur suivant
-    /// et retente. Retourne [`ReasonerError::PlanParseError`] après [`MAX_ATTEMPTS`]
-    /// tentatives infructueuses.
+    /// Délègue à [`plan_internal`] avec la température par défaut (`None`).
+    /// Retourne [`ReasonerError::PlanParseError`] après [`MAX_ATTEMPTS`] tentatives.
     pub async fn plan(&self, ctx: &ContextBundle) -> Result<ExecutionPlan, ReasonerError> {
+        self.plan_internal(ctx, None).await
+    }
+
+    /// Génère deux plans alternatifs en parallèle via `tokio::join!`.
+    ///
+    /// Plan A est produit à `config.plan_alternatives_temp_a` (basse température —
+    /// déterministe, conservateur). Plan B est produit à `config.plan_alternatives_temp_b`
+    /// (haute température — créatif, exploratoire).
+    ///
+    /// Les deux appels LLM sont concurrents : la durée totale est ≈ 1 appel, pas 2.
+    /// Retourne [`ReasonerError`] si l'un des deux plans est invalide après retries.
+    pub async fn plan_with_alternatives(
+        &self,
+        ctx: &ContextBundle,
+        config: &ORIAConfig,
+    ) -> Result<PlanAlternatives, ReasonerError> {
+        let session_id = uuid::Uuid::new_v4().to_string();
+
+        let (plan_a_result, plan_b_result) = tokio::join!(
+            self.plan_internal(ctx, Some(config.plan_alternatives_temp_a)),
+            self.plan_internal(ctx, Some(config.plan_alternatives_temp_b)),
+        );
+
+        let plan_a = plan_a_result.map(execution_plan_to_task_plan)?;
+        let plan_b = plan_b_result.map(execution_plan_to_task_plan)?;
+
+        let generated_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        tracing::info!(
+            session_id = %session_id,
+            steps_a = plan_a.steps.len(),
+            steps_b = plan_b.steps.len(),
+            temp_a = config.plan_alternatives_temp_a,
+            temp_b = config.plan_alternatives_temp_b,
+            "plan alternatives generated"
+        );
+
+        Ok(PlanAlternatives {
+            plan_a,
+            plan_b,
+            session_id,
+            generated_at,
+        })
+    }
+
+    /// Génère un plan d'exécution avec une température LLM explicite.
+    ///
+    /// Implémentation commune partagée par [`plan`] et [`plan_with_alternatives`].
+    /// Applique jusqu'à [`MAX_ATTEMPTS`] retries en cas de JSON invalide.
+    ///
+    /// `temperature` est transmis à [`CompletionRequest`] si `Some` ; le backend
+    /// utilise sa valeur par défaut si `None`.
+    async fn plan_internal(
+        &self,
+        ctx: &ContextBundle,
+        temperature: Option<f32>,
+    ) -> Result<ExecutionPlan, ReasonerError> {
         let mut last_error = String::new();
 
         for attempt in 0..MAX_ATTEMPTS {
@@ -162,6 +221,7 @@ impl Reasoner {
                 .model
                 .complete(CompletionRequest {
                     messages: vec![ChatMessage::system(system), ChatMessage::user(user)],
+                    temperature,
                     ..Default::default()
                 })
                 .await
@@ -350,6 +410,33 @@ impl Reasoner {
             .join("\n");
 
         format!("Agent system prompt:\n{system_prompt}\n\nTâche: {task_input}")
+    }
+}
+
+// ─────────────────────────────────────────────
+// Conversion helpers
+// ─────────────────────────────────────────────
+
+/// Converts an [`ExecutionPlan`] (internal ORIA type) to the shared [`TaskPlan`] type.
+///
+/// Used by [`Reasoner::plan_with_alternatives`] to produce values that can be carried
+/// by `RuntimeEvent::PlanAlternativesGenerated` without creating a circular dependency
+/// between `apollia-oria` and the crates that consume events.
+fn execution_plan_to_task_plan(plan: ExecutionPlan) -> TaskPlan {
+    TaskPlan {
+        plan_id: plan.plan_id,
+        task_id: plan.task_id,
+        steps: plan
+            .steps
+            .into_iter()
+            .map(|s| TaskPlanStep {
+                step_id: s.step_id,
+                description: s.description,
+                tool_hint: s.tool_hint,
+                depends_on: s.depends_on,
+                model_hint: s.model_hint,
+            })
+            .collect(),
     }
 }
 
@@ -728,5 +815,59 @@ mod tests {
             PLANNER_SYSTEM_PROMPT.contains("model_hint"),
             "PLANNER_SYSTEM_PROMPT must mention model_hint"
         );
+    }
+
+    // ─── Deux plans générés en parallèle ───
+
+    /// GIVEN un Reasoner avec un mock CompletionModel fournissant deux plans valides
+    /// WHEN plan_with_alternatives(&ctx, &config) est appelé
+    /// THEN PlanAlternatives retourné avec plan_a et plan_b non-vides
+    ///   ET le mock a été appelé exactement 2 fois (un par plan)
+    #[tokio::test]
+    async fn test_plan_with_alternatives_generates_two_plans() {
+        // GIVEN
+        let model = MockCompletionModel::sequence(vec![VALID_PLAN_2_STEPS, VALID_PLAN_3_STEPS]);
+        let reasoner = Reasoner::new(model.clone(), 10);
+        let ctx = ContextBundle::default();
+        let config = apollia_core::ORIAConfig::default();
+
+        // WHEN
+        let result = reasoner.plan_with_alternatives(&ctx, &config).await;
+
+        // THEN
+        let alts = result.expect("expected Ok(PlanAlternatives)");
+        assert_eq!(alts.plan_a.steps.len(), 2, "plan_a should have 2 steps");
+        assert_eq!(alts.plan_b.steps.len(), 3, "plan_b should have 3 steps");
+        assert!(
+            !alts.session_id.is_empty(),
+            "session_id should be a non-empty UUID"
+        );
+        assert_eq!(
+            model.calls(),
+            2,
+            "mock should have been called exactly twice"
+        );
+    }
+
+    /// GIVEN un mock qui fournit des plans avec des steps ayant des descriptions
+    /// WHEN plan_with_alternatives() est appelé
+    /// THEN les descriptions sont correctement converties en TaskPlanStep
+    #[tokio::test]
+    async fn test_plan_alternatives_step_descriptions_preserved() {
+        // GIVEN
+        let model = MockCompletionModel::sequence(vec![VALID_PLAN_2_STEPS, VALID_PLAN_2_STEPS]);
+        let reasoner = Reasoner::new(model.clone(), 10);
+        let ctx = ContextBundle::default();
+        let config = apollia_core::ORIAConfig::default();
+
+        // WHEN
+        let alts = reasoner
+            .plan_with_alternatives(&ctx, &config)
+            .await
+            .expect("expected Ok");
+
+        // THEN
+        assert_eq!(alts.plan_a.steps[0].step_id, "s1");
+        assert_eq!(alts.plan_b.steps[0].step_id, "s1");
     }
 }
