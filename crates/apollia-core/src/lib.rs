@@ -26,6 +26,7 @@ pub mod result;
 pub mod sandbox;
 pub mod stt_config;
 pub mod task;
+pub mod token_budget;
 pub mod user;
 pub mod utils;
 
@@ -46,5 +47,6 @@ pub use result::{
 pub use sandbox::SandboxProfile;
 pub use stt_config::{SttConfigError, SttConfigRepository, SttConfigRow};
 pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, TextPart};
+pub use token_budget::TokenBudget;
 pub use user::{UpdateProfileRequest, UserMemoryEntryResponse, UserMemoryResponse, UserProfile};
 pub use utils::truncate_middle;

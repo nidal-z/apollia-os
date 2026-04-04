@@ -153,7 +153,8 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::LlmModelLoading { .. }
         | RuntimeEvent::LlmModelReady { .. }
         | RuntimeEvent::LlmModelFailed { .. }
-        | RuntimeEvent::LlmCallCompleted { .. } => "llm-changed",
+        | RuntimeEvent::LlmCallCompleted { .. }
+        | RuntimeEvent::TokenBudgetUpdated { .. } => "llm-changed",
 
         // ── Triggers ─────────────────────────────────────────────────────
         RuntimeEvent::TriggerFired { .. }

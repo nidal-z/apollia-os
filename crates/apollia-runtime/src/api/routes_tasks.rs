@@ -13,6 +13,7 @@ use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::router::SubmitError;
 
+use apollia_core::token_budget::TokenBudget;
 use apollia_core::{
     AIPInput, AIPPart, DataPart, InputResponseData, RuntimeEvent, TaskId, TaskStatus,
 };
@@ -39,6 +40,9 @@ pub struct TaskResponse {
     /// Error message (present when failed).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Token budget accumulated over all LLM calls for this task.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_budget: Option<TokenBudget>,
 }
 
 /// Standard error response body.
@@ -167,6 +171,7 @@ pub async fn submit_task<B: ExecutionBackend + Clone>(
             status: "submitted".into(),
             result: None,
             error: None,
+            token_budget: None,
         }),
     ))
 }
@@ -186,6 +191,10 @@ pub async fn get_task<B: ExecutionBackend + Clone>(
 
     match status {
         Some(s) => {
+            let is_terminal = matches!(
+                s,
+                TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Canceled
+            );
             // Fetch stored output for completed tasks so the CLI can display it.
             let result = if matches!(s, TaskStatus::Completed) {
                 state
@@ -198,6 +207,17 @@ pub async fn get_task<B: ExecutionBackend + Clone>(
             } else {
                 None
             };
+            // Fetch token budget for terminal tasks.
+            let token_budget = if is_terminal {
+                state
+                    .router_handle
+                    .get_budget(&task_id)
+                    .await
+                    .ok()
+                    .flatten()
+            } else {
+                None
+            };
             Ok(Json(TaskResponse {
                 task_id,
                 status: serde_json::to_value(&s)
@@ -206,6 +226,7 @@ pub async fn get_task<B: ExecutionBackend + Clone>(
                     .unwrap_or_else(|| format!("{s:?}")),
                 result,
                 error: None,
+                token_budget,
             }))
         }
         None => Err((
@@ -239,6 +260,7 @@ pub async fn cancel_task<B: ExecutionBackend + Clone>(
                 .unwrap_or_else(|| format!("{s:?}")),
             result: None,
             error: None,
+            token_budget: None,
         })),
         None => Err((
             StatusCode::NOT_FOUND,

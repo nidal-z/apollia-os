@@ -978,6 +978,7 @@ mod tests {
                 },
                 finish_reason: LlmFinishReason::Stop,
                 latency_ms: 1,
+                ttft_ms: None,
             })
         }
 
@@ -1039,6 +1040,7 @@ mod tests {
                     },
                     finish_reason: LlmFinishReason::ToolCalls,
                     latency_ms: 1,
+                    ttft_ms: None,
                 })
             } else {
                 Ok(CompletionResponse {
@@ -1052,6 +1054,7 @@ mod tests {
                     },
                     finish_reason: LlmFinishReason::Stop,
                     latency_ms: 1,
+                    ttft_ms: None,
                 })
             }
         }
@@ -1124,6 +1127,7 @@ mod tests {
                 },
                 finish_reason: LlmFinishReason::ToolCalls,
                 latency_ms: 1,
+                ttft_ms: None,
             })
         }
 

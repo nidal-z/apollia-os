@@ -74,6 +74,11 @@ pub struct CompletionResponse {
     pub finish_reason: FinishReason,
     /// Latence totale de l'appel en millisecondes.
     pub latency_ms: u64,
+    /// Time to First Token — durée jusqu'au premier token reçu (ms).
+    ///
+    /// `Some` uniquement pour les backends streaming qui mesurent le TTFT.
+    /// `None` pour les appels non-streaming ou si non mesuré.
+    pub ttft_ms: Option<u64>,
 }
 
 // ─────────────────────────────────────────────

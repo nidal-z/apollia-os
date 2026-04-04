@@ -5,7 +5,7 @@
 //! à `Clone + Send + Sync`.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use tokio_util::sync::CancellationToken;
@@ -13,6 +13,7 @@ use tokio_util::sync::CancellationToken;
 use crate::pricing::PricingTier;
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
+use apollia_core::token_budget::TokenBudget;
 use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
 
 use crate::types::{BackendInfo, CompletionModel, CompletionRequest, CompletionResponse, LlmError};
@@ -168,6 +169,11 @@ pub struct LlmRouter {
     default: String,
     /// Token d'annulation partagé par tous les backends de ce router.
     cancellation_token: CancellationToken,
+    /// Budget de tokens cumulé sur la session courante.
+    ///
+    /// Protégé par un `Mutex` standard (verrou court, jamais tenu pendant
+    /// un appel async) pour permettre le `Clone` sans `Arc` supplémentaire.
+    session_budget: Arc<Mutex<TokenBudget>>,
 }
 
 impl LlmRouter {
@@ -241,6 +247,7 @@ impl LlmRouter {
             backends,
             default: config.default.clone(),
             cancellation_token,
+            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
         })
     }
 
@@ -354,6 +361,7 @@ impl LlmRouter {
             backends,
             default: config.default.clone(),
             cancellation_token,
+            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
         })
     }
 
@@ -398,6 +406,26 @@ impl LlmRouter {
         let started = Instant::now();
         let response = backend.complete(req).await?;
         let latency_ms = started.elapsed().as_millis() as u64;
+
+        // Accumulate into the session budget — lock held only for the duration of merge().
+        {
+            let cost = response.usage.cost_usd.unwrap_or(0.0);
+            if let Ok(mut budget) = self.session_budget.lock() {
+                budget.merge(
+                    response.usage.prompt_tokens,
+                    response.usage.completion_tokens,
+                    response.usage.cache_read_input_tokens,
+                    response.usage.cache_write_input_tokens,
+                    cost,
+                    latency_ms,
+                );
+                if budget.ttft_ms.is_none() {
+                    if let Some(ttft) = response.ttft_ms {
+                        budget.ttft_ms = Some(ttft);
+                    }
+                }
+            }
+        }
 
         // : émission fire-and-forget — erreurs send() silencieusement ignorées.
         if let Some(b) = bus {
@@ -501,6 +529,7 @@ impl LlmRouter {
             backends,
             default,
             cancellation_token: CancellationToken::new(),
+            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
         }
     }
 
@@ -563,6 +592,7 @@ impl LlmRouter {
             backends,
             default: default_name,
             cancellation_token,
+            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
         })
     }
 
@@ -616,6 +646,7 @@ impl LlmRouter {
             backends: HashMap::new(),
             default: String::new(),
             cancellation_token: CancellationToken::new(),
+            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
         }
     }
 
@@ -633,6 +664,28 @@ impl LlmRouter {
     /// tous annulés simultanément par `token.cancel()`.
     pub fn cancellation_token(&self) -> CancellationToken {
         self.cancellation_token.clone()
+    }
+
+    /// Retourne un snapshot du budget de tokens cumulé depuis le dernier reset.
+    ///
+    /// Appelé par `ORIAEngine` en fin de tâche pour émettre
+    /// [`RuntimeEvent::TokenBudgetUpdated`] et persister le coût dans
+    /// `~/.apollia/session_costs.jsonl`.
+    pub fn session_budget(&self) -> TokenBudget {
+        self.session_budget
+            .lock()
+            .map(|b| b.clone())
+            .unwrap_or_default()
+    }
+
+    /// Remet à zéro le budget de session.
+    ///
+    /// Appelé par `ORIAEngine` au début de chaque tâche pour isoler
+    /// les compteurs par exécution.
+    pub fn reset_session_budget(&self) {
+        if let Ok(mut budget) = self.session_budget.lock() {
+            *budget = TokenBudget::default();
+        }
     }
 
     /// Liste tous les backends disponibles avec leurs informations synthétiques.
@@ -839,6 +892,7 @@ mod tests {
                 },
                 finish_reason: FinishReason::Stop,
                 latency_ms: 1,
+                ttft_ms: None,
             })
         }
 
@@ -879,6 +933,7 @@ mod tests {
             backends,
             default: default.into(),
             cancellation_token: CancellationToken::new(),
+            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
         }
     }
 

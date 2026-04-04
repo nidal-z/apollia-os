@@ -343,6 +343,7 @@ impl AnthropicClient {
             },
             finish_reason,
             latency_ms: 0, // rempli par complete() après l'appel HTTP
+            ttft_ms: None,
         })
     }
 

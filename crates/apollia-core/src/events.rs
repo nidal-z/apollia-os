@@ -779,6 +779,19 @@ pub enum RuntimeEvent {
         /// Description de l'erreur.
         reason: String,
     },
+
+    // ── Token Budget events ──────────────────────
+    /// Le budget de tokens d'une tâche a été mis à jour.
+    ///
+    /// Émis par `ORIAEngine` à la fin de l'exécution d'une tâche orchestrée.
+    /// Le `TaskRouter` écoute cet événement pour associer le budget final
+    /// au `task_id` et l'inclure dans la réponse HTTP `GET /api/v1/tasks/{id}`.
+    TokenBudgetUpdated {
+        /// Identifiant de la tâche ayant produit ce budget.
+        task_id: TaskId,
+        /// Budget de tokens accumulé sur l'ensemble des appels LLM de la tâche.
+        budget: crate::token_budget::TokenBudget,
+    },
 }
 
 #[cfg(test)]
@@ -1109,6 +1122,16 @@ mod tests {
             },
             RuntimeEvent::SttTranscriptionFailed {
                 reason: "model not loaded".into(),
+            },
+            // ── Token Budget ─────────────────────────────────
+            RuntimeEvent::TokenBudgetUpdated {
+                task_id: "task-1".into(),
+                budget: crate::token_budget::TokenBudget {
+                    input_tokens: 300,
+                    output_tokens: 150,
+                    cache_read_tokens: 240,
+                    ..Default::default()
+                },
             },
         ];
 

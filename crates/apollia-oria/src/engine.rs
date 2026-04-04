@@ -491,6 +491,9 @@ impl ORIAEngine {
         let agent_budget = manifest.step_budget.clone().unwrap_or_default();
         let budget = StepBudget::from_capped(&agent_budget, &self.runtime_config);
 
+        // Reset per-task token budget before execution.
+        self.llm_router.reset_session_budget();
+
         // ── Execute via ActorLoop ─────────────────────────────────────────
         let noop_proxy = NoopToolProxy;
         let tool_proxy: &dyn ToolProxyTrait = match &self.tool_proxy {
@@ -519,6 +522,13 @@ impl ORIAEngine {
             )
             .await;
         let duration_ms = plan_start.elapsed().as_millis() as u64;
+
+        // Emit accumulated token budget for this task.
+        let token_budget = self.llm_router.session_budget();
+        let _ = self.event_bus.send(RuntimeEvent::TokenBudgetUpdated {
+            task_id: task_id_str.clone().into(),
+            budget: token_budget,
+        });
 
         // ── Post-process ──────────────────────────────────────────────────
         if step_result.status == TaskStatus::Completed {
@@ -571,6 +581,9 @@ impl ORIAEngine {
         let agent_budget = manifest.step_budget.clone().unwrap_or_default();
         let budget = StepBudget::from_capped(&agent_budget, &self.runtime_config);
 
+        // Reset per-task token budget before execution.
+        self.llm_router.reset_session_budget();
+
         let noop_proxy = NoopToolProxy;
         let tool_proxy: &dyn ToolProxyTrait = match &self.tool_proxy {
             Some(p) => p.as_ref(),
@@ -607,6 +620,13 @@ impl ORIAEngine {
             )
             .await;
         let duration_ms = plan_start.elapsed().as_millis() as u64;
+
+        // Emit accumulated token budget for this task.
+        let token_budget = self.llm_router.session_budget();
+        let _ = self.event_bus.send(RuntimeEvent::TokenBudgetUpdated {
+            task_id: task_id_str.clone().into(),
+            budget: token_budget,
+        });
 
         if step_result.status == TaskStatus::Completed {
             let _ = self.event_bus.send(RuntimeEvent::PlanCompleted {
@@ -1264,6 +1284,7 @@ mod orchestrated_tests {
                 },
                 finish_reason: FinishReason::Stop,
                 latency_ms: 0,
+                ttft_ms: None,
             })
         }
 

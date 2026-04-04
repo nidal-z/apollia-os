@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
 
+use apollia_core::token_budget::TokenBudget;
 use apollia_core::{AIPInput, AIPTask, AgentId, ProcessState, RuntimeEvent, TaskId, TaskStatus};
 
 use crate::coordinator::{ExecutionBackend, ExecutionCoordinator};
@@ -73,6 +74,11 @@ enum RouterMessage<B: ExecutionBackend> {
     },
     /// Retirer le coordinateur d'un agent (agent stopping).
     UnregisterCoordinator { agent_id: AgentId },
+    /// Obtenir le budget de tokens d'une tache terminee.
+    GetBudget {
+        task_id: TaskId,
+        reply: oneshot::Sender<Option<TokenBudget>>,
+    },
     /// Arreter l'acteur.
     Shutdown,
 }
@@ -93,6 +99,8 @@ struct TaskRouter<B: ExecutionBackend> {
     task_agents: HashMap<TaskId, AgentId>,
     /// Output text stored when TaskCompleted is received (for GET /api/v1/tasks/:id).
     task_outputs: HashMap<TaskId, String>,
+    /// Token budget stored when TokenBudgetUpdated is received (for GET /api/v1/tasks/:id).
+    task_budgets: HashMap<TaskId, TokenBudget>,
 }
 
 impl<B: ExecutionBackend> TaskRouter<B> {
@@ -157,6 +165,10 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                             info!(agent_id = %agent_id, "Coordinator retire");
                             self.coordinators.remove(&agent_id);
                         }
+                        RouterMessage::GetBudget { task_id, reply } => {
+                            let budget = self.task_budgets.get(&task_id).cloned();
+                            let _ = reply.send(budget);
+                        }
                         RouterMessage::Shutdown => {
                             info!("TaskRouter arret demande");
                             break;
@@ -164,22 +176,28 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                     }
                 }
                 event = self.event_rx.recv() => {
-                    if let Ok(RuntimeEvent::TaskCompleted { task_id, success, output, .. }) = event {
-                        if let Some(status) = self.task_statuses.get_mut(&task_id) {
-                            // Ne pas ecraser un statut terminal deja fixe (Canceled, Completed, Failed).
-                            // Un evenement TaskCompleted tardif du backend ne doit pas effacer une
-                            // annulation explicite de l'utilisateur.
-                            if !matches!(*status, TaskStatus::Canceled | TaskStatus::Completed | TaskStatus::Failed) {
-                                *status = if success {
-                                    TaskStatus::Completed
-                                } else {
-                                    TaskStatus::Failed
-                                };
+                    match event {
+                        Ok(RuntimeEvent::TaskCompleted { task_id, success, output, .. }) => {
+                            if let Some(status) = self.task_statuses.get_mut(&task_id) {
+                                // Ne pas ecraser un statut terminal deja fixe (Canceled, Completed, Failed).
+                                // Un evenement TaskCompleted tardif du backend ne doit pas effacer une
+                                // annulation explicite de l'utilisateur.
+                                if !matches!(*status, TaskStatus::Canceled | TaskStatus::Completed | TaskStatus::Failed) {
+                                    *status = if success {
+                                        TaskStatus::Completed
+                                    } else {
+                                        TaskStatus::Failed
+                                    };
+                                }
+                            }
+                            if let Some(text) = output {
+                                self.task_outputs.insert(task_id, text);
                             }
                         }
-                        if let Some(text) = output {
-                            self.task_outputs.insert(task_id, text);
+                        Ok(RuntimeEvent::TokenBudgetUpdated { task_id, budget }) => {
+                            self.task_budgets.insert(task_id, budget);
                         }
+                        _ => {}
                     }
                 }
             }
@@ -332,6 +350,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             task_statuses: HashMap::new(),
             task_agents: HashMap::new(),
             task_outputs: HashMap::new(),
+            task_budgets: HashMap::new(),
         };
         tokio::spawn(router.run());
         Self { tx }
@@ -402,6 +421,19 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             })
             .await
             .map_err(|_| SubmitError::ActorDead)
+    }
+
+    /// Obtient le budget de tokens d'une tache terminee, s'il est disponible.
+    pub async fn get_budget(&self, task_id: &str) -> Result<Option<TokenBudget>, SubmitError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(RouterMessage::GetBudget {
+                task_id: TaskId::from(task_id),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| SubmitError::ActorDead)?;
+        reply_rx.await.map_err(|_| SubmitError::ActorDead)
     }
 
     /// Annule une tache en cours.

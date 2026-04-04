@@ -553,6 +553,7 @@ impl CompletionModel for EmbeddedBackend {
             },
             finish_reason,
             latency_ms: started.elapsed().as_millis() as u64,
+            ttft_ms: None,
         })
     }
 

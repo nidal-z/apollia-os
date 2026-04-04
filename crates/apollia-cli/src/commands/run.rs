@@ -5,10 +5,13 @@
 //! progression, and replanning events. In direct mode, the pre-Sprint 10
 //! behaviour is preserved.
 
+use std::io::Write;
 use std::path::PathBuf;
 use std::time::Instant;
 
 use futures::StreamExt;
+
+use apollia_core::token_budget::TokenBudget;
 
 use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
 use crate::exit_codes;
@@ -365,6 +368,10 @@ async fn poll_task(client: &RuntimeClient, task_id: &str, json: bool, start: Ins
                                 println!("{text}");
                             }
                             println!("  * Completed in {:.1}s", elapsed.as_secs_f64());
+                            if let Some(budget) = extract_budget(&task_json) {
+                                println!("  * {}", budget.format_summary());
+                                persist_budget(&budget, task_id);
+                            }
                         }
                         return exit_codes::SUCCESS;
                     }
@@ -476,12 +483,66 @@ async fn stream_task(
 
     // Map terminal event type to exit code
     match terminal_event_type.as_str() {
-        "completed" => exit_codes::SUCCESS,
+        "completed" => {
+            // Fetch final task state to retrieve the token budget (not in SSE payload).
+            if !json {
+                if let Ok(task_json) = client.get_task(task_id).await {
+                    if let Some(budget) = extract_budget(&task_json) {
+                        println!("  * {}", budget.format_summary());
+                        persist_budget(&budget, task_id);
+                    }
+                }
+            }
+            exit_codes::SUCCESS
+        }
         "failed" => exit_codes::TASK_FAILED,
         "plan_failed" | "canceled" => exit_codes::GENERAL_ERROR,
         // No terminal event — stream closed early (task already done) → fall back to polling
         _ => poll_task(client, task_id, json, start).await,
     }
+}
+
+/// Extract a `TokenBudget` from a task JSON response.
+///
+/// Returns `None` if the `token_budget` field is absent or cannot be deserialized.
+fn extract_budget(task_json: &serde_json::Value) -> Option<TokenBudget> {
+    task_json
+        .get("token_budget")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+}
+
+/// Append one JSON line to `~/.apollia/session_costs.jsonl`.
+///
+/// Each line is a JSON object with `task_id` + all `TokenBudget` fields.
+/// Errors are silently ignored to avoid disrupting CLI output.
+fn persist_budget(budget: &TokenBudget, task_id: &str) {
+    let dir = match std::env::var("HOME") {
+        Ok(h) => PathBuf::from(h).join(".apollia"),
+        Err(_) => return,
+    };
+
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+
+    let path = dir.join("session_costs.jsonl");
+    let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    else {
+        return;
+    };
+
+    let mut record = serde_json::to_value(budget).unwrap_or(serde_json::Value::Null);
+    if let Some(obj) = record.as_object_mut() {
+        obj.insert("task_id".to_owned(), serde_json::Value::String(task_id.to_owned()));
+        let ts = chrono::Utc::now().to_rfc3339();
+        obj.insert("recorded_at".to_owned(), serde_json::Value::String(ts));
+    }
+
+    let line = serde_json::to_string(&record).unwrap_or_default();
+    let _ = writeln!(file, "{line}");
 }
 
 /// Output an error and return the given exit code.

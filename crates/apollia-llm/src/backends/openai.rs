@@ -233,6 +233,7 @@ impl OpenAICompatibleClient {
             usage,
             finish_reason,
             latency_ms,
+            ttft_ms: None,
         })
     }
 }

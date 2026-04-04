@@ -36,7 +36,7 @@ use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::manifest::AgentManifest;
 use apollia_core::observability::ObservabilityConfig;
 use apollia_core::{AIPResult, PendingApprovals};
-use apollia_llm::{ChatMessage, CompletionRequest, LlmRouter};
+use apollia_llm::{router::ObservabilityConfig as LlmObsConfig, ChatMessage, CompletionRequest, LlmRouter};
 use apollia_memory::manager::MemoryManager;
 
 use crate::budget::StepBudget;
@@ -720,12 +720,9 @@ impl ActorLoop {
             None => None,
         };
 
-        let model = llm_router
-            .get(backend_name)
-            .ok_or(StepError::NoLlmBackend)?;
-
-        let response = model
-            .complete(request)
+        let obs = LlmObsConfig::default();
+        let response = llm_router
+            .complete_with_observability(backend_name, request, Some(&self.event_bus), &obs)
             .await
             .map_err(|e| StepError::LlmCallFailed(e.to_string()))?;
 
@@ -1396,6 +1393,7 @@ mod tests {
                 },
                 finish_reason: FinishReason::Stop,
                 latency_ms: 0,
+                ttft_ms: None,
             })
         }
 
@@ -2148,6 +2146,7 @@ mod tests {
                 },
                 finish_reason: FinishReason::Stop,
                 latency_ms: 0,
+                ttft_ms: None,
             })
         }
 
@@ -2490,6 +2489,7 @@ mod tests {
                     },
                     finish_reason: FinishReason::Stop,
                     latency_ms: 0,
+                    ttft_ms: None,
                 })
             }
             async fn stream(

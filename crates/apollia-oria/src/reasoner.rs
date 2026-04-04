@@ -413,6 +413,7 @@ mod tests {
                 },
                 finish_reason: FinishReason::Stop,
                 latency_ms: 0,
+                ttft_ms: None,
             })
         }
 
