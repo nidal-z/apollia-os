@@ -1,6 +1,6 @@
-# Sécurité — Sandbox Isolation — Apollia OS
+# Sécurité — Sandbox et Isolation — Apollia OS
 
-> Comment Apollia OS isole l'exécution des outils système via Linux namespaces, sans Docker.
+> Comment Apollia OS isole l'exécution des outils système et protège l'API REST locale : Linux namespaces, authentification par token, sandbox Windows 3 couches (ADR-052).
 > Public cible : administrateur système, contributeur Rust
 
 ---
@@ -146,6 +146,59 @@ Distributions qui activent les user namespaces par défaut : Ubuntu 22.04+, Debi
 
 ---
 
+## Authentification API TCP (Sprint 34 — ADR-051)
+
+L'API REST TCP `:7771` est protégée par un token statique depuis le Sprint 34.
+
+```
+~/.apollia/api-token   # 64 hex chars + newline, chmod 0600
+```
+
+- Généré automatiquement au premier démarrage via `rand::rngs::OsRng`.
+- Le runtime refuse de démarrer si les permissions sont trop ouvertes (`0640`, `0644`, etc.).
+- Toutes les requêtes TCP doivent porter `Authorization: Bearer <token>`.
+- Comparaison à **temps constant** via `subtle::ConstantTimeEq` — pas de timing attack.
+- Le **socket Unix** reste non authentifié (permissions filesystem suffisent).
+
+Configurable dans `apollia.toml` :
+
+```toml
+[api]
+require_token = true      # défaut : true — NE PAS désactiver en production
+bind = "127.0.0.1"        # loopback uniquement par défaut
+```
+
+Commandes de gestion :
+
+```bash
+apollia-os config show-token    # afficher le token courant
+apollia-os config rotate-token  # régénérer un nouveau token (redémarre le runtime)
+```
+
+> **Référence technique :** [ADR-051](./Decisions-Log#adr-051)
+
+---
+
+## Sandbox Windows — modèle Chromium 3 couches *(ADR-052 — déploiement différé)*
+
+L'ADR-052 définit la stratégie de sandbox pour Windows natif (STORY-451, implémentation différée). Le design est formalisé et implémentable dès qu'un environnement Windows est disponible.
+
+**Architecture 3 couches :**
+
+| Couche | Mécanisme | Vecteurs couverts |
+|---|---|---|
+| 1 — Job Object | `win32job::Job` | Terminaison auto, pas de boîte de dialogue d'erreur Windows |
+| 2 — Restricted Token | `CreateRestrictedToken` (Win32) | Suppression groupes sensibles, retrait privilèges dangereux |
+| 3 — AppContainer | `CreateAppContainerProfile` (Win32) | Isolation réseau/filesystem par profil dédié |
+
+**Dégradation gracieuse :** si AppContainer échoue (Windows 7, erreur API), le runtime se replie sur couches 1+2 avec un warning explicite.
+
+**Portabilité :** tout le code Windows est dans `crates/apollia-tools/src/sandbox_windows.rs` sous `#[cfg(target_os = "windows")]`. Zéro impact sur la compilation Linux/macOS.
+
+> **Référence technique :** [ADR-052](./Decisions-Log#adr-052) · [ADR-005](../adr/ADR-005-sandbox-sans-docker) (sandbox Linux)
+
+---
+
 ## Limitations connues
 
 **Pas d'isolation mémoire RAM :** Un outil peut consommer autant de RAM qu'il veut. Contrôler via le `wall_clock_timeout` et le monitoring système.
@@ -156,12 +209,16 @@ Distributions qui activent les user namespaces par défaut : Ubuntu 22.04+, Debi
 
 **Noyaux anciens (< 4.18) :** Les user namespaces avec réseau isolé peuvent ne pas fonctionner. Mettre à jour le kernel ou désactiver le sandbox réseau.
 
+**Windows : sandbox différée :** STORY-451 (implémentation Windows) est déférée. Sur Windows, `bash_executor` s'exécute sans isolation jusqu'à livraison de STORY-451.
+
 ---
 
 ## Voir aussi
 
 - [Architecture Principes](./Architecture-Principes) — Principe #2 Zéro dépendance externe
-- [Sécurité Local-First](./Securite-Local-First) — souveraineté des données
+- [Sécurité Local-First](./Securite-Local-First) — souveraineté des données, token API
 - [Sécurité Guardrails](./Securite-Guardrails) — StepBudget
 - [ADR-005](../adr/ADR-005-sandbox-sans-docker) — pourquoi namespaces plutôt que Docker
 - [ADR-012](../adr/ADR-012-sandbox-devmode-macos) — mode dev macOS
+- [ADR-051](../adr/ADR-051-api-auth) — authentification API TCP
+- [ADR-052](../adr/ADR-052-windows-sandbox) — sandbox Windows 3 couches

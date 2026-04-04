@@ -99,6 +99,7 @@ pub struct PipelineRun {
 | `Failed` | Tâche en erreur — `error` populé |
 | `Skipped` | Step sauté (`on_failure = skip` ou condition false) |
 | `FallbackActive` | Step remplacé par son fallback |
+| `Cancelled { reason: String }` | Step annulé proprement — `reason` : `"timeout"` ou `"max_iterations_reached"`. Distinct de `Failed` : aucune exception, terminaison contrôlée. Enregistré dans l'audit trail avec `cancel_reason`. |
 
 ---
 
@@ -307,7 +308,57 @@ Chaque opération CRUD (insertion, modification) valide le pipeline avant écrit
 - Tout `fallback_for` référence un step existant
 - Pas de cycle dans le graphe de dépendances (Kahn BFS)
 - Au moins 1 step (pas de pipeline vide)
+- `loop_until` présent sans `max_iterations` → `ValidationError` immédiat (Principe #4)
 - Les agents référencés n'ont pas besoin d'être installés à la création — l'erreur se produit au moment du run
+
+### 4.8 Fan-out sur tableau *(Sprint 34 — ADR-053)*
+
+Un step déclaré `fan_out = true` distribue sa sortie (tableau JSON) en sous-steps parallèles :
+
+```toml
+[[pipeline.steps]]
+id       = "list-files"
+agent    = "file-lister"
+fan_out  = true            # output attendu : tableau JSON
+
+[[pipeline.steps]]
+id         = "process-file"
+agent      = "file-processor"
+depends_on = ["list-files"]  # reçoit chaque élément individuellement
+```
+
+- Les sous-steps sont **éphémères** — créés à l'exécution via `tokio::JoinSet`, détruits à leur complétion. Ils n'apparaissent pas dans le DAG statique.
+- Concurrence bornée par `pipelines.default_step_timeout_secs` et la config globale `max_fan_out_concurrency` (défaut : 8) pour éviter la saturation.
+- Les résultats sont agrégés dans l'ordre d'index du tableau source (déterministe, pas l'ordre de completion).
+- Si le step `list-files` retourne un tableau vide, `process-file` est marqué `Skipped`.
+
+### 4.9 Boucles conditionnelles *(Sprint 34 — ADR-053)*
+
+Un step peut s'exécuter plusieurs fois jusqu'à satisfaction d'une condition :
+
+```toml
+[[pipeline.steps]]
+id             = "review-loop"
+agent          = "reviewer-agent"
+loop_until     = "output.approved == true"   # condition de sortie (JSONPath)
+max_iterations = 5                            # garde-fou obligatoire
+```
+
+- `max_iterations` est **obligatoire** si `loop_until` est présent — l'absence provoque une erreur de validation au démarrage (Principe #4).
+- Si `max_iterations` est atteint sans satisfaire la condition : `StepRunStatus::Cancelled { reason: "max_iterations_reached" }`.
+- Comportement à la cancellation contrôlé par `on_cancel` (défaut : `fail`).
+
+### 4.10 Timeout de step *(Sprint 34 — ADR-053)*
+
+Chaque step peut déclarer un timeout maximum :
+
+```toml
+[[pipeline.steps]]
+id           = "slow-agent"
+timeout_secs = 120    # 120s max — surcharge pipelines.default_step_timeout_secs
+```
+
+Si le timeout expire : `StepRunStatus::Cancelled { reason: "timeout" }`. Implémenté via `tokio::time::timeout`. Le timeout par défaut est configurable dans `apollia.toml` via `[pipelines] default_step_timeout_secs` (défaut : 300).
 
 ---
 

@@ -733,6 +733,33 @@ apollia-os agent install agents/community/git-worker.py
 apollia-os agent run git-worker "Montre-moi les modifications en cours et committe-les"
 ```
 
+### `browser-worker` (communautaire — Sprint 34)
+
+Spécialité : navigation web et capture d'écran via Playwright. Skills A2A : `browse-url`, `screenshot-url`. Packages pip : `playwright`, `pillow`. Guardrail central : validation de l'URL avant navigation (schéma `http`/`https` uniquement), timeout par page (défaut 30s), screenshots dans un répertoire temporaire isolé. Installation depuis Git :
+
+```bash
+apollia-os agent install https://github.com/apollia-os/browser-worker.git
+apollia-os agent run browser-worker "Prends une capture d'écran de https://example.com"
+```
+
+### `email-worker` (communautaire — Sprint 34)
+
+Spécialité : envoi et lecture d'emails via SMTP/IMAP. Skills A2A : `send-email` (HITL — approbation opérateur requise), `read-inbox`. Packages pip : stdlib Python (`smtplib`, `imaplib`). Guardrail central : `send-email` est une action HITL non-contournable — aucun email n'est envoyé sans confirmation explicite. Validation des adresses email avant soumission.
+
+```bash
+apollia-os agent install https://github.com/apollia-os/email-worker.git
+apollia-os agent run email-worker "Envoie un rapport hebdomadaire à admin@acme.com"
+```
+
+### `slack-worker` (communautaire — Sprint 34)
+
+Spécialité : intégration Slack — envoi de messages et lecture de canaux. Skills A2A : `send-message` (HITL), `read-channel`. Packages pip : `slack-sdk`. Guardrail central : `send-message` est une action HITL — confirmation opérateur avant envoi. `read-channel` en lecture seule, aucune modification de canal. Token Slack lu depuis `SLACK_BOT_TOKEN` (jamais hardcodé).
+
+```bash
+apollia-os agent install https://github.com/apollia-os/slack-worker.git
+apollia-os agent run slack-worker "Résume les messages #sales de cette semaine"
+```
+
 ---
 
 ## Checklist avant de soumettre un Worker Agent

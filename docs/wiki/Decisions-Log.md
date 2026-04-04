@@ -964,5 +964,100 @@
 
 ---
 
+## ADR-051 — Authentification API REST TCP : token statique + restriction loopback
+
+**Date :** 2026-04-03
+**Statut :** Accepté
+
+**Contexte :** L'API REST TCP `:7771` est ouverte sans aucune authentification depuis le Sprint 5. Toute application locale peut appeler des endpoints destructifs sans preuve d'identité. Avant la beta publique, ce vecteur doit être fermé sans infrastructure externe (Principe #1).
+
+**Décision :** Token statique 32 octets hexadécimaux (256 bits, `rand::rngs::OsRng`) stocké dans `~/.apollia/api-token` avec permissions `0600`. Toutes les requêtes TCP doivent porter `Authorization: Bearer <token>`. Comparaison à temps constant via `subtle::ConstantTimeEq` (pas de timing attack). TCP `:7771` bindé sur `127.0.0.1` par défaut. Socket Unix non authentifiée (permissions filesystem suffisent). Config `api.require_token = true` (défaut), `api.bind = "127.0.0.1"`. Rotation manuelle via `apollia-os config rotate-token`.
+
+**Alternatives considérées :** OAuth2/JWT (trop complexe pour beta locale mono-utilisateur), mTLS (overhead infrastructure injustifié), aucune authentification (vecteur XSS via localhost inacceptable en beta publique), restriction par PID/UID (APIs OS non portables).
+
+**Conséquences :** Sécurité locale suffisante sans infrastructure externe. Backward-compatible (socket Unix non affectée). Les clients TCP existants doivent ajouter le header `Authorization`. Pas de rotation automatique — token compromis persiste jusqu'à intervention manuelle.
+
+**Principes impactés :** Principe #1 — Local-first (token stocké en local, aucun endpoint distant), Principe #4 — Fail fast (permissions incorrectes → erreur au démarrage, requête sans token → 401 immédiat), Principe #8 — CLI humaine, API machine (`apollia-os config show-token` disponible).
+
+[Détail complet → docs/adr/ADR-051-api-auth.md](adr/ADR-051-api-auth.md)
+
+---
+
+## ADR-052 — Sandbox Windows : modèle Chromium 3 couches
+
+**Date :** 2026-04-03
+**Statut :** Accepté
+
+**Contexte :** La sandbox Linux (`bubblewrap`/namespaces) ne compile pas sur Windows. Le Principe #2 exclut WSL ou Docker. STORY-451 introduit le support Windows natif — une stratégie de sandbox doit être définie. Note : STORY-451 est déférée (pas de PC Windows disponible pour validation), l'ADR est Accepté comme décision de design.
+
+**Décision :** Architecture 3 couches inspirée de Chromium : (1) Job Object (`win32job = "2"`) — terminaison auto à la fermeture du runtime, pas de boîte de dialogue d'erreur ; (2) Restricted Token via `CreateRestrictedToken` — suppression des groupes sensibles, retrait des privilèges dangereux (`SeDebugPrivilege`, etc.) ; (3) AppContainer via `CreateAppContainerProfile` — profil nommé `apollia-sandbox-<agent_id>`, nettoyé après exécution. Dégradation gracieuse vers couches 1+2 si AppContainer échoue (Windows 7 ou erreur API). Implémenté dans `sandbox_windows.rs` sous `#[cfg(target_os = "windows")]`.
+
+**Alternatives considérées :** WSL (dépendance externe, viole Principe #2), Docker (lourd, non portable), aucune sandbox (inacceptable), Hyper-V (latence VM, overhead), Job Object seul (insuffisant — ne couvre pas filesystem/réseau).
+
+**Conséquences :** Sandbox Windows native sans dépendance externe. Patterns Chromium audités depuis 2008. AppContainer crée un profil persistant à nettoyer en cas de crash. Crate `windows = "0.58"` activée uniquement `cfg(windows)`.
+
+**Principes impactés :** Principe #1 — Local-first, Principe #2 — Zéro dépendance externe (Win32 natif), Principe #4 — Fail fast (dégradation explicite avec warning).
+
+[Détail complet → docs/adr/ADR-052-windows-sandbox.md](adr/ADR-052-windows-sandbox.md)
+
+---
+
+## ADR-053 — Pipeline fan-out et boucles conditionnelles
+
+**Date :** 2026-04-03
+**Statut :** Accepté
+
+**Contexte :** Le Pipeline Engine (ADR-025) supporte les DAG linéaires. Deux topologies manquent pour les cas PME avancés : fan-out sur tableau (un step produit une liste, chaque élément traité en parallèle) et boucles conditionnelles (plusieurs passes jusqu'à convergence).
+
+**Décision :** (1) Fan-out via `tokio::JoinSet` — step déclare `fan_out = true`, output interprété comme tableau JSON, sous-steps éphémères créés à l'exécution, concurrence bornée par `pipelines.max_fan_out_concurrency` (défaut : 8) ; (2) Boucles via `loop_until` (condition JSONPath) + `max_iterations` obligatoire (garde-fou non-contournable — Principe #7), absence de `max_iterations` = erreur au démarrage ; (3) Nouveau `StepRunStatus::Cancelled { reason: String }` — distinct de `Failed`, enregistré dans l'audit trail ; (4) Step timeout configurable via `timeout_secs` (défaut depuis `pipelines.default_step_timeout_secs`), dépassement → `Cancelled { reason: "timeout" }`.
+
+**Alternatives considérées :** Fan-out séquentiel (bat le but), framework workflow externe (viole Principe #2), boucles infinies avec signal d'arrêt (contournable par l'agent), expansion des nœuds dans le DAG statique (casse le cycle detector).
+
+**Conséquences :** Parallélisme natif Tokio sans thread pool externe. Boucles retry-until-convergence supportées. Sous-steps éphémères non stockés dans le graphe statique. Risque de deadlock fan-out avec `depends_on` circulaire — limitation V1 documentée.
+
+**Principes impactés :** Principe #5 — Un acteur, une responsabilité (sous-steps éphémères hors graphe statique), Principe #7 — Garde-fous non-négociables (`max_iterations` obligatoire, `max_fan_out_concurrency` borné).
+
+[Détail complet → docs/adr/ADR-053-pipeline-fanout-loops.md](adr/ADR-053-pipeline-fanout-loops.md)
+
+---
+
+## ADR-054 — Consolidation mémoire épisodique : report justifié post-v1
+
+**Date :** 2026-04-03
+**Statut :** Accepté
+
+**Contexte :** La mémoire épisodique croît sans mécanisme de consolidation depuis le Sprint 3. La littérature (MemGPT, Letta) propose des consolidations automatiques — mais ces approches introduisent du coût LLM non maîtrisé, un comportement imprévisible, et un risque de perte de données pour la beta.
+
+**Décision :** La consolidation automatique de la mémoire épisodique est reportée à post-v1. Garde-fou unique acceptable : troncature `STEP_MEMORY_OUTPUT_MAX_CHARS = 200` (Principe #7, configurable via `oria.step_memory_max_chars`) — borne la taille des épisodes sans modifier leur sémantique. La consolidation sera opt-in, contrôlée par l'agent via `ctx.memory.consolidate()` — jamais déclenchée automatiquement par le runtime (Principe #6). Design préliminaire post-v1 : `[memory.consolidation]` avec `enabled = false`, `interval`, `min_episodes`.
+
+**Alternatives considérées :** Consolidation automatique par LLM (coût caché, viole Principe #6), consolidation par règles (heuristiques fragiles), limite dure FIFO (détruit les épisodes importants), consolidation manuelle déjà possible via `ctx.memory.record()`.
+
+**Conséquences :** Comportement prévisible. Zéro coût LLM caché. La base épisodique croît linéairement — pour des agents long-running, peut atteindre plusieurs centaines de Mo après 1 an. À mesurer en beta.
+
+**Principes impactés :** Principe #6 — Mémoire à initiative de l'agent (renforcé), Principe #7 — Garde-fous non-négociables (troncature `STEP_MEMORY_OUTPUT_MAX_CHARS` seul garde-fou automatique acceptable).
+
+[Détail complet → docs/adr/ADR-054-memory-episodic-consolidation.md](adr/ADR-054-memory-episodic-consolidation.md)
+
+---
+
+## ADR-055 — Community Registry : distribution Git-based peer-to-peer
+
+**Date :** 2026-04-03
+**Statut :** Accepté
+
+**Contexte :** ADR-050 a défini la V1 du registry communautaire (installation par path local). La V2 — résolution d'une URL Git → clonage → validation → installation — est implémentée dans STORY-450. Cette ADR formalise l'architecture du registre distribué.
+
+**Décision :** (1) Format : chaque agent communautaire est un repo Git autonome avec `agent.py` + `manifest.json` + `requirements.txt` + `tests/test_smoke.py`. (2) Découverte optionnelle : un `registry.json` dans un repo Git public (ex. `apollia-os/community-registry`) indexe les agents disponibles — optionnel, pas requis pour l'installation directe. (3) Validation 4 étapes ADR-050 inchangées (manifest, `dangerous_tools_allowed`, packages pip, smoke test). (4) Pas de signature cryptographique en V2 — confiance sur URL Git présentée à l'utilisateur ; GPG encouragé mais non requis. (5) Commandes : `agent install <git-url>`, `agent search <keyword>`, `agent list --source community`, `agent update <name>`. Fallback `gitoxide` si Git absent (Windows).
+
+**Alternatives considérées :** Registry HTTP centralisé (point de défaillance, infrastructure, viole Principe #1), npm-style (complexité), PyPI (confusion packages pip / agent), aucun registre distant (bloque l'écosystème communautaire), registry embarqué dans le binaire (agents évoluent plus vite que le runtime).
+
+**Conséquences :** Distribution P2P — pas de serveur central requis. Compatible V1 (path local toujours valide). Découvrabilité limitée sans index. Pas de vérification d'intégrité post-clonage en V2. Repo d'index `apollia-os/community-registry` à modérer avant beta publique.
+
+**Principes impactés :** Principe #1 — Local-first (clonage local, index optionnel), Principe #2 — Zéro dépendance externe (pas de serveur Apollia requis, fallback `gitoxide`), Principe #4 — Fail fast (validation complète à l'installation).
+
+[Détail complet → docs/adr/ADR-055-community-registry.md](adr/ADR-055-community-registry.md)
+
+---
+
 *Ce log est maintenu à jour à chaque décision architecturale significative.*
 *Format inspiré de [Architecture Decision Records (ADR)](https://adr.github.io/) par Michael Nygard.*

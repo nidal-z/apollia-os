@@ -267,8 +267,8 @@ La fonction `event_filter::map_event()` est pure : mêmes entrées, mêmes sorti
 **Tous les autres `RuntimeEvent`** (`AgentRegistered`, `TaskStarted`, `AllReady`, etc.) retournent `None` — aucune notification n'est émise.
 
 Les métadonnées HITL de `task.input_required` contiennent :
-- `resume_url` : `http://localhost:7771/api/v1/tasks/{id}/resume`
-- `inspect_url` : `http://localhost:7771/dashboard#tasks/{id}`
+- `resume_url` : `http://<api.bind>:<api.port>/api/v1/tasks/{id}/resume` (construit dynamiquement depuis la config — plus de `localhost:7771` hardcodé, Sprint 34)
+- `inspect_url` : `http://<api.bind>:<api.port>/dashboard#tasks/{id}`
 
 Les métadonnées de `chat.approval_required` contiennent :
 - `session_id` : identifiant de la session de chat
@@ -456,6 +456,48 @@ impl WebhookChannel {
 | `Content-Type` | `application/json` (positionné par reqwest `.json()`) |
 | `X-Apollia-Event` | nom de l'événement (ex: `task.failed`) |
 | `User-Agent` | `apollia-os/<version>` |
+| `X-Apollia-Signature` | `sha256=<hmac-hex>` — présent uniquement si `hmac_secret` configuré (voir §6.1) |
+
+### 6.1 Signature HMAC-SHA256 des webhooks sortants *(Sprint 34)*
+
+Si le canal webhook déclare un `hmac_secret`, Apollia OS signe chaque payload sortant :
+
+```bash
+# Créer un canal webhook avec signature
+$ curl -X POST http://localhost:7771/api/v1/notifications/channels \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "slack-erreurs",
+    "channel_type": "webhook",
+    "enabled": true,
+    "config": {
+      "url": "https://hooks.example.com/apollia",
+      "hmac_secret": "mon-secret-partagé"
+    },
+    "events": ["task.failed", "agent.degraded"]
+  }'
+```
+
+**Calcul de la signature :**
+
+```
+HMAC-SHA256(key=hmac_secret, message=payload_json_body)
+→ header: X-Apollia-Signature: sha256=<hex>
+```
+
+**Vérification côté serveur (Python) :**
+
+```python
+import hashlib, hmac
+
+def verify_apollia_signature(payload_bytes: bytes, secret: str, header: str) -> bool:
+    expected = "sha256=" + hmac.new(
+        secret.encode(), payload_bytes, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, header)
+```
+
+Si `hmac_secret` est absent ou vide, aucun header `X-Apollia-Signature` n'est ajouté — comportement identique aux versions précédentes.
 
 **Gestion des erreurs :**
 

@@ -8,10 +8,31 @@
 ## Vue d'ensemble
 
 L'API HTTP locale est exposée sur deux transports :
-- **Unix socket** : `/tmp/apollia.sock` — recommandé pour les processus locaux
-- **TCP** : `http://localhost:7771` — compatible avec tout client HTTP
+- **Unix socket** : `/tmp/apollia.sock` — recommandé pour les processus locaux, **non authentifié** (accès par permissions filesystem)
+- **TCP** : `http://localhost:7771` — compatible avec tout client HTTP, **authentification requise** (Sprint 34 — ADR-051)
 
-Tous les endpoints retournent du JSON. Authentification : aucune (API locale uniquement).
+Tous les endpoints retournent du JSON.
+
+### Authentification TCP (Sprint 34)
+
+Toutes les requêtes TCP doivent porter le header `Authorization: Bearer <token>` :
+
+```http
+GET /api/v1/agents HTTP/1.1
+Host: localhost:7771
+Authorization: Bearer 4a3b2c1d...  (64 hex chars)
+```
+
+Le token est généré au premier démarrage et stocké dans `~/.apollia/api-token` (permissions `0600`). La CLI le lit automatiquement. Les requêtes sans token ou avec token invalide reçoivent `401 Unauthorized`.
+
+```json
+{"error": "missing Authorization header"}
+{"error": "invalid token"}
+```
+
+Pour afficher le token : `apollia-os config show-token`. Pour le régénérer : `apollia-os config rotate-token`.
+
+> Le socket Unix reste non authentifié — les processus locaux sous le même UID (CLI, app desktop) l'utilisent sans token.
 
 **Base URL :** `http://localhost:7771/api/v1`
 

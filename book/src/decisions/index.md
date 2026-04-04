@@ -55,3 +55,8 @@
 | ADR-048 | [ADR-048 — Worker Agents : expertise de domaine compilée en Python](./adr-048-worker-agents-expertise-domaine.md) | Accepté |
 | ADR-049 | [ADR-049 — Routing A2A inter-agents : discovery + invocation synchrone](./adr-049-a2a-routing-inter-agents.md) | Accepté |
 | ADR-050 | [ADR-050 — Distribution Worker Agents : bundled vs communautaire](./adr-050-distribution-worker-agents.md) | Accepté |
+| ADR-051 | [ADR-051 — Authentification API REST TCP : token statique + restriction loopback](./adr-051-api-auth.md) | Accepté |
+| ADR-052 | [ADR-052 — Sandbox Windows : modèle Chromium 3 couches](./adr-052-windows-sandbox.md) | Accepté |
+| ADR-053 | [ADR-053 — Pipeline fan-out et boucles conditionnelles](./adr-053-pipeline-fanout-loops.md) | Accepté |
+| ADR-054 | [ADR-054 — Consolidation mémoire épisodique : report justifié post-v1](./adr-054-memory-episodic-consolidation.md) | Accepté |
+| ADR-055 | [ADR-055 — Community Registry : distribution Git-based peer-to-peer](./adr-055-community-registry.md) | Accepté |

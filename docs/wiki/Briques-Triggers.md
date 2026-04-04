@@ -250,6 +250,25 @@ pub fn spawn_interval(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) ->
 pub fn spawn_file_watch(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> JoinHandle<()>;
 ```
 
+**Améliorations Sprint 34 :**
+
+- **Symlinks** : les symlinks dans le répertoire surveillé sont maintenant suivis (`notify::Config::with_follow_symlinks(true)`). Un lien symbolique créé dans le dossier déclenche l'événement `create` si la cible existe. Comportement cohérent sur Linux et macOS.
+
+- **Exclusions** : la définition peut déclarer des patterns glob à exclure de la surveillance :
+
+```json
+{
+  "source": {
+    "type": "file_watch",
+    "path": "~/imports/",
+    "events": ["create", "modify"],
+    "exclude": ["*.tmp", "*.part", ".~*"]
+  }
+}
+```
+
+Les patterns d'exclusion sont évalués sur le nom de fichier uniquement (pas le chemin complet). Les fichiers temporaires courants (`.tmp`, `.part`, éditeurs en `.~*`) sont exclus par défaut si `exclude` est absent via une liste interne configurable.
+
 ### 5.4 Webhook (route axum)
 
 ```
@@ -333,6 +352,24 @@ CREATE TABLE trigger_state (
     error_count  INTEGER NOT NULL DEFAULT 0,
     last_fired_at TEXT
 );
+```
+
+### 6.3 Compteurs persistés au redémarrage *(Sprint 34)*
+
+Les compteurs `fire_count`, `skip_count`, `error_count` de la table `trigger_state` sont désormais persistés et survivent au redémarrage du runtime. Avant le Sprint 34, ils étaient en mémoire uniquement et remis à zéro à chaque démarrage.
+
+Au boot du `TriggerEngine`, chaque `TriggerDefinition` chargée récupère ses compteurs depuis `trigger_state` via `TriggerStateRepository::load(trigger_id)`. Les `TriggerStatus` retournés par `TriggerEngineHandle::list()` reflètent l'historique cumulé depuis l'installation.
+
+```rust
+pub struct TriggerStatus {
+    pub id: TriggerId,
+    pub agent: String,
+    pub enabled: bool,
+    pub fire_count: u64,   // cumulé depuis l'installation, survit aux redémarrages
+    pub skip_count: u64,
+    pub error_count: u64,
+    pub last_fired_at: Option<DateTime<Utc>>,
+}
 ```
 
 ---

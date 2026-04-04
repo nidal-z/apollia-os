@@ -407,10 +407,33 @@ impl LlmCallRepository {
 | `local` (llama.cpp) | Llama 3, Mistral, Qwen, etc. | **Gratuit** | CPU/GPU local, latence dépend du hardware |
 | `ollama` | Tout modèle Ollama | **Gratuit** | Requiert Ollama installé localement |
 
+### Table de pricing compilée *(Sprint 34 — STORY-436)*
+
+Le calcul de `cost_usd` utilise une table lookup robuste dans `crates/apollia-llm/src/pricing.rs` (`default_pricing()`) avec correspondance exacte ou par préfixe de modèle :
+
+```rust
+// apollia-llm/src/pricing.rs
+
+pub struct PricingTier {
+    pub input_per_mtok: f64,   // USD par million de tokens en entrée
+    pub output_per_mtok: f64,  // USD par million de tokens en sortie
+}
+
+/// Cherche le pricing par correspondance exacte, puis par préfixe.
+/// "claude-sonnet-4-5-20261015" → pricing de "claude-sonnet-4-5".
+pub fn lookup_pricing<'a>(
+    model_id: &str,
+    table: &'a HashMap<&str, PricingTier>,
+    overrides: &'a HashMap<String, PricingTier>,
+) -> Option<&'a PricingTier>;
+```
+
+Les surcharges opérateur sont configurables dans `apollia.toml` sous `[llm.pricing_overrides]` pour les modèles non reconnus ou les tarifs négociés.
+
 ### Suivi des coûts
 
-Le champ `cost_usd` dans `RuntimeEvent::LlmCallCompleted` est calculé à partir d'une table de
-lookup compilée dans `crates/apollia-llm/src/pricing.rs`. Si le modèle n'est pas dans la table,
+Le champ `cost_usd` dans `RuntimeEvent::LlmCallCompleted` est calculé à partir de la table de
+lookup compilée. Si le modèle n'est pas dans la table et qu'aucun override n'existe,
 `cost_usd = None`. La CLI `apollia-os llm costs` agrège les coûts depuis `~/.apollia/llm_calls.db`.
 
 Sources officielles :

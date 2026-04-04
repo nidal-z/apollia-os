@@ -101,13 +101,60 @@ python_timeout_seconds = 60
 
 ```toml
 [api]
-# Activer l'API TCP (en plus du socket Unix)
-# Défaut : true
-tcp_enabled = true
+# Adresse IP sur laquelle binder le listener TCP.
+# Défaut : 127.0.0.1 (loopback uniquement — inaccessible depuis le réseau)
+# ⚠️  Ne passer à 0.0.0.0 que dans des contextes contrôlés (VM, CI) — voir ADR-051.
+bind = "127.0.0.1"
 
-# Lier l'API TCP sur cette adresse (0.0.0.0 = toutes les interfaces)
-# Défaut : 127.0.0.1 (loopback uniquement)
-bind_address = "127.0.0.1"
+# Port TCP du serveur REST.
+# Défaut : 7771
+port = 7771
+
+# Exiger un token Bearer sur toutes les connexions TCP entrantes.
+# Quand true (défaut), chaque requête TCP doit porter Authorization: Bearer <token>.
+# Le socket Unix n'est jamais soumis à cette vérification.
+# Token stocké dans ~/.apollia/api-token (chmod 0600, généré au premier démarrage).
+# Rotation manuelle : apollia-os config rotate-token
+# Défaut : true — NE PAS désactiver en production.
+require_token = true
+
+# Chemin du socket Unix local (utilisé par CLI et desktop sans auth).
+# Défaut : /tmp/apollia.sock
+unix_socket = "/tmp/apollia.sock"
+```
+
+> **Sécurité :** Le token `~/.apollia/api-token` est comparé à temps constant (pas de timing attack). Le runtime refuse de démarrer si le fichier a des permissions trop ouvertes (`0640`, `0644`, etc.). Voir [ADR-051](./Decisions-Log#adr-051) et [Securite-Local-First](./Securite-Local-First).
+
+### [oria]
+
+```toml
+[oria]
+# Nombre maximal de replans autorisés par exécution orchestrée.
+# 0 = aucun replan (la tâche échoue au premier plan raté).
+# Défaut : 2. Bornes : [0, 10].
+max_replans = 2
+
+# Score de complexité au-delà duquel l'Observer passe en mode Orchestrated.
+# Défaut : 0.40. Bornes : [0.0, 1.0].
+orchestrated_threshold = 0.40
+
+# Limite de caractères de la sortie d'un step mémorisée dans la mémoire épisodique.
+# Au-delà, le contenu est tronqué avec [truncated]. Voir ADR-054 et STEP_MEMORY_OUTPUT_MAX_CHARS.
+# Défaut : 200. Bornes : [50, 10000].
+step_memory_max_chars = 200
+
+# Intervalle de vérification du StepBudget restant, en millisecondes.
+# Défaut : 100. Bornes : [10, 5000].
+budget_poll_ms = 100
+```
+
+### [pipelines]
+
+```toml
+[pipelines]
+# Timeout par défaut d'un step, en secondes. Peut être surchargé par step via timeout_secs.
+# Défaut : 300. Bornes : [5, 3600].
+default_step_timeout_secs = 300
 ```
 
 ### [llm] et [[llm.backends]] — Moteur LLM
@@ -337,7 +384,7 @@ Les sections opérationnelles suivantes ne sont plus dans `apollia.toml` :
 
 **Pourquoi :** un opérateur peut créer, modifier et supprimer ses backends LLM, sa config STT, ses serveurs MCP et ses triggers depuis l'interface graphique — sans toucher au TOML, sans redémarrer le runtime.
 
-`apollia.toml` conserve uniquement la configuration **structurelle** : `[runtime]`, `[memory]`, `[tools]`, `[api]`, `[llm]` (observabilité uniquement), `[budget]`.
+`apollia.toml` conserve uniquement la configuration **structurelle** : `[runtime]`, `[memory]`, `[tools]`, `[api]`, `[oria]`, `[pipelines]`, `[hitl]`, `[llm]` (observabilité uniquement), `[budget]`.
 
 Voir :
 - [Briques Triggers](./Briques-Triggers) — CRUD triggers
