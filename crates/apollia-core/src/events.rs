@@ -806,6 +806,17 @@ pub enum RuntimeEvent {
         original_messages: usize,
     },
 
+    // ── File Path Extraction events ──────────────
+    /// Paths de fichiers extraits depuis la sortie d'une commande bash.
+    ///
+    /// Émis de façon non-bloquante par `FilePathExtractor::extract_detached` après
+    /// chaque exécution bash réussie. Permet à ORIA d'invalider les entrées du cache de
+    /// plan pour les fichiers affectés (Principe #5 — Un acteur, une responsabilité).
+    BashFilePathsExtracted {
+        /// Paths extraits depuis la sortie de la commande bash.
+        paths: Vec<std::path::PathBuf>,
+    },
+
     // ── Permission events ────────────────────────
     /// Une invocation d'outil nécessite une approbation humaine.
     ///
@@ -1165,6 +1176,13 @@ mod tests {
             RuntimeEvent::ContextCompacted {
                 summary_chars: 3800,
                 original_messages: 42,
+            },
+            // ── File Path Extraction ──────────────────────────
+            RuntimeEvent::BashFilePathsExtracted {
+                paths: vec![
+                    std::path::PathBuf::from("src/main.rs"),
+                    std::path::PathBuf::from("/tmp/out.txt"),
+                ],
             },
         ];
 

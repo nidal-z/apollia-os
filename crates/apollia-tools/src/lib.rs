@@ -21,6 +21,7 @@ pub mod agent_repository;
 pub mod audit;
 pub mod descriptor;
 pub mod executor;
+pub mod file_path_extractor;
 pub mod registry;
 pub mod resolver;
 pub mod sandbox_path;
@@ -34,6 +35,7 @@ pub use audit::{
 };
 pub use descriptor::{McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind};
 pub use executor::{ToolBatchCall, ToolDispatcher, ToolExecutionError, ToolExecutor};
+pub use file_path_extractor::FilePathExtractor;
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
 pub use sandbox_path::{SandboxPathError, SandboxRoot};

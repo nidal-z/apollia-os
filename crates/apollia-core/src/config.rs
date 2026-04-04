@@ -575,12 +575,28 @@ pub struct ToolsConfig {
     /// Défaut : 30 000. Bornes : [10, 1 000 000].
     #[serde(default = "default_max_output_chars")]
     pub max_output_chars: usize,
+
+    /// Pattern regex d'extraction de paths depuis l'output bash.
+    ///
+    /// Utilisé par `FilePathExtractor` pour parser la réponse du LLM léger.
+    /// Défaut : `None` — le pattern intégré (chemins Unix POSIX.1-2017 §3.265
+    /// et Windows UNC RFC 8089) est appliqué.
+    /// Configurable pour des environnements avec des conventions de nommage custom.
+    ///
+    /// Exemple `apollia.toml` :
+    /// ```toml
+    /// [tools]
+    /// # file_path_extraction_pattern = "(?:/[^\\s]+)"
+    /// ```
+    #[serde(default)]
+    pub file_path_extraction_pattern: Option<String>,
 }
 
 impl Default for ToolsConfig {
     fn default() -> Self {
         Self {
             max_output_chars: default_max_output_chars(),
+            file_path_extraction_pattern: None,
         }
     }
 }
@@ -1319,6 +1335,7 @@ mod tests {
         // GIVEN max_output_chars below minimum (min = 10)
         let cfg = ToolsConfig {
             max_output_chars: 5,
+            file_path_extraction_pattern: None,
         };
         // WHEN
         let result = cfg.validate();
@@ -1334,6 +1351,7 @@ mod tests {
         // GIVEN max_output_chars above maximum
         let cfg = ToolsConfig {
             max_output_chars: 2_000_000,
+            file_path_extraction_pattern: None,
         };
         // WHEN
         let result = cfg.validate();

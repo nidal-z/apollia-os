@@ -227,6 +227,15 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::A2AInvocationCompleted { .. }
         | RuntimeEvent::A2AGuardTriggered { .. } => "a2a",
 
+        // ── File path extraction ─────────────────────────────────────────
+        RuntimeEvent::BashFilePathsExtracted { .. } => "task-changed",
+
+        // ── Permissions ──────────────────────────────────────────────────
+        RuntimeEvent::PermissionRequired { .. } => "approval-changed",
+
+        // ── Context manager ──────────────────────────────────────────────
+        RuntimeEvent::ContextCompacted { .. } => "system",
+
         // ── System-level ─────────────────────────────────────────────────
         RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested | RuntimeEvent::FatalError(_) => {
             "system"

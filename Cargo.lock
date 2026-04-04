@@ -486,6 +486,7 @@ name = "apollia-tools"
 version = "0.1.0"
 dependencies = [
  "apollia-core",
+ "apollia-llm",
  "apollia-memory",
  "apollia-permissions",
  "async-trait",

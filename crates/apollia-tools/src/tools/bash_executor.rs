@@ -8,15 +8,17 @@
 //! 2. Syntax validation (async, `bash -n -c`) — blocked if syntax is invalid.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use serde_json::json;
 use thiserror::Error;
 use tokio::io::AsyncReadExt;
 
-use apollia_core::{BashValidatorConfig, SandboxProfile};
+use apollia_core::{BashValidatorConfig, EventBusSender, SandboxProfile};
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
+use crate::file_path_extractor::FilePathExtractor;
 use crate::tools::bash_validator::BashValidator;
 use crate::tools::risk_classifier::RiskCategory;
 
@@ -30,8 +32,15 @@ use crate::tools::risk_classifier::RiskCategory;
 ///
 /// Before any process is spawned, [`BashValidator`] applies risk classification
 /// and syntax validation (Principe #4 — Fail fast).
+///
+/// An optional [`FilePathExtractor`] can be wired in via
+/// [`with_file_path_extractor`](Self::with_file_path_extractor). When set, paths found
+/// in the stdout of every successful command are extracted asynchronously and emitted
+/// as [`apollia_core::RuntimeEvent::BashFilePathsExtracted`] (non-blocking).
 pub struct BashExecutor {
     validator: BashValidator,
+    file_path_extractor: Option<Arc<FilePathExtractor>>,
+    event_tx: Option<EventBusSender>,
 }
 
 /// Input parameters for a bash invocation.
@@ -109,6 +118,8 @@ impl BashExecutor {
     pub fn new() -> Self {
         Self {
             validator: BashValidator::new(BashValidatorConfig::default()),
+            file_path_extractor: None,
+            event_tx: None,
         }
     }
 
@@ -119,7 +130,25 @@ impl BashExecutor {
     pub fn with_config(config: BashValidatorConfig) -> Self {
         Self {
             validator: BashValidator::new(config),
+            file_path_extractor: None,
+            event_tx: None,
         }
+    }
+
+    /// Wires a [`FilePathExtractor`] into this executor.
+    ///
+    /// After every successful bash execution, paths found in stdout are extracted
+    /// asynchronously via `extractor` and emitted on `event_tx` as
+    /// [`apollia_core::RuntimeEvent::BashFilePathsExtracted`].
+    /// The extraction never blocks `run` — it runs in a detached [`tokio::spawn`] task.
+    pub fn with_file_path_extractor(
+        mut self,
+        extractor: Arc<FilePathExtractor>,
+        event_tx: EventBusSender,
+    ) -> Self {
+        self.file_path_extractor = Some(extractor);
+        self.event_tx = Some(event_tx);
+        self
     }
 
     /// Returns the [`ToolDescriptor`] for registration in [`crate::registry::ToolRegistry`].
@@ -194,6 +223,13 @@ impl BashExecutor {
     /// - [`BashExecutorError::SpawnFailed`] — OS refused to spawn the child.
     /// - [`BashExecutorError::OutputCaptureFailed`] — I/O error reading stdout/stderr.
     pub async fn run(&self, input: BashInput) -> Result<BashOutput, BashExecutorError> {
+        // Pre-capture the command string for extraction before any conditional moves.
+        // The clone is skipped when no extractor is configured (common path).
+        let command_for_extraction: Option<String> = self
+            .file_path_extractor
+            .as_ref()
+            .map(|_| input.command.clone());
+
         // Step 1 — Fail fast: empty command.
         if input.command.trim().is_empty() {
             return Err(BashExecutorError::EmptyCommand);
@@ -288,12 +324,23 @@ impl BashExecutor {
             .map_err(|e| BashExecutorError::OutputCaptureFailed(e.to_string()))?
             .map_err(|e| BashExecutorError::OutputCaptureFailed(e.to_string()))?;
 
-        Ok(BashOutput {
+        let output = BashOutput {
             stdout: String::from_utf8_lossy(&stdout_bytes).into_owned(),
             stderr: String::from_utf8_lossy(&stderr_bytes).into_owned(),
             exit_code: status.code().unwrap_or(-1),
             duration_ms,
-        })
+        };
+
+        // Non-blocking path extraction: spawned in a detached task after a successful run.
+        if let (Some(extractor), Some(event_tx), Some(cmd)) = (
+            &self.file_path_extractor,
+            &self.event_tx,
+            command_for_extraction,
+        ) {
+            extractor.extract_detached(cmd, output.stdout.clone(), event_tx.clone());
+        }
+
+        Ok(output)
     }
 
     /// Builds the OS-appropriate [`tokio::process::Command`] for the given input.
@@ -539,5 +586,105 @@ mod tests {
         // THEN
         assert_eq!(descriptor.name, "bash_executor");
         assert!(descriptor.validate().is_ok());
+    }
+
+    // ── FilePathExtractor integration ─────────────────────────────────────────
+
+    #[tokio::test]
+    async fn bash_executor_emits_paths_extracted_event() {
+        if !can_run_shell() {
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
+
+        // GIVEN — executor wired with a mock extractor
+        use std::collections::HashMap;
+        use std::pin::Pin;
+        use std::sync::Arc;
+
+        use apollia_llm::types::{
+            CompletionModel, CompletionRequest, CompletionResponse, FinishReason, LlmError,
+            StreamChunk, TokenUsage,
+        };
+        use apollia_llm::LlmRouter;
+        use async_trait::async_trait;
+        use futures::Stream;
+        use tokio::sync::broadcast;
+
+        use apollia_core::RuntimeEvent;
+
+        struct EchoBackend;
+        #[async_trait]
+        impl CompletionModel for EchoBackend {
+            async fn complete(
+                &self,
+                _req: CompletionRequest,
+            ) -> Result<CompletionResponse, LlmError> {
+                Ok(CompletionResponse {
+                    content: "/tmp/test.txt".into(),
+                    tool_calls: vec![],
+                    usage: TokenUsage::default(),
+                    finish_reason: FinishReason::Stop,
+                    latency_ms: 1,
+                    ttft_ms: None,
+                })
+            }
+
+            async fn stream(
+                &self,
+                _req: CompletionRequest,
+            ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
+            {
+                unimplemented!()
+            }
+
+            fn is_available(&self) -> bool {
+                true
+            }
+
+            fn backend_name(&self) -> &str {
+                "echo"
+            }
+
+            fn model_id(&self) -> &str {
+                "echo-v1"
+            }
+        }
+
+        let mut backends = HashMap::new();
+        backends.insert(
+            "echo".to_owned(),
+            Arc::new(EchoBackend) as Arc<dyn CompletionModel>,
+        );
+        let router = Arc::new(LlmRouter::with_backends(backends, "echo"));
+        let extractor = Arc::new(crate::file_path_extractor::FilePathExtractor::new(router));
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
+
+        let executor = BashExecutor::new().with_file_path_extractor(extractor, tx);
+
+        let input = BashInput {
+            command: "echo test.txt".to_string(),
+            timeout_secs: 10,
+            working_dir: None,
+        };
+
+        // WHEN
+        let _output = executor.run(input).await.expect("execution must succeed");
+
+        // THEN — BashFilePathsExtracted must arrive within 2 seconds (non-blocking)
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                match rx.recv().await {
+                    Ok(RuntimeEvent::BashFilePathsExtracted { paths }) => {
+                        assert!(!paths.is_empty(), "extracted paths must not be empty");
+                        break;
+                    }
+                    Ok(_) => continue,
+                    Err(e) => panic!("channel error before BashFilePathsExtracted: {e}"),
+                }
+            }
+        })
+        .await
+        .expect("BashFilePathsExtracted must be emitted within 2 seconds");
     }
 }
