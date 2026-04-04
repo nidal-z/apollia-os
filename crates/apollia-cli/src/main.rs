@@ -31,6 +31,7 @@ use commands::stt::SttCommand;
 use commands::task::TaskCommand;
 use commands::tools::ToolsCommand;
 use commands::trigger::TriggerCommand;
+use commands::workspace::WorkspaceCommand;
 
 /// Apollia OS — Sovereign AI Agent Runtime.
 #[derive(Debug, Parser)]
@@ -193,6 +194,13 @@ enum Commands {
     /// to MCP clients such as Claude Desktop, VS Code Copilot Chat, or Cursor.
     /// Use `--with-runtime` to additionally expose `submit_task`.
     McpServer(McpServerArgs),
+
+    /// Workspace inspection and initialization (status, init).
+    Workspace {
+        /// Workspace subcommand.
+        #[command(subcommand)]
+        command: WorkspaceCommand,
+    },
 }
 
 fn main() {
@@ -276,6 +284,7 @@ fn main() {
                     exit_codes::GENERAL_ERROR
                 }
             },
+            Commands::Workspace { command } => commands::workspace::run(&command, json).await,
         }
     });
 
@@ -298,6 +307,7 @@ mod tests {
     use commands::task::TaskCommand;
     use commands::tools::ToolsCommand;
     use commands::trigger::TriggerCommand;
+    use commands::workspace::WorkspaceCommand;
 
     fn parse(args: &[&str]) -> Cli {
         Cli::parse_from(args)
@@ -1342,5 +1352,68 @@ mod tests {
         let cli = parse(&["apollia-os", "stt", "model", "list", "--json"]);
         assert!(matches!(cli.command, Commands::Stt { .. }));
         assert!(cli.json);
+    }
+
+    #[test]
+    fn test_cli_parses_workspace_status() {
+        // GIVEN "apollia-os workspace status"
+        let cli = parse(&["apollia-os", "workspace", "status"]);
+        // THEN Commands::Workspace avec WorkspaceCommand::Status
+        assert!(
+            matches!(
+                cli.command,
+                Commands::Workspace {
+                    command: WorkspaceCommand::Status
+                }
+            ),
+            "doit parser workspace status"
+        );
+        assert!(!cli.json);
+    }
+
+    #[test]
+    fn test_cli_parses_workspace_init() {
+        // GIVEN "apollia-os workspace init"
+        let cli = parse(&["apollia-os", "workspace", "init"]);
+        // THEN Commands::Workspace avec WorkspaceCommand::Init { force: false }
+        assert!(
+            matches!(
+                cli.command,
+                Commands::Workspace {
+                    command: WorkspaceCommand::Init { force: false }
+                }
+            ),
+            "doit parser workspace init sans --force"
+        );
+    }
+
+    #[test]
+    fn test_cli_parses_workspace_init_force() {
+        // GIVEN "apollia-os workspace init --force"
+        let cli = parse(&["apollia-os", "workspace", "init", "--force"]);
+        // THEN Commands::Workspace avec WorkspaceCommand::Init { force: true }
+        assert!(
+            matches!(
+                cli.command,
+                Commands::Workspace {
+                    command: WorkspaceCommand::Init { force: true }
+                }
+            ),
+            "doit parser workspace init --force"
+        );
+    }
+
+    #[test]
+    fn test_cli_parses_workspace_status_json() {
+        // GIVEN "apollia-os --json workspace status"
+        let cli = parse(&["apollia-os", "--json", "workspace", "status"]);
+        // THEN json=true
+        assert!(cli.json, "flag global --json doit être activé");
+        assert!(matches!(
+            cli.command,
+            Commands::Workspace {
+                command: WorkspaceCommand::Status
+            }
+        ));
     }
 }
