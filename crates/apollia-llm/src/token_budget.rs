@@ -96,6 +96,17 @@ impl SessionBudgetTracker {
         self.ttft_ms = None;
     }
 
+    /// Retourne le seuil de coût configuré en USD, ou `None` si non configuré.
+    ///
+    /// Retourne `None` quand la valeur interne vaut `f64::MAX` (seuil désactivé).
+    pub fn threshold_usd(&self) -> Option<f64> {
+        if self.threshold_usd < f64::MAX {
+            Some(self.threshold_usd)
+        } else {
+            None
+        }
+    }
+
     /// Convertit le snapshot courant en [`TokenBudget`] pour l'API REST.
     pub fn to_token_budget(&self) -> TokenBudget {
         TokenBudget {

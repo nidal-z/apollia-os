@@ -444,6 +444,7 @@ fn main() {
             commands::llm::set_default_llm_backend,
             commands::llm::ping_llm_backend,
             commands::llm::get_llm_cost_stats,
+            commands::llm::get_cost_alert_threshold,
             commands::triggers::list_triggers,
             commands::triggers::set_trigger_enabled,
             commands::triggers::fire_trigger,

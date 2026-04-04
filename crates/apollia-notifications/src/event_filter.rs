@@ -15,6 +15,7 @@ pub const KNOWN_EVENT_NAMES: &[&str] = &[
     "agent.degraded",
     "agent.inactivity",
     "llm.backend_down",
+    "llm.cost_alert",
     "trigger.error",
     "pipeline.completed",
     "pipeline.failed",

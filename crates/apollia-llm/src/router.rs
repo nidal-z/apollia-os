@@ -706,6 +706,13 @@ impl LlmRouter {
         &self.default
     }
 
+    /// Retourne le seuil d'alerte de coût LLM configuré en USD, ou `None` si non configuré.
+    ///
+    /// Correspond à `[llm] cost_alert_threshold_usd` dans `apollia.toml`.
+    pub fn cost_alert_threshold_usd(&self) -> Option<f64> {
+        self.session_budget.lock().ok()?.threshold_usd()
+    }
+
     /// Retourne le backend configuré pour les tâches de raisonnement profond.
     ///
     /// Sélectionne le backend nommé dans `[llm.routing] precise` de `apollia.toml`.

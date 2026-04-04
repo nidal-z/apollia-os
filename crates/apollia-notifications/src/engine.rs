@@ -163,6 +163,11 @@ pub struct NotificationEngine {
     /// `None` → logging désactivé (tests, dev sans data_dir). En production, le
     /// Supervisor passe `Some(data_dir.join("hitl.db"))`.
     log_db_path: Option<PathBuf>,
+    /// `true` si le seuil de coût LLM a déjà déclenché une notification pour cette session.
+    ///
+    /// Edge trigger : remis à `false` quand `threshold_exceeded` repasse à `false`
+    /// (nouvelle session ou coût redescendu sous le seuil).
+    cost_threshold_already_notified: bool,
 }
 
 impl NotificationEngine {
@@ -198,6 +203,7 @@ impl NotificationEngine {
             event_bus,
             api_base_url,
             log_db_path,
+            cost_threshold_already_notified: false,
         }
     }
 
@@ -214,6 +220,7 @@ impl NotificationEngine {
             event_bus,
             api_base_url,
             log_db_path,
+            cost_threshold_already_notified,
         } = self;
         tokio::spawn(run_engine_loop(
             config,
@@ -221,9 +228,30 @@ impl NotificationEngine {
             event_bus,
             api_base_url,
             log_db_path,
+            cost_threshold_already_notified,
             cmd_rx,
         ));
         NotificationEngineHandle { tx: cmd_tx }
+    }
+
+    /// Réaction à [`RuntimeEvent::TokenBudgetUpdated`].
+    ///
+    /// Edge trigger : émet une notification OS uniquement à la transition `false → true`
+    /// de `threshold_exceeded`. Le flag est réarmé lorsque `threshold_exceeded` repasse
+    /// à `false` (nouvelle session ou coût redescendu sous le seuil).
+    ///
+    /// N'émet rien si le seuil n'est pas encore dépassé ou si la notification
+    /// a déjà été envoyée pour ce dépassement.
+    pub async fn handle_budget_update(&mut self, event: &RuntimeEvent) {
+        process_budget_alert(
+            &mut self.cost_threshold_already_notified,
+            event,
+            &self.config,
+            &self.channels,
+            &self.api_base_url,
+            self.log_db_path.as_deref(),
+        )
+        .await;
     }
 
     /// Transforme un [`RuntimeEvent`] en [`Notification`].
@@ -232,6 +260,63 @@ impl NotificationEngine {
     /// Testable sans infrastructure.
     pub fn map_event(&self, event: &RuntimeEvent) -> Option<Notification> {
         event_filter::map_event(&self.api_base_url, event)
+    }
+}
+
+/// Construit la notification d'alerte de seuil de coût LLM.
+fn build_cost_alert_notification(
+    session_cost_usd: f64,
+    threshold_usd: f64,
+    api_base_url: &str,
+) -> Notification {
+    let mut metadata = HashMap::new();
+    metadata.insert("dashboard_url".into(), format!("{api_base_url}/dashboard"));
+    Notification {
+        event: "llm.cost_alert".into(),
+        timestamp: chrono::Utc::now(),
+        task_id: None,
+        agent: None,
+        message: format!("Coût session : ${session_cost_usd:.3} (seuil : ${threshold_usd:.3})"),
+        metadata,
+        severity: crate::config::Severity::Warning,
+    }
+}
+
+/// Évalue un [`RuntimeEvent::TokenBudgetUpdated`] contre l'état de l'edge trigger.
+///
+/// Si `threshold_exceeded` passe de `false` à `true`, dispatche une notification
+/// via les canaux configurés et met à jour `already_notified`.
+/// Réarme `already_notified` à `false` quand `threshold_exceeded` repasse à `false`.
+async fn process_budget_alert(
+    already_notified: &mut bool,
+    event: &RuntimeEvent,
+    config: &NotificationConfig,
+    channels: &[Box<dyn NotificationChannel>],
+    api_base_url: &str,
+    log_db_path: Option<&std::path::Path>,
+) {
+    let RuntimeEvent::TokenBudgetUpdated {
+        session_cost_usd,
+        threshold_usd,
+        threshold_exceeded,
+        ..
+    } = event
+    else {
+        return;
+    };
+
+    if *threshold_exceeded && !*already_notified {
+        *already_notified = true;
+        let notif = build_cost_alert_notification(*session_cost_usd, *threshold_usd, api_base_url);
+        let results = dispatch_notif(config, channels, &notif).await;
+        if let Some(db_path) = log_db_path {
+            let db_path = db_path.to_path_buf();
+            tokio::task::spawn_blocking(move || {
+                write_notification_log(&db_path, &notif, &results);
+            });
+        }
+    } else if !threshold_exceeded {
+        *already_notified = false;
     }
 }
 
@@ -246,6 +331,7 @@ async fn run_engine_loop(
     event_bus: EventBusSender,
     api_base_url: String,
     log_db_path: Option<PathBuf>,
+    mut cost_threshold_already_notified: bool,
     mut cmd_rx: mpsc::Receiver<NotifEngineCommand>,
 ) {
     let mut rx = event_bus.subscribe();
@@ -296,6 +382,15 @@ async fn run_engine_loop(
                                 });
                             }
                         }
+                        process_budget_alert(
+                            &mut cost_threshold_already_notified,
+                            &event,
+                            &config,
+                            &channels,
+                            &api_base_url,
+                            log_db_path.as_deref(),
+                        )
+                        .await;
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                         tracing::warn!(
@@ -666,5 +761,89 @@ mod tests {
             config.events.as_deref(),
             Some(&["task.input_required".to_string(), "task.failed".to_string()][..])
         );
+    }
+
+    fn make_budget_event(threshold_exceeded: bool) -> RuntimeEvent {
+        RuntimeEvent::TokenBudgetUpdated {
+            session_cost_usd: 0.75,
+            total_input_tokens: 1000,
+            total_output_tokens: 500,
+            total_cache_read_tokens: 200,
+            threshold_usd: 0.50,
+            threshold_exceeded,
+        }
+    }
+
+    #[tokio::test]
+    async fn handle_budget_update_notifies_on_threshold_exceeded() {
+        // GIVEN engine with a mock channel that accepts llm.cost_alert
+        let (tx, _rx) = tokio::sync::broadcast::channel(16);
+        let call_count = Arc::new(AtomicU32::new(0));
+        let config = make_config(vec!["llm.cost_alert".into()]);
+        let channels: Vec<Box<dyn NotificationChannel>> = vec![Box::new(MockChannel {
+            name: "desktop".into(),
+            enabled: true,
+            events: None,
+            should_fail: false,
+            call_count: call_count.clone(),
+        })];
+        let mut engine =
+            NotificationEngine::new(config, channels, tx, "http://127.0.0.1:7771".into(), None);
+
+        // WHEN threshold is exceeded and not yet notified
+        let event = make_budget_event(true);
+        engine.handle_budget_update(&event).await;
+
+        // THEN notification dispatched once
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
+        assert!(engine.cost_threshold_already_notified);
+    }
+
+    #[tokio::test]
+    async fn handle_budget_update_no_duplicate_notification() {
+        // GIVEN engine already notified (flag set by a prior exceeded event)
+        let (tx, _rx) = tokio::sync::broadcast::channel(16);
+        let call_count = Arc::new(AtomicU32::new(0));
+        let config = make_config(vec!["llm.cost_alert".into()]);
+        let channels: Vec<Box<dyn NotificationChannel>> = vec![Box::new(MockChannel {
+            name: "desktop".into(),
+            enabled: true,
+            events: None,
+            should_fail: false,
+            call_count: call_count.clone(),
+        })];
+        let mut engine =
+            NotificationEngine::new(config, channels, tx, "http://127.0.0.1:7771".into(), None);
+
+        // Set the flag via the first exceeded event
+        engine.handle_budget_update(&make_budget_event(true)).await;
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
+
+        // WHEN threshold exceeded again (still above threshold)
+        engine.handle_budget_update(&make_budget_event(true)).await;
+
+        // THEN no second notification dispatched
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn handle_budget_update_rearms_on_false() {
+        // GIVEN engine already notified
+        let (tx, _rx) = tokio::sync::broadcast::channel(16);
+        let mut engine = NotificationEngine::new(
+            make_config(vec!["llm.cost_alert".into()]),
+            vec![],
+            tx,
+            "http://127.0.0.1:7771".into(),
+            None,
+        );
+        engine.handle_budget_update(&make_budget_event(true)).await;
+        assert!(engine.cost_threshold_already_notified);
+
+        // WHEN threshold no longer exceeded (new session or cost dropped)
+        engine.handle_budget_update(&make_budget_event(false)).await;
+
+        // THEN flag is reset
+        assert!(!engine.cost_threshold_already_notified);
     }
 }

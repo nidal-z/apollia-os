@@ -225,6 +225,19 @@ pub async fn ping_llm_backend(
     }
 }
 
+/// Retourne le seuil d'alerte de coût LLM configuré en USD.
+///
+/// Retourne `None` si `cost_alert_threshold_usd` n'est pas configuré dans `apollia.toml`.
+#[tauri::command]
+pub async fn get_cost_alert_threshold(
+    state: State<'_, RuntimeHandle>,
+) -> Result<Option<f64>, String> {
+    Ok(state
+        .llm_router
+        .as_ref()
+        .and_then(|router| router.cost_alert_threshold_usd()))
+}
+
 /// Récupère les statistiques coût/tokens agrégées sur N jours.
 ///
 /// Délègue à `GET /api/v1/llm/costs?days=N`.
