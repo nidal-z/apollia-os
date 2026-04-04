@@ -359,31 +359,92 @@ pub fn handle_sse_event(event: &SseEvent, state: &mut RunDisplayState) -> bool {
 
 // ─── Public entry point ───────────────────────────────────────────────────────
 
+/// Arguments forwarded from the `run` CLI sub-command to [`run`].
+pub struct RunCommandArgs<'a> {
+    /// Target agent identifier.
+    pub agent_id: &'a str,
+    /// Free-text task input.
+    pub input: &'a str,
+    /// Optional Unix socket path override.
+    pub socket: Option<PathBuf>,
+    /// Output machine-readable JSON.
+    pub json: bool,
+    /// Stream task progress in real-time via SSE.
+    pub stream: bool,
+    /// Submit and return immediately without waiting.
+    pub detach: bool,
+    /// Show two plan alternatives and prompt for a choice before executing.
+    pub alternatives: bool,
+    /// Session-level tool allow-list (empty = all tools permitted).
+    pub allowed_tools: Vec<String>,
+    /// Session-level tool deny-list (takes priority over `allowed_tools`).
+    pub disallowed_tools: Vec<String>,
+}
+
 /// Execute the `run` command.
 ///
 /// Submits a task to the specified agent and waits for the result.
 /// With `--detach`, returns immediately after submission and prints the task ID.
 /// With `--alternatives`, activates the binary feedback mode: the SSE stream will
 /// pause on `plan_alternatives_generated` and prompt the operator to choose a plan.
+/// With `--allowed-tools` / `--disallowed-tools`, enforces a session-level tool
+/// filter on the runtime side (forwarded in the task submission payload).
 /// Returns the process exit code.
-pub async fn run(
-    agent_id: &str,
-    input: &str,
-    socket: Option<PathBuf>,
-    json: bool,
-    stream: bool,
-    detach: bool,
-    alternatives: bool,
-) -> i32 {
+pub async fn run(args: RunCommandArgs<'_>) -> i32 {
+    let RunCommandArgs {
+        agent_id,
+        input,
+        socket,
+        json,
+        stream,
+        detach,
+        alternatives,
+        allowed_tools,
+        disallowed_tools,
+    } = args;
     let socket_path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
     let client = RuntimeClient::new(socket_path);
     let start = Instant::now();
 
+    // Build the session tool filter fragment if any restrictions are specified.
+    // The runtime applies them when constructing the ToolDispatcher for this task.
+    let session_filter = if allowed_tools.is_empty() && disallowed_tools.is_empty() {
+        serde_json::Value::Null
+    } else {
+        let allowed = if allowed_tools.is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::Value::Array(
+                allowed_tools
+                    .iter()
+                    .map(|t| serde_json::Value::String(t.clone()))
+                    .collect(),
+            )
+        };
+        let disallowed = serde_json::Value::Array(
+            disallowed_tools
+                .iter()
+                .map(|t| serde_json::Value::String(t.clone()))
+                .collect(),
+        );
+        serde_json::json!({
+            "allowed_tools": allowed,
+            "disallowed_tools": disallowed,
+        })
+    };
+
     // Submit the task using the A2A-aligned AIPInput format so Python agents can read
     // parts[0]["text"] directly (see AIPPart::Text serialisation in apollia-core).
-    let input_value = serde_json::json!({
+    let mut input_value = serde_json::json!({
         "parts": [{"type": "text", "text": input}]
     });
+
+    if !session_filter.is_null() {
+        if let Some(obj) = input_value.as_object_mut() {
+            obj.insert("session_config".to_string(), session_filter);
+        }
+    }
+
     let submit_result = client.submit_task(agent_id, input_value).await;
 
     let task_json = match submit_result {

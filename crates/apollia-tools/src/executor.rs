@@ -56,6 +56,17 @@ pub enum ToolExecutionError {
         name: String,
     },
 
+    /// The tool is blocked by the session-level tool filter.
+    ///
+    /// Returned when [`SessionToolFilter::is_allowed`] returns `false` for the
+    /// given tool name. This happens when the tool is listed in `disallowed_tools`,
+    /// or when `allowed_tools` is `Some(list)` and the tool is not in the list.
+    #[error("tool not allowed for this session: {tool_name}")]
+    ToolNotAllowed {
+        /// Name of the tool that was blocked.
+        tool_name: String,
+    },
+
     /// The permission engine denied the invocation (AutoDenied*).
     ///
     /// Returned when `PermissionEngine::decide()` produces `AutoDeniedInjection`
@@ -73,6 +84,52 @@ pub enum ToolExecutionError {
     /// and no `EventBusSender` is configured to emit `PermissionRequired`.
     #[error("permission check failed: {0}")]
     PermissionError(String),
+}
+
+/// Session-level tool filter enforcing `--allowed-tools` / `--disallowed-tools`.
+///
+/// The filter is evaluated before the 3-layer permission engine so that
+/// session-scoped restrictions take precedence over the global safe-list.
+///
+/// Rules (evaluated in order):
+/// 1. If `disallowed_tools` contains the tool name → blocked.
+/// 2. If `allowed_tools` is `Some(list)` and the tool is not in `list` → blocked.
+/// 3. Otherwise → allowed.
+///
+/// `disallowed_tools` always wins over `allowed_tools` when both list the same tool.
+#[derive(Debug, Clone, Default)]
+pub struct SessionToolFilter {
+    /// Restrictive allow-list for this session. `None` means all tools are allowed.
+    ///
+    /// When `Some`, only tools explicitly listed here can be invoked (subject to
+    /// `disallowed_tools` taking precedence).
+    pub allowed_tools: Option<Vec<String>>,
+    /// Tools that are always blocked in this session, regardless of `allowed_tools`.
+    pub disallowed_tools: Vec<String>,
+}
+
+impl SessionToolFilter {
+    /// Create a filter with an explicit allow-list and a deny-list.
+    pub fn new(allowed_tools: Option<Vec<String>>, disallowed_tools: Vec<String>) -> Self {
+        Self {
+            allowed_tools,
+            disallowed_tools,
+        }
+    }
+
+    /// Returns `true` if `tool_name` is allowed under the current filter rules.
+    ///
+    /// `disallowed_tools` takes priority: a tool listed there is always blocked
+    /// even if it also appears in `allowed_tools`.
+    pub fn is_allowed(&self, tool_name: &str) -> bool {
+        if self.disallowed_tools.iter().any(|d| d == tool_name) {
+            return false;
+        }
+        match &self.allowed_tools {
+            Some(list) => list.iter().any(|a| a == tool_name),
+            None => true,
+        }
+    }
 }
 
 /// Trait for executing a native tool via a JSON-in / JSON-out interface.
@@ -130,6 +187,10 @@ const MAX_CONCURRENT_READ_TOOLS: usize = 10;
 /// the start and end of the output are preserved, the middle is replaced with a
 /// truncation marker indicating the number of discarded lines.
 ///
+/// An optional [`SessionToolFilter`] can be wired in via [`with_session_filter`].
+/// When present, `dispatch()` evaluates the session filter *before* the permission
+/// engine. Blocked tools return [`ToolExecutionError::ToolNotAllowed`] immediately.
+///
 /// An optional [`PermissionEngine`] can be wired in via [`with_permission_engine`].
 /// When present, `dispatch()` evaluates the 3-layer permission policy before executing
 /// the tool. If the engine returns `AutoDenied*`, the call is blocked and a
@@ -137,10 +198,13 @@ const MAX_CONCURRENT_READ_TOOLS: usize = 10;
 /// a [`RuntimeEvent::PermissionRequired`] is emitted on the `EventBusSender` (fire-and-forget)
 /// and [`ToolExecutionError::PermissionDenied`] is returned.
 ///
+/// [`with_session_filter`]: ToolDispatcher::with_session_filter
 /// [`with_permission_engine`]: ToolDispatcher::with_permission_engine
 pub struct ToolDispatcher {
     executors: Vec<Box<dyn ToolExecutor>>,
     max_output_chars: usize,
+    /// Optional session-level tool filter (`--allowed-tools` / `--disallowed-tools`).
+    tool_filter: Option<SessionToolFilter>,
     /// Optional 3-layer permission engine. `None` = no permission check (backward-compat).
     permission_engine: Option<std::sync::Mutex<PermissionEngine>>,
     /// EventBus sender for emitting `PermissionRequired` events.
@@ -160,10 +224,21 @@ impl ToolDispatcher {
         Self {
             executors,
             max_output_chars: DEFAULT_MAX_OUTPUT_CHARS,
+            tool_filter: None,
             permission_engine: None,
             event_bus: None,
             agent_manifest: None,
         }
+    }
+
+    /// Attach a session-level tool filter to this dispatcher.
+    ///
+    /// When set, every `dispatch()` call checks the filter before the permission
+    /// engine. Tools blocked by the filter return [`ToolExecutionError::ToolNotAllowed`]
+    /// immediately without reaching the executor.
+    pub fn with_session_filter(mut self, filter: SessionToolFilter) -> Self {
+        self.tool_filter = Some(filter);
+        self
     }
 
     /// Override the maximum output size for middle-trim truncation.
@@ -230,6 +305,19 @@ impl ToolDispatcher {
         tool_name: &str,
         input: Value,
     ) -> Result<Value, ToolExecutionError> {
+        // ── Session-level tool filter (optional) ──────────────────────────────
+        if let Some(filter) = &self.tool_filter {
+            if !filter.is_allowed(tool_name) {
+                tracing::debug!(
+                    tool = %tool_name,
+                    "session filter: tool not allowed"
+                );
+                return Err(ToolExecutionError::ToolNotAllowed {
+                    tool_name: tool_name.to_string(),
+                });
+            }
+        }
+
         // ── Permission check (optional) ───────────────────────────────────────
         if let Some(engine_mutex) = &self.permission_engine {
             let manifest = self.agent_manifest.as_ref().ok_or_else(|| {
@@ -1155,5 +1243,85 @@ mod tests {
         };
         // THEN
         assert!(ro_executor.is_read_only());
+    }
+
+    #[tokio::test]
+    async fn allowed_tools_blocks_unlisted_tool() {
+        // GIVEN: allowed_tools restricts to "file_read" only
+        let filter = SessionToolFilter::new(Some(vec!["file_read".to_string()]), vec![]);
+        let dispatcher = ToolDispatcher::new(vec![Box::new(EchoExecutor {
+            tool_name: "bash_executor",
+        })])
+        .with_session_filter(filter);
+
+        // WHEN: dispatch to a tool not in the allow-list
+        let result = dispatcher.dispatch("bash_executor", json!({})).await;
+
+        // THEN: ToolNotAllowed
+        match result {
+            Err(ToolExecutionError::ToolNotAllowed { tool_name }) => {
+                assert_eq!(tool_name, "bash_executor");
+            }
+            other => panic!("expected ToolNotAllowed, got: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn disallowed_tools_blocks_listed_tool() {
+        // GIVEN: disallowed_tools blocks "file_write"
+        let filter = SessionToolFilter::new(None, vec!["file_write".to_string()]);
+        let dispatcher = ToolDispatcher::new(vec![Box::new(EchoExecutor {
+            tool_name: "file_write",
+        })])
+        .with_session_filter(filter);
+
+        // WHEN: dispatch to the blocked tool
+        let result = dispatcher.dispatch("file_write", json!({})).await;
+
+        // THEN: ToolNotAllowed
+        match result {
+            Err(ToolExecutionError::ToolNotAllowed { tool_name }) => {
+                assert_eq!(tool_name, "file_write");
+            }
+            other => panic!("expected ToolNotAllowed, got: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn no_tool_filter_allows_all() {
+        // GIVEN: no filter — all tools allowed
+        let dispatcher = ToolDispatcher::new(vec![Box::new(EchoExecutor {
+            tool_name: "bash_executor",
+        })]);
+
+        // WHEN: dispatch to any registered tool
+        let result = dispatcher
+            .dispatch("bash_executor", json!({"cmd": "echo hi"}))
+            .await;
+
+        // THEN: succeeds
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn disallowed_wins_over_allowed_conflict() {
+        // GIVEN: "file_write" is both allowed and disallowed — disallowed wins
+        let filter = SessionToolFilter::new(
+            Some(vec!["file_write".to_string()]),
+            vec!["file_write".to_string()],
+        );
+        let dispatcher = ToolDispatcher::new(vec![Box::new(EchoExecutor {
+            tool_name: "file_write",
+        })])
+        .with_session_filter(filter);
+
+        // WHEN: dispatch to the conflicting tool
+        let result = dispatcher.dispatch("file_write", json!({})).await;
+
+        // THEN: ToolNotAllowed — disallowed takes priority
+        assert!(matches!(
+            result,
+            Err(ToolExecutionError::ToolNotAllowed { .. })
+        ));
     }
 }

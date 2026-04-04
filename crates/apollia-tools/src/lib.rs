@@ -34,7 +34,9 @@ pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
 };
 pub use descriptor::{McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind};
-pub use executor::{ToolBatchCall, ToolDispatcher, ToolExecutionError, ToolExecutor};
+pub use executor::{
+    SessionToolFilter, ToolBatchCall, ToolDispatcher, ToolExecutionError, ToolExecutor,
+};
 pub use file_path_extractor::FilePathExtractor;
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};

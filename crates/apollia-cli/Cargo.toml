@@ -59,6 +59,8 @@ async-trait        = { workspace = true }
 futures            = { workspace = true }
 hf-hub             = { workspace = true }
 indicatif          = { workspace = true }
+rustyline          = "14"
+dirs               = "5"
 
 [dev-dependencies]
 tempfile = "3"

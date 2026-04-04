@@ -92,6 +92,19 @@ enum Commands {
         /// Requires the runtime to support plan alternatives (ORIA engine with LLM).
         #[arg(long)]
         alternatives: bool,
+
+        /// Restrict this session to the listed tools only (comma-separated).
+        ///
+        /// When specified, only the named tools can be invoked. All other tools
+        /// are blocked regardless of the global configuration.
+        #[arg(long, value_delimiter = ',', value_name = "TOOL")]
+        allowed_tools: Vec<String>,
+
+        /// Explicitly block the listed tools for this session (comma-separated).
+        ///
+        /// Takes priority over `--allowed-tools` when the same tool appears in both.
+        #[arg(long, value_delimiter = ',', value_name = "TOOL")]
+        disallowed_tools: Vec<String>,
     },
 
     /// Agent management (list, start, stop, info, install, uninstall, enable, disable, update, new).
@@ -235,16 +248,20 @@ fn main() {
                 stream,
                 detach,
                 alternatives,
+                allowed_tools,
+                disallowed_tools,
             } => {
-                commands::run::run(
-                    &agent_id,
-                    &input,
-                    cli.socket,
+                commands::run::run(commands::run::RunCommandArgs {
+                    agent_id: &agent_id,
+                    input: &input,
+                    socket: cli.socket,
                     json,
                     stream,
                     detach,
                     alternatives,
-                )
+                    allowed_tools,
+                    disallowed_tools,
+                })
                 .await
             }
             Commands::Agent { command } => commands::agent::run(&command, cli.socket, json).await,

@@ -18,6 +18,7 @@ pub mod eventbus;
 pub mod mailbox;
 pub mod registry;
 pub mod router;
+pub mod session;
 pub mod shutdown;
 pub mod stt;
 pub mod supervisor;
@@ -56,6 +57,9 @@ pub use a2a::{
 
 // Chat subsystem
 pub use chat::ChatSessionManagerHandle;
+
+// Session config
+pub use session::SessionConfig;
 
 // STT engine
 pub use stt::{SttEngineError, SttEngineHandle, SttStatus, TranscriptSource};

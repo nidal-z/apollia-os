@@ -63,6 +63,12 @@ pub struct FileTimestampCache {
     event_tx: EventBusSender,
 }
 
+impl std::fmt::Debug for FileTimestampCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FileTimestampCache").finish_non_exhaustive()
+    }
+}
+
 impl FileTimestampCache {
     /// Opens (or creates) the file timestamp cache at `db_path`.
     ///

@@ -345,7 +345,7 @@ mod tests {
                     text: "Bonjour le monde".to_owned(),
                     start_ms: 0,
                     end_ms: 1500,
-                    confidence: 0.95,
+                    confidence: Some(0.95),
                 }],
                 language: Some("fr".to_owned()),
                 audio_duration_ms: 1500,

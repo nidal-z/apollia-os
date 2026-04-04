@@ -3,14 +3,22 @@
 //! Provides an interactive terminal session for chatting with an LLM through
 //! the Apollia runtime. Supports creating new sessions, resuming previous ones,
 //! and listing recent sessions.
+//!
+//! Command history is persisted across sessions at `~/.apollia/repl_history`
+//! (up to 10 000 entries, FIFO rotation). Emacs keybindings and Ctrl-R reverse
+//! search are provided by `rustyline`.
 
-use std::io::Write;
 use std::path::PathBuf;
 
-use tokio::io::AsyncBufReadExt;
+use rustyline::error::ReadlineError;
+use rustyline::history::FileHistory;
+use rustyline::{Config as RlConfig, Editor};
 
 use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
 use crate::exit_codes;
+
+/// Maximum number of history entries retained across sessions.
+const REPL_MAX_HISTORY: usize = 10_000;
 
 /// Maximum number of scroll-back messages to show on resume.
 const SCROLLBACK_COUNT: usize = 5;
@@ -26,6 +34,30 @@ fn make_client(socket: Option<PathBuf>) -> RuntimeClient {
     match socket {
         Some(p) => RuntimeClient::new(p),
         None => RuntimeClient::new(std::path::PathBuf::from(DEFAULT_SOCKET_PATH)),
+    }
+}
+
+/// Resolve the path to the persistent REPL history file.
+///
+/// Returns `None` if the home directory cannot be determined or the
+/// `~/.apollia/` directory cannot be created. In that case history
+/// is kept in memory only for the current session.
+fn history_path() -> Option<PathBuf> {
+    let home = dirs::home_dir()?;
+    let dir = home.join(".apollia");
+    std::fs::create_dir_all(&dir).ok()?;
+    Some(dir.join("repl_history"))
+}
+
+/// Build a rustyline config with FIFO rotation at [`REPL_MAX_HISTORY`] entries.
+///
+/// Falls back to a plain default config if the max-history-size API rejects
+/// the value (which cannot happen for 10 000, but is handled defensively).
+fn make_editor_config() -> RlConfig {
+    let builder = RlConfig::builder().history_ignore_space(true);
+    match builder.max_history_size(REPL_MAX_HISTORY) {
+        Ok(b) => b.build(),
+        Err(_) => RlConfig::default(),
     }
 }
 
@@ -127,7 +159,7 @@ async fn run_new_session(client: &RuntimeClient) -> i32 {
     };
 
     println!("Session: {session_id}");
-    println!("Type your message (Ctrl+D to exit):");
+    println!("Type your message (Ctrl+D to exit, Ctrl+R to search history):");
 
     repl_loop(client, &session_id).await
 }
@@ -175,75 +207,95 @@ async fn run_resume(client: &RuntimeClient, session_id: &str) -> i32 {
     repl_loop(client, session_id).await
 }
 
-/// Core REPL loop: read user input, send message, poll for response, print reply.
+/// Core REPL loop using `rustyline` for line editing and persistent history.
 ///
-/// Handles Ctrl+D (EOF) for clean exit and Ctrl+C (SIGINT) for saving the session.
+/// History is loaded from and saved to `~/.apollia/repl_history` after each
+/// accepted line. Up to [`REPL_MAX_HISTORY`] entries are retained (FIFO rotation).
+///
+/// Ctrl+D (EOF) exits cleanly. Ctrl+C cancels the current line (Interrupted)
+/// and prints a "session saved" notice before returning.
 async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
-    let stdin = tokio::io::BufReader::new(tokio::io::stdin());
-    let mut lines = stdin.lines();
     let sid = session_id.to_string();
+    let history_file = history_path();
+
+    let mut rl: Editor<(), FileHistory> = match Editor::with_config(make_editor_config()) {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("Error initializing line editor: {e}");
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+
+    // Load persistent history — silently ignored if the file does not exist yet.
+    if let Some(ref path) = history_file {
+        let _ = rl.load_history(path);
+    }
 
     loop {
-        // Print the prompt.
-        print!("> ");
-        if std::io::stdout().flush().is_err() {
-            break;
-        }
+        // `readline` blocks the thread — run it in a blocking context so the
+        // async executor is not starved.
+        let readline_result = tokio::task::block_in_place(|| rl.readline("> "));
 
-        // Read one line, with Ctrl+C catching.
-        let line_result = tokio::select! {
-            line = lines.next_line() => line,
-            _ = tokio::signal::ctrl_c() => {
+        match readline_result {
+            Ok(line) => {
+                let trimmed = line.trim().to_string();
+                if trimmed.is_empty() {
+                    continue;
+                }
+
+                // Persist the entry immediately so it survives even if the
+                // process is killed mid-session.
+                let _ = rl.add_history_entry(line.as_str());
+                if let Some(ref path) = history_file {
+                    let _ = rl.save_history(path);
+                }
+
+                // Count current messages before sending so we can detect new ones.
+                let count_before = match get_message_count(client, session_id).await {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("Error: {e}");
+                        return exit_codes::GENERAL_ERROR;
+                    }
+                };
+
+                // Send the message.
+                match client.send_chat_message(session_id, &trimmed).await {
+                    Ok(_) => {}
+                    Err(ClientError::ConnectionRefused) => {
+                        eprintln!("runtime not started");
+                        return exit_codes::GENERAL_ERROR;
+                    }
+                    Err(e) => {
+                        eprintln!("Error: {e}");
+                        return exit_codes::GENERAL_ERROR;
+                    }
+                }
+
+                // Poll until a new assistant message appears or timeout.
+                match poll_for_response(client, session_id, count_before).await {
+                    Ok(Some(reply)) => println!("{reply}"),
+                    Ok(None) => eprintln!("[no response received within timeout]"),
+                    Err(e) => eprintln!("Error while waiting for response: {e}"),
+                }
+            }
+
+            Err(ReadlineError::Interrupted) => {
+                // Ctrl+C — exit cleanly, session is already persisted server-side.
                 println!("\nSession saved: {sid}");
                 return exit_codes::SUCCESS;
             }
-        };
 
-        let line = match line_result {
-            Ok(Some(l)) => l,
-            Ok(None) => {
-                // EOF (Ctrl+D)
+            Err(ReadlineError::Eof) => {
+                // Ctrl+D — clean exit.
                 println!();
                 break;
             }
+
             Err(e) => {
                 eprintln!("Error reading input: {e}");
                 return exit_codes::GENERAL_ERROR;
             }
-        };
-
-        let trimmed = line.trim().to_string();
-        if trimmed.is_empty() {
-            continue;
-        }
-
-        // Count current messages before sending so we can detect new ones.
-        let count_before = match get_message_count(client, session_id).await {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("Error: {e}");
-                return exit_codes::GENERAL_ERROR;
-            }
-        };
-
-        // Send the message.
-        match client.send_chat_message(session_id, &trimmed).await {
-            Ok(_) => {}
-            Err(ClientError::ConnectionRefused) => {
-                eprintln!("runtime not started");
-                return exit_codes::GENERAL_ERROR;
-            }
-            Err(e) => {
-                eprintln!("Error: {e}");
-                return exit_codes::GENERAL_ERROR;
-            }
-        }
-
-        // Poll until a new assistant message appears or timeout.
-        match poll_for_response(client, session_id, count_before).await {
-            Ok(Some(reply)) => println!("{reply}"),
-            Ok(None) => eprintln!("[no response received within timeout]"),
-            Err(e) => eprintln!("Error while waiting for response: {e}"),
         }
     }
 
