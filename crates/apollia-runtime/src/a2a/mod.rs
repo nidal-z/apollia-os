@@ -6,12 +6,14 @@
 //! de haut niveau [`invoker::A2AInvoker`].
 
 pub mod invoker;
+pub mod sidechain;
 pub mod tools_provider;
 
 pub use invoker::{
     A2AAgentCard, A2AError, A2AInvocationResult, A2AInvoker, A2ASkillInfo, RuntimeContextConfig,
     SkillListing,
 };
+pub use sidechain::{SidechainLogger, SidechainRepository, SidechainRow};
 pub use tools_provider::A2AToolsProvider;
 
 use std::collections::HashSet;

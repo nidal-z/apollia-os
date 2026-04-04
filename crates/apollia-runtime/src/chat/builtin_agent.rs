@@ -426,10 +426,12 @@ impl BuiltInChatAgent {
                     session_id = %session_id,
                     "ReAct context compacted before LLM call"
                 );
-                let _ = self.event_bus.send(apollia_core::RuntimeEvent::ContextCompacted {
-                    summary_chars,
-                    original_messages,
-                });
+                let _ = self
+                    .event_bus
+                    .send(apollia_core::RuntimeEvent::ContextCompacted {
+                        summary_chars,
+                        original_messages,
+                    });
             }
 
             let request = CompletionRequest {

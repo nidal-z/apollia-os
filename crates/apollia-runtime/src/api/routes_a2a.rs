@@ -1,12 +1,13 @@
 //! Routes REST pour le routing A2A (Agent-to-Agent).
 //!
 //! Expose :
-//! - `GET  /api/v1/a2a/agents`   — liste les agents A2A actifs avec leurs skills
-//! - `POST /api/v1/a2a/delegate` — délègue une tâche à un Worker Agent par skill ID
-//! - `GET  /api/v1/a2a/skills`   — liste plate de tous les skills A2A disponibles
-//! - `POST /api/v1/a2a/invoke`   — invocation haut niveau via [`A2AInvoker`]
+//! - `GET  /api/v1/a2a/agents`          — liste les agents A2A actifs avec leurs skills
+//! - `POST /api/v1/a2a/delegate`         — délègue une tâche à un Worker Agent par skill ID
+//! - `GET  /api/v1/a2a/skills`           — liste plate de tous les skills A2A disponibles
+//! - `POST /api/v1/a2a/invoke`           — invocation haut niveau via [`A2AInvoker`]
+//! - `GET  /api/v1/tasks/:id/sidechains` — arborescence des délégations A2A d'une tâche parent
 
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -253,6 +254,70 @@ pub async fn invoke_by_skill<B: ExecutionBackend + Clone>(
         .await
         .map(Json)
         .map_err(a2a_invoker_err_response)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Handler — GET /api/v1/tasks/{task_id}/sidechains
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Handler pour `GET /api/v1/tasks/{task_id}/sidechains`.
+///
+/// Retourne l'ensemble des délégations A2A enregistrées pour la tâche parente.
+/// Retourne 404 si aucune délégation n'est trouvée pour ce `task_id`.
+/// Retourne 503 si le sidechain logger n'est pas initialisé.
+pub async fn get_task_sidechains<B: ExecutionBackend + Clone>(
+    Path(task_id): Path<String>,
+    State(state): State<AppState<B>>,
+) -> Result<Json<Vec<crate::a2a::SidechainRow>>, (StatusCode, Json<A2aErrorResponse>)> {
+    let invoker = state.a2a_invoker.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(A2aErrorResponse {
+                error: "A2A invoker not initialized".to_string(),
+                skill_id: None,
+                available_skills: None,
+                conflicting_agents: None,
+            }),
+        )
+    })?;
+
+    let logger = invoker.sidechain_logger().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(A2aErrorResponse {
+                error: "sidechain logging not initialized".to_string(),
+                skill_id: None,
+                available_skills: None,
+                conflicting_agents: None,
+            }),
+        )
+    })?;
+
+    let rows = logger.list_by_parent(&task_id).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(A2aErrorResponse {
+                error: e.to_string(),
+                skill_id: None,
+                available_skills: None,
+                conflicting_agents: None,
+            }),
+        )
+    })?;
+
+    if rows.is_empty() {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(A2aErrorResponse {
+                error: format!("no sidechain delegations found for task '{task_id}'"),
+                skill_id: None,
+                available_skills: None,
+                conflicting_agents: None,
+            }),
+        ));
+    }
+
+    Ok(Json(rows))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

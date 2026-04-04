@@ -899,12 +899,34 @@ impl Supervisor {
         let chat_db_path = self.config.data_dir.join("chat.db");
         let chat_tool_invoker: std::sync::Arc<dyn apollia_llm::ToolInvoker> =
             std::sync::Arc::new(crate::chat::NativeChatToolInvoker::new());
-        let a2a_invoker = std::sync::Arc::new(crate::a2a::A2AInvoker::new(
+
+        // SidechainRepository — opened before A2AInvoker so the logger can be injected.
+        let sidechain_logger: Option<crate::a2a::SidechainLogger> = {
+            let db_path = self.config.data_dir.join("sidechains.db");
+            match crate::a2a::SidechainRepository::open(&db_path) {
+                Ok(repo) => {
+                    info!("Supervisor: SidechainRepository ready");
+                    Some(crate::a2a::SidechainLogger::new(std::sync::Arc::new(
+                        std::sync::Mutex::new(repo),
+                    )))
+                }
+                Err(e) => {
+                    warn!(error = %e, "SidechainRepository failed to open — sidechain logging disabled");
+                    None
+                }
+            }
+        };
+
+        let a2a_invoker_builder = crate::a2a::A2AInvoker::new(
             registry_handle.clone(),
             router_handle.clone(),
             event_sender.clone(),
             apollia_core::A2AConfig::default(),
-        ));
+        );
+        let a2a_invoker = std::sync::Arc::new(match sidechain_logger {
+            Some(logger) => a2a_invoker_builder.with_sidechain_logger(logger),
+            None => a2a_invoker_builder,
+        });
         let chat_manager: Option<crate::chat::ChatSessionManagerHandle> =
             match crate::chat::ChatSessionManagerHandle::spawn(
                 &chat_db_path,

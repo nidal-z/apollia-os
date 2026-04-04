@@ -204,6 +204,8 @@ pub struct A2AInvoker {
     event_bus: EventBusSender,
     /// Configuration des garde-fous appliqués à chaque invocation.
     config: A2AConfig,
+    /// Logger de sidechains — `None` si la base SQLite n'est pas disponible.
+    sidechain_logger: Option<crate::a2a::sidechain::SidechainLogger>,
 }
 
 impl A2AInvoker {
@@ -226,7 +228,66 @@ impl A2AInvoker {
             delegate_fn,
             event_bus,
             config,
+            sidechain_logger: None,
         }
+    }
+
+    /// Attache un [`SidechainLogger`] à cet invoker pour la traçabilité des délégations.
+    ///
+    /// Retourne `self` pour un usage en chaîne de construction.
+    pub fn with_sidechain_logger(mut self, logger: crate::a2a::sidechain::SidechainLogger) -> Self {
+        self.sidechain_logger = Some(logger);
+        self
+    }
+
+    /// Retourne le [`SidechainLogger`] attaché, si disponible.
+    pub fn sidechain_logger(&self) -> Option<&crate::a2a::sidechain::SidechainLogger> {
+        self.sidechain_logger.as_ref()
+    }
+
+    /// Délègue une tâche à un agent cible avec logging sidechain best-effort.
+    ///
+    /// Enregistre le début de la délégation dans `task_sidechains` avant l'invocation,
+    /// puis met à jour le statut (`"completed"` ou `"failed"`) après.
+    /// Si le [`SidechainLogger`] est absent ou si le logging échoue, la délégation
+    /// se poursuit normalement — le logging est toujours best-effort.
+    ///
+    /// # Arguments
+    ///
+    /// - `parent_task_id` : identifiant de la tâche parente qui initie la délégation.
+    /// - Autres arguments : identiques à [`invoke`].
+    #[allow(clippy::too_many_arguments)]
+    pub async fn invoke_with_logging(
+        &self,
+        parent_task_id: &apollia_core::TaskId,
+        skill_id: &str,
+        input: serde_json::Value,
+        caller: &str,
+        a2a_depth: u32,
+        timeout: Option<Duration>,
+        chain_deadline: Option<Instant>,
+    ) -> Result<A2AInvocationResult, A2AError> {
+        let sidechain_n = if let Some(logger) = &self.sidechain_logger {
+            logger.start(parent_task_id, skill_id, &input).await
+        } else {
+            0
+        };
+
+        let result = self
+            .invoke(skill_id, input, caller, a2a_depth, timeout, chain_deadline)
+            .await;
+
+        if let Some(logger) = &self.sidechain_logger {
+            let (output_summary, status) = match &result {
+                Ok(r) => (serde_json::to_string(r).unwrap_or_default(), "completed"),
+                Err(e) => (e.to_string(), "failed"),
+            };
+            logger
+                .complete(parent_task_id, sidechain_n, &output_summary, status)
+                .await;
+        }
+
+        result
     }
 
     /// Invoque un Worker Agent par son `skill_id`.
@@ -558,6 +619,7 @@ impl A2AInvoker {
             delegate_fn,
             event_bus,
             config,
+            sidechain_logger: None,
         }
     }
 }

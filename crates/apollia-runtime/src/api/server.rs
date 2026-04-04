@@ -352,7 +352,9 @@ async fn shutdown_handler<B: ExecutionBackend + Clone>(
 
 /// Build the axum Router with all routes and shared state.
 fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<B>) -> Router {
-    use super::routes_a2a::{delegate, invoke_by_skill, list_a2a_agents, list_a2a_skills};
+    use super::routes_a2a::{
+        delegate, get_task_sidechains, invoke_by_skill, list_a2a_agents, list_a2a_skills,
+    };
     use super::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use super::routes_approvals::{list_pending_approvals, list_resolved_approvals};
     use super::routes_audit::{get_audit_stats, list_audit};
@@ -423,6 +425,11 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         .route("/api/v1/a2a/delegate", post(delegate::<B>))
         .route("/api/v1/a2a/skills", get(list_a2a_skills::<B>))
         .route("/api/v1/a2a/invoke", post(invoke_by_skill::<B>))
+        // Sidechain traceability
+        .route(
+            "/api/v1/tasks/:id/sidechains",
+            get(get_task_sidechains::<B>),
+        )
         // Plan cache routes
         .route("/api/v1/plan-cache/stats", get(get_plan_cache_stats::<B>))
         .route("/api/v1/plan-cache/clear", post(clear_plan_cache::<B>))
