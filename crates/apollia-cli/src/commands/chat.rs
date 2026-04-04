@@ -7,12 +7,18 @@
 //! Command history is persisted across sessions at `~/.apollia/repl_history`
 //! (up to 10 000 entries, FIFO rotation). Emacs keybindings and Ctrl-R reverse
 //! search are provided by `rustyline`.
+//!
+//! Slash commands:
+//! - Built-in: `/fork`, `/fork N`, `/fork list`, `/list-commands`
+//! - Custom: any `.md` file in `.apollia/commands/` or `~/.apollia/commands/`
 
 use std::path::PathBuf;
 
 use rustyline::error::ReadlineError;
 use rustyline::history::FileHistory;
 use rustyline::{Config as RlConfig, Editor};
+
+use apollia_runtime::commands::CommandRegistry;
 
 use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
 use crate::exit_codes;
@@ -210,19 +216,24 @@ async fn run_resume(client: &RuntimeClient, session_id: &str) -> i32 {
 /// Core REPL loop using `rustyline` for line editing and persistent history.
 ///
 /// History is loaded from and saved to `~/.apollia/repl_history` after each
-/// accepted line. Up to [`REPL_MAX_HISTORY`] entries are retained (FIFO rotation).
+/// accepted line.  Up to [`REPL_MAX_HISTORY`] entries are retained (FIFO rotation).
 ///
-/// Ctrl+D (EOF) exits cleanly. Ctrl+C cancels the current line (Interrupted)
+/// Ctrl+D (EOF) exits cleanly.  Ctrl+C cancels the current line (Interrupted)
 /// and prints a "session saved" notice before returning.
 ///
 /// Slash commands:
-/// - `/fork`      — fork current session (copies full history)
-/// - `/fork N`    — fork keeping the first N messages
-/// - `/fork list` — list child sessions of the current session
+/// - `/fork`            — fork current session (copies full history)
+/// - `/fork N`          — fork keeping the first N messages
+/// - `/fork list`       — list child sessions of the current session
+/// - `/list-commands`   — list all available commands (built-in + custom)
+/// - `/<name> [arg]`    — execute a custom command defined in `.apollia/commands/`
 async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
-    // Active session — may change after a /fork.
     let mut current_session_id = session_id.to_string();
     let history_file = history_path();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
+    // Load custom command registry once at session start.
+    let mut registry = CommandRegistry::load(&cwd).await;
 
     let mut rl: Editor<(), FileHistory> = match Editor::with_config(make_editor_config()) {
         Ok(e) => e,
@@ -256,50 +267,33 @@ async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
                     let _ = rl.save_history(path);
                 }
 
-                // Handle slash commands before sending to the LLM.
-                if let Some(slash_result) =
-                    handle_slash_command(client, &current_session_id, &trimmed).await
-                {
-                    match slash_result {
+                // Determine the message to send to the LLM.
+                let message = if trimmed.starts_with('/') {
+                    // Hot reload: check if command files changed since last load.
+                    if registry.needs_reload(&cwd).await {
+                        registry = CommandRegistry::load(&cwd).await;
+                    }
+
+                    match handle_slash_command(client, &current_session_id, &trimmed, &registry)
+                        .await
+                    {
                         SlashOutcome::Continue => continue,
                         SlashOutcome::SwitchSession(new_id) => {
                             current_session_id = new_id;
                             continue;
                         }
                         SlashOutcome::Exit(code) => return code,
+                        SlashOutcome::SendToLlm(msg) => msg,
                     }
-                }
-
-                // Count current messages before sending so we can detect new ones.
-                let count_before = match get_message_count(client, &current_session_id).await {
-                    Ok(c) => c,
-                    Err(e) => {
-                        eprintln!("Error: {e}");
-                        return exit_codes::GENERAL_ERROR;
-                    }
+                } else {
+                    trimmed.clone()
                 };
 
-                // Send the message.
-                match client
-                    .send_chat_message(&current_session_id, &trimmed)
-                    .await
+                // Send the resolved message and wait for a reply.
+                if let Err(code) =
+                    send_message_and_poll(client, &current_session_id, &message).await
                 {
-                    Ok(_) => {}
-                    Err(ClientError::ConnectionRefused) => {
-                        eprintln!("runtime not started");
-                        return exit_codes::GENERAL_ERROR;
-                    }
-                    Err(e) => {
-                        eprintln!("Error: {e}");
-                        return exit_codes::GENERAL_ERROR;
-                    }
-                }
-
-                // Poll until a new assistant message appears or timeout.
-                match poll_for_response(client, &current_session_id, count_before).await {
-                    Ok(Some(reply)) => println!("{reply}"),
-                    Ok(None) => eprintln!("[no response received within timeout]"),
-                    Err(e) => eprintln!("Error while waiting for response: {e}"),
+                    return code;
                 }
             }
 
@@ -327,35 +321,31 @@ async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
 
 /// Outcome of a slash command handler.
 enum SlashOutcome {
-    /// Command handled — continue the REPL loop.
+    /// Command handled — continue the REPL loop without sending a message.
     Continue,
     /// Fork created — switch to the new session and continue.
     SwitchSession(String),
-    /// Exit the REPL with the given code.
+    /// Exit the REPL with the given exit code.
     Exit(i32),
+    /// Expand the command to this message and send it to the LLM.
+    SendToLlm(String),
 }
 
-/// Dispatch slash commands (lines starting with `/`).
+/// Dispatch a slash command line and return the appropriate [`SlashOutcome`].
 ///
-/// Returns `None` when `input` is not a slash command (regular message).
-/// Returns `Some(SlashOutcome)` when the command was handled.
+/// `input` must start with `/`.
 async fn handle_slash_command(
     client: &RuntimeClient,
     session_id: &str,
     input: &str,
-) -> Option<SlashOutcome> {
-    if !input.starts_with('/') {
-        return None;
-    }
-
+    registry: &CommandRegistry,
+) -> SlashOutcome {
     let mut parts = input.splitn(2, ' ');
     let cmd = parts.next().unwrap_or("");
     let arg = parts.next().map(str::trim).unwrap_or("").trim();
 
     match cmd {
-        "/fork" if arg.eq_ignore_ascii_case("list") => {
-            Some(handle_fork_list(client, session_id).await)
-        }
+        "/fork" if arg.eq_ignore_ascii_case("list") => handle_fork_list(client, session_id).await,
         "/fork" => {
             let up_to: Option<usize> = if arg.is_empty() {
                 None
@@ -364,15 +354,35 @@ async fn handle_slash_command(
                     Ok(n) => Some(n),
                     Err(_) => {
                         eprintln!("Usage: /fork [N|list]");
-                        return Some(SlashOutcome::Continue);
+                        return SlashOutcome::Continue;
                     }
                 }
             };
-            Some(handle_fork(client, session_id, up_to).await)
+            handle_fork(client, session_id, up_to).await
         }
+        "/list-commands" => handle_list_commands(registry),
         _ => {
-            eprintln!("Unknown command: {cmd}. Available: /fork, /fork N, /fork list");
-            Some(SlashOutcome::Continue)
+            // Check custom command registry.
+            let name = cmd.trim_start_matches('/');
+            if let Some(custom) = registry.get(name) {
+                SlashOutcome::SendToLlm(custom.render(arg))
+            } else {
+                let builtin = "/fork, /fork N, /fork list, /list-commands";
+                let customs: Vec<String> = registry
+                    .list()
+                    .iter()
+                    .map(|c| format!("/{}", c.name))
+                    .collect();
+                if customs.is_empty() {
+                    eprintln!("Unknown command: {cmd}. Available: {builtin}");
+                } else {
+                    eprintln!(
+                        "Unknown command: {cmd}. Available: {builtin}, {}",
+                        customs.join(", ")
+                    );
+                }
+                SlashOutcome::Continue
+            }
         }
     }
 }
@@ -437,6 +447,73 @@ async fn handle_fork_list(client: &RuntimeClient, session_id: &str) -> SlashOutc
             SlashOutcome::Continue
         }
     }
+}
+
+/// Execute `/list-commands` — print all available built-in and custom commands.
+fn handle_list_commands(registry: &CommandRegistry) -> SlashOutcome {
+    println!("Built-in commands:");
+    println!("  /fork              Fork current session (copies full history)");
+    println!("  /fork N            Fork keeping the first N messages");
+    println!("  /fork list         List child sessions");
+    println!("  /list-commands     List all available commands");
+
+    let customs = registry.list();
+    if customs.is_empty() {
+        println!("\nNo custom commands found.");
+        println!(
+            "Add .md files to .apollia/commands/ or ~/.apollia/commands/ to define custom commands."
+        );
+    } else {
+        println!("\nCustom commands:");
+        for cmd in customs {
+            let args_hint = if cmd.args.is_empty() {
+                String::new()
+            } else {
+                format!(" <{}>", cmd.args.join("> <"))
+            };
+            println!("  /{}{:<20}  {}", cmd.name, args_hint, cmd.description);
+        }
+    }
+
+    SlashOutcome::Continue
+}
+
+/// Sends `message` to the LLM and polls for the assistant reply.
+///
+/// Returns `Ok(())` on success (reply printed to stdout) or after a timeout.
+/// Returns `Err(exit_code)` on fatal connection or server errors.
+async fn send_message_and_poll(
+    client: &RuntimeClient,
+    session_id: &str,
+    message: &str,
+) -> Result<(), i32> {
+    let count_before = match get_message_count(client, session_id).await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Error: {e}");
+            return Err(exit_codes::GENERAL_ERROR);
+        }
+    };
+
+    match client.send_chat_message(session_id, message).await {
+        Ok(_) => {}
+        Err(ClientError::ConnectionRefused) => {
+            eprintln!("runtime not started");
+            return Err(exit_codes::GENERAL_ERROR);
+        }
+        Err(e) => {
+            eprintln!("Error: {e}");
+            return Err(exit_codes::GENERAL_ERROR);
+        }
+    }
+
+    match poll_for_response(client, session_id, count_before).await {
+        Ok(Some(reply)) => println!("{reply}"),
+        Ok(None) => eprintln!("[no response received within timeout]"),
+        Err(e) => eprintln!("Error while waiting for response: {e}"),
+    }
+
+    Ok(())
 }
 
 /// Return the current number of messages in the session.

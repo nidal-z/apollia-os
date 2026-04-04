@@ -12,6 +12,7 @@ pub mod a2a;
 pub mod agents;
 pub mod api;
 pub mod chat;
+pub mod commands;
 pub mod coordinator;
 pub mod embedded;
 pub mod eventbus;
@@ -63,6 +64,9 @@ pub use session::SessionConfig;
 
 // STT engine
 pub use stt::{SttEngineError, SttEngineHandle, SttStatus, TranscriptSource};
+
+// Custom slash commands
+pub use commands::{CommandRegistry, CustomCommand};
 
 // Community agent registry
 pub use agents::registry_remote::{
