@@ -536,7 +536,10 @@ fn persist_budget(budget: &TokenBudget, task_id: &str) {
 
     let mut record = serde_json::to_value(budget).unwrap_or(serde_json::Value::Null);
     if let Some(obj) = record.as_object_mut() {
-        obj.insert("task_id".to_owned(), serde_json::Value::String(task_id.to_owned()));
+        obj.insert(
+            "task_id".to_owned(),
+            serde_json::Value::String(task_id.to_owned()),
+        );
         let ts = chrono::Utc::now().to_rfc3339();
         obj.insert("recorded_at".to_owned(), serde_json::Value::String(ts));
     }

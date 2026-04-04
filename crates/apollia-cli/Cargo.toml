@@ -33,6 +33,7 @@ stt-cuda = ["apollia-stt/stt-cuda"]
 [dependencies]
 apollia-core     = { workspace = true }
 apollia-aip      = { workspace = true }
+apollia-mcp      = { workspace = true }
 apollia-tools    = { workspace = true }
 apollia-memory   = { workspace = true }
 apollia-oria     = { workspace = true }

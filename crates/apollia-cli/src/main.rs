@@ -22,6 +22,7 @@ use commands::agent::AgentCommand;
 use commands::audit::AuditCommand;
 use commands::chat;
 use commands::llm::LlmCommand;
+use commands::mcp_server::McpServerArgs;
 use commands::memory::MemoryCommand;
 use commands::model::ModelCommand;
 use commands::notify::NotifyCommand;
@@ -178,6 +179,13 @@ enum Commands {
         #[arg(long)]
         list: bool,
     },
+
+    /// Launch Apollia as an MCP stdio server for external clients.
+    ///
+    /// Exposes 9 native tools (bash_executor, file_*, mcp_client, agent_install)
+    /// to MCP clients such as Claude Desktop, VS Code Copilot Chat, or Cursor.
+    /// Use `--with-runtime` to additionally expose `submit_task`.
+    McpServer(McpServerArgs),
 }
 
 fn main() {
@@ -242,6 +250,13 @@ fn main() {
             Commands::Chat { resume, list } => {
                 chat::run(resume.as_deref(), list, cli.socket, json).await
             }
+            Commands::McpServer(args) => match commands::mcp_server::run(&args).await {
+                Ok(()) => exit_codes::SUCCESS,
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    exit_codes::GENERAL_ERROR
+                }
+            },
         }
     });
 

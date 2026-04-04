@@ -4,6 +4,7 @@ pub mod agent;
 pub mod audit;
 pub mod chat;
 pub mod llm;
+pub mod mcp_server;
 pub mod memory;
 pub mod model;
 pub mod notify;
