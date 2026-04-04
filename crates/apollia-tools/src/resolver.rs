@@ -207,6 +207,8 @@ mod tests {
                 sandbox_profile: SandboxProfile::FileSystem,
                 tags: vec![],
                 dangerous: false,
+                is_read_only: false,
+                risk_score: 0,
             };
             registry.register(descriptor).await.unwrap();
         }
@@ -225,6 +227,8 @@ mod tests {
             sandbox_profile: SandboxProfile::Full,
             tags: vec![],
             dangerous: true,
+            is_read_only: false,
+            risk_score: 10,
         };
         registry.register(descriptor).await.unwrap();
         registry

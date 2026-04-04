@@ -18,6 +18,85 @@ use crate::plan::PlanStep;
 #[error("Circular dependency detected in execution plan")]
 pub struct CycleError;
 
+/// Groups steps into execution levels.
+///
+/// Steps in the same level share no dependency edge between them and can therefore
+/// be executed concurrently. Steps in level N must all complete before any step in
+/// level N+1 starts.
+///
+/// Returns `Err(CycleError)` if the dependency graph contains a cycle.
+///
+/// **Algorithm**: standard BFS level-assignment after in-degree initialisation.
+/// All steps with in-degree 0 form level 0. After processing a level, each step
+/// whose in-degree reaches 0 is placed in the next level.
+pub fn topological_levels(steps: &[PlanStep]) -> Result<Vec<Vec<String>>, CycleError> {
+    if steps.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let id_to_idx: HashMap<&str, usize> = steps
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (s.step_id.as_str(), i))
+        .collect();
+
+    let mut in_degree = vec![0usize; steps.len()];
+    for (i, step) in steps.iter().enumerate() {
+        for dep in &step.depends_on {
+            if id_to_idx.contains_key(dep.as_str()) {
+                in_degree[i] += 1;
+            }
+        }
+    }
+
+    let mut dependents: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (i, step) in steps.iter().enumerate() {
+        for dep in &step.depends_on {
+            dependents.entry(dep.as_str()).or_default().push(i);
+        }
+    }
+
+    let mut current_level: Vec<usize> = in_degree
+        .iter()
+        .enumerate()
+        .filter(|(_, &d)| d == 0)
+        .map(|(i, _)| i)
+        .collect();
+
+    let mut levels: Vec<Vec<String>> = Vec::new();
+    let mut processed = 0usize;
+
+    while !current_level.is_empty() {
+        let level_ids: Vec<String> = current_level
+            .iter()
+            .map(|&i| steps[i].step_id.clone())
+            .collect();
+        processed += current_level.len();
+
+        // Build the next level: steps unblocked by completing the current level.
+        let mut next_level: Vec<usize> = Vec::new();
+        for &idx in &current_level {
+            if let Some(dep_indices) = dependents.get(steps[idx].step_id.as_str()) {
+                for &dep_idx in dep_indices {
+                    in_degree[dep_idx] -= 1;
+                    if in_degree[dep_idx] == 0 {
+                        next_level.push(dep_idx);
+                    }
+                }
+            }
+        }
+
+        levels.push(level_ids);
+        current_level = next_level;
+    }
+
+    if processed != steps.len() {
+        Err(CycleError)
+    } else {
+        Ok(levels)
+    }
+}
+
 /// Tri topologique des steps d'un `ExecutionPlan` basé sur leurs dépendances.
 ///
 /// Retourne la liste des `step_id` dans un ordre d'exécution valide : chaque step
@@ -217,6 +296,86 @@ mod tests {
         let result = topological_sort(&steps).unwrap();
         // THEN
         assert_eq!(result, vec!["s1"]);
+    }
+
+    // -----------------------------------------------------------------------
+    // topological_levels tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_levels_empty() {
+        // GIVEN / WHEN / THEN
+        assert_eq!(topological_levels(&[]).unwrap(), Vec::<Vec<String>>::new());
+    }
+
+    #[test]
+    fn test_levels_single_step() {
+        // GIVEN
+        let steps = vec![step("s1", &[])];
+        // WHEN
+        let levels = topological_levels(&steps).unwrap();
+        // THEN
+        assert_eq!(levels, vec![vec!["s1".to_string()]]);
+    }
+
+    #[test]
+    fn test_levels_linear_chain() {
+        // GIVEN — s1 → s2 → s3
+        let steps = vec![step("s1", &[]), step("s2", &["s1"]), step("s3", &["s2"])];
+        // WHEN
+        let levels = topological_levels(&steps).unwrap();
+        // THEN — three separate levels (no parallelism possible)
+        assert_eq!(levels.len(), 3);
+        assert_eq!(levels[0], vec!["s1"]);
+        assert_eq!(levels[1], vec!["s2"]);
+        assert_eq!(levels[2], vec!["s3"]);
+    }
+
+    #[test]
+    fn test_levels_parallel_fan_out() {
+        // GIVEN — s1 (no deps), s2 (no deps), s3 (no deps), s4 (depends on all)
+        let steps = vec![
+            step("s1", &[]),
+            step("s2", &[]),
+            step("s3", &[]),
+            step("s4", &["s1", "s2", "s3"]),
+        ];
+        // WHEN
+        let levels = topological_levels(&steps).unwrap();
+        // THEN — level 0: {s1, s2, s3}; level 1: {s4}
+        assert_eq!(levels.len(), 2);
+        let mut level0 = levels[0].clone();
+        level0.sort();
+        assert_eq!(level0, vec!["s1", "s2", "s3"]);
+        assert_eq!(levels[1], vec!["s4"]);
+    }
+
+    #[test]
+    fn test_levels_diamond() {
+        // GIVEN — s1 → s2, s1 → s3, s2 → s4, s3 → s4
+        let steps = vec![
+            step("s1", &[]),
+            step("s2", &["s1"]),
+            step("s3", &["s1"]),
+            step("s4", &["s2", "s3"]),
+        ];
+        // WHEN
+        let levels = topological_levels(&steps).unwrap();
+        // THEN — level 0: {s1}, level 1: {s2, s3}, level 2: {s4}
+        assert_eq!(levels.len(), 3);
+        assert_eq!(levels[0], vec!["s1"]);
+        let mut level1 = levels[1].clone();
+        level1.sort();
+        assert_eq!(level1, vec!["s2", "s3"]);
+        assert_eq!(levels[2], vec!["s4"]);
+    }
+
+    #[test]
+    fn test_levels_cycle_returns_error() {
+        // GIVEN
+        let steps = vec![step("s1", &["s2"]), step("s2", &["s1"])];
+        // WHEN / THEN
+        assert!(matches!(topological_levels(&steps), Err(CycleError)));
     }
 
     /// GIVEN diamant s1→s2, s1→s3, s2→s4, s3→s4

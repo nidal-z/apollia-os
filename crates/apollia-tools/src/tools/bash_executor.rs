@@ -126,6 +126,8 @@ impl BashExecutor {
             sandbox_profile: SandboxProfile::FileSystem,
             tags: vec!["shell".to_string(), "system".to_string()],
             dangerous: false,
+            is_read_only: false,
+            risk_score: 8,
         }
     }
 

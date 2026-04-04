@@ -215,6 +215,8 @@ mod tests {
             sandbox_profile: SandboxProfile::FileSystem,
             tags: vec![],
             dangerous: false,
+            is_read_only: false,
+            risk_score: 8,
         }
     }
 

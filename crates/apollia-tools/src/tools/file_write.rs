@@ -116,6 +116,8 @@ impl FileWrite {
             sandbox_profile: SandboxProfile::FileSystem,
             tags: vec!["file".to_string(), "write".to_string()],
             dangerous: false,
+            is_read_only: false,
+            risk_score: 5,
         }
     }
 }

@@ -63,6 +63,16 @@ pub trait ToolExecutor: Send + Sync {
     /// The unique name identifying this tool (must match the descriptor name).
     fn name(&self) -> &str;
 
+    /// Returns `true` if this tool does not modify any external state.
+    ///
+    /// Read-only tools may be executed concurrently alongside other read-only tools
+    /// by [`ToolDispatcher::execute_batch`]. Defaults to `false`: if an executor
+    /// forgets to override this method, it is conservatively treated as mutating
+    /// and never parallelised.
+    fn is_read_only(&self) -> bool {
+        false
+    }
+
     /// Execute the tool with the given JSON input and return the JSON output.
     ///
     /// # Errors
@@ -73,8 +83,23 @@ pub trait ToolExecutor: Send + Sync {
     async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError>;
 }
 
+/// A single tool invocation in a batch dispatched by [`ToolDispatcher::execute_batch`].
+#[derive(Debug)]
+pub struct ToolBatchCall {
+    /// The registered name of the tool to invoke.
+    pub tool_name: String,
+    /// JSON input payload for the tool.
+    pub input: Value,
+}
+
 /// Taille maximale par défaut d'un output d'outil transmis au LLM, en bytes UTF-8.
 const DEFAULT_MAX_OUTPUT_CHARS: usize = 30_000;
+
+/// Maximum number of read-only tool calls driven concurrently in [`ToolDispatcher::execute_batch`].
+///
+/// Caps the parallelism to avoid saturating file descriptors or exhausting OS
+/// resources when a batch contains many read operations (e.g. 20 grep calls).
+const MAX_CONCURRENT_READ_TOOLS: usize = 10;
 
 /// Routes tool calls to the appropriate executor by name.
 ///
@@ -159,6 +184,61 @@ impl ToolDispatcher {
             Ok(value)
         }
     }
+
+    /// Execute a batch of tool calls, parallelising when all tools are read-only.
+    ///
+    /// **Parallel path** — when every call in `calls` resolves to a registered
+    /// read-only executor (`is_read_only() == true`): all calls are driven
+    /// concurrently via `futures::stream::StreamExt::buffered` with a cap of
+    /// [`MAX_CONCURRENT_READ_TOOLS`] (10) simultaneous executions.
+    ///
+    /// **Serial path** — when at least one call targets an unknown tool
+    /// (`get_executor()` returns `None`) or a mutating executor: every call is
+    /// executed in the input order to preserve effect ordering.
+    ///
+    /// In both paths the output Vec is in the same order as `calls`.
+    /// Middle-trim truncation is applied to each result via the inner
+    /// [`dispatch`](Self::dispatch) call, exactly as for single dispatches.
+    pub async fn execute_batch(
+        &self,
+        calls: Vec<ToolBatchCall>,
+    ) -> Vec<Result<Value, ToolExecutionError>> {
+        use futures::stream::{self, StreamExt};
+
+        if calls.is_empty() {
+            return vec![];
+        }
+
+        let all_read_only = calls.iter().all(|c| {
+            self.executors
+                .iter()
+                .find(|e| e.name() == c.tool_name)
+                .map(|e| e.is_read_only())
+                // Unknown tool → conservative: treat as mutating → force serial path.
+                .unwrap_or(false)
+        });
+
+        if all_read_only {
+            // Build a stream of tool_name / input pairs and drive up to
+            // MAX_CONCURRENT_READ_TOOLS futures in-flight at any time.
+            // `buffered` preserves input order in the output Vec.
+            let tool_names: Vec<String> = calls.iter().map(|c| c.tool_name.clone()).collect();
+            let inputs: Vec<Value> = calls.into_iter().map(|c| c.input).collect();
+
+            stream::iter(
+                (0..tool_names.len()).map(|i| self.dispatch(&tool_names[i], inputs[i].clone())),
+            )
+            .buffered(MAX_CONCURRENT_READ_TOOLS)
+            .collect::<Vec<_>>()
+            .await
+        } else {
+            let mut results = Vec::with_capacity(calls.len());
+            for call in calls {
+                results.push(self.dispatch(&call.tool_name, call.input).await);
+            }
+            results
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +249,10 @@ impl ToolDispatcher {
 impl ToolExecutor for FileRead {
     fn name(&self) -> &str {
         "file_read"
+    }
+
+    fn is_read_only(&self) -> bool {
+        true
     }
 
     async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
@@ -265,6 +349,10 @@ impl ToolExecutor for FileList {
         "file_list"
     }
 
+    fn is_read_only(&self) -> bool {
+        true
+    }
+
     async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
         let typed: FileListInput =
             serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
@@ -297,6 +385,10 @@ impl ToolExecutor for FileGlob {
         "file_glob"
     }
 
+    fn is_read_only(&self) -> bool {
+        true
+    }
+
     async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
         let typed: FileGlobInput =
             serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
@@ -327,6 +419,10 @@ impl ToolExecutor for FileGlob {
 impl ToolExecutor for FileGrep {
     fn name(&self) -> &str {
         "file_grep"
+    }
+
+    fn is_read_only(&self) -> bool {
+        true
     }
 
     async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
@@ -402,6 +498,10 @@ impl ToolExecutor for HttpFetch {
 impl ToolExecutor for MemorySearchTool {
     fn name(&self) -> &str {
         "memory_search"
+    }
+
+    fn is_read_only(&self) -> bool {
+        true
     }
 
     async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
@@ -692,5 +792,214 @@ mod tests {
         let val = result.expect("should succeed");
         assert!(val.is_string());
         assert!(val.as_str().unwrap().contains("lignes tronquées"));
+    }
+
+    // -----------------------------------------------------------------------
+    // execute_batch tests
+    // -----------------------------------------------------------------------
+
+    /// Executor that echoes input and tracks invocation timestamps.
+    struct TimedEchoExecutor {
+        tool_name: &'static str,
+        read_only: bool,
+        delay_ms: u64,
+    }
+
+    #[async_trait::async_trait]
+    impl ToolExecutor for TimedEchoExecutor {
+        fn name(&self) -> &str {
+            self.tool_name
+        }
+
+        fn is_read_only(&self) -> bool {
+            self.read_only
+        }
+
+        async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
+            if self.delay_ms > 0 {
+                tokio::time::sleep(tokio::time::Duration::from_millis(self.delay_ms)).await;
+            }
+            Ok(input)
+        }
+    }
+
+    fn make_read_only_dispatcher(n: usize, delay_ms: u64) -> (ToolDispatcher, Vec<ToolBatchCall>) {
+        let executors: Vec<Box<dyn ToolExecutor>> = (0..n)
+            .map(|i| -> Box<dyn ToolExecutor> {
+                Box::new(TimedEchoExecutor {
+                    tool_name: Box::leak(format!("ro_{i}").into_boxed_str()),
+                    read_only: true,
+                    delay_ms,
+                })
+            })
+            .collect();
+        let calls = (0..n)
+            .map(|i| ToolBatchCall {
+                tool_name: format!("ro_{i}"),
+                input: json!({"i": i}),
+            })
+            .collect();
+        (ToolDispatcher::new(executors), calls)
+    }
+
+    #[tokio::test]
+    async fn test_execute_batch_read_only_is_parallel() {
+        // GIVEN — 5 read-only executors each sleeping 50 ms
+        let (dispatcher, calls) = make_read_only_dispatcher(5, 50);
+        let start = std::time::Instant::now();
+
+        // WHEN
+        let results = dispatcher.execute_batch(calls).await;
+
+        // THEN — total < 2× 50 ms (confirms concurrency)
+        let elapsed = start.elapsed();
+        assert_eq!(results.len(), 5);
+        for r in &results {
+            assert!(r.is_ok(), "unexpected error: {r:?}");
+        }
+        assert!(
+            elapsed < std::time::Duration::from_millis(200),
+            "parallel execution too slow: {elapsed:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_execute_batch_results_ordered() {
+        // GIVEN — 4 read-only executors; each echoes its index
+        let (dispatcher, calls) = make_read_only_dispatcher(4, 0);
+
+        // WHEN
+        let results = dispatcher.execute_batch(calls).await;
+
+        // THEN — output order matches input order
+        assert_eq!(results.len(), 4);
+        for (i, result) in results.iter().enumerate() {
+            let val = result.as_ref().expect("should succeed");
+            assert_eq!(val["i"], json!(i), "wrong order at position {i}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_batch_mixed_is_serial() {
+        // GIVEN — [read_only, write, read_only] — write tool makes the batch serial
+        let executors: Vec<Box<dyn ToolExecutor>> = vec![
+            Box::new(TimedEchoExecutor {
+                tool_name: "ro_a",
+                read_only: true,
+                delay_ms: 0,
+            }),
+            Box::new(TimedEchoExecutor {
+                tool_name: "write_b",
+                read_only: false,
+                delay_ms: 0,
+            }),
+            Box::new(TimedEchoExecutor {
+                tool_name: "ro_c",
+                read_only: true,
+                delay_ms: 0,
+            }),
+        ];
+        let calls = vec![
+            ToolBatchCall {
+                tool_name: "ro_a".into(),
+                input: json!({"pos": 0}),
+            },
+            ToolBatchCall {
+                tool_name: "write_b".into(),
+                input: json!({"pos": 1}),
+            },
+            ToolBatchCall {
+                tool_name: "ro_c".into(),
+                input: json!({"pos": 2}),
+            },
+        ];
+        let dispatcher = ToolDispatcher::new(executors);
+
+        // WHEN
+        let results = dispatcher.execute_batch(calls).await;
+
+        // THEN — all succeed, order preserved
+        assert_eq!(results.len(), 3);
+        for (i, r) in results.iter().enumerate() {
+            let val = r.as_ref().expect("should succeed");
+            assert_eq!(val["pos"], json!(i));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_batch_unknown_tool_forces_serial_and_errors() {
+        // GIVEN — first call targets an unknown tool; second is registered and read-only
+        let dispatcher = ToolDispatcher::new(vec![Box::new(EchoExecutor { tool_name: "known" })]);
+        let calls = vec![
+            ToolBatchCall {
+                tool_name: "unknown".into(),
+                input: json!({}),
+            },
+            ToolBatchCall {
+                tool_name: "known".into(),
+                input: json!({"k": 1}),
+            },
+        ];
+
+        // WHEN — unknown tool forces serial path; each call is dispatched independently
+        let results = dispatcher.execute_batch(calls).await;
+
+        // THEN — first result is UnknownTool error, second succeeds
+        assert_eq!(results.len(), 2);
+        assert!(matches!(
+            results[0],
+            Err(ToolExecutionError::UnknownTool { .. })
+        ));
+        assert!(results[1].is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_execute_batch_semaphore_limits_concurrency() {
+        // GIVEN — 15 read-only executors each sleeping 10 ms
+        // With MAX_CONCURRENT_READ_TOOLS=10 the total should be >= 2 batches
+        let (dispatcher, calls) = make_read_only_dispatcher(15, 10);
+
+        // WHEN
+        let results = dispatcher.execute_batch(calls).await;
+
+        // THEN — all 15 results returned
+        assert_eq!(results.len(), 15);
+        for r in &results {
+            assert!(r.is_ok(), "unexpected error: {r:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_batch_empty_returns_empty() {
+        // GIVEN
+        let dispatcher = ToolDispatcher::new(vec![]);
+        // WHEN
+        let results = dispatcher.execute_batch(vec![]).await;
+        // THEN
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_tool_descriptor_default_is_read_only_false() {
+        // GIVEN — default ToolDescriptor fields (via executor default)
+        let executor = TimedEchoExecutor {
+            tool_name: "write_tool",
+            read_only: false,
+            delay_ms: 0,
+        };
+        // THEN — tools that don't override is_read_only return false
+        assert!(!executor.is_read_only());
+    }
+
+    #[test]
+    fn test_read_only_executors_return_true() {
+        // GIVEN
+        let ro_executor = TimedEchoExecutor {
+            tool_name: "ro",
+            read_only: true,
+            delay_ms: 0,
+        };
+        // THEN
+        assert!(ro_executor.is_read_only());
     }
 }

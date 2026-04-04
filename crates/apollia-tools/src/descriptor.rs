@@ -27,6 +27,15 @@ pub struct ToolDescriptor {
     /// Must be `true` when `sandbox_profile` is `SandboxProfile::Full`.
     /// Forces an explicit opt-in to unrestricted execution.
     pub dangerous: bool,
+    /// If `true`, this tool does not modify any state and may be executed concurrently
+    /// alongside other read-only tools. Defaults to `false`: if this flag is omitted,
+    /// the tool is treated as mutating and never parallelised.
+    #[serde(default)]
+    pub is_read_only: bool,
+    /// Risk score from 0 (pure read) to 10 (full system modification).
+    /// Used for audit trail enrichment and approval-gate decisions.
+    #[serde(default)]
+    pub risk_score: u8,
 }
 
 impl ToolDescriptor {
@@ -127,6 +136,8 @@ mod tests {
             sandbox_profile: SandboxProfile::FileSystem,
             tags: vec!["shell".to_string()],
             dangerous: false,
+            is_read_only: false,
+            risk_score: 0,
         }
     }
 
@@ -218,5 +229,52 @@ mod tests {
         descriptor.dangerous = true;
         // WHEN / THEN
         assert!(descriptor.validate().is_ok());
+    }
+
+    #[test]
+    fn test_is_read_only_defaults_to_false() {
+        // GIVEN — descriptor built without specifying is_read_only
+        let d = make_valid_descriptor();
+        // THEN — conservative default: never parallelised if flag omitted
+        assert!(!d.is_read_only);
+    }
+
+    #[test]
+    fn test_risk_score_defaults_to_zero() {
+        // GIVEN
+        let d = make_valid_descriptor();
+        // THEN
+        assert_eq!(d.risk_score, 0);
+    }
+
+    #[test]
+    fn test_is_read_only_serde_default() {
+        // GIVEN — JSON without is_read_only / risk_score fields
+        let json = r#"{
+            "name": "file_read", "version": "1.0.0", "description": "reads a file",
+            "kind": {"type": "native"},
+            "input_schema": {"type": "object"},
+            "sandbox_profile": "read_only",
+            "tags": [], "dangerous": false
+        }"#;
+        // WHEN
+        let d: ToolDescriptor = serde_json::from_str(json).expect("deserialisation échouée");
+        // THEN — fields absent in JSON → default values
+        assert!(!d.is_read_only);
+        assert_eq!(d.risk_score, 0);
+    }
+
+    #[test]
+    fn test_is_read_only_serialization_roundtrip() {
+        // GIVEN — read-only tool
+        let mut d = make_valid_descriptor();
+        d.is_read_only = true;
+        d.risk_score = 2;
+        // WHEN
+        let json = serde_json::to_string(&d).expect("serialisation échouée");
+        let d2: ToolDescriptor = serde_json::from_str(&json).expect("déserialisation échouée");
+        // THEN
+        assert!(d2.is_read_only);
+        assert_eq!(d2.risk_score, 2);
     }
 }

@@ -275,6 +275,8 @@ impl PythonExecutor {
             sandbox_profile: SandboxProfile::FileSystem,
             tags: vec!["python".to_string(), "scripting".to_string()],
             dangerous: false,
+            is_read_only: false,
+            risk_score: 8,
         }
     }
 

@@ -218,6 +218,8 @@ impl FileEdit {
             sandbox_profile: SandboxProfile::FileSystem,
             tags: vec!["file".to_string(), "edit".to_string()],
             dangerous: false,
+            is_read_only: false,
+            risk_score: 5,
         }
     }
 }

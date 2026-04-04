@@ -36,7 +36,9 @@ use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::manifest::AgentManifest;
 use apollia_core::observability::ObservabilityConfig;
 use apollia_core::{AIPResult, PendingApprovals};
-use apollia_llm::{router::ObservabilityConfig as LlmObsConfig, ChatMessage, CompletionRequest, LlmRouter};
+use apollia_llm::{
+    router::ObservabilityConfig as LlmObsConfig, ChatMessage, CompletionRequest, LlmRouter,
+};
 use apollia_memory::manager::MemoryManager;
 
 use crate::budget::StepBudget;
@@ -45,7 +47,7 @@ use crate::plan::{ExecutionPlan, PlanStep};
 use crate::plan_repository::PlanRepository;
 use crate::reasoner::Reasoner;
 use crate::resilience::ResilienceLayer;
-use crate::topo::topological_sort;
+use crate::topo::{topological_levels, topological_sort};
 
 // ────────────────────────────────────────────────────────────────────────────
 // ToolProxyTrait
@@ -63,6 +65,15 @@ pub trait ToolProxyTrait: Send + Sync {
     /// Retourne la sortie textuelle de l'outil en cas de succès,
     /// ou un message d'erreur en cas d'échec.
     async fn invoke(&self, tool_name: &str, input: &serde_json::Value) -> Result<String, String>;
+
+    /// Returns `true` if `tool_name` does not modify any external state.
+    ///
+    /// Used by [`ActorLoop::execute_tool_steps`] to decide whether a batch of steps
+    /// at the same topological level can be executed concurrently.
+    /// Defaults to `false` (conservative): unknown tools are never parallelised.
+    fn is_tool_read_only(&self, _tool_name: &str) -> bool {
+        false
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -130,6 +141,14 @@ const STEP_MEMORY_IMPORTANCE: f64 = 0.6;
 /// Used as the field default in [`ActorLoop`]. The configurable value is
 /// injected via [`ActorLoop::with_step_memory_max_chars`].
 const DEFAULT_STEP_MEMORY_OUTPUT_MAX_CHARS: usize = 200;
+
+/// Maximum number of read-only tool steps driven concurrently by
+/// [`ActorLoop::execute_tool_steps`].
+///
+/// Mirrors the same constant in `apollia-tools` to cap OS-level concurrency
+/// (file descriptors, process handles) without requiring a shared config at
+/// this layer.
+const MAX_CONCURRENT_ORIA_TOOLS: usize = 10;
 
 // ────────────────────────────────────────────────────────────────────────────
 // StepContext
@@ -315,8 +334,8 @@ impl ActorLoop {
         _resilience: &ResilienceLayer,
         reasoner: &Reasoner,
     ) -> AIPResult {
-        let order = match topological_sort(&self.plan.steps) {
-            Ok(o) => o,
+        let levels = match topological_levels(&self.plan.steps) {
+            Ok(l) => l,
             Err(_) => {
                 if let Err(e) = self.db.fail_plan(&self.plan.plan_id, "INVALID_PLAN") {
                     tracing::warn!(error = %e, "fail_plan DB call failed (ignored)");
@@ -327,275 +346,568 @@ impl ActorLoop {
 
         let mut completed_outputs: HashMap<String, String> = HashMap::new();
 
-        for step_id in order {
-            let step = match self.plan.steps.iter().find(|s| s.step_id == step_id) {
-                Some(s) => s.clone(),
-                None => continue,
-            };
+        // Iterate level by level. Within a level all steps have the same dependency
+        // depth and can run concurrently when they are all read-only tool calls.
+        for level_ids in levels {
+            // Collect the PlanStep objects for this level.
+            let level_steps: Vec<PlanStep> = level_ids
+                .iter()
+                .filter_map(|id| self.plan.steps.iter().find(|s| s.step_id == *id))
+                .cloned()
+                .collect();
 
-            // : vérifier le budget avant chaque step.
-            if budget.is_exhausted() {
-                if let Err(e) = self
-                    .db
-                    .fail_plan(&self.plan.plan_id, "STEP_BUDGET_EXCEEDED")
-                {
-                    tracing::warn!(error = %e, "fail_plan DB call failed (ignored)");
-                }
-                let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                    task_id: self.plan.task_id.clone().into(),
-                    plan_id: self.plan.plan_id.clone(),
-                    reason: "STEP_BUDGET_EXCEEDED".to_string(),
+            // A level qualifies for concurrent batch execution when every step is a
+            // read-only tool call that does not require human approval.
+            let batch_eligible = level_steps.len() > 1
+                && level_steps.iter().all(|s| {
+                    s.tool_hint.as_deref().is_some_and(|t| {
+                        t != "llm"
+                            && tool_proxy.is_tool_read_only(t)
+                            && !self
+                                .manifest
+                                .tools_requiring_approval
+                                .iter()
+                                .any(|a| a == t)
+                    })
                 });
-                return AIPResult::failed(
-                    "STEP_BUDGET_EXCEEDED",
-                    &format!("Budget de {} steps atteint", budget.max_steps),
-                );
-            }
 
-            // Émettre StepStarted.
-            let step_num = completed_outputs.len() + 1;
-            let total = self.plan.steps.len();
-            let _ = self.event_bus.send(RuntimeEvent::StepStarted {
-                task_id: self.plan.task_id.clone().into(),
-                plan_id: self.plan.plan_id.clone(),
-                step_id: step_id.clone(),
-                step_num,
-                total,
-                desc: step.description.clone(),
-            });
-            if let Err(e) = self.db.start_step(&self.plan.plan_id, &step_id) {
-                tracing::warn!(error = %e, step_id = %step_id, "start_step DB call failed (ignored)");
-            }
-
-            // persist rendered input + tool name before execution.
-            let rendered_input = interpolate_outputs(&step.description, &completed_outputs);
-            if let Err(e) = self.db.save_step_input(
-                &step_id,
-                &self.plan.plan_id,
-                &rendered_input,
-                &self.obs_config,
-            ) {
-                tracing::warn!(error = %e, step_id = %step_id, "save_step_input DB call failed (ignored)");
-            }
-            let actual_tool = step.tool_hint.as_deref().unwrap_or("llm");
-            if let Err(e) = self
-                .db
-                .save_step_tool(&step_id, &self.plan.plan_id, actual_tool)
-            {
-                tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
-            }
-
-            // build StepContext with accumulated outputs and budget snapshot.
-            let step_ctx = StepContext {
-                previous_outputs: completed_outputs.clone(),
-                step_index: completed_outputs.len(),
-                total_steps: self.plan.steps.len(),
-                remaining_budget: budget.to_budget_view(),
-            };
-
-            let started = Instant::now();
-            let result = self
-                .execute_step(&step, &step_ctx, tool_proxy, llm_router)
-                .await;
-            let duration_ms = started.elapsed().as_millis() as u64;
-            budget.increment_steps();
-
-            // persist duration unconditionally.
-            if let Err(e) =
-                self.db
-                    .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
-            {
-                tracing::warn!(error = %e, step_id = %step_id, "save_step_duration DB call failed (ignored)");
-            }
-
-            match result {
-                Ok(output) => {
-                    // persist observability output.
-                    if let Err(e) = self.db.save_step_output(
-                        &step_id,
+            if batch_eligible {
+                // ── BATCH PATH ────────────────────────────────────────────────────
+                // Phase 1 (sequential): budget guard, events, DB pre-execution.
+                if budget.is_exhausted() {
+                    if let Err(e) = self
+                        .db
+                        .fail_plan(&self.plan.plan_id, "STEP_BUDGET_EXCEEDED")
+                    {
+                        tracing::warn!(error = %e, "fail_plan DB call failed (ignored)");
+                    }
+                    let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                        task_id: self.plan.task_id.clone().into(),
+                        plan_id: self.plan.plan_id.clone(),
+                        reason: "STEP_BUDGET_EXCEEDED".to_string(),
+                    });
+                    return AIPResult::failed(
+                        "STEP_BUDGET_EXCEEDED",
+                        &format!("Budget de {} steps atteint", budget.max_steps),
+                    );
+                }
+                for step in &level_steps {
+                    let step_id = &step.step_id;
+                    let step_num = completed_outputs.len() + 1;
+                    let total = self.plan.steps.len();
+                    let _ = self.event_bus.send(RuntimeEvent::StepStarted {
+                        task_id: self.plan.task_id.clone().into(),
+                        plan_id: self.plan.plan_id.clone(),
+                        step_id: step_id.clone(),
+                        step_num,
+                        total,
+                        desc: step.description.clone(),
+                    });
+                    if let Err(e) = self.db.start_step(&self.plan.plan_id, step_id) {
+                        tracing::warn!(error = %e, step_id = %step_id, "start_step DB call failed (ignored)");
+                    }
+                    let rendered = interpolate_outputs(&step.description, &completed_outputs);
+                    if let Err(e) = self.db.save_step_input(
+                        step_id,
                         &self.plan.plan_id,
-                        &output,
+                        &rendered,
                         &self.obs_config,
                     ) {
-                        tracing::warn!(error = %e, step_id = %step_id, "save_step_output DB call failed (ignored)");
+                        tracing::warn!(error = %e, step_id = %step_id, "save_step_input DB call failed (ignored)");
                     }
-                    if let Err(e) = self.db.complete_step(&self.plan.plan_id, &step_id, &output) {
-                        tracing::warn!(error = %e, step_id = %step_id, "complete_step DB call failed (ignored)");
+                    let actual_tool = step.tool_hint.as_deref().unwrap_or("llm");
+                    if let Err(e) = self
+                        .db
+                        .save_step_tool(step_id, &self.plan.plan_id, actual_tool)
+                    {
+                        tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
                     }
-                    let _ = self.event_bus.send(RuntimeEvent::StepCompleted {
+                }
+
+                // Phase 2: Concurrent invocations.
+                let started = Instant::now();
+                let batch_results = self
+                    .execute_tool_steps(&level_steps, &completed_outputs, tool_proxy)
+                    .await;
+                let duration_ms = started.elapsed().as_millis() as u64;
+
+                // Phase 3 (sequential): budget increment, DB post-execution, events, errors.
+                for (step, (step_id, result)) in level_steps.iter().zip(batch_results) {
+                    budget.increment_steps();
+                    if let Err(e) =
+                        self.db
+                            .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
+                    {
+                        tracing::warn!(error = %e, step_id = %step_id, "save_step_duration DB call failed (ignored)");
+                    }
+                    match result {
+                        Ok(output) => {
+                            if let Err(e) = self.db.save_step_output(
+                                &step_id,
+                                &self.plan.plan_id,
+                                &output,
+                                &self.obs_config,
+                            ) {
+                                tracing::warn!(error = %e, step_id = %step_id, "save_step_output DB call failed (ignored)");
+                            }
+                            if let Err(e) =
+                                self.db.complete_step(&self.plan.plan_id, &step_id, &output)
+                            {
+                                tracing::warn!(error = %e, step_id = %step_id, "complete_step DB call failed (ignored)");
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::StepCompleted {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                step_id: step_id.clone(),
+                                duration_ms,
+                            });
+                            self.record_step_memory(&step_id, &step.description, &output);
+                            completed_outputs.insert(step_id, output);
+                        }
+                        Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
+                            if let Err(db_err) = self.db.save_step_error(
+                                &step_id,
+                                &self.plan.plan_id,
+                                &e.to_string(),
+                            ) {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                            }
+                            if let Err(db_err) =
+                                self.db
+                                    .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
+                            {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::StepFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                step_id: step_id.clone(),
+                                error: e.to_string(),
+                                retryable: true,
+                            });
+                            return self
+                                .replan_and_continue(
+                                    step_id,
+                                    e.to_string(),
+                                    completed_outputs,
+                                    tool_proxy,
+                                    llm_router,
+                                    budget,
+                                    reasoner,
+                                )
+                                .await;
+                        }
+                        Err(ref e) if e.is_retryable() => {
+                            if let Err(db_err) = self.db.save_step_error(
+                                &step_id,
+                                &self.plan.plan_id,
+                                &e.to_string(),
+                            ) {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                            }
+                            if let Err(db_err) =
+                                self.db
+                                    .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
+                            {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                            }
+                            if let Err(db_err) =
+                                self.db.fail_plan(&self.plan.plan_id, "MAX_REPLAN_EXCEEDED")
+                            {
+                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::StepFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                step_id: step_id.clone(),
+                                error: e.to_string(),
+                                retryable: true,
+                            });
+                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                reason: "MAX_REPLAN_EXCEEDED".to_string(),
+                            });
+                            return AIPResult::failed(
+                                "MAX_REPLAN_EXCEEDED",
+                                &format!("{} replanifications dépassées", self.max_replans),
+                            );
+                        }
+                        Err(StepError::RejectedByUser { ref reason }) => {
+                            if let Err(db_err) =
+                                self.db
+                                    .save_step_error(&step_id, &self.plan.plan_id, reason)
+                            {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                            }
+                            if let Err(db_err) =
+                                self.db.fail_step(&self.plan.plan_id, &step_id, reason)
+                            {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                            }
+                            if let Err(db_err) = self.db.fail_plan(&self.plan.plan_id, "REJECTED") {
+                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                reason: "REJECTED".to_string(),
+                            });
+                            return AIPResult::failed("REJECTED", reason);
+                        }
+                        Err(StepError::ApprovalChannelClosed) => {
+                            if let Err(db_err) = self.db.save_step_error(
+                                &step_id,
+                                &self.plan.plan_id,
+                                "approval_channel_closed",
+                            ) {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                            }
+                            if let Err(db_err) = self.db.fail_step(
+                                &self.plan.plan_id,
+                                &step_id,
+                                "approval_channel_closed",
+                            ) {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                            }
+                            if let Err(db_err) = self
+                                .db
+                                .fail_plan(&self.plan.plan_id, "APPROVAL_CHANNEL_CLOSED")
+                            {
+                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                reason: "APPROVAL_CHANNEL_CLOSED".to_string(),
+                            });
+                            return AIPResult::failed(
+                                "APPROVAL_CHANNEL_CLOSED",
+                                "Approval channel closed — runtime shutting down",
+                            );
+                        }
+                        Err(e) => {
+                            if let Err(db_err) = self.db.save_step_error(
+                                &step_id,
+                                &self.plan.plan_id,
+                                &e.to_string(),
+                            ) {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                            }
+                            if let Err(db_err) =
+                                self.db
+                                    .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
+                            {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                            }
+                            if let Err(db_err) =
+                                self.db.fail_plan(&self.plan.plan_id, &e.to_string())
+                            {
+                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::StepFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                step_id: step_id.clone(),
+                                error: e.to_string(),
+                                retryable: false,
+                            });
+                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                reason: e.to_string(),
+                            });
+                            return AIPResult::failed(
+                                "STEP_FAILED",
+                                &format!("Step {} failed: {}", step_id, e),
+                            );
+                        }
+                    }
+                }
+            } else {
+                // ── SEQUENTIAL PATH ────────────────────────────────────────────────
+                // Each step in the level is processed one at a time (unchanged logic).
+                for step_id in level_ids {
+                    let step = match self.plan.steps.iter().find(|s| s.step_id == step_id) {
+                        Some(s) => s.clone(),
+                        None => continue,
+                    };
+
+                    // : vérifier le budget avant chaque step.
+                    if budget.is_exhausted() {
+                        if let Err(e) = self
+                            .db
+                            .fail_plan(&self.plan.plan_id, "STEP_BUDGET_EXCEEDED")
+                        {
+                            tracing::warn!(error = %e, "fail_plan DB call failed (ignored)");
+                        }
+                        let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                            task_id: self.plan.task_id.clone().into(),
+                            plan_id: self.plan.plan_id.clone(),
+                            reason: "STEP_BUDGET_EXCEEDED".to_string(),
+                        });
+                        return AIPResult::failed(
+                            "STEP_BUDGET_EXCEEDED",
+                            &format!("Budget de {} steps atteint", budget.max_steps),
+                        );
+                    }
+
+                    // Émettre StepStarted.
+                    let step_num = completed_outputs.len() + 1;
+                    let total = self.plan.steps.len();
+                    let _ = self.event_bus.send(RuntimeEvent::StepStarted {
                         task_id: self.plan.task_id.clone().into(),
                         plan_id: self.plan.plan_id.clone(),
                         step_id: step_id.clone(),
-                        duration_ms,
+                        step_num,
+                        total,
+                        desc: step.description.clone(),
                     });
+                    if let Err(e) = self.db.start_step(&self.plan.plan_id, &step_id) {
+                        tracing::warn!(error = %e, step_id = %step_id, "start_step DB call failed (ignored)");
+                    }
 
-                    // record episodic memory per step (fire-and-forget).
-                    self.record_step_memory(&step_id, &step.description, &output);
-
-                    completed_outputs.insert(step_id, output);
-                }
-
-                Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
-                    // persist error detail.
-                    if let Err(db_err) =
-                        self.db
-                            .save_step_error(&step_id, &self.plan.plan_id, &e.to_string())
-                    {
-                        tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                    }
-                    if let Err(db_err) =
-                        self.db
-                            .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
-                    {
-                        tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                    }
-                    let _ = self.event_bus.send(RuntimeEvent::StepFailed {
-                        task_id: self.plan.task_id.clone().into(),
-                        plan_id: self.plan.plan_id.clone(),
-                        step_id: step_id.clone(),
-                        error: e.to_string(),
-                        retryable: true,
-                    });
-                    return self
-                        .replan_and_continue(
-                            step_id,
-                            e.to_string(),
-                            completed_outputs,
-                            tool_proxy,
-                            llm_router,
-                            budget,
-                            reasoner,
-                        )
-                        .await;
-                }
-
-                Err(ref e) if e.is_retryable() => {
-                    // replan_count >= max_replans : MAX_REPLAN_EXCEEDED
-                    if let Err(db_err) =
-                        self.db
-                            .save_step_error(&step_id, &self.plan.plan_id, &e.to_string())
-                    {
-                        tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                    }
-                    if let Err(db_err) =
-                        self.db
-                            .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
-                    {
-                        tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                    }
-                    if let Err(db_err) =
-                        self.db.fail_plan(&self.plan.plan_id, "MAX_REPLAN_EXCEEDED")
-                    {
-                        tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                    }
-                    let _ = self.event_bus.send(RuntimeEvent::StepFailed {
-                        task_id: self.plan.task_id.clone().into(),
-                        plan_id: self.plan.plan_id.clone(),
-                        step_id: step_id.clone(),
-                        error: e.to_string(),
-                        retryable: true,
-                    });
-                    let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                        task_id: self.plan.task_id.clone().into(),
-                        plan_id: self.plan.plan_id.clone(),
-                        reason: "MAX_REPLAN_EXCEEDED".to_string(),
-                    });
-                    return AIPResult::failed(
-                        "MAX_REPLAN_EXCEEDED",
-                        &format!("{} replanifications dépassées", self.max_replans),
-                    );
-                }
-
-                // : rejet humain → plan stoppé, steps suivants non exécutés.
-                Err(StepError::RejectedByUser { ref reason }) => {
-                    if let Err(db_err) =
-                        self.db
-                            .save_step_error(&step_id, &self.plan.plan_id, reason)
-                    {
-                        tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
-                    }
-                    if let Err(db_err) = self.db.fail_step(&self.plan.plan_id, &step_id, reason) {
-                        tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
-                    }
-                    if let Err(db_err) = self.db.fail_plan(&self.plan.plan_id, "REJECTED") {
-                        tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                    }
-                    let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                        task_id: self.plan.task_id.clone().into(),
-                        plan_id: self.plan.plan_id.clone(),
-                        reason: "REJECTED".to_string(),
-                    });
-                    return AIPResult::failed("REJECTED", reason);
-                }
-
-                // Fermeture du channel d'approbation → runtime en arrêt.
-                Err(StepError::ApprovalChannelClosed) => {
-                    if let Err(db_err) = self.db.save_step_error(
+                    // persist rendered input + tool name before execution.
+                    let rendered_input = interpolate_outputs(&step.description, &completed_outputs);
+                    if let Err(e) = self.db.save_step_input(
                         &step_id,
                         &self.plan.plan_id,
-                        "approval_channel_closed",
+                        &rendered_input,
+                        &self.obs_config,
                     ) {
-                        tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                        tracing::warn!(error = %e, step_id = %step_id, "save_step_input DB call failed (ignored)");
                     }
-                    if let Err(db_err) =
+                    let actual_tool = step.tool_hint.as_deref().unwrap_or("llm");
+                    if let Err(e) =
                         self.db
-                            .fail_step(&self.plan.plan_id, &step_id, "approval_channel_closed")
+                            .save_step_tool(&step_id, &self.plan.plan_id, actual_tool)
                     {
-                        tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                        tracing::warn!(error = %e, step_id = %step_id, "save_step_tool DB call failed (ignored)");
                     }
-                    if let Err(db_err) = self
-                        .db
-                        .fail_plan(&self.plan.plan_id, "APPROVAL_CHANNEL_CLOSED")
-                    {
-                        tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                    }
-                    let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                        task_id: self.plan.task_id.clone().into(),
-                        plan_id: self.plan.plan_id.clone(),
-                        reason: "APPROVAL_CHANNEL_CLOSED".to_string(),
-                    });
-                    return AIPResult::failed(
-                        "APPROVAL_CHANNEL_CLOSED",
-                        "Approval channel closed — runtime shutting down",
-                    );
-                }
 
-                Err(e) => {
-                    // Échec permanent non-retryable.
-                    if let Err(db_err) =
+                    // build StepContext with accumulated outputs and budget snapshot.
+                    let step_ctx = StepContext {
+                        previous_outputs: completed_outputs.clone(),
+                        step_index: completed_outputs.len(),
+                        total_steps: self.plan.steps.len(),
+                        remaining_budget: budget.to_budget_view(),
+                    };
+
+                    let started = Instant::now();
+                    let result = self
+                        .execute_step(&step, &step_ctx, tool_proxy, llm_router)
+                        .await;
+                    let duration_ms = started.elapsed().as_millis() as u64;
+                    budget.increment_steps();
+
+                    // persist duration unconditionally.
+                    if let Err(e) =
                         self.db
-                            .save_step_error(&step_id, &self.plan.plan_id, &e.to_string())
+                            .save_step_duration(&step_id, &self.plan.plan_id, duration_ms as i64)
                     {
-                        tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                        tracing::warn!(error = %e, step_id = %step_id, "save_step_duration DB call failed (ignored)");
                     }
-                    if let Err(db_err) =
-                        self.db
-                            .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
-                    {
-                        tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+
+                    match result {
+                        Ok(output) => {
+                            // persist observability output.
+                            if let Err(e) = self.db.save_step_output(
+                                &step_id,
+                                &self.plan.plan_id,
+                                &output,
+                                &self.obs_config,
+                            ) {
+                                tracing::warn!(error = %e, step_id = %step_id, "save_step_output DB call failed (ignored)");
+                            }
+                            if let Err(e) =
+                                self.db.complete_step(&self.plan.plan_id, &step_id, &output)
+                            {
+                                tracing::warn!(error = %e, step_id = %step_id, "complete_step DB call failed (ignored)");
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::StepCompleted {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                step_id: step_id.clone(),
+                                duration_ms,
+                            });
+
+                            // record episodic memory per step (fire-and-forget).
+                            self.record_step_memory(&step_id, &step.description, &output);
+
+                            completed_outputs.insert(step_id, output);
+                        }
+
+                        Err(ref e) if e.is_retryable() && self.replan_count < self.max_replans => {
+                            // persist error detail.
+                            if let Err(db_err) = self.db.save_step_error(
+                                &step_id,
+                                &self.plan.plan_id,
+                                &e.to_string(),
+                            ) {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                            }
+                            if let Err(db_err) =
+                                self.db
+                                    .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
+                            {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::StepFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                step_id: step_id.clone(),
+                                error: e.to_string(),
+                                retryable: true,
+                            });
+                            return self
+                                .replan_and_continue(
+                                    step_id,
+                                    e.to_string(),
+                                    completed_outputs,
+                                    tool_proxy,
+                                    llm_router,
+                                    budget,
+                                    reasoner,
+                                )
+                                .await;
+                        }
+
+                        Err(ref e) if e.is_retryable() => {
+                            // replan_count >= max_replans : MAX_REPLAN_EXCEEDED
+                            if let Err(db_err) = self.db.save_step_error(
+                                &step_id,
+                                &self.plan.plan_id,
+                                &e.to_string(),
+                            ) {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                            }
+                            if let Err(db_err) =
+                                self.db
+                                    .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
+                            {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                            }
+                            if let Err(db_err) =
+                                self.db.fail_plan(&self.plan.plan_id, "MAX_REPLAN_EXCEEDED")
+                            {
+                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::StepFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                step_id: step_id.clone(),
+                                error: e.to_string(),
+                                retryable: true,
+                            });
+                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                reason: "MAX_REPLAN_EXCEEDED".to_string(),
+                            });
+                            return AIPResult::failed(
+                                "MAX_REPLAN_EXCEEDED",
+                                &format!("{} replanifications dépassées", self.max_replans),
+                            );
+                        }
+
+                        // : rejet humain → plan stoppé, steps suivants non exécutés.
+                        Err(StepError::RejectedByUser { ref reason }) => {
+                            if let Err(db_err) =
+                                self.db
+                                    .save_step_error(&step_id, &self.plan.plan_id, reason)
+                            {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                            }
+                            if let Err(db_err) =
+                                self.db.fail_step(&self.plan.plan_id, &step_id, reason)
+                            {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                            }
+                            if let Err(db_err) = self.db.fail_plan(&self.plan.plan_id, "REJECTED") {
+                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                reason: "REJECTED".to_string(),
+                            });
+                            return AIPResult::failed("REJECTED", reason);
+                        }
+
+                        // Fermeture du channel d'approbation → runtime en arrêt.
+                        Err(StepError::ApprovalChannelClosed) => {
+                            if let Err(db_err) = self.db.save_step_error(
+                                &step_id,
+                                &self.plan.plan_id,
+                                "approval_channel_closed",
+                            ) {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                            }
+                            if let Err(db_err) = self.db.fail_step(
+                                &self.plan.plan_id,
+                                &step_id,
+                                "approval_channel_closed",
+                            ) {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                            }
+                            if let Err(db_err) = self
+                                .db
+                                .fail_plan(&self.plan.plan_id, "APPROVAL_CHANNEL_CLOSED")
+                            {
+                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                reason: "APPROVAL_CHANNEL_CLOSED".to_string(),
+                            });
+                            return AIPResult::failed(
+                                "APPROVAL_CHANNEL_CLOSED",
+                                "Approval channel closed — runtime shutting down",
+                            );
+                        }
+
+                        Err(e) => {
+                            // Échec permanent non-retryable.
+                            if let Err(db_err) = self.db.save_step_error(
+                                &step_id,
+                                &self.plan.plan_id,
+                                &e.to_string(),
+                            ) {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "save_step_error DB call failed (ignored)");
+                            }
+                            if let Err(db_err) =
+                                self.db
+                                    .fail_step(&self.plan.plan_id, &step_id, &e.to_string())
+                            {
+                                tracing::warn!(error = %db_err, step_id = %step_id, "fail_step DB call failed (ignored)");
+                            }
+                            if let Err(db_err) =
+                                self.db.fail_plan(&self.plan.plan_id, &e.to_string())
+                            {
+                                tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
+                            }
+                            let _ = self.event_bus.send(RuntimeEvent::StepFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                step_id: step_id.clone(),
+                                error: e.to_string(),
+                                retryable: false,
+                            });
+                            let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
+                                task_id: self.plan.task_id.clone().into(),
+                                plan_id: self.plan.plan_id.clone(),
+                                reason: e.to_string(),
+                            });
+                            return AIPResult::failed(
+                                "STEP_FAILED",
+                                &format!("Step {} failed: {}", step_id, e),
+                            );
+                        }
                     }
-                    if let Err(db_err) = self.db.fail_plan(&self.plan.plan_id, &e.to_string()) {
-                        tracing::warn!(error = %db_err, "fail_plan DB call failed (ignored)");
-                    }
-                    let _ = self.event_bus.send(RuntimeEvent::StepFailed {
-                        task_id: self.plan.task_id.clone().into(),
-                        plan_id: self.plan.plan_id.clone(),
-                        step_id: step_id.clone(),
-                        error: e.to_string(),
-                        retryable: false,
-                    });
-                    let _ = self.event_bus.send(RuntimeEvent::PlanFailed {
-                        task_id: self.plan.task_id.clone().into(),
-                        plan_id: self.plan.plan_id.clone(),
-                        reason: e.to_string(),
-                    });
-                    return AIPResult::failed(
-                        "STEP_FAILED",
-                        &format!("Step {} failed: {}", step_id, e),
-                    );
-                }
-            }
-        }
+                } // closes `for step_id in level_ids`
+            } // closes `else { // sequential path`
+        } // closes `for level_ids in levels`
 
         // Tous les steps complétés.
         if let Err(e) = self.db.complete_plan(&self.plan.plan_id) {
@@ -609,6 +921,75 @@ impl ActorLoop {
         });
 
         AIPResult::completed_with_steps(completed_outputs)
+    }
+
+    /// Executes a batch of tool-only steps, parallelising when all tools are read-only.
+    ///
+    /// **Parallel path** — when every step in `steps` targets a read-only tool
+    /// (as reported by [`ToolProxyTrait::is_tool_read_only`]) **and** no tool in the
+    /// batch requires human approval: all invocations are driven concurrently via
+    /// `futures::stream::StreamExt::buffered` with a cap of
+    /// `MAX_CONCURRENT_READ_TOOLS` simultaneous calls.
+    ///
+    /// **Serial path** — in all other cases (LLM steps, mutating tools, tools
+    /// requiring approval, or a batch of one): invocations run sequentially.
+    ///
+    /// Output order matches input order in both paths.
+    /// Inputs are interpolated from `completed_outputs` before invocation.
+    async fn execute_tool_steps(
+        &self,
+        steps: &[PlanStep],
+        completed_outputs: &HashMap<String, String>,
+        tool_proxy: &dyn ToolProxyTrait,
+    ) -> Vec<(String, Result<String, StepError>)> {
+        use futures::stream::{self, StreamExt};
+
+        if steps.is_empty() {
+            return vec![];
+        }
+
+        let all_read_only = steps.len() > 1
+            && steps.iter().all(|s| {
+                s.tool_hint.as_deref().is_some_and(|t| {
+                    t != "llm"
+                        && tool_proxy.is_tool_read_only(t)
+                        && !self
+                            .manifest
+                            .tools_requiring_approval
+                            .iter()
+                            .any(|a| a == t)
+                })
+            });
+
+        // Pre-compute per-call data to avoid lifetime issues with the async stream.
+        let tool_names: Vec<String> = steps
+            .iter()
+            .map(|s| s.tool_hint.clone().unwrap_or_default())
+            .collect();
+        let inputs: Vec<serde_json::Value> = steps
+            .iter()
+            .map(|s| serde_json::json!({"input": interpolate_outputs(&s.description, completed_outputs)}))
+            .collect();
+        let step_ids: Vec<String> = steps.iter().map(|s| s.step_id.clone()).collect();
+
+        let raw_results: Vec<Result<String, String>> = if all_read_only {
+            stream::iter((0..steps.len()).map(|i| tool_proxy.invoke(&tool_names[i], &inputs[i])))
+                .buffered(MAX_CONCURRENT_ORIA_TOOLS)
+                .collect::<Vec<_>>()
+                .await
+        } else {
+            let mut results = Vec::with_capacity(steps.len());
+            for i in 0..steps.len() {
+                results.push(tool_proxy.invoke(&tool_names[i], &inputs[i]).await);
+            }
+            results
+        };
+
+        step_ids
+            .into_iter()
+            .zip(raw_results)
+            .map(|(step_id, r)| (step_id, r.map_err(StepError::ToolCallFailed)))
+            .collect()
     }
 
     /// Exécute un step individuel — outil ou LLM selon `tool_hint`.

@@ -31,7 +31,7 @@ pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
 };
 pub use descriptor::{McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind};
-pub use executor::{ToolDispatcher, ToolExecutionError, ToolExecutor};
+pub use executor::{ToolBatchCall, ToolDispatcher, ToolExecutionError, ToolExecutor};
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
 pub use sandbox_path::{SandboxPathError, SandboxRoot};

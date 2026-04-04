@@ -172,6 +172,8 @@ impl FileList {
             sandbox_profile: SandboxProfile::FileSystem,
             tags: vec!["file".to_string(), "list".to_string()],
             dangerous: false,
+            is_read_only: true,
+            risk_score: 0,
         }
     }
 }

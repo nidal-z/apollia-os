@@ -242,6 +242,8 @@ impl FileGrep {
                 "regex".to_string(),
             ],
             dangerous: false,
+            is_read_only: true,
+            risk_score: 0,
         }
     }
 }

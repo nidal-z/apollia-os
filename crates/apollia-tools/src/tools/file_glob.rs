@@ -158,6 +158,8 @@ impl FileGlob {
             sandbox_profile: SandboxProfile::FileSystem,
             tags: vec!["file".to_string(), "glob".to_string(), "search".to_string()],
             dangerous: false,
+            is_read_only: true,
+            risk_score: 0,
         }
     }
 }
