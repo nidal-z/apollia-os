@@ -96,10 +96,12 @@ pub fn load_agent_module(path: &Path) -> Result<Py<PyAny>, AIPLoaderError> {
         // Execute the module code
         let code_c = CString::new(code.as_bytes())
             .map_err(|e| AIPLoaderError::PythonError(format!("code contains NUL byte: {e}")))?;
-        let file_c = CString::new(file_name)
-            .map_err(|e| AIPLoaderError::PythonError(format!("file name contains NUL byte: {e}")))?;
-        let module_c = CString::new(module_name)
-            .map_err(|e| AIPLoaderError::PythonError(format!("module name contains NUL byte: {e}")))?;
+        let file_c = CString::new(file_name).map_err(|e| {
+            AIPLoaderError::PythonError(format!("file name contains NUL byte: {e}"))
+        })?;
+        let module_c = CString::new(module_name).map_err(|e| {
+            AIPLoaderError::PythonError(format!("module name contains NUL byte: {e}"))
+        })?;
         let module = PyModule::from_code(py, &code_c, &file_c, &module_c).map_err(|e| {
             AIPLoaderError::ImportFailed {
                 module: module_name.to_owned(),

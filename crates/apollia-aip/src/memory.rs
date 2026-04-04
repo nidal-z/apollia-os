@@ -161,7 +161,9 @@ impl MemoryInterface {
             .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
 
             match result {
-                Ok(Some(value)) => Ok(Python::with_gil(|py| value.into_pyobject(py).unwrap().into_any().unbind())),
+                Ok(Some(value)) => Ok(Python::with_gil(|py| {
+                    value.into_pyobject(py).unwrap().into_any().unbind()
+                })),
                 Ok(None) => Ok(Python::with_gil(|py| py.None())),
                 Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
             }
