@@ -1,0 +1,15 @@
+[package]
+name    = "apollia-workspace"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Apollia OS — workspace context collector (git, APOLLIA.md, directory tree)"
+
+[dependencies]
+apollia-core = { workspace = true }
+tokio        = { workspace = true }
+serde        = { workspace = true }
+tracing      = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

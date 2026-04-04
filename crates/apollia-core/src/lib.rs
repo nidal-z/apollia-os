@@ -29,6 +29,7 @@ pub mod task;
 pub mod token_budget;
 pub mod user;
 pub mod utils;
+pub mod workspace_context;
 
 pub use budget::StepBudgetConfig;
 pub use config::{
@@ -50,3 +51,4 @@ pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, TextP
 pub use token_budget::TokenBudget;
 pub use user::{UpdateProfileRequest, UserMemoryEntryResponse, UserMemoryResponse, UserProfile};
 pub use utils::truncate_middle;
+pub use workspace_context::WorkspaceContext;
