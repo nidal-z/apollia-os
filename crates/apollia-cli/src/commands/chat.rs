@@ -214,8 +214,14 @@ async fn run_resume(client: &RuntimeClient, session_id: &str) -> i32 {
 ///
 /// Ctrl+D (EOF) exits cleanly. Ctrl+C cancels the current line (Interrupted)
 /// and prints a "session saved" notice before returning.
+///
+/// Slash commands:
+/// - `/fork`      — fork current session (copies full history)
+/// - `/fork N`    — fork keeping the first N messages
+/// - `/fork list` — list child sessions of the current session
 async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
-    let sid = session_id.to_string();
+    // Active session — may change after a /fork.
+    let mut current_session_id = session_id.to_string();
     let history_file = history_path();
 
     let mut rl: Editor<(), FileHistory> = match Editor::with_config(make_editor_config()) {
@@ -250,8 +256,22 @@ async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
                     let _ = rl.save_history(path);
                 }
 
+                // Handle slash commands before sending to the LLM.
+                if let Some(slash_result) =
+                    handle_slash_command(client, &current_session_id, &trimmed).await
+                {
+                    match slash_result {
+                        SlashOutcome::Continue => continue,
+                        SlashOutcome::SwitchSession(new_id) => {
+                            current_session_id = new_id;
+                            continue;
+                        }
+                        SlashOutcome::Exit(code) => return code,
+                    }
+                }
+
                 // Count current messages before sending so we can detect new ones.
-                let count_before = match get_message_count(client, session_id).await {
+                let count_before = match get_message_count(client, &current_session_id).await {
                     Ok(c) => c,
                     Err(e) => {
                         eprintln!("Error: {e}");
@@ -260,7 +280,10 @@ async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
                 };
 
                 // Send the message.
-                match client.send_chat_message(session_id, &trimmed).await {
+                match client
+                    .send_chat_message(&current_session_id, &trimmed)
+                    .await
+                {
                     Ok(_) => {}
                     Err(ClientError::ConnectionRefused) => {
                         eprintln!("runtime not started");
@@ -273,7 +296,7 @@ async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
                 }
 
                 // Poll until a new assistant message appears or timeout.
-                match poll_for_response(client, session_id, count_before).await {
+                match poll_for_response(client, &current_session_id, count_before).await {
                     Ok(Some(reply)) => println!("{reply}"),
                     Ok(None) => eprintln!("[no response received within timeout]"),
                     Err(e) => eprintln!("Error while waiting for response: {e}"),
@@ -282,7 +305,7 @@ async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
 
             Err(ReadlineError::Interrupted) => {
                 // Ctrl+C — exit cleanly, session is already persisted server-side.
-                println!("\nSession saved: {sid}");
+                println!("\nSession saved: {current_session_id}");
                 return exit_codes::SUCCESS;
             }
 
@@ -300,6 +323,120 @@ async fn repl_loop(client: &RuntimeClient, session_id: &str) -> i32 {
     }
 
     exit_codes::SUCCESS
+}
+
+/// Outcome of a slash command handler.
+enum SlashOutcome {
+    /// Command handled — continue the REPL loop.
+    Continue,
+    /// Fork created — switch to the new session and continue.
+    SwitchSession(String),
+    /// Exit the REPL with the given code.
+    Exit(i32),
+}
+
+/// Dispatch slash commands (lines starting with `/`).
+///
+/// Returns `None` when `input` is not a slash command (regular message).
+/// Returns `Some(SlashOutcome)` when the command was handled.
+async fn handle_slash_command(
+    client: &RuntimeClient,
+    session_id: &str,
+    input: &str,
+) -> Option<SlashOutcome> {
+    if !input.starts_with('/') {
+        return None;
+    }
+
+    let mut parts = input.splitn(2, ' ');
+    let cmd = parts.next().unwrap_or("");
+    let arg = parts.next().map(str::trim).unwrap_or("").trim();
+
+    match cmd {
+        "/fork" if arg.eq_ignore_ascii_case("list") => {
+            Some(handle_fork_list(client, session_id).await)
+        }
+        "/fork" => {
+            let up_to: Option<usize> = if arg.is_empty() {
+                None
+            } else {
+                match arg.parse::<usize>() {
+                    Ok(n) => Some(n),
+                    Err(_) => {
+                        eprintln!("Usage: /fork [N|list]");
+                        return Some(SlashOutcome::Continue);
+                    }
+                }
+            };
+            Some(handle_fork(client, session_id, up_to).await)
+        }
+        _ => {
+            eprintln!("Unknown command: {cmd}. Available: /fork, /fork N, /fork list");
+            Some(SlashOutcome::Continue)
+        }
+    }
+}
+
+/// Execute `/fork [N]` — create a child session and switch to it.
+async fn handle_fork(
+    client: &RuntimeClient,
+    session_id: &str,
+    up_to_index: Option<usize>,
+) -> SlashOutcome {
+    match client.fork_chat_session(session_id, up_to_index).await {
+        Ok(info) => {
+            let child_id = info["id"].as_str().unwrap_or("").to_string();
+            if child_id.is_empty() {
+                eprintln!("fork error: server did not return a session id");
+                return SlashOutcome::Continue;
+            }
+            let msg_count = match up_to_index {
+                Some(n) => format!("first {n} messages"),
+                None => "full history".to_string(),
+            };
+            println!("Forked → {child_id} ({msg_count} copied). Switching to child session.");
+            SlashOutcome::SwitchSession(child_id)
+        }
+        Err(ClientError::ConnectionRefused) => {
+            eprintln!("runtime not started");
+            SlashOutcome::Exit(exit_codes::GENERAL_ERROR)
+        }
+        Err(e) => {
+            eprintln!("fork error: {e}");
+            SlashOutcome::Continue
+        }
+    }
+}
+
+/// Execute `/fork list` — print child sessions of the current session.
+async fn handle_fork_list(client: &RuntimeClient, session_id: &str) -> SlashOutcome {
+    match client.list_session_children(session_id).await {
+        Ok(arr) => {
+            let children = arr.as_array().map(|v| v.as_slice()).unwrap_or(&[]);
+            if children.is_empty() {
+                println!("No forks for this session.");
+            } else {
+                println!("{:<8}  {:<12}  DATE", "ID", "STATUS");
+                println!("{}", "-".repeat(40));
+                for child in children {
+                    let id = child["id"].as_str().unwrap_or("-");
+                    let id_short = if id.len() > 8 { &id[..8] } else { id };
+                    let status = child["status"].as_str().unwrap_or("-");
+                    let date = child["created_at"].as_str().unwrap_or("-");
+                    println!("{id_short:<8}  {status:<12}  {date}");
+                }
+            }
+            SlashOutcome::Continue
+        }
+        Err(ClientError::ConnectionRefused) => {
+            eprintln!("runtime not started");
+            SlashOutcome::Exit(exit_codes::GENERAL_ERROR)
+        }
+        Err(e) => {
+            eprintln!("fork list error: {e}");
+            SlashOutcome::Continue
+        }
+    }
 }
 
 /// Return the current number of messages in the session.

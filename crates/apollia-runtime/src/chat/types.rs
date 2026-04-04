@@ -46,6 +46,12 @@ pub struct ChatSession {
     pub llm_backend: Option<String>,
     /// User-defined display title (falls back to agent_name or mode).
     pub title: Option<String>,
+    /// Parent session identifier when this session is a fork.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_session_id: Option<SessionId>,
+    /// Fork depth (0 = root session, 1 = first-level fork, etc.).
+    #[serde(default)]
+    pub fork_depth: i64,
 }
 
 /// Chat mode — free-form LLM conversation or agent-backed.
@@ -679,6 +685,8 @@ mod tests {
             active_exchange: None,
             llm_backend: None,
             title: None,
+            parent_session_id: None,
+            fork_depth: 0,
         };
 
         // WHEN we serialize and deserialize

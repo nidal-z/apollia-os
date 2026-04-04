@@ -635,6 +635,44 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// Fork a session via `POST /api/v1/sessions/:id/fork`.
+    ///
+    /// When `up_to_index` is `None`, the full history is copied to the child.
+    pub async fn fork_chat_session(
+        &self,
+        session_id: &str,
+        up_to_index: Option<usize>,
+    ) -> Result<serde_json::Value, ClientError> {
+        let body = serde_json::json!({ "up_to_index": up_to_index });
+        let resp = self
+            .post(&format!("/api/v1/sessions/{session_id}/fork"), Some(&body))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// List child sessions (forks) of `session_id` via `GET /api/v1/sessions/:id/children`.
+    pub async fn list_session_children(
+        &self,
+        session_id: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .get(&format!("/api/v1/sessions/{session_id}/children"))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
     /// Resume an existing session via `POST /api/v1/sessions/:id/resume`.
     pub async fn resume_chat_session(
         &self,

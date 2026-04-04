@@ -42,6 +42,10 @@ pub struct SessionRow {
     pub summary: Option<String>,
     /// User-defined display title (nullable — falls back to agent_name or mode).
     pub title: Option<String>,
+    /// Parent session identifier when this session is a fork (nullable).
+    pub parent_session_id: Option<String>,
+    /// Fork depth: 0 for root sessions, N+1 for a fork of a depth-N session.
+    pub fork_depth: i64,
 }
 
 /// Raw row from the `chat_messages` table.
@@ -122,6 +126,17 @@ impl ChatSessionRepository {
         // v5 migration: add title column for user-defined session names.
         let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN title TEXT");
 
+        // v6 migration: conversation forking support.
+        let _ = conn.execute_batch(
+            "ALTER TABLE chat_sessions ADD COLUMN parent_session_id TEXT REFERENCES chat_sessions(id)",
+        );
+        let _ = conn.execute_batch(
+            "ALTER TABLE chat_sessions ADD COLUMN fork_depth INTEGER NOT NULL DEFAULT 0",
+        );
+        let _ = conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_id)",
+        );
+
         Ok(Self { conn })
     }
 
@@ -150,6 +165,17 @@ impl ChatSessionRepository {
 
         // v5 migration: title column.
         let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN title TEXT");
+
+        // v6 migration: conversation forking support.
+        let _ = conn.execute_batch(
+            "ALTER TABLE chat_sessions ADD COLUMN parent_session_id TEXT REFERENCES chat_sessions(id)",
+        );
+        let _ = conn.execute_batch(
+            "ALTER TABLE chat_sessions ADD COLUMN fork_depth INTEGER NOT NULL DEFAULT 0",
+        );
+        let _ = conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_id)",
+        );
 
         Ok(Self { conn })
     }
@@ -287,27 +313,14 @@ impl ChatSessionRepository {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend, summary, title
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth
                  FROM chat_sessions WHERE id = ?1",
             )
             .map_err(|e| ChatError::InternalError(format!("get_session prepare: {e}")))?;
 
         let row = stmt
-            .query_row(params![id], |row| {
-                Ok(SessionRow {
-                    id: row.get(0)?,
-                    mode: row.get(1)?,
-                    agent_name: row.get(2)?,
-                    system_prompt: row.get(3)?,
-                    status: row.get(4)?,
-                    available_tools: row.get(5)?,
-                    created_at: row.get(6)?,
-                    closed_at: row.get(7)?,
-                    llm_backend: row.get(8)?,
-                    summary: row.get(9)?,
-                    title: row.get(10)?,
-                })
-            })
+            .query_row(params![id], row_to_session)
             .optional()
             .map_err(|e| ChatError::InternalError(format!("get_session query: {e}")))?;
 
@@ -318,12 +331,14 @@ impl ChatSessionRepository {
     pub fn list_sessions(&self, status: Option<&str>) -> Result<Vec<SessionRow>, ChatError> {
         let (sql, param): (&str, Option<&str>) = match status {
             Some(s) => (
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend, summary, title
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth
                  FROM chat_sessions WHERE status = ?1 ORDER BY created_at DESC",
                 Some(s),
             ),
             None => (
-                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at, closed_at, llm_backend, summary, title
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth
                  FROM chat_sessions ORDER BY created_at DESC",
                 None,
             ),
@@ -696,7 +711,117 @@ impl ChatSessionRepository {
             active_exchange: None,
             llm_backend: row.llm_backend,
             title: row.title,
+            parent_session_id: row.parent_session_id,
+            fork_depth: row.fork_depth,
         })
+    }
+
+    /// Create a child session that forks from `parent_id`, copying the first
+    /// `up_to_count` messages (or all messages when `None`).
+    ///
+    /// The child inherits the parent's mode, system prompt, available tools, and
+    /// LLM backend. Its `parent_session_id` is set to `parent_id` and its
+    /// `fork_depth` is `parent.fork_depth + 1`.
+    ///
+    /// Returns the fully-populated [`ChatSession`] for the new child.
+    pub fn create_fork_session(
+        &self,
+        child_id: &str,
+        parent_id: &str,
+        up_to_count: Option<usize>,
+        created_at: &str,
+    ) -> Result<ChatSession, ChatError> {
+        let parent_row = self
+            .get_session(parent_id)?
+            .ok_or_else(|| ChatError::SessionNotFound(parent_id.to_string()))?;
+
+        let child_fork_depth = parent_row.fork_depth + 1;
+        let tools_json = &parent_row.available_tools;
+
+        // Persist child session row.
+        self.conn
+            .execute(
+                "INSERT INTO chat_sessions
+                    (id, mode, agent_name, system_prompt, available_tools, created_at,
+                     llm_backend, parent_session_id, fork_depth)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    child_id,
+                    parent_row.mode,
+                    parent_row.agent_name,
+                    parent_row.system_prompt,
+                    tools_json,
+                    created_at,
+                    parent_row.llm_backend,
+                    parent_id,
+                    child_fork_depth,
+                ],
+            )
+            .map_err(|e| ChatError::InternalError(format!("create_fork_session insert: {e}")))?;
+
+        // Copy messages from parent to child with fresh IDs and sequential seq.
+        let parent_messages = self.get_messages(parent_id, None)?;
+        let message_slice: &[MessageRow] = match up_to_count {
+            Some(n) => {
+                let end = n.min(parent_messages.len());
+                &parent_messages[..end]
+            }
+            None => &parent_messages,
+        };
+
+        for (idx, msg) in message_slice.iter().enumerate() {
+            let new_msg_id = uuid::Uuid::new_v4().to_string();
+            let seq = (idx + 1) as u32;
+            self.conn
+                .execute(
+                    "INSERT INTO chat_messages
+                        (id, session_id, role, content, tool_calls_json, tool_name, created_at, seq)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    params![
+                        new_msg_id,
+                        child_id,
+                        msg.role,
+                        msg.content,
+                        msg.tool_calls_json,
+                        msg.tool_name,
+                        msg.created_at,
+                        seq,
+                    ],
+                )
+                .map_err(|e| {
+                    ChatError::InternalError(format!("create_fork_session copy message: {e}"))
+                })?;
+        }
+
+        // Reload the child with full history.
+        self.load_session_with_history(child_id)
+    }
+
+    /// List all sessions that are direct children (forks) of the given parent.
+    ///
+    /// Results are ordered by `created_at` ascending.
+    pub fn list_children(&self, parent_id: &str) -> Result<Vec<SessionRow>, ChatError> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth
+                 FROM chat_sessions
+                 WHERE parent_session_id = ?1
+                 ORDER BY created_at ASC",
+            )
+            .map_err(|e| ChatError::InternalError(format!("list_children prepare: {e}")))?;
+
+        let rows = stmt
+            .query_map(params![parent_id], row_to_session)
+            .map_err(|e| ChatError::InternalError(format!("list_children query: {e}")))?;
+
+        let mut result = Vec::new();
+        for r in rows {
+            result
+                .push(r.map_err(|e| ChatError::InternalError(format!("list_children row: {e}")))?);
+        }
+        Ok(result)
     }
 
     /// Get the set of authorized tool names for a session.
@@ -734,6 +859,8 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
         llm_backend: row.get(8)?,
         summary: row.get(9)?,
         title: row.get(10)?,
+        parent_session_id: row.get(11)?,
+        fork_depth: row.get(12)?,
     })
 }
 
@@ -1303,5 +1430,129 @@ mod tests {
 
         // THEN we get SessionNotFound
         assert!(matches!(result, Err(ChatError::SessionNotFound(_))));
+    }
+
+    /// Helper: create a session and append N numbered messages.
+    fn make_session_with_messages(repo: &ChatSessionRepository, session_id: &str, n: usize) {
+        repo.create_session(
+            session_id,
+            &ChatMode::Libre,
+            None,
+            "System prompt",
+            &[],
+            "2026-03-20T10:00:00Z",
+            None,
+        )
+        .expect("create session");
+
+        for i in 1..=n {
+            repo.append_message(&AppendMessageParams {
+                id: &format!("{session_id}-m{i}"),
+                session_id,
+                role: &ChatRole::User,
+                content: &format!("Message {i}"),
+                tool_calls_json: None,
+                tool_name: None,
+                created_at: "2026-03-20T10:01:00Z",
+            })
+            .expect("append message");
+        }
+    }
+
+    #[test]
+    fn fork_none_copies_full_history() {
+        // GIVEN a session with 5 messages
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        make_session_with_messages(&repo, "parent", 5);
+
+        // WHEN fork(None)
+        let child = repo
+            .create_fork_session("child", "parent", None, "2026-03-20T11:00:00Z")
+            .expect("fork");
+
+        // THEN new session with 5 messages
+        assert_eq!(child.history.len(), 5);
+        assert_eq!(child.parent_session_id.as_deref(), Some("parent"));
+        assert_eq!(child.fork_depth, 1);
+    }
+
+    #[test]
+    fn fork_some_copies_partial_history() {
+        // GIVEN a session with 5 messages
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        make_session_with_messages(&repo, "parent", 5);
+
+        // WHEN fork(Some(3))
+        let child = repo
+            .create_fork_session("child", "parent", Some(3), "2026-03-20T11:00:00Z")
+            .expect("fork");
+
+        // THEN new session with 3 messages
+        assert_eq!(child.history.len(), 3);
+    }
+
+    #[test]
+    fn fork_child_is_independent() {
+        // GIVEN parent with 5 messages and a fork
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        make_session_with_messages(&repo, "parent", 5);
+        repo.create_fork_session("child", "parent", None, "2026-03-20T11:00:00Z")
+            .expect("fork");
+
+        // WHEN we add a message to the child
+        repo.append_message(&AppendMessageParams {
+            id: "child-extra",
+            session_id: "child",
+            role: &ChatRole::User,
+            content: "Extra message in child",
+            tool_calls_json: None,
+            tool_name: None,
+            created_at: "2026-03-20T11:01:00Z",
+        })
+        .expect("append");
+
+        // THEN parent message count is unchanged
+        let parent = repo
+            .load_session_with_history("parent")
+            .expect("load parent");
+        assert_eq!(parent.history.len(), 5);
+
+        let child = repo.load_session_with_history("child").expect("load child");
+        assert_eq!(child.history.len(), 6);
+    }
+
+    #[test]
+    fn fork_parent_session_id_persisted() {
+        // GIVEN parent session
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        make_session_with_messages(&repo, "parent-uuid", 2);
+
+        // WHEN fork()
+        let child = repo
+            .create_fork_session("child-uuid", "parent-uuid", None, "2026-03-20T11:00:00Z")
+            .expect("fork");
+
+        // THEN child.parent_session_id == Some("parent-uuid")
+        assert_eq!(child.parent_session_id.as_deref(), Some("parent-uuid"));
+    }
+
+    #[test]
+    fn fork_list_returns_children() {
+        // GIVEN parent with 2 forks
+        let repo = ChatSessionRepository::open_in_memory().expect("open");
+        make_session_with_messages(&repo, "parent", 3);
+        repo.create_fork_session("child-1", "parent", None, "2026-03-20T11:00:00Z")
+            .expect("fork 1");
+        repo.create_fork_session("child-2", "parent", None, "2026-03-20T11:01:00Z")
+            .expect("fork 2");
+
+        // WHEN list_children(parent.id)
+        let children = repo.list_children("parent").expect("list children");
+
+        // THEN 2 sessions returned with correct parent_session_id
+        assert_eq!(children.len(), 2);
+        for child in &children {
+            assert_eq!(child.parent_session_id.as_deref(), Some("parent"));
+        }
     }
 }

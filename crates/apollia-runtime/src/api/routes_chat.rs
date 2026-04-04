@@ -88,6 +88,13 @@ pub struct RecentSessionsQuery {
     pub limit: Option<usize>,
 }
 
+/// Request body for `POST /api/v1/sessions/:id/fork`.
+#[derive(Debug, Deserialize)]
+pub struct ForkSessionRequest {
+    /// Number of messages to copy from the parent (None = all).
+    pub up_to_index: Option<usize>,
+}
+
 /// Handler for `POST /api/v1/sessions` — create a new chat session.
 pub async fn create_session<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
@@ -515,6 +522,59 @@ pub async fn resume_session<B: ExecutionBackend + Clone>(
         Ok(detail) => (StatusCode::OK, Json(detail)).into_response(),
         Err(e) => chat_error_to_response(e).into_response(),
     }
+}
+
+/// Handler for `POST /api/v1/sessions/:id/fork` — fork a session.
+///
+/// Creates a new child session that copies the parent history up to `up_to_index`
+/// messages. When `up_to_index` is omitted, the full history is copied.
+/// Returns the new child [`SessionInfo`] with HTTP 201.
+pub async fn fork_session<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+    Json(body): Json<ForkSessionRequest>,
+) -> impl IntoResponse {
+    let manager = match &state.chat_manager {
+        Some(m) => m,
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "chat subsystem not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    match manager.fork_session(id, body.up_to_index).await {
+        Ok(info) => (StatusCode::CREATED, Json(info)).into_response(),
+        Err(e) => chat_error_to_response(e).into_response(),
+    }
+}
+
+/// Handler for `GET /api/v1/sessions/:id/children` — list fork children of a session.
+///
+/// Returns a JSON array of [`SessionInfo`] objects, ordered by creation time ascending.
+pub async fn list_session_children<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let manager = match &state.chat_manager {
+        Some(m) => m,
+        None => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "chat subsystem not available".into(),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    let children = manager.list_children(id).await;
+    (StatusCode::OK, Json(children)).into_response()
 }
 
 /// Map [`ChatError`] to an HTTP response.

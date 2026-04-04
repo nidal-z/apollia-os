@@ -179,6 +179,22 @@ pub enum ChatCommand {
         /// New router to use for subsequent requests.
         router: Option<Arc<LlmRouter>>,
     },
+    /// Fork a session, creating a child with a copy of the history.
+    ForkSession {
+        /// Parent session to fork from.
+        session_id: SessionId,
+        /// Number of messages to copy (None = all).
+        up_to_index: Option<usize>,
+        /// Response channel.
+        reply: oneshot::Sender<Result<SessionInfo, ChatError>>,
+    },
+    /// List all child sessions of a parent (forks).
+    ListChildren {
+        /// Parent session identifier.
+        session_id: SessionId,
+        /// Response channel.
+        reply: oneshot::Sender<Vec<SessionInfo>>,
+    },
     /// Shut down the actor.
     Shutdown,
 }
@@ -323,6 +339,18 @@ impl ChatSessionManager {
                     let result = self.handle_resume_session(&session_id);
                     let _ = reply.send(result);
                 }
+                ChatCommand::ForkSession {
+                    session_id,
+                    up_to_index,
+                    reply,
+                } => {
+                    let result = self.handle_fork_session(&session_id, up_to_index);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::ListChildren { session_id, reply } => {
+                    let result = self.handle_list_children(&session_id);
+                    let _ = reply.send(result);
+                }
                 ChatCommand::ReloadLlm { router } => {
                     info!("ChatSessionManager: LLM router reloaded");
                     self.llm_router = router;
@@ -423,6 +451,8 @@ impl ChatSessionManager {
             active_exchange: None,
             llm_backend: None,
             title: None,
+            parent_session_id: None,
+            fork_depth: 0,
         };
 
         let info = session_to_info(&session);
@@ -953,6 +983,8 @@ impl ChatSessionManager {
             active_exchange: None,
             llm_backend: row.llm_backend,
             title: row.title,
+            parent_session_id: row.parent_session_id,
+            fork_depth: row.fork_depth,
         };
 
         Some(SessionDetail {
@@ -1085,6 +1117,87 @@ impl ChatSessionManager {
         Ok(detail)
     }
 
+    /// Fork a session — create a child with a copy of the parent's history.
+    ///
+    /// The parent may be in any non-Closed state; a Closed parent can also be
+    /// forked (useful for branching from an archived conversation). The child
+    /// inherits mode, system prompt, available tools, and LLM backend from the
+    /// parent. Messages up to `up_to_index` are copied (all if `None`).
+    fn handle_fork_session(
+        &mut self,
+        parent_id: &str,
+        up_to_index: Option<usize>,
+    ) -> Result<SessionInfo, ChatError> {
+        // Resolve the message count to copy from in-memory history when available,
+        // so the caller can pass an index relative to the current in-memory state.
+        let resolved_count = if let Some(n) = up_to_index {
+            let parent_len = if let Some(s) = self.sessions.get(parent_id) {
+                s.history.len()
+            } else {
+                // Fall back to repository count — session may not be in memory.
+                self.repository
+                    .get_messages(parent_id, None)
+                    .unwrap_or_default()
+                    .len()
+            };
+            Some(n.min(parent_len))
+        } else {
+            None
+        };
+
+        let child_id = uuid::Uuid::new_v4().to_string();
+        let now = now_rfc3339();
+
+        let child =
+            self.repository
+                .create_fork_session(&child_id, parent_id, resolved_count, &now)?;
+
+        let messages_copied = child.history.len();
+
+        tracing::info!(
+            parent_id = %parent_id,
+            child_id = %child_id,
+            messages_copied = messages_copied,
+            "session forked"
+        );
+
+        let _ = self.event_bus.send(RuntimeEvent::ChatSessionCreated {
+            session_id: child_id.clone(),
+            mode: child.mode.as_sql().to_string(),
+            agent_name: child.agent_name.clone(),
+        });
+
+        let info = session_to_info(&child);
+        self.sessions.insert(child_id, child);
+
+        Ok(info)
+    }
+
+    /// List direct child sessions (forks) of the given parent.
+    fn handle_list_children(&self, parent_id: &str) -> Vec<SessionInfo> {
+        match self.repository.list_children(parent_id) {
+            Ok(rows) => rows
+                .into_iter()
+                .filter_map(|row| {
+                    let mode = ChatMode::from_sql(&row.mode)?;
+                    let status = SessionStatus::from_sql(&row.status)?;
+                    Some(SessionInfo {
+                        id: row.id,
+                        mode,
+                        agent_name: row.agent_name,
+                        status,
+                        created_at: row.created_at,
+                        title: row.title,
+                    })
+                })
+                .collect(),
+            Err(e) => {
+                error!(parent_id = %parent_id, error = %e, "Failed to list session children");
+                Vec::new()
+            }
+        }
+    }
+
     /// Restore active sessions from SQLite at boot.
     fn restore_sessions(&mut self) {
         let rows = match self.repository.list_sessions(Some("active")) {
@@ -1148,6 +1261,8 @@ impl ChatSessionManager {
                 active_exchange: None,
                 llm_backend: row.llm_backend,
                 title: row.title,
+                parent_session_id: row.parent_session_id,
+                fork_depth: row.fork_depth,
             };
             self.sessions.insert(row.id, session);
         }
@@ -1470,6 +1585,50 @@ impl ChatSessionManagerHandle {
         reply_rx
             .await
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// Fork an existing session, producing a new child session.
+    ///
+    /// `up_to_index` controls how many messages are copied: `None` copies
+    /// the full history, `Some(n)` copies the first `n` messages.
+    pub async fn fork_session(
+        &self,
+        session_id: SessionId,
+        up_to_index: Option<usize>,
+    ) -> Result<SessionInfo, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::ForkSession {
+                session_id,
+                up_to_index,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// List all direct child sessions (forks) of the given parent.
+    ///
+    /// Returns an empty vec if the actor is unreachable or the query fails.
+    pub async fn list_children(&self, session_id: SessionId) -> Vec<SessionInfo> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let sent = self
+            .tx
+            .send(ChatCommand::ListChildren {
+                session_id,
+                reply: reply_tx,
+            })
+            .await;
+
+        if sent.is_err() {
+            return Vec::new();
+        }
+
+        reply_rx.await.unwrap_or_default()
     }
 
     pub async fn shutdown(&self) {
@@ -1824,6 +1983,8 @@ mod tests {
             active_exchange: None,
             llm_backend: None,
             title: None,
+            parent_session_id: None,
+            fork_depth: 0,
         };
         manager.sessions.insert("sess-1".into(), session);
 

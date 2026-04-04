@@ -447,6 +447,8 @@ mod tests {
             active_exchange: None,
             llm_backend: None,
             title: None,
+            parent_session_id: None,
+            fork_depth: 0,
         }
     }
 
@@ -515,6 +517,8 @@ mod tests {
             active_exchange: None,
             llm_backend: None,
             title: None,
+            parent_session_id: None,
+            fork_depth: 0,
         }
     }
 
