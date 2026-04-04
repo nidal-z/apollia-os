@@ -15,6 +15,7 @@
 //! - `file_read`, `file_write`, `file_list`, `file_edit`, `file_glob`, `file_grep` — atomic filesystem operations
 //! - `http_fetch` — network-restricted HTTP client (feature `http`)
 //! - `memory_search` — FTS5 full-text search (feature `memory-search`)
+//! - `persistent_bash` — stateful shell executor (CWD + env vars persist across steps)
 
 pub mod agent_repository;
 pub mod audit;
@@ -38,4 +39,9 @@ pub use sandbox_path::{SandboxPathError, SandboxRoot};
 pub use task_repository::{
     ApprovalInfo, PersistedTaskSummary, ResolvedApprovalRow, TaskDetail, TaskRepoError,
     TaskRepository,
+};
+pub use tools::persistent_bash::{
+    registry::ShellSessionRegistry,
+    session::{PersistentBashError, SessionId, ShellOutput},
+    PersistentBashExecutor,
 };

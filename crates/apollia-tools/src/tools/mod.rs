@@ -14,4 +14,5 @@ pub mod file_write;
 pub mod http_fetch;
 #[cfg(feature = "memory-search")]
 pub mod memory_search;
+pub mod persistent_bash;
 pub mod python_executor;
