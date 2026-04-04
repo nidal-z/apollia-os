@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-#[cfg(not(any(all(unix, not(target_os = "macos")), target_os = "macos")))]
+#[cfg(not(target_os = "macos"))]
 use notify_rust::Notification as OsNotif;
 
 use crate::{
@@ -166,8 +166,6 @@ fn show_os_notification_xdg(
     inspect_url: String,
     dashboard_url: String,
 ) {
-    use notify_rust::Urgency;
-
     let urgency = severity_to_urgency(severity);
 
     if is_hitl {
