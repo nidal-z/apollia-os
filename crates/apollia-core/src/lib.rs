@@ -35,7 +35,7 @@ pub mod workspace_context;
 pub use budget::StepBudgetConfig;
 pub use config::{
     validate_bounds, A2AConfig, ApiConfig, BashValidatorConfig, ConfigError, HitlConfig,
-    ORIAConfig, PermissionsConfig, PipelinesConfig, RuntimeConfig, ToolsConfig,
+    LlmRoutingConfig, ORIAConfig, PermissionsConfig, PipelinesConfig, RuntimeConfig, ToolsConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};

@@ -436,6 +436,19 @@ pub enum LlmError {
     /// L'appel LLM a été annulé par le `CancellationToken` de la session.
     #[error("cancelled by caller")]
     Cancelled,
+
+    /// La section `[llm.routing]` est absente de `apollia.toml`.
+    ///
+    /// Erreur fatale au démarrage (Principe #4 — Fail fast).
+    /// Ajouter `precise` et `fast` sous `[llm.routing]` dans `apollia.toml`.
+    #[error("routing config missing — add [llm.routing] precise and fast in apollia.toml")]
+    RoutingConfigMissing,
+
+    /// Le backend nommé dans la config de routing est introuvable dans le router.
+    ///
+    /// Le nom doit correspondre à un backend déclaré dans `[[llm.backends]]`.
+    #[error("backend '{0}' not found in configured backends")]
+    BackendNotFound(String),
 }
 
 // ─────────────────────────────────────────────

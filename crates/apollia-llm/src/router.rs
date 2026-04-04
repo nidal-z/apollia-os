@@ -14,7 +14,7 @@ use crate::pricing::PricingTier;
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::token_budget::TokenBudget;
-use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider};
+use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider, LlmRoutingConfig};
 
 use crate::types::{BackendInfo, CompletionModel, CompletionRequest, CompletionResponse, LlmError};
 
@@ -35,6 +35,9 @@ use crate::backends::openai::{ApiBackendConfig, OpenAICompatibleClient};
 ///
 /// Passée à [`LlmRouter::from_config`] au démarrage du Supervisor.
 /// Le champ `default` désigne le backend utilisé quand `get(None)` est appelé.
+///
+/// La section `[llm.routing]` est **obligatoire** — son absence provoque
+/// [`LlmError::RoutingConfigMissing`] au démarrage (Principe #4 — Fail fast).
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct LlmConfig {
     /// Nom du backend par défaut (doit exister dans `backends`).
@@ -44,6 +47,11 @@ pub struct LlmConfig {
     /// Paramètres d'observabilité (tokens, latence, coût, prompt debug).
     #[serde(default)]
     pub observability: ObservabilityConfig,
+    /// Routing LLM par niveau de précision (section `[llm.routing]`).
+    ///
+    /// Obligatoire — déclenche [`LlmError::RoutingConfigMissing`] si absent.
+    /// Voir [`LlmRoutingConfig`] pour les champs `precise` et `fast`.
+    pub routing: Option<LlmRoutingConfig>,
     /// Surcharges de pricing opérateur (section `[llm.pricing_overrides]`).
     ///
     /// Les entrées ici ont priorité sur la table interne de [`crate::pricing::default_pricing`].
@@ -155,6 +163,9 @@ pub enum BackendKind {
 /// [`LlmRouter::from_config`]. Dispatche les requêtes vers le bon backend
 /// par nom via [`get`](Self::get), avec fallback sur le backend `default`.
 ///
+/// Les méthodes [`route_precise`](Self::route_precise) et [`route_fast`](Self::route_fast)
+/// sélectionnent le backend selon le niveau de précision requis (config `[llm.routing]`).
+///
 /// `LlmRouter` est `Clone + Send + Sync` — partageable via `Arc<LlmRouter>`
 /// entre les composants du runtime (agit comme un catalogue en lecture seule).
 ///
@@ -167,6 +178,9 @@ pub enum BackendKind {
 pub struct LlmRouter {
     backends: HashMap<String, Arc<dyn CompletionModel>>,
     default: String,
+    /// Routing LLM par niveau de précision — `None` pour les routers construits
+    /// via `from_repository` ou `with_backends` (pas de config TOML).
+    routing: Option<LlmRoutingConfig>,
     /// Token d'annulation partagé par tous les backends de ce router.
     cancellation_token: CancellationToken,
     /// Budget de tokens cumulé sur la session courante.
@@ -243,9 +257,24 @@ impl LlmRouter {
             });
         }
 
+        // : [llm.routing] obligatoire — erreur fatale si absent (Principe #4).
+        let routing = config
+            .routing
+            .as_ref()
+            .ok_or(LlmError::RoutingConfigMissing)?;
+
+        // : les backends nommés dans routing doivent exister.
+        if !backends.contains_key(&routing.precise) {
+            return Err(LlmError::BackendNotFound(routing.precise.clone()));
+        }
+        if !backends.contains_key(&routing.fast) {
+            return Err(LlmError::BackendNotFound(routing.fast.clone()));
+        }
+
         Ok(Self {
             backends,
             default: config.default.clone(),
+            routing: config.routing.clone(),
             cancellation_token,
             session_budget: Arc::new(Mutex::new(TokenBudget::default())),
         })
@@ -357,9 +386,23 @@ impl LlmRouter {
             });
         }
 
+        // : [llm.routing] obligatoire — erreur fatale si absent (Principe #4).
+        let routing = config
+            .routing
+            .as_ref()
+            .ok_or(LlmError::RoutingConfigMissing)?;
+
+        if !backends.contains_key(&routing.precise) {
+            return Err(LlmError::BackendNotFound(routing.precise.clone()));
+        }
+        if !backends.contains_key(&routing.fast) {
+            return Err(LlmError::BackendNotFound(routing.fast.clone()));
+        }
+
         Ok(Self {
             backends,
             default: config.default.clone(),
+            routing: config.routing.clone(),
             cancellation_token,
             session_budget: Arc::new(Mutex::new(TokenBudget::default())),
         })
@@ -512,6 +555,8 @@ impl LlmRouter {
     ///
     /// Utilisé dans les tests d'intégration pour injecter des mocks [`CompletionModel`]
     /// sans passer par la configuration TOML.
+    /// Le routing LLM n'est pas configuré sur ce router — `route_precise()` et
+    /// `route_fast()` retourneront [`LlmError::RoutingConfigMissing`].
     ///
     /// # Panics
     ///
@@ -528,6 +573,7 @@ impl LlmRouter {
         Self {
             backends,
             default,
+            routing: None,
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(TokenBudget::default())),
         }
@@ -591,6 +637,7 @@ impl LlmRouter {
         Ok(Self {
             backends,
             default: default_name,
+            routing: None,
             cancellation_token,
             session_budget: Arc::new(Mutex::new(TokenBudget::default())),
         })
@@ -645,6 +692,7 @@ impl LlmRouter {
         Self {
             backends: HashMap::new(),
             default: String::new(),
+            routing: None,
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(TokenBudget::default())),
         }
@@ -653,6 +701,48 @@ impl LlmRouter {
     /// Retourne le nom du backend par défaut configuré dans `apollia.toml`.
     pub fn default_name(&self) -> &str {
         &self.default
+    }
+
+    /// Retourne le backend configuré pour les tâches de raisonnement profond.
+    ///
+    /// Sélectionne le backend nommé dans `[llm.routing] precise` de `apollia.toml`.
+    /// Utilisé par les composants nécessitant une qualité de raisonnement maximale
+    /// (planification ORIA, analyse complexe, jugement).
+    ///
+    /// # Erreurs
+    ///
+    /// - [`LlmError::RoutingConfigMissing`] — router construit sans config `[llm.routing]`.
+    /// - [`LlmError::BackendNotFound`] — backend nommé absent du router.
+    pub fn route_precise(&self) -> Result<Arc<dyn CompletionModel>, LlmError> {
+        let routing = self
+            .routing
+            .as_ref()
+            .ok_or(LlmError::RoutingConfigMissing)?;
+        self.backends
+            .get(&routing.precise)
+            .cloned()
+            .ok_or_else(|| LlmError::BackendNotFound(routing.precise.clone()))
+    }
+
+    /// Retourne le backend configuré pour les tâches d'extraction légère.
+    ///
+    /// Sélectionne le backend nommé dans `[llm.routing] fast` de `apollia.toml`.
+    /// Utilisé par les composants effectuant des extractions déterministes
+    /// (métadonnées, résumés courts, classification, parsing de paths).
+    ///
+    /// # Erreurs
+    ///
+    /// - [`LlmError::RoutingConfigMissing`] — router construit sans config `[llm.routing]`.
+    /// - [`LlmError::BackendNotFound`] — backend nommé absent du router.
+    pub fn route_fast(&self) -> Result<Arc<dyn CompletionModel>, LlmError> {
+        let routing = self
+            .routing
+            .as_ref()
+            .ok_or(LlmError::RoutingConfigMissing)?;
+        self.backends
+            .get(&routing.fast)
+            .cloned()
+            .ok_or_else(|| LlmError::BackendNotFound(routing.fast.clone()))
     }
 
     /// Retourne la taille estimée de la fenêtre de contexte en tokens.
@@ -943,6 +1033,26 @@ mod tests {
         LlmRouter {
             backends,
             default: default.into(),
+            routing: None,
+            cancellation_token: CancellationToken::new(),
+            session_budget: Arc::new(Mutex::new(TokenBudget::default())),
+        }
+    }
+
+    fn make_routing_router(precise: &str, fast: &str) -> LlmRouter {
+        let mut backends = HashMap::new();
+        backends.insert(precise.to_owned(), make_mock_backend(precise));
+        if fast != precise {
+            backends.insert(fast.to_owned(), make_mock_backend(fast));
+        }
+        let routing = Some(LlmRoutingConfig {
+            precise: precise.to_owned(),
+            fast: fast.to_owned(),
+        });
+        LlmRouter {
+            default: precise.to_owned(),
+            backends,
+            routing,
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(TokenBudget::default())),
         }
@@ -1191,6 +1301,7 @@ mod tests {
             default: "local".to_owned(),
             backends: vec![],
             observability: ObservabilityConfig::default(),
+            routing: None,
             pricing_overrides: HashMap::new(),
         };
 
@@ -1298,6 +1409,7 @@ mod tests {
             default: "local".to_owned(),
             backends: vec![],
             observability: ObservabilityConfig::default(),
+            routing: None,
             pricing_overrides: HashMap::new(),
         };
 
@@ -1312,5 +1424,67 @@ mod tests {
             ),
             "from_config_with_bus doit retourner BackendUnavailable si aucun backend n'est disponible"
         );
+    }
+
+    // ── Tests routing ────────────────────────────────────────────────────────
+
+    // GIVEN routing config { precise: "claude-opus-4-6", fast: "claude-haiku-4-5-20251001" }
+    // WHEN route_precise()
+    // THEN backend "claude-opus-4-6" est sélectionné
+    #[tokio::test]
+    async fn router_precise_selects_configured_backend() {
+        let router = make_routing_router("claude-opus-4-6", "claude-haiku-4-5-20251001");
+
+        let backend = router
+            .route_precise()
+            .expect("route_precise should succeed");
+        assert_eq!(backend.backend_name(), "claude-opus-4-6");
+    }
+
+    // GIVEN routing config { precise: "claude-opus-4-6", fast: "claude-haiku-4-5-20251001" }
+    // WHEN route_fast()
+    // THEN backend "claude-haiku-4-5-20251001" est sélectionné
+    #[tokio::test]
+    async fn router_fast_selects_configured_backend() {
+        let router = make_routing_router("claude-opus-4-6", "claude-haiku-4-5-20251001");
+
+        let backend = router.route_fast().expect("route_fast should succeed");
+        assert_eq!(backend.backend_name(), "claude-haiku-4-5-20251001");
+    }
+
+    // GIVEN pas de section [llm.routing] (routing: None)
+    // WHEN route_precise() est appelé
+    // THEN Err(RoutingConfigMissing)
+    #[tokio::test]
+    async fn router_errors_on_missing_routing_config() {
+        let mut backends = HashMap::new();
+        backends.insert("default".to_owned(), make_mock_backend("default"));
+        let router = make_test_router(backends, "default");
+
+        assert!(
+            matches!(router.route_precise(), Err(LlmError::RoutingConfigMissing)),
+            "route_precise() must return RoutingConfigMissing when routing is None"
+        );
+        assert!(
+            matches!(router.route_fast(), Err(LlmError::RoutingConfigMissing)),
+            "route_fast() must return RoutingConfigMissing when routing is None"
+        );
+    }
+
+    // GIVEN routing config { precise: "claude-opus-4-6", fast: "claude-opus-4-6" }
+    // WHEN route_precise() et route_fast()
+    // THEN le même backend "claude-opus-4-6" est retourné dans les deux cas
+    #[tokio::test]
+    async fn router_same_backend_for_precise_and_fast_when_identical() {
+        let router = make_routing_router("claude-opus-4-6", "claude-opus-4-6");
+
+        let precise = router
+            .route_precise()
+            .expect("route_precise should succeed");
+        let fast = router.route_fast().expect("route_fast should succeed");
+
+        assert_eq!(precise.backend_name(), "claude-opus-4-6");
+        assert_eq!(fast.backend_name(), "claude-opus-4-6");
+        assert_eq!(precise.backend_name(), fast.backend_name());
     }
 }

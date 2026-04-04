@@ -269,6 +269,27 @@ impl ORIAEngine {
         self
     }
 
+    /// Configure le router LLM et instancie le Reasoner depuis le backend précis.
+    ///
+    /// Combine [`with_llm_router`](Self::with_llm_router) et [`with_reasoner`](Self::with_reasoner) :
+    /// sélectionne `route_precise()` pour la planification orchestrée, puis stocke
+    /// le router pour les appels LLM des steps.
+    ///
+    /// # Erreurs
+    ///
+    /// - [`apollia_llm::LlmError::RoutingConfigMissing`] — `[llm.routing]` absent de la config.
+    /// - [`apollia_llm::LlmError::BackendNotFound`] — backend `precise` introuvable dans le router.
+    pub fn with_llm_router_and_reasoner(
+        mut self,
+        router: LlmRouter,
+        max_steps: u32,
+    ) -> Result<Self, apollia_llm::LlmError> {
+        let model = router.route_precise()?;
+        self.reasoner = Some(Reasoner::new(model, max_steps));
+        self.llm_router = router;
+        Ok(self)
+    }
+
     /// Injecte un `EventBusSender` pour diffuser les événements du plan sur le bus.
     pub fn with_event_bus(mut self, bus: EventBusSender) -> Self {
         self.event_bus = bus;

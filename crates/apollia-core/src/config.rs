@@ -789,6 +789,40 @@ fn default_syntax_check_timeout_ms() -> u64 {
 }
 
 // ─────────────────────────────────────────────
+// LlmRoutingConfig
+// ─────────────────────────────────────────────
+
+/// Configuration du routing LLM par niveau de précision (section `[llm.routing]` dans `apollia.toml`).
+///
+/// Découple les appels LLM selon deux axes naturels issus des scaling laws (Kaplan et al., 2020) :
+/// - tâches de raisonnement profond → backend précis mais coûteux
+/// - tâches d'extraction légère → backend rapide et économique
+///
+/// La section `[llm.routing]` est **obligatoire** — son absence est une erreur fatale au démarrage
+/// (Principe #4 — Fail fast). Configurer les deux champs explicitement dans `apollia.toml`.
+///
+/// Exemple `apollia.toml` :
+/// ```toml
+/// [llm.routing]
+/// precise = "claude-opus-4-6"
+/// fast    = "claude-haiku-4-5-20251001"
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmRoutingConfig {
+    /// Backend pour les tâches de raisonnement profond (planification ORIA, analyse, jugement).
+    ///
+    /// Critère : tâche où une erreur a un impact élevé ou nécessite de la nuance.
+    /// Doit correspondre au nom d'un backend déclaré dans `[[llm.backends]]`.
+    pub precise: String,
+
+    /// Backend pour les tâches d'extraction légère (métadonnées, résumés, classification, paths).
+    ///
+    /// Critère : tâche déterministe, résultat vérifiable, faible coût d'erreur.
+    /// Doit correspondre au nom d'un backend déclaré dans `[[llm.backends]]`.
+    pub fast: String,
+}
+
+// ─────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────
 

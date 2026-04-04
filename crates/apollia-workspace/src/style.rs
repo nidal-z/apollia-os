@@ -71,7 +71,13 @@ impl StyleDetector {
             ext, samples
         );
 
-        let backend = llm_router.route(None);
+        let backend = match llm_router.route_fast() {
+            Ok(b) => b,
+            Err(e) => {
+                tracing::debug!(error = %e, "route_fast unavailable for style detection");
+                return None;
+            }
+        };
         let req = CompletionRequest {
             messages: vec![ChatMessage::user(prompt)],
             max_tokens: Some(512),
