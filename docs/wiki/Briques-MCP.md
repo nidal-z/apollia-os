@@ -539,6 +539,68 @@ Voir [ADR-044](./Decisions-Log#adr-044--client-mcp--architecture-transport-lifec
 
 ---
 
+## 12. Mode Serveur MCP — Sprint 36
+
+Depuis le Sprint 36 (STORY-468, ADR-062), Apollia OS peut fonctionner en **mode serveur MCP** : en plus d'être client MCP, il expose ses outils natifs à des clients externes (Claude Desktop, VS Code Copilot Chat, Cursor).
+
+### McpStdioServer
+
+```rust
+/// Serveur MCP exposant les outils natifs Apollia via stdio.
+pub struct McpStdioServer {
+    tool_registry: apollia_tools::ToolRegistry,
+    runtime_handle: Option<apollia_runtime::RuntimeHandle>,
+}
+
+impl McpStdioServer {
+    pub fn new(tool_registry: ToolRegistry, runtime_handle: Option<RuntimeHandle>) -> Self { ... }
+    /// Boucle principale : lit stdin ligne par ligne, dispatche, écrit sur stdout.
+    pub async fn run(self) -> Result<(), McpServerError> { ... }
+}
+```
+
+**Transport :** stdio uniquement (pas de port réseau — Principe #1 Local-first).
+
+**9 outils natifs exposés :** `bash_executor`, `file_read`, `file_write`, `file_edit`, `glob`, `grep`, `ls`, `mcp_client`, `agent_install`.
+
+**10e outil conditionnel :** `submit_task` — disponible uniquement si `--with-runtime` est passé à la CLI (nécessite le runtime complet).
+
+```bash
+# Lancer le serveur MCP sans runtime
+$ apollia mcp-server
+
+# Avec l'outil submit_task activé
+$ apollia mcp-server --with-runtime
+```
+
+### Requêtes JSON-RPC supportées
+
+| Méthode | Réponse |
+|---|---|
+| `initialize` | `protocolVersion: "2024-11-05"`, `serverInfo.name: "apollia-os"` |
+| `tools/list` | Liste des 9 (ou 10) outils avec leurs JSON Schema |
+| `tools/call` | Résultat de l'exécution via `ToolRegistry` |
+
+**Erreurs JSON-RPC :**
+- `-32700` : Parse error (JSON invalide sur stdin)
+- `-32000` : Outil inconnu ou erreur d'invocation
+
+### Fichiers ajoutés
+
+```
+crates/apollia-mcp/src/
+├── server.rs           ← McpStdioServer (nouveau)
+├── server_types.rs     ← McpRequest, CallToolParams, InitializeParams (nouveau)
+└── server_tools.rs     ← Adaptateurs des 9 outils natifs (nouveau)
+
+crates/apollia-cli/src/commands/
+└── mcp_server.rs       ← Sous-commande `apollia mcp-server` (nouveau)
+```
+
+> **Voir aussi :** [ADR-062](../adr/ADR-062-mcp-server-mode.md) — justification du transport stdio et des 9 outils
+
+---
+
 ## Voir aussi
 
 - [MCP — Guide utilisateur](./MCP-Guide-Utilisateur) — configuration `mcp.toml`, exemples, troubleshooting

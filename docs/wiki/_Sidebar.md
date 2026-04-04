@@ -62,6 +62,7 @@
 - [[Securite-Local-First|Local-First]]
 - [[Securite-Sandbox-Isolation|Sandbox Isolation]]
 - [[Securite-Guardrails|Guardrails]]
+- [[Briques-Permissions|Moteur de Permissions (apollia-permissions)]]
 
 **Ops**
 - [[Ops-Exploitation-et-Debug|Exploitation & Debug]]

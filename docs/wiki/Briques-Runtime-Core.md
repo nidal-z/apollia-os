@@ -843,7 +843,81 @@ debug_log_prompt      = false               # persister les prompts LLM (RGPD �
 
 ---
 
-## 11. Diagrammes de référence
+## 11. Session Tool Access Control + Conversation Forking — Sprint 36
+
+### `SessionConfig` — Contrôle d'accès aux outils (STORY-491)
+
+Depuis le Sprint 36, `SessionConfig` supporte un allow-list et un deny-list par session CLI, sans modifier la config globale.
+
+```rust
+pub struct SessionConfig {
+    // ...champs existants...
+    /// None = tous les outils autorisés. Some(vec) = liste restrictive.
+    pub allowed_tools: Option<Vec<String>>,
+    /// Outils toujours refusés pour cette session.
+    pub disallowed_tools: Vec<String>,
+}
+```
+
+`disallowed_tools` a **priorité absolue** sur `allowed_tools` en cas de conflit.
+
+Nouvelle variante `ToolError` :
+```rust
+#[error("tool not allowed for this session: {tool_name}")]
+ToolNotAllowed { tool_name: String },
+```
+
+### `ChatSession::fork()` — Forking de conversations (STORY-492)
+
+```rust
+impl ChatSession {
+    /// Crée une session fille avec une copie de l'historique jusqu'à `up_to_index`.
+    pub async fn fork(
+        &self,
+        up_to_index: Option<usize>,
+        repo: &SessionRepository,
+    ) -> Result<ChatSession, RuntimeError> { ... }
+}
+```
+
+**Migration SQLite :**
+```sql
+ALTER TABLE chat_sessions ADD COLUMN parent_session_id TEXT REFERENCES chat_sessions(id);
+ALTER TABLE chat_sessions ADD COLUMN fork_depth INTEGER DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_id);
+```
+
+Les sessions filles sont **indépendantes** — ajouter un message dans la fille ne modifie pas le parent.
+
+### `CommandRegistry` — Slash commands custom (STORY-493)
+
+```rust
+/// Charge les commandes custom depuis :
+/// 1. {CWD}/.apollia/commands/*.md (priorité)
+/// 2. ~/.apollia/commands/*.md
+pub struct CommandRegistry {
+    commands: HashMap<String, CustomCommand>,
+}
+
+pub struct CustomCommand {
+    pub name: String,
+    pub description: String,
+    pub prompt_template: String,
+    pub args: Vec<String>,       // Variables {{arg}} dans le template
+}
+
+impl CommandRegistry {
+    pub async fn load(cwd: &Path) -> Self { ... }
+    pub fn get(&self, name: &str) -> Option<&CustomCommand> { ... }
+    pub fn list(&self) -> Vec<&CustomCommand> { ... }  // trié alphabétiquement
+}
+```
+
+Hot reload via `FileTimestampCache` (Sprint 36, STORY-476) si le répertoire `.apollia/commands/` est modifié.
+
+---
+
+## 12. Diagrammes de référence
 
 - [Démarrage ordonné Supervisor](../diagrams/seq-supervisor-startup.puml) — 13 phases, TriggerEngine → NotificationEngine → ChatSessionManager
 - [CRUD Config opérationnelle](../diagrams/seq-config-crud.puml) — POST → SQLite → Engine.reload() (Sprint 17, ADR-033)

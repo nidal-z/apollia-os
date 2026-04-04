@@ -289,6 +289,46 @@ apollia-os workspace show
 
 ---
 
+---
+
+## 10. CommandLoader — Chargement des slash commands custom — Sprint 36
+
+Depuis le Sprint 36 (STORY-493), `apollia-workspace` fournit `CommandLoader` pour charger les commandes slash custom depuis le disque.
+
+```rust
+// crates/apollia-workspace/src/commands.rs
+
+/// Charge les fichiers .md de commandes depuis un répertoire.
+pub struct CommandLoader;
+
+impl CommandLoader {
+    /// Lit tous les .md dans `dir`, parse le frontmatter YAML et le template.
+    pub async fn load_from_dir(dir: &Path) -> Vec<CustomCommand> { ... }
+}
+```
+
+**Format d'un fichier de commande** (`.apollia/commands/review.md`) :
+
+```markdown
+---
+description: Revue de code de la tâche courante
+args: [focus]
+---
+
+Analyse le code en cours avec un focus sur {{focus}}.
+Vérifie : correctness, performance, sécurité.
+```
+
+**Règles de chargement :**
+- Répertoire absent → fail-silent (registry vide, pas de panic)
+- CWD `.apollia/commands/` a priorité sur `~/.apollia/commands/`
+- `list()` retourne les commandes triées alphabétiquement
+- Hot reload via `FileTimestampCache` si les fichiers `.md` sont modifiés
+
+> **Voir aussi :** [Briques CLI — Slash commands custom](./Briques-CLI.md#slash-commands-custom--apollia_commands-story-493)
+
+---
+
 ## Voir aussi
 
 - [Briques ORIA Engine — Workspace Context](./Briques-ORIA-Engine.md#workspace-context) — injection dans le system prompt

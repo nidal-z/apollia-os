@@ -6,6 +6,10 @@
 
 ## 1. Vue d'ensemble
 
+> **Sprint 36 :** Deux nouvelles fonctionnalités — `InactivityWatcher` (STORY-474) et `TerminalChannel` pour les notifications dans le terminal, plus `handle_budget_update()` (STORY-477) pour les alertes seuil coût LLM.
+
+
+
 Le `NotificationEngine` est un acteur de fond démarré en **position 9** dans la séquence du Supervisor (après le `TriggerEngine` et l'`APIServer`). Il n'a pas de handle externe : une fois lancé via `tokio::spawn(engine.run())`, il tourne de manière autonome jusqu'à la fermeture de l'EventBus.
 
 ```
@@ -557,6 +561,109 @@ Si la base est vide (aucun canal), aucun engine n'est démarré. Si un canal web
 | EventBus fermé (arrêt runtime) | `break` — engine se termine proprement, aucun panic |
 | Base SQLite vide (aucun canal) | Engine non démarré — aucun coût, aucune erreur |
 | Webhook sans `url` en CRUD | `NotificationConfigError::ValidationError` → HTTP 422 |
+
+---
+
+---
+
+## 9. InactivityWatcher — Surveillance de l'inactivité — Sprint 36
+
+`InactivityWatcher` détecte quand le runtime est inactif pendant une tâche active et envoie une notification pour rappeler l'opérateur.
+
+```rust
+/// Surveille l'inactivité du runtime et notifie si le seuil est dépassé.
+/// Acteur Tokio isolé (tokio::spawn), aucun état partagé.
+pub struct InactivityWatcher {
+    timeout: std::time::Duration,
+    notification_engine: Arc<NotificationEngine>,
+    last_activity_tx: tokio::sync::watch::Sender<std::time::Instant>,
+}
+
+impl InactivityWatcher {
+    pub fn new(timeout_secs: u64, notification_engine: Arc<NotificationEngine>) -> Self { ... }
+    /// Réarme le timer d'inactivité (appelé sur chaque event significatif).
+    pub fn reset_timer(&self) { ... }
+    /// Lance le watcher dans un tokio::spawn isolé.
+    pub fn start(self: Arc<Self>, task_active_rx: tokio::sync::watch::Receiver<bool>) { ... }
+}
+```
+
+**Events qui réarment le timer (`is_significant_for_inactivity()`) :**
+`TaskStarted`, `StepCompleted`, `ToolInvoked`, `LlmResponseReceived`, `PermissionRequired`.
+
+**Config :**
+```toml
+[notifications]
+inactivity_timeout_secs = 30
+```
+
+---
+
+## 10. TerminalChannel — Notifications dans le terminal — Sprint 36
+
+Nouveau canal de notification qui écrit directement dans le terminal de l'opérateur via des séquences OSC standard.
+
+```rust
+/// Canal terminal — détecte l'émulateur et envoie la séquence OSC appropriée.
+pub struct TerminalChannel {
+    kind: TerminalKind,
+    min_severity: NotificationSeverity,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TerminalKind {
+    ITerm2,       // OSC 9  — détecté via TERM_PROGRAM="iTerm.app"
+    GnomeVte,     // OSC 777 — détecté via VTE_VERSION
+    BellFallback, // \x07   — terminal inconnu
+}
+
+impl TerminalChannel {
+    pub fn detect(min_severity: NotificationSeverity) -> Self { ... }
+    pub fn send(&self, notification: &Notification) -> Result<(), NotificationError> { ... }
+}
+```
+
+**Écriture sur stderr** (pas stdout — ne perturbe pas les scripts).
+
+**Filtre par sévérité :** `min_severity: Info | Warning | Error` — configurable par canal.
+
+Config :
+```toml
+[[notifications.channels]]
+kind = "terminal"
+min_severity = "info"
+```
+
+---
+
+## 11. Alerte seuil coût LLM — Sprint 36
+
+`NotificationEngine` réagit aux events `TokenBudgetUpdated` (STORY-477) pour envoyer une alerte OS quand le seuil de coût est dépassé.
+
+```rust
+impl NotificationEngine {
+    /// Edge trigger — notifie uniquement au passage de false → true.
+    pub async fn handle_budget_update(&mut self, event: &RuntimeEvent) {
+        if let RuntimeEvent::TokenBudgetUpdated { session_cost_usd, threshold_usd, threshold_exceeded, .. } = event {
+            if *threshold_exceeded && !self.cost_threshold_already_notified {
+                self.cost_threshold_already_notified = true;
+                self.publish(Notification {
+                    title: "Apollia — Seuil coût LLM dépassé".into(),
+                    body: format!("Coût session : ${:.3} (seuil : ${:.3})", session_cost_usd, threshold_usd),
+                    severity: NotificationSeverity::Warning,
+                    kind: NotificationKind::CostAlert,
+                }).await;
+            } else if !threshold_exceeded {
+                self.cost_threshold_already_notified = false;
+            }
+        }
+    }
+}
+```
+
+**Edge trigger** (pas level trigger) : une seule notification par dépassement, pas de spam.
+
+> **Voir aussi :** [Briques LLM Backend — TokenBudgetUpdated](./Briques-LLM-Backend.md#tokenbudgetupdated--event-enrichi-story-473)
 
 ---
 

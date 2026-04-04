@@ -639,6 +639,81 @@ impl TokenBudget {
 
 ---
 
+## Routing LLM par niveau de précision — Sprint 36
+
+Depuis le Sprint 36 (STORY-469), `LlmRouter` expose deux méthodes de routing basées sur le tradeoff coût/latence/qualité documenté dans les scaling laws (Kaplan et al., 2020).
+
+### `LlmRoutingLevel`
+
+```rust
+/// Deux niveaux de routing — déductibles du tradeoff coût/latence/qualité.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LlmRoutingLevel {
+    /// Tâches de raisonnement : planification, analyse complexe, jugement.
+    Precise,
+    /// Tâches d'extraction : métadonnées, résumés, classification, parsing.
+    Fast,
+}
+```
+
+### Méthodes ajoutées à `LlmRouter`
+
+```rust
+impl LlmRouter {
+    /// Route vers le backend pour les tâches de raisonnement profond.
+    pub fn route_precise(&self) -> &dyn LlmBackend { ... }
+
+    /// Route vers le backend pour les tâches d'extraction légère.
+    pub fn route_fast(&self) -> &dyn LlmBackend { ... }
+}
+```
+
+**Fail-fast :** si `[llm.routing]` est absent de `apollia.toml`, `LlmRouter::new()` retourne `Err(RoutingConfigMissing)` au démarrage.
+
+### Configuration
+
+```toml
+[llm.routing]
+# Modèle pour le raisonnement (ORIA planner, analyse).
+precise = "claude-opus-4-6"
+
+# Modèle pour l'extraction légère (file paths, résumés).
+fast = "claude-haiku-4-5-20251001"
+```
+
+### Callsites dans le codebase
+
+| Callsite | Niveau | Justification |
+|---|---|---|
+| `apollia-oria/src/reasoner.rs` | `route_precise()` | Planification ReAct — erreur à fort impact |
+| `apollia-workspace/src/style_detector.rs` | `route_fast()` | Extraction conventions — déterministe |
+| `apollia-tools/src/executors/bash_executor.rs` | `route_fast()` | Extraction file paths — résultat vérifiable |
+| `apollia-memory/src/compactor.rs` | `route_fast()` | Résumé contexte — faible coût d'erreur |
+
+### `TokenBudgetUpdated` — Event enrichi (STORY-473)
+
+```rust
+/// Émis après chaque appel LLM — alimente le widget coût desktop.
+TokenBudgetUpdated {
+    session_cost_usd: f64,
+    total_input_tokens: u64,
+    total_output_tokens: u64,
+    total_cache_read_tokens: u64,
+    threshold_usd: f64,
+    /// true si session_cost_usd > threshold_usd
+    threshold_exceeded: bool,
+},
+```
+
+Configuration seuil d'alerte :
+
+```toml
+[llm]
+cost_alert_threshold_usd = 0.50
+```
+
+---
+
 ## Voir aussi
 
 - [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — `ctx.llm` depuis Python

@@ -5,7 +5,7 @@ skinparam defaultFontName "JetBrains Mono"
 skinparam defaultFontSize 12
 skinparam ArrowColor #444444
 skinparam BorderColor #444444
-title Séquence — Routing Multi-LLM par agent — Apollia OS
+title Séquence — Routing Multi-LLM par agent et par niveau de précision — Apollia OS
 
 participant "code-worker\n(llm_backend\n= 'local-code')" as cw #2d4a22
 participant "mail-agent\n(llm_backend\n= null)" as ma #2d4a22
@@ -45,10 +45,37 @@ router -> bus : LlmCallCompleted\n{ backend: "anthropic-cloud",\ncost_usd: 0.004
 router --> ma : response
 
 note over router
-  **Routing :**
+  **Routing par agent :**
   1. manifest.llm_backend → named backend
   2. Sinon → is_default=true
   3. Backend absent → AgentDegraded
+end note
+
+== Routing par niveau de précision (Sprint 36) ==
+
+participant "Reasoner\n(ORIA)" as reasoner #1a1a2e
+participant "FilePathExtractor\n(apollia-tools)" as fpe #1a1a2e
+
+note over router
+  **LlmRoutingLevel (config [llm.routing]) :**
+  precise = "claude-opus-4-6"
+  fast    = "claude-haiku-4-5-20251001"
+end note
+
+reasoner -> router : route_precise()\n— planification ReAct\n(erreur à fort impact)
+router -> cloud : complete(plan_request)\n→ backend "claude-opus-4-6"
+cloud --> router : ExecutionPlan
+router --> reasoner : ExecutionPlan
+
+fpe -> router : route_fast()\n— extraction file paths\n(résultat vérifiable)
+router -> router : backend_for("claude-haiku-4-5-20251001")
+router -> cloud : complete(extract_request)
+cloud --> router : ["src/main.rs", "src/lib.rs"]
+router --> fpe : Vec<PathBuf>
+
+note over router
+  **Fail-fast :** [llm.routing] absent
+  → Err(RoutingConfigMissing) au démarrage
 end note
 
 @enduml

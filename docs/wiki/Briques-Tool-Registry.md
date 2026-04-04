@@ -808,6 +808,115 @@ result = await ctx.tools.persistent_bash.run(command="echo $API_KEY")
 
 ---
 
+## 14. Nouvelles fonctionnalités Sprint 36
+
+### 14.1 `BashValidator` — Validation pré-exécution
+
+`BashValidator` valide la syntaxe bash et classe les risques **avant** l'exécution d'une commande. Il s'intègre dans `BashExecutor::execute()` : risques d'abord (sync), syntaxe ensuite (async).
+
+```rust
+pub struct BashValidator {
+    config: BashValidatorConfig,
+}
+
+impl BashValidator {
+    pub fn new(config: BashValidatorConfig) -> Self { ... }
+    /// Validation syntaxique via `bash -n -c` avec timeout 1s.
+    pub async fn validate_syntax(&self, cmd: &str) -> Result<(), ToolError> { ... }
+    /// Classification des risques — sync, rapide, avant validate_syntax.
+    pub fn classify_risks(&self, cmd: &str) -> Vec<RiskCategory> { ... }
+}
+```
+
+Nouvelles variantes `ToolError` :
+
+```rust
+#[error("bash syntax error in `{cmd}`: {detail}")]
+SyntaxError { cmd: String, detail: String },
+
+#[error("risky command blocked (category: {category:?}): {command}")]
+RiskyCommand { command: String, category: RiskCategory },
+
+#[error("bash syntax validation timed out")]
+SyntaxValidationTimeout,
+```
+
+### 14.2 `RiskClassifier` — Classification des risques shell
+
+Classifie les commandes shell selon 4 catégories documentées par des standards publics.
+
+```rust
+pub struct RiskClassifier;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RiskCategory {
+    /// Accès réseau sortant — OWASP A10:2021, Principe #1 Apollia (local-first)
+    NetworkEgress,
+    /// Destruction irréversible de données — NIST SP 800-190 §4.4
+    DestructiveOp,
+    /// Élévation de droits — CWE-269
+    PrivilegeEscalation,
+    /// Consommation non-contrôlée de ressources — CWE-400
+    ResourceExhaustion,
+}
+
+impl RiskClassifier {
+    /// Retourne les catégories de risque détectées. Liste configurable via apollia.toml.
+    pub fn classify(command: &str, config: &BashValidatorConfig) -> Vec<RiskCategory> { ... }
+}
+```
+
+Config `apollia.toml` :
+
+```toml
+[tools.bash]
+block_network_egress = true          # OWASP A10:2021
+block_destructive = true             # NIST SP 800-190
+block_privilege_escalation = true    # CWE-269
+block_resource_exhaustion = true     # CWE-400
+# network_egress_patterns = ["curl", "wget", "nc", "ssh"]
+# destructive_patterns = ["rm -rf /", "dd if="]
+syntax_check_timeout_ms = 1000
+```
+
+**Philosophie :** aucune liste hardcodée — tout est configurable par l'opérateur. Comportement opt-in par catégorie.
+
+### 14.3 `FilePathExtractor` — Extraction post-bash non-bloquante
+
+Extrait les paths de fichiers depuis la sortie d'une commande bash via `LlmRouter::route_fast()`. Tournant dans un `tokio::spawn` détaché — n'impacte pas la latence de `BashExecutor`.
+
+```rust
+pub struct FilePathExtractor {
+    llm_router: Arc<LlmRouter>,
+}
+
+impl FilePathExtractor {
+    pub fn new(llm_router: Arc<LlmRouter>) -> Self { ... }
+    /// Lance l'extraction en arrière-plan — non-bloquant pour BashExecutor.
+    pub fn extract_detached(
+        &self,
+        command: String,
+        output: String,
+        event_tx: tokio::sync::mpsc::Sender<RuntimeEvent>,
+    ) { ... }
+}
+```
+
+Nouveau `RuntimeEvent` :
+
+```rust
+/// Paths de fichiers extraits depuis la sortie d'une commande bash.
+BashFilePathsExtracted {
+    paths: Vec<std::path::PathBuf>,
+},
+```
+
+ORIA reçoit cet event pour invalider les caches de plan stale sur les fichiers affectés.
+
+> **Voir aussi :** [apollia-permissions](./Briques-Permissions.md) — intégration `PermissionEngine::decide()` dans `ToolRegistry::invoke()`
+
+---
+
 ## Décisions architecturales clés (mises à jour Sprint 35)
 
 | Décision | Justification |

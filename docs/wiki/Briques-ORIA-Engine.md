@@ -1066,4 +1066,91 @@ $ apollia-os workspace status
 
 ---
 
+## 13. Binary Feedback — Deux Plans Alternatifs — Sprint 36
+
+Depuis le Sprint 36 (STORY-471, ADR-063), le Reasoner peut générer deux plans en parallèle pour permettre à l'opérateur de choisir et fournir un signal de supervision structuré.
+
+### `plan_with_alternatives()`
+
+```rust
+impl Reasoner {
+    /// Génère deux plans en parallèle (temp A conservateur, temp B exploratoire).
+    pub async fn plan_with_alternatives(
+        &self,
+        task: &Task,
+        context: &WorkspaceContext,
+    ) -> Result<PlanAlternatives, OriaError> {
+        let (plan_a_result, plan_b_result) = tokio::join!(
+            self.plan_internal(task, context, config.plan_alternatives_temp_a),
+            self.plan_internal(task, context, config.plan_alternatives_temp_b),
+        );
+        // ...
+    }
+}
+```
+
+### Nouveaux types dans `apollia-core`
+
+```rust
+/// Deux plans alternatifs générés en parallèle.
+pub struct PlanAlternatives {
+    /// Plan A : température basse — déterministe et conservateur.
+    pub plan_a: TaskPlan,
+    /// Plan B : température haute — créatif et exploratoire.
+    pub plan_b: TaskPlan,
+    pub session_id: String,
+    pub generated_at: i64,
+}
+
+pub struct PlanChoice {
+    pub session_id: String,
+    pub chosen: ChosenPlan,
+    pub chosen_at: i64,
+}
+
+pub enum ChosenPlan {
+    PlanA,
+    PlanB,
+}
+```
+
+### Nouveaux `RuntimeEvent`
+
+```rust
+PlanAlternativesGenerated { alternatives: PlanAlternatives },
+PlanChosen { choice: PlanChoice },
+```
+
+### Log SQLite des choix (apollia-memory)
+
+```sql
+CREATE TABLE IF NOT EXISTS plan_choices (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  TEXT NOT NULL UNIQUE,
+    chosen      TEXT NOT NULL,   -- 'plan_a' | 'plan_b'
+    plan_a_json TEXT NOT NULL,
+    plan_b_json TEXT NOT NULL,
+    chosen_at   INTEGER NOT NULL
+);
+```
+
+Le log est local, jamais envoyé (Principe #1). Il constitue un signal RLHF pour les analyses futures.
+
+### Activation
+
+```bash
+# CLI — mode alternatifs opt-in
+$ apollia run --alternatives "Migre la base de données"
+```
+
+```toml
+[oria]
+plan_alternatives_temp_a = 0.3  # plan conservateur
+plan_alternatives_temp_b = 0.8  # plan exploratoire
+```
+
+> **Voir aussi :** [ADR-063](../adr/ADR-063-binary-feedback-rlhf.md) — Binary feedback RLHF
+
+---
+
 *Prochaine lecture recommandée : [Runtime Core](./Briques-Runtime-Core)*

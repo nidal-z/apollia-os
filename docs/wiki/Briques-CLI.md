@@ -718,3 +718,111 @@ colored = "2"
 | `apollia-os agent validate` | Fail fast avant démarrage — économise du temps de debug |
 | `apollia-os memory export` | Souveraineté — l'admin peut extraire toute la mémoire |
 | Onboarding sans `--help` obligatoire | `apollia-os` seul explique les commandes |
+
+---
+
+## 10. Nouvelles commandes et fonctionnalités — Sprint 36
+
+### `apollia mcp-server` (STORY-468)
+
+Lance Apollia en mode serveur MCP stdio. Des clients MCP externes (Claude Desktop, Cursor, VS Code) peuvent invoquer les outils natifs.
+
+```bash
+$ apollia mcp-server                # 9 outils natifs
+$ apollia mcp-server --with-runtime # + outil submit_task
+```
+
+> **Voir aussi :** [Briques MCP — Mode Serveur](./Briques-MCP.md#12-mode-serveur-mcp--sprint-36)
+
+### `apollia workspace` (STORY-475)
+
+Inspecte le workspace courant et initialise `APOLLIA.md`.
+
+```bash
+$ apollia workspace status          # Affiche branche, fichiers modifiés, APOLLIA.md
+$ apollia workspace init            # Crée APOLLIA.md avec template
+$ apollia workspace init --force    # Écrase APOLLIA.md existant
+$ apollia --json workspace status   # Sortie JSON : workspace_root, git_branch, ...
+```
+
+Sortie JSON :
+```json
+{
+  "workspace_root": "/home/user/mon-projet",
+  "git_branch": "main",
+  "modified_files": ["src/main.rs"],
+  "apollia_md_found": true,
+  "file_count": 142
+}
+```
+
+### `apollia run --alternatives` (STORY-471)
+
+Génère deux plans alternatifs et demande à l'opérateur de choisir avant l'exécution.
+
+```bash
+$ apollia run --alternatives "Migre la base de données"
+
+--- Plan A (conservateur, température 0.3) ---
+  1. Faire un backup de la BDD
+  2. Appliquer les migrations
+  ...
+
+--- Plan B (exploratoire, température 0.8) ---
+  1. Créer un environnement de test
+  ...
+
+Choisissez un plan [1/2] :
+```
+
+### `--allowed-tools` / `--disallowed-tools` (STORY-491)
+
+Restreint les outils disponibles pour une session sans modifier la config globale.
+
+```bash
+# Autoriser uniquement la lecture
+$ apollia run --allowed-tools file_read,glob "Analyse le codebase"
+
+# Interdire les outils bash et file_write
+$ apollia run --disallowed-tools bash_executor,file_write "Réponds à ma question"
+```
+
+`disallowed-tools` a priorité sur `allowed-tools` en cas de conflit.
+
+### REPL history persisté (STORY-491)
+
+L'historique du REPL `apollia chat` est persisté dans `~/.apollia/repl_history` (format readline, max 10 000 entrées). Flèches haut/bas et Ctrl-R fonctionnent entre les sessions.
+
+### `/fork` — Conversation forking (STORY-492)
+
+```
+/fork             → fork depuis maintenant (copie tout l'historique)
+/fork 5           → fork depuis le message #5
+/fork list        → liste toutes les sessions filles
+```
+
+```bash
+$ apollia chat --list   # Affiche l'arborescence parent → enfants
+```
+
+### Slash commands custom — `APOLLIA_COMMANDS` (STORY-493)
+
+Définissez des commandes réutilisables dans `.apollia/commands/*.md` :
+
+```markdown
+---
+description: Revue de code ciblée
+args: [focus]
+---
+
+Analyse le code avec un focus sur {{focus}}.
+Vérifie : correctness, performance, sécurité.
+```
+
+Usage dans le REPL :
+```
+/review security          → exécute le prompt avec {{focus}} = "security"
+/list-commands            → liste les commandes disponibles (built-in + custom)
+```
+
+**Priorité :** `.apollia/commands/` (CWD) > `~/.apollia/commands/` (home). Hot reload via `FileTimestampCache` si les fichiers `.md` sont modifiés.

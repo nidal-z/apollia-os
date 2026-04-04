@@ -60,3 +60,6 @@
 | ADR-053 | [ADR-053 — Pipeline fan-out et boucles conditionnelles](./adr-053-pipeline-fanout-loops.md) | Accepté |
 | ADR-054 | [ADR-054 — Consolidation mémoire épisodique : report justifié post-v1](./adr-054-memory-episodic-consolidation.md) | Accepté |
 | ADR-055 | [ADR-055 — Community Registry : distribution Git-based peer-to-peer](./adr-055-community-registry.md) | Accepté |
+| ADR-061 | [ADR-061 — Moteur de permissions 3 couches : SafeList + PrefixRuleEngine + InjectionDetector](./adr-061-permission-engine-3-layers.md) | Accepté |
+| ADR-062 | [ADR-062 — MCP server mode : transport stdio, 9 outils natifs + submit_task](./adr-062-mcp-server-mode.md) | Accepté |
+| ADR-063 | [ADR-063 — Binary feedback RLHF : deux plans parallèles, log SQLite du choix](./adr-063-binary-feedback-rlhf.md) | Accepté |

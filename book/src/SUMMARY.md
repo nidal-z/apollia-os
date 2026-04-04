@@ -49,6 +49,7 @@
   - [StepBudget](ch07-01-step-budget.md)
   - [Circuit breakers](ch07-02-resilience.md)
   - [Garde-fous A2A](ch07-03-a2a-guards.md)
+  - [Moteur de permissions 3 couches](ch07-04-permissions.md)
 
 # Projet : un Worker Agent
 

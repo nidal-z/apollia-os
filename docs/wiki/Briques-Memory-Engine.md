@@ -562,7 +562,98 @@ $ apollia-os memory purge crm-dupont
 
 ---
 
-## 10. Décisions architecturales clés
+## 10. FileTimestampCache — Détection de Fichiers Modifiés — Sprint 36
+
+Depuis le Sprint 36 (STORY-476), `apollia-memory` inclut `FileTimestampCache` : un cache SQLite qui détecte si un fichier lu par un agent a été modifié entre deux accès, permettant à ORIA d'invalider les plans stale.
+
+### Types
+
+```rust
+/// Cache des timestamps de fichiers lus par les agents.
+pub struct FileTimestampCache {
+    db: rusqlite::Connection,
+    event_tx: tokio::sync::mpsc::Sender<RuntimeEvent>,
+}
+
+pub struct FileTimestampEntry {
+    pub path: std::path::PathBuf,
+    pub mtime_ms: i64,
+    pub last_read_at: i64,
+}
+
+impl FileTimestampCache {
+    pub fn new(db_path: &std::path::Path, event_tx: mpsc::Sender<RuntimeEvent>) -> Result<Self, MemoryError> { ... }
+    /// Enregistre une lecture. Émet FileModifiedSinceRead si le mtime a changé.
+    pub async fn record_read(&mut self, path: &std::path::Path) -> Result<(), MemoryError> { ... }
+    pub fn list_entries(&self, limit: u32) -> Result<Vec<FileTimestampEntry>, MemoryError> { ... }
+    /// Supprime les entrées de fichiers qui n'existent plus.
+    pub async fn prune_deleted(&mut self) -> Result<usize, MemoryError> { ... }
+}
+```
+
+### Nouveau `RuntimeEvent`
+
+```rust
+/// Un fichier lu précédemment a été modifié entre deux accès.
+FileModifiedSinceRead {
+    path: std::path::PathBuf,
+    old_mtime_ms: i64,
+    new_mtime_ms: i64,
+},
+```
+
+ORIA réagit : `self.plan_cache.invalidate_for_paths(&[path])`.
+
+### Schéma SQLite
+
+```sql
+CREATE TABLE IF NOT EXISTS file_timestamps (
+    path         TEXT PRIMARY KEY,
+    mtime_ms     INTEGER NOT NULL,
+    last_read_at INTEGER NOT NULL
+);
+```
+
+### Intégration dans `FileReadExecutor`
+
+```rust
+if let Some(cache) = &self.timestamp_cache {
+    cache.record_read(&input.path).await.ok(); // non-bloquant, erreur loggée
+}
+```
+
+### Configuration
+
+```toml
+[memory]
+file_watch_strategy = "native"  # 'native' (inotify/kqueue) ou 'polling'
+poll_interval_ms = 1000         # uniquement si strategy = "polling"
+```
+
+`FileTimestampCache` est également utilisé par `CommandRegistry` (STORY-493) pour le hot reload des slash commands custom.
+
+---
+
+## 11. Table `plan_choices` — Log RLHF — Sprint 36
+
+La table SQLite `plan_choices` dans `apollia-memory` persiste les choix de l'opérateur entre deux plans alternatifs ORIA (STORY-471). Données locales, jamais envoyées (Principe #1).
+
+```sql
+CREATE TABLE IF NOT EXISTS plan_choices (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  TEXT NOT NULL UNIQUE,
+    chosen      TEXT NOT NULL,   -- 'plan_a' | 'plan_b'
+    plan_a_json TEXT NOT NULL,
+    plan_b_json TEXT NOT NULL,
+    chosen_at   INTEGER NOT NULL
+);
+```
+
+> **Voir aussi :** [Briques ORIA Engine — Binary Feedback](./Briques-ORIA-Engine.md#13-binary-feedback--deux-plans-alternatifs--sprint-36)
+
+---
+
+## Décisions architecturales clés
 
 | Décision | Justification |
 |---|---|

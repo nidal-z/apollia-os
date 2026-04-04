@@ -33,14 +33,19 @@ rectangle "Apollia OS Workspace" as workspace #1a1a2e {
     component "StepBudget\nResilienceLayer" as budget
   }
 
+  rectangle "apollia-permissions\n(Moteur de Permissions)" as perms #1a1a2e {
+    component "PermissionEngine::decide()\nSafeList · PrefixRuleEngine\nStructuralInjectionDetector\nPermissionAuditLog (SQLite)" as permengine
+  }
+
   rectangle "apollia-tools\n(Tool Registry)" as tools #1a1a2e {
-    component "ToolRegistry · ToolDispatcher\nAuditTrail · SandboxRoot" as reg2
+    component "ToolRegistry · ToolDispatcher\nAuditTrail · SandboxRoot\nBashValidator · RiskClassifier\nFilePathExtractor" as reg2
     component "BashExecutor · PythonExecutor\nfile_read/write/edit/list/glob/grep\nhttp_fetch · memory_search" as native
   }
 
-  rectangle "apollia-mcp\n(Client MCP)" as mcp_crate #1a1a2e {
+  rectangle "apollia-mcp\n(Client + Serveur MCP)" as mcp_crate #1a1a2e {
     component "McpClientManager\n(acteur Tokio)" as mcpmanager
     component "McpSession · McpToolExecutor\nMcpConfigWriter" as mcpsession
+    component "McpStdioServer\n(9 outils natifs + submit_task)" as mcpserver
     component "resolve_env()\n(APOLLIA_SECRET: prefix)" as secretresolver
   }
 
@@ -53,7 +58,7 @@ rectangle "Apollia OS Workspace" as workspace #1a1a2e {
   }
 
   rectangle "apollia-llm\n(LLM Engine)" as llm #4a3728 {
-    component "LlmRouter\nCompletionModel trait\nToolCallHelper (ReAct)" as llmrouter
+    component "LlmRouter\nroute_precise() · route_fast()\nLlmRoutingLevel (Precise | Fast)\nTokenBudget · TokenBudgetUpdated" as llmrouter
     component "EmbeddedBackend [local]\nOpenAICompatibleClient [cloud]\nAnthropicClient [cloud]" as backends
   }
 
@@ -109,6 +114,8 @@ runtime --> aip : AIPBridge.call_run()
 aip --> agent : PyO3 (asyncio.run)
 aip --> llm : ctx.llm (LlmProxy)
 agent --> aip : AIPResult (dict)
+tools --> perms : PermissionEngine::decide()\n(avant chaque invocation)
+perms --> tools : AutoAllowed* | AutoDenied* | NeedsApproval
 tools --> sandbox : bash_executor\npython_executor
 mcp_crate --> mcp : JSON-RPC 2.0 stdio\n(subprocess local)
 runtime --> mcp_crate : McpClientManagerHandle\n(Phase 3b startup)

@@ -586,3 +586,73 @@ Elements `data-testid` sur les composants principaux pour les tests e2e :
 - **ADR-029** — Settings lecture seule (round-trip TOML detruirait les commentaires)
 - **ADR-033** — Config operateur SQLite : separation structurel (TOML) / operationnel (SQLite)
 - **ADR-041** — Moteur STT embarqué : whisper-rs V1, trait SttBackend
+
+---
+
+## 12. Nouveaux composants Sprint 36
+
+### 6 composants HITL spécialisés (STORY-472)
+
+`PermissionDispatcher.svelte` route vers le bon composant selon `permission_type` :
+
+| Composant | Type d'outil | Affichage spécifique |
+|---|---|---|
+| `BashPermissionView.svelte` | `bash` | Commande colorisée, working_dir, 3 boutons |
+| `FileEditPermissionView.svelte` | `file_edit` | Diff coloré ligne par ligne (+/-) |
+| `FileWritePermissionView.svelte` | `file_write` | Badge vert "Créer" ou orange "Écraser" |
+| `FilesystemPermissionView.svelte` | `filesystem` | Opération (delete/move/mkdir) + paths |
+| `McpPermissionView.svelte` | `mcp` | Serveur + outil + arguments JSON indenté |
+| `GenericPermissionView.svelte` | autres | JSON brut (fallback) |
+
+**Bouton "Toujours autoriser"** — crée une `PrefixRule` via `add_permission_prefix_rule` Tauri IPC (intégration avec `apollia-permissions`).
+
+```typescript
+async function alwaysAllow() {
+  await invoke('add_permission_prefix_rule', {
+    toolName: permission.tool_name,
+    argPrefix: extractArgPrefix(permission),
+    action: 'allow',
+  });
+  await approve();
+}
+```
+
+Fichiers :
+```
+crates/apollia-desktop/src/lib/components/permissions/
+├── BashPermissionView.svelte
+├── FileEditPermissionView.svelte
+├── FileWritePermissionView.svelte
+├── FilesystemPermissionView.svelte
+├── McpPermissionView.svelte
+├── GenericPermissionView.svelte
+└── PermissionDispatcher.svelte
+```
+
+### `TokenBudgetWidget.svelte` (STORY-473)
+
+Widget dans le header du desktop affichant le coût LLM de la session en temps réel.
+
+- Affiche `$X.XXX` — mis à jour < 500ms après chaque appel LLM
+- Passe à **orange** à 80% du seuil configuré
+- Passe à **rouge** + badge `!` si `threshold_exceeded = true`
+- Alimenté par `RuntimeEvent::TokenBudgetUpdated` via SSE
+
+### `PlanAlternativesView.svelte` (STORY-471)
+
+Composant affichant deux plans alternatifs ORIA et permettant à l'opérateur de choisir.
+
+- Deux cartes plan (A et B) avec les étapes listées
+- Boutons "Choisir Plan A" / "Choisir Plan B"
+- Appel IPC `choose_plan` → persistance dans `plan_choices` SQLite
+
+### Commande Tauri IPC ajoutée
+
+```rust
+#[tauri::command]
+pub async fn get_cost_alert_threshold(
+    state: tauri::State<'_, AppState>,
+) -> Result<Option<f64>, String> {
+    Ok(state.config.llm.cost_alert_threshold_usd)
+}
+```
