@@ -4,6 +4,7 @@
 //! that returns a valid `ToolDescriptor` for registration in `ToolRegistry`.
 
 pub mod bash_executor;
+pub mod bash_validator;
 pub mod file_edit;
 pub mod file_glob;
 pub mod file_grep;
@@ -16,3 +17,4 @@ pub mod http_fetch;
 pub mod memory_search;
 pub mod persistent_bash;
 pub mod python_executor;
+pub mod risk_classifier;

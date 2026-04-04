@@ -670,6 +670,125 @@ fn default_permissions_db_path() -> std::path::PathBuf {
 }
 
 // ─────────────────────────────────────────────
+// BashValidatorConfig
+// ─────────────────────────────────────────────
+
+/// Configuration du validateur bash pré-exécution (section `[tools.bash]` dans `apollia.toml`).
+///
+/// Contrôle deux mécanismes de protection appliqués par `BashValidator` avant
+/// chaque invocation de `BashExecutor` :
+/// - La classification des risques par catégorie (`RiskClassifier`), synchrone et rapide.
+/// - La validation syntaxique via `bash -n -c`, asynchrone avec timeout.
+///
+/// Toutes les catégories sont **activées** (`block_* = true`) mais les listes de patterns
+/// sont **vides par défaut** : aucun blocage n'est appliqué sans configuration explicite
+/// (principe opt-in — l'opérateur définit ce qu'il veut bloquer).
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct BashValidatorConfig {
+    /// Active le blocage des commandes d'accès réseau sortant.
+    ///
+    /// Référence : OWASP A10:2021 (SSRF) et Principe #1 Apollia (local-first).
+    /// Défaut : `true`. Aucun blocage effectif sans `network_egress_patterns`.
+    #[serde(default = "default_block_flag")]
+    pub block_network_egress: bool,
+
+    /// Active le blocage des opérations destructrices irréversibles.
+    ///
+    /// Référence : NIST SP 800-190 §4.4.
+    /// Défaut : `true`. Aucun blocage effectif sans `destructive_patterns`.
+    #[serde(default = "default_block_flag")]
+    pub block_destructive: bool,
+
+    /// Active le blocage des élévations de privilèges.
+    ///
+    /// Référence : CWE-269 (Improper Privilege Management).
+    /// Défaut : `true`. Aucun blocage effectif sans `privilege_patterns`.
+    #[serde(default = "default_block_flag")]
+    pub block_privilege_escalation: bool,
+
+    /// Active le blocage des commandes d'épuisement de ressources.
+    ///
+    /// Référence : CWE-400 (Uncontrolled Resource Consumption).
+    /// Défaut : `true`. Aucun blocage effectif sans `exhaustion_patterns`.
+    #[serde(default = "default_block_flag")]
+    pub block_resource_exhaustion: bool,
+
+    /// Patterns déclenchant la catégorie `NetworkEgress`.
+    ///
+    /// Chaque entrée est une sous-chaîne recherchée dans la commande (ex: `"curl"`, `"wget"`).
+    /// Vide par défaut — l'opérateur définit les patterns selon les outils installés.
+    #[serde(default)]
+    pub network_egress_patterns: Vec<String>,
+
+    /// Patterns déclenchant la catégorie `DestructiveOp`.
+    ///
+    /// Exemples : `"rm -rf /"`, `"dd if="`, `"mkfs"`.
+    /// Vide par défaut.
+    #[serde(default)]
+    pub destructive_patterns: Vec<String>,
+
+    /// Patterns déclenchant la catégorie `PrivilegeEscalation`.
+    ///
+    /// Exemples : `"sudo"`, `"su "`, `"chmod 777 /"`.
+    /// Vide par défaut.
+    #[serde(default)]
+    pub privilege_patterns: Vec<String>,
+
+    /// Patterns déclenchant la catégorie `ResourceExhaustion`.
+    ///
+    /// Exemples : `":(){ :|:& };:"` (fork bomb).
+    /// Vide par défaut.
+    #[serde(default)]
+    pub exhaustion_patterns: Vec<String>,
+
+    /// Timeout de la validation syntaxique `bash -n -c`, en millisecondes.
+    ///
+    /// Au-delà de cette durée, `BashValidator::validate_syntax()` retourne
+    /// `SyntaxValidationTimeout`. Défaut : 1000ms. Bornes : [100, 10000].
+    #[serde(default = "default_syntax_check_timeout_ms")]
+    pub syntax_check_timeout_ms: u64,
+}
+
+impl Default for BashValidatorConfig {
+    fn default() -> Self {
+        Self {
+            block_network_egress: default_block_flag(),
+            block_destructive: default_block_flag(),
+            block_privilege_escalation: default_block_flag(),
+            block_resource_exhaustion: default_block_flag(),
+            network_egress_patterns: vec![],
+            destructive_patterns: vec![],
+            privilege_patterns: vec![],
+            exhaustion_patterns: vec![],
+            syntax_check_timeout_ms: default_syntax_check_timeout_ms(),
+        }
+    }
+}
+
+impl BashValidatorConfig {
+    /// Valide les bornes de la configuration bash validator au démarrage (Principe #4 — Fail fast).
+    ///
+    /// - `syntax_check_timeout_ms` : doit être dans [100, 10000].
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        validate_bounds(
+            "tools.bash.syntax_check_timeout_ms",
+            self.syntax_check_timeout_ms,
+            100_u64,
+            10_000_u64,
+        )?;
+        Ok(())
+    }
+}
+
+fn default_block_flag() -> bool {
+    true
+}
+
+fn default_syntax_check_timeout_ms() -> u64 {
+    1000
+}
+
+// ─────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────
 

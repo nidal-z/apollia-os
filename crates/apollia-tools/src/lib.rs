@@ -41,8 +41,11 @@ pub use task_repository::{
     ApprovalInfo, PersistedTaskSummary, ResolvedApprovalRow, TaskDetail, TaskRepoError,
     TaskRepository,
 };
+pub use tools::bash_executor::{BashExecutor, BashExecutorError, BashInput, BashOutput};
+pub use tools::bash_validator::BashValidator;
 pub use tools::persistent_bash::{
     registry::ShellSessionRegistry,
     session::{PersistentBashError, SessionId, ShellOutput},
     PersistentBashExecutor,
 };
+pub use tools::risk_classifier::{RiskCategory, RiskClassifier};

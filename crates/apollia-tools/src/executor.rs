@@ -720,6 +720,9 @@ impl ToolExecutor for BashExecutor {
                 BashExecutorError::Timeout { .. } => "timeout",
                 BashExecutorError::SpawnFailed(_) => "spawn_failed",
                 BashExecutorError::OutputCaptureFailed(_) => "output_capture_failed",
+                BashExecutorError::SyntaxError { .. } => "syntax_error",
+                BashExecutorError::RiskyCommand { .. } => "risky_command",
+                BashExecutorError::SyntaxValidationTimeout => "syntax_validation_timeout",
             };
             ToolExecutionError::ExecutionFailed {
                 code: code.to_string(),
