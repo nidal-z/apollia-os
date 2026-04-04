@@ -6,10 +6,10 @@ description = "Apollia OS — 3-layer permission engine (SafeList, PrefixRuleEng
 license = "MIT"
 
 [dependencies]
-apollia-core = { workspace = true }
-rusqlite     = { workspace = true }
-regex        = { workspace = true }
-serde        = { workspace = true }
+apollia-core  = { workspace = true }
+rusqlite      = { workspace = true }
+shell-words   = { workspace = true }
+serde         = { workspace = true }
 serde_json   = { workspace = true }
 thiserror    = { workspace = true }
 tracing      = { workspace = true }

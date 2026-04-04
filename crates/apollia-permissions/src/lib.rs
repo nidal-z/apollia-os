@@ -34,6 +34,6 @@ pub mod safe_list;
 pub use audit_log::{PermissionAuditEntry, PermissionAuditLog};
 pub use engine::{PermissionDecision, PermissionEngine};
 pub use error::PermissionError;
-pub use injection_detector::InjectionDetector;
+pub use injection_detector::{InjectionDetector, StructuralInjectionDetector};
 pub use prefix_rule_engine::{PrefixRule, PrefixRuleEngine, RuleAction};
 pub use safe_list::SafeList;

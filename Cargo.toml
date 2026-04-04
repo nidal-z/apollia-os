@@ -119,6 +119,9 @@ open = "5"
 # --- Regular expressions (apollia-pipelines step conditions) ---
 regex = "1"
 
+# --- Shell word splitting (POSIX quoting) ---
+shell-words = "1"
+
 # --- Triggers (apollia-triggers) ---
 chrono = { version = "0.4", features = ["serde"] }
 cron   = "0.12"

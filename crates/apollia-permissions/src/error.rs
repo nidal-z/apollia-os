@@ -7,10 +7,6 @@ pub enum PermissionError {
     #[error("SQLite error: {0}")]
     Database(#[from] rusqlite::Error),
 
-    /// Échec de compilation d'un pattern regex dans l'InjectionDetector.
-    #[error("regex compilation failed: {0}")]
-    Regex(#[from] regex::Error),
-
     /// Décision de refus explicite (AutoDenied*).
     #[error("permission denied: {reason}")]
     Denied {

@@ -85,12 +85,11 @@ impl PermissionEngine {
     /// # Errors
     ///
     /// - [`PermissionError::Database`] si l'initialisation SQLite échoue.
-    /// - [`PermissionError::Regex`] si la compilation des patterns regex échoue.
     pub fn new(config: &PermissionsConfig, db_path: &Path) -> Result<Self, PermissionError> {
         Ok(Self {
             safe_list: SafeList::from_config(config),
             prefix_rules: PrefixRuleEngine::new(db_path)?,
-            injection_detector: InjectionDetector::new()?,
+            injection_detector: InjectionDetector::new(),
             audit_log: PermissionAuditLog::new(db_path)?,
             injection_detection_enabled: config.injection_detection,
         })
@@ -323,16 +322,17 @@ mod tests {
 
     #[test]
     fn engine_injection_overrides_safe_list() {
-        // GIVEN un PermissionEngine avec SafeList pour "git status"
-        // ET une commande injectée
-        let (mut engine, _tmp) =
-            engine_with_config(config_with_safe_cmd("bash_executor(git status; rm -rf /)"));
+        // GIVEN un PermissionEngine avec SafeList pour la commande injectée
+        // ET une commande avec command substitution
+        let (mut engine, _tmp) = engine_with_config(config_with_safe_cmd(
+            "bash_executor(git status $(rm -rf /))",
+        ));
         let manifest = dummy_manifest();
         // WHEN
         let decision = engine
             .decide(
                 "bash_executor",
-                &json!({"cmd": "git status; rm -rf /"}),
+                &json!({"cmd": "git status $(rm -rf /)"}),
                 &manifest,
             )
             .expect("decide");
@@ -387,11 +387,11 @@ mod tests {
         // GIVEN un PermissionEngine complet
         let (mut engine, _tmp) = engine_with_config(empty_config());
         let manifest = dummy_manifest();
-        // WHEN commande avec injection
+        // WHEN commande avec command substitution
         let decision = engine
             .decide(
                 "bash_executor",
-                &json!({"cmd": "git status; rm -rf /"}),
+                &json!({"cmd": "git status $(rm -rf /)"}),
                 &manifest,
             )
             .expect("decide");
