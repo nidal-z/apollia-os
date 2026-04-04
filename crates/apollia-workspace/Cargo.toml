@@ -11,6 +11,9 @@ apollia-llm  = { workspace = true, features = ["cloud"] }
 tokio        = { workspace = true }
 serde        = { workspace = true }
 tracing      = { workspace = true }
+async-trait  = { workspace = true }
+futures      = { workspace = true }
+serde_json   = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

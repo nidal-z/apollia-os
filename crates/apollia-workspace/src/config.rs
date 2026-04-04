@@ -71,6 +71,12 @@ pub struct WorkspaceConfig {
     /// Défaut : 200 (100 lignes head + 100 lignes tail).
     #[serde(default = "default_style_sample_lines_per_file")]
     pub style_sample_lines_per_file: usize,
+
+    /// Liste des providers configurés dans `[[workspace.providers]]`.
+    ///
+    /// Si la liste est vide, le provider git builtin est utilisé par défaut.
+    #[serde(default)]
+    pub providers: Vec<ProviderConfig>,
 }
 
 impl Default for WorkspaceConfig {
@@ -84,8 +90,34 @@ impl Default for WorkspaceConfig {
             style_sample_count: default_style_sample_count(),
             style_detection_timeout_ms: default_style_detection_timeout_ms(),
             style_sample_lines_per_file: default_style_sample_lines_per_file(),
+            providers: vec![],
         }
     }
+}
+
+/// Configuration d'un provider de contexte déclaré dans `apollia.toml`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProviderConfig {
+    /// Nom unique du provider.
+    pub name: String,
+    /// Type du provider : `"builtin"`, `"python"` ou `"script"`.
+    #[serde(rename = "type")]
+    pub provider_type: String,
+    /// Chemin vers le fichier Python ou script (pour `type = "python"` ou `"script"`).
+    pub path: Option<String>,
+    /// Active ou désactive ce provider sans le supprimer.
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+    /// Timeout d'exécution en millisecondes (providers `"script"` uniquement).
+    pub timeout_ms: Option<u64>,
+    /// Priorité d'affichage (écrase la valeur déclarée dans le provider).
+    pub priority: Option<u8>,
+    /// Intervalle de rafraîchissement en secondes (écrase la valeur du provider).
+    pub refresh_secs: Option<u64>,
+}
+
+fn default_enabled() -> bool {
+    true
 }
 
 fn default_collect_timeout() -> u64 {

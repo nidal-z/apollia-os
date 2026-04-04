@@ -28,6 +28,7 @@ stt-cuda = ["stt-whisper-cpp", "apollia-stt/stt-cuda"]
 [dependencies]
 apollia-core          = { workspace = true }
 apollia-llm           = { workspace = true, features = ["cloud"] }
+apollia-workspace     = { path = "../apollia-workspace" }
 apollia-stt           = { workspace = true }
 apollia-memory        = { workspace = true }
 apollia-notifications = { workspace = true }

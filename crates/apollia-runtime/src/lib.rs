@@ -22,6 +22,7 @@ pub mod shutdown;
 pub mod stt;
 pub mod supervisor;
 pub mod timeout_watcher;
+pub mod workspace;
 
 pub use api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
 pub use coordinator::{CoordinatorError, ExecutionBackend, ExecutionCoordinator};

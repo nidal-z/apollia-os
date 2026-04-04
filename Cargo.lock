@@ -192,6 +192,7 @@ dependencies = [
 name = "apollia-core"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "regex",
  "rusqlite",
  "serde",
@@ -419,6 +420,7 @@ dependencies = [
  "apollia-stt",
  "apollia-tools",
  "apollia-triggers",
+ "apollia-workspace",
  "async-trait",
  "axum",
  "chrono",
@@ -513,7 +515,10 @@ version = "0.1.0"
 dependencies = [
  "apollia-core",
  "apollia-llm",
+ "async-trait",
+ "futures",
  "serde",
+ "serde_json",
  "tempfile",
  "tokio",
  "tracing",

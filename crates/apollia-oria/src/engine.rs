@@ -359,19 +359,15 @@ impl ORIAEngine {
         Self::new().with_cwd(cwd)
     }
 
-    /// Collecte le contexte workspace et retourne le bloc `<context name="workspace">`.
+    /// Collecte le contexte workspace et retourne les blocs `<context name="...">`.
     ///
     /// Utilise [`WorkspaceAssembler`] avec le cache TTL configuré pour éviter
     /// les I/O répétées. Retourne une chaîne vide si aucun contexte n'est disponible
     /// (répertoire hors dépôt git, aucun `APOLLIA.md`, ou timeout de collecte dépassé).
+    /// Chaque section est encapsulée dans son propre tag `<context name="...">`.
     pub async fn build_system_prompt(&self) -> String {
-        let workspace = self.workspace_assembler.collect(&self.cwd).await;
-        let body = workspace.format_for_prompt();
-        if body.is_empty() {
-            String::new()
-        } else {
-            format!("<context name=\"workspace\">\n{}\n</context>", body)
-        }
+        let snapshots = self.workspace_assembler.collect_all(&self.cwd).await;
+        WorkspaceAssembler::format_for_prompt(&snapshots)
     }
 
     // ─── Point d'entrée unifié ────────────────────────────────────────────
@@ -1332,8 +1328,9 @@ mod workspace_tests {
 
     #[tokio::test]
     async fn test_workspace_context_in_system_prompt() {
-        // GIVEN a tmpdir with APOLLIA.md containing "Test rules"
+        // GIVEN a tmpdir with .git and APOLLIA.md containing "Test rules"
         let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir(dir.path().join(".git")).expect("create .git");
         tokio::fs::write(dir.path().join("APOLLIA.md"), "Test rules")
             .await
             .expect("write");
@@ -1342,8 +1339,8 @@ mod workspace_tests {
         let prompt = engine.build_system_prompt().await;
         // THEN
         assert!(
-            prompt.contains("<context name=\"workspace\">"),
-            "expected workspace context tag in: {prompt}"
+            prompt.contains("<context name=\"Règles du projet\">"),
+            "expected context tag in: {prompt}"
         );
         assert!(
             prompt.contains("Test rules"),
@@ -1360,8 +1357,8 @@ mod workspace_tests {
         let prompt = engine.build_system_prompt().await;
         // THEN — build_system_prompt retourne une chaîne vide (pas de section vide)
         assert!(
-            !prompt.contains("Project rules"),
-            "no 'Project rules' section expected when APOLLIA.md is absent"
+            !prompt.contains("Règles du projet"),
+            "no 'Règles du projet' section expected when APOLLIA.md is absent"
         );
     }
 

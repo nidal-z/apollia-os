@@ -245,16 +245,17 @@ impl AIPBridge {
         let aip_result_class = Python::with_gil(|py| self.aip_result_class.clone_ref(py));
         let input_response_class = Python::with_gil(|py| self.input_response_class.clone_ref(py));
 
-        // Fetch APOLLIA.md asynchronously (before spawn_blocking) if cwd is configured.
+        // Fetch workspace context asynchronously (before spawn_blocking) if cwd is configured.
         let apollia_md_content: Option<String> = if let Some(ref cwd) = self.cwd {
-            let config = apollia_workspace::WorkspaceConfig::default();
-            apollia_workspace::apollia_md::ApolliamdFinder::find(
-                cwd,
-                config.apollia_md_max_bytes,
-                config.apollia_md_search_depth,
-            )
-            .await
-            .map(|(_, content)| content)
+            let assembler = apollia_workspace::WorkspaceAssembler::new(
+                apollia_workspace::WorkspaceConfig::default(),
+            );
+            let snapshots = assembler.collect_all(cwd).await;
+            snapshots
+                .iter()
+                .flat_map(|s| &s.sections)
+                .find(|sec| sec.title == "Règles du projet")
+                .map(|sec| sec.content.clone())
         } else {
             None
         };

@@ -18,4 +18,5 @@ pub mod llm;
 pub mod loader;
 #[allow(clippy::useless_conversion)]
 pub mod memory;
+pub mod python_provider;
 pub mod validator;

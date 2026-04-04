@@ -16,6 +16,7 @@
 
 pub mod budget;
 pub mod config;
+pub mod context;
 pub mod events;
 pub mod llm_backend;
 pub mod manifest;
@@ -36,6 +37,7 @@ pub use config::{
     validate_bounds, A2AConfig, ApiConfig, ConfigError, HitlConfig, ORIAConfig, PipelinesConfig,
     RuntimeConfig, ToolsConfig,
 };
+pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
 pub use manifest::{AgentManifest, AgentSkill};
