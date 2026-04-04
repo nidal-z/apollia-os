@@ -36,7 +36,8 @@ apollia-llm      = { workspace = true, default-features = false }
 apollia-stt      = { workspace = true, default-features = false }
 apollia-core     = { workspace = true }
 apollia-memory   = { workspace = true }
-apollia-tools    = { workspace = true }
+apollia-tools        = { workspace = true }
+apollia-permissions  = { path = "../apollia-permissions" }
 apollia-aip      = { workspace = true }
 apollia-oria     = { workspace = true }
 async-trait      = { workspace = true }

@@ -436,6 +436,7 @@ fn main() {
             commands::hitl::list_pending_approvals,
             commands::hitl::list_resolved_approvals,
             commands::hitl::resume_task,
+            commands::hitl::add_permission_prefix_rule,
             commands::llm::list_llm_backends,
             commands::llm::create_llm_backend,
             commands::llm::update_llm_backend,

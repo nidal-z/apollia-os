@@ -179,6 +179,71 @@ pub async fn list_resolved_approvals(
     Ok(approvals)
 }
 
+/// Ajoute une règle de préfixe dans le `PrefixRuleEngine` SQLite.
+///
+/// Appelé par le bouton "Toujours autoriser" des composants HITL desktop.
+/// Ouvre directement la base de données `~/.apollia/permissions.db` pour
+/// persister la règle sans passer par le runtime.
+///
+/// # Errors
+///
+/// Retourne une erreur si :
+/// - la variable `HOME` est absente
+/// - la base SQLite ne peut pas être ouverte ou écrite
+/// - `action` n'est ni `"allow"` ni `"deny"`
+#[tauri::command]
+pub async fn add_permission_prefix_rule(
+    tool_name: String,
+    arg_prefix: Option<String>,
+    action: String,
+) -> Result<(), String> {
+    use apollia_permissions::prefix_rule_engine::{PrefixRule, PrefixRuleEngine, RuleAction};
+
+    if tool_name.trim().is_empty() {
+        return Err("tool_name must not be empty".to_string());
+    }
+
+    let rule_action = match action.as_str() {
+        "allow" => RuleAction::Allow,
+        "deny" => RuleAction::Deny,
+        other => return Err(format!("unknown action '{other}', expected 'allow' or 'deny'")),
+    };
+
+    let home = std::env::var("HOME").map_err(|e| format!("HOME variable not set: {e}"))?;
+    let db_path = std::path::PathBuf::from(home)
+        .join(".apollia")
+        .join("permissions.db");
+
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+
+    let mut engine = PrefixRuleEngine::new(&db_path)
+        .map_err(|e| format!("failed to open permissions database: {e}"))?;
+
+    let rule = PrefixRule {
+        id: 0,
+        tool_name,
+        arg_prefix,
+        action: rule_action,
+        created_at,
+        created_by_agent: None,
+    };
+
+    engine
+        .add_rule(&rule)
+        .map_err(|e| format!("failed to persist prefix rule: {e}"))?;
+
+    tracing::info!(
+        tool = %rule.tool_name,
+        arg_prefix = ?rule.arg_prefix,
+        "operator added always-allow prefix rule"
+    );
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

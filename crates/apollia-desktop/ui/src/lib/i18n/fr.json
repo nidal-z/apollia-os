@@ -1616,5 +1616,34 @@
       "next": "Suivant",
       "progress_label": "Progression du tour"
     }
+  },
+  "permissions": {
+    "approve": "Approuver",
+    "reject": "Refuser",
+    "always_allow": "Toujours autoriser",
+    "approving": "Approbation...",
+    "rejecting": "Refus...",
+    "reject_reason_placeholder": "Motif du refus...",
+    "reject_reason_min": "{min} caractères minimum",
+    "always_allow_success": "Règle enregistrée — sera auto-approuvé à l'avenir",
+    "always_allow_error": "Impossible d'enregistrer la règle",
+    "type_bash": "Commande",
+    "type_file_edit": "Édition fichier",
+    "type_file_write": "Écriture fichier",
+    "type_filesystem": "Système de fichiers",
+    "type_mcp": "Outil MCP",
+    "type_generic": "Action outil",
+    "mode_create": "Créer",
+    "mode_overwrite": "Écraser",
+    "op_delete": "Supprimer",
+    "op_move": "Déplacer",
+    "op_mkdir": "Créer dossier",
+    "working_dir": "Répertoire de travail",
+    "file_label": "Fichier",
+    "target_label": "Destination",
+    "server_label": "Serveur",
+    "tool_label": "Outil",
+    "arguments_label": "Arguments",
+    "input_label": "Entrée"
   }
 }

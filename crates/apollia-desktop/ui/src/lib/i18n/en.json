@@ -1616,5 +1616,34 @@
       "next": "Next",
       "progress_label": "Tour progress"
     }
+  },
+  "permissions": {
+    "approve": "Approve",
+    "reject": "Reject",
+    "always_allow": "Always allow",
+    "approving": "Approving...",
+    "rejecting": "Rejecting...",
+    "reject_reason_placeholder": "Reason for rejection...",
+    "reject_reason_min": "{min} characters minimum",
+    "always_allow_success": "Rule saved — will auto-approve in future",
+    "always_allow_error": "Failed to save rule",
+    "type_bash": "Command",
+    "type_file_edit": "Edit file",
+    "type_file_write": "Write file",
+    "type_filesystem": "Filesystem",
+    "type_mcp": "MCP tool",
+    "type_generic": "Tool action",
+    "mode_create": "Create",
+    "mode_overwrite": "Overwrite",
+    "op_delete": "Delete",
+    "op_move": "Move",
+    "op_mkdir": "Create directory",
+    "working_dir": "Working directory",
+    "file_label": "File",
+    "target_label": "Destination",
+    "server_label": "Server",
+    "tool_label": "Tool",
+    "arguments_label": "Arguments",
+    "input_label": "Input"
   }
 }
