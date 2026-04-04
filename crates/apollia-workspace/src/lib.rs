@@ -37,7 +37,9 @@ pub mod apollia_md;
 pub mod assembler;
 pub mod config;
 pub mod git;
+pub mod style;
 pub mod tree;
 
 pub use assembler::WorkspaceAssembler;
 pub use config::WorkspaceConfig;
+pub use style::StyleDetector;

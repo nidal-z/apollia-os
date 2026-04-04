@@ -50,6 +50,27 @@ pub struct WorkspaceConfig {
     /// Défaut : 5.
     #[serde(default = "default_search_depth")]
     pub apollia_md_search_depth: usize,
+
+    /// Nombre de fichiers source à échantillonner pour la détection de style.
+    ///
+    /// Minimum statistiquement représentatif pour détecter des conventions
+    /// sans surcharger le contexte LLM.
+    /// Défaut : 7.
+    #[serde(default = "default_style_sample_count")]
+    pub style_sample_count: usize,
+
+    /// Timeout en millisecondes pour l'appel LLM de détection de style.
+    ///
+    /// Dépasse ce délai → `code_style = None`, jamais de blocage.
+    /// Défaut : 1000.
+    #[serde(default = "default_style_detection_timeout_ms")]
+    pub style_detection_timeout_ms: u64,
+
+    /// Nombre de lignes lues par fichier lors de l'échantillonnage (head + tail).
+    ///
+    /// Défaut : 200 (100 lignes head + 100 lignes tail).
+    #[serde(default = "default_style_sample_lines_per_file")]
+    pub style_sample_lines_per_file: usize,
 }
 
 impl Default for WorkspaceConfig {
@@ -60,6 +81,9 @@ impl Default for WorkspaceConfig {
             git_status_max_lines: default_git_status_lines(),
             apollia_md_max_bytes: default_apollia_md_bytes(),
             apollia_md_search_depth: default_search_depth(),
+            style_sample_count: default_style_sample_count(),
+            style_detection_timeout_ms: default_style_detection_timeout_ms(),
+            style_sample_lines_per_file: default_style_sample_lines_per_file(),
         }
     }
 }
@@ -82,4 +106,16 @@ fn default_apollia_md_bytes() -> usize {
 
 fn default_search_depth() -> usize {
     5
+}
+
+fn default_style_sample_count() -> usize {
+    7
+}
+
+fn default_style_detection_timeout_ms() -> u64 {
+    1000
+}
+
+fn default_style_sample_lines_per_file() -> usize {
+    200
 }

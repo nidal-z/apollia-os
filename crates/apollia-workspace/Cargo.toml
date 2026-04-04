@@ -7,6 +7,7 @@ description = "Apollia OS — workspace context collector (git, APOLLIA.md, dire
 
 [dependencies]
 apollia-core = { workspace = true }
+apollia-llm  = { workspace = true, features = ["cloud"] }
 tokio        = { workspace = true }
 serde        = { workspace = true }
 tracing      = { workspace = true }

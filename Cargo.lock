@@ -511,6 +511,7 @@ name = "apollia-workspace"
 version = "0.1.0"
 dependencies = [
  "apollia-core",
+ "apollia-llm",
  "serde",
  "tempfile",
  "tokio",

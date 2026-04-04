@@ -1,8 +1,11 @@
 //! Assembleur de contexte workspace avec cache TTL configurable.
 //!
-//! [`WorkspaceAssembler`] orchestre [`GitContextCollector`], [`ApolliamdFinder`]
-//! et [`DirectoryTreeBuilder`] en parallèle via `tokio::join!`.
-//! Un cache [`RwLock`] évite les I/O répétées sur les sessions longues.
+//! [`WorkspaceAssembler`] orchestre [`GitContextCollector`], [`ApolliamdFinder`],
+//! [`DirectoryTreeBuilder`] et [`StyleDetector`] en parallèle via `tokio::join!`
+//! et `tokio::spawn`. Un cache [`RwLock`] évite les I/O répétées sur les sessions longues.
+//!
+//! La détection de style est optionnelle — activée en fournissant un [`LlmRouter`]
+//! via [`WorkspaceAssembler::with_llm_router`]. Sans LLM, `code_style` reste `None`.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -11,18 +14,20 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 use apollia_core::WorkspaceContext;
+use apollia_llm::LlmRouter;
 
 use crate::apollia_md::ApolliamdFinder;
 use crate::config::WorkspaceConfig;
 use crate::git::GitContextCollector;
+use crate::style::StyleDetector;
 use crate::tree::DirectoryTreeBuilder;
 
 /// Collecte et met en cache le contexte workspace d'un répertoire.
 ///
-/// La collecte est orchestrée en parallèle : git, `APOLLIA.md` et arborescence
-/// sont lancés simultanément via `tokio::join!`. Un timeout global configurable
-/// garantit qu'aucun appel à [`collect`](WorkspaceAssembler::collect) ne bloque
-/// indéfiniment.
+/// La collecte est orchestrée en parallèle : git, `APOLLIA.md`, arborescence
+/// et détection de style (si un [`LlmRouter`] est fourni) sont lancés simultanément.
+/// Un timeout global configurable garantit qu'aucun appel à
+/// [`collect`](WorkspaceAssembler::collect) ne bloque indéfiniment.
 ///
 /// Le cache est invalidé après [`context_ttl_secs`](WorkspaceConfig::context_ttl_secs)
 /// secondes. Deux appels rapprochés sur le même `cwd` retournent le même
@@ -31,14 +36,20 @@ pub struct WorkspaceAssembler {
     /// Cache partagé : instant de collecte + contexte. `None` avant le premier appel.
     cache: Arc<RwLock<Option<(Instant, WorkspaceContext)>>>,
     config: WorkspaceConfig,
+    /// Backend LLM pour la détection de style. `None` → `code_style` reste `None`.
+    llm_router: Option<Arc<LlmRouter>>,
 }
 
 impl WorkspaceAssembler {
     /// Construit un assembleur avec la configuration fournie.
+    ///
+    /// La détection de style est désactivée — utiliser [`with_llm_router`](Self::with_llm_router)
+    /// pour l'activer.
     pub fn new(config: WorkspaceConfig) -> Self {
         Self {
             cache: Arc::new(RwLock::new(None)),
             config,
+            llm_router: None,
         }
     }
 
@@ -53,7 +64,17 @@ impl WorkspaceAssembler {
         Self {
             cache: Arc::new(RwLock::new(None)),
             config,
+            llm_router: None,
         }
+    }
+
+    /// Active la détection de style en fournissant un backend LLM.
+    ///
+    /// Retourne `self` pour permettre le chaînage :
+    /// `WorkspaceAssembler::new(config).with_llm_router(router)`.
+    pub fn with_llm_router(mut self, router: Arc<LlmRouter>) -> Self {
+        self.llm_router = Some(router);
+        self
     }
 
     /// Collecte le contexte workspace de `cwd`.
@@ -96,7 +117,20 @@ impl WorkspaceAssembler {
     }
 
     /// Collecte réelle en parallèle — sans timeout (géré par l'appelant).
+    ///
+    /// Lance `StyleDetector` via `tokio::spawn` simultanément aux autres collecteurs
+    /// pour que la détection de style ne rallonge pas le chemin critique.
     async fn collect_inner(&self, cwd: &Path) -> WorkspaceContext {
+        // Lancer la détection de style en parallèle si un LLM est disponible.
+        let style_handle = self.llm_router.as_ref().map(|llm| {
+            let cwd_owned = cwd.to_path_buf();
+            let llm_clone = llm.clone();
+            let config = self.config.clone();
+            tokio::spawn(
+                async move { StyleDetector::detect(&cwd_owned, &llm_clone, &config).await },
+            )
+        });
+
         let (git_result, apollia_md_result, tree) = tokio::join!(
             GitContextCollector::collect(cwd, self.config.git_status_max_lines),
             ApolliamdFinder::find(
@@ -107,6 +141,20 @@ impl WorkspaceAssembler {
             DirectoryTreeBuilder::build(cwd, 100),
         );
 
+        // Attendre le résultat de la détection de style avec un timeout dédié.
+        let code_style = if let Some(handle) = style_handle {
+            tokio::time::timeout(
+                Duration::from_millis(self.config.style_detection_timeout_ms),
+                handle,
+            )
+            .await
+            .ok()
+            .and_then(|r| r.ok())
+            .flatten()
+        } else {
+            None
+        };
+
         WorkspaceContext {
             git_branch: git_result.branch,
             git_status: git_result.status,
@@ -115,7 +163,7 @@ impl WorkspaceAssembler {
             apollia_md: apollia_md_result.as_ref().map(|(_, c)| c.clone()),
             apollia_md_path: apollia_md_result.map(|(p, _)| p),
             directory_tree: tree,
-            code_style: None,
+            code_style,
             collected_at: Some(Instant::now()),
         }
     }
