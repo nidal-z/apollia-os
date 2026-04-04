@@ -840,6 +840,21 @@ pub enum RuntimeEvent {
         request_id: String,
     },
 
+    // ── File Timestamp Cache events ──────────────────
+    /// Un fichier lu précédemment a été modifié entre deux accès.
+    ///
+    /// Émis par `FileTimestampCache::record_read()` quand le `mtime` du fichier
+    /// sur disque diffère du `mtime` enregistré lors du dernier accès.
+    /// ORIA invalide les entrées du cache de plan pour ce fichier.
+    FileModifiedSinceRead {
+        /// Chemin absolu du fichier modifié.
+        path: std::path::PathBuf,
+        /// Timestamp `mtime` lors du dernier accès (millisecondes Unix).
+        old_mtime_ms: i64,
+        /// Timestamp `mtime` actuel (millisecondes Unix).
+        new_mtime_ms: i64,
+    },
+
     // ── Binary Feedback / Plan Alternatives events ──
     /// Deux plans alternatifs ont été générés en parallèle par le Reasoner.
     ///
@@ -1228,6 +1243,12 @@ mod tests {
                     std::path::PathBuf::from("src/main.rs"),
                     std::path::PathBuf::from("/tmp/out.txt"),
                 ],
+            },
+            // ── File Timestamp Cache ──────────────────────────
+            RuntimeEvent::FileModifiedSinceRead {
+                path: std::path::PathBuf::from("/tmp/config.toml"),
+                old_mtime_ms: 1_700_000_000_000,
+                new_mtime_ms: 1_700_000_060_000,
             },
         ];
 

@@ -10,13 +10,24 @@ use thiserror::Error;
 use tokio::fs;
 use tokio::io::AsyncReadExt;
 
+#[cfg(feature = "memory-search")]
+use {apollia_memory::FileTimestampCache, std::sync::Arc};
+
 /// Read the contents of a file inside the agent's sandbox.
 ///
 /// Supports optional offset/limit for reading portions of large files.
 /// Returns file content as UTF-8 text with line numbers prepended.
+///
+/// When the `memory-search` feature is enabled and a [`FileTimestampCache`] is
+/// wired in via [`FileRead::with_timestamp_cache`], each successful read records
+/// the file's `mtime`. If the file was modified since the last read a
+/// [`RuntimeEvent::FileModifiedSinceRead`] event is emitted non-blocking.
 #[derive(Debug, Clone)]
 pub struct FileRead {
     sandbox: SandboxRoot,
+    /// Optional timestamp cache wired in for stale-plan detection.
+    #[cfg(feature = "memory-search")]
+    timestamp_cache: Option<Arc<tokio::sync::Mutex<FileTimestampCache>>>,
 }
 
 /// Errors produced by [`FileRead`].
@@ -75,7 +86,26 @@ impl FileRead {
             cause: e.to_string(),
         })?;
 
-        Ok(Self { sandbox })
+        Ok(Self {
+            sandbox,
+            #[cfg(feature = "memory-search")]
+            timestamp_cache: None,
+        })
+    }
+
+    /// Attach a [`FileTimestampCache`] to this executor.
+    ///
+    /// When set, each successful file read records the file's `mtime`.
+    /// If the mtime has changed since the last read a
+    /// [`RuntimeEvent::FileModifiedSinceRead`] event is emitted non-blocking.
+    /// Errors from the cache are logged and never propagated to the agent.
+    #[cfg(feature = "memory-search")]
+    pub fn with_timestamp_cache(
+        mut self,
+        cache: Arc<tokio::sync::Mutex<FileTimestampCache>>,
+    ) -> Self {
+        self.timestamp_cache = Some(cache);
+        self
     }
 
     /// Execute a file read operation.
@@ -148,11 +178,25 @@ impl FileRead {
             formatted_lines.join("\n")
         };
 
-        Ok(FileReadOutput {
+        let output = FileReadOutput {
             content: output_content,
             total_lines,
             truncated,
-        })
+        };
+
+        #[cfg(feature = "memory-search")]
+        if let Some(cache) = &self.timestamp_cache {
+            let mut guard = cache.lock().await;
+            if let Err(e) = guard.record_read(&resolved_path).await {
+                tracing::warn!(
+                    path = %resolved_path.display(),
+                    error = %e,
+                    "file timestamp cache record failed"
+                );
+            }
+        }
+
+        Ok(output)
     }
 
     /// Return the tool descriptor for registration in the ToolRegistry.

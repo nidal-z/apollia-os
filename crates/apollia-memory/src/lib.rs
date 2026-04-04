@@ -14,6 +14,7 @@
 //! The `unicode61` tokenizer is mandatory (ADR-009): "réunion" must match "reunion".
 
 pub mod episodic;
+pub mod file_timestamp_cache;
 pub mod manager;
 pub mod plan_choice_store;
 pub mod procedural;
@@ -21,3 +22,5 @@ pub mod search;
 pub mod semantic;
 pub mod store;
 pub mod user_memory;
+
+pub use file_timestamp_cache::{FileTimestampCache, FileTimestampCacheError, FileTimestampEntry};
