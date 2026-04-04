@@ -51,6 +51,9 @@ pub enum StartError {
     /// A runtime is already listening on the requested port or socket.
     #[error("runtime already running on {address} — use `apollia-os stop` first")]
     AlreadyRunning { address: String },
+    /// API token could not be loaded or generated while `require_token = true`.
+    #[error("failed to load or generate API token: {0}")]
+    ApiToken(#[from] apollia_runtime::api::TokenFileError),
 }
 
 /// Real agent loader using AIPLoader + validate_agent (ADR-019).
@@ -900,14 +903,12 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
     let bind_addr = api_cfg.bind.clone();
 
     // Load or generate the API token when require_token = true.
+    // Principle #4 (Fail fast): if the token cannot be loaded or generated, refuse to start
+    // rather than silently degrading to an unauthenticated API.
     let api_token: Option<String> = if api_cfg.require_token {
-        match apollia_runtime::api::load_or_generate_token(&data_dir) {
-            Ok(token) => Some(token),
-            Err(e) => {
-                tracing::warn!(error = %e, "failed to load api-token — starting without auth");
-                None
-            }
-        }
+        let token = apollia_runtime::api::load_or_generate_token(&data_dir)
+            .map_err(StartError::ApiToken)?;
+        Some(token)
     } else {
         tracing::info!("API token auth disabled via require_token = false");
         None

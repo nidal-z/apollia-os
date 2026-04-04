@@ -1,0 +1,5 @@
+[advisories]
+# RUSTSEC-2025-0020: PyString::from_object buffer overflow in pyo3 0.22.x
+# Fix requires upgrading pyo3 0.22 → 0.24 (breaking API changes in PyO3 + pyo3-async-runtimes).
+# Tracked in: apollia-aip sprint story — pyo3 0.24 migration.
+ignore = ["RUSTSEC-2025-0020"]
