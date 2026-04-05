@@ -72,25 +72,55 @@ pub enum ChannelKind {
     Terminal,
 }
 
-/// Sévérité d'une notification, du moins critique au plus critique.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+/// Niveau de sévérité d'une notification, du moins critique au plus critique.
+///
+/// L'ordre des variantes définit l'ordre naturel (Ord) utilisé pour le filtrage :
+/// `Debug < Info < Warning < Error < Critical`.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
+    /// Diagnostic — destiné aux développeurs, non affiché aux utilisateurs en production.
+    Debug = 0,
     /// Information — événement non bloquant.
-    Info,
+    #[default]
+    Info = 1,
     /// Avertissement — intervention recommandée.
-    Warning,
+    Warning = 2,
     /// Erreur — intervention requise.
-    Error,
+    Error = 3,
+    /// Critique — défaillance grave, intervention immédiate.
+    Critical = 4,
 }
 
 impl Severity {
     /// Retourne la représentation textuelle de la sévérité.
     pub fn as_str(&self) -> &'static str {
         match self {
+            Severity::Debug => "debug",
             Severity::Info => "info",
             Severity::Warning => "warning",
             Severity::Error => "error",
+            Severity::Critical => "critical",
+        }
+    }
+}
+
+impl ChannelConfig {
+    /// Retourne la sévérité minimale par défaut selon le type de canal.
+    ///
+    /// Ces valeurs sont appliquées quand `min_severity` est absent de la configuration :
+    /// - `Desktop` → [`Severity::Error`] (bureau ne reçoit que les alertes graves)
+    /// - `Webhook` → [`Severity::Info`] (webhook reçoit tout)
+    /// - `Terminal` → [`Severity::Warning`] (terminal filtre les informations de bas niveau)
+    /// - `Sse` → [`Severity::Info`] (SSE géré par le dashboard, pas de filtrage strict)
+    pub fn default_min_severity(kind: &ChannelKind) -> Severity {
+        match kind {
+            ChannelKind::Desktop => Severity::Error,
+            ChannelKind::Webhook => Severity::Info,
+            ChannelKind::Terminal => Severity::Warning,
+            ChannelKind::Sse => Severity::Info,
         }
     }
 }
@@ -149,12 +179,17 @@ pub fn build_channels(
         if !cfg.enabled {
             continue;
         }
+        let min_severity = cfg
+            .min_severity
+            .unwrap_or_else(|| ChannelConfig::default_min_severity(&cfg.kind));
+
         match cfg.kind {
             ChannelKind::Desktop => {
                 channels.push(Box::new(DesktopChannel::new(
                     cfg.id.clone(),
                     cfg.enabled,
                     cfg.events.clone(),
+                    min_severity,
                 )));
             }
             ChannelKind::Webhook => {
@@ -168,10 +203,10 @@ pub fn build_channels(
                     enabled: cfg.enabled,
                     events: cfg.events.clone(),
                     signing_secret: cfg.signing_secret.clone(),
+                    min_severity,
                 })));
             }
             ChannelKind::Terminal => {
-                let min_severity = cfg.min_severity.unwrap_or(Severity::Info);
                 channels.push(Box::new(TerminalChannel::detect(
                     cfg.id.clone(),
                     cfg.enabled,
@@ -269,10 +304,48 @@ mod tests {
     }
 
     #[test]
+    fn test_severity_ordering() {
+        // GIVEN les 5 niveaux de sévérité
+        // WHEN comparés
+        // THEN Debug < Info < Warning < Error < Critical
+        assert!(Severity::Debug < Severity::Info);
+        assert!(Severity::Info < Severity::Warning);
+        assert!(Severity::Warning < Severity::Error);
+        assert!(Severity::Error < Severity::Critical);
+    }
+
+    #[test]
+    fn test_severity_default_is_info() {
+        // GIVEN / WHEN / THEN
+        assert_eq!(Severity::default(), Severity::Info);
+    }
+
+    #[test]
     fn test_severity_as_str() {
+        assert_eq!(Severity::Debug.as_str(), "debug");
         assert_eq!(Severity::Info.as_str(), "info");
         assert_eq!(Severity::Warning.as_str(), "warning");
         assert_eq!(Severity::Error.as_str(), "error");
+        assert_eq!(Severity::Critical.as_str(), "critical");
+    }
+
+    #[test]
+    fn test_default_min_severity_per_channel() {
+        // GIVEN les 3 types de canaux configurables
+        // WHEN on appelle default_min_severity()
+        // THEN Desktop → Error, Webhook → Info, Terminal → Warning
+        assert_eq!(
+            ChannelConfig::default_min_severity(&ChannelKind::Desktop),
+            Severity::Error
+        );
+        assert_eq!(
+            ChannelConfig::default_min_severity(&ChannelKind::Webhook),
+            Severity::Info
+        );
+        assert_eq!(
+            ChannelConfig::default_min_severity(&ChannelKind::Terminal),
+            Severity::Warning
+        );
     }
 
     // build_channels retourne un DesktopChannel quand desktop enabled=true

@@ -27,22 +27,30 @@ pub struct DesktopChannel {
     id: String,
     enabled: bool,
     events: Option<Vec<String>>,
+    /// Seuil de sévérité : les notifications moins critiques sont ignorées silencieusement.
+    min_severity: Severity,
 }
 
 impl DesktopChannel {
-    /// Crée un canal desktop avec l'identifiant et la configuration donnés.
-    pub fn new(id: impl Into<String>, enabled: bool, events: Option<Vec<String>>) -> Self {
+    /// Crée un canal desktop avec l'identifiant, la configuration et le seuil de sévérité donnés.
+    pub fn new(
+        id: impl Into<String>,
+        enabled: bool,
+        events: Option<Vec<String>>,
+        min_severity: Severity,
+    ) -> Self {
         Self {
             id: id.into(),
             enabled,
             events,
+            min_severity,
         }
     }
 }
 
 impl Default for DesktopChannel {
     fn default() -> Self {
-        Self::new("desktop", true, None)
+        Self::new("desktop", true, None, Severity::Error)
     }
 }
 
@@ -68,6 +76,10 @@ impl NotificationChannel for DesktopChannel {
     /// dans un `spawn_blocking` en arrière-plan. Les erreurs OS sont loggées en
     /// `warn!` sans propagation.
     async fn send(&self, notif: &Notification) -> Result<(), NotifError> {
+        if notif.severity < self.min_severity {
+            return Ok(());
+        }
+
         // Dégradation gracieuse en CI headless (Linux sans display)
         #[cfg(target_os = "linux")]
         if std::env::var("DISPLAY").is_err() && std::env::var("DBUS_SESSION_BUS_ADDRESS").is_err() {
@@ -311,9 +323,9 @@ fn show_os_notification_fallback(summary: String, body: String) {
 fn severity_to_urgency(s: Severity) -> notify_rust::Urgency {
     use notify_rust::Urgency;
     match s {
-        Severity::Error => Urgency::Critical,
+        Severity::Critical | Severity::Error => Urgency::Critical,
         Severity::Warning => Urgency::Normal,
-        Severity::Info => Urgency::Low,
+        Severity::Info | Severity::Debug => Urgency::Low,
     }
 }
 
@@ -322,9 +334,9 @@ fn severity_to_urgency(s: Severity) -> notify_rust::Urgency {
 /// Retourne une représentation textuelle de la sévérité utilisable sur toutes les plateformes.
 pub fn severity_as_urgency_str(s: Severity) -> &'static str {
     match s {
-        Severity::Error => "critical",
+        Severity::Critical | Severity::Error => "critical",
         Severity::Warning => "normal",
-        Severity::Info => "low",
+        Severity::Info | Severity::Debug => "low",
     }
 }
 
@@ -353,9 +365,11 @@ mod tests {
     #[test]
     fn test_severity_to_urgency_mapping() {
         // GIVEN / WHEN / THEN — vérification du mapping textuel cross-platform
+        assert_eq!(severity_as_urgency_str(Severity::Critical), "critical");
         assert_eq!(severity_as_urgency_str(Severity::Error), "critical");
         assert_eq!(severity_as_urgency_str(Severity::Warning), "normal");
         assert_eq!(severity_as_urgency_str(Severity::Info), "low");
+        assert_eq!(severity_as_urgency_str(Severity::Debug), "low");
     }
 
     #[test]
@@ -367,9 +381,17 @@ mod tests {
     }
 
     #[test]
+    fn test_desktop_default_min_severity_is_error() {
+        // GIVEN canal desktop par défaut
+        // WHEN / THEN
+        let channel = DesktopChannel::default();
+        assert_eq!(channel.min_severity, Severity::Error);
+    }
+
+    #[test]
     fn test_desktop_channel_accepts_global_events() {
         // GIVEN canal activé sans liste propre → délègue à la liste globale
-        let channel = DesktopChannel::new("desktop", true, None);
+        let channel = DesktopChannel::new("desktop", true, None, Severity::Error);
         let config = NotificationConfig {
             events: vec!["task.input_required".into(), "task.failed".into()],
             channels: vec![],
@@ -385,7 +407,7 @@ mod tests {
     #[test]
     fn test_desktop_channel_accepts_disabled() {
         // GIVEN canal désactivé
-        let channel = DesktopChannel::new("desktop", false, None);
+        let channel = DesktopChannel::new("desktop", false, None, Severity::Error);
         let config = NotificationConfig {
             events: vec!["task.input_required".into()],
             channels: vec![],
@@ -398,8 +420,12 @@ mod tests {
     #[test]
     fn test_desktop_channel_accepts_per_channel_events() {
         // GIVEN canal avec liste propre restreinte à un sous-ensemble
-        let channel =
-            DesktopChannel::new("desktop", true, Some(vec!["task.input_required".into()]));
+        let channel = DesktopChannel::new(
+            "desktop",
+            true,
+            Some(vec!["task.input_required".into()]),
+            Severity::Error,
+        );
         let config = NotificationConfig {
             events: vec!["task.input_required".into(), "task.failed".into()],
             channels: vec![],
@@ -411,9 +437,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_desktop_filters_info_when_min_severity_is_error() {
+        // GIVEN canal desktop avec min_severity = Error
+        let channel = DesktopChannel::new("desktop", true, None, Severity::Error);
+        let notif = make_notif("task.completed", None, HashMap::new());
+        // notif.severity = Severity::Warning (voir make_notif) < Error → filtré
+
+        // WHEN
+        let notif_info = Notification {
+            severity: Severity::Info,
+            ..notif
+        };
+        let result = channel.send(&notif_info).await;
+
+        // THEN — Ok(()) immédiat, rien envoyé
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_desktop_sends_when_severity_meets_threshold() {
+        // GIVEN canal desktop avec min_severity = Error, notification Error
+        let channel = DesktopChannel::new("desktop", true, None, Severity::Error);
+        let notif = Notification {
+            event: "task.failed".into(),
+            timestamp: chrono::Utc::now(),
+            task_id: Some("t-001".into()),
+            agent: Some("test-agent".into()),
+            message: "Erreur".into(),
+            metadata: HashMap::new(),
+            severity: Severity::Error,
+        };
+
+        // WHEN
+        let result = channel.send(&notif).await;
+
+        // THEN — Ok(()) (envoi lancé, retour non-bloquant)
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
     async fn test_ac6_send_is_nonblocking() {
-        // GIVEN un canal desktop et une notification task.failed
-        let channel = DesktopChannel::default();
+        // GIVEN un canal desktop avec min_severity = Info et une notification task.failed
+        let channel = DesktopChannel::new("desktop", true, None, Severity::Info);
         let notif = make_notif("task.failed", Some("t-test"), HashMap::new());
 
         // WHEN — send() appelé depuis un contexte async
@@ -428,7 +493,7 @@ mod tests {
     #[tokio::test]
     async fn test_ac6_send_hitl_is_nonblocking() {
         // GIVEN une notification task.input_required (HITL)
-        let channel = DesktopChannel::default();
+        let channel = DesktopChannel::new("desktop", true, None, Severity::Info);
         let mut metadata = HashMap::new();
         metadata.insert(
             "resume_url".into(),

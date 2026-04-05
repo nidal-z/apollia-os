@@ -6,7 +6,7 @@ use reqwest::Client;
 use sha2::Sha256;
 
 use crate::{
-    config::{channel_accepts_event, NotificationConfig},
+    config::{channel_accepts_event, NotificationConfig, Severity},
     engine::{NotifError, Notification, NotificationChannel},
 };
 
@@ -36,6 +36,13 @@ pub struct WebhookChannelConfig {
     /// Si `Some`, chaque requête reçoit un header `X-Apollia-Signature: sha256=<hex>`.
     /// Si `None`, le webhook est envoyé sans signature (rétrocompatible).
     pub signing_secret: Option<String>,
+    /// Sévérité minimale acceptée par ce canal.
+    ///
+    /// Les notifications dont la sévérité est inférieure à ce seuil sont silencieusement
+    /// ignorées. Défaut lors de la désérialisation : [`Severity::Info`] (toutes les
+    /// notifications non-debug sont transmises).
+    #[serde(default)]
+    pub min_severity: Severity,
 }
 
 /// Canal de notification via HTTP POST — format JSON fixe Apollia.
@@ -146,6 +153,10 @@ impl NotificationChannel for WebhookChannel {
     /// réponse HTTP non-2xx. L'erreur est non-critique : le runtime la logge en
     /// `warn!` sans interrompre le dispatch.
     async fn send(&self, notif: &Notification) -> Result<(), NotifError> {
+        if notif.severity < self.config.min_severity {
+            return Ok(());
+        }
+
         let payload = build_payload(notif);
         let body_bytes =
             serde_json::to_vec(&payload).map_err(|e| NotifError::WebhookFailed(e.to_string()))?;
@@ -224,6 +235,7 @@ mod tests {
             enabled: true,
             events: None,
             signing_secret: None,
+            min_severity: Severity::Info,
         })
     }
 
@@ -234,6 +246,7 @@ mod tests {
             enabled: true,
             events: None,
             signing_secret: Some(secret.into()),
+            min_severity: Severity::Info,
         })
     }
 
@@ -248,6 +261,7 @@ mod tests {
             enabled: false,
             events: None,
             signing_secret: None,
+            min_severity: Severity::Info,
         });
         let config = make_config(vec!["task.input_required"]);
 
@@ -277,6 +291,7 @@ mod tests {
             enabled: true,
             events: Some(vec!["task.input_required".into(), "task.failed".into()]),
             signing_secret: None,
+            min_severity: Severity::Info,
         });
         let config = make_config(vec!["task.input_required", "task.failed", "agent.degraded"]);
 
@@ -284,6 +299,42 @@ mod tests {
         assert!(channel.accepts("task.input_required", &config));
         assert!(channel.accepts("task.failed", &config));
         assert!(!channel.accepts("agent.degraded", &config));
+    }
+
+    // ─── filtrage par sévérité ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_webhook_filters_below_min_severity() {
+        // GIVEN canal webhook avec min_severity = Warning
+        let channel = WebhookChannel::new(WebhookChannelConfig {
+            id: "webhook-warn".into(),
+            url: "http://127.0.0.1:1".into(),
+            enabled: true,
+            events: None,
+            signing_secret: None,
+            min_severity: Severity::Warning,
+        });
+
+        // WHEN notification Info (< Warning) dispatchée
+        let notif = make_notif("task.completed", None, Severity::Info);
+
+        // THEN Ok(()) immédiat sans tentative réseau
+        let result = channel.send(&notif).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_webhook_default_min_severity_is_info() {
+        // GIVEN WebhookChannelConfig avec min_severity par défaut (serde default)
+        let json = r#"{
+            "id": "webhook",
+            "url": "http://example.com",
+            "enabled": true
+        }"#;
+        let cfg: WebhookChannelConfig = serde_json::from_str(json).expect("déserialisation");
+
+        // WHEN / THEN — min_severity = Info (Severity::default())
+        assert_eq!(cfg.min_severity, Severity::Info);
     }
 
     // ─── structure payload JSON ───────────────────────────────────────
@@ -380,6 +431,7 @@ mod tests {
             enabled: true,
             events: None,
             signing_secret: None,
+            min_severity: Severity::Info,
         };
         let client = Client::builder()
             .timeout(Duration::from_millis(300))
@@ -430,6 +482,7 @@ mod tests {
             enabled: true,
             events: None,
             signing_secret: None,
+            min_severity: Severity::Info,
         });
 
         // WHEN
