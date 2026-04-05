@@ -15,6 +15,8 @@ pub mod file_write;
 pub mod http_fetch;
 #[cfg(feature = "memory-search")]
 pub mod memory_search;
+pub mod notebook_edit;
+pub mod notebook_read;
 pub mod persistent_bash;
 pub mod python_executor;
 pub mod risk_classifier;

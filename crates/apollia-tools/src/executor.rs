@@ -22,6 +22,8 @@ use crate::tools::file_grep::{FileGrep, FileGrepError, FileGrepInput};
 use crate::tools::file_list::{FileList, FileListError, FileListInput};
 use crate::tools::file_read::{FileRead, FileReadError, FileReadInput};
 use crate::tools::file_write::{FileWrite, FileWriteError, FileWriteInput};
+use crate::tools::notebook_edit::{NotebookEdit, NotebookEditError, NotebookEditInput};
+use crate::tools::notebook_read::{NotebookRead, NotebookReadError, NotebookReadInput};
 use crate::tools::python_executor::{PythonExecutor, PythonExecutorError, PythonInput};
 
 #[cfg(feature = "http")]
@@ -675,6 +677,79 @@ impl ToolExecutor for FileGrep {
                 FileGrepError::SandboxViolation { .. } => "sandbox_violation",
                 FileGrepError::InvalidRegex(_) => "invalid_regex",
                 FileGrepError::IoError(_) => "io_error",
+            };
+            ToolExecutionError::ExecutionFailed {
+                code: code.to_string(),
+                message: e.to_string(),
+            }
+        })?;
+
+        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+            code: "serialization_error".to_string(),
+            message: e.to_string(),
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ToolExecutor implementations — notebook tools
+// ---------------------------------------------------------------------------
+
+#[async_trait::async_trait]
+impl ToolExecutor for NotebookRead {
+    fn name(&self) -> &str {
+        "notebook_read"
+    }
+
+    fn is_read_only(&self) -> bool {
+        true
+    }
+
+    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
+        let typed: NotebookReadInput =
+            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                message: e.to_string(),
+            })?;
+
+        let output = self.run(typed).await.map_err(|e| {
+            let code = match &e {
+                NotebookReadError::SandboxViolation { .. } => "sandbox_violation",
+                NotebookReadError::NotFound { .. } => "not_found",
+                NotebookReadError::Io { .. } => "io_error",
+                NotebookReadError::InvalidNotebook => "invalid_input",
+            };
+            ToolExecutionError::ExecutionFailed {
+                code: code.to_string(),
+                message: e.to_string(),
+            }
+        })?;
+
+        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+            code: "serialization_error".to_string(),
+            message: e.to_string(),
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl ToolExecutor for NotebookEdit {
+    fn name(&self) -> &str {
+        "notebook_edit"
+    }
+
+    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
+        let typed: NotebookEditInput =
+            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                message: e.to_string(),
+            })?;
+
+        let output = self.run(typed).await.map_err(|e| {
+            let code = match &e {
+                NotebookEditError::SandboxViolation { .. } => "sandbox_violation",
+                NotebookEditError::NotFound { .. } => "not_found",
+                NotebookEditError::Io { .. } => "io_error",
+                NotebookEditError::InvalidNotebook => "invalid_input",
+                NotebookEditError::IndexOutOfBounds { .. } => "index_out_of_bounds",
             };
             ToolExecutionError::ExecutionFailed {
                 code: code.to_string(),

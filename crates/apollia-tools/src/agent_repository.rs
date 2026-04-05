@@ -412,6 +412,7 @@ mod tests {
             tools_requiring_approval: Vec::new(),
             llm_backend: None,
             packages: vec![],
+            memory_config: None,
         }
     }
 

@@ -47,6 +47,12 @@ pub use task_repository::{
 };
 pub use tools::bash_executor::{BashExecutor, BashExecutorError, BashInput, BashOutput};
 pub use tools::bash_validator::BashValidator;
+pub use tools::notebook_edit::{
+    NotebookEdit, NotebookEditError, NotebookEditInput, NotebookEditOutput,
+};
+pub use tools::notebook_read::{
+    NotebookRead, NotebookReadError, NotebookReadInput, NotebookReadOutput,
+};
 pub use tools::persistent_bash::{
     registry::ShellSessionRegistry,
     session::{PersistentBashError, SessionId, ShellOutput},

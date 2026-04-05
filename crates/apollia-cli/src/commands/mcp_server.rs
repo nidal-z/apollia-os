@@ -1,6 +1,6 @@
 //! `apollia-os mcp-server` — launch Apollia as an MCP stdio server.
 //!
-//! Exposes 9 native tools to external MCP clients (Claude Desktop, VS Code
+//! Exposes 11 native tools to external MCP clients (Claude Desktop, VS Code
 //! Copilot Chat, Cursor) via stdin/stdout JSON-RPC 2.0.
 //!
 //! With `--with-runtime`, starts the full Apollia runtime first and adds the
@@ -18,6 +18,8 @@ use apollia_tools::tools::file_grep::FileGrep;
 use apollia_tools::tools::file_list::FileList;
 use apollia_tools::tools::file_read::FileRead;
 use apollia_tools::tools::file_write::FileWrite;
+use apollia_tools::tools::notebook_edit::NotebookEdit;
+use apollia_tools::tools::notebook_read::NotebookRead;
 
 /// Arguments for the `apollia-os mcp-server` subcommand.
 #[derive(Debug, clap::Args)]
@@ -51,7 +53,7 @@ pub enum McpServerCommandError {
 
 /// Run the MCP stdio server.
 ///
-/// Builds a [`ToolDispatcher`] with the 7 native file/bash executors,
+/// Builds a [`ToolDispatcher`] with the 9 native file/bash/notebook executors,
 /// constructs [`McpStdioServer`], and enters the read-dispatch-write loop.
 /// When `args.with_runtime` is `true`, a [`SubmitTaskHandler`] backed by the
 /// Apollia runtime is injected and `submit_task` becomes available.
@@ -74,7 +76,7 @@ pub async fn run(args: &McpServerArgs) -> Result<(), McpServerCommandError> {
     Ok(())
 }
 
-/// Construct a [`ToolDispatcher`] pre-loaded with the 7 native executors.
+/// Construct a [`ToolDispatcher`] pre-loaded with the 9 native executors.
 fn build_dispatcher(sandbox_root: PathBuf) -> Result<ToolDispatcher, McpServerCommandError> {
     let bash = BashExecutor::new();
 
@@ -88,7 +90,11 @@ fn build_dispatcher(sandbox_root: PathBuf) -> Result<ToolDispatcher, McpServerCo
         .map_err(|e| McpServerCommandError::FileToolInit(e.to_string()))?;
     let file_glob = FileGlob::new(sandbox_root.clone())
         .map_err(|e| McpServerCommandError::FileToolInit(e.to_string()))?;
-    let file_grep = FileGrep::new(sandbox_root)
+    let file_grep = FileGrep::new(sandbox_root.clone())
+        .map_err(|e| McpServerCommandError::FileToolInit(e.to_string()))?;
+    let notebook_read = NotebookRead::new(sandbox_root.clone())
+        .map_err(|e| McpServerCommandError::FileToolInit(e.to_string()))?;
+    let notebook_edit = NotebookEdit::new(sandbox_root)
         .map_err(|e| McpServerCommandError::FileToolInit(e.to_string()))?;
 
     Ok(ToolDispatcher::new(vec![
@@ -99,6 +105,8 @@ fn build_dispatcher(sandbox_root: PathBuf) -> Result<ToolDispatcher, McpServerCo
         Box::new(file_list),
         Box::new(file_glob),
         Box::new(file_grep),
+        Box::new(notebook_read),
+        Box::new(notebook_edit),
     ]))
 }
 
