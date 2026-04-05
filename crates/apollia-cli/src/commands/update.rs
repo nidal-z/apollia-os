@@ -273,10 +273,7 @@ pub async fn run(args: &UpdateArgs, owner: &str) -> i32 {
                 crate::exit_codes::SUCCESS
             }
             Ok(None) => {
-                println!(
-                    "Already up to date ({}).",
-                    env!("CARGO_PKG_VERSION")
-                );
+                println!("Already up to date ({}).", env!("CARGO_PKG_VERSION"));
                 crate::exit_codes::SUCCESS
             }
             Err(e) => {

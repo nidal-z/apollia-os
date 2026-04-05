@@ -225,6 +225,9 @@ enum Commands {
         #[command(subcommand)]
         command: WorkspaceCommand,
     },
+
+    /// Automated code or plan review via the apollia-review agent.
+    Review(commands::review::ReviewArgs),
 }
 
 fn main() {
@@ -315,6 +318,7 @@ fn main() {
             },
             Commands::Update(args) => commands::update::run(&args, "apollia-os").await,
             Commands::Workspace { command } => commands::workspace::run(&command, json).await,
+            Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
         }
     });
 

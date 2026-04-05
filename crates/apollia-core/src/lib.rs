@@ -25,6 +25,7 @@ pub mod pending_approvals;
 pub mod plan_alternatives;
 pub mod process;
 pub mod result;
+pub mod review;
 pub mod sandbox;
 pub mod stt_config;
 pub mod task;
@@ -49,6 +50,7 @@ pub use process::ProcessState;
 pub use result::{
     AIPArtifact, AIPError, AIPResult, InputRequiredData, InputResponseData, TaskStatus,
 };
+pub use review::{ReviewIssue, ReviewReport};
 pub use sandbox::SandboxProfile;
 pub use stt_config::{SttConfigError, SttConfigRepository, SttConfigRow};
 pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, TextPart};

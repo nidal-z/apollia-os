@@ -376,6 +376,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         list_runs, run_pipeline, update_pipeline,
     };
     use super::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
+    use super::routes_review::post_review;
     use super::routes_sse::stream_task;
     use super::routes_stt::{
         delete_transcription, get_stt_config, list_models, list_transcriptions, stt_status,
@@ -401,6 +402,7 @@ fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(state: AppState<
         )
         .route("/api/v1/tasks/:id/stream", get(stream_task::<B>))
         .route("/api/v1/tasks/:id/resume", post(resume_task::<B>))
+        .route("/api/v1/tasks/:id/review", post(post_review::<B>))
         // Timeline route
         .route("/api/v1/tasks/:id/timeline", get(get_task_timeline::<B>))
         // Tool routes

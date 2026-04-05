@@ -925,6 +925,48 @@ impl RuntimeClient {
             body: body_str,
         })
     }
+
+    /// Request a code review for an existing task via `POST /api/v1/tasks/{id}/review`.
+    ///
+    /// Blocks until the `apollia-review` agent completes (up to 120 s on the server side).
+    /// Returns the raw JSON `ReviewReport` value on success.
+    pub async fn post_task_review(&self, task_id: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .post(&format!("/api/v1/tasks/{task_id}/review"), None)
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Submit a review directly to the `apollia-review` agent via `POST /api/v1/tasks`.
+    ///
+    /// Used when the caller supplies a PR number or diff file path rather than an
+    /// existing task ID.  The `inputs` value is forwarded as a `data` part in the
+    /// AIP input so the agent can extract `pr_number` / `diff_file`.
+    pub async fn submit_review(
+        &self,
+        inputs: serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let body = serde_json::json!({
+            "agent_id": "apollia-review",
+            "input": {
+                "parts": [{ "type": "data", "data": inputs }]
+            }
+        });
+        let resp = self.post("/api/v1/tasks", Some(&body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
 }
 
 #[cfg(test)]

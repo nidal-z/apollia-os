@@ -14,6 +14,7 @@ pub mod routes_messages;
 pub mod routes_notifications;
 pub mod routes_pipelines;
 pub mod routes_plan_cache;
+pub mod routes_review;
 pub mod routes_sse;
 pub mod routes_stt;
 pub mod routes_tasks;
