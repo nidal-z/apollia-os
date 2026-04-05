@@ -73,7 +73,7 @@ mod tests {
             agent: "agent".into(),
             pipeline: None,
             enabled: true,
-            on_busy: OnBusyPolicy::Queue,
+            on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Oneshot { fire_at },
             input_template: InputTemplate("once".into()),
         };
@@ -101,7 +101,7 @@ mod tests {
             agent: "agent".into(),
             pipeline: None,
             enabled: true,
-            on_busy: OnBusyPolicy::Queue,
+            on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Oneshot { fire_at },
             input_template: InputTemplate("past".into()),
         };

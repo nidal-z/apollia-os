@@ -63,11 +63,21 @@ impl TriggerDefinition {
 
 /// Comportement quand l'agent cible est déjà occupé au moment du fire.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum OnBusyPolicy {
-    /// Soumet quand même — `TaskRouter` gère la file d'attente.
-    Queue,
-    /// Ignore le fire et trace "skipped" dans l'audit.
-    Drop,
+    /// Ignorer le trigger — comportement historique.
+    Skip,
+    /// Mettre en file d'attente bornée FIFO par agent.
+    ///
+    /// Quand l'agent est occupé, le trigger est mis en attente jusqu'à
+    /// `max_depth` éléments. Au-delà, le trigger est droppé et
+    /// `RuntimeEvent::TriggerQueueFull` est émis.
+    Queue {
+        /// Nombre maximum d'éléments dans la file par agent.
+        max_depth: usize,
+    },
+    /// Bloquer jusqu'à disponibilité de l'agent (non implémenté).
+    Block,
 }
 
 /// Configuration de la source de déclenchement d'un trigger.
@@ -405,7 +415,7 @@ mod tests {
             agent: "rapport-agent".into(),
             pipeline: None,
             enabled: true,
-            on_busy: OnBusyPolicy::Queue,
+            on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Cron {
                 schedule: "0 8 * * MON".into(),
             },
@@ -419,7 +429,7 @@ mod tests {
         assert_eq!(back.agent, "rapport-agent");
         assert!(back.pipeline.is_none());
         assert!(back.enabled);
-        assert_eq!(back.on_busy, OnBusyPolicy::Queue);
+        assert_eq!(back.on_busy, OnBusyPolicy::Queue { max_depth: 10 });
     }
 
     // ── Triggers → Pipelines ─────────────────────────────────────────────
@@ -432,7 +442,7 @@ mod tests {
             "id": "t1",
             "agent": "hello-agent",
             "enabled": true,
-            "on_busy": "Queue",
+            "on_busy": {"queue": {"max_depth": 5}},
             "source": {"type": "interval", "every": "30m"},
             "input_template": "test"
         }"#;
@@ -455,7 +465,7 @@ mod tests {
             "agent": "",
             "pipeline": "traitement-facture",
             "enabled": true,
-            "on_busy": "Queue",
+            "on_busy": {"queue": {"max_depth": 5}},
             "source": {"type": "interval", "every": "30m"},
             "input_template": "{{filename}}"
         }"#;

@@ -297,7 +297,7 @@ mod tests {
             agent: "file-agent".into(),
             pipeline: None,
             enabled: true,
-            on_busy: OnBusyPolicy::Queue,
+            on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::FileWatch {
                 path: dir.to_path_buf(),
                 events,
@@ -734,7 +734,7 @@ mod tests {
             agent: "dedup-agent".into(),
             pipeline: None,
             enabled: true,
-            on_busy: OnBusyPolicy::Queue,
+            on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::FileWatch {
                 path: dir.path().to_path_buf(),
                 events: vec![FileEventKind::Any],

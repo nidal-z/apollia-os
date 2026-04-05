@@ -123,8 +123,11 @@ fn validate_trigger(raw: &RawTrigger) -> Result<TriggerDefinition, TriggerTomlEr
     }
 
     let on_busy = match raw.on_busy.as_str() {
-        "drop" => OnBusyPolicy::Drop,
-        _ => OnBusyPolicy::Queue,
+        "skip" | "drop" => OnBusyPolicy::Skip,
+        "block" => OnBusyPolicy::Block,
+        _ => OnBusyPolicy::Queue {
+            max_depth: crate::DEFAULT_QUEUE_MAX_DEPTH,
+        },
     };
 
     let source = if raw.enabled {

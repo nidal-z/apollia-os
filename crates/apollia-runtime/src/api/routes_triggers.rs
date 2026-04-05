@@ -549,8 +549,9 @@ pub async fn get_trigger<B: ExecutionBackend + Clone>(
 
     let (source_kind, source_detail) = source_kind_and_detail(&def.source);
     let on_busy = match def.on_busy {
-        apollia_triggers::OnBusyPolicy::Queue => "queue",
-        apollia_triggers::OnBusyPolicy::Drop => "drop",
+        apollia_triggers::OnBusyPolicy::Queue { .. } => "queue",
+        apollia_triggers::OnBusyPolicy::Skip => "skip",
+        apollia_triggers::OnBusyPolicy::Block => "block",
     };
 
     let detail = TriggerDetailResponse {

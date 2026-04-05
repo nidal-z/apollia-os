@@ -211,7 +211,7 @@ pub enum RuntimeEvent {
         /// Identifiant de la tâche soumise au TaskRouter.
         task_id: TaskId,
     },
-    /// Un trigger a été ignoré (OnBusyPolicy::Drop ou agent occupé).
+    /// Un trigger a été ignoré (OnBusyPolicy::Skip ou agent occupé).
     TriggerSkipped {
         /// Identifiant du trigger.
         trigger_id: String,
@@ -224,6 +224,14 @@ pub enum RuntimeEvent {
         trigger_id: String,
         /// Message d'erreur.
         error: String,
+    },
+    /// La file d'attente bornée d'un trigger est pleine — le trigger est droppé.
+    ///
+    /// Émis par `TriggerEngine` quand [`OnBusyPolicy::Queue`] est configuré et que
+    /// `max_depth` est atteint. Le trigger droppé est perdu (non persisté).
+    TriggerQueueFull {
+        /// Identifiant du trigger droppé.
+        trigger_id: String,
     },
     /// Un trigger a été activé via la CLI ou l'API.
     TriggerEnabled {
@@ -1002,6 +1010,9 @@ mod tests {
             RuntimeEvent::TriggerError {
                 trigger_id: "rapport-hebdo".into(),
                 error: "agent not found".into(),
+            },
+            RuntimeEvent::TriggerQueueFull {
+                trigger_id: "rapport-hebdo".into(),
             },
             RuntimeEvent::TriggerEnabled {
                 trigger_id: "rapport-hebdo".into(),

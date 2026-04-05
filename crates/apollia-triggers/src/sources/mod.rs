@@ -95,7 +95,7 @@ mod tests {
             agent: "a".into(),
             pipeline: None,
             enabled: true,
-            on_busy: OnBusyPolicy::Drop,
+            on_busy: OnBusyPolicy::Skip,
             source: TriggerSourceConfig::Webhook {
                 secret: "s3cr3t".into(),
             },

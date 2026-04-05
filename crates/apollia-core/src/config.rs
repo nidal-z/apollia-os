@@ -463,6 +463,50 @@ fn default_summary_max_chars() -> usize {
 }
 
 // ─────────────────────────────────────────────
+// TriggersConfig
+// ─────────────────────────────────────────────
+
+/// Configuration du moteur de triggers (section `[triggers]` dans `apollia.toml`).
+///
+/// Contrôle le comportement de la file d'attente bornée utilisée par
+/// [`OnBusyPolicy::Queue`] quand un agent est occupé au moment du fire.
+/// Tous les champs ont des valeurs par défaut saines via [`Default`].
+#[derive(Debug, Clone, Deserialize)]
+pub struct TriggersConfig {
+    /// Capacité maximale de la file d'attente bornée FIFO par agent.
+    ///
+    /// Utilisé par `OnBusyPolicy::Queue { max_depth }` pour limiter le nombre
+    /// de triggers en attente par agent. Quand la file est pleine, le trigger
+    /// est droppé et `RuntimeEvent::TriggerQueueFull` est émis.
+    /// `0` désactive la borne (déconseillé en production).
+    /// Défaut : 10. Bornes : [0, 10000].
+    #[serde(default = "default_trigger_queue_max_depth")]
+    pub queue_max_depth: usize,
+}
+
+impl Default for TriggersConfig {
+    fn default() -> Self {
+        Self {
+            queue_max_depth: default_trigger_queue_max_depth(),
+        }
+    }
+}
+
+impl TriggersConfig {
+    /// Valide les bornes de la configuration triggers au démarrage (Principe #4 — Fail fast).
+    ///
+    /// - `queue_max_depth` : doit être dans [0, 10000].
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        validate_bounds("triggers.queue_max_depth", self.queue_max_depth, 0, 10_000)?;
+        Ok(())
+    }
+}
+
+fn default_trigger_queue_max_depth() -> usize {
+    10
+}
+
+// ─────────────────────────────────────────────
 // PipelinesConfig
 // ─────────────────────────────────────────────
 

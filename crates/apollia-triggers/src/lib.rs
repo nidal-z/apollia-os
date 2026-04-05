@@ -9,6 +9,13 @@
 //! - La validation métier ([`validation`]) : règles de validation des définitions de triggers.
 //! - La configuration du file watcher ([`config`]) : `FileWatchConfig` + patterns d'exclusion par défaut.
 
+/// Profondeur par défaut de la file d'attente bornée FIFO par agent.
+///
+/// Utilisée quand `OnBusyPolicy::Queue` est construit sans valeur explicite —
+/// par exemple lors du parsing TOML ou de la lecture depuis SQLite.
+/// Surchargeable via `apollia.toml` : `[triggers] queue_max_depth = N`.
+pub const DEFAULT_QUEUE_MAX_DEPTH: usize = 10;
+
 pub mod config;
 pub mod definition_repository;
 pub mod engine;

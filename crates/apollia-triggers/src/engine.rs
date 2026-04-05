@@ -11,7 +11,7 @@
 //! - La route webhook
 //! - La persistance SQLite réelle
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -53,11 +53,63 @@ pub trait TaskSubmitter: Send + Sync + 'static {
 
     /// Retourne le nombre de tâches en attente ou actives pour l'agent désigné.
     ///
-    /// Utilisé par [`OnBusyPolicy::Drop`] pour décider si le trigger doit être ignoré.
+    /// Utilisé par [`OnBusyPolicy::Skip`] et [`OnBusyPolicy::Queue`] pour décider
+    /// du comportement quand l'agent est occupé.
     fn pending_count<'a>(
         &'a self,
         agent: &'a str,
     ) -> Pin<Box<dyn Future<Output = usize> + Send + 'a>>;
+}
+
+// ─── Queue types ──────────────────────────────────────────────────────────
+
+/// Trigger en attente dans la file bornée FIFO d'un agent.
+struct QueuedTriggerEvent {
+    trigger_id: String,
+    payload: TriggerPayload,
+    /// Horodatage d'entrée en file — distinct du `fired_at` de la source.
+    queued_at: DateTime<Utc>,
+}
+
+/// File d'attente bornée FIFO par agent pour `OnBusyPolicy::Queue`.
+///
+/// La taille maximale est configurée via `[triggers] queue_max_depth` dans
+/// `apollia.toml`. Quand `max_depth == 0`, la file est illimitée.
+struct AgentQueue {
+    inner: VecDeque<QueuedTriggerEvent>,
+    max_depth: usize,
+}
+
+impl AgentQueue {
+    /// Crée une nouvelle file avec la capacité maximale donnée.
+    fn new(max_depth: usize) -> Self {
+        Self {
+            inner: VecDeque::new(),
+            max_depth,
+        }
+    }
+
+    /// Tente d'ajouter un événement en fin de file.
+    ///
+    /// Retourne `true` si l'ajout a réussi, `false` si la file est pleine
+    /// (`max_depth > 0` et `len >= max_depth`).
+    fn try_push(&mut self, event: QueuedTriggerEvent) -> bool {
+        if self.max_depth > 0 && self.inner.len() >= self.max_depth {
+            return false;
+        }
+        self.inner.push_back(event);
+        true
+    }
+
+    /// Retire et retourne l'événement le plus ancien (FIFO).
+    fn pop(&mut self) -> Option<QueuedTriggerEvent> {
+        self.inner.pop_front()
+    }
+
+    /// Retourne le nombre d'éléments actuellement en file.
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
 }
 
 // ─── TriggerCommand ───────────────────────────────────────────────────────
@@ -114,6 +166,14 @@ enum TriggerCommand {
     /// dépendance circulaire TriggerEngine ↔ PipelineEngine.
     SetPipelineEngine {
         handle: Option<PipelineEngineHandle>,
+    },
+    /// Notifie le moteur qu'un agent est passé à l'état idle.
+    ///
+    /// Déclenche le drain FIFO de la file d'attente de cet agent si elle
+    /// contient des triggers en attente.
+    NotifyAgentFree {
+        /// Identifiant de l'agent devenu disponible.
+        agent_id: String,
     },
     /// Arrête l'acteur proprement.
     Shutdown,
@@ -198,6 +258,10 @@ struct TriggerEngine {
     fire_counts: HashMap<String, u64>,
     skip_counts: HashMap<String, u64>,
     last_fired: HashMap<String, DateTime<Utc>>,
+    /// Files d'attente bornées FIFO par agent — peuplées par `OnBusyPolicy::Queue`.
+    ///
+    /// Drainées quand l'agent devient disponible via [`TriggerCommand::NotifyAgentFree`].
+    agent_queues: HashMap<String, AgentQueue>,
     /// Persistance SQLite — `None` si non configurée (ex : tests unitaires).
     persistence: Option<TriggerPersistence>,
     /// Configuration d'observabilité pour la troncature des payloads.
@@ -271,6 +335,7 @@ impl TriggerEngine {
             fire_counts,
             skip_counts,
             last_fired,
+            agent_queues: HashMap::new(),
             persistence,
             obs_config,
         };
@@ -481,6 +546,11 @@ impl TriggerEngine {
                 false
             }
 
+            TriggerCommand::NotifyAgentFree { agent_id } => {
+                self.drain_agent_queue(&agent_id).await;
+                false
+            }
+
             TriggerCommand::Shutdown => true,
         }
     }
@@ -531,25 +601,71 @@ impl TriggerEngine {
 
         // ── Dispatch agent (chemin existant) ──────────────────────────────────
 
-        // 3. Vérifier OnBusyPolicy::Drop
-        if def.on_busy == OnBusyPolicy::Drop {
-            let pending = self.task_router.pending_count(&def.agent).await;
-            if pending > 0 {
-                let reason = "agent busy, on_busy=drop".to_string();
-                let _ = self.event_bus.send(RuntimeEvent::TriggerSkipped {
-                    trigger_id: event.trigger_id.clone(),
-                    reason: reason.clone(),
-                });
-                self.persist_skipped(&event, &reason).await;
-                *self
-                    .skip_counts
-                    .entry(event.trigger_id.clone())
-                    .or_insert(0) += 1;
-                return Err(TriggerEngineError::SubmitFailed(reason));
+        // Évaluer l'OnBusyPolicy avant de soumettre la tâche.
+        match &def.on_busy {
+            OnBusyPolicy::Skip => {
+                let pending = self.task_router.pending_count(&def.agent).await;
+                if pending > 0 {
+                    let reason = "agent busy, on_busy=skip".to_string();
+                    let _ = self.event_bus.send(RuntimeEvent::TriggerSkipped {
+                        trigger_id: event.trigger_id.clone(),
+                        reason: reason.clone(),
+                    });
+                    self.persist_skipped(&event, &reason).await;
+                    *self
+                        .skip_counts
+                        .entry(event.trigger_id.clone())
+                        .or_insert(0) += 1;
+                    return Err(TriggerEngineError::SubmitFailed(reason));
+                }
+            }
+            OnBusyPolicy::Queue { max_depth } => {
+                let max_depth = *max_depth;
+                let pending = self.task_router.pending_count(&def.agent).await;
+                if pending > 0 {
+                    let queued = QueuedTriggerEvent {
+                        trigger_id: event.trigger_id.clone(),
+                        payload: event.payload.clone(),
+                        queued_at: Utc::now(),
+                    };
+                    let queue = self
+                        .agent_queues
+                        .entry(def.agent.clone())
+                        .or_insert_with(|| AgentQueue::new(max_depth));
+                    if queue.try_push(queued) {
+                        tracing::info!(
+                            trigger_id = %event.trigger_id,
+                            agent = %def.agent,
+                            queue_depth = queue.len(),
+                            "trigger mis en file d'attente"
+                        );
+                        return Err(TriggerEngineError::SubmitFailed(
+                            "trigger queued for dispatch".into(),
+                        ));
+                    } else {
+                        let _ = self.event_bus.send(RuntimeEvent::TriggerQueueFull {
+                            trigger_id: event.trigger_id.clone(),
+                        });
+                        tracing::warn!(
+                            trigger_id = %event.trigger_id,
+                            agent = %def.agent,
+                            max_depth,
+                            "trigger droppé — file d'attente pleine"
+                        );
+                        return Err(TriggerEngineError::SubmitFailed(
+                            "trigger queue full".into(),
+                        ));
+                    }
+                }
+                // Agent libre — vider d'abord la file existante (FIFO) avant de soumettre.
+                self.drain_agent_queue(&def.agent).await;
+            }
+            OnBusyPolicy::Block => {
+                // Soumet directement — blocage asynchrone non implémenté.
             }
         }
 
-        // 2. Rendre le template d'entrée
+        // Rendre le template d'entrée
         let text = def.input_template.render(&event.payload);
         let input = AIPInput {
             parts: vec![AIPPart::Text(TextPart { text })],
@@ -735,6 +851,81 @@ impl TriggerEngine {
         }
     }
 
+    /// Vide la file d'attente d'un agent et soumet chaque trigger en ordre FIFO.
+    ///
+    /// Appelé soit quand l'agent est détecté libre lors d'un nouveau trigger,
+    /// soit explicitement via [`TriggerCommand::NotifyAgentFree`].
+    /// Les soumissions échouées sont loguées sans interrompre le drain.
+    async fn drain_agent_queue(&mut self, agent_id: &str) {
+        let mut items = Vec::new();
+        if let Some(queue) = self.agent_queues.get_mut(agent_id) {
+            while let Some(item) = queue.pop() {
+                items.push(item);
+            }
+        }
+        if items.is_empty() {
+            return;
+        }
+        tracing::debug!(
+            agent = %agent_id,
+            count = items.len(),
+            "drain de la file d'attente triggers"
+        );
+        for queued in items {
+            let def = self
+                .definitions
+                .iter()
+                .find(|d| d.id == queued.trigger_id)
+                .cloned();
+            let Some(def) = def else {
+                tracing::warn!(
+                    trigger_id = %queued.trigger_id,
+                    "définition introuvable pendant le drain — trigger ignoré"
+                );
+                continue;
+            };
+            let text = def.input_template.render(&queued.payload);
+            let input = AIPInput {
+                parts: vec![AIPPart::Text(TextPart { text })],
+            };
+            let dispatch_start = Instant::now();
+            match self.task_router.submit(&def.agent, input).await {
+                Ok(task_id) => {
+                    let dispatch_ms = dispatch_start.elapsed().as_millis() as i64;
+                    let _ = self.event_bus.send(RuntimeEvent::TriggerFired {
+                        trigger_id: queued.trigger_id.clone(),
+                        agent: def.agent.clone(),
+                        task_id: task_id.clone(),
+                    });
+                    let event = TriggerEvent {
+                        trigger_id: queued.trigger_id.clone(),
+                        agent: def.agent.clone(),
+                        payload: queued.payload,
+                        fired_at: queued.queued_at,
+                    };
+                    self.persist_fired(&event, &task_id, dispatch_ms).await;
+                    *self
+                        .fire_counts
+                        .entry(queued.trigger_id.clone())
+                        .or_insert(0) += 1;
+                    self.last_fired
+                        .insert(queued.trigger_id.clone(), Utc::now());
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        trigger_id = %queued.trigger_id,
+                        error = %e,
+                        "échec soumission pendant le drain — trigger perdu"
+                    );
+                    let _ = self.event_bus.send(RuntimeEvent::TriggerError {
+                        trigger_id: queued.trigger_id.clone(),
+                        error: e,
+                    });
+                }
+            }
+        }
+    }
+
     /// Recharge les définitions de triggers (hot reload).
     ///
     /// Donne à chaque source active 2 secondes pour se terminer proprement avant
@@ -760,7 +951,9 @@ impl TriggerEngine {
         }
 
         // 2. Remplacer les définitions (les compteurs en mémoire sont préservés).
+        //    Les files d'attente sont vidées — les triggers en queue sont perdus.
         self.definitions = new_definitions;
+        self.agent_queues.clear();
 
         // 3. Respawn les sources activées.
         self.handles = self
@@ -1017,6 +1210,18 @@ impl TriggerEngineHandle {
             .await;
     }
 
+    /// Notifie le moteur qu'un agent est passé à l'état idle.
+    ///
+    /// Déclenche le drain FIFO de la file d'attente de cet agent. À appeler
+    /// depuis le Supervisor lors de la réception de [`RuntimeEvent::TaskCompleted`]
+    /// pour l'agent concerné. Fire-and-forget — pas de réponse attendue.
+    pub async fn notify_agent_free(&self, agent_id: String) {
+        let _ = self
+            .tx
+            .send(TriggerCommand::NotifyAgentFree { agent_id })
+            .await;
+    }
+
     /// Arrête l'acteur `TriggerEngine` proprement.
     pub async fn shutdown(&self) {
         let _ = self.tx.send(TriggerCommand::Shutdown).await;
@@ -1063,7 +1268,7 @@ mod tests {
             agent: String::new(),
             pipeline: Some(pipeline_id.into()),
             enabled: true,
-            on_busy: OnBusyPolicy::Queue,
+            on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Cron {
                 schedule: "0 8 * * MON".into(),
             },
@@ -1174,8 +1379,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_ac2_handle_event_queue_submits_task() {
-        // GIVEN un trigger avec OnBusyPolicy::Queue et un mock en succès
-        let def = make_definition("test-trigger", OnBusyPolicy::Queue);
+        // GIVEN un trigger avec OnBusyPolicy::Queue { max_depth: 10 } et un mock en succès
+        let def = make_definition("test-trigger", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, calls) = MockTaskRouterHandle::new_with_tracking();
         let handle = TriggerEngine::start(
             vec![def],
@@ -1196,12 +1401,12 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 
-    // ── (OnBusyPolicy::Drop) ──────────────────────────────────────────
+    // ── (OnBusyPolicy::Skip) ──────────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac3_drop_policy_skips_when_agent_busy() {
         // GIVEN un trigger Drop et un agent occupé (pending_count = 1)
-        let def = make_definition("busy-trigger", OnBusyPolicy::Drop);
+        let def = make_definition("busy-trigger", OnBusyPolicy::Skip);
         let (router, calls) = MockTaskRouterHandle::new_with_pending(1);
         let handle = TriggerEngine::start(
             vec![def],
@@ -1232,7 +1437,7 @@ mod tests {
     #[tokio::test]
     async fn test_ac4_fire_now_returns_task_id() {
         // GIVEN un trigger enregistré
-        let def = make_definition("rapport-hebdo", OnBusyPolicy::Queue);
+        let def = make_definition("rapport-hebdo", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, _) = MockTaskRouterHandle::new();
         let handle = TriggerEngine::start(
             vec![def],
@@ -1275,7 +1480,7 @@ mod tests {
     #[tokio::test]
     async fn test_ac5_enable_disable_toggle() {
         // GIVEN un trigger actif
-        let def = make_definition("factures", OnBusyPolicy::Drop);
+        let def = make_definition("factures", OnBusyPolicy::Skip);
         let (router, _) = MockTaskRouterHandle::new();
         let handle = TriggerEngine::start(
             vec![def],
@@ -1303,7 +1508,7 @@ mod tests {
     #[tokio::test]
     async fn test_ac6_submit_error_does_not_panic() {
         // GIVEN un trigger qui échoue toujours à la soumission
-        let def = make_definition("failing-trigger", OnBusyPolicy::Queue);
+        let def = make_definition("failing-trigger", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, _) = MockTaskRouterHandle::new_always_fail();
         let handle = TriggerEngine::start(
             vec![def],
@@ -1335,7 +1540,7 @@ mod tests {
     #[tokio::test]
     async fn test_fire_count_increments_on_success() {
         // GIVEN un trigger
-        let def = make_definition("compteur", OnBusyPolicy::Queue);
+        let def = make_definition("compteur", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, _) = MockTaskRouterHandle::new();
         let handle = TriggerEngine::start(
             vec![def],
@@ -1375,7 +1580,7 @@ mod tests {
     #[tokio::test]
     async fn test_ac1_reload_replaces_all_triggers() {
         // GIVEN un moteur avec 1 trigger
-        let def1 = make_definition("trigger-1", OnBusyPolicy::Queue);
+        let def1 = make_definition("trigger-1", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, _) = MockTaskRouterHandle::new();
         let handle = TriggerEngine::start(
             vec![def1],
@@ -1389,8 +1594,8 @@ mod tests {
         assert_eq!(handle.list().await.len(), 1);
 
         // WHEN reload avec 2 nouveaux triggers
-        let def2 = make_definition("trigger-2", OnBusyPolicy::Drop);
-        let def3 = make_definition("trigger-3", OnBusyPolicy::Queue);
+        let def2 = make_definition("trigger-2", OnBusyPolicy::Skip);
+        let def3 = make_definition("trigger-3", OnBusyPolicy::Queue { max_depth: 10 });
         handle.reload(vec![def2, def3]).await;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
@@ -1422,7 +1627,7 @@ mod tests {
         .await;
 
         // WHEN reload avec 1 trigger activé
-        let def = make_definition("new-trigger", OnBusyPolicy::Queue);
+        let def = make_definition("new-trigger", OnBusyPolicy::Queue { max_depth: 10 });
         handle.reload(vec![def]).await;
 
         // THEN TriggersReloaded { count: 1 } reçu dans les 500ms
@@ -1511,7 +1716,7 @@ mod tests {
     #[tokio::test]
     async fn test_ac5_agent_trigger_unaffected() {
         // GIVEN trigger existant avec agent="hello-agent" (pipeline = None)
-        let def = make_definition("rapport-hebdo", OnBusyPolicy::Queue);
+        let def = make_definition("rapport-hebdo", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, calls) = MockTaskRouterHandle::new_with_tracking();
         let handle = TriggerEngine::start(
             vec![def],
@@ -1564,7 +1769,7 @@ mod tests {
         }
 
         // WHEN TriggerEngine démarre avec cette base
-        let def = make_definition("my-trigger", OnBusyPolicy::Queue);
+        let def = make_definition("my-trigger", OnBusyPolicy::Queue { max_depth: 10 });
         let (router, _) = MockTaskRouterHandle::new();
         let persistence = TriggerPersistence::open(&db_path).unwrap();
         let handle = TriggerEngine::start(
@@ -1598,7 +1803,7 @@ mod tests {
     #[tokio::test]
     async fn test_ac1_pipeline_none_no_regression() {
         // GIVEN trigger sans pipeline (None)
-        let def = make_definition("ancien-trigger", OnBusyPolicy::Queue);
+        let def = make_definition("ancien-trigger", OnBusyPolicy::Queue { max_depth: 10 });
         assert!(def.pipeline.is_none());
 
         let (router, calls) = MockTaskRouterHandle::new_with_tracking();
@@ -1621,5 +1826,158 @@ mod tests {
 
         // THEN submit appelé — même comportement qu'avant
         assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    // ── OnBusyPolicy::Queue ────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_queue_accepts_up_to_max_depth() {
+        // GIVEN policy Queue { max_depth: 3 }, agent occupé (pending = 1)
+        let def = make_definition("q-trigger", OnBusyPolicy::Queue { max_depth: 3 });
+        let (router, calls) = MockTaskRouterHandle::new_with_pending(1);
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
+
+        // WHEN 3 triggers se déclenchent
+        for _ in 0..3 {
+            let _ = handle.fire_now("q-trigger").await;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // THEN aucune soumission (tous en queue)
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            0,
+            "aucune soumission tant que l'agent est occupé"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_queue_full_drops_and_emits_event() {
+        // GIVEN policy Queue { max_depth: 3 }, agent occupé, queue déjà pleine
+        let def = make_definition("full-trigger", OnBusyPolicy::Queue { max_depth: 3 });
+        let (bus_tx, mut bus_rx) = broadcast::channel::<apollia_core::RuntimeEvent>(64);
+        let (router, calls) = MockTaskRouterHandle::new_with_pending(1);
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            bus_tx,
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
+
+        // Remplir la queue (3 éléments)
+        for _ in 0..3 {
+            let _ = handle.fire_now("full-trigger").await;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // WHEN un 4ème trigger arrive
+        let result = handle.fire_now("full-trigger").await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // THEN soumission toujours à 0 (le 4ème est droppé)
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            0,
+            "le 4ème trigger doit être droppé, pas soumis"
+        );
+        // ET TriggerQueueFull émis sur le bus
+        let queue_full = tokio::time::timeout(std::time::Duration::from_millis(200), async {
+            loop {
+                match bus_rx.recv().await {
+                    Ok(apollia_core::RuntimeEvent::TriggerQueueFull { trigger_id }) => {
+                        return trigger_id;
+                    }
+                    Ok(_) => {}
+                    Err(_) => return String::new(),
+                }
+            }
+        })
+        .await
+        .unwrap_or_default();
+        assert_eq!(
+            queue_full, "full-trigger",
+            "TriggerQueueFull doit indiquer le bon trigger"
+        );
+        // ET fire_now retourne SubmitFailed
+        assert!(
+            matches!(result, Err(TriggerEngineError::SubmitFailed(_))),
+            "expected SubmitFailed pour queue pleine, got {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn test_skip_policy_does_not_queue() {
+        // GIVEN policy Skip, agent occupé
+        let def = make_definition("skip-trigger", OnBusyPolicy::Skip);
+        let (router, calls) = MockTaskRouterHandle::new_with_pending(1);
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
+
+        // WHEN trigger se déclenche
+        let _ = handle.fire_now("skip-trigger").await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // THEN aucune soumission, pas de mise en queue
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            0,
+            "Skip ne doit pas soumettre ni mettre en queue"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_queue_drains_when_agent_free() {
+        // GIVEN 2 triggers en queue (agent occupé, pending = 1)
+        let def = make_definition("drain-trigger", OnBusyPolicy::Queue { max_depth: 10 });
+        let (router, calls) = MockTaskRouterHandle::new_with_pending(1);
+        let handle = TriggerEngine::start(
+            vec![def],
+            router,
+            make_bus(),
+            None,
+            None,
+            ObservabilityConfig::default(),
+        )
+        .await;
+
+        // Mettre 2 triggers en queue
+        let _ = handle.fire_now("drain-trigger").await;
+        let _ = handle.fire_now("drain-trigger").await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            0,
+            "aucune soumission tant que l'agent est occupé"
+        );
+
+        // WHEN l'agent se libère
+        handle.notify_agent_free("test-agent".into()).await;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // THEN les 2 triggers sont dispatachés dans l'ordre FIFO
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            2,
+            "les 2 triggers en queue doivent être dispatachés"
+        );
     }
 }

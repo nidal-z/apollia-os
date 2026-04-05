@@ -111,8 +111,10 @@ impl TryFrom<TriggerDefinitionRow> for TriggerDefinition {
     fn try_from(row: TriggerDefinitionRow) -> Result<Self, Self::Error> {
         let source = parse_source_config(&row.source_type, &row.source_config)?;
         let on_busy = match row.on_busy {
-            OnBusy::Queue => OnBusyPolicy::Queue,
-            OnBusy::Drop => OnBusyPolicy::Drop,
+            OnBusy::Queue => OnBusyPolicy::Queue {
+                max_depth: crate::DEFAULT_QUEUE_MAX_DEPTH,
+            },
+            OnBusy::Drop => OnBusyPolicy::Skip,
         };
         Ok(TriggerDefinition {
             id: row.id,

@@ -83,7 +83,7 @@ mod tests {
             agent: "agent".into(),
             pipeline: None,
             enabled: true,
-            on_busy: OnBusyPolicy::Queue,
+            on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Interval {
                 every: "100ms".into(),
             },

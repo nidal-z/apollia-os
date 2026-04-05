@@ -38,6 +38,7 @@ pub use budget::StepBudgetConfig;
 pub use config::{
     validate_bounds, A2AConfig, ApiConfig, BashValidatorConfig, ConfigError, HitlConfig,
     LlmRoutingConfig, ORIAConfig, PermissionsConfig, PipelinesConfig, RuntimeConfig, ToolsConfig,
+    TriggersConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};

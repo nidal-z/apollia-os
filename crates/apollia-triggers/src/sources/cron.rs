@@ -91,7 +91,7 @@ mod tests {
             agent: "test-agent".into(),
             pipeline: None,
             enabled: true,
-            on_busy: OnBusyPolicy::Queue,
+            on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Cron {
                 schedule: schedule.into(),
             },
