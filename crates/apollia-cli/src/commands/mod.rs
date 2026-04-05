@@ -19,4 +19,5 @@ pub mod stt;
 pub mod task;
 pub mod tools;
 pub mod trigger;
+pub mod update;
 pub mod workspace;

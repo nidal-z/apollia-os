@@ -216,6 +216,9 @@ enum Commands {
     /// Use `--with-runtime` to additionally expose `submit_task`.
     McpServer(McpServerArgs),
 
+    /// Check for and install updates from GitHub Releases.
+    Update(commands::update::UpdateArgs),
+
     /// Workspace inspection and initialization (status, init).
     Workspace {
         /// Workspace subcommand.
@@ -310,6 +313,7 @@ fn main() {
                     exit_codes::GENERAL_ERROR
                 }
             },
+            Commands::Update(args) => commands::update::run(&args, "apollia-os").await,
             Commands::Workspace { command } => commands::workspace::run(&command, json).await,
         }
     });
