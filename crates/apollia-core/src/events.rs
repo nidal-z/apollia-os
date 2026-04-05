@@ -241,6 +241,20 @@ pub enum RuntimeEvent {
         count: usize,
     },
 
+    /// Un serveur MCP a été rechargé à chaud avec succès.
+    ///
+    /// Émis par `McpClientManagerHandle::reload_server` après que la nouvelle session
+    /// a été établie et ses outils enregistrés. Permet aux consommateurs du bus
+    /// de détecter les changements de surface outil d'un serveur MCP.
+    McpServerReloaded {
+        /// Nom du serveur MCP rechargé.
+        name: String,
+        /// Noms des outils exposés par l'ancienne session.
+        old_tools: Vec<String>,
+        /// Noms des outils exposés par la nouvelle session.
+        new_tools: Vec<String>,
+    },
+
     /// Un backend LLM est en cours de chargement (avant `load()` ou initialisation HTTP).
     LlmModelLoading {
         /// Nom logique du backend tel que configuré dans `apollia.toml`.

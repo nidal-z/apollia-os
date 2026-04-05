@@ -151,6 +151,17 @@ pub enum McpSessionError {
     /// The transport's send channel was closed.
     #[error("server '{server}' transport send channel closed")]
     StdinClosed { server: String },
+
+    /// A hot reload was requested for a server that is not currently managed.
+    #[error("cannot reload server '{server}': not found in managed sessions")]
+    ConfigReload { server: String },
+
+    /// A tool call arrived while the server is being hot-reloaded.
+    ///
+    /// The server has been disconnected but the new session is not yet established.
+    /// Callers should retry the operation after a short delay.
+    #[error("server '{server}' is currently being reloaded")]
+    ServerReloading { server: String },
 }
 
 // ─── session ─────────────────────────────────────────────────────────────────

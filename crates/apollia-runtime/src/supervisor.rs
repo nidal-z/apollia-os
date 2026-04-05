@@ -527,7 +527,12 @@ impl Supervisor {
                     None
                 } else {
                     let server_count = server_configs.len();
-                    match McpClientManagerHandle::start(server_configs, &tool_registry_handle).await
+                    match McpClientManagerHandle::start(
+                        server_configs,
+                        &tool_registry_handle,
+                        Some(event_sender.clone()),
+                    )
+                    .await
                     {
                         Ok(handle) => {
                             let status = handle.status().await;
@@ -537,6 +542,11 @@ impl Supervisor {
                                 connected = status.len(),
                                 tools = total_tools,
                                 "MCP Phase 3b complete"
+                            );
+                            // Start MCP config watcher for hot reload when mcp.toml exists.
+                            apollia_triggers::handlers::config_watch::McpConfigWatcher::spawn(
+                                mcp_config_path.clone(),
+                                handle.clone(),
                             );
                             Some(handle)
                         }

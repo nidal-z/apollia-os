@@ -6,6 +6,7 @@ license = "MIT"
 
 [dependencies]
 apollia-core      = { workspace = true }
+apollia-mcp       = { path = "../apollia-mcp" }
 apollia-pipelines = { path = "../apollia-pipelines" }
 tokio             = { workspace = true }
 serde        = { workspace = true }

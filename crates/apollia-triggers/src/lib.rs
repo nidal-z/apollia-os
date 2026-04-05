@@ -12,6 +12,7 @@
 pub mod config;
 pub mod definition_repository;
 pub mod engine;
+pub mod handlers;
 pub mod persistence;
 pub mod sources;
 pub mod toml_config;

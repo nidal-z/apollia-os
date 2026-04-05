@@ -5,11 +5,11 @@
 //! `call_tool` requests to the correct session. A server that fails to start is
 //! logged and skipped — it is never fatal to the rest.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use tokio::sync::{mpsc, oneshot};
 
-use apollia_core::SandboxProfile;
+use apollia_core::{EventBusSender, RuntimeEvent, SandboxProfile};
 use apollia_tools::descriptor::{McpTransport, ToolDescriptor, ToolKind};
 use apollia_tools::registry::ToolRegistryHandle;
 
@@ -66,6 +66,11 @@ enum McpCommand {
     SetApproval {
         server_name: String,
         requires_approval: bool,
+        reply: oneshot::Sender<Result<(), McpSessionError>>,
+    },
+    /// Hot-reload a server: disconnect, re-read config, reconnect, emit McpServerReloaded.
+    ReloadServer {
+        server_name: String,
         reply: oneshot::Sender<Result<(), McpSessionError>>,
     },
     /// Gracefully shut down all sessions and stop the actor loop.
@@ -175,6 +180,13 @@ struct McpClientManager {
     sessions: HashMap<String, McpSession>,
     rx: mpsc::Receiver<McpCommand>,
     tool_registry: ToolRegistryHandle,
+    /// Server names currently being hot-reloaded.
+    ///
+    /// While a name is in this set, any `CallTool` targeting that server
+    /// is rejected with [`McpSessionError::ServerReloading`].
+    reloading: HashSet<String>,
+    /// Optional event bus for emitting [`RuntimeEvent::McpServerReloaded`].
+    event_bus: Option<EventBusSender>,
 }
 
 // ─── handle impl ─────────────────────────────────────────────────────────────
@@ -189,9 +201,14 @@ impl McpClientManagerHandle {
     /// A server that fails to start is logged at `error` level and skipped; the
     /// remaining servers continue unaffected. The actor loop is spawned after all
     /// sessions are established.
+    ///
+    /// `event_bus` is optional: when `Some`, [`RuntimeEvent::McpServerReloaded`] is
+    /// published on every successful hot reload. When `None`, reloads still work but
+    /// no event is emitted.
     pub async fn start(
         configs: Vec<McpServerConfig>,
         tool_registry: &ToolRegistryHandle,
+        event_bus: Option<EventBusSender>,
     ) -> Result<Self, McpSessionError> {
         let (tx, rx) = mpsc::channel(32);
         let mut sessions: HashMap<String, McpSession> = HashMap::new();
@@ -273,6 +290,8 @@ impl McpClientManagerHandle {
             sessions,
             rx,
             tool_registry: tool_registry.clone(),
+            reloading: HashSet::new(),
+            event_bus,
         };
         tokio::spawn(actor.run());
 
@@ -481,6 +500,31 @@ impl McpClientManagerHandle {
         })?
     }
 
+    /// Hot-reload a named MCP server without restarting the runtime.
+    ///
+    /// Disconnects the current session, re-reads the server's configuration from the
+    /// managed session, reconnects, updates the tool registry, and emits
+    /// [`RuntimeEvent::McpServerReloaded`] on the event bus (when configured).
+    ///
+    /// Returns [`McpSessionError::ConfigReload`] when no session with `name` is managed.
+    /// Returns [`McpSessionError::ServerReloading`] when a reload for that server is
+    /// already in progress.
+    pub async fn reload_server(&self, name: &str) -> Result<(), McpSessionError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(McpCommand::ReloadServer {
+                server_name: name.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| McpSessionError::ServerExited {
+                server: name.to_string(),
+            })?;
+        reply_rx.await.map_err(|_| McpSessionError::ServerExited {
+            server: name.to_string(),
+        })?
+    }
+
     /// Gracefully shut down all MCP sessions and stop the actor.
     ///
     /// Consumes the handle. Remaining clones will receive channel-closed errors
@@ -595,6 +639,70 @@ impl McpClientManager {
         }
     }
 
+    /// Hot-reload the named server: disconnect → update tool registry → reconnect → emit event.
+    ///
+    /// Returns [`McpSessionError::ConfigReload`] when no session with `name` is managed.
+    /// Returns [`McpSessionError::ServerReloading`] when the server is already reloading.
+    async fn handle_reload_server(&mut self, name: &str) -> Result<(), McpSessionError> {
+        if self.reloading.contains(name) {
+            return Err(McpSessionError::ServerReloading {
+                server: name.to_string(),
+            });
+        }
+
+        let old_session = match self.sessions.remove(name) {
+            Some(s) => s,
+            None => {
+                return Err(McpSessionError::ConfigReload {
+                    server: name.to_string(),
+                });
+            }
+        };
+
+        let old_tools: Vec<String> = old_session.tools().iter().map(|t| t.name.clone()).collect();
+        let config = old_session.config().clone();
+
+        self.reloading.insert(name.to_string());
+
+        old_session.shutdown().await;
+
+        let new_session = match McpSession::start(config, None).await {
+            Ok(s) => s,
+            Err(e) => {
+                self.reloading.remove(name);
+                tracing::error!(
+                    server = %name,
+                    error = %e,
+                    "MCP server hot reload failed — server removed from managed set"
+                );
+                return Err(e);
+            }
+        };
+
+        let new_tools: Vec<String> = new_session.tools().iter().map(|t| t.name.clone()).collect();
+
+        tracing::info!(
+            server = %name,
+            old_tools = ?old_tools,
+            new_tools = ?new_tools,
+            "MCP server hot reload completed"
+        );
+
+        self.register_session_tools(name, &new_session).await;
+        self.sessions.insert(name.to_string(), new_session);
+        self.reloading.remove(name);
+
+        if let Some(ref tx) = self.event_bus {
+            let _ = tx.send(RuntimeEvent::McpServerReloaded {
+                name: name.to_string(),
+                old_tools,
+                new_tools,
+            });
+        }
+
+        Ok(())
+    }
+
     /// Spawn an ephemeral session for `config`, capture the result, then kill it.
     ///
     /// No session is stored and the tool registry is never modified.
@@ -634,11 +742,17 @@ impl McpClientManager {
                     arguments,
                     reply,
                 } => {
-                    let result = match self.sessions.get(&server_name) {
-                        Some(session) => session.call_tool(&tool_name, arguments).await,
-                        None => Err(McpSessionError::ServerExited {
+                    let result = if self.reloading.contains(&server_name) {
+                        Err(McpSessionError::ServerReloading {
                             server: server_name,
-                        }),
+                        })
+                    } else {
+                        match self.sessions.get(&server_name) {
+                            Some(session) => session.call_tool(&tool_name, arguments).await,
+                            None => Err(McpSessionError::ServerExited {
+                                server: server_name,
+                            }),
+                        }
                     };
                     let _ = reply.send(result);
                 }
@@ -727,6 +841,11 @@ impl McpClientManager {
                             server: server_name,
                         }),
                     };
+                    let _ = reply.send(result);
+                }
+
+                McpCommand::ReloadServer { server_name, reply } => {
+                    let result = self.handle_reload_server(&server_name).await;
                     let _ = reply.send(result);
                 }
 
@@ -1131,5 +1250,73 @@ mod tests {
         // WHEN shutdown is called
         handle.shutdown().await;
         // THEN no error (graceful no-op)
+    }
+
+    #[tokio::test]
+    async fn test_reload_inexistant_returns_config_reload_error() {
+        // GIVEN a McpClientManager with no connected sessions
+        use apollia_tools::registry::ToolRegistryHandle;
+        let registry = ToolRegistryHandle::start();
+        let handle = McpClientManagerHandle::start(vec![], &registry, None)
+            .await
+            .expect("manager start failed");
+
+        // WHEN reload is requested for an unknown server
+        let result = handle.reload_server("inexistant").await;
+
+        // THEN ConfigReload error is returned
+        assert!(
+            matches!(result, Err(McpSessionError::ConfigReload { ref server }) if server == "inexistant"),
+            "expected ConfigReload, got: {:?}",
+            result
+        );
+
+        handle.shutdown().await;
+    }
+
+    #[test]
+    fn test_server_reloading_error_is_well_typed() {
+        // GIVEN a ServerReloading error variant
+        let err = McpSessionError::ServerReloading {
+            server: "anthropic".to_string(),
+        };
+
+        // THEN it formats and matches correctly
+        assert!(
+            matches!(&err, McpSessionError::ServerReloading { server } if server == "anthropic")
+        );
+        assert!(err.to_string().contains("anthropic"));
+    }
+
+    #[test]
+    fn test_config_reload_error_is_well_typed() {
+        // GIVEN a ConfigReload error variant
+        let err = McpSessionError::ConfigReload {
+            server: "inexistant".to_string(),
+        };
+
+        // THEN it formats and matches correctly
+        assert!(matches!(&err, McpSessionError::ConfigReload { server } if server == "inexistant"));
+        assert!(err.to_string().contains("inexistant"));
+    }
+
+    #[test]
+    fn test_mcp_server_reloaded_event_fields() {
+        // GIVEN a McpServerReloaded event with tool lists
+        let event = apollia_core::RuntimeEvent::McpServerReloaded {
+            name: "notion".to_string(),
+            old_tools: vec!["search".to_string(), "query".to_string()],
+            new_tools: vec!["search".to_string(), "insert".to_string()],
+        };
+
+        // THEN it matches correctly and serializes
+        assert!(matches!(&event,
+            apollia_core::RuntimeEvent::McpServerReloaded { name, old_tools, new_tools }
+            if name == "notion"
+                && old_tools.len() == 2
+                && new_tools.contains(&"insert".to_string())
+        ));
+        let json = serde_json::to_value(&event).expect("event must be serializable");
+        assert_eq!(json["McpServerReloaded"]["name"], "notion");
     }
 }
