@@ -13,6 +13,7 @@ use apollia_core::{EventBusSender, RuntimeEvent, SandboxProfile};
 use apollia_tools::descriptor::{McpTransport, ToolDescriptor, ToolKind};
 use apollia_tools::registry::ToolRegistryHandle;
 
+use crate::approvals::{McpApprovalError, McpApprovalStore, PendingApprovalEntry};
 use crate::config::McpServerConfig;
 use crate::protocol::ToolCallResult;
 use crate::session::{McpSession, McpSessionError};
@@ -72,6 +73,22 @@ enum McpCommand {
     ReloadServer {
         server_name: String,
         reply: oneshot::Sender<Result<(), McpSessionError>>,
+    },
+    /// Approve a tool for future calls without HITL suspension.
+    ApproveToolAccess {
+        server_name: String,
+        tool_name: String,
+        reply: oneshot::Sender<Result<(), McpApprovalError>>,
+    },
+    /// Revoke a previously granted tool approval.
+    RevokeToolAccess {
+        server_name: String,
+        tool_name: String,
+        reply: oneshot::Sender<Result<(), McpApprovalError>>,
+    },
+    /// Return all pending approval requests awaiting human decision.
+    ListPendingApprovals {
+        reply: oneshot::Sender<Result<Vec<PendingApprovalEntry>, McpApprovalError>>,
     },
     /// Gracefully shut down all sessions and stop the actor loop.
     Shutdown,
@@ -187,6 +204,12 @@ struct McpClientManager {
     reloading: HashSet<String>,
     /// Optional event bus for emitting [`RuntimeEvent::McpServerReloaded`].
     event_bus: Option<EventBusSender>,
+    /// Optional SQLite-backed HITL approval store.
+    ///
+    /// When `Some`, every `CallTool` directed to a server with
+    /// `requires_approval = true` is checked against this store before
+    /// forwarding to the session. When `None`, the approval gate is disabled.
+    approvals: Option<McpApprovalStore>,
 }
 
 // ─── handle impl ─────────────────────────────────────────────────────────────
@@ -205,10 +228,15 @@ impl McpClientManagerHandle {
     /// `event_bus` is optional: when `Some`, [`RuntimeEvent::McpServerReloaded`] is
     /// published on every successful hot reload. When `None`, reloads still work but
     /// no event is emitted.
+    ///
+    /// `approvals` is optional: when `Some`, the HITL approval gate is active and
+    /// every tool call to a server with `requires_approval = true` is checked against
+    /// the store before forwarding to the session. When `None`, the gate is disabled.
     pub async fn start(
         configs: Vec<McpServerConfig>,
         tool_registry: &ToolRegistryHandle,
         event_bus: Option<EventBusSender>,
+        approvals: Option<McpApprovalStore>,
     ) -> Result<Self, McpSessionError> {
         let (tx, rx) = mpsc::channel(32);
         let mut sessions: HashMap<String, McpSession> = HashMap::new();
@@ -292,6 +320,7 @@ impl McpClientManagerHandle {
             tool_registry: tool_registry.clone(),
             reloading: HashSet::new(),
             event_bus,
+            approvals,
         };
         tokio::spawn(actor.run());
 
@@ -498,6 +527,81 @@ impl McpClientManagerHandle {
         reply_rx.await.map_err(|_| McpSessionError::ServerExited {
             server: server_name.to_string(),
         })?
+    }
+
+    /// Approve `(server_name, tool_name)` in the HITL store with the configured TTL.
+    ///
+    /// After approval, subsequent calls to the tool on that server bypass the
+    /// HITL suspension gate until the approval expires.
+    ///
+    /// Returns [`McpApprovalError`] when the store is not configured (`None`) or
+    /// when the SQLite write fails.
+    pub async fn approve_tool(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+    ) -> Result<(), McpApprovalError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .tx
+            .send(McpCommand::ApproveToolAccess {
+                server_name: server_name.to_string(),
+                tool_name: tool_name.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .is_err()
+        {
+            return Err(McpApprovalError::Db(rusqlite::Error::InvalidQuery));
+        }
+        reply_rx
+            .await
+            .unwrap_or(Err(McpApprovalError::Db(rusqlite::Error::InvalidQuery)))
+    }
+
+    /// Revoke a previously granted tool approval.
+    ///
+    /// Returns [`McpApprovalError`] when the store is not configured or the
+    /// SQLite delete fails.
+    pub async fn revoke_tool(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+    ) -> Result<(), McpApprovalError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .tx
+            .send(McpCommand::RevokeToolAccess {
+                server_name: server_name.to_string(),
+                tool_name: tool_name.to_string(),
+                reply: reply_tx,
+            })
+            .await
+            .is_err()
+        {
+            return Err(McpApprovalError::Db(rusqlite::Error::InvalidQuery));
+        }
+        reply_rx
+            .await
+            .unwrap_or(Err(McpApprovalError::Db(rusqlite::Error::InvalidQuery)))
+    }
+
+    /// Return all pending approval requests from the HITL store.
+    ///
+    /// Returns an empty `Vec` when the approval store is not configured.
+    pub async fn list_pending_approvals(
+        &self,
+    ) -> Result<Vec<PendingApprovalEntry>, McpApprovalError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .tx
+            .send(McpCommand::ListPendingApprovals { reply: reply_tx })
+            .await
+            .is_err()
+        {
+            return Ok(Vec::new());
+        }
+        reply_rx.await.unwrap_or(Ok(Vec::new()))
     }
 
     /// Hot-reload a named MCP server without restarting the runtime.
@@ -748,10 +852,42 @@ impl McpClientManager {
                         })
                     } else {
                         match self.sessions.get(&server_name) {
-                            Some(session) => session.call_tool(&tool_name, arguments).await,
                             None => Err(McpSessionError::ServerExited {
                                 server: server_name,
                             }),
+                            Some(session) => {
+                                if session.requires_approval() {
+                                    if let Some(ref store) = self.approvals {
+                                        if !store.is_approved(&server_name, &tool_name) {
+                                            let args = arguments
+                                                .as_ref()
+                                                .cloned()
+                                                .unwrap_or(serde_json::Value::Null);
+                                            match store.register(&server_name, &tool_name, &args) {
+                                                Ok(approval_id) => {
+                                                    let _ = reply.send(Err(
+                                                        McpSessionError::PendingApproval {
+                                                            server: server_name,
+                                                            tool: tool_name,
+                                                            approval_id,
+                                                        },
+                                                    ));
+                                                    continue;
+                                                }
+                                                Err(e) => {
+                                                    tracing::error!(
+                                                        server = %server_name,
+                                                        tool   = %tool_name,
+                                                        error  = %e,
+                                                        "failed to register pending approval"
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                session.call_tool(&tool_name, arguments).await
+                            }
                         }
                     };
                     let _ = reply.send(result);
@@ -846,6 +982,52 @@ impl McpClientManager {
 
                 McpCommand::ReloadServer { server_name, reply } => {
                     let result = self.handle_reload_server(&server_name).await;
+                    let _ = reply.send(result);
+                }
+
+                McpCommand::ApproveToolAccess {
+                    server_name,
+                    tool_name,
+                    reply,
+                } => {
+                    let result = match &self.approvals {
+                        Some(store) => store.approve(&server_name, &tool_name),
+                        None => {
+                            tracing::warn!(
+                                server = %server_name,
+                                tool   = %tool_name,
+                                "approve_tool called but no approval store configured"
+                            );
+                            Ok(())
+                        }
+                    };
+                    let _ = reply.send(result);
+                }
+
+                McpCommand::RevokeToolAccess {
+                    server_name,
+                    tool_name,
+                    reply,
+                } => {
+                    let result = match &self.approvals {
+                        Some(store) => store.revoke(&server_name, &tool_name),
+                        None => {
+                            tracing::warn!(
+                                server = %server_name,
+                                tool   = %tool_name,
+                                "revoke_tool called but no approval store configured"
+                            );
+                            Ok(())
+                        }
+                    };
+                    let _ = reply.send(result);
+                }
+
+                McpCommand::ListPendingApprovals { reply } => {
+                    let result = match &self.approvals {
+                        Some(store) => store.list_pending(),
+                        None => Ok(Vec::new()),
+                    };
                     let _ = reply.send(result);
                 }
 
@@ -1257,7 +1439,7 @@ mod tests {
         // GIVEN a McpClientManager with no connected sessions
         use apollia_tools::registry::ToolRegistryHandle;
         let registry = ToolRegistryHandle::start();
-        let handle = McpClientManagerHandle::start(vec![], &registry, None)
+        let handle = McpClientManagerHandle::start(vec![], &registry, None, None)
             .await
             .expect("manager start failed");
 

@@ -28,7 +28,7 @@ fn mock_server_config(name: &str) -> McpServerConfig {
 async fn test_add_server_hot() {
     // GIVEN a manager started with no initial servers
     let registry = ToolRegistryHandle::start();
-    let manager = McpClientManagerHandle::start(vec![], &registry, None)
+    let manager = McpClientManagerHandle::start(vec![], &registry, None, None)
         .await
         .unwrap();
     assert_eq!(manager.status().await.len(), 0);
@@ -58,7 +58,7 @@ async fn test_remove_server() {
     // GIVEN a manager with one connected server
     let registry = ToolRegistryHandle::start();
     let manager =
-        McpClientManagerHandle::start(vec![mock_server_config("to-remove")], &registry, None)
+        McpClientManagerHandle::start(vec![mock_server_config("to-remove")], &registry, None, None)
             .await
             .unwrap();
     assert_eq!(manager.status().await.len(), 1);
@@ -87,7 +87,7 @@ async fn test_remove_server() {
 async fn test_connection_no_side_effect() {
     // GIVEN a manager started with no initial servers
     let registry = ToolRegistryHandle::start();
-    let manager = McpClientManagerHandle::start(vec![], &registry, None)
+    let manager = McpClientManagerHandle::start(vec![], &registry, None, None)
         .await
         .unwrap();
 

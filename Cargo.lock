@@ -344,6 +344,7 @@ dependencies = [
  "apollia-tools",
  "async-trait",
  "axum",
+ "chrono",
  "futures",
  "hostname",
  "mdns-sd",
@@ -356,6 +357,7 @@ dependencies = [
  "tokio",
  "toml 0.8.23",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

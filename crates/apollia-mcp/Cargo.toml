@@ -20,6 +20,8 @@ toml          = { workspace = true }
 tracing       = { workspace = true }
 mdns-sd       = { workspace = true }
 hostname      = { workspace = true }
+uuid          = { workspace = true }
+chrono        = { workspace = true }
 
 [dev-dependencies]
 axum     = { workspace = true }

@@ -156,6 +156,20 @@ pub enum McpSessionError {
     #[error("cannot reload server '{server}': not found in managed sessions")]
     ConfigReload { server: String },
 
+    /// The tool call was suspended because HITL approval is required.
+    ///
+    /// The caller should surface `approval_id` to the operator so they can
+    /// run `apollia mcp set-approval` to unblock future calls.
+    #[error("tool call to '{server}/{tool}' requires human approval (id={approval_id})")]
+    PendingApproval {
+        /// MCP server name.
+        server: String,
+        /// Tool name within the server.
+        tool: String,
+        /// UUID of the pending approval request created in the approval store.
+        approval_id: String,
+    },
+
     /// A tool call arrived while the server is being hot-reloaded.
     ///
     /// The server has been disconnected but the new session is not yet established.

@@ -661,6 +661,49 @@ fn default_max_output_chars() -> usize {
 }
 
 // ─────────────────────────────────────────────
+// McpConfig
+// ─────────────────────────────────────────────
+
+/// Configuration du module MCP (section `[mcp]` dans `apollia.toml`).
+///
+/// Contrôle les comportements de la couche MCP exposés par le runtime :
+/// TTL des approbations HITL persistées en SQLite.
+/// Tous les champs ont des valeurs par défaut saines via [`Default`].
+#[derive(Debug, Clone, Deserialize)]
+pub struct McpConfig {
+    /// Durée de validité des approbations HITL MCP, en heures.
+    ///
+    /// Quand un opérateur exécute `apollia mcp set-approval`, l'entrée dans
+    /// `mcp_approvals` est créée avec `expires_at = now + approval_ttl_hours`.
+    /// La valeur `0` désactive l'expiration (approbation permanente).
+    /// Défaut : 24. Bornes : [0, 8760] (0 h à 1 an).
+    #[serde(default = "default_approval_ttl_hours")]
+    pub approval_ttl_hours: u64,
+}
+
+impl Default for McpConfig {
+    fn default() -> Self {
+        Self {
+            approval_ttl_hours: default_approval_ttl_hours(),
+        }
+    }
+}
+
+impl McpConfig {
+    /// Valide les bornes de la configuration MCP au démarrage (Principe #4 — Fail fast).
+    ///
+    /// - `approval_ttl_hours` : doit être dans [0, 8760].
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        validate_bounds("mcp.approval_ttl_hours", self.approval_ttl_hours, 0_u64, 8760_u64)?;
+        Ok(())
+    }
+}
+
+fn default_approval_ttl_hours() -> u64 {
+    24
+}
+
+// ─────────────────────────────────────────────
 // PermissionsConfig
 // ─────────────────────────────────────────────
 

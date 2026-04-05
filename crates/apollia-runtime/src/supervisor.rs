@@ -531,6 +531,7 @@ impl Supervisor {
                         server_configs,
                         &tool_registry_handle,
                         Some(event_sender.clone()),
+                        None,
                     )
                     .await
                     {
