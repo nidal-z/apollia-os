@@ -24,3 +24,4 @@ pub mod store;
 pub mod user_memory;
 
 pub use file_timestamp_cache::{FileTimestampCache, FileTimestampCacheError, FileTimestampEntry};
+pub use manager::PurgeReport;

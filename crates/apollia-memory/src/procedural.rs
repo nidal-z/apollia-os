@@ -256,6 +256,37 @@ impl<'a> ProceduralMemory<'a> {
 
         Ok(entries)
     }
+
+    /// Deletes procedural entries older than `days` days. Returns the count deleted.
+    ///
+    /// Procedural memories have no FTS index, so only the main table rows are removed.
+    pub fn purge_older_than(
+        &self,
+        namespace: &str,
+        days: u32,
+    ) -> Result<u64, ProceduralMemoryError> {
+        let conn = self.store.conn();
+        let cutoff = format!("-{days} days");
+
+        let deleted = conn
+            .execute(
+                "DELETE FROM procedural_memories
+                 WHERE namespace = ?1 AND created_at < datetime('now', ?2)",
+                rusqlite::params![namespace, cutoff],
+            )
+            .map_err(|e| ProceduralMemoryError::LearnFailed(format!("purge_older_than: {e}")))?;
+
+        if deleted > 0 {
+            tracing::info!(
+                namespace = %namespace,
+                days = days,
+                deleted = deleted,
+                "procedural entries purged by age"
+            );
+        }
+
+        Ok(deleted as u64)
+    }
 }
 
 /// Returns the current UTC time as an ISO 8601 string.

@@ -12,6 +12,24 @@ fn default_execution_mode() -> String {
     "auto".to_string()
 }
 
+/// Per-agent memory retention configuration.
+///
+/// Overrides the global `[memory]` `default_retention_days` from `apollia.toml`.
+/// A `None` value for a type means no age-based purge is applied for that type.
+/// `auto_purge = true` triggers a single purge pass when the `MemoryManager` starts.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MemoryConfig {
+    /// Episodic memory retention in days (`None` = inherit global default, no forced expiry).
+    pub episodic_retention_days: Option<u32>,
+    /// Semantic memory retention in days (`None` = no age-based expiry).
+    pub semantic_retention_days: Option<u32>,
+    /// Procedural memory retention in days (`None` = no age-based expiry).
+    pub procedural_retention_days: Option<u32>,
+    /// Trigger a purge pass at `MemoryManager` startup (opt-in, default `false`).
+    #[serde(default)]
+    pub auto_purge: bool,
+}
+
 /// Identité et capacités déclarées d'un agent.
 ///
 /// Source unique de vérité pour la résolution des outils et la configuration
@@ -97,6 +115,12 @@ pub struct AgentManifest {
     /// Vide par défaut — agents sans dépendances Python tierces.
     #[serde(default)]
     pub packages: Vec<String>,
+    /// Per-agent memory retention policy (`None` = global `[memory]` defaults apply).
+    ///
+    /// When present, overrides the global retention thresholds for this agent's namespace.
+    /// `auto_purge = true` inside this config triggers a purge at runtime startup.
+    #[serde(default)]
+    pub memory_config: Option<MemoryConfig>,
 }
 
 /// Compétence déclarative d'un agent.
@@ -144,6 +168,7 @@ mod tests {
             tools_requiring_approval: vec![],
             llm_backend: None,
             packages: vec![],
+            memory_config: None,
         };
         // WHEN
         let json = serde_json::to_string(&manifest).expect("serialization failed");
@@ -176,6 +201,7 @@ mod tests {
             tools_requiring_approval: vec![],
             llm_backend: None,
             packages: vec![],
+            memory_config: None,
         };
         // THEN
         assert_eq!(manifest.max_concurrent_tasks, 1);
@@ -313,6 +339,7 @@ mod tests {
             tools_requiring_approval: vec!["smtp".into(), "bash_executor".into()],
             llm_backend: None,
             packages: vec![],
+            memory_config: None,
         };
         // WHEN serde roundtrip JSON
         let json = serde_json::to_string(&manifest).expect("serialize must succeed");
@@ -356,5 +383,62 @@ mod tests {
             serde_json::from_str(&serialized).expect("deserialize roundtrip must succeed");
         // THEN packages est préservé
         assert_eq!(restored.packages, vec!["pandas>=2.0.0"]);
+    }
+
+    #[test]
+    fn test_memory_config_default() {
+        // GIVEN
+        let config = MemoryConfig::default();
+        // THEN auto_purge is false and all retention fields are None
+        assert!(!config.auto_purge);
+        assert!(config.episodic_retention_days.is_none());
+        assert!(config.semantic_retention_days.is_none());
+        assert!(config.procedural_retention_days.is_none());
+    }
+
+    #[test]
+    fn test_memory_config_absent_from_manifest_is_none() {
+        // GIVEN a manifest JSON without memory_config
+        let json = r#"{"name":"agent","version":"1.0.0","description":"","tools_required":[]}"#;
+        // WHEN deserialized
+        let manifest: AgentManifest = serde_json::from_str(json).expect("deserialize");
+        // THEN memory_config is None
+        assert!(manifest.memory_config.is_none());
+    }
+
+    #[test]
+    fn test_memory_config_roundtrip() {
+        // GIVEN a manifest JSON with memory_config
+        let json = serde_json::json!({
+            "name": "long-running",
+            "version": "1.0.0",
+            "description": "agent with retention config",
+            "tools_required": [],
+            "memory_config": {
+                "episodic_retention_days": 7,
+                "semantic_retention_days": null,
+                "procedural_retention_days": null,
+                "auto_purge": true
+            }
+        });
+        // WHEN deserialized and re-serialized
+        let manifest: AgentManifest = serde_json::from_value(json).expect("deserialize");
+        let cfg = manifest
+            .memory_config
+            .as_ref()
+            .expect("memory_config present");
+        assert_eq!(cfg.episodic_retention_days, Some(7));
+        assert!(cfg.semantic_retention_days.is_none());
+        assert!(cfg.procedural_retention_days.is_none());
+        assert!(cfg.auto_purge);
+        // AND roundtrip preserves values
+        let serialized = serde_json::to_string(&manifest).expect("serialize");
+        let restored: AgentManifest = serde_json::from_str(&serialized).expect("roundtrip");
+        let cfg2 = restored
+            .memory_config
+            .as_ref()
+            .expect("memory_config preserved");
+        assert_eq!(cfg2.episodic_retention_days, Some(7));
+        assert!(cfg2.auto_purge);
     }
 }

@@ -68,6 +68,28 @@ pub enum MemoryCommand {
         #[arg(long, value_name = "DIR")]
         data_dir: Option<PathBuf>,
     },
+
+    /// Purger les entrees memoire plus anciennes qu'un seuil en jours.
+    ///
+    /// Exemple : `apollia memory purge --namespace mon-agent --older-than 30`
+    /// Exemple avec filtre : `apollia memory purge --namespace mon-agent --type episodic --older-than 7`
+    Purge {
+        /// Namespace cible.
+        #[arg(long, value_name = "NAME")]
+        namespace: String,
+
+        /// Supprimer les entrees creees il y a plus de N jours.
+        #[arg(long, value_name = "DAYS")]
+        older_than: u32,
+
+        /// Limiter la purge a un seul type (defaut: tous les types).
+        #[arg(long, value_enum)]
+        r#type: Option<MemoryType>,
+
+        /// Repertoire des fichiers memoire (defaut: ~/.apollia/memory/).
+        #[arg(long, value_name = "DIR")]
+        data_dir: Option<PathBuf>,
+    },
 }
 
 /// Erreurs de la commande memory.
@@ -85,6 +107,10 @@ pub enum MemoryCommandError {
     /// Erreur du MemoryStore.
     #[error("memory store error: {0}")]
     Store(#[from] apollia_memory::store::MemoryStoreError),
+
+    /// Erreur du MemoryManager.
+    #[error("memory manager error: {0}")]
+    Manager(#[from] apollia_memory::manager::MemoryManagerError),
 
     /// Erreur de serialisation JSON.
     #[error("JSON serialization error: {0}")]
@@ -336,6 +362,67 @@ pub fn execute_clear(
     Ok(format!("{deleted} entree(s) supprimee(s) ({type_label})."))
 }
 
+/// Execute la commande `memory purge`.
+///
+/// Purge les entrees plus anciennes que `older_than` jours.
+/// Si `memory_type` est `None`, les trois types sont cibles.
+pub fn execute_purge(
+    namespace: &str,
+    older_than: u32,
+    memory_type: Option<&MemoryType>,
+    data_dir: &Path,
+    json: bool,
+) -> Result<String, MemoryCommandError> {
+    let db_path = data_dir.join(format!("{namespace}.db"));
+
+    if !db_path.exists() {
+        return Err(MemoryCommandError::NamespaceNotFound {
+            namespace: namespace.to_string(),
+            path: db_path.display().to_string(),
+        });
+    }
+
+    let mut mgr =
+        apollia_memory::manager::MemoryManager::new(data_dir, Some(namespace.to_string()), vec![]);
+
+    let (ep_days, sem_days, proc_days) = match memory_type {
+        Some(MemoryType::Episodic) => (Some(older_than), None, None),
+        Some(MemoryType::Semantic) => (None, Some(older_than), None),
+        Some(MemoryType::Procedural) => (None, None, Some(older_than)),
+        Some(MemoryType::All) | None => (Some(older_than), Some(older_than), Some(older_than)),
+    };
+
+    let report = mgr.purge_old_entries(namespace, ep_days, sem_days, proc_days)?;
+
+    let total = report.episodic_deleted + report.semantic_deleted + report.procedural_deleted;
+
+    tracing::info!(
+        namespace = %namespace,
+        older_than_days = older_than,
+        episodic = report.episodic_deleted,
+        semantic = report.semantic_deleted,
+        procedural = report.procedural_deleted,
+        "memory purge completed"
+    );
+
+    if json {
+        let output = serde_json::to_string_pretty(&serde_json::json!({
+            "namespace": namespace,
+            "older_than_days": older_than,
+            "episodic_deleted": report.episodic_deleted,
+            "semantic_deleted": report.semantic_deleted,
+            "procedural_deleted": report.procedural_deleted,
+            "total_deleted": total,
+        }))?;
+        return Ok(output);
+    }
+
+    Ok(format!(
+        "{total} entree(s) purgee(s) (episodic: {}, semantic: {}, procedural: {}).",
+        report.episodic_deleted, report.semantic_deleted, report.procedural_deleted
+    ))
+}
+
 /// Execute une sous-commande `memory`.
 pub fn run(cmd: &MemoryCommand, json: bool) -> Result<String, MemoryCommandError> {
     match cmd {
@@ -359,6 +446,15 @@ pub fn run(cmd: &MemoryCommand, json: bool) -> Result<String, MemoryCommandError
         } => {
             let dir = data_dir.clone().unwrap_or_else(default_data_dir);
             execute_clear(agent, r#type, *confirm, &dir, json)
+        }
+        MemoryCommand::Purge {
+            namespace,
+            older_than,
+            r#type,
+            data_dir,
+        } => {
+            let dir = data_dir.clone().unwrap_or_else(default_data_dir);
+            execute_purge(namespace, *older_than, r#type.as_ref(), &dir, json)
         }
     }
 }
@@ -622,5 +718,107 @@ mod tests {
             result,
             Err(MemoryCommandError::NamespaceNotFound { .. })
         ));
+    }
+
+    // purge -- older-than filters episodic only when --type episodic is set
+    #[test]
+    fn test_purge_episodic_type_only() {
+        // GIVEN a namespace with one old episodic entry and one semantic entry
+        let dir = temp_dir();
+        let db_path = setup_test_db(&dir, "agent-p");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute(
+            "INSERT INTO episodic_memories (id, namespace, agent_id, content, importance, created_at)
+             VALUES ('ep1', 'agent-p', 'a', 'old content', 0.5, '2020-01-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO semantic_memories (id, namespace, key, value, confidence, created_at, updated_at)
+             VALUES ('s1', 'agent-p', 'k', '\"v\"', 1.0, '2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+
+        // WHEN purge episodic only with threshold of 7 days
+        let result = execute_purge("agent-p", 7, Some(&MemoryType::Episodic), &dir, false);
+
+        // THEN
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("episodic: 1"));
+        assert!(output.contains("semantic: 0"));
+
+        // AND semantic entry is intact
+        let store = apollia_memory::store::MemoryStore::open(&db_path).unwrap();
+        let stats = store.stats("agent-p", &db_path).unwrap();
+        assert_eq!(stats.episodic_count, 0);
+        assert_eq!(stats.semantic_count, 1);
+    }
+
+    // purge -- nonexistent namespace returns NamespaceNotFound
+    #[test]
+    fn test_purge_missing_namespace_returns_error() {
+        // GIVEN
+        let dir = temp_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        // WHEN
+        let result = execute_purge("ghost", 30, None, &dir, false);
+        // THEN
+        assert!(matches!(
+            result,
+            Err(MemoryCommandError::NamespaceNotFound { .. })
+        ));
+    }
+
+    // purge -- JSON output is valid
+    #[test]
+    fn test_purge_json_output() {
+        // GIVEN an empty namespace
+        let dir = temp_dir();
+        setup_test_db(&dir, "agent-q");
+        // WHEN purge with JSON output
+        let result = execute_purge("agent-q", 30, None, &dir, true);
+        // THEN valid JSON with expected fields
+        assert!(result.is_ok());
+        let parsed: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(parsed["namespace"], "agent-q");
+        assert_eq!(parsed["older_than_days"], 30);
+        assert_eq!(parsed["total_deleted"], 0);
+    }
+
+    // purge -- all types deleted when no --type filter
+    #[test]
+    fn test_purge_all_types_no_filter() {
+        // GIVEN old entries of each type
+        let dir = temp_dir();
+        let db_path = setup_test_db(&dir, "agent-r");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute(
+            "INSERT INTO episodic_memories (id, namespace, agent_id, content, importance, created_at)
+             VALUES ('ep1', 'agent-r', 'a', 'c', 0.5, '2020-01-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO semantic_memories (id, namespace, key, value, confidence, created_at, updated_at)
+             VALUES ('s1', 'agent-r', 'k', '\"v\"', 1.0, '2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO procedural_memories (id, namespace, trigger_text, steps, last_used_at, created_at)
+             VALUES ('p1', 'agent-r', 't', '[]', '2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+        // WHEN purge all (no --type) older than 7 days
+        let result = execute_purge("agent-r", 7, None, &dir, false);
+        // THEN all three types deleted
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("3 entree(s)"));
     }
 }

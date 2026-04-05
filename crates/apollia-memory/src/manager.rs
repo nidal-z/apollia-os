@@ -10,11 +10,25 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+use apollia_core::manifest::MemoryConfig;
+
 use crate::episodic::EpisodicMemory;
+use crate::procedural::ProceduralMemory;
 use crate::semantic::SemanticMemory;
 use crate::store::MemoryStore;
 
 pub use crate::store::MemoryStats;
+
+/// Summary of a configurable purge operation, broken down by memory type.
+#[derive(Debug, Default)]
+pub struct PurgeReport {
+    /// Number of episodic entries deleted.
+    pub episodic_deleted: usize,
+    /// Number of semantic entries deleted.
+    pub semantic_deleted: usize,
+    /// Number of procedural entries deleted.
+    pub procedural_deleted: usize,
+}
 
 /// Intervalle minimum entre deux purges automatiques (5 minutes).
 const PURGE_INTERVAL_SECS: u64 = 300;
@@ -81,6 +95,10 @@ pub enum MemoryManagerError {
     /// Erreur du backend semantique.
     #[error("semantic memory error: {0}")]
     Semantic(#[from] crate::semantic::SemanticMemoryError),
+
+    /// Erreur du backend procedural.
+    #[error("procedural memory error: {0}")]
+    Procedural(#[from] crate::procedural::ProceduralMemoryError),
 
     /// Erreur de recherche FTS5.
     #[error("search error: {0}")]
@@ -217,6 +235,90 @@ impl MemoryManager {
             }
             Err(err) => {
                 tracing::warn!(error = %err, "automatic TTL purge failed");
+            }
+        }
+    }
+
+    /// Purge entries older than the supplied thresholds, per memory type.
+    ///
+    /// Pass `None` for any type to skip age-based purging for that type.
+    /// Only namespaces accessible by this manager can be targeted.
+    pub fn purge_old_entries(
+        &mut self,
+        namespace: &str,
+        episodic_days: Option<u32>,
+        semantic_days: Option<u32>,
+        procedural_days: Option<u32>,
+    ) -> Result<PurgeReport, MemoryManagerError> {
+        if self.access_level(namespace).is_none() {
+            return Err(MemoryManagerError::NamespaceNotAllowed(
+                namespace.to_string(),
+            ));
+        }
+
+        let store = self.store(namespace)?;
+        let ep = EpisodicMemory::new(store);
+        let sem = SemanticMemory::new(store);
+        let proc = ProceduralMemory::new(store);
+
+        let episodic_deleted = match episodic_days {
+            Some(days) => ep.purge_older_than(namespace, days)? as usize,
+            None => 0,
+        };
+        let semantic_deleted = match semantic_days {
+            Some(days) => sem.purge_older_than(namespace, days)? as usize,
+            None => 0,
+        };
+        let procedural_deleted = match procedural_days {
+            Some(days) => proc.purge_older_than(namespace, days)? as usize,
+            None => 0,
+        };
+
+        let report = PurgeReport {
+            episodic_deleted,
+            semantic_deleted,
+            procedural_deleted,
+        };
+
+        if report.episodic_deleted + report.semantic_deleted + report.procedural_deleted > 0 {
+            tracing::info!(
+                namespace = %namespace,
+                episodic = report.episodic_deleted,
+                semantic = report.semantic_deleted,
+                procedural = report.procedural_deleted,
+                "configurable purge completed"
+            );
+        }
+
+        Ok(report)
+    }
+
+    /// Run a single purge pass driven by `config` if `auto_purge = true`.
+    ///
+    /// Returns immediately when `auto_purge = false` without touching the database.
+    /// Errors are logged as warnings and never propagated (fire-and-forget).
+    pub fn start_auto_purge(&mut self, config: &MemoryConfig, namespace: &str) {
+        if !config.auto_purge {
+            return;
+        }
+
+        match self.purge_old_entries(
+            namespace,
+            config.episodic_retention_days,
+            config.semantic_retention_days,
+            config.procedural_retention_days,
+        ) {
+            Ok(report) => {
+                tracing::info!(
+                    namespace = %namespace,
+                    episodic = report.episodic_deleted,
+                    semantic = report.semantic_deleted,
+                    procedural = report.procedural_deleted,
+                    "auto purge completed"
+                );
+            }
+            Err(err) => {
+                tracing::warn!(error = %err, namespace = %namespace, "auto purge failed");
             }
         }
     }
@@ -510,5 +612,195 @@ mod tests {
         // THEN
         assert!(store.is_ok());
         assert!(nested.join("ns.db").exists());
+    }
+
+    // purge_old_entries -- episodic only, semantic and procedural untouched
+    #[test]
+    fn test_purge_episodic_only() {
+        use crate::procedural::ProceduralMemory;
+        use crate::semantic::SemanticMemory;
+
+        // GIVEN -- namespace with entries of each type, all created 10+ days ago
+        let base = temp_base_dir();
+        let mut mgr = MemoryManager::new(&base, Some("ns".into()), vec![]);
+
+        let store = mgr.store("ns").expect("open store");
+        let ep = EpisodicMemory::new(store);
+        let sem = SemanticMemory::new(store);
+        let proc = ProceduralMemory::new(store);
+
+        // Insert old entries (created in 2020, well beyond 7-day threshold)
+        let conn = store.conn();
+        conn.execute(
+            "INSERT INTO episodic_memories (id, namespace, agent_id, content, importance, created_at)
+             VALUES ('ep1', 'ns', 'a', 'old episode', 0.5, '2020-01-01T00:00:00Z')",
+            [],
+        )
+        .expect("insert episodic");
+        drop(ep);
+
+        sem.remember("ns", "key", &serde_json::json!("val"), 1.0, None, None)
+            .expect("remember semantic");
+
+        proc.learn("ns", "trig", &["step1".to_string()])
+            .expect("learn procedural");
+
+        // Reopen store reference after mutating
+        drop(sem);
+        drop(conn);
+        drop(proc);
+
+        // WHEN -- purge episodic older than 7 days, leave semantic and procedural alone
+        let report = mgr
+            .purge_old_entries("ns", Some(7), None, None)
+            .expect("purge");
+
+        // THEN -- only episodic entry deleted
+        assert_eq!(report.episodic_deleted, 1);
+        assert_eq!(report.semantic_deleted, 0);
+        assert_eq!(report.procedural_deleted, 0);
+
+        let store = mgr.store("ns").expect("reopen");
+        let stats = store.stats("ns", &base.join("ns.db")).expect("stats");
+        assert_eq!(stats.episodic_count, 0, "episodic must be empty");
+        assert_eq!(stats.semantic_count, 1, "semantic must be intact");
+        assert_eq!(stats.procedural_count, 1, "procedural must be intact");
+    }
+
+    // purge_old_entries -- auto_purge = false does nothing
+    #[test]
+    fn test_auto_purge_false_does_nothing() {
+        use apollia_core::manifest::MemoryConfig;
+
+        // GIVEN -- old episodic entry and auto_purge = false
+        let base = temp_base_dir();
+        let mut mgr = MemoryManager::new(&base, Some("ns".into()), vec![]);
+
+        let store = mgr.store("ns").expect("open store");
+        store.conn().execute(
+            "INSERT INTO episodic_memories (id, namespace, agent_id, content, importance, created_at)
+             VALUES ('ep1', 'ns', 'a', 'old episode', 0.5, '2020-01-01T00:00:00Z')",
+            [],
+        )
+        .expect("insert");
+
+        let config = MemoryConfig {
+            auto_purge: false,
+            episodic_retention_days: Some(1),
+            ..Default::default()
+        };
+
+        // WHEN
+        mgr.start_auto_purge(&config, "ns");
+
+        // THEN -- entry still present
+        let store = mgr.store("ns").expect("reopen");
+        let stats = store.stats("ns", &base.join("ns.db")).expect("stats");
+        assert_eq!(
+            stats.episodic_count, 1,
+            "entry must not be purged when auto_purge = false"
+        );
+    }
+
+    // purge_old_entries -- auto_purge = true purges on startup
+    #[test]
+    fn test_auto_purge_true_purges_old_entries() {
+        use apollia_core::manifest::MemoryConfig;
+
+        // GIVEN -- old episodic entry created more than 1 day ago and auto_purge = true
+        let base = temp_base_dir();
+        let mut mgr = MemoryManager::new(&base, Some("ns".into()), vec![]);
+
+        let store = mgr.store("ns").expect("open store");
+        store.conn().execute(
+            "INSERT INTO episodic_memories (id, namespace, agent_id, content, importance, created_at)
+             VALUES ('ep1', 'ns', 'a', 'old episode', 0.5, '2020-01-01T00:00:00Z')",
+            [],
+        )
+        .expect("insert");
+
+        let config = MemoryConfig {
+            auto_purge: true,
+            episodic_retention_days: Some(1),
+            ..Default::default()
+        };
+
+        // WHEN
+        mgr.start_auto_purge(&config, "ns");
+
+        // THEN -- entry is gone
+        let store = mgr.store("ns").expect("reopen");
+        let stats = store.stats("ns", &base.join("ns.db")).expect("stats");
+        assert_eq!(
+            stats.episodic_count, 0,
+            "old entry must be purged when auto_purge = true"
+        );
+    }
+
+    // purge_old_entries -- report counts match actual deletions
+    #[test]
+    fn test_purge_report_counts() {
+        use crate::semantic::SemanticMemory;
+
+        // GIVEN -- 2 old episodic + 1 old semantic entries
+        let base = temp_base_dir();
+        let mut mgr = MemoryManager::new(&base, Some("ns".into()), vec![]);
+
+        let store = mgr.store("ns").expect("open store");
+        let conn = store.conn();
+        conn.execute(
+            "INSERT INTO episodic_memories (id, namespace, agent_id, content, importance, created_at)
+             VALUES ('ep1', 'ns', 'a', 'c1', 0.5, '2020-01-01T00:00:00Z')",
+            [],
+        )
+        .expect("ep1");
+        conn.execute(
+            "INSERT INTO episodic_memories (id, namespace, agent_id, content, importance, created_at)
+             VALUES ('ep2', 'ns', 'a', 'c2', 0.5, '2020-01-02T00:00:00Z')",
+            [],
+        )
+        .expect("ep2");
+        drop(conn);
+
+        let sem = SemanticMemory::new(store);
+        sem.remember("ns", "k", &serde_json::json!("v"), 1.0, None, None)
+            .expect("semantic");
+        drop(sem);
+
+        // Force the semantic entry to an old created_at
+        let conn = store.conn();
+        conn.execute(
+            "UPDATE semantic_memories SET created_at = '2020-01-01T00:00:00Z' WHERE namespace = 'ns'",
+            [],
+        )
+        .expect("backdate");
+        drop(conn);
+
+        // WHEN -- purge both episodic and semantic older than 7 days
+        let report = mgr
+            .purge_old_entries("ns", Some(7), Some(7), None)
+            .expect("purge");
+
+        // THEN -- counts match exactly
+        assert_eq!(report.episodic_deleted, 2);
+        assert_eq!(report.semantic_deleted, 1);
+        assert_eq!(report.procedural_deleted, 0);
+    }
+
+    // purge_old_entries -- unknown namespace returns NamespaceNotAllowed
+    #[test]
+    fn test_purge_unknown_namespace_rejected() {
+        // GIVEN -- manager without 'other' in its allowed namespaces
+        let base = temp_base_dir();
+        let mut mgr = MemoryManager::new(&base, Some("mine".into()), vec![]);
+
+        // WHEN
+        let result = mgr.purge_old_entries("other", Some(7), None, None);
+
+        // THEN
+        assert!(matches!(
+            result,
+            Err(MemoryManagerError::NamespaceNotAllowed(_))
+        ));
     }
 }

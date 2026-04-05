@@ -389,6 +389,44 @@ impl<'a> SemanticMemory<'a> {
 
         Ok(purged as u64)
     }
+
+    /// Deletes semantic entries older than `days` days. Returns the count deleted.
+    ///
+    /// Removes the corresponding FTS index entries before deleting the main rows.
+    pub fn purge_older_than(&self, namespace: &str, days: u32) -> Result<u64, SemanticMemoryError> {
+        let conn = self.store.conn();
+        let cutoff = format!("-{days} days");
+
+        conn.execute(
+            "DELETE FROM memory_fts WHERE source_table = 'semantic' AND source_id IN (
+                SELECT id FROM semantic_memories
+                WHERE namespace = ?1 AND created_at < datetime('now', ?2)
+            )",
+            rusqlite::params![namespace, cutoff],
+        )
+        .map_err(|e| SemanticMemoryError::StoreFailed(format!("FTS purge failed: {e}")))?;
+
+        let deleted = conn
+            .execute(
+                "DELETE FROM semantic_memories
+                 WHERE namespace = ?1 AND created_at < datetime('now', ?2)",
+                rusqlite::params![namespace, cutoff],
+            )
+            .map_err(|e| {
+                SemanticMemoryError::StoreFailed(format!("purge_older_than failed: {e}"))
+            })?;
+
+        if deleted > 0 {
+            tracing::info!(
+                namespace = %namespace,
+                days = days,
+                deleted = deleted,
+                "semantic entries purged by age"
+            );
+        }
+
+        Ok(deleted as u64)
+    }
 }
 
 /// Returns the current UTC time as an ISO 8601 string.

@@ -280,6 +280,44 @@ impl<'a> EpisodicMemory<'a> {
 
         Ok(purged as u64)
     }
+
+    /// Deletes episodic entries older than `days` days. Returns the count deleted.
+    ///
+    /// Removes the corresponding FTS index entries before deleting the main rows.
+    pub fn purge_older_than(&self, namespace: &str, days: u32) -> Result<u64, EpisodicMemoryError> {
+        let conn = self.store.conn();
+        let cutoff = format!("-{days} days");
+
+        conn.execute(
+            "DELETE FROM memory_fts WHERE source_table = 'episodic' AND source_id IN (
+                SELECT id FROM episodic_memories
+                WHERE namespace = ?1 AND created_at < datetime('now', ?2)
+            )",
+            rusqlite::params![namespace, cutoff],
+        )
+        .map_err(|e| EpisodicMemoryError::RecordFailed(format!("FTS purge failed: {e}")))?;
+
+        let deleted = conn
+            .execute(
+                "DELETE FROM episodic_memories
+                 WHERE namespace = ?1 AND created_at < datetime('now', ?2)",
+                rusqlite::params![namespace, cutoff],
+            )
+            .map_err(|e| {
+                EpisodicMemoryError::RecordFailed(format!("purge_older_than failed: {e}"))
+            })?;
+
+        if deleted > 0 {
+            tracing::info!(
+                namespace = %namespace,
+                days = days,
+                deleted = deleted,
+                "episodic entries purged by age"
+            );
+        }
+
+        Ok(deleted as u64)
+    }
 }
 
 /// Returns the current UTC time as an ISO 8601 string.

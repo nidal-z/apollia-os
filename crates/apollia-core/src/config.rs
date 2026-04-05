@@ -694,7 +694,12 @@ impl McpConfig {
     ///
     /// - `approval_ttl_hours` : doit être dans [0, 8760].
     pub fn validate(&self) -> Result<(), ConfigError> {
-        validate_bounds("mcp.approval_ttl_hours", self.approval_ttl_hours, 0_u64, 8760_u64)?;
+        validate_bounds(
+            "mcp.approval_ttl_hours",
+            self.approval_ttl_hours,
+            0_u64,
+            8760_u64,
+        )?;
         Ok(())
     }
 }

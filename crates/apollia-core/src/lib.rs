@@ -42,7 +42,7 @@ pub use config::{
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
-pub use manifest::{AgentManifest, AgentSkill};
+pub use manifest::{AgentManifest, AgentSkill, MemoryConfig};
 pub use observability::{truncate_with_marker, ObservabilityConfig};
 pub use pending_approvals::{PendingApprovalError, PendingApprovals};
 pub use plan_alternatives::{ChosenPlan, PlanAlternatives, PlanChoice, TaskPlan, TaskPlanStep};

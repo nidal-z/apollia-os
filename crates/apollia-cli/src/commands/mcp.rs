@@ -145,10 +145,7 @@ pub async fn run(command: &McpCommand, json: bool) -> i32 {
             }
         }
 
-        McpCommand::ListPending {
-            db,
-            json: cmd_json,
-        } => {
+        McpCommand::ListPending { db, json: cmd_json } => {
             let use_json = json || *cmd_json;
             match run_list_pending(db.as_deref(), use_json) {
                 Ok(output) => {
@@ -471,7 +468,9 @@ mod tests {
         let result = resolve_approvals_db_path(None);
         // THEN path ends with .apollia/mcp_approvals.db
         assert!(
-            result.to_string_lossy().ends_with(".apollia/mcp_approvals.db"),
+            result
+                .to_string_lossy()
+                .ends_with(".apollia/mcp_approvals.db"),
             "unexpected path: {result:?}"
         );
     }
@@ -500,8 +499,8 @@ mod tests {
         // GIVEN a temp db
         let tmp = tempfile::NamedTempFile::new().expect("tmp file");
         // WHEN
-        let out = run_set_approval("srv", "tool", Some(tmp.path()), 24, true)
-            .expect("set-approval json");
+        let out =
+            run_set_approval("srv", "tool", Some(tmp.path()), 24, true).expect("set-approval json");
         // THEN JSON is valid and approved=true
         let v: serde_json::Value = serde_json::from_str(&out).expect("valid json");
         assert_eq!(v["approved"], true);
