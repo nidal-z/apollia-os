@@ -592,8 +592,8 @@ mod tests {
         // THEN Commands::Agent { command: AgentCommand::Install { path } }
         match &cli.command {
             Commands::Agent { command } => match command {
-                AgentCommand::Install { path, .. } => {
-                    assert_eq!(path, &PathBuf::from("./agents/mon-agent.py"));
+                AgentCommand::Install { source, .. } => {
+                    assert_eq!(source, "./agents/mon-agent.py");
                 }
                 other => panic!("expected AgentCommand::Install, got {other:?}"),
             },
@@ -1086,7 +1086,13 @@ mod tests {
         // THEN Commands::Pipeline { command: PipelineCommand::List }, json=false
         match &cli.command {
             Commands::Pipeline { command } => {
-                assert!(matches!(command, PipelineCommand::List));
+                assert!(matches!(
+                    command,
+                    PipelineCommand::List {
+                        registry: false,
+                        ..
+                    }
+                ));
                 assert!(!cli.json);
             }
             other => panic!("expected Commands::Pipeline, got {other:?}"),

@@ -937,6 +937,40 @@ fn default_syntax_check_timeout_ms() -> u64 {
 }
 
 // ─────────────────────────────────────────────
+// RegistryConfig
+// ─────────────────────────────────────────────
+
+/// Configuration du registry de pipelines communautaires (section `[registry]` dans `apollia.toml`).
+///
+/// Indique l'URL du dépôt Git public depuis lequel `apollia pipeline install` télécharge
+/// les templates. Les URLs GitHub (`https://github.com/org/repo`) sont automatiquement
+/// converties en URLs de contenu brut par le `PipelineRegistry`.
+/// Tous les champs ont des valeurs par défaut saines via [`Default`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegistryConfig {
+    /// URL du dépôt Git du registry de pipelines communautaires.
+    ///
+    /// Format GitHub : `https://github.com/org/repo`.
+    /// Le `PipelineRegistry` convertit automatiquement cette URL en URL de contenu brut
+    /// (`raw.githubusercontent.com`).
+    /// Défaut : `"https://github.com/apollia-os/pipelines"`.
+    #[serde(default = "default_pipeline_registry_url")]
+    pub pipeline_registry_url: String,
+}
+
+impl Default for RegistryConfig {
+    fn default() -> Self {
+        Self {
+            pipeline_registry_url: default_pipeline_registry_url(),
+        }
+    }
+}
+
+fn default_pipeline_registry_url() -> String {
+    "https://github.com/apollia-os/pipelines".to_owned()
+}
+
+// ─────────────────────────────────────────────
 // LlmRoutingConfig
 // ─────────────────────────────────────────────
 

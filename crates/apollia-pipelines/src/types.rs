@@ -206,6 +206,47 @@ pub enum ConditionKind {
     Regex,
 }
 
+// ── Step types ────────────────────────────────────────────────────────────────
+
+/// Type d'un step de pipeline, utilisé dans les templates communautaires.
+///
+/// Décrit la nature de la tâche exécutée par un step : appel bash, délégation
+/// à un agent nommé, appel LLM direct avec template, ou invocation d'un outil MCP.
+/// Le variant [`LlmPrompt`](PipelineStepType::LlmPrompt) permet d'exprimer un step
+/// d'inférence directe sans passer par un agent Python.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum PipelineStepType {
+    /// Exécute une commande shell via le `BashExecutor`.
+    Bash {
+        /// Commande shell à exécuter.
+        command: String,
+    },
+    /// Délègue la tâche à un agent nommé enregistré dans le runtime.
+    Agent {
+        /// Nom de l'agent cible tel que déclaré dans son manifest.
+        agent_name: String,
+    },
+    /// Appel LLM direct avec un template de prompt interpolé.
+    ///
+    /// Permet d'exprimer un step d'inférence sans agent intermédiaire.
+    /// Le `template` supporte les variables `{{input}}`, `{{context}}`, etc.
+    LlmPrompt {
+        /// Template de prompt supportant les variables `{{input}}`, `{{context}}`, etc.
+        template: String,
+        /// Hint de sélection de modèle (`"fast"`, `"smart"`, `"local"`).
+        /// `None` utilise le modèle par défaut du router LLM.
+        model_hint: Option<String>,
+    },
+    /// Invoque un outil exposé par un serveur MCP.
+    McpTool {
+        /// Nom du serveur MCP tel que configuré dans `apollia.toml`.
+        server: String,
+        /// Nom de l'outil MCP à invoquer.
+        tool: String,
+    },
+}
+
 // ── Run state ─────────────────────────────────────────────────────────────────
 
 /// Runtime state of a pipeline run — in progress or terminated.
@@ -462,6 +503,78 @@ mod tests {
 
         // THEN
         assert_eq!(status, restored);
+    }
+
+    // PipelineStepType::LlmPrompt round-trip preserves template and model_hint
+    #[test]
+    fn test_llm_prompt_step_serialization() {
+        // GIVEN
+        let step = PipelineStepType::LlmPrompt {
+            template: "Analyse: {{input}}".into(),
+            model_hint: Some("fast".into()),
+        };
+
+        // WHEN
+        let json = serde_json::to_string(&step).expect("serialization must succeed");
+        let parsed: PipelineStepType =
+            serde_json::from_str(&json).expect("deserialization must succeed");
+
+        // THEN
+        assert!(
+            matches!(
+                parsed,
+                PipelineStepType::LlmPrompt {
+                    ref template,
+                    ref model_hint
+                } if template == "Analyse: {{input}}" && model_hint.as_deref() == Some("fast")
+            ),
+            "round-trip must preserve LlmPrompt fields"
+        );
+    }
+
+    // PipelineStepType::LlmPrompt with None model_hint serializes cleanly
+    #[test]
+    fn test_llm_prompt_step_no_model_hint() {
+        // GIVEN
+        let step = PipelineStepType::LlmPrompt {
+            template: "Summarize: {{input}}".into(),
+            model_hint: None,
+        };
+
+        // WHEN
+        let json = serde_json::to_string(&step).expect("serialization must succeed");
+        let parsed: PipelineStepType =
+            serde_json::from_str(&json).expect("deserialization must succeed");
+
+        // THEN
+        assert!(
+            matches!(parsed, PipelineStepType::LlmPrompt { ref model_hint, .. } if model_hint.is_none()),
+            "model_hint should be None after round-trip"
+        );
+    }
+
+    // All PipelineStepType variants serialize with the correct "type" tag
+    #[test]
+    fn test_step_type_tags() {
+        // GIVEN / WHEN / THEN
+        let bash = serde_json::to_string(&PipelineStepType::Bash {
+            command: "ls".into(),
+        })
+        .expect("must serialize");
+        assert!(bash.contains(r#""type":"bash""#), "bash tag missing");
+
+        let agent = serde_json::to_string(&PipelineStepType::Agent {
+            agent_name: "my-agent".into(),
+        })
+        .expect("must serialize");
+        assert!(agent.contains(r#""type":"agent""#), "agent tag missing");
+
+        let mcp = serde_json::to_string(&PipelineStepType::McpTool {
+            server: "srv".into(),
+            tool: "tool".into(),
+        })
+        .expect("must serialize");
+        assert!(mcp.contains(r#""type":"mcp_tool""#), "mcp_tool tag missing");
     }
 
     // StepRun with all optional fields None serializes and restores cleanly

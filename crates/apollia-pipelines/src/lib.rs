@@ -15,6 +15,7 @@ pub mod condition;
 pub mod definition_repository;
 pub mod engine;
 pub mod executor;
+pub mod registry;
 pub mod repository;
 pub mod template;
 pub mod topo;
@@ -29,12 +30,13 @@ pub use engine::{PipelineEngine, PipelineEngineError, PipelineEngineHandle};
 pub use executor::{
     ExecutorError, PipelineExecutor, StepCancelRegistry, StepResult, TaskSubmitter,
 };
+pub use registry::{PipelineError, PipelineIndex, PipelineRegistry};
 pub use repository::{PipelineRepository, PipelineRepositoryError};
 pub use template::TemplateContext;
 pub use topo::{topological_layers, TopologicalError};
 pub use types::{
     ConditionKind, GlobalFailurePolicy, PipelineDefinition, PipelineId, PipelineRun,
-    PipelineStatus, PipelineStepDef, RunId, StepCondition, StepFailurePolicy, StepId, StepRun,
-    StepRunStatus,
+    PipelineStatus, PipelineStepDef, PipelineStepType, RunId, StepCondition, StepFailurePolicy,
+    StepId, StepRun, StepRunStatus,
 };
 pub use validation::{validate_pipeline, validate_pipeline_dag};

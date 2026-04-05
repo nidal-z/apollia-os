@@ -1,7 +1,7 @@
 //! `apollia-os pipeline` subcommands — pipeline orchestration.
 //!
-//! Fournit les sous-commandes `list`, `run`, `runs` et `status` pour déclencher
-//! et monitorer les pipelines multi-agents depuis le terminal.
+//! Fournit les sous-commandes `list`, `run`, `runs`, `status`, `install` pour
+//! déclencher, monitorer et installer des pipelines multi-agents depuis le terminal.
 //!
 //! Pattern noun-verb cohérent avec `agent`, `task`, `trigger`.
 
@@ -9,6 +9,9 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use clap::Subcommand;
+
+use apollia_core::RegistryConfig;
+use apollia_pipelines::registry::PipelineRegistry;
 
 use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
 use crate::exit_codes;
@@ -18,8 +21,25 @@ use crate::exit_codes;
 /// Pipeline subcommands : `apollia-os pipeline <verb>`.
 #[derive(Debug, Subcommand)]
 pub enum PipelineCommand {
-    /// Lister les pipelines déclarés dans la config.
-    List,
+    /// Lister les pipelines locaux ou les pipelines disponibles dans le registry.
+    List {
+        /// Afficher les pipelines disponibles dans le registry communautaire au lieu des pipelines locaux.
+        #[arg(long)]
+        registry: bool,
+
+        /// URL du registry à utiliser (écrase la valeur de `apollia.toml`).
+        #[arg(long, value_name = "URL")]
+        registry_url: Option<String>,
+    },
+    /// Installer un pipeline depuis le registry communautaire.
+    Install {
+        /// Nom du pipeline à installer (ex: `code-review`).
+        name: String,
+
+        /// URL du registry à utiliser (écrase la valeur de `apollia.toml`).
+        #[arg(long, value_name = "URL")]
+        registry_url: Option<String>,
+    },
     /// Déclencher un pipeline manuellement et suivre sa progression.
     Run {
         /// Identifiant du pipeline.
@@ -56,7 +76,19 @@ pub async fn run(cmd: &PipelineCommand, socket: Option<PathBuf>, json: bool) -> 
     let client = RuntimeClient::new(socket_path);
 
     match cmd {
-        PipelineCommand::List => run_list(&client, json).await,
+        PipelineCommand::List {
+            registry,
+            registry_url,
+        } => {
+            if *registry {
+                run_list_registry(registry_url.as_deref(), json).await
+            } else {
+                run_list(&client, json).await
+            }
+        }
+        PipelineCommand::Install { name, registry_url } => {
+            run_install(name, registry_url.as_deref(), json).await
+        }
         PipelineCommand::Run {
             pipeline_id,
             input,
@@ -95,6 +127,71 @@ async fn run_list(client: &RuntimeClient, json: bool) -> i32 {
             exit_codes::SUCCESS
         }
         Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os pipeline install <name>` — install a community pipeline template.
+async fn run_install(name: &str, registry_url: Option<&str>, json: bool) -> i32 {
+    let url = resolve_registry_url(registry_url);
+    let reg = PipelineRegistry::new(&url);
+
+    match reg.install(name).await {
+        Ok(path) => {
+            if json {
+                let out = serde_json::json!({
+                    "status": "installed",
+                    "name": name,
+                    "path": path.display().to_string()
+                });
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                println!("  ✔ Pipeline «{name}» installé → {}", path.display());
+            }
+            exit_codes::SUCCESS
+        }
+        Err(apollia_pipelines::registry::PipelineError::NotFound(_)) => {
+            if json {
+                let out = serde_json::json!({"error": format!("pipeline not found: {name}")});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: pipeline «{name}» introuvable dans le registry.");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(apollia_pipelines::registry::PipelineError::InvalidPipeline(reason)) => {
+            if json {
+                let out = serde_json::json!({"error": format!("invalid pipeline: {reason}")});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: TOML invalide — {reason}");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => output_error(&e.to_string(), json, exit_codes::GENERAL_ERROR),
+    }
+}
+
+/// `apollia-os pipeline list --registry` — list pipelines available in the community registry.
+async fn run_list_registry(registry_url: Option<&str>, json: bool) -> i32 {
+    let url = resolve_registry_url(registry_url);
+    let reg = PipelineRegistry::new(&url);
+
+    match reg.list_available().await {
+        Ok(index) => {
+            if json {
+                let out = serde_json::json!({ "pipelines": index.iter().map(|p| serde_json::json!({
+                    "name": p.name,
+                    "description": p.description,
+                    "author": p.author,
+                    "tags": p.tags,
+                })).collect::<Vec<_>>() });
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                format_registry_list(&index);
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => output_error(&e.to_string(), json, exit_codes::GENERAL_ERROR),
     }
 }
 
@@ -320,6 +417,41 @@ async fn poll_pipeline_run(
     }
 }
 
+// ─── Registry helpers ─────────────────────────────────────────────────────────
+
+/// Resolves the registry URL from CLI override, `apollia.toml`, or built-in default.
+///
+/// Priority: `--registry-url` flag > `apollia.toml [registry]` > hardcoded default.
+fn resolve_registry_url(override_url: Option<&str>) -> String {
+    if let Some(url) = override_url {
+        return url.to_string();
+    }
+    // Try to read from apollia.toml
+    if let Some(path) = find_config_file() {
+        if let Ok(cfg) = crate::config::parse_apollia_toml(&path) {
+            if let Some(reg) = cfg.registry {
+                return reg.pipeline_registry_url;
+            }
+        }
+    }
+    RegistryConfig::default().pipeline_registry_url
+}
+
+/// Searches for `apollia.toml` in the current directory then user config dir.
+fn find_config_file() -> Option<std::path::PathBuf> {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let local = cwd.join("apollia.toml");
+    if local.exists() {
+        return Some(local);
+    }
+    let home = std::env::var("HOME").unwrap_or_default();
+    let user_cfg = std::path::PathBuf::from(format!("{home}/.config/apollia/apollia.toml"));
+    if user_cfg.exists() {
+        return Some(user_cfg);
+    }
+    None
+}
+
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 /// Format the pipeline list as a human-readable table.
@@ -348,6 +480,26 @@ fn format_pipeline_list(resp: &serde_json::Value) {
             desc.to_string()
         };
         println!("  {:<30} {}", id, desc_display);
+    }
+}
+
+/// Format a registry index as a human-readable table.
+///
+/// Columns: NAME, AUTHOR, DESCRIPTION, TAGS
+fn format_registry_list(index: &[apollia_pipelines::registry::PipelineIndex]) {
+    if index.is_empty() {
+        println!("  (no pipelines in registry)");
+        return;
+    }
+
+    println!("  {:<25} {:<15} DESCRIPTION", "NAME", "AUTHOR");
+    for p in index {
+        let desc = if p.description.len() > 45 {
+            format!("{}…", &p.description[..44])
+        } else {
+            p.description.clone()
+        };
+        println!("  {:<25} {:<15} {}", p.name, p.author, desc);
     }
 }
 
@@ -545,8 +697,65 @@ mod tests {
         // GIVEN "list"
         // WHEN
         let cli = TestCli::parse_from(["apollia-os", "list"]);
-        // THEN PipelineCommand::List
-        assert!(matches!(cli.command, PipelineCommand::List));
+        // THEN PipelineCommand::List with registry = false
+        assert!(matches!(
+            cli.command,
+            PipelineCommand::List {
+                registry: false,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_pipeline_list_registry_flag_parses() {
+        // GIVEN "list --registry"
+        // WHEN
+        let cli = TestCli::parse_from(["apollia-os", "list", "--registry"]);
+        // THEN PipelineCommand::List with registry = true
+        assert!(matches!(
+            cli.command,
+            PipelineCommand::List { registry: true, .. }
+        ));
+    }
+
+    #[test]
+    fn test_pipeline_install_parses() {
+        // GIVEN "install code-review"
+        // WHEN
+        let cli = TestCli::parse_from(["apollia-os", "install", "code-review"]);
+        // THEN Install { name: "code-review" }
+        match &cli.command {
+            PipelineCommand::Install { name, registry_url } => {
+                assert_eq!(name, "code-review");
+                assert!(registry_url.is_none());
+            }
+            other => panic!("expected Install, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_pipeline_install_with_registry_url_parses() {
+        // GIVEN "install code-review --registry-url https://example.com/pipelines"
+        // WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "install",
+            "code-review",
+            "--registry-url",
+            "https://example.com/pipelines",
+        ]);
+        // THEN Install with registry_url set
+        match &cli.command {
+            PipelineCommand::Install { name, registry_url } => {
+                assert_eq!(name, "code-review");
+                assert_eq!(
+                    registry_url.as_deref(),
+                    Some("https://example.com/pipelines")
+                );
+            }
+            other => panic!("expected Install, got {other:?}"),
+        }
     }
 
     #[test]
