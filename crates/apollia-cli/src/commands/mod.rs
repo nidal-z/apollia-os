@@ -5,6 +5,7 @@ pub mod audit;
 pub mod auth;
 pub mod chat;
 pub mod llm;
+pub mod mcp;
 pub mod mcp_server;
 pub mod memory;
 pub mod model;

@@ -25,6 +25,15 @@ pub struct McpConfig {
     /// Ordered list of MCP server definitions.
     #[serde(default)]
     pub servers: Vec<McpServerConfig>,
+
+    /// Enable mDNS-based discovery of MCP servers on the local network.
+    ///
+    /// When `true`, `discover_mcp_servers()` may be called at startup to
+    /// find servers advertising `_apollia-mcp._tcp.local.` without manual
+    /// configuration. Disabled by default (Principle #4 — Fail fast: any
+    /// network-dependent feature must be explicitly opted into).
+    #[serde(default)]
+    pub mdns_discovery: bool,
 }
 
 /// Configuration for a single MCP server process.
@@ -162,6 +171,7 @@ impl McpConfig {
         if !path.exists() {
             return Ok(McpConfig {
                 servers: Vec::new(),
+                mdns_discovery: false,
             });
         }
 

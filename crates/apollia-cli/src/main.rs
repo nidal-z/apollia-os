@@ -23,6 +23,7 @@ use commands::audit::AuditCommand;
 use commands::auth::AuthCommand;
 use commands::chat;
 use commands::llm::LlmCommand;
+use commands::mcp::McpCommand;
 use commands::mcp_server::McpServerArgs;
 use commands::memory::MemoryCommand;
 use commands::model::ModelCommand;
@@ -209,6 +210,13 @@ enum Commands {
         list: bool,
     },
 
+    /// MCP server management: list configured servers and discover local ones via mDNS.
+    Mcp {
+        /// MCP subcommand.
+        #[command(subcommand)]
+        command: McpCommand,
+    },
+
     /// Launch Apollia as an MCP stdio server for external clients.
     ///
     /// Exposes 9 native tools (bash_executor, file_*, mcp_client, agent_install)
@@ -309,6 +317,7 @@ fn main() {
             Commands::Chat { resume, list } => {
                 chat::run(resume.as_deref(), list, cli.socket, json).await
             }
+            Commands::Mcp { command } => commands::mcp::run(&command, json).await,
             Commands::McpServer(args) => match commands::mcp_server::run(&args).await {
                 Ok(()) => exit_codes::SUCCESS,
                 Err(e) => {
