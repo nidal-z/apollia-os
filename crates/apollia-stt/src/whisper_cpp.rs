@@ -3,7 +3,7 @@
 //! Charge un modèle GGML depuis le disque et expose une transcription synchrone.
 //! L'appelant (`SttEngine`) wrappe les appels dans `tokio::task::spawn_blocking`.
 //!
-//! Activé par le feature flag `stt-whisper-cpp`.
+//! Actif par défaut (feature `cpu`). Accélération via `metal` ou `cuda`.
 
 use std::path::Path;
 use std::time::Instant;
@@ -322,10 +322,10 @@ mod tests {
         );
     }
 
-    // GIVEN the stt-cuda feature flag is active
+    // GIVEN the cuda feature flag is active
     // WHEN the module is compiled
     // THEN WhisperCppBackend is accessible (CUDA path compiles)
-    #[cfg(feature = "stt-cuda")]
+    #[cfg(feature = "cuda")]
     #[test]
     fn test_stt_cuda_compiles() {
         let _ = WhisperCppBackend::load;

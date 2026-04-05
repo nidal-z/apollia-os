@@ -185,12 +185,45 @@ jobs:
       # cargo check : vérifie la compilation sans générer de binaire
       # Feature flags testés (workspace virtuel → on cible les crates concernées) :
       #   - local-cuda  : llama.cpp avec support GPU NVIDIA (apollia-llm)
-      #   - stt-cuda    : whisper-rs avec support GPU NVIDIA (apollia-stt)
       - name: Check CUDA compilation — apollia-llm (local-cuda)
         run: cargo check -p apollia-llm --features local-cuda
 
-      - name: Check CUDA compilation — apollia-stt (stt-cuda)
-        run: cargo check -p apollia-stt --features stt-cuda
+  stt-features:
+    name: STT feature matrix (${{ matrix.feature }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        feature: [cpu, metal, cuda]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cross (pour CUDA)
+        if: matrix.feature == 'cuda'
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Check apollia-stt (cpu)
+        if: matrix.feature == 'cpu'
+        run: cargo check -p apollia-stt
+
+      - name: Check apollia-stt (metal)
+        if: matrix.feature == 'metal'
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            cargo check -p apollia-stt --features metal
+          else
+            echo "Metal non disponible sur Linux — skip"
+          fi
+
+      - name: Check apollia-stt (cuda via cross)
+        if: matrix.feature == 'cuda'
+        run: |
+          cross check -p apollia-stt --features cuda \
+            --target x86_64-unknown-linux-gnu
+        env:
+          CROSS_CONTAINER_OPTS: "--platform linux/amd64"
 
   book:
     name: mdBook Build
