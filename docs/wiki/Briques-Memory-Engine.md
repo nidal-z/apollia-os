@@ -653,6 +653,148 @@ CREATE TABLE IF NOT EXISTS plan_choices (
 
 ---
 
+## 7. Purge configurable par type — Sprint 37
+
+Depuis le Sprint 37 (STORY-485), la rétention mémoire est configurable par type (épisodique / sémantique / procédurale) via `MemoryConfig` dans le manifest de l'agent.
+
+### `MemoryConfig` — dans `AgentManifest`
+
+```rust
+// crates/apollia-core/src/manifest.rs
+
+/// Configuration de rétention mémoire déclarée dans le manifest de l'agent.
+pub struct MemoryConfig {
+    /// Rétention épisodique en jours (None = hérite du global, pas d'expiration forcée).
+    pub episodic_retention_days: Option<u32>,
+    /// Rétention sémantique en jours (None = pas d'expiration par âge).
+    pub semantic_retention_days: Option<u32>,
+    /// Rétention procédurale en jours (None = pas d'expiration par âge).
+    pub procedural_retention_days: Option<u32>,
+    /// Déclenche une passe de purge au démarrage du MemoryManager (opt-in, défaut false).
+    #[serde(default)]
+    pub auto_purge: bool,
+}
+```
+
+**Exemple de manifest Python :**
+
+```python
+def manifest(self):
+    return AgentManifest(
+        name="crm-agent",
+        version="1.0.0",
+        memory_namespace="crm",
+        memory_config=MemoryConfig(
+            episodic_retention_days=7,       # épisodes supprimés après 7 jours
+            semantic_retention_days=None,    # connaissances jamais purgées par âge
+            procedural_retention_days=None,  # procédures jamais purgées par âge
+            auto_purge=True,                 # purge au démarrage
+        ),
+    )
+```
+
+### `PurgeReport` et `purge_old_entries()`
+
+```rust
+// crates/apollia-memory/src/manager.rs
+
+/// Rapport d'une passe de purge — nombre d'entrées supprimées par type.
+pub struct PurgeReport {
+    pub episodic_deleted: usize,
+    pub semantic_deleted: usize,
+    pub procedural_deleted: usize,
+}
+
+impl MemoryManager {
+    /// Purge les entrées plus anciennes que les seuils spécifiés.
+    /// `None` sur un type = ce type n'est pas purgé.
+    pub fn purge_old_entries(
+        &mut self,
+        namespace: &str,
+        episodic_days: Option<u32>,
+        semantic_days: Option<u32>,
+        procedural_days: Option<u32>,
+    ) -> Result<PurgeReport, MemoryManagerError>;
+
+    /// Démarre la purge automatique si `config.auto_purge = true`.
+    /// Ré-exécutée périodiquement (intervalle minimum : 5 minutes).
+    pub fn start_auto_purge(&mut self, config: &MemoryConfig, namespace: &str);
+}
+```
+
+### CLI `apollia memory purge`
+
+```bash
+# Purger les épisodes de plus de 7 jours pour l'agent crm-agent
+$ apollia memory purge --agent crm-agent --older-than 7 --type episodic
+  3 entrée(s) épisodique(s) supprimée(s) (namespace: crm).
+
+# Purger tous les types selon les seuils configurés dans le manifest
+$ apollia memory purge --agent crm-agent
+  Passe de purge : épisodique=7j, sémantique=none, procédurale=none
+  5 entrée(s) épisodique(s) supprimée(s).
+
+# Types valides : episodic | semantic | procedural | all
+$ apollia memory purge --agent crm-agent --type all --older-than 30
+```
+
+---
+
+## 8. Export / Import de mémoire — Sprint 37
+
+Depuis le Sprint 37 (STORY-484), la mémoire d'un agent peut être exportée vers un fichier JSON gzip et réimportée sur une autre machine (ADR-066).
+
+### Format — JSON gzip
+
+```json
+{
+  "format_version": 1,
+  "exported_at": "2026-04-05T10:32:00Z",
+  "namespace": "crm-dupont",
+  "episodic": [ /* liste d'EpisodicEntry */ ],
+  "semantic": [ /* liste de SemanticEntry */ ],
+  "procedural": [ /* liste de ProceduralEntry */ ]
+}
+```
+
+Le fichier est compressé gzip (extension `.apollia-mem.gz`). `format_version` permet la migration de schéma future.
+
+### CLI
+
+```bash
+# Exporter la mémoire d'un agent
+$ apollia memory export --agent crm-agent --output backup.apollia-mem.gz
+  Namespace : crm-dupont
+  Épisodique : 42 entrées
+  Sémantique : 18 clés
+  Procédurale : 3 procédures
+  ✔ Export : backup.apollia-mem.gz (14.2 KB)
+
+# Importer (mode Merge — INSERT OR IGNORE)
+$ apollia memory import --agent crm-agent --input backup.apollia-mem.gz
+  ✔ 42 épisodes importés, 18 clés sémantiques, 3 procédures.
+
+# Importer (mode Replace — DELETE + INSERT)
+$ apollia memory import --agent crm-agent --input backup.apollia-mem.gz --replace
+  ⚠ Ce mode supprime toute la mémoire existante et la remplace. Continuer ? [o/N] o
+  ✔ 42 épisodes importés (mode replace), 18 clés sémantiques, 3 procédures.
+
+# Erreur si format_version incompatible
+$ apollia memory import --agent crm-agent --input future.apollia-mem.gz
+  ✗ Format incompatible (version 99 > version max supportée 1)
+```
+
+**Deux modes d'import :**
+
+| Mode | Comportement | Commande |
+|---|---|---|
+| `Merge` (défaut) | `INSERT OR IGNORE` — préserve les données existantes | `apollia memory import` |
+| `Replace` | `DELETE` + `INSERT` — écrase tout le namespace | `apollia memory import --replace` |
+
+> **Voir aussi :** [ADR-066](../adr/ADR-066-memory-export-import-format.md) — Format JSON Gzip, migration de schéma
+
+---
+
 ## Décisions architecturales clés
 
 | Décision | Justification |

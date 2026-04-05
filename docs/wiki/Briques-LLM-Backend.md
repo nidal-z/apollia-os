@@ -714,6 +714,110 @@ cost_alert_threshold_usd = 0.50
 
 ---
 
+## 9. Google Vertex AI — Sprint 37
+
+Depuis le Sprint 37 (STORY-495, ADR-068), Apollia supporte Google Vertex AI comme backend LLM via `aiplatform.googleapis.com`. L'authentification utilise Application Default Credentials (ADC) avec cache mémoire et refresh automatique.
+
+### `VertexConfig`
+
+```rust
+// crates/apollia-core/src/config.rs
+
+pub struct VertexConfig {
+    /// Activer ce backend (false par défaut).
+    #[serde(default)]
+    pub enabled: bool,
+    /// ID du projet GCP (ex: "my-gcp-project").
+    pub project_id: String,
+    /// Région Vertex AI (ex: "us-east5", "europe-west1").
+    pub location: String,
+    /// ID du modèle Anthropic publié sur Vertex (ex: "claude-sonnet-4-6@20251001").
+    pub model_id: String,
+}
+```
+
+```toml
+# apollia.toml
+[llm.vertex]
+enabled = true
+project_id = "my-gcp-project"
+location = "us-east5"
+model_id = "claude-sonnet-4-6@20251001"
+```
+
+### `VertexClient`
+
+```rust
+// crates/apollia-llm/src/backends/vertex.rs
+
+/// Client Vertex AI — implémente CompletionModel.
+/// Auth via ADC (authorized_user credentials gcloud).
+pub struct VertexClient {
+    config: VertexConfig,
+    http_client: reqwest::Client,
+    token_cache: Arc<Mutex<Option<GoogleToken>>>,
+    retry_policy: RetryPolicy,
+    cancel: CancellationToken,
+}
+
+impl VertexClient {
+    /// Construit le client et vérifie la présence du fichier ADC.
+    /// Retourne LlmError::Unauthorized si le fichier ADC est absent.
+    pub fn new(config: &VertexConfig, cancel: CancellationToken) -> Result<Self, LlmError>;
+}
+```
+
+**Résolution du fichier ADC (ordre de priorité) :**
+1. Variable d'environnement `GOOGLE_APPLICATION_CREDENTIALS`
+2. `~/.config/gcloud/application_default_credentials.json`
+
+Seul le type `authorized_user` (credentials `gcloud auth application-default login`) est supporté. Les clés de service JSON sont hors périmètre — voir [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md).
+
+**Refresh automatique :** le token ADC est rafraîchi via `https://oauth2.googleapis.com/token` 60 secondes avant expiration. Le cache est en mémoire (`Arc<Mutex<Option<GoogleToken>>>`).
+
+**Comportement HTTP :**
+- `401` → `LlmError::Unauthorized` (pas de retry)
+- `429` → retry selon `RetryPolicy` existant
+- Corps de requête : identique à l'API Anthropic Messages (`anthropic-version: vertex-2023-10-16`)
+
+> **Voir aussi :** [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md) — justification ADC vs clé de service
+
+---
+
+## 10. AWS Bedrock — Sprint 37
+
+Depuis le Sprint 37 (STORY-494, ADR-067), Apollia supporte AWS Bedrock comme backend LLM via SigV4 natif (sans le SDK AWS complet).
+
+### `BedrockConfig`
+
+```rust
+// crates/apollia-core/src/config.rs
+
+pub struct BedrockConfig {
+    /// Activer ce backend (false par défaut).
+    #[serde(default)]
+    pub enabled: bool,
+    /// Région AWS (ex: "us-east-1", "eu-west-1").
+    pub region: String,
+    /// ARN ou ID du modèle Bedrock (ex: "anthropic.claude-sonnet-4-6-20251001-v1:0").
+    pub model_id: String,
+}
+```
+
+```toml
+# apollia.toml
+[llm.bedrock]
+enabled = true
+region = "us-east-1"
+model_id = "anthropic.claude-sonnet-4-6-20251001-v1:0"
+```
+
+**Credentials AWS :** résolus via la chaîne standard AWS (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` ou `~/.aws/credentials`). La signature SigV4 est calculée nativement sans dépendance au SDK AWS.
+
+> **Voir aussi :** [ADR-067](../adr/ADR-067-bedrock-sigv4-vs-sdk.md) — justification aws-sigv4 natif vs SDK complet
+
+---
+
 ## Voir aussi
 
 - [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — `ctx.llm` depuis Python
@@ -722,6 +826,8 @@ cost_alert_threshold_usd = 0.50
 - [API HTTP Reference](./API-HTTP-Reference) — endpoints CRUD `/api/v1/llm/backends`
 - [Config apollia.toml](./Config-apollia-toml) — section `[llm.observability]`
 - [Ops Exploitation et Debug](./Ops-Exploitation-et-Debug) — `apollia-os llm status/ping/chat`
+- [ADR-068](../adr/ADR-068-vertex-adc-vs-service-account.md) — Google Vertex AI : ADC vs clé de service
+- [ADR-067](../adr/ADR-067-bedrock-sigv4-vs-sdk.md) — AWS Bedrock : aws-sigv4 natif vs SDK complet
 - [ADR-057](../adr/ADR-057-prompt-caching-strategy.md) — Prompt Caching Strategy (Sprint 35)
 - [ADR-047](../adr/ADR-047-multi-llm-backend-registry.md) — Multi-LLM Backend Registry (SQLite, Sprint 28)
 - [ADR-042](../adr/ADR-042-remplacement-mistralrs-par-llamacpp-statique.md) — remplacement mistral-rs par llama.cpp

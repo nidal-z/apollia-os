@@ -35,6 +35,7 @@
 - [[Briques-User-Memory|User Memory]]
 - [[Briques-ORIA-Engine|ORIA Engine]]
 - [[Briques-LLM-Backend|LLM Backend]]
+- [[Briques-Auth|Auth OAuth2 PKCE]]
 - [[Briques-Triggers|Triggers Engine]]
 - [[Briques-Notifications|Notifications Engine]]
 - [[Briques-Pipelines|Pipelines Engine]]

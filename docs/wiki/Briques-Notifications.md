@@ -119,19 +119,64 @@ pub enum NotifError {
 }
 ```
 
-### 2.4 `Severity` — sévérité d'une notification
+### 2.4 `Severity` — sévérité d'une notification *(Sprint 37)*
+
+Depuis le Sprint 37 (STORY-487), `Severity` est étendu à **5 niveaux** avec `PartialOrd`/`Ord` pour le filtrage par seuil minimum.
 
 ```rust
 // apollia-notifications/src/config.rs
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Severity {
-    Info,     // Information — événement non bloquant.
-    Warning,  // Avertissement — intervention recommandée.
-    Error,    // Erreur — intervention requise.
+    #[default]
+    Debug = 0,    // Trace fine — développement uniquement.
+    Info = 1,     // Information — événement non bloquant.
+    Warning = 2,  // Avertissement — intervention recommandée.
+    Error = 3,    // Erreur — intervention requise.
+    Critical = 4, // Critique — panne ou perte de données imminente.
 }
 
 impl Severity {
-    pub fn as_str(&self) -> &'static str { /* "info" | "warning" | "error" */ }
+    pub fn as_str(&self) -> &'static str { /* "debug" | "info" | "warning" | "error" | "critical" */ }
+}
+```
+
+**Ordre garanti :** `Debug < Info < Warning < Error < Critical`
+
+### 2.4.1 Filtrage par canal — `min_severity`
+
+Chaque canal peut déclarer un seuil minimum. Une notification dont la sévérité est **strictement inférieure** au seuil du canal est ignorée silencieusement.
+
+```toml
+# apollia.toml — configuration des canaux
+[[notifications.channels]]
+id = "desktop"
+kind = "desktop"
+min_severity = "error"    # ne reçoit que Error et Critical
+
+[[notifications.channels]]
+id = "slack"
+kind = "webhook"
+url = "https://hooks.slack.com/..."
+min_severity = "info"     # reçoit tout sauf Debug
+
+[[notifications.channels]]
+id = "terminal"
+kind = "terminal"
+min_severity = "warning"  # Warning, Error, Critical
+```
+
+**Seuils par défaut par type de canal :**
+
+| Type de canal | `min_severity` par défaut |
+|---|---|
+| `desktop` | `Error` |
+| `webhook` | `Info` |
+| `terminal` | `Warning` |
+
+```rust
+impl ChannelConfig {
+    pub fn default_min_severity(kind: &ChannelKind) -> Severity;
 }
 ```
 

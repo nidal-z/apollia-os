@@ -917,6 +917,117 @@ ORIA reçoit cet event pour invalider les caches de plan stale sur les fichiers 
 
 ---
 
+## 15. Outils Notebook Jupyter — Sprint 37
+
+Depuis le Sprint 37 (STORY-496), deux outils natifs permettent aux agents de lire et d'éditer des notebooks Jupyter `.ipynb` (format ipynb v4).
+
+### Types publics (`apollia-core`)
+
+```rust
+// crates/apollia-core/src/types.rs
+
+/// Type d'une cellule Jupyter.
+pub enum CellType { Code, Markdown, Raw }
+
+/// Cellule d'un notebook — agnostique au format de sérialisation.
+pub struct JupyterCell {
+    pub cell_type: CellType,
+    pub source: Vec<String>,   // lignes de code ou markdown
+    pub outputs: Vec<serde_json::Value>, // sorties d'exécution (vides sur lecture)
+}
+
+/// Opération atomique sur un notebook.
+pub enum NotebookEditOp {
+    EditCell   { index: usize, new_source: Vec<String> },
+    InsertCell { index: usize, cell_type: CellType, source: Vec<String> },
+    DeleteCell { index: usize },
+}
+```
+
+### `NotebookReadExecutor`
+
+```rust
+// crates/apollia-tools/src/tools/notebook_read.rs
+
+/// Lit un fichier .ipynb et retourne ses cellules formatées pour le LLM.
+/// is_read_only = true.
+pub struct NotebookRead { /* sandbox_root: PathBuf */ }
+
+pub struct NotebookReadInput {
+    pub path: String,              // chemin relatif au sandbox_root
+    pub cell_range: Option<(usize, usize)>, // None = toutes les cellules
+}
+
+pub struct NotebookReadOutput {
+    pub cells: Vec<JupyterCell>,
+    pub formatted: String,         // rendu texte pour le LLM
+}
+```
+
+**Format de sortie :**
+
+```
+Cell 0 [code]:
+  import pandas as pd
+  df = pd.read_csv('data.csv')
+
+Cell 1 [markdown]:
+  # Analyse des données
+
+Cell 2 [code]:
+  df.describe()
+  [output]: ...
+```
+
+### `NotebookEditExecutor`
+
+```rust
+// crates/apollia-tools/src/tools/notebook_edit.rs
+
+/// Édite un fichier .ipynb via des opérations atomiques.
+/// is_read_only = false.
+pub struct NotebookEdit { /* sandbox_root: PathBuf */ }
+
+pub struct NotebookEditInput {
+    pub path: String,
+    pub operation: NotebookEditOp,
+}
+
+pub struct NotebookEditOutput {
+    pub cells_count: usize,
+    pub operation_applied: String,
+}
+```
+
+**Comportements garantis :**
+- `EditCell` : modifie `source` et **vide les `outputs`** (résultats d'exécution précédents)
+- `InsertCell` : insère à l'index spécifié, décale les cellules suivantes
+- `DeleteCell` : supprime et recalcule les indices
+- Le fichier `.ipynb` original est relu, modifié en mémoire, puis réécrit atomiquement
+
+**Nommage dans le Tool Registry :**
+
+| Outil | `tool_name` |
+|---|---|
+| Lecture | `notebook_read` |
+| Édition | `notebook_edit` |
+
+**Utilisation depuis un agent Python :**
+
+```python
+# Lire un notebook
+result = await ctx.tools.notebook_read.run(path="analyse.ipynb")
+print(result.formatted)
+
+# Modifier une cellule
+result = await ctx.tools.notebook_edit.run(
+    path="analyse.ipynb",
+    operation={"EditCell": {"index": 2, "new_source": ["df.head(10)"]}}
+)
+```
+
+---
+
 ## Décisions architecturales clés (mises à jour Sprint 35)
 
 | Décision | Justification |

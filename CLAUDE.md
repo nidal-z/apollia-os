@@ -135,10 +135,10 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Sprint en cours :** Aucun — Sprint 36 livré, Sprint 37 à planifier.
-**Dernier sprint livré :** Sprint 36 — Permissions, MCP Server & Intelligence UX (moteur de permissions 3 couches, MCP server mode, routing LLM Precise/Fast, 6 HITL desktop, widget coût temps réel, slash commands custom, /fork, --allowed-tools, 16/16 stories, ADR-061→063). ✅
-**Sprint précédent :** Sprint 35 — Workspace Intelligence & Execution Performance (prompt caching, outils concurrents, APOLLIA.md, auto-compact, session recovery, persistent_bash, 13 stories, ADR-056→060). ✅
-**Avant :** Sprint 34 — Beta Hardening (auth API TCP token statique, sandbox Windows Chromium 3 couches, pipeline fan-out + boucles conditionnelles, `cargo audit`/`cargo deny` CI, 3 agents communautaires browser/email/slack, `apollia-os agent install <git-url>`, 24/25 stories, ADR-051→055). ✅
+**Sprint en cours :** Aucun — Sprint 37 livré, Sprint 38 à planifier.
+**Dernier sprint livré :** Sprint 37 — Parité complète TypeScript (OAuth2 PKCE, auto-updater, code review agent, mDNS MCP, hot reload MCP, HITL MCP SQLite, memory export/import, purge configurable, OnBusyPolicy::Queue, filtrage notifs, templates pipeline, CUDA CI, Bedrock, Vertex AI, Notebook tool, 15/15 stories, ADR-064→068). ✅
+**Sprint précédent :** Sprint 36 — Permissions, MCP Server & Intelligence UX (moteur de permissions 3 couches, MCP server mode, routing LLM Precise/Fast, 6 HITL desktop, widget coût temps réel, slash commands custom, /fork, --allowed-tools, 16/16 stories, ADR-061→063). ✅
+**Avant :** Sprint 35 — Workspace Intelligence & Execution Performance (prompt caching, outils concurrents, APOLLIA.md, auto-compact, session recovery, persistent_bash, 13 stories, ADR-056→060). ✅
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
 **Dernière décision :** ADR-068 — Google Vertex AI : ADC vs clé de service JSON
 

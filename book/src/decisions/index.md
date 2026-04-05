@@ -63,3 +63,8 @@
 | ADR-061 | [ADR-061 — Moteur de permissions 3 couches : SafeList + PrefixRuleEngine + InjectionDetector](./adr-061-permission-engine-3-layers.md) | Accepté |
 | ADR-062 | [ADR-062 — MCP server mode : transport stdio, 9 outils natifs + submit_task](./adr-062-mcp-server-mode.md) | Accepté |
 | ADR-063 | [ADR-063 — Binary feedback RLHF : deux plans parallèles, log SQLite du choix](./adr-063-binary-feedback-rlhf.md) | Accepté |
+| ADR-064 | [ADR-064 — OAuth2 PKCE : Keyring Multi-Plateforme vs Fichier Chiffré](./adr-064-oauth2-pkce-keyring.md) | Accepté |
+| ADR-065 | [ADR-065 — Auto-Updater : Binaire Direct + SHA256](./adr-065-auto-updater-distribution.md) | Accepté |
+| ADR-066 | [ADR-066 — Memory Export/Import : Format JSON Gzip](./adr-066-memory-export-import-format.md) | Accepté |
+| ADR-067 | [ADR-067 — AWS Bedrock : aws-sigv4 Natif vs SDK Complet](./adr-067-bedrock-sigv4-vs-sdk.md) | Accepté |
+| ADR-068 | [ADR-068 — Google Vertex AI : ADC vs Clé de Service JSON](./adr-068-vertex-adc-vs-service-account.md) | Accepté |

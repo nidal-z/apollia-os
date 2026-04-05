@@ -601,6 +601,185 @@ crates/apollia-cli/src/commands/
 
 ---
 
+## 13. Découverte mDNS — Sprint 37
+
+Depuis le Sprint 37 (STORY-481), Apollia peut découvrir et annoncer des serveurs MCP sur le réseau local via mDNS (type de service `_apollia-mcp._tcp.local.`). La découverte est **désactivée par défaut** (`mdns_discovery = false`).
+
+### Types publics
+
+```rust
+// crates/apollia-mcp/src/discovery.rs
+
+/// Service type mDNS pour les serveurs MCP Apollia.
+pub const SERVICE_TYPE: &str = "_apollia-mcp._tcp.local.";
+
+/// Serveur MCP découvert via mDNS sur le réseau local.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DiscoveredServer {
+    pub name: String,           // nom de l'instance de service mDNS
+    pub addresses: Vec<String>, // adresses IP du serveur
+    pub port: u16,              // port TCP
+    pub tools: Vec<String>,     // outils déclarés dans le TXT record
+}
+
+/// Annonce ce runtime comme serveur MCP sur le réseau local.
+/// Enregistre un ServiceInfo avec les outils comme TXT property `tools` (comma-separated).
+pub async fn announce_mcp_server(
+    name: &str,
+    port: u16,
+    tools: &[String],
+) -> Result<ServiceDaemon, DiscoveryError>;
+
+/// Découvre les serveurs MCP sur le réseau local.
+/// Scan pendant 3 secondes puis retourne les résultats.
+pub async fn discover_mcp_servers() -> Result<Vec<DiscoveredServer>, DiscoveryError>;
+```
+
+### Configuration
+
+```toml
+# apollia.toml
+[mcp]
+mdns_discovery = false  # opt-in explicite
+```
+
+### CLI
+
+```bash
+# Lister les serveurs MCP découverts sur le réseau local
+$ apollia mcp list --discover
+  Scan réseau local (3s)...
+  ✔ 2 serveur(s) MCP découvert(s)
+
+  NOM                 ADRESSE         PORT   OUTILS
+  notion-mcp          192.168.1.10    8080   search_pages, create_page, query_db
+  local-tools         192.168.1.12    9090   bash, file_read
+
+# Aucun serveur trouvé
+$ apollia mcp list --discover
+  Aucun serveur MCP découvert sur le réseau local.
+```
+
+**Ports requis :** le firewall doit autoriser le port UDP 5353 (mDNS multicast) pour que la découverte fonctionne.
+
+---
+
+## 14. Hot Reload des serveurs MCP — Sprint 37
+
+Depuis le Sprint 37 (STORY-482), les serveurs MCP peuvent être rechargés à chaud sans redémarrer le runtime. Le `FileWatchTrigger` surveille `apollia.toml` ; quand la section `[[mcp.servers]]` change, les serveurs modifiés sont rechargés automatiquement.
+
+### API
+
+```rust
+// crates/apollia-mcp/src/client_manager.rs
+impl McpClientManager {
+    /// Recharge un serveur MCP à chaud : disconnect → update config → reconnect.
+    /// Émet RuntimeEvent::McpServerReloaded { name, old_tools, new_tools } sur succès.
+    /// Retourne McpError::ConfigReload si le serveur n'est pas connu.
+    pub async fn reload_server(&self, name: &str) -> Result<(), McpError>;
+}
+```
+
+### Événement runtime
+
+```rust
+// Nouveau variant dans RuntimeEvent (crates/apollia-runtime/src/events.rs)
+/// Émis après rechargement à chaud réussi d'un serveur MCP.
+McpServerReloaded {
+    name: String,
+    old_tools: Vec<String>,
+    new_tools: Vec<String>,
+},
+```
+
+**Comportement pendant le reload :** les appels d'outils sur un serveur en cours de rechargement reçoivent `McpError::ServerReloading`.
+
+---
+
+## 15. HITL MCP — Approbations SQLite — Sprint 37
+
+Depuis le Sprint 37 (STORY-483), les approbations HITL pour les serveurs MCP avec `requires_approval = true` sont **persistées en SQLite** avec TTL configurable et vérifiées avant chaque `tools/call`.
+
+### Schéma SQLite
+
+```sql
+CREATE TABLE IF NOT EXISTS mcp_approvals (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    server_name TEXT NOT NULL,
+    tool_name   TEXT NOT NULL,
+    approved_at TEXT NOT NULL,
+    expires_at  TEXT,           -- NULL = jamais expiré
+    UNIQUE(server_name, tool_name)
+);
+
+CREATE TABLE IF NOT EXISTS mcp_pending_approvals (
+    id              TEXT PRIMARY KEY,  -- UUID
+    server_name     TEXT NOT NULL,
+    tool_name       TEXT NOT NULL,
+    arguments       TEXT NOT NULL,     -- JSON
+    requested_at    TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'pending'  -- pending | approved | rejected | expired
+);
+```
+
+### Types publics
+
+```rust
+// crates/apollia-mcp/src/approvals.rs
+
+/// Gestion des approbations HITL avec persistence SQLite.
+pub struct PendingApprovals {
+    conn: rusqlite::Connection,
+    approval_ttl: chrono::Duration,
+}
+
+impl PendingApprovals {
+    /// Retourne true si le tool est approuvé et non expiré.
+    pub fn is_approved(&self, server_name: &str, tool_name: &str) -> bool;
+
+    /// Enregistre une demande d'approbation en attente. Retourne l'UUID.
+    pub fn register(
+        &self,
+        server_name: &str,
+        tool_name: &str,
+        arguments: &serde_json::Value,
+    ) -> Result<String, McpError>;
+
+    /// Approuve définitivement un tool (TTL depuis la config).
+    pub fn approve(&self, server_name: &str, tool_name: &str) -> Result<(), McpError>;
+}
+```
+
+### Configuration
+
+```toml
+# apollia.toml
+[mcp]
+approval_ttl_hours = 24  # durée de validité d'une approbation (défaut: 24h)
+```
+
+### CLI
+
+```bash
+# Approuver un tool (persist 24h par défaut)
+$ apollia mcp set-approval code-tools bash_exec
+  ✔ Approbation enregistrée pour code-tools/bash_exec (expire: 2026-04-06T10:00:00Z)
+
+# Lister les demandes en attente
+$ apollia mcp list-pending
+  DEMANDES EN ATTENTE
+  ─────────────────────────────────────────────────────────────────────
+  ID                                   SERVEUR       OUTIL        DEPUIS
+  3f7a2b9c-...                         code-tools    bash_exec    14min
+  1e4d5c6b-...                         notion        create_page  2h
+
+# Révoquer une approbation
+$ apollia mcp revoke-approval code-tools bash_exec
+  ✔ Approbation révoquée pour code-tools/bash_exec
+```
+
+---
+
 ## Voir aussi
 
 - [MCP — Guide utilisateur](./MCP-Guide-Utilisateur) — configuration `mcp.toml`, exemples, troubleshooting

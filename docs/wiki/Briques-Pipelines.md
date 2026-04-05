@@ -684,6 +684,106 @@ Les steps fallback (`fallback_for: Some(...)`) sont traités comme des steps nor
 
 ---
 
+## 9. Registry communautaire de pipelines — Sprint 37
+
+Depuis le Sprint 37 (STORY-488), les pipelines pré-construits peuvent être téléchargés depuis un registry Git communautaire via `apollia pipeline install`.
+
+### `PipelineStepType::LlmPrompt` — nouveau type de step
+
+```rust
+// crates/apollia-pipelines/src/types.rs
+
+pub enum PipelineStepType {
+    // ... variants existants ...
+
+    /// Step d'inférence directe — sans agent Python intermédiaire.
+    LlmPrompt {
+        /// Template de prompt supportant les variables `{{input}}`, `{{context}}`, etc.
+        template: String,
+        /// Hint de sélection du modèle : "fast", "smart", "local".
+        /// None = modèle par défaut du LlmRouter.
+        model_hint: Option<String>,
+    },
+}
+```
+
+**Exemple TOML :**
+
+```toml
+[[steps]]
+id = "summarize"
+type = "llm_prompt"
+template = "Résume en 3 points : {{steps.extract.output}}"
+model_hint = "fast"
+```
+
+### `PipelineRegistry`
+
+```rust
+// crates/apollia-pipelines/src/registry.rs
+
+/// Registry Git-based de pipelines communautaires.
+pub struct PipelineRegistry {
+    raw_base_url: String,
+    cache_dir: PathBuf,
+}
+
+impl PipelineRegistry {
+    /// Crée un registry depuis une URL GitHub (convertie automatiquement en raw.githubusercontent.com)
+    /// ou une URL brute quelconque.
+    pub fn new(registry_url: &str) -> Self;
+
+    /// Télécharge et installe un pipeline depuis le registry.
+    /// Valide le TOML avant d'écrire sur disque.
+    /// Retourne PipelineError::NotFound si le pipeline n'existe pas dans l'index.
+    pub async fn install(&self, pipeline_id: &str) -> Result<(), PipelineError>;
+
+    /// Récupère l'index du registry (liste des pipelines disponibles).
+    pub async fn list_remote(&self) -> Result<PipelineIndex, PipelineError>;
+}
+
+/// Index du registry — retourné par list_remote().
+pub struct PipelineIndex {
+    pub pipelines: Vec<PipelineIndexEntry>,
+}
+```
+
+### Configuration
+
+```toml
+# apollia.toml
+[pipelines]
+registry_url = "https://github.com/apollia-os/community-pipelines"
+```
+
+### CLI
+
+```bash
+# Installer un pipeline depuis le registry
+$ apollia pipeline install code-review
+  → Téléchargement depuis le registry...
+  → Validation TOML...
+  ✔ Pipeline "code-review" installé dans ~/.apollia/pipelines/code-review.toml
+
+# Lister les pipelines disponibles dans le registry
+$ apollia pipeline list --registry
+  PIPELINES DISPONIBLES
+  ────────────────────────────────────────────────────────────────
+  ID                      DESCRIPTION
+  code-review             Revue de code automatique (style, sécurité, complexité)
+  invoice-processing      OCR → validation → comptabilisation factures
+  weekly-report           Rapport hebdomadaire multi-sources
+
+# Lister les pipelines locaux installés
+$ apollia pipeline list
+```
+
+**Garanties de sécurité :**
+- Le TOML est validé (syntaxe + schéma) **avant** toute écriture sur disque — TOML invalide → `PipelineError::InvalidPipeline`, aucun fichier créé
+- Le pipeline installé doit référencer des agents déjà enregistrés dans le runtime (vérification au `pipeline run`)
+
+---
+
 ## Voir aussi
 
 - [API HTTP Reference](./API-HTTP-Reference) — endpoints CRUD `/api/v1/pipelines`

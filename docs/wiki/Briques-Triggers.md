@@ -487,4 +487,70 @@ Si la base est vide, `TriggerEngine` démarre avec 0 définitions (comportement 
 
 ---
 
+---
+
+## 10. `OnBusyPolicy::Queue` — File bornée — Sprint 37
+
+Depuis le Sprint 37 (STORY-486), `OnBusyPolicy` dispose d'un troisième variant `Queue` qui met en file d'attente les triggers quand l'agent est occupé, dans la limite d'une capacité configurable.
+
+### Enum mis à jour
+
+```rust
+// crates/apollia-triggers/src/types.rs
+
+pub enum OnBusyPolicy {
+    /// Ignore le trigger si l'agent est occupé. Comportement par défaut avant Sprint 37.
+    Skip,
+    /// (Existait mais non implémenté — remplacé par Queue)
+    Enqueue,
+    /// Met le trigger en file FIFO bornée.
+    /// Si la file est pleine, le trigger est droppé et `RuntimeEvent::TriggerQueueFull` est émis.
+    Queue {
+        /// Capacité maximale de la file (nombre d'éléments).
+        /// Configurable via `[triggers] queue_max_depth` dans `apollia.toml`.
+        max_depth: usize,
+    },
+}
+```
+
+**Exemple de configuration :**
+
+```json
+// Payload API REST pour créer un trigger avec policy Queue
+{
+  "id": "rapport-hebdomadaire",
+  "agent": "rapport-agent",
+  "on_busy": {"queue": {"max_depth": 5}},
+  "source": { "type": "cron", "schedule": "0 8 * * MON" }
+}
+```
+
+```toml
+# apollia.toml — capacité par défaut pour les queues non spécifiées
+[triggers]
+queue_max_depth = 10
+```
+
+### Événement `TriggerQueueFull`
+
+```rust
+// crates/apollia-runtime/src/events.rs — nouveau variant
+
+/// Émis quand un trigger est droppé parce que la file de l'agent est pleine.
+TriggerQueueFull {
+    trigger_id: TriggerId,
+},
+```
+
+### Comportement
+
+| Situation | Résultat |
+|---|---|
+| Agent occupé, queue < max_depth | Trigger en queue — exécuté dès que l'agent se libère (FIFO) |
+| Agent occupé, queue == max_depth | Trigger droppé + `TriggerQueueFull` émis |
+| Agent libre | Trigger dispatché immédiatement (pas de queuing) |
+| Policy `Skip` | Trigger ignoré silencieusement (comportement pré-Sprint 37) |
+
+---
+
 *Voir aussi : [Configuration apollia.toml](./Config-apollia-toml) · [Dashboard Observabilité](./Dashboard-Observabilite) · [ADR-021](./Decisions-Log) · [ADR-033](../adr/ADR-033-config-operateur-sqlite.md)*

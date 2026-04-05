@@ -721,7 +721,120 @@ colored = "2"
 
 ---
 
-## 10. Nouvelles commandes et fonctionnalités — Sprint 36
+## 10. Nouvelles commandes et fonctionnalités — Sprint 37
+
+### `apollia auth` (STORY-478)
+
+Authentification OAuth2 PKCE auprès des providers LLM cloud avec stockage dans le keyring OS.
+
+```bash
+# Login interactif (ouvre le browser, attend le callback OAuth2)
+$ apollia auth login anthropic
+  → Ouverture du browser...
+  ✔ Token stocké dans le keyring (anthropic)
+
+# Statut de tous les providers
+$ apollia auth status
+  PROVIDER    ÉTAT              EXPIRE
+  anthropic   ✔ configuré       2026-05-04T10:32:00Z
+  openai      ○ non configuré   —
+  vertex      ✔ configuré       2026-04-20T08:00:00Z
+
+# Logout
+$ apollia auth logout anthropic
+  ✔ Token anthropic supprimé du keyring
+```
+
+Providers supportés : `anthropic`, `openai`, `vertex`.
+
+> **Voir aussi :** [Briques Auth](./Briques-Auth.md) · [ADR-064](../adr/ADR-064-oauth2-pkce-keyring.md)
+
+### `apollia update` (STORY-479)
+
+Auto-updater via GitHub Releases avec vérification SHA256 et remplacement atomique.
+
+```bash
+# Vérifier si une mise à jour est disponible
+$ apollia update --check
+  ✔ Nouvelle version disponible : 0.2.0 (actuel : 0.1.0)
+
+# Installer la mise à jour
+$ apollia update
+  → Téléchargement apollia-os-linux-x86_64 (0.2.0)...
+  → Vérification SHA256...
+  → Remplacement atomique du binaire...
+  ✔ Apollia OS mis à jour vers 0.2.0
+
+# Sans prompt interactif (CI/CD)
+$ apollia update --yes
+
+# Déjà à jour
+$ apollia update --check
+  ✔ Apollia OS est à jour (0.2.0)
+```
+
+> **Voir aussi :** [ADR-065](../adr/ADR-065-auto-updater-distribution.md)
+
+### `apollia mcp set-approval` / `list-pending` / `revoke-approval` (STORY-483)
+
+Gestion des approbations HITL pour les serveurs MCP avec `requires_approval = true`.
+
+```bash
+# Approuver un outil MCP (expire après approval_ttl_hours)
+$ apollia mcp set-approval code-tools bash_exec
+  ✔ Approbation enregistrée (expire : 2026-04-06T10:00:00Z)
+
+# Lister les demandes en attente
+$ apollia mcp list-pending
+  ID                SERVEUR       OUTIL        DEPUIS
+  3f7a2b9c          code-tools    bash_exec    14min
+
+# Révoquer
+$ apollia mcp revoke-approval code-tools bash_exec
+  ✔ Approbation révoquée
+
+# Découverte mDNS (STORY-481)
+$ apollia mcp list --discover
+  Scan réseau local (3s)...
+  notion-mcp  192.168.1.10  8080  [search_pages, create_page]
+```
+
+> **Voir aussi :** [Briques MCP §15](./Briques-MCP.md#15-hitl-mcp--approbations-sqlite--sprint-37)
+
+### `apollia memory export` / `import` / `purge` amélioré (STORY-484, STORY-485)
+
+```bash
+# Export/import de mémoire (STORY-484)
+$ apollia memory export --agent crm-agent --output backup.apollia-mem.gz
+  ✔ 42 épisodes, 18 clés sémantiques exportés → backup.apollia-mem.gz
+
+$ apollia memory import --agent crm-agent --input backup.apollia-mem.gz
+  ✔ 42 épisodes importés (mode merge)
+
+$ apollia memory import --agent crm-agent --input backup.apollia-mem.gz --replace
+  ✔ 42 épisodes importés (mode replace — namespace réinitialisé)
+
+# Purge configurable par type (STORY-485)
+$ apollia memory purge --agent crm-agent --older-than 7 --type episodic
+  5 entrée(s) épisodique(s) supprimée(s).
+```
+
+### `apollia pipeline install` (STORY-488)
+
+```bash
+# Installer un pipeline depuis le registry communautaire
+$ apollia pipeline install code-review
+  ✔ Pipeline "code-review" installé dans ~/.apollia/pipelines/code-review.toml
+
+# Lister les pipelines disponibles dans le registry
+$ apollia pipeline list --registry
+  code-review          Revue de code automatique
+  invoice-processing   OCR → validation → comptabilisation
+```
+
+---
+
+## 11. Nouvelles commandes et fonctionnalités — Sprint 36
 
 ### `apollia mcp-server` (STORY-468)
 
