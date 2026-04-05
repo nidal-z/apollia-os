@@ -4,6 +4,7 @@
 //! - `embedded` : moteur in-process `[feature = "local"]`
 //! - `openai`   : client HTTP OpenAI-compatible `[feature = "cloud"]`
 //! - `anthropic`: client HTTP Anthropic `[feature = "cloud"]`
+//! - `vertex`   : client Google Vertex AI `[feature = "cloud"]`
 
 #[cfg(feature = "local")]
 pub mod embedded;
@@ -13,3 +14,6 @@ pub mod anthropic;
 
 #[cfg(feature = "cloud")]
 pub mod openai;
+
+#[cfg(feature = "cloud")]
+pub mod vertex;

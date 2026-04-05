@@ -320,6 +320,7 @@ dependencies = [
  "apollia-core",
  "async-openai",
  "async-trait",
+ "chrono",
  "encoding_rs",
  "futures",
  "llama-cpp-2",

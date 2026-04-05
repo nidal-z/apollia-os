@@ -16,7 +16,9 @@ use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::token_budget::TokenBudget;
 
 use crate::token_budget::SessionBudgetTracker;
-use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmProvider, LlmRoutingConfig};
+use apollia_core::{
+    LlmBackendConfig, LlmBackendRepository, LlmProvider, LlmRoutingConfig, VertexConfig,
+};
 
 use crate::types::{BackendInfo, CompletionModel, CompletionRequest, CompletionResponse, LlmError};
 
@@ -28,6 +30,9 @@ use crate::backends::anthropic::AnthropicClient;
 
 #[cfg(feature = "cloud")]
 use crate::backends::openai::{ApiBackendConfig, OpenAICompatibleClient};
+
+#[cfg(feature = "cloud")]
+use crate::backends::vertex::VertexClient;
 
 // ─────────────────────────────────────────────
 // Configuration
@@ -79,6 +84,20 @@ pub struct LlmConfig {
     /// ```
     #[serde(default)]
     pub cost_alert_threshold_usd: Option<f64>,
+    /// Configuration optionnelle du backend Google Vertex AI (`[llm.vertex]`).
+    ///
+    /// Si absent ou `enabled = false`, le backend n'est pas instancié.
+    ///
+    /// Exemple `apollia.toml` :
+    /// ```toml
+    /// [llm.vertex]
+    /// enabled    = true
+    /// project_id = "my-gcp-project"
+    /// location   = "us-east5"
+    /// model_id   = "claude-sonnet-4-6@20251001"
+    /// ```
+    #[serde(default)]
+    pub vertex: Option<VertexConfig>,
 }
 
 /// Paramètres d'observabilité pour le router LLM.
@@ -263,6 +282,27 @@ impl LlmRouter {
             backends.insert(name, backend);
         }
 
+        // Vertex AI — instancié séparément depuis [llm.vertex] si enabled = true.
+        #[cfg(feature = "cloud")]
+        if let Some(vertex_cfg) = &config.vertex {
+            if vertex_cfg.enabled {
+                match VertexClient::new(vertex_cfg, cancellation_token.clone()) {
+                    Ok(client) => {
+                        backends.insert(
+                            "vertex".to_owned(),
+                            Arc::new(client) as Arc<dyn CompletionModel>,
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            "Vertex AI backend ignoré : ADC absent ou invalide"
+                        );
+                    }
+                }
+            }
+        }
+
         // : le backend par défaut doit être disponible après la boucle.
         if !backends.contains_key(&config.default) {
             return Err(LlmError::BackendUnavailable {
@@ -389,6 +429,44 @@ impl LlmRouter {
                         });
                     }
                     // Continue — on tente les backends suivants.
+                }
+            }
+        }
+
+        // Vertex AI — instancié séparément depuis [llm.vertex] si enabled = true.
+        #[cfg(feature = "cloud")]
+        if let Some(vertex_cfg) = &config.vertex {
+            if vertex_cfg.enabled {
+                let vertex_name = "vertex".to_owned();
+                if let Some(ref b) = bus {
+                    let _ = b.send(RuntimeEvent::LlmModelLoading {
+                        backend: vertex_name.clone(),
+                        model_path: vertex_cfg.model_id.clone(),
+                    });
+                }
+                match VertexClient::new(vertex_cfg, cancellation_token.clone()) {
+                    Ok(client) => {
+                        let model_id = client.model_id().to_owned();
+                        if let Some(ref b) = bus {
+                            let _ = b.send(RuntimeEvent::LlmModelReady {
+                                backend: vertex_name.clone(),
+                                model_id,
+                            });
+                        }
+                        backends.insert(vertex_name, Arc::new(client) as Arc<dyn CompletionModel>);
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            "Vertex AI backend ignoré : ADC absent ou invalide"
+                        );
+                        if let Some(ref b) = bus {
+                            let _ = b.send(RuntimeEvent::LlmModelFailed {
+                                backend: vertex_name,
+                                reason: e.to_string(),
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -1313,6 +1391,7 @@ mod tests {
             routing: None,
             pricing_overrides: HashMap::new(),
             cost_alert_threshold_usd: None,
+            vertex: None,
         };
 
         // WHEN
@@ -1422,6 +1501,7 @@ mod tests {
             routing: None,
             pricing_overrides: HashMap::new(),
             cost_alert_threshold_usd: None,
+            vertex: None,
         };
 
         // WHEN

@@ -1005,6 +1005,31 @@ pub struct LlmRoutingConfig {
 }
 
 // ─────────────────────────────────────────────
+// VertexConfig
+// ─────────────────────────────────────────────
+
+/// Configuration du backend Google Vertex AI.
+///
+/// Auth via Application Default Credentials (ADC) — fichier
+/// `~/.config/gcloud/application_default_credentials.json` ou variable
+/// d'environnement `GOOGLE_APPLICATION_CREDENTIALS`.
+///
+/// La section `[llm.vertex]` dans `apollia.toml` est optionnelle.
+/// Si absente, `enabled` vaut `false` et le backend n'est pas chargé.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VertexConfig {
+    /// Activer ce backend (false par défaut).
+    #[serde(default)]
+    pub enabled: bool,
+    /// ID du projet GCP (ex: `"my-gcp-project"`).
+    pub project_id: String,
+    /// Région Vertex AI (ex: `"us-east5"`, `"europe-west1"`).
+    pub location: String,
+    /// ID du modèle Anthropic publié sur Vertex (ex: `"claude-sonnet-4-6@20251001"`).
+    pub model_id: String,
+}
+
+// ─────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────
 
