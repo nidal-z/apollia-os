@@ -18,12 +18,15 @@ pub mod observability;
 pub mod onboarding;
 pub mod pipelines;
 pub mod plan_alternatives;
+pub mod review;
 pub mod stt;
 pub mod tasks;
 pub mod tools;
 pub mod triggers;
+pub mod updates;
 pub mod user;
 pub mod user_memory;
+pub mod workspace;
 
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;

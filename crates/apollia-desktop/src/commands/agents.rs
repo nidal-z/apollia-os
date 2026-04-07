@@ -766,6 +766,23 @@ pub async fn check_agent_name_available(name: String) -> Result<bool, String> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Détail agent
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Récupère les détails complets d'un agent par son ID.
+///
+/// Appelle `GET /api/v1/agents/{agent_id}` et retourne les données enrichies
+/// en JSON brut pour éviter de dupliquer la structure de données côté Tauri.
+#[tauri::command]
+pub async fn get_agent_detail(
+    runtime: State<'_, RuntimeHandle>,
+    agent_id: String,
+) -> Result<serde_json::Value, String> {
+    let path = format!("/api/v1/agents/{agent_id}");
+    super::http_get_json(runtime.api_port, &path).await
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 

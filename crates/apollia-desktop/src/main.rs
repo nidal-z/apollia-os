@@ -549,7 +549,30 @@ fn main() {
             commands::mcp::store_mcp_secret,
             commands::mcp::delete_mcp_secret,
             commands::mcp::set_mcp_server_approval,
+            commands::mcp::discover_mcp_servers,
+            commands::mcp::list_mcp_tool_pending_approvals,
+            commands::mcp::revoke_mcp_tool_approval,
             commands::plan_alternatives::choose_plan,
+            // Tasks
+            commands::tasks::cancel_task,
+            // Memory
+            commands::memory::clear_memory,
+            commands::memory::purge_memory,
+            // Observability
+            commands::observability::get_audit_stats,
+            // Agents
+            commands::agents::get_agent_detail,
+            // Updates
+            commands::updates::check_for_update,
+            commands::updates::install_update,
+            // Workspace
+            commands::workspace::get_workspace_status,
+            commands::workspace::init_workspace,
+            // Review
+            commands::review::start_code_review,
+            // Pipelines (registry)
+            commands::pipelines::install_pipeline,
+            commands::pipelines::list_pipeline_registry,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

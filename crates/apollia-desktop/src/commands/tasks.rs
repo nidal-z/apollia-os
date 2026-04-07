@@ -198,12 +198,28 @@ pub async fn list_tasks(
 ///
 /// Construit un `AIPInput` à partir du texte brut fourni par le frontend
 /// et le soumet via `TaskRouterHandle::submit()`.
+///
+/// `allowed_tools` et `disallowed_tools` sont acceptés pour compatibilité avec
+/// la CLI (`--allowed-tools` / `--disallowed-tools`) mais ne sont pas encore
+/// propagés au runtime — ils seront transmis via les métadonnées AIP dans une
+/// story dédiée.
 #[tauri::command]
 pub async fn submit_task(
     state: State<'_, RuntimeHandle>,
     agent_id: String,
     input: String,
+    allowed_tools: Option<Vec<String>>,
+    disallowed_tools: Option<Vec<String>>,
 ) -> Result<String, String> {
+    // Tool filtering is not yet implemented in the AIPInput type.
+    // Log the intent so the UI can see it was received.
+    if let Some(ref tools) = allowed_tools {
+        tracing::debug!(allowed_tools = ?tools, "submit_task: allowed_tools received (not yet enforced)");
+    }
+    if let Some(ref tools) = disallowed_tools {
+        tracing::debug!(disallowed_tools = ?tools, "submit_task: disallowed_tools received (not yet enforced)");
+    }
+
     let aip_input = AIPInput {
         parts: vec![AIPPart::Text(TextPart { text: input })],
     };
@@ -215,6 +231,23 @@ pub async fn submit_task(
         .map_err(|e| e.to_string())?;
 
     Ok(task_id.to_string())
+}
+
+/// Annule une tâche en cours d'exécution.
+///
+/// Appelle `DELETE /api/v1/tasks/{id}` via l'API REST interne.
+/// Retourne `true` si la tâche a été annulée, `false` si déjà terminée ou introuvable.
+#[tauri::command]
+pub async fn cancel_task(
+    state: State<'_, RuntimeHandle>,
+    task_id: String,
+) -> Result<bool, String> {
+    let path = format!("/api/v1/tasks/{task_id}");
+    match super::http_delete_json(state.api_port, &path).await {
+        Ok(_) => Ok(true),
+        Err(e) if e.contains("404") => Ok(false),
+        Err(e) => Err(e),
+    }
 }
 
 /// Récupère la timeline d'une tâche via l'API REST interne.
@@ -297,5 +330,41 @@ mod tests {
         // THEN the status field is populated
         assert_eq!(filter.status.as_deref(), Some("working"));
         assert!(filter.agent_id.is_none());
+    }
+
+    #[test]
+    fn test_task_filter_deserializes_with_agent() {
+        // GIVEN a JSON filter with both status and agent_id
+        let json = serde_json::json!({ "status": "completed", "agent_id": "agent-42" });
+
+        // WHEN deserialized
+        let filter: TaskFilter = serde_json::from_value(json).expect("deserialize");
+
+        // THEN both fields are populated
+        assert_eq!(filter.status.as_deref(), Some("completed"));
+        assert_eq!(filter.agent_id.as_deref(), Some("agent-42"));
+    }
+
+    #[test]
+    fn test_task_summary_with_null_output_serializes() {
+        // GIVEN a TaskSummary with no output (task still running)
+        let summary = TaskSummary {
+            id: "task-002".to_string(),
+            agent_id: "agent-002".to_string(),
+            agent_name: "review-agent".to_string(),
+            status: "working".to_string(),
+            input_preview: "analyze code".to_string(),
+            output_text: None,
+            duration_ms: None,
+            created_at: "2026-03-13T11:00:00Z".to_string(),
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&summary).expect("serialize");
+
+        // THEN output_text and duration_ms are null
+        assert!(json["output_text"].is_null());
+        assert!(json["duration_ms"].is_null());
+        assert_eq!(json["status"], "working");
     }
 }

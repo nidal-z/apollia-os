@@ -41,6 +41,12 @@ pub enum SttCommand {
         #[command(subcommand)]
         command: SttModelCommand,
     },
+    /// Gérer la configuration STT (backend, modèle, langue).
+    Config {
+        /// Sous-commande config.
+        #[command(subcommand)]
+        command: SttConfigCommand,
+    },
 }
 
 /// Transcription history subcommands.
@@ -51,6 +57,30 @@ pub enum TranscriptionsCommand {
         /// Maximum number of entries to display.
         #[arg(long, default_value = "20")]
         limit: u32,
+    },
+    /// Supprimer une transcription par son ID.
+    Delete {
+        /// Identifiant de la transcription.
+        id: String,
+    },
+}
+
+/// STT configuration subcommands.
+#[derive(Debug, Subcommand)]
+pub enum SttConfigCommand {
+    /// Afficher la configuration STT courante.
+    Get,
+    /// Modifier la configuration STT.
+    Update {
+        /// Backend à utiliser (whisper, disabled).
+        #[arg(long)]
+        backend: Option<String>,
+        /// Chemin du modèle Whisper.
+        #[arg(long)]
+        model_path: Option<String>,
+        /// Langue (fr, en, auto).
+        #[arg(long)]
+        language: Option<String>,
     },
 }
 
@@ -82,10 +112,30 @@ pub async fn run(cmd: &SttCommand, socket: Option<PathBuf>, json: bool) -> i32 {
             TranscriptionsCommand::List { limit } => {
                 run_transcriptions_list(*limit, socket, json).await
             }
+            TranscriptionsCommand::Delete { id } => {
+                run_transcription_delete(id, socket, json).await
+            }
         },
         SttCommand::Model { command } => match command {
             SttModelCommand::List => run_model_list(socket, json).await,
             SttModelCommand::Download { name } => run_model_download(name, json),
+        },
+        SttCommand::Config { command } => match command {
+            SttConfigCommand::Get => run_config_get(socket, json).await,
+            SttConfigCommand::Update {
+                backend,
+                model_path,
+                language,
+            } => {
+                run_config_update(
+                    backend.as_deref(),
+                    model_path.as_deref(),
+                    language.as_deref(),
+                    socket,
+                    json,
+                )
+                .await
+            }
         },
     }
 }
@@ -489,6 +539,103 @@ fn run_model_download(name: &str, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
+/// `apollia-os stt transcriptions delete <id>` — supprimer une transcription.
+async fn run_transcription_delete(id: &str, socket: Option<PathBuf>, json: bool) -> i32 {
+    let client = make_client(socket);
+
+    match client.delete_transcription(id).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("✔ Transcription '{id}' supprimée");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: transcription '{id}' introuvable");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_error(e, json),
+    }
+}
+
+/// `apollia-os stt config get` — afficher la configuration STT courante.
+async fn run_config_get(socket: Option<PathBuf>, json: bool) -> i32 {
+    let client = make_client(socket);
+
+    match client.get_stt_config().await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                let backend = resp.get("backend").and_then(|v| v.as_str()).unwrap_or("?");
+                let model_path = resp
+                    .get("model_path")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("(none)");
+                let language = resp
+                    .get("language")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("auto");
+                println!("  Backend    : {backend}");
+                println!("  Model path : {model_path}");
+                println!("  Language   : {language}");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => handle_error(e, json),
+    }
+}
+
+/// `apollia-os stt config update` — modifier la configuration STT.
+async fn run_config_update(
+    backend: Option<&str>,
+    model_path: Option<&str>,
+    language: Option<&str>,
+    socket: Option<PathBuf>,
+    json: bool,
+) -> i32 {
+    let client = make_client(socket);
+
+    let mut body = serde_json::json!({});
+    if let Some(b) = backend {
+        body["backend"] = serde_json::Value::String(b.to_string());
+    }
+    if let Some(mp) = model_path {
+        body["model_path"] = serde_json::Value::String(mp.to_string());
+    }
+    if let Some(l) = language {
+        body["language"] = serde_json::Value::String(l.to_string());
+    }
+
+    match client.update_stt_config(&body).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("✔ Configuration STT mise à jour");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => handle_error(e, json),
+    }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 /// Create a [`RuntimeClient`] from the optional socket path.
@@ -618,5 +765,98 @@ mod tests {
             dir_str.ends_with(".apollia/models") || dir_str.contains("apollia"),
             "expected models dir to contain apollia, got: {dir_str}"
         );
+    }
+
+    // ─── Nouveau: Config et TranscriptionsDelete ──────────────────────────
+
+    use clap::Parser;
+
+    #[derive(Debug, Parser)]
+    struct TestCli {
+        #[command(subcommand)]
+        command: SttCommand,
+    }
+
+    #[test]
+    fn test_stt_config_get_parses() {
+        // GIVEN "config get"
+        // WHEN
+        let cli = TestCli::parse_from(["apollia-os", "config", "get"]);
+        // THEN SttCommand::Config { command: SttConfigCommand::Get }
+        match &cli.command {
+            SttCommand::Config { command } => {
+                assert!(matches!(command, SttConfigCommand::Get))
+            }
+            other => panic!("expected Config, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_stt_config_update_parses() {
+        // GIVEN "config update --backend whisper --language fr"
+        // WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "config",
+            "update",
+            "--backend",
+            "whisper",
+            "--language",
+            "fr",
+        ]);
+        // THEN SttConfigCommand::Update avec les bons champs
+        match &cli.command {
+            SttCommand::Config { command } => match command {
+                SttConfigCommand::Update {
+                    backend,
+                    model_path,
+                    language,
+                } => {
+                    assert_eq!(backend.as_deref(), Some("whisper"));
+                    assert!(model_path.is_none());
+                    assert_eq!(language.as_deref(), Some("fr"));
+                }
+                other => panic!("expected Update, got {other:?}"),
+            },
+            other => panic!("expected Config, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_stt_config_update_with_model_path_parses() {
+        // GIVEN "config update --model-path /tmp/my.bin"
+        // WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "config",
+            "update",
+            "--model-path",
+            "/tmp/my.bin",
+        ]);
+        // THEN model_path = Some("/tmp/my.bin")
+        match &cli.command {
+            SttCommand::Config { command } => match command {
+                SttConfigCommand::Update { model_path, .. } => {
+                    assert_eq!(model_path.as_deref(), Some("/tmp/my.bin"))
+                }
+                other => panic!("expected Update, got {other:?}"),
+            },
+            other => panic!("expected Config, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_stt_transcriptions_delete_parses() {
+        // GIVEN "transcriptions delete t-abc123"
+        // WHEN
+        let cli = TestCli::parse_from(["apollia-os", "transcriptions", "delete", "t-abc123"]);
+        // THEN TranscriptionsCommand::Delete { id: "t-abc123" }
+        match &cli.command {
+            SttCommand::Transcriptions { command } => match command {
+                TranscriptionsCommand::Delete { id } => assert_eq!(id, "t-abc123"),
+                other => panic!("expected Delete, got {other:?}"),
+            },
+            other => panic!("expected Transcriptions, got {other:?}"),
+        }
     }
 }

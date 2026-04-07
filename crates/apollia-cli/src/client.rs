@@ -133,6 +133,15 @@ impl RuntimeClient {
         self.request("DELETE", uri, None).await
     }
 
+    /// Send a PUT request with an optional JSON body and return the raw response.
+    pub async fn put(
+        &self,
+        uri: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<RawResponse, ClientError> {
+        self.request("PUT", uri, body).await
+    }
+
     /// Send a POST request with a raw body and custom content-type.
     ///
     /// Used for multipart uploads where the body is pre-built by the caller.
@@ -959,6 +968,462 @@ impl RuntimeClient {
             }
         });
         let resp = self.post("/api/v1/tasks", Some(&body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    // ─── LLM Backends CRUD ────────────────────────────────────────────────────
+
+    /// List all configured LLM backends via `GET /api/v1/llm/backends`.
+    pub async fn list_llm_backends(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/llm/backends").await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Create a new LLM backend via `POST /api/v1/llm/backends`.
+    pub async fn create_llm_backend(
+        &self,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self.post("/api/v1/llm/backends", Some(body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Update an existing LLM backend via `PUT /api/v1/llm/backends/{name}`.
+    pub async fn update_llm_backend(
+        &self,
+        name: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let uri = format!("/api/v1/llm/backends/{name}");
+        let resp = self.put(&uri, Some(body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Delete an LLM backend via `DELETE /api/v1/llm/backends/{name}`.
+    pub async fn delete_llm_backend(&self, name: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self.delete(&format!("/api/v1/llm/backends/{name}")).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Set a backend as the default LLM backend via `POST /api/v1/llm/backends/{name}/set-default`.
+    pub async fn set_default_llm_backend(
+        &self,
+        name: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .post(
+                &format!("/api/v1/llm/backends/{name}/set-default"),
+                None,
+            )
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Get aggregated LLM usage and costs via `GET /api/v1/llm/costs`.
+    pub async fn get_llm_costs(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/llm/costs").await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    // ─── Triggers CRUD ────────────────────────────────────────────────────────
+
+    /// Create a new trigger via `POST /api/v1/triggers`.
+    pub async fn create_trigger(
+        &self,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self.post("/api/v1/triggers", Some(body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Update an existing trigger via `PUT /api/v1/triggers/{id}`.
+    pub async fn update_trigger(
+        &self,
+        id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let uri = format!("/api/v1/triggers/{id}");
+        let resp = self.put(&uri, Some(body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Delete a trigger via `DELETE /api/v1/triggers/{id}`.
+    pub async fn delete_trigger(&self, id: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self.delete(&format!("/api/v1/triggers/{id}")).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    // ─── Notifications CRUD ───────────────────────────────────────────────────
+
+    /// Create a notification channel via `POST /api/v1/notifications/channels`.
+    pub async fn create_notification_channel(
+        &self,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .post("/api/v1/notifications/channels", Some(body))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Update a notification channel via `PUT /api/v1/notifications/channels/{id}`.
+    pub async fn update_notification_channel(
+        &self,
+        id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let uri = format!("/api/v1/notifications/channels/{id}");
+        let resp = self.put(&uri, Some(body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Delete a notification channel via `DELETE /api/v1/notifications/channels/{id}`.
+    pub async fn delete_notification_channel(
+        &self,
+        id: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .delete(&format!("/api/v1/notifications/channels/{id}"))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Get notification event types configuration via `GET /api/v1/notifications/events`.
+    pub async fn get_notification_events(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/notifications/events").await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Update notification event types via `PUT /api/v1/notifications/events`.
+    pub async fn set_notification_events(
+        &self,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self.put("/api/v1/notifications/events", Some(body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    // ─── Pipelines CRUD ───────────────────────────────────────────────────────
+
+    /// Create a new pipeline via `POST /api/v1/pipelines`.
+    pub async fn create_pipeline(
+        &self,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self.post("/api/v1/pipelines", Some(body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Get pipeline details via `GET /api/v1/pipelines/{id}`.
+    pub async fn get_pipeline(&self, id: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get(&format!("/api/v1/pipelines/{id}")).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Update a pipeline via `PUT /api/v1/pipelines/{id}`.
+    pub async fn update_pipeline(
+        &self,
+        id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let uri = format!("/api/v1/pipelines/{id}");
+        let resp = self.put(&uri, Some(body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Delete a pipeline via `DELETE /api/v1/pipelines/{id}`.
+    pub async fn delete_pipeline(&self, id: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self.delete(&format!("/api/v1/pipelines/{id}")).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    // ─── MCP Servers CRUD ─────────────────────────────────────────────────────
+
+    /// Add an MCP server to the runtime via `POST /api/v1/mcp/servers`.
+    pub async fn add_mcp_server(
+        &self,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self.post("/api/v1/mcp/servers", Some(body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Get MCP server details via `GET /api/v1/mcp/servers/{name}`.
+    pub async fn get_mcp_server_detail(
+        &self,
+        name: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get(&format!("/api/v1/mcp/servers/{name}")).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Remove an MCP server from the runtime via `DELETE /api/v1/mcp/servers/{name}`.
+    pub async fn remove_mcp_server(&self, name: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .delete(&format!("/api/v1/mcp/servers/{name}"))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Test an MCP server connection via `POST /api/v1/mcp/servers/test`.
+    pub async fn test_mcp_connection(
+        &self,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self.post("/api/v1/mcp/servers/test", Some(body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Restart an MCP server via `POST /api/v1/mcp/servers/{name}/restart`.
+    pub async fn restart_mcp_server(&self, name: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .post(&format!("/api/v1/mcp/servers/{name}/restart"), None)
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Update an MCP server configuration via `PUT /api/v1/mcp/servers/{name}/config`.
+    pub async fn update_mcp_server_config(
+        &self,
+        name: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let uri = format!("/api/v1/mcp/servers/{name}/config");
+        let resp = self.put(&uri, Some(body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    // ─── STT Config ───────────────────────────────────────────────────────────
+
+    /// Get the STT configuration via `GET /api/v1/stt/config`.
+    pub async fn get_stt_config(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/stt/config").await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Update the STT configuration via `PUT /api/v1/stt/config`.
+    pub async fn update_stt_config(
+        &self,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self.put("/api/v1/stt/config", Some(body)).await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Delete a transcription by ID via `DELETE /api/v1/stt/transcriptions/{id}`.
+    pub async fn delete_transcription(&self, id: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .delete(&format!("/api/v1/stt/transcriptions/{id}"))
+            .await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    // ─── Audit ────────────────────────────────────────────────────────────────
+
+    /// Get audit statistics via `GET /api/v1/audit/stats`.
+    pub async fn get_audit_stats(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/audit/stats").await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    // ─── Approvals ────────────────────────────────────────────────────────────
+
+    /// List resolved HITL approvals via `GET /api/v1/approvals/resolved`.
+    pub async fn list_resolved_approvals(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/approvals/resolved").await?;
+        if resp.status >= 400 {
+            return Err(ClientError::ServerError {
+                status: resp.status,
+                body: extract_error(&resp.body, resp.status),
+            });
+        }
+        Ok(serde_json::from_str(&resp.body)?)
+    }
+
+    /// Add a permission prefix rule via `POST /api/v1/permissions/prefix`.
+    pub async fn add_permission_prefix_rule(
+        &self,
+        prefix: &str,
+        action: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let body = serde_json::json!({ "prefix": prefix, "action": action });
+        let resp = self
+            .post("/api/v1/permissions/prefix", Some(&body))
+            .await?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,

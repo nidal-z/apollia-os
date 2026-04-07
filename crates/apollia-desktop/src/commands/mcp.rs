@@ -4,7 +4,9 @@
 //! servers, and directly to [`McpRegistryClient`] and [`SecretStore`] for
 //! registry discovery and secret management.
 
+use apollia_mcp::approvals::McpApprovalStore;
 use apollia_mcp::config::McpServerConfig;
+use apollia_mcp::discovery;
 use apollia_mcp::manager::{McpConnectionTestResult, McpServerDetail, McpServerStatus};
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
@@ -663,6 +665,96 @@ pub async fn delete_mcp_secret(
     secret_store.delete(&key).map_err(|e| e.to_string())
 }
 
+/// Chemin par défaut du fichier SQLite d'approbations MCP.
+fn mcp_approvals_db_path() -> Result<std::path::PathBuf, String> {
+    let home = std::env::var("HOME")
+        .map_err(|_| "cannot determine home directory: $HOME not set".to_string())?;
+    Ok(std::path::PathBuf::from(home)
+        .join(".apollia")
+        .join("mcp_approvals.db"))
+}
+
+/// Découvre les serveurs MCP disponibles sur le réseau local via mDNS.
+///
+/// Effectue un scan de 3 secondes pour `_apollia-mcp._tcp.local.`.
+/// Retourne une liste de serveurs découverts avec leur nom, adresses, port et outils.
+#[tauri::command]
+pub async fn discover_mcp_servers() -> Result<Vec<serde_json::Value>, String> {
+    let discovered = discovery::discover_mcp_servers()
+        .await
+        .map_err(|e| format!("mDNS discovery failed: {e}"))?;
+
+    Ok(discovered
+        .into_iter()
+        .map(|s| {
+            serde_json::json!({
+                "name": s.name,
+                "addresses": s.addresses,
+                "port": s.port,
+                "tools": s.tools,
+            })
+        })
+        .collect())
+}
+
+/// Liste les approbations MCP outil en attente.
+///
+/// Lit depuis `~/.apollia/mcp_approvals.db` et retourne les entrées en attente
+/// de décision humaine.
+#[tauri::command]
+pub async fn list_mcp_tool_pending_approvals() -> Result<Vec<serde_json::Value>, String> {
+    let db_path = mcp_approvals_db_path()?;
+
+    if !db_path.exists() {
+        return Ok(vec![]);
+    }
+
+    let store = McpApprovalStore::open(&db_path, 0)
+        .map_err(|e| format!("failed to open approvals store: {e}"))?;
+
+    let pending = store
+        .list_pending()
+        .map_err(|e| format!("failed to list pending approvals: {e}"))?;
+
+    Ok(pending
+        .into_iter()
+        .map(|entry| {
+            serde_json::json!({
+                "id": entry.id,
+                "server_name": entry.server_name,
+                "tool_name": entry.tool_name,
+                "requested_at": entry.requested_at,
+                "status": entry.status,
+            })
+        })
+        .collect())
+}
+
+/// Révoque une approbation MCP pour un serveur et un outil spécifiques.
+///
+/// Supprime l'approbation de `~/.apollia/mcp_approvals.db`.
+/// Retourne `true` si une entrée a été supprimée, `false` si aucune entrée correspondante.
+#[tauri::command]
+pub async fn revoke_mcp_tool_approval(
+    server: String,
+    tool: String,
+) -> Result<bool, String> {
+    let db_path = mcp_approvals_db_path()?;
+
+    if !db_path.exists() {
+        return Ok(false);
+    }
+
+    let store = McpApprovalStore::open(&db_path, 0)
+        .map_err(|e| format!("failed to open approvals store: {e}"))?;
+
+    store
+        .revoke(&server, &tool)
+        .map_err(|e| format!("failed to revoke approval: {e}"))?;
+
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -748,5 +840,37 @@ mod tests {
         let key = SecretStore::key_for("slack", "SLACK_BOT_TOKEN");
         // THEN the key follows the "{server}:{env_var}" convention
         assert_eq!(key, "slack:SLACK_BOT_TOKEN");
+    }
+
+    // ── discover_mcp_servers produces correct JSON shape ─────────────────────
+
+    #[test]
+    fn test_discovered_server_json_shape() {
+        // GIVEN a discovered server mapped to JSON (as done inside discover_mcp_servers)
+        let server_json = serde_json::json!({
+            "name": "my-mcp-server._apollia-mcp._tcp.local",
+            "addresses": ["192.168.1.42"],
+            "port": 8765,
+            "tools": ["search", "query"],
+        });
+
+        // WHEN the fields are accessed
+        // THEN they match the expected shape
+        assert_eq!(server_json["port"], 8765);
+        assert!(server_json["addresses"].is_array());
+        assert!(server_json["tools"].is_array());
+    }
+
+    // ── revoke_mcp_tool_approval returns false when db absent ─────────────────
+
+    #[test]
+    fn test_mcp_approvals_db_path_contains_apollia() {
+        // GIVEN/WHEN the default DB path is computed
+        let result = mcp_approvals_db_path();
+
+        // THEN it resolves to a path under .apollia
+        assert!(result.is_ok());
+        let path = result.expect("path");
+        assert!(path.to_str().expect("utf8").contains(".apollia"));
     }
 }

@@ -245,6 +245,15 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::AllReady | RuntimeEvent::ShutdownRequested | RuntimeEvent::FatalError(_) => {
             "system"
         }
+
+        // ── Triggers (extended) ───────────────────────────────────────────
+        RuntimeEvent::TriggerQueueFull { .. } => "trigger-fired",
+
+        // ── MCP ──────────────────────────────────────────────────────────
+        RuntimeEvent::McpServerReloaded { .. } => "system",
+
+        // ── Workspace / file read ─────────────────────────────────────────
+        RuntimeEvent::FileModifiedSinceRead { .. } => "system",
     }
 }
 

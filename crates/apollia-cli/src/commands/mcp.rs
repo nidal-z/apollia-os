@@ -1,4 +1,7 @@
 //! `apollia-os mcp` subcommands — MCP server management, discovery, and HITL approvals.
+//!
+//! Les sous-commandes `add`, `remove`, `get`, `test`, `restart` communiquent avec
+//! le runtime via socket Unix. Les autres opèrent sur la config locale.
 
 use std::io::IsTerminal as _;
 use std::path::PathBuf;
@@ -9,6 +12,7 @@ use apollia_mcp::approvals::McpApprovalStore;
 use apollia_mcp::config::McpConfig;
 use apollia_mcp::discovery;
 
+use crate::client::{ClientError, RuntimeClient, DEFAULT_SOCKET_PATH};
 use crate::exit_codes;
 
 /// MCP server subcommands.
@@ -86,6 +90,48 @@ pub enum McpCommand {
         #[arg(long)]
         json: bool,
     },
+
+    /// Ajouter un serveur MCP au runtime (persiste dans la config).
+    Add {
+        /// Nom unique du serveur.
+        name: String,
+        /// Commande à lancer (transport stdio) ou URL (transport HTTP/SSE).
+        #[arg(long)]
+        command: Option<String>,
+        /// URL de connexion HTTP/SSE.
+        #[arg(long)]
+        url: Option<String>,
+        /// Exiger une approbation HITL pour chaque outil.
+        #[arg(long)]
+        require_approval: bool,
+    },
+
+    /// Retirer un serveur MCP du runtime.
+    Remove {
+        /// Nom du serveur.
+        name: String,
+        /// Confirmer sans prompt interactif.
+        #[arg(long)]
+        confirm: bool,
+    },
+
+    /// Afficher les détails d'un serveur MCP.
+    Get {
+        /// Nom du serveur.
+        name: String,
+    },
+
+    /// Tester la connexion à un serveur MCP.
+    Test {
+        /// URL ou commande à tester.
+        target: String,
+    },
+
+    /// Redémarrer un serveur MCP.
+    Restart {
+        /// Nom du serveur.
+        name: String,
+    },
 }
 
 /// Errors returned by MCP subcommands.
@@ -105,7 +151,7 @@ pub enum McpCommandError {
 }
 
 /// Entry point for `apollia-os mcp <subcommand>`.
-pub async fn run(command: &McpCommand, json: bool) -> i32 {
+pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i32 {
     match command {
         McpCommand::List {
             discover,
@@ -177,6 +223,235 @@ pub async fn run(command: &McpCommand, json: bool) -> i32 {
                 }
             }
         }
+
+        McpCommand::Add {
+            name,
+            command,
+            url,
+            require_approval,
+        } => {
+            let client = make_runtime_client(socket);
+            run_add(&client, name, command.as_deref(), url.as_deref(), *require_approval, json).await
+        }
+
+        McpCommand::Remove { name, confirm } => {
+            let client = make_runtime_client(socket);
+            run_remove(&client, name, *confirm, json).await
+        }
+
+        McpCommand::Get { name } => {
+            let client = make_runtime_client(socket);
+            run_get_server(&client, name, json).await
+        }
+
+        McpCommand::Test { target } => {
+            let client = make_runtime_client(socket);
+            run_test_connection(&client, target, json).await
+        }
+
+        McpCommand::Restart { name } => {
+            let client = make_runtime_client(socket);
+            run_restart_server(&client, name, json).await
+        }
+    }
+}
+
+/// Create a RuntimeClient from an optional socket path.
+fn make_runtime_client(socket: Option<PathBuf>) -> RuntimeClient {
+    let path = socket.unwrap_or_else(|| PathBuf::from(DEFAULT_SOCKET_PATH));
+    RuntimeClient::new(path)
+}
+
+/// Gestion uniforme des erreurs client MCP (socket Unix).
+fn handle_client_error(err: ClientError, json: bool) -> i32 {
+    match err {
+        ClientError::ConnectionRefused => {
+            if json {
+                let output =
+                    serde_json::json!({"error": "runtime not started (connection refused)"});
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&output).unwrap_or_default()
+                );
+            } else {
+                eprintln!("Error: runtime not started (connection refused)");
+            }
+            exit_codes::RUNTIME_ERROR
+        }
+        other => {
+            if json {
+                let output = serde_json::json!({"error": other.to_string()});
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&output).unwrap_or_default()
+                );
+            } else {
+                eprintln!("Error: {other}");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+    }
+}
+
+// ─── Runtime-based CRUD handlers ──────────────────────────────────────────────
+
+/// `apollia-os mcp add <name>` — ajouter un serveur MCP au runtime.
+async fn run_add(
+    client: &RuntimeClient,
+    name: &str,
+    command: Option<&str>,
+    url: Option<&str>,
+    require_approval: bool,
+    json: bool,
+) -> i32 {
+    let mut body = serde_json::json!({
+        "name": name,
+        "require_approval": require_approval,
+    });
+    if let Some(cmd) = command {
+        body["command"] = serde_json::Value::String(cmd.to_string());
+    }
+    if let Some(u) = url {
+        body["url"] = serde_json::Value::String(u.to_string());
+    }
+
+    match client.add_mcp_server(&body).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("✔ Serveur MCP '{name}' ajouté au runtime");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os mcp remove <name>` — retirer un serveur MCP du runtime.
+async fn run_remove(client: &RuntimeClient, name: &str, confirm: bool, json: bool) -> i32 {
+    if !confirm {
+        if json {
+            let output = serde_json::json!({"error": "use --confirm to remove without prompt"});
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&output).unwrap_or_default()
+            );
+        } else {
+            eprintln!("Utiliser --confirm pour retirer le serveur '{name}' sans confirmation.");
+        }
+        return exit_codes::GENERAL_ERROR;
+    }
+
+    match client.remove_mcp_server(name).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("✔ Serveur MCP '{name}' retiré du runtime");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: serveur MCP '{name}' introuvable");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os mcp get <name>` — afficher les détails d'un serveur MCP.
+async fn run_get_server(client: &RuntimeClient, name: &str, json: bool) -> i32 {
+    match client.get_mcp_server_detail(name).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                let status = resp.get("status").and_then(|v| v.as_str()).unwrap_or("?");
+                let transport = resp.get("transport").and_then(|v| v.as_str()).unwrap_or("?");
+                println!("  Serveur   : {name}");
+                println!("  Transport : {transport}");
+                println!("  Statut    : {status}");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: serveur MCP '{name}' introuvable");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os mcp test <target>` — tester la connexion à un serveur MCP.
+async fn run_test_connection(client: &RuntimeClient, target: &str, json: bool) -> i32 {
+    let body = serde_json::json!({ "target": target });
+    match client.test_mcp_connection(&body).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                let ok = resp.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
+                let latency = resp.get("latency_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+                if ok {
+                    println!("✔ Connexion réussie ({latency}ms)");
+                } else {
+                    let err = resp.get("error").and_then(|v| v.as_str()).unwrap_or("unknown");
+                    println!("✗ Connexion échouée: {err}");
+                }
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os mcp restart <name>` — redémarrer un serveur MCP.
+async fn run_restart_server(client: &RuntimeClient, name: &str, json: bool) -> i32 {
+    match client.restart_mcp_server(name).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("✔ Serveur MCP '{name}' redémarré");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: serveur MCP '{name}' introuvable");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_client_error(e, json),
     }
 }
 
@@ -427,7 +702,123 @@ fn resolve_approvals_db_path(override_path: Option<&std::path::Path>) -> PathBuf
 
 #[cfg(test)]
 mod tests {
+    use clap::Parser;
+
     use super::*;
+
+    #[derive(Debug, Parser)]
+    struct TestCli {
+        #[command(subcommand)]
+        command: McpCommand,
+    }
+
+    #[test]
+    fn test_mcp_add_parses() {
+        // GIVEN "add code-tools --command 'npx @modelcontextprotocol/server-filesystem'"
+        // WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "add",
+            "code-tools",
+            "--command",
+            "npx @modelcontextprotocol/server-filesystem",
+        ]);
+        // THEN McpCommand::Add avec les bons champs
+        match &cli.command {
+            McpCommand::Add {
+                name,
+                command,
+                url,
+                require_approval,
+            } => {
+                assert_eq!(name, "code-tools");
+                assert_eq!(
+                    command.as_deref(),
+                    Some("npx @modelcontextprotocol/server-filesystem")
+                );
+                assert!(url.is_none());
+                assert!(!require_approval);
+            }
+            other => panic!("expected Add, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_mcp_add_with_url_and_approval_parses() {
+        // GIVEN "add my-server --url http://localhost:8080 --require-approval"
+        // WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "add",
+            "my-server",
+            "--url",
+            "http://localhost:8080",
+            "--require-approval",
+        ]);
+        // THEN require_approval = true, url set
+        match &cli.command {
+            McpCommand::Add {
+                url,
+                require_approval,
+                ..
+            } => {
+                assert_eq!(url.as_deref(), Some("http://localhost:8080"));
+                assert!(require_approval);
+            }
+            other => panic!("expected Add, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_mcp_remove_confirm_parses() {
+        // GIVEN "remove code-tools --confirm"
+        // WHEN
+        let cli = TestCli::parse_from(["apollia-os", "remove", "code-tools", "--confirm"]);
+        // THEN Remove { name: "code-tools", confirm: true }
+        match &cli.command {
+            McpCommand::Remove { name, confirm } => {
+                assert_eq!(name, "code-tools");
+                assert!(confirm);
+            }
+            other => panic!("expected Remove, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_mcp_get_parses() {
+        // GIVEN "get code-tools"
+        // WHEN
+        let cli = TestCli::parse_from(["apollia-os", "get", "code-tools"]);
+        // THEN McpCommand::Get { name: "code-tools" }
+        match &cli.command {
+            McpCommand::Get { name } => assert_eq!(name, "code-tools"),
+            other => panic!("expected Get, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_mcp_test_parses() {
+        // GIVEN "test http://localhost:8080"
+        // WHEN
+        let cli = TestCli::parse_from(["apollia-os", "test", "http://localhost:8080"]);
+        // THEN McpCommand::Test { target: "http://localhost:8080" }
+        match &cli.command {
+            McpCommand::Test { target } => assert_eq!(target, "http://localhost:8080"),
+            other => panic!("expected Test, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_mcp_restart_parses() {
+        // GIVEN "restart code-tools"
+        // WHEN
+        let cli = TestCli::parse_from(["apollia-os", "restart", "code-tools"]);
+        // THEN McpCommand::Restart { name: "code-tools" }
+        match &cli.command {
+            McpCommand::Restart { name } => assert_eq!(name, "code-tools"),
+            other => panic!("expected Restart, got {other:?}"),
+        }
+    }
 
     #[test]
     fn test_resolve_config_path_with_override() {

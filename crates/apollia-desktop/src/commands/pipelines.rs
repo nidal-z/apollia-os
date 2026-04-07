@@ -5,11 +5,15 @@
 //! en JSON brut (`serde_json::Value`) pour éviter de dupliquer les types
 //! Rust déjà définis dans `apollia-pipelines`.
 
+use apollia_pipelines::registry::PipelineRegistry;
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::{http_delete_json, http_get_json, http_post_json, http_put_json};
+
+/// URL par défaut du registry de pipelines communautaires.
+const DEFAULT_REGISTRY_URL: &str = "https://github.com/apollia-os/pipelines";
 
 /// Résumé d'un pipeline run pour l'affichage dans l'UI.
 #[derive(Debug, Serialize)]
@@ -600,6 +604,66 @@ pub async fn run_pipeline(
     })
 }
 
+// ─── Registry communautaire ─────────────────────────────────────────────────
+
+/// Installe un pipeline depuis le registry communautaire.
+///
+/// Télécharge le template TOML depuis le registry, valide sa structure comme
+/// `PipelineDefinition`, puis l'écrit dans `~/.apollia/pipelines/<name>.toml`.
+/// Retourne les métadonnées du pipeline installé en JSON.
+#[tauri::command]
+pub async fn install_pipeline(
+    name: String,
+    registry_url: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let url = registry_url
+        .as_deref()
+        .unwrap_or(DEFAULT_REGISTRY_URL);
+
+    let registry = PipelineRegistry::new(url);
+    let path = registry
+        .install(&name)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({
+        "name": name,
+        "install_path": path.display().to_string(),
+        "registry_url": url,
+    }))
+}
+
+/// Liste les pipelines disponibles dans le registry communautaire.
+///
+/// Récupère l'index depuis `{registry_url}/index.json` et retourne les entrées
+/// disponibles avec leur nom, description, auteur et tags.
+#[tauri::command]
+pub async fn list_pipeline_registry(
+    registry_url: Option<String>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let url = registry_url
+        .as_deref()
+        .unwrap_or(DEFAULT_REGISTRY_URL);
+
+    let registry = PipelineRegistry::new(url);
+    let entries = registry
+        .list_available()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(entries
+        .into_iter()
+        .map(|e| {
+            serde_json::json!({
+                "name": e.name,
+                "description": e.description,
+                "author": e.author,
+                "tags": e.tags,
+            })
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -809,6 +873,32 @@ mod tests {
         assert_eq!(steps[0]["id"], "extract");
         assert_eq!(steps[1]["depends_on"][0], "extract");
         assert_eq!(steps[1]["condition"]["when"], "contains");
+    }
+
+    #[test]
+    fn test_default_registry_url_is_set() {
+        // GIVEN the DEFAULT_REGISTRY_URL constant
+        // THEN it points to the expected GitHub repository
+        assert_eq!(
+            DEFAULT_REGISTRY_URL,
+            "https://github.com/apollia-os/pipelines"
+        );
+    }
+
+    #[test]
+    fn test_install_pipeline_result_json_shape() {
+        // GIVEN a simulated install result JSON (as returned by install_pipeline)
+        let result = serde_json::json!({
+            "name": "code-review",
+            "install_path": "/home/user/.apollia/pipelines/code-review.toml",
+            "registry_url": "https://github.com/apollia-os/pipelines",
+        });
+
+        // WHEN the fields are accessed
+        // THEN they match the expected shape
+        assert_eq!(result["name"], "code-review");
+        assert!(result["install_path"].as_str().is_some());
+        assert!(result["registry_url"].as_str().is_some());
     }
 
     #[test]

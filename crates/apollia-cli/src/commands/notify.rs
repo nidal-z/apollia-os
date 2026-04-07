@@ -37,6 +37,56 @@ pub enum NotifyCommand {
         #[arg(long, default_value = "20")]
         last: usize,
     },
+    /// Créer un nouveau canal de notification.
+    Create {
+        /// Type de canal : desktop, webhook.
+        #[arg(long, value_name = "TYPE")]
+        kind: String,
+        /// URL cible (pour webhook).
+        #[arg(long)]
+        url: Option<String>,
+        /// Activer immédiatement.
+        #[arg(long, default_value_t = true)]
+        enabled: bool,
+    },
+    /// Mettre à jour un canal de notification existant.
+    Update {
+        /// Identifiant du canal.
+        id: String,
+        /// Nouvelle URL (pour webhook).
+        #[arg(long)]
+        url: Option<String>,
+        /// Activer ou désactiver.
+        #[arg(long)]
+        enabled: Option<bool>,
+    },
+    /// Supprimer un canal de notification.
+    Delete {
+        /// Identifiant du canal.
+        id: String,
+        /// Confirmer sans prompt interactif.
+        #[arg(long)]
+        confirm: bool,
+    },
+    /// Afficher ou modifier les types d'événements qui déclenchent les notifications.
+    Events {
+        /// Sous-commande events.
+        #[command(subcommand)]
+        command: NotifyEventsCommand,
+    },
+}
+
+/// Sous-commandes pour la gestion des événements de notification.
+#[derive(Debug, Subcommand)]
+pub enum NotifyEventsCommand {
+    /// Afficher les types d'événements configurés.
+    Get,
+    /// Modifier les types d'événements (liste séparée par virgules).
+    Set {
+        /// Types d'événements activés (ex: task_completed,task_failed,agent_error).
+        #[arg(value_delimiter = ',', value_name = "EVENT")]
+        events: Vec<String>,
+    },
 }
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
@@ -52,6 +102,14 @@ pub async fn run(cmd: &NotifyCommand, socket: Option<PathBuf>, json: bool) -> i3
         NotifyCommand::Test => run_test(&client, json).await,
         NotifyCommand::List => run_list(&client, json).await,
         NotifyCommand::Logs { last } => run_logs(&client, *last, json).await,
+        NotifyCommand::Create { kind, url, enabled } => {
+            run_create(&client, kind, url.as_deref(), *enabled, json).await
+        }
+        NotifyCommand::Update { id, url, enabled } => {
+            run_update_channel(&client, id, url.as_deref(), *enabled, json).await
+        }
+        NotifyCommand::Delete { id, confirm } => run_delete_channel(&client, id, *confirm, json).await,
+        NotifyCommand::Events { command } => run_events(&client, command, json).await,
     }
 }
 
@@ -323,6 +381,186 @@ fn format_log_entries(resp: &serde_json::Value) {
     }
 }
 
+/// `apollia-os notify create --kind <type>` — créer un canal de notification.
+async fn run_create(
+    client: &RuntimeClient,
+    kind: &str,
+    url: Option<&str>,
+    enabled: bool,
+    json: bool,
+) -> i32 {
+    let mut body = serde_json::json!({
+        "kind": kind,
+        "enabled": enabled,
+    });
+    if let Some(u) = url {
+        body["url"] = serde_json::Value::String(u.to_string());
+    }
+
+    match client.create_notification_channel(&body).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                let id = resp.get("channel_id").and_then(|v| v.as_str()).unwrap_or("?");
+                println!("✔ Canal de notification '{id}' créé (type: {kind})");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os notify update <id>` — mettre à jour un canal de notification.
+async fn run_update_channel(
+    client: &RuntimeClient,
+    id: &str,
+    url: Option<&str>,
+    enabled: Option<bool>,
+    json: bool,
+) -> i32 {
+    let mut body = serde_json::json!({});
+    if let Some(u) = url {
+        body["url"] = serde_json::Value::String(u.to_string());
+    }
+    if let Some(e) = enabled {
+        body["enabled"] = serde_json::Value::Bool(e);
+    }
+
+    match client.update_notification_channel(id, &body).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("✔ Canal '{id}' mis à jour");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: canal '{id}' introuvable");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os notify delete <id> [--confirm]` — supprimer un canal de notification.
+async fn run_delete_channel(
+    client: &RuntimeClient,
+    id: &str,
+    confirm: bool,
+    json: bool,
+) -> i32 {
+    if !confirm {
+        if json {
+            let output = serde_json::json!({"error": "use --confirm to delete without prompt"});
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&output).unwrap_or_default()
+            );
+        } else {
+            eprintln!("Utiliser --confirm pour supprimer le canal '{id}' sans confirmation.");
+        }
+        return exit_codes::GENERAL_ERROR;
+    }
+
+    match client.delete_notification_channel(id).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("✔ Canal '{id}' supprimé");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: canal '{id}' introuvable");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os notify events get|set` — gérer les types d'événements.
+async fn run_events(
+    client: &RuntimeClient,
+    command: &NotifyEventsCommand,
+    json: bool,
+) -> i32 {
+    match command {
+        NotifyEventsCommand::Get => run_events_get(client, json).await,
+        NotifyEventsCommand::Set { events } => run_events_set(client, events, json).await,
+    }
+}
+
+/// `apollia-os notify events get` — afficher les types d'événements configurés.
+async fn run_events_get(client: &RuntimeClient, json: bool) -> i32 {
+    match client.get_notification_events().await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                let events: Vec<&str> = resp
+                    .get("events")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter().filter_map(|e| e.as_str()).collect())
+                    .unwrap_or_default();
+                if events.is_empty() {
+                    println!("  (aucun type d'événement configuré)");
+                } else {
+                    println!("  Événements actifs :");
+                    for e in &events {
+                        println!("    - {e}");
+                    }
+                }
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os notify events set <event,...>` — modifier les types d'événements.
+async fn run_events_set(client: &RuntimeClient, events: &[String], json: bool) -> i32 {
+    let body = serde_json::json!({ "events": events });
+    match client.set_notification_events(&body).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("✔ Types d'événements mis à jour ({} actifs)", events.len());
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
 // ─── Error handling ───────────────────────────────────────────────────────────
 
 /// Handle client errors uniformly.
@@ -514,5 +752,128 @@ mod tests {
         assert_eq!(result.status, "ok");
         assert!(result.error.is_none());
         assert_eq!(result.latency_ms, Some(42));
+    }
+
+    // GIVEN "create --kind webhook --url https://hooks.example.com"
+    // WHEN parse
+    // THEN NotifyCommand::Create avec les bons champs
+    #[test]
+    fn test_notify_create_webhook_parses() {
+        // GIVEN / WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "create",
+            "--kind",
+            "webhook",
+            "--url",
+            "https://hooks.example.com",
+        ]);
+        // THEN
+        match &cli.command {
+            NotifyCommand::Create { kind, url, enabled } => {
+                assert_eq!(kind, "webhook");
+                assert_eq!(url.as_deref(), Some("https://hooks.example.com"));
+                assert!(*enabled);
+            }
+            other => panic!("expected Create, got {other:?}"),
+        }
+    }
+
+    // GIVEN "create --kind desktop"
+    // WHEN parse
+    // THEN NotifyCommand::Create { url: None }
+    #[test]
+    fn test_notify_create_desktop_parses() {
+        // GIVEN / WHEN
+        let cli = TestCli::parse_from(["apollia-os", "create", "--kind", "desktop"]);
+        // THEN
+        match &cli.command {
+            NotifyCommand::Create { kind, url, .. } => {
+                assert_eq!(kind, "desktop");
+                assert!(url.is_none());
+            }
+            other => panic!("expected Create, got {other:?}"),
+        }
+    }
+
+    // GIVEN "update ch-01 --url https://new.example.com"
+    // WHEN parse
+    // THEN NotifyCommand::Update avec les bons champs
+    #[test]
+    fn test_notify_update_parses() {
+        // GIVEN / WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "update",
+            "ch-01",
+            "--url",
+            "https://new.example.com",
+        ]);
+        // THEN
+        match &cli.command {
+            NotifyCommand::Update { id, url, enabled } => {
+                assert_eq!(id, "ch-01");
+                assert_eq!(url.as_deref(), Some("https://new.example.com"));
+                assert!(enabled.is_none());
+            }
+            other => panic!("expected Update, got {other:?}"),
+        }
+    }
+
+    // GIVEN "delete ch-01 --confirm"
+    // WHEN parse
+    // THEN NotifyCommand::Delete { id: "ch-01", confirm: true }
+    #[test]
+    fn test_notify_delete_confirm_parses() {
+        // GIVEN / WHEN
+        let cli = TestCli::parse_from(["apollia-os", "delete", "ch-01", "--confirm"]);
+        // THEN
+        match &cli.command {
+            NotifyCommand::Delete { id, confirm } => {
+                assert_eq!(id, "ch-01");
+                assert!(confirm);
+            }
+            other => panic!("expected Delete, got {other:?}"),
+        }
+    }
+
+    // GIVEN "events get"
+    // WHEN parse
+    // THEN NotifyCommand::Events { command: NotifyEventsCommand::Get }
+    #[test]
+    fn test_notify_events_get_parses() {
+        // GIVEN / WHEN
+        let cli = TestCli::parse_from(["apollia-os", "events", "get"]);
+        // THEN
+        match &cli.command {
+            NotifyCommand::Events { command } => {
+                assert!(matches!(command, NotifyEventsCommand::Get))
+            }
+            other => panic!("expected Events, got {other:?}"),
+        }
+    }
+
+    // GIVEN "events set task_completed,task_failed"
+    // WHEN parse
+    // THEN NotifyEventsCommand::Set { events: ["task_completed", "task_failed"] }
+    #[test]
+    fn test_notify_events_set_parses() {
+        // GIVEN / WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "events",
+            "set",
+            "task_completed,task_failed",
+        ]);
+        // THEN
+        match &cli.command {
+            NotifyCommand::Events { command } => match command {
+                NotifyEventsCommand::Set { events } => {
+                    assert_eq!(events, &["task_completed", "task_failed"]);
+                }
+                other => panic!("expected Set, got {other:?}"),
+            },
+            other => panic!("expected Events, got {other:?}"),
+        }
     }
 }

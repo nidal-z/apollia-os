@@ -74,6 +74,12 @@ pub enum TaskCommand {
         #[clap(long, requires = "reject")]
         reason: Option<String>,
     },
+    /// Lister les approbations HITL résolues (acceptées ou refusées).
+    Approvals {
+        /// Inclure aussi les approbations en attente.
+        #[arg(long)]
+        pending: bool,
+    },
 }
 
 /// Execute a `task` subcommand.
@@ -100,6 +106,7 @@ pub async fn run(cmd: &TaskCommand, socket: Option<PathBuf>, json: bool) -> i32 
             reject,
             reason,
         } => run_resume(&client, task_id, *approve, *reject, reason.clone(), json).await,
+        TaskCommand::Approvals { pending } => run_approvals(&client, *pending, json).await,
     }
 }
 
@@ -339,6 +346,45 @@ fn run_inspect(task_id: &str, json: bool) -> i32 {
     }
 }
 
+/// `apollia-os task approvals [--pending]` — lister les approbations HITL résolues (ou en attente).
+///
+/// Sans `--pending` : appelle `GET /api/v1/approvals/resolved`.
+/// Avec `--pending` : appelle `GET /api/v1/approvals/pending`.
+async fn run_approvals(client: &RuntimeClient, pending: bool, json: bool) -> i32 {
+    let uri = if pending {
+        "/api/v1/approvals/pending"
+    } else {
+        "/api/v1/approvals/resolved"
+    };
+
+    let resp = match client.get(uri).await {
+        Ok(r) => r,
+        Err(e) => return handle_error(e, json),
+    };
+
+    if resp.status >= 400 {
+        return handle_server_error(resp.status, &resp.body, json);
+    }
+
+    let parsed: serde_json::Value = match serde_json::from_str(&resp.body) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Error: invalid JSON response: {e}");
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&parsed).unwrap_or_default()
+        );
+    } else {
+        format_approvals_list(&parsed, pending);
+    }
+    exit_codes::SUCCESS
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Display helpers
 // ────────────────────────────────────────────────────────────────────────────
@@ -531,6 +577,61 @@ fn plan_to_json(plan: &PlanWithSteps) -> serde_json::Value {
 // ────────────────────────────────────────────────────────────────────────────
 // Pure utilities
 // ────────────────────────────────────────────────────────────────────────────
+
+/// Format the approvals list as a human-readable table.
+///
+/// Columns: `ID | TASK_ID | AGENT | DECISION | DATE`
+fn format_approvals_list(resp: &serde_json::Value, pending: bool) {
+    let key = if pending { "pending" } else { "approvals" };
+    let approvals = resp
+        .get(key)
+        .or_else(|| resp.get("approvals"))
+        .and_then(|a| a.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let header = if pending {
+        "APPROBATIONS EN ATTENTE"
+    } else {
+        "APPROBATIONS RÉSOLUES"
+    };
+    println!("  {header}");
+    println!(
+        "  {:<36} {:<36} {:<20} {:<10} DATE",
+        "ID", "TASK_ID", "AGENT", "DÉCISION"
+    );
+
+    if approvals.is_empty() {
+        println!("  (aucune)");
+        return;
+    }
+
+    for a in &approvals {
+        let id = a.get("id").and_then(|v| v.as_str()).unwrap_or("?");
+        let task_id = a.get("task_id").and_then(|v| v.as_str()).unwrap_or("?");
+        let agent = a.get("agent_id").and_then(|v| v.as_str()).unwrap_or("?");
+        let decision = if pending {
+            "en attente".to_string()
+        } else {
+            let approved = a.get("approved").and_then(|v| v.as_bool());
+            match approved {
+                Some(true) => "approuvé".to_string(),
+                Some(false) => "rejeté".to_string(),
+                None => "?".to_string(),
+            }
+        };
+        let date = a
+            .get("resolved_at")
+            .or_else(|| a.get("requested_at"))
+            .and_then(|v| v.as_str())
+            .map(|s| if s.len() >= 19 { &s[..19] } else { s })
+            .unwrap_or("?");
+        println!(
+            "  {:<36} {:<36} {:<20} {:<10} {}",
+            id, task_id, agent, decision, date
+        );
+    }
+}
 
 /// Extract the `tasks` array from a server response, defaulting to an empty vec.
 fn extract_tasks_array(resp: &serde_json::Value) -> Vec<serde_json::Value> {
@@ -940,5 +1041,69 @@ mod tests {
     fn test_format_duration_since_invalid() {
         // GIVEN / WHEN / THEN
         assert_eq!(format_duration_since("not-a-date"), "-");
+    }
+
+    // approvals sans --pending
+    // GIVEN "task approvals"
+    // WHEN parse
+    // THEN TaskCommand::Approvals { pending: false }
+    #[test]
+    fn test_task_approvals_parses() {
+        // GIVEN / WHEN
+        let cli = TestApp::parse_from(["app", "approvals"]);
+        // THEN
+        match &cli.cmd {
+            TaskCommand::Approvals { pending } => assert!(!pending),
+            other => panic!("expected Approvals, got {other:?}"),
+        }
+    }
+
+    // approvals avec --pending
+    // GIVEN "task approvals --pending"
+    // WHEN parse
+    // THEN TaskCommand::Approvals { pending: true }
+    #[test]
+    fn test_task_approvals_pending_parses() {
+        // GIVEN / WHEN
+        let cli = TestApp::parse_from(["app", "approvals", "--pending"]);
+        // THEN
+        match &cli.cmd {
+            TaskCommand::Approvals { pending } => assert!(pending),
+            other => panic!("expected Approvals, got {other:?}"),
+        }
+    }
+
+    // format_approvals_list sans approbations
+    // GIVEN réponse vide
+    // WHEN format_approvals_list est appelé
+    // THEN pas de panique
+    #[test]
+    fn test_format_approvals_list_empty() {
+        // GIVEN
+        let resp = serde_json::json!({ "approvals": [] });
+        // WHEN / THEN no panic
+        format_approvals_list(&resp, false);
+    }
+
+    // format_approvals_list avec données
+    // GIVEN une approbation résolue
+    // WHEN format_approvals_list est appelé
+    // THEN pas de panique
+    #[test]
+    fn test_format_approvals_list_with_data() {
+        // GIVEN
+        let resp = serde_json::json!({
+            "approvals": [
+                {
+                    "id": "appr-001",
+                    "task_id": "t-0042",
+                    "agent_id": "devis-agent",
+                    "approved": true,
+                    "resolved_at": "2026-01-01T10:00:00Z"
+                }
+            ]
+        });
+        // WHEN / THEN no panic
+        format_approvals_list(&resp, false);
     }
 }

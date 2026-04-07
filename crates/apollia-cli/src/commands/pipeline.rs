@@ -64,6 +64,41 @@ pub enum PipelineCommand {
         /// Identifiant du run (ex: r-0017).
         run_id: String,
     },
+    /// Récupérer les détails d'un pipeline.
+    Get {
+        /// Identifiant du pipeline.
+        pipeline_id: String,
+    },
+    /// Créer un nouveau pipeline (CRUD — complète le rechargement via apollia.toml).
+    Create {
+        /// Identifiant unique.
+        id: String,
+        /// Description courte.
+        #[arg(long, default_value = "")]
+        description: String,
+        /// Définition TOML en ligne (optionnel — si absent, ouvre un éditeur).
+        #[arg(long, value_name = "TOML")]
+        definition: Option<String>,
+    },
+    /// Mettre à jour un pipeline existant.
+    Update {
+        /// Identifiant du pipeline.
+        pipeline_id: String,
+        /// Nouvelle description.
+        #[arg(long)]
+        description: Option<String>,
+        /// Nouvelle définition TOML.
+        #[arg(long, value_name = "TOML")]
+        definition: Option<String>,
+    },
+    /// Supprimer un pipeline.
+    Delete {
+        /// Identifiant du pipeline.
+        pipeline_id: String,
+        /// Confirmer sans prompt interactif.
+        #[arg(long)]
+        confirm: bool,
+    },
 }
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
@@ -98,6 +133,30 @@ pub async fn run(cmd: &PipelineCommand, socket: Option<PathBuf>, json: bool) -> 
             run_runs(&client, pipeline_id, *limit, json).await
         }
         PipelineCommand::Status { run_id } => run_status(&client, run_id, json).await,
+        PipelineCommand::Get { pipeline_id } => run_get(&client, pipeline_id, json).await,
+        PipelineCommand::Create {
+            id,
+            description,
+            definition,
+        } => run_create_pipeline(&client, id, description, definition.as_deref(), json).await,
+        PipelineCommand::Update {
+            pipeline_id,
+            description,
+            definition,
+        } => {
+            run_update_pipeline(
+                &client,
+                pipeline_id,
+                description.as_deref(),
+                definition.as_deref(),
+                json,
+            )
+            .await
+        }
+        PipelineCommand::Delete {
+            pipeline_id,
+            confirm,
+        } => run_delete_pipeline(&client, pipeline_id, *confirm, json).await,
     }
 }
 
@@ -414,6 +473,156 @@ async fn poll_pipeline_run(
                 // Still running — continue polling.
             }
         }
+    }
+}
+
+/// `apollia-os pipeline get <id>` — récupérer les détails d'un pipeline.
+async fn run_get(client: &RuntimeClient, pipeline_id: &str, json: bool) -> i32 {
+    match client.get_pipeline(pipeline_id).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                let id = resp.get("id").and_then(|v| v.as_str()).unwrap_or("?");
+                let desc = resp.get("description").and_then(|v| v.as_str()).unwrap_or("");
+                println!("  Pipeline : {id}");
+                if !desc.is_empty() {
+                    println!("  Desc     : {desc}");
+                }
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: pipeline not found: {pipeline_id}");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os pipeline create <id>` — créer un nouveau pipeline.
+async fn run_create_pipeline(
+    client: &RuntimeClient,
+    id: &str,
+    description: &str,
+    definition: Option<&str>,
+    json: bool,
+) -> i32 {
+    let mut body = serde_json::json!({
+        "id": id,
+        "description": description,
+    });
+    if let Some(def) = definition {
+        body["definition"] = serde_json::Value::String(def.to_string());
+    }
+
+    match client.create_pipeline(&body).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("  ✔ Pipeline '{id}' créé");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os pipeline update <id>` — mettre à jour un pipeline existant.
+async fn run_update_pipeline(
+    client: &RuntimeClient,
+    pipeline_id: &str,
+    description: Option<&str>,
+    definition: Option<&str>,
+    json: bool,
+) -> i32 {
+    let mut body = serde_json::json!({});
+    if let Some(d) = description {
+        body["description"] = serde_json::Value::String(d.to_string());
+    }
+    if let Some(def) = definition {
+        body["definition"] = serde_json::Value::String(def.to_string());
+    }
+
+    match client.update_pipeline(pipeline_id, &body).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("  ✔ Pipeline '{pipeline_id}' mis à jour");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: pipeline not found: {pipeline_id}");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os pipeline delete <id> [--confirm]` — supprimer un pipeline.
+async fn run_delete_pipeline(
+    client: &RuntimeClient,
+    pipeline_id: &str,
+    confirm: bool,
+    json: bool,
+) -> i32 {
+    if !confirm {
+        if json {
+            let output = serde_json::json!({"error": "use --confirm to delete without prompt"});
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&output).unwrap_or_default()
+            );
+        } else {
+            eprintln!("Utiliser --confirm pour supprimer le pipeline '{pipeline_id}' sans confirmation.");
+        }
+        return exit_codes::GENERAL_ERROR;
+    }
+
+    match client.delete_pipeline(pipeline_id).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("  ✔ Pipeline '{pipeline_id}' supprimé");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: pipeline not found: {pipeline_id}");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_client_error(e, json),
     }
 }
 
@@ -915,5 +1124,119 @@ mod tests {
         // GIVEN no start timestamp
         // WHEN / THEN returns "—"
         assert_eq!(compute_duration(None, None), "—");
+    }
+
+    #[test]
+    fn test_pipeline_get_parses() {
+        // GIVEN "get mon-pipeline"
+        // WHEN
+        let cli = TestCli::parse_from(["apollia-os", "get", "mon-pipeline"]);
+        // THEN PipelineCommand::Get { pipeline_id: "mon-pipeline" }
+        match &cli.command {
+            PipelineCommand::Get { pipeline_id } => assert_eq!(pipeline_id, "mon-pipeline"),
+            other => panic!("expected Get, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_pipeline_create_parses() {
+        // GIVEN "create mon-pipeline --description 'Pipeline de test'"
+        // WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "create",
+            "mon-pipeline",
+            "--description",
+            "Pipeline de test",
+        ]);
+        // THEN Create { id: "mon-pipeline", description: "Pipeline de test", definition: None }
+        match &cli.command {
+            PipelineCommand::Create {
+                id,
+                description,
+                definition,
+            } => {
+                assert_eq!(id, "mon-pipeline");
+                assert_eq!(description, "Pipeline de test");
+                assert!(definition.is_none());
+            }
+            other => panic!("expected Create, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_pipeline_create_with_definition_parses() {
+        // GIVEN "create mon-pipeline --definition '[steps]'"
+        // WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "create",
+            "mon-pipeline",
+            "--definition",
+            "[steps]",
+        ]);
+        // THEN definition = Some("[steps]")
+        match &cli.command {
+            PipelineCommand::Create { definition, .. } => {
+                assert_eq!(definition.as_deref(), Some("[steps]"))
+            }
+            other => panic!("expected Create, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_pipeline_update_parses() {
+        // GIVEN "update mon-pipeline --description 'Nouvelle description'"
+        // WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "update",
+            "mon-pipeline",
+            "--description",
+            "Nouvelle description",
+        ]);
+        // THEN Update { pipeline_id: "mon-pipeline", description: Some("Nouvelle description"), definition: None }
+        match &cli.command {
+            PipelineCommand::Update {
+                pipeline_id,
+                description,
+                definition,
+            } => {
+                assert_eq!(pipeline_id, "mon-pipeline");
+                assert_eq!(description.as_deref(), Some("Nouvelle description"));
+                assert!(definition.is_none());
+            }
+            other => panic!("expected Update, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_pipeline_delete_confirm_parses() {
+        // GIVEN "delete mon-pipeline --confirm"
+        // WHEN
+        let cli = TestCli::parse_from(["apollia-os", "delete", "mon-pipeline", "--confirm"]);
+        // THEN Delete { pipeline_id: "mon-pipeline", confirm: true }
+        match &cli.command {
+            PipelineCommand::Delete {
+                pipeline_id,
+                confirm,
+            } => {
+                assert_eq!(pipeline_id, "mon-pipeline");
+                assert!(confirm);
+            }
+            other => panic!("expected Delete, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_pipeline_delete_no_confirm_parses() {
+        // GIVEN "delete mon-pipeline" sans --confirm
+        // WHEN
+        let cli = TestCli::parse_from(["apollia-os", "delete", "mon-pipeline"]);
+        // THEN confirm = false
+        match &cli.command {
+            PipelineCommand::Delete { confirm, .. } => assert!(!confirm),
+            other => panic!("expected Delete, got {other:?}"),
+        }
     }
 }

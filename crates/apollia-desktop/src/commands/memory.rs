@@ -192,6 +192,117 @@ pub async fn search_memory(
         .collect())
 }
 
+/// Efface toutes les entrées mémoire d'un namespace par type.
+///
+/// `memory_type` peut être `"episodic"`, `"semantic"`, `"procedural"`, ou `"all"` (défaut).
+/// Retourne le nombre total d'entrées supprimées.
+#[tauri::command]
+pub async fn clear_memory(
+    namespace: String,
+    memory_type: Option<String>,
+) -> Result<u64, String> {
+    let base = memory_base_dir()?;
+    let db_path = base.join(format!("{namespace}.db"));
+
+    if !db_path.exists() {
+        return Ok(0);
+    }
+
+    let store = MemoryStore::open(&db_path).map_err(|e| format!("failed to open store: {e}"))?;
+    let kind = memory_type.as_deref().unwrap_or("all");
+    let mut total: u64 = 0;
+
+    match kind {
+        "episodic" => {
+            total += store
+                .clear_episodic(&namespace)
+                .map_err(|e| format!("clear_episodic failed: {e}"))?;
+        }
+        "semantic" => {
+            total += store
+                .clear_semantic(&namespace)
+                .map_err(|e| format!("clear_semantic failed: {e}"))?;
+        }
+        "procedural" => {
+            total += store
+                .clear_procedural(&namespace)
+                .map_err(|e| format!("clear_procedural failed: {e}"))?;
+        }
+        "all" | _ => {
+            total += store
+                .clear_episodic(&namespace)
+                .map_err(|e| format!("clear_episodic failed: {e}"))?;
+            total += store
+                .clear_semantic(&namespace)
+                .map_err(|e| format!("clear_semantic failed: {e}"))?;
+            total += store
+                .clear_procedural(&namespace)
+                .map_err(|e| format!("clear_procedural failed: {e}"))?;
+        }
+    }
+
+    Ok(total)
+}
+
+/// Purge les entrées mémoire plus anciennes que N jours.
+///
+/// `memory_type` peut être `"episodic"`, `"semantic"`, `"procedural"`, ou `"all"` (défaut).
+/// Retourne le nombre total d'entrées purgées.
+#[tauri::command]
+pub async fn purge_memory(
+    namespace: String,
+    older_than_days: u32,
+    memory_type: Option<String>,
+) -> Result<u64, String> {
+    let base = memory_base_dir()?;
+    let db_path = base.join(format!("{namespace}.db"));
+
+    if !db_path.exists() {
+        return Ok(0);
+    }
+
+    let store = MemoryStore::open(&db_path).map_err(|e| format!("failed to open store: {e}"))?;
+    let kind = memory_type.as_deref().unwrap_or("all");
+    let mut total: u64 = 0;
+
+    match kind {
+        "episodic" => {
+            let ep = EpisodicMemory::new(&store);
+            total += ep
+                .purge_older_than(&namespace, older_than_days)
+                .map_err(|e| format!("purge_episodic failed: {e}"))?;
+        }
+        "semantic" => {
+            let sem = SemanticMemory::new(&store);
+            total += sem
+                .purge_older_than(&namespace, older_than_days)
+                .map_err(|e| format!("purge_semantic failed: {e}"))?;
+        }
+        "procedural" => {
+            let proc = ProceduralMemory::new(&store);
+            total += proc
+                .purge_older_than(&namespace, older_than_days)
+                .map_err(|e| format!("purge_procedural failed: {e}"))?;
+        }
+        "all" | _ => {
+            let ep = EpisodicMemory::new(&store);
+            total += ep
+                .purge_older_than(&namespace, older_than_days)
+                .map_err(|e| format!("purge_episodic failed: {e}"))?;
+            let sem = SemanticMemory::new(&store);
+            total += sem
+                .purge_older_than(&namespace, older_than_days)
+                .map_err(|e| format!("purge_semantic failed: {e}"))?;
+            let proc = ProceduralMemory::new(&store);
+            total += proc
+                .purge_older_than(&namespace, older_than_days)
+                .map_err(|e| format!("purge_procedural failed: {e}"))?;
+        }
+    }
+
+    Ok(total)
+}
+
 /// Supprime une entrée mémoire par son UUID.
 ///
 /// Cherche dans toutes les tables (episodic, semantic, procedural) et supprime
@@ -311,5 +422,27 @@ mod tests {
         assert!(result.is_ok());
         let path = result.expect("path");
         assert!(path.to_str().expect("utf8").contains(".apollia/memory"));
+    }
+
+    #[test]
+    fn test_memory_entry_procedural_serializes() {
+        // GIVEN a procedural memory entry
+        let entry = MemoryEntry {
+            id: "p-proc001".to_string(),
+            entry_type: "procedural".to_string(),
+            key: "on_error".to_string(),
+            value: "retry -> escalate -> notify".to_string(),
+            created_at: "2026-03-14T09:00:00Z".to_string(),
+            expires_at: None,
+            score: None,
+        };
+
+        // WHEN serialized to JSON
+        let json = serde_json::to_value(&entry).expect("serialize");
+
+        // THEN entry_type is "procedural" and expires_at is null
+        assert_eq!(json["entry_type"], "procedural");
+        assert_eq!(json["key"], "on_error");
+        assert!(json["expires_at"].is_null());
     }
 }

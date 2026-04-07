@@ -317,7 +317,7 @@ fn main() {
             Commands::Chat { resume, list } => {
                 chat::run(resume.as_deref(), list, cli.socket, json).await
             }
-            Commands::Mcp { command } => commands::mcp::run(&command, json).await,
+            Commands::Mcp { command } => commands::mcp::run(&command, cli.socket, json).await,
             Commands::McpServer(args) => match commands::mcp_server::run(&args).await {
                 Ok(()) => exit_codes::SUCCESS,
                 Err(e) => {
@@ -1352,6 +1352,9 @@ mod tests {
             Commands::Stt { command } => match command {
                 SttCommand::Transcriptions { command } => match command {
                     TranscriptionsCommand::List { limit } => assert_eq!(*limit, 50),
+                    TranscriptionsCommand::Delete { .. } => {
+                        panic!("expected List variant, got Delete")
+                    }
                 },
                 other => panic!("expected SttCommand::Transcriptions, got {other:?}"),
             },

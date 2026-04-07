@@ -54,6 +54,48 @@ pub enum TriggerCommand {
     /// and restarts modified sources. Invalid TOML or invalid trigger configuration
     /// returns an error without interrupting the currently-running triggers.
     Reload,
+    /// Créer un nouveau trigger (CRUD — complète le hot-reload via apollia.toml).
+    Create {
+        /// Identifiant unique du trigger.
+        id: String,
+        /// Agent cible.
+        #[arg(long)]
+        agent: String,
+        /// Type : cron, interval, filewatch, webhook.
+        #[arg(long, value_name = "TYPE")]
+        kind: String,
+        /// Détail du trigger (expression cron, intervalle, chemin, etc.).
+        #[arg(long)]
+        detail: Option<String>,
+        /// Politique si l'agent est occupé (skip, queue, preempt).
+        #[arg(long, default_value = "skip")]
+        on_busy: String,
+        /// Payload d'entrée envoyé à l'agent lors du déclenchement.
+        #[arg(long)]
+        input: Option<String>,
+    },
+    /// Mettre à jour un trigger existant.
+    Update {
+        /// Identifiant du trigger.
+        id: String,
+        /// Nouveau détail (expression cron, intervalle, etc.).
+        #[arg(long)]
+        detail: Option<String>,
+        /// Nouvelle politique on-busy.
+        #[arg(long)]
+        on_busy: Option<String>,
+        /// Nouveau payload d'entrée.
+        #[arg(long)]
+        input: Option<String>,
+    },
+    /// Supprimer un trigger.
+    Delete {
+        /// Identifiant du trigger.
+        id: String,
+        /// Confirmer sans prompt interactif.
+        #[arg(long)]
+        confirm: bool,
+    },
 }
 
 // ─── Entry point ──────────────────────────────────────────────────────────
@@ -73,6 +115,21 @@ pub async fn run(cmd: &TriggerCommand, socket: Option<PathBuf>, json: bool) -> i
         TriggerCommand::Disable { id } => run_disable(&client, id, json).await,
         TriggerCommand::Logs { id, last } => run_logs(&client, id, *last, json).await,
         TriggerCommand::Reload => run_reload(&client, json).await,
+        TriggerCommand::Create {
+            id,
+            agent,
+            kind,
+            detail,
+            on_busy,
+            input,
+        } => run_create(&client, id, agent, kind, detail.as_deref(), on_busy, input.as_deref(), json).await,
+        TriggerCommand::Update {
+            id,
+            detail,
+            on_busy,
+            input,
+        } => run_update(&client, id, detail.as_deref(), on_busy.as_deref(), input.as_deref(), json).await,
+        TriggerCommand::Delete { id, confirm } => run_delete(&client, id, *confirm, json).await,
     }
 }
 
@@ -371,6 +428,137 @@ fn format_trigger_logs(resp: &serde_json::Value) {
     }
 }
 
+/// `apollia-os trigger create <id> --agent <agent> --kind <kind> [options]`
+///
+/// Crée un nouveau trigger via `POST /api/v1/triggers`.
+async fn run_create(
+    client: &RuntimeClient,
+    id: &str,
+    agent: &str,
+    kind: &str,
+    detail: Option<&str>,
+    on_busy: &str,
+    input: Option<&str>,
+    json: bool,
+) -> i32 {
+    let mut body = serde_json::json!({
+        "id": id,
+        "agent": agent,
+        "kind": kind,
+        "on_busy": on_busy,
+    });
+    if let Some(d) = detail {
+        body["detail"] = serde_json::Value::String(d.to_string());
+    }
+    if let Some(i) = input {
+        body["input"] = serde_json::Value::String(i.to_string());
+    }
+
+    match client.create_trigger(&body).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("✔ Trigger '{id}' créé ({kind} → {agent})");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os trigger update <id> [options]`
+///
+/// Met à jour un trigger existant via `PUT /api/v1/triggers/{id}`.
+async fn run_update(
+    client: &RuntimeClient,
+    id: &str,
+    detail: Option<&str>,
+    on_busy: Option<&str>,
+    input: Option<&str>,
+    json: bool,
+) -> i32 {
+    let mut body = serde_json::json!({});
+    if let Some(d) = detail {
+        body["detail"] = serde_json::Value::String(d.to_string());
+    }
+    if let Some(ob) = on_busy {
+        body["on_busy"] = serde_json::Value::String(ob.to_string());
+    }
+    if let Some(i) = input {
+        body["input"] = serde_json::Value::String(i.to_string());
+    }
+
+    match client.update_trigger(id, &body).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("✔ Trigger '{id}' mis à jour");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: trigger '{id}' not found");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
+/// `apollia-os trigger delete <id> [--confirm]`
+///
+/// Supprime un trigger via `DELETE /api/v1/triggers/{id}`.
+async fn run_delete(client: &RuntimeClient, id: &str, confirm: bool, json: bool) -> i32 {
+    if !confirm {
+        if json {
+            let output = serde_json::json!({"error": "use --confirm to delete without prompt"});
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&output).unwrap_or_default()
+            );
+        } else {
+            eprintln!("Utiliser --confirm pour supprimer le trigger '{id}' sans confirmation.");
+        }
+        return exit_codes::GENERAL_ERROR;
+    }
+
+    match client.delete_trigger(id).await {
+        Ok(resp) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&resp).unwrap_or_default()
+                );
+            } else {
+                println!("✔ Trigger '{id}' supprimé");
+            }
+            exit_codes::SUCCESS
+        }
+        Err(ClientError::ServerError { status: 404, body }) => {
+            if json {
+                let out = serde_json::json!({"error": body});
+                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+            } else {
+                eprintln!("Error: trigger '{id}' not found");
+            }
+            exit_codes::GENERAL_ERROR
+        }
+        Err(e) => handle_client_error(e, json),
+    }
+}
+
 // ─── Error handling ───────────────────────────────────────────────────────
 
 /// Gestion uniforme des erreurs client.
@@ -510,5 +698,118 @@ mod tests {
         let cli = TestCli::parse_from(["apollia-os", "reload"]);
         // THEN TriggerCommand::Reload
         assert!(matches!(cli.command, super::TriggerCommand::Reload));
+    }
+
+    #[test]
+    fn test_trigger_create_parses() {
+        // GIVEN "create rapport-hebdo --agent mon-agent --kind cron --detail '0 9 * * 1'"
+        // WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "create",
+            "rapport-hebdo",
+            "--agent",
+            "mon-agent",
+            "--kind",
+            "cron",
+            "--detail",
+            "0 9 * * 1",
+        ]);
+        // THEN TriggerCommand::Create avec les bons champs
+        match &cli.command {
+            super::TriggerCommand::Create {
+                id,
+                agent,
+                kind,
+                detail,
+                on_busy,
+                input,
+            } => {
+                assert_eq!(id, "rapport-hebdo");
+                assert_eq!(agent, "mon-agent");
+                assert_eq!(kind, "cron");
+                assert_eq!(detail.as_deref(), Some("0 9 * * 1"));
+                assert_eq!(on_busy, "skip");
+                assert!(input.is_none());
+            }
+            other => panic!("expected Create, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_trigger_create_with_on_busy_parses() {
+        // GIVEN "create t1 --agent a1 --kind interval --on-busy queue"
+        // WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "create",
+            "t1",
+            "--agent",
+            "a1",
+            "--kind",
+            "interval",
+            "--on-busy",
+            "queue",
+        ]);
+        // THEN on_busy = "queue"
+        match &cli.command {
+            super::TriggerCommand::Create { on_busy, .. } => assert_eq!(on_busy, "queue"),
+            other => panic!("expected Create, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_trigger_update_parses() {
+        // GIVEN "update rapport-hebdo --detail '0 10 * * 1'"
+        // WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "update",
+            "rapport-hebdo",
+            "--detail",
+            "0 10 * * 1",
+        ]);
+        // THEN Update { id: "rapport-hebdo", detail: Some("0 10 * * 1"), on_busy: None, input: None }
+        match &cli.command {
+            super::TriggerCommand::Update {
+                id,
+                detail,
+                on_busy,
+                input,
+            } => {
+                assert_eq!(id, "rapport-hebdo");
+                assert_eq!(detail.as_deref(), Some("0 10 * * 1"));
+                assert!(on_busy.is_none());
+                assert!(input.is_none());
+            }
+            other => panic!("expected Update, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_trigger_delete_parses() {
+        // GIVEN "delete rapport-hebdo --confirm"
+        // WHEN
+        let cli = TestCli::parse_from(["apollia-os", "delete", "rapport-hebdo", "--confirm"]);
+        // THEN Delete { id: "rapport-hebdo", confirm: true }
+        match &cli.command {
+            super::TriggerCommand::Delete { id, confirm } => {
+                assert_eq!(id, "rapport-hebdo");
+                assert!(confirm);
+            }
+            other => panic!("expected Delete, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_trigger_delete_without_confirm() {
+        // GIVEN "delete rapport-hebdo" sans --confirm
+        // WHEN
+        let cli = TestCli::parse_from(["apollia-os", "delete", "rapport-hebdo"]);
+        // THEN confirm = false
+        match &cli.command {
+            super::TriggerCommand::Delete { confirm, .. } => assert!(!confirm),
+            other => panic!("expected Delete, got {other:?}"),
+        }
     }
 }
