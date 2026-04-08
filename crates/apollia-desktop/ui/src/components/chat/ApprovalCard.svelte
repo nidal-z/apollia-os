@@ -2,7 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { slide } from "svelte/transition";
-  import { ShieldAlert } from "lucide-svelte";
+  import { ShieldAlert, Zap } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
 
   interface Props {
@@ -16,6 +16,11 @@
 
   let isProcessing = $state(false);
   let error = $state<string | null>(null);
+
+  /** True when this is an A2A worker-agent delegation. */
+  const isA2A = $derived(toolName.startsWith("a2a:"));
+  /** Skill ID (e.g. "read-excel") extracted from "a2a:read-excel". */
+  const a2aSkillId = $derived(isA2A ? toolName.slice(4) : null);
 
   async function handleDecision(decision: "accept" | "refuse" | "always_accept"): Promise<void> {
     isProcessing = true;
@@ -35,15 +40,28 @@
 </script>
 
 <div
-  class="my-1.5 glass-card glass-border rounded-lg border-l-2 border-l-warning px-3 py-2.5 text-xs"
+  class="my-1.5 glass-card glass-border rounded-lg border-l-2 px-3 py-2.5 text-xs
+    {isA2A ? 'border-l-secondary' : 'border-l-warning'}"
   data-testid="approval-card-{toolName}"
   transition:slide={{ duration: 200 }}
 >
   <div class="flex items-center gap-2 font-medium text-foreground">
-    <div class="flex h-6 w-6 items-center justify-center rounded-lg bg-warning/10">
-      <ShieldAlert class="h-3.5 w-3.5 text-warning" />
+    <div class="flex h-6 w-6 items-center justify-center rounded-lg {isA2A ? 'bg-secondary/10' : 'bg-warning/10'}">
+      {#if isA2A}
+        <Zap class="h-3.5 w-3.5 text-secondary" />
+      {:else}
+        <ShieldAlert class="h-3.5 w-3.5 text-warning" />
+      {/if}
     </div>
-    <span>{$t("chat.authorize_tool")} <strong>{toolName}</strong> ?</span>
+    {#if isA2A}
+      <span>
+        {$t("chat.a2a_authorize_skill")}
+        <strong>{a2aSkillId}</strong>
+        {$t("chat.a2a_via_worker")} ?
+      </span>
+    {:else}
+      <span>{$t("chat.authorize_tool")} <strong>{toolName}</strong> ?</span>
+    {/if}
   </div>
 
   <pre class="mt-2 whitespace-pre-wrap break-all rounded-lg glass-surface p-2 font-mono text-[10px] text-muted-foreground">{inputPreview}</pre>
@@ -81,7 +99,7 @@
       onclick={() => handleDecision("always_accept")}
       data-testid="approval-always-{toolName}"
     >
-      {$t("chat.approve_always")}
+      {isA2A ? $t("chat.a2a_approve_always_agent") : $t("chat.approve_always")}
     </Button>
   </div>
 </div>

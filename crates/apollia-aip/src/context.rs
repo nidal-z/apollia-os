@@ -555,54 +555,96 @@ fn is_leap(y: i32) -> bool {
 
 /// Contexte workspace exposé à l'agent Python via `ctx.workspace`.
 ///
-/// Construit depuis un [`apollia_core::WorkspaceContext`] collecté par
-/// `apollia-workspace`. Les champs sont accessibles en lecture seule depuis Python
-/// via des getters `#[pymethods]`. Mutable depuis Rust (champs `pub`) pour
-/// permettre au bridge d'injecter le contenu d'`APOLLIA.md` lors de `call_run()`.
+/// Agrège les sections produites par tous les [`WorkspaceProvider`]s actifs.
+/// Accessible en lecture seule depuis Python via des méthodes `#[pymethods]`.
+///
+/// ## API Python
+/// ```python
+/// ctx.workspace.rules           # contenu des règles projet (APOLLIA.md)
+/// ctx.workspace.apollia_md      # alias pour rules (compatibilité)
+/// ctx.workspace.get("Git")      # contenu d'une section par titre
+/// ctx.workspace.sections        # liste de dicts {"title": ..., "content": ...}
+/// ```
 #[pyclass]
 pub struct WorkspaceContextPy {
-    /// Branche git courante, ou `None` si hors dépôt git ou git non disponible.
-    pub git_branch: Option<String>,
-    /// Statut git court (`git status --short`), ou `None` si le working tree est propre.
-    pub git_status: Option<String>,
-    /// `true` si le working tree ne contient aucune modification non committée.
-    pub git_is_clean: bool,
-    /// Contenu de `APOLLIA.md` (tronqué via middle-trim), ou `None` si absent.
-    pub apollia_md: Option<String>,
-    /// Chemin absolu de `APOLLIA.md`, ou `None` si non trouvé.
-    pub apollia_md_path: Option<String>,
+    /// Sections aplaties de tous les providers : (titre, contenu).
+    pub sections: Vec<(String, String)>,
+}
+
+impl WorkspaceContextPy {
+    /// Construit depuis un [`WorkspaceSnapshot`] collecté par `ProjectRuntime`.
+    pub fn from_snapshot(snapshot: &apollia_workspace::WorkspaceSnapshot) -> Self {
+        let sections = snapshot
+            .slices
+            .iter()
+            .flat_map(|s| &s.sections)
+            .map(|s| (s.title.clone(), s.content.clone()))
+            .collect();
+        Self { sections }
+    }
+
+    /// Construit un contexte vide (aucune section).
+    pub fn empty() -> Self {
+        Self { sections: vec![] }
+    }
+
+    /// Injecte ou remplace le contenu d'une section par son titre.
+    ///
+    /// Utilisé par le bridge pour patcher les règles projet après collecte asynchrone.
+    pub fn set_section(&mut self, title: &str, content: String) {
+        if let Some(existing) = self.sections.iter_mut().find(|(t, _)| t == title) {
+            existing.1 = content;
+        } else {
+            self.sections.push((title.to_owned(), content));
+        }
+    }
+
+    /// Retourne le contenu d'une section par titre (lookup Rust-side).
+    pub fn get_section_content(&self, title: &str) -> Option<&str> {
+        self.sections
+            .iter()
+            .find(|(t, _)| t == title)
+            .map(|(_, c)| c.as_str())
+    }
 }
 
 #[pymethods]
 impl WorkspaceContextPy {
-    /// Branche git courante.
+    /// Contenu des règles projet (section "Règles du projet"), ou `None` si absent.
     #[getter]
-    fn git_branch(&self) -> Option<&str> {
-        self.git_branch.as_deref()
+    fn rules(&self) -> Option<&str> {
+        self.get_section_content("Règles du projet")
     }
 
-    /// Statut git court.
-    #[getter]
-    fn git_status(&self) -> Option<&str> {
-        self.git_status.as_deref()
-    }
-
-    /// `True` si le working tree est propre.
-    #[getter]
-    fn git_is_clean(&self) -> bool {
-        self.git_is_clean
-    }
-
-    /// Contenu d'`APOLLIA.md`, ou `None` si absent.
+    /// Alias pour `rules` — compatibilité avec les agents existants.
     #[getter]
     fn apollia_md(&self) -> Option<&str> {
-        self.apollia_md.as_deref()
+        self.rules()
     }
 
-    /// Chemin absolu d'`APOLLIA.md`, ou `None` si non trouvé.
+    /// Retourne le contenu d'une section par son titre, ou `None` si introuvable.
+    ///
+    /// ```python
+    /// git_info = ctx.workspace.get("Git")
+    /// jira_tickets = ctx.workspace.get("Jira")
+    /// ```
+    fn get(&self, title: &str) -> Option<&str> {
+        self.get_section_content(title)
+    }
+
+    /// Toutes les sections sous forme de liste de dicts `{"title": ..., "content": ...}`.
     #[getter]
-    fn apollia_md_path(&self) -> Option<&str> {
-        self.apollia_md_path.as_deref()
+    fn sections<'py>(&self, py: pyo3::Python<'py>) -> Vec<pyo3::Bound<'py, pyo3::types::PyDict>> {
+        use pyo3::types::PyDict;
+        self.sections
+            .iter()
+            .map(|(title, content)| {
+                let d = PyDict::new(py);
+                let _ = d.set_item("title", title);
+                let _ = d.set_item("content", content);
+                d
+            })
+            .collect()
     }
 }
 
@@ -680,8 +722,8 @@ pub struct RuntimeContext {
     chain_deadline: Option<Instant>,
     /// Contexte workspace collecté au démarrage de la tâche.
     ///
-    /// Peuplé par [`with_workspace`](RuntimeContext::with_workspace) ou via le bridge
-    /// lors de `call_run()`. Expose `ctx.workspace.git_branch`, `ctx.workspace.apollia_md`, etc.
+    /// Peuplé par [`with_workspace_snapshot`](RuntimeContext::with_workspace_snapshot) ou via le bridge
+    /// lors de `call_run()`. Expose `ctx.workspace.rules`, `ctx.workspace.get("Git")`, etc.
     /// `None` si le runtime n'a pas collecté le contexte workspace pour cette tâche.
     pub workspace: Option<Py<WorkspaceContextPy>>,
 }
@@ -796,20 +838,22 @@ impl RuntimeContext {
         }
     }
 
-    /// Injecte un [`apollia_core::WorkspaceContext`] collecté dans ce `RuntimeContext`.
+    /// Injecte un [`WorkspaceSnapshot`] collecté dans ce `RuntimeContext`.
     ///
-    /// Convertit le contexte Rust en [`WorkspaceContextPy`] accessible depuis Python
+    /// Convertit le snapshot en [`WorkspaceContextPy`] accessible depuis Python
     /// via `ctx.workspace`. Doit être appelé après [`new_with_llm`](RuntimeContext::new_with_llm).
-    pub fn with_workspace(mut self, ctx: apollia_core::WorkspaceContext) -> Self {
-        let workspace_py = WorkspaceContextPy {
-            git_branch: ctx.git_branch,
-            git_status: ctx.git_status,
-            git_is_clean: ctx.git_is_clean,
-            apollia_md: ctx.apollia_md,
-            apollia_md_path: ctx
-                .apollia_md_path
-                .map(|p| p.to_string_lossy().into_owned()),
-        };
+    pub fn with_workspace_snapshot(mut self, snapshot: &apollia_workspace::WorkspaceSnapshot) -> Self {
+        let workspace_py = WorkspaceContextPy::from_snapshot(snapshot);
+        self.workspace = pyo3::Python::with_gil(|py| pyo3::Py::new(py, workspace_py).ok());
+        self
+    }
+
+    /// Initialise `ctx.workspace` avec un contexte vide (aucune section).
+    ///
+    /// Garantit que `ctx.workspace` n'est pas `None` même quand aucun provider
+    /// n'est configuré. Le bridge peut ensuite patcher des sections via `set_section`.
+    pub fn with_empty_workspace(mut self) -> Self {
+        let workspace_py = WorkspaceContextPy::empty();
         self.workspace = pyo3::Python::with_gil(|py| pyo3::Py::new(py, workspace_py).ok());
         self
     }
@@ -1866,6 +1910,7 @@ mod tool_proxy_a2a_tests {
             tools_requiring_approval: vec![],
             llm_backend: None,
             packages: vec![],
+            memory_config: None,
         }
     }
 
@@ -1985,99 +2030,60 @@ mod tool_proxy_a2a_tests {
 #[cfg(test)]
 mod workspace_context_tests {
     use super::*;
-    use apollia_core::WorkspaceContext;
 
     #[test]
-    fn test_workspace_context_py_getters() {
-        // GIVEN a WorkspaceContextPy with all fields populated
-        let ws = WorkspaceContextPy {
-            git_branch: Some("main".to_string()),
-            git_status: Some("M src/lib.rs".to_string()),
-            git_is_clean: false,
-            apollia_md: Some("# Rules\nReply in French".to_string()),
-            apollia_md_path: Some("/repo/APOLLIA.md".to_string()),
-        };
-        // THEN Rust-side getters return the expected values
-        assert_eq!(ws.git_branch(), Some("main"));
-        assert_eq!(ws.git_status(), Some("M src/lib.rs"));
-        assert!(!ws.git_is_clean());
-        assert_eq!(ws.apollia_md(), Some("# Rules\nReply in French"));
-        assert_eq!(ws.apollia_md_path(), Some("/repo/APOLLIA.md"));
+    fn test_workspace_context_py_rules_getter() {
+        // GIVEN a WorkspaceContextPy with a "Règles du projet" section
+        let mut ws = WorkspaceContextPy::empty();
+        ws.set_section("Règles du projet", "Reply in French".to_string());
+        ws.set_section("Git", "branch: main".to_string());
+        // THEN rules() and apollia_md() both return the rules content
+        assert_eq!(ws.rules(), Some("Reply in French"));
+        assert_eq!(ws.apollia_md(), Some("Reply in French"));
+        // AND get() returns sections by title
+        assert_eq!(ws.get("Git"), Some("branch: main"));
+        assert!(ws.get("Unknown").is_none());
     }
 
     #[test]
-    fn test_workspace_context_py_none_fields() {
-        // GIVEN a WorkspaceContextPy outside a git repo with no APOLLIA.md
-        let ws = WorkspaceContextPy {
-            git_branch: None,
-            git_status: None,
-            git_is_clean: false,
-            apollia_md: None,
-            apollia_md_path: None,
-        };
-        // THEN optional getters return None
-        assert!(ws.git_branch().is_none());
-        assert!(ws.git_status().is_none());
+    fn test_workspace_context_py_empty() {
+        // GIVEN an empty WorkspaceContextPy
+        let ws = WorkspaceContextPy::empty();
+        // THEN all getters return None
+        assert!(ws.rules().is_none());
         assert!(ws.apollia_md().is_none());
-        assert!(ws.apollia_md_path().is_none());
+        assert!(ws.get("Git").is_none());
     }
 
     #[test]
-    fn test_runtime_context_with_workspace() {
-        // GIVEN a WorkspaceContext with git branch and APOLLIA.md
-        let ws_ctx = WorkspaceContext {
-            git_branch: Some("feature/test".to_string()),
-            git_is_clean: true,
-            apollia_md: Some("Reply in English".to_string()),
-            ..WorkspaceContext::default()
-        };
-        // WHEN a RuntimeContext is enriched via with_workspace()
-        // (struct literal accessible from within the same crate via use super::*)
-        let ctx = RuntimeContext {
-            tools: None,
-            llm: None,
-            memory: None,
-            mailbox: None,
-            agent_name: "test-ws-agent".to_string(),
-            supports_a2a: false,
-            user_context: None,
-            a2a_delegate: None,
-            a2a_invoker: None,
-            user_memory_read_only: false,
-            a2a_depth: 0,
-            chain_deadline: None,
-            workspace: None,
-        }
-        .with_workspace(ws_ctx);
-        // THEN workspace is populated with the expected values
+    fn test_workspace_context_py_set_section_upserts() {
+        // GIVEN a WorkspaceContextPy with a section
+        let mut ws = WorkspaceContextPy::empty();
+        ws.set_section("Git", "branch: dev".to_string());
+        // WHEN the section is updated
+        ws.set_section("Git", "branch: main".to_string());
+        // THEN only one section exists with the updated value
+        assert_eq!(ws.sections.len(), 1);
+        assert_eq!(ws.get("Git"), Some("branch: main"));
+    }
+
+    #[test]
+    fn test_runtime_context_with_empty_workspace() {
+        // GIVEN a RuntimeContext enriched with an empty workspace
+        let ctx = RuntimeContext::for_test().with_empty_workspace();
+        // THEN workspace is Some but has no sections
         assert!(ctx.workspace.is_some());
         pyo3::Python::with_gil(|py| {
             let ws = ctx.workspace.as_ref().expect("workspace should be Some");
             let borrowed = ws.borrow(py);
-            assert_eq!(borrowed.git_branch(), Some("feature/test"));
-            assert!(borrowed.git_is_clean());
-            assert_eq!(borrowed.apollia_md(), Some("Reply in English"));
+            assert!(borrowed.rules().is_none());
         });
     }
 
     #[test]
     fn test_runtime_context_workspace_none_by_default() {
         // GIVEN a RuntimeContext built without workspace
-        let ctx = RuntimeContext {
-            tools: None,
-            llm: None,
-            memory: None,
-            mailbox: None,
-            agent_name: "test-ws-none".to_string(),
-            supports_a2a: false,
-            user_context: None,
-            a2a_delegate: None,
-            a2a_invoker: None,
-            user_memory_read_only: false,
-            a2a_depth: 0,
-            chain_deadline: None,
-            workspace: None,
-        };
+        let ctx = RuntimeContext::for_test();
         // THEN workspace is None
         assert!(ctx.workspace.is_none());
     }

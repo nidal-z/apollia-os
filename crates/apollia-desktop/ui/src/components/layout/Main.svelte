@@ -18,6 +18,7 @@
   import Onboarding from "../../routes/Onboarding.svelte";
   import Transcriptions from "../../routes/Transcriptions.svelte";
   import Integrations from "../../routes/Integrations.svelte";
+  import Projects from "../../routes/Projects.svelte";
 
   onMount(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -77,6 +78,8 @@
           <Triggers />
         {:else if $currentRoute === "pipelines"}
           <Pipelines />
+        {:else if $currentRoute === "projects"}
+          <Projects />
         {:else if $currentRoute === "memory"}
           <Memory />
         {:else if $currentRoute === "transcriptions"}

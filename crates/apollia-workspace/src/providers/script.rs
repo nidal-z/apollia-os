@@ -1,7 +1,7 @@
-//! [`ScriptContextProvider`] — provider de contexte via script shell ou binaire.
+//! [`ScriptProvider`] — provider de contexte via script shell ou binaire.
 //!
-//! Le script reçoit optionnellement la config JSON sur stdin et doit écrire
-//! son résultat JSON sur stdout. Format attendu :
+//! Le script est exécuté dans `cwd` et doit écrire son résultat JSON sur stdout.
+//! Format attendu :
 //! ```json
 //! { "sections": [{"title": "...", "content": "..."}], "errors": [] }
 //! ```
@@ -9,14 +9,14 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use apollia_core::context::{ContextProvider, ContextSection, ContextSnapshot};
+use apollia_core::workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlice};
 use serde::Deserialize;
 
 /// Provider de contexte qui exécute un script et parse son output JSON.
 ///
 /// Fail-silent : si le script est absent, échoue ou produit un JSON invalide,
-/// retourne un [`ContextSnapshot::with_error`] sans panic.
-pub struct ScriptContextProvider {
+/// retourne un [`WorkspaceSlice::with_error`] sans panic.
+pub struct ScriptProvider {
     /// Nom unique du provider.
     name: String,
     /// Chemin vers le script ou binaire à exécuter.
@@ -43,7 +43,7 @@ struct ScriptSection {
     content: String,
 }
 
-impl ScriptContextProvider {
+impl ScriptProvider {
     /// Construit un provider script avec les paramètres fournis.
     ///
     /// `timeout_ms` — timeout d'exécution du script. `0` désactive le timeout.
@@ -63,7 +63,7 @@ impl ScriptContextProvider {
 }
 
 #[async_trait::async_trait]
-impl ContextProvider for ScriptContextProvider {
+impl WorkspaceProvider for ScriptProvider {
     fn name(&self) -> &str {
         &self.name
     }
@@ -78,9 +78,9 @@ impl ContextProvider for ScriptContextProvider {
 
     /// Exécute le script et parse son output JSON.
     ///
-    /// Retourne [`ContextSnapshot::with_error`] si le script échoue,
+    /// Retourne [`WorkspaceSlice::with_error`] si le script échoue,
     /// dépasse le timeout, ou produit un JSON invalide.
-    async fn collect(&self, cwd: &Path) -> ContextSnapshot {
+    async fn collect(&self, cwd: &Path) -> WorkspaceSlice {
         let source = self.name.clone();
         let timeout = if self.timeout_ms > 0 {
             Duration::from_millis(self.timeout_ms)
@@ -98,7 +98,7 @@ impl ContextProvider for ScriptContextProvider {
 
         let output = match output_result {
             Err(_elapsed) => {
-                return ContextSnapshot::with_error(
+                return WorkspaceSlice::with_error(
                     &source,
                     format!(
                         "script '{}' timed out after {}ms",
@@ -108,7 +108,7 @@ impl ContextProvider for ScriptContextProvider {
                 );
             }
             Ok(Err(e)) => {
-                return ContextSnapshot::with_error(
+                return WorkspaceSlice::with_error(
                     &source,
                     format!("script '{}' failed to start: {}", self.path.display(), e),
                 );
@@ -118,7 +118,7 @@ impl ContextProvider for ScriptContextProvider {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return ContextSnapshot::with_error(
+            return WorkspaceSlice::with_error(
                 &source,
                 format!(
                     "script '{}' exited with {}: {}",
@@ -132,7 +132,7 @@ impl ContextProvider for ScriptContextProvider {
         let stdout = match String::from_utf8(output.stdout) {
             Ok(s) => s,
             Err(e) => {
-                return ContextSnapshot::with_error(
+                return WorkspaceSlice::with_error(
                     &source,
                     format!(
                         "script '{}' output is not valid UTF-8: {}",
@@ -146,24 +146,24 @@ impl ContextProvider for ScriptContextProvider {
         let parsed: ScriptOutput = match serde_json::from_str(&stdout) {
             Ok(p) => p,
             Err(e) => {
-                return ContextSnapshot::with_error(
+                return WorkspaceSlice::with_error(
                     &source,
                     format!("script '{}' JSON parse error: {}", self.path.display(), e),
                 );
             }
         };
 
-        let sections: Vec<ContextSection> = parsed
+        let sections: Vec<WorkspaceSection> = parsed
             .sections
             .into_iter()
-            .map(|s| ContextSection {
+            .map(|s| WorkspaceSection {
                 title: s.title,
                 content: s.content,
                 source: source.clone(),
             })
             .collect();
 
-        ContextSnapshot {
+        WorkspaceSlice {
             source: source.clone(),
             sections,
             errors: parsed.errors,
@@ -177,14 +177,14 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn script_provider_missing_binary_returns_error_snapshot() {
+    async fn script_provider_missing_binary_returns_error_slice() {
         // GIVEN un provider avec un chemin de script inexistant
         let tmp = tempfile::tempdir().expect("tempdir");
-        let provider = ScriptContextProvider::new("test", "/nonexistent/script.sh", 500, 50);
+        let provider = ScriptProvider::new("test", "/nonexistent/script.sh", 500, 50);
         // WHEN
-        let snapshot = provider.collect(tmp.path()).await;
-        // THEN — fail-silent : pas de panic, erreur dans snapshot.errors
-        assert!(snapshot.is_empty());
-        assert!(!snapshot.errors.is_empty());
+        let slice = provider.collect(tmp.path()).await;
+        // THEN — fail-silent : pas de panic, erreur dans slice.errors
+        assert!(slice.is_empty());
+        assert!(!slice.errors.is_empty());
     }
 }

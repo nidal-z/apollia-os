@@ -94,6 +94,7 @@ fn make_worker_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
         tools_requiring_approval: vec![],
         llm_backend: None,
         packages: vec![],
+        memory_config: None,
     }
 }
 

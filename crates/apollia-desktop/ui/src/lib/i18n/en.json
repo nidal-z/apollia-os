@@ -30,7 +30,8 @@
       "loading": "LOADING",
       "error": "ERROR"
     },
-    "back": "Back"
+    "back": "Back",
+    "optional": "optional"
   },
   "companion": {
     "toggle_label": "Apollia Help",
@@ -76,7 +77,8 @@
       "connected": "Runtime connected",
       "reconnecting": "Reconnecting...",
       "error": "Connection lost"
-    }
+    },
+    "projects": "Projects"
   },
   "integrations": {
     "title_operator": "Connections",
@@ -288,7 +290,9 @@
     "status_canceled": "CANCELED",
     "active_count_suffix": "active",
     "see_all": "See all",
-    "ready": "Ready"
+    "ready": "Ready",
+    "workers_section": "Worker agents",
+    "manage": "Manage"
   },
   "agents": {
     "title": "Agents",
@@ -317,6 +321,12 @@
     "tasks_label": "tasks",
     "section_active": "Active agents",
     "section_inactive": "Inactive agents",
+    "section_assistants": "Assistants",
+    "section_workers": "Worker agents",
+    "workers_hint": "Workers run in the background and are invoked automatically by the LLM when relevant.",
+    "workers_active_suffix": "active",
+    "a2a_ready": "A2A ready",
+    "stopped": "stopped",
     "no_description": "No description available",
     "tasks_completed_count": "{count} tasks completed",
     "session_only": "Session only",
@@ -924,6 +934,15 @@
     "system_os": "Operating system",
     "system_python": "Python path",
     "system_python_not_found": "Not detected",
+    "cli_title": "Command Line Interface",
+    "cli_description": "Install the apollia-os command to use Apollia from the terminal.",
+    "cli_status": "Status",
+    "cli_installed": "Installed",
+    "cli_not_installed": "Not installed",
+    "cli_path": "Path",
+    "cli_install": "Install CLI",
+    "cli_uninstall": "Uninstall CLI",
+    "cli_needs_privilege": "Administrator privileges required.",
     "profile": "My Profile",
     "profile_subtitle": "What the system knows about you. This information helps agents adapt to your context.",
     "profile_tab_preferences": "Preferences",
@@ -999,7 +1018,19 @@
     "stt_restart_notice": "Configuration saved. Restart the application for changes to take effect.",
     "stt_config_hint": "To edit manually, modify the [stt] section in apollia.toml.",
     "stt_yes": "Yes",
-    "stt_no": "No"
+    "stt_no": "No",
+    "llm_backends": "LLM Backends",
+    "llm_backends_subtitle": "Configure the language model backends used by Apollia and your agents.",
+    "llm_add_backend": "Add backend",
+    "llm_new_backend": "New backend",
+    "llm_backend_name": "Name",
+    "llm_backend_provider": "Provider",
+    "llm_backend_model": "Model",
+    "llm_backend_config_json": "Config (JSON)",
+    "llm_backend_enabled": "Enabled",
+    "llm_backend_default": "Set as default",
+    "llm_no_backends": "No LLM backends configured. Add one to enable AI features.",
+    "llm_set_default": "Set as default"
   },
   "onboarding": {
     "welcome_title": "Welcome to Apollia OS",
@@ -1327,7 +1358,16 @@
     "delete_confirm_title": "Delete conversation",
     "delete_confirm_message": "This action cannot be undone. All messages will be lost.",
     "status_processing": "Processing",
-    "no_preview": "Empty conversation"
+    "no_preview": "Empty conversation",
+    "a2a_workers": "Worker agents",
+    "a2a_delegating": "Delegating to {agent} ({skill})…",
+    "reasoning_live": "Working…",
+    "reasoning_pending": "{n} pending",
+    "a2a_authorize_skill": "Authorize skill",
+    "a2a_via_worker": "via worker agent",
+    "a2a_approve_always_agent": "Always accept from this agent",
+    "a2a_worker_stopped": "stopped",
+    "a2a_start_worker": "Start"
   },
   "transcriptions": {
     "title": "Transcriptions",
@@ -1585,6 +1625,18 @@
       "skip": "Skip for now",
       "dialog_title": "Select a GGUF Model"
     },
+    "llm_backends": "LLM Backends",
+    "llm_backends_subtitle": "Configure the language model backends used by Apollia and your agents.",
+    "llm_add_backend": "Add backend",
+    "llm_new_backend": "New backend",
+    "llm_backend_name": "Name",
+    "llm_backend_provider": "Provider",
+    "llm_backend_model": "Model",
+    "llm_backend_config_json": "Config (JSON)",
+    "llm_backend_enabled": "Enabled",
+    "llm_backend_default": "Set as default",
+    "llm_no_backends": "No LLM backends configured. Add one to enable AI features.",
+    "llm_set_default": "Set as default",
     "acquaintance": {
       "title": "Welcome",
       "subtitle": "Let's get acquainted to personalize your experience.",
@@ -1645,5 +1697,41 @@
     "tool_label": "Tool",
     "arguments_label": "Arguments",
     "input_label": "Input"
+  },
+  "projects": {
+    "title": "Projects",
+    "subtitle": "Organize agent context with custom instructions, documents, and providers",
+    "new_project": "New Project",
+    "create_project": "Create project",
+    "edit_project": "Edit",
+    "created_toast": "Project \"{name}\" created",
+    "updated_toast": "Project \"{name}\" updated",
+    "deleted_toast": "Project \"{name}\" deleted",
+    "document_removed": "Document removed",
+    "empty_title": "No projects yet",
+    "empty_subtitle": "Create a project to organize context for your agents",
+    "not_found": "Project not found",
+    "no_description": "No description",
+    "no_instructions": "No instructions",
+    "no_providers": "No context providers configured",
+    "no_documents": "No documents attached",
+    "snapshot_empty": "No context collected — check that providers are enabled and applicable",
+    "name_required": "Project name is required",
+    "field_name": "Name",
+    "field_name_placeholder": "My project",
+    "field_description": "Description",
+    "field_description_placeholder": "Short description (optional)",
+    "field_instructions": "Instructions",
+    "field_instructions_placeholder": "Instructions that will be injected into every agent run for this project...",
+    "instructions_hint": "These instructions are included in every agent context for this project.",
+    "section_providers": "Context Providers",
+    "section_documents": "Documents",
+    "section_snapshot": "Live Workspace Preview",
+    "provider_enabled": "enabled",
+    "provider_disabled": "disabled",
+    "delete_confirm_title": "Delete project",
+    "delete_confirm_message": "Are you sure you want to delete project \"{name}\"? This cannot be undone.",
+    "delete_confirm_yes": "Delete",
+    "optional": "optional"
   }
 }

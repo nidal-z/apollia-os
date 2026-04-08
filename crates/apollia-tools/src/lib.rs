@@ -19,6 +19,7 @@
 
 pub mod agent_repository;
 pub mod audit;
+pub mod project_repository;
 pub mod descriptor;
 pub mod executor;
 pub mod file_path_extractor;
@@ -29,6 +30,10 @@ pub mod task_repository;
 pub mod tools;
 
 pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent};
+pub use project_repository::{
+    ProjectDetail, ProjectDocument, ProjectPatch, ProjectProviderRow, ProjectRepository,
+    ProjectRepositoryError, ProjectSummary, ProjectTemplate,
+};
 pub use apollia_permissions::{PermissionDecision, PermissionEngine, PermissionError};
 pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,

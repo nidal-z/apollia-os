@@ -5,10 +5,7 @@
   import type { ChatMessageView } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
   import { MarkdownContent } from "$lib/components/ui/markdown";
-  import OperatorToolCard from "./OperatorToolCard.svelte";
-  import BuilderToolCard from "./BuilderToolCard.svelte";
-  import OperatorApprovalCard from "./OperatorApprovalCard.svelte";
-  import ApprovalCard from "./ApprovalCard.svelte";
+  import ReasoningTraceCard from "./ReasoningTraceCard.svelte";
 
   interface Props {
     message: ChatMessageView;
@@ -80,30 +77,13 @@
     {/if}
 
     {#if hasToolCalls}
-      <div class="mt-2 space-y-1.5">
-        {#each message.tool_calls ?? [] as toolCall (toolCall.tool_name)}
-          {#if toolCall.status === "pending"}
-            {#if isOperator}
-              <OperatorApprovalCard
-                {sessionId}
-                messageId={message.id}
-                {toolCall}
-              />
-            {:else}
-              <ApprovalCard
-                {sessionId}
-                messageId={message.id}
-                toolName={toolCall.tool_name}
-                inputPreview={JSON.stringify(toolCall.input, null, 2)}
-              />
-            {/if}
-          {:else if isOperator}
-            <OperatorToolCard {toolCall} />
-          {:else}
-            <BuilderToolCard {toolCall} />
-          {/if}
-        {/each}
-      </div>
+      <ReasoningTraceCard
+        toolCalls={message.tool_calls ?? []}
+        thinkingText={(message.metadata?.thinking_trace as string | null) ?? null}
+        {sessionId}
+        messageId={message.id}
+        {isOperator}
+      />
     {/if}
 
     <p class="mt-1 text-[10px] {isUser ? 'text-primary-foreground/40 text-right' : 'text-muted-foreground/40 text-left'}">

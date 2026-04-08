@@ -5,6 +5,80 @@
   let isRecording = $state(true);
   let hotkey = $state("…");
 
+  // Voice visualizer — time-domain waveform split into segments.
+  // 80 bars with flex:1 fill the full window width at ~2px each.
+  const BAR_COUNT = 80;
+  let bars = $state<number[]>(Array(BAR_COUNT).fill(0.08));
+  let smoothed = Array(BAR_COUNT).fill(0.08);
+
+  let animFrameId: number | null = null;
+  let analyser: AnalyserNode | null = null;
+  let audioCtx: AudioContext | null = null;
+  let stream: MediaStream | null = null;
+
+  async function startVisualizer() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioCtx = new AudioContext();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;           // time-domain buffer size
+      analyser.smoothingTimeConstant = 0; // manual smoothing below
+      audioCtx.createMediaStreamSource(stream).connect(analyser);
+      tickVisualizer();
+    } catch {
+      animateFallback();
+    }
+  }
+
+  function tickVisualizer() {
+    if (!analyser) return;
+
+    const data = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(data); // waveform, center=128
+
+    const segSize = Math.floor(data.length / BAR_COUNT);
+    for (let i = 0; i < BAR_COUNT; i++) {
+      let peak = 0;
+      for (let j = i * segSize; j < (i + 1) * segSize; j++) {
+        peak = Math.max(peak, Math.abs(data[j] - 128));
+      }
+      // 2.5× gain so normal speech fills the bars visually
+      const raw = Math.max(0.06, Math.min(1.0, (peak / 128) * 2.5));
+      // Fast attack, slow decay
+      const alpha = raw > smoothed[i] ? 0.65 : 0.12;
+      smoothed[i] = smoothed[i] * (1 - alpha) + raw * alpha;
+    }
+
+    bars = [...smoothed];
+    animFrameId = requestAnimationFrame(tickVisualizer);
+  }
+
+  function animateFallback() {
+    let t = 0;
+    const tick = () => {
+      t += 0.06;
+      bars = Array.from({ length: BAR_COUNT }, (_, i) =>
+        Math.max(0.06, 0.42 + 0.36 * Math.sin(t + i * 0.35))
+      );
+      animFrameId = requestAnimationFrame(tick);
+    };
+    animFrameId = requestAnimationFrame(tick);
+  }
+
+  function stopVisualizer() {
+    if (animFrameId !== null) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+    stream?.getTracks().forEach((t) => t.stop());
+    stream = null;
+    void audioCtx?.close();
+    audioCtx = null;
+    analyser = null;
+    smoothed = Array(BAR_COUNT).fill(0.08);
+    bars = Array(BAR_COUNT).fill(0.08);
+  }
+
   onMount(() => {
     const unlisteners = [
       listen<string>("stt-overlay-config", (event) => {
@@ -12,16 +86,19 @@
       }),
       listen("stt-recording-started", () => {
         isRecording = true;
+        void startVisualizer();
       }),
       listen("stt-recording-stopped", () => {
         isRecording = false;
+        stopVisualizer();
       }),
     ];
 
+    if (isRecording) void startVisualizer();
+
     return () => {
-      for (const p of unlisteners) {
-        void p.then((fn) => fn());
-      }
+      stopVisualizer();
+      for (const p of unlisteners) void p.then((fn) => fn());
     };
   });
 
@@ -33,74 +110,100 @@
         if (trimmed === "ctrl" || trimmed === "control") return "Ctrl";
         if (trimmed === "shift") return "Shift";
         if (trimmed === "alt" || trimmed === "option") return "Alt";
-        if (trimmed === "meta" || trimmed === "cmd" || trimmed === "command")
-          return "Cmd";
+        if (trimmed === "meta" || trimmed === "cmd" || trimmed === "command") return "⌘";
         if (trimmed === "space") return "Space";
         return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
       })
-      .join(" + ");
+      .join("+");
   }
 </script>
 
 {#if isRecording}
   <div class="overlay" role="status" aria-live="polite">
-    <span class="indicator" aria-hidden="true"></span>
-    <div class="text">
-      <span class="title">Enregistrement en cours…</span>
-      <span class="hint">{hotkey} pour arrêter</span>
+    <div class="visualizer" aria-hidden="true">
+      {#each bars as h}
+        <span class="bar" style="--h: {Math.round(h * 100)}%"></span>
+      {/each}
     </div>
+    <span class="hint">
+      {hotkey} pour arrêter · <kbd>Esc</kbd> pour annuler
+    </span>
   </div>
 {/if}
 
 <style>
+  /* ── Theming tokens ───────────────────────────── */
+  .overlay {
+    --bg:     rgba(16, 16, 20, 0.92);
+    --hint:   rgba(255, 255, 255, 0.35);
+    --bar:    hsl(240 91% 65%);
+    --radius: 14px;
+  }
+
+  @media (prefers-color-scheme: light) {
+    .overlay {
+      --bg:   rgba(248, 248, 252, 0.94);
+      --hint: rgba(0, 0, 0, 0.35);
+      --bar:  hsl(240 91% 50%);
+    }
+  }
+
+  /* ── Container — fills the transparent Tauri window ── */
   .overlay {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 12px;
-    padding: 12px 20px;
-    background: rgba(0, 0, 0, 0.85);
-    border-radius: 12px;
-    color: white;
+    justify-content: center;
+    gap: 0;
+    padding: 16px 16px 13px;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+    border-radius: var(--radius);
     font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
     user-select: none;
     -webkit-user-select: none;
   }
 
-  .indicator {
-    display: inline-block;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #ef4444;
-    flex-shrink: 0;
-    animation: pulse 1.5s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.4;
-      transform: scale(0.85);
-    }
-  }
-
-  .text {
+  /* ── Visualizer — fixed height so bar % heights resolve ── */
+  .visualizer {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 54px;
+    flex-shrink: 0;
   }
 
-  .title {
-    font-size: 14px;
-    font-weight: 600;
+  /* 80 bars × 2px width + space-between gaps ≈ full width */
+  .bar {
+    width: 2px;
+    flex-shrink: 0;
+    border-radius: 2px;
+    background: var(--bar);
+    height: var(--h, 6%);
+    min-height: 3px;
+    max-height: 100%;
+    transition: height 55ms ease-out;
   }
 
+  /* ── Hint ─────────────────────────────────────── */
   .hint {
-    font-size: 11px;
-    opacity: 0.7;
+    font-size: 10px;
+    color: var(--hint);
+    letter-spacing: 0.01em;
+    margin-top: 8px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  kbd {
+    font-family: inherit;
+    font-size: 10px;
+    color: inherit;
+    background: transparent;
+    border: none;
+    padding: 0;
   }
 </style>

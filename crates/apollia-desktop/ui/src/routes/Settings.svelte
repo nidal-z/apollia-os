@@ -13,7 +13,7 @@
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import UserMemories from "./settings/UserMemories.svelte";
 
-  import type { ApollaConfigView, SystemInfo, SttModelInfo, SttConfigView, LlmBackendConfig } from "$lib/types";
+  import type { ApollaConfigView, SystemInfo, SttModelInfo, SttConfigView, LlmBackendConfig, CliStatus } from "$lib/types";
   import { refreshSttStatus, sttStatus } from "$lib/stores/stt";
 
   // ─── Types ──────────────────────────────────────────
@@ -56,6 +56,11 @@
     is_default: false,
   });
 
+  // CLI state
+  let cliStatus = $state<CliStatus | null>(null);
+  let cliActionLoading = $state(false);
+  let cliError = $state<string | null>(null);
+
   const tabItems = $derived([
     { key: "preferences", label: $t("settings.preferences") },
     { key: "memories", label: $t("settings.profile") },
@@ -77,10 +82,38 @@
       ]);
       configView = config;
       systemInfo = info;
+      // Load CLI status (non-blocking — card hidden if not bundled).
+      invoke<CliStatus>("get_cli_status").then(s => { cliStatus = s; }).catch(() => {});
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
     } finally {
       loading = false;
+    }
+  }
+
+  async function installCli() {
+    cliActionLoading = true;
+    cliError = null;
+    try {
+      await invoke("install_cli");
+      cliStatus = await invoke<CliStatus>("get_cli_status");
+    } catch (err: unknown) {
+      cliError = err instanceof Error ? err.message : String(err);
+    } finally {
+      cliActionLoading = false;
+    }
+  }
+
+  async function uninstallCli() {
+    cliActionLoading = true;
+    cliError = null;
+    try {
+      await invoke("uninstall_cli");
+      cliStatus = await invoke<CliStatus>("get_cli_status");
+    } catch (err: unknown) {
+      cliError = err instanceof Error ? err.message : String(err);
+    } finally {
+      cliActionLoading = false;
     }
   }
 
@@ -1070,6 +1103,40 @@
           </div>
         {:else}
           <p class="text-sm text-muted-foreground">{$t('common.loading')}</p>
+        {/if}
+
+        {#if cliStatus?.bundled}
+          <div class="glass-card glass-border rounded-lg p-4">
+            <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
+              {$t('settings.cli_title')}
+            </h3>
+            <p class="text-sm text-muted-foreground mb-3">
+              {$t('settings.cli_description')}
+            </p>
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <span class="text-sm text-muted-foreground">{$t('settings.cli_status')}</span>
+              <span class="text-sm font-mono text-foreground">
+                {cliStatus.installed ? $t('settings.cli_installed') : $t('settings.cli_not_installed')}
+              </span>
+              <span class="text-sm text-muted-foreground">{$t('settings.cli_path')}</span>
+              <span class="text-sm font-mono text-foreground">{cliStatus.symlink_path}</span>
+            </div>
+            {#if cliStatus.installed}
+              <Button variant="outline" size="sm" onclick={uninstallCli} disabled={cliActionLoading}>
+                {cliActionLoading ? $t('common.loading') : $t('settings.cli_uninstall')}
+              </Button>
+            {:else}
+              <Button variant="default" size="sm" onclick={installCli} disabled={cliActionLoading}>
+                {cliActionLoading ? $t('common.loading') : $t('settings.cli_install')}
+              </Button>
+              {#if cliStatus.needs_privilege}
+                <p class="text-xs text-muted-foreground mt-1">{$t('settings.cli_needs_privilege')}</p>
+              {/if}
+            {/if}
+            {#if cliError}
+              <p class="text-sm text-destructive mt-2">{cliError}</p>
+            {/if}
+          </div>
         {/if}
       </section>
     {/if}

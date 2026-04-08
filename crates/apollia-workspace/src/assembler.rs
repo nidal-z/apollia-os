@@ -1,11 +1,8 @@
-//! Orchestrateur multi-provider avec cache TTL configurable.
+//! [`ProjectRuntime`] — orchestrateur multi-provider avec cache TTL configurable.
 //!
-//! [`WorkspaceAssembler`] orchestre un ensemble de [`ContextProvider`]
-//! en parallèle via `futures::future::join_all`. Un cache [`RwLock`] par
-//! répertoire évite les I/O répétées sur les sessions longues.
-//!
-//! La construction par défaut inclut [`GitWorkspaceProvider`].
-//! Pour un contrôle fin, utiliser [`WorkspaceAssembler::from_config`].
+//! Orchestre un ensemble de [`WorkspaceProvider`] en parallèle via
+//! `futures::future::join_all`. Un cache par répertoire évite les I/O répétées
+//! sur les sessions longues.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -14,62 +11,32 @@ use std::time::{Duration, Instant};
 
 use tokio::sync::RwLock;
 
-use apollia_core::context::{ContextProvider, ContextSnapshot};
+use apollia_core::workspace::{WorkspaceProvider, WorkspaceSlice, WorkspaceSnapshot};
 use apollia_llm::LlmRouter;
 
-use crate::config::{ProviderConfig, WorkspaceConfig};
-use crate::providers::{GitWorkspaceProvider, ScriptContextProvider};
+use crate::config::{GitProviderConfig, RulesProviderConfig, RuntimeConfig, StyleProviderConfig};
+use crate::providers::{GitProvider, RulesProvider, ScriptProvider, StyleProvider, TreeProvider};
 
-/// Cache partagé par répertoire : instant de collecte + snapshots produits.
-type SnapshotCache = Arc<RwLock<HashMap<PathBuf, (Instant, Vec<ContextSnapshot>)>>>;
+/// Cache partagé par répertoire : instant de collecte + snapshot produit.
+type SnapshotCache = Arc<RwLock<HashMap<PathBuf, (Instant, WorkspaceSnapshot)>>>;
 
-/// Orchestre plusieurs [`ContextProvider`] et injecte les snapshots dans le system prompt.
+/// Orchestre plusieurs [`WorkspaceProvider`] et assemble un [`WorkspaceSnapshot`].
 ///
 /// La collecte est parallèle : chaque provider applicable est lancé simultanément.
 /// Un timeout par provider garantit le fail-silent.
 /// Un cache TTL par répertoire évite les I/O répétées entre deux steps rapprochés.
-pub struct WorkspaceAssembler {
+pub struct ProjectRuntime {
     /// Providers triés par priorité croissante.
-    providers: Vec<Box<dyn ContextProvider>>,
-    config: WorkspaceConfig,
-    /// Cache par répertoire : instant de collecte + snapshots.
+    providers: Vec<Box<dyn WorkspaceProvider>>,
+    config: RuntimeConfig,
+    /// Cache par répertoire.
     cache: SnapshotCache,
 }
 
-impl WorkspaceAssembler {
-    /// Construit un assembleur avec [`GitWorkspaceProvider`] comme provider par défaut.
-    pub fn new(config: WorkspaceConfig) -> Self {
-        let git = GitWorkspaceProvider::new(config.clone());
-        Self {
-            providers: vec![Box::new(git)],
-            config,
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
-
-    /// Construit un assembleur avec TTL personnalisé et provider git par défaut.
-    ///
-    /// Utile dans les tests pour contrôler l'invalidation du cache.
-    pub fn with_ttl(ttl: Duration) -> Self {
-        let config = WorkspaceConfig {
-            context_ttl_secs: ttl.as_secs().max(1),
-            ..WorkspaceConfig::default()
-        };
-        Self::new(config)
-    }
-
-    /// Active la détection de style en remplaçant le provider git par une version LLM-aware.
-    pub fn with_llm_router(self, router: Arc<LlmRouter>) -> Self {
-        let Self {
-            providers, config, ..
-        } = self;
-        let mut providers: Vec<Box<dyn ContextProvider>> = providers
-            .into_iter()
-            .filter(|p| p.name() != "git")
-            .collect();
-        providers.push(Box::new(
-            GitWorkspaceProvider::new(config.clone()).with_llm_router(router),
-        ));
+impl ProjectRuntime {
+    /// Construit un runtime avec les providers fournis.
+    pub fn new(providers: Vec<Box<dyn WorkspaceProvider>>, config: RuntimeConfig) -> Self {
+        let mut providers = providers;
         providers.sort_by_key(|p| p.priority());
         Self {
             providers,
@@ -78,85 +45,123 @@ impl WorkspaceAssembler {
         }
     }
 
-    /// Construit un assembleur depuis la liste de providers configurés dans `apollia.toml`.
-    ///
-    /// Providers `type = "python"` sont ignorés ici (log warn) — les ajouter via
-    /// [`with_provider`](Self::with_provider) après construction.
-    pub fn from_config(
-        config: &WorkspaceConfig,
-        providers_config: &[ProviderConfig],
-        llm_router: Option<Arc<LlmRouter>>,
-    ) -> Self {
-        let mut providers: Vec<Box<dyn ContextProvider>> = Vec::new();
-
-        for pc in providers_config {
-            if !pc.enabled {
-                continue;
-            }
-            match pc.provider_type.as_str() {
-                "builtin" if pc.name == "git" => {
-                    let git = if let Some(ref router) = llm_router {
-                        GitWorkspaceProvider::new(config.clone()).with_llm_router(router.clone())
-                    } else {
-                        GitWorkspaceProvider::new(config.clone())
-                    };
-                    providers.push(Box::new(git));
-                }
-                "script" => {
-                    let path = match &pc.path {
-                        Some(p) => p.clone(),
-                        None => {
-                            tracing::warn!(name = %pc.name, "script provider missing 'path' — ignored");
-                            continue;
-                        }
-                    };
-                    providers.push(Box::new(ScriptContextProvider::new(
-                        pc.name.clone(),
-                        path,
-                        pc.timeout_ms.unwrap_or(500),
-                        pc.priority.unwrap_or(50),
-                    )));
-                }
-                "python" => {
-                    tracing::warn!(
-                        name = %pc.name,
-                        "python providers must be registered via WorkspaceAssembler::with_provider()"
-                    );
-                }
-                other => {
-                    tracing::warn!(name = %pc.name, provider_type = %other, "unknown provider type — ignored");
-                }
-            }
-        }
-
-        providers.sort_by_key(|p| p.priority());
-        Self {
-            providers,
-            config: config.clone(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        }
+    /// Construit un runtime avec le projet par défaut (git + rules + tree).
+    pub fn default_project() -> Self {
+        let providers: Vec<Box<dyn WorkspaceProvider>> = vec![
+            Box::new(GitProvider::default()),
+            Box::new(RulesProvider::default()),
+            Box::new(TreeProvider::default()),
+        ];
+        Self::new(providers, RuntimeConfig::default())
     }
 
-    /// Ajoute un provider supplémentaire (par exemple [`PythonContextProvider`]).
-    ///
-    /// Les providers sont triés par priorité après l'ajout.
-    pub fn with_provider(mut self, provider: Box<dyn ContextProvider>) -> Self {
+    /// Active la détection de style en ajoutant un [`StyleProvider`] avec LLM.
+    pub fn with_style_detection(mut self, router: Arc<LlmRouter>) -> Self {
+        let style = StyleProvider::new(StyleProviderConfig::default(), router);
+        self.providers.push(Box::new(style));
+        self.providers.sort_by_key(|p| p.priority());
+        self
+    }
+
+    /// Ajoute un provider supplémentaire (par exemple un [`ScriptProvider`]).
+    pub fn with_provider(mut self, provider: Box<dyn WorkspaceProvider>) -> Self {
         self.providers.push(provider);
         self.providers.sort_by_key(|p| p.priority());
         self
     }
 
+    /// Construit un runtime depuis une configuration de providers JSON
+    /// (provenant de la table `project_providers` en SQLite).
+    ///
+    /// Types supportés : `"git"`, `"rules"`, `"tree"`, `"script"`.
+    /// Le type `"style"` nécessite un `LlmRouter` — utiliser `with_style_detection`.
+    pub fn from_providers_config(
+        providers_config: &[ProviderEntry],
+        llm_router: Option<Arc<LlmRouter>>,
+    ) -> Self {
+        let mut providers: Vec<Box<dyn WorkspaceProvider>> = Vec::new();
+
+        for entry in providers_config {
+            if !entry.enabled {
+                continue;
+            }
+            match entry.provider_type.as_str() {
+                "git" => {
+                    let config: GitProviderConfig = entry
+                        .config_json
+                        .as_deref()
+                        .and_then(|j| serde_json::from_str(j).ok())
+                        .unwrap_or_default();
+                    providers.push(Box::new(GitProvider::new(config)));
+                }
+                "rules" => {
+                    let config: RulesProviderConfig = entry
+                        .config_json
+                        .as_deref()
+                        .and_then(|j| serde_json::from_str(j).ok())
+                        .unwrap_or_default();
+                    providers.push(Box::new(RulesProvider::new(config)));
+                }
+                "tree" => {
+                    let max_lines: usize = entry
+                        .config_json
+                        .as_deref()
+                        .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+                        .and_then(|v| v["max_lines"].as_u64())
+                        .map(|n| n as usize)
+                        .unwrap_or(100);
+                    providers.push(Box::new(TreeProvider::new(max_lines)));
+                }
+                "style" => {
+                    if let Some(ref router) = llm_router {
+                        let config: StyleProviderConfig = entry
+                            .config_json
+                            .as_deref()
+                            .and_then(|j| serde_json::from_str(j).ok())
+                            .unwrap_or_default();
+                        providers.push(Box::new(StyleProvider::new(config, router.clone())));
+                    }
+                }
+                "script" => {
+                    let path = match &entry.path {
+                        Some(p) => p.clone(),
+                        None => {
+                            tracing::warn!(name = %entry.name, "script provider missing path — ignored");
+                            continue;
+                        }
+                    };
+                    let timeout_ms = entry
+                        .config_json
+                        .as_deref()
+                        .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+                        .and_then(|v| v["timeout_ms"].as_u64())
+                        .unwrap_or(500);
+                    providers.push(Box::new(ScriptProvider::new(
+                        entry.name.clone(),
+                        path,
+                        timeout_ms,
+                        entry.priority,
+                    )));
+                }
+                other => {
+                    tracing::warn!(name = %entry.name, provider_type = %other, "unknown provider type — ignored");
+                }
+            }
+        }
+
+        providers.sort_by_key(|p| p.priority());
+        Self::new(providers, RuntimeConfig::default())
+    }
+
     /// Collecte tous les providers applicables en parallèle avec timeout par provider.
     ///
     /// Retourne depuis le cache si la dernière collecte date de moins de
-    /// [`context_ttl_secs`](WorkspaceConfig::context_ttl_secs).
-    /// Chaque provider dépassant son timeout retourne un [`ContextSnapshot::with_error`]
-    /// — jamais de panic, jamais de blocage.
-    pub async fn collect_all(&self, cwd: &Path) -> Vec<ContextSnapshot> {
+    /// [`context_ttl_secs`](RuntimeConfig::context_ttl_secs).
+    pub async fn collect(&self, cwd: &Path) -> WorkspaceSnapshot {
         // — Lecture cache ————————————————————————————————————————————————
         {
             let guard = self.cache.read().await;
-            if let Some((collected_at, ref snapshots)) = guard.get(cwd) {
+            if let Some((collected_at, ref snapshot)) = guard.get(cwd) {
                 let ttl = Duration::from_secs(self.config.context_ttl_secs);
                 if collected_at.elapsed() < ttl {
                     tracing::debug!(
@@ -164,7 +169,7 @@ impl WorkspaceAssembler {
                         ttl_secs = self.config.context_ttl_secs,
                         "workspace cache hit"
                     );
-                    return snapshots.clone();
+                    return snapshot.clone();
                 }
             }
         }
@@ -181,14 +186,14 @@ impl WorkspaceAssembler {
                 let provider_name = p.name().to_owned();
                 async move {
                     match tokio::time::timeout(provider_timeout, p.collect(cwd)).await {
-                        Ok(snapshot) => snapshot,
+                        Ok(slice) => slice,
                         Err(_) => {
                             tracing::warn!(
                                 provider = %provider_name,
                                 timeout_secs = provider_timeout.as_secs(),
                                 "provider timed out"
                             );
-                            ContextSnapshot::with_error(
+                            WorkspaceSlice::with_error(
                                 &provider_name,
                                 format!(
                                     "provider '{}' timed out after {}s",
@@ -202,37 +207,36 @@ impl WorkspaceAssembler {
             })
             .collect();
 
-        let snapshots = futures::future::join_all(futures).await;
+        let slices = futures::future::join_all(futures).await;
 
-        // Log errors from providers
-        for snap in &snapshots {
-            for err in &snap.errors {
-                tracing::warn!(provider = %snap.source, error = %err, "provider error");
+        // Log provider errors
+        for slice in &slices {
+            for err in &slice.errors {
+                tracing::warn!(provider = %slice.source, error = %err, "provider error");
             }
         }
+
+        let snapshot = WorkspaceSnapshot::new(slices);
 
         // — Mise à jour cache ——————————————————————————————————————————————
         self.cache
             .write()
             .await
-            .insert(cwd.to_path_buf(), (Instant::now(), snapshots.clone()));
+            .insert(cwd.to_path_buf(), (Instant::now(), snapshot.clone()));
 
-        snapshots
+        snapshot
     }
+}
 
-    /// Formate une liste de snapshots pour injection dans le system prompt LLM.
-    ///
-    /// Chaque section est encapsulée dans un tag `<context name="titre">`.
-    /// Les snapshots vides (aucune section) sont omis.
-    /// L'ordre respecte la priorité des providers (déjà triés à la construction).
-    pub fn format_for_prompt(snapshots: &[ContextSnapshot]) -> String {
-        let blocks: Vec<String> = snapshots
-            .iter()
-            .flat_map(|s| &s.sections)
-            .map(|s| format!("<context name=\"{}\">\n{}\n</context>", s.title, s.content))
-            .collect();
-        blocks.join("\n\n")
-    }
+/// Entrée de provider lue depuis la table `project_providers` en SQLite.
+#[derive(Debug)]
+pub struct ProviderEntry {
+    pub provider_type: String,
+    pub name: String,
+    pub config_json: Option<String>,
+    pub path: Option<String>,
+    pub enabled: bool,
+    pub priority: u8,
 }
 
 #[cfg(test)]
@@ -240,112 +244,79 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn assembler_collects_in_parallel() {
-        // GIVEN un assembleur dans le dépôt courant
-        let assembler = WorkspaceAssembler::new(WorkspaceConfig::default());
+    async fn runtime_collects_in_real_repo() {
+        // GIVEN le projet courant (dépôt git)
+        let runtime = ProjectRuntime::default_project();
         let cwd = std::env::current_dir().expect("current_dir");
         // WHEN
-        let snapshots = assembler.collect_all(&cwd).await;
-        // THEN — git provider doit retourner au moins une section
-        let total_sections: usize = snapshots.iter().map(|s| s.sections.len()).sum();
-        assert!(
-            total_sections > 0,
-            "expected at least one section from git provider"
-        );
+        let snapshot = runtime.collect(&cwd).await;
+        // THEN — au moins une section
+        assert!(!snapshot.is_empty(), "expected sections from git repo");
     }
 
     #[tokio::test]
-    async fn assembler_cache_hit_on_second_call() {
-        // GIVEN un assembleur avec TTL de 60s
-        let assembler = WorkspaceAssembler::with_ttl(Duration::from_secs(60));
+    async fn runtime_cache_hit_on_second_call() {
+        // GIVEN un runtime avec TTL de 60s
+        let config = RuntimeConfig {
+            context_ttl_secs: 60,
+            ..Default::default()
+        };
+        let runtime = ProjectRuntime::new(
+            vec![Box::new(GitProvider::default())],
+            config,
+        );
         let cwd = std::env::current_dir().expect("current_dir");
         // WHEN deux appels rapides
-        let s1 = assembler.collect_all(&cwd).await;
-        let s2 = assembler.collect_all(&cwd).await;
-        // THEN même nombre de snapshots (depuis le cache)
-        assert_eq!(s1.len(), s2.len(), "cache must return same provider count");
+        let s1 = runtime.collect(&cwd).await;
+        let s2 = runtime.collect(&cwd).await;
+        // THEN même nombre de slices (depuis le cache)
+        assert_eq!(s1.slices.len(), s2.slices.len(), "cache must return same slice count");
     }
 
     #[tokio::test]
-    async fn assembler_no_providers_applicable_outside_git() {
-        // GIVEN un répertoire sans .git
-        let assembler = WorkspaceAssembler::new(WorkspaceConfig::default());
+    async fn runtime_no_applicable_providers_outside_git() {
+        // GIVEN uniquement un GitProvider dans un répertoire sans .git
+        let runtime = ProjectRuntime::new(
+            vec![Box::new(GitProvider::default())],
+            RuntimeConfig::default(),
+        );
         let cwd = std::path::Path::new("/tmp");
         // WHEN
-        let snapshots = assembler.collect_all(cwd).await;
-        // THEN — git provider non applicable, aucun snapshot
-        assert!(
-            snapshots.is_empty(),
-            "no provider applicable outside git repo"
-        );
-    }
-
-    #[tokio::test]
-    async fn assembler_timeout_returns_error_not_panic() {
-        // GIVEN timeout très court (1s)
-        let config = WorkspaceConfig {
-            collect_timeout_secs: 1,
-            ..WorkspaceConfig::default()
-        };
-        let assembler = WorkspaceAssembler::new(config);
-        let cwd = std::env::current_dir().expect("current_dir");
-        // WHEN — ne doit pas paniquer même si le provider est lent
-        let snapshots = assembler.collect_all(&cwd).await;
-        // THEN — résultat retourné (vide ou non, pas de panic)
-        drop(snapshots); // pas de panic = succès
+        let snapshot = runtime.collect(cwd).await;
+        // THEN — git provider non applicable, snapshot vide
+        assert!(snapshot.is_empty(), "no providers applicable outside git repo");
     }
 
     #[tokio::test]
     async fn format_for_prompt_respects_priority_order() {
-        // GIVEN snapshots de providers priority 50 et priority 10
-        let snap_low = ContextSnapshot {
-            source: "low-priority".into(),
-            sections: vec![apollia_core::context::ContextSection {
-                title: "LowPrio".into(),
-                content: "content-low".into(),
-                source: "low-priority".into(),
+        // GIVEN un snapshot avec deux slices
+        use apollia_core::workspace::WorkspaceSection;
+        let s1 = WorkspaceSlice {
+            source: "git".into(),
+            sections: vec![WorkspaceSection {
+                title: "Git".into(),
+                content: "branche: main".into(),
+                source: "git".into(),
             }],
             errors: vec![],
             collected_at: Instant::now(),
         };
-        let snap_high = ContextSnapshot {
-            source: "high-priority".into(),
-            sections: vec![apollia_core::context::ContextSection {
-                title: "HighPrio".into(),
-                content: "content-high".into(),
-                source: "high-priority".into(),
+        let s2 = WorkspaceSlice {
+            source: "rules".into(),
+            sections: vec![WorkspaceSection {
+                title: "Règles".into(),
+                content: "no magic".into(),
+                source: "rules".into(),
             }],
             errors: vec![],
             collected_at: Instant::now(),
         };
-        // WHEN — ordre : high priority (10) en premier, low priority (50) en second
-        let formatted = WorkspaceAssembler::format_for_prompt(&[snap_high, snap_low]);
-        // THEN — high priority appears first
-        let pos_high = formatted.find("HighPrio").expect("HighPrio not found");
-        let pos_low = formatted.find("LowPrio").expect("LowPrio not found");
-        assert!(
-            pos_high < pos_low,
-            "high priority section must appear first"
-        );
-    }
-
-    #[tokio::test]
-    async fn disabled_provider_not_loaded() {
-        // GIVEN config avec un provider désactivé
-        let pc = ProviderConfig {
-            name: "git".into(),
-            provider_type: "builtin".into(),
-            path: None,
-            enabled: false,
-            timeout_ms: None,
-            priority: None,
-            refresh_secs: None,
-        };
+        let snapshot = WorkspaceSnapshot::new(vec![s1, s2]);
         // WHEN
-        let assembler = WorkspaceAssembler::from_config(&WorkspaceConfig::default(), &[pc], None);
-        let cwd = std::env::current_dir().expect("current_dir");
-        // THEN — aucun provider chargé
-        let snapshots = assembler.collect_all(&cwd).await;
-        assert!(snapshots.is_empty(), "disabled provider must not be loaded");
+        let prompt = snapshot.format_for_prompt();
+        // THEN — Git apparaît avant Règles
+        let pos_git = prompt.find("Git").expect("Git not found");
+        let pos_rules = prompt.find("Règles").expect("Règles not found");
+        assert!(pos_git < pos_rules, "Git must appear before Règles");
     }
 }

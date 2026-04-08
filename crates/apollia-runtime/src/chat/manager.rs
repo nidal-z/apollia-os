@@ -195,6 +195,11 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Vec<SessionInfo>>,
     },
+    /// List all A2A skills available from active worker agents.
+    ListA2ASkills {
+        /// Response channel.
+        reply: oneshot::Sender<Vec<crate::a2a::SkillListing>>,
+    },
     /// Shut down the actor.
     Shutdown,
 }
@@ -350,6 +355,17 @@ impl ChatSessionManager {
                 ChatCommand::ListChildren { session_id, reply } => {
                     let result = self.handle_list_children(&session_id);
                     let _ = reply.send(result);
+                }
+                ChatCommand::ListA2ASkills { reply } => {
+                    if let Some(ref a2a) = self.a2a_invoker {
+                        let a2a = a2a.clone();
+                        tokio::spawn(async move {
+                            let skills = a2a.list_skills().await.unwrap_or_default();
+                            let _ = reply.send(skills);
+                        });
+                    } else {
+                        let _ = reply.send(Vec::new());
+                    }
                 }
                 ChatCommand::ReloadLlm { router } => {
                     info!("ChatSessionManager: LLM router reloaded");
@@ -584,21 +600,31 @@ impl ChatSessionManager {
             .get(session_id)
             .ok_or_else(|| ChatError::InternalError("session vanished".into()))?;
 
-        if session.mode == ChatMode::Libre {
+        if session.mode == ChatMode::Libre || session.mode == ChatMode::Companion {
             let llm_router = self.llm_router.clone().ok_or(ChatError::NoLlmConfigured)?;
+
+            // Companion sessions are intentionally isolated from user memory and
+            // cross-session history (Principle #6 — memory at agent initiative).
+            // The companion helps with the platform, not the user's personal context.
+            let session_user_memory = if session.mode == ChatMode::Companion {
+                None
+            } else {
+                self.user_memory.clone()
+            };
 
             let agent = BuiltInChatAgent::new(
                 llm_router,
                 self.tool_registry.clone(),
                 Arc::clone(&self.tool_invoker),
                 self.event_bus.clone(),
-                self.user_memory.clone(),
+                session_user_memory,
                 self.a2a_invoker.clone(),
             );
 
             let history = session.history.clone();
-            // On the first message, enrich the system prompt with cross-session context
-            let system_prompt = if history.len() == 1 {
+            // On the first message, enrich the system prompt with cross-session context.
+            // Companion sessions are excluded — they must not inherit personal history.
+            let system_prompt = if history.len() == 1 && session.mode != ChatMode::Companion {
                 let mut prompt = session.system_prompt.clone();
                 if let Some(block) = self.build_cross_session_context(content) {
                     prompt.push_str("\n\n");
@@ -830,6 +856,16 @@ impl ChatSessionManager {
             session_id: session_id.to_string(),
             message_id: Some(message_id.to_string()),
             error: error.to_string(),
+        });
+
+        // Always emit ChatResponseCompleted so the frontend exits the "generating"
+        // state even when the exchange fails.  Without this the UI stays blocked
+        // indefinitely because it waits for ChatResponseCompleted to clear the
+        // typing indicator.
+        let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
+            session_id: session_id.to_string(),
+            message_id: message_id.to_string(),
+            content: format!("[Erreur : {error}]"),
         });
 
         // Reset session to Active so it can accept new messages
@@ -1631,6 +1667,22 @@ impl ChatSessionManagerHandle {
         reply_rx.await.unwrap_or_default()
     }
 
+    /// List all A2A skills available from active worker agents.
+    ///
+    /// Returns an empty vec when A2A is not wired or the actor is unreachable.
+    pub async fn list_a2a_skills(&self) -> Vec<crate::a2a::SkillListing> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .tx
+            .send(ChatCommand::ListA2ASkills { reply: reply_tx })
+            .await
+            .is_err()
+        {
+            return Vec::new();
+        }
+        reply_rx.await.unwrap_or_default()
+    }
+
     pub async fn shutdown(&self) {
         let _ = self.tx.send(ChatCommand::Shutdown).await;
     }
@@ -1684,6 +1736,7 @@ mod tests {
                 tools_requiring_approval: vec![],
                 llm_backend: None,
                 packages: vec![],
+                memory_config: None,
             })
         }
     }

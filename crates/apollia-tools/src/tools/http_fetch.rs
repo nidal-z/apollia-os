@@ -256,10 +256,10 @@ impl HttpFetch {
         ToolDescriptor {
             name: "http_fetch".to_string(),
             version: "1.0.0".to_string(),
-            description: "Perform HTTP requests with network allowlist enforcement. \
-                The URL hostname is validated against the agent's network_allowlist before any \
-                network I/O. Response bodies are limited to 1 MB. \
-                Supports GET, POST, PUT, PATCH, DELETE."
+            description: "Perform HTTP GET/POST/PUT/PATCH/DELETE requests to any URL. \
+                Returns the HTTP status code, response headers, and response body (capped at 1 MB). \
+                Use this to call REST APIs, fetch web pages, retrieve RSS feeds, or read data from \
+                any HTTP endpoint. Provide the full URL including protocol (https://...)."
                 .to_string(),
             kind: ToolKind::Native,
             input_schema: json!({

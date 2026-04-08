@@ -243,6 +243,11 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `Some` when `~/.apollia/mcp.toml` exists and at least one server connected.
     /// `None` when the config file is absent, empty, or all servers failed to start.
     pub mcp_handle: Option<McpClientManagerHandle>,
+    /// Repository des projets (SQLite).
+    ///
+    /// `Some` quand `projects.db` est ouvert avec succès.
+    /// `None` quand l'ouverture a échoué (warning loggé).
+    pub project_repository: Option<std::sync::Arc<apollia_tools::ProjectRepository>>,
 }
 
 /// Supervisor errors.
@@ -568,6 +573,34 @@ impl Supervisor {
         let (llm_router, llm_backend_repo) = match LlmBackendRepository::open(&system_db_path) {
             Ok(repo) => {
                 info!("Supervisor: starting LlmRouter from system.db");
+
+                // Migration: if system.db has no backends and apollia.toml has backends,
+                // import them. Handles first-boot and the onboarding case where
+                // setup_local_llm writes only to TOML, not to system.db.
+                if let Some(llm_cfg) = &self.config.llm_config {
+                    if let Ok(existing) = repo.list() {
+                        if existing.is_empty() {
+                            info!("Supervisor: no LLM backends in system.db — migrating from apollia.toml");
+                            for db_cfg in llm_cfg.to_db_configs() {
+                                let backend_name = db_cfg.name.clone();
+                                let is_default = db_cfg.is_default;
+                                match repo.save(&db_cfg) {
+                                    Ok(()) => info!(
+                                        backend = %backend_name,
+                                        is_default,
+                                        "LLM backend migrated from TOML to system.db"
+                                    ),
+                                    Err(e) => warn!(
+                                        backend = %backend_name,
+                                        error = %e,
+                                        "failed to migrate LLM backend from TOML to system.db"
+                                    ),
+                                }
+                            }
+                        }
+                    }
+                }
+
                 let router_result = LlmRouter::from_repository(&repo).await;
                 let repo = Arc::new(std::sync::Mutex::new(repo));
                 match router_result {
@@ -906,6 +939,24 @@ impl Supervisor {
             }
         };
 
+        // Phase 13b: ProjectRepository — SQLite projects.db.
+        let project_repository: Option<std::sync::Arc<apollia_tools::ProjectRepository>> = {
+            let db_path = self.config.data_dir.join("projects.db");
+            match apollia_tools::ProjectRepository::open(&db_path) {
+                Ok(repo) => {
+                    if let Err(e) = repo.seed_builtin_templates() {
+                        warn!(error = %e, "ProjectRepository: seed_builtin_templates failed");
+                    }
+                    info!("Supervisor: ProjectRepository ready");
+                    Some(std::sync::Arc::new(repo))
+                }
+                Err(e) => {
+                    warn!(error = %e, "ProjectRepository failed to open — projects disabled");
+                    None
+                }
+            }
+        };
+
         // Phase 14: ChatSessionManager — spawned before APIServer to inject handle into AppState.
         info!("Supervisor: starting ChatSessionManager");
         let chat_db_path = self.config.data_dir.join("chat.db");
@@ -948,7 +999,7 @@ impl Supervisor {
                 agent_loader.clone(),
                 agent_runner.clone(),
                 event_sender.clone(),
-                apollia_core::StepBudgetConfig::default(),
+                apollia_core::StepBudgetConfig::chat_default(),
                 user_memory.clone(),
                 registry_handle.clone(),
                 Some(a2a_invoker.clone()),
@@ -1348,6 +1399,7 @@ impl Supervisor {
             stt_engine,
             stt_repository,
             mcp_handle,
+            project_repository,
         })
     }
 }
@@ -2433,6 +2485,7 @@ mod tests {
             tools_requiring_approval: vec![],
             llm_backend: None,
             packages: vec![],
+            memory_config: None,
         }
     }
 

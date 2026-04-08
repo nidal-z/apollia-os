@@ -5,8 +5,11 @@
 //! non-focusable, and borderless so it acts as a pure visual indicator without
 //! interfering with the user's workflow.
 
+use std::sync::Arc;
+
 use apollia_core::{EventBusSender, RuntimeEvent};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 /// Errors that can occur during overlay window operations.
 #[derive(Debug, thiserror::Error)]
@@ -25,11 +28,15 @@ pub enum OverlayError {
 /// Window label used for the recording overlay.
 const WINDOW_LABEL: &str = "recording-overlay";
 
+/// Global shortcut key used to cancel (discard) an in-progress recording.
+const CANCEL_SHORTCUT: &str = "Escape";
+
 /// Width of the overlay window in logical pixels.
 const OVERLAY_WIDTH: f64 = 350.0;
 
 /// Height of the overlay window in logical pixels.
-const OVERLAY_HEIGHT: f64 = 80.0;
+/// Includes 4px transparent inset on each side (border isolation).
+const OVERLAY_HEIGHT: f64 = 98.0;
 
 /// Margin from the bottom of the screen in logical pixels.
 const BOTTOM_MARGIN: f64 = 40.0;
@@ -43,17 +50,25 @@ pub struct RecordingOverlay {
     app: tauri::AppHandle,
     /// Hotkey string displayed to the user (e.g. `"Ctrl+Shift+Space"`).
     hotkey: String,
+    /// Called when the user presses Escape to cancel (discard) the recording.
+    on_cancel: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl RecordingOverlay {
     /// Creates a new overlay manager and builds the hidden overlay window.
     ///
+    /// `on_cancel` is called when the user presses Escape while recording.
     /// The window is positioned at the bottom-center of the primary monitor
     /// and remains hidden until [`RecordingOverlay::show`] is called.
-    pub fn create(app: &tauri::AppHandle, hotkey: String) -> Result<Self, OverlayError> {
+    pub fn create(
+        app: &tauri::AppHandle,
+        hotkey: String,
+        on_cancel: Arc<dyn Fn() + Send + Sync>,
+    ) -> Result<Self, OverlayError> {
         let overlay = Self {
             app: app.clone(),
             hotkey,
+            on_cancel,
         };
         overlay.build_window()?;
         Ok(overlay)
@@ -63,7 +78,7 @@ impl RecordingOverlay {
     fn build_window(&self) -> Result<(), OverlayError> {
         let (x, y) = self.bottom_center_position()?;
 
-        WebviewWindowBuilder::new(
+        let builder = WebviewWindowBuilder::new(
             &self.app,
             WINDOW_LABEL,
             WebviewUrl::App("overlay.html".into()),
@@ -73,12 +88,20 @@ impl RecordingOverlay {
         .always_on_top(true)
         .skip_taskbar(true)
         .resizable(false)
+        .shadow(false)
         .focusable(false)
         .inner_size(OVERLAY_WIDTH, OVERLAY_HEIGHT)
         .position(x, y)
-        .visible(false)
-        .build()
-        .map_err(|e: tauri::Error| OverlayError::WindowCreation(e.to_string()))?;
+        .visible(false);
+
+        // Transparent window requires the `macos-private-api` Tauri feature on macOS.
+        // When the feature is absent the window falls back to a fully opaque background.
+        #[cfg(any(not(target_os = "macos"), feature = "macos-private-api"))]
+        let builder = builder.transparent(true);
+
+        builder
+            .build()
+            .map_err(|e: tauri::Error| OverlayError::WindowCreation(e.to_string()))?;
 
         Ok(())
     }
@@ -110,21 +133,42 @@ impl RecordingOverlay {
         Ok((x, y))
     }
 
-    /// Shows the overlay window and sends the hotkey configuration to its frontend.
+    /// Shows the overlay window, sends the hotkey config, and registers Escape to cancel.
     pub fn show(&self) -> Result<(), OverlayError> {
         if let Some(window) = self.app.get_webview_window(WINDOW_LABEL) {
-            self.app
-                .emit("stt-overlay-config", &self.hotkey)
-                .map_err(|e| OverlayError::Visibility(e.to_string()))?;
             window
                 .show()
                 .map_err(|e| OverlayError::Visibility(e.to_string()))?;
+            // Emit after show so the webview is active and the listener is ready.
+            window
+                .emit("stt-overlay-config", &self.hotkey)
+                .map_err(|e| OverlayError::Visibility(e.to_string()))?;
         }
+
+        // Register Escape as a temporary global shortcut for cancelling the recording.
+        let cancel = Arc::clone(&self.on_cancel);
+        if let Err(e) = self
+            .app
+            .global_shortcut()
+            .on_shortcut(CANCEL_SHORTCUT, move |_app, _shortcut, event| {
+                if event.state == ShortcutState::Pressed {
+                    cancel();
+                }
+            })
+        {
+            tracing::warn!(error = %e, "failed to register Escape cancel shortcut");
+        }
+
         Ok(())
     }
 
-    /// Hides the overlay window.
+    /// Hides the overlay window and unregisters the Escape cancel shortcut.
     pub fn hide(&self) -> Result<(), OverlayError> {
+        // Unregister Escape before hiding so it stops intercepting keypresses immediately.
+        if let Err(e) = self.app.global_shortcut().unregister(CANCEL_SHORTCUT) {
+            tracing::warn!(error = %e, "failed to unregister Escape cancel shortcut");
+        }
+
         if let Some(window) = self.app.get_webview_window(WINDOW_LABEL) {
             window
                 .hide()

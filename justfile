@@ -91,6 +91,10 @@ lint:
 fmt:
     cargo fmt --all
 
+# Build Desktop app with bundled CLI (production .dmg)
+build-desktop:
+    cd crates/apollia-desktop && cargo tauri build
+
 # ─── Tâches combinées ────────────────────────────────────────────────────────
 
 # CI locale : lint + tests + doc

@@ -30,7 +30,8 @@
       "loading": "CHARGEMENT",
       "error": "ERREUR"
     },
-    "back": "Retour"
+    "back": "Retour",
+    "optional": "optionnel"
   },
   "companion": {
     "toggle_label": "Aide Apollia",
@@ -76,7 +77,8 @@
       "connected": "Runtime connecté",
       "reconnecting": "Reconnexion...",
       "error": "Connexion perdue"
-    }
+    },
+    "projects": "Projets"
   },
   "integrations": {
     "title_operator": "Connexions",
@@ -288,7 +290,9 @@
     "status_canceled": "ANNULÉE",
     "active_count_suffix": "actifs",
     "see_all": "Tout voir",
-    "ready": "Prêt"
+    "ready": "Prêt",
+    "workers_section": "Agents workers",
+    "manage": "Gérer"
   },
   "agents": {
     "title": "Agents",
@@ -317,6 +321,12 @@
     "tasks_label": "tâches",
     "section_active": "Agents actifs",
     "section_inactive": "Agents inactifs",
+    "section_assistants": "Assistants",
+    "section_workers": "Agents workers",
+    "workers_hint": "Les workers tournent en arrière-plan et sont invoqués automatiquement par le LLM selon le contexte.",
+    "workers_active_suffix": "actifs",
+    "a2a_ready": "A2A prêt",
+    "stopped": "arrêté",
     "no_description": "Aucune description disponible",
     "tasks_completed_count": "{count} tâches terminées",
     "session_only": "Session uniquement",
@@ -924,6 +934,15 @@
     "system_os": "Système d'exploitation",
     "system_python": "Chemin Python",
     "system_python_not_found": "Non détecté",
+    "cli_title": "Interface en ligne de commande",
+    "cli_description": "Installez la commande apollia-os pour utiliser Apollia depuis le terminal.",
+    "cli_status": "Statut",
+    "cli_installed": "Installée",
+    "cli_not_installed": "Non installée",
+    "cli_path": "Chemin",
+    "cli_install": "Installer la CLI",
+    "cli_uninstall": "Désinstaller la CLI",
+    "cli_needs_privilege": "Privilèges administrateur requis.",
     "profile": "Mon Profil",
     "profile_subtitle": "Ce que le système sait de vous. Ces informations aident les agents à s'adapter à votre contexte.",
     "profile_tab_preferences": "Préférences",
@@ -999,7 +1018,19 @@
     "stt_restart_notice": "Configuration enregistrée. Redémarrez l'application pour que les changements prennent effet.",
     "stt_config_hint": "Pour modifier manuellement, éditez la section [stt] dans apollia.toml.",
     "stt_yes": "Oui",
-    "stt_no": "Non"
+    "stt_no": "Non",
+    "llm_backends": "Backends LLM",
+    "llm_backends_subtitle": "Configurez les backends de modèle de langage utilisés par Apollia et vos agents.",
+    "llm_add_backend": "Ajouter un backend",
+    "llm_new_backend": "Nouveau backend",
+    "llm_backend_name": "Nom",
+    "llm_backend_provider": "Fournisseur",
+    "llm_backend_model": "Modèle",
+    "llm_backend_config_json": "Config (JSON)",
+    "llm_backend_enabled": "Activé",
+    "llm_backend_default": "Définir par défaut",
+    "llm_no_backends": "Aucun backend LLM configuré. Ajoutez-en un pour activer les fonctionnalités IA.",
+    "llm_set_default": "Définir par défaut"
   },
   "onboarding": {
     "welcome_title": "Bienvenue sur Apollia OS",
@@ -1327,7 +1358,16 @@
     "delete_confirm_title": "Supprimer la conversation",
     "delete_confirm_message": "Cette action est irréversible. Tous les messages seront perdus.",
     "status_processing": "En cours",
-    "no_preview": "Conversation vide"
+    "no_preview": "Conversation vide",
+    "a2a_workers": "Agents workers",
+    "a2a_delegating": "Délégation vers {agent} ({skill})…",
+    "reasoning_live": "En cours…",
+    "reasoning_pending": "{n} en attente",
+    "a2a_authorize_skill": "Autoriser le skill",
+    "a2a_via_worker": "via l'agent worker",
+    "a2a_approve_always_agent": "Toujours accepter cet agent",
+    "a2a_worker_stopped": "arrêté",
+    "a2a_start_worker": "Démarrer"
   },
   "transcriptions": {
     "title": "Transcriptions",
@@ -1585,6 +1625,18 @@
       "skip": "Passer pour l'instant",
       "dialog_title": "Sélectionner un modèle GGUF"
     },
+    "llm_backends": "Backends LLM",
+    "llm_backends_subtitle": "Configurez les backends de modèle de langage utilisés par Apollia et vos agents.",
+    "llm_add_backend": "Ajouter un backend",
+    "llm_new_backend": "Nouveau backend",
+    "llm_backend_name": "Nom",
+    "llm_backend_provider": "Fournisseur",
+    "llm_backend_model": "Modèle",
+    "llm_backend_config_json": "Config (JSON)",
+    "llm_backend_enabled": "Activé",
+    "llm_backend_default": "Définir par défaut",
+    "llm_no_backends": "Aucun backend LLM configuré. Ajoutez-en un pour activer les fonctionnalités IA.",
+    "llm_set_default": "Définir par défaut",
     "acquaintance": {
       "title": "Bienvenue",
       "subtitle": "Faisons connaissance pour personnaliser votre expérience.",
@@ -1645,5 +1697,41 @@
     "tool_label": "Outil",
     "arguments_label": "Arguments",
     "input_label": "Entrée"
+  },
+  "projects": {
+    "title": "Projets",
+    "subtitle": "Organisez le contexte des agents avec instructions, documents et providers",
+    "new_project": "Nouveau projet",
+    "create_project": "Créer le projet",
+    "edit_project": "Modifier",
+    "created_toast": "Projet « {name} » créé",
+    "updated_toast": "Projet « {name} » mis à jour",
+    "deleted_toast": "Projet « {name} » supprimé",
+    "document_removed": "Document supprimé",
+    "empty_title": "Aucun projet",
+    "empty_subtitle": "Créez un projet pour organiser le contexte de vos agents",
+    "not_found": "Projet introuvable",
+    "no_description": "Aucune description",
+    "no_instructions": "Aucune instruction",
+    "no_providers": "Aucun provider de contexte configuré",
+    "no_documents": "Aucun document attaché",
+    "snapshot_empty": "Aucun contexte collecté — vérifiez que les providers sont activés",
+    "name_required": "Le nom du projet est requis",
+    "field_name": "Nom",
+    "field_name_placeholder": "Mon projet",
+    "field_description": "Description",
+    "field_description_placeholder": "Description courte (optionnel)",
+    "field_instructions": "Instructions",
+    "field_instructions_placeholder": "Instructions injectées dans chaque exécution d'agent pour ce projet...",
+    "instructions_hint": "Ces instructions sont incluses dans chaque contexte d'agent pour ce projet.",
+    "section_providers": "Providers de contexte",
+    "section_documents": "Documents",
+    "section_snapshot": "Aperçu workspace en direct",
+    "provider_enabled": "activé",
+    "provider_disabled": "désactivé",
+    "delete_confirm_title": "Supprimer le projet",
+    "delete_confirm_message": "Voulez-vous vraiment supprimer le projet « {name} » ? Cette action est irréversible.",
+    "delete_confirm_yes": "Supprimer",
+    "optional": "optionnel"
   }
 }

@@ -100,6 +100,60 @@ pub struct LlmConfig {
     pub vertex: Option<VertexConfig>,
 }
 
+impl LlmConfig {
+    /// Converts TOML-parsed backends to [`LlmBackendConfig`] entries for `system.db`.
+    ///
+    /// Used by the Supervisor at startup to migrate from `apollia.toml` to `system.db`
+    /// when no backends are found in the database (first boot, or manual TOML edits).
+    pub fn to_db_configs(&self) -> Vec<LlmBackendConfig> {
+        self.backends
+            .iter()
+            .map(|b| backend_config_to_db(b, b.name() == self.default))
+            .collect()
+    }
+}
+
+/// Converts a TOML [`BackendConfig`] to a [`LlmBackendConfig`] for `system.db`.
+fn backend_config_to_db(cfg: &BackendConfig, is_default: bool) -> LlmBackendConfig {
+    match &cfg.kind {
+        #[cfg(feature = "local")]
+        BackendKind::Embedded(embedded) => LlmBackendConfig {
+            name: embedded.name.clone(),
+            provider: LlmProvider::LlamaCpp,
+            model: embedded.model_path.to_string_lossy().into_owned(),
+            config_json: serde_json::to_value(embedded).unwrap_or_default(),
+            enabled: true,
+            is_default,
+        },
+        #[cfg(feature = "cloud")]
+        BackendKind::Api(api) => LlmBackendConfig {
+            name: api.name.clone(),
+            provider: infer_api_provider_from_url(&api.api_url),
+            model: api.model.clone(),
+            config_json: serde_json::json!({
+                "api_url": api.api_url,
+                "api_key": format!("${{{}}}", api.api_key_env),
+            }),
+            enabled: true,
+            is_default,
+        },
+    }
+}
+
+/// Infers a [`LlmProvider`] from the API base URL.
+#[cfg(feature = "cloud")]
+fn infer_api_provider_from_url(api_url: &str) -> LlmProvider {
+    if api_url.contains("anthropic.com") {
+        LlmProvider::Anthropic
+    } else if api_url.contains("mistral.ai") {
+        LlmProvider::Mistral
+    } else if api_url.contains("localhost:11434") || api_url.contains("ollama") {
+        LlmProvider::Ollama
+    } else {
+        LlmProvider::OpenAi
+    }
+}
+
 /// Paramètres d'observabilité pour le router LLM.
 ///
 /// Les champs `log_token_usage` et `log_latency` sont actifs par défaut.

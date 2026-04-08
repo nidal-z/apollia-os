@@ -21,6 +21,9 @@ __pycache__/
 *.egg-info/
 *.pyc
 
+# Desktop build artifact — CLI binary staged by scripts/bundle-cli.sh
+crates/apollia-desktop/resources/
+
 # OS
 .DS_Store
 Thumbs.db

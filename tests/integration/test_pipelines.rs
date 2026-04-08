@@ -159,6 +159,9 @@ fn make_step(
         on_failure,
         condition,
         fallback_for: fallback_for.map(|s| StepId(s.to_string())),
+        timeout_secs: None,
+        fan_out: None,
+        retry: None,
     }
 }
 
@@ -993,6 +996,8 @@ async fn test_scenario9_restart_recovery_from_sqlite() {
                 error: None,
                 started_at: None,
                 ended_at: None,
+                approved_by: None,
+                approval_duration_ms: None,
             },
             "A-agent",
         )
@@ -1030,6 +1035,8 @@ async fn test_scenario9_restart_recovery_from_sqlite() {
                 error: None,
                 started_at: None,
                 ended_at: None,
+                approved_by: None,
+                approval_duration_ms: None,
             },
             "B-agent",
         )

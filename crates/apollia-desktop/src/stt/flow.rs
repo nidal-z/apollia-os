@@ -140,6 +140,26 @@ impl SttFlow {
         });
     }
 
+    /// Cancels recording and discards all captured audio without transcribing.
+    ///
+    /// Emits [`RuntimeEvent::SttRecordingStopped`] so the overlay closes, but
+    /// skips the STT engine entirely. Use this for user-initiated abort (Escape).
+    pub fn cancel_recording(&self) {
+        if !self.recording.swap(false, Ordering::SeqCst) {
+            tracing::debug!("cancel_recording called while not recording");
+            return;
+        }
+        // Discard buffered samples without draining for transcription.
+        if let Ok(mut guard) = self.active_buffer.lock() {
+            let _ = guard.take();
+        }
+        self.signal_stop();
+        let _ = self
+            .event_bus
+            .send(RuntimeEvent::SttRecordingStopped { audio_duration_ms: 0 });
+        tracing::info!("STT recording cancelled (audio discarded)");
+    }
+
     /// Stops recording, processes the audio, and dispatches the result.
     ///
     /// Pipeline: drain buffer → signal audio thread to stop → resample to

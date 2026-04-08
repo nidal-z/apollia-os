@@ -13,7 +13,7 @@
   import { tourOpenAgentDetail } from "$lib/stores/tour";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import { Bot, Download, Sparkles } from "lucide-svelte";
+  import { Bot, Download, Sparkles, Zap } from "lucide-svelte";
   import AgentCard from "../components/agents/AgentCard.svelte";
   import AgentLogs from "../components/agents/AgentLogs.svelte";
   import AgentDetail from "../components/agents/AgentDetail.svelte";
@@ -32,8 +32,14 @@
   let detailOpen = $state(false);
   let showCreateDialog = $state(false);
 
-  const activeAgents = $derived($agents.filter((a) => a.runtime_status === "active" || a.runtime_status === "degraded"));
-  const inactiveAgents = $derived($agents.filter((a) => a.runtime_status !== "active" && a.runtime_status !== "degraded"));
+  // Split workers (supports_a2a) from assistants
+  const allWorkers = $derived($agents.filter((a) => a.supports_a2a));
+  const allAssistants = $derived($agents.filter((a) => !a.supports_a2a));
+
+  const activeAssistants = $derived(allAssistants.filter((a) => a.runtime_status === "active" || a.runtime_status === "degraded"));
+  const inactiveAssistants = $derived(allAssistants.filter((a) => a.runtime_status !== "active" && a.runtime_status !== "degraded"));
+  const activeWorkers = $derived(allWorkers.filter((a) => a.runtime_status === "active" || a.runtime_status === "degraded"));
+  const inactiveWorkers = $derived(allWorkers.filter((a) => a.runtime_status !== "active" && a.runtime_status !== "degraded"));
 
   async function pickAndInstallAgent() {
     installError = null;
@@ -128,49 +134,84 @@
         </div>
       {/each}
     </div>
-  {:else if $agents.length === 0}
-    <div class="mt-6">
-      <EmptyState
-        icon={Bot}
-        title={$t('agents.empty_title_install')}
-        subtitle={$t('agents.empty_subtitle_install')}
-        ctaLabel={$t('agents.install')}
-        ctaAction={pickAndInstallAgent}
-        page="agents"
-      />
-    </div>
   {:else}
-    <!-- Active agents section -->
-    {#if activeAgents.length > 0}
-      <div class="mt-5">
+    <!-- ── Assistants ──────────────────────────────────────────────────── -->
+    {#if allAssistants.length > 0}
+      <div class="mt-6">
         <div class="flex items-baseline justify-between mb-3">
-          <h2 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('agents.section_active')}</h2>
-          <span class="text-xs text-muted-foreground/50">{activeAgents.length}</span>
+          <h2 class="flex items-center gap-1.5 text-sm font-medium uppercase tracking-wider text-muted-foreground">
+            <Bot size={14} />{$t('agents.section_assistants')}
+          </h2>
+          <span class="text-xs text-muted-foreground/50">{allAssistants.length}</span>
         </div>
-        <div class="grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-grid-active">
-          {#each activeAgents as agent (agent.name)}
-            <div class="h-full" animate:flip={{ duration: 250 }} in:fly={{ y: 8, duration: 200 }}>
-              <AgentCard {agent} onlogs={openLogs} ondetail={openDetail} onchat={startChatWithAgent} />
-            </div>
-          {/each}
-        </div>
+
+        {#if activeAssistants.length > 0}
+          <div class="grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-grid-active">
+            {#each activeAssistants as agent (agent.name)}
+              <div class="h-full" animate:flip={{ duration: 250 }} in:fly={{ y: 8, duration: 200 }}>
+                <AgentCard {agent} onlogs={openLogs} ondetail={openDetail} onchat={startChatWithAgent} />
+              </div>
+            {/each}
+          </div>
+        {/if}
+
+        {#if inactiveAssistants.length > 0}
+          <div class="mt-3 grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 opacity-60" data-testid="agents-grid-inactive">
+            {#each inactiveAssistants as agent (agent.name)}
+              <div class="h-full" animate:flip={{ duration: 250 }} in:fly={{ y: 8, duration: 200 }}>
+                <AgentCard {agent} onlogs={openLogs} ondetail={openDetail} onchat={startChatWithAgent} />
+              </div>
+            {/each}
+          </div>
+        {/if}
       </div>
     {/if}
 
-    <!-- Inactive agents section -->
-    {#if inactiveAgents.length > 0}
-      <div class="mt-5">
+    <!-- ── Workers A2A ─────────────────────────────────────────────────── -->
+    {#if allWorkers.length > 0}
+      <div class="mt-6">
         <div class="flex items-baseline justify-between mb-3">
-          <h2 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('agents.section_inactive')}</h2>
-          <span class="text-xs text-muted-foreground/50">{inactiveAgents.length}</span>
+          <h2 class="flex items-center gap-1.5 text-sm font-medium uppercase tracking-wider text-muted-foreground">
+            <Zap size={13} class="text-secondary/70" />{$t('agents.section_workers')}
+          </h2>
+          <span class="text-xs text-muted-foreground/50">
+            {activeWorkers.length}/{allWorkers.length} {$t('agents.workers_active_suffix')}
+          </span>
         </div>
-        <div class="grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-grid-inactive">
-          {#each inactiveAgents as agent (agent.name)}
-            <div class="h-full" animate:flip={{ duration: 250 }} in:fly={{ y: 8, duration: 200 }}>
-              <AgentCard {agent} onlogs={openLogs} ondetail={openDetail} onchat={startChatWithAgent} />
-            </div>
-          {/each}
-        </div>
+        <p class="mb-3 text-xs text-muted-foreground/60">{$t('agents.workers_hint')}</p>
+
+        {#if activeWorkers.length > 0}
+          <div class="grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-grid-workers-active">
+            {#each activeWorkers as agent (agent.name)}
+              <div class="h-full" animate:flip={{ duration: 250 }} in:fly={{ y: 8, duration: 200 }}>
+                <AgentCard {agent} onlogs={openLogs} ondetail={openDetail} />
+              </div>
+            {/each}
+          </div>
+        {/if}
+
+        {#if inactiveWorkers.length > 0}
+          <div class="mt-3 grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 opacity-60" data-testid="agents-grid-workers-inactive">
+            {#each inactiveWorkers as agent (agent.name)}
+              <div class="h-full" animate:flip={{ duration: 250 }} in:fly={{ y: 8, duration: 200 }}>
+                <AgentCard {agent} onlogs={openLogs} ondetail={openDetail} />
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    {#if allAssistants.length === 0 && allWorkers.length === 0}
+      <div class="mt-6">
+        <EmptyState
+          icon={Bot}
+          title={$t('agents.empty_title_install')}
+          subtitle={$t('agents.empty_subtitle_install')}
+          ctaLabel={$t('agents.install')}
+          ctaAction={pickAndInstallAgent}
+          page="agents"
+        />
       </div>
     {/if}
   {/if}

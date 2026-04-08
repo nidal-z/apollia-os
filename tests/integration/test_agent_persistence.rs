@@ -136,6 +136,7 @@ fn test_manifest(name: &str, version: &str) -> AgentManifest {
         tools_requiring_approval: vec![],
         llm_backend: None,
         packages: vec![],
+        memory_config: None,
     }
 }
 
@@ -183,6 +184,8 @@ fn test_supervisor_config(
         api_config: APIServerConfig {
             socket_path: PathBuf::from(format!("/tmp/ap-persist-{socket_id}.sock")),
             tcp_port,
+            bind_addr: "127.0.0.1".to_string(),
+            api_token: None,
         },
         startup_timeout_secs: 10,
         llm_config: None,
@@ -193,6 +196,7 @@ fn test_supervisor_config(
         obs_config: apollia_core::ObservabilityConfig::default(),
         agent_repository,
         bundled_agents_path: None,
+        pipelines_config: apollia_core::PipelinesConfig::default(),
     }
 }
 

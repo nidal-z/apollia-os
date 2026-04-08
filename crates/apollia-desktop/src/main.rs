@@ -378,9 +378,15 @@ fn main() {
 
                         // Recording overlay: secondary always-on-top window that
                         // shows a visual indicator while audio capture is active.
+                        // Escape cancels (discards) the current recording.
+                        let flow_cancel = Arc::clone(&flow);
+                        let on_cancel = Arc::new(move || {
+                            flow_cancel.cancel_recording();
+                        });
                         match stt::overlay::RecordingOverlay::create(
                             app.handle(),
                             stt_cfg.hotkey.clone(),
+                            on_cancel,
                         ) {
                             Ok(overlay) => {
                                 stt::overlay::spawn_overlay_listener(
@@ -503,6 +509,7 @@ fn main() {
             commands::chat::update_chat_session,
             commands::chat::send_chat_message,
             commands::chat::authorize_chat_tool,
+            commands::chat::list_a2a_skills,
             commands::user::get_user_profile,
             commands::user::update_user_profile,
             commands::user::get_user_memory,
@@ -568,8 +575,22 @@ fn main() {
             // Workspace
             commands::workspace::get_workspace_status,
             commands::workspace::init_workspace,
+            // Projects
+            commands::projects::list_projects,
+            commands::projects::get_project,
+            commands::projects::create_project,
+            commands::projects::update_project,
+            commands::projects::delete_project,
+            commands::projects::upload_project_document,
+            commands::projects::delete_project_document,
+            commands::projects::list_project_templates,
+            commands::projects::get_project_snapshot,
             // Review
             commands::review::start_code_review,
+            // CLI install
+            commands::cli::get_cli_status,
+            commands::cli::install_cli,
+            commands::cli::uninstall_cli,
             // Pipelines (registry)
             commands::pipelines::install_pipeline,
             commands::pipelines::list_pipeline_registry,

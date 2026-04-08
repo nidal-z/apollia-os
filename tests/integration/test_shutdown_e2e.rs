@@ -111,6 +111,7 @@ fn test_manifest(name: &str) -> AgentManifest {
         tools_requiring_approval: vec![],
         llm_backend: None,
         packages: vec![],
+        memory_config: None,
     }
 }
 
@@ -187,11 +188,23 @@ async fn test_shutdown_drains_active_tasks() {
         notification_repo: None,
         notification_engine_handle: None,
         chat_manager: None,
+        plan_cache: None,
+        mailbox_handle: None,
+        user_memory: None,
+        stt_engine: None,
+        stt_repository: None,
+        mcp_handle: None,
+        mcp_server_repo: None,
+        llm_backend_repo: None,
+        stt_config_repo: None,
+        a2a_invoker: None,
     };
     let api = APIServer::new(
         APIServerConfig {
             socket_path: socket_path.clone(),
             tcp_port: port,
+            bind_addr: "127.0.0.1".to_string(),
+            api_token: None,
         },
         state,
     );
@@ -274,11 +287,23 @@ async fn test_shutdown_stops_all_agents() {
         notification_repo: None,
         notification_engine_handle: None,
         chat_manager: None,
+        plan_cache: None,
+        mailbox_handle: None,
+        user_memory: None,
+        stt_engine: None,
+        stt_repository: None,
+        mcp_handle: None,
+        mcp_server_repo: None,
+        llm_backend_repo: None,
+        stt_config_repo: None,
+        a2a_invoker: None,
     };
     let api = APIServer::new(
         APIServerConfig {
             socket_path: socket_path.clone(),
             tcp_port: port,
+            bind_addr: "127.0.0.1".to_string(),
+            api_token: None,
         },
         state,
     );
@@ -351,11 +376,23 @@ async fn test_shutdown_broadcasts_requested_event() {
         notification_repo: None,
         notification_engine_handle: None,
         chat_manager: None,
+        plan_cache: None,
+        mailbox_handle: None,
+        user_memory: None,
+        stt_engine: None,
+        stt_repository: None,
+        mcp_handle: None,
+        mcp_server_repo: None,
+        llm_backend_repo: None,
+        stt_config_repo: None,
+        a2a_invoker: None,
     };
     let api = APIServer::new(
         APIServerConfig {
             socket_path: socket_path.clone(),
             tcp_port: port,
+            bind_addr: "127.0.0.1".to_string(),
+            api_token: None,
         },
         state,
     );
@@ -450,11 +487,23 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         notification_repo: None,
         notification_engine_handle: None,
         chat_manager: None,
+        plan_cache: None,
+        mailbox_handle: None,
+        user_memory: None,
+        stt_engine: None,
+        stt_repository: None,
+        mcp_handle: None,
+        mcp_server_repo: None,
+        llm_backend_repo: None,
+        stt_config_repo: None,
+        a2a_invoker: None,
     };
     let api = APIServer::new(
         APIServerConfig {
             socket_path: socket_path.clone(),
             tcp_port: port,
+            bind_addr: "127.0.0.1".to_string(),
+            api_token: None,
         },
         state,
     );

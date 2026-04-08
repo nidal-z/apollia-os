@@ -23,7 +23,7 @@ use apollia_core::{
 use apollia_llm::{CompletionModel, LlmRouter};
 use apollia_memory::manager::MemoryManager;
 
-use apollia_workspace::{WorkspaceAssembler, WorkspaceConfig};
+use apollia_workspace::ProjectRuntime;
 
 use crate::actor::{ActorLoop, ToolProxyTrait};
 use crate::budget::StepBudget;
@@ -201,7 +201,7 @@ pub struct ORIAEngine {
     ///
     /// Collecte la branche git, l'état des fichiers et le contenu d'`APOLLIA.md`
     /// au démarrage d'une tâche orchestrée, puis injecte le résultat dans le system prompt.
-    workspace_assembler: WorkspaceAssembler,
+    workspace_assembler: ProjectRuntime,
     /// Répertoire de travail utilisé comme racine pour la collecte workspace.
     ///
     /// Initialisé à `"."` par défaut ; surchargeable via [`with_cwd`](ORIAEngine::with_cwd).
@@ -240,7 +240,7 @@ impl ORIAEngine {
             task_repository: None,
             memory_manager: None,
             plan_cache: None,
-            workspace_assembler: WorkspaceAssembler::new(WorkspaceConfig::default()),
+            workspace_assembler: ProjectRuntime::default_project(),
             cwd: PathBuf::from("."),
             context_manager,
         }
@@ -382,13 +382,13 @@ impl ORIAEngine {
 
     /// Collecte le contexte workspace et retourne les blocs `<context name="...">`.
     ///
-    /// Utilise [`WorkspaceAssembler`] avec le cache TTL configuré pour éviter
+    /// Utilise [`ProjectRuntime`] avec le cache TTL configuré pour éviter
     /// les I/O répétées. Retourne une chaîne vide si aucun contexte n'est disponible
     /// (répertoire hors dépôt git, aucun `APOLLIA.md`, ou timeout de collecte dépassé).
     /// Chaque section est encapsulée dans son propre tag `<context name="...">`.
     pub async fn build_system_prompt(&self) -> String {
-        let snapshots = self.workspace_assembler.collect_all(&self.cwd).await;
-        WorkspaceAssembler::format_for_prompt(&snapshots)
+        let snapshot = self.workspace_assembler.collect(&self.cwd).await;
+        snapshot.format_for_prompt()
     }
 
     // ─── Binary Feedback ─────────────────────────────────────────────────
@@ -1654,6 +1654,7 @@ mod orchestrated_tests {
             tools_requiring_approval: vec![],
             llm_backend: None,
             packages: vec![],
+            memory_config: None,
         }
     }
 
@@ -1796,6 +1797,7 @@ mod orchestrated_tests {
                 tools_requiring_approval: vec![],
                 llm_backend: None,
                 packages: vec![],
+                memory_config: None,
             },
         };
         let task = AIPTask::default();

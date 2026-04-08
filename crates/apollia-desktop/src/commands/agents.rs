@@ -31,6 +31,17 @@ pub struct InstallAgentResponse {
     pub install_path: String,
 }
 
+/// Skill déclaré par un agent worker dans son manifest.
+#[derive(Debug, Serialize)]
+pub struct AgentSkillView {
+    /// Identifiant unique du skill (e.g. `"read-excel"`).
+    pub id: String,
+    /// Nom lisible du skill.
+    pub name: String,
+    /// Description courte du skill.
+    pub description: String,
+}
+
 /// Élément de la liste enrichie des agents.
 ///
 /// Fusionne les agents installés (persistés dans `agents.db`) avec les agents
@@ -63,6 +74,8 @@ pub struct AgentListItem {
     pub install_path: Option<String>,
     /// Indique si l'agent supporte la communication inter-agents (A2A).
     pub supports_a2a: bool,
+    /// Skills A2A déclarés (vide si `supports_a2a` est `false`).
+    pub skills: Vec<AgentSkillView>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -150,6 +163,11 @@ pub async fn list_agents(
             execution_mode: Some(manifest.execution_mode.clone()),
             install_path: Some(agent.install_path.to_string_lossy().to_string()),
             supports_a2a: manifest.supports_a2a,
+            skills: manifest.skills.iter().map(|s| AgentSkillView {
+                id: s.id.clone(),
+                name: s.name.clone(),
+                description: s.description.clone(),
+            }).collect(),
         });
     }
 
@@ -176,6 +194,11 @@ pub async fn list_agents(
                 execution_mode: Some(manifest.execution_mode.clone()),
                 install_path: None,
                 supports_a2a: manifest.supports_a2a,
+                skills: manifest.skills.iter().map(|s| AgentSkillView {
+                    id: s.id.clone(),
+                    name: s.name.clone(),
+                    description: s.description.clone(),
+                }).collect(),
             });
         }
     }
@@ -841,6 +864,7 @@ mod tests {
             execution_mode: Some("auto".to_string()),
             install_path: Some("/home/user/.apollia/agents/hello-agent/agent.py".to_string()),
             supports_a2a: true,
+            skills: vec![],
         };
 
         // WHEN serialized to JSON
@@ -877,6 +901,7 @@ mod tests {
             execution_mode: Some("direct".to_string()),
             install_path: Some("/home/user/.apollia/agents/disabled-agent/agent.py".to_string()),
             supports_a2a: false,
+            skills: vec![],
         };
 
         // WHEN serialized to JSON
@@ -908,6 +933,7 @@ mod tests {
             execution_mode: Some("auto".to_string()),
             install_path: None,
             supports_a2a: false,
+            skills: vec![],
         };
 
         // WHEN serialized to JSON

@@ -51,6 +51,7 @@ fn make_channel(url: &str) -> WebhookChannel {
         enabled: true,
         events: None,
         signing_secret: None,
+        min_severity: Severity::Info,
     })
 }
 

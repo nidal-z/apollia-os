@@ -117,7 +117,7 @@ fn webhook_def(id: &str, secret: &str) -> TriggerDefinition {
         agent: "crm-agent".into(),
         pipeline: None,
         enabled: true,
-        on_busy: OnBusyPolicy::Queue,
+        on_busy: OnBusyPolicy::Queue { max_depth: 16 },
         source: TriggerSourceConfig::Webhook {
             secret: secret.into(),
         },
@@ -170,6 +170,16 @@ async fn build_webhook_state(
         notification_repo: None,
         notification_engine_handle: None,
         chat_manager: None,
+        plan_cache: None,
+        mailbox_handle: None,
+        user_memory: None,
+        stt_engine: None,
+        stt_repository: None,
+        mcp_handle: None,
+        mcp_server_repo: None,
+        llm_backend_repo: None,
+        stt_config_repo: None,
+        a2a_invoker: None,
     };
     (state, submit_count)
 }
@@ -191,6 +201,8 @@ async fn start_test_server(state: AppState<MockBackend>) -> (APIServerHandle, u1
     let config = APIServerConfig {
         socket_path: socket_path.clone(),
         tcp_port: port,
+        bind_addr: "127.0.0.1".to_string(),
+        api_token: None,
     };
     let server = APIServer::new(config, state);
     let handle = server.start().await.expect("APIServer start failed");

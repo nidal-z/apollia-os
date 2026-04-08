@@ -183,6 +183,25 @@ impl NativeChatToolInvoker {
         let output = tool.run(input).await.map_err(|e| e.to_string())?;
         serde_json::to_string(&output).map_err(|e| e.to_string())
     }
+
+    /// Execute `memory_search` with the given JSON arguments.
+    ///
+    /// Searches the user's local memory store (`~/.apollia/memory/user.db`) using
+    /// FTS5 full-text search. The namespace is fixed to `"user"` in chat libre mode
+    /// — agents have their own namespaced databases.
+    async fn invoke_memory_search(
+        &self,
+        arguments: &serde_json::Value,
+    ) -> Result<String, String> {
+        use apollia_tools::tools::memory_search::{MemorySearchInput, MemorySearchTool};
+
+        let base_dir = self.home_dir.join(".apollia").join("memory");
+        let tool = MemorySearchTool::new("user".to_string(), vec![], base_dir);
+        let input: MemorySearchInput = serde_json::from_value(arguments.clone())
+            .map_err(|e| format!("memory_search: invalid arguments: {e}"))?;
+        let output = tool.run(input).await.map_err(|e| e.to_string())?;
+        serde_json::to_string(&output).map_err(|e| e.to_string())
+    }
 }
 
 #[async_trait::async_trait]
@@ -201,6 +220,7 @@ impl ToolInvoker for NativeChatToolInvoker {
             "file_glob" => self.invoke_file_glob(arguments).await,
             "file_grep" => self.invoke_file_grep(arguments).await,
             "http_fetch" => self.invoke_http_fetch(arguments).await,
+            "memory_search" => self.invoke_memory_search(arguments).await,
             other => Err(format!("unknown tool: {other}")),
         }
     }
@@ -227,6 +247,9 @@ exécute-le immédiatement. Ne demande pas de précisions sauf si la requête es
 détails techniques internes (chemins système, noms d'outils, limitations techniques).
 - **Autonomie** : si une première approche échoue, essaie une alternative avant de signaler un \
 problème à l'utilisateur.
+- **Limites honnêtes** : si une tâche dépasse réellement les capacités de tes outils disponibles, \
+dis-le clairement et propose ce que tu peux faire. Ne refuse jamais d'utiliser un outil qui figure \
+dans ta liste — vérifie d'abord ta liste avant de déclarer une capacité absente.
 
 ## Principes d'utilisation des outils
 
@@ -237,6 +260,10 @@ filesystem entier quand un scope restreint suffit.
 3. **Timeout proportionnel** : adapte `timeout_secs` à la complexité réelle de la commande.
 4. **Résilience** : si une commande échoue ou timeout, analyse la cause et essaie une approche \
 différente plutôt que de relancer la même commande.
+5. **Jamais de valeurs fictives** : n'invente jamais un paramètre inconnu (clé API, token, URL, \
+chemin, identifiant). Si une information requise est absente, demande-la explicitement à \
+l'utilisateur avant d'appeler l'outil. Utiliser un placeholder comme `YOUR_API_KEY` ou \
+`<TOKEN>` dans un appel réel est interdit.
 ";
 
 /// Response produced by a complete chat exchange.
@@ -305,8 +332,10 @@ impl BuiltInChatAgent {
 
         // Inject platform context so the LLM knows the user's environment.
         let home = std::env::var("HOME").unwrap_or_default();
+        let now = chrono::Local::now();
         prompt.push_str(&format!(
-            "\n\n## System Environment\n- OS: {os}\n- Architecture: {arch}\n- Home directory: {home}\n- Working directory: {cwd}",
+            "\n\n## System Environment\n- Date/heure : {datetime}\n- OS: {os}\n- Architecture: {arch}\n- Home directory: {home}\n- Working directory: {cwd}",
+            datetime = now.format("%A %d %B %Y, %H:%M %Z"),
             os = std::env::consts::OS,
             arch = std::env::consts::ARCH,
             home = home,
@@ -404,6 +433,14 @@ impl BuiltInChatAgent {
         loop {
             // Principle #7 — budget check before every LLM call
             if budget.is_exhausted() {
+                let reason = budget
+                    .exhaustion_reason()
+                    .unwrap_or_else(|| "unknown".into());
+                tracing::warn!(
+                    %reason,
+                    session_id = %session_id,
+                    "chat step budget exhausted"
+                );
                 return Err(ChatError::BudgetExhausted);
             }
             budget.increment_steps();
@@ -462,24 +499,27 @@ impl BuiltInChatAgent {
             match stream_result {
                 Ok(tool_calls) => {
                     if tool_calls.is_empty() {
-                        // Final text response (no tool calls)
+                        // Strip reasoning tokens before returning to the user.
+                        let clean = Self::strip_think_blocks(&accumulated_text);
                         let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
                             session_id: session_id.to_string(),
                             message_id: message_id.to_string(),
-                            content: accumulated_text.clone(),
+                            content: clean.clone(),
                         });
 
                         return Ok(ChatAgentResponse {
-                            content: accumulated_text,
+                            content: clean,
                             tool_calls: all_tool_calls,
                             newly_authorized,
                             tokens_used: total_usage,
                         });
                     }
 
-                    // Tool calls detected in stream: process and continue loop
+                    // Tool calls detected in stream: strip think blocks before re-injecting
+                    // into the LLM context so reasoning tokens don't pollute future turns.
+                    let clean_for_context = Self::strip_think_blocks(&accumulated_text);
                     llm_messages.push(LlmChatMessage::assistant_with_calls(
-                        &accumulated_text,
+                        &clean_for_context,
                         &tool_calls,
                     ));
 
@@ -697,6 +737,31 @@ impl BuiltInChatAgent {
             name: name.to_string(),
             arguments,
         })
+    }
+
+    /// Strips `<think>...</think>` blocks emitted by reasoning models (e.g. Qwen3).
+    ///
+    /// Called before re-injecting the assistant's turn into `llm_messages` and before
+    /// returning the final content to the user. This prevents thinking tokens from
+    /// polluting the context window across turns.
+    fn strip_think_blocks(text: &str) -> String {
+        let tag_open = "<think>";
+        let tag_close = "</think>";
+        let mut result = String::with_capacity(text.len());
+        let mut cursor = 0;
+
+        while let Some(start) = text[cursor..].find(tag_open) {
+            result.push_str(&text[cursor..cursor + start]);
+            let after_open = cursor + start + tag_open.len();
+            if let Some(end) = text[after_open..].find(tag_close) {
+                cursor = after_open + end + tag_close.len();
+            } else {
+                // Unclosed <think> tag — discard everything after it.
+                break;
+            }
+        }
+        result.push_str(&text[cursor..]);
+        result.trim().to_string()
     }
 
     /// Strips `<tool_call>...</tool_call>` tags from text.

@@ -8,6 +8,7 @@
 //!
 //! Aucune dépendance Python — CI OK.
 
+use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -107,6 +108,16 @@ async fn test_runtime_starts_without_llm_router() {
         notification_repo: None,
         notification_engine_handle: None,
         chat_manager: None,
+        plan_cache: None,
+        mailbox_handle: None,
+        user_memory: None,
+        stt_engine: None,
+        stt_repository: None,
+        mcp_handle: None,
+        mcp_server_repo: None,
+        llm_backend_repo: None,
+        stt_config_repo: None,
+        a2a_invoker: None,
     };
 
     // WHEN l'APIServer démarre
@@ -114,6 +125,8 @@ async fn test_runtime_starts_without_llm_router() {
         APIServerConfig {
             socket_path: socket_path.clone(),
             tcp_port: port,
+            bind_addr: "127.0.0.1".to_string(),
+            api_token: None,
         },
         state,
     );
@@ -193,6 +206,10 @@ async fn test_runtime_continues_after_llm_init_failure() {
         default: "backend-inexistant".to_owned(),
         backends: vec![],
         observability: ObservabilityConfig::default(),
+        routing: None,
+        pricing_overrides: HashMap::new(),
+        cost_alert_threshold_usd: None,
+        vertex: None,
     };
 
     // WHEN LlmRouter::from_config() échoue (backend absent)
@@ -236,12 +253,24 @@ async fn test_runtime_continues_after_llm_init_failure() {
         notification_repo: None,
         notification_engine_handle: None,
         chat_manager: None,
+        plan_cache: None,
+        mailbox_handle: None,
+        user_memory: None,
+        stt_engine: None,
+        stt_repository: None,
+        mcp_handle: None,
+        mcp_server_repo: None,
+        llm_backend_repo: None,
+        stt_config_repo: None,
+        a2a_invoker: None,
     };
 
     let api = APIServer::new(
         APIServerConfig {
             socket_path: socket_path.clone(),
             tcp_port: port,
+            bind_addr: "127.0.0.1".to_string(),
+            api_token: None,
         },
         state,
     );

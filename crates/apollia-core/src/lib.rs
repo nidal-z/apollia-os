@@ -33,7 +33,7 @@ pub mod task;
 pub mod token_budget;
 pub mod user;
 pub mod utils;
-pub mod workspace_context;
+pub mod workspace;
 
 pub use budget::StepBudgetConfig;
 pub use config::{
@@ -42,6 +42,7 @@ pub use config::{
     RuntimeConfig, ToolsConfig, TriggersConfig, VertexConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
+pub use workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlice, WorkspaceSnapshot};
 pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
 pub use manifest::{AgentManifest, AgentSkill, MemoryConfig};
@@ -60,4 +61,3 @@ pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, TextP
 pub use token_budget::TokenBudget;
 pub use user::{UpdateProfileRequest, UserMemoryEntryResponse, UserMemoryResponse, UserProfile};
 pub use utils::truncate_middle;
-pub use workspace_context::WorkspaceContext;

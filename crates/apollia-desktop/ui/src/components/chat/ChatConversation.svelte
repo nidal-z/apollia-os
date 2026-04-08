@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
-  import { X, Loader2, Bot, MessageSquare, Settings2, XCircle, Link } from "lucide-svelte";
+  import { X, Loader2, Bot, MessageSquare, Settings2, XCircle, Link, Zap, BrainCircuit, Check } from "lucide-svelte";
   import { currentSession, chatTokenBuffer, useUserMemory, memoryEntryCount, chatConversationStats } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
   import { Badge } from "$lib/components/ui/badge";
@@ -85,7 +85,14 @@
 
   let unlistenToken: UnlistenFn | undefined;
   let unlistenChanged: UnlistenFn | undefined;
+  let unlistenA2A: UnlistenFn | undefined;
   let activeToolName = $state<string | null>(null);
+  /** Non-null while an A2A delegation is in progress. */
+  let activeA2A = $state<{ target: string; skill_id: string } | null>(null);
+  /** Live tool call chain for the current LLM turn — cleared on response completion. */
+  let liveToolChain = $state<
+    { name: string; status: "running" | "done" | "refused"; startedAt: number; durationMs?: number }[]
+  >([]);
 
   onMount(async () => {
     await loadSession();
@@ -102,6 +109,24 @@
       },
     );
 
+    unlistenA2A = await listen<{ category: string; event_type: string; payload: Record<string, unknown> }>(
+      "runtime-event",
+      (event) => {
+        if (event.payload.category !== "a2a") return;
+        const evt = event.payload;
+        if (evt.event_type === "A2AInvocationStarted") {
+          const p = evt.payload as { caller?: string; target?: string; skill_id?: string };
+          // Only show indicator when this session triggered it (caller = "chat-libre")
+          if (p.caller === "chat-libre") {
+            activeA2A = { target: p.target ?? "", skill_id: p.skill_id ?? "" };
+            scrollToBottom();
+          }
+        } else if (evt.event_type === "A2AInvocationCompleted") {
+          activeA2A = null;
+        }
+      },
+    );
+
     unlistenChanged = await listen<{ category: string; event_type: string; payload: Record<string, unknown> }>(
       "runtime-event",
       (event) => {
@@ -112,14 +137,26 @@
           const p = evt.payload as { session_id?: string; tool_name?: string };
           if (p.session_id === sessionId) {
             activeToolName = p.tool_name ?? null;
+            liveToolChain = [
+              ...liveToolChain,
+              { name: p.tool_name ?? "?", status: "running", startedAt: Date.now() },
+            ];
             pendingApproval = null;
             scrollToBottom();
           }
           return;
         }
         if (evt.event_type === "ChatToolCallCompleted") {
-          const p = evt.payload as { session_id?: string };
-          if (p.session_id === sessionId) activeToolName = null;
+          const p = evt.payload as { session_id?: string; success?: boolean };
+          if (p.session_id === sessionId) {
+            activeToolName = null;
+            const now = Date.now();
+            liveToolChain = liveToolChain.map((step, i) =>
+              i === liveToolChain.length - 1 && step.status === "running"
+                ? { ...step, status: p.success === false ? "refused" : "done", durationMs: now - step.startedAt }
+                : step,
+            );
+          }
           return;
         }
         if (evt.event_type === "ChatApprovalRequired") {
@@ -162,6 +199,8 @@
       isProcessing = false;
       tokenBuffer = "";
       activeToolName = null;
+      activeA2A = null;
+      liveToolChain = [];
       messages = [];
       void loadSession();
     }
@@ -170,6 +209,7 @@
   onDestroy(() => {
     unlistenToken?.();
     unlistenChanged?.();
+    unlistenA2A?.();
     currentSession.set(null);
     chatTokenBuffer.set("");
   });
@@ -192,7 +232,7 @@
 
   async function finalizeStreaming(): Promise<void> {
     await new Promise((r) => setTimeout(r, 80));
-    isStreaming = false; isProcessing = false; tokenBuffer = ""; chatTokenBuffer.set("");
+    isStreaming = false; isProcessing = false; tokenBuffer = ""; chatTokenBuffer.set(""); liveToolChain = [];
     try {
       const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
       applySessionDetail(detail); scrollToBottom();
@@ -248,7 +288,7 @@
       seq: (messages ?? []).length, created_at: new Date().toISOString(),
     };
     messages = [...(messages ?? []), tempMsg];
-    isProcessing = true; tokenBuffer = ""; chatTokenBuffer.set("");
+    isProcessing = true; tokenBuffer = ""; chatTokenBuffer.set(""); liveToolChain = [];
     await tick(); scrollToBottom(true);
 
     try {
@@ -382,7 +422,42 @@
           </div>
         {/if}
 
-        {#if activeToolName}
+        {#if activeA2A}
+          <div class="flex justify-start" data-testid="chat-a2a-delegating">
+            <div class="flex items-center gap-1.5 rounded-lg bg-secondary/10 border border-secondary/20 px-3 py-1.5 text-[11px] text-secondary/80">
+              <Zap size={11} class="animate-pulse" />
+              <span>{$t("chat.a2a_delegating", { values: { agent: activeA2A.target, skill: activeA2A.skill_id } })}</span>
+            </div>
+          </div>
+        {:else if liveToolChain.length > 0}
+          <div class="flex justify-start" data-testid="chat-live-reasoning">
+            <div class="max-w-[85%] overflow-hidden rounded-lg border border-border/20 glass-surface px-2.5 py-2">
+              <div class="mb-1.5 flex items-center gap-1.5">
+                <BrainCircuit size={10} class="text-primary/50" />
+                <span class="text-[10px] font-medium text-muted-foreground/60">{$t("chat.reasoning_live")}</span>
+              </div>
+              <div class="space-y-0.5">
+                {#each liveToolChain as step, i (i)}
+                  <div class="flex items-center gap-1.5">
+                    <div class="flex-shrink-0">
+                      {#if step.status === "running"}
+                        <Loader2 size={9} class="animate-spin text-primary/60" />
+                      {:else if step.status === "done"}
+                        <Check size={9} class="text-success/70" />
+                      {:else}
+                        <X size={9} class="text-destructive/70" />
+                      {/if}
+                    </div>
+                    <span class="truncate font-mono text-[11px] text-muted-foreground">{step.name}</span>
+                    {#if step.durationMs !== undefined}
+                      <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/40">{step.durationMs}ms</span>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            </div>
+          </div>
+        {:else if activeToolName}
           <div class="flex justify-start" data-testid="chat-tool-executing">
             <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
               <Loader2 size={11} class="animate-spin" />

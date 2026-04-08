@@ -1,33 +1,30 @@
 //! Collecteur de contexte workspace pour Apollia OS.
 //!
-//! Cette crate collecte automatiquement les informations locales d'un projet
-//! au démarrage d'une tâche ORIA via une architecture multi-provider :
-//! - État du dépôt git (branche, statut, commits récents)
-//! - Contenu de `APOLLIA.md` (règles projet, contexte utilisateur)
-//! - Arborescence du répertoire courant
-//!
-//! Les informations collectées sont agrégées en [`ContextSnapshot`]s
-//! puis injectées dans le system prompt LLM par `apollia-oria` et `apollia-aip`.
+//! Cette crate implémente les [`WorkspaceProvider`]s natifs et l'orchestrateur
+//! [`ProjectRuntime`] qui les compose en parallèle avec cache TTL.
 //!
 //! # Architecture
 //!
 //! ```text
-//! WorkspaceAssembler              ← orchestrateur multi-provider avec cache TTL
-//!   ├── GitWorkspaceProvider      ← git, APOLLIA.md, arborescence, style (ContextProvider)
-//!   └── ScriptContextProvider     ← script/binaire produisant du JSON (ContextProvider)
+//! ProjectRuntime                  ← orchestrateur multi-provider avec cache TTL
+//!   ├── GitProvider               ← branche, statut, commits (WorkspaceProvider)
+//!   ├── RulesProvider             ← fichier de règles APOLLIA.md (WorkspaceProvider)
+//!   ├── TreeProvider              ← arborescence du répertoire (WorkspaceProvider)
+//!   ├── StyleProvider             ← conventions de code via LLM (optionnel)
+//!   └── ScriptProvider            ← script shell produisant du JSON (WorkspaceProvider)
 //! ```
 //!
 //! # Exemple
 //!
 //! ```rust,no_run
-//! use apollia_workspace::{WorkspaceAssembler, WorkspaceConfig};
+//! use apollia_workspace::ProjectRuntime;
 //!
 //! # #[tokio::main]
 //! # async fn main() {
-//! let assembler = WorkspaceAssembler::new(WorkspaceConfig::default());
+//! let runtime = ProjectRuntime::default_project();
 //! let cwd = std::env::current_dir().unwrap();
-//! let snapshots = assembler.collect_all(&cwd).await;
-//! let prompt = WorkspaceAssembler::format_for_prompt(&snapshots);
+//! let snapshot = runtime.collect(&cwd).await;
+//! let prompt = snapshot.format_for_prompt();
 //! println!("{}", prompt);
 //! # }
 //! ```
@@ -41,10 +38,11 @@ pub mod providers;
 pub mod style;
 pub mod tree;
 
-pub use assembler::WorkspaceAssembler;
+pub use assembler::{ProjectRuntime, ProviderEntry};
 pub use commands::{CommandLoader, LoadedCommand};
-pub use config::{ProviderConfig, WorkspaceConfig};
+pub use config::{GitProviderConfig, RuntimeConfig, RulesProviderConfig, StyleProviderConfig};
+pub use providers::{GitProvider, RulesProvider, ScriptProvider, StyleProvider, TreeProvider};
 pub use style::StyleDetector;
 
 // Re-exports from apollia-core for consumer convenience
-pub use apollia_core::context::{ContextProvider, ContextSection, ContextSnapshot};
+pub use apollia_core::workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlice, WorkspaceSnapshot};

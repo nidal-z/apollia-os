@@ -2,13 +2,13 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { MessageSquare, Plus, Loader2, Bot, X, ChevronDown } from "lucide-svelte";
+  import { MessageSquare, Plus, Loader2, Bot, X, ChevronDown, Zap } from "lucide-svelte";
   import { connectionStatus } from "$lib/stores/sse";
   import { activeChatSessions, closedChatSessions, pendingChatSessionId } from "$lib/stores/chat";
   import { chatSessions } from "$lib/stores/sse";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import type { ChatSessionSummary, CreateSessionRequest, AgentListItem } from "$lib/types";
+  import type { ChatSessionSummary, CreateSessionRequest, AgentListItem, A2ASkillView } from "$lib/types";
   import { TOOL_GROUPS, TOOL_CATALOG, DEFAULT_ENABLED_TOOLS, getGroupState, toggleGroup } from "$lib/tools/tool-catalog";
   import { uiMode } from "$lib/stores/mode";
   import EmptyState from "../components/common/EmptyState.svelte";
@@ -20,6 +20,7 @@
   let showNewChatPicker = $state(false);
   let agents = $state<AgentListItem[]>([]);
   let loadingAgents = $state(false);
+  let a2aSkills = $state<A2ASkillView[]>([]);
   let enabledTools = $state(new Set<string>(DEFAULT_ENABLED_TOOLS));
   const selectedTools = $derived(Array.from(enabledTools));
   const isOperator = $derived($uiMode === "operator");
@@ -39,8 +40,45 @@
 
   async function loadAgents(): Promise<void> {
     loadingAgents = true;
-    try { agents = await invoke("list_agents"); } catch { agents = []; }
-    finally { loadingAgents = false; }
+    try {
+      [agents, a2aSkills] = await Promise.all([
+        invoke<AgentListItem[]>("list_agents").catch(() => []),
+        invoke<A2ASkillView[]>("list_a2a_skills").catch(() => []),
+      ]);
+    } finally {
+      loadingAgents = false;
+    }
+  }
+
+  /** Worker agents grouped with status from agents list. */
+  const workerAgentGroups = $derived(
+    (() => {
+      const byName: Record<string, { skills: A2ASkillView[]; status: string | null; installPath: string | null }> = {};
+      for (const s of a2aSkills) {
+        if (!byName[s.agent_name]) {
+          const agentEntry = agents.find((a) => a.name === s.agent_name);
+          byName[s.agent_name] = {
+            skills: [],
+            status: agentEntry?.runtime_status ?? null,
+            installPath: agentEntry?.install_path ?? null,
+          };
+        }
+        byName[s.agent_name].skills.push(s);
+      }
+      return Object.entries(byName);
+    })()
+  );
+
+  let startingWorker = $state<string | null>(null);
+
+  async function startWorker(installPath: string, agentName: string): Promise<void> {
+    startingWorker = agentName;
+    try {
+      await invoke("start_agent", { path: installPath });
+      // Reload to pick up new status
+      await loadAgents();
+    } catch { /* errors surface via runtime events */ }
+    finally { startingWorker = null; }
   }
 
   async function createLibreChat(): Promise<void> {
@@ -119,12 +157,12 @@
             {@const isExpanded = expandedGroup === group.id}
             <button
               class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-all
-                {isExpanded
-                  ? 'bg-primary/15 text-primary ring-1 ring-primary/30'
-                  : state === 'all'
-                  ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
+                {state === 'all'
+                  ? `bg-primary/10 text-primary ring-1 ${isExpanded ? 'ring-primary/40' : 'ring-primary/20'}`
                   : state === 'some'
-                  ? 'bg-primary/5 text-primary/60 ring-1 ring-primary/10'
+                  ? `bg-primary/5 text-primary/60 ring-1 ${isExpanded ? 'ring-primary/30' : 'ring-primary/10'}`
+                  : isExpanded
+                  ? 'bg-muted/60 text-foreground ring-1 ring-border/60'
                   : 'bg-muted/40 text-muted-foreground hover:bg-muted/60'}"
               onclick={() => { expandedGroup = isExpanded ? null : group.id; }}
               data-testid="pick-group-{group.id}"
@@ -170,6 +208,52 @@
             {/each}
           {/if}
         </div>
+
+        <!-- Row 1b: Worker agents (A2A) with status -->
+        {#if workerAgentGroups.length > 0}
+          <div class="flex flex-col gap-1.5 pt-2 border-t border-border/15">
+            <span class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40">
+              {$t("chat.a2a_workers")}
+            </span>
+            {#each workerAgentGroups as [agentName, { skills, status, installPath }] (agentName)}
+              {@const isActive = status === "active" || status === "degraded"}
+              <div class="flex items-center gap-2 flex-wrap">
+                <!-- Status dot + name -->
+                <div class="flex items-center gap-1.5">
+                  <span class="h-1.5 w-1.5 rounded-full {isActive ? 'bg-secondary/80' : 'bg-muted-foreground/30'}"></span>
+                  <span class="text-[10px] font-medium {isActive ? 'text-secondary/80' : 'text-muted-foreground/50'} flex items-center gap-0.5">
+                    <Zap size={9} />
+                    {agentName}
+                  </span>
+                </div>
+                <!-- Skills -->
+                {#if isActive}
+                  {#each skills as skill (skill.skill_id)}
+                    <span
+                      class="rounded px-1.5 py-0.5 text-[10px] bg-secondary/10 text-secondary/80"
+                      title={skill.description}
+                      data-testid="a2a-skill-{skill.skill_id}"
+                    >
+                      {skill.skill_name}
+                    </span>
+                  {/each}
+                {:else}
+                  <span class="text-[10px] text-muted-foreground/40 italic">{$t("chat.a2a_worker_stopped")}</span>
+                  {#if installPath}
+                    <button
+                      class="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] bg-primary/10 text-primary/70 hover:bg-primary/20 transition-colors disabled:opacity-40"
+                      onclick={() => startWorker(installPath, agentName)}
+                      disabled={startingWorker === agentName}
+                      data-testid="a2a-start-worker-{agentName}"
+                    >
+                      {startingWorker === agentName ? $t("agents.starting_agent") : $t("chat.a2a_start_worker")}
+                    </button>
+                  {/if}
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
 
         <!-- Row 2: expanded group detail (accordion) -->
         {#if expandedGroup}

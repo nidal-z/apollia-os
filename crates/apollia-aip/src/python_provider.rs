@@ -1,12 +1,12 @@
-//! [`PythonContextProvider`] — provider de contexte basé sur un module Python.
+//! [`PythonProvider`] — provider de contexte basé sur un module Python.
 //!
 //! Contrat duck-typing Python : `manifest()` + `async collect(config)`.
-//! Le module est chargé depuis un chemin de fichier configuré dans `apollia.toml`.
+//! Le module est chargé depuis un chemin de fichier configuré dans la base de données.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use apollia_core::context::{ContextProvider, ContextSection, ContextSnapshot};
+use apollia_core::workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlice};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
@@ -14,10 +14,11 @@ use pyo3::types::{PyDict, PyList};
 ///
 /// Contrat minimal du module : `manifest() -> dict` + `collect(config: dict) -> list[tuple[str, str]]`.
 /// La méthode `is_applicable(cwd: str) -> bool` est optionnelle (défaut `True`).
-pub struct PythonContextProvider {
+pub struct PythonProvider {
     /// Nom du provider, lu depuis `manifest()["name"]` à la construction.
     name: String,
-    /// Description courte, lue depuis `manifest()["description"]`.
+    /// Description courte, lue depuis `manifest()["description"]`. Stockée pour introspection future.
+    #[allow(dead_code)]
     description: String,
     /// Priorité d'affichage, lue depuis `manifest()["priority"]` (défaut 50).
     priority: u8,
@@ -25,7 +26,7 @@ pub struct PythonContextProvider {
     path: PathBuf,
 }
 
-impl PythonContextProvider {
+impl PythonProvider {
     /// Charge le module Python depuis `path` et lit son `manifest()`.
     ///
     /// Retourne une erreur si le fichier n'existe pas, si le module ne peut
@@ -97,7 +98,7 @@ impl PythonContextProvider {
     }
 }
 
-/// Erreurs de chargement d'un [`PythonContextProvider`].
+/// Erreurs de chargement d'un [`PythonProvider`].
 #[derive(Debug, thiserror::Error)]
 pub enum PythonProviderError {
     /// Le chemin du fichier Python est invalide (caractères non-UTF-8).
@@ -112,13 +113,9 @@ pub enum PythonProviderError {
 }
 
 #[async_trait::async_trait]
-impl ContextProvider for PythonContextProvider {
+impl WorkspaceProvider for PythonProvider {
     fn name(&self) -> &str {
         &self.name
-    }
-
-    fn description(&self) -> &str {
-        &self.description
     }
 
     fn priority(&self) -> u8 {
@@ -168,14 +165,14 @@ impl ContextProvider for PythonContextProvider {
     ///
     /// Le module doit retourner une liste de tuples `(titre, contenu)` ou
     /// une liste de dicts `{"title": "...", "content": "..."}`.
-    /// Retourne [`ContextSnapshot::with_error`] si l'appel échoue.
-    async fn collect(&self, cwd: &Path) -> ContextSnapshot {
+    /// Retourne [`WorkspaceSlice::with_error`] si l'appel échoue.
+    async fn collect(&self, cwd: &Path) -> WorkspaceSlice {
         let source = self.name.clone();
         let path = self.path.clone();
         let cwd_str = match cwd.to_str() {
             Some(s) => s.to_owned(),
             None => {
-                return ContextSnapshot::with_error(&source, "cwd path is not valid UTF-8".into())
+                return WorkspaceSlice::with_error(&source, "cwd path is not valid UTF-8".into())
             }
         };
 
@@ -253,21 +250,21 @@ impl ContextProvider for PythonContextProvider {
             Ok(Ok(pairs)) => {
                 let sections = pairs
                     .into_iter()
-                    .map(|(title, content)| ContextSection {
+                    .map(|(title, content)| WorkspaceSection {
                         title,
                         content,
                         source: source.clone(),
                     })
                     .collect();
-                ContextSnapshot {
+                WorkspaceSlice {
                     source: source.clone(),
                     sections,
                     errors: vec![],
                     collected_at: Instant::now(),
                 }
             }
-            Ok(Err(e)) => ContextSnapshot::with_error(&source, e),
-            Err(e) => ContextSnapshot::with_error(&source, format!("spawn_blocking panic: {e}")),
+            Ok(Err(e)) => WorkspaceSlice::with_error(&source, e),
+            Err(e) => WorkspaceSlice::with_error(&source, format!("spawn_blocking panic: {e}")),
         }
     }
 }

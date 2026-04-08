@@ -344,6 +344,38 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
     }
 }
 
+/// Flat view of an A2A skill for the frontend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct A2ASkillView {
+    pub skill_id: String,
+    pub agent_name: String,
+    pub skill_name: String,
+    pub description: String,
+}
+
+/// Lists all A2A skills available from active worker agents.
+///
+/// Returns an empty list when A2A is not wired or no workers are active.
+#[tauri::command]
+pub async fn list_a2a_skills(
+    state: State<'_, RuntimeHandle>,
+) -> Result<Vec<A2ASkillView>, String> {
+    let manager = match state.chat_manager.as_ref() {
+        Some(m) => m,
+        None => return Ok(Vec::new()),
+    };
+    let skills = manager.list_a2a_skills().await;
+    Ok(skills
+        .into_iter()
+        .map(|s| A2ASkillView {
+            skill_id: s.skill_id,
+            agent_name: s.agent_name,
+            skill_name: s.skill_name,
+            description: s.description,
+        })
+        .collect())
+}
+
 /// Convert a [`ChatRole`] to its string representation.
 fn role_to_string(role: &apollia_runtime::chat::ChatRole) -> String {
     match role {

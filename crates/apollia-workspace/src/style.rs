@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use apollia_llm::{ChatMessage, CompletionRequest, LlmRouter};
 
-use crate::config::WorkspaceConfig;
+use crate::config::StyleProviderConfig;
 
 /// Extensions exclues de la détection du langage dominant.
 ///
@@ -54,16 +54,16 @@ impl StyleDetector {
     pub async fn detect(
         cwd: &Path,
         llm_router: &LlmRouter,
-        config: &WorkspaceConfig,
+        config: &StyleProviderConfig,
     ) -> Option<String> {
         let ext = Self::dominant_extension(cwd).await?;
 
-        let files = Self::sample_files(cwd, &ext, config.style_sample_count).await;
+        let files = Self::sample_files(cwd, &ext, config.sample_count).await;
         if files.is_empty() {
             return None;
         }
 
-        let samples = Self::collect_samples(&files, config.style_sample_lines_per_file).await;
+        let samples = Self::collect_samples(&files, config.sample_lines_per_file).await;
 
         let prompt = format!(
             "Extract the coding style conventions from these {} code samples in 5 bullet points max. \
@@ -85,7 +85,7 @@ impl StyleDetector {
         };
 
         let result = tokio::time::timeout(
-            Duration::from_millis(config.style_detection_timeout_ms),
+            Duration::from_millis(config.timeout_ms),
             backend.complete(req),
         )
         .await;

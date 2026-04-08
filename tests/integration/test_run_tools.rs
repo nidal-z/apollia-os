@@ -56,9 +56,12 @@ impl CompletionModel for MockStopModel {
                 prompt_tokens: 5,
                 completion_tokens: 5,
                 cost_usd: None,
+                cache_read_input_tokens: 0,
+                cache_write_input_tokens: 0,
             },
             finish_reason: FinishReason::Stop,
             latency_ms: 0,
+            ttft_ms: None,
         })
     }
 
@@ -127,9 +130,12 @@ impl CompletionModel for MockReActModel {
                     prompt_tokens: 10,
                     completion_tokens: 2,
                     cost_usd: None,
+                    cache_read_input_tokens: 0,
+                    cache_write_input_tokens: 0,
                 },
                 finish_reason: FinishReason::ToolCalls,
                 latency_ms: 0,
+                ttft_ms: None,
             })
         } else {
             Ok(CompletionResponse {
@@ -139,9 +145,12 @@ impl CompletionModel for MockReActModel {
                     prompt_tokens: 5,
                     completion_tokens: 5,
                     cost_usd: None,
+                    cache_read_input_tokens: 0,
+                    cache_write_input_tokens: 0,
                 },
                 finish_reason: FinishReason::Stop,
                 latency_ms: 0,
+                ttft_ms: None,
             })
         }
     }
@@ -200,9 +209,12 @@ impl CompletionModel for MockInfiniteToolCallModel {
                 prompt_tokens: 5,
                 completion_tokens: 2,
                 cost_usd: None,
+                cache_read_input_tokens: 0,
+                cache_write_input_tokens: 0,
             },
             finish_reason: FinishReason::ToolCalls,
             latency_ms: 0,
+            ttft_ms: None,
         })
     }
 

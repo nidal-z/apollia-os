@@ -43,9 +43,12 @@ impl CompletionModel for StubLlm {
                 prompt_tokens: 0,
                 completion_tokens: 0,
                 cost_usd: None,
+                cache_read_input_tokens: 0,
+                cache_write_input_tokens: 0,
             },
             finish_reason: FinishReason::Stop,
             latency_ms: 0,
+            ttft_ms: None,
         })
     }
 

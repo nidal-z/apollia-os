@@ -68,9 +68,12 @@ fn text_response(content: &str) -> CompletionResponse {
             prompt_tokens: 10,
             completion_tokens: 5,
             cost_usd: None,
+            cache_read_input_tokens: 0,
+            cache_write_input_tokens: 0,
         },
         finish_reason: FinishReason::Stop,
         latency_ms: 1,
+        ttft_ms: None,
     }
 }
 
@@ -87,9 +90,12 @@ fn tool_call_response(tool_name: &str, arguments: serde_json::Value) -> Completi
             prompt_tokens: 10,
             completion_tokens: 5,
             cost_usd: None,
+            cache_read_input_tokens: 0,
+            cache_write_input_tokens: 0,
         },
         finish_reason: FinishReason::ToolCalls,
         latency_ms: 1,
+        ttft_ms: None,
     }
 }
 
@@ -248,6 +254,8 @@ fn build_chat_app_state(
         event_sender.clone(),
         budget_config,
         None, // no user memory in tests
+        registry_handle.clone(),
+        None, // no A2A invoker in tests
     )
     .expect("ChatSessionManager spawn");
 
@@ -274,6 +282,16 @@ fn build_chat_app_state(
         notification_repo: None,
         notification_engine_handle: None,
         chat_manager: Some(chat_manager),
+        plan_cache: None,
+        mailbox_handle: None,
+        user_memory: None,
+        stt_engine: None,
+        stt_repository: None,
+        mcp_handle: None,
+        mcp_server_repo: None,
+        llm_backend_repo: None,
+        stt_config_repo: None,
+        a2a_invoker: None,
     };
 
     (state, event_rx)
@@ -295,6 +313,8 @@ async fn start_chat_server(
     let config = APIServerConfig {
         socket_path: socket_path.clone(),
         tcp_port: port,
+        bind_addr: "127.0.0.1".to_string(),
+        api_token: None,
     };
     let server = APIServer::new(config, state);
     let handle = server.start().await.expect("APIServer start failed");

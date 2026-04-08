@@ -7,7 +7,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Toggle } from "$lib/components/ui/toggle";
-  import { Play, Square, MessageSquare, Trash2, RefreshCw } from "lucide-svelte";
+  import { Play, Square, MessageSquare, Trash2, RefreshCw, Zap } from "lucide-svelte";
 
   interface Props {
     agent: AgentListItem;
@@ -166,6 +166,11 @@
         </div>
       </div>
       <div class="flex items-center gap-1">
+        {#if agent.supports_a2a}
+          <Badge variant="outline" class="text-[9px] px-1.5 py-0 border-secondary/40 text-secondary/80 gap-0.5" data-testid="agent-worker-badge">
+            <Zap size={8} />Worker
+          </Badge>
+        {/if}
         {#if !isInstalled}
           <Badge variant="outline" class="text-[9px] px-1.5 py-0" data-testid="agent-session-badge">{$t("agents.session_only")}</Badge>
         {/if}
@@ -182,8 +187,20 @@
       {agent.description ?? ""}
     </p>
 
-    <!-- Tags -->
-    {#if agent.tags.length > 0}
+    <!-- A2A Skills (workers only) -->
+    {#if agent.supports_a2a && agent.skills.length > 0}
+      <div class="mt-2 flex flex-wrap gap-1">
+        {#each agent.skills as skill (skill.id)}
+          <span
+            class="flex items-center gap-0.5 rounded bg-secondary/10 px-1.5 py-px text-[10px] text-secondary/70"
+            title={skill.description}
+          >
+            <Zap size={8} />{skill.name}
+          </span>
+        {/each}
+      </div>
+    <!-- Tags (non-worker agents) -->
+    {:else if agent.tags.length > 0}
       <div class="mt-2 flex flex-wrap gap-1">
         {#each agent.tags.slice(0, 4) as tag}
           <span class="rounded bg-muted/60 px-1.5 py-px text-[10px] text-muted-foreground">{tag}</span>
@@ -242,10 +259,15 @@
       </div>
     {:else}
       <!-- Primary actions -->
-      {#if isRunning && agent.id && onchat}
+      {#if isRunning && agent.id && onchat && !agent.supports_a2a}
         <Button size="sm" variant="ghost" class="h-6 px-2 text-[11px] gap-1" onclick={() => onchat(agent.name)} data-testid="agent-chat-button-{agent.name}">
           <MessageSquare size={10} /> {$t("nav.chat")}
         </Button>
+      {/if}
+      {#if isRunning && agent.supports_a2a}
+        <span class="flex items-center gap-1 text-[10px] text-secondary/70 pl-1" data-testid="agent-a2a-ready-{agent.name}">
+          <Zap size={9} /> {$t("agents.a2a_ready")}
+        </span>
       {/if}
       {#if isRunning && agent.id}
         <Button size="sm" variant="ghost" class="h-6 px-2 text-[11px] gap-1" onclick={() => { confirmVisible = true; }} data-testid="agent-stop-btn">

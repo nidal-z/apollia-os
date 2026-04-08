@@ -25,6 +25,21 @@ impl Default for StepBudgetConfig {
     }
 }
 
+impl StepBudgetConfig {
+    /// Budget par défaut pour les sessions de chat interactives.
+    ///
+    /// Les sessions de chat sont conversationnelles et impliquent souvent
+    /// de nombreux appels d'outils successifs (recherche web, fetch HTTP, etc.).
+    /// Les limites sont donc plus généreuses que pour l'exécution ORIA.
+    pub fn chat_default() -> Self {
+        Self {
+            max_steps: 50,
+            max_tool_calls: 100,
+            wall_clock_secs: 600,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -37,6 +52,17 @@ mod tests {
         assert_eq!(budget.max_steps, 10);
         assert_eq!(budget.max_tool_calls, 20);
         assert_eq!(budget.wall_clock_secs, 300);
+    }
+
+    #[test]
+    fn test_chat_default_more_generous_than_default() {
+        // GIVEN / WHEN
+        let chat = StepBudgetConfig::chat_default();
+        let oria = StepBudgetConfig::default();
+        // THEN — chat limits are strictly higher
+        assert!(chat.max_steps > oria.max_steps);
+        assert!(chat.max_tool_calls > oria.max_tool_calls);
+        assert!(chat.wall_clock_secs > oria.wall_clock_secs);
     }
 
     #[test]

@@ -8,6 +8,7 @@
 
 pub mod agents;
 pub mod chat;
+pub mod cli;
 pub mod config;
 pub mod hitl;
 pub mod llm;
@@ -18,6 +19,7 @@ pub mod observability;
 pub mod onboarding;
 pub mod pipelines;
 pub mod plan_alternatives;
+pub mod projects;
 pub mod review;
 pub mod stt;
 pub mod tasks;

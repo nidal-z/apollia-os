@@ -252,6 +252,7 @@ dependencies = [
  "apollia-runtime",
  "apollia-stt",
  "apollia-tools",
+ "apollia-workspace",
  "arboard",
  "async-trait",
  "chrono",

@@ -15,7 +15,7 @@ use apollia_core::{A2AConfig, HitlConfig, ObservabilityConfig, PendingApprovals,
 use apollia_llm::LlmRouter;
 use apollia_notifications::NotificationEngineHandle;
 use apollia_pipelines::PipelineEngineHandle;
-use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository};
+use apollia_tools::{AgentRepository, AuditTrailHandle, ProjectRepository, TaskRepository};
 
 use crate::api::routes_agents::{AgentBackendFactory, AgentLoader, StubAgentLoader};
 use crate::api::{APIServerConfig, APIServerHandle};
@@ -95,6 +95,10 @@ pub struct RuntimeHandle {
     ///
     /// Separate connection for read operations. `None` when STT is disabled.
     pub stt_repository: Option<Arc<std::sync::Mutex<apollia_stt::SttRepository>>>,
+    /// Repository des projets — gestion des contextes workspace par projet.
+    ///
+    /// `Some` quand `projects.db` est ouvert avec succès au démarrage.
+    pub project_repository: Option<Arc<ProjectRepository>>,
     /// Port TCP de l'APIServer.
     pub api_port: u16,
 }
@@ -356,6 +360,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         user_memory: handles.user_memory,
         stt_engine: handles.stt_engine,
         stt_repository: handles.stt_repository,
+        project_repository: handles.project_repository,
         api_port: tcp_port,
     })
 }

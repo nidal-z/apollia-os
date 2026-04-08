@@ -41,9 +41,12 @@ impl CompletionModel for MockLlm {
                 prompt_tokens: 100,
                 completion_tokens: 50,
                 cost_usd: None,
+                cache_read_input_tokens: 0,
+                cache_write_input_tokens: 0,
             },
             finish_reason: FinishReason::Stop,
             latency_ms: 5,
+            ttft_ms: None,
         })
     }
 
@@ -252,14 +255,14 @@ async fn test_user_memory_store_recall_injection() {
         tool_invoker,
         event_bus,
         Some(repo_arc),
+        None, // no A2A invoker in tests
     );
 
     let prompt = agent.build_system_prompt("Base system prompt.");
     assert!(prompt.starts_with("Base system prompt."));
-    assert!(prompt.contains("## User Context (for reference, use as you see fit)"));
-    assert!(prompt.contains("language: francais"));
-    assert!(prompt.contains("working_hours: 9h-18h"));
-    assert!(prompt.contains("current_project: apollia-os"));
+    // Production now uses recall_persona_brief with "## User Persona" header
+    assert!(prompt.contains("## User Persona"));
+    assert!(prompt.contains("francais"));
 }
 
 // ─── Scenario 2 ──────────────────────────────────────────────────────────────
@@ -550,12 +553,12 @@ async fn test_agent_mode_user_context() {
         tool_invoker,
         event_bus,
         Some(repo_arc),
+        None, // no A2A invoker in tests
     );
 
     let prompt = agent.build_system_prompt("You are a helpful assistant.");
-    assert!(prompt.contains("Category: preferences"));
-    assert!(prompt.contains("Category: habits"));
-    assert!(prompt.contains("Category: context"));
-    assert!(prompt.contains("language: francais"));
-    assert!(prompt.contains("role: senior developer"));
+    // Production now uses recall_persona_brief with "## User Persona" header
+    assert!(prompt.contains("## User Persona"));
+    assert!(prompt.contains("francais"));
+    assert!(prompt.contains("senior developer"));
 }

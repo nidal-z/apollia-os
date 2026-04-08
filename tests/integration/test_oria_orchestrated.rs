@@ -81,9 +81,12 @@ impl CompletionModel for MockCompletionModel {
                 prompt_tokens: 0,
                 completion_tokens: 0,
                 cost_usd: None,
+                cache_read_input_tokens: 0,
+                cache_write_input_tokens: 0,
             },
             finish_reason: FinishReason::Stop,
             latency_ms: 0,
+            ttft_ms: None,
         })
     }
 
@@ -590,6 +593,7 @@ async fn test_ac7_agent_sans_hook_concatenation() {
                 tools_requiring_approval: vec![],
                 llm_backend: None,
                 packages: vec![],
+                memory_config: None,
             }
         }
         // has_on_plan_complete() returns false by default — auto-concat is used

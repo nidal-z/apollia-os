@@ -8,8 +8,17 @@
     html, body {
       margin: 0;
       padding: 0;
+      width: 100%;
+      height: 100%;
       background: transparent;
       overflow: hidden;
+    }
+    /* 4px inset so the component never touches the window edge.
+       Any OS-level 1px window border falls in the transparent gap. */
+    #overlay {
+      position: absolute;
+      inset: 4px;
+      background: transparent;
     }
   </style>
 </head>

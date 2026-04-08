@@ -715,6 +715,7 @@ mod tests {
             tools_requiring_approval: vec![],
             llm_backend: None,
             packages: vec![],
+            memory_config: None,
         }
     }
 
@@ -1307,6 +1308,7 @@ mod a2a_guard_tests {
             tools_requiring_approval: vec![],
             llm_backend: None,
             packages: vec![],
+            memory_config: None,
         }
     }
 

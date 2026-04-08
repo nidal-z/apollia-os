@@ -29,6 +29,7 @@
     PanelLeftOpen,
     Sparkles,
     Mic,
+    FolderOpen,
   } from "lucide-svelte";
   import type { ComponentType } from "svelte";
 
@@ -38,6 +39,7 @@
   const operatorNav: NavItem[] = [
     { route: "dashboard", labelKey: "nav.home", icon: LayoutDashboard },
     { route: "agents", labelKey: "nav.my_assistants", icon: Bot },
+    { route: "projects", labelKey: "nav.projects", icon: FolderOpen },
     { route: "tasks", labelKey: "nav.activity", icon: ListChecks },
     { route: "chat", labelKey: "nav.chat", icon: MessageSquare },
     { route: "integrations", labelKey: "nav.connections", icon: Plug },
@@ -50,6 +52,7 @@
       items: [
         { route: "dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
         { route: "agents", labelKey: "nav.agents", icon: Bot },
+        { route: "projects", labelKey: "nav.projects", icon: FolderOpen },
         { route: "tasks", labelKey: "nav.tasks", icon: ListChecks },
         { route: "chat", labelKey: "nav.chat", icon: MessageSquare },
         { route: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },

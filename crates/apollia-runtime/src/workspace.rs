@@ -1,29 +1,28 @@
-//! Câblage du [`WorkspaceAssembler`] depuis la configuration runtime.
+//! Factory de [`ProjectRuntime`] depuis la configuration runtime.
 //!
-//! Fournit une factory qui construit un [`WorkspaceAssembler`] configuré
-//! depuis la section `[workspace]` et `[[workspace.providers]]` de `apollia.toml`.
+//! Construit un [`ProjectRuntime`] avec les providers activés.
+//! Les providers Python doivent être ajoutés via [`ProjectRuntime::with_provider`]
+//! par l'appelant après la construction (nécessitent une initialisation Python).
 
 use std::sync::Arc;
 
 use apollia_llm::LlmRouter;
-use apollia_workspace::{
-    config::{ProviderConfig, WorkspaceConfig},
-    WorkspaceAssembler,
-};
+use apollia_workspace::{ProjectRuntime, ProviderEntry};
 
-/// Construit un [`WorkspaceAssembler`] depuis la configuration `[workspace]`.
+/// Construit un [`ProjectRuntime`] depuis la liste de providers configurés.
 ///
-/// Providers supportés depuis la configuration :
-/// - `type = "builtin"`, `name = "git"` → [`GitWorkspaceProvider`]
-/// - `type = "script"` → [`ScriptContextProvider`]
-/// - `type = "python"` → doit être ajouté via [`WorkspaceAssembler::with_provider`]
-///   par l'appelant (nécessite une initialisation Python).
+/// Providers supportés :
+/// - `type = "git"` → [`GitProvider`]
+/// - `type = "rules"` → [`RulesProvider`]
+/// - `type = "tree"` → [`TreeProvider`]
+/// - `type = "style"` → [`StyleProvider`] (nécessite un `LlmRouter`)
+/// - `type = "script"` → [`ScriptProvider`]
 ///
-/// Les providers désactivés (`enabled = false`) sont ignorés silencieusement.
-pub fn build_assembler(
-    config: &WorkspaceConfig,
-    providers_config: &[ProviderConfig],
+/// Les providers de type `"python"` doivent être ajoutés séparément via
+/// [`ProjectRuntime::with_provider`].
+pub fn build_project_runtime(
+    providers: &[ProviderEntry],
     llm_router: Option<Arc<LlmRouter>>,
-) -> WorkspaceAssembler {
-    WorkspaceAssembler::from_config(config, providers_config, llm_router)
+) -> ProjectRuntime {
+    ProjectRuntime::from_providers_config(providers, llm_router)
 }

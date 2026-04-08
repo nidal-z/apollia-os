@@ -38,9 +38,12 @@ impl CompletionModel for MockLlm {
                 prompt_tokens: 100,
                 completion_tokens: 50,
                 cost_usd: None,
+                cache_read_input_tokens: 0,
+                cache_write_input_tokens: 0,
             },
             finish_reason: FinishReason::Stop,
             latency_ms: 5,
+            ttft_ms: None,
         })
     }
 

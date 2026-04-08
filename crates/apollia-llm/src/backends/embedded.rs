@@ -291,8 +291,35 @@ impl EmbeddedBackend {
                 };
                 let content = match &msg.content {
                     MessageContent::Text(t) => t.clone(),
-                    MessageContent::ToolResult { content, .. } => content.clone(),
-                    MessageContent::WithToolCalls { text, .. } => text.clone(),
+                    // Re-embed the tool call markup so the chat template sees a valid
+                    // multi-turn history.  Without this, the assistant turn would be
+                    // empty and the template would fail or produce a malformed prompt
+                    // on the second (post-tool) LLM call.
+                    MessageContent::WithToolCalls { text, tool_calls } => {
+                        let mut c = text.clone();
+                        for call in tool_calls {
+                            let call_json = serde_json::json!({
+                                "name": call.name,
+                                "arguments": call.arguments,
+                            });
+                            let json_str = serde_json::to_string(&call_json)
+                                .unwrap_or_else(|_| "{}".to_string());
+                            if !c.is_empty() && !c.ends_with('\n') {
+                                c.push('\n');
+                            }
+                            c.push_str(&format!("<tool_call>\n{json_str}\n</tool_call>"));
+                        }
+                        c
+                    }
+                    // Include the call ID so the template can correlate the result
+                    // with its originating tool call.
+                    MessageContent::ToolResult { tool_call_id, content } => {
+                        serde_json::json!({
+                            "tool_call_id": tool_call_id,
+                            "content": content,
+                        })
+                        .to_string()
+                    }
                 };
                 LlamaChatMessage::new(role.to_string(), content)
                     .map_err(|e| LlmError::InferenceError(format!("invalid chat message: {e}")))
@@ -316,7 +343,12 @@ impl EmbeddedBackend {
             )
             .map_err(|e| LlmError::InferenceError(format!("chat template failed: {e}")))?;
 
-        Ok((result.prompt, result.grammar))
+        // Grammar désactivée systématiquement : les modèles thinking (ex. Qwen3)
+        // génèrent des tokens <think>...</think> avant la réponse, que la grammar
+        // JSON tool-call rejette immédiatement. Toutes les stacks se vident et
+        // llama.cpp crashe avec GGML_ASSERT(!stacks.empty()).
+        // Le parsing post-hoc via parse_tool_calls() suffit à extraire les tool calls.
+        Ok((result.prompt, None))
     }
 
     /// Exécute l'inférence et retourne le texte généré.

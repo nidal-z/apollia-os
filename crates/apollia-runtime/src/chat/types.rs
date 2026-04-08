@@ -61,6 +61,12 @@ pub enum ChatMode {
     Libre,
     /// Agent-backed session with tool access.
     Agent,
+    /// Contextual platform assistant embedded in the UI.
+    ///
+    /// Like `Libre` but intentionally isolated from user memory and cross-session
+    /// history — the companion helps navigate the platform, not the user's personal
+    /// projects. Memory is never injected automatically (Principle #6).
+    Companion,
 }
 
 impl ChatMode {
@@ -69,6 +75,7 @@ impl ChatMode {
         match self {
             Self::Libre => "libre",
             Self::Agent => "agent",
+            Self::Companion => "companion",
         }
     }
 
@@ -79,6 +86,7 @@ impl ChatMode {
         match s {
             "libre" => Some(Self::Libre),
             "agent" => Some(Self::Agent),
+            "companion" => Some(Self::Companion),
             _ => None,
         }
     }

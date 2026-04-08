@@ -245,20 +245,14 @@ impl AIPBridge {
         let aip_result_class = Python::with_gil(|py| self.aip_result_class.clone_ref(py));
         let input_response_class = Python::with_gil(|py| self.input_response_class.clone_ref(py));
 
-        // Fetch workspace context asynchronously (before spawn_blocking) if cwd is configured.
-        let apollia_md_content: Option<String> = if let Some(ref cwd) = self.cwd {
-            let assembler = apollia_workspace::WorkspaceAssembler::new(
-                apollia_workspace::WorkspaceConfig::default(),
-            );
-            let snapshots = assembler.collect_all(cwd).await;
-            snapshots
-                .iter()
-                .flat_map(|s| &s.sections)
-                .find(|sec| sec.title == "Règles du projet")
-                .map(|sec| sec.content.clone())
-        } else {
-            None
-        };
+        // Collect full workspace snapshot asynchronously (before spawn_blocking) if cwd is configured.
+        let workspace_snapshot: Option<apollia_workspace::WorkspaceSnapshot> =
+            if let Some(ref cwd) = self.cwd {
+                let runtime = apollia_workspace::ProjectRuntime::default_project();
+                Some(runtime.collect(cwd).await)
+            } else {
+                None
+            };
 
         let result_json = tokio::task::spawn_blocking(move || {
             Python::with_gil(|py| -> Result<String, AIPBridgeError> {
@@ -281,18 +275,13 @@ impl AIPBridge {
                         AIPBridgeError::Internal(format!("inject InputResponse failed: {e}"))
                     })?;
 
-                // 1b. Inject APOLLIA.md content into ctx.workspace if available.
-                if let Some(ref content) = apollia_md_content {
+                // 1b. Inject full workspace snapshot into ctx.workspace if available.
+                if let Some(ref snapshot) = workspace_snapshot {
                     if let Ok(ctx_bound) = ctx.bind(py).downcast::<crate::context::RuntimeContext>()
                     {
-                        // Clone the Py<WorkspaceContextPy> handle to avoid borrow conflicts.
-                        let ws_py_opt = ctx_bound
-                            .borrow()
-                            .workspace
-                            .as_ref()
-                            .map(|w| w.clone_ref(py));
-                        if let Some(ws_py) = ws_py_opt {
-                            ws_py.borrow_mut(py).apollia_md = Some(content.clone());
+                        let ws_py = crate::context::WorkspaceContextPy::from_snapshot(snapshot);
+                        if let Ok(new_ws) = pyo3::Py::new(py, ws_py) {
+                            ctx_bound.borrow_mut().workspace = Some(new_ws);
                         }
                     }
                 }
@@ -962,9 +951,8 @@ agent = WorkspaceReader()
         let bridge = create_bridge(code).with_cwd(dir.path().to_owned());
 
         // Build a RuntimeContext with an empty WorkspaceContextPy so ctx.workspace is not None
-        let ws_ctx = apollia_core::WorkspaceContext::default();
         let ctx = Python::with_gil(|py| {
-            let rc = crate::context::RuntimeContext::for_test().with_workspace(ws_ctx);
+            let rc = crate::context::RuntimeContext::for_test().with_empty_workspace();
             pyo3::Py::new(py, rc).expect("ctx").into_any()
         });
 
@@ -1006,9 +994,8 @@ class WsReaderNoMd:
 agent = WsReaderNoMd()
 "#;
         let bridge = create_bridge(code).with_cwd(dir.path().to_owned());
-        let ws_ctx = apollia_core::WorkspaceContext::default();
         let ctx = Python::with_gil(|py| {
-            let rc = crate::context::RuntimeContext::for_test().with_workspace(ws_ctx);
+            let rc = crate::context::RuntimeContext::for_test().with_empty_workspace();
             pyo3::Py::new(py, rc).expect("ctx").into_any()
         });
 

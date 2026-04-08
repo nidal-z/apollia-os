@@ -6,11 +6,12 @@
   "build": {
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": { "script": "npm run dev", "cwd": "ui" },
-    "beforeBuildCommand": { "script": "npm run build", "cwd": "ui" },
+    "beforeBuildCommand": { "script": "bash scripts/bundle-cli.sh", "cwd": "." },
     "frontendDist": "ui/dist"
   },
   "app": {
     "withGlobalTauri": true,
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "Apollia OS",
@@ -27,6 +28,9 @@
     "targets": ["dmg", "app", "appimage", "deb"],
     "icon": [
       "icons/logo.png"
+    ],
+    "resources": [
+      "resources/apollia-os"
     ],
     "macOS": {
       "minimumSystemVersion": "13.0"

@@ -52,9 +52,12 @@ impl CompletionModel for TrackableBackend {
                 prompt_tokens: 10,
                 completion_tokens: 5,
                 cost_usd: None,
+                cache_read_input_tokens: 0,
+                cache_write_input_tokens: 0,
             },
             finish_reason: FinishReason::Stop,
             latency_ms: 1,
+            ttft_ms: None,
         })
     }
 
@@ -117,6 +120,7 @@ fn make_manifest(
         tools_requiring_approval: vec![],
         llm_backend: None,
         packages: vec![],
+        memory_config: None,
     }
 }
 
@@ -168,6 +172,8 @@ async fn test_tool_describe_e2e() {
         sandbox_profile: SandboxProfile::FileSystem,
         tags: vec!["test".to_owned(), "integration".to_owned()],
         dangerous: false,
+        is_read_only: false,
+        risk_score: 0,
     };
 
     registry
@@ -418,7 +424,7 @@ async fn test_weighted_classifier() {
     let simple_task = make_task("Hello world");
 
     // WHEN classified
-    let mode = classify(&simple_task, &simple_manifest, None);
+    let mode = classify(&simple_task, &simple_manifest, None, 0.40);
 
     // THEN Direct (score = 0.0, well below 0.40)
     assert_eq!(
@@ -444,7 +450,7 @@ async fn test_weighted_classifier() {
     let complex_task = make_task("Build a comprehensive analysis pipeline");
 
     // WHEN classified
-    let mode = classify(&complex_task, &complex_manifest, None);
+    let mode = classify(&complex_task, &complex_manifest, None, 0.40);
 
     // THEN Orchestrated (tag=0.40 + tools=0.20 + steps=0.30 = 0.90)
     assert_eq!(
@@ -464,7 +470,7 @@ async fn test_weighted_classifier() {
     let tag_task = make_task("Simple task with multi-step tag");
 
     // WHEN classified
-    let mode = classify(&tag_task, &tag_only_manifest, None);
+    let mode = classify(&tag_task, &tag_only_manifest, None, 0.40);
 
     // THEN Orchestrated (score = 0.40 >= threshold 0.40)
     assert_eq!(
@@ -482,7 +488,7 @@ async fn test_weighted_classifier() {
 async fn test_agent_mailbox_round_trip() {
     // GIVEN an AgentMailbox actor is running
     let bus = make_event_bus();
-    let mailbox = AgentMailboxHandle::spawn(bus);
+    let mailbox = AgentMailboxHandle::spawn(bus, 256);
 
     let payload = serde_json::json!({
         "action": "review",

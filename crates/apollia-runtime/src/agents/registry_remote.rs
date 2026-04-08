@@ -20,7 +20,10 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum AgentInstallSource {
     /// A local filesystem path (file or directory).
-    Local(PathBuf),
+    Local {
+        /// The local filesystem path.
+        path: PathBuf,
+    },
     /// A remote Git repository with an optional tag or branch.
     Git {
         /// The Git remote URL.
@@ -88,7 +91,7 @@ pub fn parse_install_source(s: &str) -> AgentInstallSource {
         };
         AgentInstallSource::Git { url, tag }
     } else {
-        AgentInstallSource::Local(PathBuf::from(s))
+        AgentInstallSource::Local { path: PathBuf::from(s) }
     }
 }
 
@@ -314,7 +317,7 @@ pub async fn install_agent(
             // temp is dropped (and cleaned up) regardless of outcome.
             result
         }
-        AgentInstallSource::Local(path) => {
+        AgentInstallSource::Local { path } => {
             let dir = agent_dir_from_path(path);
             let manifest = read_manifest_file(&dir)?;
             install_from_dir(&dir, &manifest, source.clone(), install_base)
@@ -494,7 +497,7 @@ mod tests {
 
         // THEN AgentInstallSource::Local
         match source {
-            AgentInstallSource::Local(path) => {
+            AgentInstallSource::Local { path } => {
                 assert_eq!(path, PathBuf::from(s));
             }
             _ => panic!("expected Local source"),
@@ -535,7 +538,7 @@ mod tests {
         write_manifest(tmp.path(), "test-local-agent", "1.0.0").expect("write manifest");
 
         let install_base = tempfile::TempDir::new().expect("install base");
-        let source = AgentInstallSource::Local(tmp.path().join("agent.py"));
+        let source = AgentInstallSource::Local { path: tmp.path().join("agent.py") };
 
         // WHEN install_agent(Local(path)) is called
         let result = install_agent(source, install_base.path()).await;
@@ -544,7 +547,7 @@ mod tests {
         let entry = result.expect("install must succeed");
         assert_eq!(entry.name, "test-local-agent");
         assert_eq!(entry.version, "1.0.0");
-        assert!(matches!(entry.source, AgentInstallSource::Local(_)));
+        assert!(matches!(entry.source, AgentInstallSource::Local { path: _ }));
     }
 
     // ── Invalid manifest ──────────────────────────────────────────────────────
@@ -560,7 +563,7 @@ mod tests {
         .expect("write manifest");
 
         let install_base = tempfile::TempDir::new().expect("install base");
-        let source = AgentInstallSource::Local(tmp.path().to_path_buf());
+        let source = AgentInstallSource::Local { path: tmp.path().to_path_buf() };
 
         // WHEN install_agent is called
         let result = install_agent(source, install_base.path()).await;
@@ -590,7 +593,7 @@ mod tests {
         std::fs::write(tmp.path().join("agent.py"), "# agent\n").expect("write");
 
         let install_base = tempfile::TempDir::new().expect("install base");
-        let source = AgentInstallSource::Local(tmp.path().to_path_buf());
+        let source = AgentInstallSource::Local { path: tmp.path().to_path_buf() };
 
         // WHEN install_agent is called
         let result = install_agent(source, install_base.path()).await;
@@ -613,7 +616,7 @@ mod tests {
         write_manifest(tmp.path(), "registry-test-agent", "2.0.0").expect("manifest");
 
         let install_base = tempfile::TempDir::new().expect("install base");
-        let source = AgentInstallSource::Local(py);
+        let source = AgentInstallSource::Local { path: py };
 
         // WHEN install_agent succeeds
         install_agent(source, install_base.path())
@@ -648,7 +651,7 @@ mod tests {
         let old_entry = RegistryEntry {
             name: "my-agent".to_string(),
             version: "0.1.0".to_string(),
-            source: AgentInstallSource::Local(PathBuf::from("/old")),
+            source: AgentInstallSource::Local { path: PathBuf::from("/old") },
             installed_at: Utc::now(),
         };
         update_registry(&registry_path, &old_entry).expect("first write");
@@ -657,7 +660,7 @@ mod tests {
         let new_entry = RegistryEntry {
             name: "my-agent".to_string(),
             version: "0.2.0".to_string(),
-            source: AgentInstallSource::Local(PathBuf::from("/new")),
+            source: AgentInstallSource::Local { path: PathBuf::from("/new") },
             installed_at: Utc::now(),
         };
         update_registry(&registry_path, &new_entry).expect("second write");

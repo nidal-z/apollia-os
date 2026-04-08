@@ -7,7 +7,7 @@
   import { tasks } from "$lib/stores/tasks";
   import { pendingCount } from "$lib/stores/hitl";
   import { navigateTo } from "$lib/stores/navigation";
-  import { LayoutDashboard } from "lucide-svelte";
+  import { LayoutDashboard, Zap } from "lucide-svelte";
   import DashboardHeader from "../components/dashboard/DashboardHeader.svelte";
   import ActiveAgentCard from "../components/dashboard/ActiveAgentCard.svelte";
   import RecentActivity from "../components/dashboard/RecentActivity.svelte";
@@ -32,9 +32,13 @@
   function openLogsFromDetail(agentId: string) { closeDetail(); openLogs(agentId); }
   function closeLogs() { logsOpen = false; }
 
-  let activeAgents = $derived(
-    $agents.filter((a) => a.runtime_status === "active" || a.runtime_status === "degraded"),
+  const activeAssistants = $derived(
+    $agents.filter((a) => !a.supports_a2a && (a.runtime_status === "active" || a.runtime_status === "degraded")),
   );
+  const activeWorkers = $derived(
+    $agents.filter((a) => a.supports_a2a && (a.runtime_status === "active" || a.runtime_status === "degraded")),
+  );
+  const allWorkers = $derived($agents.filter((a) => a.supports_a2a));
 
   let recentTasks = $derived(
     [...$tasks]
@@ -65,9 +69,9 @@
     <section class="lg:col-span-3" data-testid="dashboard-agents-section">
       <div class="flex items-baseline justify-between mb-3">
         <h2 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('dashboard.active_assistants')}</h2>
-        <span class="text-xs text-muted-foreground/60">{activeAgents.length} {$t('dashboard.active_count_suffix')}</span>
+        <span class="text-xs text-muted-foreground/60">{activeAssistants.length} {$t('dashboard.active_count_suffix')}</span>
       </div>
-      {#if activeAgents.length === 0}
+      {#if activeAssistants.length === 0}
         <EmptyState
           icon={LayoutDashboard}
           title={$t('dashboard.no_assistants')}
@@ -77,11 +81,46 @@
         />
       {:else}
         <div class="grid gap-3 sm:grid-cols-1 md:grid-cols-2" data-testid="dashboard-agents-grid">
-          {#each activeAgents as agent, i (agent.name)}
+          {#each activeAssistants as agent, i (agent.name)}
             <div animate:flip={{ duration: 250 }} in:fly={{ y: 8, duration: 200, delay: i * 50 }}>
               <ActiveAgentCard {agent} ondetail={openDetail} />
             </div>
           {/each}
+        </div>
+      {/if}
+
+      <!-- Workers A2A -->
+      {#if allWorkers.length > 0}
+        <div class="mt-5 pt-4 border-t border-border/20">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground/60">
+              <Zap size={11} class="text-secondary/60" />{$t('dashboard.workers_section')}
+            </h3>
+            <button class="text-[10px] text-primary/60 hover:text-primary transition-colors" onclick={navigateToAgents}>
+              {$t('dashboard.manage')}
+            </button>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            {#each allWorkers as worker (worker.name)}
+              {@const isActive = worker.runtime_status === "active" || worker.runtime_status === "degraded"}
+              <div
+                class="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] border
+                  {isActive
+                    ? 'bg-secondary/10 border-secondary/20 text-secondary/80'
+                    : 'bg-muted/30 border-border/30 text-muted-foreground/50'}"
+                title={worker.skills.map(s => s.name).join(', ')}
+                data-testid="dashboard-worker-{worker.name}"
+              >
+                <Zap size={8} />
+                <span class="font-medium">{worker.name}</span>
+                {#if isActive}
+                  <span class="h-1.5 w-1.5 rounded-full bg-secondary/70"></span>
+                {:else}
+                  <span class="text-[9px] opacity-50">{$t('agents.stopped')}</span>
+                {/if}
+              </div>
+            {/each}
+          </div>
         </div>
       {/if}
     </section>

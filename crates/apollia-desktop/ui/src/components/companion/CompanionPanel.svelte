@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { t } from "svelte-i18n";
   import { Bot, Minus, X } from "lucide-svelte";
   import {
@@ -40,7 +40,7 @@
 
   $effect(() => {
     if (panelVisible && !sessionId) {
-      void ensureSession();
+      untrack(() => void ensureSession());
     }
   });
 
