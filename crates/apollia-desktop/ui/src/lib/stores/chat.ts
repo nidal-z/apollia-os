@@ -3,6 +3,9 @@
  *
  * Re-exports the base chatSessions store from sse.ts and provides
  * derived stores for filtered views (active sessions, closed sessions).
+ *
+ * Global streaming & approval stores live in `chat-global.ts` (to avoid
+ * circular dependency with `sse.ts`) and are re-exported here for convenience.
  */
 import { derived, writable } from "svelte/store";
 import { chatSessions, extractedInsights } from "./sse";
@@ -10,6 +13,19 @@ import type { ConversationStatsView } from "$lib/types";
 
 export { chatSessions } from "./sse";
 export { extractedInsights } from "./sse";
+
+// Re-export global chat stores from the cycle-free module
+export {
+  globalTokenBuffers,
+  globalStreamingSessions,
+  pendingChatApprovals,
+  pendingChatApprovalCount,
+  appendGlobalToken,
+  clearGlobalBuffer,
+  addPendingChatApproval,
+  removePendingChatApproval,
+  getPendingChatApprovalForSession,
+} from "./chat-global";
 
 /** Currently viewed session detail (set when navigating to a conversation). */
 export const currentSession = writable<

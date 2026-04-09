@@ -1,24 +1,51 @@
 <script lang="ts">
   import { t } from 'svelte-i18n';
   import { Check } from 'lucide-svelte';
+  import type { TourStep } from '$lib/types';
 
   interface Props {
-    /** Total number of steps in the tour. */
-    totalSteps: number;
-    /** Zero-based index of the current step. */
+    /** Full list of tour steps. */
+    steps: TourStep[];
+    /** Zero-based flat index of the current step. */
     currentStep: number;
-    /** Optional label for each step (indexed by step position). */
-    stepLabels?: string[];
   }
 
-  let { totalSteps, currentStep, stepLabels = [] }: Props = $props();
+  let { steps, currentStep }: Props = $props();
+
+  interface GroupInfo {
+    label: string;
+    startIndex: number;
+    endIndex: number;
+    count: number;
+  }
+
+  let groups = $derived.by(() => {
+    const result: GroupInfo[] = [];
+    for (let i = 0; i < steps.length; i++) {
+      const g = steps[i].group ?? steps[i].id;
+      const last = result[result.length - 1];
+      if (last && last.label === g) {
+        last.endIndex = i;
+        last.count++;
+      } else {
+        result.push({ label: g, startIndex: i, endIndex: i, count: 1 });
+      }
+    }
+    return result;
+  });
 
   type StepState = 'completed' | 'current' | 'future';
 
-  function stepState(index: number): StepState {
-    if (index < currentStep) return 'completed';
-    if (index === currentStep) return 'current';
+  function groupState(group: GroupInfo): StepState {
+    if (currentStep > group.endIndex) return 'completed';
+    if (currentStep >= group.startIndex) return 'current';
     return 'future';
+  }
+
+  function subProgress(group: GroupInfo): string {
+    if (group.count <= 1) return '';
+    const sub = Math.min(currentStep - group.startIndex + 1, group.count);
+    return `${sub}/${group.count}`;
   }
 </script>
 
@@ -28,8 +55,8 @@
   data-testid="tour-progress-rail"
 >
   <ol class="steps-list">
-    {#each Array.from({ length: totalSteps }, (_, i) => i) as index (index)}
-      {@const state = stepState(index)}
+    {#each groups as group, gi (group.label)}
+      {@const state = groupState(group)}
       <li
         class="step-item"
         class:completed={state === 'completed'}
@@ -43,8 +70,13 @@
           {/if}
         </div>
 
-        {#if stepLabels[index]}
-          <span class="step-label">{stepLabels[index]}</span>
+        {#if state === 'current'}
+          <div class="step-info">
+            <span class="step-label">{$t(`onboarding_v2.tour.group.${group.label}`)}</span>
+            {#if group.count > 1}
+              <span class="step-sub">{subProgress(group)}</span>
+            {/if}
+          </div>
         {/if}
       </li>
     {/each}
@@ -81,13 +113,12 @@
     gap: 0.5rem;
   }
 
-  /* Connector line between steps */
+  /* Connector line between groups */
   .step-item:not(:last-child)::after {
     content: '';
     position: absolute;
-    left: 50%;
+    left: 9px;
     top: calc(50% + 8px);
-    transform: translateX(-50%);
     width: 1.5px;
     height: 12px;
     background: rgba(0, 0, 0, 0.1);
@@ -108,14 +139,12 @@
     margin: 7px 0;
   }
 
-  /* Completed step: solid green */
   .step-item.completed .step-dot {
     background: #22c55e;
     color: #ffffff;
     border: none;
   }
 
-  /* Current step: blue with pulse */
   .step-item.current .step-dot {
     background: #3435f5;
     border: 2.5px solid #3435f5;
@@ -123,7 +152,6 @@
     animation: rail-pulse 2s ease-in-out infinite;
   }
 
-  /* Future step: gray with dashed border */
   .step-item.future .step-dot {
     background: transparent;
     border: 1.5px dashed #d1d5db;
@@ -140,20 +168,25 @@
     }
   }
 
+  .step-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
   .step-label {
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: #6b7280;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #3435f5;
     white-space: nowrap;
     line-height: 1;
   }
 
-  .step-item.completed .step-label {
-    color: #22c55e;
-  }
-
-  .step-item.current .step-label {
-    color: #3435f5;
-    font-weight: 600;
+  .step-sub {
+    font-size: 0.5625rem;
+    font-weight: 500;
+    color: rgba(52, 53, 245, 0.6);
+    white-space: nowrap;
+    line-height: 1;
   }
 </style>

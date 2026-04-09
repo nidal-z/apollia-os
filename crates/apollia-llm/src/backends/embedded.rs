@@ -202,6 +202,13 @@ const DEFAULT_MAX_TOKENS: u32 = 2048;
 /// Taille du contexte par défaut.
 const DEFAULT_CTX_SIZE: u32 = 4096;
 
+/// Singleton global pour le backend llama.cpp.
+///
+/// `LlamaBackend::init()` ne peut être appelé qu'une seule fois dans le processus
+/// (AtomicBool interne). On stocke le résultat dans un `Mutex<Option<>>` pour le
+/// réutiliser lors des recharges de modèle (`reload_llm`).
+static LLAMA_BACKEND: std::sync::Mutex<Option<Arc<LlamaBackend>>> = std::sync::Mutex::new(None);
+
 impl EmbeddedBackend {
     /// Charge le modèle depuis le fichier `.gguf` indiqué dans la config.
     ///
@@ -241,8 +248,23 @@ impl EmbeddedBackend {
 
         // Chargement bloquant dans un thread dédié (llama.cpp est synchrone).
         let (backend, model) = tokio::task::spawn_blocking(move || {
-            let backend = LlamaBackend::init()
-                .map_err(|e| LlmError::InferenceError(format!("llama backend init failed: {e}")))?;
+            // LlamaBackend::init() is a process-wide singleton. On reload,
+            // the previous backend is still alive (held by Arc in the old
+            // router/RuntimeHandle), so init() returns BackendAlreadyInitialized.
+            // We cache the backend in a static Mutex to reuse it safely.
+            let backend = {
+                let mut guard = LLAMA_BACKEND.lock().expect("LLAMA_BACKEND poisoned");
+                if let Some(existing) = guard.as_ref() {
+                    existing.clone()
+                } else {
+                    let b = Arc::new(
+                        LlamaBackend::init()
+                            .map_err(|e| LlmError::InferenceError(format!("llama backend init failed: {e}")))?
+                    );
+                    *guard = Some(b.clone());
+                    b
+                }
+            };
 
             let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
 
@@ -263,7 +285,7 @@ impl EmbeddedBackend {
 
         Ok(Self {
             model: Arc::new(model),
-            backend: Arc::new(backend),
+            backend,
             name,
             model_id,
             device,

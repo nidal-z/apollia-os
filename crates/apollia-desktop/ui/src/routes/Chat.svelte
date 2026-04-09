@@ -11,6 +11,7 @@
   import type { ChatSessionSummary, CreateSessionRequest, AgentListItem, A2ASkillView } from "$lib/types";
   import { TOOL_GROUPS, TOOL_CATALOG, DEFAULT_ENABLED_TOOLS, getGroupState, toggleGroup } from "$lib/tools/tool-catalog";
   import { uiMode } from "$lib/stores/mode";
+  import { tourOpenChatPicker } from "$lib/stores/tour";
   import EmptyState from "../components/common/EmptyState.svelte";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import ChatSessionCard from "../components/chat/ChatSessionCard.svelte";
@@ -32,7 +33,10 @@
     const unsub = pendingChatSessionId.subscribe((id) => {
       if (id) { selectedSessionId = id; pendingChatSessionId.set(null); }
     });
-    return unsub;
+    const unsubTour = tourOpenChatPicker.subscribe((open) => {
+      if (open) { openNewChatPicker(); tourOpenChatPicker.set(false); }
+    });
+    return () => { unsub(); unsubTour(); };
   });
 
   function openNewChatPicker() { showNewChatPicker = true; void loadAgents(); }

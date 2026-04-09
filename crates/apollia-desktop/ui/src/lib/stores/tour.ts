@@ -35,3 +35,16 @@ export const tourCompanionOverride = writable<string | null>(null);
  * the corresponding panel. Reset to `null` at the start of each step activation.
  */
 export const tourOpenAgentDetail = writable<string | null>(null);
+
+/**
+ * When set to `true`, the Chat page should open its "New Chat" picker
+ * automatically. Reset to `false` once consumed.
+ */
+export const tourOpenChatPicker = writable(false);
+
+/**
+ * When set to an agent name, the tour orchestrator will stop that agent
+ * before the step activates, then add a CSS ring-pulse class to its start
+ * button. Reset to `null` at the start of each step.
+ */
+export const tourStopAgent = writable<string | null>(null);

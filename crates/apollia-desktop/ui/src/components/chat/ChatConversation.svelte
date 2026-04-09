@@ -4,7 +4,12 @@
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
   import { X, Loader2, Bot, MessageSquare, Settings2, XCircle, Link, Zap, BrainCircuit, Check } from "lucide-svelte";
-  import { currentSession, chatTokenBuffer, useUserMemory, memoryEntryCount, chatConversationStats } from "$lib/stores/chat";
+  import {
+    currentSession, chatTokenBuffer, useUserMemory, memoryEntryCount,
+    chatConversationStats, globalTokenBuffers,
+    clearGlobalBuffer, removePendingChatApproval,
+    getPendingChatApprovalForSession,
+  } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
   import { Badge } from "$lib/components/ui/badge";
   import type { ChatSessionDetail, ChatMessageView, ConversationStatsView, UserMemoryProfileView } from "$lib/types";
@@ -96,6 +101,7 @@
 
   onMount(async () => {
     await loadSession();
+    restoreGlobalState();
 
     unlistenToken = await listen<{ session_id: string; message_id: string; token: string }>(
       "chat-token",
@@ -178,6 +184,7 @@
         }
         if (evt.event_type === "ChatApprovalResolved" || evt.event_type === "ChatApprovalTimeout") {
           pendingApproval = null;
+          removePendingChatApproval(sessionId);
           return;
         }
         if (evt.event_type === "ChatResponseCompleted") {
@@ -201,8 +208,9 @@
       activeToolName = null;
       activeA2A = null;
       liveToolChain = [];
+      pendingApproval = null;
       messages = [];
-      void loadSession();
+      void loadSession().then(() => restoreGlobalState());
     }
   });
 
@@ -233,6 +241,7 @@
   async function finalizeStreaming(): Promise<void> {
     await new Promise((r) => setTimeout(r, 80));
     isStreaming = false; isProcessing = false; tokenBuffer = ""; chatTokenBuffer.set(""); liveToolChain = [];
+    clearGlobalBuffer(sessionId);
     try {
       const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
       applySessionDetail(detail); scrollToBottom();
@@ -309,6 +318,41 @@
     try { await invoke("close_chat_session", { sessionId }); }
     catch (err: unknown) { console.warn("close_chat_session IPC not available:", err); }
     void refreshSession();
+  }
+
+  /**
+   * Restore streaming & approval state from global stores when the component
+   * (re-)mounts or the session switches.  This handles the case where the
+   * backend continued streaming while the user was on a different page.
+   */
+  function restoreGlobalState(): void {
+    // Restore accumulated tokens from global buffer
+    const buffers = $globalTokenBuffers;
+    const bufferedText = buffers[sessionId];
+    if (bufferedText) {
+      tokenBuffer = bufferedText;
+      isStreaming = true;
+      isProcessing = false;
+      scrollToBottom();
+    }
+
+    // Restore pending approval from global store
+    const approval = getPendingChatApprovalForSession(sessionId);
+    if (approval) {
+      pendingApproval = {
+        sessionId: approval.sessionId,
+        messageId: approval.messageId,
+        toolName: approval.toolName,
+        inputPreview: approval.inputPreview,
+      };
+      isStreaming = false;
+      scrollToBottom();
+    }
+
+    // If session is still processing but we have no tokens yet, show processing state
+    if (sessionStatus === "processing" && !bufferedText && !approval) {
+      isProcessing = true;
+    }
   }
 </script>
 

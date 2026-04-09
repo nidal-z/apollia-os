@@ -5,11 +5,15 @@
 //! `/api/v1/llm/backends` ; le ping et les statistiques utilisent leurs
 //! propres routes dédiées.
 
+use std::sync::Arc;
+
+use apollia_llm::LlmRouter;
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::{http_delete_json, http_get_json, http_post_json, http_put_json};
+use crate::SharedLlmRouter;
 
 /// Vue d'un backend LLM pour les opérations CRUD.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -285,6 +289,55 @@ pub async fn get_llm_cost_stats(
             days: d,
         }),
     }
+}
+
+/// Recharge le routeur LLM depuis `apollia.toml` après un changement de configuration.
+///
+/// Relit la section `[llm]` du fichier TOML, reconstruit un `LlmRouter` et met à
+/// jour le `SharedLlmRouter` géré par Tauri. Utilisé pendant l'onboarding après
+/// `setup_local_llm` pour rendre le modèle disponible immédiatement.
+#[tauri::command]
+pub async fn reload_llm(
+    shared: State<'_, SharedLlmRouter>,
+) -> Result<(), String> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir());
+    let config_path = home.join(".apollia").join("apollia.toml");
+
+    let content = tokio::fs::read_to_string(&config_path)
+        .await
+        .map_err(|e| format!("failed to read apollia.toml: {e}"))?;
+
+    #[derive(serde::Deserialize)]
+    struct TomlLlm {
+        llm: Option<apollia_llm::LlmConfig>,
+    }
+    let parsed: TomlLlm = toml::from_str(&content)
+        .map_err(|e| format!("failed to parse apollia.toml: {e}"))?;
+
+    let mut llm_config = parsed
+        .llm
+        .ok_or_else(|| "no [llm] section in apollia.toml".to_string())?;
+
+    // Ensure [llm.routing] exists — default both precise and fast to the
+    // configured default backend so the router can be built during onboarding
+    // even if the user hasn't manually added a routing section.
+    if llm_config.routing.is_none() {
+        llm_config.routing = Some(apollia_core::LlmRoutingConfig {
+            precise: llm_config.default.clone(),
+            fast: llm_config.default.clone(),
+        });
+    }
+
+    let router = LlmRouter::from_config(&llm_config)
+        .await
+        .map_err(|e| format!("failed to build LLM router: {e}"))?;
+
+    *shared.write().map_err(|e| format!("lock poisoned: {e}"))? = Some(Arc::new(router));
+
+    tracing::info!("LLM router reloaded from apollia.toml");
+    Ok(())
 }
 
 #[cfg(test)]

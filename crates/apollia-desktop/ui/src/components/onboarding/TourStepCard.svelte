@@ -15,6 +15,12 @@
     totalSteps: number;
     /** Bounding rect of the highlighted element, used to compute card placement. */
     targetRect: DOMRect | null;
+    /** Group label for the counter (e.g. "Dashboard"). */
+    groupLabel?: string;
+    /** Zero-based index within the current group. */
+    subStepIndex?: number;
+    /** Total sub-steps in the current group. */
+    subStepCount?: number;
     /** Show the "Next" button. */
     showNext?: boolean;
     /** Show the "Previous" button. */
@@ -35,6 +41,9 @@
     stepIndex,
     totalSteps,
     targetRect,
+    groupLabel = '',
+    subStepIndex = 0,
+    subStepCount = 1,
     showNext = true,
     showPrev = true,
     showSkip = true,
@@ -42,6 +51,12 @@
     onprev,
     onskip,
   }: Props = $props();
+
+  let counterText = $derived(
+    groupLabel && subStepCount > 1
+      ? `${groupLabel} (${subStepIndex + 1}/${subStepCount})`
+      : groupLabel || `${stepIndex + 1} / ${totalSteps}`
+  );
 
   const CARD_WIDTH = 360;
   const CARD_HEIGHT_ESTIMATE = 200;
@@ -99,7 +114,7 @@
   data-testid="tour-step-card"
 >
   <div class="card-header">
-    <span class="step-counter">{stepIndex + 1} / {totalSteps}</span>
+    <span class="step-counter">{counterText}</span>
     {#if showSkip}
       <button
         class="skip-btn"

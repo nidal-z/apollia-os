@@ -291,3 +291,26 @@
   --apollia-warning-foreground: hsl(var(--warning-foreground));
   --apollia-success-foreground: hsl(var(--success-foreground));
 }
+
+/* ─── Tour ring-pulse ───────────────────────────────────────────────────────
+ * Applied by the guided tour orchestrator on interactive elements (e.g. the
+ * Start button) to draw the user's attention. */
+.tour-ring-pulse {
+  position: relative;
+  z-index: 61;
+}
+
+.tour-ring-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 2px solid hsl(var(--primary));
+  animation: tour-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes tour-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(1.08); }
+}

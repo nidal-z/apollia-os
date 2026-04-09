@@ -127,6 +127,13 @@
   {:else if $onboardingStore.phase === "acquaintance"}
     <OnboardingAcquaintance />
   {:else if $onboardingStore.phase === "guided_tour"}
+    <CompanionContextProvider>
+      <div class="flex h-screen w-screen overflow-hidden" data-testid="app-main">
+        <Sidebar />
+        <Main />
+      </div>
+      <CompanionPanel />
+    </CompanionContextProvider>
     <OnboardingGuidedTour />
   {:else if $onboardingStore.phase === "graduation"}
     <OnboardingGraduation />

@@ -428,6 +428,17 @@ async fn advance_onboarding_phase_inner(
 
         onboarding_state.phase = target.clone();
 
+        // When leaving Acquaintance, auto-mark any uncovered topics so the
+        // progress reaches 100% even if the agent didn't ask about every topic.
+        if target == OnboardingPhase::GuidedTour
+            || target == OnboardingPhase::Graduation
+            || target == OnboardingPhase::Done
+        {
+            for topic in &ONBOARDING_TOPICS {
+                let _ = repo.mark_topic_covered(topic);
+            }
+        }
+
         if target == OnboardingPhase::Done {
             onboarding_state.completed = true;
             onboarding_state.completed_at = Some(chrono::Utc::now().to_rfc3339());
@@ -997,13 +1008,20 @@ fn build_onboarding_prompt(topic: &Option<String>) -> String {
              Ask natural questions to learn about the user's {t}. \
              Do not cover other topics.",
         ),
-        None => format!(
+        None => String::from(
             "You are an onboarding assistant for all professionals (not just developers). \
              First, ALWAYS collect the user's name and role/profession — these are mandatory. \
-             Then cover these topics naturally through conversation: {}. \
+             Then cover ALL five topics naturally through conversation. \
+             You MUST cover every single topic before concluding — do not skip any:\n\
+             1. **identity** — name, role/profession, expertise, industry, goals\n\
+             2. **preferences** — communication style, response detail level, language\n\
+             3. **tools** — IDE, AI tools, project management, version control\n\
+             4. **domain** — sector, channels (LinkedIn, website…), current focus\n\
+             5. **agents** — what AI agents or automations they want to use, challenges they face with AI\n\n\
              Ask questions one at a time. Be conversational, not rigid. \
-             Adapt your questions to the user's profession.",
-            ONBOARDING_TOPICS.join(", "),
+             Adapt your questions to the user's profession. \
+             IMPORTANT: Do NOT conclude the onboarding until you have gathered information on ALL five topics, \
+             especially 'agents' (what the user wants to automate or delegate to AI agents).",
         ),
     }
 }
@@ -1571,7 +1589,8 @@ fn scan_whisper_in_dir(dir: &std::path::Path, total_ram_gb: f64) -> Vec<WhisperM
 /// Parses the Whisper size variant from a filename.
 ///
 /// Matches `ggml-(tiny|base|small|medium|large)` in the lowercased filename.
-/// Returns `None` if no known variant is present.
+/// Falls back to `"base"` for any other `ggml-*.bin` file (e.g. `ggml-model-q5_0.bin`)
+/// so that generic Whisper GGML models are still detected.
 pub fn detect_whisper_model_size(filename: &str) -> Option<String> {
     let lower = filename.to_lowercase();
     for variant in ["tiny", "base", "small", "medium", "large"] {
@@ -1579,6 +1598,10 @@ pub fn detect_whisper_model_size(filename: &str) -> Option<String> {
         if lower.contains(pattern.as_str()) {
             return Some(variant.to_owned());
         }
+    }
+    // Accept any ggml-*.bin as a valid Whisper model with unknown size.
+    if lower.starts_with("ggml-") && lower.ends_with(".bin") {
+        return Some("base".to_owned());
     }
     None
 }
@@ -1683,117 +1706,202 @@ pub struct TourStep {
     pub completion_mode: String,
     /// Suggested time to spend on the step, in seconds. Used by `"auto"` mode.
     pub estimated_seconds: u32,
+    /// Visual group name for the progress rail (e.g. `"dashboard"`, `"agents"`).
+    ///
+    /// Steps with the same group value are shown as a single dot in the
+    /// progress rail.  When `None`, each step is its own group (backward
+    /// compatible with the builder profile).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
 // Guided Tour — step catalogue
 // ---------------------------------------------------------------------------
 
-/// Returns the ordered tour steps for the Operator profile (8 steps).
+/// Returns the ordered tour steps for the Operator profile (17 steps, 9 groups).
 ///
-/// Steps 2–4 (indices 1–3) are interactive: they wait for a backend event
-/// before the orchestrator advances. The other steps are passive.
+/// Steps are flat but grouped via the `group` field.  The progress rail shows
+/// one dot per group.  Two steps are interactive (`wait_event`): agent start
+/// and libre chat creation.  The tour programmatically creates demo data
+/// (trigger, notification channel) so pages are never empty.
 fn operator_steps() -> Vec<TourStep> {
     vec![
-        // Step 1 — Dashboard overview (passive, auto-advances after 10 s)
+        // ── Group: dashboard (3 sub-steps) ──────────────────────────────────
         TourStep {
-            id: "op-dashboard".to_string(),
+            id: "op-dashboard-1".to_string(),
+            route: "/dashboard".to_string(),
+            spotlight_selector: Some("[data-testid=\"dashboard-header\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.dashboard_header.title".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+            group: Some("dashboard".to_string()),
+        },
+        TourStep {
+            id: "op-dashboard-2".to_string(),
             route: "/dashboard".to_string(),
             spotlight_selector: Some("[data-testid=\"dashboard-agents-section\"]".to_string()),
-            companion_message_key: "onboarding.tour.op.dashboard.title".to_string(),
+            companion_message_key: "onboarding.tour.op.dashboard_agents.title".to_string(),
             interaction: None,
-            completion_mode: "auto".to_string(),
+            completion_mode: "click_next".to_string(),
             estimated_seconds: 10,
+            group: Some("dashboard".to_string()),
         },
-        // Step 2 — Start csv-data-worker (interactive, waits for AgentReady)
         TourStep {
-            id: "op-agents-start".to_string(),
+            id: "op-dashboard-3".to_string(),
+            route: "/dashboard".to_string(),
+            spotlight_selector: Some("[data-testid=\"dashboard-activity-section\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.dashboard_activity.title".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+            group: Some("dashboard".to_string()),
+        },
+        // ── Group: agents (3 sub-steps) ─────────────────────────────────────
+        TourStep {
+            id: "op-agents-1".to_string(),
             route: "/agents".to_string(),
-            spotlight_selector: Some("[data-agent-name=\"csv-data-worker\"]".to_string()),
-            companion_message_key: "onboarding.tour.op.agents.title".to_string(),
+            spotlight_selector: Some("[data-testid=\"agents-page\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.agents_grid.title".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+            group: Some("agents".to_string()),
+        },
+        TourStep {
+            id: "op-agents-2".to_string(),
+            route: "/agents".to_string(),
+            spotlight_selector: Some("[data-agent-name=\"onboarding-agent\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.agents_start.title".to_string(),
             interaction: Some(TourInteraction {
                 interaction_type: "start_agent".to_string(),
-                prefilled_data: Some(serde_json::json!({ "agent_id": "csv-data-worker" })),
+                prefilled_data: Some(serde_json::json!({ "agent_id": "onboarding-agent" })),
                 validation_event: Some("AgentReady".to_string()),
             }),
             completion_mode: "wait_event".to_string(),
-            estimated_seconds: 30,
+            estimated_seconds: 15,
+            group: Some("agents".to_string()),
         },
-        // Step 3 — Send a chat message (interactive, waits for ChatMessageSent)
+        // ── Group: chat (3 sub-steps) ───────────────────────────────────────
         TourStep {
-            id: "op-chat-send".to_string(),
+            id: "op-chat-1".to_string(),
             route: "/chat".to_string(),
-            spotlight_selector: Some("[data-testid=\"chat-input\"]".to_string()),
-            companion_message_key: "onboarding.tour.op.chat.title".to_string(),
-            interaction: Some(TourInteraction {
-                interaction_type: "send_chat".to_string(),
-                prefilled_data: Some(serde_json::json!({
-                    "message": "Bonjour Apollia, quels agents sont disponibles ?",
-                    "channel": "libre"
-                })),
-                validation_event: Some("ChatMessageSent".to_string()),
-            }),
-            completion_mode: "wait_event".to_string(),
-            estimated_seconds: 30,
+            spotlight_selector: Some("[data-testid=\"new-chat-button\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.chat_discover.title".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+            group: Some("chat".to_string()),
         },
-        // Step 4 — Create an interval trigger (interactive, waits for TriggersReloaded)
         TourStep {
-            id: "op-triggers-create".to_string(),
-            route: "/triggers".to_string(),
-            spotlight_selector: Some("[data-testid=\"create-trigger-btn\"]".to_string()),
-            companion_message_key: "onboarding.tour.op.triggers.title".to_string(),
-            interaction: Some(TourInteraction {
-                interaction_type: "create_trigger".to_string(),
-                prefilled_data: Some(serde_json::json!({
-                    "type": "interval",
-                    "every_seconds": 60,
-                    "agent_id": "csv-data-worker",
-                    "label": "Tour - trigger de démo"
-                })),
-                validation_event: Some("TriggersReloaded".to_string()),
-            }),
-            completion_mode: "wait_event".to_string(),
-            estimated_seconds: 30,
-        },
-        // Step 5 — Approvals overview (passive, user clicks Next)
-        TourStep {
-            id: "op-approvals".to_string(),
-            route: "/approvals".to_string(),
-            spotlight_selector: Some("[data-testid=\"approvals-page\"]".to_string()),
-            companion_message_key: "onboarding.tour.op.approvals.title".to_string(),
+            id: "op-chat-2".to_string(),
+            route: "/chat".to_string(),
+            spotlight_selector: Some("[data-testid=\"new-chat-picker\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.chat_picker.title".to_string(),
             interaction: None,
             completion_mode: "click_next".to_string(),
             estimated_seconds: 15,
+            group: Some("chat".to_string()),
         },
-        // Step 6 — Notifications overview (passive, user clicks Next)
         TourStep {
-            id: "op-notifications".to_string(),
+            id: "op-chat-3".to_string(),
+            route: "/chat".to_string(),
+            spotlight_selector: Some("[data-testid=\"pick-libre\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.chat_libre.title".to_string(),
+            interaction: Some(TourInteraction {
+                interaction_type: "start_libre_chat".to_string(),
+                prefilled_data: None,
+                validation_event: Some("ChatSessionCreated".to_string()),
+            }),
+            completion_mode: "wait_event".to_string(),
+            estimated_seconds: 10,
+            group: Some("chat".to_string()),
+        },
+        // ── Group: triggers (2 sub-steps) ───────────────────────────────────
+        TourStep {
+            id: "op-triggers-1".to_string(),
+            route: "/triggers".to_string(),
+            spotlight_selector: Some("[data-testid=\"triggers-page\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.triggers_overview.title".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+            group: Some("triggers".to_string()),
+        },
+        TourStep {
+            id: "op-triggers-2".to_string(),
+            route: "/triggers".to_string(),
+            spotlight_selector: Some("[data-testid=\"triggers-grouped\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.triggers_detail.title".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+            group: Some("triggers".to_string()),
+        },
+        // ── Group: approvals (1 step) ───────────────────────────────────────
+        TourStep {
+            id: "op-approvals".to_string(),
+            route: "/approvals".to_string(),
+            spotlight_selector: Some("[data-testid=\"approvals-pending-title\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.approvals.title".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+            group: Some("approvals".to_string()),
+        },
+        // ── Group: notifications (2 sub-steps) ─────────────────────────────
+        TourStep {
+            id: "op-notifications-1".to_string(),
             route: "/notifications".to_string(),
             spotlight_selector: Some("[data-testid=\"notifications-page\"]".to_string()),
-            companion_message_key: "onboarding.tour.op.notifications.title".to_string(),
+            companion_message_key: "onboarding.tour.op.notifications_overview.title".to_string(),
             interaction: None,
             completion_mode: "click_next".to_string(),
             estimated_seconds: 10,
+            group: Some("notifications".to_string()),
         },
-        // Step 7 — Observability overview (passive, user clicks Next)
         TourStep {
-            id: "op-observability".to_string(),
-            route: "/observability".to_string(),
-            spotlight_selector: Some("[data-testid=\"observability-page\"]".to_string()),
-            companion_message_key: "onboarding.tour.op.observability.title".to_string(),
+            id: "op-notifications-2".to_string(),
+            route: "/notifications".to_string(),
+            spotlight_selector: Some("[data-testid=\"channel-card-tour-alerts\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.notifications_test.title".to_string(),
             interaction: None,
             completion_mode: "click_next".to_string(),
             estimated_seconds: 10,
+            group: Some("notifications".to_string()),
         },
-        // Step 8 — Graduation (passive, auto-advances after 5 s)
+        // ── Group: observability (2 sub-steps) ──────────────────────────────
+        TourStep {
+            id: "op-observability-1".to_string(),
+            route: "/observability".to_string(),
+            spotlight_selector: Some("[data-testid=\"observability-tabbar\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.observability_tabs.title".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+            group: Some("observability".to_string()),
+        },
+        TourStep {
+            id: "op-observability-2".to_string(),
+            route: "/observability".to_string(),
+            spotlight_selector: Some("[data-testid=\"observability-tab-timeline\"]".to_string()),
+            companion_message_key: "onboarding.tour.op.observability_timeline.title".to_string(),
+            interaction: None,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+            group: Some("observability".to_string()),
+        },
+        // ── Group: graduation (1 step) ──────────────────────────────────────
         TourStep {
             id: "op-graduation".to_string(),
             route: "/dashboard".to_string(),
             spotlight_selector: Some("[data-testid=\"dashboard-page\"]".to_string()),
             companion_message_key: "onboarding.tour.op.graduation.title".to_string(),
             interaction: None,
-            completion_mode: "auto".to_string(),
-            estimated_seconds: 5,
+            completion_mode: "click_next".to_string(),
+            estimated_seconds: 10,
+            group: Some("graduation".to_string()),
         },
     ]
 }
@@ -1803,9 +1911,10 @@ fn operator_steps() -> Vec<TourStep> {
 /// Steps 2, 4, and 5 (indices 1, 3, 4) are interactive: they wait for a backend
 /// event before the orchestrator advances. The other steps are passive.
 /// Step 3 (bld-agent-detail) triggers a programmatic panel open on the frontend.
+///
+/// Builder steps do not use visual grouping (`group: None`).
 fn builder_steps() -> Vec<TourStep> {
     vec![
-        // Step 1 — Dashboard overview (passive, auto-advances after 10 s)
         TourStep {
             id: "bld-dashboard".to_string(),
             route: "/dashboard".to_string(),
@@ -1814,8 +1923,8 @@ fn builder_steps() -> Vec<TourStep> {
             interaction: None,
             completion_mode: "auto".to_string(),
             estimated_seconds: 10,
+            group: None,
         },
-        // Step 2 — Start csv-data-worker (interactive, waits for AgentReady)
         TourStep {
             id: "bld-agents-start".to_string(),
             route: "/agents".to_string(),
@@ -1828,8 +1937,8 @@ fn builder_steps() -> Vec<TourStep> {
             }),
             completion_mode: "wait_event".to_string(),
             estimated_seconds: 30,
+            group: None,
         },
-        // Step 3 — Agent detail with manifest (passive, panel opened programmatically)
         TourStep {
             id: "bld-agent-detail".to_string(),
             route: "/agents".to_string(),
@@ -1838,8 +1947,8 @@ fn builder_steps() -> Vec<TourStep> {
             interaction: None,
             completion_mode: "click_next".to_string(),
             estimated_seconds: 20,
+            group: None,
         },
-        // Step 4 — Memory search (interactive, waits for MemorySearchCompleted)
         TourStep {
             id: "bld-memory-search".to_string(),
             route: "/memory".to_string(),
@@ -1856,8 +1965,8 @@ fn builder_steps() -> Vec<TourStep> {
             }),
             completion_mode: "wait_event".to_string(),
             estimated_seconds: 30,
+            group: None,
         },
-        // Step 5 — Send chat message (interactive, waits for ChatMessageReceived)
         TourStep {
             id: "bld-chat-send".to_string(),
             route: "/chat".to_string(),
@@ -1873,8 +1982,8 @@ fn builder_steps() -> Vec<TourStep> {
             }),
             completion_mode: "wait_event".to_string(),
             estimated_seconds: 30,
+            group: None,
         },
-        // Step 6 — MCP integrations overview (passive, user clicks Next)
         TourStep {
             id: "bld-integrations".to_string(),
             route: "/integrations".to_string(),
@@ -1883,8 +1992,8 @@ fn builder_steps() -> Vec<TourStep> {
             interaction: None,
             completion_mode: "click_next".to_string(),
             estimated_seconds: 15,
+            group: None,
         },
-        // Step 7 — Triggers overview (passive, user clicks Next)
         TourStep {
             id: "bld-triggers".to_string(),
             route: "/triggers".to_string(),
@@ -1893,8 +2002,8 @@ fn builder_steps() -> Vec<TourStep> {
             interaction: None,
             completion_mode: "click_next".to_string(),
             estimated_seconds: 15,
+            group: None,
         },
-        // Step 8 — Pipelines DAG view (passive, user clicks Next)
         TourStep {
             id: "bld-pipelines".to_string(),
             route: "/pipelines".to_string(),
@@ -1903,8 +2012,8 @@ fn builder_steps() -> Vec<TourStep> {
             interaction: None,
             completion_mode: "click_next".to_string(),
             estimated_seconds: 15,
+            group: None,
         },
-        // Step 9 — Observability audit trail (passive, user clicks Next)
         TourStep {
             id: "bld-observability".to_string(),
             route: "/observability".to_string(),
@@ -1913,8 +2022,8 @@ fn builder_steps() -> Vec<TourStep> {
             interaction: None,
             completion_mode: "click_next".to_string(),
             estimated_seconds: 15,
+            group: None,
         },
-        // Step 10 — Graduation (passive, auto-advances after 5 s)
         TourStep {
             id: "bld-graduation".to_string(),
             route: "/dashboard".to_string(),
@@ -1923,6 +2032,7 @@ fn builder_steps() -> Vec<TourStep> {
             interaction: None,
             completion_mode: "auto".to_string(),
             estimated_seconds: 5,
+            group: None,
         },
     ]
 }
@@ -1930,6 +2040,15 @@ fn builder_steps() -> Vec<TourStep> {
 // ---------------------------------------------------------------------------
 // Guided Tour — synchronous helper (also used in tests)
 // ---------------------------------------------------------------------------
+
+/// Returns the 0-based index of a tour step by its id within the given profile.
+///
+/// Returns `None` if the profile is unknown or the step id is not found.
+fn steps_index_by_id(step_id: &str, profile: Option<&str>) -> Option<usize> {
+    let profile = profile.unwrap_or("operator");
+    let steps = get_tour_steps_sync(profile).ok()?;
+    steps.iter().position(|s| s.id == step_id)
+}
 
 /// Returns the tour steps for the given profile synchronously.
 ///
@@ -1989,7 +2108,20 @@ async fn complete_tour_step_inner(
 
         let mut onboarding = load_state_from_memory(&repo)?;
 
-        let next_index = onboarding.tour_step_index + 1;
+        // Only advance the persisted high-water mark when the completed step
+        // matches or exceeds the current index.  This prevents double-incrementing
+        // when the user navigates backward and then forward again.
+        let step_idx = steps_index_by_id(&step_id, onboarding.profile.as_deref());
+        let should_advance = match step_idx {
+            Some(idx) => idx >= onboarding.tour_step_index as usize,
+            None => true, // Unknown step — fall back to legacy behaviour.
+        };
+
+        let next_index = if should_advance {
+            onboarding.tour_step_index + 1
+        } else {
+            onboarding.tour_step_index
+        };
         onboarding.tour_step_index = next_index;
 
         if onboarding.tour_total_steps > 0 && next_index >= onboarding.tour_total_steps {
@@ -2020,12 +2152,12 @@ mod tour_tests {
     use super::*;
 
     #[test]
-    fn test_get_tour_steps_operator_returns_8_steps() {
+    fn test_get_tour_steps_operator_returns_16_steps() {
         // GIVEN the profile "operator"
         // WHEN get_tour_steps_sync is called
         let steps = get_tour_steps_sync("operator").unwrap();
-        // THEN 8 steps are returned
-        assert_eq!(steps.len(), 8);
+        // THEN 16 steps are returned
+        assert_eq!(steps.len(), 16);
     }
 
     #[test]
@@ -2061,6 +2193,7 @@ mod tour_tests {
             }),
             completion_mode: "wait_event".to_string(),
             estimated_seconds: 30,
+            group: Some("agents".to_string()),
         };
         // WHEN serialized then deserialized
         let json = serde_json::to_string(&step).unwrap();
@@ -2070,6 +2203,7 @@ mod tour_tests {
         assert_eq!(restored.route, "/agents");
         assert_eq!(restored.completion_mode, "wait_event");
         assert_eq!(restored.estimated_seconds, 30);
+        assert_eq!(restored.group.as_deref(), Some("agents"));
         let interaction = restored.interaction.unwrap();
         assert_eq!(interaction.interaction_type, "start_agent");
         assert_eq!(interaction.validation_event.as_deref(), Some("AgentReady"));
@@ -2135,58 +2269,81 @@ mod tour_tests {
 
     #[test]
     fn test_operator_steps_count() {
-        // GIVEN the profile "operator"
-        // WHEN the steps are generated
         let steps = operator_steps();
-        // THEN there are exactly 8 steps
-        assert_eq!(steps.len(), 8);
+        assert_eq!(steps.len(), 16);
     }
 
     #[test]
     fn test_operator_steps_order() {
-        // GIVEN the operator step catalogue
         let steps = operator_steps();
-        // WHEN checking the ids by position
-        // THEN the order matches the specified sequence
-        assert_eq!(steps[0].id, "op-dashboard");
-        assert_eq!(steps[1].id, "op-agents-start");
-        assert_eq!(steps[7].id, "op-graduation");
+        assert_eq!(steps[0].id, "op-dashboard-1");
+        assert_eq!(steps[1].id, "op-dashboard-2");
+        assert_eq!(steps[2].id, "op-dashboard-3");
+        assert_eq!(steps[3].id, "op-agents-1");
+        assert_eq!(steps[4].id, "op-agents-2");
+        assert_eq!(steps[5].id, "op-chat-1");
+        assert_eq!(steps[6].id, "op-chat-2");
+        assert_eq!(steps[7].id, "op-chat-3");
+        assert_eq!(steps[8].id, "op-triggers-1");
+        assert_eq!(steps[9].id, "op-triggers-2");
+        assert_eq!(steps[10].id, "op-approvals");
+        assert_eq!(steps[11].id, "op-notifications-1");
+        assert_eq!(steps[12].id, "op-notifications-2");
+        assert_eq!(steps[13].id, "op-observability-1");
+        assert_eq!(steps[14].id, "op-observability-2");
+        assert_eq!(steps[15].id, "op-graduation");
     }
 
     #[test]
     fn test_operator_interactive_steps_have_interaction() {
-        // GIVEN the operator step catalogue
         let steps = operator_steps();
-        // WHEN filtering the interactive steps (indices 1, 2, 3)
-        // THEN each one has an interaction descriptor
-        assert!(
-            steps[1].interaction.is_some(),
-            "op-agents-start must have interaction"
-        );
-        assert!(
-            steps[2].interaction.is_some(),
-            "op-chat-send must have interaction"
-        );
-        assert!(
-            steps[3].interaction.is_some(),
-            "op-triggers-create must have interaction"
-        );
+        // op-agents-2 (index 4) and op-chat-3 (index 7) are wait_event
+        assert!(steps[4].interaction.is_some(), "op-agents-2 must have interaction");
+        assert!(steps[7].interaction.is_some(), "op-chat-3 must have interaction");
     }
 
     #[test]
     fn test_operator_passive_steps_no_interaction() {
-        // GIVEN the operator step catalogue
         let steps = operator_steps();
-        // WHEN checking passive steps
-        // THEN their interaction field is None
-        assert!(
-            steps[0].interaction.is_none(),
-            "op-dashboard must be passive"
-        );
-        assert!(
-            steps[4].interaction.is_none(),
-            "op-approvals must be passive"
-        );
+        for (i, step) in steps.iter().enumerate() {
+            if i == 4 || i == 7 {
+                continue; // interactive steps
+            }
+            assert!(step.interaction.is_none(), "step '{}' at index {} must be passive", step.id, i);
+        }
+    }
+
+    #[test]
+    fn test_operator_steps_all_have_groups() {
+        let steps = operator_steps();
+        for step in &steps {
+            assert!(step.group.is_some(), "step '{}' must have a group", step.id);
+        }
+    }
+
+    #[test]
+    fn test_operator_groups_are_contiguous() {
+        let steps = operator_steps();
+        let mut seen_groups = Vec::new();
+        for step in &steps {
+            let g = step.group.as_deref().unwrap();
+            if seen_groups.last().map(|s: &String| s.as_str()) != Some(g) {
+                assert!(
+                    !seen_groups.contains(&g.to_string()),
+                    "group '{}' appears non-contiguously", g
+                );
+                seen_groups.push(g.to_string());
+            }
+        }
+    }
+
+    #[test]
+    fn test_operator_group_count_is_8() {
+        let steps = operator_steps();
+        let groups: std::collections::HashSet<_> = steps.iter()
+            .filter_map(|s| s.group.as_deref())
+            .collect();
+        assert_eq!(groups.len(), 8, "expected 8 unique groups, got {:?}", groups);
     }
 
     #[test]

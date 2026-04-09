@@ -100,9 +100,44 @@
     debounceTimer = setTimeout(refresh, 100);
   }
 
+  // ─── Layout-settle loop ──────────────────────────────────────────────────
+  // After the selector changes (new step / navigation) the target element may
+  // shift as CSS transitions and lazy content settle.  We poll via rAF for up
+  // to 1.5 s so the clip-path tracks the element in real time.
+
+  let settleRaf: number | null = null;
+
+  function stopSettle(): void {
+    if (settleRaf !== null) {
+      cancelAnimationFrame(settleRaf);
+      settleRaf = null;
+    }
+  }
+
+  function startSettle(): void {
+    stopSettle();
+    const startTime = performance.now();
+    const SETTLE_MS = 1500;
+
+    function poll(): void {
+      refresh();
+      if (performance.now() - startTime < SETTLE_MS) {
+        settleRaf = requestAnimationFrame(poll);
+      } else {
+        settleRaf = null;
+      }
+    }
+
+    settleRaf = requestAnimationFrame(poll);
+  }
+
   // Re-compute clip-path whenever targetSelector or padding changes.
   $effect(() => {
+    // Access reactive deps so Svelte tracks them.
+    void targetSelector;
+    void padding;
     refresh();
+    startSettle();
   });
 
   onMount(() => {
@@ -112,6 +147,7 @@
     return () => {
       window.removeEventListener('resize', scheduleRefresh);
       window.removeEventListener('scroll', scheduleRefresh);
+      stopSettle();
       if (debounceTimer !== null) clearTimeout(debounceTimer);
     };
   });

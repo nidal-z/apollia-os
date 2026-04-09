@@ -462,7 +462,11 @@
       "reason": "Raison",
       "date": "Date"
     },
-    "unknown_agent": "Agent inconnu"
+    "unknown_agent": "Agent inconnu",
+    "chat_tools_title": "Chat — Approbations d'outils",
+    "chat_no_pending": "Aucune approbation d'outil en attente",
+    "chat_session_label": "Session",
+    "chat_open_session": "Ouvrir la session"
   },
   "llm": {
     "title": "Backends LLM",
@@ -1109,51 +1113,74 @@
     "explore_done": "Aller au tableau de bord",
     "tour": {
       "op": {
-        "dashboard": {
-          "title": "Voici votre tableau de bord",
-          "message": "C'est le point central d'Apollia OS. Vous voyez vos agents actifs et l'activité récente."
+        "dashboard_header": {
+          "title": "Votre centre de commande",
+          "message": "Bienvenue sur votre tableau de bord. C'est le point central d'Apollia OS pour surveiller l'ensemble de votre système."
         },
-        "agents": {
-          "title": "Démarrons un agent",
-          "message": "Cliquez sur Démarrer pour activer csv-data-worker, votre premier agent de démo.",
-          "success": "Bravo ! L'agent est maintenant actif.",
-          "already_active": "L'agent est déjà actif, passons à la suite !"
+        "dashboard_agents": {
+          "title": "Vos agents actifs",
+          "message": "Cette section affiche vos agents en cours d'exécution. Vous voyez leur statut et leurs métriques clés d'un coup d'œil."
         },
-        "chat": {
-          "title": "Envoyez un message",
-          "message": "Un message est prérempli pour vous. Cliquez sur Envoyer ou appuyez sur Entrée.",
-          "success": "Message envoyé ! L'assistant traite votre demande."
+        "dashboard_activity": {
+          "title": "Fil d'activité récente",
+          "message": "Ce fil affiche les événements récents de tous vos agents — actions effectuées, approbations demandées, et plus encore."
         },
-        "triggers": {
-          "title": "Créez un déclencheur",
-          "message": "Les déclencheurs automatisent vos agents. Le formulaire est prérempli, cliquez sur Créer.",
-          "success": "Déclencheur créé ! Votre agent s'exécutera automatiquement."
+        "agents_grid": {
+          "title": "Votre flotte d'agents",
+          "message": "Chaque carte représente un agent. Vous voyez son nom, son statut et ses actions rapides. Explorons-en un ensemble."
+        },
+        "agents_start": {
+          "title": "Démarrez votre premier agent",
+          "message": "Cet agent est en pause. Cliquez sur le bouton Démarrer lumineux pour l'activer et voir le runtime en action.",
+          "success": "Agent démarré ! Remarquez le bouton Chat qui vient d'apparaître sur sa carte — il vous permet de converser directement avec lui."
+        },
+        "chat_discover": {
+          "title": "Démarrez une conversation",
+          "message": "La page Chat est l'endroit où vous interagissez avec vos agents. Cliquez sur « Nouveau chat » pour commencer."
+        },
+        "chat_picker": {
+          "title": "Choisissez votre mode",
+          "message": "Le sélecteur vous permet de choisir des groupes d'outils, de sélectionner un agent spécifique, ou de démarrer une conversation Libre."
+        },
+        "chat_libre": {
+          "title": "Lancez un chat Libre",
+          "message": "Cliquez sur « Démarrer » pour ouvrir une conversation libre. Vous aurez accès à tous les outils activés.",
+          "success": "Session créée ! Vous pouvez maintenant converser."
+        },
+        "triggers_overview": {
+          "title": "Automatisez avec les déclencheurs",
+          "message": "Les déclencheurs permettent à vos agents de s'exécuter selon un planning ou en réaction à des événements — sans intervention manuelle."
+        },
+        "triggers_detail": {
+          "title": "Vos déclencheurs",
+          "message": "Voici la liste de vos déclencheurs. Chacun lie un agent à un planning (cron, intervalle) ou à un événement (fichier, webhook)."
         },
         "approvals": {
-          "title": "File d'attente des approbations",
-          "message": "Certaines actions demandent votre accord avant d'être exécutées. Vous les gérez ici."
+          "title": "Validation humaine (HITL)",
+          "message": "C'est ici que vos agents vous demandent permission avant d'agir. Quand un agent exécute une action sensible (écriture fichier, appel API externe…), une carte d'approbation apparaît avec le détail de l'action. Vous approuvez ou refusez en un clic. La file est vide pour l'instant — c'est bon signe !"
         },
-        "notifications": {
-          "title": "Vos notifications",
-          "message": "Restez informé des événements importants via desktop ou webhook."
+        "notifications_overview": {
+          "title": "Restez informé",
+          "message": "Configurez des canaux de notification pour recevoir des alertes sur les événements importants de vos agents."
         },
-        "observability": {
-          "title": "Observabilité",
-          "message": "Suivez l'activité de vos agents, les coûts LLM et les journaux d'outils en temps réel."
+        "notifications_test": {
+          "title": "Testez vos notifications",
+          "message": "Un canal de notification desktop a été créé pour la démo. Vous devriez voir une notification apparaître.",
+          "success": "Notification envoyée ! Vérifiez votre bureau."
+        },
+        "observability_tabs": {
+          "title": "Trois vues sur votre système",
+          "message": "L'observabilité offre Timeline, Coûts LLM et Audit Trail — chacune donne un angle différent sur l'activité de vos agents."
+        },
+        "observability_timeline": {
+          "title": "Timeline en temps réel",
+          "message": "La timeline affiche les événements de vos agents en direct. Les actions du tour (démarrage agent, chat, trigger) y sont déjà visibles."
         },
         "graduation": {
           "title": "Tour terminé !",
-          "message": "Vous maîtrisez l'essentiel d'Apollia OS. Explorez librement et revenez quand vous voulez."
+          "message": "Vous avez exploré chaque recoin d'Apollia OS. Vous êtes prêt à piloter vos agents en toute confiance."
         },
-        "timeout_skip": "Pas de souci, vous pourrez essayer plus tard !",
-        "step_1": "C'est votre tableau de bord. Vous voyez vos agents actifs et l'activité récente.",
-        "step_2": "Cliquez Démarrer pour activer csv-data-worker, votre premier agent de démo.",
-        "step_3": "Un message est prérempli. Cliquez sur Envoyer ou appuyez sur Entrée.",
-        "step_4": "Les déclencheurs automatisent vos agents. Le formulaire est prérempli, cliquez Créer.",
-        "step_5": "Certaines actions demandent votre accord. Gérez-les ici avant qu'elles s'exécutent.",
-        "step_6": "Restez informé des événements importants via desktop ou webhook.",
-        "step_7": "Suivez l'activité de vos agents, les coûts LLM et les journaux d'outils.",
-        "step_8": "Vous maîtrisez l'essentiel d'Apollia OS. Explorez librement !"
+        "timeout_skip": "Pas de souci, vous pourrez essayer plus tard !"
       },
       "bld": {
         "dashboard": {
@@ -1666,7 +1693,17 @@
       "prev": "Précédent",
       "finish": "Terminer",
       "next": "Suivant",
-      "progress_label": "Progression du tour"
+      "progress_label": "Progression du tour",
+      "group": {
+        "dashboard": "Tableau de bord",
+        "agents": "Agents",
+        "chat": "Chat",
+        "triggers": "Déclencheurs",
+        "approvals": "Approbations",
+        "notifications": "Notifications",
+        "observability": "Observabilité",
+        "graduation": "Fin"
+      }
     }
   },
   "permissions": {

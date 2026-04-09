@@ -462,7 +462,11 @@
       "reason": "Reason",
       "date": "Date"
     },
-    "unknown_agent": "Unknown agent"
+    "unknown_agent": "Unknown agent",
+    "chat_tools_title": "Chat — Tool Approvals",
+    "chat_no_pending": "No pending chat tool approvals",
+    "chat_session_label": "Session",
+    "chat_open_session": "Open session"
   },
   "llm": {
     "title": "LLM Backends",
@@ -1109,51 +1113,74 @@
     "explore_done": "Go to dashboard",
     "tour": {
       "op": {
-        "dashboard": {
-          "title": "Welcome to your dashboard",
-          "message": "This is your central hub. You can see active agents and recent activity here."
+        "dashboard_header": {
+          "title": "Your command center",
+          "message": "Welcome to your dashboard. This is your central hub for monitoring everything in Apollia OS."
         },
-        "agents": {
-          "title": "Start an agent",
-          "message": "Click Start to activate csv-data-worker, your first demo agent.",
-          "success": "Great job! The agent is now active.",
-          "already_active": "The agent is already active, let's move on!"
+        "dashboard_agents": {
+          "title": "Active agents overview",
+          "message": "This section shows your running agents at a glance. You can see their status and key metrics here."
         },
-        "chat": {
-          "title": "Send a message",
-          "message": "A message has been pre-filled for you. Click Send or press Enter.",
-          "success": "Message sent! The assistant is processing your request."
+        "dashboard_activity": {
+          "title": "Recent activity feed",
+          "message": "This feed shows recent events from all your agents — actions taken, approvals requested, and more."
         },
-        "triggers": {
-          "title": "Create a trigger",
-          "message": "Triggers automate your agents. The form is pre-filled — just click Create.",
-          "success": "Trigger created! Your agent will now run automatically."
+        "agents_grid": {
+          "title": "Your agent fleet",
+          "message": "Each card represents an agent. You can see its name, status, and quick actions. Let's explore one."
+        },
+        "agents_start": {
+          "title": "Start your first agent",
+          "message": "This agent is paused. Click the glowing Start button to activate it and see the runtime in action.",
+          "success": "Agent started! Notice the Chat button that just appeared on its card — you can use it to talk directly to this agent."
+        },
+        "chat_discover": {
+          "title": "Start a conversation",
+          "message": "The Chat page is where you interact with agents. Click 'New Chat' to begin."
+        },
+        "chat_picker": {
+          "title": "Choose your mode",
+          "message": "The picker lets you select tool groups, pick a specific agent, or start a free-form Libre conversation."
+        },
+        "chat_libre": {
+          "title": "Start a Libre chat",
+          "message": "Click 'Start Libre' to open a free conversation. You'll have access to all enabled tools.",
+          "success": "Chat session created! You're ready to talk."
+        },
+        "triggers_overview": {
+          "title": "Automate with triggers",
+          "message": "Triggers let your agents run on schedules or react to events — no manual intervention needed."
+        },
+        "triggers_detail": {
+          "title": "Your trigger list",
+          "message": "Here you can see your triggers. Each one ties an agent to a schedule (cron, interval) or an event (file, webhook)."
         },
         "approvals": {
-          "title": "Approval queue",
-          "message": "Some agent actions require your consent before they run. You manage them here."
+          "title": "Human-in-the-loop approvals",
+          "message": "This is where your agents ask for permission before acting. When an agent runs a sensitive action (file write, external API call...), an approval card appears with details. You approve or reject in one click. The queue is empty right now — that's a good sign!"
         },
-        "notifications": {
-          "title": "Your notifications",
-          "message": "Stay informed about important events via desktop or webhook."
+        "notifications_overview": {
+          "title": "Stay informed",
+          "message": "Configure notification channels to receive alerts about important agent events via desktop or webhook."
         },
-        "observability": {
-          "title": "Observability",
-          "message": "Monitor your agents' activity, LLM costs and tool logs in real time."
+        "notifications_test": {
+          "title": "Test your notifications",
+          "message": "A desktop notification channel has been created for the demo. You should see a notification appear.",
+          "success": "Notification sent! Check your desktop."
+        },
+        "observability_tabs": {
+          "title": "Three views of your system",
+          "message": "Observability offers Timeline, LLM Costs, and Audit Trail — each giving a different lens on your agents' activity."
+        },
+        "observability_timeline": {
+          "title": "Real-time timeline",
+          "message": "The timeline shows agent events as they happen. The actions from this tour (agent start, chat, trigger) are already visible here."
         },
         "graduation": {
           "title": "Tour complete!",
-          "message": "You've mastered the essentials of Apollia OS. Explore freely and come back any time."
+          "message": "You've explored every corner of Apollia OS. You're ready to operate your agents with confidence."
         },
-        "timeout_skip": "No worries, you can try this later!",
-        "step_1": "This is your dashboard. You can see active agents and recent activity here.",
-        "step_2": "Click Start to activate csv-data-worker, your first demo agent.",
-        "step_3": "A message has been pre-filled. Click Send or press Enter.",
-        "step_4": "Triggers automate your agents. The form is pre-filled — just click Create.",
-        "step_5": "Some actions require your consent before they run. Manage them here.",
-        "step_6": "Stay informed about important events via desktop or webhook.",
-        "step_7": "Monitor your agents' activity, LLM costs, and tool logs.",
-        "step_8": "You've mastered the essentials of Apollia OS. Explore freely!"
+        "timeout_skip": "No worries, you can try this later!"
       },
       "bld": {
         "dashboard": {
@@ -1666,7 +1693,17 @@
       "prev": "Previous",
       "finish": "Finish",
       "next": "Next",
-      "progress_label": "Tour progress"
+      "progress_label": "Tour progress",
+      "group": {
+        "dashboard": "Dashboard",
+        "agents": "Agents",
+        "chat": "Chat",
+        "triggers": "Triggers",
+        "approvals": "Approvals",
+        "notifications": "Notifications",
+        "observability": "Observability",
+        "graduation": "Finish"
+      }
     }
   },
   "permissions": {

@@ -701,6 +701,15 @@ export interface ToolAuthorizationRequest {
   decision: "accept" | "refuse" | "always_accept";
 }
 
+/** Pending chat tool approval — tracked globally so it survives page navigation. */
+export interface PendingChatApproval {
+  sessionId: string;
+  messageId: string;
+  toolName: string;
+  inputPreview: string;
+  receivedAt: string;
+}
+
 // ─── Sprint 20 — Système Agentique Amélioré ─────────────────────────────────
 
 /** Résumé d'un outil pour l'affichage en liste. */
@@ -931,6 +940,8 @@ export interface TourStep {
   interaction: TourInteraction | null;
   completion_mode: string;
   estimated_seconds: number;
+  /** Visual group for progress rail grouping (e.g. "dashboard"). Null = own group. */
+  group: string | null;
 }
 
 // ─── Voice commands ──────────────────────────────────────────────────────────

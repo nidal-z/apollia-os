@@ -3,7 +3,7 @@
   import { currentRoute, navigateTo, sidebarCollapsed, type Route } from "$lib/stores/navigation";
   import { connectionStatus } from "$lib/stores/sse";
   import { pendingCount } from "$lib/stores/hitl";
-  import { activeChatCount } from "$lib/stores/chat";
+  import { activeChatCount, pendingChatApprovalCount } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
@@ -174,9 +174,9 @@
           {/if}
           {#if !collapsed}
             <span>{$t(item.labelKey)}</span>
-            {#if item.route === "approvals" && $pendingCount > 0}
+            {#if item.route === "approvals" && ($pendingCount + $pendingChatApprovalCount) > 0}
               <Badge variant="destructive" class="ml-auto text-[10px] px-1.5 py-0" data-testid="approvals-badge"
-                >{$pendingCount}</Badge
+                >{$pendingCount + $pendingChatApprovalCount}</Badge
               >
             {/if}
             {#if item.route === "chat" && $activeChatCount > 0}

@@ -5,19 +5,14 @@
   import { get } from "svelte/store";
   import { t } from "svelte-i18n";
   import { onboardingStore } from "$lib/stores/onboarding";
-  import { tourPrefill, tourCompanionOverride, tourOpenAgentDetail } from "$lib/stores/tour";
+  import { tourPrefill, tourCompanionOverride, tourOpenAgentDetail, tourOpenChatPicker } from "$lib/stores/tour";
   import { navigateTo } from "$lib/stores/navigation";
   import TourSpotlight from "./TourSpotlight.svelte";
   import TourStepCard from "./TourStepCard.svelte";
   import TourProgressRail from "./TourProgressRail.svelte";
   import VoiceIndicator from "./VoiceIndicator.svelte";
-  import type { TourStep, OnboardingPhase, AgentListItem, TourVoiceAction, SttStatus } from "$lib/types";
+  import type { TourStep, OnboardingPhase, TourVoiceAction, SttStatus } from "$lib/types";
   import type { Route } from "$lib/stores/navigation";
-
-  // ─── Constants ────────────────────────────────────────────────────────────────
-
-  /** Seconds before an interactive step is auto-skipped. */
-  const INTERACTION_TIMEOUT_S = 30;
 
   // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -26,12 +21,17 @@
   /** i18n namespace prefix derived from the active profile: `"op"` or `"bld"`. */
   let profileNs = $state("op");
   let targetRect = $state<DOMRect | null>(null);
+  /** The CSS selector of the current step's spotlight target, kept in sync for
+   *  reactive rect refresh on window resize / scroll. */
+  let activeSelector = $state<string | null>(null);
   let loading = $state(true);
   let skipping = $state(false);
   let showConfirmExit = $state(false);
   let autoTimer = $state<ReturnType<typeof setTimeout> | null>(null);
   let timeoutTimer = $state<ReturnType<typeof setTimeout> | null>(null);
   let waitEventUnlisten = $state<UnlistenFn | null>(null);
+  /** Generic per-step cleanup callback (DOM listeners, etc.). */
+  let stepCleanup = $state<(() => void) | null>(null);
 
   // ─── Voice command state ───────────────────────────────────────────────────
 
@@ -59,18 +59,110 @@
     return "";
   });
 
+  // ─── Group computation ────────────────────────────────────────────────────
+
+  interface GroupInfo {
+    label: string;
+    startIndex: number;
+    endIndex: number;
+    count: number;
+  }
+
+  function computeGroups(list: TourStep[]): GroupInfo[] {
+    const result: GroupInfo[] = [];
+    for (let i = 0; i < list.length; i++) {
+      const g = list[i].group ?? list[i].id;
+      const last = result[result.length - 1];
+      if (last && last.label === g) {
+        last.endIndex = i;
+        last.count++;
+      } else {
+        result.push({ label: g, startIndex: i, endIndex: i, count: 1 });
+      }
+    }
+    return result;
+  }
+
+  let groups = $derived(computeGroups(steps));
+  let currentGroup = $derived(
+    groups.find((g) => stepIndex >= g.startIndex && stepIndex <= g.endIndex) ?? null
+  );
+  let groupLabel = $derived(
+    currentGroup !== null ? $t(`onboarding_v2.tour.group.${currentGroup.label}`) : ""
+  );
+  let subStepIndex = $derived(
+    currentGroup !== null ? stepIndex - currentGroup.startIndex : 0
+  );
+  let subStepCount = $derived(currentGroup?.count ?? 1);
+
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
+
+  /** Re-measure the current spotlight target's bounding rect.
+   *  Called on resize / scroll so the card and spotlight stay aligned. */
+  function refreshTargetRect(): void {
+    if (activeSelector === null) {
+      targetRect = null;
+      return;
+    }
+    const el = document.querySelector(activeSelector);
+    targetRect = el !== null ? el.getBoundingClientRect() : null;
+  }
+
+  let resizeDebounce: ReturnType<typeof setTimeout> | null = null;
+  function onResizeOrScroll(): void {
+    if (resizeDebounce !== null) clearTimeout(resizeDebounce);
+    resizeDebounce = setTimeout(refreshTargetRect, 60);
+  }
+
+  // ─── Layout-settle tracking ───────────────────────────────────────────────
+  // After navigation the target element may shift as CSS transitions, lazy
+  // content, and sidebar animations settle.  We poll via rAF for up to 1.5 s,
+  // updating targetRect each time the element moves.
+
+  let settleRaf: number | null = null;
+
+  function stopSettle(): void {
+    if (settleRaf !== null) {
+      cancelAnimationFrame(settleRaf);
+      settleRaf = null;
+    }
+  }
+
+  function startSettle(): void {
+    stopSettle();
+    const startTime = performance.now();
+    const SETTLE_DURATION_MS = 1500;
+
+    function poll(): void {
+      refreshTargetRect();
+      if (performance.now() - startTime < SETTLE_DURATION_MS) {
+        settleRaf = requestAnimationFrame(poll);
+      } else {
+        settleRaf = null;
+      }
+    }
+
+    settleRaf = requestAnimationFrame(poll);
+  }
 
   onMount(() => {
     void loadAndStart();
     void checkSttAvailability();
     void registerSttListener();
 
+    window.addEventListener("resize", onResizeOrScroll);
+    window.addEventListener("scroll", onResizeOrScroll, { passive: true });
+
     return () => {
       clearAutoTimer();
       clearTimeoutTimer();
       clearWaitEvent();
       clearSttListener();
+      stopSettle();
+      if (stepCleanup) { stepCleanup(); stepCleanup = null; }
+      window.removeEventListener("resize", onResizeOrScroll);
+      window.removeEventListener("scroll", onResizeOrScroll);
+      if (resizeDebounce !== null) clearTimeout(resizeDebounce);
       tourPrefill.set(null);
       tourCompanionOverride.set(null);
       tourOpenAgentDetail.set(null);
@@ -194,6 +286,10 @@
     steps = loaded;
 
     // Restore persisted progress, clamped to valid range.
+    // tour_step_index is the *next* step to show (incremented on completion),
+    // so it already points to the first uncompleted step.  However, if it
+    // exceeds the last valid index the user has already finished the tour —
+    // clamp to the last step so the graduation auto-advance can fire.
     const persisted = state.tour_step_index ?? 0;
     stepIndex = Math.min(Math.max(0, persisted), Math.max(0, loaded.length - 1));
 
@@ -208,67 +304,173 @@
     clearAutoTimer();
     clearTimeoutTimer();
     clearWaitEvent();
+    stopSettle();
+    if (stepCleanup) { stepCleanup(); stepCleanup = null; }
     tourCompanionOverride.set(null);
+    document.querySelectorAll(".tour-ring-pulse").forEach((el) => el.classList.remove("tour-ring-pulse"));
 
     const step = steps[index];
     if (step === undefined) return;
 
-    // Publish prefilled data for target pages to read.
     tourPrefill.set(step.interaction ?? null);
-    // Clear any pending programmatic panel open from the previous step.
     tourOpenAgentDetail.set(null);
 
-    // Navigate to the step's route before DOM operations.
+    // Navigate to the step's route.
     const route = step.route.replace(/^\//, "") as Route;
     navigateTo(route);
-
-    // Wait for Svelte to flush and the browser to paint.
     await tick();
     await sleep(80);
 
-    // For the agent-detail step, open the detail panel programmatically.
-    if (step.id === "bld-agent-detail") {
-      tourOpenAgentDetail.set("csv-data-worker");
-      // Allow an extra tick for the panel to mount before resolving the selector.
-      await tick();
-      await sleep(200);
-    }
+    // Run step-specific pre-activation hook.
+    const cleanup = await runStepHook(step);
+    if (cleanup) stepCleanup = cleanup;
 
-    // Resolve the spotlight target with retry logic.
+    // Resolve the spotlight target.
+    activeSelector = step.spotlight_selector ?? null;
     targetRect = await resolveSelector(step.spotlight_selector);
+    startSettle();
 
-    // For the agent-start step, check if the demo agent is already running.
-    if (
-      step.interaction?.interaction_type === "start_agent" &&
-      step.interaction.prefilled_data !== null &&
-      step.interaction.prefilled_data !== undefined
-    ) {
-      const agentId = step.interaction.prefilled_data["agent_id"];
-      if (typeof agentId === "string") {
-        const alreadyRunning = await isDemoAgentRunning(agentId);
-        if (alreadyRunning) {
-          tourCompanionOverride.set(`onboarding.tour.${profileNs}.agents.already_active`);
-          await advanceStep();
-          return;
-        }
-      }
-    }
+    // Run step-specific post-resolve hook (ring-pulse, etc.).
+    await runPostResolveHook(step);
 
     // Set up completion based on the mode.
     scheduleCompletion(step);
   }
 
-  // ─── Demo agent pre-check ─────────────────────────────────────────────────
+  // ─── Step hooks ───────────────────────────────────────────────────────────
 
-  async function isDemoAgentRunning(agentName: string): Promise<boolean> {
+  /** Pre-activation hook: runs before selector resolution. Returns optional cleanup. */
+  async function runStepHook(step: TourStep): Promise<(() => void) | null> {
+    switch (step.id) {
+      // Builder: open agent detail panel
+      case "bld-agent-detail":
+        tourOpenAgentDetail.set("csv-data-worker");
+        await tick();
+        await sleep(200);
+        return null;
+
+      // Operator: stop onboarding-agent so user sees Start button
+      case "op-agents-2":
+        await ensureAgentStopped("onboarding-agent");
+        await tick();
+        await sleep(300);
+        return null;
+
+      // Operator: listen for click on "New Chat" → auto-advance
+      case "op-chat-1": {
+        await tick();
+        const btn = document.querySelector('[data-testid="new-chat-button"]');
+        if (btn) {
+          const handler = () => void advanceStep();
+          btn.addEventListener("click", handler, { once: true });
+          return () => btn.removeEventListener("click", handler);
+        }
+        return null;
+      }
+
+      // Operator: open the chat picker programmatically
+      case "op-chat-2":
+        tourOpenChatPicker.set(true);
+        await tick();
+        await sleep(200);
+        return null;
+
+      // Operator: create a demo trigger so the page isn't empty
+      case "op-triggers-1":
+        try {
+          await invoke("create_trigger", {
+            definition: {
+              id: "tour-demo-trigger",
+              agent: "onboarding-agent",
+              enabled: true,
+              on_busy: "queue",
+              source: { type: "interval", every: "5m" },
+            },
+          });
+        } catch {
+          // Trigger may already exist from a previous tour run — ignore.
+        }
+        await tick();
+        await sleep(300);
+        return null;
+
+      // Operator: create a demo notification channel
+      case "op-notifications-1":
+        try {
+          await invoke("create_notification_channel", {
+            channel: {
+              id: "tour-alerts",
+              channel_type: "desktop",
+              enabled: true,
+              config: {},
+              events: null,
+            },
+          });
+        } catch {
+          // Channel may already exist — ignore.
+        }
+        // Give the backend time to persist the channel before the page renders.
+        await sleep(500);
+        // Re-navigate to force the page to reload its channel list.
+        navigateTo("notifications" as Route);
+        await tick();
+        await sleep(300);
+        return null;
+
+      // Operator: send a test notification (with retry for propagation delay)
+      case "op-notifications-2":
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            await invoke("test_notification_channel", { channelId: "tour-alerts" });
+            tourCompanionOverride.set("onboarding.tour.op.notifications_test.success");
+            setTimeout(() => tourCompanionOverride.set(null), 3000);
+            break;
+          } catch {
+            if (attempt < 2) await sleep(500);
+          }
+        }
+        return null;
+
+      default:
+        return null;
+    }
+  }
+
+  /** Post-resolve hook: runs after selector is resolved (for ring-pulse, etc.). */
+  async function runPostResolveHook(step: TourStep): Promise<void> {
+    switch (step.id) {
+      // Operator: ring-pulse on Start button
+      case "op-agents-2": {
+        await tick();
+        const btn = document.querySelector(
+          '[data-agent-name="onboarding-agent"] [data-testid="agent-start-btn"]'
+        );
+        if (btn) btn.classList.add("tour-ring-pulse");
+        break;
+      }
+
+      // Operator: ring-pulse on "Start Libre" button
+      case "op-chat-3": {
+        await tick();
+        const btn = document.querySelector('[data-testid="pick-libre"]');
+        if (btn) btn.classList.add("tour-ring-pulse");
+        break;
+      }
+    }
+  }
+
+  // ─── Agent stop helper ─────────────────────────────────────────────────────
+
+  /** Stops an agent by name so the user can re-activate it during the tour. */
+  async function ensureAgentStopped(agentName: string): Promise<void> {
     try {
-      const agents = await invoke<AgentListItem[]>("list_agents");
-      return agents.some(
-        (a) => a.name === agentName && a.runtime_status === "active",
-      );
+      const agents = await invoke<{ name: string; id: string | null; runtime_status: string | null }[]>("list_agents");
+      const agent = agents.find((a) => a.name === agentName);
+      if (agent?.id && (agent.runtime_status === "active" || agent.runtime_status === "degraded")) {
+        await invoke("stop_agent", { agentId: agent.id });
+      }
     } catch (err) {
-      console.warn("[GuidedTour] list_agents failed, skipping pre-check:", err);
-      return false;
+      console.warn(`[GuidedTour] ensureAgentStopped(${agentName}) failed:`, err);
     }
   }
 
@@ -296,28 +498,28 @@
   function scheduleCompletion(step: TourStep): void {
     switch (step.completion_mode) {
       case "auto":
-        autoTimer = setTimeout(() => {
-          void advanceStep();
-        }, step.estimated_seconds * 1000);
+        // "auto" steps still wait for the user to click Next.  The
+        // estimated_seconds field is informational only — we never
+        // auto-advance because the user needs time to read the content
+        // and the actual reading time varies with window size, language, etc.
         break;
 
       case "wait_event": {
         const eventName = step.interaction?.validation_event;
         if (eventName !== null && eventName !== undefined) {
-          // Listen for the validation event on the generic "runtime-event" channel.
+          const successKey = `${step.companion_message_key.replace('.title', '.success')}`;
           void listen<{ event_type: string }>("runtime-event", (event: Event<{ event_type: string }>) => {
             if (event.payload.event_type === eventName) {
-              void advanceStep();
+              // Show success message briefly, then advance.
+              tourCompanionOverride.set(successKey);
+              setTimeout(() => {
+                tourCompanionOverride.set(null);
+                void advanceStep();
+              }, 2000);
             }
           }).then((fn) => {
             waitEventUnlisten = fn;
           });
-
-          // Auto-skip after INTERACTION_TIMEOUT_S if no event arrives.
-          timeoutTimer = setTimeout(() => {
-            tourCompanionOverride.set(`onboarding.tour.${profileNs}.timeout_skip`);
-            void advanceStep();
-          }, INTERACTION_TIMEOUT_S * 1000);
         }
         break;
       }
@@ -466,7 +668,7 @@
       onoverlaclick={requestExit}
     />
 
-    <TourProgressRail {totalSteps} currentStep={stepIndex} />
+    <TourProgressRail {steps} currentStep={stepIndex} />
 
     <TourStepCard
       title={companionTitle}
@@ -474,6 +676,9 @@
       stepIndex={stepIndex}
       {totalSteps}
       {targetRect}
+      {groupLabel}
+      {subStepIndex}
+      {subStepCount}
       showPrev={stepIndex > 0}
       showNext={true}
       showSkip={true}

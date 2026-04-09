@@ -31,6 +31,12 @@ import type {
 import { onboardingStore } from "./onboarding";
 import { currentRoute, navigateTo } from "./navigation";
 import { refreshSttStatus, refreshTranscriptions } from "./stt";
+import {
+  appendGlobalToken,
+  clearGlobalBuffer,
+  addPendingChatApproval,
+  removePendingChatApproval,
+} from "./chat-global";
 
 /** Watchdog timeout — triggers a single IPC refresh if no event received. */
 const WATCHDOG_TIMEOUT_MS = 10_000;
@@ -198,6 +204,26 @@ async function sendNativeNotification(taskId: string): Promise<void> {
   }
 }
 
+async function sendChatApprovalNotification(
+  sessionId: string,
+  toolName: string,
+): Promise<void> {
+  try {
+    let granted = await isPermissionGranted();
+    if (!granted) {
+      const permission = await requestPermission();
+      granted = permission === "granted";
+    }
+    if (!granted) return;
+    sendNotification({
+      title: "Approbation requise — Chat",
+      body: `L'outil « ${toolName} » demande votre autorisation (session ${sessionId.slice(0, 8)})`,
+    });
+  } catch {
+    // Notification API unavailable — silently ignore
+  }
+}
+
 // ─── Event dispatch ───────────────────────────────────────────────────────────
 
 /** Payload shape emitted by the Rust event bridge (`TauriRuntimeEvent`). */
@@ -244,6 +270,66 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
       break;
     case "chat-changed":
       void refreshChatSessionsViaIpc();
+      // ── Global chat approval / streaming tracking ──────────────────
+      if (event.event_type === "ChatApprovalRequired") {
+        const inner =
+          (event.payload as Record<string, unknown>)?.ChatApprovalRequired as
+            | {
+                session_id?: string;
+                message_id?: string;
+                tool_name?: string;
+                prompt?: string;
+              }
+            | undefined;
+        const p = inner ?? (event.payload as Record<string, unknown>);
+        if (p.session_id) {
+          addPendingChatApproval({
+            sessionId: String(p.session_id),
+            messageId: String(p.message_id ?? ""),
+            toolName: String(p.tool_name ?? ""),
+            inputPreview: String(p.prompt ?? ""),
+            receivedAt: new Date().toISOString(),
+          });
+          void sendChatApprovalNotification(
+            String(p.session_id),
+            String(p.tool_name ?? "tool"),
+          );
+        }
+      } else if (
+        event.event_type === "ChatApprovalResolved" ||
+        event.event_type === "ChatApprovalTimeout"
+      ) {
+        const inner =
+          (event.payload as Record<string, unknown>)?.[event.event_type] as
+            | { session_id?: string; message_id?: string; tool_name?: string }
+            | undefined;
+        const p = inner ?? (event.payload as Record<string, unknown>);
+        if (p.session_id) {
+          removePendingChatApproval(
+            String(p.session_id),
+            p.message_id ? String(p.message_id) : undefined,
+            p.tool_name ? String(p.tool_name) : undefined,
+          );
+        }
+      } else if (event.event_type === "ChatResponseCompleted") {
+        const inner =
+          (event.payload as Record<string, unknown>)?.ChatResponseCompleted as
+            | { session_id?: string }
+            | undefined;
+        const p = inner ?? (event.payload as Record<string, unknown>);
+        if (p.session_id) {
+          clearGlobalBuffer(String(p.session_id));
+        }
+      } else if (event.event_type === "ChatError") {
+        const inner =
+          (event.payload as Record<string, unknown>)?.ChatError as
+            | { session_id?: string }
+            | undefined;
+        const p = inner ?? (event.payload as Record<string, unknown>);
+        if (p.session_id) {
+          clearGlobalBuffer(String(p.session_id));
+        }
+      }
       break;
     case "plan-cache-hit":
       lastPlanCacheHit.set(event.payload as unknown as PlanCacheHitEvent);
@@ -307,6 +393,7 @@ export async function refreshAll(): Promise<void> {
 export function createSSEConnection(): () => void {
   let destroyed = false;
   let unlistenFn: UnlistenFn | null = null;
+  let unlistenChatTokenFn: UnlistenFn | null = null;
   let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
 
   function resetWatchdog(): void {
@@ -348,6 +435,23 @@ export function createSSEConnection(): () => void {
     }
   });
 
+  // 2b. Global chat-token listener — accumulates tokens into the global buffer
+  //     so streaming data is never lost when the ChatConversation component
+  //     is not mounted.
+  void listen<{ session_id: string; message_id: string; token: string }>(
+    "chat-token",
+    (event) => {
+      if (destroyed) return;
+      appendGlobalToken(event.payload.session_id, event.payload.token);
+    },
+  ).then((fn) => {
+    if (destroyed) {
+      fn();
+    } else {
+      unlistenChatTokenFn = fn;
+    }
+  });
+
   // 3. Cleanup function
   return () => {
     destroyed = true;
@@ -358,6 +462,10 @@ export function createSSEConnection(): () => void {
     if (unlistenFn !== null) {
       unlistenFn();
       unlistenFn = null;
+    }
+    if (unlistenChatTokenFn !== null) {
+      unlistenChatTokenFn();
+      unlistenChatTokenFn = null;
     }
     connectionStatus.set("connecting");
   };

@@ -575,6 +575,10 @@ log_latency      = true
 log_cost         = false
 debug_log_prompt = false
 
+[llm.routing]
+precise = "local"
+fast    = "local"
+
 [[llm.backends]]
 type         = "embedded"
 name         = "local"
@@ -584,9 +588,16 @@ quantization = "{quantization}"
 "#
     );
 
-    // Skip if [llm] section is already present.
+    // Skip if [llm] section is already present — but ensure [llm.routing] exists.
     let already_has_llm = existing.starts_with("[llm]") || existing.contains("\n[llm]");
     if already_has_llm {
+        if !existing.contains("[llm.routing]") {
+            let mut content = existing;
+            content.push_str("\n[llm.routing]\nprecise = \"local\"\nfast    = \"local\"\n");
+            tokio::fs::write(config_path, &content)
+                .await
+                .map_err(|e| format!("failed to write apollia.toml: {e}"))?;
+        }
         return Ok(());
     }
 
