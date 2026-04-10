@@ -193,8 +193,7 @@ impl NativeChatToolInvoker {
         use apollia_tools::tools::python_executor::{PythonExecutor, PythonInput};
 
         let venv_base = self.home_dir.join(".apollia").join("venvs");
-        let executor =
-            PythonExecutor::new("chat-libre", &venv_base).map_err(|e| e.to_string())?;
+        let executor = PythonExecutor::new("chat-libre", &venv_base).map_err(|e| e.to_string())?;
 
         // Lazily set up the venv on first call (idempotent — skips if already exists).
         executor
@@ -213,10 +212,7 @@ impl NativeChatToolInvoker {
             .unwrap_or(30);
 
         let output = executor
-            .run(PythonInput {
-                code,
-                timeout_secs,
-            })
+            .run(PythonInput { code, timeout_secs })
             .await
             .map_err(|e| e.to_string())?;
 
@@ -234,16 +230,41 @@ impl NativeChatToolInvoker {
     /// Searches the user's local memory store (`~/.apollia/memory/user.db`) using
     /// FTS5 full-text search. The namespace is fixed to `"user"` in chat libre mode
     /// — agents have their own namespaced databases.
-    async fn invoke_memory_search(
-        &self,
-        arguments: &serde_json::Value,
-    ) -> Result<String, String> {
+    async fn invoke_memory_search(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::memory_search::{MemorySearchInput, MemorySearchTool};
 
         let base_dir = self.home_dir.join(".apollia").join("memory");
         let tool = MemorySearchTool::new("user".to_string(), vec![], base_dir);
         let input: MemorySearchInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("memory_search: invalid arguments: {e}"))?;
+        let output = tool.run(input).await.map_err(|e| e.to_string())?;
+        serde_json::to_string(&output).map_err(|e| e.to_string())
+    }
+
+    /// Execute `notebook_read` with the given JSON arguments.
+    ///
+    /// Reads and formats the cells of a Jupyter `.ipynb` notebook for LLM consumption.
+    /// Only nbformat v4 is supported.
+    async fn invoke_notebook_read(&self, arguments: &serde_json::Value) -> Result<String, String> {
+        use apollia_tools::tools::notebook_read::{NotebookRead, NotebookReadInput};
+
+        let tool = NotebookRead::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let input: NotebookReadInput = serde_json::from_value(arguments.clone())
+            .map_err(|e| format!("notebook_read: invalid arguments: {e}"))?;
+        let output = tool.run(input).await.map_err(|e| e.to_string())?;
+        serde_json::to_string(&output).map_err(|e| e.to_string())
+    }
+
+    /// Execute `notebook_edit` with the given JSON arguments.
+    ///
+    /// Applies a sequence of atomic cell operations to a Jupyter `.ipynb` notebook,
+    /// writing the modified notebook back to disk. Only nbformat v4 is supported.
+    async fn invoke_notebook_edit(&self, arguments: &serde_json::Value) -> Result<String, String> {
+        use apollia_tools::tools::notebook_edit::{NotebookEdit, NotebookEditInput};
+
+        let tool = NotebookEdit::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let input: NotebookEditInput = serde_json::from_value(arguments.clone())
+            .map_err(|e| format!("notebook_edit: invalid arguments: {e}"))?;
         let output = tool.run(input).await.map_err(|e| e.to_string())?;
         serde_json::to_string(&output).map_err(|e| e.to_string())
     }
@@ -267,6 +288,8 @@ impl ToolInvoker for NativeChatToolInvoker {
             "http_fetch" => self.invoke_http_fetch(arguments).await,
             "python_executor" => self.invoke_python(arguments).await,
             "memory_search" => self.invoke_memory_search(arguments).await,
+            "notebook_read" => self.invoke_notebook_read(arguments).await,
+            "notebook_edit" => self.invoke_notebook_edit(arguments).await,
             other => Err(format!("unknown tool: {other}")),
         }
     }
@@ -587,8 +610,8 @@ impl BuiltInChatAgent {
                     // Capture reasoning text emitted before tool calls.
                     let clean_reasoning = Self::strip_think_blocks(&accumulated_text);
                     let reasoning_with_think = Self::extract_think_blocks(&accumulated_text);
-                    let reasoning_text = reasoning_with_think
-                        .unwrap_or_else(|| clean_reasoning.clone());
+                    let reasoning_text =
+                        reasoning_with_think.unwrap_or_else(|| clean_reasoning.clone());
                     tracing::info!(
                         accumulated_len = accumulated_text.len(),
                         reasoning_len = reasoning_text.trim().len(),

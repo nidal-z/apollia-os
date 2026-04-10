@@ -1004,9 +1004,10 @@ impl Supervisor {
                 registry_handle.clone(),
                 Some(a2a_invoker.clone()),
                 project_repository.as_ref().map(|repo| {
-                    std::sync::Arc::new(
-                        crate::chat::DefaultProjectContextProvider::new(repo.clone()),
-                    ) as std::sync::Arc<dyn crate::chat::ProjectContextProvider>
+                    std::sync::Arc::new(crate::chat::DefaultProjectContextProvider::new(
+                        repo.clone(),
+                    ))
+                        as std::sync::Arc<dyn crate::chat::ProjectContextProvider>
                 }),
             ) {
                 Ok(handle) => {
@@ -1421,7 +1422,7 @@ fn resolve_home(path: &std::path::Path) -> std::path::PathBuf {
 
 /// Returns descriptors for native tools bundled with `apollia-tools`.
 ///
-/// Registers all 10 active native tools in the order: existing tools first,
+/// Registers all 12 active native tools in the order: existing tools first,
 /// then new atomic tools grouped by category.
 fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
     vec![
@@ -1435,6 +1436,8 @@ fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
         apollia_tools::tools::file_grep::FileGrep::descriptor(),
         apollia_tools::tools::http_fetch::HttpFetch::descriptor(),
         apollia_tools::tools::memory_search::MemorySearchTool::descriptor(),
+        apollia_tools::tools::notebook_read::NotebookRead::descriptor(),
+        apollia_tools::tools::notebook_edit::NotebookEdit::descriptor(),
     ]
 }
 
@@ -1584,12 +1587,12 @@ mod tests {
     }
 
     #[test]
-    fn native_tool_descriptors_returns_10_tools() {
+    fn native_tool_descriptors_returns_12_tools() {
         // GIVEN: the native_tool_descriptors() function
         // WHEN: called
-        // THEN: exactly 10 descriptors are returned
+        // THEN: exactly 12 descriptors are returned
         let descriptors = native_tool_descriptors();
-        assert_eq!(descriptors.len(), 10);
+        assert_eq!(descriptors.len(), 12);
     }
 
     #[test]
@@ -1809,8 +1812,8 @@ mod tests {
         assert!(tools.is_ok());
         assert_eq!(
             tools.unwrap().len(),
-            10,
-            "10 native tools should be auto-registered"
+            12,
+            "12 native tools should be auto-registered"
         );
 
         // TaskRouterHandle: is clone

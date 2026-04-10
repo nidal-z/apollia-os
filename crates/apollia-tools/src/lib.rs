@@ -16,13 +16,15 @@
 //! - `http_fetch` — network-restricted HTTP client (feature `http`)
 //! - `memory_search` — FTS5 full-text search (feature `memory-search`)
 //! - `persistent_bash` — stateful shell executor (CWD + env vars persist across steps)
+//! - `notebook_read` — read and format Jupyter `.ipynb` cells for LLM consumption
+//! - `notebook_edit` — apply atomic cell operations to Jupyter `.ipynb` notebooks
 
 pub mod agent_repository;
 pub mod audit;
-pub mod project_repository;
 pub mod descriptor;
 pub mod executor;
 pub mod file_path_extractor;
+pub mod project_repository;
 pub mod registry;
 pub mod resolver;
 pub mod sandbox_path;
@@ -30,10 +32,6 @@ pub mod task_repository;
 pub mod tools;
 
 pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent};
-pub use project_repository::{
-    ProjectDetail, ProjectDocument, ProjectPatch, ProjectProviderRow, ProjectRepository,
-    ProjectRepositoryError, ProjectSummary, ProjectTemplate,
-};
 pub use apollia_permissions::{PermissionDecision, PermissionEngine, PermissionError};
 pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
@@ -43,6 +41,10 @@ pub use executor::{
     SessionToolFilter, ToolBatchCall, ToolDispatcher, ToolExecutionError, ToolExecutor,
 };
 pub use file_path_extractor::FilePathExtractor;
+pub use project_repository::{
+    ProjectDetail, ProjectDocument, ProjectPatch, ProjectProviderRow, ProjectRepository,
+    ProjectRepositoryError, ProjectSummary, ProjectTemplate,
+};
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
 pub use sandbox_path::{SandboxPathError, SandboxRoot};

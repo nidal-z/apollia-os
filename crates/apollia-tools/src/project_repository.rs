@@ -154,9 +154,7 @@ impl ProjectRepository {
         conn.execute_batch(MIGRATION_009_SQL)?;
 
         // v10 migration: add workspace_path column for provider directory resolution.
-        let _ = conn.execute_batch(
-            "ALTER TABLE projects ADD COLUMN workspace_path TEXT",
-        );
+        let _ = conn.execute_batch("ALTER TABLE projects ADD COLUMN workspace_path TEXT");
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -165,7 +163,10 @@ impl ProjectRepository {
 
     /// Liste tous les projets (ordre alphabétique par nom).
     pub fn list_projects(&self) -> Result<Vec<ProjectSummary>, ProjectRepositoryError> {
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         let mut stmt = conn.prepare(
             "SELECT id, name, description, created_at, updated_at, workspace_path
              FROM projects ORDER BY name ASC",
@@ -185,7 +186,10 @@ impl ProjectRepository {
 
     /// Retourne le détail complet d'un projet, incluant documents et providers.
     pub fn get_project(&self, id: &str) -> Result<ProjectDetail, ProjectRepositoryError> {
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
 
         let mut stmt = conn.prepare(
             "SELECT id, name, description, instructions, created_at, updated_at, workspace_path
@@ -203,13 +207,14 @@ impl ProjectRepository {
             ))
         });
 
-        let (pid, name, description, instructions, created_at, updated_at, workspace_path) = match project {
-            Ok(r) => r,
-            Err(rusqlite::Error::QueryReturnedNoRows) => {
-                return Err(ProjectRepositoryError::NotFound(id.to_owned()))
-            }
-            Err(e) => return Err(e.into()),
-        };
+        let (pid, name, description, instructions, created_at, updated_at, workspace_path) =
+            match project {
+                Ok(r) => r,
+                Err(rusqlite::Error::QueryReturnedNoRows) => {
+                    return Err(ProjectRepositoryError::NotFound(id.to_owned()))
+                }
+                Err(e) => return Err(e.into()),
+            };
 
         let mut doc_stmt = conn.prepare(
             "SELECT id, project_id, name, file_path, size_bytes, uploaded_at
@@ -278,7 +283,10 @@ impl ProjectRepository {
     ) -> Result<String, ProjectRepositoryError> {
         let id = uuid();
         let now = now_rfc3339();
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         conn.execute(
             "INSERT INTO projects (id, name, description, instructions, workspace_path, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
@@ -294,7 +302,10 @@ impl ProjectRepository {
         patch: ProjectPatch,
     ) -> Result<bool, ProjectRepositoryError> {
         let now = now_rfc3339();
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
 
         if let Some(name) = patch.name {
             conn.execute(
@@ -331,7 +342,10 @@ impl ProjectRepository {
 
     /// Supprime un projet et ses documents/providers en cascade.
     pub fn delete_project(&self, id: &str) -> Result<bool, ProjectRepositoryError> {
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         let n = conn.execute("DELETE FROM projects WHERE id = ?1", params![id])?;
         Ok(n > 0)
     }
@@ -346,7 +360,10 @@ impl ProjectRepository {
     ) -> Result<String, ProjectRepositoryError> {
         let id = uuid();
         let now = now_rfc3339();
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         conn.execute(
             "INSERT INTO project_documents (id, project_id, name, file_path, size_bytes, uploaded_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -357,8 +374,14 @@ impl ProjectRepository {
 
     /// Supprime un document par son `id`. Retourne `false` si introuvable.
     pub fn remove_document(&self, doc_id: &str) -> Result<bool, ProjectRepositoryError> {
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
-        let n = conn.execute("DELETE FROM project_documents WHERE id = ?1", params![doc_id])?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let n = conn.execute(
+            "DELETE FROM project_documents WHERE id = ?1",
+            params![doc_id],
+        )?;
         Ok(n > 0)
     }
 
@@ -367,7 +390,10 @@ impl ProjectRepository {
         &self,
         project_id: &str,
     ) -> Result<Vec<ProjectProviderRow>, ProjectRepositoryError> {
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         let mut stmt = conn.prepare(
             "SELECT id, project_id, provider_type, name, config_json, path, enabled, priority
              FROM project_providers WHERE project_id = ?1 ORDER BY priority ASC",
@@ -388,6 +414,7 @@ impl ProjectRepository {
     }
 
     /// Insère ou remplace un provider pour un projet (upsert par `project_id` + `name`).
+    #[allow(clippy::too_many_arguments)]
     pub fn set_provider(
         &self,
         project_id: &str,
@@ -399,7 +426,10 @@ impl ProjectRepository {
         priority: u8,
     ) -> Result<(), ProjectRepositoryError> {
         let id = uuid();
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         conn.execute(
             "INSERT INTO project_providers
                 (id, project_id, provider_type, name, config_json, path, enabled, priority)
@@ -426,7 +456,10 @@ impl ProjectRepository {
 
     /// Liste tous les templates de projets disponibles (builtins + custom).
     pub fn list_templates(&self) -> Result<Vec<ProjectTemplate>, ProjectRepositoryError> {
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         let mut stmt = conn.prepare(
             "SELECT id, name, description, providers_config_json, is_builtin, created_at
              FROM project_templates ORDER BY is_builtin DESC, name ASC",
@@ -450,7 +483,10 @@ impl ProjectRepository {
     /// sont toujours disponibles, même sur une première installation.
     pub fn seed_builtin_templates(&self) -> Result<(), ProjectRepositoryError> {
         let now = now_rfc3339();
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
 
         // Template "Développement Git" — providers git + rules + tree
         let git_providers = serde_json::json!([
@@ -498,7 +534,10 @@ impl ProjectRepository {
         project_id: &str,
         agent_name: &str,
     ) -> Result<(), ProjectRepositoryError> {
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         let now = now_rfc3339();
         conn.execute(
             "INSERT OR IGNORE INTO project_agents (project_id, agent_name, added_at)
@@ -514,7 +553,10 @@ impl ProjectRepository {
         project_id: &str,
         agent_name: &str,
     ) -> Result<bool, ProjectRepositoryError> {
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         let n = conn.execute(
             "DELETE FROM project_agents WHERE project_id = ?1 AND agent_name = ?2",
             params![project_id, agent_name],
@@ -524,7 +566,10 @@ impl ProjectRepository {
 
     /// Liste les noms d'agents associés à un projet.
     pub fn list_agents(&self, project_id: &str) -> Result<Vec<String>, ProjectRepositoryError> {
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         let mut stmt = conn.prepare(
             "SELECT agent_name FROM project_agents WHERE project_id = ?1 ORDER BY added_at ASC",
         )?;
@@ -539,10 +584,12 @@ impl ProjectRepository {
         &self,
         agent_name: &str,
     ) -> Result<Vec<String>, ProjectRepositoryError> {
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
-        let mut stmt = conn.prepare(
-            "SELECT project_id FROM project_agents WHERE agent_name = ?1",
-        )?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let mut stmt =
+            conn.prepare("SELECT project_id FROM project_agents WHERE agent_name = ?1")?;
         let ids = stmt
             .query_map(params![agent_name], |row| row.get::<_, String>(0))?
             .collect::<Result<Vec<_>, _>>()?;
@@ -553,7 +600,10 @@ impl ProjectRepository {
 
     /// Supprime un provider de contexte.
     pub fn remove_provider(&self, provider_id: &str) -> Result<bool, ProjectRepositoryError> {
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         let n = conn.execute(
             "DELETE FROM project_providers WHERE id = ?1",
             params![provider_id],
@@ -567,7 +617,10 @@ impl ProjectRepository {
         provider_id: &str,
         enabled: bool,
     ) -> Result<bool, ProjectRepositoryError> {
-        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         let n = conn.execute(
             "UPDATE project_providers SET enabled = ?1 WHERE id = ?2",
             params![enabled as i64, provider_id],
@@ -578,9 +631,7 @@ impl ProjectRepository {
     // ─── Async wrappers ───────────────────────────────────────────────────────
 
     /// Async wrapper pour [`list_projects`](Self::list_projects).
-    pub async fn list_projects_async(
-        &self,
-    ) -> Result<Vec<ProjectSummary>, ProjectRepositoryError> {
+    pub async fn list_projects_async(&self) -> Result<Vec<ProjectSummary>, ProjectRepositoryError> {
         let repo = self.clone();
         tokio::task::spawn_blocking(move || repo.list_projects())
             .await
@@ -718,7 +769,10 @@ fn now_rfc3339() -> String {
     let hour = (s / 3600) % 24;
     let days = s / 86400; // days since epoch
     let (y, mo, d) = days_to_ymd(days);
-    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z", y, mo, d, hour, min, sec)
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        y, mo, d, hour, min, sec
+    )
 }
 
 fn days_to_ymd(mut days: u64) -> (u64, u64, u64) {
@@ -749,7 +803,7 @@ fn days_to_ymd(mut days: u64) -> (u64, u64, u64) {
 }
 
 fn is_leap(y: u64) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+    (y.is_multiple_of(4) && !y.is_multiple_of(100)) || y.is_multiple_of(400)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -770,7 +824,12 @@ mod tests {
         let repo = open_memory();
         // WHEN a project is created
         let id = repo
-            .create_project("Mon projet", Some("desc".into()), Some("instructions".into()), None)
+            .create_project(
+                "Mon projet",
+                Some("desc".into()),
+                Some("instructions".into()),
+                None,
+            )
             .expect("create");
         // THEN it appears in the list
         let list = repo.list_projects().expect("list");
@@ -810,7 +869,13 @@ mod tests {
         let id = repo.create_project("A", None, None, None).expect("create");
         // WHEN updated
         let found = repo
-            .update_project(&id, ProjectPatch { name: Some("B".into()), ..Default::default() })
+            .update_project(
+                &id,
+                ProjectPatch {
+                    name: Some("B".into()),
+                    ..Default::default()
+                },
+            )
             .expect("update");
         // THEN found=true and name changed
         assert!(found);
@@ -822,7 +887,9 @@ mod tests {
     fn test_delete_project() {
         // GIVEN a project
         let repo = open_memory();
-        let id = repo.create_project("Del", None, None, None).expect("create");
+        let id = repo
+            .create_project("Del", None, None, None)
+            .expect("create");
         // WHEN deleted
         let deleted = repo.delete_project(&id).expect("delete");
         // THEN not found
