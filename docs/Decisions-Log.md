@@ -75,3 +75,4 @@
 | 2026-04-04 | ADR-066 | Memory Export/Import : format JSONL gzip, migration de schéma versionnée | [docs/adr/ADR-066-memory-export-import-format.md](adr/ADR-066-memory-export-import-format.md) |
 | 2026-04-04 | ADR-067 | AWS Bedrock : aws-sigv4 natif vs SDK complet | [docs/adr/ADR-067-bedrock-sigv4-vs-sdk.md](adr/ADR-067-bedrock-sigv4-vs-sdk.md) |
 | 2026-04-04 | ADR-068 | Google Vertex AI : ADC vs clé de service JSON | [docs/adr/ADR-068-vertex-adc-vs-service-account.md](adr/ADR-068-vertex-adc-vs-service-account.md) |
+| 2026-04-10 | ADR-069 | Autonomie filesystem : friction graduée + journal réversible (4 couches, généralise ADR-061) | [docs/adr/ADR-069-autonomie-filesystem-friction-graduee-journal-reversible.md](adr/ADR-069-autonomie-filesystem-friction-graduee-journal-reversible.md) |

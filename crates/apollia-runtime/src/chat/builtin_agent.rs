@@ -184,6 +184,51 @@ impl NativeChatToolInvoker {
         serde_json::to_string(&output).map_err(|e| e.to_string())
     }
 
+    /// Execute `python_executor` with the given JSON arguments.
+    ///
+    /// Runs Python code in a dedicated `chat-libre` virtualenv at
+    /// `~/.apollia/venvs/chat-libre/venv/`. The venv is lazily created on first
+    /// invocation — no packages are pre-installed (the LLM can only use stdlib).
+    async fn invoke_python(&self, arguments: &serde_json::Value) -> Result<String, String> {
+        use apollia_tools::tools::python_executor::{PythonExecutor, PythonInput};
+
+        let venv_base = self.home_dir.join(".apollia").join("venvs");
+        let executor =
+            PythonExecutor::new("chat-libre", &venv_base).map_err(|e| e.to_string())?;
+
+        // Lazily set up the venv on first call (idempotent — skips if already exists).
+        executor
+            .setup_venv(&[])
+            .await
+            .map_err(|e| format!("python_executor: venv setup failed: {e}"))?;
+
+        let code = arguments
+            .get("code")
+            .and_then(|v| v.as_str())
+            .ok_or("python_executor: missing 'code' field")?
+            .to_string();
+        let timeout_secs = arguments
+            .get("timeout_secs")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(30);
+
+        let output = executor
+            .run(PythonInput {
+                code,
+                timeout_secs,
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(serde_json::json!({
+            "stdout": output.stdout,
+            "stderr": output.stderr,
+            "exit_code": output.exit_code,
+            "duration_ms": output.duration_ms,
+        })
+        .to_string())
+    }
+
     /// Execute `memory_search` with the given JSON arguments.
     ///
     /// Searches the user's local memory store (`~/.apollia/memory/user.db`) using
@@ -220,6 +265,7 @@ impl ToolInvoker for NativeChatToolInvoker {
             "file_glob" => self.invoke_file_glob(arguments).await,
             "file_grep" => self.invoke_file_grep(arguments).await,
             "http_fetch" => self.invoke_http_fetch(arguments).await,
+            "python_executor" => self.invoke_python(arguments).await,
             "memory_search" => self.invoke_memory_search(arguments).await,
             other => Err(format!("unknown tool: {other}")),
         }
@@ -277,6 +323,8 @@ pub struct ChatAgentResponse {
     pub newly_authorized: Vec<String>,
     /// Cumulative token usage across all LLM calls in the exchange.
     pub tokens_used: TokenUsage,
+    /// Concatenated thinking/reasoning blocks extracted from `<think>...</think>` tags.
+    pub thinking_trace: Option<String>,
 }
 
 /// Rust-native chat agent implementing a ReAct loop for Chat Libre mode.
@@ -429,6 +477,7 @@ impl BuiltInChatAgent {
         };
         let mut authorized = authorized_tools.clone();
         let obs = ObservabilityConfig::default();
+        let mut reasoning_fragments: Vec<String> = Vec::new();
 
         loop {
             // Principle #7 — budget check before every LLM call
@@ -499,7 +548,8 @@ impl BuiltInChatAgent {
             match stream_result {
                 Ok(tool_calls) => {
                     if tool_calls.is_empty() {
-                        // Strip reasoning tokens before returning to the user.
+                        // Extract thinking trace before stripping.
+                        let final_thinking = Self::extract_think_blocks(&accumulated_text);
                         let clean = Self::strip_think_blocks(&accumulated_text);
                         let _ = self.event_bus.send(RuntimeEvent::ChatResponseCompleted {
                             session_id: session_id.to_string(),
@@ -507,17 +557,52 @@ impl BuiltInChatAgent {
                             content: clean.clone(),
                         });
 
+                        // Combine accumulated reasoning fragments with final thinking.
+                        if let Some(ft) = &final_thinking {
+                            reasoning_fragments.push(ft.clone());
+                        }
+                        let thinking_trace = if reasoning_fragments.is_empty() {
+                            None
+                        } else {
+                            Some(reasoning_fragments.join("\n\n---\n\n"))
+                        };
+
+                        tracing::info!(
+                            fragment_count = reasoning_fragments.len(),
+                            has_trace = thinking_trace.is_some(),
+                            trace_len = thinking_trace.as_ref().map(|t| t.len()).unwrap_or(0),
+                            session_id = %session_id,
+                            "ReAct complete: thinking_trace summary"
+                        );
+
                         return Ok(ChatAgentResponse {
                             content: clean,
                             tool_calls: all_tool_calls,
                             newly_authorized,
                             tokens_used: total_usage,
+                            thinking_trace,
                         });
                     }
 
-                    // Tool calls detected in stream: strip think blocks before re-injecting
-                    // into the LLM context so reasoning tokens don't pollute future turns.
-                    let clean_for_context = Self::strip_think_blocks(&accumulated_text);
+                    // Capture reasoning text emitted before tool calls.
+                    let clean_reasoning = Self::strip_think_blocks(&accumulated_text);
+                    let reasoning_with_think = Self::extract_think_blocks(&accumulated_text);
+                    let reasoning_text = reasoning_with_think
+                        .unwrap_or_else(|| clean_reasoning.clone());
+                    tracing::info!(
+                        accumulated_len = accumulated_text.len(),
+                        reasoning_len = reasoning_text.trim().len(),
+                        tool_count = tool_calls.len(),
+                        session_id = %session_id,
+                        "ReAct turn: captured reasoning before tool calls"
+                    );
+                    if !reasoning_text.trim().is_empty() {
+                        reasoning_fragments.push(reasoning_text.trim().to_string());
+                    }
+
+                    // Strip think blocks before re-injecting into the LLM context
+                    // so reasoning tokens don't pollute future turns.
+                    let clean_for_context = clean_reasoning;
                     llm_messages.push(LlmChatMessage::assistant_with_calls(
                         &clean_for_context,
                         &tool_calls,
@@ -617,6 +702,7 @@ impl BuiltInChatAgent {
                         tool_calls: all_tool_calls,
                         newly_authorized,
                         tokens_used: total_usage,
+                        thinking_trace: None,
                     });
                 }
             }
@@ -737,6 +823,41 @@ impl BuiltInChatAgent {
             name: name.to_string(),
             arguments,
         })
+    }
+
+    /// Extracts the content of `<think>...</think>` blocks from reasoning models.
+    ///
+    /// Returns the concatenated thinking text if any blocks are found, or `None`.
+    /// Called before [`strip_think_blocks`] to capture reasoning for metadata.
+    fn extract_think_blocks(text: &str) -> Option<String> {
+        let tag_open = "<think>";
+        let tag_close = "</think>";
+        let mut blocks = Vec::new();
+        let mut cursor = 0;
+
+        while let Some(start) = text[cursor..].find(tag_open) {
+            let after_open = cursor + start + tag_open.len();
+            if let Some(end) = text[after_open..].find(tag_close) {
+                let block = text[after_open..after_open + end].trim();
+                if !block.is_empty() {
+                    blocks.push(block.to_string());
+                }
+                cursor = after_open + end + tag_close.len();
+            } else {
+                // Unclosed <think> tag — capture remaining as partial thinking.
+                let block = text[after_open..].trim();
+                if !block.is_empty() {
+                    blocks.push(block.to_string());
+                }
+                break;
+            }
+        }
+
+        if blocks.is_empty() {
+            None
+        } else {
+            Some(blocks.join("\n\n"))
+        }
     }
 
     /// Strips `<think>...</think>` blocks emitted by reasoning models (e.g. Qwen3).

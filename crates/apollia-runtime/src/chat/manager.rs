@@ -30,8 +30,8 @@ use super::extractor::UserMemoryExtractor;
 use super::repository::{AppendMessageParams, ChatSessionRepository};
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId,
-    PendingChatApprovals, RecentSessionSummary, SessionDetail, SessionId, SessionInfo,
-    SessionStatus, ToolCallRecord, ToolDecision,
+    PendingChatApprovals, ProjectContextProvider, RecentSessionSummary, SessionDetail, SessionId,
+    SessionInfo, SessionStatus, ToolCallRecord, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
 use crate::api::routes_agents::AgentLoader;
@@ -59,6 +59,8 @@ pub enum ChatCommand {
         system_prompt: Option<String>,
         /// Tool names available in this session.
         tools: Vec<String>,
+        /// Project to link this session to (None = standalone).
+        project_id: Option<String>,
         /// Response channel.
         reply: oneshot::Sender<Result<SessionInfo, ChatError>>,
     },
@@ -195,6 +197,27 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Vec<SessionInfo>>,
     },
+    /// Link or unlink a session to a project.
+    LinkSessionToProject {
+        /// Target session.
+        session_id: SessionId,
+        /// Project ID (None to unlink).
+        project_id: Option<String>,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
+    /// List sessions belonging to a specific project.
+    ListSessionsByProject {
+        /// Project identifier.
+        project_id: String,
+        /// Response channel.
+        reply: oneshot::Sender<Vec<SessionInfo>>,
+    },
+    /// Unlink all sessions from a project (orphan them on project deletion).
+    OrphanProjectSessions {
+        /// Project identifier.
+        project_id: String,
+    },
     /// List all A2A skills available from active worker agents.
     ListA2ASkills {
         /// Response channel.
@@ -234,6 +257,8 @@ struct ChatSessionManager {
     tx: mpsc::Sender<ChatCommand>,
     /// Optional A2A invoker — when present, worker agent skills are exposed as virtual tools.
     a2a_invoker: Option<Arc<A2AInvoker>>,
+    /// Optional project context provider for injecting project context into system prompts.
+    project_context: Option<Arc<dyn ProjectContextProvider>>,
 }
 
 impl ChatSessionManager {
@@ -246,10 +271,11 @@ impl ChatSessionManager {
                     agent_name,
                     system_prompt,
                     tools,
+                    project_id,
                     reply,
                 } => {
                     let result = self
-                        .handle_create_session(mode, agent_name, system_prompt, tools)
+                        .handle_create_session(mode, agent_name, system_prompt, tools, project_id)
                         .await;
                     let _ = reply.send(result);
                 }
@@ -356,6 +382,40 @@ impl ChatSessionManager {
                     let result = self.handle_list_children(&session_id);
                     let _ = reply.send(result);
                 }
+                ChatCommand::LinkSessionToProject {
+                    session_id,
+                    project_id,
+                    reply,
+                } => {
+                    let result =
+                        self.handle_link_session_to_project(&session_id, project_id.as_deref());
+                    let _ = reply.send(result);
+                }
+                ChatCommand::ListSessionsByProject {
+                    project_id,
+                    reply,
+                } => {
+                    let result = self.handle_list_sessions_by_project(&project_id);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::OrphanProjectSessions { project_id } => {
+                    match self.repository.orphan_project_sessions(&project_id) {
+                        Ok(count) => {
+                            if count > 0 {
+                                info!(project_id = %project_id, count, "Orphaned chat sessions after project deletion");
+                                // Also update in-memory cache
+                                for session in self.sessions.values_mut() {
+                                    if session.project_id.as_deref() == Some(&project_id) {
+                                        session.project_id = None;
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            warn!(project_id = %project_id, error = %e, "Failed to orphan sessions");
+                        }
+                    }
+                }
                 ChatCommand::ListA2ASkills { reply } => {
                     if let Some(ref a2a) = self.a2a_invoker {
                         let a2a = a2a.clone();
@@ -413,6 +473,7 @@ impl ChatSessionManager {
         agent_name: Option<String>,
         system_prompt: Option<String>,
         tools: Vec<String>,
+        project_id: Option<String>,
     ) -> Result<SessionInfo, ChatError> {
         // Agent mode requires an agent name
         if mode == ChatMode::Agent && agent_name.is_none() {
@@ -451,6 +512,7 @@ impl ChatSessionManager {
             &tools,
             &now,
             None,
+            project_id.as_deref(),
         )?;
 
         // Build in-memory session
@@ -469,6 +531,7 @@ impl ChatSessionManager {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
+            project_id,
         };
 
         let info = session_to_info(&session);
@@ -559,6 +622,7 @@ impl ChatSessionManager {
             tool_calls_json: None,
             tool_name: None,
             created_at: &now,
+            metadata: None,
         })?;
 
         // Add to in-memory history
@@ -622,9 +686,11 @@ impl ChatSessionManager {
             );
 
             let history = session.history.clone();
+            let is_first_message = history.len() == 1;
+            let is_companion = session.mode == ChatMode::Companion;
             // On the first message, enrich the system prompt with cross-session context.
             // Companion sessions are excluded — they must not inherit personal history.
-            let system_prompt = if history.len() == 1 && session.mode != ChatMode::Companion {
+            let system_prompt = if is_first_message && !is_companion {
                 let mut prompt = session.system_prompt.clone();
                 if let Some(block) = self.build_cross_session_context(content) {
                     prompt.push_str("\n\n");
@@ -647,7 +713,31 @@ impl ChatSessionManager {
             let stored_summary = self.repository.get_summary(session_id).unwrap_or(None);
             let llm_for_summarize = self.llm_router.clone();
 
+            // Capture project context provider for async injection in spawned task.
+            let project_ctx = self.project_context.clone();
+            let session_project_id = session.project_id.clone();
+
             tokio::spawn(async move {
+                // On the first message, inject project context if the session belongs to a project.
+                let system_prompt = if is_first_message && !is_companion {
+                    if let (Some(ref pid), Some(ref provider)) =
+                        (&session_project_id, &project_ctx)
+                    {
+                        match provider.build_context(pid).await {
+                            Some(ctx) => {
+                                let mut enriched = system_prompt;
+                                enriched.push_str("\n\n");
+                                enriched.push_str(&ctx);
+                                enriched
+                            }
+                            None => system_prompt,
+                        }
+                    } else {
+                        system_prompt
+                    }
+                } else {
+                    system_prompt
+                };
                 let summary = if history.len() > context_window_size && stored_summary.is_none() {
                     if let Some(ref llm) = llm_for_summarize {
                         let older = &history[..history.len() - context_window_size];
@@ -783,6 +873,11 @@ impl ChatSessionManager {
             serde_json::to_string(&response.tool_calls).ok()
         };
 
+        // Serialize thinking trace as JSON metadata.
+        let metadata_json = response.thinking_trace.as_ref().map(|t| {
+            serde_json::json!({ "thinking_trace": t }).to_string()
+        });
+
         // Persist assistant response message
         match self.repository.append_message(&AppendMessageParams {
             id: &assistant_msg_id,
@@ -792,8 +887,12 @@ impl ChatSessionManager {
             tool_calls_json: tool_calls_json.as_deref(),
             tool_name: None,
             created_at: &now,
+            metadata: metadata_json.as_deref(),
         }) {
             Ok(seq) => {
+                let metadata_value = metadata_json
+                    .as_ref()
+                    .and_then(|s| serde_json::from_str(s).ok());
                 session.history.push(ChatMessage {
                     id: assistant_msg_id,
                     role: ChatRole::Assistant,
@@ -806,7 +905,7 @@ impl ChatSessionManager {
                     tool_name: None,
                     created_at: now,
                     seq,
-                    metadata: None,
+                    metadata: metadata_value,
                 });
             }
             Err(e) => {
@@ -944,6 +1043,7 @@ impl ChatSessionManager {
                         status,
                         created_at: row.created_at,
                         title: row.title,
+                        project_id: row.project_id,
                     })
                 })
                 .collect(),
@@ -992,6 +1092,10 @@ impl ChatSessionManager {
                     .tool_calls_json
                     .as_deref()
                     .and_then(|j| serde_json::from_str(j).ok());
+                let metadata: Option<serde_json::Value> = m
+                    .metadata
+                    .as_deref()
+                    .and_then(|j| serde_json::from_str(j).ok());
                 ChatMessage {
                     id: m.id,
                     role,
@@ -1000,7 +1104,7 @@ impl ChatSessionManager {
                     tool_name: m.tool_name,
                     created_at: m.created_at,
                     seq: m.seq,
-                    metadata: None,
+                    metadata,
                 }
             })
             .collect();
@@ -1021,6 +1125,7 @@ impl ChatSessionManager {
             title: row.title,
             parent_session_id: row.parent_session_id,
             fork_depth: row.fork_depth,
+            project_id: row.project_id,
         };
 
         Some(SessionDetail {
@@ -1224,11 +1329,54 @@ impl ChatSessionManager {
                         status,
                         created_at: row.created_at,
                         title: row.title,
+                        project_id: row.project_id,
                     })
                 })
                 .collect(),
             Err(e) => {
                 error!(parent_id = %parent_id, error = %e, "Failed to list session children");
+                Vec::new()
+            }
+        }
+    }
+
+    /// Link or unlink a session to a project.
+    fn handle_link_session_to_project(
+        &mut self,
+        session_id: &str,
+        project_id: Option<&str>,
+    ) -> Result<(), ChatError> {
+        self.repository
+            .set_session_project(session_id, project_id)?;
+
+        // Update in-memory cache
+        if let Some(session) = self.sessions.get_mut(session_id) {
+            session.project_id = project_id.map(|s| s.to_string());
+        }
+        Ok(())
+    }
+
+    /// List sessions belonging to a specific project.
+    fn handle_list_sessions_by_project(&self, project_id: &str) -> Vec<SessionInfo> {
+        match self.repository.list_sessions_by_project(project_id) {
+            Ok(rows) => rows
+                .into_iter()
+                .filter_map(|row| {
+                    let mode = ChatMode::from_sql(&row.mode)?;
+                    let status = SessionStatus::from_sql(&row.status)?;
+                    Some(SessionInfo {
+                        id: row.id,
+                        mode,
+                        agent_name: row.agent_name,
+                        status,
+                        created_at: row.created_at,
+                        title: row.title,
+                        project_id: row.project_id,
+                    })
+                })
+                .collect(),
+            Err(e) => {
+                error!(project_id = %project_id, error = %e, "Failed to list sessions by project");
                 Vec::new()
             }
         }
@@ -1271,6 +1419,10 @@ impl ChatSessionManager {
                         .tool_calls_json
                         .as_deref()
                         .and_then(|j| serde_json::from_str(j).ok());
+                    let metadata: Option<serde_json::Value> = m
+                        .metadata
+                        .as_deref()
+                        .and_then(|j| serde_json::from_str(j).ok());
                     ChatMessage {
                         id: m.id,
                         role,
@@ -1279,7 +1431,7 @@ impl ChatSessionManager {
                         tool_name: m.tool_name,
                         created_at: m.created_at,
                         seq: m.seq,
-                        metadata: None,
+                        metadata,
                     }
                 })
                 .collect();
@@ -1299,6 +1451,7 @@ impl ChatSessionManager {
                 title: row.title,
                 parent_session_id: row.parent_session_id,
                 fork_depth: row.fork_depth,
+                project_id: row.project_id,
             };
             self.sessions.insert(row.id, session);
         }
@@ -1342,6 +1495,7 @@ impl ChatSessionManagerHandle {
         user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
         registry_handle: AgentRegistryHandle,
         a2a_invoker: Option<Arc<A2AInvoker>>,
+        project_context: Option<Arc<dyn ProjectContextProvider>>,
     ) -> Result<Self, ChatError> {
         let repository = ChatSessionRepository::open(db_path)?;
         let pending_chat_approvals = PendingChatApprovals::new();
@@ -1380,6 +1534,7 @@ impl ChatSessionManagerHandle {
             enrichment_extractor,
             tx: tx.clone(),
             a2a_invoker,
+            project_context,
         };
 
         // Restore active sessions from SQLite before entering the actor loop
@@ -1397,6 +1552,7 @@ impl ChatSessionManagerHandle {
         agent_name: Option<String>,
         system_prompt: Option<String>,
         tools: Vec<String>,
+        project_id: Option<String>,
     ) -> Result<SessionInfo, ChatError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -1405,6 +1561,7 @@ impl ChatSessionManagerHandle {
                 agent_name,
                 system_prompt,
                 tools,
+                project_id,
                 reply: reply_tx,
             })
             .await
@@ -1670,6 +1827,53 @@ impl ChatSessionManagerHandle {
     /// List all A2A skills available from active worker agents.
     ///
     /// Returns an empty vec when A2A is not wired or the actor is unreachable.
+    /// Link or unlink a session to a project.
+    pub async fn link_session_to_project(
+        &self,
+        session_id: SessionId,
+        project_id: Option<String>,
+    ) -> Result<(), ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::LinkSessionToProject {
+                session_id,
+                project_id,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// List sessions belonging to a specific project.
+    pub async fn list_sessions_by_project(&self, project_id: String) -> Vec<SessionInfo> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let sent = self
+            .tx
+            .send(ChatCommand::ListSessionsByProject {
+                project_id,
+                reply: reply_tx,
+            })
+            .await;
+
+        if sent.is_err() {
+            return Vec::new();
+        }
+
+        reply_rx.await.unwrap_or_default()
+    }
+
+    /// Orphan all sessions linked to a project (called on project deletion).
+    pub async fn orphan_project_sessions(&self, project_id: String) {
+        let _ = self
+            .tx
+            .send(ChatCommand::OrphanProjectSessions { project_id })
+            .await;
+    }
+
     pub async fn list_a2a_skills(&self) -> Vec<crate::a2a::SkillListing> {
         let (reply_tx, reply_rx) = oneshot::channel();
         if self
@@ -1697,6 +1901,7 @@ fn session_to_info(session: &ChatSession) -> SessionInfo {
         status: session.status.clone(),
         created_at: session.created_at.clone(),
         title: session.title.clone(),
+        project_id: session.project_id.clone(),
     }
 }
 
@@ -1786,6 +1991,7 @@ mod tests {
             None, // no user memory in basic tests
             registry_handle,
             None, // no A2A invoker in basic tests
+            None, // no project context in basic tests
         )
         .expect("spawn manager")
     }
@@ -1802,7 +2008,7 @@ mod tests {
 
         // WHEN create_session mode=Libre
         let info = handle
-            .create_session(ChatMode::Libre, None, None, vec!["bash_executor".into()])
+            .create_session(ChatMode::Libre, None, None, vec!["bash_executor".into()], None)
             .await
             .expect("create_session");
 
@@ -1822,7 +2028,7 @@ mod tests {
 
         // WHEN create_session mode=Agent, agent_name=None
         let result = handle
-            .create_session(ChatMode::Agent, None, None, vec![])
+            .create_session(ChatMode::Agent, None, None, vec![], None)
             .await;
 
         // THEN Err(ChatError::AgentNotFound)
@@ -1839,7 +2045,7 @@ mod tests {
 
         // WHEN create_session mode=Libre
         let result = handle
-            .create_session(ChatMode::Libre, None, None, vec![])
+            .create_session(ChatMode::Libre, None, None, vec![], None)
             .await;
 
         // THEN Err(ChatError::NoLlmConfigured)
@@ -1855,11 +2061,11 @@ mod tests {
         let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
 
         handle
-            .create_session(ChatMode::Libre, None, None, vec![])
+            .create_session(ChatMode::Libre, None, None, vec![], None)
             .await
             .expect("create 1");
         handle
-            .create_session(ChatMode::Libre, None, None, vec![])
+            .create_session(ChatMode::Libre, None, None, vec![], None)
             .await
             .expect("create 2");
 
@@ -1879,7 +2085,7 @@ mod tests {
         let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
 
         let info = handle
-            .create_session(ChatMode::Libre, None, None, vec![])
+            .create_session(ChatMode::Libre, None, None, vec![], None)
             .await
             .expect("create");
 
@@ -1922,11 +2128,12 @@ mod tests {
             None,
             registry_handle,
             None,
+            None,
         )
         .expect("spawn");
 
         let info = handle
-            .create_session(ChatMode::Libre, None, None, vec![])
+            .create_session(ChatMode::Libre, None, None, vec![], None)
             .await
             .expect("create");
 
@@ -1954,7 +2161,7 @@ mod tests {
         let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
 
         let info = handle
-            .create_session(ChatMode::Libre, None, None, vec![])
+            .create_session(ChatMode::Libre, None, None, vec![], None)
             .await
             .expect("create");
         handle.close_session(info.id.clone()).await.expect("close");
@@ -1975,7 +2182,7 @@ mod tests {
         let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
 
         let info = handle
-            .create_session(ChatMode::Libre, None, None, vec![])
+            .create_session(ChatMode::Libre, None, None, vec![], None)
             .await
             .expect("create");
 
@@ -2020,6 +2227,7 @@ mod tests {
             enrichment_extractor: None,
             tx,
             a2a_invoker: None,
+            project_context: None,
         };
 
         // Insert a dummy session so the lookup succeeds
@@ -2038,6 +2246,7 @@ mod tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
+            project_id: None,
         };
         manager.sessions.insert("sess-1".into(), session);
 
@@ -2064,7 +2273,7 @@ mod tests {
         // THEN the actor stops — subsequent sends fail gracefully
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let result = handle
-            .create_session(ChatMode::Libre, None, None, vec![])
+            .create_session(ChatMode::Libre, None, None, vec![], None)
             .await;
         assert!(result.is_err());
     }
@@ -2076,7 +2285,7 @@ mod tests {
         let handle = spawn_test_manager(&dir, fake_llm_router(), Arc::new(AlwaysOkLoader));
 
         let info = handle
-            .create_session(ChatMode::Libre, None, None, vec![])
+            .create_session(ChatMode::Libre, None, None, vec![], None)
             .await
             .expect("create");
         handle.close_session(info.id.clone()).await.expect("close");
@@ -2121,7 +2330,7 @@ mod tests {
             ),
         ] {
             repository
-                .create_session(id, &ChatMode::Libre, None, "", &[], ts, None)
+                .create_session(id, &ChatMode::Libre, None, "", &[], ts, None, None)
                 .expect("create");
             repository.close_session(id, ts).expect("close");
             repository.update_summary(id, summary).expect("summary");
@@ -2142,6 +2351,7 @@ mod tests {
             enrichment_extractor: None,
             tx,
             a2a_invoker: None,
+            project_context: None,
         };
 
         // WHEN building cross-session context with a substantive first message
@@ -2175,6 +2385,7 @@ mod tests {
                 &[],
                 "2026-03-20T10:00:00Z",
                 None,
+                None,
             )
             .expect("create");
         repository
@@ -2199,6 +2410,7 @@ mod tests {
             enrichment_extractor: None,
             tx,
             a2a_invoker: None,
+            project_context: None,
         };
 
         // WHEN building cross-session context with a trivial message
@@ -2235,6 +2447,7 @@ mod tests {
             enrichment_extractor: None,
             tx,
             a2a_invoker: None,
+            project_context: None,
         };
 
         // WHEN building cross-session context with a substantive message but no past sessions
@@ -2253,7 +2466,7 @@ mod tests {
 
         // WHEN create_session mode=Agent with an agent name
         let result = handle
-            .create_session(ChatMode::Agent, Some("nonexistent".into()), None, vec![])
+            .create_session(ChatMode::Agent, Some("nonexistent".into()), None, vec![], None)
             .await;
 
         // THEN Err(ChatError::AgentNotFound)

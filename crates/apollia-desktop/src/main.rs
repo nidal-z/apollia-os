@@ -11,6 +11,7 @@ mod bundled_agents;
 mod commands;
 mod events;
 pub mod mcp;
+mod project_context;
 pub mod stt;
 pub mod tray;
 
@@ -510,6 +511,9 @@ fn main() {
             commands::chat::update_chat_session,
             commands::chat::send_chat_message,
             commands::chat::authorize_chat_tool,
+            commands::chat::link_chat_to_project,
+            commands::chat::list_chats_by_project,
+            commands::chat::orphan_project_chats,
             commands::chat::list_a2a_skills,
             commands::user::get_user_profile,
             commands::user::update_user_profile,
@@ -586,6 +590,13 @@ fn main() {
             commands::projects::delete_project_document,
             commands::projects::list_project_templates,
             commands::projects::get_project_snapshot,
+            commands::projects::add_project_agent,
+            commands::projects::remove_project_agent,
+            commands::projects::list_project_agents,
+            commands::projects::list_projects_for_agent,
+            commands::projects::set_project_provider,
+            commands::projects::remove_project_provider,
+            commands::projects::toggle_project_provider,
             // Review
             commands::review::start_code_review,
             // CLI install

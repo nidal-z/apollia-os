@@ -632,6 +632,7 @@ export interface ChatSessionSummary {
   created_at: string;
   closed_at: string | null;
   title: string | null;
+  project_id: string | null;
 }
 
 /** Détail complet d'une session de chat avec messages. */
@@ -648,6 +649,7 @@ export interface ChatSessionDetail {
   closed_at: string | null;
   llm_backend: string | null;
   title: string | null;
+  project_id: string | null;
 }
 
 /** Payload pour mettre à jour la configuration d'une session. */
@@ -687,6 +689,7 @@ export interface CreateSessionRequest {
   agent_name?: string;
   system_prompt?: string;
   tools?: string[];
+  project_id?: string;
 }
 
 /** Requête d'envoi de message dans une session de chat. */
@@ -1256,6 +1259,7 @@ export interface ProjectSummary {
   description: string | null;
   created_at: string;
   updated_at: string;
+  workspace_path: string | null;
 }
 
 /** Document attaché à un projet. */
@@ -1288,8 +1292,10 @@ export interface ProjectDetail {
   instructions: string | null;
   created_at: string;
   updated_at: string;
+  workspace_path: string | null;
   documents: ProjectDocument[];
   providers: ProjectProviderRow[];
+  agents: string[];
 }
 
 /** Template de projet prédéfini. */
@@ -1307,6 +1313,7 @@ export interface CreateProjectRequest {
   name: string;
   description?: string;
   instructions?: string;
+  workspace_path?: string;
 }
 
 /** Payload pour la mise à jour partielle d'un projet. */

@@ -52,6 +52,9 @@ pub struct ChatSession {
     /// Fork depth (0 = root session, 1 = first-level fork, etc.).
     #[serde(default)]
     pub fork_depth: i64,
+    /// Project this session belongs to (None = standalone).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
 }
 
 /// Chat mode — free-form LLM conversation or agent-backed.
@@ -441,6 +444,8 @@ pub struct SessionInfo {
     pub created_at: String,
     /// User-defined display title (falls back to agent_name or mode).
     pub title: Option<String>,
+    /// Project this session belongs to (None = standalone).
+    pub project_id: Option<String>,
 }
 
 /// Detailed session view for single-session responses.
@@ -450,6 +455,20 @@ pub struct SessionDetail {
     pub session: ChatSession,
     /// Total number of messages in the session.
     pub message_count: u32,
+}
+
+/// Trait for injecting project context into chat system prompts.
+///
+/// Implemented outside `apollia-runtime` (e.g. in `apollia-desktop`) because
+/// the actual project data lives in `apollia-tools` which is a sibling crate.
+/// This avoids coupling the runtime to the project persistence layer.
+#[async_trait::async_trait]
+pub trait ProjectContextProvider: Send + Sync {
+    /// Build a context block for a given project ID.
+    ///
+    /// Returns `None` if the project doesn't exist or has no useful context.
+    /// The returned string is injected into the system prompt on the first message.
+    async fn build_context(&self, project_id: &str) -> Option<String>;
 }
 
 #[cfg(test)]
@@ -695,6 +714,7 @@ mod tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
+            project_id: None,
         };
 
         // WHEN we serialize and deserialize

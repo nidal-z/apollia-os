@@ -256,6 +256,7 @@ fn build_chat_app_state(
         None, // no user memory in tests
         registry_handle.clone(),
         None, // no A2A invoker in tests
+        None, // no project context in tests
     )
     .expect("ChatSessionManager spawn");
 

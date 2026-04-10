@@ -12,6 +12,7 @@
   import { TOOL_GROUPS, TOOL_CATALOG, DEFAULT_ENABLED_TOOLS, getGroupState, toggleGroup } from "$lib/tools/tool-catalog";
   import { uiMode } from "$lib/stores/mode";
   import { tourOpenChatPicker } from "$lib/stores/tour";
+  import { projects } from "$lib/stores/projects";
   import EmptyState from "../components/common/EmptyState.svelte";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import ChatSessionCard from "../components/chat/ChatSessionCard.svelte";
@@ -26,6 +27,7 @@
   const selectedTools = $derived(Array.from(enabledTools));
   const isOperator = $derived($uiMode === "operator");
   let expandedGroup = $state<string | null>(null);
+  let selectedProjectId = $state<string | null>(null);
 
   const activeAgents = $derived(agents.filter((a) => a.runtime_status === "active"));
 
@@ -89,7 +91,11 @@
     if (creating) return;
     creating = true;
     try {
-      const request: CreateSessionRequest = { mode: "libre", tools: selectedTools };
+      const request: CreateSessionRequest = {
+        mode: "libre",
+        tools: selectedTools,
+        project_id: selectedProjectId ?? undefined,
+      };
       const session = await invoke<ChatSessionSummary>("create_chat_session", { request });
       selectedSessionId = session.id; showNewChatPicker = false;
     } catch { /* user can retry */ }
@@ -100,7 +106,11 @@
     if (creating) return;
     creating = true;
     try {
-      const request: CreateSessionRequest = { mode: "agent", agent_name: agentName };
+      const request: CreateSessionRequest = {
+        mode: "agent",
+        agent_name: agentName,
+        project_id: selectedProjectId ?? undefined,
+      };
       const session = await invoke<ChatSessionSummary>("create_chat_session", { request });
       selectedSessionId = session.id; showNewChatPicker = false;
     } catch { /* user can retry */ }
@@ -150,6 +160,23 @@
           <X size={13} />
         </button>
       </div>
+
+      <!-- Project selector -->
+      {#if $projects.length > 0}
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-[11px] text-muted-foreground/70">{$t("chat.project_selector")}:</span>
+          <select
+            class="h-7 rounded-md border border-border bg-card px-2 text-xs flex-1"
+            value={selectedProjectId ?? ""}
+            onchange={(e) => { selectedProjectId = e.currentTarget.value || null; }}
+          >
+            <option value="">{$t("chat.no_project")}</option>
+            {#each $projects as proj (proj.id)}
+              <option value={proj.id}>{proj.name}</option>
+            {/each}
+          </select>
+        </div>
+      {/if}
 
       <div class="space-y-2">
         <!-- Row 1: group chips + Start button + agents -->

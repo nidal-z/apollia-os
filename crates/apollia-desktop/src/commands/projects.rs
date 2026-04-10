@@ -26,6 +26,7 @@ pub struct CreateProjectRequest {
     pub name: String,
     pub description: Option<String>,
     pub instructions: Option<String>,
+    pub workspace_path: Option<String>,
 }
 
 /// Payload de mise à jour partielle d'un projet.
@@ -34,6 +35,7 @@ pub struct UpdateProjectRequest {
     pub name: Option<String>,
     pub description: Option<Option<String>>,
     pub instructions: Option<Option<String>>,
+    pub workspace_path: Option<Option<String>>,
 }
 
 /// Section du snapshot workspace exposée au frontend.
@@ -102,7 +104,7 @@ pub async fn create_project(
 ) -> Result<ProjectDetail, String> {
     let repo = get_repo(&state)?;
     let id = tokio::task::spawn_blocking(move || {
-        repo.create_project(request.name, request.description, request.instructions)
+        repo.create_project(request.name, request.description, request.instructions, request.workspace_path)
     })
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))?
@@ -127,6 +129,7 @@ pub async fn update_project(
                 name: request.name,
                 description: request.description,
                 instructions: request.instructions,
+                workspace_path: request.workspace_path,
             },
         )
     })
@@ -279,4 +282,135 @@ pub async fn get_project_snapshot(
         sections,
         error_count,
     })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent linking commands
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Associe un agent à un projet.
+#[tauri::command]
+pub async fn add_project_agent(
+    state: State<'_, RuntimeHandle>,
+    project_id: String,
+    agent_name: String,
+) -> Result<(), String> {
+    let repo = get_repo(&state)?;
+    tokio::task::spawn_blocking(move || repo.add_agent(&project_id, &agent_name))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+        .map_err(|e| e.to_string())
+}
+
+/// Dissocie un agent d'un projet.
+#[tauri::command]
+pub async fn remove_project_agent(
+    state: State<'_, RuntimeHandle>,
+    project_id: String,
+    agent_name: String,
+) -> Result<(), String> {
+    let repo = get_repo(&state)?;
+    tokio::task::spawn_blocking(move || repo.remove_agent(&project_id, &agent_name))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Liste les noms d'agents associés à un projet.
+#[tauri::command]
+pub async fn list_project_agents(
+    state: State<'_, RuntimeHandle>,
+    project_id: String,
+) -> Result<Vec<String>, String> {
+    let repo = get_repo(&state)?;
+    tokio::task::spawn_blocking(move || repo.list_agents(&project_id))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+        .map_err(|e| e.to_string())
+}
+
+/// Liste les projets auxquels un agent appartient (retourne les résumés).
+#[tauri::command]
+pub async fn list_projects_for_agent(
+    state: State<'_, RuntimeHandle>,
+    agent_name: String,
+) -> Result<Vec<ProjectSummary>, String> {
+    let repo = get_repo(&state)?;
+    let repo2 = repo.clone();
+    tokio::task::spawn_blocking(move || {
+        let project_ids = repo.list_projects_for_agent(&agent_name)?;
+        let all_projects = repo2.list_projects()?;
+        Ok::<Vec<ProjectSummary>, apollia_tools::ProjectRepositoryError>(
+            all_projects
+                .into_iter()
+                .filter(|p| project_ids.contains(&p.id))
+                .collect(),
+        )
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Provider management commands
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Ajoute ou met à jour un provider de contexte pour un projet.
+#[tauri::command]
+pub async fn set_project_provider(
+    state: State<'_, RuntimeHandle>,
+    project_id: String,
+    provider_type: String,
+    name: String,
+    config_json: String,
+    path: Option<String>,
+    enabled: bool,
+    priority: u8,
+) -> Result<(), String> {
+    let repo = get_repo(&state)?;
+    tokio::task::spawn_blocking(move || {
+        repo.set_provider(
+            &project_id,
+            &provider_type,
+            &name,
+            &config_json,
+            path,
+            enabled,
+            priority,
+        )
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+/// Supprime un provider de contexte.
+#[tauri::command]
+pub async fn remove_project_provider(
+    state: State<'_, RuntimeHandle>,
+    provider_id: String,
+) -> Result<(), String> {
+    let repo = get_repo(&state)?;
+    tokio::task::spawn_blocking(move || repo.remove_provider(&provider_id))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Active ou désactive un provider de contexte.
+#[tauri::command]
+pub async fn toggle_project_provider(
+    state: State<'_, RuntimeHandle>,
+    provider_id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    let repo = get_repo(&state)?;
+    tokio::task::spawn_blocking(move || repo.toggle_provider(&provider_id, enabled))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }

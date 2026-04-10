@@ -187,7 +187,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     descOperatorKey: "tools.catalog.python_executor.desc_operator",
     descBuilderKey: "tools.catalog.python_executor.desc_builder",
     dangerous: true,
-    defaultEnabled: false,
+    defaultEnabled: true,
   },
   // ── Network ────────────────────────────────
   {

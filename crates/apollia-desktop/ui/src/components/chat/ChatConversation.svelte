@@ -91,9 +91,20 @@
   let unlistenToken: UnlistenFn | undefined;
   let unlistenChanged: UnlistenFn | undefined;
   let unlistenA2A: UnlistenFn | undefined;
+  let unlistenTaskChanged: UnlistenFn | undefined;
   let activeToolName = $state<string | null>(null);
   /** Non-null while an A2A delegation is in progress. */
   let activeA2A = $state<{ target: string; skill_id: string } | null>(null);
+  /** Steps reported by the sub-agent during A2A delegation. */
+  let a2aSteps = $state<
+    { step_id: string; step_num: number; total: number; desc: string; status: "running" | "done" | "failed"; durationMs?: number }[]
+  >([]);
+  /** Guard trigger message from A2A guardrails. */
+  let a2aGuardMessage = $state<string | null>(null);
+  /** Start time of current A2A delegation for live duration display. */
+  let a2aStartTime = $state<number | null>(null);
+  /** Elapsed seconds of current A2A delegation (updated every second). */
+  let a2aElapsed = $state<number>(0);
   /** Live tool call chain for the current LLM turn — cleared on response completion. */
   let liveToolChain = $state<
     { name: string; status: "running" | "done" | "refused"; startedAt: number; durationMs?: number }[]
@@ -122,13 +133,82 @@
         const evt = event.payload;
         if (evt.event_type === "A2AInvocationStarted") {
           const p = evt.payload as { caller?: string; target?: string; skill_id?: string };
-          // Only show indicator when this session triggered it (caller = "chat-libre")
           if (p.caller === "chat-libre") {
             activeA2A = { target: p.target ?? "", skill_id: p.skill_id ?? "" };
+            a2aSteps = [];
+            a2aGuardMessage = null;
+            a2aStartTime = Date.now();
+            a2aElapsed = 0;
             scrollToBottom();
           }
         } else if (evt.event_type === "A2AInvocationCompleted") {
-          activeA2A = null;
+          const p = evt.payload as { status?: string; duration_ms?: number };
+          // Brief delay to show final status before clearing
+          const finalStatus = p.status ?? "completed";
+          const finalDuration = p.duration_ms;
+          if (finalStatus === "failed" && activeA2A) {
+            a2aGuardMessage = `Delegation failed (${finalDuration ? `${finalDuration}ms` : "unknown duration"})`;
+          }
+          setTimeout(() => {
+            activeA2A = null;
+            a2aSteps = [];
+            a2aGuardMessage = null;
+            a2aStartTime = null;
+            a2aElapsed = 0;
+          }, finalStatus === "failed" ? 2000 : 300);
+        } else if (evt.event_type === "A2AGuardTriggered") {
+          const p = evt.payload as { detail?: string; guard_type?: string };
+          a2aGuardMessage = p.detail ?? `Guard: ${p.guard_type}`;
+          scrollToBottom();
+        }
+      },
+    );
+
+    // Listen for sub-agent step events during A2A delegation.
+    unlistenTaskChanged = await listen<{ category: string; event_type: string; payload: Record<string, unknown> }>(
+      "runtime-event",
+      (event) => {
+        if (event.payload.category !== "task-changed") return;
+        if (!activeA2A) return;
+        const evt = event.payload;
+
+        if (evt.event_type === "StepStarted") {
+          const p = evt.payload as { step_id?: string; step_num?: number; total?: number; desc?: string };
+          a2aSteps = [
+            ...a2aSteps,
+            {
+              step_id: p.step_id ?? `s${a2aSteps.length}`,
+              step_num: p.step_num ?? a2aSteps.length + 1,
+              total: p.total ?? 0,
+              desc: p.desc ?? "",
+              status: "running",
+            },
+          ];
+          scrollToBottom();
+        } else if (evt.event_type === "StepCompleted") {
+          const p = evt.payload as { step_id?: string; duration_ms?: number };
+          a2aSteps = a2aSteps.map((s) =>
+            s.step_id === p.step_id ? { ...s, status: "done" as const, durationMs: p.duration_ms } : s,
+          );
+        } else if (evt.event_type === "StepFailed") {
+          const p = evt.payload as { step_id?: string; error?: string };
+          a2aSteps = a2aSteps.map((s) =>
+            s.step_id === p.step_id ? { ...s, status: "failed" as const } : s,
+          );
+        } else if (evt.event_type === "StepExecuted") {
+          // Direct-mode agents emit StepExecuted instead of StepStarted/Completed.
+          const p = evt.payload as { step?: number; tool?: string };
+          a2aSteps = [
+            ...a2aSteps,
+            {
+              step_id: `step-${p.step ?? a2aSteps.length}`,
+              step_num: (p.step ?? a2aSteps.length) + 1,
+              total: 0,
+              desc: p.tool ?? "step",
+              status: "done",
+            },
+          ];
+          scrollToBottom();
         }
       },
     );
@@ -197,6 +277,17 @@
     );
   });
 
+  // Live A2A duration timer — updates every second while delegation is active.
+  $effect(() => {
+    if (!a2aStartTime) return;
+    const interval = setInterval(() => {
+      if (a2aStartTime) {
+        a2aElapsed = Math.round((Date.now() - a2aStartTime) / 1000);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  });
+
   // Re-load when sessionId prop changes (switching conversations)
   let previousSessionId = $state(sessionId);
   $effect(() => {
@@ -207,6 +298,10 @@
       tokenBuffer = "";
       activeToolName = null;
       activeA2A = null;
+      a2aSteps = [];
+      a2aGuardMessage = null;
+      a2aStartTime = null;
+      a2aElapsed = 0;
       liveToolChain = [];
       pendingApproval = null;
       messages = [];
@@ -218,6 +313,7 @@
     unlistenToken?.();
     unlistenChanged?.();
     unlistenA2A?.();
+    unlistenTaskChanged?.();
     currentSession.set(null);
     chatTokenBuffer.set("");
   });
@@ -468,12 +564,52 @@
 
         {#if activeA2A}
           <div class="flex justify-start" data-testid="chat-a2a-delegating">
-            <div class="flex items-center gap-1.5 rounded-lg bg-secondary/10 border border-secondary/20 px-3 py-1.5 text-[11px] text-secondary/80">
-              <Zap size={11} class="animate-pulse" />
-              <span>{$t("chat.a2a_delegating", { values: { agent: activeA2A.target, skill: activeA2A.skill_id } })}</span>
+            <div class="max-w-[85%] overflow-hidden rounded-lg border border-secondary/20 glass-surface px-2.5 py-2">
+              <div class="flex items-center gap-1.5">
+                <Zap size={11} class="animate-pulse text-secondary" />
+                <span class="text-[11px] font-medium text-secondary/80">
+                  {$t("chat.a2a_delegating", { values: { agent: activeA2A.target, skill: activeA2A.skill_id } })}
+                </span>
+                {#if a2aElapsed > 0}
+                  <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/40">{a2aElapsed}s</span>
+                {/if}
+              </div>
+
+              {#if a2aSteps.length > 0}
+                <div class="mt-1.5 space-y-0.5">
+                  {#each a2aSteps as step, i (step.step_id)}
+                    <div class="flex items-center gap-1.5">
+                      <div class="flex-shrink-0">
+                        {#if step.status === "running"}
+                          <Loader2 size={9} class="animate-spin text-secondary/60" />
+                        {:else if step.status === "done"}
+                          <Check size={9} class="text-success/70" />
+                        {:else}
+                          <X size={9} class="text-destructive/70" />
+                        {/if}
+                      </div>
+                      <span class="truncate text-[11px] text-muted-foreground">{step.desc || `step ${step.step_num}`}</span>
+                      {#if step.total > 0}
+                        <span class="flex-shrink-0 text-[10px] text-muted-foreground/40">{step.step_num}/{step.total}</span>
+                      {/if}
+                      {#if step.durationMs !== undefined}
+                        <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/40">{step.durationMs}ms</span>
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+
+              {#if a2aGuardMessage}
+                <div class="mt-1.5 rounded bg-destructive/10 px-2 py-1 text-[10px] text-destructive/80">
+                  {a2aGuardMessage}
+                </div>
+              {/if}
             </div>
           </div>
-        {:else if liveToolChain.length > 0}
+        {/if}
+
+        {#if liveToolChain.length > 0}
           <div class="flex justify-start" data-testid="chat-live-reasoning">
             <div class="max-w-[85%] overflow-hidden rounded-lg border border-border/20 glass-surface px-2.5 py-2">
               <div class="mb-1.5 flex items-center gap-1.5">

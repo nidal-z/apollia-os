@@ -18,6 +18,9 @@ use serde::{Deserialize, Serialize};
 /// SQL de migration embarqué — appliqué idempotentiellement à chaque ouverture.
 const MIGRATION_SQL: &str = include_str!("../migrations/008_projects.sql");
 
+/// Migration 009 — table de jointure project_agents.
+const MIGRATION_009_SQL: &str = include_str!("../migrations/009_project_agents.sql");
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -30,9 +33,11 @@ pub struct ProjectSummary {
     pub description: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    /// Chemin du répertoire de travail associé (pour les providers git/rules/tree).
+    pub workspace_path: Option<String>,
 }
 
-/// Détail complet d'un projet avec ses documents et providers.
+/// Détail complet d'un projet avec ses documents, providers et agents liés.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectDetail {
     pub id: String,
@@ -41,8 +46,12 @@ pub struct ProjectDetail {
     pub instructions: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    /// Chemin du répertoire de travail associé (pour les providers git/rules/tree).
+    pub workspace_path: Option<String>,
     pub documents: Vec<ProjectDocument>,
     pub providers: Vec<ProjectProviderRow>,
+    /// Noms des agents associés au projet.
+    pub agents: Vec<String>,
 }
 
 /// Document attaché à un projet.
@@ -86,6 +95,7 @@ pub struct ProjectPatch {
     pub name: Option<String>,
     pub description: Option<Option<String>>,
     pub instructions: Option<Option<String>>,
+    pub workspace_path: Option<Option<String>>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,6 +151,13 @@ impl ProjectRepository {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
         conn.execute_batch(MIGRATION_SQL)?;
+        conn.execute_batch(MIGRATION_009_SQL)?;
+
+        // v10 migration: add workspace_path column for provider directory resolution.
+        let _ = conn.execute_batch(
+            "ALTER TABLE projects ADD COLUMN workspace_path TEXT",
+        );
+
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
@@ -150,7 +167,7 @@ impl ProjectRepository {
     pub fn list_projects(&self) -> Result<Vec<ProjectSummary>, ProjectRepositoryError> {
         let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         let mut stmt = conn.prepare(
-            "SELECT id, name, description, created_at, updated_at
+            "SELECT id, name, description, created_at, updated_at, workspace_path
              FROM projects ORDER BY name ASC",
         )?;
         let rows = stmt.query_map([], |row| {
@@ -160,6 +177,7 @@ impl ProjectRepository {
                 description: row.get(2)?,
                 created_at: row.get(3)?,
                 updated_at: row.get(4)?,
+                workspace_path: row.get(5)?,
             })
         })?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
@@ -170,7 +188,7 @@ impl ProjectRepository {
         let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
 
         let mut stmt = conn.prepare(
-            "SELECT id, name, description, instructions, created_at, updated_at
+            "SELECT id, name, description, instructions, created_at, updated_at, workspace_path
              FROM projects WHERE id = ?1",
         )?;
         let project = stmt.query_row(params![id], |row| {
@@ -181,10 +199,11 @@ impl ProjectRepository {
                 row.get::<_, Option<String>>(3)?,
                 row.get::<_, String>(4)?,
                 row.get::<_, String>(5)?,
+                row.get::<_, Option<String>>(6)?,
             ))
         });
 
-        let (pid, name, description, instructions, created_at, updated_at) = match project {
+        let (pid, name, description, instructions, created_at, updated_at, workspace_path) = match project {
             Ok(r) => r,
             Err(rusqlite::Error::QueryReturnedNoRows) => {
                 return Err(ProjectRepositoryError::NotFound(id.to_owned()))
@@ -228,6 +247,13 @@ impl ProjectRepository {
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
+        let mut agent_stmt = conn.prepare(
+            "SELECT agent_name FROM project_agents WHERE project_id = ?1 ORDER BY added_at ASC",
+        )?;
+        let agents = agent_stmt
+            .query_map(params![pid], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+
         Ok(ProjectDetail {
             id: pid,
             name,
@@ -235,8 +261,10 @@ impl ProjectRepository {
             instructions,
             created_at,
             updated_at,
+            workspace_path,
             documents,
             providers,
+            agents,
         })
     }
 
@@ -246,14 +274,15 @@ impl ProjectRepository {
         name: impl Into<String>,
         description: Option<String>,
         instructions: Option<String>,
+        workspace_path: Option<String>,
     ) -> Result<String, ProjectRepositoryError> {
         let id = uuid();
         let now = now_rfc3339();
         let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
         conn.execute(
-            "INSERT INTO projects (id, name, description, instructions, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
-            params![id, name.into(), description, instructions, now],
+            "INSERT INTO projects (id, name, description, instructions, workspace_path, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+            params![id, name.into(), description, instructions, workspace_path, now],
         )?;
         Ok(id)
     }
@@ -283,6 +312,12 @@ impl ProjectRepository {
             conn.execute(
                 "UPDATE projects SET instructions = ?1, updated_at = ?2 WHERE id = ?3",
                 params![instructions, now, id],
+            )?;
+        }
+        if let Some(workspace_path) = patch.workspace_path {
+            conn.execute(
+                "UPDATE projects SET workspace_path = ?1, updated_at = ?2 WHERE id = ?3",
+                params![workspace_path, now, id],
             )?;
         }
 
@@ -455,6 +490,91 @@ impl ProjectRepository {
         Ok(())
     }
 
+    // ─── Agent linking ─────────────────────────────────────────────────────────
+
+    /// Associe un agent à un projet. Idempotent (`INSERT OR IGNORE`).
+    pub fn add_agent(
+        &self,
+        project_id: &str,
+        agent_name: &str,
+    ) -> Result<(), ProjectRepositoryError> {
+        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let now = now_rfc3339();
+        conn.execute(
+            "INSERT OR IGNORE INTO project_agents (project_id, agent_name, added_at)
+             VALUES (?1, ?2, ?3)",
+            params![project_id, agent_name, now],
+        )?;
+        Ok(())
+    }
+
+    /// Dissocie un agent d'un projet.
+    pub fn remove_agent(
+        &self,
+        project_id: &str,
+        agent_name: &str,
+    ) -> Result<bool, ProjectRepositoryError> {
+        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let n = conn.execute(
+            "DELETE FROM project_agents WHERE project_id = ?1 AND agent_name = ?2",
+            params![project_id, agent_name],
+        )?;
+        Ok(n > 0)
+    }
+
+    /// Liste les noms d'agents associés à un projet.
+    pub fn list_agents(&self, project_id: &str) -> Result<Vec<String>, ProjectRepositoryError> {
+        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let mut stmt = conn.prepare(
+            "SELECT agent_name FROM project_agents WHERE project_id = ?1 ORDER BY added_at ASC",
+        )?;
+        let agents = stmt
+            .query_map(params![project_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(agents)
+    }
+
+    /// Liste les IDs de projets auxquels un agent appartient.
+    pub fn list_projects_for_agent(
+        &self,
+        agent_name: &str,
+    ) -> Result<Vec<String>, ProjectRepositoryError> {
+        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let mut stmt = conn.prepare(
+            "SELECT project_id FROM project_agents WHERE agent_name = ?1",
+        )?;
+        let ids = stmt
+            .query_map(params![agent_name], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(ids)
+    }
+
+    // ─── Provider management ─────────────────────────────────────────────────
+
+    /// Supprime un provider de contexte.
+    pub fn remove_provider(&self, provider_id: &str) -> Result<bool, ProjectRepositoryError> {
+        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let n = conn.execute(
+            "DELETE FROM project_providers WHERE id = ?1",
+            params![provider_id],
+        )?;
+        Ok(n > 0)
+    }
+
+    /// Active ou désactive un provider de contexte.
+    pub fn toggle_provider(
+        &self,
+        provider_id: &str,
+        enabled: bool,
+    ) -> Result<bool, ProjectRepositoryError> {
+        let conn = self.conn.lock().map_err(|_| ProjectRepositoryError::LockPoisoned)?;
+        let n = conn.execute(
+            "UPDATE project_providers SET enabled = ?1 WHERE id = ?2",
+            params![enabled as i64, provider_id],
+        )?;
+        Ok(n > 0)
+    }
+
     // ─── Async wrappers ───────────────────────────────────────────────────────
 
     /// Async wrapper pour [`list_projects`](Self::list_projects).
@@ -484,11 +604,14 @@ impl ProjectRepository {
         name: String,
         description: Option<String>,
         instructions: Option<String>,
+        workspace_path: Option<String>,
     ) -> Result<String, ProjectRepositoryError> {
         let repo = self.clone();
-        tokio::task::spawn_blocking(move || repo.create_project(name, description, instructions))
-            .await
-            .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
+        tokio::task::spawn_blocking(move || {
+            repo.create_project(name, description, instructions, workspace_path)
+        })
+        .await
+        .map_err(|e| ProjectRepositoryError::SpawnError(e.to_string()))?
     }
 
     /// Async wrapper pour [`update_project`](Self::update_project).
@@ -647,7 +770,7 @@ mod tests {
         let repo = open_memory();
         // WHEN a project is created
         let id = repo
-            .create_project("Mon projet", Some("desc".into()), Some("instructions".into()))
+            .create_project("Mon projet", Some("desc".into()), Some("instructions".into()), None)
             .expect("create");
         // THEN it appears in the list
         let list = repo.list_projects().expect("list");
@@ -661,11 +784,30 @@ mod tests {
         assert!(detail.providers.is_empty());
     }
 
+    #[tokio::test]
+    async fn test_create_project_async_with_workspace_path() {
+        // GIVEN an in-memory repository
+        let repo = open_memory();
+        // WHEN a project is created via the async wrapper with an explicit workspace_path
+        let id = repo
+            .create_project_async(
+                "WS Project".to_string(),
+                None,
+                None,
+                Some("/tmp/my-workspace".to_string()),
+            )
+            .await
+            .expect("create_project_async");
+        // THEN the workspace_path is persisted and readable via get_project
+        let detail = repo.get_project(&id).expect("get");
+        assert_eq!(detail.workspace_path.as_deref(), Some("/tmp/my-workspace"));
+    }
+
     #[test]
     fn test_update_project() {
         // GIVEN a project
         let repo = open_memory();
-        let id = repo.create_project("A", None, None).expect("create");
+        let id = repo.create_project("A", None, None, None).expect("create");
         // WHEN updated
         let found = repo
             .update_project(&id, ProjectPatch { name: Some("B".into()), ..Default::default() })
@@ -680,7 +822,7 @@ mod tests {
     fn test_delete_project() {
         // GIVEN a project
         let repo = open_memory();
-        let id = repo.create_project("Del", None, None).expect("create");
+        let id = repo.create_project("Del", None, None, None).expect("create");
         // WHEN deleted
         let deleted = repo.delete_project(&id).expect("delete");
         // THEN not found
@@ -693,7 +835,7 @@ mod tests {
     fn test_add_remove_document() {
         // GIVEN a project with a document
         let repo = open_memory();
-        let pid = repo.create_project("P", None, None).expect("create");
+        let pid = repo.create_project("P", None, None, None).expect("create");
         let doc_id = repo
             .add_document(&pid, "readme.md", "/tmp/readme.md", 512)
             .expect("add_doc");

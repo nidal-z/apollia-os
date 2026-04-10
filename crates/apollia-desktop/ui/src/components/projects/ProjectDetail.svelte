@@ -1,16 +1,22 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
   import { t } from "svelte-i18n";
   import { Sheet } from "$lib/components/ui/sheet";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Textarea } from "$lib/components/ui/textarea";
   import { addToast } from "$lib/components/ui/toast/store";
+  import { navigateTo } from "$lib/stores/navigation";
+  import { pendingChatSessionId } from "$lib/stores/chat";
   import {
-    FolderOpen, FileText, Puzzle, Eye, Trash2, Upload,
-    ChevronDown, ChevronUp, X, Loader2,
+    FolderOpen, FileText, Puzzle, Eye, Trash2, Upload, Plus,
+    ChevronDown, ChevronUp, X, Loader2, MessageSquare, Bot,
+    ToggleLeft, ToggleRight,
   } from "lucide-svelte";
-  import type { ProjectDetail, WorkspaceSnapshotView } from "$lib/types";
+  import type {
+    ProjectDetail, WorkspaceSnapshotView, ChatSessionSummary, AgentListItem,
+  } from "$lib/types";
 
   interface Props {
     open: boolean;
@@ -38,16 +44,144 @@
   // Document upload
   let uploading = $state(false);
 
+  // Linked chats
+  let linkedChats = $state<ChatSessionSummary[]>([]);
+
+  // Agent management
+  let allAgents = $state<AgentListItem[]>([]);
+  let showAgentPicker = $state(false);
+
+  // Provider management
+  let showProviderPicker = $state(false);
+
+  const PROVIDER_TYPES = [
+    { type: "git", name: "Git Status", priority: 10 },
+    { type: "rules", name: "Project Rules (APOLLIA.md)", priority: 20 },
+    { type: "tree", name: "Directory Tree", priority: 30 },
+  ] as const;
+
   $effect(() => {
     if (project) {
       editName = project.name;
       editDescription = project.description ?? "";
       editInstructions = project.instructions ?? "";
+      void loadLinkedChats(project.id);
+      void loadAllAgents();
     }
     editing = false;
     snapshot = null;
     snapshotOpen = false;
   });
+
+  async function loadLinkedChats(projectId: string): Promise<void> {
+    try {
+      linkedChats = await invoke<ChatSessionSummary[]>("list_chats_by_project", { projectId });
+    } catch {
+      linkedChats = [];
+    }
+  }
+
+  async function loadAllAgents(): Promise<void> {
+    try {
+      allAgents = await invoke<AgentListItem[]>("list_agents");
+    } catch {
+      allAgents = [];
+    }
+  }
+
+  async function createChatInProject(): Promise<void> {
+    if (!project) return;
+    try {
+      const session = await invoke<ChatSessionSummary>("create_chat_session", {
+        request: { mode: "libre", project_id: project.id },
+      });
+      pendingChatSessionId.set(session.id);
+      navigateTo("chat");
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  function navigateToChatSession(sessionId: string): void {
+    pendingChatSessionId.set(sessionId);
+    navigateTo("chat");
+  }
+
+  async function addAgent(agentName: string): Promise<void> {
+    if (!project) return;
+    try {
+      await invoke("add_project_agent", { projectId: project.id, agentName });
+      addToast($t("projects.agent_added"), "success");
+      showAgentPicker = false;
+      onupdated();
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function removeAgent(agentName: string): Promise<void> {
+    if (!project) return;
+    try {
+      await invoke("remove_project_agent", { projectId: project.id, agentName });
+      addToast($t("projects.agent_removed"), "success");
+      onupdated();
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function pickAndUploadDocument(): Promise<void> {
+    if (!project) return;
+    const selected = await openFilePicker({ multiple: false });
+    if (!selected) return;
+    uploading = true;
+    try {
+      const filePath = typeof selected === "string" ? selected : (selected as { path: string }).path;
+      await invoke("upload_project_document", { projectId: project.id, filePath });
+      onupdated();
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      uploading = false;
+    }
+  }
+
+  async function addProvider(providerType: string, name: string, priority: number): Promise<void> {
+    if (!project) return;
+    try {
+      await invoke("set_project_provider", {
+        projectId: project.id,
+        providerType,
+        name,
+        configJson: "{}",
+        path: null,
+        enabled: true,
+        priority,
+      });
+      showProviderPicker = false;
+      onupdated();
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function toggleProvider(providerId: string, enabled: boolean): Promise<void> {
+    try {
+      await invoke("toggle_project_provider", { providerId, enabled });
+      onupdated();
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function removeProvider(providerId: string): Promise<void> {
+    try {
+      await invoke("remove_project_provider", { providerId });
+      onupdated();
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
 
   async function saveChanges(): Promise<void> {
     if (!project || !editName.trim()) return;
@@ -148,6 +282,18 @@
         {/if}
       </section>
 
+      <!-- Workspace Path -->
+      {#if project.workspace_path}
+        <section class="space-y-1.5">
+          <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+            Workspace
+          </p>
+          <p class="text-sm font-mono text-muted-foreground bg-muted/40 px-3 py-1.5 rounded-md truncate">
+            {project.workspace_path}
+          </p>
+        </section>
+      {/if}
+
       <!-- Instructions -->
       <section class="space-y-1.5">
         <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
@@ -169,27 +315,136 @@
         {/if}
       </section>
 
+      <!-- Linked Chats -->
+      <section class="space-y-1.5">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+            {$t("projects.section_chats")}
+          </p>
+          <Button size="sm" variant="ghost" onclick={createChatInProject}>
+            <Plus size={12} class="mr-1" />
+            {$t("projects.new_chat")}
+          </Button>
+        </div>
+        {#if linkedChats.length === 0}
+          <p class="text-sm text-muted-foreground">{$t("projects.no_chats")}</p>
+        {:else}
+          <div class="space-y-1">
+            {#each linkedChats as chat (chat.id)}
+              <button
+                class="flex w-full items-center gap-2 rounded-md bg-muted/40 px-3 py-1.5 text-sm cursor-pointer hover:bg-muted/60 transition-colors text-left"
+                onclick={() => navigateToChatSession(chat.id)}
+              >
+                <MessageSquare size={14} class="shrink-0 text-muted-foreground" />
+                <span class="flex-1 truncate">{chat.title || chat.mode}</span>
+                <span class="text-xs text-muted-foreground/60">{chat.status}</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </section>
+
+      <!-- Linked Agents -->
+      <section class="space-y-1.5">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+            {$t("projects.section_agents")}
+          </p>
+          <Button size="sm" variant="ghost" onclick={() => { showAgentPicker = !showAgentPicker; }}>
+            <Plus size={12} class="mr-1" />
+            {$t("projects.add_agent")}
+          </Button>
+        </div>
+        {#if showAgentPicker}
+          <div class="rounded-md border border-border bg-card p-2 space-y-1">
+            {#each allAgents.filter(a => a.enabled && !project.agents.includes(a.name)) as agent (agent.name)}
+              <button
+                class="flex w-full items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/60 transition-colors text-left"
+                onclick={() => addAgent(agent.name)}
+              >
+                <Bot size={14} class="shrink-0 text-muted-foreground" />
+                <span class="truncate">{agent.name}</span>
+              </button>
+            {:else}
+              <p class="text-xs text-muted-foreground px-2 py-1">Aucun agent disponible</p>
+            {/each}
+          </div>
+        {/if}
+        {#if project.agents.length === 0}
+          <p class="text-sm text-muted-foreground">{$t("projects.no_agents")}</p>
+        {:else}
+          <div class="space-y-1">
+            {#each project.agents as agentName (agentName)}
+              <div class="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-1.5 text-sm">
+                <Bot size={14} strokeWidth={1.75} class="shrink-0 text-muted-foreground" />
+                <span class="flex-1 truncate">{agentName}</span>
+                <button
+                  class="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-destructive transition-colors"
+                  onclick={() => removeAgent(agentName)}
+                  title={$t("common.delete")}
+                >
+                  <Trash2 size={12} strokeWidth={1.75} />
+                </button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </section>
+
       <!-- Context Providers -->
       <section class="space-y-1.5">
-        <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-          {$t("projects.section_providers")}
-        </p>
-        {#if project.providers.length === 0}
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+            {$t("projects.section_providers")}
+          </p>
+          <Button size="sm" variant="ghost" onclick={() => { showProviderPicker = !showProviderPicker; }}>
+            <Plus size={12} class="mr-1" />
+            {$t("projects.add_provider")}
+          </Button>
+        </div>
+        {#if showProviderPicker}
+          <div class="rounded-md border border-border bg-card p-2 space-y-1">
+            {#each PROVIDER_TYPES.filter(pt => !project.providers.some(p => p.provider_type === pt.type)) as pt (pt.type)}
+              <button
+                class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/60 transition-colors text-left"
+                onclick={() => addProvider(pt.type, pt.name, pt.priority)}
+              >
+                <Puzzle size={14} class="shrink-0 text-muted-foreground" />
+                <span class="flex-1">{pt.name}</span>
+                <span class="text-xs text-muted-foreground/60 font-mono">{pt.type}</span>
+              </button>
+            {:else}
+              <p class="text-xs text-muted-foreground px-2 py-1">Tous les providers sont déjà ajoutés</p>
+            {/each}
+          </div>
+        {/if}
+        {#if project.providers.length === 0 && !showProviderPicker}
           <p class="text-sm text-muted-foreground">{$t("projects.no_providers")}</p>
-        {:else}
+        {:else if project.providers.length > 0}
           <div class="space-y-1">
             {#each project.providers as provider (provider.id)}
               <div class="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-1.5 text-sm">
                 <Puzzle size={14} strokeWidth={1.75} class="shrink-0 text-muted-foreground" />
                 <span class="flex-1 truncate">{provider.name}</span>
                 <span class="text-xs text-muted-foreground/60 font-mono">{provider.provider_type}</span>
-                <span
-                  class="text-xs px-1.5 py-0.5 rounded-full {provider.enabled
-                    ? 'bg-success/20 text-success'
-                    : 'bg-muted text-muted-foreground'}"
+                <button
+                  class="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"
+                  onclick={() => toggleProvider(provider.id, !provider.enabled)}
+                  title={provider.enabled ? $t("projects.provider_disabled") : $t("projects.provider_enabled")}
                 >
-                  {provider.enabled ? $t("projects.provider_enabled") : $t("projects.provider_disabled")}
-                </span>
+                  {#if provider.enabled}
+                    <ToggleRight size={14} strokeWidth={1.75} class="text-success" />
+                  {:else}
+                    <ToggleLeft size={14} strokeWidth={1.75} />
+                  {/if}
+                </button>
+                <button
+                  class="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-destructive transition-colors"
+                  onclick={() => removeProvider(provider.id)}
+                  title={$t("common.delete")}
+                >
+                  <Trash2 size={12} strokeWidth={1.75} />
+                </button>
               </div>
             {/each}
           </div>
@@ -202,6 +457,14 @@
           <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
             {$t("projects.section_documents")}
           </p>
+          <Button size="sm" variant="ghost" onclick={pickAndUploadDocument} disabled={uploading}>
+            {#if uploading}
+              <Loader2 size={12} class="animate-spin mr-1" />
+            {:else}
+              <Upload size={12} class="mr-1" />
+            {/if}
+            {$t("projects.upload_document")}
+          </Button>
         </div>
         {#if project.documents.length === 0}
           <p class="text-sm text-muted-foreground">{$t("projects.no_documents")}</p>

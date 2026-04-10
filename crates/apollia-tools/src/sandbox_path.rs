@@ -59,9 +59,13 @@ impl SandboxRoot {
     ///
     /// Validates that the path remains within the sandbox boundary after normalization.
     ///
+    /// Les chemins absolus sont acceptés s'ils pointent sous le canonical root
+    /// (ex. `/Users/alice/docs` avec root `/Users/alice`). Les chemins absolus
+    /// hors du root (ex. `/etc/passwd`) sont rejetés par la vérification
+    /// `starts_with(canonical)` en fin de méthode.
+    ///
     /// # Rejections
     ///
-    /// - Absolute paths (e.g. "/etc/passwd")
     /// - Path traversal attempts (e.g. "../../etc/passwd")
     /// - Any path that would resolve outside the sandbox root
     ///
@@ -71,12 +75,6 @@ impl SandboxRoot {
     /// attempts to escape the sandbox.
     pub fn resolve(&self, relative_path: &str) -> Result<PathBuf, SandboxPathError> {
         let path = Path::new(relative_path);
-
-        if path.is_absolute() {
-            return Err(SandboxPathError::SandboxViolation {
-                path: relative_path.to_string(),
-            });
-        }
 
         let normalized = normalize_path(path);
 
@@ -224,15 +222,36 @@ mod tests {
     }
 
     #[test]
-    fn resolve_rejects_absolute_path() {
+    fn resolve_accepts_absolute_path_under_root() {
         // GIVEN: a valid SandboxRoot
         let temp_dir = std::env::temp_dir().join(format!("apollia-test-{}", uuid::Uuid::new_v4()));
         let sandbox = SandboxRoot::new(temp_dir.clone()).expect("Failed to create sandbox");
+        let canonical = sandbox.path().to_path_buf();
 
-        // WHEN: resolving an absolute path
+        // WHEN: resolving an absolute path that points inside the sandbox root
+        let inside = canonical.join("src/main.rs");
+        let result = sandbox.resolve(inside.to_str().expect("valid utf-8"));
+
+        // THEN: the path is accepted and normalized under the canonical root
+        assert!(result.is_ok(), "expected Ok, got {:?}", result);
+        let resolved = result.expect("Resolution failed");
+        assert!(resolved.starts_with(&canonical));
+        assert!(resolved.ends_with("src/main.rs"));
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn resolve_rejects_absolute_path_outside_root() {
+        // GIVEN: a valid SandboxRoot in a temp directory
+        let temp_dir = std::env::temp_dir().join(format!("apollia-test-{}", uuid::Uuid::new_v4()));
+        let sandbox = SandboxRoot::new(temp_dir.clone()).expect("Failed to create sandbox");
+
+        // WHEN: resolving an absolute path that lies outside the sandbox root
         let result = sandbox.resolve("/etc/passwd");
 
-        // THEN: SandboxViolation error is returned
+        // THEN: SandboxViolation error is returned (via the starts_with check)
         assert!(result.is_err());
         match result.err() {
             Some(SandboxPathError::SandboxViolation { .. }) => {}

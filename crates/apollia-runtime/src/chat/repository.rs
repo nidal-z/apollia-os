@@ -46,6 +46,8 @@ pub struct SessionRow {
     pub parent_session_id: Option<String>,
     /// Fork depth: 0 for root sessions, N+1 for a fork of a depth-N session.
     pub fork_depth: i64,
+    /// Project this session belongs to (application-level link, no FK).
+    pub project_id: Option<String>,
 }
 
 /// Raw row from the `chat_messages` table.
@@ -67,6 +69,8 @@ pub struct MessageRow {
     pub created_at: String,
     /// Sequence number within the session.
     pub seq: u32,
+    /// JSON-encoded metadata (nullable).
+    pub metadata: Option<String>,
 }
 
 /// Parameters for appending a message to a chat session.
@@ -85,6 +89,8 @@ pub struct AppendMessageParams<'a> {
     pub tool_name: Option<&'a str>,
     /// ISO-8601 creation timestamp.
     pub created_at: &'a str,
+    /// JSON-encoded metadata (optional, e.g. thinking trace).
+    pub metadata: Option<&'a str>,
 }
 
 /// CRUD repository for chat sessions, messages, and tool authorizations.
@@ -137,6 +143,15 @@ impl ChatSessionRepository {
             "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_id)",
         );
 
+        // v7 migration: project linkage (application-level, no FK — separate databases).
+        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN project_id TEXT");
+        let _ = conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_chat_sessions_project ON chat_sessions(project_id)",
+        );
+
+        // v8 migration: metadata column on messages (thinking trace, etc.).
+        let _ = conn.execute_batch("ALTER TABLE chat_messages ADD COLUMN metadata TEXT");
+
         Ok(Self { conn })
     }
 
@@ -177,6 +192,15 @@ impl ChatSessionRepository {
             "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON chat_sessions(parent_session_id)",
         );
 
+        // v7 migration: project linkage.
+        let _ = conn.execute_batch("ALTER TABLE chat_sessions ADD COLUMN project_id TEXT");
+        let _ = conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_chat_sessions_project ON chat_sessions(project_id)",
+        );
+
+        // v8 migration: metadata column on messages.
+        let _ = conn.execute_batch("ALTER TABLE chat_messages ADD COLUMN metadata TEXT");
+
         Ok(Self { conn })
     }
 
@@ -191,15 +215,16 @@ impl ChatSessionRepository {
         available_tools: &[String],
         created_at: &str,
         llm_backend: Option<&str>,
+        project_id: Option<&str>,
     ) -> Result<(), ChatError> {
         let tools_json = serde_json::to_string(available_tools)
             .map_err(|e| ChatError::InternalError(format!("tools serialization: {e}")))?;
 
         self.conn
             .execute(
-                "INSERT INTO chat_sessions (id, mode, agent_name, system_prompt, available_tools, created_at, llm_backend)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![id, mode.as_sql(), agent_name, system_prompt, tools_json, created_at, llm_backend],
+                "INSERT INTO chat_sessions (id, mode, agent_name, system_prompt, available_tools, created_at, llm_backend, project_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![id, mode.as_sql(), agent_name, system_prompt, tools_json, created_at, llm_backend, project_id],
             )
             .map_err(|e| ChatError::InternalError(format!("create_session: {e}")))?;
 
@@ -314,7 +339,7 @@ impl ChatSessionRepository {
             .conn
             .prepare(
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
-                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id
                  FROM chat_sessions WHERE id = ?1",
             )
             .map_err(|e| ChatError::InternalError(format!("get_session prepare: {e}")))?;
@@ -332,13 +357,13 @@ impl ChatSessionRepository {
         let (sql, param): (&str, Option<&str>) = match status {
             Some(s) => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
-                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id
                  FROM chat_sessions WHERE status = ?1 ORDER BY created_at DESC",
                 Some(s),
             ),
             None => (
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
-                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id
                  FROM chat_sessions ORDER BY created_at DESC",
                 None,
             ),
@@ -414,8 +439,8 @@ impl ChatSessionRepository {
 
         self.conn
             .execute(
-                "INSERT INTO chat_messages (id, session_id, role, content, tool_calls_json, tool_name, created_at, seq)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO chat_messages (id, session_id, role, content, tool_calls_json, tool_name, created_at, seq, metadata)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 rusqlite::params![
                     params.id,
                     params.session_id,
@@ -424,7 +449,8 @@ impl ChatSessionRepository {
                     params.tool_calls_json,
                     params.tool_name,
                     params.created_at,
-                    next_seq
+                    next_seq,
+                    params.metadata
                 ],
             )
             .map_err(|e| ChatError::InternalError(format!("append_message insert: {e}")))?;
@@ -445,7 +471,7 @@ impl ChatSessionRepository {
                 let mut stmt = self
                     .conn
                     .prepare(
-                        "SELECT id, session_id, role, content, tool_calls_json, tool_name, created_at, seq
+                        "SELECT id, session_id, role, content, tool_calls_json, tool_name, created_at, seq, metadata
                          FROM chat_messages WHERE session_id = ?1
                          ORDER BY seq DESC LIMIT ?2",
                     )
@@ -471,7 +497,7 @@ impl ChatSessionRepository {
                 let mut stmt = self
                     .conn
                     .prepare(
-                        "SELECT id, session_id, role, content, tool_calls_json, tool_name, created_at, seq
+                        "SELECT id, session_id, role, content, tool_calls_json, tool_name, created_at, seq, metadata
                          FROM chat_messages WHERE session_id = ?1
                          ORDER BY seq ASC",
                     )
@@ -685,6 +711,10 @@ impl ChatSessionRepository {
                     .tool_calls_json
                     .as_deref()
                     .and_then(|j| serde_json::from_str(j).ok());
+                let metadata: Option<serde_json::Value> = m
+                    .metadata
+                    .as_deref()
+                    .and_then(|j| serde_json::from_str(j).ok());
                 ChatMessage {
                     id: m.id,
                     role,
@@ -693,7 +723,7 @@ impl ChatSessionRepository {
                     tool_name: m.tool_name,
                     created_at: m.created_at,
                     seq: m.seq,
-                    metadata: None,
+                    metadata,
                 }
             })
             .collect();
@@ -713,6 +743,7 @@ impl ChatSessionRepository {
             title: row.title,
             parent_session_id: row.parent_session_id,
             fork_depth: row.fork_depth,
+            project_id: row.project_id,
         })
     }
 
@@ -738,13 +769,13 @@ impl ChatSessionRepository {
         let child_fork_depth = parent_row.fork_depth + 1;
         let tools_json = &parent_row.available_tools;
 
-        // Persist child session row.
+        // Persist child session row (inherits parent's project_id).
         self.conn
             .execute(
                 "INSERT INTO chat_sessions
                     (id, mode, agent_name, system_prompt, available_tools, created_at,
-                     llm_backend, parent_session_id, fork_depth)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                     llm_backend, parent_session_id, fork_depth, project_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 params![
                     child_id,
                     parent_row.mode,
@@ -755,6 +786,7 @@ impl ChatSessionRepository {
                     parent_row.llm_backend,
                     parent_id,
                     child_fork_depth,
+                    parent_row.project_id,
                 ],
             )
             .map_err(|e| ChatError::InternalError(format!("create_fork_session insert: {e}")))?;
@@ -775,8 +807,8 @@ impl ChatSessionRepository {
             self.conn
                 .execute(
                     "INSERT INTO chat_messages
-                        (id, session_id, role, content, tool_calls_json, tool_name, created_at, seq)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                        (id, session_id, role, content, tool_calls_json, tool_name, created_at, seq, metadata)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                     params![
                         new_msg_id,
                         child_id,
@@ -786,6 +818,7 @@ impl ChatSessionRepository {
                         msg.tool_name,
                         msg.created_at,
                         seq,
+                        msg.metadata,
                     ],
                 )
                 .map_err(|e| {
@@ -805,7 +838,7 @@ impl ChatSessionRepository {
             .conn
             .prepare(
                 "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
-                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id
                  FROM chat_sessions
                  WHERE parent_session_id = ?1
                  ORDER BY created_at ASC",
@@ -822,6 +855,66 @@ impl ChatSessionRepository {
                 .push(r.map_err(|e| ChatError::InternalError(format!("list_children row: {e}")))?);
         }
         Ok(result)
+    }
+
+    /// List sessions belonging to a specific project.
+    pub fn list_sessions_by_project(&self, project_id: &str) -> Result<Vec<SessionRow>, ChatError> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, mode, agent_name, system_prompt, status, available_tools, created_at,
+                        closed_at, llm_backend, summary, title, parent_session_id, fork_depth, project_id
+                 FROM chat_sessions WHERE project_id = ?1 ORDER BY created_at DESC",
+            )
+            .map_err(|e| ChatError::InternalError(format!("list_sessions_by_project prepare: {e}")))?;
+
+        let rows = stmt
+            .query_map(params![project_id], row_to_session)
+            .map_err(|e| ChatError::InternalError(format!("list_sessions_by_project query: {e}")))?;
+
+        let mut result = Vec::new();
+        for r in rows {
+            result.push(
+                r.map_err(|e| ChatError::InternalError(format!("list_sessions_by_project row: {e}")))?,
+            );
+        }
+        Ok(result)
+    }
+
+    /// Link or unlink a session to a project.
+    ///
+    /// Pass `None` to unlink the session from any project.
+    pub fn set_session_project(
+        &self,
+        session_id: &str,
+        project_id: Option<&str>,
+    ) -> Result<(), ChatError> {
+        let updated = self
+            .conn
+            .execute(
+                "UPDATE chat_sessions SET project_id = ?1 WHERE id = ?2",
+                params![project_id, session_id],
+            )
+            .map_err(|e| ChatError::InternalError(format!("set_session_project: {e}")))?;
+
+        if updated == 0 {
+            return Err(ChatError::SessionNotFound(session_id.to_string()));
+        }
+        Ok(())
+    }
+
+    /// Unlink all sessions from a project (orphan them).
+    ///
+    /// Called when a project is deleted to avoid dangling project_id references.
+    pub fn orphan_project_sessions(&self, project_id: &str) -> Result<usize, ChatError> {
+        let count = self
+            .conn
+            .execute(
+                "UPDATE chat_sessions SET project_id = NULL WHERE project_id = ?1",
+                params![project_id],
+            )
+            .map_err(|e| ChatError::InternalError(format!("orphan_project_sessions: {e}")))?;
+        Ok(count)
     }
 
     /// Get the set of authorized tool names for a session.
@@ -861,6 +954,7 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionRow> {
         title: row.get(10)?,
         parent_session_id: row.get(11)?,
         fork_depth: row.get(12)?,
+        project_id: row.get(13)?,
     })
 }
 
@@ -875,6 +969,7 @@ fn row_to_message(row: &rusqlite::Row<'_>) -> rusqlite::Result<MessageRow> {
         tool_name: row.get(5)?,
         created_at: row.get(6)?,
         seq: row.get(7)?,
+        metadata: row.get(8).unwrap_or(None),
     })
 }
 
@@ -935,6 +1030,7 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
+            None,
         )
         .expect("create");
 
@@ -963,6 +1059,7 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
+            None,
         )
         .expect("create s1");
         repo.create_session(
@@ -972,6 +1069,7 @@ mod tests {
             "",
             &[],
             "2026-03-20T11:00:00Z",
+            None,
             None,
         )
         .expect("create s2");
@@ -1001,6 +1099,7 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
+            None,
             None,
         )
         .expect("create");
@@ -1039,6 +1138,7 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
+            None,
         )
         .expect("create");
 
@@ -1055,6 +1155,7 @@ mod tests {
                     tool_calls_json: None,
                     tool_name: None,
                     created_at: &ts,
+                metadata: None,
                 })
                 .expect("append");
             assert_eq!(seq, i);
@@ -1081,6 +1182,7 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
+            None,
         )
         .expect("create");
 
@@ -1096,7 +1198,8 @@ mod tests {
                 tool_calls_json: None,
                 tool_name: None,
                 created_at: &ts,
-            })
+            metadata: None,
+                })
             .expect("append");
         }
 
@@ -1120,6 +1223,7 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
+            None,
             None,
         )
         .expect("create");
@@ -1146,6 +1250,7 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
+            None,
         )
         .expect("create");
         repo.authorize_tool("s1", "bash_executor", "2026-03-20T10:01:00Z")
@@ -1171,6 +1276,7 @@ mod tests {
             "",
             &["bash_executor".into(), "file_io".into()],
             "2026-03-20T10:00:00Z",
+            None,
             None,
         )
         .expect("create");
@@ -1214,6 +1320,7 @@ mod tests {
             &["bash_executor".to_string(), "file_io".to_string()],
             "2026-03-20T10:00:00Z",
             None,
+            None,
         )
         .expect("create");
 
@@ -1245,7 +1352,7 @@ mod tests {
                 "2026-03-15T10:00:00Z",
             ),
         ] {
-            repo.create_session(id, &ChatMode::Libre, None, "", &[], ts, None)
+            repo.create_session(id, &ChatMode::Libre, None, "", &[], ts, None, None)
                 .expect("create");
             repo.close_session(id, ts).expect("close");
             repo.update_summary(id, summary).expect("update summary");
@@ -1273,6 +1380,7 @@ mod tests {
             "",
             &[],
             "2026-03-20T10:00:00Z",
+            None,
             None,
         )
         .expect("create");
@@ -1302,6 +1410,7 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
+            None,
         )
         .expect("create");
         repo.update_summary("s1", "Some summary text")
@@ -1326,6 +1435,7 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
+            None,
         )
         .expect("create s1");
         repo.append_message(&AppendMessageParams {
@@ -1336,7 +1446,8 @@ mod tests {
             tool_calls_json: None,
             tool_name: None,
             created_at: "2026-03-20T10:01:00Z",
-        })
+        metadata: None,
+                })
         .expect("append s1");
 
         repo.create_session(
@@ -1346,6 +1457,7 @@ mod tests {
             "",
             &[],
             "2026-03-20T11:00:00Z",
+            None,
             None,
         )
         .expect("create s2");
@@ -1357,7 +1469,8 @@ mod tests {
             tool_calls_json: None,
             tool_name: None,
             created_at: "2026-03-20T11:01:00Z",
-        })
+        metadata: None,
+                })
         .expect("append s2");
 
         // WHEN we list recent summaries with limit=10
@@ -1383,6 +1496,7 @@ mod tests {
             &["bash_executor".to_string()],
             "2026-03-20T10:00:00Z",
             None,
+            None,
         )
         .expect("create");
         repo.append_message(&AppendMessageParams {
@@ -1393,7 +1507,8 @@ mod tests {
             tool_calls_json: None,
             tool_name: None,
             created_at: "2026-03-20T10:01:00Z",
-        })
+        metadata: None,
+                })
         .expect("m1");
         repo.append_message(&AppendMessageParams {
             id: "m2",
@@ -1403,7 +1518,8 @@ mod tests {
             tool_calls_json: None,
             tool_name: None,
             created_at: "2026-03-20T10:02:00Z",
-        })
+        metadata: None,
+                })
         .expect("m2");
         repo.authorize_tool("s1", "bash_executor", "2026-03-20T10:03:00Z")
             .expect("authorize");
@@ -1442,6 +1558,7 @@ mod tests {
             &[],
             "2026-03-20T10:00:00Z",
             None,
+            None,
         )
         .expect("create session");
 
@@ -1454,6 +1571,7 @@ mod tests {
                 tool_calls_json: None,
                 tool_name: None,
                 created_at: "2026-03-20T10:01:00Z",
+                metadata: None,
             })
             .expect("append message");
         }
@@ -1508,7 +1626,8 @@ mod tests {
             tool_calls_json: None,
             tool_name: None,
             created_at: "2026-03-20T11:01:00Z",
-        })
+        metadata: None,
+                })
         .expect("append");
 
         // THEN parent message count is unchanged

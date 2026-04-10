@@ -3,7 +3,8 @@
 //! Exposes skills from active A2A agents as virtual tools prefixed with `"a2a:"`,
 //! allowing the LLM to invoke worker agents transparently alongside native tools.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use apollia_core::AIPPart;
@@ -11,6 +12,7 @@ use apollia_llm::types::ToolSpec;
 use apollia_llm::ToolInvoker;
 use tracing::warn;
 
+use crate::a2a::invoker::A2AError;
 use crate::a2a::A2AInvoker;
 use crate::chat::builtin_agent::NativeChatToolInvoker;
 
@@ -63,20 +65,33 @@ pub async fn generate_a2a_tool_specs(a2a_invoker: &A2AInvoker) -> Vec<ToolSpec> 
         .collect()
 }
 
+/// Maximum consecutive failures before the circuit breaker opens for a skill.
+const A2A_CIRCUIT_BREAKER_THRESHOLD: u32 = 3;
+
 /// [`ToolInvoker`] that composes [`NativeChatToolInvoker`] with an [`A2AInvoker`].
 ///
 /// Routes tool calls prefixed with `"a2a:"` to the A2A invoker, which delegates
 /// to the appropriate worker agent. All other tool calls are forwarded to the
 /// underlying native invoker unchanged.
+///
+/// Includes a per-skill circuit breaker: after [`A2A_CIRCUIT_BREAKER_THRESHOLD`]
+/// consecutive failures, the skill is short-circuited with an immediate error
+/// to prevent the LLM from looping on a broken delegation.
 pub struct CompositeToolInvoker {
     native: NativeChatToolInvoker,
     a2a: Arc<A2AInvoker>,
+    /// Consecutive failure count per skill_id. Reset to 0 on success.
+    a2a_failures: Mutex<HashMap<String, u32>>,
 }
 
 impl CompositeToolInvoker {
     /// Create a new composite invoker wrapping a native invoker and an A2A invoker.
     pub fn new(native: NativeChatToolInvoker, a2a: Arc<A2AInvoker>) -> Self {
-        Self { native, a2a }
+        Self {
+            native,
+            a2a,
+            a2a_failures: Mutex::new(HashMap::new()),
+        }
     }
 }
 
@@ -88,6 +103,21 @@ impl ToolInvoker for CompositeToolInvoker {
         arguments: &serde_json::Value,
     ) -> Result<String, String> {
         if let Some(skill_id) = tool_name.strip_prefix(A2A_PREFIX) {
+            // Circuit breaker: reject immediately if too many consecutive failures.
+            {
+                let failures = self
+                    .a2a_failures
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
+                let count = failures.get(skill_id).copied().unwrap_or(0);
+                if count >= A2A_CIRCUIT_BREAKER_THRESHOLD {
+                    return Err(format!(
+                        "[A2A CIRCUIT_OPEN] Le skill '{skill_id}' a échoué {count} fois consécutives. \
+                         Ne retente PAS cet appel. Informe l'utilisateur que l'agent worker n'est pas disponible."
+                    ));
+                }
+            }
+
             let text = arguments
                 .get("text")
                 .and_then(|v| v.as_str())
@@ -108,6 +138,15 @@ impl ToolInvoker for CompositeToolInvoker {
                 .await
             {
                 Ok(result) => {
+                    // Reset circuit breaker on success.
+                    {
+                        let mut failures = self
+                            .a2a_failures
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner());
+                        failures.remove(skill_id);
+                    }
+
                     let output_text: String = result
                         .result
                         .output
@@ -126,7 +165,29 @@ impl ToolInvoker for CompositeToolInvoker {
                         result.agent_name
                     ))
                 }
-                Err(e) => Err(e.to_string()),
+                Err(e) => {
+                    // Increment circuit breaker counter.
+                    {
+                        let mut failures = self
+                            .a2a_failures
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner());
+                        *failures.entry(skill_id.to_string()).or_insert(0) += 1;
+                    }
+
+                    let classification = match &e {
+                        A2AError::SkillNotFound { .. }
+                        | A2AError::AgentNotActive { .. }
+                        | A2AError::SelfInvocation { .. }
+                        | A2AError::MaxDepthExceeded { .. }
+                        | A2AError::ChainTimeoutExceeded { .. } => "PERMANENT",
+                        _ => "EXECUTION",
+                    };
+                    Err(format!(
+                        "[A2A {classification}_ERROR] {e}\n\
+                         Ne retente PAS cet appel. Informe l'utilisateur de l'échec."
+                    ))
+                }
             }
         } else {
             self.native.invoke(tool_name, arguments).await

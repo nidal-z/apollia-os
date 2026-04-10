@@ -1003,6 +1003,11 @@ impl Supervisor {
                 user_memory.clone(),
                 registry_handle.clone(),
                 Some(a2a_invoker.clone()),
+                project_repository.as_ref().map(|repo| {
+                    std::sync::Arc::new(
+                        crate::chat::DefaultProjectContextProvider::new(repo.clone()),
+                    ) as std::sync::Arc<dyn crate::chat::ProjectContextProvider>
+                }),
             ) {
                 Ok(handle) => {
                     info!("Supervisor: ChatSessionManager ready");

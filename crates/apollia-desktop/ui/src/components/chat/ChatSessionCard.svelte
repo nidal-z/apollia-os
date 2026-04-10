@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { Bot, MessageSquare, Trash2, Pencil, Check, X, Loader2 } from "lucide-svelte";
+  import { Bot, MessageSquare, Trash2, Pencil, Check, X, Loader2, FolderOpen } from "lucide-svelte";
+  import { projects } from "$lib/stores/projects";
   import type { ChatSessionSummary } from "$lib/types";
 
   interface Props {
@@ -42,6 +43,12 @@
   const modeLabel = $derived(
     session.mode === "agent" ? $t("chat.mode_agent") : $t("chat.mode_libre")
   );
+
+  const projectName = $derived.by(() => {
+    if (!session.project_id) return null;
+    const proj = $projects.find((p) => p.id === session.project_id);
+    return proj?.name ?? null;
+  });
 
   const preview = $derived.by(() => {
     if (session.last_message_preview) {
@@ -254,6 +261,14 @@
             : 'bg-muted/50 text-muted-foreground/60'}">
           {modeLabel}
         </span>
+
+        <!-- Project badge -->
+        {#if projectName}
+          <span class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium bg-primary/5 text-primary/60">
+            <FolderOpen size={8} strokeWidth={2} />
+            {projectName}
+          </span>
+        {/if}
 
         <!-- Status indicator -->
         {#if isProcessing}

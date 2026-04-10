@@ -358,6 +358,7 @@ fn build_response(content: String, newly_authorized: Vec<String>) -> ChatAgentRe
             cost_usd: None,
             ..Default::default()
         },
+        thinking_trace: None,
     }
 }
 
@@ -449,6 +450,7 @@ mod tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
+            project_id: None,
         }
     }
 
@@ -519,6 +521,7 @@ mod tests {
             title: None,
             parent_session_id: None,
             fork_depth: 0,
+            project_id: None,
         }
     }
 

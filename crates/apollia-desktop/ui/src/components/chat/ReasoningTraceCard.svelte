@@ -36,11 +36,11 @@
     toolCalls.some((c) => c.status === "pending" || c.status === "authorized"),
   );
 
-  // null = automatic (expand when pending / approval needed)
+  // null = automatic (expand when pending / approval needed / thinking available)
   // boolean = explicit user toggle
   let userExpanded = $state<boolean | null>(null);
   const isExpanded = $derived(
-    userExpanded !== null ? userExpanded : hasPending,
+    userExpanded !== null ? userExpanded : (hasPending || !!thinkingText),
   );
 
   // When a pending approval appears mid-stream, reopen automatically
@@ -92,10 +92,17 @@
       {/if}
     </div>
 
-    <!-- Chain preview -->
-    <span class="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground/70">
-      {chainPreview}
-    </span>
+    <!-- Chain preview + optional thinking hint -->
+    <div class="min-w-0 flex-1 overflow-hidden">
+      <span class="block truncate font-mono text-[11px] text-muted-foreground/70">
+        {chainPreview}
+      </span>
+      {#if thinkingText && !isExpanded}
+        <span class="block truncate text-[10px] italic text-muted-foreground/50">
+          {thinkingText.slice(0, 120)}{thinkingText.length > 120 ? "..." : ""}
+        </span>
+      {/if}
+    </div>
 
     <!-- Status badges -->
     <div class="flex flex-shrink-0 items-center gap-2">

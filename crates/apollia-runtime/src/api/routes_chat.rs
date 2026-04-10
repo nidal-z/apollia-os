@@ -38,6 +38,8 @@ pub struct CreateSessionRequest {
     /// List of tool names available in this session.
     #[serde(default)]
     pub tools: Vec<String>,
+    /// Project to link this session to.
+    pub project_id: Option<String>,
 }
 
 /// Request body for `POST /api/v1/sessions/:id/messages`.
@@ -128,7 +130,7 @@ pub async fn create_session<B: ExecutionBackend + Clone>(
     };
 
     match manager
-        .create_session(mode, body.agent_name, body.system_prompt, body.tools)
+        .create_session(mode, body.agent_name, body.system_prompt, body.tools, body.project_id)
         .await
     {
         Ok(info) => (StatusCode::CREATED, Json(info)).into_response(),
@@ -690,6 +692,7 @@ mod tests {
             StepBudgetConfig::default(),
             None,
             registry_handle.clone(),
+            None,
             None,
         )
         .expect("spawn chat manager");

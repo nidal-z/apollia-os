@@ -1394,7 +1394,11 @@
     "a2a_via_worker": "via worker agent",
     "a2a_approve_always_agent": "Always accept from this agent",
     "a2a_worker_stopped": "stopped",
-    "a2a_start_worker": "Start"
+    "a2a_start_worker": "Start",
+    "project_selector": "Project",
+    "no_project": "No project",
+    "move_to_project": "Move to project...",
+    "remove_from_project": "Remove from project"
   },
   "transcriptions": {
     "title": "Transcriptions",
@@ -1769,6 +1773,21 @@
     "delete_confirm_title": "Delete project",
     "delete_confirm_message": "Are you sure you want to delete project \"{name}\"? This cannot be undone.",
     "delete_confirm_yes": "Delete",
-    "optional": "optional"
+    "optional": "optional",
+    "section_chats": "Linked Chats",
+    "section_agents": "Linked Agents",
+    "new_chat": "New Chat",
+    "add_agent": "Add Agent",
+    "no_chats": "No chats linked to this project",
+    "no_agents": "No agents linked to this project",
+    "upload_document": "Upload",
+    "choose_template": "Start from a template",
+    "add_provider": "Add",
+    "remove_provider_confirm": "Remove this provider?",
+    "provider_type": "Type",
+    "provider_name": "Name",
+    "provider_path": "Path",
+    "agent_added": "Agent added to project",
+    "agent_removed": "Agent removed from project"
   }
 }

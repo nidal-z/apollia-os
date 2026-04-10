@@ -10,6 +10,7 @@ pub mod agent_chat;
 pub mod builtin_agent;
 pub mod extractor;
 pub mod manager;
+pub mod project_context;
 pub mod repository;
 pub mod summarizer;
 pub mod types;
@@ -28,8 +29,9 @@ pub use repository::{AppendMessageParams, ChatSessionRepository, MessageRow, Ses
 pub use summarizer::{summarize, SummarizerError};
 pub use types::PastSessionSummary;
 pub use types::RecentSessionSummary;
+pub use project_context::DefaultProjectContextProvider;
 pub use types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ChatSessionConfig, ExchangeState,
-    MessageId, PendingChatApprovals, SessionDetail, SessionId, SessionInfo, SessionStatus,
-    ToolCallRecord, ToolCallStatus, ToolDecision,
+    MessageId, PendingChatApprovals, ProjectContextProvider, SessionDetail, SessionId, SessionInfo,
+    SessionStatus, ToolCallRecord, ToolCallStatus, ToolDecision,
 };

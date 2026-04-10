@@ -84,6 +84,16 @@
         messageId={message.id}
         {isOperator}
       />
+    {:else if message.metadata?.thinking_trace}
+      <!-- Standalone thinking trace (no tool calls — e.g. reasoning models) -->
+      <details class="mt-2 rounded-lg border border-border/20 glass-surface text-[11px]" open>
+        <summary class="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-muted-foreground/60 hover:bg-muted/25">
+          <span class="text-[10px] italic">{$t("chat.thinking_label", { default: "Reasoning" })}</span>
+        </summary>
+        <div class="border-t border-border/15 px-2.5 py-2 italic leading-relaxed text-muted-foreground/70">
+          {message.metadata.thinking_trace}
+        </div>
+      </details>
     {/if}
 
     <p class="mt-1 text-[10px] {isUser ? 'text-primary-foreground/40 text-right' : 'text-muted-foreground/40 text-left'}">

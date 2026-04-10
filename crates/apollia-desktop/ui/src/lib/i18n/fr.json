@@ -1394,7 +1394,11 @@
     "a2a_via_worker": "via l'agent worker",
     "a2a_approve_always_agent": "Toujours accepter cet agent",
     "a2a_worker_stopped": "arrêté",
-    "a2a_start_worker": "Démarrer"
+    "a2a_start_worker": "Démarrer",
+    "project_selector": "Projet",
+    "no_project": "Sans projet",
+    "move_to_project": "Déplacer vers un projet...",
+    "remove_from_project": "Retirer du projet"
   },
   "transcriptions": {
     "title": "Transcriptions",
@@ -1769,6 +1773,21 @@
     "delete_confirm_title": "Supprimer le projet",
     "delete_confirm_message": "Voulez-vous vraiment supprimer le projet « {name} » ? Cette action est irréversible.",
     "delete_confirm_yes": "Supprimer",
-    "optional": "optionnel"
+    "optional": "optionnel",
+    "section_chats": "Chats liés",
+    "section_agents": "Agents liés",
+    "new_chat": "Nouveau chat",
+    "add_agent": "Ajouter un agent",
+    "no_chats": "Aucun chat lié à ce projet",
+    "no_agents": "Aucun agent lié à ce projet",
+    "upload_document": "Ajouter",
+    "choose_template": "Démarrer à partir d'un template",
+    "add_provider": "Ajouter",
+    "remove_provider_confirm": "Supprimer ce provider ?",
+    "provider_type": "Type",
+    "provider_name": "Nom",
+    "provider_path": "Chemin",
+    "agent_added": "Agent ajouté au projet",
+    "agent_removed": "Agent retiré du projet"
   }
 }

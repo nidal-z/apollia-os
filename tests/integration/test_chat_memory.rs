@@ -395,6 +395,7 @@ async fn test_cross_session_recall() {
         &[],
         "2026-03-20T10:00:00Z",
         None,
+        None,
     )
     .expect("create session-1");
     repo.close_session("session-1", "2026-03-20T12:00:00Z")
@@ -412,6 +413,7 @@ async fn test_cross_session_recall() {
         "prompt",
         &[],
         "2026-03-22T10:00:00Z",
+        None,
         None,
     )
     .expect("create session-2");

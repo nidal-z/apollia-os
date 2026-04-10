@@ -950,6 +950,7 @@ async fn trigger_onboarding_inner(
             Some(ONBOARDING_AGENT_NAME.to_string()),
             Some(system_prompt),
             Vec::new(),
+            None,
         )
         .await
         .map_err(|e| OnboardingError::SessionCreationFailed(e.to_string()))?;
@@ -1123,7 +1124,7 @@ async fn create_companion_session_inner(
         .ok_or(OnboardingError::ChatNotAvailable)?;
 
     let info = manager
-        .create_session(ChatMode::Companion, None, Some(system_prompt), Vec::new())
+        .create_session(ChatMode::Companion, None, Some(system_prompt), Vec::new(), None)
         .await
         .map_err(|e| OnboardingError::SessionCreationFailed(e.to_string()))?;
 
