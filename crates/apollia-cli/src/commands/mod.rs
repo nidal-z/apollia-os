@@ -13,6 +13,7 @@ pub mod notify;
 pub mod onboard;
 pub mod pipeline;
 pub mod review;
+pub mod rollback;
 pub mod run;
 pub mod start;
 pub mod status;

@@ -1,6 +1,7 @@
 //! Surgical text replacement in files inside the agent's sandbox.
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
+use crate::journal::{JournalEntry, JournalError, JournalWriterHandle};
 use crate::sandbox_path::SandboxRoot;
 use apollia_core::SandboxProfile;
 use serde::{Deserialize, Serialize};
@@ -18,9 +19,14 @@ use tokio::io::AsyncReadExt;
 ///
 /// Fails fast before any write if `old_text` is not found, is ambiguous
 /// (multiple matches when `replace_all` is false), or equals `new_text`.
+///
+/// When a [`JournalWriterHandle`] is attached (via [`FileEdit::with_journal`]),
+/// the original file content is persisted to the reversible journal before
+/// the replacement write. The mutation is aborted if the journal write fails.
 #[derive(Debug, Clone)]
 pub struct FileEdit {
     sandbox: SandboxRoot,
+    journal: Option<JournalWriterHandle>,
 }
 
 /// Errors produced by [`FileEdit`].
@@ -53,6 +59,10 @@ pub enum FileEditError {
     /// I/O error while reading or writing the file.
     #[error("I/O error on '{path}': {cause}")]
     IoError { path: String, cause: String },
+
+    /// Journal write failed — mutation aborted to preserve safety invariant.
+    #[error("journal write failed before mutation: {0}")]
+    JournalFailed(#[from] JournalError),
 }
 
 /// Input for a file edit operation.
@@ -87,13 +97,26 @@ impl FileEdit {
             path: "sandbox_root".to_string(),
             cause: e.to_string(),
         })?;
-        Ok(Self { sandbox })
+        Ok(Self {
+            sandbox,
+            journal: None,
+        })
+    }
+
+    /// Attach a reversible journal to this tool instance.
+    ///
+    /// When set, the original file content is persisted before each replacement
+    /// write. The write is aborted if the journal entry cannot be durably
+    /// written (Principle #7).
+    pub fn with_journal(mut self, handle: JournalWriterHandle) -> Self {
+        self.journal = Some(handle);
+        self
     }
 
     /// Execute a file edit operation.
     ///
     /// Validation order: `NoChange` → `SandboxViolation` → `NotFound` →
-    /// `BinaryFile` → `PatternNotFound` / `AmbiguousMatch` → replace → write.
+    /// `BinaryFile` → `PatternNotFound` / `AmbiguousMatch` → journal → replace → write.
     ///
     /// # Errors
     ///
@@ -112,7 +135,7 @@ impl FileEdit {
                     path: input.path.clone(),
                 })?;
 
-        // 3. NotFound
+        // 3. Open file
         let mut file = fs::File::open(&resolved)
             .await
             .map_err(|e| match e.kind() {
@@ -125,6 +148,11 @@ impl FileEdit {
                 },
             })?;
 
+        // 4. Capture metadata for journal (best-effort)
+        let meta = file.metadata().await.ok();
+        let previous_mode = meta.as_ref().and_then(crate::journal::mode_from_metadata);
+        let previous_mtime = meta.as_ref().and_then(crate::journal::mtime_from_metadata);
+
         let mut raw = Vec::new();
         file.read_to_end(&mut raw)
             .await
@@ -133,12 +161,12 @@ impl FileEdit {
                 cause: e.to_string(),
             })?;
 
-        // 4. BinaryFile
-        let content = String::from_utf8(raw).map_err(|_| FileEditError::BinaryFile {
+        // 5. BinaryFile
+        let content = String::from_utf8(raw.clone()).map_err(|_| FileEditError::BinaryFile {
             path: input.path.clone(),
         })?;
 
-        // 5. PatternNotFound / AmbiguousMatch
+        // 6. PatternNotFound / AmbiguousMatch
         let count = content.matches(input.old_text.as_str()).count();
         if count == 0 {
             return Err(FileEditError::PatternNotFound {
@@ -152,7 +180,7 @@ impl FileEdit {
             });
         }
 
-        // 6. Replace
+        // 7. Replace (compute new content before committing to disk)
         let (updated, replacements) = if input.replace_all {
             let updated = content.replace(input.old_text.as_str(), input.new_text.as_str());
             (updated, count)
@@ -161,7 +189,18 @@ impl FileEdit {
             (updated, 1)
         };
 
-        // 7. Write back
+        // 8. Journal the original content BEFORE writing the replacement
+        if let Some(handle) = &self.journal {
+            let entry = JournalEntry::Write {
+                path: resolved.clone(),
+                previous_content: Some(raw),
+                previous_mode,
+                previous_mtime,
+            };
+            handle.record(entry).await?;
+        }
+
+        // 9. Write back
         fs::write(&resolved, updated.as_bytes())
             .await
             .map_err(|e| FileEditError::IoError {
@@ -227,6 +266,7 @@ impl FileEdit {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::journal::{rollback_session, JournalWriter};
     use std::io::Write;
     use tempfile::TempDir;
 
@@ -398,5 +438,58 @@ mod tests {
 
         // THEN: Ok(())
         assert!(result.is_ok());
+    }
+
+    // ── Journal integration ──────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn edit_with_journal_records_and_rollback_restores() {
+        // GIVEN a file "script.sh" containing "version=1"
+        let sandbox = TempDir::new().expect("sandbox dir");
+        let journal_root = TempDir::new().expect("journal dir");
+
+        let file_path = sandbox.path().join("script.sh");
+        tokio::fs::write(&file_path, b"version=1")
+            .await
+            .expect("seed file");
+
+        let handle = JournalWriter::spawn(
+            "sess-fe1".to_string(),
+            journal_root.path().to_path_buf(),
+            50,
+        );
+
+        let tool = FileEdit::new(sandbox.path().to_path_buf())
+            .expect("tool")
+            .with_journal(handle.clone());
+
+        // WHEN replacing "version=1" with "version=2"
+        let out = tool
+            .run(FileEditInput {
+                path: "script.sh".to_string(),
+                old_text: "version=1".to_string(),
+                new_text: "version=2".to_string(),
+                replace_all: false,
+            })
+            .await
+            .expect("edit ok");
+        assert_eq!(out.replacements, 1);
+
+        handle.shutdown().await;
+
+        // AND the file now contains "version=2"
+        let on_disk = tokio::fs::read_to_string(&file_path).await.expect("read");
+        assert_eq!(on_disk, "version=2");
+
+        // WHEN rollback is applied
+        rollback_session(journal_root.path(), "sess-fe1", false)
+            .await
+            .expect("rollback ok");
+
+        // THEN the file is restored to "version=1"
+        let restored = tokio::fs::read_to_string(&file_path)
+            .await
+            .expect("read restored");
+        assert_eq!(restored, "version=1");
     }
 }

@@ -322,7 +322,9 @@ async fn run_install(
         AgentInstallSource::Git { url, tag } => {
             run_install_git(&url, tag.as_deref(), client, json, skip_tests).await
         }
-        AgentInstallSource::Local { path } => run_install_local(&path, client, json, skip_tests).await,
+        AgentInstallSource::Local { path } => {
+            run_install_local(&path, client, json, skip_tests).await
+        }
     }
 }
 

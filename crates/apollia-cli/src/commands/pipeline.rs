@@ -487,7 +487,10 @@ async fn run_get(client: &RuntimeClient, pipeline_id: &str, json: bool) -> i32 {
                 );
             } else {
                 let id = resp.get("id").and_then(|v| v.as_str()).unwrap_or("?");
-                let desc = resp.get("description").and_then(|v| v.as_str()).unwrap_or("");
+                let desc = resp
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 println!("  Pipeline : {id}");
                 if !desc.is_empty() {
                     println!("  Desc     : {desc}");
@@ -596,7 +599,9 @@ async fn run_delete_pipeline(
                 serde_json::to_string_pretty(&output).unwrap_or_default()
             );
         } else {
-            eprintln!("Utiliser --confirm pour supprimer le pipeline '{pipeline_id}' sans confirmation.");
+            eprintln!(
+                "Utiliser --confirm pour supprimer le pipeline '{pipeline_id}' sans confirmation."
+            );
         }
         return exit_codes::GENERAL_ERROR;
     }

@@ -108,7 +108,9 @@ pub async fn run(cmd: &NotifyCommand, socket: Option<PathBuf>, json: bool) -> i3
         NotifyCommand::Update { id, url, enabled } => {
             run_update_channel(&client, id, url.as_deref(), *enabled, json).await
         }
-        NotifyCommand::Delete { id, confirm } => run_delete_channel(&client, id, *confirm, json).await,
+        NotifyCommand::Delete { id, confirm } => {
+            run_delete_channel(&client, id, *confirm, json).await
+        }
         NotifyCommand::Events { command } => run_events(&client, command, json).await,
     }
 }
@@ -405,7 +407,10 @@ async fn run_create(
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                let id = resp.get("channel_id").and_then(|v| v.as_str()).unwrap_or("?");
+                let id = resp
+                    .get("channel_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?");
                 println!("✔ Canal de notification '{id}' créé (type: {kind})");
             }
             exit_codes::SUCCESS
@@ -456,12 +461,7 @@ async fn run_update_channel(
 }
 
 /// `apollia-os notify delete <id> [--confirm]` — supprimer un canal de notification.
-async fn run_delete_channel(
-    client: &RuntimeClient,
-    id: &str,
-    confirm: bool,
-    json: bool,
-) -> i32 {
+async fn run_delete_channel(client: &RuntimeClient, id: &str, confirm: bool, json: bool) -> i32 {
     if !confirm {
         if json {
             let output = serde_json::json!({"error": "use --confirm to delete without prompt"});
@@ -501,11 +501,7 @@ async fn run_delete_channel(
 }
 
 /// `apollia-os notify events get|set` — gérer les types d'événements.
-async fn run_events(
-    client: &RuntimeClient,
-    command: &NotifyEventsCommand,
-    json: bool,
-) -> i32 {
+async fn run_events(client: &RuntimeClient, command: &NotifyEventsCommand, json: bool) -> i32 {
     match command {
         NotifyEventsCommand::Get => run_events_get(client, json).await,
         NotifyEventsCommand::Set { events } => run_events_set(client, events, json).await,
@@ -859,12 +855,8 @@ mod tests {
     #[test]
     fn test_notify_events_set_parses() {
         // GIVEN / WHEN
-        let cli = TestCli::parse_from([
-            "apollia-os",
-            "events",
-            "set",
-            "task_completed,task_failed",
-        ]);
+        let cli =
+            TestCli::parse_from(["apollia-os", "events", "set", "task_completed,task_failed"]);
         // THEN
         match &cli.command {
             NotifyCommand::Events { command } => match command {

@@ -1041,10 +1041,7 @@ impl RuntimeClient {
         name: &str,
     ) -> Result<serde_json::Value, ClientError> {
         let resp = self
-            .post(
-                &format!("/api/v1/llm/backends/{name}/set-default"),
-                None,
-            )
+            .post(&format!("/api/v1/llm/backends/{name}/set-default"), None)
             .await?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
@@ -1285,9 +1282,7 @@ impl RuntimeClient {
 
     /// Remove an MCP server from the runtime via `DELETE /api/v1/mcp/servers/{name}`.
     pub async fn remove_mcp_server(&self, name: &str) -> Result<serde_json::Value, ClientError> {
-        let resp = self
-            .delete(&format!("/api/v1/mcp/servers/{name}"))
-            .await?;
+        let resp = self.delete(&format!("/api/v1/mcp/servers/{name}")).await?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,
@@ -1421,9 +1416,7 @@ impl RuntimeClient {
         action: &str,
     ) -> Result<serde_json::Value, ClientError> {
         let body = serde_json::json!({ "prefix": prefix, "action": action });
-        let resp = self
-            .post("/api/v1/permissions/prefix", Some(&body))
-            .await?;
+        let resp = self.post("/api/v1/permissions/prefix", Some(&body)).await?;
         if resp.status >= 400 {
             return Err(ClientError::ServerError {
                 status: resp.status,

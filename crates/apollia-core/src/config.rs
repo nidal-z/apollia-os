@@ -1030,6 +1030,109 @@ pub struct VertexConfig {
 }
 
 // ─────────────────────────────────────────────
+// FilesystemConfig / JournalConfig
+// ─────────────────────────────────────────────
+
+/// Configuration du journal réversible filesystem (section `[filesystem.journal]` dans `apollia.toml`).
+///
+/// Contrôle le journal qui persiste l'état précédent de chaque mutation native avant
+/// qu'elle soit appliquée. Permet à `apollia rollback` de restaurer le disque après
+/// qu'un agent a effectué des opérations indésirables (ADR-069 §Couche 3).
+///
+/// Tous les champs ont des valeurs par défaut saines via [`Default`].
+#[derive(Debug, Clone, Deserialize)]
+pub struct JournalConfig {
+    /// Active le journal réversible. Défaut : `true`.
+    ///
+    /// Quand `false`, `FileWrite` et `FileEdit` mutent sans enregistrement.
+    /// Désactiver uniquement pour les environnements de test contrôlés.
+    #[serde(default = "default_journal_enabled")]
+    pub enabled: bool,
+
+    /// Nombre maximal de sessions conservées sur disque avant purge de la plus ancienne.
+    ///
+    /// Défaut : 50. Bornes : [1, 10 000].
+    #[serde(default = "default_journal_max_sessions")]
+    pub max_sessions: usize,
+
+    /// Répertoire racine du journal. `~` est résolu au démarrage.
+    ///
+    /// Défaut : `~/.apollia/journal`.
+    #[serde(default = "default_journal_root")]
+    pub root: PathBuf,
+}
+
+impl Default for JournalConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_journal_enabled(),
+            max_sessions: default_journal_max_sessions(),
+            root: default_journal_root(),
+        }
+    }
+}
+
+impl JournalConfig {
+    /// Valide les bornes de la configuration journal au démarrage (Principe #4 — Fail fast).
+    ///
+    /// - `max_sessions` : doit être dans [1, 10 000].
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        validate_bounds(
+            "filesystem.journal.max_sessions",
+            self.max_sessions,
+            1_usize,
+            10_000_usize,
+        )?;
+        Ok(())
+    }
+
+    /// Résout `~` dans `root` vers le répertoire home effectif.
+    ///
+    /// Retourne le chemin résolu, sans modifier `self`.
+    pub fn resolved_root(&self) -> PathBuf {
+        let s = self.root.to_string_lossy();
+        if s.starts_with("~/") {
+            let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+            PathBuf::from(home).join(s.trim_start_matches("~/"))
+        } else if s == "~" {
+            PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string()))
+        } else {
+            self.root.clone()
+        }
+    }
+}
+
+fn default_journal_enabled() -> bool {
+    true
+}
+
+fn default_journal_max_sessions() -> usize {
+    50
+}
+
+fn default_journal_root() -> PathBuf {
+    PathBuf::from("~/.apollia/journal")
+}
+
+/// Configuration filesystem de l'agent (section `[filesystem]` dans `apollia.toml`).
+///
+/// Regroupe toutes les sous-configurations liées aux opérations sur le système de fichiers :
+/// actuellement, le journal réversible (ADR-069).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct FilesystemConfig {
+    /// Sous-section dédiée au journal réversible (ADR-069 §Couche 3).
+    #[serde(default)]
+    pub journal: JournalConfig,
+}
+
+impl FilesystemConfig {
+    /// Valide la configuration filesystem au démarrage (Principe #4 — Fail fast).
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        self.journal.validate()
+    }
+}
+
+// ─────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────
 

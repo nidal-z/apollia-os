@@ -231,7 +231,15 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
             require_approval,
         } => {
             let client = make_runtime_client(socket);
-            run_add(&client, name, command.as_deref(), url.as_deref(), *require_approval, json).await
+            run_add(
+                &client,
+                name,
+                command.as_deref(),
+                url.as_deref(),
+                *require_approval,
+                json,
+            )
+            .await
         }
 
         McpCommand::Remove { name, confirm } => {
@@ -382,7 +390,10 @@ async fn run_get_server(client: &RuntimeClient, name: &str, json: bool) -> i32 {
                 );
             } else {
                 let status = resp.get("status").and_then(|v| v.as_str()).unwrap_or("?");
-                let transport = resp.get("transport").and_then(|v| v.as_str()).unwrap_or("?");
+                let transport = resp
+                    .get("transport")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?");
                 println!("  Serveur   : {name}");
                 println!("  Transport : {transport}");
                 println!("  Statut    : {status}");
@@ -418,7 +429,10 @@ async fn run_test_connection(client: &RuntimeClient, target: &str, json: bool) -
                 if ok {
                     println!("✔ Connexion réussie ({latency}ms)");
                 } else {
-                    let err = resp.get("error").and_then(|v| v.as_str()).unwrap_or("unknown");
+                    let err = resp
+                        .get("error")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
                     println!("✗ Connexion échouée: {err}");
                 }
             }

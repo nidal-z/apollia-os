@@ -223,6 +223,11 @@ impl BashExecutor {
     /// - [`BashExecutorError::SpawnFailed`] — OS refused to spawn the child.
     /// - [`BashExecutorError::OutputCaptureFailed`] — I/O error reading stdout/stderr.
     pub async fn run(&self, input: BashInput) -> Result<BashOutput, BashExecutorError> {
+        // Filesystem mutations executed via shell (rm, mv, dd, …) are NOT journaled.
+        // Apollia has no control over what a shell command mutates; capturing the inverse
+        // is therefore impossible. Safety for bash remains upstream (RiskClassifier,
+        // BashValidator, HITL). See ADR-069 §Couche 3 for the explicit scope boundary.
+
         // Pre-capture the command string for extraction before any conditional moves.
         // The clone is skipped when no extractor is configured (common path).
         let command_for_extraction: Option<String> = self

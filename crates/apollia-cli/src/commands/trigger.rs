@@ -122,13 +122,35 @@ pub async fn run(cmd: &TriggerCommand, socket: Option<PathBuf>, json: bool) -> i
             detail,
             on_busy,
             input,
-        } => run_create(&client, id, agent, kind, detail.as_deref(), on_busy, input.as_deref(), json).await,
+        } => {
+            run_create(
+                &client,
+                id,
+                agent,
+                kind,
+                detail.as_deref(),
+                on_busy,
+                input.as_deref(),
+                json,
+            )
+            .await
+        }
         TriggerCommand::Update {
             id,
             detail,
             on_busy,
             input,
-        } => run_update(&client, id, detail.as_deref(), on_busy.as_deref(), input.as_deref(), json).await,
+        } => {
+            run_update(
+                &client,
+                id,
+                detail.as_deref(),
+                on_busy.as_deref(),
+                input.as_deref(),
+                json,
+            )
+            .await
+        }
         TriggerCommand::Delete { id, confirm } => run_delete(&client, id, *confirm, json).await,
     }
 }

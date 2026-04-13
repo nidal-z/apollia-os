@@ -1,6 +1,7 @@
 //! Write files inside the agent's sandbox.
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
+use crate::journal::{JournalEntry, JournalError, JournalWriterHandle};
 use crate::sandbox_path::SandboxRoot;
 use apollia_core::SandboxProfile;
 use serde::{Deserialize, Serialize};
@@ -13,9 +14,15 @@ use tokio::fs;
 ///
 /// Creates the file and intermediate directories if they don't exist.
 /// Overwrites the file if it already exists.
+///
+/// When a [`JournalWriterHandle`] is attached (via [`FileWrite::with_journal`]),
+/// the previous state of the file is persisted to the reversible journal
+/// before the write takes place. The mutation is aborted if the journal
+/// write fails.
 #[derive(Debug, Clone)]
 pub struct FileWrite {
     sandbox: SandboxRoot,
+    journal: Option<JournalWriterHandle>,
 }
 
 /// Errors produced by [`FileWrite`].
@@ -28,6 +35,10 @@ pub enum FileWriteError {
     /// I/O error while writing the file.
     #[error("I/O error on '{path}': {cause}")]
     IoError { path: String, cause: String },
+
+    /// Journal write failed — mutation aborted to preserve safety invariant.
+    #[error("journal write failed before mutation: {0}")]
+    JournalFailed(#[from] JournalError),
 }
 
 /// Input for a file write operation.
@@ -51,7 +62,20 @@ impl FileWrite {
             cause: e.to_string(),
         })?;
 
-        Ok(Self { sandbox })
+        Ok(Self {
+            sandbox,
+            journal: None,
+        })
+    }
+
+    /// Attach a reversible journal to this tool instance.
+    ///
+    /// When set, the previous state of every file is persisted to the journal
+    /// before each write. The write is aborted if the journal entry cannot be
+    /// durably written (Principle #7).
+    pub fn with_journal(mut self, handle: JournalWriterHandle) -> Self {
+        self.journal = Some(handle);
+        self
     }
 
     /// Execute a file write operation.
@@ -59,9 +83,13 @@ impl FileWrite {
     /// Creates the file and all intermediate directories if they don't exist.
     /// Overwrites the file completely if it already exists.
     ///
+    /// If a journal handle is set, the previous file state is recorded before
+    /// the write. The mutation is aborted on journal failure.
+    ///
     /// # Errors
     ///
-    /// Returns an error if the path is invalid or the file cannot be written.
+    /// Returns an error if the path is invalid, the journal fails, or the
+    /// file cannot be written.
     pub async fn run(&self, input: FileWriteInput) -> Result<(), FileWriteError> {
         let resolved_path =
             self.sandbox
@@ -78,6 +106,38 @@ impl FileWrite {
                     path: input.path.clone(),
                     cause: e.to_string(),
                 })?;
+        }
+
+        // Journal the previous state before any mutation
+        if let Some(handle) = &self.journal {
+            let previous_content = match fs::read(&resolved_path).await {
+                Ok(bytes) => Some(bytes),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+                Err(e) => {
+                    return Err(FileWriteError::IoError {
+                        path: input.path.clone(),
+                        cause: e.to_string(),
+                    })
+                }
+            };
+
+            let (previous_mode, previous_mtime) = match fs::metadata(&resolved_path).await {
+                Ok(meta) => (
+                    crate::journal::mode_from_metadata(&meta),
+                    crate::journal::mtime_from_metadata(&meta),
+                ),
+                Err(_) => (None, None),
+            };
+
+            let entry = JournalEntry::Write {
+                path: resolved_path.clone(),
+                previous_content,
+                previous_mode,
+                previous_mtime,
+            };
+
+            // Abort if journal write fails — do not proceed with mutation
+            handle.record(entry).await?;
         }
 
         // Write the file (overwrites if exists)
@@ -125,6 +185,7 @@ impl FileWrite {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::journal::{rollback_session, JournalWriter};
     use tempfile::TempDir;
 
     #[tokio::test]
@@ -212,5 +273,90 @@ mod tests {
 
         // THEN: Ok(())
         assert!(result.is_ok());
+    }
+
+    // ── Journal integration ──────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn write_with_journal_records_and_rollback_restores() {
+        // GIVEN a file "data.txt" containing "old content"
+        let sandbox = TempDir::new().expect("sandbox dir");
+        let journal_root = TempDir::new().expect("journal dir");
+
+        let file_path = sandbox.path().join("data.txt");
+        tokio::fs::write(&file_path, b"old content")
+            .await
+            .expect("seed file");
+
+        let journal_handle = JournalWriter::spawn(
+            "sess-fw1".to_string(),
+            journal_root.path().to_path_buf(),
+            50,
+        );
+
+        let tool = FileWrite::new(sandbox.path().to_path_buf())
+            .expect("tool")
+            .with_journal(journal_handle.clone());
+
+        // WHEN writing "new content"
+        tool.run(FileWriteInput {
+            path: "data.txt".to_string(),
+            content: "new content".to_string(),
+        })
+        .await
+        .expect("write ok");
+
+        journal_handle.shutdown().await;
+
+        // THEN the file contains "new content"
+        let on_disk = tokio::fs::read_to_string(&file_path).await.expect("read");
+        assert_eq!(on_disk, "new content");
+
+        // AND rollback restores "old content"
+        rollback_session(journal_root.path(), "sess-fw1", false)
+            .await
+            .expect("rollback ok");
+
+        let restored = tokio::fs::read_to_string(&file_path)
+            .await
+            .expect("read restored");
+        assert_eq!(restored, "old content");
+    }
+
+    #[tokio::test]
+    async fn write_with_journal_new_file_rollback_removes_it() {
+        // GIVEN no pre-existing file
+        let sandbox = TempDir::new().expect("sandbox dir");
+        let journal_root = TempDir::new().expect("journal dir");
+
+        let file_path = sandbox.path().join("new.txt");
+
+        let journal_handle = JournalWriter::spawn(
+            "sess-fw2".to_string(),
+            journal_root.path().to_path_buf(),
+            50,
+        );
+
+        let tool = FileWrite::new(sandbox.path().to_path_buf())
+            .expect("tool")
+            .with_journal(journal_handle.clone());
+
+        // WHEN creating a new file
+        tool.run(FileWriteInput {
+            path: "new.txt".to_string(),
+            content: "hello".to_string(),
+        })
+        .await
+        .expect("write ok");
+
+        journal_handle.shutdown().await;
+        assert!(file_path.exists());
+
+        // THEN rolling back removes the newly created file
+        rollback_session(journal_root.path(), "sess-fw2", false)
+            .await
+            .expect("rollback ok");
+
+        assert!(!file_path.exists(), "file should be removed on rollback");
     }
 }

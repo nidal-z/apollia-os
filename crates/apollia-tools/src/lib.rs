@@ -24,6 +24,7 @@ pub mod audit;
 pub mod descriptor;
 pub mod executor;
 pub mod file_path_extractor;
+pub mod journal;
 pub mod project_repository;
 pub mod registry;
 pub mod resolver;
@@ -41,6 +42,9 @@ pub use executor::{
     SessionToolFilter, ToolBatchCall, ToolDispatcher, ToolExecutionError, ToolExecutor,
 };
 pub use file_path_extractor::FilePathExtractor;
+pub use journal::{
+    list_sessions, rollback_session, JournalEntry, JournalError, JournalWriter, JournalWriterHandle,
+};
 pub use project_repository::{
     ProjectDetail, ProjectDocument, ProjectPatch, ProjectProviderRow, ProjectRepository,
     ProjectRepositoryError, ProjectSummary, ProjectTemplate,

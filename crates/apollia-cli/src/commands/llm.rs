@@ -346,14 +346,8 @@ fn format_llm_costs(resp: &serde_json::Value) {
     } else {
         for b in &backends {
             let name = b.get("name").and_then(|v| v.as_str()).unwrap_or("?");
-            let input_tokens = b
-                .get("input_tokens")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
-            let output_tokens = b
-                .get("output_tokens")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
+            let input_tokens = b.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+            let output_tokens = b.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
             let cost = b
                 .get("estimated_cost_usd")
                 .and_then(|v| v.as_f64())
@@ -370,7 +364,10 @@ fn format_llm_costs(resp: &serde_json::Value) {
             .get("estimated_cost_usd")
             .and_then(|v| v.as_f64())
             .unwrap_or(0.0);
-        println!("  {:<24} {:>12} {:>12} {:>12.4}", "TOTAL", "", "", total_cost);
+        println!(
+            "  {:<24} {:>12} {:>12} {:>12.4}",
+            "TOTAL", "", "", total_cost
+        );
     }
 }
 
@@ -379,11 +376,7 @@ fn format_llm_costs(resp: &serde_json::Value) {
 // ─────────────────────────────────────────────
 
 /// Route `apollia-os llm backends <verb>` to the appropriate handler.
-async fn run_backends(
-    client: &RuntimeClient,
-    command: &LlmBackendsCommand,
-    json: bool,
-) -> i32 {
+async fn run_backends(client: &RuntimeClient, command: &LlmBackendsCommand, json: bool) -> i32 {
     match command {
         LlmBackendsCommand::List => run_backends_list(client, json).await,
         LlmBackendsCommand::Create {
@@ -392,7 +385,18 @@ async fn run_backends(
             model,
             api_key,
             base_url,
-        } => run_backends_create(client, name, kind, model, api_key.as_deref(), base_url.as_deref(), json).await,
+        } => {
+            run_backends_create(
+                client,
+                name,
+                kind,
+                model,
+                api_key.as_deref(),
+                base_url.as_deref(),
+                json,
+            )
+            .await
+        }
         LlmBackendsCommand::Update {
             name,
             model,
@@ -496,12 +500,7 @@ async fn run_backends_update(
 }
 
 /// `apollia-os llm backends delete` — supprimer un backend.
-async fn run_backends_delete(
-    client: &RuntimeClient,
-    name: &str,
-    confirm: bool,
-    json: bool,
-) -> i32 {
+async fn run_backends_delete(client: &RuntimeClient, name: &str, confirm: bool, json: bool) -> i32 {
     if !confirm {
         if json {
             let output = serde_json::json!({"error": "use --confirm to delete without prompt"});
@@ -541,11 +540,7 @@ async fn run_backends_delete(
 }
 
 /// `apollia-os llm backends set-default` — définir le backend par défaut.
-async fn run_backends_set_default(
-    client: &RuntimeClient,
-    name: &str,
-    json: bool,
-) -> i32 {
+async fn run_backends_set_default(client: &RuntimeClient, name: &str, json: bool) -> i32 {
     match client.set_default_llm_backend(name).await {
         Ok(resp) => {
             if json {
@@ -741,7 +736,8 @@ mod tests {
     fn test_llm_backends_delete_confirm_parses() {
         // GIVEN "backends delete anthropic --confirm"
         // WHEN
-        let cli = TestCli::parse_from(["apollia-os", "backends", "delete", "anthropic", "--confirm"]);
+        let cli =
+            TestCli::parse_from(["apollia-os", "backends", "delete", "anthropic", "--confirm"]);
         // THEN Delete { name: "anthropic", confirm: true }
         match &cli.command {
             LlmCommand::Backends { command } => match command {

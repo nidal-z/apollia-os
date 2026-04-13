@@ -538,6 +538,7 @@ impl ToolExecutor for FileWrite {
             let code = match &e {
                 FileWriteError::SandboxViolation { .. } => "sandbox_violation",
                 FileWriteError::IoError { .. } => "io_error",
+                FileWriteError::JournalFailed(_) => "journal_failed",
             };
             ToolExecutionError::ExecutionFailed {
                 code: code.to_string(),
@@ -570,6 +571,7 @@ impl ToolExecutor for FileEdit {
                 FileEditError::NoChange => "no_change",
                 FileEditError::BinaryFile { .. } => "binary_file",
                 FileEditError::IoError { .. } => "io_error",
+                FileEditError::JournalFailed(_) => "journal_failed",
             };
             ToolExecutionError::ExecutionFailed {
                 code: code.to_string(),

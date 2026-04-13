@@ -37,12 +37,11 @@ pub mod workspace;
 
 pub use budget::StepBudgetConfig;
 pub use config::{
-    validate_bounds, A2AConfig, ApiConfig, BashValidatorConfig, ConfigError, HitlConfig,
-    LlmRoutingConfig, ORIAConfig, PermissionsConfig, PipelinesConfig, RegistryConfig,
-    RuntimeConfig, ToolsConfig, TriggersConfig, VertexConfig,
+    validate_bounds, A2AConfig, ApiConfig, BashValidatorConfig, ConfigError, FilesystemConfig,
+    HitlConfig, JournalConfig, LlmRoutingConfig, ORIAConfig, PermissionsConfig, PipelinesConfig,
+    RegistryConfig, RuntimeConfig, ToolsConfig, TriggersConfig, VertexConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
-pub use workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlice, WorkspaceSnapshot};
 pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
 pub use manifest::{AgentManifest, AgentSkill, MemoryConfig};
@@ -61,3 +60,4 @@ pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, TextP
 pub use token_budget::TokenBudget;
 pub use user::{UpdateProfileRequest, UserMemoryEntryResponse, UserMemoryResponse, UserProfile};
 pub use utils::truncate_middle;
+pub use workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlice, WorkspaceSnapshot};
