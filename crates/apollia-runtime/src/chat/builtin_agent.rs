@@ -96,6 +96,26 @@ impl NativeChatToolInvoker {
         }
     }
 
+    /// Create a new invoker with unrestricted filesystem access.
+    ///
+    /// The sandbox root is set to `/` so file tools can access any path on the machine.
+    /// `workspace_path` is kept solely for HITL risk classification: paths inside the
+    /// workspace are rated Safe/Low, paths outside trigger Medium/High approval modals.
+    ///
+    /// Use this for Chat Libre sessions where the HITL layer is the security boundary,
+    /// not the sandbox.
+    pub fn new_unrestricted(workspace_path: Option<std::path::PathBuf>) -> Self {
+        Self {
+            sandbox_root: std::path::PathBuf::from("/"),
+            workspace_path,
+            event_bus: None,
+            pending_fs: None,
+            fs_allow_rules: None,
+            session_id: None,
+            risk_config: apollia_core::FilesystemRiskConfig::default(),
+        }
+    }
+
     /// Attach HITL filesystem support to this invoker.
     ///
     /// When enabled, write and edit operations are classified by risk level before

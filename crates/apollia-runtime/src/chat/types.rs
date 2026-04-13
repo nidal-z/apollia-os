@@ -220,14 +220,19 @@ pub struct ToolCallRecord {
 
 /// Lifecycle status of a tool call.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
 pub enum ToolCallStatus {
     /// Waiting for authorization.
+    #[serde(alias = "Pending")]
     Pending,
     /// Authorized by the user — ready to execute.
+    #[serde(alias = "Authorized")]
     Authorized,
     /// Executed — output available.
+    #[serde(alias = "Executed")]
     Executed,
     /// Refused by the user.
+    #[serde(alias = "Refused")]
     Refused,
 }
 

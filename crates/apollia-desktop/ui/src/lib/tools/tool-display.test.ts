@@ -74,16 +74,23 @@ describe("resolveToolDisplay — native tools", () => {
   });
 
   test("file_list without recursive uses base description key", () => {
-    const call = makeCall("file_list", { path: "src/" });
+    const call = makeCall("file_list", { dir: "src/" });
     const info = resolveToolDisplay(call);
     expect(info.icon).toBe(FolderOpen);
     expect(info.descriptionKey).toBe("tools.descriptions.file_list");
+    expect(info.templateParams.path).toBe("src/");
   });
 
   test("file_list with recursive=true uses recursive description key", () => {
-    const call = makeCall("file_list", { path: "src/", recursive: true });
+    const call = makeCall("file_list", { dir: "src/", recursive: true });
     const info = resolveToolDisplay(call);
     expect(info.descriptionKey).toBe("tools.descriptions.file_list_recursive");
+  });
+
+  test("file_list falls back to path field when dir is absent", () => {
+    const call = makeCall("file_list", { path: "legacy/" });
+    const info = resolveToolDisplay(call);
+    expect(info.templateParams.path).toBe("legacy/");
   });
 
   test("file_glob without path uses base description key", () => {
@@ -226,6 +233,16 @@ describe("resolveOutputParams", () => {
     // THEN
     expect(params.total_lines).toBe("50");
     expect(params.truncated).toBe("false");
+  });
+
+  test("computes count and _count for array fields", () => {
+    // GIVEN a tool call with an array field in output
+    const call = makeCall("file_list", {}, '{"entries": [{"name":"a"},{"name":"b"},{"name":"c"}]}');
+    // WHEN
+    const params = resolveOutputParams(call);
+    // THEN
+    expect(params.entries_count).toBe("3");
+    expect(params.count).toBe("3");
   });
 
   test("returns empty object for null output", () => {

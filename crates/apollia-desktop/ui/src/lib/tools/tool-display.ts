@@ -102,7 +102,7 @@ export function resolveToolDisplay(toolCall: ToolCallView): ToolDisplayInfo {
     }
 
     case "file_list": {
-      const filePath = typeof input.path === "string" ? input.path : "";
+      const filePath = typeof input.dir === "string" ? input.dir : (typeof input.path === "string" ? input.path : "");
       const recursive = input.recursive === true;
       return {
         icon,
@@ -249,8 +249,17 @@ export function resolveOutputParams(toolCall: ToolCallView): Record<string, stri
       return {};
     }
     const result: Record<string, string> = {};
+    let firstArrayCounted = false;
     for (const [key, value] of Object.entries(parsed)) {
-      result[key] = String(value);
+      if (Array.isArray(value)) {
+        result[`${key}_count`] = String(value.length);
+        if (!firstArrayCounted) {
+          result.count = String(value.length);
+          firstArrayCounted = true;
+        }
+      } else {
+        result[key] = String(value);
+      }
     }
     return result;
   } catch {
@@ -293,8 +302,8 @@ export function buildOutputSummary(
 ): string | null {
   switch (toolName) {
     case "file_grep": {
-      const matches = params.match_count;
-      const files = params.file_count;
+      const matches = params.matches_count ?? params.match_count ?? params.count;
+      const files = params.files_searched ?? params.file_count;
       if (matches !== undefined && files !== undefined) {
         return `${matches} matches in ${files} files`;
       }
@@ -314,11 +323,11 @@ export function buildOutputSummary(
       return replacements !== undefined ? `${replacements} replacement(s)` : null;
     }
     case "file_list": {
-      const count = params.entry_count;
+      const count = params.entries_count ?? params.entry_count;
       return count !== undefined ? `${count} entries` : null;
     }
     case "file_glob": {
-      const count = params.match_count;
+      const count = params.matches_count ?? params.match_count;
       return count !== undefined ? `${count} matches` : null;
     }
     case "bash_executor": {
@@ -330,7 +339,7 @@ export function buildOutputSummary(
       return status !== undefined ? `HTTP ${status}` : null;
     }
     case "memory_search": {
-      const count = params.result_count;
+      const count = params.results_count ?? params.result_count ?? params.count;
       return count !== undefined ? `${count} results` : null;
     }
     default:

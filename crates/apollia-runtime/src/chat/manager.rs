@@ -1573,7 +1573,7 @@ async fn resolve_workspace_for_session(
             detail.workspace_path.map(std::path::PathBuf::from)
         }
     };
-    let invoker = NativeChatToolInvoker::new_with_workspace(workspace_path);
+    let invoker = NativeChatToolInvoker::new_unrestricted(workspace_path);
     if let Some(p) = hitl {
         Ok(invoker.with_hitl_support(
             p.session_id,

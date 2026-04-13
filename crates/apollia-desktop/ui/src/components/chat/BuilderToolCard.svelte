@@ -7,6 +7,7 @@
     buildBashInputDisplay,
     buildHttpInputDisplay,
   } from "$lib/tools/tool-display";
+  import { t } from "svelte-i18n";
   import { Loader2, Check, X } from "lucide-svelte";
 
   let { toolCall }: { toolCall: ToolCallView } = $props();
@@ -43,7 +44,9 @@
 
   const outputSummary = $derived(buildOutputSummary(toolCall.tool_name, outputParams));
   const outputToggleLabel = $derived(
-    outputSummary !== null ? `Show result (${outputSummary})` : "Show result",
+    outputSummary !== null
+      ? `${$t("chat.tool_show_result")} (${outputSummary})`
+      : $t("chat.tool_show_result"),
   );
 </script>
 
@@ -113,7 +116,7 @@
         class="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
         onclick={() => (showOutput = !showOutput)}
       >
-        {showOutput ? "Hide result" : outputToggleLabel}
+        {showOutput ? $t("chat.tool_hide_result") : outputToggleLabel}
       </button>
       {#if showOutput}
         <pre
