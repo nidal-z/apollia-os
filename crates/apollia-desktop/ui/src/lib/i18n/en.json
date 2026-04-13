@@ -1788,7 +1788,13 @@
     "provider_name": "Name",
     "provider_path": "Path",
     "agent_added": "Agent added to project",
-    "agent_removed": "Agent removed from project"
+    "agent_removed": "Agent removed from project",
+    "field_workspace": "Workspace folder",
+    "field_workspace_placeholder": "Click Browse to choose a folder",
+    "workspace_required": "A workspace folder is required",
+    "workspace_hint": "The folder the agent will work in, scanned by context providers (git, tree, APOLLIA.md).",
+    "browse": "Browse",
+    "pick_workspace": "Choose workspace folder"
   },
   "hitl": {
     "fs": {

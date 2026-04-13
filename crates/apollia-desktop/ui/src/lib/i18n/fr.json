@@ -1788,7 +1788,13 @@
     "provider_name": "Nom",
     "provider_path": "Chemin",
     "agent_added": "Agent ajouté au projet",
-    "agent_removed": "Agent retiré du projet"
+    "agent_removed": "Agent retiré du projet",
+    "field_workspace": "Dossier de travail",
+    "field_workspace_placeholder": "Cliquez sur Parcourir pour choisir un dossier",
+    "workspace_required": "Un dossier de travail est requis",
+    "workspace_hint": "Le dossier dans lequel l'agent opère, scanné par les providers de contexte (git, arborescence, APOLLIA.md).",
+    "browse": "Parcourir",
+    "pick_workspace": "Choisir le dossier de travail"
   },
   "hitl": {
     "fs": {

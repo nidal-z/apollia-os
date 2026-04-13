@@ -582,6 +582,7 @@ fn main() {
             commands::workspace::get_workspace_status,
             commands::workspace::init_workspace,
             // Projects
+            commands::projects::suggest_workspace_path,
             commands::projects::list_projects,
             commands::projects::get_project,
             commands::projects::create_project,

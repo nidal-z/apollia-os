@@ -59,6 +59,7 @@ tracing          = { workspace = true }
 tracing-subscriber = { workspace = true }
 tauri          = { version = "2", features = ["devtools", "tray-icon", "macos-private-api"] }
 tauri-plugin-dialog = "2"
+dirs = "5"
 tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
 sysinfo          = { workspace = true }

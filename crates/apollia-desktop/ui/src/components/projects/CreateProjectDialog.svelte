@@ -48,12 +48,32 @@
     submitting = false;
   }
 
+  async function onNameBlur(): Promise<void> {
+    if (!name.trim()) return;
+    try {
+      workspacePath = await invoke<string>("suggest_workspace_path", {
+        projectName: name.trim(),
+      });
+    } catch {
+      // Suggestion non critique — on laisse le champ vide
+    }
+  }
+
+  function parentDir(p: string): string {
+    const lastSlash = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+    return lastSlash > 0 ? p.slice(0, lastSlash) : p;
+  }
+
   async function pickWorkspaceFolder(): Promise<void> {
-    const selected = await openFolderPicker({ directory: true });
-    if (selected && typeof selected === "string") {
+    const defaultPath = workspacePath ? parentDir(workspacePath) : undefined;
+    const selected = await openFolderPicker({
+      directory: true,
+      multiple: false,
+      defaultPath,
+      title: $t("projects.pick_workspace"),
+    });
+    if (typeof selected === "string" && selected) {
       workspacePath = selected;
-    } else if (selected && typeof selected === "object" && "path" in selected) {
-      workspacePath = (selected as { path: string }).path;
     }
   }
 
@@ -67,6 +87,10 @@
       error = $t("projects.name_required");
       return;
     }
+    if (!workspacePath) {
+      error = $t("projects.workspace_required");
+      return;
+    }
     submitting = true;
     error = null;
     try {
@@ -75,7 +99,7 @@
           name: name.trim(),
           description: description.trim() || undefined,
           instructions: instructions.trim() || undefined,
-          workspace_path: workspacePath.trim() || undefined,
+          workspace_path: workspacePath,
         },
       });
 
@@ -151,31 +175,36 @@
         bind:value={name}
         placeholder={$t("projects.field_name_placeholder")}
         disabled={submitting}
+        onblur={onNameBlur}
         data-testid="project-name-input"
       />
     </div>
 
     <div class="space-y-1.5">
       <label class="text-sm font-medium" for="project-workspace">
-        Workspace
-        <span class="text-muted-foreground font-normal text-xs ml-1">({$t("common.optional")})</span>
+        {$t("projects.field_workspace")}
       </label>
       <div class="flex gap-2">
-        <Input
+        <input
           id="project-workspace"
-          bind:value={workspacePath}
-          placeholder="/chemin/vers/votre/projet"
+          readonly
+          value={workspacePath}
+          placeholder={$t("projects.field_workspace_placeholder")}
           disabled={submitting}
-          class="flex-1"
+          class="flex h-9 w-full flex-1 rounded-md border border-input bg-muted/30 px-3 py-1 text-sm shadow-sm cursor-default select-none"
+          data-testid="project-workspace-display"
         />
-        <Button variant="outline" size="sm" onclick={pickWorkspaceFolder} disabled={submitting}>
+        <Button
+          variant="outline"
+          size="sm"
+          onclick={pickWorkspaceFolder}
+          disabled={submitting}
+        >
           <FolderOpen size={14} class="mr-1" />
-          Parcourir
+          {$t("projects.browse")}
         </Button>
       </div>
-      <p class="text-xs text-muted-foreground">
-        Répertoire scanné par les providers (git, arborescence, APOLLIA.md).
-      </p>
+      <p class="text-xs text-muted-foreground">{$t("projects.workspace_hint")}</p>
     </div>
 
     <div class="space-y-1.5">
@@ -215,7 +244,11 @@
       <Button variant="outline" onclick={handleClose} disabled={submitting}>
         {$t("common.cancel")}
       </Button>
-      <Button onclick={handleSubmit} disabled={submitting || !name.trim()} data-testid="create-project-submit">
+      <Button
+        onclick={handleSubmit}
+        disabled={submitting || !name.trim() || !workspacePath}
+        data-testid="create-project-submit"
+      >
         {submitting ? $t("common.submitting") : $t("projects.create_project")}
       </Button>
     </div>

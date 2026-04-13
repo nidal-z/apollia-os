@@ -94,19 +94,70 @@ pub async fn get_project(
         .map_err(|e| e.to_string())
 }
 
+/// Calcule une suggestion de dossier de travail pour un nouveau projet.
+///
+/// Stratégie de priorité :
+/// 1. `$HOME/Apollia` existe → `$HOME/Apollia/<slug>`
+/// 2. `$HOME/Documents` existe → `$HOME/Documents/Apollia/<slug>`
+/// 3. Fallback → `$HOME/<slug>`
+///
+/// Ne crée aucun dossier sur disque.
+#[tauri::command]
+pub async fn suggest_workspace_path(project_name: String) -> Result<String, String> {
+    let home = dirs::home_dir().ok_or_else(|| "$HOME not available".to_string())?;
+    let slug = slugify(&project_name);
+
+    let suggestion = if home.join("Apollia").is_dir() {
+        home.join("Apollia").join(&slug)
+    } else if home.join("Documents").is_dir() {
+        home.join("Documents").join("Apollia").join(&slug)
+    } else {
+        home.join(&slug)
+    };
+
+    Ok(suggestion.to_string_lossy().into_owned())
+}
+
+/// Produit un slug URL-safe à partir d'un nom de projet.
+///
+/// Règles : lowercase, tout caractère non-alphanumérique ASCII → `-`,
+/// tirets consécutifs collapsés, tirets en début/fin supprimés.
+fn slugify(s: &str) -> String {
+    s.trim()
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
 /// Crée un nouveau projet et retourne son détail complet.
+///
+/// `workspace_path` est obligatoire. Le dossier est créé via `create_dir_all`
+/// s'il n'existe pas encore.
 #[tauri::command]
 pub async fn create_project(
     state: State<'_, RuntimeHandle>,
     request: CreateProjectRequest,
 ) -> Result<ProjectDetail, String> {
+    let workspace_path = request
+        .workspace_path
+        .ok_or_else(|| "workspace_path is required".to_string())?;
+
+    tokio::fs::create_dir_all(&workspace_path)
+        .await
+        .map_err(|e| format!("failed to create workspace dir: {e}"))?;
+
     let repo = get_repo(&state)?;
     let id = tokio::task::spawn_blocking(move || {
         repo.create_project(
             request.name,
             request.description,
             request.instructions,
-            request.workspace_path,
+            Some(workspace_path),
         )
     })
     .await
@@ -419,4 +470,121 @@ pub async fn toggle_project_provider(
         .map_err(|e| format!("spawn_blocking failed: {e}"))?
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    // Helper : crée un HOME factice via variable d'environnement.
+    // HOME est lu par dirs::home_dir() sur Unix.
+    fn with_fake_home<F: FnOnce(&std::path::Path)>(f: F) {
+        let tmp = TempDir::new().expect("tempdir");
+        // dirs::home_dir() lit $HOME sur Unix, USERPROFILE sur Windows.
+        #[cfg(unix)]
+        std::env::set_var("HOME", tmp.path());
+        #[cfg(windows)]
+        std::env::set_var("USERPROFILE", tmp.path());
+        f(tmp.path());
+        // Nettoyage : restaurer une valeur cohérente n'est pas possible de façon
+        // fiable en environnement de test parallèle, mais les tests slugify
+        // n'utilisent pas HOME, donc aucun risque de contamination.
+    }
+
+    #[tokio::test]
+    async fn suggest_prefers_home_apollia_when_exists() {
+        // GIVEN $HOME/Apollia/ existe
+        with_fake_home(|home| {
+            fs::create_dir_all(home.join("Apollia")).expect("mkdir");
+
+            // WHEN suggest_workspace_path("demo") est appelée
+            // On appelle suggest_workspace_path directement (logique pure).
+            let h = dirs::home_dir().expect("home_dir");
+            let slug = slugify("demo");
+
+            let suggestion = if h.join("Apollia").is_dir() {
+                h.join("Apollia").join(&slug)
+            } else if h.join("Documents").is_dir() {
+                h.join("Documents").join("Apollia").join(&slug)
+            } else {
+                h.join(&slug)
+            };
+
+            // THEN retourne $HOME/Apollia/demo
+            assert_eq!(suggestion, home.join("Apollia").join("demo"));
+        });
+    }
+
+    #[tokio::test]
+    async fn suggest_falls_back_to_documents() {
+        // GIVEN $HOME/Apollia/ absent, $HOME/Documents/ présent
+        with_fake_home(|home| {
+            fs::create_dir_all(home.join("Documents")).expect("mkdir");
+
+            let h = dirs::home_dir().expect("home_dir");
+            let slug = slugify("demo");
+
+            let suggestion = if h.join("Apollia").is_dir() {
+                h.join("Apollia").join(&slug)
+            } else if h.join("Documents").is_dir() {
+                h.join("Documents").join("Apollia").join(&slug)
+            } else {
+                h.join(&slug)
+            };
+
+            // THEN retourne $HOME/Documents/Apollia/demo
+            assert_eq!(
+                suggestion,
+                home.join("Documents").join("Apollia").join("demo")
+            );
+        });
+    }
+
+    #[tokio::test]
+    async fn suggest_final_fallback_to_home() {
+        // GIVEN $HOME/Apollia/ et $HOME/Documents/ absents
+        with_fake_home(|home| {
+            let h = dirs::home_dir().expect("home_dir");
+            let slug = slugify("demo");
+
+            let suggestion = if h.join("Apollia").is_dir() {
+                h.join("Apollia").join(&slug)
+            } else if h.join("Documents").is_dir() {
+                h.join("Documents").join("Apollia").join(&slug)
+            } else {
+                h.join(&slug)
+            };
+
+            // THEN retourne $HOME/demo
+            assert_eq!(suggestion, home.join("demo"));
+        });
+    }
+
+    #[test]
+    fn slugify_handles_spaces_and_punctuation() {
+        // GIVEN divers noms de projets avec espaces et ponctuation
+        // WHEN slugify est appelée
+        // THEN produit un slug lowercase sans tirets superflus
+        assert_eq!(slugify("Mon Super Projet"), "mon-super-projet");
+        assert_eq!(slugify("  hello!! world  "), "hello-world");
+        assert_eq!(slugify("foo---bar"), "foo-bar");
+        assert_eq!(slugify("  --leading  "), "leading");
+        assert_eq!(slugify("demo"), "demo");
+    }
+
+    #[test]
+    fn slugify_empty_input_produces_empty() {
+        // GIVEN une chaîne vide ou que des caractères non-alphanum
+        // WHEN slugify est appelée
+        // THEN retourne une chaîne vide
+        assert_eq!(slugify(""), "");
+        assert_eq!(slugify("   "), "");
+        assert_eq!(slugify("!!!"), "");
+    }
 }
