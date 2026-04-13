@@ -224,6 +224,26 @@ async function sendChatApprovalNotification(
   }
 }
 
+async function sendToolFailureNotification(
+  sessionId: string,
+  toolName: string,
+): Promise<void> {
+  try {
+    let granted = await isPermissionGranted();
+    if (!granted) {
+      const permission = await requestPermission();
+      granted = permission === "granted";
+    }
+    if (!granted) return;
+    sendNotification({
+      title: "Outil échoué — Apollia OS",
+      body: `L'outil « ${toolName} » a échoué (session ${sessionId.slice(0, 8)})`,
+    });
+  } catch {
+    // Notification API unavailable — silently ignore
+  }
+}
+
 // ─── Event dispatch ───────────────────────────────────────────────────────────
 
 /** Payload shape emitted by the Rust event bridge (`TauriRuntimeEvent`). */
@@ -319,6 +339,23 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
         const p = inner ?? (event.payload as Record<string, unknown>);
         if (p.session_id) {
           clearGlobalBuffer(String(p.session_id));
+        }
+      } else if (event.event_type === "ChatToolCallCompleted") {
+        const inner =
+          (event.payload as Record<string, unknown>)?.ChatToolCallCompleted as
+            | {
+                session_id?: string;
+                tool_name?: string;
+                success?: boolean;
+                output_preview?: string;
+              }
+            | undefined;
+        const p = inner ?? (event.payload as Record<string, unknown>);
+        if (p.success === false && p.tool_name) {
+          void sendToolFailureNotification(
+            String(p.session_id ?? ""),
+            String(p.tool_name),
+          );
         }
       } else if (event.event_type === "ChatError") {
         const inner =

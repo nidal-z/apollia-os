@@ -219,9 +219,9 @@
             {/if}
             {#if !collapsed}
               <span>{$t(item.labelKey)}</span>
-              {#if item.route === "approvals" && $pendingCount > 0}
+              {#if item.route === "approvals" && ($pendingCount + $pendingChatApprovalCount) > 0}
                 <Badge variant="destructive" class="ml-auto text-[10px] px-1.5 py-0" data-testid="approvals-badge"
-                  >{$pendingCount}</Badge
+                  >{$pendingCount + $pendingChatApprovalCount}</Badge
                 >
               {/if}
               {#if item.route === "chat" && $activeChatCount > 0}

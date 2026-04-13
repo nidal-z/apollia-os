@@ -1171,7 +1171,14 @@ impl BuiltInChatAgent {
 
         let result = self.tool_invoker.invoke(&call.name, &call.arguments).await;
         let (output, success) = match result {
-            Ok(s) => (s, true),
+            Ok(s) => {
+                // Detect tool-reported failures (e.g. bash_executor with exit_code != 0)
+                let tool_failed = serde_json::from_str::<serde_json::Value>(&s)
+                    .ok()
+                    .and_then(|v| v.get("exit_code")?.as_i64())
+                    .is_some_and(|code| code != 0);
+                (s, !tool_failed)
+            }
             Err(e) => {
                 warn!(tool = %call.name, error = %e, "Tool call failed");
                 (format!("tool error: {e}"), false)

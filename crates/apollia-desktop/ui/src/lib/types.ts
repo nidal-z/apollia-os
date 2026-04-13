@@ -142,6 +142,14 @@ export interface ResolvedApproval {
   responded_at: string | null;
 }
 
+/** Approbation chat résolue pour l'historique. */
+export interface ResolvedChatApproval {
+  session_id: string;
+  tool_name: string;
+  decision: string;
+  resolved_at: string;
+}
+
 /** État de la connexion SSE. */
 export type ConnectionStatus =
   | "connecting"

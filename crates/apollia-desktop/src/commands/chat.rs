@@ -267,6 +267,47 @@ pub async fn authorize_chat_tool(
         .map_err(|e| e.to_string())
 }
 
+/// List recently resolved chat tool approvals for the history view.
+#[tauri::command]
+pub async fn list_chat_approval_history(
+    state: State<'_, RuntimeHandle>,
+    limit: Option<i64>,
+    days: Option<i64>,
+) -> Result<Vec<ResolvedChatApproval>, String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+
+    let rows = manager
+        .list_approval_history(limit.unwrap_or(20), days.unwrap_or(7))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| ResolvedChatApproval {
+            session_id: r.session_id,
+            tool_name: r.tool_name,
+            decision: r.decision,
+            resolved_at: r.resolved_at,
+        })
+        .collect())
+}
+
+/// Resolved chat tool approval entry for the UI history.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedChatApproval {
+    /// Session identifier.
+    pub session_id: String,
+    /// Tool that required approval.
+    pub tool_name: String,
+    /// Decision taken (`accept`, `refuse`, `always_accept`).
+    pub decision: String,
+    /// ISO-8601 timestamp of the resolution.
+    pub resolved_at: String,
+}
+
 /// Links or unlinks a chat session to/from a project.
 ///
 /// Pass `project_id = null` to unlink.

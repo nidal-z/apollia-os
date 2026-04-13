@@ -26,7 +26,9 @@ pub use extractor::{
 };
 pub use manager::ChatSessionManagerHandle;
 pub use project_context::DefaultProjectContextProvider;
-pub use repository::{AppendMessageParams, ChatSessionRepository, MessageRow, SessionRow};
+pub use repository::{
+    AppendMessageParams, ChatApprovalLogRow, ChatSessionRepository, MessageRow, SessionRow,
+};
 pub use summarizer::{summarize, SummarizerError};
 pub use types::PastSessionSummary;
 pub use types::RecentSessionSummary;

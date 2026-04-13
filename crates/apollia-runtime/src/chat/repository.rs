@@ -73,6 +73,18 @@ pub struct MessageRow {
     pub metadata: Option<String>,
 }
 
+/// Row returned by [`ChatSessionRepository::list_tool_approval_history`].
+pub struct ChatApprovalLogRow {
+    /// Session identifier.
+    pub session_id: String,
+    /// Tool that required approval.
+    pub tool_name: String,
+    /// Decision taken (`accept`, `refuse`, `always_accept`).
+    pub decision: String,
+    /// ISO-8601 timestamp of the resolution.
+    pub resolved_at: String,
+}
+
 /// Parameters for appending a message to a chat session.
 pub struct AppendMessageParams<'a> {
     /// Unique message identifier.
@@ -152,6 +164,21 @@ impl ChatSessionRepository {
         // v8 migration: metadata column on messages (thinking trace, etc.).
         let _ = conn.execute_batch("ALTER TABLE chat_messages ADD COLUMN metadata TEXT");
 
+        // v9 migration: chat approval log for resolved tool approvals history.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS chat_approval_log (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id  TEXT NOT NULL,
+                message_id  TEXT NOT NULL,
+                tool_name   TEXT NOT NULL,
+                decision    TEXT NOT NULL CHECK (decision IN ('accept', 'refuse', 'always_accept')),
+                resolved_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_chat_approval_log_resolved
+                ON chat_approval_log(resolved_at DESC);",
+        )
+        .map_err(|e| ChatError::InternalError(format!("v9 migration failed: {e}")))?;
+
         Ok(Self { conn })
     }
 
@@ -200,6 +227,21 @@ impl ChatSessionRepository {
 
         // v8 migration: metadata column on messages.
         let _ = conn.execute_batch("ALTER TABLE chat_messages ADD COLUMN metadata TEXT");
+
+        // v9 migration: chat approval log.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS chat_approval_log (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id  TEXT NOT NULL,
+                message_id  TEXT NOT NULL,
+                tool_name   TEXT NOT NULL,
+                decision    TEXT NOT NULL CHECK (decision IN ('accept', 'refuse', 'always_accept')),
+                resolved_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_chat_approval_log_resolved
+                ON chat_approval_log(resolved_at DESC);",
+        )
+        .map_err(|e| ChatError::InternalError(format!("v9 migration failed: {e}")))?;
 
         Ok(Self { conn })
     }
@@ -920,6 +962,63 @@ impl ChatSessionRepository {
             )
             .map_err(|e| ChatError::InternalError(format!("orphan_project_sessions: {e}")))?;
         Ok(count)
+    }
+
+    /// Persist a resolved chat tool approval decision in the log.
+    pub fn log_tool_approval(
+        &self,
+        session_id: &str,
+        message_id: &str,
+        tool_name: &str,
+        decision: &str,
+        resolved_at: &str,
+    ) -> Result<(), ChatError> {
+        self.conn
+            .execute(
+                "INSERT INTO chat_approval_log (session_id, message_id, tool_name, decision, resolved_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![session_id, message_id, tool_name, decision, resolved_at],
+            )
+            .map_err(|e| ChatError::InternalError(format!("log_tool_approval: {e}")))?;
+        Ok(())
+    }
+
+    /// List recently resolved chat tool approvals for the history view.
+    pub fn list_tool_approval_history(
+        &self,
+        limit: i64,
+        days: i64,
+    ) -> Result<Vec<ChatApprovalLogRow>, ChatError> {
+        let cutoff = format!("-{days} days");
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT session_id, message_id, tool_name, decision, resolved_at
+                 FROM chat_approval_log
+                 WHERE resolved_at >= datetime('now', ?1)
+                 ORDER BY resolved_at DESC
+                 LIMIT ?2",
+            )
+            .map_err(|e| ChatError::InternalError(format!("list_tool_approval_history prepare: {e}")))?;
+
+        let rows = stmt
+            .query_map(params![cutoff, limit], |row| {
+                Ok(ChatApprovalLogRow {
+                    session_id: row.get(0)?,
+                    tool_name: row.get(2)?,
+                    decision: row.get(3)?,
+                    resolved_at: row.get(4)?,
+                })
+            })
+            .map_err(|e| ChatError::InternalError(format!("list_tool_approval_history query: {e}")))?;
+
+        let mut result = Vec::new();
+        for r in rows {
+            result.push(
+                r.map_err(|e| ChatError::InternalError(format!("list_tool_approval_history row: {e}")))?,
+            );
+        }
+        Ok(result)
     }
 
     /// Get the set of authorized tool names for a session.

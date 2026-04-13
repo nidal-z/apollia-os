@@ -21,6 +21,7 @@ pub const KNOWN_EVENT_NAMES: &[&str] = &[
     "pipeline.failed",
     "pipeline.suspended",
     "chat.approval_required",
+    "chat.tool_failed",
 ];
 
 /// Emit a `tracing::warn!` for every event name in `events` that is not in
@@ -263,6 +264,31 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
         }
 
         // ── Chat events ────────────────────────────────────────────────────
+        RuntimeEvent::ChatToolCallCompleted {
+            session_id,
+            tool_name,
+            success: false,
+            output_preview,
+            ..
+        } => {
+            let mut metadata = HashMap::new();
+            metadata.insert("session_id".into(), session_id.clone());
+            metadata.insert("tool_name".into(), tool_name.clone());
+            metadata.insert("dashboard_url".into(), dashboard_url);
+            if let Some(preview) = output_preview {
+                metadata.insert("output_preview".into(), preview.clone());
+            }
+            Some(Notification {
+                event: "chat.tool_failed".into(),
+                timestamp: Utc::now(),
+                task_id: None,
+                agent: None,
+                message: format!("Outil « {} » échoué", tool_name),
+                metadata,
+                severity: Severity::Warning,
+            })
+        }
+
         RuntimeEvent::ChatApprovalRequired {
             session_id,
             tool_name,
@@ -531,6 +557,47 @@ mod tests {
             notif.metadata.get("action_url").map(String::as_str),
             Some("/chat/sess-001")
         );
+    }
+
+    #[test]
+    fn test_chat_tool_failed_maps_to_warning_notification() {
+        // GIVEN a ChatToolCallCompleted event with success=false
+        let event = RuntimeEvent::ChatToolCallCompleted {
+            session_id: "sess-001".into(),
+            message_id: "msg-004".into(),
+            tool_name: "bash_executor".into(),
+            success: false,
+            output_preview: Some("exit_code: 1".into()),
+        };
+        // WHEN
+        let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
+        // THEN
+        assert_eq!(notif.event, "chat.tool_failed");
+        assert_eq!(notif.severity, Severity::Warning);
+        assert!(notif.message.contains("bash_executor"));
+        assert_eq!(
+            notif.metadata.get("session_id").map(String::as_str),
+            Some("sess-001")
+        );
+        assert_eq!(
+            notif.metadata.get("tool_name").map(String::as_str),
+            Some("bash_executor")
+        );
+        assert!(notif.metadata.contains_key("output_preview"));
+    }
+
+    #[test]
+    fn test_chat_tool_success_returns_none() {
+        // GIVEN a ChatToolCallCompleted event with success=true
+        let event = RuntimeEvent::ChatToolCallCompleted {
+            session_id: "sess-001".into(),
+            message_id: "msg-004".into(),
+            tool_name: "bash_executor".into(),
+            success: true,
+            output_preview: Some("output".into()),
+        };
+        // WHEN / THEN — no notification for successful tool calls
+        assert!(map_event(DEFAULT_BASE_URL, &event).is_none());
     }
 
     #[test]

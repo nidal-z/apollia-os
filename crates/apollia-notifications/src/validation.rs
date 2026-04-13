@@ -23,6 +23,7 @@ pub const KNOWN_EVENTS: &[&str] = &[
     "pipeline.suspended",
     "llm.backend_down",
     "chat.approval_required",
+    "chat.tool_failed",
 ];
 
 /// Erreur retournée par les opérations du [`NotificationConfigRepository`](crate::repository::NotificationConfigRepository).

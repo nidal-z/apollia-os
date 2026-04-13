@@ -12,7 +12,7 @@
   import {
     FolderOpen, FileText, Puzzle, Eye, Trash2, Upload, Plus,
     ChevronDown, ChevronUp, X, Loader2, MessageSquare, Bot,
-    ToggleLeft, ToggleRight,
+    ToggleLeft, ToggleRight, GitBranch, FolderTree, ScrollText,
   } from "lucide-svelte";
   import type {
     ProjectDetail, WorkspaceSnapshotView, ChatSessionSummary, AgentListItem,
@@ -315,35 +315,6 @@
         {/if}
       </section>
 
-      <!-- Linked Chats -->
-      <section class="space-y-1.5">
-        <div class="flex items-center justify-between">
-          <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-            {$t("projects.section_chats")}
-          </p>
-          <Button size="sm" variant="ghost" onclick={createChatInProject}>
-            <Plus size={12} class="mr-1" />
-            {$t("projects.new_chat")}
-          </Button>
-        </div>
-        {#if linkedChats.length === 0}
-          <p class="text-sm text-muted-foreground">{$t("projects.no_chats")}</p>
-        {:else}
-          <div class="space-y-1">
-            {#each linkedChats as chat (chat.id)}
-              <button
-                class="flex w-full items-center gap-2 rounded-md bg-muted/40 px-3 py-1.5 text-sm cursor-pointer hover:bg-muted/60 transition-colors text-left"
-                onclick={() => navigateToChatSession(chat.id)}
-              >
-                <MessageSquare size={14} class="shrink-0 text-muted-foreground" />
-                <span class="flex-1 truncate">{chat.title || chat.mode}</span>
-                <span class="text-xs text-muted-foreground/60">{chat.status}</span>
-              </button>
-            {/each}
-          </div>
-        {/if}
-      </section>
-
       <!-- Linked Agents -->
       <section class="space-y-1.5">
         <div class="flex items-center justify-between">
@@ -356,13 +327,13 @@
           </Button>
         </div>
         {#if showAgentPicker}
-          <div class="rounded-md border border-border bg-card p-2 space-y-1">
+          <div class="rounded-md border border-border bg-muted/30 p-2 space-y-0.5">
             {#each allAgents.filter(a => a.enabled && !project.agents.includes(a.name)) as agent (agent.name)}
               <button
-                class="flex w-full items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/60 transition-colors text-left"
+                class="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm hover:bg-muted/50 transition-colors text-left"
                 onclick={() => addAgent(agent.name)}
               >
-                <Bot size={14} class="shrink-0 text-muted-foreground" />
+                <Bot size={14} strokeWidth={1.75} class="shrink-0 text-secondary" />
                 <span class="truncate">{agent.name}</span>
               </button>
             {:else}
@@ -375,8 +346,8 @@
         {:else}
           <div class="space-y-1">
             {#each project.agents as agentName (agentName)}
-              <div class="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-1.5 text-sm">
-                <Bot size={14} strokeWidth={1.75} class="shrink-0 text-muted-foreground" />
+              <div class="flex items-center gap-2.5 rounded-md bg-muted/30 px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
+                <Bot size={14} strokeWidth={1.75} class="shrink-0 text-secondary" />
                 <span class="flex-1 truncate">{agentName}</span>
                 <button
                   class="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-destructive transition-colors"
@@ -403,15 +374,15 @@
           </Button>
         </div>
         {#if showProviderPicker}
-          <div class="rounded-md border border-border bg-card p-2 space-y-1">
+          <div class="rounded-md border border-border bg-muted/30 p-2 space-y-0.5">
             {#each PROVIDER_TYPES.filter(pt => !project.providers.some(p => p.provider_type === pt.type)) as pt (pt.type)}
               <button
-                class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/60 transition-colors text-left"
+                class="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm hover:bg-muted/50 transition-colors text-left"
                 onclick={() => addProvider(pt.type, pt.name, pt.priority)}
               >
-                <Puzzle size={14} class="shrink-0 text-muted-foreground" />
+                <Puzzle size={14} strokeWidth={1.75} class="shrink-0 text-primary" />
                 <span class="flex-1">{pt.name}</span>
-                <span class="text-xs text-muted-foreground/60 font-mono">{pt.type}</span>
+                <span class="text-[10px] text-muted-foreground/60 font-mono">{pt.type}</span>
               </button>
             {:else}
               <p class="text-xs text-muted-foreground px-2 py-1">Tous les providers sont déjà ajoutés</p>
@@ -423,10 +394,17 @@
         {:else if project.providers.length > 0}
           <div class="space-y-1">
             {#each project.providers as provider (provider.id)}
-              <div class="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-1.5 text-sm">
-                <Puzzle size={14} strokeWidth={1.75} class="shrink-0 text-muted-foreground" />
+              {@const providerColor = provider.provider_type === "git" ? "text-secondary" : provider.provider_type === "tree" ? "text-primary" : "text-success"}
+              <div class="flex items-center gap-2.5 rounded-md bg-muted/30 px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
+                {#if provider.provider_type === "git"}
+                  <GitBranch size={14} strokeWidth={1.75} class="shrink-0 {providerColor}" />
+                {:else if provider.provider_type === "tree"}
+                  <FolderTree size={14} strokeWidth={1.75} class="shrink-0 {providerColor}" />
+                {:else}
+                  <ScrollText size={14} strokeWidth={1.75} class="shrink-0 {providerColor}" />
+                {/if}
                 <span class="flex-1 truncate">{provider.name}</span>
-                <span class="text-xs text-muted-foreground/60 font-mono">{provider.provider_type}</span>
+                <span class="text-[10px] text-muted-foreground/60 font-mono">{provider.provider_type}</span>
                 <button
                   class="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"
                   onclick={() => toggleProvider(provider.id, !provider.enabled)}
@@ -471,8 +449,8 @@
         {:else}
           <div class="space-y-1">
             {#each project.documents as doc (doc.id)}
-              <div class="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-1.5 text-sm">
-                <FileText size={14} strokeWidth={1.75} class="shrink-0 text-muted-foreground" />
+              <div class="flex items-center gap-2.5 rounded-md bg-muted/30 px-3 py-2 text-sm hover:bg-muted/50 transition-colors">
+                <FileText size={14} strokeWidth={1.75} class="shrink-0 text-primary" />
                 <span class="flex-1 truncate">{doc.name}</span>
                 <span class="text-xs text-muted-foreground/60">
                   {(doc.size_bytes / 1024).toFixed(1)} KB
@@ -485,6 +463,35 @@
                   <Trash2 size={12} strokeWidth={1.75} />
                 </button>
               </div>
+            {/each}
+          </div>
+        {/if}
+      </section>
+
+      <!-- Linked Chats -->
+      <section class="space-y-1.5">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+            {$t("projects.section_chats")}
+          </p>
+          <Button size="sm" variant="ghost" onclick={createChatInProject}>
+            <Plus size={12} class="mr-1" />
+            {$t("projects.new_chat")}
+          </Button>
+        </div>
+        {#if linkedChats.length === 0}
+          <p class="text-sm text-muted-foreground">{$t("projects.no_chats")}</p>
+        {:else}
+          <div class="space-y-1">
+            {#each linkedChats as chat (chat.id)}
+              <button
+                class="flex w-full items-center gap-2.5 rounded-md bg-muted/30 px-3 py-2 text-sm cursor-pointer hover:bg-muted/50 transition-colors text-left"
+                onclick={() => navigateToChatSession(chat.id)}
+              >
+                <MessageSquare size={14} strokeWidth={1.75} class="shrink-0 text-primary" />
+                <span class="flex-1 truncate">{chat.title || chat.mode}</span>
+                <span class="text-xs text-muted-foreground/60">{chat.status}</span>
+              </button>
             {/each}
           </div>
         {/if}
@@ -506,16 +513,59 @@
         </button>
         {#if snapshotOpen}
           {#if snapshotLoading}
-            <div class="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+            <div class="flex items-center gap-2 py-4 justify-center text-sm text-muted-foreground">
               <Loader2 size={14} class="animate-spin" />
               {$t("common.loading")}
             </div>
           {:else if snapshot && snapshot.sections.length > 0}
-            <div class="space-y-2 rounded-md bg-muted/30 p-3">
+            <div class="space-y-2">
               {#each snapshot.sections as section}
-                <div>
-                  <p class="text-xs font-medium text-muted-foreground">{section.title}</p>
-                  <pre class="text-xs mt-0.5 whitespace-pre-wrap opacity-70 max-h-24 overflow-y-auto">{section.content}</pre>
+                {@const accentColor = section.source === "git" ? "text-secondary" : section.source === "tree" ? "text-primary" : "text-success"}
+                <div class="rounded-md bg-muted/30 overflow-hidden">
+                  <!-- Section header -->
+                  <div class="flex items-center gap-2 px-3 py-1.5 border-b border-border/40">
+                    {#if section.source === "git"}
+                      <GitBranch size={12} strokeWidth={1.75} class={accentColor} />
+                    {:else if section.source === "tree"}
+                      <FolderTree size={12} strokeWidth={1.75} class={accentColor} />
+                    {:else}
+                      <ScrollText size={12} strokeWidth={1.75} class={accentColor} />
+                    {/if}
+                    <span class="text-xs font-medium text-foreground/70">{section.title}</span>
+                    {#if section.source === "git"}
+                      {@const lineCount = section.content.trim().split("\n").length}
+                      <span class="ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-secondary/15 text-secondary">{lineCount}</span>
+                    {/if}
+                  </div>
+                  <!-- Section content -->
+                  <div class="max-h-36 overflow-y-auto">
+                    {#if section.source === "git"}
+                      {#each section.content.trim().split("\n") as line}
+                        {@const status = line.trim().charAt(0)}
+                        {@const filePath = line.trim().substring(2).trim()}
+                        <div class="flex items-center gap-2 px-3 py-1 text-xs hover:bg-muted/40 transition-colors">
+                          <span class="font-mono font-bold w-4 text-center shrink-0 {status === 'M' ? 'text-secondary' : status === 'A' ? 'text-success' : status === 'D' ? 'text-destructive' : 'text-muted-foreground'}">{status}</span>
+                          <span class="font-mono text-foreground/60 truncate" title={filePath}>{filePath}</span>
+                        </div>
+                      {/each}
+                    {:else if section.source === "tree"}
+                      <div class="px-3 py-1.5">
+                        {#each section.content.trim().split("\n") as line}
+                          {@const isDir = line.trim().endsWith("/")}
+                          <div class="flex items-center gap-1.5 py-0.5 text-xs font-mono {isDir ? 'text-primary font-medium' : 'text-foreground/50'}">
+                            {#if isDir}
+                              <FolderOpen size={10} strokeWidth={2} class="shrink-0 text-primary" />
+                            {:else}
+                              <FileText size={10} strokeWidth={1.5} class="shrink-0 text-muted-foreground/40" />
+                            {/if}
+                            <span class="truncate">{line.trim()}</span>
+                          </div>
+                        {/each}
+                      </div>
+                    {:else}
+                      <pre class="text-xs px-3 py-2 whitespace-pre-wrap text-foreground/60 font-mono leading-relaxed">{section.content}</pre>
+                    {/if}
+                  </div>
                 </div>
               {/each}
             </div>

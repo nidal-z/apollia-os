@@ -235,6 +235,15 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
+    /// List recently resolved chat tool approvals.
+    ListApprovalHistory {
+        /// Maximum number of entries to return.
+        limit: i64,
+        /// Number of days to look back.
+        days: i64,
+        /// Response channel.
+        reply: oneshot::Sender<Result<Vec<super::repository::ChatApprovalLogRow>, ChatError>>,
+    },
     /// Shut down the actor.
     Shutdown,
 }
@@ -455,6 +464,10 @@ impl ChatSessionManager {
                             "no pending fs HITL request for id '{request_id}'"
                         )))
                     };
+                    let _ = reply.send(result);
+                }
+                ChatCommand::ListApprovalHistory { limit, days, reply } => {
+                    let result = self.repository.list_tool_approval_history(limit, days);
                     let _ = reply.send(result);
                 }
                 ChatCommand::Shutdown => {
@@ -1086,6 +1099,19 @@ impl ChatSessionManager {
             ToolDecision::Refuse => "refuse",
             ToolDecision::AlwaysAccept => "always_accept",
         };
+
+        let resolved_at = now_rfc3339();
+
+        // Persist decision in approval log for history view.
+        if let Err(e) = self.repository.log_tool_approval(
+            session_id,
+            message_id,
+            tool_name,
+            decision_str,
+            &resolved_at,
+        ) {
+            warn!(error = %e, "Failed to persist chat approval log");
+        }
 
         let _ = self.event_bus.send(RuntimeEvent::ChatApprovalResolved {
             session_id: session_id.to_string(),
@@ -2032,6 +2058,26 @@ impl ChatSessionManagerHandle {
             return Vec::new();
         }
         reply_rx.await.unwrap_or_default()
+    }
+
+    /// List recently resolved chat tool approvals from the approval log.
+    pub async fn list_approval_history(
+        &self,
+        limit: i64,
+        days: i64,
+    ) -> Result<Vec<super::repository::ChatApprovalLogRow>, ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::ListApprovalHistory {
+                limit,
+                days,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor unavailable".into()))?;
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
     pub async fn shutdown(&self) {
