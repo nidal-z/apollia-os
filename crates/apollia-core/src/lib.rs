@@ -38,11 +38,12 @@ pub mod workspace;
 pub use budget::StepBudgetConfig;
 pub use config::{
     validate_bounds, A2AConfig, ApiConfig, BashValidatorConfig, ConfigError, FilesystemConfig,
-    HitlConfig, JournalConfig, LlmRoutingConfig, ORIAConfig, PermissionsConfig, PipelinesConfig,
-    RegistryConfig, RuntimeConfig, ToolsConfig, TriggersConfig, VertexConfig,
+    FilesystemRiskConfig, HitlConfig, JournalConfig, LlmRoutingConfig, ORIAConfig,
+    PermissionsConfig, PipelinesConfig, RegistryConfig, RuntimeConfig, ToolsConfig, TriggersConfig,
+    VertexConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
-pub use events::{AgentId, EventBusSender, RuntimeEvent, TaskId};
+pub use events::{AgentId, EventBusSender, FilesystemPreview, RuntimeEvent, TaskId};
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
 pub use manifest::{AgentManifest, AgentSkill, MemoryConfig};
 pub use notebook::{CellType, JupyterCell, NotebookEditOp};

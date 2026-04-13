@@ -20,6 +20,7 @@
   import ContextIndicator from "./ContextIndicator.svelte";
   import SummarizedMessagesBanner from "./SummarizedMessagesBanner.svelte";
   import ApprovalCard from "./ApprovalCard.svelte";
+  import HitlFilesystemModal from "./HitlFilesystemModal.svelte";
 
   interface Props {
     sessionId: string;
@@ -691,3 +692,5 @@
   onupdated={() => void refreshSession()}
 />
 {/if}
+
+<HitlFilesystemModal {sessionId} />

@@ -31,8 +31,7 @@ pub struct WorkspaceStatus {
 pub async fn get_workspace_status(
     state: State<'_, RuntimeHandle>,
 ) -> Result<WorkspaceStatus, String> {
-    let cwd = std::env::current_dir()
-        .map_err(|e| format!("cannot determine cwd: {e}"))?;
+    let cwd = std::env::current_dir().map_err(|e| format!("cannot determine cwd: {e}"))?;
 
     let config_path = cwd.join("apollia.toml");
     let has_config = config_path.exists();
@@ -78,8 +77,7 @@ pub async fn get_workspace_status(
 /// En cas de succès, retourne le chemin absolu du workspace initialisé.
 #[tauri::command]
 pub async fn init_workspace(force: bool) -> Result<String, String> {
-    let cwd = std::env::current_dir()
-        .map_err(|e| format!("cannot determine cwd: {e}"))?;
+    let cwd = std::env::current_dir().map_err(|e| format!("cannot determine cwd: {e}"))?;
 
     let config_path = cwd.join("apollia.toml");
     let apollia_dir = cwd.join(".apollia");

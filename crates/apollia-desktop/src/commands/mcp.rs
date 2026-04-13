@@ -735,10 +735,7 @@ pub async fn list_mcp_tool_pending_approvals() -> Result<Vec<serde_json::Value>,
 /// Supprime l'approbation de `~/.apollia/mcp_approvals.db`.
 /// Retourne `true` si une entrée a été supprimée, `false` si aucune entrée correspondante.
 #[tauri::command]
-pub async fn revoke_mcp_tool_approval(
-    server: String,
-    tool: String,
-) -> Result<bool, String> {
+pub async fn revoke_mcp_tool_approval(server: String, tool: String) -> Result<bool, String> {
     let db_path = mcp_approvals_db_path()?;
 
     if !db_path.exists() {

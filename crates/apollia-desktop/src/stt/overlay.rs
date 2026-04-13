@@ -147,15 +147,14 @@ impl RecordingOverlay {
 
         // Register Escape as a temporary global shortcut for cancelling the recording.
         let cancel = Arc::clone(&self.on_cancel);
-        if let Err(e) = self
-            .app
-            .global_shortcut()
-            .on_shortcut(CANCEL_SHORTCUT, move |_app, _shortcut, event| {
+        if let Err(e) = self.app.global_shortcut().on_shortcut(
+            CANCEL_SHORTCUT,
+            move |_app, _shortcut, event| {
                 if event.state == ShortcutState::Pressed {
                     cancel();
                 }
-            })
-        {
+            },
+        ) {
             tracing::warn!(error = %e, "failed to register Escape cancel shortcut");
         }
 

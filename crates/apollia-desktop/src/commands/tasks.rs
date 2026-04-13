@@ -238,10 +238,7 @@ pub async fn submit_task(
 /// Appelle `DELETE /api/v1/tasks/{id}` via l'API REST interne.
 /// Retourne `true` si la tâche a été annulée, `false` si déjà terminée ou introuvable.
 #[tauri::command]
-pub async fn cancel_task(
-    state: State<'_, RuntimeHandle>,
-    task_id: String,
-) -> Result<bool, String> {
+pub async fn cancel_task(state: State<'_, RuntimeHandle>, task_id: String) -> Result<bool, String> {
     let path = format!("/api/v1/tasks/{task_id}");
     match super::http_delete_json(state.api_port, &path).await {
         Ok(_) => Ok(true),

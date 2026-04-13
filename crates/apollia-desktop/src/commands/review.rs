@@ -50,9 +50,7 @@ pub async fn start_code_review(
     let review_agent = agents
         .iter()
         .find(|a| a.manifest.name == "apollia-review")
-        .ok_or_else(|| {
-            "agent 'apollia-review' not found — please install it first".to_string()
-        })?;
+        .ok_or_else(|| "agent 'apollia-review' not found — please install it first".to_string())?;
 
     let agent_id = review_agent.id.to_string();
 

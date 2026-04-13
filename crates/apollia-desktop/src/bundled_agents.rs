@@ -43,10 +43,30 @@ pub fn ensure_bundled_agents(repo: &AgentRepository, data_dir: &Path) {
         tracing::warn!(error = %e, "failed to provision bundled onboarding-agent");
     }
     for (name, py, version, manifest_fn) in [
-        ("excel-worker", EXCEL_WORKER_PY, EXCEL_WORKER_VERSION, excel_worker_manifest as fn() -> AgentManifest),
-        ("csv-data-worker", CSV_WORKER_PY, CSV_WORKER_VERSION, csv_worker_manifest as fn() -> AgentManifest),
-        ("pdf-worker", PDF_WORKER_PY, PDF_WORKER_VERSION, pdf_worker_manifest as fn() -> AgentManifest),
-        ("code-worker", CODE_WORKER_PY, CODE_WORKER_VERSION, code_worker_manifest as fn() -> AgentManifest),
+        (
+            "excel-worker",
+            EXCEL_WORKER_PY,
+            EXCEL_WORKER_VERSION,
+            excel_worker_manifest as fn() -> AgentManifest,
+        ),
+        (
+            "csv-data-worker",
+            CSV_WORKER_PY,
+            CSV_WORKER_VERSION,
+            csv_worker_manifest as fn() -> AgentManifest,
+        ),
+        (
+            "pdf-worker",
+            PDF_WORKER_PY,
+            PDF_WORKER_VERSION,
+            pdf_worker_manifest as fn() -> AgentManifest,
+        ),
+        (
+            "code-worker",
+            CODE_WORKER_PY,
+            CODE_WORKER_VERSION,
+            code_worker_manifest as fn() -> AgentManifest,
+        ),
     ] {
         if let Err(e) = provision_worker_agent(repo, data_dir, name, py, version, manifest_fn) {
             tracing::warn!(error = %e, name = %name, "failed to provision bundled worker agent");
@@ -191,7 +211,11 @@ fn excel_worker_manifest() -> AgentManifest {
         description: "Agent spécialisé pour la manipulation de fichiers Excel (.xlsx, .xlsm). \
                       Lit, analyse, crée et modifie des classeurs Excel via openpyxl."
             .to_string(),
-        tools_required: vec!["python_executor".to_string(), "file_read".to_string(), "file_write".to_string()],
+        tools_required: vec![
+            "python_executor".to_string(),
+            "file_read".to_string(),
+            "file_write".to_string(),
+        ],
         tools_optional: vec!["file_list".to_string()],
         supports_streaming: false,
         supports_a2a: true,
@@ -203,9 +227,30 @@ fn excel_worker_manifest() -> AgentManifest {
         dangerous_tools_allowed: false,
         tags: vec!["worker".to_string(), "excel".to_string(), "a2a".to_string()],
         skills: vec![
-            AgentSkill { id: "read-excel".to_string(), name: "Lire un fichier Excel".to_string(), description: "Lit et retourne le contenu structuré d'une feuille Excel (headers + rows)".to_string(), input_modes: vec!["text".to_string()], output_modes: vec!["text".to_string()] },
-            AgentSkill { id: "edit-excel".to_string(), name: "Modifier un fichier Excel".to_string(), description: "Modifie des cellules, ajoute des lignes ou colonnes".to_string(), input_modes: vec!["text".to_string()], output_modes: vec!["text".to_string()] },
-            AgentSkill { id: "create-excel".to_string(), name: "Créer un fichier Excel".to_string(), description: "Crée un nouveau classeur avec feuilles et données formatées".to_string(), input_modes: vec!["text".to_string()], output_modes: vec!["text".to_string()] },
+            AgentSkill {
+                id: "read-excel".to_string(),
+                name: "Lire un fichier Excel".to_string(),
+                description:
+                    "Lit et retourne le contenu structuré d'une feuille Excel (headers + rows)"
+                        .to_string(),
+                input_modes: vec!["text".to_string()],
+                output_modes: vec!["text".to_string()],
+            },
+            AgentSkill {
+                id: "edit-excel".to_string(),
+                name: "Modifier un fichier Excel".to_string(),
+                description: "Modifie des cellules, ajoute des lignes ou colonnes".to_string(),
+                input_modes: vec!["text".to_string()],
+                output_modes: vec!["text".to_string()],
+            },
+            AgentSkill {
+                id: "create-excel".to_string(),
+                name: "Créer un fichier Excel".to_string(),
+                description: "Crée un nouveau classeur avec feuilles et données formatées"
+                    .to_string(),
+                input_modes: vec!["text".to_string()],
+                output_modes: vec!["text".to_string()],
+            },
         ],
         execution_mode: "direct".to_string(),
         system_prompt: None,
@@ -236,9 +281,31 @@ fn csv_worker_manifest() -> AgentManifest {
         dangerous_tools_allowed: false,
         tags: vec!["worker".to_string(), "csv".to_string(), "a2a".to_string()],
         skills: vec![
-            AgentSkill { id: "read-csv".to_string(), name: "Lire un fichier CSV".to_string(), description: "Parse et retourne le contenu d'un CSV avec détection auto de l'encodage".to_string(), input_modes: vec!["text".to_string()], output_modes: vec!["text".to_string()] },
-            AgentSkill { id: "analyze-csv".to_string(), name: "Analyser les données CSV".to_string(), description: "Statistiques descriptives, comptage valeurs manquantes, groupby".to_string(), input_modes: vec!["text".to_string()], output_modes: vec!["text".to_string()] },
-            AgentSkill { id: "transform-csv".to_string(), name: "Transformer des données CSV".to_string(), description: "Filtre, trie, fusionne ou pivote un CSV et exporte le résultat".to_string(), input_modes: vec!["text".to_string()], output_modes: vec!["text".to_string()] },
+            AgentSkill {
+                id: "read-csv".to_string(),
+                name: "Lire un fichier CSV".to_string(),
+                description:
+                    "Parse et retourne le contenu d'un CSV avec détection auto de l'encodage"
+                        .to_string(),
+                input_modes: vec!["text".to_string()],
+                output_modes: vec!["text".to_string()],
+            },
+            AgentSkill {
+                id: "analyze-csv".to_string(),
+                name: "Analyser les données CSV".to_string(),
+                description: "Statistiques descriptives, comptage valeurs manquantes, groupby"
+                    .to_string(),
+                input_modes: vec!["text".to_string()],
+                output_modes: vec!["text".to_string()],
+            },
+            AgentSkill {
+                id: "transform-csv".to_string(),
+                name: "Transformer des données CSV".to_string(),
+                description: "Filtre, trie, fusionne ou pivote un CSV et exporte le résultat"
+                    .to_string(),
+                input_modes: vec!["text".to_string()],
+                output_modes: vec!["text".to_string()],
+            },
         ],
         execution_mode: "direct".to_string(),
         system_prompt: None,
@@ -378,20 +445,34 @@ mod tests {
 
         // Onboarding agent
         let agent_py = tmp.path().join("agents/onboarding-agent/agent.py");
-        assert!(agent_py.exists(), "onboarding agent.py should be written to disk");
+        assert!(
+            agent_py.exists(),
+            "onboarding agent.py should be written to disk"
+        );
         let agent = repo.get("onboarding-agent").expect("get").expect("exists");
         assert_eq!(agent.version, ONBOARDING_AGENT_VERSION);
         assert!(agent.enabled);
         assert_eq!(agent.install_path, agent_py);
 
         // Worker agents
-        for name in ["excel-worker", "csv-data-worker", "pdf-worker", "code-worker"] {
+        for name in [
+            "excel-worker",
+            "csv-data-worker",
+            "pdf-worker",
+            "code-worker",
+        ] {
             let worker_py = tmp.path().join(format!("agents/{name}/agent.py"));
-            assert!(worker_py.exists(), "{name}/agent.py should be written to disk");
+            assert!(
+                worker_py.exists(),
+                "{name}/agent.py should be written to disk"
+            );
             let worker = repo.get(name).expect("get").expect("exists");
             assert!(worker.enabled, "{name} should be enabled");
             assert!(worker.manifest.supports_a2a, "{name} should support a2a");
-            assert!(!worker.manifest.skills.is_empty(), "{name} should have skills");
+            assert!(
+                !worker.manifest.skills.is_empty(),
+                "{name} should have skills"
+            );
         }
     }
 

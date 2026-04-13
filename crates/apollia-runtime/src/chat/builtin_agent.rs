@@ -50,9 +50,27 @@ pub const DEFAULT_CONTEXT_WINDOW_SIZE: usize = 20;
 ///
 /// The sandbox root scopes all file operations to a specific directory.
 /// It is resolved once per session from the project's `workspace_path` (ADR-069).
+///
+/// When HITL filesystem support is enabled (via [`NativeChatToolInvoker::with_hitl_support`]),
+/// write operations are classified by risk level before execution. Operations with
+/// `RiskLevel::Medium` or higher suspend the tool call and wait for user approval
+/// via `HitlFilesystemModal` in the desktop UI.
 pub struct NativeChatToolInvoker {
     /// Sandbox root for file operations — set per session, never global.
     sandbox_root: std::path::PathBuf,
+    /// Original workspace path for risk classification (may differ from sandbox_root
+    /// when sandbox_root has been resolved via fallback).
+    workspace_path: Option<std::path::PathBuf>,
+    /// EventBus sender for emitting `HitlFilesystemRequired` events.
+    event_bus: Option<crate::eventbus::EventBusSender>,
+    /// Pending filesystem HITL approvals store.
+    pending_fs: Option<super::types::PendingFilesystemApprovals>,
+    /// Session-level filesystem allow rules (shared Arc, not persisted).
+    fs_allow_rules: Option<std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>>,
+    /// Session identifier for HITL events.
+    session_id: Option<String>,
+    /// Filesystem risk configuration (path lists for system/credential paths).
+    risk_config: apollia_core::FilesystemRiskConfig,
 }
 
 impl NativeChatToolInvoker {
@@ -63,10 +81,124 @@ impl NativeChatToolInvoker {
     /// to `std::env::temp_dir()`. Never falls back to `$HOME`.
     pub fn new_with_workspace(workspace_path: Option<std::path::PathBuf>) -> Self {
         let sandbox_root = workspace_path
+            .clone()
             .filter(|p| p.is_dir())
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_else(std::env::temp_dir);
-        Self { sandbox_root }
+        Self {
+            sandbox_root,
+            workspace_path,
+            event_bus: None,
+            pending_fs: None,
+            fs_allow_rules: None,
+            session_id: None,
+            risk_config: apollia_core::FilesystemRiskConfig::default(),
+        }
+    }
+
+    /// Attach HITL filesystem support to this invoker.
+    ///
+    /// When enabled, write and edit operations are classified by risk level before
+    /// execution. Operations at `RiskLevel::Medium` or above are suspended pending
+    /// user approval via `HitlFilesystemModal`.
+    pub fn with_hitl_support(
+        mut self,
+        session_id: String,
+        event_bus: crate::eventbus::EventBusSender,
+        pending_fs: super::types::PendingFilesystemApprovals,
+        fs_allow_rules: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+        risk_config: apollia_core::FilesystemRiskConfig,
+    ) -> Self {
+        self.session_id = Some(session_id);
+        self.event_bus = Some(event_bus);
+        self.pending_fs = Some(pending_fs);
+        self.fs_allow_rules = Some(fs_allow_rules);
+        self.risk_config = risk_config;
+        self
+    }
+
+    /// Check if a filesystem write operation needs HITL approval.
+    ///
+    /// Returns `Ok(())` if the operation can proceed (Safe/Low risk or already approved).
+    /// Returns `Err(String)` with a human-readable reason if denied.
+    /// Awaits user decision if the operation is Medium or above and not in allow rules.
+    async fn check_fs_hitl(
+        &self,
+        op: apollia_tools::FilesystemOp,
+        resolved_path: &std::path::Path,
+        preview: apollia_core::FilesystemPreview,
+    ) -> Result<(), String> {
+        use apollia_tools::RiskLevel;
+
+        let level = apollia_tools::RiskClassifier::classify_filesystem(
+            op,
+            resolved_path,
+            self.workspace_path.as_deref(),
+            &self.risk_config,
+        );
+
+        // Safe and Low → no friction needed.
+        if level < RiskLevel::Medium {
+            return Ok(());
+        }
+
+        // Check session allow rules (AC-5).
+        let rule_key = format!("{}:{}", op.as_str(), level.as_str());
+        if let Some(ref rules) = self.fs_allow_rules {
+            let guard = rules.lock().expect("fs_allow_rules lock poisoned");
+            if guard.contains(&rule_key) {
+                return Ok(());
+            }
+        }
+
+        // No pending store → fallback approve (invoker running without HITL support).
+        let (event_bus, pending_fs, session_id) = match (
+            self.event_bus.as_ref(),
+            self.pending_fs.as_ref(),
+            self.session_id.as_deref(),
+        ) {
+            (Some(eb), Some(pf), Some(sid)) => (eb, pf, sid),
+            _ => return Ok(()),
+        };
+
+        let request_id = uuid::Uuid::new_v4().to_string();
+
+        // Emit the HITL event so the desktop UI can show the modal.
+        let _ = event_bus.send(apollia_core::RuntimeEvent::HitlFilesystemRequired {
+            request_id: request_id.clone(),
+            session_id: session_id.to_string(),
+            level: level.as_str().to_string(),
+            op: op.as_str().to_string(),
+            path: resolved_path.to_string_lossy().to_string(),
+            preview,
+        });
+
+        // Register and await the decision (5 minute timeout).
+        let rx = pending_fs.register(request_id.clone());
+
+        let decision = tokio::time::timeout(std::time::Duration::from_secs(300), rx)
+            .await
+            .ok()
+            .and_then(|r| r.ok())
+            .unwrap_or(super::types::FsHitlDecision::Deny);
+
+        match decision {
+            super::types::FsHitlDecision::Approve => Ok(()),
+            super::types::FsHitlDecision::Deny => {
+                Err("User denied filesystem operation".to_string())
+            }
+            super::types::FsHitlDecision::AlwaysAllowSession {
+                op: rule_op,
+                level: rule_level,
+            } => {
+                // Persist the allow rule in the session store.
+                if let Some(ref rules) = self.fs_allow_rules {
+                    let mut guard = rules.lock().expect("fs_allow_rules lock poisoned");
+                    guard.insert(format!("{rule_op}:{rule_level}"));
+                }
+                Ok(())
+            }
+        }
     }
 
     /// Execute `bash_executor` with the given JSON arguments.
@@ -116,10 +248,45 @@ impl NativeChatToolInvoker {
     /// Execute `file_write` with the given JSON arguments.
     async fn invoke_file_write(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_write::{FileWrite, FileWriteInput};
+        use apollia_tools::FilesystemOp;
 
-        let tool = FileWrite::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
         let input: FileWriteInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("file_write: invalid arguments: {e}"))?;
+
+        // Resolve path for risk classification (before creating the tool).
+        let resolved_path = self
+            .sandbox_root
+            .join(&input.path)
+            .canonicalize()
+            .unwrap_or_else(|_| self.sandbox_root.join(&input.path));
+
+        // Build a diff preview: read existing file content as "before".
+        let before = tokio::fs::read_to_string(&resolved_path)
+            .await
+            .unwrap_or_default();
+        let after = input.content.clone();
+        const PREVIEW_LIMIT: usize = 4096;
+        let (before_trunc, after_trunc, truncated) =
+            if before.len() > PREVIEW_LIMIT || after.len() > PREVIEW_LIMIT {
+                (
+                    before.chars().take(PREVIEW_LIMIT).collect::<String>(),
+                    after.chars().take(PREVIEW_LIMIT).collect::<String>(),
+                    true,
+                )
+            } else {
+                (before, after, false)
+            };
+
+        let preview = apollia_core::FilesystemPreview::Diff {
+            before: before_trunc,
+            after: after_trunc,
+            truncated,
+        };
+
+        self.check_fs_hitl(FilesystemOp::Write, &resolved_path, preview)
+            .await?;
+
+        let tool = FileWrite::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
         tool.run(input).await.map_err(|e| e.to_string())?;
         Ok(serde_json::json!({"written": true}).to_string())
     }
@@ -138,10 +305,35 @@ impl NativeChatToolInvoker {
     /// Execute `file_edit` with the given JSON arguments.
     async fn invoke_file_edit(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_edit::{FileEdit, FileEditInput};
+        use apollia_tools::FilesystemOp;
 
-        let tool = FileEdit::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
         let input: FileEditInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("file_edit: invalid arguments: {e}"))?;
+
+        // Resolve path for risk classification.
+        let resolved_path = self
+            .sandbox_root
+            .join(&input.path)
+            .canonicalize()
+            .unwrap_or_else(|_| self.sandbox_root.join(&input.path));
+
+        // Build diff preview from old_text/new_text fields.
+        const PREVIEW_LIMIT: usize = 4096;
+        let before: String = input.old_text.chars().take(PREVIEW_LIMIT).collect();
+        let after: String = input.new_text.chars().take(PREVIEW_LIMIT).collect();
+        let truncated =
+            input.old_text.len() > PREVIEW_LIMIT || input.new_text.len() > PREVIEW_LIMIT;
+
+        let preview = apollia_core::FilesystemPreview::Diff {
+            before,
+            after,
+            truncated,
+        };
+
+        self.check_fs_hitl(FilesystemOp::Write, &resolved_path, preview)
+            .await?;
+
+        let tool = FileEdit::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
         let output = tool.run(input).await.map_err(|e| e.to_string())?;
         serde_json::to_string(&output).map_err(|e| e.to_string())
     }

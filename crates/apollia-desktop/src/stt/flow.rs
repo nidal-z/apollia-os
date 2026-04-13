@@ -154,9 +154,9 @@ impl SttFlow {
             let _ = guard.take();
         }
         self.signal_stop();
-        let _ = self
-            .event_bus
-            .send(RuntimeEvent::SttRecordingStopped { audio_duration_ms: 0 });
+        let _ = self.event_bus.send(RuntimeEvent::SttRecordingStopped {
+            audio_duration_ms: 0,
+        });
         tracing::info!("STT recording cancelled (audio discarded)");
     }
 

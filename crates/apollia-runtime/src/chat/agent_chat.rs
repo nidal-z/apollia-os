@@ -451,6 +451,7 @@ mod tests {
             parent_session_id: None,
             fork_depth: 0,
             project_id: None,
+            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(HashSet::new())),
         }
     }
 
@@ -522,6 +523,7 @@ mod tests {
             parent_session_id: None,
             fork_depth: 0,
             project_id: None,
+            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(HashSet::new())),
         }
     }
 

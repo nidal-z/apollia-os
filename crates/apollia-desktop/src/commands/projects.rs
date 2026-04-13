@@ -73,9 +73,7 @@ fn get_repo(state: &RuntimeHandle) -> Result<Arc<ProjectRepository>, String> {
 
 /// Liste tous les projets.
 #[tauri::command]
-pub async fn list_projects(
-    state: State<'_, RuntimeHandle>,
-) -> Result<Vec<ProjectSummary>, String> {
+pub async fn list_projects(state: State<'_, RuntimeHandle>) -> Result<Vec<ProjectSummary>, String> {
     let repo = get_repo(&state)?;
     tokio::task::spawn_blocking(move || repo.list_projects())
         .await
@@ -104,7 +102,12 @@ pub async fn create_project(
 ) -> Result<ProjectDetail, String> {
     let repo = get_repo(&state)?;
     let id = tokio::task::spawn_blocking(move || {
-        repo.create_project(request.name, request.description, request.instructions, request.workspace_path)
+        repo.create_project(
+            request.name,
+            request.description,
+            request.instructions,
+            request.workspace_path,
+        )
     })
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))?
@@ -142,10 +145,7 @@ pub async fn update_project(
 
 /// Supprime un projet et ses documents/providers associés.
 #[tauri::command]
-pub async fn delete_project(
-    state: State<'_, RuntimeHandle>,
-    id: String,
-) -> Result<(), String> {
+pub async fn delete_project(state: State<'_, RuntimeHandle>, id: String) -> Result<(), String> {
     let repo = get_repo(&state)?;
     tokio::task::spawn_blocking(move || repo.delete_project(&id))
         .await
@@ -178,12 +178,10 @@ pub async fn upload_project_document(
     let pid = project_id.clone();
     let fp = file_path.clone();
     let nm = name.clone();
-    let doc_id = tokio::task::spawn_blocking(move || {
-        repo.add_document(&pid, nm, fp, size_bytes)
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))?
-    .map_err(|e| e.to_string())?;
+    let doc_id = tokio::task::spawn_blocking(move || repo.add_document(&pid, nm, fp, size_bytes))
+        .await
+        .map_err(|e| format!("spawn_blocking failed: {e}"))?
+        .map_err(|e| e.to_string())?;
 
     // Return a lightweight document view for immediate UI feedback.
     // The full list is always available via get_project().
@@ -252,7 +250,11 @@ pub async fn get_project_snapshot(
         .map(|p| apollia_workspace::ProviderEntry {
             provider_type: p.provider_type,
             name: p.name,
-            config_json: if p.config_json == "{}" { None } else { Some(p.config_json) },
+            config_json: if p.config_json == "{}" {
+                None
+            } else {
+                Some(p.config_json)
+            },
             path: p.path,
             enabled: p.enabled,
             priority: p.priority,
@@ -265,7 +267,11 @@ pub async fn get_project_snapshot(
     let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/tmp"));
     let snapshot = runtime.collect(&cwd).await;
 
-    let error_count = snapshot.slices.iter().filter(|s| !s.errors.is_empty()).count();
+    let error_count = snapshot
+        .slices
+        .iter()
+        .filter(|s| !s.errors.is_empty())
+        .count();
     let sections = snapshot
         .slices
         .iter()

@@ -297,9 +297,7 @@ pub async fn get_llm_cost_stats(
 /// jour le `SharedLlmRouter` géré par Tauri. Utilisé pendant l'onboarding après
 /// `setup_local_llm` pour rendre le modèle disponible immédiatement.
 #[tauri::command]
-pub async fn reload_llm(
-    shared: State<'_, SharedLlmRouter>,
-) -> Result<(), String> {
+pub async fn reload_llm(shared: State<'_, SharedLlmRouter>) -> Result<(), String> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| std::env::temp_dir());
@@ -313,8 +311,8 @@ pub async fn reload_llm(
     struct TomlLlm {
         llm: Option<apollia_llm::LlmConfig>,
     }
-    let parsed: TomlLlm = toml::from_str(&content)
-        .map_err(|e| format!("failed to parse apollia.toml: {e}"))?;
+    let parsed: TomlLlm =
+        toml::from_str(&content).map_err(|e| format!("failed to parse apollia.toml: {e}"))?;
 
     let mut llm_config = parsed
         .llm

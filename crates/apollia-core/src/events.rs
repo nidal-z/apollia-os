@@ -897,6 +897,58 @@ pub enum RuntimeEvent {
         /// Choix de l'opérateur avec la corrélation `session_id`.
         choice: crate::plan_alternatives::PlanChoice,
     },
+
+    // ── HITL filesystem events ───────────────────────────────────────────
+    /// Une opération filesystem par un agent nécessite une approbation humaine.
+    ///
+    /// Émis par `NativeChatToolInvoker` quand `RiskClassifier::classify_filesystem`
+    /// retourne `RiskLevel::Medium` ou supérieur. Le frontend intercepte cet événement
+    /// via le pont Tauri dédié pour afficher `HitlFilesystemModal`.
+    HitlFilesystemRequired {
+        /// Identifiant unique de cette demande (UUID v4).
+        request_id: String,
+        /// Session chat qui a déclenché l'opération.
+        session_id: String,
+        /// Niveau de risque : `"medium"` | `"high"` | `"critical"`.
+        level: String,
+        /// Type d'opération : `"write"` | `"delete"` | `"chmod"`.
+        op: String,
+        /// Chemin canonicalisé de la cible.
+        path: String,
+        /// Preview du contenu avant/après pour affichage dans la modal.
+        preview: FilesystemPreview,
+    },
+}
+
+/// Preview du contenu d'une opération filesystem pour la modal HITL.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum FilesystemPreview {
+    /// Diff entre l'état actuel du fichier et le contenu proposé.
+    Diff {
+        /// Contenu actuel (vide si le fichier n'existe pas encore).
+        before: String,
+        /// Contenu proposé.
+        after: String,
+        /// `true` si l'un des deux contenus a été tronqué.
+        truncated: bool,
+    },
+    /// Affichage du contenu actuel (delete, opération lecture sensible).
+    Content {
+        /// Contenu actuel du fichier.
+        content: String,
+        /// Taille réelle du fichier en octets.
+        size_bytes: u64,
+        /// `true` si le contenu a été tronqué.
+        truncated: bool,
+    },
+    /// Changement de permissions (chmod).
+    Mode {
+        /// Mode actuel en octal.
+        before: u32,
+        /// Mode proposé en octal.
+        after: u32,
+    },
 }
 
 impl RuntimeEvent {
@@ -912,6 +964,7 @@ impl RuntimeEvent {
                 | RuntimeEvent::StepExecuted { .. }
                 | RuntimeEvent::LlmCallCompleted { .. }
                 | RuntimeEvent::PermissionRequired { .. }
+                | RuntimeEvent::HitlFilesystemRequired { .. }
         )
     }
 }
@@ -1274,6 +1327,19 @@ mod tests {
                 path: std::path::PathBuf::from("/tmp/config.toml"),
                 old_mtime_ms: 1_700_000_000_000,
                 new_mtime_ms: 1_700_000_060_000,
+            },
+            // ── HITL filesystem ───────────────────────────────
+            RuntimeEvent::HitlFilesystemRequired {
+                request_id: "req-001".into(),
+                session_id: "sess-001".into(),
+                level: "medium".into(),
+                op: "write".into(),
+                path: "/home/alice/notes.md".into(),
+                preview: FilesystemPreview::Diff {
+                    before: "old content".into(),
+                    after: "new content".into(),
+                    truncated: false,
+                },
             },
         ];
 

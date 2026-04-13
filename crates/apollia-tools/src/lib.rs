@@ -69,4 +69,4 @@ pub use tools::persistent_bash::{
     session::{PersistentBashError, SessionId, ShellOutput},
     PersistentBashExecutor,
 };
-pub use tools::risk_classifier::{RiskCategory, RiskClassifier};
+pub use tools::risk_classifier::{FilesystemOp, RiskCategory, RiskClassifier, RiskLevel};

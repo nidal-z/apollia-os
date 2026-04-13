@@ -55,6 +55,13 @@ pub struct ChatSession {
     /// Project this session belongs to (None = standalone).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
+    /// In-memory filesystem allow rules for this session (not persisted).
+    ///
+    /// Set by the user via "Always allow (this session)" in `HitlFilesystemModal`.
+    /// Format: `"op:level"` e.g., `"write:medium"`.
+    /// Cleared when the session ends (intentional — session-scoped only).
+    #[serde(skip)]
+    pub fs_allow_rules: Arc<Mutex<std::collections::HashSet<String>>>,
 }
 
 /// Chat mode — free-form LLM conversation or agent-backed.
@@ -376,6 +383,96 @@ impl Clone for PendingChatApprovals {
 }
 
 impl Default for PendingChatApprovals {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ─────────────────────────────────────────────
+// FsHitlDecision + PendingFilesystemApprovals
+// ─────────────────────────────────────────────
+
+/// Decision returned by the user for a filesystem HITL request.
+#[derive(Debug, Clone)]
+pub enum FsHitlDecision {
+    /// Approve this specific operation.
+    Approve,
+    /// Deny this specific operation.
+    Deny,
+    /// Approve this operation and auto-approve similar ops for the rest of the session.
+    ///
+    /// `op` and `level` identify the rule scope (e.g., `"write"` + `"medium"`).
+    AlwaysAllowSession { op: String, level: String },
+}
+
+/// Thread-safe store for pending filesystem HITL requests.
+///
+/// Keyed by `request_id` (UUID v4). Shared between `NativeChatToolInvoker`
+/// (which registers and awaits decisions) and `ChatSessionManager` (which resolves
+/// them when a `respond_hitl_filesystem` Tauri command arrives).
+///
+/// This uses `Arc<Mutex<>>` — acceptable because it is an internal data structure
+/// coordinating two concurrent async tasks, not a cross-actor shared state.
+pub struct PendingFilesystemApprovals {
+    inner: Arc<Mutex<HashMap<String, oneshot::Sender<FsHitlDecision>>>>,
+}
+
+impl PendingFilesystemApprovals {
+    /// Create a new empty store.
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    /// Register a pending HITL request and return a receiver to await the decision.
+    pub fn register(&self, request_id: String) -> oneshot::Receiver<FsHitlDecision> {
+        let (tx, rx) = oneshot::channel();
+        let mut map = self
+            .inner
+            .lock()
+            .expect("PendingFilesystemApprovals lock poisoned");
+        map.insert(request_id, tx);
+        rx
+    }
+
+    /// Resolve a pending request by sending the decision.
+    ///
+    /// Returns `true` if the request was found and resolved, `false` otherwise.
+    pub fn resolve(&self, request_id: &str, decision: FsHitlDecision) -> bool {
+        let mut map = self
+            .inner
+            .lock()
+            .expect("PendingFilesystemApprovals lock poisoned");
+        if let Some(tx) = map.remove(request_id) {
+            let _ = tx.send(decision);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Deny all pending requests (used when session is closed).
+    pub fn deny_all_pending(&self) {
+        let mut map = self
+            .inner
+            .lock()
+            .expect("PendingFilesystemApprovals lock poisoned");
+        for (_, tx) in map.drain() {
+            let _ = tx.send(FsHitlDecision::Deny);
+        }
+    }
+}
+
+impl Clone for PendingFilesystemApprovals {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+        }
+    }
+}
+
+impl Default for PendingFilesystemApprovals {
     fn default() -> Self {
         Self::new()
     }
@@ -718,6 +815,9 @@ mod tests {
             parent_session_id: None,
             fork_depth: 0,
             project_id: None,
+            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashSet::new(),
+            )),
         };
 
         // WHEN we serialize and deserialize

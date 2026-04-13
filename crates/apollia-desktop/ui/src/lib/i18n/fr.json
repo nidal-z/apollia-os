@@ -1789,5 +1789,37 @@
     "provider_path": "Chemin",
     "agent_added": "Agent ajouté au projet",
     "agent_removed": "Agent retiré du projet"
+  },
+  "hitl": {
+    "fs": {
+      "title": "Opération fichier nécessite une approbation",
+      "subtitle": "L'assistant souhaite effectuer l'action suivante sur votre système de fichiers.",
+      "op_write": "Écriture",
+      "op_delete": "Suppression",
+      "op_chmod": "Changement de permissions",
+      "op_read": "Lecture",
+      "level_medium": "Risque modéré",
+      "level_high": "Risque élevé",
+      "level_critical": "Risque critique",
+      "path_label": "Chemin",
+      "preview_diff": "Modifications",
+      "preview_content": "Contenu du fichier",
+      "preview_mode": "Changement de permissions",
+      "preview_before": "Avant",
+      "preview_after": "Après",
+      "preview_truncated": "Aperçu tronqué",
+      "preview_size": "{size} octets",
+      "preview_mode_label": "{before} → {after}",
+      "approve": "Approuver",
+      "deny": "Refuser",
+      "always_allow_session": "Toujours autoriser cette session",
+      "always_allow_title": "Toujours autoriser pour cette session",
+      "always_allow_desc": "Cela ignorera l'approbation pour toutes les opérations {op} au niveau de risque {level} pour le reste de la session.",
+      "critical_confirm_label": "Tapez CONFIRMER pour continuer",
+      "critical_confirm_placeholder": "CONFIRMER",
+      "timeout_warning": "Cette demande sera automatiquement refusée dans {secs}s.",
+      "denied_title": "Opération refusée",
+      "denied_message": "L'opération fichier a été refusée."
+    }
   }
 }

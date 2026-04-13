@@ -197,10 +197,7 @@ pub async fn search_memory(
 /// `memory_type` peut être `"episodic"`, `"semantic"`, `"procedural"`, ou `"all"` (défaut).
 /// Retourne le nombre total d'entrées supprimées.
 #[tauri::command]
-pub async fn clear_memory(
-    namespace: String,
-    memory_type: Option<String>,
-) -> Result<u64, String> {
+pub async fn clear_memory(namespace: String, memory_type: Option<String>) -> Result<u64, String> {
     let base = memory_base_dir()?;
     let db_path = base.join(format!("{namespace}.db"));
 

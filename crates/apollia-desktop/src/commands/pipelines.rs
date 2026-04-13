@@ -616,15 +616,10 @@ pub async fn install_pipeline(
     name: String,
     registry_url: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let url = registry_url
-        .as_deref()
-        .unwrap_or(DEFAULT_REGISTRY_URL);
+    let url = registry_url.as_deref().unwrap_or(DEFAULT_REGISTRY_URL);
 
     let registry = PipelineRegistry::new(url);
-    let path = registry
-        .install(&name)
-        .await
-        .map_err(|e| e.to_string())?;
+    let path = registry.install(&name).await.map_err(|e| e.to_string())?;
 
     Ok(serde_json::json!({
         "name": name,
@@ -641,15 +636,10 @@ pub async fn install_pipeline(
 pub async fn list_pipeline_registry(
     registry_url: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let url = registry_url
-        .as_deref()
-        .unwrap_or(DEFAULT_REGISTRY_URL);
+    let url = registry_url.as_deref().unwrap_or(DEFAULT_REGISTRY_URL);
 
     let registry = PipelineRegistry::new(url);
-    let entries = registry
-        .list_available()
-        .await
-        .map_err(|e| e.to_string())?;
+    let entries = registry.list_available().await.map_err(|e| e.to_string())?;
 
     Ok(entries
         .into_iter()

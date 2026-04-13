@@ -7,11 +7,66 @@
 //! `resume_task` délègue à l'API REST `POST /api/v1/tasks/{id}/resume` qui gère
 //! la persistance, l'émission d'événements et la résolution du oneshot channel.
 
+use apollia_runtime::chat::FsHitlDecision;
 use apollia_runtime::embedded::RuntimeHandle;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::http_post_json;
+
+/// Décision filesystem sérialisée depuis le frontend.
+///
+/// Correspond exactement à [`FsHitlDecision`] côté Rust, avec un discriminant
+/// serde snake_case pour la désérialisation JSON depuis Tauri.
+#[derive(Debug, Deserialize)]
+#[serde(tag = "decision", rename_all = "snake_case")]
+pub enum HitlFilesystemDecisionInput {
+    /// L'utilisateur approuve l'opération pour cette invocation.
+    Approve,
+    /// L'utilisateur refuse — l'opération est annulée.
+    Deny,
+    /// L'utilisateur approuve pour toute la session pour cette combinaison op+level.
+    AlwaysAllowSession {
+        /// Opération filesystem (ex. `"write"`).
+        op: String,
+        /// Niveau de risque (ex. `"medium"`).
+        level: String,
+    },
+}
+
+/// Résout une demande d'approbation filesystem HITL émise par `HitlFilesystemRequired`.
+///
+/// Le frontend appelle cette commande après que l'utilisateur a cliqué sur
+/// Approuver / Refuser / Toujours autoriser dans le modal HITL.
+///
+/// # Errors
+///
+/// Retourne une erreur si le gestionnaire de chat n'est pas disponible ou si
+/// `request_id` est inconnu (déjà résolu ou expiré).
+#[tauri::command]
+pub async fn respond_hitl_filesystem(
+    state: State<'_, RuntimeHandle>,
+    request_id: String,
+    decision: HitlFilesystemDecisionInput,
+) -> Result<(), String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+
+    let fs_decision = match decision {
+        HitlFilesystemDecisionInput::Approve => FsHitlDecision::Approve,
+        HitlFilesystemDecisionInput::Deny => FsHitlDecision::Deny,
+        HitlFilesystemDecisionInput::AlwaysAllowSession { op, level } => {
+            FsHitlDecision::AlwaysAllowSession { op, level }
+        }
+    };
+
+    manager
+        .resolve_fs_hitl(request_id, fs_decision)
+        .await
+        .map_err(|e| e.to_string())
+}
 
 /// Approbation en attente pour l'affichage dans l'UI.
 #[derive(Debug, Serialize)]
@@ -206,7 +261,11 @@ pub async fn add_permission_prefix_rule(
     let rule_action = match action.as_str() {
         "allow" => RuleAction::Allow,
         "deny" => RuleAction::Deny,
-        other => return Err(format!("unknown action '{other}', expected 'allow' or 'deny'")),
+        other => {
+            return Err(format!(
+                "unknown action '{other}', expected 'allow' or 'deny'"
+            ))
+        }
     };
 
     let home = std::env::var("HOME").map_err(|e| format!("HOME variable not set: {e}"))?;

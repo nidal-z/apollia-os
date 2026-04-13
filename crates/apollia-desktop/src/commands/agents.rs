@@ -163,11 +163,15 @@ pub async fn list_agents(
             execution_mode: Some(manifest.execution_mode.clone()),
             install_path: Some(agent.install_path.to_string_lossy().to_string()),
             supports_a2a: manifest.supports_a2a,
-            skills: manifest.skills.iter().map(|s| AgentSkillView {
-                id: s.id.clone(),
-                name: s.name.clone(),
-                description: s.description.clone(),
-            }).collect(),
+            skills: manifest
+                .skills
+                .iter()
+                .map(|s| AgentSkillView {
+                    id: s.id.clone(),
+                    name: s.name.clone(),
+                    description: s.description.clone(),
+                })
+                .collect(),
         });
     }
 
@@ -194,11 +198,15 @@ pub async fn list_agents(
                 execution_mode: Some(manifest.execution_mode.clone()),
                 install_path: None,
                 supports_a2a: manifest.supports_a2a,
-                skills: manifest.skills.iter().map(|s| AgentSkillView {
-                    id: s.id.clone(),
-                    name: s.name.clone(),
-                    description: s.description.clone(),
-                }).collect(),
+                skills: manifest
+                    .skills
+                    .iter()
+                    .map(|s| AgentSkillView {
+                        id: s.id.clone(),
+                        name: s.name.clone(),
+                        description: s.description.clone(),
+                    })
+                    .collect(),
             });
         }
     }

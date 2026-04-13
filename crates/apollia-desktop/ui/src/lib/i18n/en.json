@@ -1789,5 +1789,37 @@
     "provider_path": "Path",
     "agent_added": "Agent added to project",
     "agent_removed": "Agent removed from project"
+  },
+  "hitl": {
+    "fs": {
+      "title": "File operation requires approval",
+      "subtitle": "The assistant wants to perform the following action on your filesystem.",
+      "op_write": "Write",
+      "op_delete": "Delete",
+      "op_chmod": "Change permissions",
+      "op_read": "Read",
+      "level_medium": "Medium risk",
+      "level_high": "High risk",
+      "level_critical": "Critical risk",
+      "path_label": "Path",
+      "preview_diff": "Changes",
+      "preview_content": "File content",
+      "preview_mode": "Permission change",
+      "preview_before": "Before",
+      "preview_after": "After",
+      "preview_truncated": "Preview truncated",
+      "preview_size": "{size} bytes",
+      "preview_mode_label": "{before} → {after}",
+      "approve": "Approve",
+      "deny": "Deny",
+      "always_allow_session": "Always allow this session",
+      "always_allow_title": "Always allow for this session",
+      "always_allow_desc": "This will skip approval for all {op} operations at {level} risk level for the rest of the session.",
+      "critical_confirm_label": "Type CONFIRM to proceed",
+      "critical_confirm_placeholder": "CONFIRM",
+      "timeout_warning": "This request will be automatically denied in {secs}s.",
+      "denied_title": "Operation denied",
+      "denied_message": "The file operation was refused."
+    }
   }
 }

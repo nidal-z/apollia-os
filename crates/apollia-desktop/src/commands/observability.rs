@@ -389,9 +389,7 @@ pub async fn get_llm_daily_costs(
 /// Appelle `GET /api/v1/audit/stats` et retourne le JSON brut pour éviter
 /// de dupliquer la structure de données côté Tauri.
 #[tauri::command]
-pub async fn get_audit_stats(
-    state: State<'_, RuntimeHandle>,
-) -> Result<serde_json::Value, String> {
+pub async fn get_audit_stats(state: State<'_, RuntimeHandle>) -> Result<serde_json::Value, String> {
     http_get_json(state.api_port, "/api/v1/audit/stats").await
 }
 

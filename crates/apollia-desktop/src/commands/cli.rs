@@ -87,8 +87,8 @@ pub fn get_cli_status(app: tauri::AppHandle) -> Result<CliStatus, String> {
 /// target directory is not writable.
 #[tauri::command]
 pub async fn install_cli(app: tauri::AppHandle) -> Result<(), String> {
-    let source = bundled_cli_path(&app)
-        .ok_or_else(|| "CLI binary not found in app bundle".to_string())?;
+    let source =
+        bundled_cli_path(&app).ok_or_else(|| "CLI binary not found in app bundle".to_string())?;
     let target = symlink_target();
     let symlink_dir = PathBuf::from(SYMLINK_DIR);
 
@@ -174,9 +174,7 @@ async fn run_with_admin_privileges(command: &str) -> Result<(), String> {
         let output = tokio::process::Command::new("osascript")
             .args([
                 "-e",
-                &format!(
-                    "do shell script \"{escaped}\" with administrator privileges"
-                ),
+                &format!("do shell script \"{escaped}\" with administrator privileges"),
             ])
             .output()
             .await

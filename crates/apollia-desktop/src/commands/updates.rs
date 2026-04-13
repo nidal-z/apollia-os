@@ -28,9 +28,7 @@ pub struct UpdateCheckResult {
 /// configuré dans `tauri.conf.json`. Retourne une erreur descriptive si le
 /// plugin n'est pas activé dans cette build.
 #[tauri::command]
-pub async fn check_for_update(
-    app: tauri::AppHandle,
-) -> Result<UpdateCheckResult, String> {
+pub async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheckResult, String> {
     let current_version = app.package_info().version.to_string();
     // tauri-plugin-updater is not yet in the dependency tree for this crate.
     // Return a graceful stub so the frontend can handle the feature absence.
@@ -45,9 +43,7 @@ pub async fn check_for_update(
 /// qu'une mise à jour est disponible. Retourne une erreur si le plugin
 /// `tauri-plugin-updater` n'est pas activé dans cette build.
 #[tauri::command]
-pub async fn install_update(
-    _app: tauri::AppHandle,
-) -> Result<(), String> {
+pub async fn install_update(_app: tauri::AppHandle) -> Result<(), String> {
     // tauri-plugin-updater is not yet in the dependency tree for this crate.
     Err("install_update not available in this build".to_string())
 }

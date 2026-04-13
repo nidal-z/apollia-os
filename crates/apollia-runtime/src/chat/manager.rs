@@ -30,8 +30,8 @@ use super::extractor::UserMemoryExtractor;
 use super::repository::{AppendMessageParams, ChatSessionRepository};
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId,
-    PendingChatApprovals, ProjectContextProvider, RecentSessionSummary, SessionDetail, SessionId,
-    SessionInfo, SessionStatus, ToolCallRecord, ToolDecision,
+    PendingChatApprovals, PendingFilesystemApprovals, ProjectContextProvider, RecentSessionSummary,
+    SessionDetail, SessionId, SessionInfo, SessionStatus, ToolCallRecord, ToolDecision,
 };
 use crate::a2a::A2AInvoker;
 use crate::api::routes_agents::AgentLoader;
@@ -223,6 +223,18 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Vec<crate::a2a::SkillListing>>,
     },
+    /// Resolve a pending filesystem HITL request.
+    ///
+    /// Called by the `respond_hitl_filesystem` Tauri command when the user
+    /// makes a decision in `HitlFilesystemModal`.
+    ResolveFsHitl {
+        /// Unique request identifier emitted in `HitlFilesystemRequired`.
+        request_id: String,
+        /// User decision.
+        decision: super::types::FsHitlDecision,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
     /// Shut down the actor.
     Shutdown,
 }
@@ -245,8 +257,10 @@ struct ChatSessionManager {
     event_bus: EventBusSender,
     /// Runtime-level step budget configuration.
     runtime_budget: StepBudgetConfig,
-    /// Pending tool approval channels.
+    /// Pending tool approval channels (operator HITL).
     pending_chat_approvals: PendingChatApprovals,
+    /// Pending filesystem HITL approval channels (ADR-069 Couche 2).
+    pending_fs_approvals: PendingFilesystemApprovals,
     /// Optional user memory repository for system prompt enrichment.
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
     /// Stateful extractor for passive memory enrichment from conversations.
@@ -428,6 +442,21 @@ impl ChatSessionManager {
                     info!("ChatSessionManager: LLM router reloaded");
                     self.llm_router = router;
                 }
+                ChatCommand::ResolveFsHitl {
+                    request_id,
+                    decision,
+                    reply,
+                } => {
+                    let resolved = self.pending_fs_approvals.resolve(&request_id, decision);
+                    let result = if resolved {
+                        Ok(())
+                    } else {
+                        Err(ChatError::InternalError(format!(
+                            "no pending fs HITL request for id '{request_id}'"
+                        )))
+                    };
+                    let _ = reply.send(result);
+                }
                 ChatCommand::Shutdown => {
                     info!("ChatSessionManager: shutting down");
                     break;
@@ -529,6 +558,9 @@ impl ChatSessionManager {
             parent_session_id: None,
             fork_depth: 0,
             project_id,
+            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashSet::new(),
+            )),
         };
 
         let info = session_to_info(&session);
@@ -710,12 +742,22 @@ impl ChatSessionManager {
             let tool_registry = self.tool_registry.clone();
             let event_bus = self.event_bus.clone();
 
+            // Capture HITL filesystem params for the invoker.
+            let hitl_params = HitlInvokerParams {
+                session_id: session_id.to_string(),
+                event_bus: self.event_bus.clone(),
+                pending_fs: self.pending_fs_approvals.clone(),
+                fs_allow_rules: std::sync::Arc::clone(&session.fs_allow_rules),
+                risk_config: apollia_core::FilesystemRiskConfig::default(),
+            };
+
             tokio::spawn(async move {
                 // Resolve per-session sandbox root from project workspace_path.
                 // On error (project not found) surface as ExchangeError — no panic.
                 let native_invoker = match resolve_workspace_for_session(
                     &session_project_id,
                     &project_repo_for_session,
+                    Some(hitl_params),
                 )
                 .await
                 {
@@ -1154,6 +1196,9 @@ impl ChatSessionManager {
             parent_session_id: row.parent_session_id,
             fork_depth: row.fork_depth,
             project_id: row.project_id,
+            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashSet::new(),
+            )),
         };
 
         Some(SessionDetail {
@@ -1480,6 +1525,9 @@ impl ChatSessionManager {
                 parent_session_id: row.parent_session_id,
                 fork_depth: row.fork_depth,
                 project_id: row.project_id,
+                fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
+                    std::collections::HashSet::new(),
+                )),
             };
             self.sessions.insert(row.id, session);
         }
@@ -1499,9 +1547,12 @@ impl ChatSessionManager {
 /// Returns a [`NativeChatToolInvoker`] configured with the project's `workspace_path` when
 /// available, or falling back to `current_dir()` when the session has no project or the
 /// project has no workspace set yet. Never falls back to `$HOME`.
+///
+/// When `hitl` is provided, HITL filesystem support is enabled on the returned invoker.
 async fn resolve_workspace_for_session(
     project_id: &Option<String>,
     project_repo: &Option<Arc<ProjectRepository>>,
+    hitl: Option<HitlInvokerParams>,
 ) -> Result<NativeChatToolInvoker, ChatError> {
     let workspace_path = match project_id {
         None => None,
@@ -1522,7 +1573,27 @@ async fn resolve_workspace_for_session(
             detail.workspace_path.map(std::path::PathBuf::from)
         }
     };
-    Ok(NativeChatToolInvoker::new_with_workspace(workspace_path))
+    let invoker = NativeChatToolInvoker::new_with_workspace(workspace_path);
+    if let Some(p) = hitl {
+        Ok(invoker.with_hitl_support(
+            p.session_id,
+            p.event_bus,
+            p.pending_fs,
+            p.fs_allow_rules,
+            p.risk_config,
+        ))
+    } else {
+        Ok(invoker)
+    }
+}
+
+/// Parameters for attaching HITL filesystem support to a `NativeChatToolInvoker`.
+struct HitlInvokerParams {
+    session_id: String,
+    event_bus: EventBusSender,
+    pending_fs: super::types::PendingFilesystemApprovals,
+    fs_allow_rules: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+    risk_config: apollia_core::FilesystemRiskConfig,
 }
 
 /// Clonable handle for communicating with the [`ChatSessionManager`] actor.
@@ -1559,6 +1630,7 @@ impl ChatSessionManagerHandle {
     ) -> Result<Self, ChatError> {
         let repository = ChatSessionRepository::open(db_path)?;
         let pending_chat_approvals = PendingChatApprovals::new();
+        let pending_fs_approvals = PendingFilesystemApprovals::new();
 
         let enrichment_extractor = match (&llm_router, &user_memory) {
             (Some(llm), Some(mem)) => {
@@ -1580,6 +1652,7 @@ impl ChatSessionManagerHandle {
             event_bus,
             runtime_budget,
             pending_chat_approvals,
+            pending_fs_approvals,
             user_memory,
             enrichment_extractor,
             tx: tx.clone(),
@@ -1634,6 +1707,29 @@ impl ChatSessionManagerHandle {
             .send(ChatCommand::SendMessage {
                 session_id,
                 content,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// Resolve a pending filesystem HITL request.
+    ///
+    /// Called by the `respond_hitl_filesystem` Tauri command.
+    pub async fn resolve_fs_hitl(
+        &self,
+        request_id: String,
+        decision: super::types::FsHitlDecision,
+    ) -> Result<(), ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::ResolveFsHitl {
+                request_id,
+                decision,
                 reply: reply_tx,
             })
             .await
@@ -2262,6 +2358,7 @@ mod tests {
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: pending,
+            pending_fs_approvals: PendingFilesystemApprovals::new(),
             user_memory: None,
             enrichment_extractor: None,
             tx,
@@ -2287,6 +2384,9 @@ mod tests {
             parent_session_id: None,
             fork_depth: 0,
             project_id: None,
+            fs_allow_rules: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashSet::new(),
+            )),
         };
         manager.sessions.insert("sess-1".into(), session);
 
@@ -2385,6 +2485,7 @@ mod tests {
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: PendingChatApprovals::new(),
+            pending_fs_approvals: PendingFilesystemApprovals::new(),
             user_memory: None,
             enrichment_extractor: None,
             tx,
@@ -2443,6 +2544,7 @@ mod tests {
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: PendingChatApprovals::new(),
+            pending_fs_approvals: PendingFilesystemApprovals::new(),
             user_memory: None,
             enrichment_extractor: None,
             tx,
@@ -2479,6 +2581,7 @@ mod tests {
             event_bus: event_tx,
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: PendingChatApprovals::new(),
+            pending_fs_approvals: PendingFilesystemApprovals::new(),
             user_memory: None,
             enrichment_extractor: None,
             tx,

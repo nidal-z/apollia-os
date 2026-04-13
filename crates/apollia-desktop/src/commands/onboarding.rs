@@ -1124,7 +1124,13 @@ async fn create_companion_session_inner(
         .ok_or(OnboardingError::ChatNotAvailable)?;
 
     let info = manager
-        .create_session(ChatMode::Companion, None, Some(system_prompt), Vec::new(), None)
+        .create_session(
+            ChatMode::Companion,
+            None,
+            Some(system_prompt),
+            Vec::new(),
+            None,
+        )
         .await
         .map_err(|e| OnboardingError::SessionCreationFailed(e.to_string()))?;
 
@@ -2299,8 +2305,14 @@ mod tour_tests {
     fn test_operator_interactive_steps_have_interaction() {
         let steps = operator_steps();
         // op-agents-2 (index 4) and op-chat-3 (index 7) are wait_event
-        assert!(steps[4].interaction.is_some(), "op-agents-2 must have interaction");
-        assert!(steps[7].interaction.is_some(), "op-chat-3 must have interaction");
+        assert!(
+            steps[4].interaction.is_some(),
+            "op-agents-2 must have interaction"
+        );
+        assert!(
+            steps[7].interaction.is_some(),
+            "op-chat-3 must have interaction"
+        );
     }
 
     #[test]
@@ -2310,7 +2322,12 @@ mod tour_tests {
             if i == 4 || i == 7 {
                 continue; // interactive steps
             }
-            assert!(step.interaction.is_none(), "step '{}' at index {} must be passive", step.id, i);
+            assert!(
+                step.interaction.is_none(),
+                "step '{}' at index {} must be passive",
+                step.id,
+                i
+            );
         }
     }
 
@@ -2331,7 +2348,8 @@ mod tour_tests {
             if seen_groups.last().map(|s: &String| s.as_str()) != Some(g) {
                 assert!(
                     !seen_groups.contains(&g.to_string()),
-                    "group '{}' appears non-contiguously", g
+                    "group '{}' appears non-contiguously",
+                    g
                 );
                 seen_groups.push(g.to_string());
             }
@@ -2341,10 +2359,14 @@ mod tour_tests {
     #[test]
     fn test_operator_group_count_is_8() {
         let steps = operator_steps();
-        let groups: std::collections::HashSet<_> = steps.iter()
-            .filter_map(|s| s.group.as_deref())
-            .collect();
-        assert_eq!(groups.len(), 8, "expected 8 unique groups, got {:?}", groups);
+        let groups: std::collections::HashSet<_> =
+            steps.iter().filter_map(|s| s.group.as_deref()).collect();
+        assert_eq!(
+            groups.len(),
+            8,
+            "expected 8 unique groups, got {:?}",
+            groups
+        );
     }
 
     #[test]

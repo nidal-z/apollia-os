@@ -13,7 +13,66 @@
 //! - `PrivilegeEscalation`  → CWE-269 (Improper Privilege Management)
 //! - `ResourceExhaustion`   → CWE-400 (Uncontrolled Resource Consumption)
 
-use apollia_core::BashValidatorConfig;
+use apollia_core::{BashValidatorConfig, FilesystemRiskConfig};
+
+/// Opération filesystem soumise à classification de risque.
+///
+/// Utilisée par [`RiskClassifier::classify_filesystem`] pour adapter le niveau
+/// de risque selon la sémantique de l'opération (lecture vs écriture vs destruction).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemOp {
+    /// Lecture d'un fichier ou d'un répertoire.
+    Read,
+    /// Création ou écrasement d'un fichier.
+    Write,
+    /// Suppression d'un fichier ou répertoire.
+    Delete,
+    /// Modification des permissions.
+    Chmod,
+}
+
+impl FilesystemOp {
+    /// Retourne la représentation string pour les events / logs.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Read => "read",
+            Self::Write => "write",
+            Self::Delete => "delete",
+            Self::Chmod => "chmod",
+        }
+    }
+}
+
+/// Niveau de risque résultant d'une classification filesystem.
+///
+/// Ordre total : `Safe < Low < Medium < High < Critical`.
+/// Utilisé par le HITL broker pour décider de la friction à appliquer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RiskLevel {
+    /// Opération bénigne, aucune friction.
+    Safe,
+    /// Opération légèrement sensible, toast discret possible.
+    Low,
+    /// Opération sensible (ex : write hors workspace), modal HITL requis.
+    Medium,
+    /// Opération à haut risque (path système / destructive), modal HITL sans "toujours autoriser".
+    High,
+    /// Opération critique, confirmation secondaire obligatoire.
+    Critical,
+}
+
+impl RiskLevel {
+    /// Retourne la représentation string pour les events / i18n.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Safe => "safe",
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+            Self::Critical => "critical",
+        }
+    }
+}
 
 /// Catégorie de risque détectée sur une commande shell.
 ///
@@ -91,6 +150,76 @@ impl RiskClassifier {
         }
 
         risks
+    }
+
+    /// Classe une opération filesystem par niveau de risque.
+    ///
+    /// La classification est **synchrone, sans I/O** (Principe #4 — Fail fast).
+    /// Elle se base sur :
+    /// 1. Le type d'opération (`Delete` / `Chmod` → toujours `High`)
+    /// 2. Les paths système configurés (écriture → `High`)
+    /// 3. Les paths credentials (écriture → `High` ; lecture → `Low` — ADR-069)
+    /// 4. La position du path par rapport au workspace courant
+    ///
+    /// Si `canonicalize()` échoue (path n'existe pas encore), la classification
+    /// est effectuée sur le path tel quel.
+    pub fn classify_filesystem(
+        op: FilesystemOp,
+        path: &std::path::Path,
+        workspace: Option<&std::path::Path>,
+        config: &FilesystemRiskConfig,
+    ) -> RiskLevel {
+        // 1. Opérations destructrices → High indépendamment du path.
+        if matches!(op, FilesystemOp::Delete | FilesystemOp::Chmod) {
+            return RiskLevel::High;
+        }
+
+        // Tenter de canonicaliser le path pour des comparaisons fiables.
+        // En cas d'échec (path inexistant), on travaille sur le path brut.
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        let p = canonical.as_path();
+
+        // 2. Paths système : écriture = High.
+        // On compare à la fois le path canonicalisé et le path original pour
+        // gérer les symlinks systèmes (ex. /etc → /private/etc sur macOS).
+        let is_system = config.system_paths.iter().any(|sp| {
+            let sp_canon = sp.canonicalize().unwrap_or_else(|_| sp.clone());
+            p.starts_with(sp) || p.starts_with(&sp_canon)
+        });
+
+        if matches!(op, FilesystemOp::Write) && is_system {
+            return RiskLevel::High;
+        }
+
+        // 3. Paths credentials : écriture = High, lecture = Low (ADR-069).
+        let is_credential = config.credential_paths.iter().any(|cp| {
+            let cp_canon = cp.canonicalize().unwrap_or_else(|_| cp.clone());
+            p.starts_with(cp) || p.starts_with(&cp_canon)
+        });
+
+        if matches!(op, FilesystemOp::Write) && is_credential {
+            return RiskLevel::High;
+        }
+        if matches!(op, FilesystemOp::Read) && is_credential {
+            return RiskLevel::Low;
+        }
+
+        // 4. In/out workspace.
+        let in_workspace = workspace
+            .map(|ws| {
+                let canonical_ws = ws.canonicalize().unwrap_or_else(|_| ws.to_path_buf());
+                p.starts_with(&canonical_ws)
+            })
+            .unwrap_or(false);
+
+        match op {
+            FilesystemOp::Read if in_workspace => RiskLevel::Safe,
+            FilesystemOp::Read => RiskLevel::Low,
+            FilesystemOp::Write if in_workspace => RiskLevel::Low,
+            FilesystemOp::Write => RiskLevel::Medium,
+            // Delete / Chmod handled above.
+            FilesystemOp::Delete | FilesystemOp::Chmod => RiskLevel::High,
+        }
     }
 
     /// Retourne `true` si `command` contient au moins un pattern de `patterns`.
@@ -229,5 +358,169 @@ mod tests {
         // THEN — les deux catégories sont détectées
         assert!(risks.contains(&RiskCategory::NetworkEgress));
         assert!(risks.contains(&RiskCategory::DestructiveOp));
+    }
+}
+
+#[cfg(test)]
+mod tests_filesystem {
+    use super::*;
+    use std::path::{Path, PathBuf};
+
+    fn default_fs_config() -> FilesystemRiskConfig {
+        FilesystemRiskConfig {
+            system_paths: vec![PathBuf::from("/etc"), PathBuf::from("/usr")],
+            credential_paths: vec![PathBuf::from("/home/alice/.ssh")],
+        }
+    }
+
+    #[test]
+    fn risk_level_ordering() {
+        // GIVEN the RiskLevel ordering
+        // WHEN comparing levels
+        // THEN Safe < Low < Medium < High < Critical
+        assert!(RiskLevel::Safe < RiskLevel::Low);
+        assert!(RiskLevel::Low < RiskLevel::Medium);
+        assert!(RiskLevel::Medium < RiskLevel::High);
+        assert!(RiskLevel::High < RiskLevel::Critical);
+    }
+
+    #[test]
+    fn classify_read_in_workspace_is_safe() {
+        // GIVEN workspace /home/alice/proj and path inside it
+        let ws = Path::new("/home/alice/proj");
+        let path = Path::new("/home/alice/proj/src/main.rs");
+        // WHEN
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Read,
+            path,
+            Some(ws),
+            &default_fs_config(),
+        );
+        // THEN Safe (or at worst Low if canonicalize fails — both are below Medium)
+        assert!(level <= RiskLevel::Low);
+    }
+
+    #[test]
+    fn classify_write_out_workspace_is_medium() {
+        // GIVEN workspace /home/alice/proj and path outside it
+        let ws = Path::new("/home/alice/proj");
+        let path = Path::new("/home/alice/other/notes.md");
+        // WHEN
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Write,
+            path,
+            Some(ws),
+            &default_fs_config(),
+        );
+        // THEN Medium (hors workspace, pas système)
+        assert_eq!(level, RiskLevel::Medium);
+    }
+
+    #[test]
+    fn classify_write_system_path_is_high() {
+        // GIVEN path in /etc (system path)
+        let path = Path::new("/etc/hosts");
+        // WHEN
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Write,
+            path,
+            None,
+            &default_fs_config(),
+        );
+        // THEN High
+        assert_eq!(level, RiskLevel::High);
+    }
+
+    #[test]
+    fn classify_delete_in_workspace_is_high() {
+        // GIVEN path inside workspace but delete op
+        let ws = Path::new("/home/alice/proj");
+        let path = Path::new("/home/alice/proj/tmp.txt");
+        // WHEN
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Delete,
+            path,
+            Some(ws),
+            &default_fs_config(),
+        );
+        // THEN High (delete is always high regardless of workspace)
+        assert_eq!(level, RiskLevel::High);
+    }
+
+    #[test]
+    fn classify_read_ssh_config_is_low_not_high() {
+        // GIVEN a credential path (.ssh) and Read operation
+        let path = Path::new("/home/alice/.ssh/config");
+        // WHEN
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Read,
+            path,
+            None,
+            &default_fs_config(),
+        );
+        // THEN Low (reading credentials is not high risk — ADR-069)
+        assert_eq!(level, RiskLevel::Low);
+    }
+
+    #[test]
+    fn classify_write_ssh_key_is_high() {
+        // GIVEN a credential path and Write operation
+        let path = Path::new("/home/alice/.ssh/id_rsa");
+        // WHEN
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Write,
+            path,
+            None,
+            &default_fs_config(),
+        );
+        // THEN High (writing credentials is always High)
+        assert_eq!(level, RiskLevel::High);
+    }
+
+    #[test]
+    fn classify_no_workspace_write_is_medium() {
+        // GIVEN no workspace and a regular path
+        let path = Path::new("/home/alice/docs/note.md");
+        // WHEN
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Write,
+            path,
+            None,
+            &default_fs_config(),
+        );
+        // THEN Medium
+        assert_eq!(level, RiskLevel::Medium);
+    }
+
+    #[test]
+    fn classify_no_workspace_read_is_low() {
+        // GIVEN no workspace and a regular path
+        let path = Path::new("/home/alice/docs/note.md");
+        // WHEN
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Read,
+            path,
+            None,
+            &default_fs_config(),
+        );
+        // THEN Low (no workspace = slightly elevated vs Safe)
+        assert_eq!(level, RiskLevel::Low);
+    }
+
+    #[test]
+    fn filesystem_op_as_str() {
+        assert_eq!(FilesystemOp::Read.as_str(), "read");
+        assert_eq!(FilesystemOp::Write.as_str(), "write");
+        assert_eq!(FilesystemOp::Delete.as_str(), "delete");
+        assert_eq!(FilesystemOp::Chmod.as_str(), "chmod");
+    }
+
+    #[test]
+    fn risk_level_as_str() {
+        assert_eq!(RiskLevel::Safe.as_str(), "safe");
+        assert_eq!(RiskLevel::Low.as_str(), "low");
+        assert_eq!(RiskLevel::Medium.as_str(), "medium");
+        assert_eq!(RiskLevel::High.as_str(), "high");
+        assert_eq!(RiskLevel::Critical.as_str(), "critical");
     }
 }

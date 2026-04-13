@@ -414,9 +414,7 @@ pub struct A2ASkillView {
 ///
 /// Returns an empty list when A2A is not wired or no workers are active.
 #[tauri::command]
-pub async fn list_a2a_skills(
-    state: State<'_, RuntimeHandle>,
-) -> Result<Vec<A2ASkillView>, String> {
+pub async fn list_a2a_skills(state: State<'_, RuntimeHandle>) -> Result<Vec<A2ASkillView>, String> {
     let manager = match state.chat_manager.as_ref() {
         Some(m) => m,
         None => return Ok(Vec::new()),
