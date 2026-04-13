@@ -17,7 +17,7 @@ from apollia.testing import MockContext  # noqa: E402 (after sys.path setup)
 
 # Load excel-worker.py via its file path — the hyphen in the filename
 # prevents direct import, so importlib.util is used instead.
-_AGENT_PATH = _REPO_ROOT / "agents" / "excel-worker.py"
+_AGENT_PATH = _REPO_ROOT / "agents" / "workers" / "excel-worker.py"
 _spec = importlib.util.spec_from_file_location("excel_worker", _AGENT_PATH)
 assert _spec is not None and _spec.loader is not None
 excel_worker = importlib.util.module_from_spec(_spec)

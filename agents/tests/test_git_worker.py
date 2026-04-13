@@ -18,7 +18,7 @@ from apollia.testing import MockContext  # noqa: E402 (after sys.path setup)
 
 # Load git-worker.py via its file path — the hyphen in the filename
 # prevents direct import, so importlib.util is used instead.
-_AGENT_PATH = _REPO_ROOT / "agents" / "git-worker.py"
+_AGENT_PATH = _REPO_ROOT / "agents" / "workers" / "git-worker.py"
 _spec = importlib.util.spec_from_file_location("git_worker", _AGENT_PATH)
 assert _spec is not None and _spec.loader is not None
 git_worker = importlib.util.module_from_spec(_spec)

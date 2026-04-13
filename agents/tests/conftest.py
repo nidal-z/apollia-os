@@ -29,6 +29,8 @@ if str(_REPO_ROOT / "sdk") not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "sdk"))
 if str(_REPO_ROOT / "agents") not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "agents"))
+if str(_REPO_ROOT / "agents" / "workers") not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT / "agents" / "workers"))
 
 
 class MockTools:

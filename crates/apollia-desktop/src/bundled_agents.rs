@@ -15,23 +15,23 @@ use apollia_tools::agent_repository::InstalledAgent;
 use apollia_tools::AgentRepository;
 
 /// Source code of the onboarding agent, embedded at compile time.
-const ONBOARDING_AGENT_PY: &str = include_str!("../../../agents/onboarding-agent.py");
+const ONBOARDING_AGENT_PY: &str = include_str!("../../../agents/system/onboarding-agent.py");
 
 /// Bundled version — must match the `manifest()["version"]` in the Python file.
 const ONBOARDING_AGENT_VERSION: &str = "1.4.0";
 
 // ── Worker agents embedded at compile time ───────────────────────────────────
 
-const EXCEL_WORKER_PY: &str = include_str!("../../../agents/bundled/excel-worker.py");
+const EXCEL_WORKER_PY: &str = include_str!("../../../agents/workers/excel-worker.py");
 const EXCEL_WORKER_VERSION: &str = "0.1.0";
 
-const CSV_WORKER_PY: &str = include_str!("../../../agents/bundled/csv-data-worker.py");
+const CSV_WORKER_PY: &str = include_str!("../../../agents/workers/csv-data-worker.py");
 const CSV_WORKER_VERSION: &str = "0.1.0";
 
-const PDF_WORKER_PY: &str = include_str!("../../../agents/bundled/pdf-worker.py");
+const PDF_WORKER_PY: &str = include_str!("../../../agents/workers/pdf-worker.py");
 const PDF_WORKER_VERSION: &str = "0.1.0";
 
-const CODE_WORKER_PY: &str = include_str!("../../../agents/bundled/code-worker.py");
+const CODE_WORKER_PY: &str = include_str!("../../../agents/workers/code-worker.py");
 const CODE_WORKER_VERSION: &str = "0.1.0";
 
 /// Ensures all bundled agents are extracted and registered in the repository.
