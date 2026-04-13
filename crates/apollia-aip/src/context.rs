@@ -842,7 +842,10 @@ impl RuntimeContext {
     ///
     /// Convertit le snapshot en [`WorkspaceContextPy`] accessible depuis Python
     /// via `ctx.workspace`. Doit être appelé après [`new_with_llm`](RuntimeContext::new_with_llm).
-    pub fn with_workspace_snapshot(mut self, snapshot: &apollia_workspace::WorkspaceSnapshot) -> Self {
+    pub fn with_workspace_snapshot(
+        mut self,
+        snapshot: &apollia_workspace::WorkspaceSnapshot,
+    ) -> Self {
         let workspace_py = WorkspaceContextPy::from_snapshot(snapshot);
         self.workspace = pyo3::Python::with_gil(|py| pyo3::Py::new(py, workspace_py).ok());
         self
@@ -1218,6 +1221,21 @@ impl RuntimeContext {
                 Ok(py_obj)
             })
         })
+    }
+}
+
+/// Calcule le namespace mémoire effectif pour un agent dans un contexte de session.
+///
+/// Si l'agent tourne dans un projet (`project_id` non vide), le namespace est préfixé
+/// avec le `project_id` pour garantir l'isolation entre projets.
+///
+/// Convention : `"{project_id}:{manifest_namespace}"` | `"{manifest_namespace}"`
+///
+/// Les `shared_memory_namespaces` ne sont PAS préfixés — ils sont globaux.
+pub fn effective_memory_namespace(manifest_namespace: &str, project_id: Option<&str>) -> String {
+    match project_id {
+        Some(pid) if !pid.is_empty() => format!("{pid}:{manifest_namespace}"),
+        _ => manifest_namespace.to_owned(),
     }
 }
 
@@ -2086,5 +2104,78 @@ mod workspace_context_tests {
         let ctx = RuntimeContext::for_test();
         // THEN workspace is None
         assert!(ctx.workspace.is_none());
+    }
+
+    // ── effective_memory_namespace ──────────────────────────────────────────────
+
+    #[test]
+    fn test_effective_namespace_with_project_id() {
+        // GIVEN
+        let manifest_ns = "dev-assistant";
+        let project_id = Some("proj_abc123");
+        // WHEN
+        let ns = effective_memory_namespace(manifest_ns, project_id);
+        // THEN
+        assert_eq!(ns, "proj_abc123:dev-assistant");
+    }
+
+    #[test]
+    fn test_effective_namespace_without_project_id() {
+        // GIVEN
+        let manifest_ns = "dev-assistant";
+        let project_id: Option<&str> = None;
+        // WHEN
+        let ns = effective_memory_namespace(manifest_ns, project_id);
+        // THEN
+        assert_eq!(ns, "dev-assistant");
+    }
+
+    #[test]
+    fn test_effective_namespace_empty_project_id_treated_as_none() {
+        // GIVEN
+        let manifest_ns = "test-agent";
+        let project_id = Some("");
+        // WHEN
+        let ns = effective_memory_namespace(manifest_ns, project_id);
+        // THEN
+        assert_eq!(ns, "test-agent");
+    }
+
+    #[test]
+    fn test_isolation_between_two_projects() {
+        use apollia_memory::{manager::MemoryManager, semantic::SemanticMemory};
+        use tempfile::TempDir;
+
+        // GIVEN an agent that wrote "forbidden_deps" in proj_A
+        let dir = TempDir::new().expect("temp dir");
+
+        let ns_a = effective_memory_namespace("dev-assistant", Some("proj_A"));
+        let ns_b = effective_memory_namespace("dev-assistant", Some("proj_B"));
+
+        {
+            let mut mgr = MemoryManager::new(dir.path(), Some(ns_a.clone()), vec![]);
+            let store = mgr.store(&ns_a).expect("open store for proj_A");
+            let sem = SemanticMemory::new(store);
+            sem.remember(
+                &ns_a,
+                "forbidden_deps",
+                &serde_json::json!("no_async_std"),
+                1.0,
+                None,
+                None,
+            )
+            .expect("write to proj_A");
+        }
+
+        // WHEN reading from the same agent in proj_B
+        let mut mgr_b = MemoryManager::new(dir.path(), Some(ns_b.clone()), vec![]);
+        let store_b = mgr_b.store(&ns_b).expect("open store for proj_B");
+        let sem_b = SemanticMemory::new(store_b);
+        let found = sem_b
+            .recall(&ns_b, "forbidden_deps")
+            .expect("recall from proj_B");
+
+        // THEN the key written in proj_A is invisible in proj_B
+        assert!(found.is_none());
     }
 }

@@ -999,7 +999,9 @@ impl ChatSessionRepository {
                  ORDER BY resolved_at DESC
                  LIMIT ?2",
             )
-            .map_err(|e| ChatError::InternalError(format!("list_tool_approval_history prepare: {e}")))?;
+            .map_err(|e| {
+                ChatError::InternalError(format!("list_tool_approval_history prepare: {e}"))
+            })?;
 
         let rows = stmt
             .query_map(params![cutoff, limit], |row| {
@@ -1010,13 +1012,15 @@ impl ChatSessionRepository {
                     resolved_at: row.get(4)?,
                 })
             })
-            .map_err(|e| ChatError::InternalError(format!("list_tool_approval_history query: {e}")))?;
+            .map_err(|e| {
+                ChatError::InternalError(format!("list_tool_approval_history query: {e}"))
+            })?;
 
         let mut result = Vec::new();
         for r in rows {
-            result.push(
-                r.map_err(|e| ChatError::InternalError(format!("list_tool_approval_history row: {e}")))?,
-            );
+            result.push(r.map_err(|e| {
+                ChatError::InternalError(format!("list_tool_approval_history row: {e}"))
+            })?);
         }
         Ok(result)
     }

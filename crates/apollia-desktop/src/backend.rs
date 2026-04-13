@@ -8,7 +8,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use apollia_aip::bridge::AIPBridge;
-use apollia_aip::context::{RuntimeContext, ToolExecutor, ToolProxy};
+use apollia_aip::context::{effective_memory_namespace, RuntimeContext, ToolExecutor, ToolProxy};
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{AIPError, AIPResult, AIPTask, AgentManifest, PendingApprovals, TaskStatus};
 use apollia_llm::{
@@ -307,8 +307,9 @@ impl AgentRunner for BridgeRunner {
             };
 
             let memory_interface = memory_namespace.as_deref().and_then(|ns| {
-                let manager = MemoryManager::new(&memory_base_dir, Some(ns.to_string()), vec![]);
-                MemoryInterface::new(manager, ns.to_string(), agent_id.clone(), false, None)
+                let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
+                let manager = MemoryManager::new(&memory_base_dir, Some(eff_ns.clone()), vec![]);
+                MemoryInterface::new(manager, eff_ns, agent_id.clone(), false, None)
             });
 
             let ctx: PyObject = Python::with_gil(|py| {

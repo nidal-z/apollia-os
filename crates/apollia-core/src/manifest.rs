@@ -54,7 +54,13 @@ pub struct AgentManifest {
     /// Indique si l'agent supporte le protocole Agent-to-Agent (défaut: false).
     #[serde(default)]
     pub supports_a2a: bool,
-    /// Namespace mémoire privé de l'agent (None = pas de mémoire persistante).
+    /// Namespace mémoire primaire de l'agent.
+    ///
+    /// Valeur déclarée statiquement dans le manifest Python. Le runtime préfixe
+    /// automatiquement avec le `project_id` si l'agent tourne dans un contexte
+    /// projet : namespace effectif = `"{project_id}:{memory_namespace}"`.
+    ///
+    /// Si `None`, l'agent n'a pas accès à la mémoire persistante.
     #[serde(default)]
     pub memory_namespace: Option<String>,
     /// Namespaces mémoire partagés accessibles en lecture.

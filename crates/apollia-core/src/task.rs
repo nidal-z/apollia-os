@@ -12,6 +12,12 @@ pub struct AIPTask {
     pub task_id: String,
     /// Identifiant de contexte groupant les tâches liées (ex: session utilisateur).
     pub context_id: String,
+    /// Identifiant du projet auquel cette tâche est rattachée.
+    ///
+    /// `None` pour les sessions standalone. Utilisé par le runtime pour préfixer
+    /// le namespace mémoire effectif de l'agent : `"{project_id}:{memory_namespace}"`.
+    #[serde(default)]
+    pub project_id: Option<String>,
     /// Entrée multi-modale de la tâche.
     pub input: AIPInput,
     /// Historique des échanges précédents dans ce contexte.
