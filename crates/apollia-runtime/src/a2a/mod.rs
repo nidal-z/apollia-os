@@ -297,9 +297,9 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
                         })
                     };
                 }
-                Ok(RuntimeEvent::TaskCanceled { task_id: canceled_id })
-                    if canceled_id.to_string() == task_id_str =>
-                {
+                Ok(RuntimeEvent::TaskCanceled {
+                    task_id: canceled_id,
+                }) if canceled_id.to_string() == task_id_str => {
                     return Err(A2aError::WorkerFailed {
                         reason: "worker agent task was canceled".to_string(),
                     });

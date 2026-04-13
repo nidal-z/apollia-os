@@ -130,7 +130,13 @@ pub async fn create_session<B: ExecutionBackend + Clone>(
     };
 
     match manager
-        .create_session(mode, body.agent_name, body.system_prompt, body.tools, body.project_id)
+        .create_session(
+            mode,
+            body.agent_name,
+            body.system_prompt,
+            body.tools,
+            body.project_id,
+        )
         .await
     {
         Ok(info) => (StatusCode::CREATED, Json(info)).into_response(),
@@ -591,6 +597,7 @@ fn chat_error_to_response(err: crate::chat::types::ChatError) -> (StatusCode, Js
         ChatError::NoLlmConfigured => (StatusCode::BAD_REQUEST, err.to_string()),
         ChatError::BudgetExhausted => (StatusCode::TOO_MANY_REQUESTS, err.to_string()),
         ChatError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+        ChatError::ProjectNotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
     };
     (status, Json(ErrorResponse { error: msg }))
 }
@@ -679,19 +686,17 @@ mod tests {
         let tool_registry = ToolRegistryHandle::start();
 
         let db_path = dir.path().join("chat.db");
-        let noop_invoker: Arc<dyn apollia_llm::ToolInvoker> =
-            Arc::new(crate::chat::NativeChatToolInvoker::new());
         let chat_manager = ChatSessionManagerHandle::spawn(
             &db_path,
             Some(Arc::new(LlmRouter::empty())),
             tool_registry.clone(),
-            noop_invoker,
             Arc::new(AlwaysOkLoader),
             None,
             event_tx.clone(),
             StepBudgetConfig::default(),
             None,
             registry_handle.clone(),
+            None,
             None,
             None,
         )

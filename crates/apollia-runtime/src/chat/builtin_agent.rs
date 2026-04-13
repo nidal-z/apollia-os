@@ -47,24 +47,26 @@ pub const DEFAULT_CONTEXT_WINDOW_SIZE: usize = 20;
 ///
 /// Used by [`BuiltInChatAgent`] to execute tools in Chat Libre mode.
 /// Each tool invocation is fully async (no `block_in_place`).
+///
+/// The sandbox root scopes all file operations to a specific directory.
+/// It is resolved once per session from the project's `workspace_path` (ADR-069).
 pub struct NativeChatToolInvoker {
-    /// Sandbox root for file operations.
-    home_dir: std::path::PathBuf,
-}
-
-impl Default for NativeChatToolInvoker {
-    fn default() -> Self {
-        Self::new()
-    }
+    /// Sandbox root for file operations — set per session, never global.
+    sandbox_root: std::path::PathBuf,
 }
 
 impl NativeChatToolInvoker {
-    /// Create a new invoker using the user's home directory as sandbox root.
-    pub fn new() -> Self {
-        let home_dir = std::env::var("HOME")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|_| std::env::temp_dir());
-        Self { home_dir }
+    /// Create a new invoker with the given workspace as sandbox root.
+    ///
+    /// If `workspace_path` is `Some(p)` and `p` is an existing directory, it is
+    /// used as-is. Otherwise falls back to `std::env::current_dir()`, and finally
+    /// to `std::env::temp_dir()`. Never falls back to `$HOME`.
+    pub fn new_with_workspace(workspace_path: Option<std::path::PathBuf>) -> Self {
+        let sandbox_root = workspace_path
+            .filter(|p| p.is_dir())
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(std::env::temp_dir);
+        Self { sandbox_root }
     }
 
     /// Execute `bash_executor` with the given JSON arguments.
@@ -104,7 +106,7 @@ impl NativeChatToolInvoker {
     async fn invoke_file_read(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_read::{FileRead, FileReadInput};
 
-        let tool = FileRead::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let tool = FileRead::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
         let input: FileReadInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("file_read: invalid arguments: {e}"))?;
         let output = tool.run(input).await.map_err(|e| e.to_string())?;
@@ -115,7 +117,7 @@ impl NativeChatToolInvoker {
     async fn invoke_file_write(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_write::{FileWrite, FileWriteInput};
 
-        let tool = FileWrite::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let tool = FileWrite::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
         let input: FileWriteInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("file_write: invalid arguments: {e}"))?;
         tool.run(input).await.map_err(|e| e.to_string())?;
@@ -126,7 +128,7 @@ impl NativeChatToolInvoker {
     async fn invoke_file_list(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_list::{FileList, FileListInput};
 
-        let tool = FileList::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let tool = FileList::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
         let input: FileListInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("file_list: invalid arguments: {e}"))?;
         let output = tool.run(input).await.map_err(|e| e.to_string())?;
@@ -137,7 +139,7 @@ impl NativeChatToolInvoker {
     async fn invoke_file_edit(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_edit::{FileEdit, FileEditInput};
 
-        let tool = FileEdit::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let tool = FileEdit::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
         let input: FileEditInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("file_edit: invalid arguments: {e}"))?;
         let output = tool.run(input).await.map_err(|e| e.to_string())?;
@@ -148,7 +150,7 @@ impl NativeChatToolInvoker {
     async fn invoke_file_glob(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_glob::{FileGlob, FileGlobInput};
 
-        let tool = FileGlob::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let tool = FileGlob::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
         let input: FileGlobInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("file_glob: invalid arguments: {e}"))?;
         let output = tool.run(input).await.map_err(|e| e.to_string())?;
@@ -159,7 +161,7 @@ impl NativeChatToolInvoker {
     async fn invoke_file_grep(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::file_grep::{FileGrep, FileGrepInput};
 
-        let tool = FileGrep::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let tool = FileGrep::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
         let input: FileGrepInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("file_grep: invalid arguments: {e}"))?;
         let output = tool.run(input).await.map_err(|e| e.to_string())?;
@@ -192,7 +194,11 @@ impl NativeChatToolInvoker {
     async fn invoke_python(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::python_executor::{PythonExecutor, PythonInput};
 
-        let venv_base = self.home_dir.join(".apollia").join("venvs");
+        let venv_base = std::env::var("HOME")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::env::temp_dir())
+            .join(".apollia")
+            .join("venvs");
         let executor = PythonExecutor::new("chat-libre", &venv_base).map_err(|e| e.to_string())?;
 
         // Lazily set up the venv on first call (idempotent — skips if already exists).
@@ -233,7 +239,11 @@ impl NativeChatToolInvoker {
     async fn invoke_memory_search(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::memory_search::{MemorySearchInput, MemorySearchTool};
 
-        let base_dir = self.home_dir.join(".apollia").join("memory");
+        let base_dir = std::env::var("HOME")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::env::temp_dir())
+            .join(".apollia")
+            .join("memory");
         let tool = MemorySearchTool::new("user".to_string(), vec![], base_dir);
         let input: MemorySearchInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("memory_search: invalid arguments: {e}"))?;
@@ -248,7 +258,7 @@ impl NativeChatToolInvoker {
     async fn invoke_notebook_read(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::notebook_read::{NotebookRead, NotebookReadInput};
 
-        let tool = NotebookRead::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let tool = NotebookRead::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
         let input: NotebookReadInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("notebook_read: invalid arguments: {e}"))?;
         let output = tool.run(input).await.map_err(|e| e.to_string())?;
@@ -262,7 +272,7 @@ impl NativeChatToolInvoker {
     async fn invoke_notebook_edit(&self, arguments: &serde_json::Value) -> Result<String, String> {
         use apollia_tools::tools::notebook_edit::{NotebookEdit, NotebookEditInput};
 
-        let tool = NotebookEdit::new(self.home_dir.clone()).map_err(|e| e.to_string())?;
+        let tool = NotebookEdit::new(self.sandbox_root.clone()).map_err(|e| e.to_string())?;
         let input: NotebookEditInput = serde_json::from_value(arguments.clone())
             .map_err(|e| format!("notebook_edit: invalid arguments: {e}"))?;
         let output = tool.run(input).await.map_err(|e| e.to_string())?;
@@ -2458,5 +2468,53 @@ mod tests {
         // Last message is current user message
         assert_eq!(messages[21].role, apollia_llm::types::Role::User);
         assert_eq!(text_of(&messages[21]), "new msg");
+    }
+
+    // ── NativeChatToolInvoker constructor tests ──────────────────────────
+
+    #[test]
+    fn new_with_workspace_some_valid_dir_uses_it() {
+        // GIVEN an existing temporary directory
+        let tmp = std::env::temp_dir().join(format!("apollia-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&tmp).expect("create tmp dir");
+
+        // WHEN creating the invoker with that path
+        let invoker = NativeChatToolInvoker::new_with_workspace(Some(tmp.clone()));
+
+        // THEN sandbox_root equals the provided directory
+        assert_eq!(invoker.sandbox_root, tmp);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn new_with_workspace_none_uses_current_dir_not_home() {
+        // GIVEN no workspace path
+        // WHEN creating the invoker with None
+        let invoker = NativeChatToolInvoker::new_with_workspace(None);
+
+        // THEN sandbox_root equals current_dir()
+        let cwd = std::env::current_dir().expect("cwd must be available");
+        assert_eq!(invoker.sandbox_root, cwd);
+
+        // AND sandbox_root is never $HOME
+        if let Ok(home) = std::env::var("HOME") {
+            assert_ne!(
+                invoker.sandbox_root,
+                std::path::PathBuf::from(home),
+                "sandbox root must not fall back to $HOME"
+            );
+        }
+    }
+
+    #[test]
+    fn new_with_workspace_some_invalid_dir_falls_back() {
+        // GIVEN a path that does not exist on disk
+        let ghost = std::path::PathBuf::from("/nonexistent/apollia/ghost-dir");
+
+        // WHEN creating the invoker with that path
+        let invoker = NativeChatToolInvoker::new_with_workspace(Some(ghost.clone()));
+
+        // THEN sandbox_root is not the ghost path (filter rejects non-existent dirs)
+        assert_ne!(invoker.sandbox_root, ghost);
     }
 }

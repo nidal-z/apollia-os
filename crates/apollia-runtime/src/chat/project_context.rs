@@ -74,11 +74,7 @@ impl ProjectContextProvider for DefaultProjectContextProvider {
         }
 
         // 3. Workspace snapshot from configured providers (git, rules, tree, etc.)
-        let enabled_providers: Vec<_> = detail
-            .providers
-            .iter()
-            .filter(|p| p.enabled)
-            .collect();
+        let enabled_providers: Vec<_> = detail.providers.iter().filter(|p| p.enabled).collect();
 
         if !enabled_providers.is_empty() {
             // Determine the workspace directory: use project's workspace_path,
@@ -107,17 +103,13 @@ impl ProjectContextProvider for DefaultProjectContextProvider {
                 })
                 .collect();
 
-            let runtime =
-                apollia_workspace::ProjectRuntime::from_providers_config(&entries, None);
+            let runtime = apollia_workspace::ProjectRuntime::from_providers_config(&entries, None);
             let snapshot = runtime.collect(&cwd).await;
 
             for slice in &snapshot.slices {
                 for section in &slice.sections {
                     if !section.content.is_empty() {
-                        block.push_str(&format!(
-                            "\n### {}\n{}\n",
-                            section.title, section.content
-                        ));
+                        block.push_str(&format!("\n### {}\n{}\n", section.title, section.content));
                         has_content = true;
                     }
                 }

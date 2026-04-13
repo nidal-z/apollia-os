@@ -262,6 +262,9 @@ pub enum ChatError {
     /// An internal error occurred (SQLite, serialization, etc.).
     #[error("internal error: {0}")]
     InternalError(String),
+    /// The project referenced by the chat session was not found in the repository.
+    #[error("project '{0}' referenced by chat session not found")]
+    ProjectNotFound(String),
 }
 
 /// Thread-safe store for pending chat tool approvals.

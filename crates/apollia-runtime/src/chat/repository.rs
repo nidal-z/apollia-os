@@ -870,13 +870,15 @@ impl ChatSessionRepository {
 
         let rows = stmt
             .query_map(params![project_id], row_to_session)
-            .map_err(|e| ChatError::InternalError(format!("list_sessions_by_project query: {e}")))?;
+            .map_err(|e| {
+                ChatError::InternalError(format!("list_sessions_by_project query: {e}"))
+            })?;
 
         let mut result = Vec::new();
         for r in rows {
-            result.push(
-                r.map_err(|e| ChatError::InternalError(format!("list_sessions_by_project row: {e}")))?,
-            );
+            result.push(r.map_err(|e| {
+                ChatError::InternalError(format!("list_sessions_by_project row: {e}"))
+            })?);
         }
         Ok(result)
     }
@@ -1155,7 +1157,7 @@ mod tests {
                     tool_calls_json: None,
                     tool_name: None,
                     created_at: &ts,
-                metadata: None,
+                    metadata: None,
                 })
                 .expect("append");
             assert_eq!(seq, i);
@@ -1198,8 +1200,8 @@ mod tests {
                 tool_calls_json: None,
                 tool_name: None,
                 created_at: &ts,
-            metadata: None,
-                })
+                metadata: None,
+            })
             .expect("append");
         }
 
@@ -1446,8 +1448,8 @@ mod tests {
             tool_calls_json: None,
             tool_name: None,
             created_at: "2026-03-20T10:01:00Z",
-        metadata: None,
-                })
+            metadata: None,
+        })
         .expect("append s1");
 
         repo.create_session(
@@ -1469,8 +1471,8 @@ mod tests {
             tool_calls_json: None,
             tool_name: None,
             created_at: "2026-03-20T11:01:00Z",
-        metadata: None,
-                })
+            metadata: None,
+        })
         .expect("append s2");
 
         // WHEN we list recent summaries with limit=10
@@ -1507,8 +1509,8 @@ mod tests {
             tool_calls_json: None,
             tool_name: None,
             created_at: "2026-03-20T10:01:00Z",
-        metadata: None,
-                })
+            metadata: None,
+        })
         .expect("m1");
         repo.append_message(&AppendMessageParams {
             id: "m2",
@@ -1518,8 +1520,8 @@ mod tests {
             tool_calls_json: None,
             tool_name: None,
             created_at: "2026-03-20T10:02:00Z",
-        metadata: None,
-                })
+            metadata: None,
+        })
         .expect("m2");
         repo.authorize_tool("s1", "bash_executor", "2026-03-20T10:03:00Z")
             .expect("authorize");
@@ -1626,8 +1628,8 @@ mod tests {
             tool_calls_json: None,
             tool_name: None,
             created_at: "2026-03-20T11:01:00Z",
-        metadata: None,
-                })
+            metadata: None,
+        })
         .expect("append");
 
         // THEN parent message count is unchanged

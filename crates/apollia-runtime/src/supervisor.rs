@@ -960,8 +960,6 @@ impl Supervisor {
         // Phase 14: ChatSessionManager — spawned before APIServer to inject handle into AppState.
         info!("Supervisor: starting ChatSessionManager");
         let chat_db_path = self.config.data_dir.join("chat.db");
-        let chat_tool_invoker: std::sync::Arc<dyn apollia_llm::ToolInvoker> =
-            std::sync::Arc::new(crate::chat::NativeChatToolInvoker::new());
 
         // SidechainRepository — opened before A2AInvoker so the logger can be injected.
         let sidechain_logger: Option<crate::a2a::SidechainLogger> = {
@@ -995,7 +993,6 @@ impl Supervisor {
                 &chat_db_path,
                 llm_router.clone(),
                 tool_registry_handle.clone(),
-                chat_tool_invoker,
                 agent_loader.clone(),
                 agent_runner.clone(),
                 event_sender.clone(),
@@ -1009,6 +1006,7 @@ impl Supervisor {
                     ))
                         as std::sync::Arc<dyn crate::chat::ProjectContextProvider>
                 }),
+                project_repository.clone(),
             ) {
                 Ok(handle) => {
                     info!("Supervisor: ChatSessionManager ready");

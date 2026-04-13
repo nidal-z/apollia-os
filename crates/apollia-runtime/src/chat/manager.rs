@@ -19,7 +19,7 @@ use apollia_core::{RuntimeEvent, StepBudgetConfig};
 use apollia_llm::{LlmRouter, ToolInvoker};
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
-use apollia_tools::ToolRegistryHandle;
+use apollia_tools::{ProjectRepository, ToolRegistryHandle};
 
 use super::a2a_tools::CompositeToolInvoker;
 use super::agent_chat::{AgentChatExecutor, ChatAgentRunner};
@@ -237,8 +237,6 @@ struct ChatSessionManager {
     llm_router: Option<Arc<LlmRouter>>,
     /// Tool registry for tool descriptor resolution.
     tool_registry: ToolRegistryHandle,
-    /// Tool invoker for actual tool execution (ADR-015).
-    tool_invoker: Arc<dyn ToolInvoker>,
     /// Agent registry for resolving agent names to IDs.
     registry_handle: AgentRegistryHandle,
     /// Agent runner for Chat Agent mode. `None` disables Agent mode.
@@ -259,6 +257,8 @@ struct ChatSessionManager {
     a2a_invoker: Option<Arc<A2AInvoker>>,
     /// Optional project context provider for injecting project context into system prompts.
     project_context: Option<Arc<dyn ProjectContextProvider>>,
+    /// Optional project repository for resolving workspace_path per session (ADR-069).
+    project_repo: Option<Arc<ProjectRepository>>,
 }
 
 impl ChatSessionManager {
@@ -391,10 +391,7 @@ impl ChatSessionManager {
                         self.handle_link_session_to_project(&session_id, project_id.as_deref());
                     let _ = reply.send(result);
                 }
-                ChatCommand::ListSessionsByProject {
-                    project_id,
-                    reply,
-                } => {
+                ChatCommand::ListSessionsByProject { project_id, reply } => {
                     let result = self.handle_list_sessions_by_project(&project_id);
                     let _ = reply.send(result);
                 }
@@ -676,15 +673,6 @@ impl ChatSessionManager {
                 self.user_memory.clone()
             };
 
-            let agent = BuiltInChatAgent::new(
-                llm_router,
-                self.tool_registry.clone(),
-                Arc::clone(&self.tool_invoker),
-                self.event_bus.clone(),
-                session_user_memory,
-                self.a2a_invoker.clone(),
-            );
-
             let history = session.history.clone();
             let is_first_message = history.len() == 1;
             let is_companion = session.mode == ChatMode::Companion;
@@ -713,15 +701,54 @@ impl ChatSessionManager {
             let stored_summary = self.repository.get_summary(session_id).unwrap_or(None);
             let llm_for_summarize = self.llm_router.clone();
 
-            // Capture project context provider for async injection in spawned task.
+            // Capture project context and repo for async injection in spawned task.
+            // The invoker is created per-session inside the task (ADR-069).
             let project_ctx = self.project_context.clone();
             let session_project_id = session.project_id.clone();
+            let project_repo_for_session = self.project_repo.clone();
+            let a2a_for_agent = self.a2a_invoker.clone();
+            let tool_registry = self.tool_registry.clone();
+            let event_bus = self.event_bus.clone();
 
             tokio::spawn(async move {
+                // Resolve per-session sandbox root from project workspace_path.
+                // On error (project not found) surface as ExchangeError — no panic.
+                let native_invoker = match resolve_workspace_for_session(
+                    &session_project_id,
+                    &project_repo_for_session,
+                )
+                .await
+                {
+                    Ok(inv) => inv,
+                    Err(e) => {
+                        let _ = tx
+                            .send(ChatCommand::ExchangeError {
+                                session_id: sid,
+                                message_id: mid,
+                                error: e.to_string(),
+                            })
+                            .await;
+                        return;
+                    }
+                };
+                let session_invoker: Arc<dyn ToolInvoker> = if let Some(ref a2a) = a2a_for_agent {
+                    Arc::new(CompositeToolInvoker::new(native_invoker, a2a.clone()))
+                } else {
+                    Arc::new(native_invoker)
+                };
+
+                let agent = BuiltInChatAgent::new(
+                    llm_router,
+                    tool_registry,
+                    session_invoker,
+                    event_bus,
+                    session_user_memory,
+                    a2a_for_agent,
+                );
+
                 // On the first message, inject project context if the session belongs to a project.
                 let system_prompt = if is_first_message && !is_companion {
-                    if let (Some(ref pid), Some(ref provider)) =
-                        (&session_project_id, &project_ctx)
+                    if let (Some(ref pid), Some(ref provider)) = (&session_project_id, &project_ctx)
                     {
                         match provider.build_context(pid).await {
                             Some(ctx) => {
@@ -874,9 +901,10 @@ impl ChatSessionManager {
         };
 
         // Serialize thinking trace as JSON metadata.
-        let metadata_json = response.thinking_trace.as_ref().map(|t| {
-            serde_json::json!({ "thinking_trace": t }).to_string()
-        });
+        let metadata_json = response
+            .thinking_trace
+            .as_ref()
+            .map(|t| serde_json::json!({ "thinking_trace": t }).to_string());
 
         // Persist assistant response message
         match self.repository.append_message(&AppendMessageParams {
@@ -1465,6 +1493,38 @@ impl ChatSessionManager {
     }
 }
 
+/// Resolves the sandbox root for a chat session based on its project association.
+///
+/// Called once per message, inside the async tokio task spawned by `handle_send_message`.
+/// Returns a [`NativeChatToolInvoker`] configured with the project's `workspace_path` when
+/// available, or falling back to `current_dir()` when the session has no project or the
+/// project has no workspace set yet. Never falls back to `$HOME`.
+async fn resolve_workspace_for_session(
+    project_id: &Option<String>,
+    project_repo: &Option<Arc<ProjectRepository>>,
+) -> Result<NativeChatToolInvoker, ChatError> {
+    let workspace_path = match project_id {
+        None => None,
+        Some(pid) => {
+            let repo = project_repo
+                .as_ref()
+                .ok_or_else(|| ChatError::ProjectNotFound(pid.clone()))?;
+            let detail = repo
+                .get_project_async(pid.clone())
+                .await
+                .map_err(|_| ChatError::ProjectNotFound(pid.clone()))?;
+            if detail.workspace_path.is_none() {
+                warn!(
+                    project_id = %pid,
+                    "project has no workspace_path configured — falling back to current_dir()"
+                );
+            }
+            detail.workspace_path.map(std::path::PathBuf::from)
+        }
+    };
+    Ok(NativeChatToolInvoker::new_with_workspace(workspace_path))
+}
+
 /// Clonable handle for communicating with the [`ChatSessionManager`] actor.
 ///
 /// All methods are async and return the result via oneshot channels.
@@ -1487,7 +1547,6 @@ impl ChatSessionManagerHandle {
         db_path: &Path,
         llm_router: Option<Arc<LlmRouter>>,
         tool_registry: ToolRegistryHandle,
-        _tool_invoker: Arc<dyn ToolInvoker>,
         _agent_loader: Arc<dyn AgentLoader>,
         agent_runner: Option<Arc<dyn ChatAgentRunner>>,
         event_bus: EventBusSender,
@@ -1496,6 +1555,7 @@ impl ChatSessionManagerHandle {
         registry_handle: AgentRegistryHandle,
         a2a_invoker: Option<Arc<A2AInvoker>>,
         project_context: Option<Arc<dyn ProjectContextProvider>>,
+        project_repo: Option<Arc<ProjectRepository>>,
     ) -> Result<Self, ChatError> {
         let repository = ChatSessionRepository::open(db_path)?;
         let pending_chat_approvals = PendingChatApprovals::new();
@@ -1508,15 +1568,6 @@ impl ChatSessionManagerHandle {
             _ => None,
         };
 
-        let tool_invoker: Arc<dyn ToolInvoker> = if let Some(ref a2a) = a2a_invoker {
-            Arc::new(CompositeToolInvoker::new(
-                NativeChatToolInvoker::new(),
-                a2a.clone(),
-            ))
-        } else {
-            Arc::new(NativeChatToolInvoker::new())
-        };
-
         let (tx, rx) = mpsc::channel(256);
 
         let mut manager = ChatSessionManager {
@@ -1524,7 +1575,6 @@ impl ChatSessionManagerHandle {
             repository,
             llm_router,
             tool_registry,
-            tool_invoker,
             registry_handle,
             agent_runner,
             event_bus,
@@ -1535,6 +1585,7 @@ impl ChatSessionManagerHandle {
             tx: tx.clone(),
             a2a_invoker,
             project_context,
+            project_repo,
         };
 
         // Restore active sessions from SQLite before entering the actor loop
@@ -1954,20 +2005,6 @@ mod tests {
         }
     }
 
-    /// Stub ToolInvoker for manager tests (tool execution tested in builtin_agent).
-    struct NoopTestInvoker;
-
-    #[async_trait::async_trait]
-    impl ToolInvoker for NoopTestInvoker {
-        async fn invoke(
-            &self,
-            _tool_name: &str,
-            _arguments: &serde_json::Value,
-        ) -> Result<String, String> {
-            Ok("ok".into())
-        }
-    }
-
     /// Spawn a ChatSessionManager backed by a temp SQLite database.
     fn spawn_test_manager(
         dir: &tempfile::TempDir,
@@ -1977,13 +2014,11 @@ mod tests {
         let db_path = dir.path().join("chat.db");
         let (event_tx, _) = tokio::sync::broadcast::channel(128);
         let tool_registry = ToolRegistryHandle::start();
-        let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
         let registry_handle = crate::registry::AgentRegistry::spawn(event_tx.clone());
         ChatSessionManagerHandle::spawn(
             &db_path,
             llm_router,
             tool_registry,
-            tool_invoker,
             agent_loader,
             None, // no agent runner in basic tests
             event_tx,
@@ -1992,6 +2027,7 @@ mod tests {
             registry_handle,
             None, // no A2A invoker in basic tests
             None, // no project context in basic tests
+            None, // no project repo in basic tests
         )
         .expect("spawn manager")
     }
@@ -2008,7 +2044,13 @@ mod tests {
 
         // WHEN create_session mode=Libre
         let info = handle
-            .create_session(ChatMode::Libre, None, None, vec!["bash_executor".into()], None)
+            .create_session(
+                ChatMode::Libre,
+                None,
+                None,
+                vec!["bash_executor".into()],
+                None,
+            )
             .await
             .expect("create_session");
 
@@ -2114,19 +2156,18 @@ mod tests {
         let (event_tx, mut event_rx) = tokio::sync::broadcast::channel(128);
         let db_path = dir.path().join("chat.db");
         let tool_registry = ToolRegistryHandle::start();
-        let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
         let registry_handle = crate::registry::AgentRegistry::spawn(event_tx.clone());
         let handle = ChatSessionManagerHandle::spawn(
             &db_path,
             fake_llm_router(),
             tool_registry,
-            tool_invoker,
             Arc::new(AlwaysOkLoader),
             None,
             event_tx,
             StepBudgetConfig::default(),
             None,
             registry_handle,
+            None,
             None,
             None,
         )
@@ -2210,14 +2251,12 @@ mod tests {
         let rx = pending.register("sess-1::msg-1::bash".to_string());
 
         let (tx, _rx) = mpsc::channel(256);
-        let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
         // Manually build manager to inject pending_chat_approvals
         let mut manager = ChatSessionManager {
             sessions: HashMap::new(),
             repository,
             llm_router: fake_llm_router(),
             tool_registry,
-            tool_invoker,
             registry_handle: crate::registry::AgentRegistry::spawn(event_tx.clone()),
             agent_runner: None,
             event_bus: event_tx,
@@ -2228,6 +2267,7 @@ mod tests {
             tx,
             a2a_invoker: None,
             project_context: None,
+            project_repo: None,
         };
 
         // Insert a dummy session so the lookup succeeds
@@ -2307,7 +2347,6 @@ mod tests {
 
         let (event_tx, _) = tokio::sync::broadcast::channel(128);
         let tool_registry = ToolRegistryHandle::start();
-        let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
         let (tx, _rx) = mpsc::channel(256);
         let repository = ChatSessionRepository::open(&db_path).expect("open");
 
@@ -2341,7 +2380,6 @@ mod tests {
             repository,
             llm_router: fake_llm_router(),
             tool_registry,
-            tool_invoker,
             registry_handle: crate::registry::AgentRegistry::spawn(event_tx.clone()),
             agent_runner: None,
             event_bus: event_tx,
@@ -2352,6 +2390,7 @@ mod tests {
             tx,
             a2a_invoker: None,
             project_context: None,
+            project_repo: None,
         };
 
         // WHEN building cross-session context with a substantive first message
@@ -2372,7 +2411,6 @@ mod tests {
 
         let (event_tx, _) = tokio::sync::broadcast::channel(128);
         let tool_registry = ToolRegistryHandle::start();
-        let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
         let (tx, _rx) = mpsc::channel(256);
         let repository = ChatSessionRepository::open(&db_path).expect("open");
 
@@ -2400,7 +2438,6 @@ mod tests {
             repository,
             llm_router: fake_llm_router(),
             tool_registry,
-            tool_invoker,
             registry_handle: crate::registry::AgentRegistry::spawn(event_tx.clone()),
             agent_runner: None,
             event_bus: event_tx,
@@ -2411,6 +2448,7 @@ mod tests {
             tx,
             a2a_invoker: None,
             project_context: None,
+            project_repo: None,
         };
 
         // WHEN building cross-session context with a trivial message
@@ -2428,7 +2466,6 @@ mod tests {
 
         let (event_tx, _) = tokio::sync::broadcast::channel(128);
         let tool_registry = ToolRegistryHandle::start();
-        let tool_invoker: Arc<dyn ToolInvoker> = Arc::new(NoopTestInvoker);
         let (tx, _rx) = mpsc::channel(256);
         let repository = ChatSessionRepository::open(&db_path).expect("open");
 
@@ -2437,7 +2474,6 @@ mod tests {
             repository,
             llm_router: fake_llm_router(),
             tool_registry,
-            tool_invoker,
             registry_handle: crate::registry::AgentRegistry::spawn(event_tx.clone()),
             agent_runner: None,
             event_bus: event_tx,
@@ -2448,6 +2484,7 @@ mod tests {
             tx,
             a2a_invoker: None,
             project_context: None,
+            project_repo: None,
         };
 
         // WHEN building cross-session context with a substantive message but no past sessions
@@ -2466,7 +2503,13 @@ mod tests {
 
         // WHEN create_session mode=Agent with an agent name
         let result = handle
-            .create_session(ChatMode::Agent, Some("nonexistent".into()), None, vec![], None)
+            .create_session(
+                ChatMode::Agent,
+                Some("nonexistent".into()),
+                None,
+                vec![],
+                None,
+            )
             .await;
 
         // THEN Err(ChatError::AgentNotFound)

@@ -105,10 +105,7 @@ impl ToolInvoker for CompositeToolInvoker {
         if let Some(skill_id) = tool_name.strip_prefix(A2A_PREFIX) {
             // Circuit breaker: reject immediately if too many consecutive failures.
             {
-                let failures = self
-                    .a2a_failures
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner());
+                let failures = self.a2a_failures.lock().unwrap_or_else(|e| e.into_inner());
                 let count = failures.get(skill_id).copied().unwrap_or(0);
                 if count >= A2A_CIRCUIT_BREAKER_THRESHOLD {
                     return Err(format!(
@@ -140,10 +137,8 @@ impl ToolInvoker for CompositeToolInvoker {
                 Ok(result) => {
                     // Reset circuit breaker on success.
                     {
-                        let mut failures = self
-                            .a2a_failures
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner());
+                        let mut failures =
+                            self.a2a_failures.lock().unwrap_or_else(|e| e.into_inner());
                         failures.remove(skill_id);
                     }
 
@@ -168,10 +163,8 @@ impl ToolInvoker for CompositeToolInvoker {
                 Err(e) => {
                     // Increment circuit breaker counter.
                     {
-                        let mut failures = self
-                            .a2a_failures
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner());
+                        let mut failures =
+                            self.a2a_failures.lock().unwrap_or_else(|e| e.into_inner());
                         *failures.entry(skill_id.to_string()).or_insert(0) += 1;
                     }
 
@@ -384,7 +377,10 @@ mod tests {
         use crate::chat::builtin_agent::NativeChatToolInvoker;
         use apollia_llm::ToolInvoker;
 
-        let composite = CompositeToolInvoker::new(NativeChatToolInvoker::new(), Arc::new(invoker));
+        let composite = CompositeToolInvoker::new(
+            NativeChatToolInvoker::new_with_workspace(None),
+            Arc::new(invoker),
+        );
 
         // WHEN invoke("a2a:read-excel", {"text": "Lis ventes.xlsx"})
         let result = composite
@@ -419,7 +415,8 @@ mod tests {
         use crate::chat::builtin_agent::NativeChatToolInvoker;
         use apollia_llm::ToolInvoker;
 
-        let composite = CompositeToolInvoker::new(NativeChatToolInvoker::new(), a2a_invoker);
+        let composite =
+            CompositeToolInvoker::new(NativeChatToolInvoker::new_with_workspace(None), a2a_invoker);
 
         // WHEN invoke("unknown_native_tool", ...) — no "a2a:" prefix
         // THEN it is forwarded to NativeChatToolInvoker which returns an error for unknown tools
@@ -450,7 +447,10 @@ mod tests {
         use crate::chat::builtin_agent::NativeChatToolInvoker;
         use apollia_llm::ToolInvoker;
 
-        let composite = CompositeToolInvoker::new(NativeChatToolInvoker::new(), Arc::new(invoker));
+        let composite = CompositeToolInvoker::new(
+            NativeChatToolInvoker::new_with_workspace(None),
+            Arc::new(invoker),
+        );
 
         // WHEN invoke("a2a:read-excel", ...)
         let result = composite

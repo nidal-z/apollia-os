@@ -25,11 +25,11 @@ pub use extractor::{
     extract_user_memory, spawn_extraction, ExtractionError, ExtractionResult, UserMemoryExtractor,
 };
 pub use manager::ChatSessionManagerHandle;
+pub use project_context::DefaultProjectContextProvider;
 pub use repository::{AppendMessageParams, ChatSessionRepository, MessageRow, SessionRow};
 pub use summarizer::{summarize, SummarizerError};
 pub use types::PastSessionSummary;
 pub use types::RecentSessionSummary;
-pub use project_context::DefaultProjectContextProvider;
 pub use types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ChatSessionConfig, ExchangeState,
     MessageId, PendingChatApprovals, ProjectContextProvider, SessionDetail, SessionId, SessionInfo,
