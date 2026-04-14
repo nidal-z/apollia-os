@@ -292,3 +292,23 @@ def pdf_file(tmp_path: Path) -> Path:
     path = tmp_path / "test_document.pdf"
     path.write_bytes(pdf_bytes)
     return path
+
+
+@pytest.fixture
+def tmp_workspace_with_claude_md(tmp_path: Path) -> Path:
+    """Temporary workspace directory containing a minimal CLAUDE.md.
+
+    Suitable for tests that verify an agent reads project rules from the
+    workspace root.
+    """
+    (tmp_path / "CLAUDE.md").write_text(
+        "# Règles\n- anyhow INTERDIT\n- date-fns INTERDIT\n",
+        encoding="utf-8",
+    )
+    return tmp_path
+
+
+@pytest.fixture
+def tmp_workspace_empty(tmp_path: Path) -> Path:
+    """Empty temporary workspace directory with no project files."""
+    return tmp_path
