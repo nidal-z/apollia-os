@@ -6,7 +6,7 @@ projet et sans jamais commencer sans contrat pré-tâche validé.
 
 Fonctionnement :
 - Charge les règles projet depuis la mémoire sémantique (scopée par projet) ou
-  depuis les fichiers workspace (CLAUDE.md, .apollia/rules.md, …), puis persiste
+  depuis les fichiers workspace (APOLLIA.md, .apollia/rules.md, …), puis persiste
   les règles pour éviter toute re-lecture en session suivante.
 - Détecte l'intention (implémentation vs exploration) depuis le message utilisateur.
 - Mode implémentation : charge ou crée une TaskSpec minimale, demande validation
@@ -55,7 +55,10 @@ _MEMORY_CONFIDENCE_CODEBASE: float = 0.7
 # ---------------------------------------------------------------------------
 
 # Fichiers de règles sondés dans l'ordre. Tous les fichiers trouvés sont cumulés.
+# APOLLIA.md est le fichier canonique créé par `apollia workspace init`.
+# CLAUDE.md conservé pour compatibilité avec les workspaces Claude Code.
 _RULE_FILES: tuple[str, ...] = (
+    "APOLLIA.md",
     ".apollia/rules.md",
     "CLAUDE.md",
     "package.json",
@@ -771,7 +774,8 @@ def manifest() -> dict[str, Any]:
             "Aucun commentaire évident dans le code produit. "
             "Deuxième maillon du pipeline spec → dev → review."
         ),
-        "execution_mode": "conversational",
+        "execution_mode": "auto",
+        "agent_type": "assistant",
         "tools_required": ["file_read", "file_write"],
         "tools_optional": ["bash_executor", "file_list"],
         "tools_requiring_approval": ["bash_executor"],
@@ -780,10 +784,36 @@ def manifest() -> dict[str, Any]:
         "llm_backend": "precise",
         "supports_streaming": True,
         "supports_a2a": True,
-        "step_budget": {"max_steps": 100, "wall_clock_secs": 1800},
+        "step_budget": {"max_steps": 100, "max_tool_calls": 80, "wall_clock_secs": 1800},
         "tags": ["dev", "implementation", "code", "pipeline", "a2a"],
         "max_concurrent_tasks": 1,
         "dangerous_tools_allowed": False,
+        "examples": [
+            "Implémente la spec user-auth",
+            "Explore comment le Tool Registry fonctionne dans ce projet",
+            "Implémente la couche API de la spec payment-flow, couche par couche",
+            "Qu'est-ce qui a déjà été implémenté dans ce workspace ?",
+            "Ajoute une feature de login — crée la TaskSpec d'abord si elle n'existe pas",
+        ],
+        "limitations": [
+            "Refuse de commencer sans TaskSpec validée — crée une spec minimale et demande "
+            "confirmation si aucune n'existe",
+            "Ne génère jamais de tests automatiquement — déléguer à review-assistant",
+            "N'efface jamais de code existant sans confirmation explicite",
+            "Délègue à code-worker via A2A pour tout fichier de code — si code-worker est "
+            "absent, signale l'indisponibilité plutôt que d'écrire directement",
+            "N'ajoute jamais de dépendance non présente dans le projet sans validation explicite",
+        ],
+        "setup_notes": (
+            "Fonctionne de manière autonome. Si un fichier .apollia/tasks/{slug}.md existe, "
+            "l'assistant le charge automatiquement. Sans TaskSpec préexistante, il propose d'en "
+            "créer une minimale et demande validation avant de commencer l'implémentation. "
+            "À partir de la deuxième session sur le même projet, les règles projet sont rechargées "
+            "depuis la mémoire sémantique sans relire APOLLIA.md ou Cargo.toml. "
+            "Deux modes distincts : implémentation (avec TaskSpec) et exploration (réponse sans code). "
+            "Fonctionne mieux en pipeline avec spec-assistant (génère la TaskSpec) et review-assistant "
+            "(vérifie l'implémentation), mais chaque assistant est utilisable séparément."
+        ),
         "skills": [
             {
                 "id": "implement",

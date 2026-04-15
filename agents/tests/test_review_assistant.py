@@ -154,7 +154,8 @@ def test_manifest_valid() -> None:
     assert "bash_executor" in m["tools_requiring_approval"]
     assert m["supports_a2a"] is True
     assert m["supports_streaming"] is True
-    assert m["execution_mode"] == "conversational"
+    assert m["execution_mode"] == "auto"
+    assert m["agent_type"] == "assistant"
     assert m["dangerous_tools_allowed"] is False
     assert m["llm_backend"] == "precise"
 

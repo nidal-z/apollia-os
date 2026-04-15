@@ -87,13 +87,14 @@ def manifest() -> dict[str, Any]:
     """Return the AIP agent manifest for excel-worker."""
     return {
         "name": "excel-worker",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "description": (
             "Agent spécialisé pour la manipulation de fichiers Excel (.xlsx, .xlsm). "
             "Lit, analyse, crée et modifie des classeurs Excel via openpyxl. "
             "Fonctionne sur tous les modèles LLM (7B+)."
         ),
         "execution_mode": "direct",
+        "agent_type": "worker",
         "tools_required": ["python_executor", "file_read", "file_write"],
         "tools_optional": ["file_list"],
         "tools_requiring_approval": [],

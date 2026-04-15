@@ -66,7 +66,8 @@ def test_manifest_valid() -> None:
     assert m["memory_namespace"] == "spec-assistant"
     assert "file_read" in m["tools_required"]
     assert "file_write" in m["tools_required"]
-    assert m.get("execution_mode") == "conversational"
+    assert m.get("execution_mode") == "auto"
+    assert m.get("agent_type") == "assistant"
     assert m.get("supports_a2a") is True
     assert m.get("llm_backend") == "precise"
     assert m.get("dangerous_tools_allowed") is False

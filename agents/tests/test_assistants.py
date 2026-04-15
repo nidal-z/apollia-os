@@ -79,6 +79,7 @@ REQUIRED_MANIFEST_FIELDS = [
     "supports_a2a",
     "memory_namespace",
     "execution_mode",
+    "agent_type",
 ]
 
 

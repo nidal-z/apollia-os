@@ -32,13 +32,15 @@
   function openLogsFromDetail(agentId: string) { closeDetail(); openLogs(agentId); }
   function closeLogs() { logsOpen = false; }
 
+  // Split workers from assistants using agent_type (canonical field).
+  // supports_a2a is true for both populations — it is not a valid discriminant.
   const activeAssistants = $derived(
-    $agents.filter((a) => !a.supports_a2a && (a.runtime_status === "active" || a.runtime_status === "degraded")),
+    $agents.filter((a) => a.agent_type !== "worker" && (a.runtime_status === "active" || a.runtime_status === "degraded")),
   );
   const activeWorkers = $derived(
-    $agents.filter((a) => a.supports_a2a && (a.runtime_status === "active" || a.runtime_status === "degraded")),
+    $agents.filter((a) => a.agent_type === "worker" && (a.runtime_status === "active" || a.runtime_status === "degraded")),
   );
-  const allWorkers = $derived($agents.filter((a) => a.supports_a2a));
+  const allWorkers = $derived($agents.filter((a) => a.agent_type === "worker"));
 
   let recentTasks = $derived(
     [...$tasks]

@@ -166,7 +166,7 @@
         </div>
       </div>
       <div class="flex items-center gap-1">
-        {#if agent.supports_a2a}
+        {#if agent.agent_type === "worker"}
           <Badge variant="outline" class="text-[9px] px-1.5 py-0 border-secondary/40 text-secondary/80 gap-0.5" data-testid="agent-worker-badge">
             <Zap size={8} />Worker
           </Badge>
@@ -188,7 +188,7 @@
     </p>
 
     <!-- A2A Skills (workers only) -->
-    {#if agent.supports_a2a && agent.skills.length > 0}
+    {#if agent.agent_type === "worker" && agent.skills.length > 0}
       <div class="mt-2 flex flex-wrap gap-1">
         {#each agent.skills as skill (skill.id)}
           <span
@@ -259,7 +259,7 @@
       </div>
     {:else}
       <!-- Primary actions -->
-      {#if isRunning && agent.id && onchat && !agent.supports_a2a}
+      {#if isRunning && agent.id && onchat && agent.agent_type !== "worker"}
         <Button size="sm" variant="ghost" class="h-6 px-2 text-[11px] gap-1" onclick={() => onchat(agent.name)} data-testid="agent-chat-button-{agent.name}">
           <MessageSquare size={10} /> {$t("nav.chat")}
         </Button>

@@ -92,7 +92,8 @@ def test_manifest_valid() -> None:
     assert m["memory_namespace"] == "dev-assistant"
     assert "bash_executor" in m["tools_requiring_approval"]
     assert m["supports_a2a"] is True
-    assert m["execution_mode"] == "conversational"
+    assert m["execution_mode"] == "auto"
+    assert m["agent_type"] == "assistant"
     assert "file_read" in m["tools_required"]
     assert "file_write" in m["tools_required"]
 

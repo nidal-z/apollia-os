@@ -1655,6 +1655,10 @@ mod orchestrated_tests {
             llm_backend: None,
             packages: vec![],
             memory_config: None,
+            agent_type: None,
+            examples: vec![],
+            limitations: vec![],
+            setup_notes: None,
         }
     }
 
@@ -1798,6 +1802,10 @@ mod orchestrated_tests {
                 llm_backend: None,
                 packages: vec![],
                 memory_config: None,
+                agent_type: None,
+                examples: vec![],
+                limitations: vec![],
+                setup_notes: None,
             },
         };
         let task = AIPTask::default();

@@ -349,6 +349,10 @@ mod tests {
             llm_backend: None,
             packages: vec![],
             memory_config: None,
+            agent_type: None,
+            examples: vec![],
+            limitations: vec![],
+            setup_notes: None,
         }
     }
 
@@ -385,6 +389,10 @@ mod tests {
             llm_backend: None,
             packages: vec![],
             memory_config: None,
+            agent_type: None,
+            examples: vec![],
+            limitations: vec![],
+            setup_notes: None,
         }
     }
 

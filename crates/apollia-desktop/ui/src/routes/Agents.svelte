@@ -32,9 +32,10 @@
   let detailOpen = $state(false);
   let showCreateDialog = $state(false);
 
-  // Split workers (supports_a2a) from assistants
-  const allWorkers = $derived($agents.filter((a) => a.supports_a2a));
-  const allAssistants = $derived($agents.filter((a) => !a.supports_a2a));
+  // Split workers from assistants using agent_type (canonical field).
+  // supports_a2a is true for both populations — it is not a valid discriminant.
+  const allWorkers = $derived($agents.filter((a) => a.agent_type === "worker"));
+  const allAssistants = $derived($agents.filter((a) => a.agent_type !== "worker"));
 
   const activeAssistants = $derived(allAssistants.filter((a) => a.runtime_status === "active" || a.runtime_status === "degraded"));
   const inactiveAssistants = $derived(allAssistants.filter((a) => a.runtime_status !== "active" && a.runtime_status !== "degraded"));

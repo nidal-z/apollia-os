@@ -70,6 +70,7 @@ async def test_manifest_is_valid() -> None:
     assert m["packages"] == []
     assert m["supports_a2a"] is True
     assert m["execution_mode"] == "direct"
+    assert m["agent_type"] == "worker"
     assert m["max_concurrent_tasks"] == 1
     assert {s["id"] for s in m["skills"]} == {"query-sql", "schema-inspect", "data-export"}
     assert m["dangerous_tools_allowed"] is False

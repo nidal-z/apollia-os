@@ -101,7 +101,7 @@ def manifest() -> dict[str, Any]:
     """Return the AIP agent manifest for code-worker."""
     return {
         "name": "code-worker",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "description": (
             "Agent spécialisé pour la génération, le refactoring et la revue de code. "
             "Lit, analyse et modifie des fichiers source via file tools et bash_executor. "
@@ -109,6 +109,7 @@ def manifest() -> dict[str, Any]:
             "Fonctionne sur tous les modèles LLM (7B+)."
         ),
         "execution_mode": "direct",
+        "agent_type": "worker",
         "tools_required": ["bash_executor", "file_read", "file_write", "file_edit"],
         "tools_optional": ["file_list", "file_glob", "file_grep"],
         "tools_requiring_approval": [],

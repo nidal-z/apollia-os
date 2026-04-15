@@ -127,6 +127,57 @@ pub struct AgentManifest {
     /// `auto_purge = true` inside this config triggers a purge at runtime startup.
     #[serde(default)]
     pub memory_config: Option<MemoryConfig>,
+    /// Rôle sémantique de l'agent dans le système.
+    ///
+    /// - `"worker"`    : agent opérationnel, appelé par d'autres agents via A2A — stateless.
+    /// - `"assistant"` : interlocuteur humain, multi-tour, orchestre des workers.
+    /// - `"system"`    : infrastructure interne (onboarding, supervision…).
+    /// - `None`        : non déclaré — agents antérieurs au contrat v2.
+    ///
+    /// L'UI utilise ce champ pour catégoriser les agents. `supports_a2a` étant
+    /// vrai pour les deux populations, il ne suffit pas à les distinguer.
+    #[serde(default)]
+    pub agent_type: Option<String>,
+
+    // ── Documentation utilisateur (contrat v2) ────────────────────────────────
+    //
+    // Ces trois champs sont optionnels et destinés aux développeurs d'agents.
+    // Ils permettent de documenter l'agent directement dans le manifest Python,
+    // sans fichier externe susceptible de dériver de l'implémentation.
+    // L'UI Apollia les affiche dans le panneau détail de l'agent.
+    //
+    // Philosophie : déclaratif, colocalisé avec le code, sans prose libre.
+    // Référence comparative : Microsoft Copilot (conversation_starters),
+    // Hugging Face Model Card (intended use, limitations), MCP (description).
+    // Aucun standard existant ne propose ces trois champs de manière structurée —
+    // c'est un différenciant Apollia.
+
+    /// Exemples de prompts illustrant les usages typiques de l'agent.
+    ///
+    /// Affichés dans l'UI comme des « quick-start chips » cliquables.
+    /// Guideline : 2 à 5 exemples, formulés comme de vraies requêtes utilisateur.
+    /// Vide par défaut — les agents sans exemples n'affichent pas cette section.
+    #[serde(default)]
+    pub examples: Vec<String>,
+
+    /// Limitations explicites de l'agent : ce qu'il refuse ou ne peut pas faire.
+    ///
+    /// Affichées dans le panneau détail pour définir des attentes réalistes.
+    /// Guideline : 2 à 4 points, formulés à la première personne ou à l'infinitif.
+    /// Vide par défaut — les agents sans limitations déclarées n'affichent pas
+    /// cette section.
+    #[serde(default)]
+    pub limitations: Vec<String>,
+
+    /// Note de configuration requise avant la première utilisation.
+    ///
+    /// Affichée dans l'UI uniquement quand non-`None`. Doit indiquer clairement
+    /// ce que l'utilisateur doit mettre en place (fichiers, outils, agents
+    /// complémentaires, permissions). Proscrire les listes — un paragraphe court
+    /// suffit.
+    /// `None` signifie : aucun prérequis — l'agent démarre immédiatement.
+    #[serde(default)]
+    pub setup_notes: Option<String>,
 }
 
 /// Compétence déclarative d'un agent.
@@ -175,6 +226,10 @@ mod tests {
             llm_backend: None,
             packages: vec![],
             memory_config: None,
+            agent_type: None,
+            examples: vec![],
+            limitations: vec![],
+            setup_notes: None,
         };
         // WHEN
         let json = serde_json::to_string(&manifest).expect("serialization failed");
@@ -208,6 +263,10 @@ mod tests {
             llm_backend: None,
             packages: vec![],
             memory_config: None,
+            agent_type: None,
+            examples: vec![],
+            limitations: vec![],
+            setup_notes: None,
         };
         // THEN
         assert_eq!(manifest.max_concurrent_tasks, 1);
@@ -346,6 +405,10 @@ mod tests {
             llm_backend: None,
             packages: vec![],
             memory_config: None,
+            agent_type: None,
+            examples: vec![],
+            limitations: vec![],
+            setup_notes: None,
         };
         // WHEN serde roundtrip JSON
         let json = serde_json::to_string(&manifest).expect("serialize must succeed");

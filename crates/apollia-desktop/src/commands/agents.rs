@@ -76,6 +76,15 @@ pub struct AgentListItem {
     pub supports_a2a: bool,
     /// Skills A2A déclarés (vide si `supports_a2a` est `false`).
     pub skills: Vec<AgentSkillView>,
+    /// Rôle sémantique de l'agent : `"worker"` | `"assistant"` | `"system"` | `None`.
+    /// Utilisé par l'UI pour catégoriser les agents indépendamment de `supports_a2a`.
+    pub agent_type: Option<String>,
+    /// Exemples de prompts illustrant les usages typiques (vide = non renseigné).
+    pub examples: Vec<String>,
+    /// Limitations explicites : ce que l'agent ne fait pas (vide = non renseigné).
+    pub limitations: Vec<String>,
+    /// Note de configuration requise avant la première utilisation (`None` = aucun prérequis).
+    pub setup_notes: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -172,6 +181,10 @@ pub async fn list_agents(
                     description: s.description.clone(),
                 })
                 .collect(),
+            agent_type: manifest.agent_type.clone(),
+            examples: manifest.examples.clone(),
+            limitations: manifest.limitations.clone(),
+            setup_notes: manifest.setup_notes.clone(),
         });
     }
 
@@ -207,6 +220,10 @@ pub async fn list_agents(
                         description: s.description.clone(),
                     })
                     .collect(),
+                agent_type: manifest.agent_type.clone(),
+                examples: manifest.examples.clone(),
+                limitations: manifest.limitations.clone(),
+                setup_notes: manifest.setup_notes.clone(),
             });
         }
     }

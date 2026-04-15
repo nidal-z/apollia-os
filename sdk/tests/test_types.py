@@ -84,4 +84,4 @@ def test_version():
     """__version__ is exposed."""
     from apollia import __version__
 
-    assert __version__ == "0.1.0"
+    assert __version__ == "0.2.0"

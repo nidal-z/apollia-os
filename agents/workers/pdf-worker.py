@@ -121,7 +121,7 @@ def manifest() -> dict[str, Any]:
     """Return the AIP agent manifest for pdf-worker."""
     return {
         "name": "pdf-worker",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "description": (
             "Agent spécialisé pour la lecture et l'extraction de documents PDF. "
             "Extrait texte, métadonnées et tableaux via pdfplumber (MIT). "
@@ -129,6 +129,7 @@ def manifest() -> dict[str, Any]:
             "Fonctionne sur tous les modèles LLM (7B+)."
         ),
         "execution_mode": "direct",
+        "agent_type": "worker",
         "tools_required": ["python_executor", "file_read"],
         "tools_optional": ["file_write"],
         "tools_requiring_approval": [],

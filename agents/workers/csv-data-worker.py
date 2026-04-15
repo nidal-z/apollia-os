@@ -97,13 +97,14 @@ def manifest() -> dict[str, Any]:
     """Return the AIP agent manifest for csv-data-worker."""
     return {
         "name": "csv-data-worker",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "description": (
             "Agent spécialisé pour l'analyse et la transformation de fichiers CSV. "
             "Lit, filtre, agrège et exporte des données CSV via pandas. "
             "Gère automatiquement l'encodage (UTF-8, latin-1) et le séparateur (, ou ;)."
         ),
         "execution_mode": "direct",
+        "agent_type": "worker",
         "tools_required": ["python_executor", "file_read"],
         "tools_optional": ["file_write"],
         "tools_requiring_approval": [],

@@ -100,6 +100,7 @@ def manifest() -> dict[str, Any]:
             "Fonctionne sur tous les modèles LLM (7B+)."
         ),
         "execution_mode": "direct",
+        "agent_type": "worker",
         "tools_required": ["bash_executor", "file_read"],
         "tools_optional": ["file_list"],
         "tools_requiring_approval": [],

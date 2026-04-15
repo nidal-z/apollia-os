@@ -52,7 +52,10 @@ _MEMORY_CONFIDENCE_RULES: float = 0.9
 # Configuration
 # ---------------------------------------------------------------------------
 
+# APOLLIA.md est le fichier canonique créé par `apollia workspace init`.
+# CLAUDE.md conservé pour compatibilité avec les workspaces Claude Code.
 _RULE_FILES: tuple[str, ...] = (
+    "APOLLIA.md",
     ".apollia/rules.md",
     "CLAUDE.md",
     "package.json",
@@ -920,7 +923,8 @@ def manifest() -> dict[str, Any]:
             "Produit un rapport 🟢/🟡/🔴 actionnable. Ne modifie aucun fichier sans confirmation. "
             "Troisième maillon du pipeline spec → dev → review."
         ),
-        "execution_mode": "conversational",
+        "execution_mode": "auto",
+        "agent_type": "assistant",
         "tools_required": ["file_read", "bash_executor"],
         "tools_optional": ["file_write", "file_edit"],
         "tools_requiring_approval": ["bash_executor"],
@@ -929,10 +933,34 @@ def manifest() -> dict[str, Any]:
         "llm_backend": "precise",
         "supports_streaming": True,
         "supports_a2a": True,
-        "step_budget": {"max_steps": 50, "wall_clock_secs": 600},
+        "step_budget": {"max_steps": 50, "max_tool_calls": 40, "wall_clock_secs": 600},
         "tags": ["dev", "review", "verification", "pipeline"],
         "max_concurrent_tasks": 1,
         "dangerous_tools_allowed": False,
+        "examples": [
+            "Vérifie l'implémentation par rapport à la spec user-auth",
+            "Analyse le diff actuel et liste les tests manquants",
+            "Cherche les violations des standards Apollia dans ce commit",
+            "Le code de la PR respecte-t-il les principes du projet ?",
+            "Mode pre-commit : vérifie avant que git-worker committe",
+        ],
+        "limitations": [
+            "Ne modifie aucun fichier sans confirmation explicite de l'utilisateur",
+            "Évalue la conformité aux standards projet, pas la pertinence fonctionnelle ou métier",
+            "Nécessite bash_executor pour lire le diff git — non disponible hors runtime Apollia",
+            "Ne bloque jamais sur un style personnel — uniquement sur des violations de règles "
+            "projet explicites",
+            "Si aucune TaskSpec n'est trouvée, signale l'absence et continue sur le diff seul",
+        ],
+        "setup_notes": (
+            "Nécessite que bash_executor soit disponible pour accéder au diff git. "
+            "Vérifie trois dimensions : complétude (toutes les couches TaskSpec couvertes ?), "
+            "conformité (standards du projet respectés ?) et tests (couverture suffisante ?). "
+            "Produit un rapport structuré 🟢 LGTM / 🟡 ATTENTION / 🔴 BLOQUANT. "
+            "Fonctionne sur n'importe quelle codebase sans configuration préalable. "
+            "Une TaskSpec dans .apollia/tasks/ améliore la précision de la vérification "
+            "de complétude, mais n'est pas obligatoire."
+        ),
         "skills": [
             {
                 "id": "review",

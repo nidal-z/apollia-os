@@ -663,12 +663,13 @@ class OnboardingAgent(ConversationalAgent):
         """Return the AIP agent manifest."""
         return {
             "name": "onboarding-agent",
-            "version": "1.4.0",
+            "version": "1.5.0",
             "description": (
                 "Agent d'onboarding conversationnel — fait connaissance "
                 "avec l'utilisateur de manière naturelle."
             ),
-            "execution_mode": "conversational",
+            "execution_mode": "auto",
+            "agent_type": "system",
             "tools_required": [],
             "tools_optional": [],
             "memory_namespace": "onboarding-agent",

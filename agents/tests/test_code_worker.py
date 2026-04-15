@@ -64,7 +64,7 @@ async def test_manifest_is_valid() -> None:
 
     # THEN all required fields are present and correct
     assert m["name"] == "code-worker"
-    assert m["version"] == "0.1.0"
+    assert m["version"] == "0.2.0"
     assert "bash_executor" in m["tools_required"]
     assert "file_read" in m["tools_required"]
     assert "file_write" in m["tools_required"]
@@ -72,6 +72,7 @@ async def test_manifest_is_valid() -> None:
     assert m["packages"] == []
     assert m["supports_a2a"] is True
     assert m["execution_mode"] == "direct"
+    assert m["agent_type"] == "worker"
     assert m["max_concurrent_tasks"] == 1
     assert {s["id"] for s in m["skills"]} == {"generate-code", "refactor-code", "review-code"}
 

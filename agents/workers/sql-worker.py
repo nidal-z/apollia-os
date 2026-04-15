@@ -127,6 +127,7 @@ def manifest() -> dict[str, Any]:
             "Fonctionne sur tous les modèles LLM (7B+)."
         ),
         "execution_mode": "direct",
+        "agent_type": "worker",
         "tools_required": ["python_executor", "file_read"],
         "tools_optional": [],
         "tools_requiring_approval": [],

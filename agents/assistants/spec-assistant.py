@@ -6,7 +6,7 @@ projet sous ``.apollia/tasks/{slug}.md``.
 
 Fonctionnement :
 - Charge les règles projet depuis la mémoire sémantique (scopée par projet) ou
-  depuis les fichiers du workspace (CLAUDE.md, .apollia/rules.md, …), puis
+  depuis les fichiers du workspace (APOLLIA.md, .apollia/rules.md, …), puis
   persiste les règles pour éviter toute re-lecture en session suivante.
 - Utilise ``memory.search()`` pour détecter les specs similaires existantes et
   prévenir les doublons.
@@ -48,7 +48,10 @@ _MEMORY_CONFIDENCE_SPECS: float = 1.0
 # ---------------------------------------------------------------------------
 
 # Workspace rule files probed in order. All found files are accumulated.
+# APOLLIA.md is the canonical Apollia project rules file (created by `apollia workspace init`).
+# CLAUDE.md is kept for compatibility with Claude Code setups.
 _RULE_FILES: tuple[str, ...] = (
+    "APOLLIA.md",
     ".apollia/rules.md",
     "CLAUDE.md",
     "package.json",
@@ -820,12 +823,13 @@ def manifest() -> dict[str, Any]:
         "description": (
             "Assistant de conception Apollia OS — transforme n'importe quelle idée "
             "en TaskSpec structurée, actionnable et sauvegardée dans le workspace. "
-            "Lit les règles du projet (CLAUDE.md, .apollia/rules.md, …), challenge "
+            "Lit les règles du projet (APOLLIA.md, .apollia/rules.md, …), challenge "
             "l'approche, identifie les couches impactées et définit les critères de "
             "validation. Ne génère jamais de code. "
             "Premier maillon du pipeline spec → dev → review."
         ),
-        "execution_mode": "conversational",
+        "execution_mode": "auto",
+        "agent_type": "assistant",
         "tools_required": ["file_read", "file_write"],
         "tools_optional": ["bash_executor", "file_list"],
         "tools_requiring_approval": [],
@@ -834,13 +838,36 @@ def manifest() -> dict[str, Any]:
         "llm_backend": "precise",
         "supports_streaming": True,
         "supports_a2a": True,
-        "step_budget": {"max_steps": 30, "wall_clock_secs": 300},
+        "step_budget": {"max_steps": 30, "max_tool_calls": 20, "wall_clock_secs": 300},
         "tags": [
             "conception", "specification", "pipeline-dev",
             "taskspec", "no-code", "multi-domaine",
         ],
         "max_concurrent_tasks": 1,
         "dangerous_tools_allowed": False,
+        "examples": [
+            "Crée une spec pour un système d'authentification JWT avec refresh tokens",
+            "Quelles sont les specs en attente dans ce projet ?",
+            "Affine la spec user-auth pour ajouter la gestion des rôles",
+            "Crée une spec pour l'export CSV de la table Commandes",
+            "Y a-t-il déjà une spec similaire avant d'en créer une nouvelle ?",
+        ],
+        "limitations": [
+            "Ne génère jamais de code — uniquement des specs structurées au format TaskSpec",
+            "Ne modifie aucun fichier source du projet",
+            "Requiert au moins une description fonctionnelle pour démarrer",
+            "Requiert file_write pour sauvegarder les specs dans .apollia/tasks/",
+        ],
+        "setup_notes": (
+            "Fonctionne mieux avec un fichier APOLLIA.md (créé par `apollia workspace init`) "
+            "ou .apollia/rules.md dans le workspace — les règles et contraintes du projet "
+            "sont chargées automatiquement et stockées en mémoire sémantique. "
+            "À partir de la deuxième session sur le même projet, les règles sont rechargées "
+            "depuis la mémoire sans relire les fichiers. "
+            "Sans fichiers de règles, l'assistant pose les questions de clarification au démarrage. "
+            "Utilisable de manière autonome, sans les autres assistants du pipeline. "
+            "Détecte automatiquement les specs similaires existantes pour éviter les doublons."
+        ),
         "skills": [
             {
                 "id": "create-spec",

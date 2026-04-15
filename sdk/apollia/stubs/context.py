@@ -15,13 +15,42 @@ from apollia.stubs.memory import MemoryInterface
 from apollia.stubs.tools import ToolProxy
 
 
+class WorkspaceContextPy:
+    """Workspace context collected at task startup.
+
+    Populated by the bridge during ``call_run()``.  Exposes project rules,
+    Git state, and custom workspace sections collected by Python providers.
+    """
+
+    @property
+    def rules(self) -> str | None:
+        """Project rules section content (APOLLIA.md / .apollia/rules.md)."""
+        ...
+
+    @property
+    def apollia_md(self) -> str | None:
+        """Alias for ``rules``."""
+        ...
+
+    def get(self, title: str) -> str | None:
+        """Retrieve a workspace section by title.  Returns ``None`` if absent."""
+        ...
+
+    @property
+    def sections(self) -> list[dict[str, str]]:
+        """All collected sections as ``[{"title": str, "content": str}, ...]``."""
+        ...
+
+
 class RuntimeContext:
     """Execution context injected by the Apollia runtime into ``run(task, ctx)``.
 
-    Exposes optional capabilities: tools, LLM, memory, and inter-agent
-    messaging.  Each property returns ``None`` when the capability is
-    not configured for this agent.
+    Exposes optional capabilities: tools, LLM, memory, workspace, and
+    inter-agent messaging.  Each property returns ``None`` when the
+    capability is not configured for this agent.
     """
+
+    # --- Core capabilities ---
 
     @property
     def tools(self) -> ToolProxy | None:
@@ -37,6 +66,34 @@ class RuntimeContext:
     def memory(self) -> MemoryInterface | None:
         """Agent memory interface — ``None`` if no namespace configured."""
         ...
+
+    @property
+    def workspace(self) -> WorkspaceContextPy | None:
+        """Workspace context (rules, Git, custom sections) — ``None`` if not collected."""
+        ...
+
+    @property
+    def user_context(self) -> dict[str, list[tuple[str, str]]] | None:
+        """User memory injected in chat mode — ``None`` in task mode.
+
+        Keys: ``"preferences"``, ``"habits"``, ``"context"``.
+        Each value is a list of ``(key, value)`` tuples.
+        """
+        ...
+
+    # --- A2A properties ---
+
+    @property
+    def a2a_depth(self) -> int:
+        """Current depth in the A2A invocation chain (0 = direct, not via A2A)."""
+        ...
+
+    @property
+    def user_memory_read_only(self) -> bool:
+        """``True`` when invoked via A2A — global user memory is read-only."""
+        ...
+
+    # --- A2A messaging ---
 
     def send(
         self,
@@ -61,13 +118,15 @@ class RuntimeContext:
         """
         ...
 
+    # --- A2A delegation ---
+
     def delegate(
         self,
         skill_id: str,
         payload: dict[str, object],
         timeout_secs: int | None = None,
     ) -> Awaitable[dict[str, object]]:
-        """Delegate a task to a Worker Agent by skill ID.
+        """Delegate a task to a Worker Agent by skill ID (low-level).
 
         The runtime resolves the skill to an active agent, submits the task,
         and waits for the result.  ``timeout_secs`` defaults to 120.
@@ -75,5 +134,40 @@ class RuntimeContext:
         Returns the task result as a dict.  Raises ``RuntimeError`` if
         ``supports_a2a`` is not enabled, the skill is not found, the skill is
         ambiguous, or the delegation times out.
+        """
+        ...
+
+    def a2a_invoke(
+        self,
+        skill_id: str,
+        input: dict[str, object],
+        timeout_secs: int | None = None,
+    ) -> Awaitable[dict[str, object]]:
+        """Invoke a Worker Agent by skill ID via the high-level A2A invoker.
+
+        Unlike ``delegate()``, this method never raises Python exceptions on
+        agent-level errors — it returns a failed ``AIPResult`` dict instead.
+
+        Returns a dict with keys ``result``, ``agent_name``, ``skill_id``,
+        ``duration_ms`` on success, or an ``AIPResult`` failure dict on error.
+        """
+        ...
+
+    def a2a_discover(
+        self,
+        skill_id: str,
+    ) -> Awaitable[dict[str, object] | None]:
+        """Discover the agent that exposes ``skill_id``.
+
+        Returns a discovery card dict, or ``None`` if no agent declares
+        the skill.
+        """
+        ...
+
+    def a2a_list_skills(self) -> Awaitable[list[dict[str, object]]]:
+        """List all A2A skills available in the runtime.
+
+        Returns a list of dicts with keys ``skill_id``, ``agent_name``,
+        ``skill_name``, ``description``.
         """
         ...

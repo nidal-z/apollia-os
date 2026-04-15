@@ -67,6 +67,20 @@ def manifest(self):
         # Métadonnées
         "tags": ["finance", "crm"],    # list[str]
         "skills": [],                  # list[AgentSkill dict]
+
+        # Rôle sémantique (contrat v2 — utilisé par l'UI pour catégoriser)
+        "agent_type": "assistant",     # str | None — "worker" | "assistant" | "system" | None
+
+        # Documentation utilisateur (contrat v2 — optionnel, recommandé pour les assistants)
+        "examples": [                  # list[str] — prompts illustrant les usages typiques
+            "Crée une spec pour un système d'auth JWT",
+            "Quelles sont les specs en attente ?",
+        ],
+        "limitations": [               # list[str] — ce que l'agent ne fait pas
+            "Ne génère jamais de code",
+            "Requiert une description fonctionnelle pour démarrer",
+        ],
+        "setup_notes": "...",          # str | None — prérequis de configuration (None = aucun)
     }
 ```
 
@@ -87,6 +101,10 @@ def manifest(self):
 | `supports_a2a` | non | `False` | Pas de AgentCard A2A |
 | `llm_backend` | non | `None` | Backend LLM par défaut du runtime |
 | `packages` | non | `[]` | Aucune dépendance pip — venv Python standard |
+| `agent_type` | non | `None` | Catégorie inconnue — l'UI affiche une entrée neutre |
+| `examples` | non | `[]` | Aucun exemple — section quick-start masquée dans l'UI |
+| `limitations` | non | `[]` | Aucune limitation déclarée — section masquée dans l'UI |
+| `setup_notes` | non | `None` | Aucun prérequis — section masquée dans l'UI |
 
 ### tools_requiring_approval (Sprint 11)
 
@@ -111,6 +129,81 @@ Règles d'application :
 - N'a d'effet qu'en `execution_mode: "orchestrated"`. En mode `direct` ou `auto`, ce champ est ignoré.
 - Une liste vide (défaut) signifie qu'aucun outil ne nécessite d'approbation.
 - L'outil doit également figurer dans `tools_required` ou `tools_optional` pour être résolu par le runtime.
+
+### examples, limitations, setup_notes — Documentation utilisateur (contrat v2)
+
+Trois champs optionnels permettant aux développeurs d'agents de documenter leur agent directement dans le manifest, sans fichier externe susceptible de dériver de l'implémentation. L'UI Apollia les affiche dans le panneau détail de l'agent.
+
+**Philosophie de conception :** aucun framework existant (MCP, LangChain, OpenAI Assistants, CrewAI) ne propose ces trois champs de manière structurée — ils utilisent soit un champ `description` libre, soit des fichiers de documentation séparés. Apollia adopte une approche déclarative et colocalisée avec le code.
+
+| Champ | Type | Rôle UI |
+|---|---|---|
+| `examples` | `list[str]` | Quick-start chips cliquables — masqués si liste vide |
+| `limitations` | `list[str]` | Panneau détail — masqués si liste vide |
+| `setup_notes` | `str \| None` | Bannière de configuration — masquée si `None` |
+
+**Guidelines rédactionnelles :**
+
+```python
+"examples": [
+    # 2 à 5 entrées. Formulées comme de vraies requêtes utilisateur.
+    # Concrètes et spécifiques — éviter les formulations génériques.
+    "Crée une spec pour un système d'auth JWT avec refresh tokens",
+    "Quelles sont les specs en attente dans ce projet ?",
+],
+
+"limitations": [
+    # 2 à 4 entrées. Formulées à l'infinitif ou à la première personne.
+    # Uniquement les limites non-évidentes — pas "ne peut pas voler".
+    "Ne génère jamais de code — uniquement des specs structurées",
+    "Requiert une description fonctionnelle pour démarrer",
+],
+
+"setup_notes": (
+    # Un seul paragraphe court (3-4 lignes max).
+    # Répond à : qu'est-ce que l'utilisateur doit configurer avant de démarrer ?
+    # None si l'agent démarre sans aucune configuration.
+    "Fonctionne mieux avec un fichier CLAUDE.md dans le workspace. "
+    "Sans ce fichier, l'assistant pose des questions de clarification."
+),
+```
+
+**Recommandation :** ces champs sont optionnels mais fortement recommandés pour les agents `agent_type: "assistant"`. Les workers peuvent les laisser vides — leur interface est suffisamment simple.
+
+### agent_type — Rôle sémantique (contrat v2)
+
+Distingue le rôle d'un agent dans le système. Ce champ est utilisé par l'UI pour catégoriser les agents, indépendamment de `supports_a2a` (qui est `true` pour les deux populations).
+
+| Valeur | Rôle | Caractéristiques |
+|---|---|---|
+| `"worker"` | Agent opérationnel | Appelé par des agents via A2A, stateless, `execution_mode: "direct"` |
+| `"assistant"` | Interlocuteur humain | Multi-tour, orchestre des workers, `execution_mode: "auto"` |
+| `"system"` | Infrastructure interne | Onboarding, supervision — non exposé dans l'UI principale |
+| `None` | Non déclaré | Agents antérieurs au contrat v2 — l'UI affiche une entrée neutre |
+
+**Pourquoi ne pas utiliser `supports_a2a` ?** Les workers reçoivent des appels A2A (ils sont la cible). Les assistants émettent des appels A2A (ils sont l'émetteur). Les deux ont donc `supports_a2a: true`, ce qui ne permet pas de les distinguer.
+
+**Pourquoi ne pas utiliser `execution_mode` ?** `execution_mode` est une instruction interne à ORIA (comment le réacteur exécute l'agent). `agent_type` est une information de découverte pour l'UI et le routage. Ce sont deux préoccupations orthogonales.
+
+```python
+# Worker — appelé par des agents
+def manifest(self):
+    return {
+        "execution_mode": "direct",
+        "agent_type": "worker",
+        "supports_a2a": True,
+        ...
+    }
+
+# Assistant — interlocuteur humain
+def manifest(self):
+    return {
+        "execution_mode": "auto",
+        "agent_type": "assistant",
+        "supports_a2a": True,  # émet des appels A2A vers des workers
+        ...
+    }
+```
 
 ### packages — Dépendances pip (Worker Agents)
 

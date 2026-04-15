@@ -478,17 +478,43 @@ def manifest() -> dict[str, Any]:
             "Conçu pour tous les profils — aucune compétence technique requise. "
             "Répond en langage métier clair, sans jargon Python ou SQL."
         ),
-        "execution_mode": "conversational",
+        "execution_mode": "auto",
+        "agent_type": "assistant",
         "tools_required": ["file_read"],
         "tools_optional": ["bash_executor"],
         "packages": [],
         "memory_namespace": "document-assistant",
         "supports_streaming": True,
         "supports_a2a": True,
-        "step_budget": {"max_steps": 50, "wall_clock_secs": 600},
+        "step_budget": {"max_steps": 50, "max_tool_calls": 40, "wall_clock_secs": 600},
         "tags": ["documents", "data", "excel", "csv", "pdf", "sql", "généraliste", "métier"],
         "max_concurrent_tasks": 3,
         "dangerous_tools_allowed": False,
+        "examples": [
+            "Analyse ce fichier Excel et donne-moi les totaux par catégorie",
+            "Résume ce rapport PDF en 5 points clés",
+            "Compare les colonnes Revenu et Dépenses du fichier ventes.csv",
+            "Quelles sont les 10 commandes les plus rentables dans ma base clients.sqlite ?",
+            "Quelles sont les 5 catégories qui ont le plus progressé ce trimestre dans ventes-2026.xlsx ?",
+        ],
+        "limitations": [
+            "Ne lit jamais les fichiers directement — délègue toujours aux workers spécialisés via A2A",
+            "Requiert qu'au moins un worker document soit installé et actif",
+            "La taille maximale des fichiers est limitée par la configuration des workers sous-jacents",
+            "Ne présente jamais de code Python, de traces d'erreur ou de jargon technique — traduit "
+            "toujours les erreurs workers en message métier compréhensible",
+            "Ne suppose jamais l'emplacement d'un fichier — demande le chemin si non précisé",
+        ],
+        "setup_notes": (
+            "Conçu pour les profils non-développeurs (comptable, analyste, juriste, chef de projet) "
+            "qui travaillent avec des fichiers sans connaître le fonctionnement technique des workers. "
+            "Nécessite au moins un worker document installé et actif : excel-worker (.xlsx/.xls), "
+            "csv-data-worker (.csv/.tsv), pdf-worker (.pdf) ou sql-worker (.sqlite/.db). "
+            "Sans worker actif, l'assistant signale clairement l'indisponibilité et indique lequel "
+            "installer. Chaque worker peut être installé séparément selon les formats utilisés. "
+            "Mémorise les préférences de format de l'utilisateur (tableau, liste, synthèse) "
+            "pour les sessions suivantes."
+        ),
         "skills": [
             {
                 "id": "analyze",

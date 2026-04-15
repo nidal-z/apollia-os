@@ -62,6 +62,14 @@ export interface AgentListItem {
   supports_a2a: boolean;
   /** Skills A2A déclarés (vide si supports_a2a est false). */
   skills: AgentSkillView[];
+  /** Rôle sémantique de l'agent pour la catégorisation UI. */
+  agent_type: "worker" | "assistant" | "system" | null;
+  /** Exemples de prompts illustrant les usages typiques (vide = non renseigné). */
+  examples: string[];
+  /** Limitations explicites : ce que l'agent ne fait pas (vide = non renseigné). */
+  limitations: string[];
+  /** Note de configuration requise avant la première utilisation (`null` = aucun prérequis). */
+  setup_notes: string | null;
 }
 
 /** Skill A2A déclaré par un agent worker. */

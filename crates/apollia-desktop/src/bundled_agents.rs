@@ -18,21 +18,21 @@ use apollia_tools::AgentRepository;
 const ONBOARDING_AGENT_PY: &str = include_str!("../../../agents/system/onboarding-agent.py");
 
 /// Bundled version — must match the `manifest()["version"]` in the Python file.
-const ONBOARDING_AGENT_VERSION: &str = "1.4.0";
+const ONBOARDING_AGENT_VERSION: &str = "1.5.0";
 
 // ── Worker agents embedded at compile time ───────────────────────────────────
 
 const EXCEL_WORKER_PY: &str = include_str!("../../../agents/workers/excel-worker.py");
-const EXCEL_WORKER_VERSION: &str = "0.1.0";
+const EXCEL_WORKER_VERSION: &str = "0.2.0";
 
 const CSV_WORKER_PY: &str = include_str!("../../../agents/workers/csv-data-worker.py");
-const CSV_WORKER_VERSION: &str = "0.1.0";
+const CSV_WORKER_VERSION: &str = "0.2.0";
 
 const PDF_WORKER_PY: &str = include_str!("../../../agents/workers/pdf-worker.py");
-const PDF_WORKER_VERSION: &str = "0.1.0";
+const PDF_WORKER_VERSION: &str = "0.2.0";
 
 const CODE_WORKER_PY: &str = include_str!("../../../agents/workers/code-worker.py");
-const CODE_WORKER_VERSION: &str = "0.1.0";
+const CODE_WORKER_VERSION: &str = "0.2.0";
 
 /// Ensures all bundled agents are extracted and registered in the repository.
 ///
@@ -147,12 +147,16 @@ fn onboarding_manifest() -> AgentManifest {
         dangerous_tools_allowed: false,
         tags: vec!["onboarding".to_string(), "conversational".to_string()],
         skills: Vec::new(),
-        execution_mode: "conversational".to_string(),
+        execution_mode: "auto".to_string(),
         system_prompt: None,
         tools_requiring_approval: Vec::new(),
         llm_backend: None,
         packages: vec![],
         memory_config: None,
+        agent_type: Some("system".to_string()),
+        examples: vec![],
+        limitations: vec![],
+        setup_notes: None,
     }
 }
 
@@ -258,6 +262,10 @@ fn excel_worker_manifest() -> AgentManifest {
         llm_backend: None,
         packages: vec!["openpyxl>=3.1.0".to_string()],
         memory_config: None,
+        agent_type: Some("worker".to_string()),
+        examples: vec![],
+        limitations: vec![],
+        setup_notes: None,
     }
 }
 
@@ -313,6 +321,10 @@ fn csv_worker_manifest() -> AgentManifest {
         llm_backend: None,
         packages: vec!["pandas>=2.0.0".to_string()],
         memory_config: None,
+        agent_type: Some("worker".to_string()),
+        examples: vec![],
+        limitations: vec![],
+        setup_notes: None,
     }
 }
 
@@ -346,6 +358,10 @@ fn pdf_worker_manifest() -> AgentManifest {
         llm_backend: None,
         packages: vec!["pdfplumber>=0.10.0".to_string()],
         memory_config: None,
+        agent_type: Some("worker".to_string()),
+        examples: vec![],
+        limitations: vec![],
+        setup_notes: None,
     }
 }
 
@@ -379,6 +395,10 @@ fn code_worker_manifest() -> AgentManifest {
         llm_backend: None,
         packages: vec![],
         memory_config: None,
+        agent_type: Some("worker".to_string()),
+        examples: vec![],
+        limitations: vec![],
+        setup_notes: None,
     }
 }
 

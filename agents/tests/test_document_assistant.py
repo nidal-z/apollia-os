@@ -104,7 +104,8 @@ def test_manifest_valid() -> None:
     assert "généraliste" in m["tags"]
     assert m["supports_a2a"] is True
     assert m["supports_streaming"] is True
-    assert m["execution_mode"] == "conversational"
+    assert m["execution_mode"] == "auto"
+    assert m["agent_type"] == "assistant"
     assert "file_read" in m["tools_required"]
 
 
