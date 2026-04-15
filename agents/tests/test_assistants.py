@@ -168,6 +168,7 @@ async def test_spec_assistant_creates_taskspec() -> None:
         tools={
             "file_read": {"content": "# Règles\n- anyhow INTERDIT\n"},
             "file_write": {"success": True},
+            "bash_executor": {"stdout": "abc123"},
         },
         llm_responses=[{"content": llm_response}],
         memory=True,
@@ -208,6 +209,7 @@ async def test_dev_assistant_requires_taskspec_before_implementing() -> None:
         tools={
             "file_read": {"content": ""},
             "file_write": {"success": True},
+            "bash_executor": {"stdout": "abc123"},
         },
         memory=True,
     )
@@ -293,7 +295,10 @@ async def test_agent_does_not_crash_on_hello(agent_name: str, module: Any) -> No
     THEN no unhandled exception is raised
     AND the result has a recognised status."""
     ctx = MockContext.create(
-        tools={"file_read": {"content": ""}},
+        tools={
+            "file_read": {"content": ""},
+            "bash_executor": {"stdout": "abc123"},
+        },
         llm_responses=[{"content": "Bonjour ! Comment puis-je vous aider ?"}],
         memory=True,
     )

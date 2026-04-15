@@ -5,9 +5,9 @@ TaskSpec existante et l'implémente couche par couche, en respectant les règles
 projet et sans jamais commencer sans contrat pré-tâche validé.
 
 Fonctionnement :
-- Charge les règles projet depuis la mémoire sémantique (scopée par projet) ou
-  depuis les fichiers workspace (APOLLIA.md, .apollia/rules.md, …), puis persiste
-  les règles pour éviter toute re-lecture en session suivante.
+- Utilise ``DevContextBootstrap`` pour charger le contexte projet (workspace
+  rules, tech stack, architecture, fichiers récents) et le persister en mémoire
+  sémantique.  En session N+1, le snapshot est rechargé sans relire les fichiers.
 - Détecte l'intention (implémentation vs exploration) depuis le message utilisateur.
 - Mode implémentation : charge ou crée une TaskSpec minimale, demande validation
   si aucune n'existe, puis implémente chaque couche cochée [x] via A2A → code-worker.
@@ -15,11 +15,11 @@ Fonctionnement :
 - Mode exploration : utilise le LLM pour répondre aux questions sur la codebase
   depuis la mémoire sémantique ou les fichiers, sans proposer d'implémentation
   spontanée.
-- Mémorise les règles projet et les résultats d'exploration pour les sessions
-  suivantes (clé ``codebase:{slug}``).
+- Mémorise les résultats d'exploration pour les sessions suivantes
+  (clé ``codebase:{slug}``).
 
 Outils requis  : file_read, file_write
-Outils optionnels : bash_executor (mkdir), file_list (découverte workspace)
+Outils optionnels : bash_executor (mkdir, git, find), file_list (découverte workspace)
 Outils avec approbation : bash_executor
 Backend LLM    : precise (mode exploration uniquement)
 A2A            : code-worker (implémentation), git-worker (commit optionnel)
@@ -34,19 +34,16 @@ from typing import Any
 
 from apollia.agents import AIPResult, ConversationalAgent
 
+from assistants.shared.project_bootstrap import ProjectContextBootstrap
+
 
 # ---------------------------------------------------------------------------
-# Memory keys — projet-scoped, partagés avec spec-assistant pour les règles
+# Memory keys — project-scoped
 # ---------------------------------------------------------------------------
 
-MEMORY_KEY_PROJECT_RULES: str = "project_rules"
-MEMORY_KEY_FORBIDDEN_DEPS: str = "forbidden_deps"
-MEMORY_KEY_PROJECT_PATTERNS: str = "project_patterns"
-MEMORY_KEY_COMMENT_CONVENTION: str = "comment_convention"
 MEMORY_KEY_CODEBASE_PREFIX: str = "codebase:"
 
 _MEMORY_SOURCE: str = "dev-assistant"
-_MEMORY_CONFIDENCE_RULES: float = 0.9
 _MEMORY_CONFIDENCE_CODEBASE: float = 0.7
 
 
@@ -54,20 +51,7 @@ _MEMORY_CONFIDENCE_CODEBASE: float = 0.7
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Fichiers de règles sondés dans l'ordre. Tous les fichiers trouvés sont cumulés.
-# APOLLIA.md est le fichier canonique créé par `apollia workspace init`.
-# CLAUDE.md conservé pour compatibilité avec les workspaces Claude Code.
-_RULE_FILES: tuple[str, ...] = (
-    "APOLLIA.md",
-    ".apollia/rules.md",
-    "CLAUDE.md",
-    "package.json",
-    "Cargo.toml",
-    ".eslintrc.json",
-    "pyproject.toml",
-)
-
-# Caractères maximum extraits des règles projet dans le system prompt.
+# Maximum characters from parsed rules injected into the system prompt.
 _MAX_RULES_CHARS: int = 4_000
 
 _TASK_SPEC_DIR: str = ".apollia/tasks"
@@ -119,6 +103,59 @@ _EXPLORE_MARKERS: frozenset[str] = frozenset((
     "understand", "comprendre", "works", "fonctionne",
     "liste", "list", "affiche", "display",
 ))
+
+
+# ---------------------------------------------------------------------------
+# Context Bootstrap
+# ---------------------------------------------------------------------------
+
+
+class DevContextBootstrap(ProjectContextBootstrap):
+    """Bootstrap for dev-assistant.
+
+    Extends the common project snapshot with:
+
+    - ``architecture``: modules/crates/services detected in the workspace
+    - ``recent_files``: files modified since HEAD~10
+    """
+
+    async def extra_scopes(
+        self,
+        ctx: Any,
+        base_snapshot: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Discover architecture modules and recently modified files."""
+        modules: list[str] = []
+        recent: list[str] = []
+
+        if ctx.tools is None:
+            return {"architecture": modules, "recent_files": recent}
+
+        arch_result = await ctx.tools.call("bash_executor", {
+            "command": (
+                "find . -maxdepth 3 \\( "
+                "-name 'Cargo.toml' -o -name 'mod.rs' "
+                "-o -name '__init__.py' -o -name 'index.ts' "
+                "\\) 2>/dev/null | grep -v target | head -40 | sort"
+            ),
+        })
+        if arch_result and arch_result.get("stdout"):
+            raw = arch_result["stdout"]
+            if isinstance(raw, str):
+                modules = [line.strip() for line in raw.split("\n") if line.strip()]
+
+        recent_result = await ctx.tools.call("bash_executor", {
+            "command": (
+                "git diff --name-only HEAD~10 HEAD 2>/dev/null "
+                "|| find . -maxdepth 3 -newer .git/HEAD 2>/dev/null | head -30"
+            ),
+        })
+        if recent_result and recent_result.get("stdout"):
+            raw = recent_result["stdout"]
+            if isinstance(raw, str):
+                recent = [line.strip() for line in raw.split("\n") if line.strip()]
+
+        return {"architecture": modules, "recent_files": recent}
 
 
 # ---------------------------------------------------------------------------
@@ -245,27 +282,8 @@ def mark_layer_implemented(content: str, layer: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Project rules loading and persistence
+# Project rules parsing
 # ---------------------------------------------------------------------------
-
-async def _read_file(ctx: Any, path: str) -> str | None:
-    """Lit *path* via l'outil ``file_read``.
-
-    Retourne le contenu en cas de succès, ``None`` si le fichier n'existe pas,
-    si l'outil est indisponible ou si une erreur est signalée.
-    """
-    if ctx.tools is None:
-        return None
-    try:
-        result = await ctx.tools.call("file_read", {"path": path})
-        if not isinstance(result, dict):
-            return None
-        if result.get("error"):
-            return None
-        content = result.get("content", "")
-        return content if content else None
-    except Exception:
-        return None
 
 
 def _parse_forbidden_deps(raw: str) -> list[str]:
@@ -319,76 +337,29 @@ def _parse_rules(raw_text: str) -> dict[str, str]:
     }
 
 
-async def load_project_rules(ctx: Any) -> dict[str, str]:
-    """Retourne les règles projet pour le workspace courant.
+# ---------------------------------------------------------------------------
+# File I/O helpers
+# ---------------------------------------------------------------------------
 
-    Vérifie d'abord la mémoire sémantique (scopée par projet). Retombe sur la
-    lecture des fichiers workspace si aucune règle n'est en cache. Retourne un
-    dict à valeurs vides quand aucune source ne fournit de règles.
+
+async def _read_file(ctx: Any, path: str) -> str | None:
+    """Lit *path* via l'outil ``file_read``.
+
+    Retourne le contenu en cas de succès, ``None`` si le fichier n'existe pas,
+    si l'outil est indisponible ou si une erreur est signalée.
     """
-    _empty: dict[str, str] = {
-        "raw": "",
-        "forbidden_deps": "[]",
-        "patterns": "",
-        "comment_convention": "",
-    }
-
-    if ctx.memory is not None:
-        cached = await ctx.memory.recall(MEMORY_KEY_PROJECT_RULES)
-        if cached:
-            return {
-                "raw": cached,
-                "forbidden_deps": await ctx.memory.recall(MEMORY_KEY_FORBIDDEN_DEPS) or "[]",
-                "patterns": await ctx.memory.recall(MEMORY_KEY_PROJECT_PATTERNS) or "",
-                "comment_convention": await ctx.memory.recall(MEMORY_KEY_COMMENT_CONVENTION) or "",
-            }
-
-    chunks: list[str] = []
-    for path in _RULE_FILES:
-        content = await _read_file(ctx, path)
-        if content:
-            chunks.append(f"### Source: {path}\n\n{content}")
-
-    if not chunks:
-        return _empty
-
-    full_text = "\n\n---\n\n".join(chunks)
-    return _parse_rules(full_text)
-
-
-async def persist_rules(ctx: Any, rules: dict[str, str]) -> None:
-    """Persiste *rules* en mémoire sémantique (namespace scopé par projet).
-
-    Sans effet si la mémoire est indisponible ou si les règles sont vides.
-    """
-    if ctx.memory is None or not rules.get("raw"):
-        return
-    await ctx.memory.remember(
-        key=MEMORY_KEY_PROJECT_RULES,
-        value=rules["raw"],
-        source=_MEMORY_SOURCE,
-        confidence=_MEMORY_CONFIDENCE_RULES,
-    )
-    await ctx.memory.remember(
-        key=MEMORY_KEY_FORBIDDEN_DEPS,
-        value=rules.get("forbidden_deps", "[]"),
-        source=_MEMORY_SOURCE,
-        confidence=_MEMORY_CONFIDENCE_RULES,
-    )
-    if rules.get("patterns"):
-        await ctx.memory.remember(
-            key=MEMORY_KEY_PROJECT_PATTERNS,
-            value=rules["patterns"],
-            source=_MEMORY_SOURCE,
-            confidence=_MEMORY_CONFIDENCE_RULES,
-        )
-    if rules.get("comment_convention"):
-        await ctx.memory.remember(
-            key=MEMORY_KEY_COMMENT_CONVENTION,
-            value=rules["comment_convention"],
-            source=_MEMORY_SOURCE,
-            confidence=_MEMORY_CONFIDENCE_RULES,
-        )
+    if ctx.tools is None:
+        return None
+    try:
+        result = await ctx.tools.call("file_read", {"path": path})
+        if not isinstance(result, dict):
+            return None
+        if result.get("error"):
+            return None
+        content = result.get("content", "")
+        return content if content else None
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -871,6 +842,12 @@ class DevAssistant(ConversationalAgent):
     projet. Impose un contrat pré-tâche (TaskSpec validée) avant toute ligne de
     code et délègue l'écriture de fichiers à code-worker via A2A.
 
+    Session startup behaviour (first turn):
+    1. Run ``DevContextBootstrap`` to discover project context (workspace
+       rules, tech stack, architecture, recent files) and persist to memory.
+    2. Load the snapshot (instant in session N+1 when HEAD hasn't changed).
+    3. Parse workspace rules and cache for subsequent turns.
+
     Deux modes de fonctionnement :
 
     - **Implémentation** : charge la TaskSpec, implémente chaque couche cochée
@@ -888,6 +865,9 @@ class DevAssistant(ConversationalAgent):
     )
     MAX_TURNS: int = 30
     TEMPERATURE: float = 0.2
+
+    def __init__(self) -> None:
+        self._bootstrap = DevContextBootstrap()
 
     def manifest(self) -> dict[str, Any]:
         """Retourne le manifest AIP de dev-assistant."""
@@ -1028,8 +1008,9 @@ class DevAssistant(ConversationalAgent):
     async def run(self, task: Any, ctx: Any) -> dict[str, Any]:
         """Exécute un tour de conversation pour *task*.
 
-        Extrait l'entrée utilisateur, détecte la langue et l'intention, charge
-        les règles projet, puis route vers le mode exploration ou implémentation.
+        Extrait l'entrée utilisateur, détecte la langue et l'intention,
+        bootstrappe le contexte projet au premier tour, puis route vers le
+        mode exploration ou implémentation.
         """
         input_text, history = _extract_task_input(task)
 
@@ -1039,13 +1020,34 @@ class DevAssistant(ConversationalAgent):
         lang = _detect_language(input_text)
         is_first_turn = not history
 
-        rules = await load_project_rules(ctx)
         if is_first_turn:
             self._current_lang: str = lang
-            await persist_rules(ctx, rules)
+
+            if await self._bootstrap.needs_bootstrap(ctx):
+                await self._bootstrap.run_bootstrap(ctx)
+            snapshot = await self._bootstrap.load_snapshot(ctx)
+
+            raw_rules = (
+                snapshot.get("workspace_rules", "")
+                if snapshot
+                else (
+                    ctx.workspace.rules or ""
+                    if getattr(ctx, "workspace", None) is not None
+                    else ""
+                )
+            )
+            self._rules: dict[str, str] = (
+                _parse_rules(raw_rules)
+                if raw_rules
+                else {"raw": "", "forbidden_deps": "[]", "patterns": "", "comment_convention": ""}
+            )
         else:
             lang = getattr(self, "_current_lang", lang)
 
+        rules = getattr(
+            self, "_rules",
+            {"raw": "", "forbidden_deps": "[]", "patterns": "", "comment_convention": ""},
+        )
         intent = _detect_intent(input_text)
 
         if intent == "explore":

@@ -5,9 +5,9 @@ toute idée ou demande en TaskSpec structurée, sauvegardée dans le workspace d
 projet sous ``.apollia/tasks/{slug}.md``.
 
 Fonctionnement :
-- Charge les règles projet depuis la mémoire sémantique (scopée par projet) ou
-  depuis les fichiers du workspace (APOLLIA.md, .apollia/rules.md, …), puis
-  persiste les règles pour éviter toute re-lecture en session suivante.
+- Utilise ``SpecContextBootstrap`` pour charger le contexte projet (workspace
+  rules, tech stack, specs existantes) et le persister en mémoire sémantique.
+  En session N+1, le snapshot est rechargé sans relire les fichiers.
 - Utilise ``memory.search()`` pour détecter les specs similaires existantes et
   prévenir les doublons.
 - Enregistre chaque spec créée dans ``created_specs`` pour la traçabilité.
@@ -15,7 +15,7 @@ Fonctionnement :
   écriture automatique dans le workspace avant retour à l'utilisateur.
 
 Outils requis  : file_read, file_write
-Outils optionnels : bash_executor (mkdir), file_list (découverte workspace)
+Outils optionnels : bash_executor (mkdir, ls), file_list (découverte workspace)
 Backend LLM    : precise (qualité de spec > vitesse)
 """
 
@@ -28,39 +28,23 @@ from typing import Any
 
 from apollia.agents import AIPResult, ConversationalAgent
 
+from assistants.shared.project_bootstrap import ProjectContextBootstrap
+
 
 # ---------------------------------------------------------------------------
 # Memory keys
 # ---------------------------------------------------------------------------
 
-MEMORY_KEY_PROJECT_RULES: str = "project_rules"
-MEMORY_KEY_FORBIDDEN_DEPS: str = "forbidden_deps"
-MEMORY_KEY_PROJECT_PATTERNS: str = "project_patterns"
-MEMORY_KEY_COMMENT_CONVENTION: str = "comment_convention"
 MEMORY_KEY_CREATED_SPECS: str = "created_specs"
 
 _MEMORY_SOURCE: str = "spec-assistant"
-_MEMORY_CONFIDENCE_RULES: float = 0.9
 _MEMORY_CONFIDENCE_SPECS: float = 1.0
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Workspace rule files probed in order. All found files are accumulated.
-# APOLLIA.md is the canonical Apollia project rules file (created by `apollia workspace init`).
-# CLAUDE.md is kept for compatibility with Claude Code setups.
-_RULE_FILES: tuple[str, ...] = (
-    "APOLLIA.md",
-    ".apollia/rules.md",
-    "CLAUDE.md",
-    "package.json",
-    "Cargo.toml",
-    ".eslintrc.json",
-    "pyproject.toml",
-)
-
-# Maximum characters from project rules injected into the system prompt.
+# Maximum characters from parsed rules injected into the system prompt.
 # ~4 000 chars ≈ ~1 200 tokens, leaving comfortable room in any context window.
 _MAX_RULES_CHARS: int = 4_000
 
@@ -82,6 +66,43 @@ _FRENCH_MARKERS: frozenset[str] = frozenset((
     "fonctionnalité", "besoin", "projet",
     "oui", "non", "merci", "svp", "stp",
 ))
+
+
+# ---------------------------------------------------------------------------
+# Context Bootstrap
+# ---------------------------------------------------------------------------
+
+
+class SpecContextBootstrap(ProjectContextBootstrap):
+    """Bootstrap for spec-assistant.
+
+    Extends the common project snapshot with:
+
+    - ``existing_specs``: slugs of TaskSpec files in ``.apollia/tasks/``
+    - ``spec_count``: number of specs (used in UX messages)
+    """
+
+    async def extra_scopes(
+        self,
+        ctx: Any,
+        base_snapshot: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Discover existing TaskSpec files in ``.apollia/tasks/``."""
+        specs: list[str] = []
+        if ctx.tools is not None:
+            result = await ctx.tools.call("bash_executor", {
+                "command": "ls .apollia/tasks/*.md 2>/dev/null | head -50",
+            })
+            if result and result.get("stdout"):
+                raw_stdout = result["stdout"]
+                if isinstance(raw_stdout, str):
+                    for line in raw_stdout.split("\n"):
+                        name = line.strip()
+                        if name.endswith(".md"):
+                            slug = name.rsplit("/", 1)[-1][:-3]
+                            if slug:
+                                specs.append(slug)
+        return {"existing_specs": specs, "spec_count": len(specs)}
 
 
 # ---------------------------------------------------------------------------
@@ -191,136 +212,6 @@ def parse_project_rules(raw_text: str) -> dict[str, str]:
         "patterns": patterns[:500],
         "comment_convention": comment_conv[:200],
     }
-
-
-# ---------------------------------------------------------------------------
-# File I/O helpers
-# ---------------------------------------------------------------------------
-
-async def _read_file(ctx: Any, path: str) -> str | None:
-    """Read *path* via the ``file_read`` tool.
-
-    Returns the file content on success, ``None`` when the file does not
-    exist, the tool is unavailable, or an error is reported by the tool.
-    """
-    if ctx.tools is None:
-        return None
-    try:
-        result = await ctx.tools.call("file_read", {"path": path})
-        if not isinstance(result, dict):
-            return None
-        if result.get("error"):
-            return None
-        content = result.get("content", "")
-        return content if content else None
-    except Exception:
-        return None
-
-
-# ---------------------------------------------------------------------------
-# Workspace discovery
-# ---------------------------------------------------------------------------
-
-async def _list_existing_specs(ctx: Any) -> list[str]:
-    """Return slugs of TaskSpec files already present in ``.apollia/tasks/``.
-
-    Uses the ``file_list`` tool when available. Returns an empty list when
-    the tool is not configured or the directory does not exist.
-    """
-    if ctx.tools is None:
-        return []
-    try:
-        available = ctx.tools.list_tools()
-        if "file_list" not in available:
-            return []
-        result = await ctx.tools.call("file_list", {"path": ".apollia/tasks"})
-        if not isinstance(result, dict):
-            return []
-        files = result.get("files", result.get("entries", []))
-        slugs: list[str] = []
-        for entry in files:
-            name = entry if isinstance(entry, str) else entry.get("name", "")
-            if name.endswith(".md"):
-                slugs.append(name[:-3])
-        return slugs
-    except Exception:
-        return []
-
-
-# ---------------------------------------------------------------------------
-# Project rules loading and persistence
-# ---------------------------------------------------------------------------
-
-async def load_project_rules(ctx: Any) -> dict[str, str]:
-    """Return project rules for the current workspace.
-
-    Checks semantic memory first (project-scoped). Falls back to reading
-    workspace files when no cached rules are found. Returns a dict with
-    empty-string values when neither source yields rules.
-    """
-    _empty: dict[str, str] = {
-        "raw": "",
-        "forbidden_deps": "[]",
-        "patterns": "",
-        "comment_convention": "",
-    }
-
-    if ctx.memory is not None:
-        cached = await ctx.memory.recall(MEMORY_KEY_PROJECT_RULES)
-        if cached:
-            return {
-                "raw": cached,
-                "forbidden_deps": await ctx.memory.recall(MEMORY_KEY_FORBIDDEN_DEPS) or "[]",
-                "patterns": await ctx.memory.recall(MEMORY_KEY_PROJECT_PATTERNS) or "",
-                "comment_convention": await ctx.memory.recall(MEMORY_KEY_COMMENT_CONVENTION) or "",
-            }
-
-    chunks: list[str] = []
-    for path in _RULE_FILES:
-        content = await _read_file(ctx, path)
-        if content:
-            chunks.append(f"### Source: {path}\n\n{content}")
-
-    if not chunks:
-        return _empty
-
-    full_text = "\n\n---\n\n".join(chunks)
-    return parse_project_rules(full_text)
-
-
-async def persist_rules(ctx: Any, rules: dict[str, str]) -> None:
-    """Persist *rules* to semantic memory (project-scoped namespace).
-
-    No-ops silently when memory is unavailable or the rules dict is empty.
-    """
-    if ctx.memory is None or not rules.get("raw"):
-        return
-    await ctx.memory.remember(
-        key=MEMORY_KEY_PROJECT_RULES,
-        value=rules["raw"],
-        source=_MEMORY_SOURCE,
-        confidence=_MEMORY_CONFIDENCE_RULES,
-    )
-    await ctx.memory.remember(
-        key=MEMORY_KEY_FORBIDDEN_DEPS,
-        value=rules.get("forbidden_deps", "[]"),
-        source=_MEMORY_SOURCE,
-        confidence=_MEMORY_CONFIDENCE_RULES,
-    )
-    if rules.get("patterns"):
-        await ctx.memory.remember(
-            key=MEMORY_KEY_PROJECT_PATTERNS,
-            value=rules["patterns"],
-            source=_MEMORY_SOURCE,
-            confidence=_MEMORY_CONFIDENCE_RULES,
-        )
-    if rules.get("comment_convention"):
-        await ctx.memory.remember(
-            key=MEMORY_KEY_COMMENT_CONVENTION,
-            value=rules["comment_convention"],
-            source=_MEMORY_SOURCE,
-            confidence=_MEMORY_CONFIDENCE_RULES,
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -942,10 +833,10 @@ class SpecAssistant(ConversationalAgent):
     infrastructure).
 
     Session startup behaviour (first turn):
-    1. Load project rules from memory (project-scoped) or workspace files.
-    2. Discover existing specs via ``file_list`` (if available) and memory.
-    3. Persist rules to memory for future sessions.
-    4. Build a language-specific system prompt embedding rules and existing specs.
+    1. Run ``SpecContextBootstrap`` to discover project context (workspace
+       rules, tech stack, existing specs) and persist to semantic memory.
+    2. Load the snapshot (instant in session N+1 when HEAD hasn't changed).
+    3. Parse workspace rules and build a language-specific system prompt.
 
     Each LLM response is scanned for ``[SPEC:slug]…[/SPEC]`` blocks. Found
     blocks are extracted, written to ``.apollia/tasks/{slug}.md``, recorded in
@@ -960,6 +851,9 @@ class SpecAssistant(ConversationalAgent):
     MAX_TURNS: int = 30
     TEMPERATURE: float = 0.3
 
+    def __init__(self) -> None:
+        self._bootstrap = SpecContextBootstrap()
+
     def manifest(self) -> dict[str, Any]:
         """Return the AIP agent manifest for spec-assistant."""
         return manifest()
@@ -972,8 +866,8 @@ class SpecAssistant(ConversationalAgent):
     ) -> tuple[str, list[dict[str, str]]]:
         """Handle one conversational turn.
 
-        On the first turn (empty *history*) the agent loads project rules,
-        discovers existing specs, persists everything to memory, and builds
+        On the first turn (empty *history*) the agent runs the context
+        bootstrap, loads the snapshot, parses workspace rules, and builds
         a language-specific system prompt. After each LLM response,
         embedded ``[SPEC:slug]`` blocks are written to the workspace before
         the cleaned text is returned.
@@ -989,13 +883,30 @@ class SpecAssistant(ConversationalAgent):
         if is_first_turn:
             self._current_language: str = lang
 
-            rules = await load_project_rules(ctx)
-            await persist_rules(ctx, rules)
+            if await self._bootstrap.needs_bootstrap(ctx):
+                await self._bootstrap.run_bootstrap(ctx)
+            snapshot = await self._bootstrap.load_snapshot(ctx)
 
-            # Merge file-system discovery with memory-tracked specs.
-            fs_specs = await _list_existing_specs(ctx)
+            raw_rules = (
+                snapshot.get("workspace_rules", "")
+                if snapshot
+                else (
+                    ctx.workspace.rules or ""
+                    if getattr(ctx, "workspace", None) is not None
+                    else ""
+                )
+            )
+            rules = (
+                parse_project_rules(raw_rules)
+                if raw_rules
+                else {"raw": "", "forbidden_deps": "[]", "patterns": "", "comment_convention": ""}
+            )
+
+            bootstrap_specs: list[str] = (
+                snapshot.get("existing_specs", []) if snapshot else []
+            )
             mem_specs = await load_created_specs(ctx)
-            existing_specs = sorted(set(fs_specs) | set(mem_specs))
+            existing_specs = sorted(set(bootstrap_specs) | set(mem_specs))
 
             self.SYSTEM_PROMPT = build_system_prompt(lang, rules, existing_specs)
         else:

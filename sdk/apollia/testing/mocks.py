@@ -301,6 +301,16 @@ class MockMemory:
         self.operations.append({"op": "forget", "key": key, "existed": existed})
 
 
+class MockWorkspace:
+    """Minimal mock of the workspace object injected by the Apollia runtime.
+
+    Provides a ``rules`` attribute that mirrors ``ctx.workspace.rules``.
+    """
+
+    def __init__(self, rules: str = "") -> None:
+        self.rules: str = rules
+
+
 class MockContext:
     """Factory assembling a complete mock execution context.
 
@@ -324,16 +334,19 @@ class MockContext:
         _tools: MockToolProxy | None = None,
         _llm: MockLlmProxy | None = None,
         _memory: MockMemory | None = None,
+        _workspace: MockWorkspace | None = None,
     ) -> None:
         self._tools = _tools
         self._llm = _llm
         self._memory = _memory
+        self._workspace = _workspace
 
     @staticmethod
     def create(
         tools: dict[str, Any] | None = None,
         llm_responses: list[dict[str, object]] | None = None,
         memory: bool = False,
+        workspace_rules: str | None = None,
     ) -> MockContext:
         """Build a ``MockContext`` with the requested components.
 
@@ -343,6 +356,8 @@ class MockContext:
             llm_responses: Ordered list of response dicts for the LLM.
                 ``None`` means no ``LlmProxy`` is attached.
             memory: If ``True``, attach an empty ``MockMemory``.
+            workspace_rules: If provided, attach a ``MockWorkspace``
+                with the given rules text.  ``None`` means no workspace.
 
         Returns:
             A fully wired ``MockContext`` ready for injection into an agent.
@@ -351,6 +366,7 @@ class MockContext:
             _tools=MockToolProxy(tools) if tools is not None else None,
             _llm=MockLlmProxy(llm_responses) if llm_responses is not None else None,
             _memory=MockMemory() if memory else None,
+            _workspace=MockWorkspace(workspace_rules) if workspace_rules is not None else None,
         )
 
     @property
@@ -367,3 +383,8 @@ class MockContext:
     def memory(self) -> MockMemory | None:
         """Memory interface mock, or ``None`` if not configured."""
         return self._memory
+
+    @property
+    def workspace(self) -> MockWorkspace | None:
+        """Workspace mock, or ``None`` if not configured."""
+        return self._workspace

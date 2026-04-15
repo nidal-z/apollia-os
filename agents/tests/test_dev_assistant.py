@@ -34,6 +34,12 @@ _dev_spec.loader.exec_module(dev_assistant)  # type: ignore[union-attr]
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Default mock tools including bash_executor for bootstrap.
+_DEFAULT_TOOLS: dict[str, Any] = {
+    "file_read": {"content": ""},
+    "bash_executor": {"stdout": "abc123"},
+}
+
 
 class MockA2A:
     """Mock minimal de l'interface A2A pour les tests unitaires."""
@@ -398,66 +404,36 @@ def test_extract_spec_slug_none_when_absent() -> None:
 
 
 # ---------------------------------------------------------------------------
-# load_project_rules — cache mémoire
+# DevContextBootstrap
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_load_project_rules_from_memory() -> None:
-    """GIVEN de la mémoire contenant déjà project_rules
-    WHEN load_project_rules est appelé
-    THEN file_read n'est PAS appelé (cache mémoire utilisé)."""
+async def test_dev_bootstrap_detects_architecture() -> None:
+    """GIVEN a workspace with Cargo.toml-like output from find
+    WHEN DevContextBootstrap.run_bootstrap() is called
+    THEN snapshot.architecture lists the detected files."""
     ctx = MockContext.create(
-        tools={"file_read": {"content": "ne doit pas être lu"}},
-        memory=True,
-    )
-    assert ctx.memory is not None
-    await ctx.memory.remember(
-        key=dev_assistant.MEMORY_KEY_PROJECT_RULES,
-        value="anyhow INTERDIT dans ce projet",
-        source="test",
-        confidence=0.9,
-    )
-
-    rules = await dev_assistant.load_project_rules(ctx)
-
-    assert "anyhow INTERDIT" in rules["raw"]
-    assert ctx.tools is not None
-    assert len([n for n, _ in ctx.tools.calls if n == "file_read"]) == 0
-
-
-@pytest.mark.asyncio
-async def test_load_project_rules_from_files_when_no_memory() -> None:
-    """GIVEN aucune règle en mémoire mais des fichiers workspace présents
-    WHEN load_project_rules est appelé
-    THEN file_read est appelé et les règles sont retournées."""
-    claude_md = "# Règles\nanyhow INTERDIT\nzero unwrap()"
-    ctx = MockContext.create(
-        tools={"file_read": {"content": claude_md}},
+        tools={
+            "file_read": {"content": ""},
+            "bash_executor": {"stdout": "./crates/core/Cargo.toml\n./crates/runtime/Cargo.toml\n"},
+        },
         memory=True,
     )
 
-    rules = await dev_assistant.load_project_rules(ctx)
+    bootstrap = dev_assistant.DevContextBootstrap()
+    snapshot = await bootstrap.run_bootstrap(ctx)
 
-    assert rules["raw"] != ""
-    assert ctx.tools is not None
-    assert ctx.tools.tool_call_count() > 0
+    assert "architecture" in snapshot
+    assert "recent_files" in snapshot
+    assert snapshot.get("has_git") is True
 
 
-@pytest.mark.asyncio
-async def test_load_project_rules_empty_when_no_sources() -> None:
-    """GIVEN aucune mémoire et aucun fichier workspace (tous vides)
-    WHEN load_project_rules est appelé
-    THEN le dict retourné a 'raw' vide et '[]' pour forbidden_deps."""
-    ctx = MockContext.create(
-        tools={"file_read": {"content": ""}},
-        memory=True,
-    )
-
-    rules = await dev_assistant.load_project_rules(ctx)
-
-    assert rules["raw"] == ""
-    assert rules["forbidden_deps"] == "[]"
+def test_dev_assistant_no_rule_files_constant() -> None:
+    """GIVEN dev-assistant.py
+    WHEN we check for _RULE_FILES
+    THEN it is not found (removed)."""
+    assert not hasattr(dev_assistant, "_RULE_FILES")
 
 
 # ---------------------------------------------------------------------------
@@ -492,7 +468,7 @@ def test_build_explore_system_prompt_en_no_impl() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Agent — run() : contrat pré-tâche (AC-1, AC-2)
+# Agent — run() : contrat pré-tâche
 # ---------------------------------------------------------------------------
 
 
@@ -502,10 +478,7 @@ async def test_refuses_to_implement_without_taskspec() -> None:
     WHEN l'utilisateur demande 'implémente un système d'auth JWT'
     THEN l'agent crée une TaskSpec minimale et retourne input_required."""
     ctx = MockContext.create(
-        tools={
-            "file_read": {"content": ""},
-            "file_write": {"success": True},
-        },
+        tools={**_DEFAULT_TOOLS, "file_write": {"success": True}},
         memory=True,
     )
 
@@ -523,34 +496,34 @@ async def test_refuses_to_implement_without_taskspec() -> None:
 
 
 @pytest.mark.asyncio
-async def test_reads_project_rules_before_coding() -> None:
-    """GIVEN un workspace avec CLAUDE.md contenant des contraintes
-    WHEN l'agent démarre une session
-    THEN load_project_rules est appelé et les règles sont chargées avant toute action."""
-    claude_md = "# Règles\ndate-fns INTERDIT dans ce projet"
+async def test_bootstrap_runs_on_first_turn() -> None:
+    """GIVEN a workspace with rules in ctx.workspace
+    WHEN the agent starts a first session
+    THEN the bootstrap runs and stores a snapshot in memory."""
     ctx = MockContext.create(
-        tools={
-            "file_read": {"content": claude_md},
-            "file_write": {"success": True},
-        },
+        tools={**_DEFAULT_TOOLS, "file_write": {"success": True}},
         memory=True,
+        workspace_rules="date-fns INTERDIT dans ce projet",
     )
 
     agent = _agent()
-    # "Implémente" → implement intent, "la" → French marker
     await agent.run(
         _make_task("Implémente la gestion des dates"),
         ctx,
     )
 
     assert ctx.memory is not None
-    cached_rules = await ctx.memory.recall(dev_assistant.MEMORY_KEY_PROJECT_RULES)
-    assert cached_rules is not None
-    assert "date-fns INTERDIT" in cached_rules
+    status = await ctx.memory.recall("bootstrap.status")
+    assert status == "complete"
+
+    raw_snapshot = await ctx.memory.recall("bootstrap.snapshot")
+    assert raw_snapshot is not None
+    snapshot = json.loads(raw_snapshot)
+    assert "date-fns INTERDIT" in snapshot.get("workspace_rules", "")
 
 
 # ---------------------------------------------------------------------------
-# Agent — run() : délégation A2A (AC-4)
+# Agent — run() : délégation A2A
 # ---------------------------------------------------------------------------
 
 
@@ -561,6 +534,7 @@ async def test_delegates_to_code_worker_via_a2a() -> None:
     THEN ctx.a2a.call(agent='code-worker') est appelé au moins une fois."""
     ctx = MockContext.create(
         tools={
+            **_DEFAULT_TOOLS,
             "file_read": {"content": _SAMPLE_TASKSPEC},
             "file_write": {"success": True},
         },
@@ -588,6 +562,7 @@ async def test_a2a_called_once_per_layer() -> None:
     THEN code-worker est appelé exactement trois fois (une par couche)."""
     ctx = MockContext.create(
         tools={
+            **_DEFAULT_TOOLS,
             "file_read": {"content": _SAMPLE_TASKSPEC},
             "file_write": {"success": True},
         },
@@ -611,29 +586,17 @@ async def test_a2a_called_once_per_layer() -> None:
 
 @pytest.mark.asyncio
 async def test_a2a_input_contains_spec_and_rules() -> None:
-    """GIVEN une TaskSpec et des règles projet
+    """GIVEN une TaskSpec et des règles projet dans le workspace
     WHEN code-worker est appelé via A2A
     THEN l'input contient la spec et les dépendances interdites."""
-    claude_md = "anyhow INTERDIT dans le workspace"
     ctx = MockContext.create(
         tools={
+            **_DEFAULT_TOOLS,
             "file_read": {"content": _SAMPLE_TASKSPEC},
             "file_write": {"success": True},
         },
         memory=True,
-    )
-    # Pré-charger les règles en mémoire pour un contrôle précis
-    await ctx.memory.remember(
-        key=dev_assistant.MEMORY_KEY_PROJECT_RULES,
-        value=claude_md,
-        source="test",
-        confidence=0.9,
-    )
-    await ctx.memory.remember(
-        key=dev_assistant.MEMORY_KEY_FORBIDDEN_DEPS,
-        value='["anyhow"]',
-        source="test",
-        confidence=0.9,
+        workspace_rules="anyhow INTERDIT dans le workspace",
     )
 
     mock_a2a = MockA2A(responses={"code-worker": {"output": "done"}})
@@ -660,6 +623,7 @@ async def test_taskspec_updated_after_each_layer() -> None:
     THEN file_write est appelé après chaque couche (suivi de progression)."""
     ctx = MockContext.create(
         tools={
+            **_DEFAULT_TOOLS,
             "file_read": {"content": _SAMPLE_TASKSPEC},
             "file_write": {"success": True},
         },
@@ -681,7 +645,7 @@ async def test_taskspec_updated_after_each_layer() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Agent — run() : mode exploration (AC-6)
+# Agent — run() : mode exploration
 # ---------------------------------------------------------------------------
 
 
@@ -696,7 +660,7 @@ async def test_exploration_mode_no_spontaneous_implementation() -> None:
         "avec une durée de vie de 24h."
     )
     ctx = MockContext.create(
-        tools={"file_read": {"content": ""}},
+        tools=_DEFAULT_TOOLS,
         llm_responses=[{"content": llm_response}],
         memory=True,
     )
@@ -720,7 +684,7 @@ async def test_exploration_mode_stores_finding_in_memory() -> None:
     THEN la réponse est stockée en mémoire sémantique avec le préfixe 'codebase:'."""
     llm_response = "L'auth utilise JWT avec un secret stocké en variable d'env."
     ctx = MockContext.create(
-        tools={"file_read": {"content": ""}},
+        tools=_DEFAULT_TOOLS,
         llm_responses=[{"content": llm_response}],
         memory=True,
     )
@@ -741,41 +705,6 @@ async def test_exploration_mode_stores_finding_in_memory() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Agent — run() : mémoire persistante (AC-7)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_memory_loaded_on_second_session() -> None:
-    """GIVEN une session où les règles ont été persistées en mémoire
-    WHEN load_project_rules est appelé avec ces règles pré-chargées
-    THEN file_read n'est PAS appelé (cache mémoire fait autorité)."""
-    ctx = MockContext.create(
-        tools={"file_read": {"content": "fallback — ne doit pas être lu"}},
-        memory=True,
-    )
-    assert ctx.memory is not None
-    await ctx.memory.remember(
-        key=dev_assistant.MEMORY_KEY_PROJECT_RULES,
-        value="no-lodash INTERDIT dans ce projet",
-        source="dev-assistant",
-        confidence=0.9,
-    )
-    await ctx.memory.remember(
-        key=dev_assistant.MEMORY_KEY_FORBIDDEN_DEPS,
-        value='["no-lodash"]',
-        source="dev-assistant",
-        confidence=0.9,
-    )
-
-    rules = await dev_assistant.load_project_rules(ctx)
-
-    assert "no-lodash INTERDIT" in rules["raw"]
-    assert ctx.tools is not None
-    assert len([n for n, _ in ctx.tools.calls if n == "file_read"]) == 0
-
-
-# ---------------------------------------------------------------------------
 # Agent — run() : tous les couches déjà implémentées
 # ---------------------------------------------------------------------------
 
@@ -792,6 +721,7 @@ async def test_all_layers_already_implemented() -> None:
 """
     ctx = MockContext.create(
         tools={
+            **_DEFAULT_TOOLS,
             "file_read": {"content": all_done},
             "file_write": {"success": True},
         },
@@ -822,6 +752,7 @@ async def test_graceful_degradation_without_a2a() -> None:
     THEN il retourne 'completed' avec un message de repli (pas d'exception)."""
     ctx = MockContext.create(
         tools={
+            **_DEFAULT_TOOLS,
             "file_read": {"content": _SAMPLE_TASKSPEC},
             "file_write": {"success": True},
         },
@@ -876,8 +807,6 @@ def test_module_exports_all_public_symbols() -> None:
     WHEN les symboles publics sont accédés
     THEN tous sont présents et ont le bon type."""
     assert callable(dev_assistant.manifest)
-    assert callable(dev_assistant.load_project_rules)
-    assert callable(dev_assistant.persist_rules)
     assert callable(dev_assistant.load_task_spec)
     assert callable(dev_assistant.write_task_spec)
     assert callable(dev_assistant.list_task_specs)
@@ -888,5 +817,5 @@ def test_module_exports_all_public_symbols() -> None:
     assert callable(dev_assistant.build_explore_system_prompt)
     assert callable(dev_assistant.delegate_to_code_worker)
     assert callable(dev_assistant.delegate_to_git_worker)
-    assert isinstance(dev_assistant.MEMORY_KEY_PROJECT_RULES, str)
     assert isinstance(dev_assistant.MEMORY_KEY_CODEBASE_PREFIX, str)
+    assert dev_assistant.DevContextBootstrap is not None

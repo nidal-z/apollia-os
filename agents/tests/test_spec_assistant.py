@@ -34,6 +34,13 @@ _spec_module.loader.exec_module(spec_assistant)  # type: ignore[union-attr]
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Default mock tools including bash_executor for bootstrap.
+_DEFAULT_TOOLS: dict[str, Any] = {
+    "file_read": {"content": ""},
+    "bash_executor": {"stdout": "abc123"},
+}
+
+
 def _llm_text(text: str) -> dict[str, str]:
     """Return a MockLlm response dict with *text* as content."""
     return {"content": text}
@@ -303,66 +310,35 @@ async def test_load_created_specs_empty_on_fresh_project() -> None:
 
 
 # ---------------------------------------------------------------------------
-# load_project_rules — memory hit
+# SpecContextBootstrap
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_load_project_rules_returns_from_memory() -> None:
-    """GIVEN memory already containing project_rules
-    WHEN load_project_rules is called
-    THEN file_read is NOT called (memory cache is used)."""
+async def test_spec_bootstrap_lists_existing_specs() -> None:
+    """GIVEN a workspace with .apollia/tasks/user-auth.md
+    WHEN SpecContextBootstrap.extra_scopes() runs via run_bootstrap
+    THEN the snapshot contains the spec slug."""
     ctx = MockContext.create(
-        tools={"file_read": {"content": "should not be read"}},
-        memory=True,
-    )
-    assert ctx.memory is not None
-    await ctx.memory.remember(
-        key=spec_assistant.MEMORY_KEY_PROJECT_RULES,
-        value="anyhow INTERDIT dans ce projet",
-        source="test",
-        confidence=0.9,
-    )
-
-    rules = await spec_assistant.load_project_rules(ctx)
-
-    assert "anyhow INTERDIT" in rules["raw"]
-    assert ctx.tools is not None
-    assert len([n for n, _ in ctx.tools.calls if n == "file_read"]) == 0
-
-
-@pytest.mark.asyncio
-async def test_load_project_rules_reads_files_when_no_memory() -> None:
-    """GIVEN no cached rules in memory but workspace files present
-    WHEN load_project_rules is called
-    THEN file_read is called and rules are returned."""
-    claude_md = "# Rules\nanyhow INTERDIT\nzero unwrap()"
-    ctx = MockContext.create(
-        tools={"file_read": {"content": claude_md}},
+        tools={
+            "file_read": {"content": ""},
+            "bash_executor": {"stdout": ".apollia/tasks/user-auth.md\n"},
+        },
         memory=True,
     )
 
-    rules = await spec_assistant.load_project_rules(ctx)
+    bootstrap = spec_assistant.SpecContextBootstrap()
+    snapshot = await bootstrap.run_bootstrap(ctx)
 
-    assert rules["raw"] != ""
-    assert ctx.tools is not None
-    assert ctx.tools.tool_call_count() > 0
+    assert "user-auth" in snapshot.get("existing_specs", [])
+    assert snapshot.get("spec_count", 0) >= 1
 
 
-@pytest.mark.asyncio
-async def test_load_project_rules_empty_when_no_sources() -> None:
-    """GIVEN no memory and no workspace files (all return empty)
-    WHEN load_project_rules is called
-    THEN the returned dict has empty 'raw' and '[]' for forbidden_deps."""
-    ctx = MockContext.create(
-        tools={"file_read": {"content": ""}},
-        memory=True,
-    )
-
-    rules = await spec_assistant.load_project_rules(ctx)
-
-    assert rules["raw"] == ""
-    assert rules["forbidden_deps"] == "[]"
+def test_spec_assistant_no_rule_files_constant() -> None:
+    """GIVEN spec-assistant.py
+    WHEN we check for _RULE_FILES
+    THEN it is not found (removed)."""
+    assert not hasattr(spec_assistant, "_RULE_FILES")
 
 
 # ---------------------------------------------------------------------------
@@ -424,10 +400,7 @@ async def test_no_code_in_spec_output() -> None:
         "Souhaitez-vous que je rédige d'abord une TaskSpec ?"
     )
     ctx = MockContext.create(
-        tools={
-            "file_read": {"content": ""},
-            "file_write": {"success": True},
-        },
+        tools={**_DEFAULT_TOOLS, "file_write": {"success": True}},
         llm_responses=[_llm_text(llm_response)],
         memory=True,
     )
@@ -444,7 +417,7 @@ async def test_no_code_in_spec_output() -> None:
 
 @pytest.mark.asyncio
 async def test_taskspec_file_created() -> None:
-    """GIVEN a workspace with CLAUDE.md and a user request
+    """GIVEN a workspace with rules and a user request
     WHEN the LLM responds with a [SPEC:slug] block
     THEN file_write is called and the confirmation path appears in the output."""
     spec_body = (
@@ -463,11 +436,13 @@ async def test_taskspec_file_created() -> None:
     llm_response = f"Voici la TaskSpec :\n\n[SPEC:export-button]{spec_body}[/SPEC]"
     ctx = MockContext.create(
         tools={
+            **_DEFAULT_TOOLS,
             "file_read": {"content": "# Règles\nanyhow INTERDIT"},
             "file_write": {"success": True},
         },
         llm_responses=[_llm_text(llm_response)],
         memory=True,
+        workspace_rules="# Règles\nanyhow INTERDIT",
     )
 
     agent = _agent_instance()
@@ -482,42 +457,12 @@ async def test_taskspec_file_created() -> None:
 
 
 @pytest.mark.asyncio
-async def test_memory_loaded_on_second_session() -> None:
-    """GIVEN a session where rules were already persisted to memory
-    WHEN load_project_rules is called with those rules pre-populated
-    THEN file_read is NOT invoked (memory cache is authoritative)."""
-    ctx = MockContext.create(
-        tools={"file_read": {"content": "fallback — must not be read"}},
-        memory=True,
-    )
-    assert ctx.memory is not None
-    await ctx.memory.remember(
-        key=spec_assistant.MEMORY_KEY_PROJECT_RULES,
-        value="no-react INTERDIT dans ce projet frontend",
-        source="spec-assistant",
-        confidence=0.9,
-    )
-    await ctx.memory.remember(
-        key=spec_assistant.MEMORY_KEY_FORBIDDEN_DEPS,
-        value='["no-react"]',
-        source="spec-assistant",
-        confidence=0.9,
-    )
-
-    rules = await spec_assistant.load_project_rules(ctx)
-
-    assert "no-react INTERDIT" in rules["raw"]
-    assert ctx.tools is not None
-    assert len([n for n, _ in ctx.tools.calls if n == "file_read"]) == 0
-
-
-@pytest.mark.asyncio
 async def test_existing_specs_injected_into_system_prompt() -> None:
     """GIVEN a project with an existing spec in memory
     WHEN spec-assistant starts a new session
     THEN the system prompt includes the existing spec slug."""
     ctx = MockContext.create(
-        tools={"file_read": {"content": ""}},
+        tools=_DEFAULT_TOOLS,
         llm_responses=[_llm_text("Je peux vous aider à créer une spec.")],
         memory=True,
     )
@@ -543,7 +488,7 @@ async def test_episodic_memory_importance_higher_on_spec_creation() -> None:
     spec_body = "# TaskSpec — Test\n> DRAFT\n## Objectif\nTest."
     llm_response = f"[SPEC:test-spec]{spec_body}[/SPEC]"
     ctx = MockContext.create(
-        tools={"file_write": {"success": True}, "file_read": {"content": ""}},
+        tools={**_DEFAULT_TOOLS, "file_write": {"success": True}},
         llm_responses=[_llm_text(llm_response)],
         memory=True,
     )
@@ -574,11 +519,10 @@ def test_module_exports_all_public_symbols() -> None:
     WHEN public symbols are accessed
     THEN all are present and callable/correct type."""
     assert callable(spec_assistant.manifest)
-    assert callable(spec_assistant.load_project_rules)
-    assert callable(spec_assistant.persist_rules)
     assert callable(spec_assistant.process_spec_blocks)
     assert callable(spec_assistant.build_system_prompt)
     assert callable(spec_assistant.record_created_spec)
     assert callable(spec_assistant.load_created_specs)
     assert callable(spec_assistant.parse_project_rules)
     assert isinstance(spec_assistant._SPEC_BLOCK_RE, type(spec_assistant._SPEC_BLOCK_RE))
+    assert spec_assistant.SpecContextBootstrap is not None
