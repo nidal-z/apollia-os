@@ -1,5 +1,6 @@
 """Tests for apollia.types — AIPResult dataclass and factory methods."""
 
+import pytest
 from apollia.types import AIPResult
 
 
@@ -84,4 +85,44 @@ def test_version():
     """__version__ is exposed."""
     from apollia import __version__
 
-    assert __version__ == "0.2.0"
+    assert __version__ == "0.3.0"
+
+
+def test_import_conversational_agent():
+    """from apollia import ConversationalAgent works without runtime."""
+    from apollia import ConversationalAgent
+
+    assert ConversationalAgent is not None
+
+
+def test_import_from_agents_module():
+    """from apollia.agents import AIPResult, ConversationalAgent works."""
+    from apollia.agents import AIPResult, ConversationalAgent
+
+    assert AIPResult is not None
+    assert ConversationalAgent is not None
+
+
+def test_conversational_agent_cannot_instantiate_without_manifest():
+    """ConversationalAgent enforces manifest() implementation via ABC."""
+    from apollia import ConversationalAgent
+
+    with pytest.raises(TypeError, match="abstract"):
+        ConversationalAgent()  # type: ignore[abstract]
+
+
+def test_agent_manifest_dict_accepts_aip_v2_fields():
+    """AgentManifestDict accepts the four AIP v2 fields."""
+    from apollia.stubs.manifest import AgentManifestDict
+
+    manifest: AgentManifestDict = {
+        "name": "test",
+        "agent_type": "worker",
+        "examples": ["example"],
+        "limitations": ["none"],
+        "setup_notes": "install X",
+    }
+    assert manifest["agent_type"] == "worker"
+    assert manifest["examples"] == ["example"]
+    assert manifest["limitations"] == ["none"]
+    assert manifest["setup_notes"] == "install X"

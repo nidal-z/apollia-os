@@ -41,3 +41,7 @@ class AgentManifestDict(TypedDict, total=False):
     tools_requiring_approval: list[str]
     llm_backend: Optional[str]
     packages: list[str]  # pip requirements, standard syntax, default []
+    agent_type: str | None
+    examples: list[str]
+    limitations: list[str]
+    setup_notes: str | None
