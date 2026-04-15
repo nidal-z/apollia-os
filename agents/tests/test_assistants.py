@@ -14,6 +14,7 @@ Ces tests ne mesurent pas la qualité des réponses LLM.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -314,3 +315,82 @@ async def test_agent_does_not_crash_on_hello(agent_name: str, module: Any) -> No
         "input_required",
         "failed",
     ), f"{agent_name}: statut inattendu '{result.get('status')}'"
+
+
+# ---------------------------------------------------------------------------
+# Niveau 4 — Session N+1 : bootstrap réutilisé
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_spec_assistant_uses_bootstrap_on_second_session() -> None:
+    """GIVEN a first spec-assistant session completed (bootstrap present)
+    WHEN a second session starts
+    THEN no file_read("APOLLIA.md") in tool invocations
+    (the snapshot is loaded from memory instead of re-reading project files)."""
+    ctx = MockContext.create(
+        tools={
+            "file_read": {"content": ""},
+            "file_write": {"success": True},
+            "bash_executor": {"stdout": "abc123"},
+        },
+        llm_responses=[
+            {"content": "Voici ma réponse."},
+            {"content": "Seconde session."},
+        ],
+        memory=True,
+        workspace_rules="# Règles\n- anyhow INTERDIT\n",
+    )
+
+    agent1 = _spec_assistant.SpecAssistant()
+    await agent1.run(_make_task("crée une spec pour le login"), ctx)
+
+    assert ctx.memory is not None
+    status = await ctx.memory.recall("bootstrap.status")
+    assert status == "complete", "bootstrap should be complete after first session"
+
+    # Second session: reset tool call log but keep memory
+    assert ctx.tools is not None
+    ctx.tools.calls.clear()
+
+    agent2 = _spec_assistant.SpecAssistant()
+    await agent2.run(_make_task("affine la spec login"), ctx)
+
+    file_read_apollia = [
+        args
+        for name, args in ctx.tools.calls
+        if name == "file_read"
+        and "APOLLIA" in str(args.get("path", ""))
+    ]
+    assert len(file_read_apollia) == 0, (
+        f"file_read(APOLLIA.md) called in session N+1: {file_read_apollia}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_dev_assistant_snapshot_contains_architecture() -> None:
+    """GIVEN a workspace with multiple Cargo.toml markers
+    WHEN dev-assistant runs
+    THEN the persisted snapshot contains architecture entries."""
+    ctx = MockContext.create(
+        tools={
+            "file_read": {"content": ""},
+            "file_write": {"success": True},
+            "bash_executor": {
+                "stdout": "./crates/core/Cargo.toml\n./crates/runtime/Cargo.toml\n",
+            },
+        },
+        memory=True,
+        workspace_rules="anyhow INTERDIT",
+    )
+
+    agent = _dev_assistant.DevAssistant()
+    await agent.run(_make_task("Implémente l'auth JWT"), ctx)
+
+    assert ctx.memory is not None
+    raw_snapshot = await ctx.memory.recall("bootstrap.snapshot")
+    assert raw_snapshot is not None, "bootstrap snapshot should be persisted"
+
+    snapshot = json.loads(raw_snapshot)
+    assert "architecture" in snapshot, "snapshot must contain architecture"
+    assert isinstance(snapshot["architecture"], list)
