@@ -210,13 +210,13 @@ def test_parse_rules_extracts_forbidden_deps_plain() -> None:
 
 
 def test_parse_rules_raw_truncated_at_limit() -> None:
-    """GIVEN raw text longer than _MAX_RULES_CHARS
+    """GIVEN raw text longer than the inline truncation limit (4000 chars)
     WHEN parse_project_rules is called
     THEN result['raw'] does not exceed the limit (plus truncation notice)."""
-    raw = "x" * (spec_assistant._MAX_RULES_CHARS + 1_000)
+    raw = "x" * 5_000
     result = spec_assistant.parse_project_rules(raw)
 
-    assert len(result["raw"]) <= spec_assistant._MAX_RULES_CHARS + 100
+    assert len(result["raw"]) <= 4_100
 
 
 # ---------------------------------------------------------------------------

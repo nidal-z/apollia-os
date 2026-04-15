@@ -44,10 +44,6 @@ _MEMORY_CONFIDENCE_SPECS: float = 1.0
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Maximum characters from parsed rules injected into the system prompt.
-# ~4 000 chars ≈ ~1 200 tokens, leaving comfortable room in any context window.
-_MAX_RULES_CHARS: int = 4_000
-
 # [SPEC:slug]…[/SPEC] — the LLM uses this marker to emit a TaskSpec for saving.
 _SPEC_BLOCK_RE: re.Pattern[str] = re.compile(
     r"\[SPEC:([a-z0-9][a-z0-9\-]{0,62})\](.*?)\[/SPEC\]",
@@ -203,8 +199,8 @@ def parse_project_rules(raw_text: str) -> dict[str, str]:
         "Comment convention",
         "## Comments",
     )
-    truncated = raw_text[:_MAX_RULES_CHARS]
-    if len(raw_text) > _MAX_RULES_CHARS:
+    truncated = raw_text[:4_000]
+    if len(raw_text) > 4_000:
         truncated += "\n[… règles tronquées pour tenir dans le contexte …]"
     return {
         "raw": truncated,

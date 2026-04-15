@@ -51,9 +51,6 @@ _MEMORY_CONFIDENCE_CODEBASE: float = 0.7
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Maximum characters from parsed rules injected into the system prompt.
-_MAX_RULES_CHARS: int = 4_000
-
 _TASK_SPEC_DIR: str = ".apollia/tasks"
 
 # Marqueurs de couche dans une TaskSpec
@@ -326,8 +323,8 @@ def _parse_rules(raw_text: str) -> dict[str, str]:
         "Comment convention",
         "## Comments",
     )
-    truncated = raw_text[:_MAX_RULES_CHARS]
-    if len(raw_text) > _MAX_RULES_CHARS:
+    truncated = raw_text[:4_000]
+    if len(raw_text) > 4_000:
         truncated += "\n[… règles tronquées …]"
     return {
         "raw": truncated,
