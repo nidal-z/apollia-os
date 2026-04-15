@@ -65,6 +65,29 @@ class MemoryInterface:
         """
         ...
 
+    def recall_entry(
+        self,
+        key: str,
+    ) -> Awaitable[dict[str, object] | None]:
+        """Retrieve a semantic entry with full metadata.
+
+        Returns a dict with keys: key, value, confidence, source,
+        updated_at, expires_at. Returns None if the key does not exist
+        or is expired.
+        """
+        ...
+
+    def recall_all(
+        self,
+        limit: int | None = None,
+    ) -> Awaitable[list[dict[str, object]]]:
+        """List all semantic entries in the agent namespace.
+
+        Returns dicts with the same structure as recall_entry().
+        limit defaults to 100.
+        """
+        ...
+
     def forget(self, key: str) -> Awaitable[None]:
         """Remove a key/value pair from semantic memory."""
         ...

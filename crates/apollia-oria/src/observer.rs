@@ -289,7 +289,7 @@ pub fn observe(
 
             let semantic = SemanticMemory::new(store);
             let facts = semantic
-                .recall_all(&namespace)
+                .recall_all(&namespace, None)
                 .map_err(|e| ObserverError::MemoryError(e.to_string()))?;
 
             let semantic_relevant: Vec<(String, String)> = facts

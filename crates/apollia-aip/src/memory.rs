@@ -213,6 +213,77 @@ impl MemoryInterface {
         })
     }
 
+    /// Retrieves a semantic entry with full metadata.
+    ///
+    /// Returns a dict with keys `{key, value, confidence, source, updated_at, expires_at}`
+    /// or `None` if the key does not exist or is expired.
+    fn recall_entry<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
+        let manager = Arc::clone(&self.manager);
+        let namespace = self.namespace.clone();
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let result =
+                tokio::task::spawn_blocking(move || recall_entry_inner(&manager, &namespace, &key))
+                    .await
+                    .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
+
+            match result {
+                Ok(Some(json_val)) => Python::with_gil(|py| {
+                    let json_mod = py
+                        .import("json")
+                        .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+                    let json_str = serde_json::to_string(&json_val)
+                        .map_err(|e| PyRuntimeError::new_err(format!("serialize: {e}")))?;
+                    let py_obj: PyObject = json_mod
+                        .call_method1("loads", (json_str,))
+                        .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
+                        .unbind();
+                    Ok(py_obj)
+                }),
+                Ok(None) => Ok(Python::with_gil(|py| py.None())),
+                Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
+            }
+        })
+    }
+
+    /// Lists all semantic entries in the agent namespace.
+    ///
+    /// Returns `list[dict]` with the same structure as `recall_entry()`.
+    /// `limit` caps the result count (defaults to 100).
+    #[pyo3(signature = (limit=None))]
+    fn recall_all<'py>(
+        &self,
+        py: Python<'py>,
+        limit: Option<usize>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let manager = Arc::clone(&self.manager);
+        let namespace = self.namespace.clone();
+        let limit = limit.unwrap_or(100);
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let result =
+                tokio::task::spawn_blocking(move || recall_all_inner(&manager, &namespace, limit))
+                    .await
+                    .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
+
+            match result {
+                Ok(items) => Python::with_gil(|py| {
+                    let json_mod = py
+                        .import("json")
+                        .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+                    let json_str = serde_json::to_string(&items)
+                        .map_err(|e| PyRuntimeError::new_err(format!("serialize: {e}")))?;
+                    let py_obj: PyObject = json_mod
+                        .call_method1("loads", (json_str,))
+                        .map_err(|e| PyRuntimeError::new_err(format!("json.loads: {e}")))?
+                        .unbind();
+                    Ok(py_obj)
+                }),
+                Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
+            }
+        })
+    }
+
     /// Removes a key/value pair from semantic memory.
     fn forget<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
         let manager = Arc::clone(&self.manager);
@@ -436,6 +507,61 @@ fn forget_inner(
     let sem = SemanticMemory::new(store);
     sem.forget(namespace, key)
         .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))
+}
+
+/// Retrieves a semantic entry with full metadata.
+///
+/// Returns the entry as a JSON value containing `{key, value, confidence,
+/// source, updated_at, expires_at}`, or `None` if absent or expired.
+fn recall_entry_inner(
+    manager: &Arc<Mutex<MemoryManager>>,
+    namespace: &str,
+    key: &str,
+) -> Result<Option<serde_json::Value>, MemoryInterfaceError> {
+    let mut mgr = lock(manager)?;
+    let store = mgr
+        .store(namespace)
+        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+
+    let sem = SemanticMemory::new(store);
+    let entry = sem
+        .recall_entry(namespace, key)
+        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+
+    Ok(entry.map(semantic_entry_to_json))
+}
+
+/// Lists all non-expired semantic entries in the namespace.
+///
+/// Returns a vector of JSON values with the same structure as `recall_entry_inner`.
+fn recall_all_inner(
+    manager: &Arc<Mutex<MemoryManager>>,
+    namespace: &str,
+    limit: usize,
+) -> Result<Vec<serde_json::Value>, MemoryInterfaceError> {
+    let mut mgr = lock(manager)?;
+    let store = mgr
+        .store(namespace)
+        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+
+    let sem = SemanticMemory::new(store);
+    let entries = sem
+        .recall_all(namespace, Some(limit as u64))
+        .map_err(|e| MemoryInterfaceError::OperationFailed(e.to_string()))?;
+
+    Ok(entries.into_iter().map(semantic_entry_to_json).collect())
+}
+
+/// Converts a [`SemanticEntry`] to the dict shape exposed to Python.
+fn semantic_entry_to_json(entry: apollia_memory::semantic::SemanticEntry) -> serde_json::Value {
+    serde_json::json!({
+        "key": entry.key,
+        "value": entry.value,
+        "confidence": entry.confidence,
+        "source": entry.source,
+        "updated_at": entry.updated_at,
+        "expires_at": entry.expires_at,
+    })
 }
 
 /// Locks the manager, converting poison errors.
@@ -817,6 +943,93 @@ mod tests {
 
         // THEN it succeeds
         assert!(id.is_ok());
+    }
+
+    // recall_entry_inner returns full metadata as JSON
+    #[test]
+    fn test_recall_entry_inner_returns_metadata() {
+        // GIVEN a stored entry with confidence 0.95
+        let (iface, _dir) = setup_interface("agent-alpha");
+        remember_inner(
+            &iface.manager,
+            &iface.namespace,
+            "bootstrap.meta",
+            "data",
+            Some("agent"),
+            Some(0.95),
+        )
+        .expect("remember");
+
+        // WHEN we recall the entry
+        let result = recall_entry_inner(&iface.manager, &iface.namespace, "bootstrap.meta");
+
+        // THEN the dict contains all metadata fields
+        let entry = result.expect("recall_entry").expect("should be Some");
+        assert_eq!(entry["key"], "bootstrap.meta");
+        assert_eq!(entry["confidence"], 0.95);
+        assert_eq!(entry["source"], "agent");
+        assert!(!entry["updated_at"].as_str().expect("updated_at").is_empty());
+    }
+
+    // recall_entry_inner returns None for missing key
+    #[test]
+    fn test_recall_entry_inner_returns_none_for_missing() {
+        // GIVEN a namespace with no matching key
+        let (iface, _dir) = setup_interface("agent-alpha");
+
+        // WHEN we recall a nonexistent key
+        let result = recall_entry_inner(&iface.manager, &iface.namespace, "nonexistent");
+
+        // THEN we get None
+        assert!(result.expect("recall_entry").is_none());
+    }
+
+    // recall_all_inner lists namespace entries
+    #[test]
+    fn test_recall_all_inner_lists_entries() {
+        // GIVEN 3 entries in the namespace
+        let (iface, _dir) = setup_interface("agent-alpha");
+        for i in 0..3 {
+            remember_inner(
+                &iface.manager,
+                &iface.namespace,
+                &format!("key.{i}"),
+                &format!("val{i}"),
+                None,
+                None,
+            )
+            .expect("remember");
+        }
+
+        // WHEN we recall all
+        let result = recall_all_inner(&iface.manager, &iface.namespace, 100);
+
+        // THEN we get 3 entries
+        assert_eq!(result.expect("recall_all").len(), 3);
+    }
+
+    // recall_all_inner respects limit
+    #[test]
+    fn test_recall_all_inner_respects_limit() {
+        // GIVEN 10 entries in the namespace
+        let (iface, _dir) = setup_interface("agent-alpha");
+        for i in 0..10 {
+            remember_inner(
+                &iface.manager,
+                &iface.namespace,
+                &format!("key.{i}"),
+                &format!("val{i}"),
+                None,
+                None,
+            )
+            .expect("remember");
+        }
+
+        // WHEN we recall with limit 5
+        let result = recall_all_inner(&iface.manager, &iface.namespace, 5);
+
+        // THEN we get at most 5 entries
+        assert_eq!(result.expect("recall_all").len(), 5);
     }
 }
 

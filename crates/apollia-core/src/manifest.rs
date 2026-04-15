@@ -151,7 +151,6 @@ pub struct AgentManifest {
     // Hugging Face Model Card (intended use, limitations), MCP (description).
     // Aucun standard existant ne propose ces trois champs de manière structurée —
     // c'est un différenciant Apollia.
-
     /// Exemples de prompts illustrant les usages typiques de l'agent.
     ///
     /// Affichés dans l'UI comme des « quick-start chips » cliquables.

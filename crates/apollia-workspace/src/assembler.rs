@@ -261,16 +261,17 @@ mod tests {
             context_ttl_secs: 60,
             ..Default::default()
         };
-        let runtime = ProjectRuntime::new(
-            vec![Box::new(GitProvider::default())],
-            config,
-        );
+        let runtime = ProjectRuntime::new(vec![Box::new(GitProvider::default())], config);
         let cwd = std::env::current_dir().expect("current_dir");
         // WHEN deux appels rapides
         let s1 = runtime.collect(&cwd).await;
         let s2 = runtime.collect(&cwd).await;
         // THEN même nombre de slices (depuis le cache)
-        assert_eq!(s1.slices.len(), s2.slices.len(), "cache must return same slice count");
+        assert_eq!(
+            s1.slices.len(),
+            s2.slices.len(),
+            "cache must return same slice count"
+        );
     }
 
     #[tokio::test]
@@ -284,7 +285,10 @@ mod tests {
         // WHEN
         let snapshot = runtime.collect(cwd).await;
         // THEN — git provider non applicable, snapshot vide
-        assert!(snapshot.is_empty(), "no providers applicable outside git repo");
+        assert!(
+            snapshot.is_empty(),
+            "no providers applicable outside git repo"
+        );
     }
 
     #[tokio::test]

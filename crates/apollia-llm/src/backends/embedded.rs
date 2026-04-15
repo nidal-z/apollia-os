@@ -257,10 +257,9 @@ impl EmbeddedBackend {
                 if let Some(existing) = guard.as_ref() {
                     existing.clone()
                 } else {
-                    let b = Arc::new(
-                        LlamaBackend::init()
-                            .map_err(|e| LlmError::InferenceError(format!("llama backend init failed: {e}")))?
-                    );
+                    let b = Arc::new(LlamaBackend::init().map_err(|e| {
+                        LlmError::InferenceError(format!("llama backend init failed: {e}"))
+                    })?);
                     *guard = Some(b.clone());
                     b
                 }
@@ -335,13 +334,14 @@ impl EmbeddedBackend {
                     }
                     // Include the call ID so the template can correlate the result
                     // with its originating tool call.
-                    MessageContent::ToolResult { tool_call_id, content } => {
-                        serde_json::json!({
-                            "tool_call_id": tool_call_id,
-                            "content": content,
-                        })
-                        .to_string()
-                    }
+                    MessageContent::ToolResult {
+                        tool_call_id,
+                        content,
+                    } => serde_json::json!({
+                        "tool_call_id": tool_call_id,
+                        "content": content,
+                    })
+                    .to_string(),
                 };
                 LlamaChatMessage::new(role.to_string(), content)
                     .map_err(|e| LlmError::InferenceError(format!("invalid chat message: {e}")))

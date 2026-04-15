@@ -107,7 +107,11 @@ async fn test_ac1_interval_trigger_submits_tasks() {
     // GIVEN — moteur avec un trigger à 200 ms d'intervalle
     let (mock_router, submit_count) = MockTaskSubmitter::new();
     let bus_tx = make_bus();
-    let def = interval_def("fast-trigger", "200ms", OnBusyPolicy::Queue { max_depth: 16 });
+    let def = interval_def(
+        "fast-trigger",
+        "200ms",
+        OnBusyPolicy::Queue { max_depth: 16 },
+    );
     let _handle = TriggerEngineHandle::spawn(
         vec![def],
         mock_router,

@@ -783,7 +783,7 @@ fn mandatory_fields_collected(agent_db_path: &std::path::Path) -> bool {
         return false;
     };
     let sem = apollia_memory::semantic::SemanticMemory::new(&store);
-    let Ok(entries) = sem.recall_all("onboarding-agent") else {
+    let Ok(entries) = sem.recall_all("onboarding-agent", None) else {
         return false;
     };
     let has_name = entries
@@ -823,7 +823,7 @@ async fn get_onboarding_status_inner(
         if agent_db_path.exists() {
             if let Ok(agent_store) = apollia_memory::store::MemoryStore::open(&agent_db_path) {
                 let sem = apollia_memory::semantic::SemanticMemory::new(&agent_store);
-                if let Ok(entries) = sem.recall_all("onboarding-agent") {
+                if let Ok(entries) = sem.recall_all("onboarding-agent", None) {
                     let mut discovered = std::collections::HashSet::new();
                     for entry in &entries {
                         if let Some(topic) = topic_for_memory_key(&entry.key) {

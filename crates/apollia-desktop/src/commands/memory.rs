@@ -120,7 +120,7 @@ pub async fn list_memory_entries(namespace: String) -> Result<Vec<MemoryEntry>, 
     }
 
     let semantic = SemanticMemory::new(&store);
-    if let Ok(facts) = semantic.recall_all(&namespace) {
+    if let Ok(facts) = semantic.recall_all(&namespace, None) {
         for fact in facts {
             entries.push(MemoryEntry {
                 id: fact.id,

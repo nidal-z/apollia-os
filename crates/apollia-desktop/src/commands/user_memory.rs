@@ -266,7 +266,7 @@ fn sync_onboarding_insights(repo: &UserMemoryRepository) {
     };
 
     let sem = apollia_memory::semantic::SemanticMemory::new(&agent_store);
-    let Ok(entries) = sem.recall_all("onboarding-agent") else {
+    let Ok(entries) = sem.recall_all("onboarding-agent", None) else {
         return;
     };
 

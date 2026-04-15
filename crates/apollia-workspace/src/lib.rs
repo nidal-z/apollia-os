@@ -40,9 +40,11 @@ pub mod tree;
 
 pub use assembler::{ProjectRuntime, ProviderEntry};
 pub use commands::{CommandLoader, LoadedCommand};
-pub use config::{GitProviderConfig, RuntimeConfig, RulesProviderConfig, StyleProviderConfig};
+pub use config::{GitProviderConfig, RulesProviderConfig, RuntimeConfig, StyleProviderConfig};
 pub use providers::{GitProvider, RulesProvider, ScriptProvider, StyleProvider, TreeProvider};
 pub use style::StyleDetector;
 
 // Re-exports from apollia-core for consumer convenience
-pub use apollia_core::workspace::{WorkspaceProvider, WorkspaceSection, WorkspaceSlice, WorkspaceSnapshot};
+pub use apollia_core::workspace::{
+    WorkspaceProvider, WorkspaceSection, WorkspaceSlice, WorkspaceSnapshot,
+};

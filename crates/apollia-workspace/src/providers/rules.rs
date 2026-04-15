@@ -110,9 +110,12 @@ mod tests {
     async fn rules_provider_finds_default_file() {
         // GIVEN un répertoire avec APOLLIA.md
         let dir = tempfile::tempdir().expect("tempdir");
-        tokio::fs::write(dir.path().join("APOLLIA.md"), "# Règles\nFaire du bon code.")
-            .await
-            .expect("write");
+        tokio::fs::write(
+            dir.path().join("APOLLIA.md"),
+            "# Règles\nFaire du bon code.",
+        )
+        .await
+        .expect("write");
         let provider = RulesProvider::default();
         // WHEN
         let slice = provider.collect(dir.path()).await;

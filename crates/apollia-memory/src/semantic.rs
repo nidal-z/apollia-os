@@ -233,19 +233,36 @@ impl<'a> SemanticMemory<'a> {
         Ok(evicted as u64)
     }
 
-    /// Recupere toutes les connaissances d'un namespace, triees par cle.
+    /// Recupere toutes les connaissances non-expirees d'un namespace, triees par cle.
     ///
     /// Retourne un vecteur vide si le namespace n'a aucune entree.
-    pub fn recall_all(&self, namespace: &str) -> Result<Vec<SemanticEntry>, SemanticMemoryError> {
+    /// `limit` plafonne le nombre de resultats via `LIMIT` SQL.
+    pub fn recall_all(
+        &self,
+        namespace: &str,
+        limit: Option<u64>,
+    ) -> Result<Vec<SemanticEntry>, SemanticMemoryError> {
         let conn = self.store.conn();
 
-        let mut stmt = conn
-            .prepare(
+        let sql = match limit {
+            Some(n) => format!(
                 "SELECT id, namespace, key, value, source, confidence, created_at, updated_at, expires_at
                  FROM semantic_memories
                  WHERE namespace = ?1
-                 ORDER BY key ASC",
-            )
+                   AND (expires_at IS NULL OR expires_at >= datetime('now'))
+                 ORDER BY key ASC
+                 LIMIT {n}"
+            ),
+            None => "SELECT id, namespace, key, value, source, confidence, created_at, updated_at, expires_at
+                 FROM semantic_memories
+                 WHERE namespace = ?1
+                   AND (expires_at IS NULL OR expires_at >= datetime('now'))
+                 ORDER BY key ASC"
+                .to_string(),
+        };
+
+        let mut stmt = conn
+            .prepare(&sql)
             .map_err(|e| SemanticMemoryError::RecallFailed(e.to_string()))?;
 
         let rows = stmt
@@ -272,6 +289,46 @@ impl<'a> SemanticMemory<'a> {
         }
 
         Ok(entries)
+    }
+
+    /// Recupere une connaissance par cle, avec filtrage des entrees expirees.
+    ///
+    /// Retourne `None` si la cle n'existe pas ou si l'entree est expiree.
+    pub fn recall_entry(
+        &self,
+        namespace: &str,
+        key: &str,
+    ) -> Result<Option<SemanticEntry>, SemanticMemoryError> {
+        let conn = self.store.conn();
+
+        let result = conn.query_row(
+            "SELECT id, namespace, key, value, source, confidence, created_at, updated_at, expires_at
+             FROM semantic_memories
+             WHERE namespace = ?1 AND key = ?2
+               AND (expires_at IS NULL OR expires_at >= datetime('now'))",
+            rusqlite::params![namespace, key],
+            |row| {
+                let value_str: String = row.get(3)?;
+                Ok(SemanticEntry {
+                    id: row.get(0)?,
+                    namespace: row.get(1)?,
+                    key: row.get(2)?,
+                    value: serde_json::from_str(&value_str)
+                        .unwrap_or(serde_json::Value::String(value_str)),
+                    source: row.get(4)?,
+                    confidence: row.get(5)?,
+                    created_at: row.get(6)?,
+                    updated_at: row.get(7)?,
+                    expires_at: row.get(8)?,
+                })
+            },
+        );
+
+        match result {
+            Ok(entry) => Ok(Some(entry)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(SemanticMemoryError::RecallFailed(e.to_string())),
+        }
     }
 
     /// Recupere une connaissance par cle. `None` si absente.
@@ -705,7 +762,7 @@ mod tests {
 
         // THEN — 2 oldest evicted, 3 remain
         assert_eq!(evicted, 2);
-        let remaining = sem.recall_all("ns").unwrap();
+        let remaining = sem.recall_all("ns", None).unwrap();
         assert_eq!(remaining.len(), 3);
         // key.0 and key.1 (oldest updated_at) should be gone
         for entry in &remaining {
@@ -742,7 +799,7 @@ mod tests {
 
         // THEN — nothing evicted
         assert_eq!(evicted, 0);
-        assert_eq!(sem.recall_all("ns").unwrap().len(), 2);
+        assert_eq!(sem.recall_all("ns", None).unwrap().len(), 2);
     }
 
     // DT-018 — upsert does NOT trigger eviction (only new inserts do)
@@ -763,7 +820,7 @@ mod tests {
             .unwrap();
 
         // THEN — still 3 entries (no eviction happened)
-        assert_eq!(sem.recall_all("ns").unwrap().len(), 3);
+        assert_eq!(sem.recall_all("ns", None).unwrap().len(), 3);
     }
 
     // Namespace isolation
@@ -782,5 +839,122 @@ mod tests {
         // THEN
         assert_eq!(a.value, json!("val-a"));
         assert_eq!(b.value, json!("val-b"));
+    }
+
+    // recall_entry returns metadata
+    #[test]
+    fn test_recall_entry_returns_metadata() {
+        // GIVEN
+        let (store, _) = setup();
+        let sem = SemanticMemory::new(&store);
+        sem.remember(
+            "ns",
+            "bootstrap.meta",
+            &json!("data"),
+            0.95,
+            Some("agent"),
+            None,
+        )
+        .unwrap();
+        // WHEN
+        let entry = sem.recall_entry("ns", "bootstrap.meta").unwrap();
+        // THEN
+        let e = entry.expect("should be Some");
+        assert_eq!(e.key, "bootstrap.meta");
+        assert_eq!(e.value, json!("data"));
+        assert!((e.confidence - 0.95).abs() < f64::EPSILON);
+        assert_eq!(e.source, Some("agent".to_string()));
+        assert!(!e.updated_at.is_empty());
+    }
+
+    // recall_entry returns None for missing key
+    #[test]
+    fn test_recall_entry_returns_none_for_missing_key() {
+        // GIVEN
+        let (store, _) = setup();
+        let sem = SemanticMemory::new(&store);
+        // WHEN
+        let entry = sem.recall_entry("ns", "nonexistent").unwrap();
+        // THEN
+        assert!(entry.is_none());
+    }
+
+    // recall_all lists namespace entries
+    #[test]
+    fn test_recall_all_lists_namespace_entries() {
+        // GIVEN
+        let (store, _) = setup();
+        let sem = SemanticMemory::new(&store);
+        sem.remember("ns", "k1", &json!("v1"), 1.0, None, None)
+            .unwrap();
+        sem.remember("ns", "k2", &json!("v2"), 1.0, None, None)
+            .unwrap();
+        sem.remember("ns", "k3", &json!("v3"), 1.0, None, None)
+            .unwrap();
+        // WHEN
+        let entries = sem.recall_all("ns", None).unwrap();
+        // THEN
+        assert_eq!(entries.len(), 3);
+    }
+
+    // recall_all respects limit
+    #[test]
+    fn test_recall_all_respects_limit() {
+        // GIVEN
+        let (store, _) = setup();
+        let sem = SemanticMemory::new(&store);
+        for i in 0..10 {
+            sem.remember("ns", &format!("key.{i}"), &json!(i), 1.0, None, None)
+                .unwrap();
+        }
+        // WHEN
+        let entries = sem.recall_all("ns", Some(5)).unwrap();
+        // THEN
+        assert_eq!(entries.len(), 5);
+    }
+
+    // recall_entry excludes expired entries
+    #[test]
+    fn test_recall_entry_excludes_expired() {
+        // GIVEN
+        let (store, _) = setup();
+        let sem = SemanticMemory::new(&store);
+        sem.remember(
+            "ns",
+            "expired_key",
+            &json!("old"),
+            1.0,
+            None,
+            Some("2020-01-01T00:00:00Z"),
+        )
+        .unwrap();
+        // WHEN
+        let entry = sem.recall_entry("ns", "expired_key").unwrap();
+        // THEN
+        assert!(entry.is_none());
+    }
+
+    // recall_all excludes expired entries
+    #[test]
+    fn test_recall_all_excludes_expired() {
+        // GIVEN
+        let (store, _) = setup();
+        let sem = SemanticMemory::new(&store);
+        sem.remember("ns", "fresh", &json!("ok"), 1.0, None, None)
+            .unwrap();
+        sem.remember(
+            "ns",
+            "expired",
+            &json!("old"),
+            1.0,
+            None,
+            Some("2020-01-01T00:00:00Z"),
+        )
+        .unwrap();
+        // WHEN
+        let entries = sem.recall_all("ns", None).unwrap();
+        // THEN
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].key, "fresh");
     }
 }

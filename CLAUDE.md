@@ -135,12 +135,12 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Sprint en cours :** Aucun — Sprint 37 livré, Sprint 38 à planifier.
-**Dernier sprint livré :** Sprint 37 — Parité complète TypeScript (OAuth2 PKCE, auto-updater, code review agent, mDNS MCP, hot reload MCP, HITL MCP SQLite, memory export/import, purge configurable, OnBusyPolicy::Queue, filtrage notifs, templates pipeline, CUDA CI, Bedrock, Vertex AI, Notebook tool, 15/15 stories, ADR-064→068). ✅
-**Sprint précédent :** Sprint 36 — Permissions, MCP Server & Intelligence UX (moteur de permissions 3 couches, MCP server mode, routing LLM Precise/Fast, 6 HITL desktop, widget coût temps réel, slash commands custom, /fork, --allowed-tools, 16/16 stories, ADR-061→063). ✅
-**Avant :** Sprint 35 — Workspace Intelligence & Execution Performance (prompt caching, outils concurrents, APOLLIA.md, auto-compact, session recovery, persistent_bash, 13 stories, ADR-056→060). ✅
+**Sprint en cours :** Sprint 40 planifié — Context Bootstrapping & SDK 0.3.0 (STORY-509→514, ADR-071).
+**Dernier sprint livré :** Sprint 39 — Agents qui travaillent : 4 assistants opérationnels (spec/dev/review/document), memory namespace project-scoped, restructuration agents/, smoke tests (7/7 stories, ADR-070). ✅
+**Sprint précédent :** Sprint 37 — Parité complète TypeScript (OAuth2 PKCE, auto-updater, code review agent, mDNS MCP, hot reload MCP, HITL MCP SQLite, memory export/import, purge configurable, OnBusyPolicy::Queue, filtrage notifs, templates pipeline, CUDA CI, Bedrock, Vertex AI, Notebook tool, 15/15 stories, ADR-064→068). ✅
+**Avant :** Sprint 36 — Permissions, MCP Server & Intelligence UX (moteur de permissions 3 couches, MCP server mode, routing LLM Precise/Fast, 6 HITL desktop, widget coût temps réel, slash commands custom, /fork, --allowed-tools, 16/16 stories, ADR-061→063). ✅
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
-**Dernière décision :** ADR-068 — Google Vertex AI : ADC vs clé de service JSON
+**Dernière décision :** ADR-071 — ContextBootstrap : convention de bootstrapping de contexte agent (SDK 0.2.0+)
 
 **Book mdBook :** structure pédagogique complète dans `book/src/` — ch01 (Premiers pas) → ch19 (CLI) + annexes A-F. Build propre : `mdbook build book`. Sources des chapitres : `docs/wiki/`. Convention : book = apprendre, wiki = référence (voir règle Documentation ci-dessus).
 

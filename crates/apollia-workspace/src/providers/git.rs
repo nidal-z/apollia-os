@@ -51,8 +51,7 @@ impl WorkspaceProvider for GitProvider {
     }
 
     async fn collect(&self, cwd: &Path) -> WorkspaceSlice {
-        let result =
-            GitContextCollector::collect(cwd, self.config.git_status_max_lines).await;
+        let result = GitContextCollector::collect(cwd, self.config.git_status_max_lines).await;
 
         let Some(branch) = result.branch else {
             return WorkspaceSlice::empty("git");

@@ -179,7 +179,7 @@ impl UserMemoryRepository {
     pub fn is_empty(&self) -> Result<bool, UserMemoryError> {
         let sem = SemanticMemory::new(&self.store);
         let all = sem
-            .recall_all(USER_NAMESPACE)
+            .recall_all(USER_NAMESPACE, None)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
         Ok(all.is_empty())
     }
@@ -237,7 +237,7 @@ impl UserMemoryRepository {
         let prefix = format!("{}{KEY_SEPARATOR}", category.as_str());
 
         let all = sem
-            .recall_all(USER_NAMESPACE)
+            .recall_all(USER_NAMESPACE, None)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
 
         let entries: Vec<UserMemoryEntry> = all
@@ -292,7 +292,7 @@ impl UserMemoryRepository {
         let mut entries = Vec::with_capacity(results.len());
         for result in &results {
             let maybe = sem
-                .recall_all(USER_NAMESPACE)
+                .recall_all(USER_NAMESPACE, None)
                 .map_err(|e| UserMemoryError::StorageError(e.to_string()))?
                 .into_iter()
                 .find(|e| e.id == result.source_id);
@@ -320,7 +320,7 @@ impl UserMemoryRepository {
     pub fn recall_all_for_injection(&self, max_entries: usize) -> Result<String, UserMemoryError> {
         let sem = SemanticMemory::new(&self.store);
         let all = sem
-            .recall_all(USER_NAMESPACE)
+            .recall_all(USER_NAMESPACE, None)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
 
         let mut output = String::new();
@@ -373,7 +373,7 @@ impl UserMemoryRepository {
     pub fn recall_persona_brief(&self, max_entries: usize) -> Result<String, UserMemoryError> {
         let sem = SemanticMemory::new(&self.store);
         let all = sem
-            .recall_all(USER_NAMESPACE)
+            .recall_all(USER_NAMESPACE, None)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
 
         // Early return if no entries with sufficient confidence exist.
@@ -668,7 +668,7 @@ impl UserMemoryRepository {
         );
 
         let all = sem
-            .recall_all(USER_NAMESPACE)
+            .recall_all(USER_NAMESPACE, None)
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
 
         let topics: Vec<String> = all
