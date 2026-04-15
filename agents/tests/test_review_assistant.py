@@ -569,65 +569,31 @@ def test_build_report_includes_today_date() -> None:
 
 
 # ---------------------------------------------------------------------------
-# load_project_rules
+# ReviewContextBootstrap
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_load_project_rules_from_memory() -> None:
-    """GIVEN de la mémoire contenant project_rules
-    WHEN load_project_rules est appelé
-    ALORS file_read n'est PAS appelé (cache mémoire utilisé)."""
+async def test_review_bootstrap_uses_project_bootstrap() -> None:
+    """GIVEN review-assistant with workspace rules
+    WHEN bootstrap runs
+    THEN the snapshot contains workspace_rules and tech_stack."""
     ctx = MockContext.create(
-        tools={"file_read": {"content": "ne doit pas être lu"}},
+        tools={
+            "file_read": {"content": ""},
+            "bash_executor": {"stdout": "abc123", "exit_code": 0},
+        },
         memory=True,
-    )
-    assert ctx.memory is not None
-    await ctx.memory.remember(
-        key=review_assistant.MEMORY_KEY_PROJECT_RULES,
-        value="date-fns INTERDIT dans ce projet",
-        source="test",
-        confidence=0.9,
+        workspace_rules="anyhow INTERDIT dans ce workspace",
     )
 
-    rules = await review_assistant.load_project_rules(ctx)
+    bootstrap = review_assistant.ReviewContextBootstrap()
+    snapshot = await bootstrap.run_bootstrap(ctx)
 
-    assert "date-fns INTERDIT" in rules["raw"]
-    assert ctx.tools is not None
-    assert len([n for n, _ in ctx.tools.calls if n == "file_read"]) == 0
-
-
-@pytest.mark.asyncio
-async def test_load_project_rules_from_files_when_no_memory() -> None:
-    """GIVEN aucune règle en mémoire mais un fichier workspace présent
-    WHEN load_project_rules est appelé
-    ALORS file_read est appelé et les règles sont retournées."""
-    ctx = MockContext.create(
-        tools={"file_read": {"content": "anyhow INTERDIT"}},
-        memory=True,
-    )
-
-    rules = await review_assistant.load_project_rules(ctx)
-
-    assert rules["raw"] != ""
-    assert ctx.tools is not None
-    assert ctx.tools.tool_call_count() > 0
-
-
-@pytest.mark.asyncio
-async def test_load_project_rules_empty_when_no_sources() -> None:
-    """GIVEN aucune mémoire et aucun contenu de fichier
-    WHEN load_project_rules est appelé
-    ALORS le dict retourné a 'raw' vide et '[]' pour forbidden_deps."""
-    ctx = MockContext.create(
-        tools={"file_read": {"content": ""}},
-        memory=True,
-    )
-
-    rules = await review_assistant.load_project_rules(ctx)
-
-    assert rules["raw"] == ""
-    assert rules["forbidden_deps"] == "[]"
+    assert snapshot["workspace_rules"] == "anyhow INTERDIT dans ce workspace"
+    assert isinstance(snapshot["tech_stack"], list)
+    assert snapshot["commit_hash"] == "abc123"
+    assert snapshot["has_git"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -646,19 +612,7 @@ async def test_run_detects_forbidden_dep_in_diff() -> None:
             "bash_executor": {"stdout": _DIFF_WITH_FORBIDDEN_DEP, "exit_code": 0},
         },
         memory=True,
-    )
-    assert ctx.memory is not None
-    await ctx.memory.remember(
-        key=review_assistant.MEMORY_KEY_PROJECT_RULES,
-        value="date-fns INTERDIT dans ce projet",
-        source="test",
-        confidence=0.9,
-    )
-    await ctx.memory.remember(
-        key=review_assistant.MEMORY_KEY_FORBIDDEN_DEPS,
-        value='["date-fns"]',
-        source="test",
-        confidence=0.9,
+        workspace_rules="date-fns INTERDIT dans ce projet",
     )
 
     a = _agent()
@@ -842,14 +796,11 @@ async def test_run_fails_without_input() -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_handles_missing_bash_executor_gracefully() -> None:
-    """GIVEN aucun bash_executor configuré
+async def test_run_handles_no_tools_gracefully() -> None:
+    """GIVEN aucun outil configuré (ctx.tools is None)
     WHEN run() est appelé
     ALORS il retourne un résultat completed (pas d'exception)."""
-    ctx = MockContext.create(
-        tools={"file_read": {"content": ""}},
-        memory=True,
-    )
+    ctx = MockContext.create(memory=True)
 
     a = _agent()
     result = await a.run(_make_task("revois le diff"), ctx)
@@ -858,30 +809,30 @@ async def test_run_handles_missing_bash_executor_gracefully() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Agent — règles persistées en mémoire
+# Agent — bootstrap persists snapshot on first turn
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_run_persists_rules_on_first_turn() -> None:
-    """GIVEN un workspace avec CLAUDE.md
+async def test_run_bootstraps_on_first_turn() -> None:
+    """GIVEN un workspace avec des règles
     WHEN run() est appelé pour la première fois
-    ALORS les règles sont persistées en mémoire."""
+    ALORS le bootstrap persiste un snapshot en mémoire."""
     ctx = MockContext.create(
         tools={
-            "file_read": {"content": "anyhow INTERDIT dans ce workspace"},
+            "file_read": {"content": ""},
             "bash_executor": {"stdout": "", "exit_code": 0},
         },
         memory=True,
+        workspace_rules="anyhow INTERDIT dans ce workspace",
     )
 
     a = _agent()
     await a.run(_make_task("revois le diff"), ctx)
 
     assert ctx.memory is not None
-    cached = await ctx.memory.recall(review_assistant.MEMORY_KEY_PROJECT_RULES)
-    assert cached is not None
-    assert "anyhow INTERDIT" in cached
+    status = await ctx.memory.recall("bootstrap.status")
+    assert status == "complete"
 
 
 # ---------------------------------------------------------------------------
@@ -902,16 +853,16 @@ def test_module_exports_all_public_symbols() -> None:
     WHEN les symboles publics sont accédés
     ALORS tous sont présents et ont le bon type."""
     assert callable(review_assistant.manifest)
-    assert callable(review_assistant.load_project_rules)
-    assert callable(review_assistant.persist_rules)
     assert callable(review_assistant._check_completeness)
     assert callable(review_assistant._check_conformity)
     assert callable(review_assistant._check_tests)
     assert callable(review_assistant._build_report)
     assert callable(review_assistant._get_diff)
     assert callable(review_assistant._find_task_spec)
-    assert isinstance(review_assistant.MEMORY_KEY_PROJECT_RULES, str)
-    assert isinstance(review_assistant.MEMORY_KEY_FORBIDDEN_DEPS, str)
     assert isinstance(review_assistant._LGTM, str)
     assert isinstance(review_assistant._BLOQUANT, str)
     assert isinstance(review_assistant._ATTENTION, str)
+    assert issubclass(
+        review_assistant.ReviewContextBootstrap,
+        review_assistant.ProjectContextBootstrap,
+    )

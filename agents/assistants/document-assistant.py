@@ -22,10 +22,12 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from pathlib import Path
 from typing import Any
 
 from apollia.agents import AIPResult, ConversationalAgent
+from apollia.bootstrap import ContextBootstrap
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +65,80 @@ MEMORY_KEY_RECENT_FILES: str = "recent_files"
 _MEMORY_SOURCE: str = "document-assistant"
 _MEMORY_CONFIDENCE: float = 0.8
 _MAX_RECENT_FILES: int = 10
+
+
+# ---------------------------------------------------------------------------
+# Bootstrap
+# ---------------------------------------------------------------------------
+
+
+class DocumentContextBootstrap(ContextBootstrap):
+    """Bootstrap for document-assistant.
+
+    Discovers the user's document processing profile: format preferences,
+    recently analysed files, and available A2A workers.  Unlike the
+    development-domain agents, staleness is timestamp-based (7 days max)
+    because document-assistant does not operate on a git repository.
+
+    Snapshot structure::
+
+        {
+            "last_scan_ts": str,            # epoch timestamp (staleness marker)
+            "format_preferences": dict,     # persisted output format preferences
+            "recent_files": list[str],      # recently analysed file paths
+            "available_workers": list[str]  # A2A workers active at last bootstrap
+        }
+
+    Legacy memory keys ``user_format_pref`` and ``recent_files`` are read
+    during bootstrap and migrated into the snapshot.  The original keys are
+    kept in memory for backward compatibility.
+    """
+
+    _MAX_AGE_SECS: int = 7 * 24 * 3600  # 7 days
+
+    async def is_stale(self, ctx: Any) -> bool:
+        """Return ``True`` when the snapshot is older than 7 days."""
+        meta = await self.load_meta(ctx)
+        if meta is None:
+            return True
+        ts = meta.get("staleness_marker", "")
+        try:
+            last = float(ts)
+        except (ValueError, TypeError):
+            return True
+        return (time.time() - last) > self._MAX_AGE_SECS
+
+    async def run_bootstrap(self, ctx: Any) -> dict[str, Any]:
+        """Discover document processing profile and persist the snapshot.
+
+        Reads legacy memory keys (``user_format_pref``, ``recent_files``),
+        lists available A2A workers, and persists everything as a snapshot.
+        Legacy keys are intentionally not deleted for backward compatibility.
+        """
+        snapshot: dict[str, Any] = {}
+        now_ts = str(time.time())
+
+        # Format preferences (legacy key migration)
+        fmt_raw = await ctx.memory.recall(MEMORY_KEY_FORMAT_PREF) if ctx.memory else None
+        snapshot["format_preferences"] = json.loads(fmt_raw) if fmt_raw else {}
+
+        # Recent files (legacy key migration)
+        recent_raw = await ctx.memory.recall(MEMORY_KEY_RECENT_FILES) if ctx.memory else None
+        snapshot["recent_files"] = json.loads(recent_raw) if recent_raw else []
+
+        # Available A2A workers
+        workers: list[str] = []
+        try:
+            skills = await ctx.a2a_list_skills()
+            workers = sorted({s["agent_name"] for s in skills})
+        except Exception:
+            pass
+        snapshot["available_workers"] = workers
+
+        await self.persist(
+            ctx, snapshot, staleness_marker=now_ts, source="bootstrap:document"
+        )
+        return snapshot
 
 
 # ---------------------------------------------------------------------------
@@ -554,19 +630,28 @@ class DocumentAssistant(ConversationalAgent):
     in clear business language — without exposing any technical implementation
     detail to the user.
 
+    Uses ``DocumentContextBootstrap`` to persist the user's document
+    processing profile (format preferences, recent files, available A2A
+    workers) in semantic memory.  On session N+1, the snapshot is reloaded
+    without re-scanning.
+
     Workflow per ``run()`` call:
 
-    1. Extract the user message and detect the language (FR/EN).
-    2. Find document file paths in the message and map each to a worker.
-    3. When no file path is identified, ask a single clarifying question.
-    4. Call each worker sequentially via ``ctx.a2a.call()``.
-    5. Humanize any worker errors; combine multi-file results into one response.
-    6. Persist analysed file paths in semantic memory for session continuity.
+    1. Bootstrap document profile (first turn) or reload snapshot.
+    2. Extract the user message and detect the language (FR/EN).
+    3. Find document file paths in the message and map each to a worker.
+    4. When no file path is identified, ask a single clarifying question.
+    5. Call each worker sequentially via ``ctx.a2a.call()``.
+    6. Humanize any worker errors; combine multi-file results into one response.
+    7. Persist analysed file paths in semantic memory for session continuity.
     """
 
     SYSTEM_PROMPT: str = _SYSTEM_PROMPT_FR
     MAX_TURNS: int = 20
     TEMPERATURE: float = 0.3
+
+    def __init__(self) -> None:
+        self._bootstrap = DocumentContextBootstrap()
 
     def manifest(self) -> dict[str, Any]:
         """Return the AIP manifest of document-assistant."""
@@ -575,8 +660,9 @@ class DocumentAssistant(ConversationalAgent):
     async def run(self, task: Any, ctx: Any) -> dict[str, Any]:
         """Process one document request turn.
 
-        Detects language, routes to the right worker(s), delegates via A2A,
-        and returns results formatted as natural-language output.
+        Bootstraps document profile on the first turn, detects language,
+        routes to the right worker(s), delegates via A2A, and returns
+        results formatted as natural-language output.
         """
         input_text, history = _extract_task_input(task)
 
@@ -588,6 +674,9 @@ class DocumentAssistant(ConversationalAgent):
 
         if is_first_turn:
             self._current_lang: str = lang
+
+            if await self._bootstrap.needs_bootstrap(ctx):
+                await self._bootstrap.run_bootstrap(ctx)
         else:
             lang = getattr(self, "_current_lang", lang)
 

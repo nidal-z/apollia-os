@@ -27,6 +27,8 @@ from typing import Any
 
 from apollia.agents import AIPResult, ConversationalAgent
 
+from assistants.shared.project_bootstrap import ProjectContextBootstrap
+
 
 # ---------------------------------------------------------------------------
 # Report level constants
@@ -38,33 +40,33 @@ _BLOQUANT = "🔴 BLOQUANT"
 
 
 # ---------------------------------------------------------------------------
-# Memory keys — shared with spec-assistant and dev-assistant for project rules
+# Memory keys
 # ---------------------------------------------------------------------------
 
-MEMORY_KEY_PROJECT_RULES: str = "project_rules"
-MEMORY_KEY_FORBIDDEN_DEPS: str = "forbidden_deps"
-
 _MEMORY_SOURCE: str = "review-assistant"
-_MEMORY_CONFIDENCE_RULES: float = 0.9
+
+
+# ---------------------------------------------------------------------------
+# Bootstrap
+# ---------------------------------------------------------------------------
+
+
+class ReviewContextBootstrap(ProjectContextBootstrap):
+    """Bootstrap for review-assistant.
+
+    No extra scopes beyond the common project snapshot (workspace rules,
+    tech stack, git state).  The base snapshot is sufficient for
+    post-implementation verification.
+
+    When another development-domain agent (e.g. dev-assistant) has already
+    bootstrapped the same project in a shared namespace, the snapshot can
+    be loaded directly without re-bootstrap.
+    """
 
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-
-# APOLLIA.md est le fichier canonique créé par `apollia workspace init`.
-# CLAUDE.md conservé pour compatibilité avec les workspaces Claude Code.
-_RULE_FILES: tuple[str, ...] = (
-    "APOLLIA.md",
-    ".apollia/rules.md",
-    "CLAUDE.md",
-    "package.json",
-    "Cargo.toml",
-    ".eslintrc.json",
-    "pyproject.toml",
-)
-
-_MAX_RULES_CHARS: int = 4_000
 
 _TASK_SPEC_DIR: str = ".apollia/tasks"
 
@@ -248,8 +250,11 @@ async def _run_bash(ctx: Any, cmd: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Project rules loading and persistence
+# Project rules parsing
 # ---------------------------------------------------------------------------
+
+_MAX_RULES_CHARS: int = 4_000
+
 
 def _parse_forbidden_deps(raw: str) -> list[str]:
     """Extract dependency names explicitly forbidden in *raw*."""
@@ -282,7 +287,11 @@ def _parse_forbidden_deps_json(raw_json: str) -> list[str]:
 
 
 def _parse_rules(raw_text: str) -> dict[str, str]:
-    """Parse *raw_text* from workspace files and return categorised rules."""
+    """Parse *raw_text* from workspace rules and return categorised rules.
+
+    Extracts forbidden dependencies and truncates the raw text to a
+    manageable size for system prompt injection.
+    """
     forbidden = _parse_forbidden_deps(raw_text)
     truncated = raw_text[:_MAX_RULES_CHARS]
     if len(raw_text) > _MAX_RULES_CHARS:
@@ -291,57 +300,6 @@ def _parse_rules(raw_text: str) -> dict[str, str]:
         "raw": truncated,
         "forbidden_deps": json.dumps(forbidden),
     }
-
-
-async def load_project_rules(ctx: Any) -> dict[str, str]:
-    """Return project rules for the current workspace.
-
-    Checks semantic memory first (project-scoped). Falls back to reading
-    workspace files when no cached rules are found. Returns a dict with
-    empty-string values when neither source yields rules.
-    """
-    _empty: dict[str, str] = {"raw": "", "forbidden_deps": "[]"}
-
-    if ctx.memory is not None:
-        cached = await ctx.memory.recall(MEMORY_KEY_PROJECT_RULES)
-        if cached:
-            return {
-                "raw": cached,
-                "forbidden_deps": await ctx.memory.recall(MEMORY_KEY_FORBIDDEN_DEPS) or "[]",
-            }
-
-    chunks: list[str] = []
-    for path in _RULE_FILES:
-        content = await _read_file(ctx, path)
-        if content:
-            chunks.append(f"### Source: {path}\n\n{content}")
-
-    if not chunks:
-        return _empty
-
-    full_text = "\n\n---\n\n".join(chunks)
-    return _parse_rules(full_text)
-
-
-async def persist_rules(ctx: Any, rules: dict[str, str]) -> None:
-    """Persist *rules* to semantic memory (project-scoped namespace).
-
-    No-ops silently when memory is unavailable or the rules dict is empty.
-    """
-    if ctx.memory is None or not rules.get("raw"):
-        return
-    await ctx.memory.remember(
-        key=MEMORY_KEY_PROJECT_RULES,
-        value=rules["raw"],
-        source=_MEMORY_SOURCE,
-        confidence=_MEMORY_CONFIDENCE_RULES,
-    )
-    await ctx.memory.remember(
-        key=MEMORY_KEY_FORBIDDEN_DEPS,
-        value=rules.get("forbidden_deps", "[]"),
-        source=_MEMORY_SOURCE,
-        confidence=_MEMORY_CONFIDENCE_RULES,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -1000,9 +958,13 @@ class ReviewAssistant(ConversationalAgent):
     standard violations, and missing tests. Produces an actionable 🟢/🟡/🔴
     report without modifying any file unless explicitly requested.
 
+    Uses ``ReviewContextBootstrap`` to load project context (workspace rules,
+    tech stack, git state) from semantic memory. On session N+1, the snapshot
+    is reloaded without re-reading workspace files.
+
     Workflow per ``run()`` call:
 
-    1. Load project rules from semantic memory or workspace files.
+    1. Bootstrap project context (first turn) or reload snapshot.
     2. Locate the TaskSpec from the user message or ``.apollia/tasks/``.
     3. Retrieve the current diff via ``bash_executor``.
     4. Check completeness: every ``[x]`` layer must have matching files in the diff.
@@ -1015,6 +977,9 @@ class ReviewAssistant(ConversationalAgent):
     MAX_TURNS: int = 20
     TEMPERATURE: float = 0.1
 
+    def __init__(self) -> None:
+        self._bootstrap = ReviewContextBootstrap()
+
     def manifest(self) -> dict[str, Any]:
         """Return the AIP manifest of review-assistant."""
         return manifest()
@@ -1022,8 +987,8 @@ class ReviewAssistant(ConversationalAgent):
     async def run(self, task: Any, ctx: Any) -> dict[str, Any]:
         """Execute one review turn for *task*.
 
-        Loads project context, retrieves the diff, runs all three checks,
-        and returns the assembled 🟢/🟡/🔴 report.
+        Bootstraps project context on the first turn, retrieves the diff,
+        runs all three checks, and returns the assembled 🟢/🟡/🔴 report.
         """
         input_text, history = _extract_task_input(task)
 
@@ -1033,12 +998,31 @@ class ReviewAssistant(ConversationalAgent):
         lang = _detect_language(input_text)
         is_first_turn = not history
 
-        rules = await load_project_rules(ctx)
         if is_first_turn:
             self._current_lang: str = lang
-            await persist_rules(ctx, rules)
+
+            if await self._bootstrap.needs_bootstrap(ctx):
+                await self._bootstrap.run_bootstrap(ctx)
+            snapshot = await self._bootstrap.load_snapshot(ctx)
+
+            raw_rules = (
+                snapshot.get("workspace_rules", "")
+                if snapshot
+                else (
+                    ctx.workspace.rules or ""
+                    if getattr(ctx, "workspace", None) is not None
+                    else ""
+                )
+            )
+            self._rules: dict[str, str] = (
+                _parse_rules(raw_rules)
+                if raw_rules
+                else {"raw": "", "forbidden_deps": "[]"}
+            )
         else:
             lang = getattr(self, "_current_lang", lang)
+
+        rules = getattr(self, "_rules", {"raw": "", "forbidden_deps": "[]"})
 
         self.SYSTEM_PROMPT = _SYSTEM_PROMPT_FR if lang == "fr" else _SYSTEM_PROMPT_EN
 
