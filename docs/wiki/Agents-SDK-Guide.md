@@ -27,7 +27,7 @@ $ pip install -e ./sdk
 
 # Vérifier
 $ python3 -c "import apollia; print(apollia.__version__)"
-0.1.0
+0.3.0
 ```
 
 Le SDK est un package Python standard dans `sdk/`. Il n'a aucune dépendance Rust — seul Python 3.10+ est requis.
@@ -38,8 +38,9 @@ Le SDK est un package Python standard dans `sdk/`. Il n'a aucune dépendance Rus
 
 ```
 sdk/apollia/
-├── __init__.py            ← AIPResult, __version__
+├── __init__.py            ← AIPResult, ConversationalAgent, ContextBootstrap, __version__
 ├── types.py               ← AIPResult dataclass
+├── bootstrap.py           ← ContextBootstrap (protocole de bootstrapping, Sprint 40)
 ├── agents/
 │   ├── react.py           ← BaseReActAgent
 │   ├── conversational.py  ← ConversationalAgent
@@ -58,7 +59,8 @@ sdk/apollia/
 │   ├── context.pyi        ← RuntimeContext
 │   ├── tools.pyi          ← ToolProxy
 │   ├── llm.pyi            ← LlmProxy
-│   └── memory.pyi         ← MemoryInterface
+│   ├── memory.pyi         ← MemoryInterface
+│   └── manifest.py        ← AgentManifestDict (TypedDict, Sprint 40)
 ├── cli/
 │   ├── __main__.py        ← Entry point: python -m apollia
 │   └── scaffold.py        ← scaffold_agent, templates
@@ -648,10 +650,98 @@ L'ancien fichier `apollia_base.py` reste un wrapper de compatibilité et continu
 
 ---
 
+## 8. `ContextBootstrap` — Protocole de bootstrapping *(Sprint 40)*
+
+Le SDK 0.3.0 introduit `ContextBootstrap`, une classe abstraite pour que les agents explorent et persistent un contexte projet cross-session. L'agent contrôle entièrement le cycle de vie du bootstrap (Principe #6 — mémoire à initiative de l'agent).
+
+```python
+from apollia.bootstrap import ContextBootstrap
+
+class MyBootstrap(ContextBootstrap):
+    async def is_stale(self, ctx) -> bool:
+        """Le snapshot existant est-il périmé ?"""
+        meta = await self.load_meta(ctx)
+        if meta is None:
+            return True
+        return meta.get("staleness_marker") != await self._current_hash(ctx)
+
+    async def run_bootstrap(self, ctx) -> dict:
+        """Explore le domaine, construit un snapshot, persiste."""
+        snapshot = {"rules": ctx.workspace.rules or "", "version": "1.0"}
+        await self.persist(ctx, snapshot, staleness_marker=await self._current_hash(ctx))
+        return snapshot
+```
+
+**Méthodes héritées (rarement surchargées) :**
+
+| Méthode | Description |
+|---|---|
+| `needs_bootstrap(ctx)` | Vérifie status + staleness — `True` si bootstrap nécessaire |
+| `load_snapshot(ctx)` | Charge le snapshot depuis la mémoire sémantique |
+| `load_meta(ctx)` | Charge les métadonnées (version, timestamp, staleness_marker) |
+| `persist(ctx, snapshot, *, staleness_marker, ...)` | Écrit snapshot + meta + status en mémoire |
+
+**Clés mémoire convention :**
+- `bootstrap.snapshot` — snapshot JSON complet
+- `bootstrap.meta` — `{version, created_at, staleness_marker}`
+- `bootstrap.status` — `"complete"` | `"partial"` | `"missing"`
+
+**Intégration dans `run()` :**
+
+```python
+class MonAssistant(ConversationalAgent):
+    def __init__(self):
+        self._bootstrap = MyBootstrap()
+
+    async def run(self, task, ctx):
+        if await self._bootstrap.needs_bootstrap(ctx):
+            await self._bootstrap.run_bootstrap(ctx)
+        snapshot = await self._bootstrap.load_snapshot(ctx)
+        # Utiliser snapshot pour enrichir le prompt...
+```
+
+> **Guide complet :** [Agents ContextBootstrap Guide](./Agents-ContextBootstrap-Guide)
+> **ADR :** [ADR-071](../adr/ADR-071-context-bootstrap-convention.md) — ContextBootstrap convention
+
+---
+
+## 9. `AgentManifestDict` — Type stubs *(Sprint 40)*
+
+Le SDK fournit un `TypedDict` complet pour typer `manifest()` et bénéficier de l'autocomplétion et de la validation mypy.
+
+```python
+from apollia.stubs.manifest import AgentManifestDict
+
+def manifest(self) -> AgentManifestDict:
+    return {
+        "name": "mon-agent",
+        "version": "1.0.0",
+        "description": "Description",
+        "tools_required": ["bash_executor"],
+        "agent_type": "worker",          # AIP v2 (Sprint 40)
+        "examples": ["Analyse ce fichier"],
+        "limitations": ["Ne gère pas les PDF chiffrés"],
+        "setup_notes": "Nécessite Python 3.11+",
+    }
+```
+
+**Champs AIP v2 (Sprint 40) :**
+
+| Champ | Type | Description |
+|---|---|---|
+| `agent_type` | `str \| None` | `"worker"`, `"assistant"`, `"system"` |
+| `examples` | `list[str]` | Exemples d'utilisation (UI + doc) |
+| `limitations` | `list[str]` | Contraintes connues (UI + doc) |
+| `setup_notes` | `str \| None` | Notes de configuration |
+
+---
+
 ## Voir aussi
 
 - [Agents Quickstart](./Agents-Quickstart) — premier agent en 5 minutes
 - [Agents RuntimeContext Guide](./Agents-RuntimeContext-Guide) — référence complète `ctx.*`
 - [Briques AIP Specification](./Briques-AIP-Specification) — contrat AIP complet
 - [Worker Agent Pattern](./Worker-Agent-Pattern) — guide complet pour créer un Worker Agent de A à Z
+- [Agents ContextBootstrap Guide](./Agents-ContextBootstrap-Guide) — guide complet du protocole de bootstrapping
 - [ADR-037](../adr/ADR-037-python-sdk-packaging) — décision packaging SDK
+- [ADR-071](../adr/ADR-071-context-bootstrap-convention.md) — ContextBootstrap convention

@@ -95,8 +95,20 @@ await ctx.memory.remember(
     source="agent:crm-qualifier"
 )
 
-# Récupérer une connaissance
+# Récupérer la valeur seule
 budget = await ctx.memory.recall("client.dupont_sa.budget_max")
+
+# Récupérer avec métadonnées complètes (Sprint 40)
+entry = await ctx.memory.recall_entry("client.dupont_sa.budget_max")
+if entry:
+    print(entry["confidence"])   # 1.0
+    print(entry["source"])       # "agent:crm-qualifier"
+    print(entry["updated_at"])   # "2026-03-05T14:30:00Z"
+
+# Lister toutes les entrées du namespace (Sprint 40)
+all_entries = await ctx.memory.recall_all(limit=50)
+for e in all_entries:
+    print(f"{e['key']} = {e['value']} (confidence={e['confidence']})")
 
 # Supprimer une connaissance obsolète
 await ctx.memory.forget("client.dupont_sa.old_email")
@@ -307,6 +319,17 @@ class MemoryInterface(Protocol):
 
     async def recall(self, key: str) -> Any | None: ...
 
+    async def recall_entry(self, key: str) -> dict | None: ...
+    # Retourne {key, value, confidence, source, updated_at, expires_at} ou None
+    # Les entrées expirées ne sont pas retournées
+
+    async def recall_all(
+        self, limit: int | None = None
+    ) -> list[dict]: ...
+    # Retourne toutes les entrées sémantiques du namespace
+    # Chaque dict a la même structure que recall_entry()
+    # limit : défaut 100
+
     async def forget(self, key: str) -> None: ...
 
     # ── ÉPISODIQUE ──
@@ -449,6 +472,30 @@ Agent C (lecture seule, pas de mémoire privée)
 | `OpenFailed { namespace, reason }` | Échec d'ouverture du fichier `.db` |
 
 La concurrence SQLite est gérée par WAL (Write-Ahead Logging) : plusieurs lecteurs simultanés, un seul writer, sans blocage.
+
+### Namespace project-scoped — Sprint 40 (ADR-070)
+
+Depuis le Sprint 40, les namespaces mémoire sont automatiquement préfixés par le `project_id` du contexte de chat actif. Cela empêche la contamination mémoire entre projets lorsqu'un même agent travaille sur plusieurs workspaces.
+
+```
+effective_namespace = "{project_id}:{manifest.memory_namespace}"   # si project_id présent
+effective_namespace = manifest.memory_namespace                     # sinon (session standalone)
+```
+
+| Scénario | Namespace effectif |
+|---|---|
+| `dev-assistant` dans projet `proj_abc123` | `"proj_abc123:dev-assistant"` |
+| `dev-assistant` en session standalone | `"dev-assistant"` |
+| `spec-assistant` dans projet `proj_abc123` | `"proj_abc123:spec-assistant"` |
+
+Le préfixage est transparent pour le code Python de l'agent — il s'applique lors de l'initialisation du `MemoryInterface` via la fonction pure `effective_memory_namespace()` dans `crates/apollia-aip/src/context.rs`.
+
+**Invariants :**
+- Backward compatible : les namespaces existants fonctionnent en session standalone
+- Workers non affectés (pas de `project_id` dans leur contexte)
+- Pas de changement de schéma SQLite
+
+> **Voir aussi :** [ADR-070](../adr/ADR-070-memory-namespace-project-scoped.md) — Memory namespace project-scoped
 
 ---
 

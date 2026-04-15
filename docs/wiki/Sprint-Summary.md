@@ -1,7 +1,7 @@
 # Sprint Summary — Apollia OS
 
 > Vue consolidée de tous les sprints : ce qui a été livré, les primitives agent disponibles, et les écarts par rapport aux specs.
-> Dernière mise à jour : 2026-04-02.
+> Dernière mise à jour : 2026-04-15.
 
 ---
 
@@ -687,6 +687,184 @@ Pas de nouvelle primitive Python — STT est une feature desktop/CLI, pas une AP
 - 6 Worker Agents total (4 bundled + 2 communautaires)
 - `ctx.tools.call("a2a:read-excel", ...)` — invocation A2A transparente via outil ORIA
 - Garde-fous A2A appliqués par le runtime (non contournables depuis Python)
+
+---
+
+## Sprint 33 — Onboarding interactif multi-phases
+
+**Statut :** LIVRÉ ✅ | **Stories :** 13/13
+
+### Ce qui a été implémenté
+- i18n complète des 8 composants onboarding/companion (zéro string FR/EN hardcodée)
+- ~70 clés traduction `onboarding_v2.*` et `companion.*` dans `fr.json` + `en.json`
+- 2 pages wiki créées : `Onboarding-System.md`, `Onboarding-Tour-Steps.md`
+- `Briques-Desktop.md` mis à jour (sections 5-6)
+- 2 chapitres book : `first-launch.md`, `onboarding-tour.md`
+
+---
+
+## Sprint 34 — Beta Hardening: Technical Debt, Security & Robustness
+
+**Statut :** LIVRÉ ✅ | **Stories :** 24/25 (1 🚫 Windows sandbox reporté) | **ADRs :** ADR-051→055
+
+### Ce qui a été implémenté
+- Auth API REST TCP `:7771` (token + loopback) — ADR-051
+- HMAC-SHA256 sur webhooks sortants
+- `cargo audit` + `cargo deny` en CI
+- 23 constantes hardcodées → `apollia.toml`
+- Pipeline fan-out (ADR-053) + step timeout + cancellation + HITL audit
+- Pricing LLM robuste (table lookup)
+- 3 agents communautaires : browser-worker, email-worker, slack-worker
+- Registry communautaire distant (Git-based) — `apollia agent install <git-url>` — ADR-055
+- Tests E2E Tauri automatisés (5 tests)
+- apollia-stt tests renforcés (22 → ~40)
+- CUDA compile check CI
+- 🚫 STORY-451 (Windows sandbox) reporté post-v1
+
+### Primitives agent disponibles
+- 9 Worker Agents total (6 précédents + browser + email + slack)
+- `apollia-os agent install <git-url>` — installation depuis un repo Git
+
+---
+
+## Sprint 35 — Workspace Intelligence & Execution Performance
+
+**Statut :** LIVRÉ ✅ | **Stories :** 13/13 | **ADRs :** ADR-056→060
+
+### Ce qui a été implémenté
+- Prompt caching `cache_control: ephemeral` — ADR-057 (-80% coût LLM sessions longues)
+- `TokenBudget` accumulé + affichage CLI + TTFT
+- `truncate_middle()` pour output > 30KB
+- Outils read-only concurrents (`is_read_only` + `execute_batch()`) — ADR-059
+- Retry exponentiel partagé tous backends + `CancellationToken` abort
+- Nouvelle crate `apollia-workspace` — ADR-056 : WorkspaceAssembler, GitContextCollector, ApolliamdFinder
+- Injection APOLLIA.md dans ORIA + AIP bridge (`ctx.workspace`)
+- `StyleDetector` — détection conventions de code
+- Auto-compact fenêtre de contexte — ADR-058 (seuil 80%, résumé LLM)
+- Session recovery — `apollia chat --resume <id>` après Ctrl+C
+- `persistent_bash` — shell persistant entre steps (état CWD conservé)
+- Sidechain logging A2A
+- `ContextProvider` trait — ADR-060
+
+### Primitives agent disponibles
+- `ctx.workspace` — contexte projet injecté (APOLLIA.md, git, style)
+- `apollia workspace status` — branche git + APOLLIA.md path
+- Shell persistant (`cd /tmp` conservé entre steps)
+
+---
+
+## Sprint 36 — Permissions, MCP Server & Intelligence UX
+
+**Statut :** LIVRÉ ✅ | **Stories :** 16/16 | **ADRs :** ADR-061→063
+
+### Ce qui a été implémenté
+- `apollia-permissions` : moteur 3 couches (SafeList + PrefixRuleEngine + InjectionDetector) — ADR-061
+- Validation syntaxe bash + `BANNED_COMMANDS` + AST parser (remplace regex)
+- MCP server mode — Apollia client ET serveur (stdio, 9 outils + `submit_task`) — ADR-062
+- Routing LLM par niveau de précision (Precise/Fast/Embedding)
+- Extraction file paths post-bash (non-bloquant, `FilePathExtractor`)
+- Binary feedback — deux plans alternatifs (RLHF SQLite logging) — ADR-063
+- 6 types UI HITL desktop (Bash, FileEdit, FileWrite, Filesystem, MCP, Generic + PermissionDispatcher)
+- Widget coût LLM temps réel desktop (`TokenBudgetWidget`)
+- Notification inactivité + canal terminal iTerm2/GNOME
+- `apollia workspace status/init`
+- `FileTimestampCache` — invalidation mémoire fichiers modifiés
+- Alerte seuil coût LLM (notifications desktop et OS)
+- `--allowedTools` / `--disallowedTools` + REPL history
+- Conversation forking (`ChatSession::fork`, `/fork` REPL)
+- Slash commands depuis `APOLLIA_COMMANDS` (`CommandRegistry`)
+
+### Primitives agent disponibles
+- Permissions 3 couches appliquées par le runtime
+- `/fork` — forking de conversation
+- Slash commands custom depuis `APOLLIA_COMMANDS/`
+
+---
+
+## Sprint 37 — Parité complète TypeScript
+
+**Statut :** LIVRÉ ✅ | **Stories :** 15/15 | **ADRs :** ADR-064→068
+
+### Ce qui a été implémenté
+- `apollia-auth` : OAuth2 PKCE complet (keyring, providers, callback localhost) — ADR-064
+- Auto-updater `apollia update` (GitHub Releases, SHA256, atomic replace) — ADR-065
+- Code review agent `apollia-review` (Python AIP, route REST, CLI)
+- MCP discovery mDNS (`_apollia-mcp._tcp.local.`)
+- Hot reload serveurs MCP (disconnect → update config → reconnect)
+- HITL MCP finalisé (`apollia mcp set-approval`, SQLite persistence, TTL)
+- `apollia memory export/import` (JSON gzip, merge/replace) — ADR-066
+- Purge configurable par type mémoire (episodic/semantic/procedural, auto_purge)
+- `OnBusyPolicy::Queue` pour triggers (file bornée, TriggerQueueFull event)
+- Filtrage notifications par sévérité par canal (Debug→Critical, min_severity)
+- Templates pipeline communautaires + `apollia pipeline install` (registry Git, LlmPrompt step)
+- `apollia-stt` CUDA compile check CI (feature matrix cpu/metal/cuda)
+- AWS Bedrock backend (SigV4, credentials chain) — ADR-067
+- Google Vertex AI backend (ADC OAuth2, token cache) — ADR-068
+- Notebook tool — lecture et édition Jupyter `.ipynb` (NotebookRead + NotebookEdit)
+
+### Primitives agent disponibles
+- `apollia auth login <provider>` — OAuth2 PKCE
+- `apollia update` — auto-updater SHA256
+- `apollia mcp list --discover` — mDNS discovery
+- Vertex AI + Bedrock comme backends LLM enterprise
+- `NotebookRead` + `NotebookEdit` pour agents data science
+
+---
+
+## Sprint 38 — Autonomie filesystem
+
+**Statut :** LIVRÉ ✅ | **Stories :** 5/5 | **ADR :** ADR-069
+
+### Ce qui a été implémenté
+- Refactor `NativeChatToolInvoker` : workspace_path par session
+- Extension `RiskClassifier` aux opérations filesystem (4 niveaux de risque)
+- Journal réversible filesystem + CLI `apollia rollback` — ADR-069
+- UI HITL filesystem — modal diff/preview pour opérations sensibles
+- File picker natif pour création de projet
+
+### Primitives agent disponibles
+- Agents autonomes sur le filesystem, régulés par friction graduée HITL
+- `apollia rollback <session-id>` — restauration post-hoc du disque
+
+---
+
+## Sprint 39 — Agents qui travaillent : Restructuration & Premiers Assistants Réels
+
+**Statut :** LIVRÉ ✅ | **Stories :** 7/7 | **ADR :** ADR-070
+
+### Ce qui a été implémenté
+- Memory namespace project-scoped (`project_id:namespace`) — ADR-070
+- Restructuration `agents/` (workers/ assistants/ system/ examples/)
+- `spec-assistant` — assistant conception et specs (TaskSpec, project rules, mémoire)
+- `dev-assistant` — assistant implémentation (pre-task contract, A2A, guardrails)
+- `review-assistant` — assistant vérification (complétude, conformance, tests)
+- `document-assistant` — traitement documents tous profils (routing A2A vers workers)
+- Smoke tests des 4 assistants
+
+### Primitives agent disponibles
+- 4 assistants opérationnels installables et démo-ables
+- Pipeline dev complet : spec → implémentation → vérification
+- Isolation mémoire par projet (transparent pour le code Python)
+
+---
+
+## Sprint 40 — Context Bootstrapping & SDK 0.3.0
+
+**Statut :** LIVRÉ ✅ | **Stories :** 6/6 | **ADRs :** ADR-070, ADR-071
+
+### Ce qui a été implémenté
+- `recall_entry()` + `recall_all()` exposés en Python (métadonnées complètes)
+- SDK 0.3.0 : `AgentManifestDict` v2 (4 champs AIP), `ConversationalAgent` stub importable sans runtime
+- `ContextBootstrap` : protocole SDK (classe abstraite, 2 méthodes) — ADR-071
+- `ProjectContextBootstrap` : base partagée agents dev (commit hash, workspace rules, tech stack)
+- Adoption bootstrap dans les 4 assistants (spec/dev/review/document)
+- Tests d'intégration bootstrap + smoke tests mis à jour
+
+### Primitives agent disponibles
+- `ctx.memory.recall_entry(key)` — métadonnées complètes d'une entrée sémantique
+- `ctx.memory.recall_all(limit=N)` — lister toutes les entrées du namespace
+- `ContextBootstrap` — persistance cross-session du contexte projet
+- `from apollia import ConversationalAgent` — importable sans runtime Rust
 
 ---
 

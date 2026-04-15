@@ -261,6 +261,33 @@ if ctx.memory:
         print(fact["content"])  # "Le budget max d'Acme est 5000€"
 ```
 
+### Rappeler un fait avec métadonnées *(Sprint 40)*
+
+`recall_entry()` retourne l'entrée complète avec ses métadonnées (confidence, source, timestamps), ou `None` si la clé n'existe pas ou est expirée.
+
+```python
+if ctx.memory:
+    entry = await ctx.memory.recall_entry("budget_annuel_acme")
+    if entry:
+        print(entry["key"])          # "budget_annuel_acme"
+        print(entry["value"])        # "50000"
+        print(entry["confidence"])   # 0.9
+        print(entry["source"])       # "agent:crm-qualifier"
+        print(entry["updated_at"])   # "2026-03-05T14:30:00Z"
+        print(entry["expires_at"])   # None ou datetime string
+```
+
+### Lister toutes les entrées du namespace *(Sprint 40)*
+
+`recall_all()` retourne toutes les entrées sémantiques non expirées du namespace de l'agent, avec les mêmes métadonnées que `recall_entry()`.
+
+```python
+if ctx.memory:
+    entries = await ctx.memory.recall_all(limit=50)  # défaut: 100
+    for e in entries:
+        print(f"{e['key']} = {e['value']} (confidence={e['confidence']})")
+```
+
 ### Recherche full-text
 
 Recherche FTS5 + BM25 cross-backend (épisodique + sémantique + procédurale).

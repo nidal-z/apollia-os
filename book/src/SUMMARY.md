@@ -39,6 +39,7 @@
   - [Trois types de mémoire](ch05-01-types.md)
   - [Recherche FTS5](ch05-02-search.md)
   - [Namespaces et isolation](ch05-03-namespaces.md)
+  - [ContextBootstrap : mémoire cross-session](ch05-04-bootstrap.md)
 
 - [Le LLM](ch06-00-llm.md)
   - [Backends locaux et cloud](ch06-01-backends.md)

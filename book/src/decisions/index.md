@@ -60,6 +60,11 @@
 | ADR-053 | [ADR-053 — Pipeline fan-out et boucles conditionnelles](./adr-053-pipeline-fanout-loops.md) | Accepté |
 | ADR-054 | [ADR-054 — Consolidation mémoire épisodique : report justifié post-v1](./adr-054-memory-episodic-consolidation.md) | Accepté |
 | ADR-055 | [ADR-055 — Community Registry : distribution Git-based peer-to-peer](./adr-055-community-registry.md) | Accepté |
+| ADR-056 | [ADR-056 — Workspace Context Assembly : subprocess git, TTL, APOLLIA.md](./adr-056-workspace-context-assembly.md) | Accepté |
+| ADR-057 | [ADR-057 — Prompt Caching Strategy : 3 breakpoints ephemeral, -80% coût](./adr-057-prompt-caching-strategy.md) | Accepté |
+| ADR-058 | [ADR-058 — Context Window Management : auto-compact 80%, résumé LLM](./adr-058-context-window-management.md) | Accepté |
+| ADR-059 | [ADR-059 — Concurrent Tool Execution : is_read_only + execute_batch + Semaphore](./adr-059-concurrent-tool-execution.md) | Accepté |
+| ADR-060 | [ADR-060 — ContextProvider Trait : agnostique domaine, 3 niveaux d'extension](./adr-060-context-provider-trait.md) | Accepté |
 | ADR-061 | [ADR-061 — Moteur de permissions 3 couches : SafeList + PrefixRuleEngine + InjectionDetector](./adr-061-permission-engine-3-layers.md) | Accepté |
 | ADR-062 | [ADR-062 — MCP server mode : transport stdio, 9 outils natifs + submit_task](./adr-062-mcp-server-mode.md) | Accepté |
 | ADR-063 | [ADR-063 — Binary feedback RLHF : deux plans parallèles, log SQLite du choix](./adr-063-binary-feedback-rlhf.md) | Accepté |
@@ -68,3 +73,6 @@
 | ADR-066 | [ADR-066 — Memory Export/Import : Format JSON Gzip](./adr-066-memory-export-import-format.md) | Accepté |
 | ADR-067 | [ADR-067 — AWS Bedrock : aws-sigv4 Natif vs SDK Complet](./adr-067-bedrock-sigv4-vs-sdk.md) | Accepté |
 | ADR-068 | [ADR-068 — Google Vertex AI : ADC vs Clé de Service JSON](./adr-068-vertex-adc-vs-service-account.md) | Accepté |
+| ADR-069 | [ADR-069 — Autonomie Filesystem : Friction Graduée + Journal Réversible](./adr-069-autonomie-filesystem-friction-graduee-journal-reversible.md) | Accepté |
+| ADR-070 | [ADR-070 — Memory Namespace Project-Scoped](./adr-070-memory-namespace-project-scoped.md) | Accepté |
+| ADR-071 | [ADR-071 — ContextBootstrap : Convention de Bootstrapping Agent](./adr-071-context-bootstrap-convention.md) | Accepté |

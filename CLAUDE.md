@@ -135,10 +135,9 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 
 ## État courant
 
-**Sprint en cours :** Sprint 40 planifié — Context Bootstrapping & SDK 0.3.0 (STORY-509→514, ADR-071).
-**Dernier sprint livré :** Sprint 39 — Agents qui travaillent : 4 assistants opérationnels (spec/dev/review/document), memory namespace project-scoped, restructuration agents/, smoke tests (7/7 stories, ADR-070). ✅
-**Sprint précédent :** Sprint 37 — Parité complète TypeScript (OAuth2 PKCE, auto-updater, code review agent, mDNS MCP, hot reload MCP, HITL MCP SQLite, memory export/import, purge configurable, OnBusyPolicy::Queue, filtrage notifs, templates pipeline, CUDA CI, Bedrock, Vertex AI, Notebook tool, 15/15 stories, ADR-064→068). ✅
-**Avant :** Sprint 36 — Permissions, MCP Server & Intelligence UX (moteur de permissions 3 couches, MCP server mode, routing LLM Precise/Fast, 6 HITL desktop, widget coût temps réel, slash commands custom, /fork, --allowed-tools, 16/16 stories, ADR-061→063). ✅
+**Dernier sprint livré :** Sprint 40 — Context Bootstrapping & SDK 0.3.0 : protocole ContextBootstrap (classe abstraite SDK), ProjectContextBootstrap partagé, adoption dans les 4 assistants (spec/dev/review/document), recall_entry()/recall_all() exposés en Python, AgentManifestDict v2, ConversationalAgent stub, tests d'intégration bootstrap (6/6 stories, ADR-070, ADR-071). ✅
+**Sprint précédent :** Sprint 39 — Agents qui travaillent : 4 assistants opérationnels (spec/dev/review/document), memory namespace project-scoped, restructuration agents/, smoke tests (7/7 stories, ADR-070). ✅
+**Avant :** Sprint 37 — Parité complète TypeScript (OAuth2 PKCE, auto-updater, code review agent, mDNS MCP, hot reload MCP, HITL MCP SQLite, memory export/import, purge configurable, OnBusyPolicy::Queue, filtrage notifs, templates pipeline, CUDA CI, Bedrock, Vertex AI, Notebook tool, 15/15 stories, ADR-064→068). ✅
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
 **Dernière décision :** ADR-071 — ContextBootstrap : convention de bootstrapping de contexte agent (SDK 0.2.0+)
 

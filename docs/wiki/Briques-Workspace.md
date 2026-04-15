@@ -329,6 +329,35 @@ Vérifie : correctness, performance, sécurité.
 
 ---
 
+## 11. Workspace par session — Sprint 38
+
+Depuis le Sprint 38 (ADR-069), chaque session de chat a un `workspace_path` dédié, résolu depuis le `Project` associé. Le `NativeChatToolInvoker` injecte ce chemin dans chaque outil natif.
+
+### Résolution du workspace_path
+
+```
+1. ChatSession.project → Project.workspace_path      (si projet associé)
+2. Fallback → CWD du processus runtime               (si pas de projet)
+```
+
+Le `workspace_path` est immutable pendant la durée de la session — un changement de projet nécessite une nouvelle session.
+
+### Impact sur les outils natifs
+
+| Outil | Comportement avec workspace_path |
+|---|---|
+| `bash_executor` | CWD = workspace_path (sauf si `cd` explicite dans la commande) |
+| `file_read` / `file_write` / `file_edit` | Chemins relatifs résolus depuis workspace_path |
+| `file_list` / `file_glob` / `file_grep` | Racine de recherche = workspace_path |
+
+### Refactor `NativeChatToolInvoker`
+
+Le `NativeChatToolInvoker` (refactoré Sprint 38, STORY-497) reçoit le `workspace_path` à l'initialisation de chaque session, au lieu d'un CWD global hardcodé. Les 5 call sites identifiés (`a2a_tools.rs`, `routes_chat.rs`, etc.) passent désormais le chemin du projet.
+
+> **Voir aussi :** [Sécurité Sandbox Isolation — Autonomie filesystem](./Securite-Sandbox-Isolation.md#autonomie-filesystem--sprint-38-adr-069)
+
+---
+
 ## Voir aussi
 
 - [Briques ORIA Engine — Workspace Context](./Briques-ORIA-Engine.md#workspace-context) — injection dans le system prompt

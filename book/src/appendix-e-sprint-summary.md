@@ -1,6 +1,6 @@
 # Annexe E — Historique des sprints
 
-Vue condensée des 32+ sprints de développement d'Apollia OS — ce qui a été livré et les décisions architecturales clés prises en cours de route.
+Vue condensée des 40 sprints de développement d'Apollia OS — ce qui a été livré et les décisions architecturales clés prises en cours de route.
 
 ---
 
@@ -41,6 +41,14 @@ Vue condensée des 32+ sprints de développement d'Apollia OS — ce qui a été
 | 30 | A2A routing V1 (skills dynamiques) | ✅ | — |
 | 31 | Worker Agents V2 | ✅ | — |
 | 32 | A2A complet + Distribution locale + Registre communautaire | ✅ | 8/8 |
+| 33 | Onboarding interactif multi-phases (i18n 8 composants) | ✅ | 13/13 |
+| 34 | Beta Hardening (sécurité, robustesse, 3 agents communautaires) | ✅ | 24/25 |
+| 35 | Workspace Intelligence (prompt caching, outils concurrents, apollia-workspace) | ✅ | 13/13 |
+| 36 | Permissions 3 couches, MCP Server, LLM Routing, HITL Desktop | ✅ | 16/16 |
+| 37 | Parité TypeScript (OAuth2, auto-updater, Bedrock, Vertex, Notebook) | ✅ | 15/15 |
+| 38 | Autonomie filesystem (friction graduée, journal réversible) | ✅ | 5/5 |
+| 39 | Agents qui travaillent (4 assistants, memory project-scoped) | ✅ | 7/7 |
+| 40 | Context Bootstrapping & SDK 0.3.0 | ✅ | 6/6 |
 
 ---
 
@@ -59,6 +67,17 @@ Les ADR (Architecture Decision Records) complets sont dans `docs/adr/`. Voici le
 | ADR-039 | Sliding window + résumé LLM pour contexte chat | 18 | Mémoire chat bornée |
 | ADR-043 | Éclatement `file_io` en 6 outils spécialisés | 25 | Ergonomie outils fichiers |
 | ADR-050 | Distribution Worker Agents : bundled + registre communautaire | 32 | Écosystème agents |
+| ADR-051 | Auth API REST (token + loopback) | 34 | Sécurité API TCP |
+| ADR-056 | Workspace Context Assembly (git, APOLLIA.md, TTL) | 35 | Contexte projet injecté |
+| ADR-057 | Prompt Caching (-80% coût LLM) | 35 | Performance coût |
+| ADR-059 | Concurrent Tool Execution (execute_batch) | 35 | Performance latence |
+| ADR-061 | Permission Engine 3 couches | 36 | Sécurité outils |
+| ADR-062 | MCP Server Mode | 36 | Interop standards |
+| ADR-064 | OAuth2 PKCE (keyring multi-plateforme) | 37 | Auth enterprise |
+| ADR-067 | AWS Bedrock (sigv4 natif) | 37 | LLM enterprise |
+| ADR-069 | Autonomie filesystem (friction graduée + journal réversible) | 38 | Sécurité fichiers |
+| ADR-070 | Memory namespace project-scoped | 39 | Isolation mémoire |
+| ADR-071 | ContextBootstrap (protocole SDK) | 40 | Bootstrap cross-session |
 
 ---
 

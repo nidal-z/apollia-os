@@ -54,4 +54,34 @@ store --> mgr : Vec<MemorySearchResult>
 mgr --> iface : Ok(results)
 iface --> agent : [\n  {"content": "...", "score": 0.92, "type": "episodic"},\n  {"content": "...", "score": 0.71, "type": "semantic"}\n]
 
+== ctx.memory.recall_entry() — Métadonnées complètes (Sprint 40) ==
+
+agent -> iface : await ctx.memory.recall_entry(\n  "client.dupont_sa.budget_max"\n)
+
+iface -> iface : spawn_blocking
+
+iface -> mgr : recall_entry_inner(key)
+mgr -> store : store(namespace)
+
+store -> store : SELECT id, namespace, key, value,\n  source, confidence, created_at,\n  updated_at, expires_at\nFROM semantic_memories\nWHERE namespace = ? AND key = ?\n  AND (expires_at IS NULL\n       OR expires_at > datetime('now'))
+
+store --> mgr : Option<SemanticEntry>
+mgr --> iface : Ok(entry_or_none)
+iface --> agent : {"key": "...", "value": "15000",\n  "confidence": 1.0, "source": "agent:crm",\n  "updated_at": "2026-03-05T14:30:00Z",\n  "expires_at": null}
+
+== ctx.memory.recall_all() — Lister le namespace (Sprint 40) ==
+
+agent -> iface : await ctx.memory.recall_all(\n  limit=50\n)
+
+iface -> iface : spawn_blocking
+
+iface -> mgr : recall_all_inner(limit=50)
+mgr -> store : store(namespace)
+
+store -> store : SELECT * FROM semantic_memories\nWHERE namespace = ?\n  AND (expires_at IS NULL\n       OR expires_at > datetime('now'))\nORDER BY key ASC\nLIMIT 50
+
+store --> mgr : Vec<SemanticEntry>
+mgr --> iface : Ok(entries)
+iface --> agent : [\n  {"key": "k1", "value": "...", "confidence": 0.9, ...},\n  {"key": "k2", "value": "...", "confidence": 1.0, ...}\n]
+
 @enduml

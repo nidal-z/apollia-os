@@ -1,0 +1,113 @@
+@startuml seq-agent-bootstrap
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "JetBrains Mono"
+skinparam defaultFontSize 11
+skinparam ArrowColor #444444
+skinparam BorderColor #444444
+
+title Séquence — Agent ContextBootstrap Lifecycle — Apollia OS
+
+participant "Agent Python\n(run())" as agent #2d4a22/d4edda
+participant "ContextBootstrap\n(SDK)" as boot #2d4a22/d4edda
+participant "MemoryInterface\n(PyO3 #[pyclass])" as mem #1a1a2e/e0e0ff
+participant "SQLite\n(semantic_memories)" as db #2a3a4a/cce5ff
+participant "Workspace\n(ctx.workspace)" as ws #1a1a2e/e0e0ff
+participant "Tools\n(bash_executor)" as tools #4a3728/f5e6d3
+
+== Session N — Premier démarrage (bootstrap complet) ==
+
+agent -> boot : await needs_bootstrap(ctx)
+boot -> mem : await recall("bootstrap.status")
+mem -> db : SELECT value FROM semantic_memories\nWHERE key = 'bootstrap.status'
+db --> mem : None (pas de bootstrap)
+mem --> boot : None
+boot --> agent : True
+
+agent -> boot : await run_bootstrap(ctx)
+
+boot -> tools : git rev-parse HEAD
+tools --> boot : "abc123"
+
+boot -> ws : ctx.workspace.rules
+ws --> boot : "# Apollia OS\nLocal-first: true\n..."
+
+boot -> tools : file_read("Cargo.toml")
+tools --> boot : Ok (fichier existe)
+
+boot -> boot : extra_scopes(ctx, snapshot)
+note right of boot
+  Subclass-specific:
+  - SpecBootstrap → list .apollia/tasks/
+  - DevBootstrap → architecture + recent_files
+  - ReviewBootstrap → (none)
+end note
+
+boot -> mem : remember("bootstrap.snapshot", json_snapshot,\n  confidence=0.9, source="bootstrap:project")
+mem -> db : INSERT OR UPDATE semantic_memories
+
+boot -> mem : remember("bootstrap.meta",\n  {"version": 1, "staleness_marker": "abc123", ...})
+mem -> db : INSERT OR UPDATE semantic_memories
+
+boot -> mem : remember("bootstrap.status", "complete")
+mem -> db : INSERT OR UPDATE semantic_memories
+
+boot --> agent : snapshot
+
+== Session N+1 — Même commit (skip, ~0 tokens) ==
+
+agent -> boot : await needs_bootstrap(ctx)
+boot -> mem : await recall("bootstrap.status")
+mem -> db : SELECT value WHERE key = 'bootstrap.status'
+db --> mem : "complete"
+mem --> boot : "complete"
+
+boot -> boot : await is_stale(ctx)
+boot -> mem : await recall("bootstrap.meta")
+mem --> boot : {"staleness_marker": "abc123", ...}
+
+boot -> tools : git rev-parse HEAD
+tools --> boot : "abc123"
+
+note over boot
+  "abc123" == "abc123"
+  → NOT stale
+end note
+
+boot --> agent : False (pas de re-bootstrap)
+
+agent -> boot : await load_snapshot(ctx)
+boot -> mem : await recall("bootstrap.snapshot")
+mem -> db : SELECT value WHERE key = 'bootstrap.snapshot'
+db --> mem : json_snapshot
+mem --> boot : snapshot_dict
+boot --> agent : snapshot
+
+== Session N+2 — Nouveau commit (re-bootstrap) ==
+
+agent -> boot : await needs_bootstrap(ctx)
+boot -> mem : await recall("bootstrap.status")
+mem --> boot : "complete"
+
+boot -> boot : await is_stale(ctx)
+boot -> mem : await recall("bootstrap.meta")
+mem --> boot : {"staleness_marker": "abc123", ...}
+
+boot -> tools : git rev-parse HEAD
+tools --> boot : "def456"
+
+note over boot #ffcccc
+  "def456" != "abc123"
+  → STALE → re-bootstrap
+end note
+
+boot --> agent : True
+
+agent -> boot : await run_bootstrap(ctx)
+note right of agent
+  Même séquence que Session N
+  — snapshot mis à jour avec
+  nouveau commit hash
+end note
+
+@enduml

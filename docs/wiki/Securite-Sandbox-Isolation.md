@@ -199,6 +199,61 @@ L'ADR-052 définit la stratégie de sandbox pour Windows natif (STORY-451, impl�
 
 ---
 
+## Autonomie filesystem — Sprint 38 (ADR-069)
+
+Depuis le Sprint 38, les agents Apollia OS sont véritablement autonomes sur le filesystem, régulés par une friction graduée HITL et protégés par un journal réversible. Ce modèle remplace le "tout bloquer" par "approuver intelligemment".
+
+### Architecture 4 couches
+
+| Couche | Mécanisme | Rôle |
+|---|---|---|
+| 0 — Workspace déclaratif | `Project.workspace_path` + file picker natif | Définit le périmètre de travail de l'agent |
+| 1 — RiskClassifier | Classification pré-exécution des opérations fichier | Évalue le risque de chaque mutation |
+| 2 — HITL graduée | Modal diff/preview pour opérations sensibles | L'utilisateur approuve ou refuse avec contexte |
+| 3 — Journal réversible | Log JSONL de chaque mutation avant exécution | Restauration post-hoc via `apollia rollback` |
+
+### RiskClassifier — niveaux de risque filesystem
+
+Le `RiskClassifier` (étendu depuis `apollia-permissions`, Sprint 36) évalue chaque opération fichier avant exécution :
+
+| Niveau | Opérations | Comportement |
+|---|---|---|
+| **None** | Lecture dans le workspace | Exécution immédiate, zéro friction |
+| **Low** | Écriture/création dans le workspace | Exécution avec log dans le journal |
+| **Medium** | Écriture hors workspace, suppression fichier | Modal HITL : diff/preview avant approbation |
+| **High** | Écriture dans `/etc`, `/usr`, suppression récursive | Modal HITL bloquant : explication requise |
+
+### Workspace par session
+
+Chaque session de chat a un `workspace_path` dédié, résolu depuis le `Project` associé. Le `NativeChatToolInvoker` (refactoré Sprint 38) injecte ce chemin dans chaque outil natif — l'agent travaille dans le bon répertoire sans configuration manuelle.
+
+### Journal réversible et `apollia rollback`
+
+Chaque mutation filesystem est loggée avant exécution dans un fichier JSONL par session. Le journal contient l'opération inverse (contenu original pour les écritures, chemin pour les créations).
+
+```bash
+# Voir les mutations d'une session (dry-run)
+$ apollia rollback <session-id> --dry-run
+  [1] WRITE  ./src/main.rs (42 bytes → 58 bytes)
+  [2] CREATE ./src/new_file.rs
+  [3] DELETE ./src/old_file.rs
+
+# Restaurer l'état avant la session
+$ apollia rollback <session-id>
+  ✔ 3 mutations annulées
+```
+
+### HITL filesystem — modal diff/preview
+
+Pour les opérations classées Medium ou High, un modal desktop affiche :
+- Le **diff** complet (avant/après) pour les écritures
+- Le **chemin et contenu** pour les suppressions
+- 3 actions : **Approuver**, **Refuser**, **Approuver toujours** (pour ce type d'opération dans cette session)
+
+> **Référence technique :** [ADR-069](../adr/ADR-069-autonomie-filesystem-friction-graduee-journal-reversible.md)
+
+---
+
 ## Limitations connues
 
 **Pas d'isolation mémoire RAM :** Un outil peut consommer autant de RAM qu'il veut. Contrôler via le `wall_clock_timeout` et le monitoring système.

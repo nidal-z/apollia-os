@@ -13,6 +13,7 @@
 - [[Agents-Mode-Orchestre|Mode Orchestré (ORIA)]]
 - [[Agents-Adapter-Existants|Adapter LangGraph / CrewAI]]
 - [[Agents-SDK-Guide|Python SDK]]
+- [[Agents-ContextBootstrap-Guide|ContextBootstrap (cross-session)]]
 - [[Agents-Onboarding-Guide|Onboarding]]
 - [[Agents-Bonnes-Pratiques|Bonnes pratiques]]
 - [[Agents-Troubleshooting|Troubleshooting]]
