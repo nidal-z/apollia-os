@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 
-use apollia_core::{AgentId, AgentManifest, AgentSkill, ProcessState, RuntimeEvent};
+use apollia_core::{AgentId, AgentManifest, ProcessState, RuntimeEvent};
 
 use crate::eventbus::EventBusSender;
 
@@ -20,109 +19,6 @@ pub struct AgentEntry {
     pub process_state: ProcessState,
     /// Instant de l'enregistrement, pour calculer l'uptime.
     pub registered_at: Instant,
-}
-
-/// Erreurs de l'index de skills A2A.
-///
-/// Retournées lors des opérations sur le [`SkillIndex`] intégré à l'[`AgentRegistry`].
-#[derive(Debug, thiserror::Error)]
-pub enum SkillIndexError {
-    /// Un autre agent déclare déjà ce skill_id.
-    #[error("skill '{skill_id}' already registered by agent '{existing_agent}'")]
-    SkillConflict {
-        /// Identifiant du skill en conflit.
-        skill_id: String,
-        /// Nom de l'agent qui détient déjà ce skill.
-        existing_agent: String,
-        /// Nom de l'agent tentant de s'enregistrer.
-        new_agent: String,
-    },
-    /// Aucun agent n'est indexé pour ce skill_id.
-    #[error("no agent found for skill '{skill_id}'")]
-    SkillNotFound {
-        /// Identifiant du skill demandé.
-        skill_id: String,
-    },
-}
-
-/// Entrée de l'index de skills, retournée par les API de découverte A2A.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SkillEntry {
-    /// Identifiant du skill.
-    pub skill_id: String,
-    /// Nom de l'agent qui fournit ce skill.
-    pub agent_name: String,
-}
-
-/// Index inversé `skill_id → (agent_name, AgentId)` pour le routing A2A.
-///
-/// Composant interne de l'[`AgentRegistry`] — jamais exposé directement.
-/// Alimenté automatiquement lors des `register` / `unregister` pour les agents
-/// dont `manifest.supports_a2a == true`.
-#[derive(Debug, Default)]
-struct SkillIndex {
-    /// skill_id → (agent_name, agent_id)
-    index: HashMap<String, (String, AgentId)>,
-}
-
-impl SkillIndex {
-    /// Enregistre les skills d'un agent dans l'index.
-    ///
-    /// Vérifie d'abord tous les conflits (lecture seule), puis insère en masse.
-    /// Retourne [`SkillIndexError::SkillConflict`] au premier conflit détecté,
-    /// sans modifier l'index.
-    fn register_agent(
-        &mut self,
-        agent_name: &str,
-        agent_id: AgentId,
-        skills: &[AgentSkill],
-    ) -> Result<(), SkillIndexError> {
-        // Phase 1 — vérification des conflits sans mutation.
-        for skill in skills {
-            if let Some((existing_agent, _)) = self.index.get(&skill.id) {
-                return Err(SkillIndexError::SkillConflict {
-                    skill_id: skill.id.clone(),
-                    existing_agent: existing_agent.clone(),
-                    new_agent: agent_name.to_string(),
-                });
-            }
-        }
-        // Phase 2 — insertion en masse (aucun conflit).
-        for skill in skills {
-            self.index
-                .insert(skill.id.clone(), (agent_name.to_string(), agent_id.clone()));
-        }
-        Ok(())
-    }
-
-    /// Supprime tous les skills d'un agent de l'index.
-    fn unregister_agent(&mut self, agent_name: &str) {
-        self.index.retain(|_, (name, _)| name != agent_name);
-    }
-
-    /// Résout un `skill_id` vers l'`(agent_name, AgentId)` correspondant.
-    ///
-    /// Retourne [`SkillIndexError::SkillNotFound`] si aucun agent n'est indexé
-    /// pour ce skill.
-    fn resolve(&self, skill_id: &str) -> Result<(String, AgentId), SkillIndexError> {
-        self.index
-            .get(skill_id)
-            .cloned()
-            .ok_or_else(|| SkillIndexError::SkillNotFound {
-                skill_id: skill_id.to_string(),
-            })
-    }
-
-    /// Retourne toutes les entrées de l'index sous forme de [`SkillEntry`].
-    fn list_skills(&self) -> Vec<SkillEntry> {
-        self.index
-            .iter()
-            .map(|(skill_id, (agent_name, _))| SkillEntry {
-                skill_id: skill_id.clone(),
-                agent_name: agent_name.clone(),
-            })
-            .collect()
-    }
 }
 
 /// Erreurs possibles des opérations sur le registry.
@@ -140,9 +36,6 @@ pub enum AgentRegistryError {
     /// Le canal vers l'acteur est fermé — l'acteur s'est arrêté.
     #[error("L'acteur AgentRegistry est mort (canal fermé)")]
     ActorDead,
-    /// Erreur de l'index de skills A2A (conflit ou skill introuvable).
-    #[error("skill index: {0}")]
-    SkillIndex(#[from] SkillIndexError),
 }
 
 // Messages internes — enum privé, jamais exposé publiquement.
@@ -172,13 +65,6 @@ enum RegistryMessage {
     ListAgents {
         reply: oneshot::Sender<Vec<AgentEntry>>,
     },
-    ResolveSkill {
-        skill_id: String,
-        reply: oneshot::Sender<Result<AgentEntry, SkillIndexError>>,
-    },
-    ListSkills {
-        reply: oneshot::Sender<Vec<SkillEntry>>,
-    },
     ListA2aAgents {
         reply: oneshot::Sender<Vec<AgentEntry>>,
     },
@@ -193,8 +79,6 @@ pub struct AgentRegistry {
     agents: HashMap<AgentId, AgentEntry>,
     /// Index secondaire : manifest.name → AgentId pour lookup par nom.
     name_index: HashMap<String, AgentId>,
-    /// Index inversé skill_id → (agent_name, AgentId) pour le routing A2A.
-    skill_index: SkillIndex,
     bus: EventBusSender,
 }
 
@@ -209,7 +93,6 @@ impl AgentRegistry {
         let registry = Self {
             agents: HashMap::new(),
             name_index: HashMap::new(),
-            skill_index: SkillIndex::default(),
             bus,
         };
         tokio::spawn(registry.run(rx));
@@ -244,14 +127,6 @@ impl AgentRegistry {
                     let list = self.agents.values().cloned().collect();
                     let _ = reply.send(list);
                 }
-                RegistryMessage::ResolveSkill { skill_id, reply } => {
-                    let result = self.handle_resolve_skill(&skill_id);
-                    let _ = reply.send(result);
-                }
-                RegistryMessage::ListSkills { reply } => {
-                    let list = self.skill_index.list_skills();
-                    let _ = reply.send(list);
-                }
                 RegistryMessage::ListA2aAgents { reply } => {
                     let list = self
                         .agents
@@ -271,19 +146,15 @@ impl AgentRegistry {
     }
 
     fn handle_register(&mut self, manifest: AgentManifest) -> Result<AgentId, AgentRegistryError> {
-        let id = AgentId::new_v4();
-
-        // Vérifier les conflits de skills avant toute mutation — fail-fast sans rollback.
-        if manifest.supports_a2a && !manifest.skills.is_empty() {
-            self.skill_index
-                .register_agent(&manifest.name, id.clone(), &manifest.skills)?;
+        // If the same agent name is already registered (e.g. stop/restart without unregister),
+        // evict the old entry so list_agents() never returns stale duplicates.
+        if let Some(old_id) = self.name_index.remove(&manifest.name) {
+            self.agents.remove(&old_id);
         }
 
-        self.name_index.insert(manifest.name.clone(), id.clone());
-        let agent_name = manifest.name.clone();
-        let supports_a2a = manifest.supports_a2a;
-        let skill_ids: Vec<String> = manifest.skills.iter().map(|s| s.id.clone()).collect();
+        let id = AgentId::new_v4();
 
+        self.name_index.insert(manifest.name.clone(), id.clone());
         let entry = AgentEntry {
             id: id.clone(),
             manifest,
@@ -293,11 +164,6 @@ impl AgentRegistry {
         self.agents.insert(id.clone(), entry);
         let _ = self.bus.send(RuntimeEvent::AgentRegistered(id.clone()));
         info!(agent_id = %id, "Agent enregistré");
-
-        if supports_a2a && !skill_ids.is_empty() {
-            info!(agent = %agent_name, skills = ?skill_ids, "a2a skills registered");
-        }
-
         Ok(id)
     }
 
@@ -307,9 +173,6 @@ impl AgentRegistry {
             .remove(id)
             .ok_or_else(|| AgentRegistryError::NotFound(id.clone()))?;
         self.name_index.remove(&entry.manifest.name);
-        if entry.manifest.supports_a2a {
-            self.skill_index.unregister_agent(&entry.manifest.name);
-        }
         let _ = self.bus.send(RuntimeEvent::AgentStopped(id.clone()));
         info!(agent_id = %id, "Agent désenregistré");
         Ok(())
@@ -349,16 +212,6 @@ impl AgentRegistry {
         let _ = self.bus.send(event);
         Ok(())
     }
-
-    fn handle_resolve_skill(&self, skill_id: &str) -> Result<AgentEntry, SkillIndexError> {
-        let (_, agent_id) = self.skill_index.resolve(skill_id)?;
-        self.agents
-            .get(&agent_id)
-            .cloned()
-            .ok_or_else(|| SkillIndexError::SkillNotFound {
-                skill_id: skill_id.to_string(),
-            })
-    }
 }
 
 /// Handle public vers l'acteur `AgentRegistry` — clonable, thread-safe.
@@ -377,8 +230,8 @@ impl AgentRegistryHandle {
     /// Retourne l'[`AgentId`] généré (UUID v4).
     /// L'agent est créé en état [`ProcessState::Initializing`] et
     /// [`RuntimeEvent::AgentRegistered`] est publié sur l'EventBus.
-    /// Si `manifest.supports_a2a == true`, les skills déclarés sont indexés.
-    /// Retourne [`AgentRegistryError::SkillIndex`] en cas de conflit de skill_id.
+    /// Si un agent du même nom existe déjà (cycle stop/restart), l'ancienne entrée
+    /// est évincée avant l'insertion du nouvel enregistrement.
     pub async fn register(&self, manifest: AgentManifest) -> Result<AgentId, AgentRegistryError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -465,35 +318,6 @@ impl AgentRegistryHandle {
         reply_rx.await.map_err(|_| AgentRegistryError::ActorDead)
     }
 
-    /// Résout un `skill_id` vers l'[`AgentEntry`] de l'agent qui le fournit.
-    ///
-    /// Utilise l'index inversé interne — O(1), sans parcourir tous les agents.
-    /// Retourne [`AgentRegistryError::SkillIndex`] si le skill est introuvable.
-    pub async fn resolve_skill(&self, skill_id: &str) -> Result<AgentEntry, AgentRegistryError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.tx
-            .send(RegistryMessage::ResolveSkill {
-                skill_id: skill_id.to_string(),
-                reply: reply_tx,
-            })
-            .await
-            .map_err(|_| AgentRegistryError::ActorDead)?;
-        reply_rx
-            .await
-            .map_err(|_| AgentRegistryError::ActorDead)?
-            .map_err(AgentRegistryError::SkillIndex)
-    }
-
-    /// Retourne toutes les entrées de l'index de skills A2A.
-    pub async fn list_skills(&self) -> Result<Vec<SkillEntry>, AgentRegistryError> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.tx
-            .send(RegistryMessage::ListSkills { reply: reply_tx })
-            .await
-            .map_err(|_| AgentRegistryError::ActorDead)?;
-        reply_rx.await.map_err(|_| AgentRegistryError::ActorDead)
-    }
-
     /// Retourne tous les agents dont `manifest.supports_a2a == true`.
     pub async fn list_a2a_agents(&self) -> Result<Vec<AgentEntry>, AgentRegistryError> {
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -518,6 +342,8 @@ mod tests {
     use super::*;
     use apollia_core::{AgentManifest, AgentSkill, ProcessState};
     use tokio::sync::broadcast;
+    #[allow(unused_imports)]
+    use apollia_core::AgentId;
 
     fn test_manifest(name: &str) -> AgentManifest {
         AgentManifest {
@@ -589,169 +415,7 @@ mod tests {
         }
     }
 
-    // ── Tests unitaires SkillIndex ──────────────────────────────────────────────
-
-    mod skill_index_tests {
-        use super::*;
-
-        #[test]
-        fn test_register_agent_populates_index() {
-            // GIVEN un SkillIndex vide
-            let mut index = SkillIndex::default();
-            let id = AgentId::new_v4();
-            let skills = vec![
-                AgentSkill {
-                    id: "read-excel".to_string(),
-                    name: "Read Excel".to_string(),
-                    description: String::new(),
-                    input_modes: vec![],
-                    output_modes: vec![],
-                },
-                AgentSkill {
-                    id: "edit-excel".to_string(),
-                    name: "Edit Excel".to_string(),
-                    description: String::new(),
-                    input_modes: vec![],
-                    output_modes: vec![],
-                },
-            ];
-
-            // WHEN register_agent est appelé
-            let result = index.register_agent("excel-worker", id.clone(), &skills);
-
-            // THEN l'index est populé
-            assert!(result.is_ok());
-            let (name, resolved_id) = index.resolve("read-excel").unwrap();
-            assert_eq!(name, "excel-worker");
-            assert_eq!(resolved_id, id);
-            let (name2, _) = index.resolve("edit-excel").unwrap();
-            assert_eq!(name2, "excel-worker");
-        }
-
-        #[test]
-        fn test_skill_conflict_returns_error() {
-            // GIVEN "excel-worker" enregistré avec "read-excel"
-            let mut index = SkillIndex::default();
-            let id1 = AgentId::new_v4();
-            let id2 = AgentId::new_v4();
-            let skill = |id: &str| AgentSkill {
-                id: id.to_string(),
-                name: id.to_string(),
-                description: String::new(),
-                input_modes: vec![],
-                output_modes: vec![],
-            };
-            index
-                .register_agent("excel-worker", id1, &[skill("read-excel")])
-                .unwrap();
-
-            // WHEN "other-agent" tente de s'enregistrer avec le même skill
-            let result = index.register_agent("other-agent", id2, &[skill("read-excel")]);
-
-            // THEN SkillConflict est retourné
-            assert!(result.is_err());
-            match result.unwrap_err() {
-                SkillIndexError::SkillConflict {
-                    skill_id,
-                    existing_agent,
-                    new_agent,
-                } => {
-                    assert_eq!(skill_id, "read-excel");
-                    assert_eq!(existing_agent, "excel-worker");
-                    assert_eq!(new_agent, "other-agent");
-                }
-                other => panic!("unexpected error: {other}"),
-            }
-        }
-
-        #[test]
-        fn test_unregister_cleans_all_skills() {
-            // GIVEN "excel-worker" avec 3 skills
-            let mut index = SkillIndex::default();
-            let id = AgentId::new_v4();
-            let skill = |s: &str| AgentSkill {
-                id: s.to_string(),
-                name: s.to_string(),
-                description: String::new(),
-                input_modes: vec![],
-                output_modes: vec![],
-            };
-            index
-                .register_agent(
-                    "excel-worker",
-                    id,
-                    &[
-                        skill("read-excel"),
-                        skill("edit-excel"),
-                        skill("analyze-excel"),
-                    ],
-                )
-                .unwrap();
-
-            // WHEN unregister_agent est appelé
-            index.unregister_agent("excel-worker");
-
-            // THEN tous les skills sont supprimés
-            assert!(index.resolve("read-excel").is_err());
-            assert!(index.resolve("edit-excel").is_err());
-            assert!(index.resolve("analyze-excel").is_err());
-            assert!(index.list_skills().is_empty());
-        }
-
-        #[test]
-        fn test_resolve_unknown_skill_returns_not_found() {
-            // GIVEN SkillIndex vide
-            let index = SkillIndex::default();
-
-            // WHEN resolve est appelé sur un skill inexistant
-            let result = index.resolve("unknown-skill");
-
-            // THEN SkillNotFound est retourné
-            assert!(matches!(
-                result.unwrap_err(),
-                SkillIndexError::SkillNotFound { skill_id } if skill_id == "unknown-skill"
-            ));
-        }
-
-        #[test]
-        fn test_list_skills_returns_all_entries() {
-            // GIVEN 2 agents avec 3 skills chacun
-            let mut index = SkillIndex::default();
-            let skill = |s: &str| AgentSkill {
-                id: s.to_string(),
-                name: s.to_string(),
-                description: String::new(),
-                input_modes: vec![],
-                output_modes: vec![],
-            };
-            index
-                .register_agent(
-                    "excel-worker",
-                    AgentId::new_v4(),
-                    &[
-                        skill("read-excel"),
-                        skill("edit-excel"),
-                        skill("analyze-excel"),
-                    ],
-                )
-                .unwrap();
-            index
-                .register_agent(
-                    "csv-data-worker",
-                    AgentId::new_v4(),
-                    &[skill("read-csv"), skill("edit-csv"), skill("analyze-csv")],
-                )
-                .unwrap();
-
-            // WHEN list_skills est appelé
-            let entries = index.list_skills();
-
-            // THEN 6 entrées sont retournées
-            assert_eq!(entries.len(), 6);
-        }
-    }
-
-    // ── Tests existants (non-régression) ───────────────────────────────────────
+    // ── Tests ────────────────────────────────────────────────────────────────────
 
     #[tokio::test]
     async fn test_ac1_register_emet_event() {
@@ -956,118 +620,6 @@ mod tests {
         assert_eq!(after, None);
     }
 
-    // ── Tests skill index intégration (via handle) ─────────────────────────────
-
-    #[tokio::test]
-    async fn test_register_a2a_agent_populates_skill_index() {
-        // GIVEN un registry spawné et un manifest A2A avec 2 skills
-        let (bus_tx, _) = broadcast::channel(16);
-        let handle = AgentRegistry::spawn(bus_tx);
-
-        // WHEN excel-worker est enregistré avec supports_a2a = true
-        let id = handle
-            .register(a2a_manifest(
-                "excel-worker",
-                &["read-excel", "analyze-excel"],
-            ))
-            .await
-            .unwrap();
-
-        // THEN resolve_skill retourne l'entrée correcte pour chaque skill
-        let entry = handle.resolve_skill("read-excel").await.unwrap();
-        assert_eq!(entry.manifest.name, "excel-worker");
-        assert_eq!(entry.id, id);
-
-        let entry2 = handle.resolve_skill("analyze-excel").await.unwrap();
-        assert_eq!(entry2.manifest.name, "excel-worker");
-
-        let skills = handle.list_skills().await.unwrap();
-        assert_eq!(skills.len(), 2);
-    }
-
-    #[tokio::test]
-    async fn test_skill_conflict_rejects_second_agent() {
-        // GIVEN excel-worker enregistré avec "read-excel"
-        let (bus_tx, _) = broadcast::channel(16);
-        let handle = AgentRegistry::spawn(bus_tx);
-        handle
-            .register(a2a_manifest("excel-worker", &["read-excel"]))
-            .await
-            .unwrap();
-
-        // WHEN other-agent tente de s'enregistrer avec le même skill
-        let result = handle
-            .register(a2a_manifest("other-agent", &["read-excel"]))
-            .await;
-
-        // THEN l'enregistrement est rejeté et other-agent n'est pas dans le registry
-        assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            AgentRegistryError::SkillIndex(SkillIndexError::SkillConflict { .. })
-        ));
-        let agents = handle.list_agents().await.unwrap();
-        assert_eq!(agents.len(), 1);
-        assert_eq!(agents[0].manifest.name, "excel-worker");
-    }
-
-    #[tokio::test]
-    async fn test_unregister_clears_skill_index() {
-        // GIVEN excel-worker enregistré avec 3 skills
-        let (bus_tx, _) = broadcast::channel(16);
-        let handle = AgentRegistry::spawn(bus_tx);
-        let id = handle
-            .register(a2a_manifest(
-                "excel-worker",
-                &["read-excel", "edit-excel", "analyze-excel"],
-            ))
-            .await
-            .unwrap();
-
-        // WHEN unregister est appelé
-        handle.unregister(id.as_str()).await.unwrap();
-
-        // THEN tous les skills sont retirés de l'index
-        assert!(handle.resolve_skill("read-excel").await.is_err());
-        assert!(handle.resolve_skill("edit-excel").await.is_err());
-        assert!(handle.resolve_skill("analyze-excel").await.is_err());
-        let skills = handle.list_skills().await.unwrap();
-        assert!(skills.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_non_a2a_agent_does_not_populate_skill_index() {
-        // GIVEN un agent avec supports_a2a = false
-        let (bus_tx, _) = broadcast::channel(16);
-        let handle = AgentRegistry::spawn(bus_tx);
-        handle
-            .register(test_manifest("standard-agent"))
-            .await
-            .unwrap();
-
-        // THEN l'index reste vide et l'agent est bien enregistré
-        let skills = handle.list_skills().await.unwrap();
-        assert!(skills.is_empty());
-        let agents = handle.list_agents().await.unwrap();
-        assert_eq!(agents.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_resolve_skill_unknown_returns_error() {
-        // GIVEN un registry vide
-        let (bus_tx, _) = broadcast::channel(16);
-        let handle = AgentRegistry::spawn(bus_tx);
-
-        // WHEN resolve_skill est appelé sur un skill inexistant
-        let result = handle.resolve_skill("unknown-skill").await;
-
-        // THEN une erreur SkillIndex(SkillNotFound) est retournée
-        assert!(matches!(
-            result.unwrap_err(),
-            AgentRegistryError::SkillIndex(SkillIndexError::SkillNotFound { .. })
-        ));
-    }
-
     #[tokio::test]
     async fn test_list_a2a_agents_filters_correctly() {
         // GIVEN 3 agents : 2 avec supports_a2a, 1 sans
@@ -1095,33 +647,40 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_skills_aggregates_multiple_agents() {
-        // GIVEN excel-worker (3 skills) et csv-data-worker (3 skills)
+    async fn test_stop_then_restart_produces_fresh_entry() {
+        // Regression: stopping then restarting an A2A agent must produce a fresh
+        // AgentId and not leave stale entries in the registry.
+
+        // GIVEN spec-assistant enregistré et actif
         let (bus_tx, _) = broadcast::channel(16);
         let handle = AgentRegistry::spawn(bus_tx);
-        handle
-            .register(a2a_manifest(
-                "excel-worker",
-                &["read-excel", "edit-excel", "analyze-excel"],
-            ))
+        let id1 = handle
+            .register(a2a_manifest("spec-assistant", &["create-spec", "refine-spec"]))
             .await
             .unwrap();
         handle
-            .register(a2a_manifest(
-                "csv-data-worker",
-                &["read-csv", "edit-csv", "analyze-csv"],
-            ))
-            .await
-            .unwrap();
-        handle
-            .register(test_manifest("standard-agent"))
+            .update_state(id1.as_str(), ProcessState::Active)
             .await
             .unwrap();
 
-        // WHEN list_skills est appelé
-        let skills = handle.list_skills().await.unwrap();
+        // WHEN l'agent est arrêté puis redémarré
+        handle
+            .update_state(id1.as_str(), ProcessState::Stopping)
+            .await
+            .unwrap();
+        handle
+            .update_state(id1.as_str(), ProcessState::Stopped)
+            .await
+            .unwrap();
+        let id2 = handle
+            .register(a2a_manifest("spec-assistant", &["create-spec", "refine-spec"]))
+            .await
+            .expect("re-registration should succeed");
 
-        // THEN 6 entrées (l'agent standard n'alimente pas l'index)
-        assert_eq!(skills.len(), 6);
+        // THEN un nouvel id est produit, et list_agents ne contient qu'une entrée
+        assert_ne!(id1, id2, "restart must produce a fresh AgentId");
+        let agents = handle.list_agents().await.unwrap();
+        assert_eq!(agents.len(), 1, "no stale entry should remain");
+        assert_eq!(agents[0].id, id2);
     }
 }

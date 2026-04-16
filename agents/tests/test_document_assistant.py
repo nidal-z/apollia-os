@@ -135,31 +135,6 @@ def test_manifest_instance_matches_module_function() -> None:
     assert inst["version"] == mod["version"]
 
 
-# ---------------------------------------------------------------------------
-# _detect_language
-# ---------------------------------------------------------------------------
-
-
-def test_detect_language_french() -> None:
-    """GIVEN un message clairement français
-    WHEN _detect_language est appelé
-    THEN il retourne 'fr'."""
-    assert document_assistant._detect_language("Quel est le total de la colonne Ventes ?") == "fr"
-
-
-def test_detect_language_english() -> None:
-    """GIVEN un message clairement anglais
-    WHEN _detect_language est appelé
-    THEN il retourne 'en'."""
-    assert document_assistant._detect_language("Summarize this PDF report") == "en"
-
-
-def test_detect_language_defaults_to_en() -> None:
-    """GIVEN un texte court sans marqueurs de langue
-    WHEN _detect_language est appelé
-    THEN il retourne 'en' (défaut)."""
-    assert document_assistant._detect_language("ok") == "en"
-
 
 # ---------------------------------------------------------------------------
 # _extract_file_paths
@@ -717,7 +692,6 @@ def test_module_exports_public_symbols() -> None:
     assert isinstance(document_assistant.ROUTING_TABLE, dict)
     assert isinstance(document_assistant.MEMORY_KEY_FORMAT_PREF, str)
     assert isinstance(document_assistant.MEMORY_KEY_RECENT_FILES, str)
-    assert callable(document_assistant._detect_language)
     assert callable(document_assistant._extract_file_paths)
     assert callable(document_assistant._route_by_extension)
     assert callable(document_assistant._route_by_keywords)

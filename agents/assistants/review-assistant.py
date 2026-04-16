@@ -27,7 +27,10 @@ from typing import Any
 
 from apollia.agents import AIPResult, ConversationalAgent
 
-from assistants.shared.project_bootstrap import ProjectContextBootstrap
+try:
+    from shared.project_bootstrap import ProjectContextBootstrap
+except ModuleNotFoundError:
+    from assistants.shared.project_bootstrap import ProjectContextBootstrap
 
 
 # ---------------------------------------------------------------------------
@@ -169,27 +172,6 @@ _TEST_RUNNERS: tuple[tuple[str, str], ...] = (
 # Language detection
 # ---------------------------------------------------------------------------
 
-_FRENCH_MARKERS: frozenset[str] = frozenset((
-    "bonjour", "salut", "bonsoir", "coucou",
-    "je", "nous", "vous", "il", "elle", "ils",
-    "est", "sont", "avec", "pour", "dans", "sur", "par",
-    "une", "un", "le", "la", "les", "des", "du",
-    "mon", "ton", "son", "notre", "de",
-    "revois", "vérifie", "analyse", "contrôle", "inspecte",
-    "rapport", "résultat", "résultats", "problème", "erreur",
-    "oui", "non", "merci", "svp", "stp",
-))
-
-
-def _detect_language(text: str) -> str:
-    """Return ``"fr"`` when *text* is likely French, ``"en"`` otherwise.
-
-    Uses whole-word token matching to avoid false positives from common
-    substrings (e.g. ``"tu"`` appearing inside ``"feature"``).
-    """
-    tokens = set(re.split(r"\W+", text.lower()))
-    hits = sum(1 for m in _FRENCH_MARKERS if m in tokens)
-    return "fr" if hits >= 2 else "en"
 
 
 # ---------------------------------------------------------------------------
@@ -708,7 +690,6 @@ def _build_report(
     completeness: list[tuple[str, str]],
     conformity: list[tuple[str, str]],
     tests: list[tuple[str, str]],
-    lang: str,
 ) -> str:
     """Assemble the final 🟢/🟡/🔴 report from the three check results.
 
@@ -719,34 +700,19 @@ def _build_report(
     blocants = sum(1 for level, _ in all_items if level == _BLOQUANT)
     attentions = sum(1 for level, _ in all_items if level == _ATTENTION)
 
-    if lang == "fr":
-        comp_title = "Complétude des couches"
-        conf_title = "Conformité aux standards"
-        test_title = "Tests"
-        summary_title = "Résumé"
-        summary_lines = (
-            [f"🔴 {blocants} blocant(s) à corriger avant merge"]
-            if blocants > 0
-            else ["🟢 Aucun blocant — prêt pour merge"]
-        )
-        if attentions > 0:
-            summary_lines.append(f"🟡 {attentions} point(s) d'attention (non-bloquants)")
-        if blocants == 0 and attentions == 0:
-            summary_lines.append("🟢 Implémentation conforme aux standards du projet")
-    else:
-        comp_title = "Layer completeness"
-        conf_title = "Standards conformity"
-        test_title = "Tests"
-        summary_title = "Summary"
-        summary_lines = (
-            [f"🔴 {blocants} blocking item(s) to fix before merge"]
-            if blocants > 0
-            else ["🟢 No blockers — ready to merge"]
-        )
-        if attentions > 0:
-            summary_lines.append(f"🟡 {attentions} attention item(s) (non-blocking)")
-        if blocants == 0 and attentions == 0:
-            summary_lines.append("🟢 Implementation conforms to project standards")
+    comp_title = "Layer completeness"
+    conf_title = "Standards conformity"
+    test_title = "Tests"
+    summary_title = "Summary"
+    summary_lines = (
+        [f"🔴 {blocants} blocking item(s) to fix before merge"]
+        if blocants > 0
+        else ["🟢 No blockers — ready to merge"]
+    )
+    if attentions > 0:
+        summary_lines.append(f"🟡 {attentions} attention item(s) (non-blocking)")
+    if blocants == 0 and attentions == 0:
+        summary_lines.append("🟢 Implementation conforms to project standards")
 
     sections = [
         f"## Review — {spec_title} — {today}",
@@ -823,46 +789,49 @@ def _extract_task_input(task: Any) -> tuple[str, list[dict[str, str]]]:
 # System prompts
 # ---------------------------------------------------------------------------
 
-_SYSTEM_PROMPT_FR: str = """\
-Tu es **review-assistant**, assistant de vérification du pipeline Apollia OS \
-(spec → dev → **review**).
+_SYSTEM_PROMPT: str = """\
+You are **review-assistant**, an experienced code reviewer who verifies quality \
+and compliance before merge — regardless of language or stack.
 
-Tu analyses le diff courant et la TaskSpec correspondante pour détecter les \
-problèmes avant le merge. Tu produis un rapport 🟢/🟡/🔴 structuré et actionnable.
+## Principles
 
-## Contraintes absolues
+**Verify, don't rewrite.** You analyse the diff and TaskSpec to find problems. \
+You never modify a file without explicit confirmation.
 
-1. **Tu ne modifies JAMAIS un fichier sans demande explicite de l'utilisateur.**
-2. Si tu proposes d'écrire des tests manquants, tu demandes confirmation d'abord.
-3. Réponds dans la même langue que l'utilisateur (FR/EN auto-détecté).
-4. Sois factuel et concis — chaque item du rapport doit être vérifiable.
+**Three dimensions.** Every review covers completeness (are all spec layers \
+implemented?), conformity (are project rules respected?), and test coverage \
+(are new functions tested?).
 
-## Niveaux du rapport
+**Actionable, not opinionated.** Every point raised must be verifiable with a \
+concrete action. "The code could be better" is not feedback. \
+"Function X has no test for the error case" is.
 
-- 🔴 BLOQUANT : doit être corrigé avant tout merge
-- 🟡 ATTENTION : non-bloquant mais recommandé
-- 🟢 LGTM : conforme, pas d'action requise\
-"""
+**Proportional to risk.** A typo in a comment is not the same level as an SQL \
+injection. Adapt severity to actual risk.
 
-_SYSTEM_PROMPT_EN: str = """\
-You are **review-assistant**, the verification assistant of the Apollia OS pipeline \
-(spec → dev → **review**).
+## What you do
 
-You analyse the current diff and the matching TaskSpec to detect issues before merge. \
-You produce a structured, actionable 🟢/🟡/🔴 report.
+- Analyse the current diff against the TaskSpec
+- Verify project rule compliance (dependencies, patterns, conventions)
+- Identify missing or insufficient tests
+- Produce a structured report with severity levels
+- Propose concrete fixes (with confirmation before writing)
 
-## Absolute constraints
+## Severity levels
 
-1. **You NEVER modify a file without explicit user confirmation.**
-2. If you propose writing missing tests, you ask for confirmation first.
-3. Respond in the user's detected language (FR/EN auto-detected).
-4. Be factual and concise — every report item must be verifiable.
+- 🔴 **BLOCKING**: must be fixed before merge (bug, vulnerability, spec violation)
+- 🟡 **ATTENTION**: recommended but non-blocking (improvable pattern, edge case test)
+- 🟢 **LGTM**: compliant, no action needed
 
-## Report levels
+## Available tools
 
-- 🔴 BLOQUANT: must be fixed before any merge
-- 🟡 ATTENTION: non-blocking but recommended
-- 🟢 LGTM: compliant, no action required\
+- `file_read`, `bash_executor`: read code and run checks (tests, lint)
+- `file_write`, `file_edit`: fix issues (only after confirmation)
+- `ask_user`: ask for clarification on intent or context
+
+## Language
+
+Always respond in the same language as the user's message.\
 """
 
 
@@ -884,7 +853,7 @@ def manifest() -> dict[str, Any]:
         "execution_mode": "auto",
         "agent_type": "assistant",
         "tools_required": ["file_read", "bash_executor"],
-        "tools_optional": ["file_write", "file_edit"],
+        "tools_optional": ["file_write", "file_edit", "ask_user"],
         "tools_requiring_approval": ["bash_executor"],
         "packages": [],
         "memory_namespace": "review-assistant",
@@ -973,7 +942,7 @@ class ReviewAssistant(ConversationalAgent):
     7. Return the assembled report.
     """
 
-    SYSTEM_PROMPT: str = _SYSTEM_PROMPT_FR
+    SYSTEM_PROMPT: str = _SYSTEM_PROMPT
     MAX_TURNS: int = 20
     TEMPERATURE: float = 0.1
 
@@ -995,12 +964,9 @@ class ReviewAssistant(ConversationalAgent):
         if not input_text:
             return AIPResult.failed("NO_INPUT", "No input provided in task")
 
-        lang = _detect_language(input_text)
         is_first_turn = not history
 
         if is_first_turn:
-            self._current_lang: str = lang
-
             if await self._bootstrap.needs_bootstrap(ctx):
                 await self._bootstrap.run_bootstrap(ctx)
             snapshot = await self._bootstrap.load_snapshot(ctx)
@@ -1019,12 +985,8 @@ class ReviewAssistant(ConversationalAgent):
                 if raw_rules
                 else {"raw": "", "forbidden_deps": "[]"}
             )
-        else:
-            lang = getattr(self, "_current_lang", lang)
 
         rules = getattr(self, "_rules", {"raw": "", "forbidden_deps": "[]"})
-
-        self.SYSTEM_PROMPT = _SYSTEM_PROMPT_FR if lang == "fr" else _SYSTEM_PROMPT_EN
 
         spec_content = await _find_task_spec(ctx, input_text)
         diff = await _get_diff(ctx)
@@ -1034,7 +996,7 @@ class ReviewAssistant(ConversationalAgent):
         tests = await _check_tests(ctx, diff)
 
         spec_title = _extract_spec_title(spec_content)
-        report = _build_report(spec_title, completeness, conformity, tests, lang)
+        report = _build_report(spec_title, completeness, conformity, tests)
 
         if ctx.memory is not None:
             await ctx.memory.record(

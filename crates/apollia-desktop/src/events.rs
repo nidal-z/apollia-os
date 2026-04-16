@@ -249,7 +249,9 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::ChatToolCallCompleted { .. }
         | RuntimeEvent::ChatApprovalRequired { .. }
         | RuntimeEvent::ChatApprovalResolved { .. }
-        | RuntimeEvent::ChatApprovalTimeout { .. } => "chat-changed",
+        | RuntimeEvent::ChatApprovalTimeout { .. }
+        | RuntimeEvent::ChatUserInputRequired { .. }
+        | RuntimeEvent::ChatUserInputResolved { .. } => "chat-changed",
 
         // ChatToken uses a dedicated fast path — not "chat-changed" to avoid
         // triggering a full IPC refresh on every streamed token.

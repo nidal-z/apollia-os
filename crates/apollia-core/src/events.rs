@@ -647,6 +647,28 @@ pub enum RuntimeEvent {
         tool_name: String,
     },
 
+    // ── User Input events (ask_user tool) ─────────
+    /// L'agent demande des informations à l'utilisateur via le tool `ask_user`.
+    ChatUserInputRequired {
+        /// Identifiant unique de la requête (pour corréler la réponse).
+        request_id: String,
+        /// Identifiant de la session chat.
+        session_id: String,
+        /// Identifiant du message en cours.
+        message_id: String,
+        /// Questions sérialisées en JSON (Vec<UserQuestion>).
+        questions_json: String,
+        /// Contexte optionnel expliquant pourquoi l'agent pose ces questions.
+        context: Option<String>,
+    },
+    /// L'utilisateur a répondu aux questions du tool `ask_user`.
+    ChatUserInputResolved {
+        /// Identifiant de la requête.
+        request_id: String,
+        /// Identifiant de la session.
+        session_id: String,
+    },
+
     // ── Plan Cache events ────────────────────────
     /// Un plan a été récupéré depuis le cache au lieu d'être généré par le Reasoner.
     PlanCacheHit {
@@ -1243,6 +1265,18 @@ mod tests {
                 session_id: "sess-001".into(),
                 message_id: "msg-005".into(),
                 tool_name: "bash_executor".into(),
+            },
+            // ── User Input (ask_user) ────────────────────────
+            RuntimeEvent::ChatUserInputRequired {
+                request_id: "req-001".into(),
+                session_id: "sess-001".into(),
+                message_id: "msg-006".into(),
+                questions_json: "[]".into(),
+                context: Some("Need project details".into()),
+            },
+            RuntimeEvent::ChatUserInputResolved {
+                request_id: "req-001".into(),
+                session_id: "sess-001".into(),
             },
             // ── Plan Cache ────────────────────────
             RuntimeEvent::PlanCacheHit {

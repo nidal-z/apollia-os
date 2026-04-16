@@ -20,6 +20,7 @@
   import ContextIndicator from "./ContextIndicator.svelte";
   import SummarizedMessagesBanner from "./SummarizedMessagesBanner.svelte";
   import ApprovalCard from "./ApprovalCard.svelte";
+  import AskUserCard from "./AskUserCard.svelte";
   import HitlFilesystemModal from "./HitlFilesystemModal.svelte";
 
   interface Props {
@@ -54,6 +55,13 @@
     toolName: string;
     inputPreview: string;
   } | null>(null);
+  /** Pending ask_user request — shown inline when the agent needs user input. */
+  let pendingUserInput = $state<{
+    requestId: string;
+    questions: { id: string; question: string; type: "open" | "single_choice" | "multi_choice"; options?: string[]; hint?: string }[];
+    context?: string | null;
+  } | null>(null);
+
   let conversationStats = $state<ConversationStatsView | null>(null);
 
   const headerTitle = $derived(
@@ -266,6 +274,30 @@
         if (evt.event_type === "ChatApprovalResolved" || evt.event_type === "ChatApprovalTimeout") {
           pendingApproval = null;
           removePendingChatApproval(sessionId);
+          return;
+        }
+        if (evt.event_type === "ChatUserInputRequired") {
+          const inner = (evt.payload as Record<string, unknown>)?.ChatUserInputRequired as
+            { request_id?: string; session_id?: string; questions_json?: string; context?: string } | undefined;
+          const p = inner ?? evt.payload as { request_id?: string; session_id?: string; questions_json?: string; context?: string };
+          if (!p.session_id || p.session_id === sessionId || p.session_id === "") {
+            isStreaming = false;
+            try {
+              const questions = JSON.parse(p.questions_json ?? "[]");
+              pendingUserInput = {
+                requestId: p.request_id ?? "",
+                questions,
+                context: p.context ?? null,
+              };
+            } catch {
+              console.warn("Failed to parse ask_user questions:", p.questions_json);
+            }
+            scrollToBottom();
+          }
+          return;
+        }
+        if (evt.event_type === "ChatUserInputResolved") {
+          pendingUserInput = null;
           return;
         }
         if (evt.event_type === "ChatResponseCompleted") {
@@ -655,6 +687,19 @@
                 messageId={pendingApproval.messageId}
                 toolName={pendingApproval.toolName}
                 inputPreview={pendingApproval.inputPreview}
+              />
+            </div>
+          </div>
+        {/if}
+
+        {#if pendingUserInput}
+          <div class="flex justify-start" data-testid="chat-ask-user-inline">
+            <div class="max-w-[85%]">
+              <AskUserCard
+                requestId={pendingUserInput.requestId}
+                {sessionId}
+                questions={pendingUserInput.questions}
+                context={pendingUserInput.context}
               />
             </div>
           </div>

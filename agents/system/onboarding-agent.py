@@ -12,11 +12,10 @@ Apollia features used:
   - ConversationalAgent inheritance (apollia.agents)
   - Semantic memory persistence (ctx.memory.remember / ctx.memory.recall)
   - LLM-driven dialogue (ctx.llm.complete)
-  - Language detection on first message
 
 Quick start:
   apollia-os agent start onboarding-agent
-  apollia-os run onboarding-agent --input "Bonjour !"
+  apollia-os run onboarding-agent --input "Hello!"
 """
 
 from __future__ import annotations
@@ -103,23 +102,17 @@ class TopicGuide:
     """
 
     name: str
-    domain_fr: str
-    domain_en: str
-    objective_fr: str
-    objective_en: str
+    domain: str
+    objective: str
     memory_keys: tuple[str, ...]
-    example_questions_fr: tuple[str, ...]
-    example_questions_en: tuple[str, ...]
-    adaptation_rules_fr: tuple[str, ...]
-    adaptation_rules_en: tuple[str, ...]
+    example_questions: tuple[str, ...]
+    adaptation_rules: tuple[str, ...]
 
 
 TOPIC_IDENTITY = TopicGuide(
     name="identity",
-    domain_fr="Identité de l'utilisateur",
-    domain_en="User identity",
-    objective_fr="Comprendre qui est l'utilisateur — son nom, son métier, son secteur",
-    objective_en="Understand who the user is — their name, profession, industry",
+    domain="User identity",
+    objective="Understand who the user is — their name, profession, industry",
     memory_keys=(
         "user.name",
         "user.role",
@@ -128,24 +121,13 @@ TOPIC_IDENTITY = TopicGuide(
         "user.industry",
         "user.goals",
     ),
-    example_questions_fr=(
-        "Comment tu t'appelles ?",
-        "Quel est ton métier ou ton rôle au quotidien ?",
-        "Tu te considères plutôt débutant, intermédiaire ou expert dans ton domaine ?",
-        "Dans quel secteur tu travailles ?",
-    ),
-    example_questions_en=(
+    example_questions=(
         "What's your name?",
         "What's your profession or day-to-day role?",
         "Would you consider yourself a beginner, intermediate, or expert in your field?",
         "What industry do you work in?",
     ),
-    adaptation_rules_fr=(
-        "Si l'utilisateur donne son rôle spontanément, ne pas redemander.",
-        "Si le prénom est déjà connu, passer à autre chose.",
-        "OBLIGATOIRE : le prénom et le métier/rôle doivent être collectés. Ne jamais sauter ces informations.",
-    ),
-    adaptation_rules_en=(
+    adaptation_rules=(
         "If the user mentions their role spontaneously, do not ask again.",
         "If the first name is already known, move on.",
         "MANDATORY: the first name and profession/role must be collected. Never skip these.",
@@ -154,28 +136,18 @@ TOPIC_IDENTITY = TopicGuide(
 
 TOPIC_PREFERENCES = TopicGuide(
     name="preferences",
-    domain_fr="Préférences d'interaction",
-    domain_en="Interaction preferences",
-    objective_fr="Adapter le comportement d'Apollia OS",
-    objective_en="Adapt Apollia OS behaviour",
+    domain="Interaction preferences",
+    objective="Adapt Apollia OS behaviour",
     memory_keys=(
         "user.preferences.verbosity",
         "user.preferences.format",
         "user.preferences.language",
     ),
-    example_questions_fr=(
-        "Tu préfères des réponses détaillées ou aller droit au but ?",
-        "Tu veux que je te parle en français ou en anglais ?",
-    ),
-    example_questions_en=(
+    example_questions=(
         "Do you prefer detailed answers or straight to the point?",
         "Which language would you like me to use?",
     ),
-    adaptation_rules_fr=(
-        "Observer le style de l'utilisateur : réponses courtes = préfère concis.",
-        "Si la langue est déjà détectée, proposer de confirmer plutôt que demander.",
-    ),
-    adaptation_rules_en=(
+    adaptation_rules=(
         "Observe the user's style: short answers = prefers concise.",
         "If the language is already detected, offer to confirm rather than ask.",
     ),
@@ -183,33 +155,19 @@ TOPIC_PREFERENCES = TopicGuide(
 
 TOPIC_TOOLS = TopicGuide(
     name="tools",
-    domain_fr="Outils et environnement de travail",
-    domain_en="Tools and work environment",
-    objective_fr="Connaître les outils du quotidien de l'utilisateur, quel que soit son métier",
-    objective_en="Learn the user's daily tools, regardless of profession",
+    domain="Tools and work environment",
+    objective="Learn the user's daily tools, regardless of profession",
     memory_keys=(
         "user.tools.daily_apps",
         "user.tools.communication",
         "user.tools.specialized",
     ),
-    example_questions_fr=(
-        "Quels outils ou applications utilises-tu le plus au quotidien ?",
-        "Comment tu communiques avec ton équipe ? (Slack, email, Teams…)",
-        "Tu utilises des outils spécialisés pour ton métier ?",
-    ),
-    example_questions_en=(
+    example_questions=(
         "What tools or apps do you use most in your daily work?",
         "How do you communicate with your team? (Slack, email, Teams…)",
         "Do you use any specialized tools for your profession?",
     ),
-    adaptation_rules_fr=(
-        "Si développeur → demander IDE, terminal, gestionnaire de paquets (clés user.tools.ide, user.tools.terminal, user.tools.package_manager).",
-        "Si marketeur → demander outils analytics, CRM, automation marketing.",
-        "Si designer → demander outils de design (Figma, Sketch…) et prototypage.",
-        "Si manager → demander outils de gestion de projet et reporting.",
-        "Adapter les questions au métier révélé dans l'identité. Ne jamais demander des outils d'un domaine non pertinent.",
-    ),
-    adaptation_rules_en=(
+    adaptation_rules=(
         "If developer → ask about IDE, terminal, package manager (keys user.tools.ide, user.tools.terminal, user.tools.package_manager).",
         "If marketer → ask about analytics, CRM, marketing automation tools.",
         "If designer → ask about design tools (Figma, Sketch…) and prototyping.",
@@ -220,33 +178,20 @@ TOPIC_TOOLS = TopicGuide(
 
 TOPIC_DOMAIN = TopicGuide(
     name="domain",
-    domain_fr="Contexte professionnel",
-    domain_en="Professional context",
-    objective_fr="Comprendre le secteur, l'organisation et les projets en cours",
-    objective_en="Understand the industry, organization, and current projects",
+    domain="Professional context",
+    objective="Understand the industry, organization, and current projects",
     memory_keys=(
         "user.domain.industry",
         "user.domain.company_context",
         "user.domain.current_projects",
         "user.domain.constraints",
     ),
-    example_questions_fr=(
-        "Dans quel secteur tu travailles ?",
-        "Tu travailles seul, en petite équipe, ou dans une grande organisation ?",
-        "Quels sont tes projets ou responsabilités principales en ce moment ?",
-    ),
-    example_questions_en=(
+    example_questions=(
         "What industry do you work in?",
         "Do you work solo, in a small team, or in a large organization?",
         "What are your main projects or responsibilities right now?",
     ),
-    adaptation_rules_fr=(
-        "Si freelance → demander types de clients et contraintes spécifiques.",
-        "Si grande entreprise → demander équipe, processus, contraintes organisationnelles.",
-        "Si profil technique → demander stack et infrastructure (clés user.domain.type, user.domain.stack).",
-        "Si profil non-technique → ne pas demander de détails techniques, se concentrer sur le contexte métier.",
-    ),
-    adaptation_rules_en=(
+    adaptation_rules=(
         "If freelance → ask about client types and specific constraints.",
         "If large company → ask about team, processes, organizational constraints.",
         "If technical profile → ask about stack and infrastructure (keys user.domain.type, user.domain.stack).",
@@ -256,28 +201,18 @@ TOPIC_DOMAIN = TopicGuide(
 
 TOPIC_AGENTS = TopicGuide(
     name="agents",
-    domain_fr="Automatisation souhaitée",
-    domain_en="Desired automation",
-    objective_fr="Identifier les workflows à automatiser",
-    objective_en="Identify workflows to automate",
+    domain="Desired automation",
+    objective="Identify workflows to automate",
     memory_keys=(
         "user.agents.workflows",
         "user.agents.pain_points",
         "user.agents.expectations",
     ),
-    example_questions_fr=(
-        "Tu as des tâches répétitives que tu aimerais automatiser ?",
-        "Tu imagines quels genres de choses qu'un agent IA pourrait faire pour toi ?",
-    ),
-    example_questions_en=(
+    example_questions=(
         "Do you have repetitive tasks you'd like to automate?",
         "What kind of things do you imagine an AI agent could do for you?",
     ),
-    adaptation_rules_fr=(
-        "Si l'utilisateur ne connaît pas les agents IA, expliquer brièvement.",
-        "S'il a déjà de l'expérience, demander quels outils il a essayé.",
-    ),
-    adaptation_rules_en=(
+    adaptation_rules=(
         "If the user is unfamiliar with AI agents, explain briefly.",
         "If they have experience, ask which tools they've tried.",
     ),
@@ -311,34 +246,18 @@ def topic_for_memory_key(key: str) -> str | None:
     return None
 
 
-def _build_topic_section_fr(guide: TopicGuide) -> str:
-    """Render a single topic guide as a French system prompt section."""
+def _build_topic_section(guide: TopicGuide) -> str:
+    """Render a single topic guide as a system prompt section."""
     lines = [
-        f"### {guide.domain_fr}",
-        f"Objectif : {guide.objective_fr}",
-        f"Clés mémoire : {', '.join(guide.memory_keys)}",
-        "Questions types :",
-    ]
-    for q in guide.example_questions_fr:
-        lines.append(f"  - \"{q}\"")
-    lines.append("Adaptation :")
-    for r in guide.adaptation_rules_fr:
-        lines.append(f"  - {r}")
-    return "\n".join(lines)
-
-
-def _build_topic_section_en(guide: TopicGuide) -> str:
-    """Render a single topic guide as an English system prompt section."""
-    lines = [
-        f"### {guide.domain_en}",
-        f"Objective: {guide.objective_en}",
+        f"### {guide.domain}",
+        f"Objective: {guide.objective}",
         f"Memory keys: {', '.join(guide.memory_keys)}",
         "Example questions:",
     ]
-    for q in guide.example_questions_en:
+    for q in guide.example_questions:
         lines.append(f'  - "{q}"')
     lines.append("Adaptation:")
-    for r in guide.adaptation_rules_en:
+    for r in guide.adaptation_rules:
         lines.append(f"  - {r}")
     return "\n".join(lines)
 
@@ -347,81 +266,11 @@ def _build_topic_section_en(guide: TopicGuide) -> str:
 # System prompt
 # ---------------------------------------------------------------------------
 
-_TOPIC_SECTIONS_FR = "\n\n".join(
-    _build_topic_section_fr(g) for g in TOPIC_GUIDES.values()
+_TOPIC_SECTIONS = "\n\n".join(
+    _build_topic_section(g) for g in TOPIC_GUIDES.values()
 )
 
-_TOPIC_SECTIONS_EN = "\n\n".join(
-    _build_topic_section_en(g) for g in TOPIC_GUIDES.values()
-)
-
-_SYSTEM_PROMPT_FR = f"""\
-Tu es l'assistant d'onboarding d'Apollia OS. Ton rôle est de faire \
-connaissance avec l'utilisateur de manière naturelle et amicale. \
-Apollia OS est un outil pour tous les professionnels, pas uniquement les \
-développeurs — adapte ton langage et tes questions au profil de l'utilisateur.
-
-Tu explores 5 domaines au fil de la conversation. Tu ne suis PAS un ordre \
-fixe — tu choisis quand et comment aborder chaque domaine en fonction de ce \
-que l'utilisateur te dit. Tu peux revenir sur un domaine si une nouvelle \
-information le justifie, ou sauter un domaine si le contexte le rend non \
-pertinent.
-
-## Champs obligatoires (TOUJOURS collecter en premier)
-
-Tu DOIS obtenir ces informations dans les 2-3 premiers échanges. Ne les \
-saute JAMAIS :
-- **Prénom** (user.name) — demande-le explicitement si l'utilisateur ne se \
-présente pas spontanément.
-- **Métier / rôle** (user.role) — "Quel est ton métier ?" ou "Qu'est-ce que \
-tu fais au quotidien ?"
-- **Langue préférée** (user.preferences.language) — détectée automatiquement \
-ou confirmée.
-
-## Domaines à explorer
-
-{_TOPIC_SECTIONS_FR}
-
-## Stratégie adaptative
-
-Après avoir appris le prénom et le métier (obligatoire), détecte le type de \
-profil de l'utilisateur et adapte TOUTES tes questions suivantes :
-- **TECHNIQUE** (développeur, devops, data engineer, sysadmin…) : explorer \
-outils dev (IDE, terminal, stack), infrastructure, workflows techniques.
-- **CRÉATIF** (designer, content creator, vidéaste…) : explorer outils de \
-création, workflows créatifs, contraintes de livraison.
-- **BUSINESS** (manager, marketeur, commercial, RH…) : explorer outils métier, \
-contexte équipe, processus, KPIs.
-- **AUTRE** : poser des questions génériques sur le quotidien, les objectifs \
-et les défis.
-
-Ne pose JAMAIS de questions sur des outils d'un domaine non pertinent au profil \
-(ex: ne demande pas l'IDE à un marketeur, ne demande pas le CRM à un développeur \
-sauf s'il en parle).
-
-## Règles
-
-- Ne pose JAMAIS une liste de questions. Pose UNE question à la fois.
-- Rebondis sur les réponses pour creuser naturellement.
-- Adapte tes questions au profil qui se dessine.
-- Quand tu apprends quelque chose d'utile dit explicitement par l'utilisateur, \
-indique-le entre crochets [REMEMBER clé=valeur]. \
-Quand tu déduis une information du contexte (ex: l'utilisateur écrit en \
-français donc il est probablement francophone), utilise [INFER clé=valeur]. \
-Utilise les clés mémoire listées dans chaque domaine.
-- Ne mémorise que des informations durables (rôle, compétences, préférences) — \
-jamais des détails éphémères (humeur du jour, tâche en cours). \
-Un bon [REMEMBER] est encore vrai dans 6 mois.
-- L'utilisateur peut quitter à tout moment. Ne force jamais la conversation.
-- Sois chaleureux, concis, et professionnel.
-- Commence par te présenter brièvement et demander le prénom de l'utilisateur.
-- Quand tu as suffisamment couvert les 5 domaines (au moins une info pertinente \
-par domaine), conclus la conversation avec un résumé court de ce que tu as appris \
-et dis à l'utilisateur que l'onboarding est terminé. Ne continue pas à poser des \
-questions indéfiniment.\
-"""
-
-_SYSTEM_PROMPT_EN = f"""\
+_SYSTEM_PROMPT = f"""\
 You are the onboarding assistant for Apollia OS. Your role is to get to know \
 the user in a natural, friendly way. Apollia OS is a tool for all professionals, \
 not just developers — adapt your language and questions to the user's profile.
@@ -443,7 +292,7 @@ confirmed.
 
 ## Domains to explore
 
-{_TOPIC_SECTIONS_EN}
+{_TOPIC_SECTIONS}
 
 ## Adaptive strategy
 
@@ -479,7 +328,8 @@ A good [REMEMBER] is still true in 6 months.
 - When you have sufficiently covered all 5 domains (at least one relevant piece \
 of information per domain), conclude the conversation with a short summary of what \
 you learned and tell the user that onboarding is complete. Do not keep asking \
-questions indefinitely.\
+questions indefinitely.
+- Always respond in the same language as the user's message.\
 """
 
 
@@ -487,20 +337,7 @@ questions indefinitely.\
 # Profile-specific system prompt sections
 # ---------------------------------------------------------------------------
 
-OPERATOR_SECTION_FR = """\
-
-## Profil Operator détecté
-
-Tu parles à un Operator — quelqu'un qui veut utiliser des agents IA pour
-automatiser des tâches récurrentes sans écrire de code.
-Oriente tes questions vers :
-- Les tâches répétitives qu'il aimerait automatiser
-- Son niveau de confort avec la supervision d'agents autonomes
-- Ses préférences en matière de notifications et alertes
-Ne demande pas les détails techniques (stack, IDE, frameworks).\
-"""
-
-OPERATOR_SECTION_EN = """\
+OPERATOR_SECTION = """\
 
 ## Operator profile detected
 
@@ -513,19 +350,7 @@ Focus your questions on:
 Do not ask technical details (stack, IDE, frameworks).\
 """
 
-BUILDER_SECTION_FR = """\
-
-## Profil Builder détecté
-
-Tu parles à un Builder — un développeur qui veut créer ses propres agents.
-Oriente tes questions vers :
-- Son expérience avec Python et la programmation async
-- Les frameworks d'agents qu'il connaît (LangGraph, CrewAI, AutoGen…)
-- Sa stack technique actuelle et ses outils préférés
-Tu peux utiliser le vocabulaire technique (async/await, SDKs, manifests).\
-"""
-
-BUILDER_SECTION_EN = """\
+BUILDER_SECTION = """\
 
 ## Builder profile detected
 
@@ -538,47 +363,23 @@ You may use technical vocabulary (async/await, SDKs, manifests).\
 """
 
 
-def build_system_prompt_with_profile(lang: str, profile: str | None) -> str:
-    """Build the full system prompt for the given language and optional profile.
+def build_system_prompt_with_profile(profile: str | None) -> str:
+    """Build the full system prompt with an optional profile-specific section.
 
-    Returns the base system prompt for ``lang`` with an appended
-    profile-specific section when ``profile`` is ``"operator"`` or
-    ``"builder"``.  Falls back to the generic prompt for ``None`` or
-    unrecognised values.
+    Returns the base system prompt with an appended profile-specific
+    section when ``profile`` is ``"operator"`` or ``"builder"``.
+    Falls back to the generic prompt for ``None`` or unrecognised values.
     """
-    base = _SYSTEM_PROMPT_FR if lang == "fr" else _SYSTEM_PROMPT_EN
     if profile == "operator":
-        section = OPERATOR_SECTION_FR if lang == "fr" else OPERATOR_SECTION_EN
-        return base + section
+        return _SYSTEM_PROMPT + OPERATOR_SECTION
     if profile == "builder":
-        section = BUILDER_SECTION_FR if lang == "fr" else BUILDER_SECTION_EN
-        return base + section
-    return base
+        return _SYSTEM_PROMPT + BUILDER_SECTION
+    return _SYSTEM_PROMPT
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-_FRENCH_MARKERS: frozenset[str] = frozenset((
-    "bonjour", "salut", "bonsoir", "coucou", "hey", "allo",
-    "je suis", "je m'appelle", "merci", "oui", "non",
-    "comment", "quoi", "pourquoi", "bienvenue",
-))
-
-
-def _detect_language(text: str) -> str:
-    """Detect whether *text* is likely French or English.
-
-    Returns ``"fr"`` or ``"en"``.
-    """
-    lower = text.lower()
-    tokens = set(lower.split())
-    french_hits = sum(1 for marker in _FRENCH_MARKERS if marker in tokens or marker in lower)
-    if french_hits >= 1:
-        return "fr"
-    return "en"
-
 
 def _extract_remember_tags(text: str) -> list[tuple[str, str]]:
     """Extract ``[REMEMBER key=value]`` pairs from LLM output.
@@ -655,7 +456,7 @@ class OnboardingAgent(ConversationalAgent):
     of information is persisted immediately via semantic memory.
     """
 
-    SYSTEM_PROMPT = _SYSTEM_PROMPT_FR
+    SYSTEM_PROMPT = _SYSTEM_PROMPT
     MAX_TURNS = 30
     TEMPERATURE = 0.7
 
@@ -665,8 +466,8 @@ class OnboardingAgent(ConversationalAgent):
             "name": "onboarding-agent",
             "version": "1.5.0",
             "description": (
-                "Agent d'onboarding conversationnel — fait connaissance "
-                "avec l'utilisateur de manière naturelle."
+                "Conversational onboarding agent — gets to know "
+                "the user in a natural, friendly way."
             ),
             "execution_mode": "auto",
             "agent_type": "system",
@@ -688,18 +489,15 @@ class OnboardingAgent(ConversationalAgent):
         user_message: str,
         history: list[dict[str, str]] | None = None,
     ) -> tuple[str, list[dict[str, str]]]:
-        """Override to handle language detection and memory extraction.
+        """Override to handle profile-aware prompt building and memory extraction.
 
-        On the first message (no history), detects the user's language
-        and switches the system prompt accordingly.  After each LLM
-        response, extracts REMEMBER tags and persists them.
+        On the first message (no history), loads the active profile and
+        builds the system prompt accordingly.  After each LLM response,
+        extracts REMEMBER tags and persists them.
         """
         is_first_message = not history
 
         if is_first_message:
-            lang = _detect_language(user_message)
-            self._current_language = lang
-
             # Read the active profile injected by the runtime before session
             # creation — None when no profile was set.
             active_profile: str | None = None
@@ -709,12 +507,7 @@ class OnboardingAgent(ConversationalAgent):
                 except Exception:
                     active_profile = None
 
-            self.SYSTEM_PROMPT = build_system_prompt_with_profile(lang, active_profile)
-
-            if ctx.memory is not None:
-                await persist_insight(
-                    ctx, MEMORY_KEY_LANGUAGE, lang, explicit=False,
-                )
+            self.SYSTEM_PROMPT = build_system_prompt_with_profile(active_profile)
 
         if ctx.llm is None:
             raise RuntimeError(

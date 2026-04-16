@@ -34,7 +34,10 @@ from typing import Any
 
 from apollia.agents import AIPResult, ConversationalAgent
 
-from assistants.shared.project_bootstrap import ProjectContextBootstrap
+try:
+    from shared.project_bootstrap import ProjectContextBootstrap
+except ModuleNotFoundError:
+    from assistants.shared.project_bootstrap import ProjectContextBootstrap
 
 
 # ---------------------------------------------------------------------------
@@ -69,18 +72,6 @@ _SPEC_REF_RE: re.Pattern[str] = re.compile(
 )
 
 _SLUG_NON_ALNUM: re.Pattern[str] = re.compile(r"[^a-z0-9]+")
-
-# Marqueurs de langue française (correspondance sur token entier)
-_FRENCH_MARKERS: frozenset[str] = frozenset((
-    "bonjour", "salut", "bonsoir", "coucou",
-    "je", "nous", "vous", "il", "elle", "ils",
-    "est", "sont", "avec", "pour", "dans", "sur", "par",
-    "une", "un", "le", "la", "les", "des", "du",
-    "mon", "ton", "son", "notre", "de",
-    "implémente", "implémenter", "ajoute", "crée", "fais", "génère",
-    "comment", "pourquoi", "quoi", "oui", "non", "merci",
-    "système", "fonctionnalité", "service", "projet", "besoin",
-))
 
 # Marqueurs d'intention d'implémentation
 _IMPLEMENT_MARKERS: frozenset[str] = frozenset((
@@ -153,21 +144,6 @@ class DevContextBootstrap(ProjectContextBootstrap):
                 recent = [line.strip() for line in raw.split("\n") if line.strip()]
 
         return {"architecture": modules, "recent_files": recent}
-
-
-# ---------------------------------------------------------------------------
-# Language detection
-# ---------------------------------------------------------------------------
-
-def _detect_language(text: str) -> str:
-    """Retourne ``"fr"`` si *text* est probablement en français, ``"en"`` sinon.
-
-    Utilise une correspondance sur token entier pour éviter les faux positifs
-    liés aux sous-chaînes communes (ex. ``"tu"`` dans ``"feature"``).
-    """
-    tokens = set(re.split(r"\W+", text.lower()))
-    hits = sum(1 for m in _FRENCH_MARKERS if m in tokens)
-    return "fr" if hits >= 2 else "en"
 
 
 # ---------------------------------------------------------------------------
@@ -576,60 +552,57 @@ async def delegate_to_git_worker(
 # System prompt construction
 # ---------------------------------------------------------------------------
 
-_EXPLORE_SYSTEM_PROMPT_FR: str = """\
-Tu es **dev-assistant** en mode **exploration**.
+_SYSTEM_PROMPT: str = """\
+You are **dev-assistant**, an experienced developer skilled at implementing \
+and exploring software projects, regardless of tech stack.
 
-Tu réponds aux questions sur la codebase, les patterns d'implémentation \
-et l'architecture du projet. Tu te bases sur ta mémoire sémantique ou sur la \
-lecture des fichiers du workspace.
+## Principles
 
-## Contraintes absolues
+**Understand the project before acting.** On first exchange, you have access to \
+project context (rules, architecture, recent files) if loaded. Use it. \
+If essential information is missing, use `ask_user` to obtain it.
 
-1. **Tu ne proposes JAMAIS d'implémenter, modifier ou créer du code** à moins que \
-l'utilisateur ne demande explicitement "implémente" et ne fournisse ou mentionne \
-une TaskSpec valide dans `.apollia/tasks/`.
-2. Si l'utilisateur veut implémenter : réponds exactement \
-"Pour implémenter, précise la TaskSpec à utiliser (.apollia/tasks/slug.md) \
-ou reformule avec 'implémente [feature]'."
-3. Réponds de façon concise et factuelle.
-4. Ne génère jamais de blocs de code complets (``` ou ~~~) — \
-seulement des extraits courts pour illustrer un pattern existant.
-5. Les seuls commentaires dans le code que tu cites expliquent une logique non-évidente \
-— jamais de commentaires qui répètent ce que le nom de la fonction dit déjà.
+**Two natural modes.** You naturally switch between exploration (answering questions \
+about code, architecture, patterns) and implementation (building a feature from a \
+TaskSpec). The user's intent determines the mode, not a rigid keyword.
 
-## Règles projet
+**Contract before implementation.** Before writing code, ensure a TaskSpec exists \
+or propose a minimal one. Never start coding in a vacuum.
 
-{rules_section}\
-"""
+**Respect project rules.** If dependencies are forbidden, patterns required, or \
+code conventions defined — follow them strictly.
 
-_EXPLORE_SYSTEM_PROMPT_EN: str = """\
-You are **dev-assistant** in **exploration mode**.
+**Clean code by default.** No comments that repeat the function name. \
+No dependencies added without validation. No code deleted without confirmation. \
+Only comments that explain non-obvious logic.
 
-You answer questions about the codebase, implementation patterns, and project \
-architecture. You rely on your semantic memory or read workspace files.
+## What you do
 
-## Absolute constraints
+- Answer questions about the codebase and architecture
+- Load an existing TaskSpec and implement layer by layer
+- Create a minimal TaskSpec if none exists (and ask for validation)
+- Delegate file writing to code-worker via A2A when available
+- Update the TaskSpec as implementation progresses
 
-1. **You NEVER propose to implement, modify, or create code** unless the user \
-explicitly says "implement" and provides or mentions a valid TaskSpec in \
-`.apollia/tasks/`.
-2. If the user wants to implement, reply exactly: \
-"To implement, specify the TaskSpec to use (.apollia/tasks/slug.md) \
-or rephrase with 'implement [feature]'."
-3. Respond concisely and factually.
-4. Never generate full code blocks (``` or ~~~) — only short excerpts \
-to illustrate an existing pattern.
-5. Comments in code you quote must explain non-obvious logic only — \
-never repeat what the function name already says.
+## Available tools
 
-## Project rules
+- `file_read`, `file_write`: read and write files
+- `bash_executor`: shell commands (mkdir, git, find, tests)
+- `ask_user`: ask the user structured questions
+- A2A: `code-worker` (implementation), `git-worker` (commits)
 
-{rules_section}\
+## Project context
+
+{rules_section}
+
+## Language
+
+Always respond in the same language as the user's message.\
 """
 
 
-def build_explore_system_prompt(lang: str, rules: dict[str, str]) -> str:
-    """Construit le system prompt du mode exploration avec les règles projet injectées."""
+def build_system_prompt(rules: dict[str, str]) -> str:
+    """Build the system prompt with injected project rules."""
     raw = rules.get("raw", "").strip()
 
     if raw:
@@ -639,33 +612,17 @@ def build_explore_system_prompt(lang: str, rules: dict[str, str]) -> str:
         except (json.JSONDecodeError, TypeError):
             forbidden_list = []
 
-        if lang == "fr":
-            parts = [
-                f"**Dépendances interdites :** "
-                f"{', '.join(f'`{d}`' for d in forbidden_list) or 'aucune détectée'}"
-            ]
-            if rules.get("patterns"):
-                parts.append(f"**Patterns obligatoires :** {rules['patterns'][:300]}")
-            rules_section = "\n\n".join(parts)
-        else:
-            parts = [
-                f"**Forbidden dependencies:** "
-                f"{', '.join(f'`{d}`' for d in forbidden_list) or 'none detected'}"
-            ]
-            if rules.get("patterns"):
-                parts.append(f"**Required patterns:** {rules['patterns'][:300]}")
-            rules_section = "\n\n".join(parts)
+        parts = [
+            f"**Forbidden dependencies:** "
+            f"{', '.join(f'`{d}`' for d in forbidden_list) or 'none detected'}"
+        ]
+        if rules.get("patterns"):
+            parts.append(f"**Required patterns:** {rules['patterns'][:300]}")
+        rules_section = "\n\n".join(parts)
     else:
-        rules_section = (
-            "Aucun fichier de règles trouvé dans ce workspace."
-            if lang == "fr"
-            else "No rules file found in this workspace."
-        )
+        rules_section = "No rules file found in this workspace."
 
-    template = (
-        _EXPLORE_SYSTEM_PROMPT_FR if lang == "fr" else _EXPLORE_SYSTEM_PROMPT_EN
-    )
-    return template.format(rules_section=rules_section)
+    return _SYSTEM_PROMPT.format(rules_section=rules_section)
 
 
 # ---------------------------------------------------------------------------
@@ -745,7 +702,7 @@ def manifest() -> dict[str, Any]:
         "execution_mode": "auto",
         "agent_type": "assistant",
         "tools_required": ["file_read", "file_write"],
-        "tools_optional": ["bash_executor", "file_list"],
+        "tools_optional": ["bash_executor", "file_list", "ask_user"],
         "tools_requiring_approval": ["bash_executor"],
         "packages": [],
         "memory_namespace": "dev-assistant",
@@ -857,8 +814,8 @@ class DevAssistant(ConversationalAgent):
     utilisateur (marqueurs d'implémentation vs. exploration + présence de ``?``).
     """
 
-    SYSTEM_PROMPT: str = _EXPLORE_SYSTEM_PROMPT_FR.format(
-        rules_section="(chargées au démarrage de la session)"
+    SYSTEM_PROMPT: str = _SYSTEM_PROMPT.format(
+        rules_section="(loaded at session startup)"
     )
     MAX_TURNS: int = 30
     TEMPERATURE: float = 0.2
@@ -874,7 +831,6 @@ class DevAssistant(ConversationalAgent):
         self,
         ctx: Any,
         user_message: str,
-        lang: str,
         rules: dict[str, str],
         history: list[dict[str, str]],
     ) -> AIPResult:
@@ -889,7 +845,7 @@ class DevAssistant(ConversationalAgent):
                 "DevAssistant requires ctx.llm for exploration mode",
             )
 
-        self.SYSTEM_PROMPT = build_explore_system_prompt(lang, rules)
+        self.SYSTEM_PROMPT = build_system_prompt(rules)
         response_text, _ = await self.converse(
             ctx, user_message, history=history or None
         )
@@ -931,25 +887,14 @@ class DevAssistant(ConversationalAgent):
             minimal = create_minimal_task_spec(slug, user_message, rules)
             await write_task_spec(ctx, slug, minimal)
 
-            if lang == "fr":
-                prompt = (
-                    f"J'ai créé une TaskSpec minimale dans "
-                    f"`.apollia/tasks/{slug}.md`.\n\n"
-                    f"Veuillez :\n"
-                    f"1. Ouvrir le fichier et cocher `[x]` les couches à implémenter\n"
-                    f"2. Préciser l'objectif si nécessaire\n"
-                    f"3. Me confirmer avec : "
-                    f"\"commence l'implémentation de la spec {slug}\""
-                )
-            else:
-                prompt = (
-                    f"I've created a minimal TaskSpec at "
-                    f"`.apollia/tasks/{slug}.md`.\n\n"
-                    f"Please:\n"
-                    f"1. Open the file and check `[x]` the layers to implement\n"
-                    f"2. Clarify the objective if needed\n"
-                    f"3. Confirm with: \"start implementing spec {slug}\""
-                )
+            prompt = (
+                f"I've created a minimal TaskSpec at "
+                f"`.apollia/tasks/{slug}.md`.\n\n"
+                f"Please:\n"
+                f"1. Open the file and check `[x]` the layers to implement\n"
+                f"2. Clarify the objective if needed\n"
+                f"3. Confirm with: \"start implementing spec {slug}\""
+            )
             return AIPResult.input_required(prompt)
 
         layers = extract_layers_to_implement(spec_content)
@@ -957,24 +902,15 @@ class DevAssistant(ConversationalAgent):
         resolved_slug = spec_slug or _slugify(user_message[:50])
 
         if not layers:
-            msg = (
-                "Toutes les couches de la TaskSpec sont déjà implémentées (✅) "
-                "ou aucune couche n'est cochée [x]."
-                if lang == "fr"
-                else "All TaskSpec layers are already implemented (✅) "
+            return AIPResult.completed(
+                "All TaskSpec layers are already implemented (✅) "
                 "or no layer is checked [x]."
             )
-            return AIPResult.completed(msg)
 
         output_parts: list[str] = []
 
         for layer in layers:
-            header = (
-                f"## Implémentation — {layer}"
-                if lang == "fr"
-                else f"## Implementing — {layer}"
-            )
-            output_parts.append(header)
+            output_parts.append(f"## Implementing — {layer}")
 
             layer_output = await delegate_to_code_worker(
                 ctx, layer, objective, spec_content, rules
@@ -984,12 +920,9 @@ class DevAssistant(ConversationalAgent):
             spec_content = mark_layer_implemented(spec_content, layer)
             await write_task_spec(ctx, resolved_slug, spec_content)
 
-        completion = (
-            "\nImplémentation terminée. Voulez-vous que je crée un commit ?"
-            if lang == "fr"
-            else "\nImplementation complete. Would you like me to create a commit?"
+        output_parts.append(
+            "\nImplementation complete. Would you like me to create a commit?"
         )
-        output_parts.append(completion)
 
         if ctx.memory is not None:
             await ctx.memory.record(
@@ -1014,12 +947,9 @@ class DevAssistant(ConversationalAgent):
         if not input_text:
             return AIPResult.failed("NO_INPUT", "No input provided in task")
 
-        lang = _detect_language(input_text)
         is_first_turn = not history
 
         if is_first_turn:
-            self._current_lang: str = lang
-
             if await self._bootstrap.needs_bootstrap(ctx):
                 await self._bootstrap.run_bootstrap(ctx)
             snapshot = await self._bootstrap.load_snapshot(ctx)
@@ -1038,8 +968,6 @@ class DevAssistant(ConversationalAgent):
                 if raw_rules
                 else {"raw": "", "forbidden_deps": "[]", "patterns": "", "comment_convention": ""}
             )
-        else:
-            lang = getattr(self, "_current_lang", lang)
 
         rules = getattr(
             self, "_rules",
@@ -1048,9 +976,9 @@ class DevAssistant(ConversationalAgent):
         intent = _detect_intent(input_text)
 
         if intent == "explore":
-            return await self._run_explore(ctx, input_text, lang, rules, history)
+            return await self._run_explore(ctx, input_text, rules, history)
 
-        return await self._run_implement(ctx, input_text, lang, rules, history)
+        return await self._run_implement(ctx, input_text, rules, history)
 
 
 # ---------------------------------------------------------------------------

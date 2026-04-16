@@ -71,6 +71,8 @@ pub struct NativeChatToolInvoker {
     session_id: Option<String>,
     /// Filesystem risk configuration (path lists for system/credential paths).
     risk_config: apollia_core::FilesystemRiskConfig,
+    /// Pending user input registry for the `ask_user` tool.
+    pending_user_inputs: Option<apollia_tools::tools::ask_user::PendingUserInputs>,
 }
 
 impl NativeChatToolInvoker {
@@ -93,6 +95,7 @@ impl NativeChatToolInvoker {
             fs_allow_rules: None,
             session_id: None,
             risk_config: apollia_core::FilesystemRiskConfig::default(),
+            pending_user_inputs: None,
         }
     }
 
@@ -113,7 +116,20 @@ impl NativeChatToolInvoker {
             fs_allow_rules: None,
             session_id: None,
             risk_config: apollia_core::FilesystemRiskConfig::default(),
+            pending_user_inputs: None,
         }
+    }
+
+    /// Attach `ask_user` tool support to this invoker.
+    ///
+    /// When enabled, the agent can call the `ask_user` tool to pose structured
+    /// questions to the user and wait for responses.
+    pub fn with_ask_user_support(
+        mut self,
+        pending: apollia_tools::tools::ask_user::PendingUserInputs,
+    ) -> Self {
+        self.pending_user_inputs = Some(pending);
+        self
     }
 
     /// Attach HITL filesystem support to this invoker.
@@ -490,6 +506,29 @@ impl NativeChatToolInvoker {
         let output = tool.run(input).await.map_err(|e| e.to_string())?;
         serde_json::to_string(&output).map_err(|e| e.to_string())
     }
+
+    /// Ask the user structured questions and wait for responses.
+    ///
+    /// Posts the questions to the [`PendingUserInputs`] registry and blocks until
+    /// the UI delivers the answers through the oneshot channel.
+    async fn invoke_ask_user(&self, arguments: &serde_json::Value) -> Result<String, String> {
+        use apollia_tools::tools::ask_user::AskUserExecutor;
+
+        let pending = self
+            .pending_user_inputs
+            .as_ref()
+            .ok_or("ask_user: tool not available in this session (no pending registry)")?;
+
+        let executor = AskUserExecutor::new(pending);
+
+        use apollia_tools::executor::ToolExecutor;
+        let result = executor
+            .execute(arguments.clone())
+            .await
+            .map_err(|e| format!("ask_user: {e}"))?;
+
+        serde_json::to_string(&result).map_err(|e| format!("ask_user serialization: {e}"))
+    }
 }
 
 #[async_trait::async_trait]
@@ -512,6 +551,7 @@ impl ToolInvoker for NativeChatToolInvoker {
             "memory_search" => self.invoke_memory_search(arguments).await,
             "notebook_read" => self.invoke_notebook_read(arguments).await,
             "notebook_edit" => self.invoke_notebook_edit(arguments).await,
+            "ask_user" => self.invoke_ask_user(arguments).await,
             other => Err(format!("unknown tool: {other}")),
         }
     }

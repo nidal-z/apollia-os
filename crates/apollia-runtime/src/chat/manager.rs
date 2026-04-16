@@ -244,6 +244,26 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<Vec<super::repository::ChatApprovalLogRow>, ChatError>>,
     },
+    /// Internal: register a pending `ask_user` reply channel from the background drain task.
+    RegisterUserInputReply {
+        /// Unique request identifier.
+        request_id: String,
+        /// Questions JSON for event emission.
+        questions_json: String,
+        /// Agent context for the questions.
+        context: Option<String>,
+        /// Oneshot sender to deliver answers back to the executor.
+        reply_tx: tokio::sync::oneshot::Sender<apollia_tools::tools::ask_user::AskUserOutput>,
+    },
+    /// Resolve a pending `ask_user` request with user answers.
+    ResolveUserInput {
+        /// Unique request identifier emitted in `ChatUserInputRequired`.
+        request_id: String,
+        /// User answers to the questions.
+        answers: Vec<apollia_tools::tools::ask_user::UserAnswer>,
+        /// Response channel.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
     /// Shut down the actor.
     Shutdown,
 }
@@ -282,6 +302,14 @@ struct ChatSessionManager {
     project_context: Option<Arc<dyn ProjectContextProvider>>,
     /// Optional project repository for resolving workspace_path per session (ADR-069).
     project_repo: Option<Arc<ProjectRepository>>,
+    /// Pending user input registry for the `ask_user` tool.
+    pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs,
+    /// Map of pending `ask_user` reply channels, keyed by request_id.
+    /// Populated by the background drain task, resolved by `ResolveUserInput`.
+    pending_user_replies: HashMap<
+        String,
+        tokio::sync::oneshot::Sender<apollia_tools::tools::ask_user::AskUserOutput>,
+    >,
 }
 
 impl ChatSessionManager {
@@ -468,6 +496,38 @@ impl ChatSessionManager {
                 }
                 ChatCommand::ListApprovalHistory { limit, days, reply } => {
                     let result = self.repository.list_tool_approval_history(limit, days);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::RegisterUserInputReply {
+                    request_id,
+                    questions_json,
+                    context,
+                    reply_tx,
+                } => {
+                    // Store the reply channel for later resolution.
+                    self.pending_user_replies
+                        .insert(request_id.clone(), reply_tx);
+                    // Emit event so the UI can render the AskUserCard.
+                    let _ = self.event_bus.send(
+                        apollia_core::RuntimeEvent::ChatUserInputRequired {
+                            request_id,
+                            session_id: String::new(), // TODO: associate with session
+                            message_id: String::new(),
+                            questions_json,
+                            context,
+                        },
+                    );
+                }
+                ChatCommand::ResolveUserInput {
+                    request_id,
+                    answers,
+                    reply,
+                } => {
+                    // The PendingUserInputs registry is consumed by the executor
+                    // in a background task. We need to find the pending request
+                    // and deliver the answers. Since the executor is already
+                    // listening on the oneshot, we use a dedicated resolution map.
+                    let result = self.resolve_user_input_internal(&request_id, answers);
                     let _ = reply.send(result);
                 }
                 ChatCommand::Shutdown => {
@@ -755,6 +815,8 @@ impl ChatSessionManager {
             let tool_registry = self.tool_registry.clone();
             let event_bus = self.event_bus.clone();
 
+            let pending_user_inputs_for_session = self.pending_user_inputs.clone();
+
             // Capture HITL filesystem params for the invoker.
             let hitl_params = HitlInvokerParams {
                 session_id: session_id.to_string(),
@@ -771,6 +833,7 @@ impl ChatSessionManager {
                     &session_project_id,
                     &project_repo_for_session,
                     Some(hitl_params),
+                    Some(pending_user_inputs_for_session),
                 )
                 .await
                 {
@@ -1482,6 +1545,29 @@ impl ChatSessionManager {
     }
 
     /// Restore active sessions from SQLite at boot.
+    /// Resolve a pending `ask_user` request by delivering the user's answers.
+    fn resolve_user_input_internal(
+        &mut self,
+        request_id: &str,
+        answers: Vec<apollia_tools::tools::ask_user::UserAnswer>,
+    ) -> Result<(), ChatError> {
+        let reply_tx = self
+            .pending_user_replies
+            .remove(request_id)
+            .ok_or_else(|| {
+                ChatError::InternalError(format!(
+                    "no pending ask_user request with id '{request_id}'"
+                ))
+            })?;
+
+        let output = apollia_tools::tools::ask_user::AskUserOutput { answers };
+        reply_tx.send(output).map_err(|_| {
+            ChatError::InternalError(
+                "ask_user reply channel closed (agent may have timed out)".into(),
+            )
+        })
+    }
+
     fn restore_sessions(&mut self) {
         let rows = match self.repository.list_sessions(Some("active")) {
             Ok(r) => r,
@@ -1579,6 +1665,7 @@ async fn resolve_workspace_for_session(
     project_id: &Option<String>,
     project_repo: &Option<Arc<ProjectRepository>>,
     hitl: Option<HitlInvokerParams>,
+    pending_user_inputs: Option<apollia_tools::tools::ask_user::PendingUserInputs>,
 ) -> Result<NativeChatToolInvoker, ChatError> {
     let workspace_path = match project_id {
         None => None,
@@ -1599,7 +1686,10 @@ async fn resolve_workspace_for_session(
             detail.workspace_path.map(std::path::PathBuf::from)
         }
     };
-    let invoker = NativeChatToolInvoker::new_unrestricted(workspace_path);
+    let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path);
+    if let Some(pending) = pending_user_inputs {
+        invoker = invoker.with_ask_user_support(pending);
+    }
     if let Some(p) = hitl {
         Ok(invoker.with_hitl_support(
             p.session_id,
@@ -1657,6 +1747,7 @@ impl ChatSessionManagerHandle {
         let repository = ChatSessionRepository::open(db_path)?;
         let pending_chat_approvals = PendingChatApprovals::new();
         let pending_fs_approvals = PendingFilesystemApprovals::new();
+        let pending_user_inputs = apollia_tools::tools::ask_user::PendingUserInputs::new();
 
         let enrichment_extractor = match (&llm_router, &user_memory) {
             (Some(llm), Some(mem)) => {
@@ -1685,12 +1776,41 @@ impl ChatSessionManagerHandle {
             a2a_invoker,
             project_context,
             project_repo,
+            pending_user_inputs: pending_user_inputs.clone(),
+            pending_user_replies: HashMap::new(),
         };
 
         // Restore active sessions from SQLite before entering the actor loop
         manager.restore_sessions();
 
         tokio::spawn(manager.run(rx));
+
+        // Background task: drain PendingUserInputs and route to the actor.
+        // When the `ask_user` executor posts a request, this task picks it up,
+        // forwards the reply channel to the manager, and emits the event.
+        {
+            let pending = pending_user_inputs;
+            let cmd_tx = tx.clone();
+            tokio::spawn(async move {
+                loop {
+                    match pending.next_pending().await {
+                        Some((request_id, pending_input)) => {
+                            let questions_json = serde_json::to_string(&pending_input.questions)
+                                .unwrap_or_else(|_| "[]".to_string());
+                            let _ = cmd_tx
+                                .send(ChatCommand::RegisterUserInputReply {
+                                    request_id,
+                                    questions_json,
+                                    context: pending_input.context,
+                                    reply_tx: pending_input.reply_tx,
+                                })
+                                .await;
+                        }
+                        None => break, // Channel closed — manager shutting down.
+                    }
+                }
+            });
+        }
 
         Ok(Self { tx })
     }
@@ -1781,6 +1901,27 @@ impl ChatSessionManagerHandle {
                 message_id,
                 tool_name,
                 decision,
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| ChatError::InternalError("actor channel closed".into()))?;
+
+        reply_rx
+            .await
+            .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
+    }
+
+    /// Deliver user answers to a pending `ask_user` request.
+    pub async fn resolve_user_input(
+        &self,
+        request_id: String,
+        answers: Vec<apollia_tools::tools::ask_user::UserAnswer>,
+    ) -> Result<(), ChatError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ChatCommand::ResolveUserInput {
+                request_id,
+                answers,
                 reply: reply_tx,
             })
             .await
@@ -2409,6 +2550,8 @@ mod tests {
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: pending,
             pending_fs_approvals: PendingFilesystemApprovals::new(),
+            pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
+            pending_user_replies: HashMap::new(),
             user_memory: None,
             enrichment_extractor: None,
             tx,
@@ -2536,6 +2679,8 @@ mod tests {
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: PendingChatApprovals::new(),
             pending_fs_approvals: PendingFilesystemApprovals::new(),
+            pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
+            pending_user_replies: HashMap::new(),
             user_memory: None,
             enrichment_extractor: None,
             tx,
@@ -2595,6 +2740,8 @@ mod tests {
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: PendingChatApprovals::new(),
             pending_fs_approvals: PendingFilesystemApprovals::new(),
+            pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
+            pending_user_replies: HashMap::new(),
             user_memory: None,
             enrichment_extractor: None,
             tx,
@@ -2632,6 +2779,8 @@ mod tests {
             runtime_budget: StepBudgetConfig::default(),
             pending_chat_approvals: PendingChatApprovals::new(),
             pending_fs_approvals: PendingFilesystemApprovals::new(),
+            pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
+            pending_user_replies: HashMap::new(),
             user_memory: None,
             enrichment_extractor: None,
             tx,

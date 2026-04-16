@@ -512,6 +512,7 @@ fn main() {
             commands::chat::update_chat_session,
             commands::chat::send_chat_message,
             commands::chat::authorize_chat_tool,
+            commands::chat::respond_user_input,
             commands::chat::list_chat_approval_history,
             commands::chat::link_chat_to_project,
             commands::chat::list_chats_by_project,

@@ -146,32 +146,6 @@ def test_manifest_instance_matches_module_function() -> None:
     }
 
 
-# ---------------------------------------------------------------------------
-# Détection de langue
-# ---------------------------------------------------------------------------
-
-
-def test_detect_language_french() -> None:
-    """GIVEN un message clairement français
-    WHEN _detect_language est appelé
-    THEN il retourne 'fr'."""
-    assert dev_assistant._detect_language("Implémente un système d'auth JWT") == "fr"
-
-
-def test_detect_language_english() -> None:
-    """GIVEN un message clairement anglais
-    WHEN _detect_language est appelé
-    THEN il retourne 'en'."""
-    assert dev_assistant._detect_language("Implement JWT authentication") == "en"
-
-
-def test_detect_language_no_false_positive() -> None:
-    """GIVEN un message anglais contenant un marqueur français en sous-chaîne
-    WHEN _detect_language est appelé
-    THEN il retourne 'en' (pas de faux positif par sous-chaîne)."""
-    # 'feature' contient 'tu' mais ce n'est pas un token entier
-    assert dev_assistant._detect_language("Add a feature for the export button") == "en"
-
 
 # ---------------------------------------------------------------------------
 # Détection d'intention

@@ -30,7 +30,7 @@ pub use api::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppSt
 pub use coordinator::{CoordinatorError, ExecutionBackend, ExecutionCoordinator};
 pub use eventbus::{EventBus, EventBusReceiver, EventBusSender};
 pub use registry::{
-    AgentEntry, AgentRegistry, AgentRegistryError, AgentRegistryHandle, SkillEntry, SkillIndexError,
+    AgentEntry, AgentRegistry, AgentRegistryError, AgentRegistryHandle,
 };
 pub use router::{SubmitError, TaskRouterHandle};
 pub use shutdown::{wait_for_shutdown_signal, ShutdownConfig, ShutdownController, ShutdownError};

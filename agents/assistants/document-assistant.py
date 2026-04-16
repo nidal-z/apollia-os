@@ -142,34 +142,6 @@ class DocumentContextBootstrap(ContextBootstrap):
 
 
 # ---------------------------------------------------------------------------
-# Language detection
-# ---------------------------------------------------------------------------
-
-_FRENCH_MARKERS: frozenset[str] = frozenset((
-    "bonjour", "salut", "bonsoir",
-    "je", "nous", "vous", "il", "elle", "ils",
-    "est", "sont", "avec", "pour", "dans", "sur", "par",
-    "une", "un", "le", "la", "les", "des", "du",
-    "mon", "ton", "son", "notre", "de",
-    "quel", "quelle", "quels", "quelles",
-    "résume", "analyse", "montre", "donne", "calcule", "compare",
-    "comment", "pourquoi", "quoi", "oui", "non", "merci",
-    "fichier", "colonne", "données", "total", "rapport",
-))
-
-
-def _detect_language(text: str) -> str:
-    """Return ``"fr"`` when *text* is likely French, ``"en"`` otherwise.
-
-    Uses whole-token matching to avoid false positives from common
-    substrings (e.g. ``"en"`` inside ``"document"``).
-    """
-    tokens = set(re.split(r"\W+", text.lower()))
-    hits = sum(1 for marker in _FRENCH_MARKERS if marker in tokens)
-    return "fr" if hits >= 2 else "en"
-
-
-# ---------------------------------------------------------------------------
 # File path extraction
 # ---------------------------------------------------------------------------
 
@@ -226,22 +198,16 @@ def _route_by_keywords(text: str) -> str | None:
 # Instruction building
 # ---------------------------------------------------------------------------
 
-def _build_worker_instruction(user_request: str, file_path: str, lang: str) -> str:
+def _build_worker_instruction(user_request: str, file_path: str) -> str:
     """Build a precise, structured instruction for the target worker.
 
     The instruction includes the file path and the original user request
     so the worker has full context without needing to parse conversation history.
     """
-    if lang == "fr":
-        return (
-            f"Fichier : {file_path}\n"
-            f"Demande : {user_request}\n"
-            f"Réponds en français avec les données extraites du fichier."
-        )
     return (
         f"File: {file_path}\n"
         f"Request: {user_request}\n"
-        f"Reply in English with the data extracted from the file."
+        f"Reply with the data extracted from the file."
     )
 
 
@@ -249,39 +215,13 @@ def _build_worker_instruction(user_request: str, file_path: str, lang: str) -> s
 # Error humanization
 # ---------------------------------------------------------------------------
 
-def _humanize_error(error: Exception, file_path: str, lang: str) -> str:
+def _humanize_error(error: Exception, file_path: str) -> str:
     """Translate a technical worker exception into a user-readable message.
 
     Maps common error patterns to friendly, actionable explanations.
     No stack trace or class name is ever included in the output.
     """
     error_str = str(error).lower()
-
-    if lang == "fr":
-        if "column" in error_str or "colonne" in error_str:
-            return (
-                f"La colonne demandée n'existe pas dans **{file_path}**. "
-                f"Précisez le nom exact de la colonne (la casse est importante)."
-            )
-        if "no such file" in error_str or "not found" in error_str:
-            return (
-                f"Je n'ai pas trouvé le fichier **{file_path}**. "
-                f"Vérifiez que le chemin est correct et que le fichier est dans votre espace de travail."
-            )
-        if "corrupt" in error_str or "invalid" in error_str:
-            return (
-                f"Le fichier **{file_path}** semble corrompu ou dans un format non supporté. "
-                f"Essayez de l'ouvrir dans son application native pour vérifier son intégrité."
-            )
-        if "permission" in error_str or "access" in error_str:
-            return (
-                f"Accès refusé au fichier **{file_path}**. "
-                f"Vérifiez que le fichier n'est pas ouvert dans une autre application."
-            )
-        return (
-            f"Une erreur s'est produite lors du traitement de **{file_path}**. "
-            f"Réessayez ou vérifiez que le fichier est valide."
-        )
 
     if "column" in error_str:
         return (
@@ -313,7 +253,7 @@ def _humanize_error(error: Exception, file_path: str, lang: str) -> str:
 # Response formatting
 # ---------------------------------------------------------------------------
 
-def _format_worker_result(result: dict[str, Any], file_path: str, lang: str) -> str:
+def _format_worker_result(result: dict[str, Any], file_path: str) -> str:
     """Extract the worker output and return it as a clean string.
 
     Handles different output shapes (``output``, ``result``, ``text`` keys)
@@ -324,15 +264,12 @@ def _format_worker_result(result: dict[str, Any], file_path: str, lang: str) -> 
         output = "\n".join(str(item) for item in output)
     text = str(output).strip()
     if not text:
-        if lang == "fr":
-            return f"Le worker a traité **{file_path}** mais n'a retourné aucun résultat."
         return f"The worker processed **{file_path}** but returned no result."
     return text
 
 
 def _format_combined_response(
     results: list[tuple[str, str]],
-    lang: str,
 ) -> str:
     """Combine multiple worker outputs into a single cohesive response.
 
@@ -346,11 +283,7 @@ def _format_combined_response(
     for file_path, output in results:
         parts.append(f"**{file_path}**\n\n{output}")
 
-    header = (
-        "Voici les résultats pour chaque fichier :\n\n"
-        if lang == "fr"
-        else "Here are the results for each file:\n\n"
-    )
+    header = "Here are the results for each file:\n\n"
     return header + "\n\n---\n\n".join(parts)
 
 
@@ -506,24 +439,7 @@ def _extract_task_input(task: Any) -> tuple[str, list[dict[str, str]]]:
 # System prompts
 # ---------------------------------------------------------------------------
 
-_SYSTEM_PROMPT_FR: str = """\
-Tu es **document-assistant**, l'assistant généraliste d'Apollia OS pour le traitement \
-de documents.
-
-Tu traites les fichiers Excel, CSV, PDF et les bases de données SQLite en déléguant \
-à des workers spécialisés. Tu restitues les résultats en langage métier clair, \
-sans aucun jargon technique.
-
-## Contraintes absolues
-
-1. Tu ne lis JAMAIS directement un fichier — tu délègues toujours au worker approprié.
-2. Tu poses au maximum UNE question de clarification si la demande est ambiguë.
-3. Tu ne mentionnes jamais pandas, openpyxl, pdfplumber ni aucun détail d'implémentation.
-4. Toutes les données restent sur la machine de l'utilisateur.
-5. Tu réponds dans la même langue que l'utilisateur (FR/EN auto-détecté).\
-"""
-
-_SYSTEM_PROMPT_EN: str = """\
+_SYSTEM_PROMPT: str = """\
 You are **document-assistant**, Apollia OS's generalist document processing assistant.
 
 You process Excel, CSV, PDF files and SQLite databases by delegating to specialized \
@@ -535,7 +451,8 @@ workers. You present results in clear business language with no technical jargon
 2. You ask at most ONE clarifying question when the request is ambiguous.
 3. You never mention pandas, openpyxl, pdfplumber or any implementation detail.
 4. All data stays on the user's machine.
-5. You respond in the same language as the user (FR/EN auto-detected).\
+
+Always respond in the same language as the user's message.\
 """
 
 
@@ -638,7 +555,7 @@ class DocumentAssistant(ConversationalAgent):
     Workflow per ``run()`` call:
 
     1. Bootstrap document profile (first turn) or reload snapshot.
-    2. Extract the user message and detect the language (FR/EN).
+    2. Extract the user message.
     3. Find document file paths in the message and map each to a worker.
     4. When no file path is identified, ask a single clarifying question.
     5. Call each worker sequentially via ``ctx.a2a.call()``.
@@ -646,7 +563,7 @@ class DocumentAssistant(ConversationalAgent):
     7. Persist analysed file paths in semantic memory for session continuity.
     """
 
-    SYSTEM_PROMPT: str = _SYSTEM_PROMPT_FR
+    SYSTEM_PROMPT: str = _SYSTEM_PROMPT
     MAX_TURNS: int = 20
     TEMPERATURE: float = 0.3
 
@@ -660,27 +577,20 @@ class DocumentAssistant(ConversationalAgent):
     async def run(self, task: Any, ctx: Any) -> dict[str, Any]:
         """Process one document request turn.
 
-        Bootstraps document profile on the first turn, detects language,
-        routes to the right worker(s), delegates via A2A, and returns
-        results formatted as natural-language output.
+        Bootstraps document profile on the first turn, routes to the right
+        worker(s), delegates via A2A, and returns results formatted as
+        natural-language output.
         """
         input_text, history = _extract_task_input(task)
 
         if not input_text:
             return AIPResult.failed("NO_INPUT", "No input provided in task")
 
-        lang = _detect_language(input_text)
         is_first_turn = not history
 
         if is_first_turn:
-            self._current_lang: str = lang
-
             if await self._bootstrap.needs_bootstrap(ctx):
                 await self._bootstrap.run_bootstrap(ctx)
-        else:
-            lang = getattr(self, "_current_lang", lang)
-
-        self.SYSTEM_PROMPT = _SYSTEM_PROMPT_FR if lang == "fr" else _SYSTEM_PROMPT_EN
 
         detected_pref = _detect_format_pref(input_text)
         if detected_pref:
@@ -696,39 +606,30 @@ class DocumentAssistant(ConversationalAgent):
                 routing_pairs.append((fp, worker))
 
         if not routing_pairs:
-            if lang == "fr":
-                prompt = "De quel fichier souhaitez-vous que je m'occupe ?"
-            else:
-                prompt = "Which file would you like me to work with?"
-            return AIPResult.input_required(prompt)
+            return AIPResult.input_required(
+                "Which file would you like me to work with?"
+            )
 
         if not (hasattr(ctx, "a2a") and ctx.a2a is not None):
-            if lang == "fr":
-                fallback = (
-                    "Le traitement A2A n'est pas disponible dans ce contexte. "
-                    "Démarrez Apollia OS pour accéder aux workers de documents."
-                )
-            else:
-                fallback = (
-                    "A2A processing is not available in this context. "
-                    "Start Apollia OS to access document workers."
-                )
-            return AIPResult.completed(fallback)
+            return AIPResult.completed(
+                "A2A processing is not available in this context. "
+                "Start Apollia OS to access document workers."
+            )
 
         collected: list[tuple[str, str]] = []
         errors: list[str] = []
 
         for file_path, worker in routing_pairs:
-            instruction = _build_worker_instruction(input_text, file_path, lang)
+            instruction = _build_worker_instruction(input_text, file_path)
             try:
                 result = await ctx.a2a.call(
                     agent=worker,
                     skill="analyze",
                     input={"task": instruction, "file": file_path},
                 )
-                collected.append((file_path, _format_worker_result(result, file_path, lang)))
+                collected.append((file_path, _format_worker_result(result, file_path)))
             except Exception as exc:
-                errors.append(_humanize_error(exc, file_path, lang))
+                errors.append(_humanize_error(exc, file_path))
 
         await _save_recent_files(ctx, [fp for fp, _ in routing_pairs])
 
@@ -737,11 +638,10 @@ class DocumentAssistant(ConversationalAgent):
 
         output_parts: list[str] = []
         if collected:
-            output_parts.append(_format_combined_response(collected, lang))
+            output_parts.append(_format_combined_response(collected))
         if errors:
-            error_header = "**Problèmes rencontrés :**" if lang == "fr" else "**Issues encountered:**"
             error_lines = "\n".join(f"- {e}" for e in errors)
-            output_parts.append(f"{error_header}\n{error_lines}")
+            output_parts.append(f"**Issues encountered:**\n{error_lines}")
 
         return AIPResult.completed("\n\n".join(output_parts))
 

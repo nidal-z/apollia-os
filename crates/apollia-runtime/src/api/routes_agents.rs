@@ -184,7 +184,6 @@ fn registry_error_to_response(err: AgentRegistryError) -> (StatusCode, Json<Erro
         AgentRegistryError::NotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
         AgentRegistryError::InvalidTransition { .. } => (StatusCode::CONFLICT, err.to_string()),
         AgentRegistryError::ActorDead => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
-        AgentRegistryError::SkillIndex(_) => (StatusCode::CONFLICT, err.to_string()),
     };
     (status, Json(ErrorResponse { error: message }))
 }

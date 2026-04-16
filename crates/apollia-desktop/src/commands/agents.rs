@@ -113,6 +113,34 @@ fn now_rfc3339() -> String {
     chrono::Utc::now().to_rfc3339()
 }
 
+/// Recursively copy `.py` files and Python sub-packages from *src_dir* into *dst_dir*.
+///
+/// Skips *exclude* (the main agent file already copied as `agent.py`).
+/// A directory is considered a Python package if it contains `__init__.py`.
+fn copy_python_tree(src_dir: &std::path::Path, dst_dir: &std::path::Path, exclude: &std::path::Path) {
+    let Ok(entries) = std::fs::read_dir(src_dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path == exclude {
+            continue;
+        }
+        if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("py") {
+            if let Some(name) = path.file_name() {
+                let _ = std::fs::copy(&path, dst_dir.join(name));
+            }
+        } else if path.is_dir() && path.join("__init__.py").exists() {
+            // Python package — copy recursively.
+            if let Some(dir_name) = path.file_name() {
+                let sub_dst = dst_dir.join(dir_name);
+                let _ = std::fs::create_dir_all(&sub_dst);
+                copy_python_tree(&path, &sub_dst, exclude);
+            }
+        }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Commandes existantes
 // ─────────────────────────────────────────────────────────────────────────────
@@ -335,23 +363,10 @@ pub async fn install_agent(
         )
     })?;
 
-    // Copy sibling .py files from the source directory so local imports
-    // (e.g. `from apollia_base import ...`) resolve at runtime.
+    // Copy sibling .py files and Python sub-packages from the source directory
+    // so local imports (e.g. `from assistants.shared import ...`) resolve at runtime.
     if let Some(source_dir) = canonical.parent() {
-        if let Ok(entries) = std::fs::read_dir(source_dir) {
-            for entry in entries.flatten() {
-                let entry_path = entry.path();
-                if entry_path == canonical {
-                    continue;
-                }
-                if entry_path.extension().and_then(|e| e.to_str()) == Some("py") {
-                    if let Some(file_name) = entry_path.file_name() {
-                        let dest = agents_dir.join(file_name);
-                        let _ = std::fs::copy(&entry_path, &dest);
-                    }
-                }
-            }
-        }
+        copy_python_tree(source_dir, &agents_dir, &canonical);
     }
 
     let now = now_rfc3339();
@@ -555,23 +570,10 @@ pub async fn update_agent(
         )
     })?;
 
-    // Copy sibling .py files from the source directory so local imports resolve.
+    // Copy sibling .py files and Python sub-packages so local imports resolve.
     if let Some(source_dir) = canonical.parent() {
         if let Some(install_dir) = existing.install_path.parent() {
-            if let Ok(entries) = std::fs::read_dir(source_dir) {
-                for entry in entries.flatten() {
-                    let entry_path = entry.path();
-                    if entry_path == canonical {
-                        continue;
-                    }
-                    if entry_path.extension().and_then(|e| e.to_str()) == Some("py") {
-                        if let Some(file_name) = entry_path.file_name() {
-                            let dest = install_dir.join(file_name);
-                            let _ = std::fs::copy(&entry_path, &dest);
-                        }
-                    }
-                }
-            }
+            copy_python_tree(source_dir, install_dir, &canonical);
         }
     }
 

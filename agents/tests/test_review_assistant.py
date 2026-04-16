@@ -197,24 +197,6 @@ def test_manifest_instance_matches_module_function() -> None:
     assert instance_m["version"] == module_m["version"]
 
 
-# ---------------------------------------------------------------------------
-# Détection de langue
-# ---------------------------------------------------------------------------
-
-
-def test_detect_language_french() -> None:
-    """GIVEN un message clairement français
-    WHEN _detect_language est appelé
-    THEN il retourne 'fr'."""
-    assert review_assistant._detect_language("Analyse le diff et revois les problèmes") == "fr"
-
-
-def test_detect_language_english() -> None:
-    """GIVEN un message clairement anglais
-    WHEN _detect_language est appelé
-    THEN il retourne 'en'."""
-    assert review_assistant._detect_language("Review the implementation diff") == "en"
-
 
 # ---------------------------------------------------------------------------
 # _parse_diff_files / _parse_diff_additions / _parse_diff_hunks

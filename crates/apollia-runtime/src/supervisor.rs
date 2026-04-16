@@ -1436,6 +1436,7 @@ fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
         apollia_tools::tools::memory_search::MemorySearchTool::descriptor(),
         apollia_tools::tools::notebook_read::NotebookRead::descriptor(),
         apollia_tools::tools::notebook_edit::NotebookEdit::descriptor(),
+        apollia_tools::tools::ask_user::AskUser::descriptor(),
     ]
 }
 
@@ -1585,12 +1586,12 @@ mod tests {
     }
 
     #[test]
-    fn native_tool_descriptors_returns_12_tools() {
+    fn native_tool_descriptors_returns_13_tools() {
         // GIVEN: the native_tool_descriptors() function
         // WHEN: called
-        // THEN: exactly 12 descriptors are returned
+        // THEN: exactly 13 descriptors are returned (ask_user added in Sprint 40)
         let descriptors = native_tool_descriptors();
-        assert_eq!(descriptors.len(), 12);
+        assert_eq!(descriptors.len(), 13);
     }
 
     #[test]
@@ -1810,8 +1811,8 @@ mod tests {
         assert!(tools.is_ok());
         assert_eq!(
             tools.unwrap().len(),
-            12,
-            "12 native tools should be auto-registered"
+            13,
+            "13 native tools should be auto-registered"
         );
 
         // TaskRouterHandle: is clone
@@ -2504,7 +2505,9 @@ mod tests {
         apollia_tools::InstalledAgent {
             name: name.to_string(),
             version: "1.0.0".to_string(),
-            install_path: PathBuf::from(format!("/tmp/agents/{name}/agent.py")),
+            // Use the agent name as the filename stem so StubAgentLoader derives
+            // the correct manifest name (name = file_stem of install_path).
+            install_path: PathBuf::from(format!("/tmp/agents/{name}/{name}.py")),
             source_path: PathBuf::from(format!("/tmp/{name}.py")),
             manifest: test_manifest(name),
             enabled,

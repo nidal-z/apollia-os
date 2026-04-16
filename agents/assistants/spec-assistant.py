@@ -28,7 +28,10 @@ from typing import Any
 
 from apollia.agents import AIPResult, ConversationalAgent
 
-from assistants.shared.project_bootstrap import ProjectContextBootstrap
+try:
+    from shared.project_bootstrap import ProjectContextBootstrap
+except ModuleNotFoundError:
+    from assistants.shared.project_bootstrap import ProjectContextBootstrap
 
 
 # ---------------------------------------------------------------------------
@@ -52,16 +55,6 @@ _SPEC_BLOCK_RE: re.Pattern[str] = re.compile(
 
 _SLUG_NON_ALNUM: re.Pattern[str] = re.compile(r"[^a-z0-9]+")
 
-# French whole-word tokens used to detect the user's language.
-_FRENCH_MARKERS: frozenset[str] = frozenset((
-    "bonjour", "salut", "bonsoir", "coucou",
-    "je", "nous", "vous", "il", "elle", "ils",
-    "est", "sont", "avec", "pour", "dans", "sur", "par",
-    "une", "des", "les", "mon", "ton", "son", "notre",
-    "ajoute", "crée", "fais", "génère", "aide", "veux",
-    "fonctionnalité", "besoin", "projet",
-    "oui", "non", "merci", "svp", "stp",
-))
 
 
 # ---------------------------------------------------------------------------
@@ -99,21 +92,6 @@ class SpecContextBootstrap(ProjectContextBootstrap):
                             if slug:
                                 specs.append(slug)
         return {"existing_specs": specs, "spec_count": len(specs)}
-
-
-# ---------------------------------------------------------------------------
-# Language detection
-# ---------------------------------------------------------------------------
-
-def _detect_language(text: str) -> str:
-    """Return ``"fr"`` when *text* is likely French, ``"en"`` otherwise.
-
-    Uses whole-word token matching to avoid false positives from common
-    substrings (e.g. ``"tu"`` appearing inside ``"feature"``).
-    """
-    tokens = set(re.split(r"\W+", text.lower()))
-    hits = sum(1 for m in _FRENCH_MARKERS if m in tokens)
-    return "fr" if hits >= 2 else "en"
 
 
 # ---------------------------------------------------------------------------
@@ -280,7 +258,7 @@ async def write_task_spec(ctx: Any, slug: str, content: str) -> bool:
 # Spec block processing
 # ---------------------------------------------------------------------------
 
-async def process_spec_blocks(text: str, ctx: Any, lang: str) -> str:
+async def process_spec_blocks(text: str, ctx: Any) -> str:
     """Extract ``[SPEC:slug]…[/SPEC]`` blocks, write the files, clean the text.
 
     Each matched block is replaced by a confirmation message (on success) or
@@ -295,17 +273,9 @@ async def process_spec_blocks(text: str, ctx: Any, lang: str) -> str:
         path = f".apollia/tasks/{slug}.md"
         if success:
             await record_created_spec(ctx, slug)
-            msg = (
-                f"\n✅ TaskSpec sauvegardée : `{path}`\n"
-                if lang == "fr"
-                else f"\n✅ TaskSpec saved: `{path}`\n"
-            )
+            msg = f"\n✅ TaskSpec saved: `{path}`\n"
         else:
-            msg = (
-                f"\n⚠️ Impossible de sauvegarder `{path}` (outils non disponibles).\n"
-                if lang == "fr"
-                else f"\n⚠️ Could not save `{path}` (tools unavailable).\n"
-            )
+            msg = f"\n⚠️ Could not save `{path}` (tools unavailable).\n"
         replacements.append((match.group(0), msg))
 
     result = text
@@ -318,317 +288,82 @@ async def process_spec_blocks(text: str, ctx: Any, lang: str) -> str:
 # System prompt construction
 # ---------------------------------------------------------------------------
 
-_SYSTEM_PROMPT_TEMPLATE_FR: str = """\
-Tu es **spec-assistant**, assistant de conception du pipeline Apollia OS \
-(spec → dev → review).
+_SYSTEM_PROMPT_TEMPLATE: str = """\
+You are **spec-assistant**, an expert in feature design and scope decomposition.
 
-Tu es expert en définition de features et en découpage de scope. \
-Tu travailles pour tout type de projet : logiciel, produit, processus métier, infrastructure.
+You work for any type of project — software, web, mobile, API, infrastructure, \
+business processes — regardless of tech stack. You never generate code.
 
-## Contraintes absolues
+## Principles
 
-1. **Tu ne génères JAMAIS de code source**, de snippets, de commandes ou de configurations \
-techniques. Si la demande porte sur l'implémentation, réponds exactement : \
-"Mon rôle est la conception uniquement. Pour l'implémentation, utilisez dev-assistant."
+**Understand before specifying.** Spec quality depends on question quality. \
+If context is insufficient — especially when no project rules are loaded — use \
+the `ask_user` tool to ask structured questions before writing. Batch your questions \
+in a single call.
 
-2. **Tu ne rédiges une TaskSpec qu'après avoir identifié les couches impactées.** \
-Exception : si la demande est déjà complète et non-ambiguë, tu peux sauter les questions.
+**Specify the what, not the how.** The objective describes the outcome for the user \
+or system, not the technical solution. "Users can export to CSV in one click" — \
+not "add a GET /export endpoint with format=csv query param".
 
-3. **Toute couche cochée [x] doit avoir au moins un critère dans "Définition de Fini"** — \
-sans exception.
+**Never invent.** Never assume requirements, organization, processes, or constraints \
+the user hasn't mentioned and that aren't in the project rules. If something seems \
+missing, ask.
 
-4. **Un seul bloc `[SPEC:slug]…[/SPEC]` par réponse.** Le slug est en minuscules avec \
-des tirets (ex. : `user-auth`, `export-csv-button`, `pipeline-notification`).
+**Adapt formalism to context.** A simple UI component doesn't need the same \
+decomposition as a database migration. Adjust the number of sections, layers, \
+and criteria to what is actually useful.
 
-## Processus de travail
+**Every criterion must be verifiable.** "Works correctly" is not a criterion. \
+"The form shows an error message if the email is invalid" is.
 
-### Phase 1 — Évaluation de la demande
+## What you do
 
-**Demande complète** : objectif clair + couches identifiables → rédige directement la TaskSpec.
-**Demande partielle** : pose des questions ciblées (max 4 par réponse).
-**Demande hors scope** : refuse poliment, explique ton rôle, redirige vers dev-assistant.
-**Révision d'une spec existante** : lis le slug mentionné, propose les modifications.
+- Transform an idea, request, or need into a structured **TaskSpec**
+- Identify impacted layers and explicit scope
+- Define "done" criteria verifiable by a third party
+- Integrate project rules when available
+- Detect similar existing specs to avoid duplicates
+- Refine an existing spec on request
 
-### Phase 2 — Clarification ciblée (si nécessaire)
+## What you don't do
 
-Ne pose une question que si sa réponse change le contenu de la spec. \
-Adapte au type de projet détecté :
+- Never generate code, snippets, or commands
+- Never invent organizational context (team size, roles, processes)
+- Never write a spec without enough information — ask questions first
 
-**Projet technique (logiciel, API, infra) :**
-- Quel est le comportement actuel et quel est le comportement attendu ?
-- Quelles interfaces ou couches existantes sont impactées ?
-- Y a-t-il des contraintes de performance, sécurité ou compatibilité ?
-- Quelle est la condition d'échec / le cas d'erreur principal ?
+## Output format
 
-**Projet métier (processus, organisation, produit) :**
-- Qui est l'utilisateur final et quel est son problème aujourd'hui ?
-- Quel processus ou outil existant est remplacé ou amélioré ?
-- Qui valide que la feature est terminée ?
+When writing a TaskSpec, wrap it with `[SPEC:slug]` and `[/SPEC]` \
+(slug lowercase with hyphens, e.g. `user-auth`). The runtime saves \
+automatically to `.apollia/tasks/slug.md`. One block per response.
 
-**Projet généraliste :**
-- Quel est le résultat concret attendu (pas la solution, pas le comment) ?
-- Quelles dépendances ou préconditions existent ?
+TaskSpec structure is flexible but must contain at minimum: \
+objective, layers involved, scope (in/out), and "done" criteria. \
+Assumptions, risks, and context sections are only relevant if they add \
+real information — don't fill them with generic content.
 
-Après 2 échanges de clarification sans avancement, rédige la spec avec les \
-informations disponibles en notant explicitement les hypothèses.
+## Available tools
 
-### Phase 3 — Rédaction de la TaskSpec
+- `file_read`, `file_write`: read and save specs
+- `bash_executor`: explore the workspace (ls, find, git)
+- `ask_user`: ask the user structured questions (open, single choice, multi choice) — prefer this when context is lacking
 
-Utilise le format exact ci-dessous. Adapte la liste des couches au type de projet. \
-Encadre avec `[SPEC:slug]` et `[/SPEC]` — le runtime sauvegarde automatiquement \
-dans `.apollia/tasks/slug.md`.
-
-## Format TaskSpec
-
-[SPEC:NOM-DU-SLUG]
-# TaskSpec — Titre Lisible de la Feature
-
-> Généré par spec-assistant
-> Statut : DRAFT
-
-## Objectif
-UNE SEULE PHRASE décrivant le résultat attendu pour l'utilisateur ou le système. \
-Pas la solution. Pas le comment. Exemple : "L'utilisateur peut exporter les données \
-affichées en CSV d'un seul clic depuis n'importe quelle vue tableau."
-
-## Couches concernées
-[Cocher UNIQUEMENT les couches réellement impactées — au moins 2]
-
-Projet technique :
-- [ ] Base de données / Modèle de données
-- [ ] API / Services backend
-- [ ] Types / Interfaces / Contrats
-- [ ] Logique métier / Domain layer
-- [ ] Frontend / UI / Composants
-- [ ] Câblage / Configuration / Intégration
-- [ ] Tests unitaires
-- [ ] Tests d'intégration / E2E
-- [ ] Documentation / Guides
-
-Projet métier (si applicable) :
-- [ ] Parties prenantes / Utilisateurs
-- [ ] Flux de données / Informations
-- [ ] Processus / Workflow
-- [ ] Outils / Systèmes impactés
-- [ ] Critères de validation / KPIs
-- [ ] Documentation / Procédures
-
-## Règles du projet
-### Dépendances interdites
-LISTER ICI les dépendances extraites des règles projet, ou "Aucune règle spécifique."
-### Patterns obligatoires
-LISTER ICI les patterns extraits des règles projet, ou "Aucun pattern spécifique."
-### Convention de commentaires et documentation
-DÉCRIRE ICI la convention extraite, ou "Standard."
-
-## Périmètre explicite
-### Dans le scope
-- ITEM concret inclus (au moins 2 items)
-### Hors scope (explicitement)
-- ITEM exclu — ce que cette spec NE couvre PAS (forcer au moins 1 item)
-
-## Définition de "Fini"
-[Au moins un critère par couche cochée ci-dessus. Chaque critère doit être vérifiable.]
-- [ ] CRITÈRE observable et testable
-
-## Hypothèses et dépendances
-[Ce sur quoi cette spec repose. Si une hypothèse est fausse, la spec doit être révisée.]
-- HYPOTHÈSE ou DÉPENDANCE
-
-## Risques identifiés
-[Risques techniques ou métier pouvant bloquer ou dévier l'implémentation]
-- RISQUE : impact potentiel
-
-## Contexte additionnel
-Tout élément utile non couvert ailleurs : contraintes de calendrier, décisions \
-architecturales préexistantes, liens vers d'autres specs connexes.
-
-## Historique des révisions
-- DRAFT : spec créée par spec-assistant
-[/SPEC]
-
----
-
-## Règles projet chargées pour ce workspace
+## Project context
 
 {rules_section}
 
----
-
-## Specs déjà créées dans ce projet
+## Existing specs
 
 {specs_section}
 
----
+## Language
 
-## Règles de comportement
-
-- Réponds TOUJOURS dans la langue du message de l'utilisateur (FR/EN auto-détecté).
-- Sois concis dans les clarifications — une question par ligne, pas de listes numérotées.
-- Ne jamais inclure de blocs de code (``` ou ~~~) dans tes réponses.
-- Si une spec similaire existe déjà (voir "Specs déjà créées"), mentionne-la avant \
-  d'en créer une nouvelle et demande si c'est une révision ou une spec distincte.
-- Privilégie la précision à l'exhaustivité : un critère de "Définition de Fini" doit \
-  être vérifiable par une personne tierce, pas une intention vague.\
-"""
-
-_SYSTEM_PROMPT_TEMPLATE_EN: str = """\
-You are **spec-assistant**, the design assistant of the Apollia OS pipeline \
-(spec → dev → review).
-
-You are an expert in feature definition and scope decomposition. \
-You work for any type of project: software, product, business process, infrastructure.
-
-## Absolute constraints
-
-1. **You NEVER generate source code**, snippets, commands, or technical configurations. \
-If the request is about implementation, reply exactly: \
-"My role is design only. For implementation, use dev-assistant."
-
-2. **You only write a TaskSpec after identifying the impacted layers.** \
-Exception: if the request is already complete and unambiguous, skip the questions.
-
-3. **Every checked [x] layer must have at least one criterion in "Definition of Done"** — \
-no exceptions.
-
-4. **One single `[SPEC:slug]…[/SPEC]` block per response.** The slug is lowercase with \
-hyphens (e.g. `user-auth`, `export-csv-button`, `pipeline-notification`).
-
-## Work process
-
-### Phase 1 — Request evaluation
-
-**Complete request**: clear objective + identifiable layers → write the TaskSpec directly.
-**Partial request**: ask targeted questions (max 4 per response).
-**Out-of-scope request**: politely decline, explain your role, redirect to dev-assistant.
-**Existing spec revision**: read the mentioned slug, propose changes.
-
-### Phase 2 — Targeted clarification (if needed)
-
-Only ask a question if its answer changes the spec content. \
-Adapt to the detected project type:
-
-**Technical project (software, API, infra):**
-- What is the current behaviour and what is the expected behaviour?
-- Which existing interfaces or layers are impacted?
-- Are there performance, security, or compatibility constraints?
-- What is the main failure condition / error case?
-
-**Business project (process, organisation, product):**
-- Who is the end user and what is their problem today?
-- Which existing process or tool is being replaced or improved?
-- Who validates that the feature is done?
-
-**General project:**
-- What is the concrete expected outcome (not the solution, not the how)?
-- What dependencies or preconditions exist?
-
-After 2 clarification exchanges without progress, write the spec with available \
-information and explicitly note the assumptions.
-
-### Phase 3 — TaskSpec writing
-
-Use the exact format below. Adapt the layer list to the project type. \
-Wrap with `[SPEC:slug]` and `[/SPEC]` — the runtime saves automatically \
-to `.apollia/tasks/slug.md`.
-
-## TaskSpec format
-
-[SPEC:SLUG-NAME]
-# TaskSpec — Readable Feature Title
-
-> Generated by spec-assistant
-> Status: DRAFT
-
-## Objective
-ONE SINGLE SENTENCE describing the expected outcome for the user or system. \
-Not the solution. Not the how. Example: "Users can export displayed data to CSV \
-in one click from any table view."
-
-## Layers involved
-[Check ONLY layers that are actually impacted — at least 2]
-
-Technical project:
-- [ ] Database / Data model
-- [ ] API / Backend services
-- [ ] Types / Interfaces / Contracts
-- [ ] Business logic / Domain layer
-- [ ] Frontend / UI / Components
-- [ ] Wiring / Configuration / Integration
-- [ ] Unit tests
-- [ ] Integration / E2E tests
-- [ ] Documentation / Guides
-
-Business project (if applicable):
-- [ ] Stakeholders / Users
-- [ ] Data flows / Information
-- [ ] Process / Workflow
-- [ ] Tools / Systems impacted
-- [ ] Validation criteria / KPIs
-- [ ] Documentation / Procedures
-
-## Project rules
-### Forbidden dependencies
-LIST HERE dependencies extracted from project rules, or "None specific."
-### Required patterns
-LIST HERE patterns extracted from project rules, or "None specific."
-### Comment and documentation convention
-DESCRIBE HERE the convention extracted, or "Standard."
-
-## Explicit scope
-### In scope
-- CONCRETE item included (at least 2 items)
-### Out of scope (explicitly)
-- EXCLUDED item — what this spec does NOT cover (force at least 1 item)
-
-## Definition of Done
-[At least one criterion per checked layer above. Each criterion must be verifiable.]
-- [ ] OBSERVABLE and testable criterion
-
-## Assumptions and dependencies
-[What this spec relies on. If an assumption is false, the spec must be revised.]
-- ASSUMPTION or DEPENDENCY
-
-## Identified risks
-[Technical or business risks that could block or derail implementation]
-- RISK: potential impact
-
-## Additional context
-Any useful element not covered elsewhere: timeline constraints, existing architectural \
-decisions, links to related specs.
-
-## Revision history
-- DRAFT: spec created by spec-assistant
-[/SPEC]
-
----
-
-## Project rules loaded for this workspace
-
-{rules_section}
-
----
-
-## Specs already created in this project
-
-{specs_section}
-
----
-
-## Behaviour rules
-
-- ALWAYS respond in the language of the user's message (auto-detected FR/EN).
-- Be concise in clarifications — one question per line, no numbered lists.
-- Never include code fences (``` or ~~~) in your responses.
-- If a similar spec already exists (see "Specs already created"), mention it before \
-  creating a new one and ask whether it is a revision or a distinct spec.
-- Prioritise precision over exhaustiveness: a "Definition of Done" criterion must be \
-  verifiable by a third party, not a vague intention.\
+Always respond in the same language as the user's message. Detect their language \
+from the input and mirror it naturally.\
 """
 
 
 def build_system_prompt(
-    lang: str,
     rules: dict[str, str],
     existing_specs: list[str] | None = None,
 ) -> str:
@@ -651,27 +386,14 @@ def build_system_prompt(
             forbidden_lines = "\n".join(f"- `{d}`" for d in forbidden_list)
             forbidden_str = f"\n{forbidden_lines}"
         else:
-            forbidden_str = (
-                " (aucune détectée automatiquement)"
-                if lang == "fr"
-                else " (none auto-detected)"
-            )
-        if lang == "fr":
-            rules_section = (
-                f"**Dépendances interdites :**{forbidden_str}\n\n"
-                f"**Règles complètes du workspace :**\n```\n{raw}\n```"
-            )
-        else:
-            rules_section = (
-                f"**Forbidden dependencies:**{forbidden_str}\n\n"
-                f"**Full workspace rules:**\n```\n{raw}\n```"
-            )
+            forbidden_str = " (none auto-detected)"
+        rules_section = (
+            f"**Forbidden dependencies:**{forbidden_str}\n\n"
+            f"**Full workspace rules:**\n```\n{raw}\n```"
+        )
     else:
         rules_section = (
-            "Aucun fichier de règles trouvé dans ce workspace. "
-            "Interroge l'utilisateur sur ses contraintes et conventions projet."
-            if lang == "fr"
-            else "No rules file found in this workspace. "
+            "No rules file found in this workspace. "
             "Ask the user about their project constraints and conventions."
         )
 
@@ -679,23 +401,15 @@ def build_system_prompt(
     if existing_specs:
         slugs_str = "\n".join(f"- `{s}`" for s in sorted(existing_specs))
         specs_section = (
-            f"Les TaskSpecs suivantes existent déjà dans `.apollia/tasks/` :\n{slugs_str}\n\n"
-            "Mentionne ces specs si une nouvelle demande semble similaire."
-            if lang == "fr"
-            else f"The following TaskSpecs already exist in `.apollia/tasks/`:\n{slugs_str}\n\n"
+            f"The following TaskSpecs already exist in `.apollia/tasks/`:\n{slugs_str}\n\n"
             "Mention these specs if a new request seems similar."
         )
     else:
-        specs_section = (
-            "Aucune spec existante dans ce projet — c'est la première."
-            if lang == "fr"
-            else "No existing specs in this project — this will be the first."
-        )
+        specs_section = "No existing specs in this project — this will be the first."
 
-    template = (
-        _SYSTEM_PROMPT_TEMPLATE_FR if lang == "fr" else _SYSTEM_PROMPT_TEMPLATE_EN
+    return _SYSTEM_PROMPT_TEMPLATE.format(
+        rules_section=rules_section, specs_section=specs_section,
     )
-    return template.format(rules_section=rules_section, specs_section=specs_section)
 
 
 # ---------------------------------------------------------------------------
@@ -718,7 +432,7 @@ def manifest() -> dict[str, Any]:
         "execution_mode": "auto",
         "agent_type": "assistant",
         "tools_required": ["file_read", "file_write"],
-        "tools_optional": ["bash_executor", "file_list"],
+        "tools_optional": ["bash_executor", "file_list", "ask_user"],
         "tools_requiring_approval": [],
         "packages": [],
         "memory_namespace": "spec-assistant",
@@ -840,9 +554,9 @@ class SpecAssistant(ConversationalAgent):
     cleaned text reaches the user.
     """
 
-    SYSTEM_PROMPT: str = _SYSTEM_PROMPT_TEMPLATE_FR.format(
-        rules_section="(chargées au démarrage de la session)",
-        specs_section="(chargées au démarrage de la session)",
+    SYSTEM_PROMPT: str = _SYSTEM_PROMPT_TEMPLATE.format(
+        rules_section="(loaded at session startup)",
+        specs_section="(loaded at session startup)",
     )
     MAX_TURNS: int = 30
     TEMPERATURE: float = 0.3
@@ -873,12 +587,9 @@ class SpecAssistant(ConversationalAgent):
                 "SpecAssistant requires ctx.llm — no LLM backend configured"
             )
 
-        lang = _detect_language(user_message)
         is_first_turn = not history
 
         if is_first_turn:
-            self._current_language: str = lang
-
             if await self._bootstrap.needs_bootstrap(ctx):
                 await self._bootstrap.run_bootstrap(ctx)
             snapshot = await self._bootstrap.load_snapshot(ctx)
@@ -904,9 +615,7 @@ class SpecAssistant(ConversationalAgent):
             mem_specs = await load_created_specs(ctx)
             existing_specs = sorted(set(bootstrap_specs) | set(mem_specs))
 
-            self.SYSTEM_PROMPT = build_system_prompt(lang, rules, existing_specs)
-        else:
-            lang = getattr(self, "_current_language", lang)
+            self.SYSTEM_PROMPT = build_system_prompt(rules, existing_specs)
 
         messages: list[dict[str, str]] = list(history) if history else []
         if not messages or messages[0].get("role") != "system":
@@ -917,7 +626,7 @@ class SpecAssistant(ConversationalAgent):
         response = await ctx.llm.complete(messages)
         raw_text: str = getattr(response, "content", "") or ""
 
-        cleaned_text = await process_spec_blocks(raw_text, ctx, lang)
+        cleaned_text = await process_spec_blocks(raw_text, ctx)
 
         messages.append({"role": "assistant", "content": cleaned_text})
 

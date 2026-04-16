@@ -127,32 +127,6 @@ def test_manifest_instance_matches_module_function() -> None:
     assert {s["id"] for s in instance_m["skills"]} == {s["id"] for s in module_m["skills"]}
 
 
-# ---------------------------------------------------------------------------
-# Language detection
-# ---------------------------------------------------------------------------
-
-
-def test_detect_language_french() -> None:
-    """GIVEN a clearly French message
-    WHEN _detect_language is called
-    THEN it returns 'fr'."""
-    assert spec_assistant._detect_language("Bonjour, je voudrais une spec") == "fr"
-
-
-def test_detect_language_english() -> None:
-    """GIVEN a clearly English message
-    WHEN _detect_language is called
-    THEN it returns 'en'."""
-    assert spec_assistant._detect_language("Create a spec for the login feature") == "en"
-
-
-def test_detect_language_no_false_positive_from_substring() -> None:
-    """GIVEN an English message containing a French marker as a substring
-    WHEN _detect_language is called
-    THEN it returns 'en' (no false positive from substring matching)."""
-    # 'feature' contains 'tu' (French marker) but it is not a whole word.
-    assert spec_assistant._detect_language("Add a feature for the export button") == "en"
-
 
 # ---------------------------------------------------------------------------
 # Slugify
