@@ -69,6 +69,13 @@ fn test_manifest_for(name: &str) -> AgentManifest {
         execution_mode: "auto".to_string(),
         system_prompt: None,
         tools_requiring_approval: vec![],
+        llm_backend: None,
+        packages: vec![],
+        memory_config: None,
+        agent_type: None,
+        examples: vec![],
+        limitations: vec![],
+        setup_notes: None,
     }
 }
 

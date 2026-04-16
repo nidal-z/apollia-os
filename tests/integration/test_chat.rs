@@ -248,7 +248,6 @@ fn build_chat_app_state(
         &db_path,
         Some(llm_router.clone()),
         tool_registry.clone(),
-        Arc::new(MockToolInvoker),
         Arc::new(StubAgentLoader),
         None, // no ChatAgentRunner for libre-only tests
         event_sender.clone(),
@@ -257,6 +256,7 @@ fn build_chat_app_state(
         registry_handle.clone(),
         None, // no A2A invoker in tests
         None, // no project context in tests
+        None, // no project repo in tests
     )
     .expect("ChatSessionManager spawn");
 

@@ -594,6 +594,10 @@ async fn test_ac7_agent_sans_hook_concatenation() {
                 llm_backend: None,
                 packages: vec![],
                 memory_config: None,
+                agent_type: None,
+                examples: vec![],
+                limitations: vec![],
+                setup_notes: None,
             }
         }
         // has_on_plan_complete() returns false by default — auto-concat is used

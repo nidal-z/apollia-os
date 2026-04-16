@@ -147,7 +147,7 @@ fn onboarding_manifest() -> AgentManifest {
         dangerous_tools_allowed: false,
         tags: vec!["onboarding".to_string(), "conversational".to_string()],
         skills: Vec::new(),
-        execution_mode: "auto".to_string(),
+        execution_mode: "conversational".to_string(),
         system_prompt: None,
         tools_requiring_approval: Vec::new(),
         llm_backend: None,

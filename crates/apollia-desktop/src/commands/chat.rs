@@ -577,6 +577,7 @@ mod tests {
             created_at: "2026-03-20T10:00:00Z".into(),
             closed_at: None,
             title: None,
+            project_id: None,
         };
         let json = serde_json::to_string(&summary).expect("serialize");
         let restored: ChatSessionSummary = serde_json::from_str(&json).expect("deserialize");

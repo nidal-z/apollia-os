@@ -121,6 +121,10 @@ fn make_manifest(
         llm_backend: None,
         packages: vec![],
         memory_config: None,
+        agent_type: None,
+        examples: vec![],
+        limitations: vec![],
+        setup_notes: None,
     }
 }
 
@@ -137,6 +141,7 @@ fn make_task(text: &str) -> AIPTask {
         timeout_seconds: None,
         is_resumed: false,
         input_response: None,
+        project_id: None,
     }
 }
 

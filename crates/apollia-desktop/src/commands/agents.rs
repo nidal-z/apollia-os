@@ -890,6 +890,10 @@ mod tests {
             install_path: Some("/home/user/.apollia/agents/hello-agent/agent.py".to_string()),
             supports_a2a: true,
             skills: vec![],
+            agent_type: Some("assistant".to_string()),
+            examples: vec![],
+            limitations: vec![],
+            setup_notes: None,
         };
 
         // WHEN serialized to JSON
@@ -927,6 +931,10 @@ mod tests {
             install_path: Some("/home/user/.apollia/agents/disabled-agent/agent.py".to_string()),
             supports_a2a: false,
             skills: vec![],
+            agent_type: None,
+            examples: vec![],
+            limitations: vec![],
+            setup_notes: None,
         };
 
         // WHEN serialized to JSON
@@ -959,6 +967,10 @@ mod tests {
             install_path: None,
             supports_a2a: false,
             skills: vec![],
+            agent_type: None,
+            examples: vec![],
+            limitations: vec![],
+            setup_notes: None,
         };
 
         // WHEN serialized to JSON

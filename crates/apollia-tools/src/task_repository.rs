@@ -1713,7 +1713,7 @@ mod tests {
             .await
             .expect("save_input_required failed");
 
-        repo.save_suspended_at(task_id, None, "2026-03-13T10:00:00.000Z")
+        repo.save_suspended_at(task_id, None, "2099-01-01T10:00:00.000Z")
             .await
             .expect("save_suspended_at failed");
 
@@ -1721,7 +1721,7 @@ mod tests {
             approved: true,
             reason: None,
             context,
-            responded_at: "2026-03-13T10:05:00.000Z".to_string(),
+            responded_at: "2099-01-01T10:05:00.000Z".to_string(),
         };
         repo.save_input_response(task_id, &response)
             .await

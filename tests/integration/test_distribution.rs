@@ -101,6 +101,10 @@ fn pre_installed_agent(name: &str, installed_at: &str) -> InstalledAgent {
         llm_backend: None,
         packages: vec![],
         memory_config: None,
+        agent_type: None,
+        examples: vec![],
+        limitations: vec![],
+        setup_notes: None,
     };
     InstalledAgent {
         name: name.to_string(),
