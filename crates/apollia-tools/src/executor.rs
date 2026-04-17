@@ -32,6 +32,12 @@ use crate::tools::http_fetch::{HttpFetch, HttpFetchError, HttpFetchInput};
 #[cfg(feature = "memory-search")]
 use crate::tools::memory_search::{MemorySearchInput, MemorySearchTool, MemorySearchToolError};
 
+#[cfg(feature = "web-search")]
+use crate::tools::web_search::{WebSearch, WebSearchError, WebSearchInput};
+
+#[cfg(feature = "web-read")]
+use crate::tools::web_read::{WebRead, WebReadError, WebReadInput};
+
 /// Unified error type for tool execution via [`ToolExecutor`].
 #[derive(Debug, Error)]
 pub enum ToolExecutionError {
@@ -791,6 +797,93 @@ impl ToolExecutor for HttpFetch {
                 HttpFetchError::RequestFailed(_) => "request_failed",
                 HttpFetchError::ResponseTooLarge { .. } => "response_too_large",
                 HttpFetchError::Timeout { .. } => "timeout",
+            };
+            ToolExecutionError::ExecutionFailed {
+                code: code.to_string(),
+                message: e.to_string(),
+            }
+        })?;
+
+        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+            code: "serialization_error".to_string(),
+            message: e.to_string(),
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ToolExecutor implementations — web search (feature = "web-search")
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "web-search")]
+#[async_trait::async_trait]
+impl ToolExecutor for WebSearch {
+    fn name(&self) -> &str {
+        "web_search"
+    }
+
+    fn is_read_only(&self) -> bool {
+        true
+    }
+
+    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
+        let typed: WebSearchInput =
+            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                message: e.to_string(),
+            })?;
+
+        let output = self.run(typed).await.map_err(|e| {
+            let code = match &e {
+                WebSearchError::InvalidQuery { .. } => "invalid_query",
+                WebSearchError::BackendNotAvailable { .. } => "backend_not_available",
+                WebSearchError::AllBackendsFailed { .. } => "all_backends_failed",
+                WebSearchError::NoBackends => "no_backends_available",
+            };
+            ToolExecutionError::ExecutionFailed {
+                code: code.to_string(),
+                message: e.to_string(),
+            }
+        })?;
+
+        serde_json::to_value(output).map_err(|e| ToolExecutionError::ExecutionFailed {
+            code: "serialization_error".to_string(),
+            message: e.to_string(),
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ToolExecutor implementations — web_read (feature = "web-read")
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "web-read")]
+#[async_trait::async_trait]
+impl ToolExecutor for WebRead {
+    fn name(&self) -> &str {
+        "web_read"
+    }
+
+    fn is_read_only(&self) -> bool {
+        true
+    }
+
+    async fn execute(&self, input: Value) -> Result<Value, ToolExecutionError> {
+        let typed: WebReadInput =
+            serde_json::from_value(input).map_err(|e| ToolExecutionError::InvalidInput {
+                message: e.to_string(),
+            })?;
+
+        let output = self.run(typed).await.map_err(|e| {
+            let code = match &e {
+                WebReadError::InvalidUrl(_) => "invalid_url",
+                WebReadError::PrivateAddress(_) => "private_address",
+                WebReadError::UnsupportedContentType { .. } => "unsupported_content_type",
+                WebReadError::RequestFailed(_) => "request_failed",
+                WebReadError::BadStatus(_) => "bad_status",
+                WebReadError::ResponseTooLarge { .. } => "response_too_large",
+                WebReadError::Timeout(_) => "timeout",
+                WebReadError::ExtractionFailed(_) => "extraction_failed",
+                WebReadError::EmptyContent(_) => "empty_content",
             };
             ToolExecutionError::ExecutionFailed {
                 code: code.to_string(),

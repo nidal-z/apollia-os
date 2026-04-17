@@ -85,11 +85,18 @@ class ProjectContextBootstrap(ContextBootstrap):
         else:
             snapshot["workspace_rules"] = ""
 
-        # 3. Tech stack markers
+        # 3. Tech stack markers.
+        # `file_read` on a missing marker raises (PyRuntimeError: not_found)
+        # — not every project has Cargo.toml, package.json, etc. We probe
+        # each one and swallow the expected miss; a present marker returns
+        # a dict without an `error` key.
         tech: list[str] = []
         if ctx.tools is not None:
             for marker in _TECH_MARKERS:
-                result = await ctx.tools.call("file_read", {"path": marker})
+                try:
+                    result = await ctx.tools.call("file_read", {"path": marker})
+                except Exception:
+                    continue
                 if result is not None and not result.get("error"):
                     tech.append(marker)
         snapshot["tech_stack"] = tech

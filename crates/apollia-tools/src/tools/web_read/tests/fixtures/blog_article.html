@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Building Autonomous Agents with Apollia OS</title>
+<meta name="author" content="Jane Doe">
+</head>
+<body>
+<header>
+  <nav>
+    <a href="/">Home</a> | <a href="/blog">Blog</a> | <a href="/about">About</a>
+  </nav>
+</header>
+
+<article>
+  <h1>Building Autonomous Agents with Apollia OS</h1>
+  <p class="byline">By Jane Doe · April 14, 2026</p>
+  <p>
+    Apollia OS is an open-source Rust runtime designed to run AI agents locally on your own machine.
+    Unlike cloud-hosted agent platforms, Apollia gives you complete control over how agents execute,
+    what data they can access, and where that data lives. This article walks through a complete
+    example of building an agent that performs weekly competitive intelligence: it searches the web,
+    reads articles, synthesises the findings, and stores the result in its private memory.
+  </p>
+  <h2>Why Local-first Matters</h2>
+  <p>
+    Running agents locally has three practical advantages. First, you never pay per-token fees for a
+    cloud agent platform on top of the LLM costs you already pay. Second, your queries never leave
+    your machine unless you explicitly allow it. Third, agents can touch files, run shell commands,
+    and hit APIs with local credentials that would be awkward to pass to a hosted service.
+  </p>
+  <h2>The Agent Loop</h2>
+  <p>
+    Apollia implements a minimal ReAct loop: Observe, Reason, Act. The runtime enforces a step budget
+    to guarantee termination, and every tool call is audited in a SQLite journal. The agent itself is
+    just a Python function with an async run() method and a manifest declaring which tools it needs.
+  </p>
+  <p>
+    This design keeps the integration surface tiny: duck-typing at the Python boundary, and a strict
+    sandbox enforced by the Rust runtime at every tool invocation. New agents can be prototyped in
+    minutes without modifying the core runtime.
+  </p>
+  <h2>A Concrete Example</h2>
+  <p>
+    Our competitive-intelligence agent uses three native tools: web_search (pluggable backends,
+    default DuckDuckGo), web_read (fetches a URL and returns readable text), and memory_store
+    (namespaced SQLite with FTS5). The full manifest is under 30 lines of Python.
+  </p>
+</article>
+
+<aside class="sidebar">
+  <h3>Related posts</h3>
+  <ul>
+    <li><a href="/p/1">Tool Registry deep-dive</a></li>
+    <li><a href="/p/2">Memory Engine architecture</a></li>
+  </ul>
+</aside>
+
+<footer>
+  <p>&copy; 2026 Apollia. All rights reserved.</p>
+</footer>
+</body>
+</html>

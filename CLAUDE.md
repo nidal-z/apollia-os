@@ -139,7 +139,7 @@ Ces skills sont actifs dans ce projet. Les utiliser systématiquement :
 **Sprint précédent :** Sprint 39 — Agents qui travaillent : 4 assistants opérationnels (spec/dev/review/document), memory namespace project-scoped, restructuration agents/, smoke tests (7/7 stories, ADR-070). ✅
 **Avant :** Sprint 37 — Parité complète TypeScript (OAuth2 PKCE, auto-updater, code review agent, mDNS MCP, hot reload MCP, HITL MCP SQLite, memory export/import, purge configurable, OnBusyPolicy::Queue, filtrage notifs, templates pipeline, CUDA CI, Bedrock, Vertex AI, Notebook tool, 15/15 stories, ADR-064→068). ✅
 **MVP validé :** start → agent start → run → stop fonctionne E2E (mars 2026)
-**Dernière décision :** ADR-071 — ContextBootstrap : convention de bootstrapping de contexte agent (SDK 0.2.0+)
+**Dernière décision :** ADR-072 — Outils web natifs : architecture 2-étages `web_search` (trait `SearchBackend` pluggable, DuckDuckGo default + Brave feature-gated) et `web_read` (fetch + extraction `dom_smoothie`, SSRF-guarded). Opt-in via `apollia.toml`. Bloc 1.3 du LAUNCH-BACKLOG livré.
 
 **Book mdBook :** structure pédagogique complète dans `book/src/` — ch01 (Premiers pas) → ch19 (CLI) + annexes A-F. Build propre : `mdbook build book`. Sources des chapitres : `docs/wiki/`. Convention : book = apprendre, wiki = référence (voir règle Documentation ci-dessus).
 

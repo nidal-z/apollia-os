@@ -16,6 +16,8 @@ pub mod file_write;
 pub mod http_fetch;
 #[cfg(feature = "memory-search")]
 pub mod memory_search;
+#[cfg(feature = "web-read")]
+pub mod web_read;
 #[cfg(feature = "web-search")]
 pub mod web_search;
 pub mod notebook_edit;

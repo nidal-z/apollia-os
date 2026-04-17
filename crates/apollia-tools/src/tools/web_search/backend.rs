@@ -13,21 +13,16 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Safe-search filter applied to the backend query.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SafeSearch {
     /// No filtering. Adult content may appear.
     Off,
     /// Default for every backend. Mildly filtered.
+    #[default]
     Moderate,
     /// Strict filtering. Reduces result count.
     Strict,
-}
-
-impl Default for SafeSearch {
-    fn default() -> Self {
-        Self::Moderate
-    }
 }
 
 /// Freshness window applied to the backend query.
