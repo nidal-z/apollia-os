@@ -22,6 +22,7 @@ use apollia_llm::LlmRouter;
 use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
 use apollia_runtime::eventbus::EventBusSender;
+use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use mcp::McpRegistryClient;
 use mcp::SecretStore;
@@ -93,6 +94,8 @@ fn main() {
         Arc::new(std::sync::OnceLock::new());
     let task_repository_lock: Arc<std::sync::OnceLock<Arc<TaskRepository>>> =
         Arc::new(std::sync::OnceLock::new());
+    let pending_user_inputs_lock: Arc<std::sync::OnceLock<PendingUserInputs>> =
+        Arc::new(std::sync::OnceLock::new());
 
     let factory: Arc<dyn AgentBackendFactory> = Arc::new(backend::ProductionBackendFactory {
         event_bus: event_bus_lock.clone(),
@@ -148,6 +151,7 @@ fn main() {
                 audit_trail: audit_trail_lock.clone(),
                 pending_approvals: pending_approvals_lock.clone(),
                 task_repository: task_repository_lock.clone(),
+                pending_user_inputs: pending_user_inputs_lock.clone(),
             })),
             Err(e) => {
                 tracing::warn!(error = %e, "failed to open agents.db for ChatAgentRunner — Chat Agent mode disabled");
@@ -200,6 +204,9 @@ fn main() {
     }
     if let Some(repo) = runtime_handle.task_repository.clone() {
         let _ = task_repository_lock.set(repo);
+    }
+    if let Some(chat) = runtime_handle.chat_manager.as_ref() {
+        let _ = pending_user_inputs_lock.set(chat.pending_user_inputs());
     }
 
     // Auto-load installed agents NOW — OnceLocks are populated so the

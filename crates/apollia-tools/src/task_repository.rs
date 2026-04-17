@@ -103,6 +103,26 @@ pub struct TaskDetail {
     pub created_at: String,
 }
 
+/// Ouvre une connexion SQLite et applique la migration HITL idempotentiellement.
+///
+/// Appelé par toutes les méthodes du [`TaskRepository`] pour garantir l'intégrité
+/// du schéma même si la base a été supprimée et recréée après le démarrage du runtime.
+/// La migration utilise `CREATE TABLE IF NOT EXISTS` — sans effet sur une base valide.
+///
+/// Si le fichier principal n'existe pas, les fichiers WAL/SHM résiduels éventuels
+/// sont supprimés avant l'ouverture pour éviter une récupération WAL orpheline
+/// qui laisserait la base sans tables.
+fn open_conn(path: &std::path::Path) -> Result<rusqlite::Connection, rusqlite::Error> {
+    if !path.exists() {
+        let _ = std::fs::remove_file(path.with_extension("db-wal"));
+        let _ = std::fs::remove_file(path.with_extension("db-shm"));
+    }
+    let conn = rusqlite::Connection::open(path)?;
+    conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+    conn.execute_batch(MIGRATION_SQL)?;
+    Ok(conn)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Repository
 // ─────────────────────────────────────────────────────────────────────────────
@@ -134,9 +154,7 @@ impl TaskRepository {
         let path = db_path.to_path_buf();
 
         tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
-            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
-            conn.execute_batch(MIGRATION_SQL)?;
+            let conn = open_conn(&path)?;
             add_columns_if_missing(&conn, "tasks", OBSERVABILITY_COLUMNS)?;
             add_columns_if_missing(&conn, "task_approvals", HITL_TIMING_COLUMNS)?;
             conn.execute_batch(
@@ -177,8 +195,7 @@ impl TaskRepository {
         let context_json = serde_json::to_string(context)?;
 
         tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
-            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            let conn = open_conn(&path)?;
             conn.execute(
                 "INSERT INTO tasks \
                      (task_id, step_id, status, \
@@ -226,8 +243,7 @@ impl TaskRepository {
         let suspended_at = suspended_at.to_string();
 
         tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
-            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            let conn = open_conn(&path)?;
             conn.execute(
                 "INSERT INTO task_approvals \
                      (task_id, step_id, prompt, context_json, suspended_at) \
@@ -267,8 +283,7 @@ impl TaskRepository {
         let responded_at = responded_at.to_string();
 
         tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
-            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            let conn = open_conn(&path)?;
             conn.execute(
                 "UPDATE task_approvals \
                  SET responded_at = ?1, \
@@ -311,8 +326,7 @@ impl TaskRepository {
         let context_json = serde_json::to_string(&response.context)?;
 
         tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
-            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            let conn = open_conn(&path)?;
 
             // Récupère prompt et step_id pour l'insertion dans task_approvals.
             let (prompt, step_id): (String, Option<String>) = conn
@@ -392,7 +406,7 @@ impl TaskRepository {
         let task_id = task_id.to_string();
 
         tokio::task::spawn_blocking(move || -> Result<AIPTask, TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
+            let conn = open_conn(&path)?;
 
             // Lit les colonnes HITL nécessaires à la reconstruction.
             let (tid, approved_raw, reason, context_json_opt, responded_at_opt): (
@@ -460,7 +474,7 @@ impl TaskRepository {
         let task_id = task_id.to_string();
 
         tokio::task::spawn_blocking(move || -> Result<Option<String>, TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
+            let conn = open_conn(&path)?;
             let result = conn.query_row(
                 "SELECT status FROM tasks WHERE task_id = ?1",
                 params![&task_id],
@@ -492,7 +506,7 @@ impl TaskRepository {
         let task_id = task_id.to_string();
 
         tokio::task::spawn_blocking(move || -> Result<Option<TaskDetail>, TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
+            let conn = open_conn(&path)?;
             let result = conn.query_row(
                 "SELECT input_text, output_text, duration_ms, created_at \
                  FROM tasks WHERE task_id = ?1",
@@ -541,8 +555,7 @@ impl TaskRepository {
         let (truncated_text, was_truncated) = truncate_with_marker(text, config.max_input_bytes);
 
         tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
-            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            let conn = open_conn(&path)?;
             conn.execute(
                 "INSERT INTO tasks (task_id, input_text, input_truncated) \
                  VALUES (?1, ?2, ?3) \
@@ -578,8 +591,7 @@ impl TaskRepository {
         let agent_name = agent_name.to_string();
 
         tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
-            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            let conn = open_conn(&path)?;
             conn.execute(
                 "UPDATE tasks SET agent_name = ?2, updated_at = CURRENT_TIMESTAMP \
                  WHERE task_id = ?1",
@@ -613,8 +625,7 @@ impl TaskRepository {
         let (truncated_text, was_truncated) = truncate_with_marker(text, config.max_output_bytes);
 
         tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
-            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            let conn = open_conn(&path)?;
             conn.execute(
                 "UPDATE tasks SET \
                      output_text      = ?2, \
@@ -653,8 +664,7 @@ impl TaskRepository {
         let timestamp = timestamp.to_string();
 
         tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
-            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            let conn = open_conn(&path)?;
 
             let existing: Option<String> = conn
                 .query_row(
@@ -702,8 +712,7 @@ impl TaskRepository {
         let task_id = task_id.to_string();
 
         tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
-            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            let conn = open_conn(&path)?;
             conn.execute(
                 "UPDATE tasks SET \
                      duration_ms = ?2, \
@@ -734,8 +743,7 @@ impl TaskRepository {
         let reason = reason.to_string();
 
         tokio::task::spawn_blocking(move || -> Result<(), TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
-            conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            let conn = open_conn(&path)?;
             conn.execute(
                 "UPDATE tasks SET \
                      status                = 'cancelled', \
@@ -769,7 +777,7 @@ impl TaskRepository {
         let threshold_secs = older_than.as_secs() as i64;
 
         tokio::task::spawn_blocking(move || -> Result<Vec<String>, TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
+            let conn = open_conn(&path)?;
 
             let mut stmt = conn.prepare(
                 "SELECT task_id FROM tasks \
@@ -800,7 +808,7 @@ impl TaskRepository {
         let task_id = task_id.to_string();
 
         tokio::task::spawn_blocking(move || -> Result<Option<ApprovalInfo>, TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
+            let conn = open_conn(&path)?;
             let mut stmt = conn.prepare(
                 "SELECT t.agent_name, \
                         COALESCE(t.input_required_prompt, ''), \
@@ -858,7 +866,7 @@ impl TaskRepository {
         let path = self.db_path.clone();
 
         tokio::task::spawn_blocking(move || -> Result<Vec<ResolvedApprovalRow>, TaskRepoError> {
-            let conn = rusqlite::Connection::open(&path)?;
+            let conn = open_conn(&path)?;
 
             let mut stmt = conn.prepare(
                 "SELECT ta.task_id, \
@@ -917,7 +925,7 @@ impl TaskRepository {
 
         tokio::task::spawn_blocking(
             move || -> Result<Vec<PersistedTaskSummary>, TaskRepoError> {
-                let conn = rusqlite::Connection::open(&path)?;
+                let conn = open_conn(&path)?;
 
                 let mut stmt = conn.prepare(
                     "SELECT task_id, agent_name, input_text, output_text, \

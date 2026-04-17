@@ -8,7 +8,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use apollia_aip::bridge::AIPBridge;
-use apollia_aip::context::{effective_memory_namespace, RuntimeContext, ToolExecutor, ToolProxy};
+use apollia_aip::context::{
+    effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy,
+};
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{AIPError, AIPResult, AIPTask, AgentManifest, PendingApprovals, TaskStatus};
 use apollia_llm::{
@@ -21,7 +23,11 @@ use apollia_oria::engine::{AgentRunner, ORIAEngine};
 use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::coordinator::{DynBackend, ExecutionBackend};
 use apollia_runtime::eventbus::EventBusSender;
-use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
+use apollia_tools::tools::ask_user::PendingUserInputs;
+use apollia_tools::{
+    build_native_dispatcher, AuditTrailHandle, NativeDispatcherConfig, TaskRepository,
+    ToolRegistryHandle,
+};
 use futures::stream;
 use pyo3::prelude::*;
 
@@ -86,109 +92,16 @@ impl ToolInvoker for NoopToolInvoker {
     }
 }
 
-// ─── Native tool executor ─────────────────────────────────────────────────────
+// ─── Sandbox root helper ──────────────────────────────────────────────────────
 
-struct NativeToolExecutor {
-    home_dir: PathBuf,
-}
-
-impl NativeToolExecutor {
-    fn new() -> Self {
-        let home_dir = std::env::var("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| std::env::temp_dir());
-        Self { home_dir }
-    }
-}
-
-impl ToolExecutor for NativeToolExecutor {
-    fn execute(
-        &self,
-        tool_name: &str,
-        input: serde_json::Value,
-    ) -> Result<serde_json::Value, String> {
-        let tool = tool_name.to_string();
-        let home = self.home_dir.clone();
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current().block_on(async move {
-                match tool.as_str() {
-                    "bash_executor" => native_exec_bash(input).await,
-                    "file_read" => native_exec_file_read(input, &home).await,
-                    "file_write" => native_exec_file_write(input, &home).await,
-                    "file_list" => native_exec_file_list(input, &home).await,
-                    other => Err(format!("tool not found: {other}")),
-                }
-            })
-        })
-    }
-}
-
-async fn native_exec_bash(input: serde_json::Value) -> Result<serde_json::Value, String> {
-    use apollia_tools::tools::bash_executor::{BashExecutor, BashInput};
-    let command = input
-        .get("command")
-        .and_then(|v| v.as_str())
-        .ok_or("bash_executor: missing 'command' field")?
-        .to_string();
-    let timeout_secs = input
-        .get("timeout_seconds")
-        .or_else(|| input.get("timeout_secs"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(30);
-    let bash_input = BashInput {
-        command,
-        timeout_secs,
-        working_dir: None,
-    };
-    let result = BashExecutor::new()
-        .run(bash_input)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-        "exit_code": result.exit_code,
-        "duration_ms": result.duration_ms,
-    }))
-}
-
-async fn native_exec_file_read(
-    input: serde_json::Value,
-    home_dir: &Path,
-) -> Result<serde_json::Value, String> {
-    use apollia_tools::tools::file_read::{FileRead, FileReadInput};
-
-    let tool = FileRead::new(home_dir.to_path_buf()).map_err(|e| e.to_string())?;
-    let file_input: FileReadInput =
-        serde_json::from_value(input).map_err(|e| format!("file_read: invalid arguments: {e}"))?;
-    let output = tool.run(file_input).await.map_err(|e| e.to_string())?;
-    serde_json::to_value(&output).map_err(|e| e.to_string())
-}
-
-async fn native_exec_file_write(
-    input: serde_json::Value,
-    home_dir: &Path,
-) -> Result<serde_json::Value, String> {
-    use apollia_tools::tools::file_write::{FileWrite, FileWriteInput};
-
-    let tool = FileWrite::new(home_dir.to_path_buf()).map_err(|e| e.to_string())?;
-    let file_input: FileWriteInput =
-        serde_json::from_value(input).map_err(|e| format!("file_write: invalid arguments: {e}"))?;
-    tool.run(file_input).await.map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "written": true }))
-}
-
-async fn native_exec_file_list(
-    input: serde_json::Value,
-    home_dir: &Path,
-) -> Result<serde_json::Value, String> {
-    use apollia_tools::tools::file_list::{FileList, FileListInput};
-
-    let tool = FileList::new(home_dir.to_path_buf()).map_err(|e| e.to_string())?;
-    let file_input: FileListInput =
-        serde_json::from_value(input).map_err(|e| format!("file_list: invalid arguments: {e}"))?;
-    let output = tool.run(file_input).await.map_err(|e| e.to_string())?;
-    serde_json::to_value(&output).map_err(|e| e.to_string())
+/// Return the filesystem sandbox root used for file-oriented native tools.
+///
+/// Keeps the previous `$HOME` behaviour so workspaces located under the user's
+/// home directory remain reachable by `file_read`, `file_write`, etc.
+fn sandbox_root_for_agent() -> PathBuf {
+    std::env::var("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir())
 }
 
 // ─── Fallback backend ─────────────────────────────────────────────────────────
@@ -262,6 +175,10 @@ struct BridgeRunner {
     audit_trail: Option<AuditTrailHandle>,
     memory_namespace: Option<String>,
     memory_base_dir: PathBuf,
+    /// `ask_user` pending-input registry. `Some` when invoked by the chat
+    /// manager, `None` for standalone task-mode runs (HITL relies on AIP
+    /// `input_required` instead).
+    pending_user_inputs: Option<PendingUserInputs>,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -278,6 +195,7 @@ impl AgentRunner for BridgeRunner {
         let audit_trail = self.audit_trail.clone();
         let memory_namespace = self.memory_namespace.clone();
         let memory_base_dir = self.memory_base_dir.clone();
+        let pending_user_inputs = self.pending_user_inputs.clone();
 
         Box::pin(async move {
             let router_for_helper = llm_router
@@ -288,11 +206,25 @@ impl AgentRunner for BridgeRunner {
                 Arc::new(NoopToolInvoker),
             ));
 
+            let dispatcher = Arc::new(build_native_dispatcher(&NativeDispatcherConfig {
+                sandbox_root: sandbox_root_for_agent(),
+                agent_id: agent_id.clone(),
+                venv_base_dir: memory_base_dir
+                    .parent()
+                    .map(|p| p.join("venvs"))
+                    .unwrap_or_else(|| memory_base_dir.join("venvs")),
+                memory_namespace: memory_namespace.clone(),
+                memory_shared_namespaces: Vec::new(),
+                memory_base_dir: memory_base_dir.clone(),
+                http_allowlist: None,
+                pending_user_inputs,
+            }));
+
             let tool_proxy = match (tool_registry.as_ref(), audit_trail.as_ref()) {
                 (Some(registry), Some(audit)) => Some(ToolProxy::new(
                     registry.clone(),
                     audit.clone(),
-                    Arc::new(NativeToolExecutor::new()),
+                    Arc::new(DispatcherExecutor::new(dispatcher)),
                     allowed_tools,
                     agent_id.clone(),
                     task.task_id.clone(),
@@ -355,6 +287,8 @@ impl ExecutionBackend for AIPProductionBackend {
             audit_trail: self.audit_trail.clone(),
             memory_namespace: self.memory_namespace.clone(),
             memory_base_dir: self.memory_base_dir.clone(),
+            // Task-mode backend: no chat UI to answer `ask_user` prompts.
+            pending_user_inputs: None,
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(self.event_bus.clone());
@@ -473,6 +407,10 @@ pub struct ProductionChatAgentRunner {
     pub audit_trail: Arc<std::sync::OnceLock<AuditTrailHandle>>,
     pub pending_approvals: Arc<std::sync::OnceLock<Arc<PendingApprovals>>>,
     pub task_repository: Arc<std::sync::OnceLock<Arc<TaskRepository>>>,
+    /// Chat manager's `ask_user` pending-input registry — populated after
+    /// `init_embedded()` returns so the native tool dispatcher can route
+    /// `ask_user` invocations through the chat HITL loop.
+    pub pending_user_inputs: Arc<std::sync::OnceLock<PendingUserInputs>>,
 }
 
 #[async_trait::async_trait]
@@ -500,7 +438,16 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             apollia_aip::loader::load_agent_module(&install_path).map_err(|e| e.to_string())?;
         let validated =
             apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
-        let allowed_tools = validated.manifest.tools_required.clone();
+        // Merge required + optional tools: the manifest contract says agents
+        // may call any tool from either list. Excluding optional tools would
+        // hide `ask_user` and similar HITL helpers from Python agents.
+        let allowed_tools: Vec<String> = validated
+            .manifest
+            .tools_required
+            .iter()
+            .chain(validated.manifest.tools_optional.iter())
+            .cloned()
+            .collect();
         let memory_namespace = validated.manifest.memory_namespace.clone();
         let bridge = Arc::new(AIPBridge::new(validated).map_err(|e| e.to_string())?);
 
@@ -529,6 +476,7 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             audit_trail,
             memory_namespace,
             memory_base_dir: default_memory_dir(),
+            pending_user_inputs: self.pending_user_inputs.get().cloned(),
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(event_bus);

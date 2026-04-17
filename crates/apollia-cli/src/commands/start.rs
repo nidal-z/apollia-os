@@ -10,7 +10,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use apollia_aip::bridge::AIPBridge;
-use apollia_aip::context::{effective_memory_namespace, RuntimeContext, ToolExecutor, ToolProxy};
+use apollia_aip::context::{
+    effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy,
+};
 use apollia_aip::memory::MemoryInterface;
 use apollia_core::{AIPResult, AIPTask, AgentManifest, PendingApprovals, RuntimeEvent, TaskStatus};
 use apollia_llm::{
@@ -30,7 +32,11 @@ use apollia_runtime::router::TaskRouterHandle;
 use apollia_runtime::shutdown::{ShutdownConfig, ShutdownController};
 use apollia_runtime::supervisor::{Supervisor, SupervisorConfig};
 use apollia_runtime::A2AToolsProvider;
-use apollia_tools::{AuditTrailHandle, TaskRepository, ToolRegistryHandle};
+use apollia_tools::tools::ask_user::PendingUserInputs;
+use apollia_tools::{
+    build_native_dispatcher, AuditTrailHandle, NativeDispatcherConfig, TaskRepository,
+    ToolRegistryHandle,
+};
 use futures::stream;
 use pyo3::prelude::*;
 
@@ -97,6 +103,10 @@ struct AIPChatAgentRunner {
             Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
         >,
     >,
+    /// Chat manager's `ask_user` pending-input registry — populated after
+    /// `supervisor.start()` so the native dispatcher can wire
+    /// `AskUserExecutor` to the chat HITL loop.
+    pending_user_inputs: Arc<std::sync::OnceLock<PendingUserInputs>>,
     /// Base data directory (e.g. `~/.apollia/`).
     data_dir: PathBuf,
 }
@@ -140,19 +150,29 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             .cloned()
             .collect();
 
+        let memory_base_dir = self.data_dir.join("memory");
+        let dispatcher = Arc::new(build_native_dispatcher(&NativeDispatcherConfig {
+            sandbox_root: sandbox_root_for_agent(),
+            agent_id: agent_name.to_string(),
+            venv_base_dir: self.data_dir.join("venvs"),
+            memory_namespace: manifest.memory_namespace.clone(),
+            memory_shared_namespaces: Vec::new(),
+            memory_base_dir: memory_base_dir.clone(),
+            http_allowlist: None,
+            pending_user_inputs: self.pending_user_inputs.get().cloned(),
+        }));
+
         let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref()) {
             (Some(registry), Some(audit)) => Some(ToolProxy::new(
                 registry.clone(),
                 audit.clone(),
-                Arc::new(NativeToolExecutor::new()),
+                Arc::new(DispatcherExecutor::new(dispatcher)),
                 allowed_tools,
                 agent_name.to_string(),
                 task.task_id.clone(),
             )),
             _ => None,
         };
-
-        let memory_base_dir = self.data_dir.join("memory");
         let memory_interface: Option<MemoryInterface> =
             manifest.memory_namespace.as_deref().and_then(|ns| {
                 let eff_ns = effective_memory_namespace(ns, task.project_id.as_deref());
@@ -318,126 +338,19 @@ impl ToolInvoker for NoopToolInvoker {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Filesystem sandbox root for native tools (ADR-012 dev mode).
+// `FileIo` and friends sandbox all paths under this root — we keep
+// `$HOME` for parity with the previous embedded `NativeToolExecutor`
+// so workspaces located anywhere under the user's home remain usable.
 // ─────────────────────────────────────────────────────────────
-// NativeToolExecutor — bridges sync ToolExecutor trait to async native tools
-// ─────────────────────────────────────────────────────────────
 
-/// Production `ToolExecutor` — dispatches tool calls to native Apollia tools.
+/// Return the sandbox root used for file-oriented native tools.
 ///
-/// Uses `block_in_place` to bridge the synchronous `ToolExecutor::execute` trait
-/// to the async tool implementations (`BashExecutor`, `FileIo`).
-///
-/// On macOS dev mode, `FileIo` uses `HOME` as its sandbox root — consistent with
-/// `BashExecutor` dev mode bypass (ADR-012). All paths under HOME are reachable.
-struct NativeToolExecutor {
-    home_dir: PathBuf,
-}
-
-impl NativeToolExecutor {
-    fn new() -> Self {
-        let home_dir = std::env::var("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| std::env::temp_dir());
-        Self { home_dir }
-    }
-}
-
-impl ToolExecutor for NativeToolExecutor {
-    fn execute(
-        &self,
-        tool_name: &str,
-        input: serde_json::Value,
-    ) -> Result<serde_json::Value, String> {
-        let tool = tool_name.to_string();
-        let home = self.home_dir.clone();
-
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current().block_on(async move {
-                match tool.as_str() {
-                    "bash_executor" => native_exec_bash(input).await,
-                    "file_read" => native_exec_file_read(input, &home).await,
-                    "file_write" => native_exec_file_write(input, &home).await,
-                    "file_list" => native_exec_file_list(input, &home).await,
-                    other => Err(format!("tool not found: {other}")),
-                }
-            })
-        })
-    }
-}
-
-/// Execute `bash_executor` from a raw JSON input dict.
-async fn native_exec_bash(input: serde_json::Value) -> Result<serde_json::Value, String> {
-    use apollia_tools::tools::bash_executor::{BashExecutor, BashInput};
-
-    let command = input
-        .get("command")
-        .and_then(|v| v.as_str())
-        .ok_or("bash_executor: missing 'command' field")?
-        .to_string();
-    let timeout_secs = input
-        .get("timeout_seconds")
-        .or_else(|| input.get("timeout_secs"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(30);
-
-    let bash_input = BashInput {
-        command,
-        timeout_secs,
-        working_dir: None,
-    };
-    let result = BashExecutor::new()
-        .run(bash_input)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(serde_json::json!({
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-        "exit_code": result.exit_code,
-        "duration_ms": result.duration_ms,
-    }))
-}
-
-/// Execute `file_read` from a raw JSON input dict.
-async fn native_exec_file_read(
-    input: serde_json::Value,
-    home_dir: &Path,
-) -> Result<serde_json::Value, String> {
-    use apollia_tools::tools::file_read::{FileRead, FileReadInput};
-
-    let tool = FileRead::new(home_dir.to_path_buf()).map_err(|e| e.to_string())?;
-    let file_input: FileReadInput =
-        serde_json::from_value(input).map_err(|e| format!("file_read: invalid arguments: {e}"))?;
-    let output = tool.run(file_input).await.map_err(|e| e.to_string())?;
-    serde_json::to_value(&output).map_err(|e| e.to_string())
-}
-
-/// Execute `file_write` from a raw JSON input dict.
-async fn native_exec_file_write(
-    input: serde_json::Value,
-    home_dir: &Path,
-) -> Result<serde_json::Value, String> {
-    use apollia_tools::tools::file_write::{FileWrite, FileWriteInput};
-
-    let tool = FileWrite::new(home_dir.to_path_buf()).map_err(|e| e.to_string())?;
-    let file_input: FileWriteInput =
-        serde_json::from_value(input).map_err(|e| format!("file_write: invalid arguments: {e}"))?;
-    tool.run(file_input).await.map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "written": true }))
-}
-
-/// Execute `file_list` from a raw JSON input dict.
-async fn native_exec_file_list(
-    input: serde_json::Value,
-    home_dir: &Path,
-) -> Result<serde_json::Value, String> {
-    use apollia_tools::tools::file_list::{FileList, FileListInput};
-
-    let tool = FileList::new(home_dir.to_path_buf()).map_err(|e| e.to_string())?;
-    let file_input: FileListInput =
-        serde_json::from_value(input).map_err(|e| format!("file_list: invalid arguments: {e}"))?;
-    let output = tool.run(file_input).await.map_err(|e| e.to_string())?;
-    serde_json::to_value(&output).map_err(|e| e.to_string())
+/// Centralised so every runner in this crate points at the same root.
+fn sandbox_root_for_agent() -> PathBuf {
+    std::env::var("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir())
 }
 
 // Real per-agent execution backend (AIPBridge + RuntimeContext)
@@ -555,13 +468,29 @@ impl AgentRunner for BridgeRunner {
                 }
             }
 
+            let dispatcher = Arc::new(build_native_dispatcher(&NativeDispatcherConfig {
+                sandbox_root: sandbox_root_for_agent(),
+                agent_id: agent_id.clone(),
+                venv_base_dir: memory_base_dir
+                    .parent()
+                    .map(|p| p.join("venvs"))
+                    .unwrap_or_else(|| memory_base_dir.join("venvs")),
+                memory_namespace: memory_namespace.clone(),
+                memory_shared_namespaces: Vec::new(),
+                memory_base_dir: memory_base_dir.clone(),
+                http_allowlist: None,
+                // Task mode has no UI for HITL prompts — agents must use
+                // AIP `input_required` instead of `ask_user`.
+                pending_user_inputs: None,
+            }));
+
             let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref())
             {
                 (Some(registry), Some(audit)) => {
                     let proxy = ToolProxy::new(
                         registry.clone(),
                         audit.clone(),
-                        Arc::new(NativeToolExecutor::new()),
+                        Arc::new(DispatcherExecutor::new(dispatcher)),
                         allowed_tools,
                         agent_id.clone(),
                         task.task_id.clone(),
@@ -980,6 +909,8 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
             Option<Arc<std::sync::Mutex<apollia_memory::user_memory::UserMemoryRepository>>>,
         >,
     > = Arc::new(std::sync::OnceLock::new());
+    let pending_user_inputs_lock: Arc<std::sync::OnceLock<PendingUserInputs>> =
+        Arc::new(std::sync::OnceLock::new());
 
     let factory: Arc<dyn AgentBackendFactory> = Arc::new(ProductionBackendFactory {
         event_bus: event_bus_lock.clone(),
@@ -1000,6 +931,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
             tool_registry: tool_registry_lock.clone(),
             audit_trail: audit_trail_lock.clone(),
             user_memory: user_memory_lock.clone(),
+            pending_user_inputs: pending_user_inputs_lock.clone(),
             data_dir: data_dir_for_chat,
         }));
 
@@ -1028,6 +960,9 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<(), Start
         let _ = task_repository_lock.set(repo);
     }
     let _ = user_memory_lock.set(handles.user_memory.clone());
+    if let Some(chat) = handles.chat_manager.as_ref() {
+        let _ = pending_user_inputs_lock.set(chat.pending_user_inputs());
+    }
 
     let elapsed = start.elapsed();
     println!("  * EventBus            ready");

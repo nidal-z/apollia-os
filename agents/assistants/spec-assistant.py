@@ -617,6 +617,63 @@ class SpecAssistant(ConversationalAgent):
 
             self.SYSTEM_PROMPT = build_system_prompt(rules, existing_specs)
 
+            # When no project rules are loaded, proactively ask the user for
+            # context via the ask_user tool before generating a spec.
+            has_rules = bool(rules.get("raw", "").strip())
+            if not has_rules and ctx.tools is not None:
+                available = ctx.tools.list_tools()
+                if "ask_user" in available:
+                    discovery = await ctx.tools.call("ask_user", {
+                        "questions": [
+                            {
+                                "id": "stack",
+                                "question": "What tech stack should this project use?",
+                                "type": "open",
+                                "hint": "e.g. Next.js + Tailwind, Django, Rails, Flutter...",
+                            },
+                            {
+                                "id": "audience",
+                                "question": "Who is the target audience?",
+                                "type": "open",
+                                "hint": "e.g. B2B decision-makers, developers, end users...",
+                            },
+                            {
+                                "id": "constraints",
+                                "question": "Any specific constraints or requirements?",
+                                "type": "open",
+                                "hint": "e.g. mobile-first, SEO, accessibility, no tracking...",
+                            },
+                            {
+                                "id": "goal",
+                                "question": "What is the primary goal?",
+                                "type": "single_choice",
+                                "options": [
+                                    "Lead generation (contact form, demo request)",
+                                    "Product showcase (features, documentation)",
+                                    "Community building (GitHub, contributions)",
+                                    "E-commerce (sales, subscriptions)",
+                                    "Other",
+                                ],
+                            },
+                        ],
+                        "context": "No project rules file found. I need context to write a relevant spec.",
+                    })
+                    # Inject user answers into the message so the LLM has context.
+                    if isinstance(discovery, dict) and "answers" in discovery:
+                        context_parts: list[str] = []
+                        for answer in discovery["answers"]:
+                            if answer.get("skipped"):
+                                continue
+                            val = answer.get("value") or ", ".join(answer.get("values", []))
+                            if val:
+                                context_parts.append(f"- {answer['id']}: {val}")
+                        if context_parts:
+                            user_message = (
+                                f"{user_message}\n\n"
+                                f"Additional context from user:\n"
+                                + "\n".join(context_parts)
+                            )
+
         messages: list[dict[str, str]] = list(history) if history else []
         if not messages or messages[0].get("role") != "system":
             messages.insert(0, {"role": "system", "content": self.SYSTEM_PROMPT})

@@ -12,7 +12,8 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
 use apollia_tools::{
-    compute_input_hash, AuditTrailHandle, ToolDescriptor, ToolInvocationRecord, ToolRegistryHandle,
+    compute_input_hash, AuditTrailHandle, ToolDescriptor, ToolDispatcher, ToolInvocationRecord,
+    ToolRegistryHandle,
 };
 
 /// Errors from tool invocation via the proxy.
@@ -42,6 +43,43 @@ pub trait ToolExecutor: Send + Sync {
         tool_name: &str,
         input: serde_json::Value,
     ) -> Result<serde_json::Value, String>;
+}
+
+/// Sync adapter that exposes an `apollia_tools::ToolDispatcher` through the
+/// [`ToolExecutor`] trait consumed by [`ToolProxy`].
+///
+/// Python agents use the sync [`ToolExecutor`] trait, while the dispatcher is
+/// async. This adapter bridges the two by calling `block_in_place` +
+/// `block_on` — we're always invoked from inside the Tokio runtime because
+/// `ToolProxy::call` runs on a PyO3-async future.
+///
+/// Per-agent instance: the wrapped dispatcher holds per-agent state
+/// (sandbox root, memory namespace, ask_user pending registry).
+pub struct DispatcherExecutor {
+    dispatcher: Arc<ToolDispatcher>,
+}
+
+impl DispatcherExecutor {
+    /// Wrap *dispatcher* in a sync [`ToolExecutor`] facade.
+    pub fn new(dispatcher: Arc<ToolDispatcher>) -> Self {
+        Self { dispatcher }
+    }
+}
+
+impl ToolExecutor for DispatcherExecutor {
+    fn execute(
+        &self,
+        tool_name: &str,
+        input: serde_json::Value,
+    ) -> Result<serde_json::Value, String> {
+        let dispatcher = Arc::clone(&self.dispatcher);
+        let name = tool_name.to_string();
+        tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current()
+                .block_on(async move { dispatcher.dispatch(&name, input).await })
+                .map_err(|e| e.to_string())
+        })
+    }
 }
 
 /// Converts a [`ToolDescriptor`] into a [`serde_json::Value`] for serialization to Python.

@@ -1719,6 +1719,22 @@ struct HitlInvokerParams {
 #[derive(Clone)]
 pub struct ChatSessionManagerHandle {
     tx: mpsc::Sender<ChatCommand>,
+    /// Shared `ask_user` request registry — cloned by chat agent runners so
+    /// their tool dispatcher can register an `AskUserExecutor` whose replies
+    /// are routed to this manager's background drainer task.
+    pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs,
+}
+
+impl ChatSessionManagerHandle {
+    /// Return a handle to the shared `ask_user` pending-input registry.
+    ///
+    /// Chat agent runners pass this to
+    /// [`apollia_tools::build_native_dispatcher`] so Python agents in Agent
+    /// mode can use the `ask_user` tool with the same HITL loop as the Libre
+    /// mode built-in agent.
+    pub fn pending_user_inputs(&self) -> apollia_tools::tools::ask_user::PendingUserInputs {
+        self.pending_user_inputs.clone()
+    }
 }
 
 impl ChatSessionManagerHandle {
@@ -1789,7 +1805,7 @@ impl ChatSessionManagerHandle {
         // When the `ask_user` executor posts a request, this task picks it up,
         // forwards the reply channel to the manager, and emits the event.
         {
-            let pending = pending_user_inputs;
+            let pending = pending_user_inputs.clone();
             let cmd_tx = tx.clone();
             tokio::spawn(async move {
                 loop {
@@ -1812,7 +1828,10 @@ impl ChatSessionManagerHandle {
             });
         }
 
-        Ok(Self { tx })
+        Ok(Self {
+            tx,
+            pending_user_inputs,
+        })
     }
 
     /// Create a new chat session.
