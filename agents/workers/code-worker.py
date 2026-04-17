@@ -116,6 +116,11 @@ def manifest() -> dict[str, Any]:
         "packages": [],
         "memory_namespace": "code-worker",
         "supports_a2a": True,
+        "step_budget": {
+            "max_steps": 40,
+            "max_tool_calls": 80,
+            "wall_clock_secs": 900,
+        },
         "skills": [
             {
                 "id": "generate-code",
@@ -206,7 +211,7 @@ class CodeWorkerAgent(WorkerAgent):
     """
 
     SYSTEM_PROMPT = SYSTEM_PROMPT
-    MAX_STEPS = 10
+    MAX_STEPS = 40
     TEMPERATURE = 0.1
 
     def manifest(self) -> dict[str, Any]:

@@ -4,7 +4,7 @@
 > Local-first. Zero cloud. One binary.
 
 [![CI](https://github.com/nidal-z/apollia-os/actions/workflows/ci.yml/badge.svg)](https://github.com/nidal-z/apollia-os/actions/workflows/ci.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](#license)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
 ---
 
@@ -516,4 +516,13 @@ Bug reports and feature requests: open a [GitHub issue](https://github.com/nidal
 
 ## License
 
-Licensed under the [Apache License, Version 2.0](LICENSE-APACHE).
+Apollia OS is dual-licensed under either of:
+
+- [Apache License, Version 2.0](LICENSE-APACHE)
+- [MIT License](LICENSE-MIT)
+
+at your option. This aligns with the de facto standard for the Rust ecosystem.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in this project, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.

@@ -19,9 +19,9 @@ Le StepBudget est appliqué par l'`ExecutionCoordinator` (Rust), pas par l'agent
 
 | Dimension | Défaut runtime | Override agent | Protection contre |
 |---|---|---|---|
-| `max_steps` | 10 | Oui, via manifest | Boucles infinies d'étapes de raisonnement |
-| `max_tool_calls` | 20 | Oui, via manifest | Spam d'appels d'outils |
-| `wall_clock_timeout_secs` | 300 (5 min) | Oui, via manifest | Tâches bloquées indéfiniment |
+| `max_steps` | 30 | Oui, via manifest | Boucles infinies d'étapes de raisonnement |
+| `max_tool_calls` | 60 | Oui, via manifest | Spam d'appels d'outils |
+| `wall_clock_timeout_secs` | 600 (10 min) | Oui, via manifest | Tâches bloquées indéfiniment |
 
 ### Comportement quand le budget est épuisé
 

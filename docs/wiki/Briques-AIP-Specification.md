@@ -40,9 +40,9 @@ def manifest(self):
         # Concurrence et budget
         "max_concurrent_tasks": 1,     # int — défaut: 1
         "step_budget": {               # dict | None — None = défauts runtime
-            "max_steps": 20,           # int — défaut runtime: 10
-            "max_tool_calls": 40,      # int — défaut runtime: 20
-            "wall_clock_timeout_secs": 300  # int — défaut runtime: 300
+            "max_steps": 40,           # int — défaut runtime: 30
+            "max_tool_calls": 80,      # int — défaut runtime: 60
+            "wall_clock_timeout_secs": 900  # int — défaut runtime: 600
         },
 
         # Réseau

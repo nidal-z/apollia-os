@@ -181,7 +181,7 @@ def _looks_like_broken_tool_call(text: str) -> bool:
 
 # Maximum iterations enforced at the Python level.
 # The Rust StepBudget is the authoritative hard limit.
-DEFAULT_MAX_STEPS: int = 10
+DEFAULT_MAX_STEPS: int = 30
 
 # Observations longer than this are truncated before being fed back to the LLM.
 OBSERVATION_TRUNCATE_CHARS: int = 2000

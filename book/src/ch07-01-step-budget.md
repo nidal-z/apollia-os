@@ -10,9 +10,9 @@ Un agent est limité simultanément sur trois axes indépendants :
 
 | Dimension | Défaut runtime | Override agent | Protection contre |
 |---|---|---|---|
-| `max_steps` | 10 | Oui, via manifest | Boucles infinies de raisonnement |
-| `max_tool_calls` | 20 | Oui, via manifest | Spam d'appels d'outils |
-| `wall_clock_timeout_secs` | 300 (5 min) | Oui, via manifest | Tâches bloquées indéfiniment |
+| `max_steps` | 30 | Oui, via manifest | Boucles infinies de raisonnement |
+| `max_tool_calls` | 60 | Oui, via manifest | Spam d'appels d'outils |
+| `wall_clock_timeout_secs` | 600 (10 min) | Oui, via manifest | Tâches bloquées indéfiniment |
 
 Les trois limites s'appliquent en parallèle. La première atteinte déclenche l'arrêt.
 
@@ -49,7 +49,7 @@ def manifest(self):
     }
 ```
 
-Si `step_budget` est absent du manifest, les valeurs par défaut du runtime s'appliquent (10 steps, 20 tool_calls, 300s).
+Si `step_budget` est absent du manifest, les valeurs par défaut du runtime s'appliquent (30 steps, 60 tool_calls, 600s).
 
 ---
 

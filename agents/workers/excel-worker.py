@@ -101,6 +101,11 @@ def manifest() -> dict[str, Any]:
         "packages": ["openpyxl>=3.1.0"],
         "memory_namespace": "excel-worker",
         "supports_a2a": True,
+        "step_budget": {
+            "max_steps": 30,
+            "max_tool_calls": 60,
+            "wall_clock_secs": 900,
+        },
         "skills": [
             {
                 "id": "read-excel",
@@ -140,7 +145,7 @@ class ExcelWorkerAgent(WorkerAgent):
     """
 
     SYSTEM_PROMPT = SYSTEM_PROMPT
-    MAX_STEPS = 8
+    MAX_STEPS = 30
     TEMPERATURE = 0.1
 
     def manifest(self) -> dict[str, Any]:

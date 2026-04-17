@@ -3,7 +3,7 @@ name = "apollia-tools"
 version = "0.1.0"
 edition = "2021"
 description = "Apollia OS — Tool Registry, native tools (bash, python, file_io, http, mcp), and Linux namespace sandbox"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 apollia-core        = { workspace = true }

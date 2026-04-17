@@ -1,0 +1,39 @@
+# Apollia OS — agent bundle manifest (ADR-074)
+# Source of truth pour les métadonnées statiques (indexation marketplace).
+# Le contrat AIP reste dicté par la fonction manifest() de agent.py.
+
+[agent]
+name = "review-assistant"
+version = "2.0.0"
+description = """\
+Consultant-style post-implementation reviewer. Reads the TaskSpec, retrieves \
+the diff, runs the stack-appropriate tests, and produces a structured \
+🟢/🟡/🔴 report. Stack-agnostic: discovers the project's tech stack and \
+rules before judging — never applies hard-coded language-specific heuristics.\
+"""
+license = "MIT OR Apache-2.0"
+authors = ["Nidal Zoumita <nidal.zoumita@gmail.com>"]
+tags = [
+    "review", "quality", "pipeline-dev",
+    "consultant", "agnostic", "post-impl",
+]
+
+[agent.manifest]
+agent_type = "assistant"
+execution_mode = "auto"
+tools_required = ["file_read", "bash_executor"]
+tools_optional = [
+    "file_write", "file_edit", "file_list", "file_grep",
+    "ask_user", "memory_search",
+]
+tools_requiring_approval = ["bash_executor"]
+memory_namespace = "review-assistant"
+supports_streaming = true
+supports_a2a = true
+
+[agent.runtime]
+python = ">=3.11,<3.14"
+apollia_sdk = ">=0.3,<0.4"
+
+[agent.dependencies]
+packages = []

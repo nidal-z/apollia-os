@@ -7,20 +7,20 @@ use serde::{Deserialize, Serialize};
 /// Un agent ne peut PAS dépasser les limites configurées dans apollia.toml.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepBudgetConfig {
-    /// Nombre maximum de steps ORIA (appels successifs à l'agent). Défaut: 10.
+    /// Nombre maximum de steps ORIA (appels successifs à l'agent). Défaut: 30.
     pub max_steps: u32,
-    /// Nombre maximum d'appels d'outils au total sur la tâche. Défaut: 20.
+    /// Nombre maximum d'appels d'outils au total sur la tâche. Défaut: 60.
     pub max_tool_calls: u32,
-    /// Durée maximum wall-clock en secondes. Défaut: 300 (5 minutes).
+    /// Durée maximum wall-clock en secondes. Défaut: 600 (10 minutes).
     pub wall_clock_secs: u64,
 }
 
 impl Default for StepBudgetConfig {
     fn default() -> Self {
         Self {
-            max_steps: 10,
-            max_tool_calls: 20,
-            wall_clock_secs: 300,
+            max_steps: 30,
+            max_tool_calls: 60,
+            wall_clock_secs: 600,
         }
     }
 }
@@ -33,9 +33,9 @@ impl StepBudgetConfig {
     /// Les limites sont donc plus généreuses que pour l'exécution ORIA.
     pub fn chat_default() -> Self {
         Self {
-            max_steps: 50,
-            max_tool_calls: 100,
-            wall_clock_secs: 600,
+            max_steps: 100,
+            max_tool_calls: 200,
+            wall_clock_secs: 1200,
         }
     }
 }
@@ -49,9 +49,9 @@ mod tests {
         // GIVEN / WHEN
         let budget = StepBudgetConfig::default();
         // THEN
-        assert_eq!(budget.max_steps, 10);
-        assert_eq!(budget.max_tool_calls, 20);
-        assert_eq!(budget.wall_clock_secs, 300);
+        assert_eq!(budget.max_steps, 30);
+        assert_eq!(budget.max_tool_calls, 60);
+        assert_eq!(budget.wall_clock_secs, 600);
     }
 
     #[test]

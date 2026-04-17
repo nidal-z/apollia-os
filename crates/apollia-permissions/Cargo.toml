@@ -3,7 +3,7 @@ name = "apollia-permissions"
 version = "0.1.0"
 edition = "2021"
 description = "Apollia OS — 3-layer permission engine (SafeList, PrefixRuleEngine, InjectionDetector)"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 apollia-core  = { workspace = true }

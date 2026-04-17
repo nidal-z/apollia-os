@@ -79,9 +79,9 @@ Au chapitre 2, vous avez utilisé `"step_budget": 10` — une syntaxe raccourcie
 
 ```python
 "step_budget": {
-    "max_steps": 20,                  # étapes (appels outils + appels LLM) — défaut runtime : 10
-    "max_tool_calls": 40,             # appels d'outils uniquement — défaut runtime : 20
-    "wall_clock_timeout_secs": 300,   # temps réel en secondes — défaut runtime : 300
+    "max_steps": 40,                  # étapes (appels outils + appels LLM) — défaut runtime : 30
+    "max_tool_calls": 80,             # appels d'outils uniquement — défaut runtime : 60
+    "wall_clock_timeout_secs": 900,   # temps réel en secondes — défaut runtime : 600
 },
 ```
 

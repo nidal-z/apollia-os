@@ -1,0 +1,38 @@
+# Apollia OS — agent bundle manifest (ADR-074)
+# Source of truth pour les métadonnées statiques (indexation marketplace).
+# Le contrat AIP reste dicté par la fonction manifest() de agent.py.
+
+[agent]
+name = "spec-assistant"
+version = "2.0.0"
+description = """\
+Consultant agent that turns any idea or fuzzy need into a structured, \
+actionable TaskSpec saved to `.apollia/tasks/`. Works like a senior IT \
+consultant: qualifies the need via batched questions, adapts to any stack \
+or domain, never invents requirements. Never generates code — first link of \
+the spec → dev → review pipeline.\
+"""
+license = "MIT OR Apache-2.0"
+authors = ["Nidal Zoumita <nidal.zoumita@gmail.com>"]
+tags = [
+    "conception", "specification", "pipeline-dev",
+    "taskspec", "no-code", "consultant", "agnostic",
+]
+
+[agent.manifest]
+# Reproduction statique — doit rester cohérent avec agent.py::manifest().
+agent_type = "assistant"
+execution_mode = "auto"
+tools_required = ["file_read", "file_write", "ask_user"]
+tools_optional = ["bash_executor", "file_list", "memory_search"]
+memory_namespace = "spec-assistant"
+supports_streaming = true
+supports_a2a = true
+
+[agent.runtime]
+python = ">=3.11,<3.14"
+apollia_sdk = ">=0.3,<0.4"
+
+[agent.dependencies]
+# v0.1.0 : informatif uniquement. v0.2+ : driver d'un venv per-agent (ADR-075).
+packages = []

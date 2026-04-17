@@ -3,7 +3,7 @@ name = "apollia-e2e-tests"
 version = "0.1.0"
 edition = "2021"
 publish = false
-license = "MIT"
+license = "MIT OR Apache-2.0"
 
 [features]
 # Gate Python-dependent tests behind this flag.

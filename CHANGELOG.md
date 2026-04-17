@@ -13,7 +13,7 @@ Versioning : [Semantic Versioning](https://semver.org/lang/fr/)
 
 ---
 
-## [0.1.0] — 2026-03 (en préparation)
+## [0.1.0] — 2026-04-27
 
 Premier release public. Runtime local complet, agent Python fonctionnel, CLI opérationnelle.
 

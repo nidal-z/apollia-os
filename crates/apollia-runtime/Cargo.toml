@@ -3,7 +3,7 @@ name = "apollia-runtime"
 version = "0.1.0"
 edition = "2021"
 description = "Apollia OS — Runtime Core (Supervisor, AgentRegistry, TaskRouter, EventBus, APIServer axum)"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 
 [features]
 default = ["cloud", "web-search", "brave-search", "web-read"]

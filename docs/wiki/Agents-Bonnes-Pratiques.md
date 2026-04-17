@@ -63,9 +63,9 @@ def manifest(self):
     return {
         "name": "research-agent",
         "step_budget": {
-            "max_steps": 30,            # plus que le défaut (10)
-            "max_tool_calls": 60,       # plus que le défaut (20)
-            "wall_clock_timeout_secs": 600  # 10 min plutôt que 5
+            "max_steps": 60,            # plus que le défaut (30)
+            "max_tool_calls": 120,      # plus que le défaut (60)
+            "wall_clock_timeout_secs": 1200  # 20 min plutôt que 10
         }
     }
 ```
