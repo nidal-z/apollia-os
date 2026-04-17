@@ -102,7 +102,8 @@ impl AgentChatExecutor {
             ));
         }
 
-        let task = session_to_task(session, user_message);
+        let mut task = session_to_task(session, user_message);
+        task.message_id = Some(message_id.to_string());
 
         let _ = self.event_bus.send(RuntimeEvent::ChatResponseStarted {
             session_id: session.id.clone(),
@@ -236,7 +237,7 @@ impl AgentChatExecutor {
                 };
 
                 let resume_result = self
-                    .resume_agent(result, session, user_message, agent_name)
+                    .resume_agent(result, session, user_message, message_id, agent_name)
                     .await?;
 
                 let content = extract_text_output(&resume_result);
@@ -252,6 +253,7 @@ impl AgentChatExecutor {
         original_result: &AIPResult,
         session: &ChatSession,
         user_message: &str,
+        message_id: &str,
         agent_name: &str,
     ) -> Result<AIPResult, ChatError> {
         let context = original_result
@@ -261,6 +263,7 @@ impl AgentChatExecutor {
             .unwrap_or(serde_json::Value::Null);
 
         let mut resume_task = session_to_task(session, user_message);
+        resume_task.message_id = Some(message_id.to_string());
         resume_task.is_resumed = true;
         resume_task.input_response = Some(InputResponseData {
             approved: true,
@@ -325,6 +328,7 @@ fn session_to_task(session: &ChatSession, user_message: &str) -> AIPTask {
         timeout_seconds: None,
         is_resumed: false,
         input_response: None,
+        message_id: None,
     }
 }
 

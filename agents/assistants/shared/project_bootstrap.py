@@ -142,10 +142,16 @@ class ProjectContextBootstrap(ContextBootstrap):
         """Return the current ``HEAD`` commit hash, or ``"no-git"``."""
         if ctx.tools is None:
             return "no-git"
-        result = await ctx.tools.call(
-            "bash_executor",
-            {"command": "git rev-parse HEAD 2>/dev/null || echo 'no-git'"},
-        )
+        try:
+            result = await ctx.tools.call(
+                "bash_executor",
+                {
+                    "command": "git rev-parse HEAD 2>/dev/null || echo 'no-git'",
+                    "timeout_secs": 5,
+                },
+            )
+        except Exception:
+            return "no-git"
         if result is None:
             return "no-git"
         raw = result.get("stdout", "no-git")

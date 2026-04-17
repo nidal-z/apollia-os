@@ -244,8 +244,17 @@ impl AgentRunner for BridgeRunner {
                 MemoryInterface::new(manager, eff_ns, agent_id.clone(), false, None)
             });
 
+            // Chat mode wiring: when the task carries a message_id, the
+            // runtime is invoked from the chat session manager — configure
+            // the context so `ctx.emit_token()` routes tokens back to the
+            // right SSE session.
+            let chat_target = task
+                .message_id
+                .clone()
+                .map(|mid| (task.context_id.clone(), mid));
+
             let ctx: PyObject = Python::with_gil(|py| {
-                let ctx = RuntimeContext::new_with_llm(
+                let mut ctx = RuntimeContext::new_with_llm(
                     llm_router,
                     Arc::new(StepBudgetView::unlimited()),
                     tool_helper,
@@ -262,6 +271,9 @@ impl AgentRunner for BridgeRunner {
                     None,  // a2a_invoker — not available in desktop backend
                     false, // user_memory_read_only — direct start, not A2A
                 );
+                if let Some((session_id, message_id)) = chat_target {
+                    ctx = ctx.with_chat_target(session_id, message_id);
+                }
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
                     .expect("RuntimeContext PyObject construction failed")

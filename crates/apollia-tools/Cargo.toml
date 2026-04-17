@@ -27,10 +27,15 @@ regex        = "1"
 reqwest        = { workspace = true, optional = true }
 url            = { version = "2", optional = true }
 apollia-memory = { workspace = true, optional = true }
+scraper        = { version = "0.26", optional = true }
+dom_smoothie   = { version = "0.17", optional = true }
 
 [features]
-default       = ["http"]
+default       = ["http", "web-search", "web-read", "brave-search"]
 http          = ["dep:reqwest", "dep:url"]
+web-search    = ["http", "dep:scraper"]
+brave-search  = ["web-search"]
+web-read      = ["http", "dep:dom_smoothie", "dep:scraper"]
 memory-search = ["dep:apollia-memory"]
 
 [dev-dependencies]

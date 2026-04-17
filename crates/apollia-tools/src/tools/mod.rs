@@ -16,6 +16,8 @@ pub mod file_write;
 pub mod http_fetch;
 #[cfg(feature = "memory-search")]
 pub mod memory_search;
+#[cfg(feature = "web-search")]
+pub mod web_search;
 pub mod notebook_edit;
 pub mod notebook_read;
 pub mod persistent_bash;

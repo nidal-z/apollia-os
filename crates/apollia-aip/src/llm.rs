@@ -9,13 +9,14 @@
 use std::sync::Arc;
 
 use futures::StreamExt;
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::exceptions::{PyRuntimeError, PyStopAsyncIteration, PyValueError};
 use pyo3::prelude::*;
+use tokio::sync::{mpsc, Mutex as AsyncMutex};
 
 use apollia_core::events::EventBusSender;
 use apollia_llm::{
     ChatMessage, CompletionRequest, LlmError, LlmRouter, MessageContent, ObservabilityConfig, Role,
-    StepBudgetView, ToolCallHelper, ToolSpec,
+    StepBudgetView, StreamChunk, ToolCallHelper, ToolSpec,
 };
 
 // ─────────────────────────────────────────────
@@ -378,6 +379,154 @@ impl LlmProxy {
                 .map_err(llm_err_to_py)?;
 
             Python::with_gil(|py| Ok(result.into_pyobject(py).unwrap().into_any().unbind()))
+        })
+    }
+
+    /// Appel LLM en mode streaming — retourne un async iterator de chunks texte.
+    ///
+    /// Contrairement à `stream()` (qui collecte tous les chunks et renvoie
+    /// une `list[str]`), cette méthode renvoie un `PyTokenStream` qui
+    /// implémente le protocole d'itération asynchrone Python (`__aiter__`
+    /// + `__anext__`). Chaque token est yieldé dès qu'il arrive du
+    /// backend, ce qui permet d'émettre des events `ChatToken` en temps
+    /// réel côté agent.
+    ///
+    /// # Exemple Python
+    /// ```python
+    /// async for chunk in ctx.llm.stream_complete(messages):
+    ///     buffer += chunk
+    ///     await ctx.emit_token(chunk)  # route to frontend
+    /// ```
+    #[pyo3(signature = (messages, backend = None))]
+    fn stream_complete<'py>(
+        &self,
+        py: Python<'py>,
+        messages: Vec<PyObject>,
+        backend: Option<String>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let chat_messages = messages
+            .iter()
+            .map(|obj| py_dict_to_chat_message(py, obj))
+            .collect::<PyResult<Vec<_>>>()?;
+
+        let router = Arc::clone(&self.router);
+        let obs = Arc::clone(&self.obs_config);
+        let bus = self.event_bus.clone();
+
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let (tx, rx) = mpsc::unbounded_channel::<Result<String, LlmError>>();
+
+            // Background task : streame depuis le backend et forward sur tx.
+            tokio::spawn(async move {
+                let backend_key = backend.as_deref();
+                let backend_model = router.get(backend_key);
+
+                match backend_model {
+                    Some(model) => {
+                        let req = CompletionRequest {
+                            messages: chat_messages.clone(),
+                            ..Default::default()
+                        };
+                        match model.stream(req).await {
+                            Ok(mut stream) => {
+                                while let Some(chunk) = stream.next().await {
+                                    match chunk {
+                                        Ok(StreamChunk::Text(text)) => {
+                                            if tx.send(Ok(text)).is_err() {
+                                                break;
+                                            }
+                                        }
+                                        Ok(StreamChunk::ToolCall(_)) => {
+                                            // Tool calls within stream not surfaced
+                                            // to Python — assistants parse JSON
+                                            // from the accumulated text.
+                                        }
+                                        Err(e) => {
+                                            let _ = tx.send(Err(e));
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            // Fallback : backend ne supporte pas stream()
+                            // → appel complete() et forward en un seul chunk.
+                            Err(_) => {
+                                let fallback_req = CompletionRequest {
+                                    messages: chat_messages,
+                                    ..Default::default()
+                                };
+                                match router
+                                    .complete_with_observability(
+                                        backend_key,
+                                        fallback_req,
+                                        bus.as_ref(),
+                                        &obs,
+                                    )
+                                    .await
+                                {
+                                    Ok(resp) => {
+                                        let _ = tx.send(Ok(resp.content));
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Err(e));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    None => {
+                        let _ = tx.send(Err(LlmError::BackendUnavailable {
+                            backend: backend_key.unwrap_or("(default)").to_string(),
+                            reason: "no matching backend".to_string(),
+                        }));
+                    }
+                }
+                // Le drop de tx ferme le channel → __anext__ lève
+                // PyStopAsyncIteration.
+            });
+
+            Python::with_gil(|py| {
+                let stream = PyTokenStream {
+                    rx: Arc::new(AsyncMutex::new(rx)),
+                };
+                Py::new(py, stream).map(|p| p.into_any())
+            })
+        })
+    }
+}
+
+// ─────────────────────────────────────────────
+// PyTokenStream — async iterator Python exposant un stream LLM chunk-par-chunk
+// ─────────────────────────────────────────────
+
+/// Async iterator Python qui yield des chunks texte d'un appel LLM streamé.
+///
+/// Implémente le protocole `__aiter__` + `__anext__`. Lève
+/// `StopAsyncIteration` quand le stream est épuisé, `RuntimeError` sur
+/// erreur backend.
+#[pyclass(name = "TokenStream")]
+pub struct PyTokenStream {
+    rx: Arc<AsyncMutex<mpsc::UnboundedReceiver<Result<String, LlmError>>>>,
+}
+
+#[pymethods]
+impl PyTokenStream {
+    fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __anext__<'py>(
+        slf: PyRef<'py, Self>,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let rx = Arc::clone(&slf.rx);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let mut guard = rx.lock().await;
+            match guard.recv().await {
+                Some(Ok(chunk)) => Ok(chunk),
+                Some(Err(e)) => Err(PyRuntimeError::new_err(e.to_string())),
+                None => Err(PyStopAsyncIteration::new_err("stream exhausted")),
+            }
         })
     }
 }

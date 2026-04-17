@@ -8,7 +8,7 @@ Rust and are injected at runtime via PyO3.
 
 from __future__ import annotations
 
-from typing import Awaitable
+from typing import AsyncIterator, Awaitable
 
 
 class TokenUsage:
@@ -96,6 +96,28 @@ class LlmProxy:
 
         Falls back to a single ``complete()`` call if the backend does
         not support streaming natively.
+
+        Legacy API: chunks are buffered server-side and returned as a
+        list.  Prefer ``stream_complete()`` for real token-by-token
+        streaming in the ReAct loop.
+        """
+        ...
+
+    def stream_complete(
+        self,
+        messages: list[dict[str, object]],
+        backend: str | None = None,
+    ) -> Awaitable[AsyncIterator[str]]:
+        """Streaming LLM call returning an async iterator of chunks.
+
+        Each chunk is yielded as soon as it arrives from the backend,
+        enabling the ReAct loop to emit `ChatToken` events in real time.
+
+        Example::
+
+            async for chunk in await ctx.llm.stream_complete(messages):
+                buffer += chunk
+                await ctx.emit_token(chunk)
         """
         ...
 

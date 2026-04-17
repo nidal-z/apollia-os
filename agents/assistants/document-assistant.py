@@ -1,70 +1,46 @@
-"""document-assistant — Generalist document processing assistant for Apollia OS.
+"""document-assistant — Consultant agent for document processing.
 
-Routes natural-language requests about files (Excel, CSV, PDF, SQLite) to
-specialized workers via A2A and returns results in plain business language.
-No technical jargon is ever exposed to the user.
+Routes natural-language requests about files (Excel, CSV, PDF, SQLite, …) to
+specialized workers via A2A and returns results in clear business language —
+no technical jargon exposed to the user.
 
 Position in the architecture::
 
     User (any profile)
       └── document-assistant
-            ├── A2A → excel-worker      (.xlsx, .xlsm, .xls)
-            ├── A2A → csv-data-worker   (.csv, .tsv)
-            ├── A2A → pdf-worker        (.pdf)
-            └── A2A → sql-worker        (.sqlite, .sqlite3, .db)
+            ├── A2A → excel-worker      (read-excel, analyze-excel, edit-excel)
+            ├── A2A → csv-data-worker   (read-csv, analyze-csv, transform-csv)
+            ├── A2A → pdf-worker        (read-pdf, extract-text, extract-tables)
+            └── A2A → sql-worker        (query-sql, schema-inspect, data-export)
 
-Tools required  : file_read
-Tools optional  : bash_executor
-A2A             : excel-worker, csv-data-worker, pdf-worker, sql-worker
+Fonctionnement
+--------------
+Agent ReAct agnostique. Le LLM lit le message, détermine le fichier concerné,
+choisit le bon outil A2A (``a2a:analyze-excel``, ``a2a:read-pdf``, etc.), et
+reformule le résultat en langage métier. Si le chemin du fichier manque, il
+appelle ``ask_user`` plutôt que de deviner.
+
+Outils requis : file_read, ask_user
+Outils optionnels : bash_executor, file_list, + tous les skills a2a:*
 """
 
 from __future__ import annotations
 
 import json
-import re
 import time
-from pathlib import Path
 from typing import Any
 
-from apollia.agents import AIPResult, ConversationalAgent
+from apollia.agents import AIPResult, BaseReActAgent
 from apollia.bootstrap import ContextBootstrap
+from apollia.utils.hitl import resume_pending_tool
 
 
 # ---------------------------------------------------------------------------
-# Routing tables
-# ---------------------------------------------------------------------------
-
-ROUTING_TABLE: dict[str, str] = {
-    ".xlsx": "excel-worker",
-    ".xlsm": "excel-worker",
-    ".xls": "excel-worker",
-    ".csv": "csv-data-worker",
-    ".tsv": "csv-data-worker",
-    ".pdf": "pdf-worker",
-    ".sqlite": "sql-worker",
-    ".sqlite3": "sql-worker",
-    ".db": "sql-worker",
-}
-
-# Each entry: (keywords, worker). Checked in order; first match wins.
-_KEYWORD_ROUTING: tuple[tuple[tuple[str, ...], str], ...] = (
-    (("excel", "tableur", "feuille", "spreadsheet", "workbook"), "excel-worker"),
-    (("csv", "séparateur", "virgule", "tsv"), "csv-data-worker"),
-    (("pdf", "rapport", "document"), "pdf-worker"),
-    (("sql", "database", "query", "requête", "sqlite"), "sql-worker"),
-)
-
-
-# ---------------------------------------------------------------------------
-# Memory keys
+# Memory keys (legacy — kept for snapshot compatibility)
 # ---------------------------------------------------------------------------
 
 MEMORY_KEY_FORMAT_PREF: str = "user_format_pref"
 MEMORY_KEY_RECENT_FILES: str = "recent_files"
-
-_MEMORY_SOURCE: str = "document-assistant"
-_MEMORY_CONFIDENCE: float = 0.8
-_MAX_RECENT_FILES: int = 10
 
 
 # ---------------------------------------------------------------------------
@@ -76,22 +52,12 @@ class DocumentContextBootstrap(ContextBootstrap):
     """Bootstrap for document-assistant.
 
     Discovers the user's document processing profile: format preferences,
-    recently analysed files, and available A2A workers.  Unlike the
+    recently analysed files, and available A2A workers. Unlike the
     development-domain agents, staleness is timestamp-based (7 days max)
     because document-assistant does not operate on a git repository.
 
-    Snapshot structure::
-
-        {
-            "last_scan_ts": str,            # epoch timestamp (staleness marker)
-            "format_preferences": dict,     # persisted output format preferences
-            "recent_files": list[str],      # recently analysed file paths
-            "available_workers": list[str]  # A2A workers active at last bootstrap
-        }
-
-    Legacy memory keys ``user_format_pref`` and ``recent_files`` are read
-    during bootstrap and migrated into the snapshot.  The original keys are
-    kept in memory for backward compatibility.
+    The snapshot is a perf cache — the LLM is free to ignore it and ask
+    clarifying questions instead.
     """
 
     _MAX_AGE_SECS: int = 7 * 24 * 3600  # 7 days
@@ -109,24 +75,28 @@ class DocumentContextBootstrap(ContextBootstrap):
         return (time.time() - last) > self._MAX_AGE_SECS
 
     async def run_bootstrap(self, ctx: Any) -> dict[str, Any]:
-        """Discover document processing profile and persist the snapshot.
-
-        Reads legacy memory keys (``user_format_pref``, ``recent_files``),
-        lists available A2A workers, and persists everything as a snapshot.
-        Legacy keys are intentionally not deleted for backward compatibility.
-        """
+        """Discover document processing profile and persist the snapshot."""
         snapshot: dict[str, Any] = {}
         now_ts = str(time.time())
 
-        # Format preferences (legacy key migration)
-        fmt_raw = await ctx.memory.recall(MEMORY_KEY_FORMAT_PREF) if ctx.memory else None
-        snapshot["format_preferences"] = json.loads(fmt_raw) if fmt_raw else {}
+        fmt_raw = (
+            await ctx.memory.recall(MEMORY_KEY_FORMAT_PREF)
+            if ctx.memory
+            else None
+        )
+        snapshot["format_preferences"] = (
+            json.loads(fmt_raw) if fmt_raw else {}
+        )
 
-        # Recent files (legacy key migration)
-        recent_raw = await ctx.memory.recall(MEMORY_KEY_RECENT_FILES) if ctx.memory else None
-        snapshot["recent_files"] = json.loads(recent_raw) if recent_raw else []
+        recent_raw = (
+            await ctx.memory.recall(MEMORY_KEY_RECENT_FILES)
+            if ctx.memory
+            else None
+        )
+        snapshot["recent_files"] = (
+            json.loads(recent_raw) if recent_raw else []
+        )
 
-        # Available A2A workers
         workers: list[str] = []
         try:
             skills = await ctx.a2a_list_skills()
@@ -136,86 +106,19 @@ class DocumentContextBootstrap(ContextBootstrap):
         snapshot["available_workers"] = workers
 
         await self.persist(
-            ctx, snapshot, staleness_marker=now_ts, source="bootstrap:document"
+            ctx, snapshot,
+            staleness_marker=now_ts,
+            source="bootstrap:document",
         )
         return snapshot
 
 
 # ---------------------------------------------------------------------------
-# File path extraction
+# Error humanization (kept — used when an A2A call fails)
 # ---------------------------------------------------------------------------
 
-# Matches bare filenames and paths with supported document extensions.
-_FILE_PATH_RE: re.Pattern[str] = re.compile(
-    r"""['""]?(?:[\w./\\-]+/)?[\w.-]+\.(?:xlsx|xlsm|xls|csv|tsv|pdf|sqlite|sqlite3|db)['""]?""",
-    re.IGNORECASE,
-)
 
-
-def _extract_file_paths(text: str) -> list[str]:
-    """Extract all document file paths mentioned in *text*.
-
-    Returns a deduplicated list in order of first appearance, stripping
-    surrounding quotes when present.
-    """
-    seen: set[str] = set()
-    paths: list[str] = []
-    for raw in _FILE_PATH_RE.findall(text):
-        path = raw.strip("'\"")
-        if path not in seen:
-            paths.append(path)
-            seen.add(path)
-    return paths
-
-
-# ---------------------------------------------------------------------------
-# Routing helpers
-# ---------------------------------------------------------------------------
-
-def _route_by_extension(file_path: str) -> str | None:
-    """Return the worker name for *file_path* based on its extension.
-
-    Returns ``None`` when the extension is not in :data:`ROUTING_TABLE`.
-    """
-    suffix = Path(file_path).suffix.lower()
-    return ROUTING_TABLE.get(suffix)
-
-
-def _route_by_keywords(text: str) -> str | None:
-    """Return the worker name suggested by keywords in *text*.
-
-    Scans :data:`_KEYWORD_ROUTING` in order and returns the first match.
-    Returns ``None`` when no keyword matches.
-    """
-    lower = text.lower()
-    for keywords, worker in _KEYWORD_ROUTING:
-        if any(kw in lower for kw in keywords):
-            return worker
-    return None
-
-
-# ---------------------------------------------------------------------------
-# Instruction building
-# ---------------------------------------------------------------------------
-
-def _build_worker_instruction(user_request: str, file_path: str) -> str:
-    """Build a precise, structured instruction for the target worker.
-
-    The instruction includes the file path and the original user request
-    so the worker has full context without needing to parse conversation history.
-    """
-    return (
-        f"File: {file_path}\n"
-        f"Request: {user_request}\n"
-        f"Reply with the data extracted from the file."
-    )
-
-
-# ---------------------------------------------------------------------------
-# Error humanization
-# ---------------------------------------------------------------------------
-
-def _humanize_error(error: Exception, file_path: str) -> str:
+def _humanize_error(error: Exception | str, file_path: str) -> str:
     """Translate a technical worker exception into a user-readable message.
 
     Maps common error patterns to friendly, actionable explanations.
@@ -226,157 +129,151 @@ def _humanize_error(error: Exception, file_path: str) -> str:
     if "column" in error_str:
         return (
             f"The requested column does not exist in **{file_path}**. "
-            f"Specify the exact column name (case-sensitive)."
+            "Specify the exact column name (case-sensitive)."
         )
     if "no such file" in error_str or "not found" in error_str:
         return (
             f"File **{file_path}** not found. "
-            f"Check that the path is correct and the file is in your workspace."
+            "Check that the path is correct and the file is in your workspace."
         )
     if "corrupt" in error_str or "invalid" in error_str:
         return (
-            f"File **{file_path}** appears corrupted or in an unsupported format. "
-            f"Try opening it in its native application to verify its integrity."
+            f"File **{file_path}** appears corrupted or in an unsupported "
+            "format. Try opening it in its native application to verify its "
+            "integrity."
         )
     if "permission" in error_str or "access" in error_str:
         return (
             f"Access denied to **{file_path}**. "
-            f"Check that the file is not open in another application."
+            "Check that the file is not open in another application."
         )
     return (
         f"An error occurred while processing **{file_path}**. "
-        f"Please retry or verify the file is valid."
+        "Please retry or verify the file is valid."
     )
 
 
 # ---------------------------------------------------------------------------
-# Response formatting
+# System prompt
 # ---------------------------------------------------------------------------
 
-def _format_worker_result(result: dict[str, Any], file_path: str) -> str:
-    """Extract the worker output and return it as a clean string.
+_SYSTEM_PROMPT_TEMPLATE: str = """\
+You are **document-assistant**, Apollia OS's generalist document processing \
+assistant.
 
-    Handles different output shapes (``output``, ``result``, ``text`` keys)
-    and list values. Falls back to a neutral message when the result is empty.
-    """
-    output: Any = result.get("output") or result.get("result") or result.get("text", "")
-    if isinstance(output, list):
-        output = "\n".join(str(item) for item in output)
-    text = str(output).strip()
-    if not text:
-        return f"The worker processed **{file_path}** but returned no result."
-    return text
+You help users extract, analyse, and understand documents — Excel workbooks, \
+CSV files, PDFs, SQLite databases — by delegating the actual heavy lifting \
+to specialised workers via A2A. You yourself never open or parse files; you \
+pick the right worker and translate the result into plain business language.
+
+## Absolute constraints
+
+1. **You never read or parse document files directly.** Always delegate to \
+   an A2A worker. `file_read` is for small text companion files only (notes, \
+   schemas), never for `.xlsx`/`.csv`/`.pdf`/`.sqlite`.
+2. **No technical jargon.** Never mention pandas, openpyxl, pdfplumber, \
+   SQL internals, stack traces, class names. Translate everything into \
+   plain user-facing language.
+3. **All data stays on the user's machine** — don't propose uploading files \
+   anywhere.
+
+## Routing guide (which A2A skill for which file)
+
+- `.xlsx`, `.xlsm`, `.xls` → `a2a:read-excel`, `a2a:analyze-excel`, or \
+  `a2a:edit-excel` depending on intent.
+- `.csv`, `.tsv` → `a2a:read-csv`, `a2a:analyze-csv`, or \
+  `a2a:transform-csv`.
+- `.pdf` → `a2a:read-pdf`, `a2a:extract-text`, or `a2a:extract-tables`.
+- `.sqlite`, `.sqlite3`, `.db` → `a2a:query-sql`, `a2a:schema-inspect`, \
+  or `a2a:data-export`.
+
+For other formats: check `available_workers` below, or ask the user how \
+they'd like to proceed.
+
+## Workflow
+
+1. **Read the user's message.** Identify the file path(s) and the intent \
+   (read, analyse, extract, transform, edit).
+2. **If the file path is missing or ambiguous**, call `ask_user` with one \
+   precise question. Do not guess.
+3. **Pick the right A2A skill** from the routing guide. If the intent is \
+   analytical ("give me totals", "top 10", "summarise"), prefer the \
+   `analyze-*` / `extract-*` skills over raw `read-*`.
+4. **Call the A2A tool** with a clear task payload: include the file path \
+   and the user's original request. Example payload: \
+   `{{"task": "Sum the Revenue column grouped by Region.", "file": \
+   "ventes.xlsx"}}`.
+5. **Translate the worker's output** into clear business language. Strip \
+   technical jargon. If the user has a format preference (see below), \
+   respect it (table, bullet list, prose, summary).
+6. **On failure**, translate the error into a friendly message \
+   (file not found, column not in file, corrupted file…) — never expose \
+   the raw exception.
+
+## What you never do
+
+- Never parse an `.xlsx`/`.csv`/`.pdf`/`.sqlite` file yourself.
+- Never return code, SQL queries, or pandas expressions.
+- Never mention the implementation worker names to the user (they care \
+  about the *result*, not the *how*).
+
+## User profile
+
+{profile_section}
+
+## Available A2A workers (detected at session start)
+
+{workers_section}
+
+## Language
+
+Always respond in the same language as the user's message.
+"""
 
 
-def _format_combined_response(
-    results: list[tuple[str, str]],
+def _build_system_prompt(
+    format_preferences: dict[str, Any],
+    recent_files: list[str],
+    available_workers: list[str],
 ) -> str:
-    """Combine multiple worker outputs into a single cohesive response.
-
-    *results* is an ordered list of ``(file_path, formatted_output)`` pairs.
-    Single-file results are returned as-is without wrapping.
-    """
-    if len(results) == 1:
-        return results[0][1]
-
-    parts: list[str] = []
-    for file_path, output in results:
-        parts.append(f"**{file_path}**\n\n{output}")
-
-    header = "Here are the results for each file:\n\n"
-    return header + "\n\n---\n\n".join(parts)
-
-
-# ---------------------------------------------------------------------------
-# Memory helpers
-# ---------------------------------------------------------------------------
-
-async def _load_recent_files(ctx: Any) -> list[str]:
-    """Load the list of recently analysed files from semantic memory."""
-    if ctx.memory is None:
-        return []
-    raw = await ctx.memory.recall(MEMORY_KEY_RECENT_FILES)
-    if not raw:
-        return []
-    try:
-        parsed = json.loads(raw)
-        return parsed if isinstance(parsed, list) else []
-    except (json.JSONDecodeError, TypeError):
-        return []
-
-
-async def _save_recent_files(ctx: Any, new_files: list[str]) -> None:
-    """Merge *new_files* into the persisted recent files list.
-
-    Deduplicates and caps the list at :data:`_MAX_RECENT_FILES` entries,
-    keeping the most recently accessed files first.
-    """
-    if ctx.memory is None:
-        return
-    current = await _load_recent_files(ctx)
-    merged: list[str] = []
-    seen: set[str] = set()
-    for path in new_files + current:
-        if path not in seen:
-            merged.append(path)
-            seen.add(path)
-    await ctx.memory.remember(
-        key=MEMORY_KEY_RECENT_FILES,
-        value=json.dumps(merged[:_MAX_RECENT_FILES]),
-        source=_MEMORY_SOURCE,
-        confidence=_MEMORY_CONFIDENCE,
+    """Compose the document-assistant system prompt from the snapshot."""
+    profile_parts: list[str] = []
+    if format_preferences:
+        prefs = ", ".join(
+            f"{k}={v}" for k, v in sorted(format_preferences.items())
+        )
+        profile_parts.append(f"**Format preferences:** {prefs}")
+    if recent_files:
+        recent_str = "\n".join(f"- `{f}`" for f in recent_files[:10])
+        profile_parts.append(
+            f"**Recently analysed files** (helpful if the user refers to "
+            f"one without naming it):\n{recent_str}"
+        )
+    profile_section = (
+        "\n\n".join(profile_parts)
+        if profile_parts
+        else "No prior profile yet — adapt to what the user says."
     )
 
+    if available_workers:
+        workers_str = "\n".join(f"- `{w}`" for w in sorted(available_workers))
+        workers_section = (
+            f"Workers available right now in this runtime:\n{workers_str}\n\n"
+            "If the user needs a format whose worker is not in this list, "
+            "tell them which worker to install."
+        )
+    else:
+        workers_section = (
+            "No workers detected yet — the available list may become "
+            "populated later. If an `a2a:*` tool call fails with a "
+            "'no active agent' error, tell the user which worker to "
+            "install (excel-worker, csv-data-worker, pdf-worker, sql-worker)."
+        )
 
-async def _load_format_pref(ctx: Any) -> str | None:
-    """Return the persisted output format preference, or ``None`` if absent."""
-    if ctx.memory is None:
-        return None
-    return await ctx.memory.recall(MEMORY_KEY_FORMAT_PREF)
-
-
-async def _save_format_pref(ctx: Any, pref: str) -> None:
-    """Persist the detected or requested output format preference."""
-    if ctx.memory is None:
-        return
-    await ctx.memory.remember(
-        key=MEMORY_KEY_FORMAT_PREF,
-        value=pref,
-        source=_MEMORY_SOURCE,
-        confidence=_MEMORY_CONFIDENCE,
+    return _SYSTEM_PROMPT_TEMPLATE.format(
+        profile_section=profile_section,
+        workers_section=workers_section,
     )
-
-
-# ---------------------------------------------------------------------------
-# Format preference detection
-# ---------------------------------------------------------------------------
-
-_FORMAT_PREF_RE: re.Pattern[str] = re.compile(
-    r"\b(tableau|table|bullet|liste|prose|résumé|summary)\b",
-    re.IGNORECASE,
-)
-
-_FORMAT_PREF_MAP: dict[str, str] = {
-    "tableau": "table",
-    "table": "table",
-    "bullet": "bullet",
-    "liste": "bullet",
-    "prose": "prose",
-    "résumé": "summary",
-    "summary": "summary",
-}
-
-
-def _detect_format_pref(text: str) -> str | None:
-    """Detect an explicit output format preference in *text*.
-
-    Returns a normalised format name (``"table"``, ``"bullet"``,
-    ``"prose"``, ``"summary"``), or ``None`` when not detected.
-    """
-    match = _FORMAT_PREF_RE.search(text)
-    if match:
-        return _FORMAT_PREF_MAP.get(match.group(1).lower())
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -384,15 +281,11 @@ def _detect_format_pref(text: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 def _extract_task_input(task: Any) -> tuple[str, list[dict[str, str]]]:
-    """Extract the user message text and conversation history from *task*.
-
-    Supports both dict-style (test / API format) and attribute-style
-    (PyO3 runtime format) task objects.
-    """
+    """Extract the user message text and conversation history from *task*."""
     task_input = (
-        task.get("input") if isinstance(task, dict) else getattr(task, "input", None)
+        task.get("input") if isinstance(task, dict)
+        else getattr(task, "input", None)
     )
-
     if task_input is None:
         return "", []
 
@@ -436,51 +329,59 @@ def _extract_task_input(task: Any) -> tuple[str, list[dict[str, str]]]:
 
 
 # ---------------------------------------------------------------------------
-# System prompts
-# ---------------------------------------------------------------------------
-
-_SYSTEM_PROMPT: str = """\
-You are **document-assistant**, Apollia OS's generalist document processing assistant.
-
-You process Excel, CSV, PDF files and SQLite databases by delegating to specialized \
-workers. You present results in clear business language with no technical jargon.
-
-## Absolute constraints
-
-1. You NEVER read a file directly — you always delegate to the appropriate worker.
-2. You ask at most ONE clarifying question when the request is ambiguous.
-3. You never mention pandas, openpyxl, pdfplumber or any implementation detail.
-4. All data stays on the user's machine.
-
-Always respond in the same language as the user's message.\
-"""
-
-
-# ---------------------------------------------------------------------------
-# Module-level manifest function (AIP contract)
+# Manifest
 # ---------------------------------------------------------------------------
 
 def manifest() -> dict[str, Any]:
     """Return the AIP manifest of document-assistant."""
     return {
         "name": "document-assistant",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "description": (
-            "Assistant de traitement de documents : analyse Excel, CSV, PDF et bases de données "
-            "en langage naturel. Délègue aux workers spécialisés via A2A. "
-            "Conçu pour tous les profils — aucune compétence technique requise. "
-            "Répond en langage métier clair, sans jargon Python ou SQL."
+            "Consultant agent for document processing — Excel, CSV, PDF, "
+            "SQLite. Identifies the right specialised worker via A2A and "
+            "translates results into plain business language. Designed for "
+            "any profile — no technical skill required. Stack-agnostic: "
+            "asks the user when the format is unknown."
         ),
         "execution_mode": "auto",
         "agent_type": "assistant",
-        "tools_required": ["file_read"],
-        "tools_optional": ["bash_executor"],
+        "tools_required": ["file_read", "ask_user"],
+        "tools_optional": [
+            "bash_executor",
+            "file_list",
+            # Excel
+            "a2a:read-excel",
+            "a2a:analyze-excel",
+            "a2a:edit-excel",
+            # CSV
+            "a2a:read-csv",
+            "a2a:analyze-csv",
+            "a2a:transform-csv",
+            # PDF
+            "a2a:read-pdf",
+            "a2a:extract-text",
+            "a2a:extract-tables",
+            # SQL
+            "a2a:query-sql",
+            "a2a:schema-inspect",
+            "a2a:data-export",
+        ],
+        "tools_requiring_approval": [],
         "packages": [],
         "memory_namespace": "document-assistant",
+        "llm_backend": "precise",
         "supports_streaming": True,
         "supports_a2a": True,
-        "step_budget": {"max_steps": 50, "max_tool_calls": 40, "wall_clock_secs": 600},
-        "tags": ["documents", "data", "excel", "csv", "pdf", "sql", "généraliste", "métier"],
+        "step_budget": {
+            "max_steps": 40,
+            "max_tool_calls": 30,
+            "wall_clock_secs": 600,
+        },
+        "tags": [
+            "documents", "data", "excel", "csv", "pdf", "sql",
+            "généraliste", "métier", "consultant", "a2a-orchestrator",
+        ],
         "max_concurrent_tasks": 3,
         "dangerous_tools_allowed": False,
         "examples": [
@@ -488,40 +389,42 @@ def manifest() -> dict[str, Any]:
             "Résume ce rapport PDF en 5 points clés",
             "Compare les colonnes Revenu et Dépenses du fichier ventes.csv",
             "Quelles sont les 10 commandes les plus rentables dans ma base clients.sqlite ?",
-            "Quelles sont les 5 catégories qui ont le plus progressé ce trimestre dans ventes-2026.xlsx ?",
         ],
         "limitations": [
-            "Ne lit jamais les fichiers directement — délègue toujours aux workers spécialisés via A2A",
-            "Requiert qu'au moins un worker document soit installé et actif",
-            "La taille maximale des fichiers est limitée par la configuration des workers sous-jacents",
-            "Ne présente jamais de code Python, de traces d'erreur ou de jargon technique — traduit "
-            "toujours les erreurs workers en message métier compréhensible",
-            "Ne suppose jamais l'emplacement d'un fichier — demande le chemin si non précisé",
+            "Ne lit jamais les fichiers documents directement — délègue "
+            "toujours aux workers spécialisés via A2A.",
+            "Requiert qu'au moins un worker document soit installé et actif "
+            "pour traiter le format demandé.",
+            "Ne présente jamais de code ou de jargon technique — traduit les "
+            "erreurs workers en message métier.",
         ],
         "setup_notes": (
-            "Conçu pour les profils non-développeurs (comptable, analyste, juriste, chef de projet) "
-            "qui travaillent avec des fichiers sans connaître le fonctionnement technique des workers. "
-            "Nécessite au moins un worker document installé et actif : excel-worker (.xlsx/.xls), "
-            "csv-data-worker (.csv/.tsv), pdf-worker (.pdf) ou sql-worker (.sqlite/.db). "
-            "Sans worker actif, l'assistant signale clairement l'indisponibilité et indique lequel "
-            "installer. Chaque worker peut être installé séparément selon les formats utilisés. "
-            "Mémorise les préférences de format de l'utilisateur (tableau, liste, synthèse) "
-            "pour les sessions suivantes."
+            "Conçu pour les profils non-développeurs (comptable, analyste, "
+            "juriste, chef de projet) qui travaillent avec des fichiers "
+            "sans connaître leur fonctionnement technique. Nécessite au "
+            "moins un worker document installé et actif : excel-worker, "
+            "csv-data-worker, pdf-worker ou sql-worker. Sans worker actif "
+            "pour le format demandé, l'assistant signale clairement "
+            "l'indisponibilité et indique lequel installer."
         ),
         "skills": [
             {
-                "id": "analyze",
+                "id": "analyze-document",
                 "name": "Analyser un document",
                 "description": (
-                    "Analyse un fichier (Excel, CSV, PDF, SQLite) en réponse à une demande "
-                    "en langage naturel. Retourne les résultats en langage métier."
+                    "Analyse un fichier (Excel, CSV, PDF, SQLite) en "
+                    "réponse à une demande en langage naturel. Retourne les "
+                    "résultats en langage métier."
                 ),
                 "input_modes": ["text"],
                 "output_modes": ["text"],
                 "input_schema": {
                     "request": {
                         "type": "string",
-                        "description": "Question ou demande en langage naturel sur le fichier",
+                        "description": (
+                            "Question ou demande en langage naturel sur le "
+                            "fichier"
+                        ),
                         "required": True,
                     },
                     "file": {
@@ -539,32 +442,21 @@ def manifest() -> dict[str, Any]:
 # Agent
 # ---------------------------------------------------------------------------
 
-class DocumentAssistant(ConversationalAgent):
-    """Generalist document processing assistant for Apollia OS.
 
-    Identifies the appropriate specialized worker from the file extension in
-    the user request, delegates the analysis via A2A, and returns the results
-    in clear business language — without exposing any technical implementation
-    detail to the user.
+class DocumentAssistant(BaseReActAgent):
+    """Consultant agent for document processing.
 
-    Uses ``DocumentContextBootstrap`` to persist the user's document
-    processing profile (format preferences, recent files, available A2A
-    workers) in semantic memory.  On session N+1, the snapshot is reloaded
-    without re-scanning.
-
-    Workflow per ``run()`` call:
-
-    1. Bootstrap document profile (first turn) or reload snapshot.
-    2. Extract the user message.
-    3. Find document file paths in the message and map each to a worker.
-    4. When no file path is identified, ask a single clarifying question.
-    5. Call each worker sequentially via ``ctx.a2a.call()``.
-    6. Humanize any worker errors; combine multi-file results into one response.
-    7. Persist analysed file paths in semantic memory for session continuity.
+    Routes requests to specialised workers via A2A and surfaces results in
+    plain business language. No regex routing, no hard-coded extension map —
+    the LLM picks the right skill from the routing guide in the system
+    prompt.
     """
 
-    SYSTEM_PROMPT: str = _SYSTEM_PROMPT
-    MAX_TURNS: int = 20
+    SYSTEM_PROMPT: str = _SYSTEM_PROMPT_TEMPLATE.format(
+        profile_section="(loaded per-turn)",
+        workers_section="(loaded per-turn)",
+    )
+    MAX_STEPS: int = 20
     TEMPERATURE: float = 0.3
 
     def __init__(self) -> None:
@@ -575,75 +467,41 @@ class DocumentAssistant(ConversationalAgent):
         return manifest()
 
     async def run(self, task: Any, ctx: Any) -> dict[str, Any]:
-        """Process one document request turn.
+        """Execute one conversational turn via the ReAct loop."""
+        if ctx.llm is None:
+            return AIPResult.failed(
+                "NO_LLM",
+                "DocumentAssistant requires ctx.llm — no LLM backend configured",
+            )
 
-        Bootstraps document profile on the first turn, routes to the right
-        worker(s), delegates via A2A, and returns results formatted as
-        natural-language output.
-        """
         input_text, history = _extract_task_input(task)
-
         if not input_text:
             return AIPResult.failed("NO_INPUT", "No input provided in task")
 
-        is_first_turn = not history
+        if await self._bootstrap.needs_bootstrap(ctx):
+            await self._bootstrap.run_bootstrap(ctx)
+        snapshot = await self._bootstrap.load_snapshot(ctx) or {}
 
-        if is_first_turn:
-            if await self._bootstrap.needs_bootstrap(ctx):
-                await self._bootstrap.run_bootstrap(ctx)
+        format_preferences = snapshot.get("format_preferences", {}) or {}
+        recent_files = snapshot.get("recent_files", []) or []
+        available_workers = snapshot.get("available_workers", []) or []
 
-        detected_pref = _detect_format_pref(input_text)
-        if detected_pref:
-            current_pref = await _load_format_pref(ctx)
-            if detected_pref != current_pref:
-                await _save_format_pref(ctx, detected_pref)
+        self.SYSTEM_PROMPT = _build_system_prompt(
+            format_preferences, recent_files, available_workers
+        )
 
-        file_paths = _extract_file_paths(input_text)
-        routing_pairs: list[tuple[str, str]] = []
-        for fp in file_paths:
-            worker = _route_by_extension(fp)
-            if worker:
-                routing_pairs.append((fp, worker))
+        pending = resume_pending_tool(task)
 
-        if not routing_pairs:
-            return AIPResult.input_required(
-                "Which file would you like me to work with?"
-            )
-
-        if not (hasattr(ctx, "a2a") and ctx.a2a is not None):
-            return AIPResult.completed(
-                "A2A processing is not available in this context. "
-                "Start Apollia OS to access document workers."
-            )
-
-        collected: list[tuple[str, str]] = []
-        errors: list[str] = []
-
-        for file_path, worker in routing_pairs:
-            instruction = _build_worker_instruction(input_text, file_path)
-            try:
-                result = await ctx.a2a.call(
-                    agent=worker,
-                    skill="analyze",
-                    input={"task": instruction, "file": file_path},
-                )
-                collected.append((file_path, _format_worker_result(result, file_path)))
-            except Exception as exc:
-                errors.append(_humanize_error(exc, file_path))
-
-        await _save_recent_files(ctx, [fp for fp, _ in routing_pairs])
-
-        if not collected and errors:
-            return AIPResult.completed("\n\n".join(errors))
-
-        output_parts: list[str] = []
-        if collected:
-            output_parts.append(_format_combined_response(collected))
-        if errors:
-            error_lines = "\n".join(f"- {e}" for e in errors)
-            output_parts.append(f"**Issues encountered:**\n{error_lines}")
-
-        return AIPResult.completed("\n\n".join(output_parts))
+        result = await self.react(
+            task,
+            ctx,
+            input_text,
+            pending_tool=pending,
+            history=history or None,
+        )
+        if isinstance(result, dict):
+            return result
+        return AIPResult.completed(result)
 
 
 # ---------------------------------------------------------------------------

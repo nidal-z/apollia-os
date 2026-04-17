@@ -764,6 +764,21 @@ pub struct RuntimeContext {
     /// lors de `call_run()`. Expose `ctx.workspace.rules`, `ctx.workspace.get("Git")`, etc.
     /// `None` si le runtime n'a pas collecté le contexte workspace pour cette tâche.
     pub workspace: Option<Py<WorkspaceContextPy>>,
+    /// Event bus cloné au construction — permet à `emit_token()` de pousser
+    /// des `RuntimeEvent::ChatToken` vers le frontend SSE. `None` lorsque le
+    /// contexte est construit hors chaîne d'événements (tests unitaires
+    /// intra-crate).
+    event_bus: Option<EventBusSender>,
+    /// Identifiant de session à taguer sur les événements `ChatToken`.
+    ///
+    /// Injecté depuis `task.context_id` par le `BridgeRunner` en mode chat.
+    /// `None` en mode task — `emit_token()` est alors un no-op.
+    chat_session_id: Option<String>,
+    /// Identifiant du message courant à taguer sur les événements `ChatToken`.
+    ///
+    /// Injecté depuis `task.message_id` par le `BridgeRunner` en mode chat.
+    /// `None` en mode task.
+    chat_message_id: Option<String>,
 }
 
 impl RuntimeContext {
@@ -809,6 +824,7 @@ impl RuntimeContext {
         a2a_invoker: Option<Arc<A2AInvoker>>,
         user_memory_read_only: bool,
     ) -> Self {
+        let bus_for_token = event_bus.clone();
         let llm = llm_router.and_then(|router| {
             if router.list().is_empty() {
                 // fire-and-forget — erreurs send() silencieusement ignorées.
@@ -850,6 +866,9 @@ impl RuntimeContext {
             a2a_depth: 0,
             chain_deadline: None,
             workspace: None,
+            event_bus: Some(bus_for_token),
+            chat_session_id: None,
+            chat_message_id: None,
         }
     }
 
@@ -873,6 +892,9 @@ impl RuntimeContext {
             a2a_depth: 0,
             chain_deadline: None,
             workspace: None,
+            event_bus: None,
+            chat_session_id: None,
+            chat_message_id: None,
         }
     }
 
@@ -896,6 +918,21 @@ impl RuntimeContext {
     pub fn with_empty_workspace(mut self) -> Self {
         let workspace_py = WorkspaceContextPy::empty();
         self.workspace = pyo3::Python::with_gil(|py| pyo3::Py::new(py, workspace_py).ok());
+        self
+    }
+
+    /// Configure la cible des événements `ChatToken` émis par `emit_token()`.
+    ///
+    /// Appelé par le `BridgeRunner` en mode chat pour relier le contexte à la
+    /// session + message en cours. Si non appelé (ex. mode task CLI),
+    /// `emit_token()` est un no-op.
+    pub fn with_chat_target(
+        mut self,
+        session_id: impl Into<String>,
+        message_id: impl Into<String>,
+    ) -> Self {
+        self.chat_session_id = Some(session_id.into());
+        self.chat_message_id = Some(message_id.into());
         self
     }
 }
@@ -951,6 +988,37 @@ impl RuntimeContext {
             Some(ws) => ws.clone_ref(py).into_any(),
             None => py.None(),
         }
+    }
+
+    /// Émet un token de streaming vers le frontend en mode chat.
+    ///
+    /// Pousse un `RuntimeEvent::ChatToken { session_id, message_id, token }`
+    /// sur l'event bus. Le filtrage SSE par `session_id` dans
+    /// `routes_chat.rs` se charge du reste.
+    ///
+    /// No-op silencieux en mode task (quand `chat_session_id` ou
+    /// `chat_message_id` est `None`), pour que les agents réutilisent le
+    /// même code dans les deux modes sans garde explicite.
+    ///
+    /// Retourne `None` Python. Lève `RuntimeError` si la sérialisation
+    /// échoue (ne devrait jamais arriver pour un `String`).
+    fn emit_token(&self, token: String) -> PyResult<()> {
+        let (session_id, message_id, bus) = match (
+            self.chat_session_id.as_ref(),
+            self.chat_message_id.as_ref(),
+            self.event_bus.as_ref(),
+        ) {
+            (Some(sid), Some(mid), Some(bus)) => (sid.clone(), mid.clone(), bus.clone()),
+            _ => return Ok(()),
+        };
+        // fire-and-forget : si le bus est saturé on drop silencieusement
+        // plutôt que de propager une erreur au LLM qui n'y peut rien.
+        let _ = bus.send(RuntimeEvent::ChatToken {
+            session_id,
+            message_id,
+            token,
+        });
+        Ok(())
     }
 
     /// Contexte utilisateur injecté en mode chat — `None` en mode task.
@@ -1831,6 +1899,9 @@ mod a2a_tests {
             a2a_depth: 0,
             chain_deadline: None,
             workspace: None,
+            event_bus: None,
+            chat_session_id: None,
+            chat_message_id: None,
         };
 
         // THEN les vérifications internes échouent
@@ -1869,6 +1940,9 @@ mod a2a_tests {
             a2a_depth: 0,
             chain_deadline: None,
             workspace: None,
+            event_bus: None,
+            chat_session_id: None,
+            chat_message_id: None,
         };
 
         // THEN user_context is Some with expected categories
@@ -1896,6 +1970,9 @@ mod a2a_tests {
             a2a_depth: 0,
             chain_deadline: None,
             workspace: None,
+            event_bus: None,
+            chat_session_id: None,
+            chat_message_id: None,
         };
 
         // THEN user_context is None

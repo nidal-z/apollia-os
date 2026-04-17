@@ -30,6 +30,14 @@ pub struct AIPTask {
     /// Toujours `false` sur le premier appel (valeur par défaut).
     #[serde(default)]
     pub is_resumed: bool,
+    /// Identifiant du message de réponse en cours (mode chat uniquement).
+    ///
+    /// Peuplé par le `ChatSessionManager` avant d'invoquer l'agent pour permettre
+    /// au `RuntimeContext` d'émettre des événements `ChatToken` routables par le
+    /// frontend. `None` en mode task (CLI `agent run`), où il n'y a pas de
+    /// session à taguer.
+    #[serde(default)]
+    pub message_id: Option<String>,
     /// Réponse humaine fournie après la suspension — peuplée uniquement si `is_resumed == true`.
     ///
     /// Contient la décision (`approved`), la raison optionnelle, et le contexte

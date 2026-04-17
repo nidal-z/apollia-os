@@ -1,32 +1,37 @@
-"""spec-assistant — Assistant de conception pour Apollia OS.
+"""spec-assistant — Consultant agent for feature specification on Apollia OS.
 
 Premier maillon du pipeline de développement (spec → dev → review). Transforme
-toute idée ou demande en TaskSpec structurée, sauvegardée dans le workspace du
-projet sous ``.apollia/tasks/{slug}.md``.
+toute idée ou demande floue en TaskSpec structurée, sauvegardée dans le
+workspace du projet sous ``.apollia/tasks/{slug}.md``.
 
-Fonctionnement :
-- Utilise ``SpecContextBootstrap`` pour charger le contexte projet (workspace
-  rules, tech stack, specs existantes) et le persister en mémoire sémantique.
-  En session N+1, le snapshot est rechargé sans relire les fichiers.
-- Utilise ``memory.search()`` pour détecter les specs similaires existantes et
-  prévenir les doublons.
-- Enregistre chaque spec créée dans ``created_specs`` pour la traçabilité.
-- Les réponses LLM contenant un bloc ``[SPEC:slug]…[/SPEC]`` déclenchent une
-  écriture automatique dans le workspace avant retour à l'utilisateur.
+Fonctionnement
+--------------
+Agent ReAct agnostique. Le LLM décide au fil de la conversation quels outils
+appeler — ``ask_user`` pour qualifier le besoin, ``file_read`` pour lire le
+contexte existant, ``file_write`` pour sauver la TaskSpec, ``memory_search``
+pour détecter les doublons. Aucune regex spécifique à une stack ni de
+post-processing déterministe : l'agent s'adapte au contexte comme un
+consultant qui découvre un projet.
 
-Outils requis  : file_read, file_write
-Outils optionnels : bash_executor (mkdir, ls), file_list (découverte workspace)
-Backend LLM    : precise (qualité de spec > vitesse)
+Contexte pré-chargé
+-------------------
+``SpecContextBootstrap`` met en cache cross-session un snapshot (règles
+projet issues de ``ctx.workspace.rules``, tech-stack hints, specs existantes).
+Ce snapshot est injecté dans le system prompt, le LLM l'utilise comme *hint*
+non normatif.
+
+Outils requis : file_read, file_write, ask_user
+Outils optionnels : bash_executor, file_list, memory_search
 """
 
 from __future__ import annotations
 
-import json
 import re
 import unicodedata
 from typing import Any
 
-from apollia.agents import AIPResult, ConversationalAgent
+from apollia.agents import AIPResult, BaseReActAgent
+from apollia.utils.hitl import resume_pending_tool
 
 try:
     from shared.project_bootstrap import ProjectContextBootstrap
@@ -35,40 +40,16 @@ except ModuleNotFoundError:
 
 
 # ---------------------------------------------------------------------------
-# Memory keys
-# ---------------------------------------------------------------------------
-
-MEMORY_KEY_CREATED_SPECS: str = "created_specs"
-
-_MEMORY_SOURCE: str = "spec-assistant"
-_MEMORY_CONFIDENCE_SPECS: float = 1.0
-
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-
-# [SPEC:slug]…[/SPEC] — the LLM uses this marker to emit a TaskSpec for saving.
-_SPEC_BLOCK_RE: re.Pattern[str] = re.compile(
-    r"\[SPEC:([a-z0-9][a-z0-9\-]{0,62})\](.*?)\[/SPEC\]",
-    re.DOTALL,
-)
-
-_SLUG_NON_ALNUM: re.Pattern[str] = re.compile(r"[^a-z0-9]+")
-
-
-
-# ---------------------------------------------------------------------------
-# Context Bootstrap
+# Context Bootstrap (cross-session cache, not behavioural)
 # ---------------------------------------------------------------------------
 
 
 class SpecContextBootstrap(ProjectContextBootstrap):
     """Bootstrap for spec-assistant.
 
-    Extends the common project snapshot with:
-
-    - ``existing_specs``: slugs of TaskSpec files in ``.apollia/tasks/``
-    - ``spec_count``: number of specs (used in UX messages)
+    Extends the common project snapshot with the list of existing TaskSpec
+    slugs under ``.apollia/tasks/``. The snapshot is a perf cache, not a
+    behavioural constraint — the LLM is free to ignore it.
     """
 
     async def extra_scopes(
@@ -79,9 +60,13 @@ class SpecContextBootstrap(ProjectContextBootstrap):
         """Discover existing TaskSpec files in ``.apollia/tasks/``."""
         specs: list[str] = []
         if ctx.tools is not None:
-            result = await ctx.tools.call("bash_executor", {
-                "command": "ls .apollia/tasks/*.md 2>/dev/null | head -50",
-            })
+            try:
+                result = await ctx.tools.call("bash_executor", {
+                    "command": "ls .apollia/tasks/*.md 2>/dev/null | head -50",
+                    "timeout_secs": 5,
+                })
+            except Exception:
+                result = None
             if result and result.get("stdout"):
                 raw_stdout = result["stdout"]
                 if isinstance(raw_stdout, str):
@@ -95,11 +80,19 @@ class SpecContextBootstrap(ProjectContextBootstrap):
 
 
 # ---------------------------------------------------------------------------
-# Slug generation
+# Slug helper (exposed so the LLM / tests can suggest filenames consistently)
 # ---------------------------------------------------------------------------
 
-def _slugify(title: str) -> str:
-    """Convert *title* to a URL-safe lowercase slug (max 64 chars)."""
+_SLUG_NON_ALNUM: re.Pattern[str] = re.compile(r"[^a-z0-9]+")
+
+
+def slugify(title: str) -> str:
+    """Convert *title* to a URL-safe lowercase slug (max 64 chars).
+
+    Deterministic helper kept for the LLM's convenience (the system prompt
+    tells it to derive a slug from the title). No behavioural decision is
+    tied to this function.
+    """
     normalized = unicodedata.normalize("NFD", title.lower())
     ascii_str = normalized.encode("ascii", "ignore").decode("ascii")
     slug = _SLUG_NON_ALNUM.sub("-", ascii_str).strip("-")
@@ -107,246 +100,85 @@ def _slugify(title: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Project rules parsing
-# ---------------------------------------------------------------------------
-
-def _extract_forbidden_deps(raw: str) -> list[str]:
-    """Return dependency names explicitly forbidden in *raw*.
-
-    Handles backtick-wrapped names (`` `pkg` INTERDIT ``), plain names
-    (``pkg INTERDIT``), and English variants (``forbidden: pkg``).
-    The ``\\W+`` between name and keyword accepts any non-word separators
-    (backticks, parentheses, quotes, spaces).
-    """
-    patterns = [
-        r"\b([a-zA-Z][\w\-]+)\b\W+INTERDIT\b",
-        r"INTERDIT[^:]*:\s*([a-zA-Z][\w\-]+)",
-        r"\b([a-zA-Z][\w\-]+)\b\W+interdit\b",
-        r"forbidden[^:]*:\s*([a-zA-Z][\w\-]+)",
-        r"\b([a-zA-Z][\w\-]+)\b\W+is\s+forbidden\b",
-        r"\b([a-zA-Z][\w\-]+)\b\W+not\s+allowed\b",
-        r"\bno\s+([a-zA-Z][\w\-]+)\b",
-        r"\bbann?ed?\s+([a-zA-Z][\w\-]+)\b",
-    ]
-    found: set[str] = set()
-    for pat in patterns:
-        for m in re.finditer(pat, raw):
-            dep = m.group(1).strip()
-            if len(dep) >= 2:
-                found.add(dep)
-    return sorted(found)
-
-
-def _extract_section_text(raw: str, *headers: str) -> str:
-    """Return the text block immediately following the first matching *header*."""
-    for header in headers:
-        idx = raw.find(header)
-        if idx == -1:
-            continue
-        after = raw[idx + len(header):].lstrip("\n")
-        lines: list[str] = []
-        for line in after.splitlines():
-            if line.startswith("#") and lines:
-                break
-            lines.append(line)
-        block = "\n".join(lines).strip()
-        if block:
-            return block
-    return ""
-
-
-def parse_project_rules(raw_text: str) -> dict[str, str]:
-    """Parse *raw_text* from workspace files and return categorised rules.
-
-    Returns a dict with keys: ``raw`` (full text, truncated),
-    ``forbidden_deps`` (JSON list), ``patterns``, ``comment_convention``.
-    """
-    forbidden = _extract_forbidden_deps(raw_text)
-    patterns = _extract_section_text(
-        raw_text,
-        "## Patterns obligatoires",
-        "### Patterns obligatoires",
-        "## Required patterns",
-        "### Required patterns",
-        "## Règles d'implémentation",
-        "## Implementation rules",
-    )
-    comment_conv = _extract_section_text(
-        raw_text,
-        "Convention de commentaires",
-        "Comment convention",
-        "## Comments",
-    )
-    truncated = raw_text[:4_000]
-    if len(raw_text) > 4_000:
-        truncated += "\n[… règles tronquées pour tenir dans le contexte …]"
-    return {
-        "raw": truncated,
-        "forbidden_deps": json.dumps(forbidden),
-        "patterns": patterns[:500],
-        "comment_convention": comment_conv[:200],
-    }
-
-
-# ---------------------------------------------------------------------------
-# Created-specs tracking
-# ---------------------------------------------------------------------------
-
-async def load_created_specs(ctx: Any) -> list[str]:
-    """Return the list of spec slugs created in this project so far."""
-    if ctx.memory is None:
-        return []
-    raw = await ctx.memory.recall(MEMORY_KEY_CREATED_SPECS)
-    if not raw:
-        return []
-    try:
-        return json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        return []
-
-
-async def record_created_spec(ctx: Any, slug: str) -> None:
-    """Append *slug* to the project's created-specs list in semantic memory.
-
-    Idempotent: does nothing if *slug* is already in the list.
-    """
-    if ctx.memory is None:
-        return
-    current = await ctx.memory.recall(MEMORY_KEY_CREATED_SPECS)
-    specs: list[str] = []
-    if current:
-        try:
-            specs = json.loads(current)
-        except (json.JSONDecodeError, TypeError):
-            specs = []
-    if slug not in specs:
-        specs.append(slug)
-        await ctx.memory.remember(
-            key=MEMORY_KEY_CREATED_SPECS,
-            value=json.dumps(specs),
-            source=_MEMORY_SOURCE,
-            confidence=_MEMORY_CONFIDENCE_SPECS,
-        )
-
-
-# ---------------------------------------------------------------------------
-# TaskSpec file writing
-# ---------------------------------------------------------------------------
-
-async def write_task_spec(ctx: Any, slug: str, content: str) -> bool:
-    """Write *content* to ``.apollia/tasks/{slug}.md``.
-
-    Creates the ``.apollia/tasks/`` directory first via ``bash_executor`` when
-    that tool is available. Returns ``True`` on success, ``False`` otherwise.
-    """
-    if ctx.tools is None:
-        return False
-    path = f".apollia/tasks/{slug}.md"
-    try:
-        available_tools = ctx.tools.list_tools()
-        if "bash_executor" in available_tools:
-            await ctx.tools.call(
-                "bash_executor", {"cmd": "mkdir -p .apollia/tasks"}
-            )
-        await ctx.tools.call("file_write", {"path": path, "content": content})
-        return True
-    except Exception:
-        return False
-
-
-# ---------------------------------------------------------------------------
-# Spec block processing
-# ---------------------------------------------------------------------------
-
-async def process_spec_blocks(text: str, ctx: Any) -> str:
-    """Extract ``[SPEC:slug]…[/SPEC]`` blocks, write the files, clean the text.
-
-    Each matched block is replaced by a confirmation message (on success) or
-    a warning (when tools are unavailable). Created slugs are recorded in
-    semantic memory for cross-session traceability.
-    """
-    replacements: list[tuple[str, str]] = []
-    for match in _SPEC_BLOCK_RE.finditer(text):
-        slug = match.group(1)
-        spec_content = match.group(2).strip()
-        success = await write_task_spec(ctx, slug, spec_content)
-        path = f".apollia/tasks/{slug}.md"
-        if success:
-            await record_created_spec(ctx, slug)
-            msg = f"\n✅ TaskSpec saved: `{path}`\n"
-        else:
-            msg = f"\n⚠️ Could not save `{path}` (tools unavailable).\n"
-        replacements.append((match.group(0), msg))
-
-    result = text
-    for original, replacement in replacements:
-        result = result.replace(original, replacement, 1)
-    return result
-
-
-# ---------------------------------------------------------------------------
-# System prompt construction
+# System prompt
 # ---------------------------------------------------------------------------
 
 _SYSTEM_PROMPT_TEMPLATE: str = """\
-You are **spec-assistant**, an expert in feature design and scope decomposition.
+You are **spec-assistant**, a senior IT consultant specialised in feature \
+design and scope qualification.
 
-You work for any type of project — software, web, mobile, API, infrastructure, \
-business processes — regardless of tech stack. You never generate code.
+Your job is to turn any idea, request, or fuzzy need into a structured \
+**TaskSpec** — a document a third party can pick up and execute without \
+guessing. You work like a consultant from a development agency: you never \
+invent the user's context, you ask.
 
-## Principles
+## Core behaviour
 
-**Understand before specifying.** Spec quality depends on question quality. \
-If context is insufficient — especially when no project rules are loaded — use \
-the `ask_user` tool to ask structured questions before writing. Batch your questions \
-in a single call.
+**Qualify before specifying.** Before writing any spec, make sure you \
+understand:
+- What problem the user is solving, who the end users are, what success looks \
+  like
+- The stack / platform / domain constraints, if any
+- The scope boundaries — what's in, what's explicitly out
+- Existing conventions (project rules, similar specs already created)
 
-**Specify the what, not the how.** The objective describes the outcome for the user \
-or system, not the technical solution. "Users can export to CSV in one click" — \
-not "add a GET /export endpoint with format=csv query param".
+When you lack context, call **ask_user** with batched, structured questions \
+(1 call, multiple questions). **Adapt the questions to the domain** — a \
+marketing website requires different qualification than a data pipeline or \
+a mobile app. Never use a generic question template — formulate questions \
+that match what the user just described.
 
-**Never invent.** Never assume requirements, organization, processes, or constraints \
-the user hasn't mentioned and that aren't in the project rules. If something seems \
-missing, ask.
+**Specify the what, not the how.** The TaskSpec describes outcomes, not \
+implementations. "Users can export their data to CSV in one click" — not \
+"add a GET /export endpoint with ?format=csv".
 
-**Adapt formalism to context.** A simple UI component doesn't need the same \
-decomposition as a database migration. Adjust the number of sections, layers, \
-and criteria to what is actually useful.
+**Never invent.** If a detail isn't in the user's answers or the project \
+rules, ask — don't fabricate requirements, organisation, processes, roles.
 
-**Every criterion must be verifiable.** "Works correctly" is not a criterion. \
-"The form shows an error message if the email is invalid" is.
+**Adapt formalism to context.** A simple UI tweak doesn't need the same \
+decomposition as a database migration. Adjust depth, sections, and \
+acceptance criteria to what's actually useful.
 
-## What you do
+**Every acceptance criterion must be verifiable.** "Works correctly" is not \
+a criterion. "The form shows an error message when the email is invalid" is.
 
-- Transform an idea, request, or need into a structured **TaskSpec**
-- Identify impacted layers and explicit scope
-- Define "done" criteria verifiable by a third party
-- Integrate project rules when available
-- Detect similar existing specs to avoid duplicates
-- Refine an existing spec on request
+## Workflow
 
-## What you don't do
+1. **Read the context below.** If project rules or existing specs are loaded, \
+   leverage them. If not, you'll need to qualify the request from scratch.
+2. **Qualify via ask_user** when the request lacks critical context. Batch \
+   your questions — one `ask_user` call with 3-6 well-chosen questions is \
+   better than several round-trips.
+3. **Detect duplicates.** For new specs, call `memory_search` with keywords \
+   from the request. If a near-duplicate already exists, propose refining \
+   the existing one rather than creating a new one.
+4. **Write the TaskSpec.** Once you have enough context, compose the \
+   markdown content and save it to `.apollia/tasks/{{slug}}.md` via \
+   `file_write`. Derive a short URL-safe slug from the title (lowercase, \
+   hyphens, no accents, max 64 chars).
+5. **Confirm** with a `final_answer` that summarises what was saved and \
+   what the user should review.
 
-- Never generate code, snippets, or commands
-- Never invent organizational context (team size, roles, processes)
-- Never write a spec without enough information — ask questions first
+## TaskSpec structure (flexible — adapt to context)
 
-## Output format
+At minimum a TaskSpec contains:
+- **Objective** — user-visible outcome
+- **Layers impacted** — parts of the system that change (frontend, backend, \
+  data, ops, content, process…)
+- **Scope in** — what's included
+- **Scope out** — what's explicitly excluded, to prevent scope creep
+- **Acceptance criteria** — verifiable conditions marking "done"
 
-When writing a TaskSpec, wrap it with `[SPEC:slug]` and `[/SPEC]` \
-(slug lowercase with hyphens, e.g. `user-auth`). The runtime saves \
-automatically to `.apollia/tasks/slug.md`. One block per response.
+Optional sections when they add real information: assumptions, risks, \
+dependencies, open questions. Never pad with generic filler.
 
-TaskSpec structure is flexible but must contain at minimum: \
-objective, layers involved, scope (in/out), and "done" criteria. \
-Assumptions, risks, and context sections are only relevant if they add \
-real information — don't fill them with generic content.
+## What you never do
 
-## Available tools
-
-- `file_read`, `file_write`: read and save specs
-- `bash_executor`: explore the workspace (ls, find, git)
-- `ask_user`: ask the user structured questions (open, single choice, multi choice) — prefer this when context is lacking
+- Never generate code, snippets, or commands — you write specs, not code.
+- Never write a TaskSpec without qualifying the request when context is \
+  missing.
+- Never invent organisational context (team size, roles, processes) unless \
+  explicitly told.
 
 ## Project context
 
@@ -358,125 +190,178 @@ real information — don't fill them with generic content.
 
 ## Language
 
-Always respond in the same language as the user's message. Detect their language \
-from the input and mirror it naturally.\
+Always respond in the same language as the user's message. Detect it from \
+the input and mirror it naturally.
 """
 
 
-def build_system_prompt(
-    rules: dict[str, str],
-    existing_specs: list[str] | None = None,
+def _build_system_prompt(
+    raw_rules: str,
+    existing_specs: list[str] | None,
 ) -> str:
-    """Build the full system prompt for *lang* with injected project rules.
-
-    Injects a formatted rules section and the list of specs already created
-    in this project. Falls back to instructive placeholder messages when
-    either source is empty.
-    """
-    # --- Rules section ---
-    raw = rules.get("raw", "").strip()
-    forbidden_raw = rules.get("forbidden_deps", "[]")
-    try:
-        forbidden_list: list[str] = json.loads(forbidden_raw)
-    except (json.JSONDecodeError, TypeError):
-        forbidden_list = []
-
-    if raw:
-        if forbidden_list:
-            forbidden_lines = "\n".join(f"- `{d}`" for d in forbidden_list)
-            forbidden_str = f"\n{forbidden_lines}"
-        else:
-            forbidden_str = " (none auto-detected)"
+    """Compose the system prompt, injecting workspace rules and known specs."""
+    rules = (raw_rules or "").strip()
+    if rules:
+        truncated = rules[:4000]
+        if len(rules) > 4000:
+            truncated += "\n[... truncated for context window ...]"
         rules_section = (
-            f"**Forbidden dependencies:**{forbidden_str}\n\n"
-            f"**Full workspace rules:**\n```\n{raw}\n```"
+            "**Workspace rules loaded** (project-specific conventions — "
+            "treat these as authoritative for this project):\n"
+            f"```\n{truncated}\n```"
         )
     else:
         rules_section = (
             "No rules file found in this workspace. "
-            "Ask the user about their project constraints and conventions."
+            "Ask the user about their conventions and constraints via "
+            "`ask_user` before writing the spec."
         )
 
-    # --- Existing specs section ---
     if existing_specs:
-        slugs_str = "\n".join(f"- `{s}`" for s in sorted(existing_specs))
+        slugs = "\n".join(f"- `{s}`" for s in sorted(existing_specs))
         specs_section = (
-            f"The following TaskSpecs already exist in `.apollia/tasks/`:\n{slugs_str}\n\n"
-            "Mention these specs if a new request seems similar."
+            f"The following TaskSpecs already exist in `.apollia/tasks/`:\n"
+            f"{slugs}\n\n"
+            "Consider refining one of these if the new request is similar — "
+            "read it first with `file_read`."
         )
     else:
-        specs_section = "No existing specs in this project — this will be the first."
+        specs_section = (
+            "No existing specs in this project — this will be the first."
+        )
 
     return _SYSTEM_PROMPT_TEMPLATE.format(
-        rules_section=rules_section, specs_section=specs_section,
+        rules_section=rules_section, specs_section=specs_section
     )
 
 
 # ---------------------------------------------------------------------------
-# Module-level manifest function (AIP contract)
+# Task input extraction
+# ---------------------------------------------------------------------------
+
+def _extract_task_input(task: Any) -> tuple[str, list[dict[str, str]]]:
+    """Extract the user message and conversation history from *task*.
+
+    Supports dict format (API / resume_pending_tool path), objects with
+    attributes (runtime PyO3 format), and A2A multi-turn parts.
+    History entries are normalised to
+    ``{"role": "user"|"assistant", "content": "..."}``.
+    """
+    task_input = (
+        task.get("input") if isinstance(task, dict)
+        else getattr(task, "input", None)
+    )
+    if task_input is None:
+        return "", []
+
+    if isinstance(task_input, dict):
+        parts = task_input.get("parts", [])
+        input_text: str = (
+            parts[0]["text"]
+            if parts and isinstance(parts[0], dict)
+            else str(task_input.get("text", ""))
+        )
+    elif hasattr(task_input, "parts"):
+        parts = task_input.parts
+        input_text = parts[0].text if parts else str(task_input)
+    elif hasattr(task_input, "text"):
+        input_text = task_input.text
+    else:
+        input_text = str(task_input)
+
+    raw_history = (
+        task.get("history", []) if isinstance(task, dict)
+        else getattr(task, "history", [])
+    )
+    history: list[dict[str, str]] = []
+    for msg in raw_history or []:
+        if isinstance(msg, dict):
+            role_raw = msg.get("role", "user")
+            role = "assistant" if role_raw == "agent" else role_raw
+            parts = msg.get("parts", [])
+            text = (
+                parts[0]["text"]
+                if parts and isinstance(parts[0], dict)
+                else str(msg)
+            )
+            history.append({"role": role, "content": text})
+        elif hasattr(msg, "role"):
+            role = "assistant" if msg.role == "agent" else msg.role
+            parts = getattr(msg, "parts", [])
+            text = parts[0].text if parts else str(msg)
+            history.append({"role": role, "content": text})
+
+    return input_text, history
+
+
+# ---------------------------------------------------------------------------
+# Manifest
 # ---------------------------------------------------------------------------
 
 def manifest() -> dict[str, Any]:
     """Return the AIP agent manifest for spec-assistant."""
     return {
         "name": "spec-assistant",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "description": (
-            "Assistant de conception Apollia OS — transforme n'importe quelle idée "
-            "en TaskSpec structurée, actionnable et sauvegardée dans le workspace. "
-            "Lit les règles du projet (APOLLIA.md, .apollia/rules.md, …), challenge "
-            "l'approche, identifie les couches impactées et définit les critères de "
-            "validation. Ne génère jamais de code. "
-            "Premier maillon du pipeline spec → dev → review."
+            "Consultant agent that turns any idea or fuzzy need into a "
+            "structured, actionable TaskSpec saved to `.apollia/tasks/`. "
+            "Works like a senior IT consultant: qualifies the need via "
+            "batched questions, adapts to any stack or domain, never "
+            "invents requirements. Never generates code — first link of the "
+            "spec → dev → review pipeline."
         ),
         "execution_mode": "auto",
         "agent_type": "assistant",
-        "tools_required": ["file_read", "file_write"],
-        "tools_optional": ["bash_executor", "file_list", "ask_user"],
+        "tools_required": ["file_read", "file_write", "ask_user"],
+        "tools_optional": ["bash_executor", "file_list", "memory_search"],
         "tools_requiring_approval": [],
         "packages": [],
         "memory_namespace": "spec-assistant",
         "llm_backend": "precise",
         "supports_streaming": True,
         "supports_a2a": True,
-        "step_budget": {"max_steps": 30, "max_tool_calls": 20, "wall_clock_secs": 300},
+        "step_budget": {
+            "max_steps": 30,
+            "max_tool_calls": 20,
+            "wall_clock_secs": 600,
+        },
         "tags": [
             "conception", "specification", "pipeline-dev",
-            "taskspec", "no-code", "multi-domaine",
+            "taskspec", "no-code", "consultant", "agnostic",
         ],
         "max_concurrent_tasks": 1,
         "dangerous_tools_allowed": False,
         "examples": [
             "Crée une spec pour un système d'authentification JWT avec refresh tokens",
-            "Quelles sont les specs en attente dans ce projet ?",
+            "Crée une spec pour le site vitrine d'Apollia OS",
             "Affine la spec user-auth pour ajouter la gestion des rôles",
             "Crée une spec pour l'export CSV de la table Commandes",
             "Y a-t-il déjà une spec similaire avant d'en créer une nouvelle ?",
         ],
         "limitations": [
-            "Ne génère jamais de code — uniquement des specs structurées au format TaskSpec",
+            "Ne génère jamais de code — uniquement des specs structurées",
             "Ne modifie aucun fichier source du projet",
-            "Requiert au moins une description fonctionnelle pour démarrer",
-            "Requiert file_write pour sauvegarder les specs dans .apollia/tasks/",
+            "Requiert une interaction utilisateur (via ask_user) quand le "
+            "contexte initial est insuffisant",
         ],
         "setup_notes": (
-            "Fonctionne mieux avec un fichier APOLLIA.md (créé par `apollia workspace init`) "
-            "ou .apollia/rules.md dans le workspace — les règles et contraintes du projet "
-            "sont chargées automatiquement et stockées en mémoire sémantique. "
-            "À partir de la deuxième session sur le même projet, les règles sont rechargées "
-            "depuis la mémoire sans relire les fichiers. "
-            "Sans fichiers de règles, l'assistant pose les questions de clarification au démarrage. "
-            "Utilisable de manière autonome, sans les autres assistants du pipeline. "
-            "Détecte automatiquement les specs similaires existantes pour éviter les doublons."
+            "Fonctionne sans fichier de règles projet — dans ce cas l'agent "
+            "qualifie le besoin via ask_user au premier tour. Si "
+            "APOLLIA.md existe dans le workspace, ses règles sont injectées "
+            "dans le system prompt. Les specs précédentes sont détectées et "
+            "listées automatiquement. Stockage des specs dans "
+            "`.apollia/tasks/{slug}.md`, créé à la volée par `file_write`."
         ),
         "skills": [
             {
                 "id": "create-spec",
                 "name": "Créer une TaskSpec",
                 "description": (
-                    "Transforme une idée ou demande en TaskSpec structurée et la "
-                    "sauvegarde dans `.apollia/tasks/{slug}.md`. "
-                    "Pose des questions de clarification si la demande est ambiguë."
+                    "Qualifie le besoin via des questions adaptées au "
+                    "contexte, détecte les doublons éventuels, puis "
+                    "sauvegarde une TaskSpec structurée dans "
+                    "`.apollia/tasks/{slug}.md`."
                 ),
                 "input_modes": ["text"],
                 "output_modes": ["text"],
@@ -486,20 +371,15 @@ def manifest() -> dict[str, Any]:
                         "description": "Description de la feature ou tâche à spécifier",
                         "required": True,
                     },
-                    "project_context": {
-                        "type": "string",
-                        "description": "Contexte projet optionnel (stack, contraintes, …)",
-                        "required": False,
-                    },
                 },
             },
             {
                 "id": "refine-spec",
                 "name": "Affiner une TaskSpec existante",
                 "description": (
-                    "Révise et complète une TaskSpec existante en réponse à de "
-                    "nouvelles informations, un changement de périmètre ou un retour "
-                    "de dev-assistant ou review-assistant."
+                    "Lit une TaskSpec existante, la révise selon les "
+                    "retours utilisateur ou d'un agent en aval, réécrit le "
+                    "fichier avec les ajustements."
                 ),
                 "input_modes": ["text"],
                 "output_modes": ["text"],
@@ -520,8 +400,8 @@ def manifest() -> dict[str, Any]:
                 "id": "list-specs",
                 "name": "Lister les TaskSpecs du projet",
                 "description": (
-                    "Retourne la liste des TaskSpecs déjà créées dans ce projet "
-                    "(depuis la mémoire sémantique et le système de fichiers)."
+                    "Retourne la liste des TaskSpecs créées dans "
+                    "`.apollia/tasks/` via un simple `bash_executor`."
                 ),
                 "input_modes": ["text"],
                 "output_modes": ["text"],
@@ -535,30 +415,24 @@ def manifest() -> dict[str, Any]:
 # Agent
 # ---------------------------------------------------------------------------
 
-class SpecAssistant(ConversationalAgent):
-    """Assistant de conception Apollia OS — premier maillon du pipeline dev.
+class SpecAssistant(BaseReActAgent):
+    """Consultant agent for feature specification — first link of spec→dev→review.
 
-    Transforms any free-form request into a structured, saved TaskSpec. Never
-    generates source code. Adapts to any project type (software, business,
-    infrastructure).
-
-    Session startup behaviour (first turn):
-    1. Run ``SpecContextBootstrap`` to discover project context (workspace
-       rules, tech stack, existing specs) and persist to semantic memory.
-    2. Load the snapshot (instant in session N+1 when HEAD hasn't changed).
-    3. Parse workspace rules and build a language-specific system prompt.
-
-    Each LLM response is scanned for ``[SPEC:slug]…[/SPEC]`` blocks. Found
-    blocks are extracted, written to ``.apollia/tasks/{slug}.md``, recorded in
-    semantic memory, and replaced by a one-line confirmation before the
-    cleaned text reaches the user.
+    Behaviour :
+    - Lit le snapshot cross-session (règles projet + specs existantes) puis
+      construit un system prompt dynamique.
+    - Délègue au LLM toute décision : qualifier via ``ask_user``, détecter
+      les doublons via ``memory_search``, écrire la spec via ``file_write``.
+    - Préserve l'historique conversationnel entre les messages utilisateur
+      (mode chat multi-tour).
+    - HITL natif via la boucle ReAct du SDK.
     """
 
     SYSTEM_PROMPT: str = _SYSTEM_PROMPT_TEMPLATE.format(
-        rules_section="(loaded at session startup)",
-        specs_section="(loaded at session startup)",
+        rules_section="(loaded per-turn)",
+        specs_section="(loaded per-turn)",
     )
-    MAX_TURNS: int = 30
+    MAX_STEPS: int = 20
     TEMPERATURE: float = 0.3
 
     def __init__(self) -> None:
@@ -568,196 +442,55 @@ class SpecAssistant(ConversationalAgent):
         """Return the AIP agent manifest for spec-assistant."""
         return manifest()
 
-    async def converse(
-        self,
-        ctx: Any,
-        user_message: str,
-        history: list[dict[str, str]] | None = None,
-    ) -> tuple[str, list[dict[str, str]]]:
-        """Handle one conversational turn.
-
-        On the first turn (empty *history*) the agent runs the context
-        bootstrap, loads the snapshot, parses workspace rules, and builds
-        a language-specific system prompt. After each LLM response,
-        embedded ``[SPEC:slug]`` blocks are written to the workspace before
-        the cleaned text is returned.
-        """
-        if ctx.llm is None:
-            raise RuntimeError(
-                "SpecAssistant requires ctx.llm — no LLM backend configured"
-            )
-
-        is_first_turn = not history
-
-        if is_first_turn:
-            if await self._bootstrap.needs_bootstrap(ctx):
-                await self._bootstrap.run_bootstrap(ctx)
-            snapshot = await self._bootstrap.load_snapshot(ctx)
-
-            raw_rules = (
-                snapshot.get("workspace_rules", "")
-                if snapshot
-                else (
-                    ctx.workspace.rules or ""
-                    if getattr(ctx, "workspace", None) is not None
-                    else ""
-                )
-            )
-            rules = (
-                parse_project_rules(raw_rules)
-                if raw_rules
-                else {"raw": "", "forbidden_deps": "[]", "patterns": "", "comment_convention": ""}
-            )
-
-            bootstrap_specs: list[str] = (
-                snapshot.get("existing_specs", []) if snapshot else []
-            )
-            mem_specs = await load_created_specs(ctx)
-            existing_specs = sorted(set(bootstrap_specs) | set(mem_specs))
-
-            self.SYSTEM_PROMPT = build_system_prompt(rules, existing_specs)
-
-            # When no project rules are loaded, proactively ask the user for
-            # context via the ask_user tool before generating a spec.
-            has_rules = bool(rules.get("raw", "").strip())
-            if not has_rules and ctx.tools is not None:
-                available = ctx.tools.list_tools()
-                if "ask_user" in available:
-                    discovery = await ctx.tools.call("ask_user", {
-                        "questions": [
-                            {
-                                "id": "stack",
-                                "question": "What tech stack should this project use?",
-                                "type": "open",
-                                "hint": "e.g. Next.js + Tailwind, Django, Rails, Flutter...",
-                            },
-                            {
-                                "id": "audience",
-                                "question": "Who is the target audience?",
-                                "type": "open",
-                                "hint": "e.g. B2B decision-makers, developers, end users...",
-                            },
-                            {
-                                "id": "constraints",
-                                "question": "Any specific constraints or requirements?",
-                                "type": "open",
-                                "hint": "e.g. mobile-first, SEO, accessibility, no tracking...",
-                            },
-                            {
-                                "id": "goal",
-                                "question": "What is the primary goal?",
-                                "type": "single_choice",
-                                "options": [
-                                    "Lead generation (contact form, demo request)",
-                                    "Product showcase (features, documentation)",
-                                    "Community building (GitHub, contributions)",
-                                    "E-commerce (sales, subscriptions)",
-                                    "Other",
-                                ],
-                            },
-                        ],
-                        "context": "No project rules file found. I need context to write a relevant spec.",
-                    })
-                    # Inject user answers into the message so the LLM has context.
-                    if isinstance(discovery, dict) and "answers" in discovery:
-                        context_parts: list[str] = []
-                        for answer in discovery["answers"]:
-                            if answer.get("skipped"):
-                                continue
-                            val = answer.get("value") or ", ".join(answer.get("values", []))
-                            if val:
-                                context_parts.append(f"- {answer['id']}: {val}")
-                        if context_parts:
-                            user_message = (
-                                f"{user_message}\n\n"
-                                f"Additional context from user:\n"
-                                + "\n".join(context_parts)
-                            )
-
-        messages: list[dict[str, str]] = list(history) if history else []
-        if not messages or messages[0].get("role") != "system":
-            messages.insert(0, {"role": "system", "content": self.SYSTEM_PROMPT})
-
-        messages.append({"role": "user", "content": user_message})
-
-        response = await ctx.llm.complete(messages)
-        raw_text: str = getattr(response, "content", "") or ""
-
-        cleaned_text = await process_spec_blocks(raw_text, ctx)
-
-        messages.append({"role": "assistant", "content": cleaned_text})
-
-        if ctx.memory is not None:
-            # Use higher importance when a spec was created in this turn.
-            importance = 0.8 if "[SPEC:" in raw_text else 0.4
-            await ctx.memory.record(
-                content=f"user: {user_message}\nassistant: {cleaned_text}",
-                importance=importance,
-                task_id=None,
-            )
-
-        return cleaned_text, messages
-
     async def run(self, task: Any, ctx: Any) -> dict[str, Any]:
-        """Execute one conversational turn for the given *task*.
+        """Execute one conversational turn via the ReAct loop.
 
-        Extracts the user message and conversation history from *task*,
-        delegates to :meth:`converse`, and returns an ``AIPResult`` dict.
+        Extracts user input + history from *task*, loads the project
+        snapshot, builds the system prompt, then runs the ReAct loop.
+        Multi-turn history is passed to ``react()`` so the LLM sees
+        previous user messages and final answers within the same chat
+        session.
         """
         if ctx.llm is None:
             return AIPResult.failed(
-                "NO_LLM", "SpecAssistant requires ctx.llm — no LLM backend configured"
+                "NO_LLM",
+                "SpecAssistant requires ctx.llm — no LLM backend configured",
             )
 
-        task_input = (
-            task.get("input") if isinstance(task, dict) else getattr(task, "input", None)
-        )
-        if task_input is None:
+        input_text, history = _extract_task_input(task)
+        if not input_text:
             return AIPResult.failed("NO_INPUT", "No input provided in task")
 
-        if isinstance(task_input, dict):
-            parts = task_input.get("parts", [])
-            input_text: str = (
-                parts[0]["text"]
-                if parts and isinstance(parts[0], dict)
-                else str(task_input.get("text", ""))
-            )
-        elif hasattr(task_input, "parts"):
-            parts = task_input.parts
-            input_text = parts[0].text if parts else str(task_input)
-        elif hasattr(task_input, "text"):
-            input_text = task_input.text
-        else:
-            input_text = str(task_input)
+        # Cross-session snapshot (rules, tech-stack hints, existing specs)
+        if await self._bootstrap.needs_bootstrap(ctx):
+            await self._bootstrap.run_bootstrap(ctx)
+        snapshot = await self._bootstrap.load_snapshot(ctx) or {}
 
-        raw_history = (
-            task.get("history", []) if isinstance(task, dict)
-            else getattr(task, "history", [])
+        raw_rules = snapshot.get("workspace_rules", "")
+        if not raw_rules:
+            ws = getattr(ctx, "workspace", None)
+            raw_rules = (ws.rules or "") if ws is not None else ""
+
+        existing_specs: list[str] = snapshot.get("existing_specs", []) or []
+
+        self.SYSTEM_PROMPT = _build_system_prompt(raw_rules, existing_specs)
+
+        pending = resume_pending_tool(task)
+
+        result = await self.react(
+            task,
+            ctx,
+            input_text,
+            pending_tool=pending,
+            history=history or None,
         )
-        history: list[dict[str, str]] = []
-        for msg in raw_history or []:
-            if isinstance(msg, dict):
-                role_raw = msg.get("role", "user")
-                role = "assistant" if role_raw == "agent" else role_raw
-                parts = msg.get("parts", [])
-                text = (
-                    parts[0]["text"]
-                    if parts and isinstance(parts[0], dict)
-                    else str(msg)
-                )
-                history.append({"role": role, "content": text})
-            elif hasattr(msg, "role"):
-                role = "assistant" if msg.role == "agent" else msg.role
-                parts = getattr(msg, "parts", [])
-                text = parts[0].text if parts else str(msg)
-                history.append({"role": role, "content": text})
-
-        response_text, _ = await self.converse(ctx, input_text, history=history or None)
-        return AIPResult.completed(response_text)
+        if isinstance(result, dict):
+            return result
+        return AIPResult.completed(result)
 
 
 # ---------------------------------------------------------------------------
-# Module-level agent instance (required by the Apollia AIP contract)
+# Module-level agent instance (AIP contract)
 # ---------------------------------------------------------------------------
 
 agent = SpecAssistant()

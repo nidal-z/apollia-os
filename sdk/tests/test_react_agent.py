@@ -231,7 +231,9 @@ def test_resume_pending_tool_extracts_tool() -> None:
 def test_native_tool_schemas_keys() -> None:
     """NATIVE_TOOL_SCHEMAS contains the expected native tools."""
     assert "bash_executor" in NATIVE_TOOL_SCHEMAS
-    assert "file_io" in NATIVE_TOOL_SCHEMAS
+    assert "file_read" in NATIVE_TOOL_SCHEMAS
+    assert "file_write" in NATIVE_TOOL_SCHEMAS
+    assert "ask_user" in NATIVE_TOOL_SCHEMAS
     assert "python_executor" in NATIVE_TOOL_SCHEMAS
 
 
@@ -246,6 +248,54 @@ def test_native_tool_schemas_structure() -> None:
 # ---------------------------------------------------------------------------
 # Backward compatibility import test
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# JSON field streamer
+# ---------------------------------------------------------------------------
+
+
+def test_json_streamer_emits_thought_value() -> None:
+    """The streamer yields only the chars inside the thought string value."""
+    from apollia.agents.react import _JsonFieldStreamer
+
+    streamer = _JsonFieldStreamer({"thought", "text"})
+    raw = '{"thought": "Hello world", "action": "final_answer", "text": "done"}'
+    emitted = "".join(streamer.feed(raw))
+    assert emitted == "Hello worlddone"
+
+
+def test_json_streamer_handles_chunked_input() -> None:
+    """Chunks split in awkward places still produce the same output."""
+    from apollia.agents.react import _JsonFieldStreamer
+
+    streamer = _JsonFieldStreamer({"thought"})
+    chunks = ['{"thou', 'ght":', ' "Hel', 'lo"', ', "action": "final_answer"}']
+    emitted = "".join(d for c in chunks for d in streamer.feed(c))
+    assert emitted == "Hello"
+
+
+def test_json_streamer_respects_escaped_quotes() -> None:
+    """Escaped quotes inside the value do not end the emission."""
+    from apollia.agents.react import _JsonFieldStreamer
+
+    streamer = _JsonFieldStreamer({"thought"})
+    raw = '{"thought": "He said \\"hi\\" then left", "action": "final_answer"}'
+    emitted = "".join(streamer.feed(raw))
+    assert emitted == 'He said "hi" then left'
+
+
+def test_json_streamer_skips_non_watched_fields() -> None:
+    """Values of non-watched fields (tool, args) are not emitted."""
+    from apollia.agents.react import _JsonFieldStreamer
+
+    streamer = _JsonFieldStreamer({"thought"})
+    raw = (
+        '{"thought": "Calling tool", "action": "tool_call", '
+        '"tool": "bash_executor", "args": {"command": "ls"}}'
+    )
+    emitted = "".join(streamer.feed(raw))
+    assert emitted == "Calling tool"
 
 
 def test_backward_compat_import() -> None:

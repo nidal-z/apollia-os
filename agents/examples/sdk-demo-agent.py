@@ -225,7 +225,7 @@ async def _gather_project_data(
     try:
         result = await ctx.tools.call(
             "bash_executor",
-            {"command": "ls -la", "timeout_seconds": 10},
+            {"command": "ls -la", "timeout_secs": 10},
         )
         return truncate(str(result), OBSERVATION_MAX_CHARS)
     except Exception as e:

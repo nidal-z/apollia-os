@@ -1,38 +1,34 @@
-"""dev-assistant — Assistant d'implémentation pour Apollia OS.
+"""dev-assistant — Consultant agent for implementation and codebase exploration.
 
-Deuxième maillon du pipeline de développement (spec → dev → review). Prend une
-TaskSpec existante et l'implémente couche par couche, en respectant les règles
-projet et sans jamais commencer sans contrat pré-tâche validé.
+Second link of the spec → dev → review pipeline. Loads a TaskSpec, plans
+layer-by-layer, and delegates actual file writes to ``code-worker`` via A2A.
+Also answers exploration questions about the codebase.
 
-Fonctionnement :
-- Utilise ``DevContextBootstrap`` pour charger le contexte projet (workspace
-  rules, tech stack, architecture, fichiers récents) et le persister en mémoire
-  sémantique.  En session N+1, le snapshot est rechargé sans relire les fichiers.
-- Détecte l'intention (implémentation vs exploration) depuis le message utilisateur.
-- Mode implémentation : charge ou crée une TaskSpec minimale, demande validation
-  si aucune n'existe, puis implémente chaque couche cochée [x] via A2A → code-worker.
-  Met à jour la TaskSpec au fur et à mesure pour traçabilité.
-- Mode exploration : utilise le LLM pour répondre aux questions sur la codebase
-  depuis la mémoire sémantique ou les fichiers, sans proposer d'implémentation
-  spontanée.
-- Mémorise les résultats d'exploration pour les sessions suivantes
-  (clé ``codebase:{slug}``).
+Fonctionnement
+--------------
+Agent ReAct agnostique. Le LLM décide au fil de la conversation :
+- répondre à une question d'exploration (lire des fichiers, chercher dans la
+  mémoire sémantique, rédiger une explication)
+- charger une TaskSpec et déléguer sa mise en œuvre à ``a2a:generate-code``,
+  ``a2a:refactor-code``, ``a2a:review-code``, ou créer un commit via
+  ``a2a:git-commit``
+- créer une TaskSpec minimale si aucune n'existe et demander validation
 
-Outils requis  : file_read, file_write
-Outils optionnels : bash_executor (mkdir, git, find), file_list (découverte workspace)
-Outils avec approbation : bash_executor
-Backend LLM    : precise (mode exploration uniquement)
-A2A            : code-worker (implémentation), git-worker (commit optionnel)
+Aucun regex de détection d'intent, aucun marqueur d'implémentation. Le LLM
+choisit selon le message.
+
+Outils requis : file_read, file_write
+Outils optionnels : bash_executor, file_list, file_grep, ask_user,
+  memory_search, a2a:generate-code, a2a:refactor-code, a2a:review-code,
+  a2a:git-commit
 """
 
 from __future__ import annotations
 
-import json
-import re
-import unicodedata
 from typing import Any
 
-from apollia.agents import AIPResult, ConversationalAgent
+from apollia.agents import AIPResult, BaseReActAgent
+from apollia.utils.hitl import resume_pending_tool
 
 try:
     from shared.project_bootstrap import ProjectContextBootstrap
@@ -41,60 +37,7 @@ except ModuleNotFoundError:
 
 
 # ---------------------------------------------------------------------------
-# Memory keys — project-scoped
-# ---------------------------------------------------------------------------
-
-MEMORY_KEY_CODEBASE_PREFIX: str = "codebase:"
-
-_MEMORY_SOURCE: str = "dev-assistant"
-_MEMORY_CONFIDENCE_CODEBASE: float = 0.7
-
-
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-
-_TASK_SPEC_DIR: str = ".apollia/tasks"
-
-# Marqueurs de couche dans une TaskSpec
-_CHECKED_LAYER_RE: re.Pattern[str] = re.compile(
-    r"^-\s+\[x\]\s+(.+?)(?:\s+✅)?\s*$", re.MULTILINE | re.IGNORECASE
-)
-_UNCHECKED_LAYER_RE: re.Pattern[str] = re.compile(
-    r"^-\s+\[ \]\s+(.+)$", re.MULTILINE
-)
-
-# Référence de spec dans un message utilisateur
-_SPEC_REF_RE: re.Pattern[str] = re.compile(
-    r"(?:\.apollia/tasks/|taskspec\s+|spec(?:ification)?\s+[:\s]?\s*)"
-    r"([a-z0-9][a-z0-9\-]{0,62})(?:\.md)?",
-    re.IGNORECASE,
-)
-
-_SLUG_NON_ALNUM: re.Pattern[str] = re.compile(r"[^a-z0-9]+")
-
-# Marqueurs d'intention d'implémentation
-_IMPLEMENT_MARKERS: frozenset[str] = frozenset((
-    "implement", "implémente", "implémenter",
-    "code", "coder", "create", "crée", "créer",
-    "add", "ajoute", "ajouter", "build", "construis",
-    "develop", "développe", "développer", "write", "écris",
-    "generate", "génère", "make", "fais", "start", "commence",
-))
-
-# Marqueurs d'intention d'exploration
-_EXPLORE_MARKERS: frozenset[str] = frozenset((
-    "how", "comment", "what", "quoi",
-    "explain", "explique", "describe", "décris",
-    "show", "montre", "find", "trouve",
-    "why", "pourquoi", "where", "où",
-    "understand", "comprendre", "works", "fonctionne",
-    "liste", "list", "affiche", "display",
-))
-
-
-# ---------------------------------------------------------------------------
-# Context Bootstrap
+# Context Bootstrap (cross-session cache)
 # ---------------------------------------------------------------------------
 
 
@@ -103,8 +46,8 @@ class DevContextBootstrap(ProjectContextBootstrap):
 
     Extends the common project snapshot with:
 
-    - ``architecture``: modules/crates/services detected in the workspace
-    - ``recent_files``: files modified since HEAD~10
+    - ``architecture``: modules / package / service markers found in the tree
+    - ``recent_files``: files modified in the last ~10 commits
     """
 
     async def extra_scopes(
@@ -119,25 +62,33 @@ class DevContextBootstrap(ProjectContextBootstrap):
         if ctx.tools is None:
             return {"architecture": modules, "recent_files": recent}
 
-        arch_result = await ctx.tools.call("bash_executor", {
-            "command": (
-                "find . -maxdepth 3 \\( "
-                "-name 'Cargo.toml' -o -name 'mod.rs' "
-                "-o -name '__init__.py' -o -name 'index.ts' "
-                "\\) 2>/dev/null | grep -v target | head -40 | sort"
-            ),
-        })
+        try:
+            arch_result = await ctx.tools.call("bash_executor", {
+                "command": (
+                    "find . -maxdepth 3 \\( "
+                    "-name 'Cargo.toml' -o -name 'mod.rs' "
+                    "-o -name '__init__.py' -o -name 'index.ts' "
+                    "\\) 2>/dev/null | grep -v target | head -40 | sort"
+                ),
+                "timeout_secs": 10,
+            })
+        except Exception:
+            arch_result = None
         if arch_result and arch_result.get("stdout"):
             raw = arch_result["stdout"]
             if isinstance(raw, str):
                 modules = [line.strip() for line in raw.split("\n") if line.strip()]
 
-        recent_result = await ctx.tools.call("bash_executor", {
-            "command": (
-                "git diff --name-only HEAD~10 HEAD 2>/dev/null "
-                "|| find . -maxdepth 3 -newer .git/HEAD 2>/dev/null | head -30"
-            ),
-        })
+        try:
+            recent_result = await ctx.tools.call("bash_executor", {
+                "command": (
+                    "git diff --name-only HEAD~10 HEAD 2>/dev/null "
+                    "|| find . -maxdepth 3 -newer .git/HEAD 2>/dev/null | head -30"
+                ),
+                "timeout_secs": 10,
+            })
+        except Exception:
+            recent_result = None
         if recent_result and recent_result.get("stdout"):
             raw = recent_result["stdout"]
             if isinstance(raw, str):
@@ -147,482 +98,126 @@ class DevContextBootstrap(ProjectContextBootstrap):
 
 
 # ---------------------------------------------------------------------------
-# Intent detection
+# System prompt
 # ---------------------------------------------------------------------------
 
-def _detect_intent(text: str) -> str:
-    """Retourne ``"implement"`` ou ``"explore"`` selon l'intention détectée.
-
-    Une question (``?``) ou des marqueurs d'exploration font pencher vers
-    ``"explore"``. Des marqueurs d'implémentation explicites font pencher
-    vers ``"implement"``. Le défaut est ``"explore"`` pour éviter toute
-    implémentation involontaire.
-    """
-    tokens = set(re.split(r"\W+", text.lower()))
-    impl_hits = sum(1 for m in _IMPLEMENT_MARKERS if m in tokens)
-    expl_hits = sum(1 for m in _EXPLORE_MARKERS if m in tokens)
-
-    if "?" in text:
-        expl_hits += 2
-
-    if impl_hits > expl_hits:
-        return "implement"
-    return "explore"
-
-
-# ---------------------------------------------------------------------------
-# Slug generation
-# ---------------------------------------------------------------------------
-
-def _slugify(title: str) -> str:
-    """Convertit *title* en slug ASCII minuscule (64 caractères max)."""
-    normalized = unicodedata.normalize("NFD", title.lower())
-    ascii_str = normalized.encode("ascii", "ignore").decode("ascii")
-    slug = _SLUG_NON_ALNUM.sub("-", ascii_str).strip("-")
-    return (slug or "task")[:64]
-
-
-# ---------------------------------------------------------------------------
-# Section extraction
-# ---------------------------------------------------------------------------
-
-def _extract_section_text(raw: str, *headers: str) -> str:
-    """Retourne le bloc de texte qui suit immédiatement le premier *header* trouvé."""
-    for header in headers:
-        idx = raw.find(header)
-        if idx == -1:
-            continue
-        after = raw[idx + len(header):].lstrip("\n")
-        lines: list[str] = []
-        for line in after.splitlines():
-            if line.startswith("#") and lines:
-                break
-            lines.append(line)
-        block = "\n".join(lines).strip()
-        if block:
-            return block
-    return ""
-
-
-# ---------------------------------------------------------------------------
-# TaskSpec parsing
-# ---------------------------------------------------------------------------
-
-def extract_layers_to_implement(content: str) -> list[str]:
-    """Retourne les noms de couches marquées ``[x]`` dans "Couches concernées".
-
-    Ces couches sont dans le périmètre de la feature et doivent être
-    implémentées. Les couches déjà marquées ✅ sont exclues (déjà traitées).
-    """
-    section = _extract_section_text(
-        content,
-        "## Couches concernées",
-        "## Layers",
-        "## Couches",
-    )
-    source = section if section else content
-    layers = [
-        m.group(1).strip()
-        for m in _CHECKED_LAYER_RE.finditer(source)
-        if "✅" not in m.group(0)
-    ]
-    return layers
-
-
-def extract_objective(content: str) -> str:
-    """Retourne l'objectif décrit dans la section ``## Objectif`` de la TaskSpec."""
-    section = _extract_section_text(
-        content, "## Objectif", "## Objective", "## Goal"
-    )
-    return section.strip()[:500] if section else "Feature implementation"
-
-
-def mark_layer_implemented(content: str, layer: str) -> str:
-    """Marque la couche *layer* comme implémentée (ajoute ``✅``) dans *content*.
-
-    La modification porte sur la première occurrence de ``[x] {layer}``
-    sans ✅ existant.
-    """
-    target = f"[x] {layer}"
-    replacement = f"[x] {layer} ✅"
-    idx = content.find(target)
-    if idx == -1:
-        return content
-    after = content[idx + len(target):]
-    if after.startswith(" ✅"):
-        return content
-    return content[:idx] + replacement + after
-
-
-# ---------------------------------------------------------------------------
-# Project rules parsing
-# ---------------------------------------------------------------------------
-
-
-def _parse_forbidden_deps(raw: str) -> list[str]:
-    """Extrait les noms de dépendances explicitement interdites dans *raw*."""
-    patterns = [
-        r"\b([a-zA-Z][\w\-]+)\b\W+INTERDIT\b",
-        r"INTERDIT[^:]*:\s*([a-zA-Z][\w\-]+)",
-        r"\b([a-zA-Z][\w\-]+)\b\W+interdit\b",
-        r"forbidden[^:]*:\s*([a-zA-Z][\w\-]+)",
-        r"\b([a-zA-Z][\w\-]+)\b\W+is\s+forbidden\b",
-        r"\b([a-zA-Z][\w\-]+)\b\W+not\s+allowed\b",
-        r"\bno\s+([a-zA-Z][\w\-]+)\b",
-    ]
-    found: set[str] = set()
-    for pat in patterns:
-        for m in re.finditer(pat, raw):
-            dep = m.group(1).strip()
-            if len(dep) >= 2:
-                found.add(dep)
-    return sorted(found)
-
-
-def _parse_rules(raw_text: str) -> dict[str, str]:
-    """Parse *raw_text* et retourne les règles catégorisées.
-
-    Retourne un dict avec les clés ``raw`` (texte complet tronqué),
-    ``forbidden_deps`` (JSON list), ``patterns``, ``comment_convention``.
-    """
-    forbidden = _parse_forbidden_deps(raw_text)
-    patterns = _extract_section_text(
-        raw_text,
-        "## Patterns obligatoires",
-        "### Patterns obligatoires",
-        "## Required patterns",
-        "## Règles d'implémentation",
-    )
-    comment_conv = _extract_section_text(
-        raw_text,
-        "Convention de commentaires",
-        "Comment convention",
-        "## Comments",
-    )
-    truncated = raw_text[:4_000]
-    if len(raw_text) > 4_000:
-        truncated += "\n[… règles tronquées …]"
-    return {
-        "raw": truncated,
-        "forbidden_deps": json.dumps(forbidden),
-        "patterns": patterns[:500],
-        "comment_convention": comment_conv[:200],
-    }
-
-
-# ---------------------------------------------------------------------------
-# File I/O helpers
-# ---------------------------------------------------------------------------
-
-
-async def _read_file(ctx: Any, path: str) -> str | None:
-    """Lit *path* via l'outil ``file_read``.
-
-    Retourne le contenu en cas de succès, ``None`` si le fichier n'existe pas,
-    si l'outil est indisponible ou si une erreur est signalée.
-    """
-    if ctx.tools is None:
-        return None
-    try:
-        result = await ctx.tools.call("file_read", {"path": path})
-        if not isinstance(result, dict):
-            return None
-        if result.get("error"):
-            return None
-        content = result.get("content", "")
-        return content if content else None
-    except Exception:
-        return None
-
-
-# ---------------------------------------------------------------------------
-# TaskSpec file operations
-# ---------------------------------------------------------------------------
-
-async def load_task_spec(ctx: Any, slug: str) -> str | None:
-    """Charge le contenu de ``.apollia/tasks/{slug}.md``.
-
-    Retourne le contenu Markdown en cas de succès, ``None`` sinon.
-    """
-    path = f"{_TASK_SPEC_DIR}/{slug}.md"
-    return await _read_file(ctx, path)
-
-
-async def list_task_specs(ctx: Any) -> list[str]:
-    """Retourne les slugs des TaskSpecs présentes dans ``.apollia/tasks/``.
-
-    Utilise ``file_list`` si disponible, retourne une liste vide sinon.
-    """
-    if ctx.tools is None:
-        return []
-    try:
-        available = ctx.tools.list_tools()
-        if "file_list" not in available:
-            return []
-        result = await ctx.tools.call("file_list", {"path": _TASK_SPEC_DIR})
-        if not isinstance(result, dict):
-            return []
-        files = result.get("files", result.get("entries", []))
-        slugs: list[str] = []
-        for entry in files:
-            name = entry if isinstance(entry, str) else entry.get("name", "")
-            if name.endswith(".md"):
-                slugs.append(name[:-3])
-        return slugs
-    except Exception:
-        return []
-
-
-async def write_task_spec(ctx: Any, slug: str, content: str) -> bool:
-    """Écrit *content* dans ``.apollia/tasks/{slug}.md``.
-
-    Crée le répertoire ``.apollia/tasks/`` via ``bash_executor`` si disponible.
-    Retourne ``True`` en cas de succès, ``False`` sinon.
-    """
-    if ctx.tools is None:
-        return False
-    path = f"{_TASK_SPEC_DIR}/{slug}.md"
-    try:
-        available = ctx.tools.list_tools()
-        if "bash_executor" in available:
-            await ctx.tools.call(
-                "bash_executor", {"cmd": f"mkdir -p {_TASK_SPEC_DIR}"}
-            )
-        await ctx.tools.call("file_write", {"path": path, "content": content})
-        return True
-    except Exception:
-        return False
-
-
-def create_minimal_task_spec(slug: str, objective: str, rules: dict[str, str]) -> str:
-    """Génère une TaskSpec minimale à partir de l'objectif et des règles projet.
-
-    La spec créée contient des couches par défaut non cochées. L'utilisateur
-    doit cocher les couches pertinentes et valider avant que dev-assistant
-    commence l'implémentation.
-    """
-    title = slug.replace("-", " ").title()
-    forbidden_raw = rules.get("forbidden_deps", "[]")
-    try:
-        forbidden_list: list[str] = json.loads(forbidden_raw)
-    except (json.JSONDecodeError, TypeError):
-        forbidden_list = []
-
-    forbidden_section = (
-        "\n".join(f"- `{d}`" for d in forbidden_list)
-        if forbidden_list
-        else "Aucune règle spécifique."
-    )
-    patterns_section = rules.get("patterns", "") or "Aucun pattern spécifique."
-
-    return f"""\
-# TaskSpec — {title}
-
-> Généré par dev-assistant
-> Statut : DRAFT — À valider avant implémentation
-
-## Objectif
-{objective}
-
-## Couches concernées
-Cochez [x] les couches à implémenter, laissez [ ] les autres.
-
-- [ ] Base de données / Modèle de données
-- [ ] API / Services backend
-- [ ] Types / Interfaces / Contrats
-- [ ] Logique métier / Domain layer
-- [ ] Frontend / UI / Composants
-- [ ] Câblage / Configuration / Intégration
-- [ ] Tests unitaires
-- [ ] Tests d'intégration / E2E
-- [ ] Documentation / Guides
-
-## Règles du projet
-### Dépendances interdites
-{forbidden_section}
-### Patterns obligatoires
-{patterns_section}
-
-## Périmètre explicite
-### Dans le scope
-- À préciser avec l'utilisateur
-
-### Hors scope (explicitement)
-- À préciser avec l'utilisateur
-
-## Définition de "Fini"
-- [ ] Les couches cochées sont implémentées
-- [ ] Les tests passent sans régression
-
-## Hypothèses et dépendances
-- Périmètre à confirmer avec l'utilisateur
-
-## Risques identifiés
-- Scope non défini — risque de dérive d'implémentation
-
-## Historique des révisions
-- DRAFT : spec minimale créée par dev-assistant
-"""
-
-
-# ---------------------------------------------------------------------------
-# Spec slug extraction from user message
-# ---------------------------------------------------------------------------
-
-def _extract_spec_slug(text: str) -> str | None:
-    """Extrait un slug de TaskSpec depuis *text* si présent.
-
-    Recherche des patterns comme ``.apollia/tasks/jwt-auth`` ou
-    ``spec jwt-auth`` ou ``taskspec jwt-auth.md``.
-    """
-    match = _SPEC_REF_RE.search(text)
-    if match:
-        return match.group(1).lower()
-    return None
-
-
-# ---------------------------------------------------------------------------
-# A2A delegation
-# ---------------------------------------------------------------------------
-
-async def delegate_to_code_worker(
-    ctx: Any,
-    layer: str,
-    objective: str,
-    spec_content: str,
-    rules: dict[str, str],
-) -> str:
-    """Délègue l'implémentation d'une couche à ``code-worker`` via A2A.
-
-    Retourne la sortie de code-worker, ou un message de repli si A2A n'est
-    pas disponible dans ce contexte d'exécution.
-    """
-    if not (hasattr(ctx, "a2a") and ctx.a2a is not None):
-        return (
-            f"[A2A non disponible] La couche '{layer}' doit être implémentée "
-            f"manuellement selon la TaskSpec."
-        )
-
-    try:
-        forbidden_raw = rules.get("forbidden_deps", "[]")
-        try:
-            forbidden_list: list[str] = json.loads(forbidden_raw)
-        except (json.JSONDecodeError, TypeError):
-            forbidden_list = []
-
-        result = await ctx.a2a.call(
-            agent="code-worker",
-            skill="implement",
-            input={
-                "task": f"Implement layer '{layer}' for: {objective}",
-                "spec": spec_content,
-                "forbidden_deps": forbidden_list,
-                "comment_convention": rules.get("comment_convention", ""),
-                "patterns": rules.get("patterns", ""),
-            },
-        )
-        return str(result.get("output", f"Layer '{layer}' delegated to code-worker."))
-    except Exception as exc:
-        return f"[code-worker error] {exc}"
-
-
-async def delegate_to_git_worker(
-    ctx: Any,
-    commit_message: str,
-    files: list[str],
-) -> dict[str, Any] | None:
-    """Délègue la création d'un commit à ``git-worker`` via A2A.
-
-    Retourne le résultat de git-worker, ou ``None`` si A2A est indisponible.
-    """
-    if not (hasattr(ctx, "a2a") and ctx.a2a is not None):
-        return None
-    try:
-        result = await ctx.a2a.call(
-            agent="git-worker",
-            skill="commit",
-            input={"message": commit_message, "files": files},
-        )
-        return dict(result)
-    except Exception:
-        return None
-
-
-# ---------------------------------------------------------------------------
-# System prompt construction
-# ---------------------------------------------------------------------------
-
-_SYSTEM_PROMPT: str = """\
-You are **dev-assistant**, an experienced developer skilled at implementing \
-and exploring software projects, regardless of tech stack.
-
-## Principles
-
-**Understand the project before acting.** On first exchange, you have access to \
-project context (rules, architecture, recent files) if loaded. Use it. \
-If essential information is missing, use `ask_user` to obtain it.
-
-**Two natural modes.** You naturally switch between exploration (answering questions \
-about code, architecture, patterns) and implementation (building a feature from a \
-TaskSpec). The user's intent determines the mode, not a rigid keyword.
-
-**Contract before implementation.** Before writing code, ensure a TaskSpec exists \
-or propose a minimal one. Never start coding in a vacuum.
-
-**Respect project rules.** If dependencies are forbidden, patterns required, or \
-code conventions defined — follow them strictly.
-
-**Clean code by default.** No comments that repeat the function name. \
-No dependencies added without validation. No code deleted without confirmation. \
+_SYSTEM_PROMPT_TEMPLATE: str = """\
+You are **dev-assistant**, a senior developer assisting on implementation and \
+codebase questions, regardless of tech stack.
+
+Your role shifts naturally between two modes depending on what the user asks:
+
+1. **Exploration** — answer questions about the code, the architecture, \
+   patterns, conventions. Read files with `file_read`, grep with `file_grep`, \
+   recall prior context with `memory_search`. Give grounded answers based on \
+   what you actually saw in the project.
+
+2. **Implementation** — carry a feature from its TaskSpec to code. Load the \
+   spec with `file_read`, verify the scope, then delegate the actual code \
+   edits to specialised agents via A2A:
+   - `a2a:generate-code` — create new source files
+   - `a2a:refactor-code` — modify existing files
+   - `a2a:review-code` — check an implementation against conventions
+   - `a2a:git-commit` — stage + commit the result
+   Update the TaskSpec between layers to track progress.
+
+You choose the mode based on the user's intent. A question ending with "?" \
+usually means exploration; "implement X" or "finish the spec Y" means \
+implementation. When in doubt, ask with `ask_user`.
+
+## Core behaviour
+
+**Understand before acting.** Project context (rules, architecture hints, \
+recent files) is loaded below. Use it. If essential info is missing, call \
+`ask_user` with adapted questions — never use generic templates.
+
+**Contract before implementation.** Don't start coding without a TaskSpec. \
+If the user asks to implement something and no spec exists, either:
+- propose a minimal TaskSpec and ask for validation, or
+- delegate back to `spec-assistant` via A2A if the need is significantly \
+  underspecified.
+
+**Respect project rules.** If the workspace defines forbidden dependencies, \
+mandatory patterns, or code conventions (see rules below), enforce them when \
+delegating to `code-worker` by including them in the A2A payload.
+
+**Clean code by default.** No comments that repeat the function name. No \
+dependencies added without validation. No code deleted without confirmation. \
 Only comments that explain non-obvious logic.
 
-## What you do
+## What you never do
 
-- Answer questions about the codebase and architecture
-- Load an existing TaskSpec and implement layer by layer
-- Create a minimal TaskSpec if none exists (and ask for validation)
-- Delegate file writing to code-worker via A2A when available
-- Update the TaskSpec as implementation progresses
-
-## Available tools
-
-- `file_read`, `file_write`: read and write files
-- `bash_executor`: shell commands (mkdir, git, find, tests)
-- `ask_user`: ask the user structured questions
-- A2A: `code-worker` (implementation), `git-worker` (commits)
+- Never write code yourself — delegate to `a2a:generate-code` / \
+  `a2a:refactor-code`. You orchestrate.
+- Never skip the TaskSpec. If missing, create a minimal one first.
+- Never invent project context (stack, rules, conventions) that isn't in the \
+  loaded context or the user's message.
 
 ## Project context
 
 {rules_section}
 
+## Architecture hints
+
+{architecture_section}
+
+## Recent files
+
+{recent_files_section}
+
 ## Language
 
-Always respond in the same language as the user's message.\
+Always respond in the same language as the user's message.
 """
 
 
-def build_system_prompt(rules: dict[str, str]) -> str:
-    """Build the system prompt with injected project rules."""
-    raw = rules.get("raw", "").strip()
-
-    if raw:
-        forbidden_raw = rules.get("forbidden_deps", "[]")
-        try:
-            forbidden_list: list[str] = json.loads(forbidden_raw)
-        except (json.JSONDecodeError, TypeError):
-            forbidden_list = []
-
-        parts = [
-            f"**Forbidden dependencies:** "
-            f"{', '.join(f'`{d}`' for d in forbidden_list) or 'none detected'}"
-        ]
-        if rules.get("patterns"):
-            parts.append(f"**Required patterns:** {rules['patterns'][:300]}")
-        rules_section = "\n\n".join(parts)
+def _build_system_prompt(
+    raw_rules: str,
+    architecture: list[str],
+    recent_files: list[str],
+) -> str:
+    """Compose the dev-assistant system prompt from the cached snapshot."""
+    rules = (raw_rules or "").strip()
+    if rules:
+        truncated = rules[:4000]
+        if len(rules) > 4000:
+            truncated += "\n[... truncated for context window ...]"
+        rules_section = (
+            "**Workspace rules loaded** (project-specific conventions — "
+            "authoritative for this project):\n"
+            f"```\n{truncated}\n```"
+        )
     else:
-        rules_section = "No rules file found in this workspace."
+        rules_section = (
+            "No rules file found in this workspace. Ask the user about "
+            "conventions and constraints before implementing anything."
+        )
 
-    return _SYSTEM_PROMPT.format(rules_section=rules_section)
+    if architecture:
+        arch_lines = "\n".join(f"- `{m}`" for m in architecture[:30])
+        architecture_section = (
+            f"Module/package markers detected in the workspace:\n{arch_lines}"
+        )
+    else:
+        architecture_section = (
+            "No obvious module markers detected (no Cargo.toml, package.json, "
+            "__init__.py, index.ts in the top 3 levels)."
+        )
+
+    if recent_files:
+        recent_lines = "\n".join(f"- `{f}`" for f in recent_files[:20])
+        recent_files_section = (
+            "Files modified in the last ~10 commits "
+            f"(useful hints about active areas):\n{recent_lines}"
+        )
+    else:
+        recent_files_section = "No recent file changes detected."
+
+    return _SYSTEM_PROMPT_TEMPLATE.format(
+        rules_section=rules_section,
+        architecture_section=architecture_section,
+        recent_files_section=recent_files_section,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -630,25 +225,21 @@ def build_system_prompt(rules: dict[str, str]) -> str:
 # ---------------------------------------------------------------------------
 
 def _extract_task_input(task: Any) -> tuple[str, list[dict[str, str]]]:
-    """Extrait le texte d'entrée et l'historique depuis *task*.
-
-    Supporte les dicts (format API), les objets avec attributs (format runtime
-    PyO3), et les parties A2A multi-turn.
-    Retourne un tuple ``(input_text, history)``.
-    """
+    """Extract user text + conversation history from *task* (chat mode)."""
     task_input = (
-        task.get("input") if isinstance(task, dict) else getattr(task, "input", None)
+        task.get("input") if isinstance(task, dict)
+        else getattr(task, "input", None)
     )
-
     if task_input is None:
         return "", []
 
     if isinstance(task_input, dict):
         parts = task_input.get("parts", [])
-        if parts and isinstance(parts[0], dict):
-            input_text: str = parts[0].get("text", "")
-        else:
-            input_text = str(task_input.get("text", ""))
+        input_text: str = (
+            parts[0]["text"]
+            if parts and isinstance(parts[0], dict)
+            else str(task_input.get("text", ""))
+        )
     elif hasattr(task_input, "parts"):
         parts = task_input.parts
         input_text = parts[0].text if parts else str(task_input)
@@ -666,117 +257,121 @@ def _extract_task_input(task: Any) -> tuple[str, list[dict[str, str]]]:
         if isinstance(msg, dict):
             role_raw = msg.get("role", "user")
             role = "assistant" if role_raw == "agent" else role_raw
-            msg_parts = msg.get("parts", [])
+            parts = msg.get("parts", [])
             text = (
-                msg_parts[0]["text"]
-                if msg_parts and isinstance(msg_parts[0], dict)
-                else str(msg.get("text", msg))
+                parts[0]["text"]
+                if parts and isinstance(parts[0], dict)
+                else str(msg)
             )
             history.append({"role": role, "content": text})
         elif hasattr(msg, "role"):
             role = "assistant" if msg.role == "agent" else msg.role
-            msg_parts = getattr(msg, "parts", [])
-            text = msg_parts[0].text if msg_parts else str(msg)
+            parts = getattr(msg, "parts", [])
+            text = parts[0].text if parts else str(msg)
             history.append({"role": role, "content": text})
 
     return input_text, history
 
 
 # ---------------------------------------------------------------------------
-# Module-level manifest function (AIP contract)
+# Manifest
 # ---------------------------------------------------------------------------
 
 def manifest() -> dict[str, Any]:
-    """Retourne le manifest AIP de dev-assistant."""
+    """Return the AIP agent manifest for dev-assistant."""
     return {
         "name": "dev-assistant",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "description": (
-            "Assistant d'implémentation Apollia OS — prend une TaskSpec et implémente "
-            "couche par couche en respectant les règles du projet. "
-            "Contrat pré-tâche obligatoire : refuse de commencer sans TaskSpec validée. "
-            "Délègue à code-worker et git-worker via A2A. "
-            "Aucun commentaire évident dans le code produit. "
-            "Deuxième maillon du pipeline spec → dev → review."
+            "Consultant agent for codebase exploration and feature "
+            "implementation. Loads a TaskSpec, plans layer by layer, "
+            "delegates actual code writes to code-worker via A2A. Also "
+            "answers architecture and implementation questions by reading "
+            "the project. Stack-agnostic: adapts to Rust, Python, JS, or "
+            "any other language present in the workspace."
         ),
         "execution_mode": "auto",
         "agent_type": "assistant",
         "tools_required": ["file_read", "file_write"],
-        "tools_optional": ["bash_executor", "file_list", "ask_user"],
+        "tools_optional": [
+            "bash_executor",
+            "file_list",
+            "file_grep",
+            "ask_user",
+            "memory_search",
+            "a2a:generate-code",
+            "a2a:refactor-code",
+            "a2a:review-code",
+            "a2a:git-commit",
+        ],
         "tools_requiring_approval": ["bash_executor"],
         "packages": [],
         "memory_namespace": "dev-assistant",
         "llm_backend": "precise",
         "supports_streaming": True,
         "supports_a2a": True,
-        "step_budget": {"max_steps": 100, "max_tool_calls": 80, "wall_clock_secs": 1800},
-        "tags": ["dev", "implementation", "code", "pipeline", "a2a"],
+        "step_budget": {
+            "max_steps": 40,
+            "max_tool_calls": 30,
+            "wall_clock_secs": 900,
+        },
+        "tags": [
+            "development", "implementation", "exploration",
+            "pipeline-dev", "consultant", "agnostic", "a2a-orchestrator",
+        ],
         "max_concurrent_tasks": 1,
         "dangerous_tools_allowed": False,
         "examples": [
+            "Comment fonctionne le système d'authentification ?",
             "Implémente la spec user-auth",
-            "Explore comment le Tool Registry fonctionne dans ce projet",
-            "Implémente la couche API de la spec payment-flow, couche par couche",
-            "Qu'est-ce qui a déjà été implémenté dans ce workspace ?",
-            "Ajoute une feature de login — crée la TaskSpec d'abord si elle n'existe pas",
+            "Montre-moi les endpoints API existants",
+            "Refactore le module payment pour extraire la validation",
         ],
         "limitations": [
-            "Refuse de commencer sans TaskSpec validée — crée une spec minimale et demande "
-            "confirmation si aucune n'existe",
-            "Ne génère jamais de tests automatiquement — déléguer à review-assistant",
-            "N'efface jamais de code existant sans confirmation explicite",
-            "Délègue à code-worker via A2A pour tout fichier de code — si code-worker est "
-            "absent, signale l'indisponibilité plutôt que d'écrire directement",
-            "N'ajoute jamais de dépendance non présente dans le projet sans validation explicite",
+            "N'écrit pas le code lui-même — délègue à code-worker via A2A.",
+            "Ne démarre pas une implémentation sans TaskSpec validée.",
         ],
         "setup_notes": (
-            "Fonctionne de manière autonome. Si un fichier .apollia/tasks/{slug}.md existe, "
-            "l'assistant le charge automatiquement. Sans TaskSpec préexistante, il propose d'en "
-            "créer une minimale et demande validation avant de commencer l'implémentation. "
-            "À partir de la deuxième session sur le même projet, les règles projet sont rechargées "
-            "depuis la mémoire sémantique sans relire APOLLIA.md ou Cargo.toml. "
-            "Deux modes distincts : implémentation (avec TaskSpec) et exploration (réponse sans code). "
-            "Fonctionne mieux en pipeline avec spec-assistant (génère la TaskSpec) et review-assistant "
-            "(vérifie l'implémentation), mais chaque assistant est utilisable séparément."
+            "Fonctionne avec ou sans règles projet. En implémentation, "
+            "requiert que code-worker et git-worker soient installés et "
+            "actifs pour que les A2A fonctionnent. Sinon, bascule en mode "
+            "exploration et propose des plans textuels au lieu d'éditer "
+            "des fichiers."
         ),
         "skills": [
             {
-                "id": "implement",
-                "name": "Implémenter une feature",
+                "id": "explore-codebase",
+                "name": "Explorer le code et l'architecture",
                 "description": (
-                    "Charge ou crée une TaskSpec, puis implémente chaque couche cochée "
-                    "[x] en déléguant à code-worker via A2A. Demande validation si "
-                    "aucune TaskSpec n'existe."
-                ),
-                "input_modes": ["text"],
-                "output_modes": ["text"],
-                "input_schema": {
-                    "request": {
-                        "type": "string",
-                        "description": "Description de la feature à implémenter ou slug de TaskSpec",
-                        "required": True,
-                    },
-                    "spec_slug": {
-                        "type": "string",
-                        "description": "Slug de la TaskSpec à utiliser (ex. : user-auth)",
-                        "required": False,
-                    },
-                },
-            },
-            {
-                "id": "explore",
-                "name": "Explorer la codebase",
-                "description": (
-                    "Répond aux questions sur la codebase, les patterns et l'architecture "
-                    "depuis la mémoire sémantique ou les fichiers du workspace. "
-                    "Ne propose jamais d'implémentation spontanée."
+                    "Répond à des questions sur le codebase : architecture, "
+                    "conventions, patterns, dépendances. Lit les fichiers "
+                    "pertinents via file_read et file_grep."
                 ),
                 "input_modes": ["text"],
                 "output_modes": ["text"],
                 "input_schema": {
                     "question": {
                         "type": "string",
-                        "description": "Question sur la codebase ou l'architecture",
+                        "description": "Question sur le code ou l'architecture",
+                        "required": True,
+                    },
+                },
+            },
+            {
+                "id": "implement-spec",
+                "name": "Implémenter une TaskSpec",
+                "description": (
+                    "Charge une TaskSpec existante, planifie son "
+                    "implémentation couche par couche, délègue chaque "
+                    "couche à code-worker via A2A, met à jour la spec au "
+                    "fur et à mesure."
+                ),
+                "input_modes": ["text"],
+                "output_modes": ["text"],
+                "input_schema": {
+                    "spec_slug": {
+                        "type": "string",
+                        "description": "Slug de la TaskSpec à implémenter",
                         "required": True,
                     },
                 },
@@ -789,200 +384,71 @@ def manifest() -> dict[str, Any]:
 # Agent
 # ---------------------------------------------------------------------------
 
-class DevAssistant(ConversationalAgent):
-    """Assistant d'implémentation Apollia OS — deuxième maillon du pipeline dev.
+class DevAssistant(BaseReActAgent):
+    """Consultant agent for implementation and codebase exploration.
 
-    Implémente les features décrites dans une TaskSpec en respectant les règles
-    projet. Impose un contrat pré-tâche (TaskSpec validée) avant toute ligne de
-    code et délègue l'écriture de fichiers à code-worker via A2A.
-
-    Session startup behaviour (first turn):
-    1. Run ``DevContextBootstrap`` to discover project context (workspace
-       rules, tech stack, architecture, recent files) and persist to memory.
-    2. Load the snapshot (instant in session N+1 when HEAD hasn't changed).
-    3. Parse workspace rules and cache for subsequent turns.
-
-    Deux modes de fonctionnement :
-
-    - **Implémentation** : charge la TaskSpec, implémente chaque couche cochée
-      [x] dans "Couches concernées" via code-worker, met à jour la TaskSpec.
-      Si aucune TaskSpec n'existe, en crée une minimale et demande validation.
-    - **Exploration** : utilise le LLM pour répondre aux questions sur la
-      codebase sans proposer d'implémentation spontanée.
-
-    Le mode est déterminé automatiquement depuis l'intention du message
-    utilisateur (marqueurs d'implémentation vs. exploration + présence de ``?``).
+    Behaviour :
+    - Charge un snapshot cross-session (règles, architecture, fichiers récents).
+    - Délègue au LLM toute décision : exploration vs implémentation, quels
+      fichiers lire, quand appeler code-worker, quand mettre à jour la spec.
+    - Préserve l'historique conversationnel multi-tour en chat mode.
     """
 
-    SYSTEM_PROMPT: str = _SYSTEM_PROMPT.format(
-        rules_section="(loaded at session startup)"
+    SYSTEM_PROMPT: str = _SYSTEM_PROMPT_TEMPLATE.format(
+        rules_section="(loaded per-turn)",
+        architecture_section="(loaded per-turn)",
+        recent_files_section="(loaded per-turn)",
     )
-    MAX_TURNS: int = 30
+    MAX_STEPS: int = 30
     TEMPERATURE: float = 0.2
 
     def __init__(self) -> None:
         self._bootstrap = DevContextBootstrap()
 
     def manifest(self) -> dict[str, Any]:
-        """Retourne le manifest AIP de dev-assistant."""
+        """Return the AIP agent manifest for dev-assistant."""
         return manifest()
 
-    async def _run_explore(
-        self,
-        ctx: Any,
-        user_message: str,
-        rules: dict[str, str],
-        history: list[dict[str, str]],
-    ) -> AIPResult:
-        """Traite une requête d'exploration via le LLM.
-
-        Construit le system prompt avec les règles projet, appelle le LLM en
-        mode conversationnel, et mémorise la réponse pour les sessions futures.
-        """
+    async def run(self, task: Any, ctx: Any) -> dict[str, Any]:
+        """Execute one conversational turn via the ReAct loop."""
         if ctx.llm is None:
             return AIPResult.failed(
                 "NO_LLM",
-                "DevAssistant requires ctx.llm for exploration mode",
+                "DevAssistant requires ctx.llm — no LLM backend configured",
             )
 
-        self.SYSTEM_PROMPT = build_system_prompt(rules)
-        response_text, _ = await self.converse(
-            ctx, user_message, history=history or None
-        )
-
-        if ctx.memory is not None:
-            key = f"{MEMORY_KEY_CODEBASE_PREFIX}{_slugify(user_message[:40])}"
-            await ctx.memory.remember(
-                key=key,
-                value=response_text[:1000],
-                source=_MEMORY_SOURCE,
-                confidence=_MEMORY_CONFIDENCE_CODEBASE,
-            )
-
-        return AIPResult.completed(response_text)
-
-    async def _run_implement(
-        self,
-        ctx: Any,
-        user_message: str,
-        lang: str,
-        rules: dict[str, str],
-        history: list[dict[str, str]],
-    ) -> AIPResult:
-        """Traite une requête d'implémentation couche par couche.
-
-        Cherche une TaskSpec dans le message ou le workspace. Si aucune n'est
-        trouvée, crée une spec minimale et retourne ``input_required`` pour
-        demander validation. Si une spec est trouvée, délègue chaque couche
-        cochée à code-worker via A2A.
-        """
-        spec_slug = _extract_spec_slug(user_message)
-        spec_content: str | None = None
-
-        if spec_slug:
-            spec_content = await load_task_spec(ctx, spec_slug)
-
-        if spec_content is None:
-            slug = _slugify(user_message[:50]) or "new-task"
-            minimal = create_minimal_task_spec(slug, user_message, rules)
-            await write_task_spec(ctx, slug, minimal)
-
-            prompt = (
-                f"I've created a minimal TaskSpec at "
-                f"`.apollia/tasks/{slug}.md`.\n\n"
-                f"Please:\n"
-                f"1. Open the file and check `[x]` the layers to implement\n"
-                f"2. Clarify the objective if needed\n"
-                f"3. Confirm with: \"start implementing spec {slug}\""
-            )
-            return AIPResult.input_required(prompt)
-
-        layers = extract_layers_to_implement(spec_content)
-        objective = extract_objective(spec_content)
-        resolved_slug = spec_slug or _slugify(user_message[:50])
-
-        if not layers:
-            return AIPResult.completed(
-                "All TaskSpec layers are already implemented (✅) "
-                "or no layer is checked [x]."
-            )
-
-        output_parts: list[str] = []
-
-        for layer in layers:
-            output_parts.append(f"## Implementing — {layer}")
-
-            layer_output = await delegate_to_code_worker(
-                ctx, layer, objective, spec_content, rules
-            )
-            output_parts.append(layer_output)
-
-            spec_content = mark_layer_implemented(spec_content, layer)
-            await write_task_spec(ctx, resolved_slug, spec_content)
-
-        output_parts.append(
-            "\nImplementation complete. Would you like me to create a commit?"
-        )
-
-        if ctx.memory is not None:
-            await ctx.memory.record(
-                content=(
-                    f"Implemented: {objective[:200]}\n"
-                    f"Layers: {', '.join(layers)}"
-                ),
-                importance=0.7,
-            )
-
-        return AIPResult.completed("\n\n".join(output_parts))
-
-    async def run(self, task: Any, ctx: Any) -> dict[str, Any]:
-        """Exécute un tour de conversation pour *task*.
-
-        Extrait l'entrée utilisateur, détecte la langue et l'intention,
-        bootstrappe le contexte projet au premier tour, puis route vers le
-        mode exploration ou implémentation.
-        """
         input_text, history = _extract_task_input(task)
-
         if not input_text:
             return AIPResult.failed("NO_INPUT", "No input provided in task")
 
-        is_first_turn = not history
+        if await self._bootstrap.needs_bootstrap(ctx):
+            await self._bootstrap.run_bootstrap(ctx)
+        snapshot = await self._bootstrap.load_snapshot(ctx) or {}
 
-        if is_first_turn:
-            if await self._bootstrap.needs_bootstrap(ctx):
-                await self._bootstrap.run_bootstrap(ctx)
-            snapshot = await self._bootstrap.load_snapshot(ctx)
+        raw_rules = snapshot.get("workspace_rules", "")
+        if not raw_rules:
+            ws = getattr(ctx, "workspace", None)
+            raw_rules = (ws.rules or "") if ws is not None else ""
 
-            raw_rules = (
-                snapshot.get("workspace_rules", "")
-                if snapshot
-                else (
-                    ctx.workspace.rules or ""
-                    if getattr(ctx, "workspace", None) is not None
-                    else ""
-                )
-            )
-            self._rules: dict[str, str] = (
-                _parse_rules(raw_rules)
-                if raw_rules
-                else {"raw": "", "forbidden_deps": "[]", "patterns": "", "comment_convention": ""}
-            )
+        architecture: list[str] = snapshot.get("architecture", []) or []
+        recent_files: list[str] = snapshot.get("recent_files", []) or []
 
-        rules = getattr(
-            self, "_rules",
-            {"raw": "", "forbidden_deps": "[]", "patterns": "", "comment_convention": ""},
+        self.SYSTEM_PROMPT = _build_system_prompt(
+            raw_rules, architecture, recent_files
         )
-        intent = _detect_intent(input_text)
 
-        if intent == "explore":
-            return await self._run_explore(ctx, input_text, rules, history)
+        pending = resume_pending_tool(task)
 
-        return await self._run_implement(ctx, input_text, rules, history)
+        result = await self.react(
+            task,
+            ctx,
+            input_text,
+            pending_tool=pending,
+            history=history or None,
+        )
+        if isinstance(result, dict):
+            return result
+        return AIPResult.completed(result)
 
-
-# ---------------------------------------------------------------------------
-# Module-level agent instance (contrat AIP)
-# ---------------------------------------------------------------------------
 
 agent = DevAssistant()
