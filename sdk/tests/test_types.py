@@ -85,7 +85,7 @@ def test_version():
     """__version__ is exposed."""
     from apollia import __version__
 
-    assert __version__ == "0.3.0"
+    assert __version__ == "0.4.0"
 
 
 def test_import_conversational_agent():

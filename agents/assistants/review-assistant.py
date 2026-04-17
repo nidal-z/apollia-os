@@ -31,23 +31,9 @@ from apollia.agents import AIPResult, BaseReActAgent
 from apollia.utils.hitl import resume_pending_tool
 
 try:
-    from shared.project_bootstrap import ProjectContextBootstrap
+    from shared import workspace_rules
 except ModuleNotFoundError:
-    from assistants.shared.project_bootstrap import ProjectContextBootstrap
-
-
-# ---------------------------------------------------------------------------
-# Bootstrap
-# ---------------------------------------------------------------------------
-
-
-class ReviewContextBootstrap(ProjectContextBootstrap):
-    """Bootstrap for review-assistant.
-
-    No extra scopes beyond the common project snapshot (workspace rules,
-    tech stack markers, git state). The base snapshot is sufficient —
-    the LLM decides which additional checks to run via its tools.
-    """
+    from assistants.shared import workspace_rules
 
 
 # ---------------------------------------------------------------------------
@@ -147,21 +133,14 @@ violations you can point to — spec expectation, rule text, or failing test.
 
 {rules_section}
 
-## Tech stack hints
-
-{tech_stack_section}
-
 ## Language
 
 Always respond in the same language as the user's message.
 """
 
 
-def _build_system_prompt(
-    raw_rules: str,
-    tech_stack: list[str],
-) -> str:
-    """Compose the review-assistant system prompt."""
+def _build_system_prompt(raw_rules: str) -> str:
+    """Compose the review-assistant system prompt from workspace rules."""
     rules = (raw_rules or "").strip()
     if rules:
         truncated = rules[:4000]
@@ -181,24 +160,7 @@ def _build_system_prompt(
             "aren't written down — ask the user if unsure."
         )
 
-    if tech_stack:
-        hints = ", ".join(f"`{m}`" for m in tech_stack)
-        tech_stack_section = (
-            f"Manifest files detected in the workspace: {hints}. "
-            "Use them to infer the stack and pick the right test command. "
-            "Read them if you need more detail."
-        )
-    else:
-        tech_stack_section = (
-            "No standard manifest files detected in the top 3 levels. "
-            "Inspect the tree via `file_list` or `file_glob` to identify "
-            "the stack before running any tests."
-        )
-
-    return _SYSTEM_PROMPT_TEMPLATE.format(
-        rules_section=rules_section,
-        tech_stack_section=tech_stack_section,
-    )
+    return _SYSTEM_PROMPT_TEMPLATE.format(rules_section=rules_section)
 
 
 # ---------------------------------------------------------------------------
@@ -362,13 +324,9 @@ class ReviewAssistant(BaseReActAgent):
 
     SYSTEM_PROMPT: str = _SYSTEM_PROMPT_TEMPLATE.format(
         rules_section="(loaded per-turn)",
-        tech_stack_section="(loaded per-turn)",
     )
     MAX_STEPS: int = 25
     TEMPERATURE: float = 0.2
-
-    def __init__(self) -> None:
-        self._bootstrap = ReviewContextBootstrap()
 
     def manifest(self) -> dict[str, Any]:
         """Return the AIP agent manifest for review-assistant."""
@@ -386,18 +344,7 @@ class ReviewAssistant(BaseReActAgent):
         if not input_text:
             return AIPResult.failed("NO_INPUT", "No input provided in task")
 
-        if await self._bootstrap.needs_bootstrap(ctx):
-            await self._bootstrap.run_bootstrap(ctx)
-        snapshot = await self._bootstrap.load_snapshot(ctx) or {}
-
-        raw_rules = snapshot.get("workspace_rules", "")
-        if not raw_rules:
-            ws = getattr(ctx, "workspace", None)
-            raw_rules = (ws.rules or "") if ws is not None else ""
-
-        tech_stack: list[str] = snapshot.get("tech_stack", []) or []
-
-        self.SYSTEM_PROMPT = _build_system_prompt(raw_rules, tech_stack)
+        self.SYSTEM_PROMPT = _build_system_prompt(workspace_rules(ctx))
 
         pending = resume_pending_tool(task)
 

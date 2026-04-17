@@ -152,25 +152,22 @@ def test_humanize_error_generic_fallback() -> None:
 
 
 def test_build_system_prompt_mentions_routing_guide() -> None:
-    prompt = document_assistant._build_system_prompt({}, [], [])
+    prompt = document_assistant._build_system_prompt([])
     assert "a2a:analyze-excel" in prompt
     assert "a2a:extract-text" in prompt
     assert ".xlsx" in prompt
 
 
-def test_build_system_prompt_with_recent_files() -> None:
+def test_build_system_prompt_with_available_workers() -> None:
     prompt = document_assistant._build_system_prompt(
-        format_preferences={"default": "table"},
-        recent_files=["/Users/me/ventes.xlsx"],
         available_workers=["excel-worker", "csv-data-worker"],
     )
-    assert "ventes.xlsx" in prompt
     assert "excel-worker" in prompt
-    assert "table" in prompt.lower()
+    assert "csv-data-worker" in prompt
 
 
 def test_build_system_prompt_no_workers_warning() -> None:
-    prompt = document_assistant._build_system_prompt({}, [], [])
+    prompt = document_assistant._build_system_prompt([])
     assert "No workers detected" in prompt or "no workers" in prompt.lower()
 
 

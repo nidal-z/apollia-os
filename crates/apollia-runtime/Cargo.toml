@@ -6,6 +6,7 @@ description = "Apollia OS — Runtime Core (Supervisor, AgentRegistry, TaskRoute
 license = "MIT"
 
 [features]
+default = ["cloud", "web-search", "brave-search", "web-read"]
 ## Active le backend cloud (Anthropic, OpenAI-compatible) — activé par défaut.
 cloud = ["apollia-llm/cloud"]
 ## Active le backend embarqué in-process (inférence .gguf via mistralrs) — CPU seul.
@@ -24,6 +25,12 @@ stt-whisper-cpp = ["apollia-stt/cpu"]
 stt-metal = ["stt-whisper-cpp", "apollia-stt/metal"]
 ## GPU NVIDIA CUDA pour le STT.
 stt-cuda = ["stt-whisper-cpp", "apollia-stt/cuda"]
+## Native web search tool (ADR-072).
+web-search = ["apollia-tools/web-search"]
+## Brave Search backend for web_search (ADR-072) — requires BRAVE_SEARCH_API_KEY at runtime.
+brave-search = ["web-search", "apollia-tools/brave-search"]
+## Native web_read tool (fetch + Readability extraction, ADR-072).
+web-read = ["apollia-tools/web-read"]
 
 [dependencies]
 apollia-core          = { workspace = true }

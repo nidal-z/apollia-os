@@ -120,48 +120,22 @@ def test_no_hardcoded_check_functions() -> None:
 def test_build_system_prompt_with_rules() -> None:
     prompt = review_assistant._build_system_prompt(
         raw_rules="anyhow INTERDIT. Tests obligatoires.",
-        tech_stack=["Cargo.toml", "pyproject.toml"],
     )
 
     assert "anyhow" in prompt
-    assert "Cargo.toml" in prompt
     assert "🟢" in prompt and "🟡" in prompt and "🔴" in prompt
 
 
 def test_build_system_prompt_no_rules_fallback() -> None:
-    prompt = review_assistant._build_system_prompt("", [])
+    prompt = review_assistant._build_system_prompt("")
     assert "No rules file found" in prompt
     assert "generic checks" in prompt.lower()
 
 
 def test_build_system_prompt_mentions_discovery_workflow() -> None:
-    prompt = review_assistant._build_system_prompt("", [])
+    prompt = review_assistant._build_system_prompt("")
     # Key instruction: review-assistant must READ before JUDGING
     assert "discover" in prompt.lower() or "identify the tech stack" in prompt.lower()
-
-
-# ---------------------------------------------------------------------------
-# Bootstrap
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_bootstrap_uses_project_bootstrap_base() -> None:
-    ctx = MockContext.create(
-        tools={
-            "file_read": {"content": ""},
-            "bash_executor": {"stdout": "abc123", "stderr": "", "exit_code": 0},
-        },
-        memory=True,
-    )
-
-    bootstrap = review_assistant.ReviewContextBootstrap()
-    snapshot = await bootstrap.run_bootstrap(ctx)
-
-    # Base snapshot keys should always be populated.
-    assert "commit_hash" in snapshot
-    assert "tech_stack" in snapshot
-    assert "has_git" in snapshot
 
 
 # ---------------------------------------------------------------------------

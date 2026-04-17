@@ -20,6 +20,8 @@ import {
   Folder,
   Zap,
   Wifi,
+  BookOpen,
+  Compass,
 } from "lucide-svelte";
 import type { ComponentType } from "svelte";
 
@@ -27,7 +29,7 @@ import type { ComponentType } from "svelte";
 // Types
 // ─────────────────────────────────────────────
 
-export type ToolGroupId = "files" | "execution" | "network" | "memory";
+export type ToolGroupId = "files" | "execution" | "network" | "research" | "memory";
 
 /** Metadata for a logical tool group — used in operator-mode UI. */
 export interface ToolGroupMeta {
@@ -91,6 +93,14 @@ export const TOOL_GROUPS: ToolGroupMeta[] = [
     labelBuilderKey: "tools.groups.network.label_builder",
     descOperatorKey: "tools.groups.network.desc_operator",
     tools: ["http_fetch"],
+  },
+  {
+    id: "research",
+    icon: Compass,
+    labelOperatorKey: "tools.groups.research.label_operator",
+    labelBuilderKey: "tools.groups.research.label_builder",
+    descOperatorKey: "tools.groups.research.desc_operator",
+    tools: ["web_search", "web_read"],
   },
   {
     id: "memory",
@@ -197,6 +207,27 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.http_fetch.label_operator",
     descOperatorKey: "tools.catalog.http_fetch.desc_operator",
     descBuilderKey: "tools.catalog.http_fetch.desc_builder",
+    dangerous: false,
+    defaultEnabled: false,
+  },
+  // ── Research (web tools — ADR-072) ─────────
+  {
+    id: "web_search",
+    icon: Compass,
+    group: "research",
+    labelOperatorKey: "tools.catalog.web_search.label_operator",
+    descOperatorKey: "tools.catalog.web_search.desc_operator",
+    descBuilderKey: "tools.catalog.web_search.desc_builder",
+    dangerous: false,
+    defaultEnabled: false,
+  },
+  {
+    id: "web_read",
+    icon: BookOpen,
+    group: "research",
+    labelOperatorKey: "tools.catalog.web_read.label_operator",
+    descOperatorKey: "tools.catalog.web_read.desc_operator",
+    descBuilderKey: "tools.catalog.web_read.desc_builder",
     dangerous: false,
     defaultEnabled: false,
   },

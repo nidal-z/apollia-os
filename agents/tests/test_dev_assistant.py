@@ -103,71 +103,21 @@ def test_class_constants() -> None:
 def test_build_system_prompt_with_rules() -> None:
     prompt = dev_assistant._build_system_prompt(
         raw_rules="anyhow INTERDIT dans le workspace",
-        architecture=["Cargo.toml", "crates/apollia-core/src/lib.rs"],
-        recent_files=["crates/apollia-core/src/types.rs"],
     )
 
     assert "anyhow" in prompt
-    assert "Cargo.toml" in prompt
-    assert "types.rs" in prompt
-    assert "consultant" not in prompt.lower() or "senior developer" in prompt.lower()
+    assert "senior developer" in prompt.lower()
 
 
 def test_build_system_prompt_mentions_a2a_delegation() -> None:
-    prompt = dev_assistant._build_system_prompt("", [], [])
+    prompt = dev_assistant._build_system_prompt("")
     assert "a2a:generate-code" in prompt
     assert "a2a:git-commit" in prompt
 
 
 def test_build_system_prompt_no_rules_fallback() -> None:
-    prompt = dev_assistant._build_system_prompt("", [], [])
+    prompt = dev_assistant._build_system_prompt("")
     assert "No rules file found" in prompt
-
-
-# ---------------------------------------------------------------------------
-# Bootstrap
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_bootstrap_collects_architecture_and_recent_files() -> None:
-    # Bootstrap relies on bash_executor returning different outputs depending
-    # on the command. MockToolProxy returns one response per tool; use a
-    # separate reply map via monkeypatching ctx.tools.call.
-    ctx = MockContext.create(
-        tools={
-            "file_read": {"content": ""},
-            "bash_executor": {"stdout": "abc\n", "stderr": "", "exit_code": 0},
-        },
-        memory=True,
-    )
-
-    responses = {
-        "find": "./Cargo.toml\n./crates/apollia-core/src/lib.rs\n",
-        "git": "crates/apollia-core/src/types.rs\n",
-    }
-
-    original_call = ctx.tools.call  # type: ignore[union-attr]
-
-    async def _dispatch(name: str, args: dict[str, Any] | None = None) -> Any:
-        if name == "bash_executor":
-            cmd = (args or {}).get("command", "")
-            # "git diff" check must come first — the recent-files command
-            # also contains "find" in the fallback branch.
-            if "git diff" in cmd or "-newer" in cmd:
-                return {"stdout": responses["git"], "stderr": "", "exit_code": 0}
-            if "find" in cmd:
-                return {"stdout": responses["find"], "stderr": "", "exit_code": 0}
-            return {"stdout": "abc\n", "stderr": "", "exit_code": 0}
-        return await original_call(name, args)
-
-    ctx.tools.call = _dispatch  # type: ignore[union-attr, assignment]
-
-    bootstrap = dev_assistant.DevContextBootstrap()
-    extra = await bootstrap.extra_scopes(ctx, {})
-
-    assert any("Cargo.toml" in m for m in extra["architecture"])
-    assert any("types.rs" in f for f in extra["recent_files"])
 
 
 # ---------------------------------------------------------------------------

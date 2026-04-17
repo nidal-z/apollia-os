@@ -1449,6 +1449,8 @@
       "bash_executor": "Commande système",
       "python_executor": "Script Python",
       "http_fetch": "Requête réseau",
+      "web_search": "Recherche web",
+      "web_read": "Article web",
       "memory_search": "Recherche en mémoire",
       "mcp_generic": "Outil externe",
       "mcp_tool": "Outil externe"
@@ -1471,6 +1473,9 @@
       "http_fetch_post": "Envoi de données vers {hostname}",
       "http_fetch_generic": "Requête {method} vers {hostname}",
       "http_fetch": "Requête {method} vers {hostname}",
+      "web_search": "Recherche web de « {query} »",
+      "web_search_backend": "Recherche via {backend} de « {query} »",
+      "web_read": "Lecture de {hostname}",
       "memory_search": "Recherche en mémoire de « {query} »",
       "memory_search_ns": "Recherche de « {query} » dans la mémoire {namespace}",
       "mcp_generic": "Utilisation de {server_name} : {tool_description}",
@@ -1492,6 +1497,9 @@
       "file_grep_summary": "{count} résultats dans {files_searched} fichiers",
       "file_grep_truncated": "{count} résultats affichés (tronqués)",
       "http_fetch_summary": "Réponse {status} ({duration_ms}ms)",
+      "web_search_summary": "{total_results} résultat(s) via {backend} ({duration_ms}ms)",
+      "web_read_summary": "{chars_total} caractères lus ({duration_ms}ms)",
+      "web_read_truncated": "{chars_total} caractères lus (tronqué, {duration_ms}ms)",
       "memory_search_summary": "{count} résultats trouvés",
       "bash_executor_summary": "Terminé (code {exit_code}, {duration_ms}ms)",
       "python_executor_summary": "Terminé (code {exit_code}, {duration_ms}ms)"
@@ -1504,6 +1512,8 @@
       "file_glob": "{count} fichiers trouvés",
       "file_grep": "{count} résultats dans {files_searched} fichiers",
       "http_fetch": "Réponse {status} ({duration_ms}ms)",
+      "web_search": "{total_results} résultat(s) via {backend} ({duration_ms}ms)",
+      "web_read": "{chars_total} caractères lus ({duration_ms}ms)",
       "memory_search": "{count} résultats trouvés",
       "bash_executor": "Terminé (code {exit_code}, {duration_ms}ms)",
       "python_executor": "Terminé (code {exit_code}, {duration_ms}ms)"
@@ -1523,6 +1533,11 @@
         "label_operator": "Web",
         "label_builder": "Réseau",
         "desc_operator": "Récupérer des données depuis des sites web et APIs externes"
+      },
+      "research": {
+        "label_operator": "Recherche",
+        "label_builder": "Recherche web",
+        "desc_operator": "Chercher sur le web et lire des articles — cocher les outils ci-dessous pour ce chat"
       },
       "memory": {
         "label_operator": "Mémoire",
@@ -1575,6 +1590,16 @@
         "label_operator": "Requêtes web",
         "desc_operator": "Récupérer des données depuis des sites web ou APIs externes",
         "desc_builder": "http_fetch — liste blanche obligatoire, limite 1 Mo, GET/POST — SandboxProfile::Network"
+      },
+      "web_search": {
+        "label_operator": "Recherche web",
+        "desc_operator": "Chercher sur le web (DuckDuckGo par défaut, Brave si une clé API est configurée)",
+        "desc_builder": "web_search — backends pluggables (DDG/Brave), opt-in via [tools].web_search — ADR-072"
+      },
+      "web_read": {
+        "label_operator": "Lire un article",
+        "desc_operator": "Récupérer une URL et en extraire le texte lisible de l'article",
+        "desc_builder": "web_read — extraction dom_smoothie (Readability), cap 5 Mo, protégé SSRF — ADR-072"
       },
       "memory_search": {
         "label_operator": "Rechercher en mémoire",

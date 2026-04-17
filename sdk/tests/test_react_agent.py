@@ -174,14 +174,27 @@ def test_validate_action_final_answer() -> None:
     assert data["text"] == "done"
 
 
-def test_validate_action_bad_type() -> None:
-    """validate_action() rejects unknown action types."""
+def test_validate_action_shorthand_is_rewritten() -> None:
+    """validate_action() treats `action=<tool_name>` (no tool field) as shorthand.
+
+    LLMs commonly collapse the two fields — strict rejection would crash
+    the ReAct loop on an otherwise valid tool call. The shorthand is
+    rewritten to the canonical form.
+    """
+    result = validate_action({"action": "ask_user", "args": {"q": 1}})
+    assert result["action"] == "tool_call"
+    assert result["tool"] == "ask_user"
+    assert result["args"] == {"q": 1}
+
+
+def test_validate_action_missing_action_field() -> None:
+    """validate_action() rejects dicts without any `action` field."""
     with pytest.raises(ActionParseError):
-        validate_action({"action": "unknown"})
+        validate_action({"args": {}})
 
 
 def test_validate_action_missing_tool() -> None:
-    """validate_action() rejects tool_call without tool key."""
+    """validate_action() rejects canonical tool_call without tool key."""
     with pytest.raises(ActionParseError):
         validate_action({"action": "tool_call"})
 

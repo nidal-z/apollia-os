@@ -9,6 +9,8 @@
   } from "$lib/tools/tool-display";
   import { t } from "svelte-i18n";
   import { Loader2, Check, X } from "lucide-svelte";
+  import WebSearchResultsCard from "./WebSearchResultsCard.svelte";
+  import WebReadCard from "./WebReadCard.svelte";
 
   let { toolCall }: { toolCall: ToolCallView } = $props();
 
@@ -50,6 +52,11 @@
   );
 </script>
 
+{#if toolCall.tool_name === "web_search"}
+  <WebSearchResultsCard {toolCall} />
+{:else if toolCall.tool_name === "web_read"}
+  <WebReadCard {toolCall} />
+{:else}
 <div
   class="my-1 rounded-lg glass-surface glass-border-subtle px-3 py-2 text-xs
     {isRefused ? 'border-l-2 border-l-destructive' : ''}
@@ -126,3 +133,4 @@
     </div>
   {/if}
 </div>
+{/if}

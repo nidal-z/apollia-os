@@ -26,91 +26,34 @@ Outils optionnels : bash_executor, file_list, + tous les skills a2a:*
 
 from __future__ import annotations
 
-import json
-import time
 from typing import Any
 
 from apollia.agents import AIPResult, BaseReActAgent
-from apollia.bootstrap import ContextBootstrap
 from apollia.utils.hitl import resume_pending_tool
 
 
 # ---------------------------------------------------------------------------
-# Memory keys (legacy — kept for snapshot compatibility)
-# ---------------------------------------------------------------------------
-
-MEMORY_KEY_FORMAT_PREF: str = "user_format_pref"
-MEMORY_KEY_RECENT_FILES: str = "recent_files"
-
-
-# ---------------------------------------------------------------------------
-# Bootstrap
+# Available workers discovery (called fresh at each turn, no persistence)
 # ---------------------------------------------------------------------------
 
 
-class DocumentContextBootstrap(ContextBootstrap):
-    """Bootstrap for document-assistant.
+async def _discover_available_workers(ctx: Any) -> list[str]:
+    """Return the list of active A2A agent names, or ``[]`` on failure.
 
-    Discovers the user's document processing profile: format preferences,
-    recently analysed files, and available A2A workers. Unlike the
-    development-domain agents, staleness is timestamp-based (7 days max)
-    because document-assistant does not operate on a git repository.
-
-    The snapshot is a perf cache — the LLM is free to ignore it and ask
-    clarifying questions instead.
+    The runtime exposes ``ctx.a2a_list_skills`` when A2A routing is wired.
+    Called once per chat turn to populate the system prompt — cheap
+    enough that persistence adds no value.
     """
-
-    _MAX_AGE_SECS: int = 7 * 24 * 3600  # 7 days
-
-    async def is_stale(self, ctx: Any) -> bool:
-        """Return ``True`` when the snapshot is older than 7 days."""
-        meta = await self.load_meta(ctx)
-        if meta is None:
-            return True
-        ts = meta.get("staleness_marker", "")
-        try:
-            last = float(ts)
-        except (ValueError, TypeError):
-            return True
-        return (time.time() - last) > self._MAX_AGE_SECS
-
-    async def run_bootstrap(self, ctx: Any) -> dict[str, Any]:
-        """Discover document processing profile and persist the snapshot."""
-        snapshot: dict[str, Any] = {}
-        now_ts = str(time.time())
-
-        fmt_raw = (
-            await ctx.memory.recall(MEMORY_KEY_FORMAT_PREF)
-            if ctx.memory
-            else None
-        )
-        snapshot["format_preferences"] = (
-            json.loads(fmt_raw) if fmt_raw else {}
-        )
-
-        recent_raw = (
-            await ctx.memory.recall(MEMORY_KEY_RECENT_FILES)
-            if ctx.memory
-            else None
-        )
-        snapshot["recent_files"] = (
-            json.loads(recent_raw) if recent_raw else []
-        )
-
-        workers: list[str] = []
-        try:
-            skills = await ctx.a2a_list_skills()
-            workers = sorted({s["agent_name"] for s in skills})
-        except Exception:
-            pass
-        snapshot["available_workers"] = workers
-
-        await self.persist(
-            ctx, snapshot,
-            staleness_marker=now_ts,
-            source="bootstrap:document",
-        )
-        return snapshot
+    fn = getattr(ctx, "a2a_list_skills", None)
+    if fn is None:
+        return []
+    try:
+        skills = await fn()
+    except Exception:
+        return []
+    if not skills:
+        return []
+    return sorted({s["agent_name"] for s in skills if "agent_name" in s})
 
 
 # ---------------------------------------------------------------------------
@@ -217,10 +160,6 @@ they'd like to proceed.
 - Never mention the implementation worker names to the user (they care \
   about the *result*, not the *how*).
 
-## User profile
-
-{profile_section}
-
 ## Available A2A workers (detected at session start)
 
 {workers_section}
@@ -231,30 +170,13 @@ Always respond in the same language as the user's message.
 """
 
 
-def _build_system_prompt(
-    format_preferences: dict[str, Any],
-    recent_files: list[str],
-    available_workers: list[str],
-) -> str:
-    """Compose the document-assistant system prompt from the snapshot."""
-    profile_parts: list[str] = []
-    if format_preferences:
-        prefs = ", ".join(
-            f"{k}={v}" for k, v in sorted(format_preferences.items())
-        )
-        profile_parts.append(f"**Format preferences:** {prefs}")
-    if recent_files:
-        recent_str = "\n".join(f"- `{f}`" for f in recent_files[:10])
-        profile_parts.append(
-            f"**Recently analysed files** (helpful if the user refers to "
-            f"one without naming it):\n{recent_str}"
-        )
-    profile_section = (
-        "\n\n".join(profile_parts)
-        if profile_parts
-        else "No prior profile yet — adapt to what the user says."
-    )
+def _build_system_prompt(available_workers: list[str]) -> str:
+    """Compose the document-assistant system prompt.
 
+    The list of available workers is the only piece of external context
+    injected — format preferences or recent file lists are history-driven
+    (visible in the conversation) so they don't need to be pre-loaded.
+    """
     if available_workers:
         workers_str = "\n".join(f"- `{w}`" for w in sorted(available_workers))
         workers_section = (
@@ -270,10 +192,7 @@ def _build_system_prompt(
             "install (excel-worker, csv-data-worker, pdf-worker, sql-worker)."
         )
 
-    return _SYSTEM_PROMPT_TEMPLATE.format(
-        profile_section=profile_section,
-        workers_section=workers_section,
-    )
+    return _SYSTEM_PROMPT_TEMPLATE.format(workers_section=workers_section)
 
 
 # ---------------------------------------------------------------------------
@@ -453,14 +372,10 @@ class DocumentAssistant(BaseReActAgent):
     """
 
     SYSTEM_PROMPT: str = _SYSTEM_PROMPT_TEMPLATE.format(
-        profile_section="(loaded per-turn)",
         workers_section="(loaded per-turn)",
     )
     MAX_STEPS: int = 20
     TEMPERATURE: float = 0.3
-
-    def __init__(self) -> None:
-        self._bootstrap = DocumentContextBootstrap()
 
     def manifest(self) -> dict[str, Any]:
         """Return the AIP manifest of document-assistant."""
@@ -478,17 +393,8 @@ class DocumentAssistant(BaseReActAgent):
         if not input_text:
             return AIPResult.failed("NO_INPUT", "No input provided in task")
 
-        if await self._bootstrap.needs_bootstrap(ctx):
-            await self._bootstrap.run_bootstrap(ctx)
-        snapshot = await self._bootstrap.load_snapshot(ctx) or {}
-
-        format_preferences = snapshot.get("format_preferences", {}) or {}
-        recent_files = snapshot.get("recent_files", []) or []
-        available_workers = snapshot.get("available_workers", []) or []
-
-        self.SYSTEM_PROMPT = _build_system_prompt(
-            format_preferences, recent_files, available_workers
-        )
+        available_workers = await _discover_available_workers(ctx)
+        self.SYSTEM_PROMPT = _build_system_prompt(available_workers)
 
         pending = resume_pending_tool(task)
 

@@ -1449,6 +1449,8 @@
       "bash_executor": "System command",
       "python_executor": "Python script",
       "http_fetch": "Network request",
+      "web_search": "Web search",
+      "web_read": "Web article",
       "memory_search": "Memory search",
       "mcp_generic": "External tool",
       "mcp_tool": "External tool"
@@ -1471,6 +1473,9 @@
       "http_fetch_post": "Sending data to {hostname}",
       "http_fetch_generic": "{method} request to {hostname}",
       "http_fetch": "{method} request to {hostname}",
+      "web_search": "Searching the web for \"{query}\"",
+      "web_search_backend": "Searching with {backend} for \"{query}\"",
+      "web_read": "Reading {hostname}",
       "memory_search": "Searching memory for \"{query}\"",
       "memory_search_ns": "Searching \"{query}\" in {namespace} memory",
       "mcp_generic": "Using {server_name}: {tool_description}",
@@ -1492,6 +1497,9 @@
       "file_grep_summary": "{count} matches in {files_searched} files",
       "file_grep_truncated": "{count} matches shown (results truncated)",
       "http_fetch_summary": "Response {status} ({duration_ms}ms)",
+      "web_search_summary": "{total_results} result(s) via {backend} ({duration_ms}ms)",
+      "web_read_summary": "{chars_total} characters read ({duration_ms}ms)",
+      "web_read_truncated": "{chars_total} characters read (truncated, {duration_ms}ms)",
       "memory_search_summary": "{count} results found",
       "bash_executor_summary": "Completed (exit code {exit_code}, {duration_ms}ms)",
       "python_executor_summary": "Completed (exit code {exit_code}, {duration_ms}ms)"
@@ -1504,6 +1512,8 @@
       "file_glob": "{count} files found",
       "file_grep": "{count} matches in {files_searched} files",
       "http_fetch": "Response {status} ({duration_ms}ms)",
+      "web_search": "{total_results} result(s) via {backend} ({duration_ms}ms)",
+      "web_read": "{chars_total} characters read ({duration_ms}ms)",
       "memory_search": "{count} results found",
       "bash_executor": "Completed (exit code {exit_code}, {duration_ms}ms)",
       "python_executor": "Completed (exit code {exit_code}, {duration_ms}ms)"
@@ -1523,6 +1533,11 @@
         "label_operator": "Web",
         "label_builder": "Network",
         "desc_operator": "Fetch data from external websites and APIs"
+      },
+      "research": {
+        "label_operator": "Research",
+        "label_builder": "Web Research",
+        "desc_operator": "Search the web and read articles — tick the tools below to enable for this chat"
       },
       "memory": {
         "label_operator": "Memory",
@@ -1575,6 +1590,16 @@
         "label_operator": "Web requests",
         "desc_operator": "Retrieve data from external websites or APIs",
         "desc_builder": "http_fetch — allowlist-enforced, 1 MB cap, GET/POST — SandboxProfile::Network"
+      },
+      "web_search": {
+        "label_operator": "Web search",
+        "desc_operator": "Search the web (DuckDuckGo by default, Brave if an API key is set)",
+        "desc_builder": "web_search — pluggable backends (DDG/Brave), opt-in via [tools].web_search — ADR-072"
+      },
+      "web_read": {
+        "label_operator": "Read an article",
+        "desc_operator": "Fetch a URL and extract the readable article text",
+        "desc_builder": "web_read — dom_smoothie Readability, 5 MB cap, SSRF-guarded — ADR-072"
       },
       "memory_search": {
         "label_operator": "Search memory",

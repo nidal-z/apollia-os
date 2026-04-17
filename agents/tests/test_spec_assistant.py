@@ -166,34 +166,51 @@ def test_build_system_prompt_no_code_generation() -> None:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# discover_task_specs helper (replaces the old SpecContextBootstrap)
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.asyncio
-async def test_spec_bootstrap_lists_existing_specs() -> None:
+async def test_discover_task_specs_lists_existing() -> None:
+    """The shared helper parses `ls` stdout and returns clean slugs."""
+    from assistants.shared import discover_task_specs
+
     ctx = MockContext.create(
         tools={
-            "file_read": {"content": ""},
             "bash_executor": {
-                "stdout": ".apollia/tasks/user-auth.md\n",
+                "stdout": ".apollia/tasks/user-auth.md\n.apollia/tasks/export-csv.md\n",
                 "stderr": "",
                 "exit_code": 0,
             },
         },
-        memory=True,
     )
 
-    bootstrap = spec_assistant.SpecContextBootstrap()
-    snapshot = await bootstrap.run_bootstrap(ctx)
-
-    assert "user-auth" in snapshot.get("existing_specs", [])
-    assert snapshot.get("spec_count", 0) >= 1
+    specs = await discover_task_specs(ctx)
+    assert specs == ["user-auth", "export-csv"]
 
 
 @pytest.mark.asyncio
-async def test_spec_bootstrap_handles_no_tools() -> None:
-    ctx = MockContext.create(memory=True)  # ctx.tools = None
+async def test_discover_task_specs_handles_no_tools() -> None:
+    """Graceful degradation when ctx.tools is None (task mode, no sandbox)."""
+    from assistants.shared import discover_task_specs
 
-    bootstrap = spec_assistant.SpecContextBootstrap()
-    extra = await bootstrap.extra_scopes(ctx, {})
-    assert extra == {"existing_specs": [], "spec_count": 0}
+    ctx = MockContext.create()  # ctx.tools = None
+    specs = await discover_task_specs(ctx)
+    assert specs == []
+
+
+@pytest.mark.asyncio
+async def test_discover_task_specs_handles_empty_workspace() -> None:
+    """Empty stdout (no .md files found) returns an empty list."""
+    from assistants.shared import discover_task_specs
+
+    ctx = MockContext.create(
+        tools={
+            "bash_executor": {"stdout": "", "stderr": "", "exit_code": 0},
+        },
+    )
+    assert await discover_task_specs(ctx) == []
 
 
 # ---------------------------------------------------------------------------

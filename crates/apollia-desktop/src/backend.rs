@@ -218,9 +218,6 @@ impl AgentRunner for BridgeRunner {
                 memory_base_dir: memory_base_dir.clone(),
                 http_allowlist: None,
                 pending_user_inputs,
-                web_search_enabled: false,
-                web_read_enabled: false,
-                web_search_preferred_backend: None,
             }));
 
             let tool_proxy = match (tool_registry.as_ref(), audit_trail.as_ref()) {

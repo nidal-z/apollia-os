@@ -15,10 +15,10 @@ consultant qui découvre un projet.
 
 Contexte pré-chargé
 -------------------
-``SpecContextBootstrap`` met en cache cross-session un snapshot (règles
-projet issues de ``ctx.workspace.rules``, tech-stack hints, specs existantes).
-Ce snapshot est injecté dans le system prompt, le LLM l'utilise comme *hint*
-non normatif.
+Deux hooks inline à chaque tour : ``workspace_rules(ctx)`` (lu depuis
+``ctx.workspace.rules``, zero persistence) et ``discover_task_specs(ctx)``
+(un ``ls`` pour lister les specs existantes). Injectés dans le system
+prompt.
 
 Outils requis : file_read, file_write, ask_user
 Outils optionnels : bash_executor, file_list, memory_search
@@ -34,49 +34,9 @@ from apollia.agents import AIPResult, BaseReActAgent
 from apollia.utils.hitl import resume_pending_tool
 
 try:
-    from shared.project_bootstrap import ProjectContextBootstrap
+    from shared import discover_task_specs, workspace_rules
 except ModuleNotFoundError:
-    from assistants.shared.project_bootstrap import ProjectContextBootstrap
-
-
-# ---------------------------------------------------------------------------
-# Context Bootstrap (cross-session cache, not behavioural)
-# ---------------------------------------------------------------------------
-
-
-class SpecContextBootstrap(ProjectContextBootstrap):
-    """Bootstrap for spec-assistant.
-
-    Extends the common project snapshot with the list of existing TaskSpec
-    slugs under ``.apollia/tasks/``. The snapshot is a perf cache, not a
-    behavioural constraint — the LLM is free to ignore it.
-    """
-
-    async def extra_scopes(
-        self,
-        ctx: Any,
-        base_snapshot: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Discover existing TaskSpec files in ``.apollia/tasks/``."""
-        specs: list[str] = []
-        if ctx.tools is not None:
-            try:
-                result = await ctx.tools.call("bash_executor", {
-                    "command": "ls .apollia/tasks/*.md 2>/dev/null | head -50",
-                    "timeout_secs": 5,
-                })
-            except Exception:
-                result = None
-            if result and result.get("stdout"):
-                raw_stdout = result["stdout"]
-                if isinstance(raw_stdout, str):
-                    for line in raw_stdout.split("\n"):
-                        name = line.strip()
-                        if name.endswith(".md"):
-                            slug = name.rsplit("/", 1)[-1][:-3]
-                            if slug:
-                                specs.append(slug)
-        return {"existing_specs": specs, "spec_count": len(specs)}
+    from assistants.shared import discover_task_specs, workspace_rules
 
 
 # ---------------------------------------------------------------------------
@@ -152,12 +112,35 @@ a criterion. "The form shows an error message when the email is invalid" is.
 3. **Detect duplicates.** For new specs, call `memory_search` with keywords \
    from the request. If a near-duplicate already exists, propose refining \
    the existing one rather than creating a new one.
-4. **Write the TaskSpec.** Once you have enough context, compose the \
-   markdown content and save it to `.apollia/tasks/{{slug}}.md` via \
-   `file_write`. Derive a short URL-safe slug from the title (lowercase, \
-   hyphens, no accents, max 64 chars).
+4. **Write the TaskSpec incrementally.**
+   - Call `file_write` **once** with a minimal skeleton (file header + \
+     section titles only, no body content yet). Keep the content string \
+     short — 200-400 chars max. This avoids JSON-escaping issues with \
+     long multi-line markdown.
+   - Then call `file_edit` **one section at a time** to fill each section \
+     body. `file_edit` replaces a snippet in the file — pick a unique \
+     anchor (e.g. the section title line) as `old_text` and provide the \
+     filled-in section as `new_text`.
+   - Derive a short URL-safe slug from the title (lowercase, hyphens, no \
+     accents, max 64 chars). Save at `.apollia/tasks/{{slug}}.md`.
 5. **Confirm** with a `final_answer` that summarises what was saved and \
    what the user should review.
+
+## JSON escaping — CRITICAL
+
+When you emit `file_write` or `file_edit` with multi-line markdown in \
+`content`/`new_text`/`old_text`, you must emit **valid JSON**:
+
+- Newlines inside the string are `\\n` (backslash + n), never a literal \
+  line break.
+- Double quotes inside the string are `\\"` (backslash + quote), never a \
+  bare `"`. Markdown titles like `"Title"` must be emitted as \
+  `\\"Title\\"` inside the JSON.
+- Backslashes themselves are `\\\\` (two backslashes).
+
+If you cannot confidently emit a long string with all quotes escaped, use \
+the incremental workflow above (skeleton + file_edit per section) — each \
+section body stays short enough to escape reliably.
 
 ## TaskSpec structure (flexible — adapt to context)
 
@@ -435,9 +418,6 @@ class SpecAssistant(BaseReActAgent):
     MAX_STEPS: int = 20
     TEMPERATURE: float = 0.3
 
-    def __init__(self) -> None:
-        self._bootstrap = SpecContextBootstrap()
-
     def manifest(self) -> dict[str, Any]:
         """Return the AIP agent manifest for spec-assistant."""
         return manifest()
@@ -445,11 +425,9 @@ class SpecAssistant(BaseReActAgent):
     async def run(self, task: Any, ctx: Any) -> dict[str, Any]:
         """Execute one conversational turn via the ReAct loop.
 
-        Extracts user input + history from *task*, loads the project
-        snapshot, builds the system prompt, then runs the ReAct loop.
-        Multi-turn history is passed to ``react()`` so the LLM sees
-        previous user messages and final answers within the same chat
-        session.
+        Loads workspace rules + existing spec slugs inline (no snapshot),
+        builds the system prompt, then runs the ReAct loop with the
+        conversational history so the LLM sees previous turns.
         """
         if ctx.llm is None:
             return AIPResult.failed(
@@ -461,17 +439,8 @@ class SpecAssistant(BaseReActAgent):
         if not input_text:
             return AIPResult.failed("NO_INPUT", "No input provided in task")
 
-        # Cross-session snapshot (rules, tech-stack hints, existing specs)
-        if await self._bootstrap.needs_bootstrap(ctx):
-            await self._bootstrap.run_bootstrap(ctx)
-        snapshot = await self._bootstrap.load_snapshot(ctx) or {}
-
-        raw_rules = snapshot.get("workspace_rules", "")
-        if not raw_rules:
-            ws = getattr(ctx, "workspace", None)
-            raw_rules = (ws.rules or "") if ws is not None else ""
-
-        existing_specs: list[str] = snapshot.get("existing_specs", []) or []
+        raw_rules = workspace_rules(ctx)
+        existing_specs = await discover_task_specs(ctx)
 
         self.SYSTEM_PROMPT = _build_system_prompt(raw_rules, existing_specs)
 

@@ -1423,7 +1423,10 @@ fn resolve_home(path: &std::path::Path) -> std::path::PathBuf {
 /// Registers all 12 active native tools in the order: existing tools first,
 /// then new atomic tools grouped by category.
 fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
-    vec![
+    // `mut` is used only when at least one web-* feature is active; allow the
+    // warning explicitly for minimal-feature builds.
+    #[allow(unused_mut)]
+    let mut descriptors = vec![
         apollia_tools::tools::bash_executor::BashExecutor::descriptor(),
         apollia_tools::tools::python_executor::PythonExecutor::descriptor(),
         apollia_tools::tools::file_read::FileRead::descriptor(),
@@ -1437,7 +1440,18 @@ fn native_tool_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
         apollia_tools::tools::notebook_read::NotebookRead::descriptor(),
         apollia_tools::tools::notebook_edit::NotebookEdit::descriptor(),
         apollia_tools::tools::ask_user::AskUser::descriptor(),
-    ]
+    ];
+
+    // Web tools are always advertised in the catalogue (so the UI and agent
+    // manifests can reference them) but runtime availability still depends on
+    // `[tools].web_search` / `[tools].web_read` in `apollia.toml`. ADR-072.
+    #[cfg(feature = "web-search")]
+    descriptors.push(apollia_tools::tools::web_search::WebSearch::descriptor());
+
+    #[cfg(feature = "web-read")]
+    descriptors.push(apollia_tools::tools::web_read::WebRead::descriptor());
+
+    descriptors
 }
 
 /// Watch actor health and apply restart policies.
@@ -1586,12 +1600,15 @@ mod tests {
     }
 
     #[test]
-    fn native_tool_descriptors_returns_13_tools() {
+    fn native_tool_descriptors_returns_expected_count() {
         // GIVEN: the native_tool_descriptors() function
         // WHEN: called
-        // THEN: exactly 13 descriptors are returned (ask_user added in Sprint 40)
+        // THEN: 13 baseline tools, plus optional web tools when their features are on.
+        let expected_count = 13
+            + cfg!(feature = "web-search") as usize
+            + cfg!(feature = "web-read") as usize;
         let descriptors = native_tool_descriptors();
-        assert_eq!(descriptors.len(), 13);
+        assert_eq!(descriptors.len(), expected_count);
     }
 
     #[test]
@@ -1806,13 +1823,18 @@ mod tests {
         assert!(agents.is_ok());
         assert!(agents.unwrap().is_empty());
 
-        // ToolRegistryHandle: can list (native tools should be registered)
+        // ToolRegistryHandle: can list (native tools should be registered).
+        // Count mirrors native_tool_descriptors() — 13 baseline + web-search + web-read
+        // when those features are compiled in (ADR-072).
+        let expected = 13
+            + cfg!(feature = "web-search") as usize
+            + cfg!(feature = "web-read") as usize;
         let tools = handles.tool_registry_handle.list().await;
         assert!(tools.is_ok());
         assert_eq!(
             tools.unwrap().len(),
-            13,
-            "13 native tools should be auto-registered"
+            expected,
+            "expected {expected} native tools to be auto-registered"
         );
 
         // TaskRouterHandle: is clone

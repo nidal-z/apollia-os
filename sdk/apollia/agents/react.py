@@ -162,6 +162,23 @@ class _JsonFieldStreamer:
                 if ch == '"':
                     self._state = self._SEEK
 
+
+def _looks_like_broken_tool_call(text: str) -> bool:
+    """Heuristic: does *text* look like a malformed tool_call JSON?
+
+    Used to decide whether to feed the LLM a "your JSON was broken" hint
+    on the next step instead of leaking the raw content to the user.
+    """
+    if not text:
+        return False
+    lowered = text.strip()
+    if not lowered.startswith("{"):
+        return False
+    # Look for hallmark ReAct fields — enough evidence that the LLM was
+    # trying to emit an action dict.
+    markers = ('"action"', '"tool"', '"args"', '"thought"')
+    return sum(1 for m in markers if m in lowered) >= 2
+
 # Maximum iterations enforced at the Python level.
 # The Rust StepBudget is the authoritative hard limit.
 DEFAULT_MAX_STEPS: int = 10
@@ -374,6 +391,29 @@ class BaseReActAgent(ABC):
             try:
                 action = validate_action(extract_json(response_content))
             except ActionParseError:
+                # The LLM produced output we can't parse as a ReAct action
+                # even after heuristic JSON repair. This usually means a
+                # tool_call with multi-line content and unescaped quotes
+                # that the repair couldn't salvage. Don't dump the raw
+                # JSON on the user — surface a readable explanation and
+                # give the LLM a chance to correct itself on the next
+                # step via the observation channel.
+                if _looks_like_broken_tool_call(response_content):
+                    messages.append(
+                        {"role": "assistant", "content": response_content}
+                    )
+                    messages.append({
+                        "role": "tool",
+                        "content": (
+                            "Error: your previous response looked like a "
+                            "tool_call but the JSON was malformed (likely "
+                            "unescaped quotes or newlines in a long string "
+                            "field). Retry with shorter content, or use "
+                            "file_edit instead of file_write to add content "
+                            "section by section."
+                        ),
+                    })
+                    continue
                 return response_content
 
             if action["action"] == ACTION_FINAL_ANSWER:
@@ -549,18 +589,27 @@ class BaseReActAgent(ABC):
             f"{self.SYSTEM_PROMPT}\n\n"
             f"{tools_block}\n\n"
             "## Output format\n\n"
-            "Respond with ONE JSON object per turn — no surrounding text.\n\n"
+            "Respond with ONE JSON object per turn — no surrounding text, "
+            "no markdown fences.\n\n"
             "Tool call:\n"
             '  {"thought": "<why>", "action": "tool_call", '
-            '"tool": "<name>", "args": {<parameters>}}\n\n'
+            '"tool": "<tool_name>", "args": {<parameters>}}\n\n'
             "Final answer (when you have enough information):\n"
             '  {"thought": "<why this is complete>", "action": "final_answer", '
             '"text": "<your complete response>"}\n\n'
+            "Concrete example calling `ask_user`:\n"
+            '  {"thought": "I need the target stack before writing the spec.", '
+            '"action": "tool_call", "tool": "ask_user", '
+            '"args": {"questions": [{"id": "stack", "question": "Which '
+            'framework?", "type": "open"}]}}\n\n'
             "Rules:\n"
+            "- The `action` field is ALWAYS exactly `tool_call` or "
+            "`final_answer` — never a tool name. The tool name goes in "
+            "the `tool` field.\n"
             "- Call exactly one tool per turn.\n"
-            "- Always include 'thought' to explain your reasoning.\n"
-            "- Use 'final_answer' as soon as you have enough information.\n"
-            "- Do not make up tool names — only use the tools listed above."
+            "- Always include `thought` to explain your reasoning.\n"
+            "- Use `final_answer` as soon as you have enough information.\n"
+            "- Do not invent tool names — only use the tools listed above."
         )
 
     async def _call_tool(

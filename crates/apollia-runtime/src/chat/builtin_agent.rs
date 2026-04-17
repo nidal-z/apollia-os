@@ -529,6 +529,38 @@ impl NativeChatToolInvoker {
 
         serde_json::to_string(&result).map_err(|e| format!("ask_user serialization: {e}"))
     }
+
+    /// Execute `web_search` with the given JSON arguments (ADR-072).
+    ///
+    /// Builds a fresh [`WebSearch`] with the standard backend priority: Brave
+    /// first if `BRAVE_SEARCH_API_KEY` is set, DuckDuckGo always as the
+    /// zero-config fallback. Per-invocation construction is fine — both
+    /// backends are stateless HTTP clients.
+    #[cfg(feature = "web-search")]
+    async fn invoke_web_search(&self, arguments: &serde_json::Value) -> Result<String, String> {
+        use apollia_tools::tools::web_search::{WebSearch, WebSearchInput};
+
+        let tool = WebSearch::with_default_backends();
+        let input: WebSearchInput = serde_json::from_value(arguments.clone())
+            .map_err(|e| format!("web_search: invalid arguments: {e}"))?;
+        let output = tool.run(input).await.map_err(|e| e.to_string())?;
+        serde_json::to_string(&output).map_err(|e| e.to_string())
+    }
+
+    /// Execute `web_read` with the given JSON arguments (ADR-072).
+    ///
+    /// SSRF guard (no loopback / private / link-local / `.local` etc.) is
+    /// enforced inside `WebRead::run` before any network I/O.
+    #[cfg(feature = "web-read")]
+    async fn invoke_web_read(&self, arguments: &serde_json::Value) -> Result<String, String> {
+        use apollia_tools::tools::web_read::{WebRead, WebReadInput};
+
+        let tool = WebRead::new();
+        let input: WebReadInput = serde_json::from_value(arguments.clone())
+            .map_err(|e| format!("web_read: invalid arguments: {e}"))?;
+        let output = tool.run(input).await.map_err(|e| e.to_string())?;
+        serde_json::to_string(&output).map_err(|e| e.to_string())
+    }
 }
 
 #[async_trait::async_trait]
@@ -552,6 +584,10 @@ impl ToolInvoker for NativeChatToolInvoker {
             "notebook_read" => self.invoke_notebook_read(arguments).await,
             "notebook_edit" => self.invoke_notebook_edit(arguments).await,
             "ask_user" => self.invoke_ask_user(arguments).await,
+            #[cfg(feature = "web-search")]
+            "web_search" => self.invoke_web_search(arguments).await,
+            #[cfg(feature = "web-read")]
+            "web_read" => self.invoke_web_read(arguments).await,
             other => Err(format!("unknown tool: {other}")),
         }
     }

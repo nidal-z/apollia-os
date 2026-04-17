@@ -128,12 +128,17 @@ else
     remove_sqlite "${APOLLIA_DIR}/chat.db"
 fi
 
-# ── [4/4] Re-sync agent .py from source ───────────────────────────────────────
+# ── [4/4] Re-sync agent .py + shared/ from source ─────────────────────────────
 sync_agent_py() {
     # $1 = agent name
+    # Copies the agent's entry-point .py AND, for assistants, re-syncs the
+    # `shared/` helper package alongside. The installed shared/ is wiped
+    # first so stale modules (e.g. a deleted project_bootstrap.py that still
+    # imports SDK symbols no longer present) don't shadow the new layout.
     local name="$1"
-    local dst="${APOLLIA_DIR}/agents/${name}/agent.py"
-    if [ ! -d "$(dirname "$dst")" ]; then
+    local agent_dir="${APOLLIA_DIR}/agents/${name}"
+    local dst="${agent_dir}/agent.py"
+    if [ ! -d "$agent_dir" ]; then
         echo "  skip ${name}: not installed"
         return
     fi
@@ -141,6 +146,15 @@ sync_agent_py() {
         local src="${AGENTS_SOURCE}/${src_dir}/${name}.py"
         if [ -f "$src" ]; then
             cp "$src" "$dst"
+
+            # Assistants depend on the shared/ helper package — scrub the
+            # installed copy and re-sync from source on every reset.
+            if [ "$src_dir" = "assistants" ] \
+                && [ -d "${AGENTS_SOURCE}/assistants/shared" ]; then
+                rm -rf "${agent_dir}/shared"
+                cp -R "${AGENTS_SOURCE}/assistants/shared" "${agent_dir}/shared"
+            fi
+
             echo "  synced: ${name} (from ${src_dir})"
             return
         fi

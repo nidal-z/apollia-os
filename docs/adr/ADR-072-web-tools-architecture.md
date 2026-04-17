@@ -70,22 +70,22 @@ suffit, et la sortie plain-text est stable. Si le besoin d'alternatives
 apparaît plus tard (Playwright headless, Python/trafilatura), on refactorera
 à ce moment-là.
 
-### Opt-in par défaut (Principe #1)
+### Opt-in au niveau session (Principe #1)
 
-Les deux outils sont désactivés par défaut (`web_search_enabled = false`,
-`web_read_enabled = false` sur `NativeDispatcherConfig`). L'utilisateur
-opère l'opt-in via `apollia.toml` :
-
-```toml
-[tools]
-web_search = true
-web_read   = true
-web_search_preferred_backend = "brave"  # optionnel
-```
+Les deux outils sont **toujours enregistrés** dans le dispatcher natif
+(sous les features Cargo `web-search` et `web-read`, activées par défaut).
+Le seul gate runtime est le **tool picker de la session chat** :
+`ChatConfigPanel` présente le groupe « Recherche » avec les deux tools
+décochés par défaut. Tant que l'utilisateur ne les coche pas pour une
+session donnée, `allowed_tools` n'inclut ni `web_search` ni `web_read`
+et toute tentative d'invocation retourne `ToolNotAllowed`.
 
 Cette discipline est conforme à Principe #1 (local-first) : aucune requête
-réseau sortante sans consentement explicite. Même posture que `http_fetch`
-avec `allowlist: None → deny all`.
+réseau sortante sans consentement explicite par session. La décision
+précédente de gater via `apollia.toml [tools]` a été abandonnée — elle
+dédoublait le contrôle sans bénéfice sécurité (la case à cocher est déjà
+explicite et permet un contrôle plus fin, au chat près, plutôt qu'une
+bascule globale).
 
 ### Politique réseau dédiée (pas d'allowlist partagée)
 

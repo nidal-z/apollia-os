@@ -36,10 +36,6 @@ use crate::tools::http_fetch::HttpFetch;
 use crate::tools::memory_search::MemorySearchTool;
 
 #[cfg(feature = "web-search")]
-use crate::tools::web_search::backend::SearchBackend;
-#[cfg(feature = "web-search")]
-use crate::tools::web_search::duckduckgo::DuckDuckGoBackend;
-#[cfg(feature = "web-search")]
 use crate::tools::web_search::WebSearch;
 
 #[cfg(feature = "web-read")]
@@ -68,17 +64,6 @@ pub struct NativeDispatcherConfig {
     /// Pending user-input registry for `ask_user`. `None` omits the tool
     /// (task-mode agents rely on AIP `input_required` instead).
     pub pending_user_inputs: Option<PendingUserInputs>,
-    /// Enable the `web_search` native tool. Defaults to `false` — the operator
-    /// opts in via `apollia.toml -> [tools].web_search = true`. Aligned with
-    /// Principe #1 (local-first): no network egress without explicit consent.
-    pub web_search_enabled: bool,
-    /// Enable the `web_read` native tool. Same opt-in rationale as
-    /// [`Self::web_search_enabled`].
-    pub web_read_enabled: bool,
-    /// Preferred search backend name (`"duckduckgo"` | `"brave"`). `None` lets
-    /// [`crate::tools::web_search::WebSearch`] pick the first available backend
-    /// (Brave first when `BRAVE_SEARCH_API_KEY` is set, else DuckDuckGo).
-    pub web_search_preferred_backend: Option<String>,
 }
 
 /// Build a [`ToolDispatcher`] populated with every native tool available for
@@ -112,29 +97,20 @@ pub fn build_native_dispatcher(cfg: &NativeDispatcherConfig) -> ToolDispatcher {
         executors.push(Box::new(HttpFetch::new(cfg.http_allowlist.clone())));
     }
 
+    // Web tools are always registered in the dispatcher. Per-session opt-in is
+    // handled by the session tool filter (`allowed_tools`), which is the single
+    // source of truth for "can this chat call web_search / web_read?". Compile
+    // out the whole block with `--no-default-features` if network egress must
+    // be impossible at the binary level.
     #[cfg(feature = "web-search")]
-    if cfg.web_search_enabled {
-        let mut backends: Vec<Box<dyn SearchBackend>> = Vec::new();
-
-        // Brave goes first when its API key is set — higher-quality results.
-        #[cfg(feature = "brave-search")]
-        match crate::tools::web_search::brave::BraveBackend::from_env() {
-            Ok(b) => backends.push(Box::new(b)),
-            Err(e) => {
-                tracing::info!(error = %e, "brave search backend unavailable — skipped");
-            }
-        }
-
-        backends.push(Box::new(DuckDuckGoBackend::new()));
-
-        match WebSearch::new(backends, cfg.web_search_preferred_backend.clone()) {
-            Ok(tool) => executors.push(Box::new(tool)),
-            Err(e) => tracing::warn!(error = %e, "web_search unavailable — skipped"),
-        }
+    {
+        // `with_default_backends()` picks Brave first if BRAVE_SEARCH_API_KEY is
+        // set (and the `brave-search` feature is on), else DuckDuckGo.
+        executors.push(Box::new(WebSearch::with_default_backends()));
     }
 
     #[cfg(feature = "web-read")]
-    if cfg.web_read_enabled {
+    {
         executors.push(Box::new(WebRead::new()));
     }
 

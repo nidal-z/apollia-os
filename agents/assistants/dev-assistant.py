@@ -31,70 +31,9 @@ from apollia.agents import AIPResult, BaseReActAgent
 from apollia.utils.hitl import resume_pending_tool
 
 try:
-    from shared.project_bootstrap import ProjectContextBootstrap
+    from shared import workspace_rules
 except ModuleNotFoundError:
-    from assistants.shared.project_bootstrap import ProjectContextBootstrap
-
-
-# ---------------------------------------------------------------------------
-# Context Bootstrap (cross-session cache)
-# ---------------------------------------------------------------------------
-
-
-class DevContextBootstrap(ProjectContextBootstrap):
-    """Bootstrap for dev-assistant.
-
-    Extends the common project snapshot with:
-
-    - ``architecture``: modules / package / service markers found in the tree
-    - ``recent_files``: files modified in the last ~10 commits
-    """
-
-    async def extra_scopes(
-        self,
-        ctx: Any,
-        base_snapshot: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Discover architecture modules and recently modified files."""
-        modules: list[str] = []
-        recent: list[str] = []
-
-        if ctx.tools is None:
-            return {"architecture": modules, "recent_files": recent}
-
-        try:
-            arch_result = await ctx.tools.call("bash_executor", {
-                "command": (
-                    "find . -maxdepth 3 \\( "
-                    "-name 'Cargo.toml' -o -name 'mod.rs' "
-                    "-o -name '__init__.py' -o -name 'index.ts' "
-                    "\\) 2>/dev/null | grep -v target | head -40 | sort"
-                ),
-                "timeout_secs": 10,
-            })
-        except Exception:
-            arch_result = None
-        if arch_result and arch_result.get("stdout"):
-            raw = arch_result["stdout"]
-            if isinstance(raw, str):
-                modules = [line.strip() for line in raw.split("\n") if line.strip()]
-
-        try:
-            recent_result = await ctx.tools.call("bash_executor", {
-                "command": (
-                    "git diff --name-only HEAD~10 HEAD 2>/dev/null "
-                    "|| find . -maxdepth 3 -newer .git/HEAD 2>/dev/null | head -30"
-                ),
-                "timeout_secs": 10,
-            })
-        except Exception:
-            recent_result = None
-        if recent_result and recent_result.get("stdout"):
-            raw = recent_result["stdout"]
-            if isinstance(raw, str):
-                recent = [line.strip() for line in raw.split("\n") if line.strip()]
-
-        return {"architecture": modules, "recent_files": recent}
+    from assistants.shared import workspace_rules
 
 
 # ---------------------------------------------------------------------------
@@ -109,8 +48,8 @@ Your role shifts naturally between two modes depending on what the user asks:
 
 1. **Exploration** — answer questions about the code, the architecture, \
    patterns, conventions. Read files with `file_read`, grep with `file_grep`, \
-   recall prior context with `memory_search`. Give grounded answers based on \
-   what you actually saw in the project.
+   list the tree with `file_list`, recall prior context with `memory_search`. \
+   Give grounded answers based on what you actually saw in the project.
 
 2. **Implementation** — carry a feature from its TaskSpec to code. Load the \
    spec with `file_read`, verify the scope, then delegate the actual code \
@@ -127,9 +66,10 @@ implementation. When in doubt, ask with `ask_user`.
 
 ## Core behaviour
 
-**Understand before acting.** Project context (rules, architecture hints, \
-recent files) is loaded below. Use it. If essential info is missing, call \
-`ask_user` with adapted questions — never use generic templates.
+**Discover before acting.** You haven't scanned the project yet. On a \
+non-trivial request, start by listing what's there (`file_list` on the \
+root, `file_glob` for specific patterns) or looking at recent activity \
+(`bash_executor git log --oneline -n 10`). Never assume a stack.
 
 **Contract before implementation.** Don't start coding without a TaskSpec. \
 If the user asks to implement something and no spec exists, either:
@@ -157,26 +97,14 @@ Only comments that explain non-obvious logic.
 
 {rules_section}
 
-## Architecture hints
-
-{architecture_section}
-
-## Recent files
-
-{recent_files_section}
-
 ## Language
 
 Always respond in the same language as the user's message.
 """
 
 
-def _build_system_prompt(
-    raw_rules: str,
-    architecture: list[str],
-    recent_files: list[str],
-) -> str:
-    """Compose the dev-assistant system prompt from the cached snapshot."""
+def _build_system_prompt(raw_rules: str) -> str:
+    """Compose the dev-assistant system prompt from the workspace rules."""
     rules = (raw_rules or "").strip()
     if rules:
         truncated = rules[:4000]
@@ -193,31 +121,7 @@ def _build_system_prompt(
             "conventions and constraints before implementing anything."
         )
 
-    if architecture:
-        arch_lines = "\n".join(f"- `{m}`" for m in architecture[:30])
-        architecture_section = (
-            f"Module/package markers detected in the workspace:\n{arch_lines}"
-        )
-    else:
-        architecture_section = (
-            "No obvious module markers detected (no Cargo.toml, package.json, "
-            "__init__.py, index.ts in the top 3 levels)."
-        )
-
-    if recent_files:
-        recent_lines = "\n".join(f"- `{f}`" for f in recent_files[:20])
-        recent_files_section = (
-            "Files modified in the last ~10 commits "
-            f"(useful hints about active areas):\n{recent_lines}"
-        )
-    else:
-        recent_files_section = "No recent file changes detected."
-
-    return _SYSTEM_PROMPT_TEMPLATE.format(
-        rules_section=rules_section,
-        architecture_section=architecture_section,
-        recent_files_section=recent_files_section,
-    )
+    return _SYSTEM_PROMPT_TEMPLATE.format(rules_section=rules_section)
 
 
 # ---------------------------------------------------------------------------
@@ -396,14 +300,9 @@ class DevAssistant(BaseReActAgent):
 
     SYSTEM_PROMPT: str = _SYSTEM_PROMPT_TEMPLATE.format(
         rules_section="(loaded per-turn)",
-        architecture_section="(loaded per-turn)",
-        recent_files_section="(loaded per-turn)",
     )
     MAX_STEPS: int = 30
     TEMPERATURE: float = 0.2
-
-    def __init__(self) -> None:
-        self._bootstrap = DevContextBootstrap()
 
     def manifest(self) -> dict[str, Any]:
         """Return the AIP agent manifest for dev-assistant."""
@@ -421,21 +320,7 @@ class DevAssistant(BaseReActAgent):
         if not input_text:
             return AIPResult.failed("NO_INPUT", "No input provided in task")
 
-        if await self._bootstrap.needs_bootstrap(ctx):
-            await self._bootstrap.run_bootstrap(ctx)
-        snapshot = await self._bootstrap.load_snapshot(ctx) or {}
-
-        raw_rules = snapshot.get("workspace_rules", "")
-        if not raw_rules:
-            ws = getattr(ctx, "workspace", None)
-            raw_rules = (ws.rules or "") if ws is not None else ""
-
-        architecture: list[str] = snapshot.get("architecture", []) or []
-        recent_files: list[str] = snapshot.get("recent_files", []) or []
-
-        self.SYSTEM_PROMPT = _build_system_prompt(
-            raw_rules, architecture, recent_files
-        )
+        self.SYSTEM_PROMPT = _build_system_prompt(workspace_rules(ctx))
 
         pending = resume_pending_tool(task)
 

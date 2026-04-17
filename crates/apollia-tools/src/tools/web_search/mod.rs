@@ -142,6 +142,27 @@ impl WebSearch {
         })
     }
 
+    /// Build a [`WebSearch`] with the default backend priority used across the
+    /// runtime: Brave first (if `BRAVE_SEARCH_API_KEY` is set and the
+    /// `brave-search` feature is compiled in), DuckDuckGo always as the
+    /// zero-config fallback. Encapsulates the `SearchBackend` trait so callers
+    /// outside `apollia-tools` (e.g. the libre-chat tool invoker) don't need
+    /// to import crate-private types.
+    pub fn with_default_backends() -> Self {
+        let mut backends: Vec<Box<dyn SearchBackend>> = Vec::new();
+
+        #[cfg(feature = "brave-search")]
+        if let Ok(b) = crate::tools::web_search::brave::BraveBackend::from_env() {
+            backends.push(Box::new(b));
+        }
+
+        backends.push(Box::new(crate::tools::web_search::duckduckgo::DuckDuckGoBackend::new()));
+
+        // SAFETY: we always push DuckDuckGo, so the list is never empty —
+        // `WebSearch::new` cannot return `NoBackends`.
+        Self::new(backends, None).expect("DuckDuckGo backend is always pushed")
+    }
+
     /// Dispatch to the selected backend and return results.
     pub async fn run(&self, input: WebSearchInput) -> Result<WebSearchOutput, WebSearchError> {
         let started = Instant::now();
@@ -232,8 +253,8 @@ impl WebSearch {
                  give you enough signal to decide which URLs to read in full (use `web_read` to \
                  fetch the extracted content of a specific URL). Defaults to DuckDuckGo; Brave \
                  is used automatically when BRAVE_SEARCH_API_KEY is set. This tool does NOT \
-                 honour the agent network allowlist — enabling it is the operator's opt-in to \
-                 search-engine egress."
+                 honour the agent network allowlist — ticking it in the chat's tool picker is \
+                 the user's opt-in to search-engine egress."
                     .to_string(),
             kind: ToolKind::Native,
             input_schema: json!({

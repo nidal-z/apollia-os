@@ -679,7 +679,12 @@ mod tests {
         assert_eq!(runtime.entries[1].value, "9999");
         assert_eq!(runtime.entries[2].value, "10"); // default
 
-        let logging = &view.sections[4];
+        // Locate `logging` by name — tools was inserted between memory and logging (ADR-072).
+        let logging = view
+            .sections
+            .iter()
+            .find(|s| s.name == "logging")
+            .expect("logging section");
         assert_eq!(logging.entries[0].value, "debug");
     }
 

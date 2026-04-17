@@ -11,6 +11,8 @@ import {
   Globe,
   Brain,
   Plug,
+  Compass,
+  BookOpen,
 } from "lucide-svelte";
 import type { ComponentType } from "svelte";
 
@@ -40,6 +42,8 @@ const TOOL_ICONS: Record<string, ComponentType> = {
   bash_executor: Terminal,
   python_executor: Code,
   http_fetch: Globe,
+  web_search: Compass,
+  web_read: BookOpen,
   memory_search: Brain,
 };
 
@@ -224,6 +228,50 @@ export function resolveToolDisplay(toolCall: ToolCallView): ToolDisplayInfo {
       };
     }
 
+    case "web_search": {
+      const query =
+        typeof input.query === "string" ? truncateString(input.query, 50) : "";
+      const requestedBackend =
+        typeof input.backend === "string" && input.backend !== "auto"
+          ? input.backend
+          : "";
+      const outputParams = resolveOutputParams(toolCall);
+      // Prefer the agent-requested backend for the "searching with X for Y" label,
+      // falling back to the backend the output reports having actually used.
+      const backendUsed = requestedBackend || outputParams.backend || "";
+      const descriptionKey = backendUsed
+        ? "tools.descriptions.web_search_backend"
+        : "tools.descriptions.web_search";
+      const templateParams: Record<string, string> = { query };
+      if (backendUsed) templateParams.backend = backendUsed;
+      return {
+        icon,
+        labelKey: "tools.labels.web_search",
+        descriptionKey,
+        templateParams,
+        outputSummaryKey: "tools.outputs.web_search",
+        outputParams,
+      };
+    }
+
+    case "web_read": {
+      const url = typeof input.url === "string" ? input.url : "";
+      const hostname = extractHostname(url);
+      const outputParams = resolveOutputParams(toolCall);
+      const outputSummaryKey =
+        outputParams.truncated === "true"
+          ? "tools.output.web_read_truncated"
+          : "tools.outputs.web_read";
+      return {
+        icon,
+        labelKey: "tools.labels.web_read",
+        descriptionKey: "tools.descriptions.web_read",
+        templateParams: { hostname },
+        outputSummaryKey,
+        outputParams,
+      };
+    }
+
     default: {
       return {
         icon: Terminal,
@@ -337,6 +385,21 @@ export function buildOutputSummary(
     case "http_fetch": {
       const status = params.status_code;
       return status !== undefined ? `HTTP ${status}` : null;
+    }
+    case "web_search": {
+      const total = params.total_results ?? params.count;
+      const backend = params.backend;
+      if (total !== undefined && backend) return `${total} results (${backend})`;
+      if (total !== undefined) return `${total} results`;
+      return null;
+    }
+    case "web_read": {
+      const chars = params.chars_total;
+      const truncated = params.truncated === "true";
+      if (chars !== undefined) {
+        return truncated ? `${chars} chars (truncated)` : `${chars} chars`;
+      }
+      return null;
     }
     case "memory_search": {
       const count = params.results_count ?? params.result_count ?? params.count;

@@ -160,9 +160,6 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             memory_base_dir: memory_base_dir.clone(),
             http_allowlist: None,
             pending_user_inputs: self.pending_user_inputs.get().cloned(),
-            web_search_enabled: false,
-            web_read_enabled: false,
-            web_search_preferred_backend: None,
         }));
 
         let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref()) {
@@ -485,9 +482,6 @@ impl AgentRunner for BridgeRunner {
                 // Task mode has no UI for HITL prompts — agents must use
                 // AIP `input_required` instead of `ask_user`.
                 pending_user_inputs: None,
-                web_search_enabled: false,
-                web_read_enabled: false,
-                web_search_preferred_backend: None,
             }));
 
             let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref())

@@ -47,11 +47,15 @@ class ActionParseError(Exception):
 def extract_json(content: str) -> dict[str, Any]:
     """Extract the first JSON object from *content*.
 
-    Tries three strategies in order:
+    Tries four strategies in order:
 
     1. Parse the full content as JSON.
     2. Extract a fenced ``\\`\\`\\`json … \\`\\`\\``` block.
     3. Find the outermost ``{ … }`` span.
+    4. Attempt a heuristic repair of common LLM mistakes
+       (unescaped quotes inside long ``content`` / ``new_text`` /
+       ``old_text`` fields — classic failure when the LLM emits
+       multi-line markdown inside a JSON string).
 
     Returns:
         Parsed dict, or empty dict if no valid JSON found.
@@ -84,15 +88,145 @@ def extract_json(content: str) -> dict[str, Any]:
     # Strategy 3 — find outermost braces.
     start = text.find("{")
     end = text.rfind("}")
+    candidate = None
     if start != -1 and end > start:
+        candidate = text[start : end + 1]
         try:
-            result = json.loads(text[start : end + 1])
+            result = json.loads(candidate)
             if isinstance(result, dict):
                 return result
         except (json.JSONDecodeError, ValueError):
             pass
 
+    # Strategy 4 — heuristic repair of long-string fields whose inner
+    # quotes weren't escaped by the LLM.
+    for target in (text, candidate):
+        if not target:
+            continue
+        repaired = _repair_unescaped_quotes_in_long_strings(target)
+        if repaired is None:
+            continue
+        try:
+            result = json.loads(repaired)
+            if isinstance(result, dict):
+                return result
+        except (json.JSONDecodeError, ValueError):
+            continue
+
     return {}
+
+
+# Fields commonly holding long multi-line content that LLMs fail to
+# escape properly. Order matters — more specific first.
+_LONG_STRING_FIELDS: tuple[str, ...] = (
+    "content",  # file_write
+    "new_text",  # file_edit
+    "old_text",  # file_edit
+    "text",  # final_answer
+    "code",  # python_executor
+)
+
+
+def _repair_unescaped_quotes_in_long_strings(text: str) -> str | None:
+    """Escape inner unescaped double quotes in known long-string fields.
+
+    The LLM often emits multi-line markdown inside a JSON string without
+    escaping the inner ``"``. We can't run a full JSON parser (that's
+    what failed), but we can target the specific pattern:
+
+        "<field>": "<content possibly with unescaped quotes>"
+
+    by locating the opening ``"<field>": "`` and the closing ``"`` that's
+    followed by ``,`` or ``}``  / ``]`` at the top level.
+
+    Returns the repaired text, or ``None`` if no repairable pattern was
+    found. The repair is best-effort — if it doesn't produce valid JSON
+    the caller will simply fall back.
+    """
+    import re
+
+    repaired = text
+    repaired_any = False
+    for field in _LONG_STRING_FIELDS:
+        # Match the opening: `"field"\s*:\s*"`
+        pattern = re.compile(
+            r'"' + re.escape(field) + r'"\s*:\s*"',
+        )
+        m = pattern.search(repaired)
+        if m is None:
+            continue
+
+        open_quote_pos = m.end() - 1  # position of the opening `"`
+        # Find the closing quote of this string value.
+        close_pos = _find_string_close(repaired, open_quote_pos)
+        if close_pos is None:
+            continue
+
+        value = repaired[open_quote_pos + 1 : close_pos]
+        escaped = _escape_inner_unescaped_quotes(value)
+        if escaped == value:
+            continue
+
+        repaired = (
+            repaired[: open_quote_pos + 1]
+            + escaped
+            + repaired[close_pos:]
+        )
+        repaired_any = True
+
+    return repaired if repaired_any else None
+
+
+def _find_string_close(text: str, open_quote_pos: int) -> int | None:
+    """Locate the logical closing ``"`` of the string opened at *open_quote_pos*.
+
+    Scans forward, ignoring ``\\"`` escapes. The closing is the first
+    ``"`` followed (possibly after whitespace) by ``,``, ``}``, or ``]``
+    — any other following character means we're still inside the value
+    and the LLM forgot to escape this ``"``.
+    """
+    i = open_quote_pos + 1
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if ch == "\\":
+            i += 2  # skip any escaped char
+            continue
+        if ch == '"':
+            # Look ahead for terminating punctuation.
+            j = i + 1
+            while j < n and text[j].isspace():
+                j += 1
+            if j >= n or text[j] in ",}]":
+                return i
+        i += 1
+    return None
+
+
+def _escape_inner_unescaped_quotes(value: str) -> str:
+    """Escape every ``"`` in *value* that isn't already preceded by ``\\``.
+
+    ``value`` is the raw substring between the opening and closing quotes
+    of a JSON string that failed to parse. We turn ``"`` into ``\\"``
+    wherever the character itself is literal (not part of an escape).
+    """
+    out: list[str] = []
+    i = 0
+    n = len(value)
+    while i < n:
+        ch = value[i]
+        if ch == "\\" and i + 1 < n:
+            # Preserve existing escape pair.
+            out.append(ch)
+            out.append(value[i + 1])
+            i += 2
+            continue
+        if ch == '"':
+            out.append("\\\"")
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 def extract_code_block(content: str, language: str = "") -> str | None:
@@ -190,17 +324,44 @@ def truncate(text: str, max_chars: int = 2000, marker: str = "...") -> str:
 
 
 def validate_action(data: dict[str, Any]) -> dict[str, Any]:
-    """Validate the structure of a parsed action dict.
+    """Validate and normalise a parsed ReAct action dict.
 
-    Expected shapes::
+    Accepts two forms:
+
+    Canonical::
 
         {"thought": "…", "action": "tool_call",    "tool": "name", "args": {…}}
         {"thought": "…", "action": "final_answer", "text": "…"}
 
+    Shorthand (common LLM shortcut) — ``action`` carries the tool name
+    directly, there is no ``tool`` field::
+
+        {"thought": "…", "action": "ask_user", "args": {…}}
+
+    When the shorthand is detected (``action`` is neither ``tool_call``
+    nor ``final_answer``, and ``tool`` is absent), the input is rewritten
+    to the canonical form with ``action="tool_call"`` and ``tool=<shorthand
+    action value>``. This guard exists because LLMs frequently collapse
+    the two fields — strict validation would crash the ReAct loop on an
+    otherwise valid tool call.
+
     Raises:
-        ActionParseError: On structural violations.
+        ActionParseError: On structural violations that cannot be
+        recovered (missing action, missing text on final_answer, …).
     """
     action_type = data.get("action")
+
+    # Shorthand: action is a tool name (not one of the reserved values)
+    # AND no explicit `tool` field is set → rewrite to canonical form.
+    if (
+        isinstance(action_type, str)
+        and action_type not in (ACTION_TOOL_CALL, ACTION_FINAL_ANSWER)
+        and "tool" not in data
+    ):
+        data["tool"] = action_type
+        data["action"] = ACTION_TOOL_CALL
+        action_type = ACTION_TOOL_CALL
+
     if action_type not in (ACTION_TOOL_CALL, ACTION_FINAL_ANSWER):
         raise ActionParseError(
             f"'action' must be '{ACTION_TOOL_CALL}' or '{ACTION_FINAL_ANSWER}', "

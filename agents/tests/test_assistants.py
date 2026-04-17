@@ -317,13 +317,17 @@ async def test_agent_does_not_crash_on_hello(agent_name: str, module: Any) -> No
 
 
 @pytest.mark.asyncio
-async def test_spec_assistant_bootstrap_persists_snapshot() -> None:
-    """After a first session, the bootstrap snapshot is written to memory."""
+async def test_spec_assistant_injects_workspace_rules_in_prompt() -> None:
+    """The workspace rules from ctx.workspace.rules land in the system prompt.
+
+    No snapshot, no persistence — the rules are read fresh every turn and
+    injected directly.
+    """
     ctx = MockContext.create(
         tools={
             "file_read": {"content": ""},
             "file_write": {"success": True},
-            "bash_executor": {"stdout": "abc123", "stderr": "", "exit_code": 0},
+            "bash_executor": {"stdout": "", "stderr": "", "exit_code": 0},
             "ask_user": {"answers": []},
         },
         llm_responses=[
@@ -336,25 +340,22 @@ async def test_spec_assistant_bootstrap_persists_snapshot() -> None:
     agent = _spec_assistant.SpecAssistant()
     await agent.run(_make_task("create a spec"), ctx)
 
-    assert ctx.memory is not None
-    status = await ctx.memory.recall("bootstrap.status")
-    assert status == "complete", (
-        "bootstrap status should be 'complete' after first session"
-    )
+    # The LLM received at least one completion call with a system prompt
+    # that embeds the workspace rules.
+    assert ctx.llm.call_count >= 1
+    system_msg = ctx.llm.prompts[0][0]
+    assert system_msg["role"] == "system"
+    assert "no anyhow" in system_msg["content"]
 
 
 @pytest.mark.asyncio
-async def test_dev_assistant_snapshot_contains_architecture() -> None:
-    """After running dev-assistant, the snapshot has an architecture key."""
+async def test_dev_assistant_injects_workspace_rules_in_prompt() -> None:
+    """dev-assistant's system prompt carries the workspace rules directly."""
     ctx = MockContext.create(
         tools={
             "file_read": {"content": ""},
             "file_write": {"success": True},
-            "bash_executor": {
-                "stdout": "./crates/core/Cargo.toml\n./crates/runtime/Cargo.toml\n",
-                "stderr": "",
-                "exit_code": 0,
-            },
+            "bash_executor": {"stdout": "", "stderr": "", "exit_code": 0},
             "ask_user": {"answers": []},
         },
         llm_responses=[
@@ -367,10 +368,7 @@ async def test_dev_assistant_snapshot_contains_architecture() -> None:
     agent = _dev_assistant.DevAssistant()
     await agent.run(_make_task("Explain the architecture"), ctx)
 
-    assert ctx.memory is not None
-    raw_snapshot = await ctx.memory.recall("bootstrap.snapshot")
-    assert raw_snapshot is not None, "bootstrap snapshot should be persisted"
-
-    snapshot = json.loads(raw_snapshot)
-    assert "architecture" in snapshot, "snapshot must contain 'architecture'"
-    assert isinstance(snapshot["architecture"], list)
+    assert ctx.llm.call_count >= 1
+    system_msg = ctx.llm.prompts[0][0]
+    assert system_msg["role"] == "system"
+    assert "anyhow INTERDIT" in system_msg["content"]
