@@ -50,7 +50,9 @@ mod embedded_tests {
 
         let config = EmbeddedBackendConfig {
             name: "test-local".to_owned(),
-            model_path: path,
+            model_path: Some(path),
+            model_paths: None,
+            quantization: String::new(),
             device: AcceleratorDevice::Cpu,
         };
 
@@ -86,7 +88,9 @@ mod embedded_tests {
 
         let config = EmbeddedBackendConfig {
             name: "test-local".to_owned(),
-            model_path: path,
+            model_path: Some(path),
+            model_paths: None,
+            quantization: String::new(),
             device: AcceleratorDevice::Cpu,
         };
 

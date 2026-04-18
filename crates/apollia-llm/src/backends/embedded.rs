@@ -120,7 +120,13 @@ impl AcceleratorDevice {
 /// Configuration du backend embarqué, désérialisée depuis la section
 /// `[[llm.backends]]` de `apollia.toml` pour les entrées `type = "embedded"`.
 ///
-/// # Exemple TOML
+/// Exactement un des deux champs [`Self::model_path`] ou [`Self::model_paths`]
+/// doit être renseigné. Les deux à la fois ou aucun des deux provoquent une
+/// [`LlmError::ConfigConflict`] lors de [`EmbeddedBackend::load`].
+///
+/// # Exemples TOML
+///
+/// Mono-fichier ou split standard (`<prefix>-NNNNN-of-NNNNN.gguf`) :
 ///
 /// ```toml
 /// [[llm.backends]]
@@ -130,12 +136,44 @@ impl AcceleratorDevice {
 /// quantization = "q5_k_m"
 /// device       = "metal"      # "cpu" | "cuda" | "metal"  (défaut: "cpu")
 /// ```
+///
+/// Naming scheme custom — liste ordonnée, chargée via
+/// `llama_model_load_from_splits` :
+///
+/// ```toml
+/// [[llm.backends]]
+/// name         = "custom-split"
+/// type         = "embedded"
+/// quantization = "q4_k_m"
+/// device       = "cpu"
+/// model_paths  = [
+///   "~/models/foo_part1.gguf",
+///   "~/models/foo_part2.gguf",
+///   "~/models/foo_part3.gguf",
+/// ]
+/// ```
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EmbeddedBackendConfig {
     /// Nom logique du backend, utilisé comme clé dans le `LlmRouter`.
     pub name: String,
-    /// Chemin complet vers le fichier `.gguf` du modèle sur le disque local.
-    pub model_path: PathBuf,
+    /// Chemin complet vers le fichier `.gguf` mono-fichier OU le premier shard
+    /// d'un split standard `<prefix>-NNNNN-of-NNNNN.gguf`.
+    ///
+    /// Mutuellement exclusif avec [`Self::model_paths`]. Au moins un des deux
+    /// doit être renseigné — une config sans ni l'un ni l'autre est refusée
+    /// par [`EmbeddedBackend::load`] avec [`LlmError::ConfigConflict`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_path: Option<PathBuf>,
+    /// Liste explicite et ordonnée de chemins de shards GGUF — utilisée quand le
+    /// naming scheme ne suit pas le pattern standard `<prefix>-NNNNN-of-NNNNN.gguf`.
+    ///
+    /// Transmise à `llama_model_load_from_splits` via FFI direct. Les chemins
+    /// sont canonisés individuellement ; ils doivent tous exister. L'ordre est
+    /// conservé (il correspond à l'ordre logique des shards dans le modèle).
+    ///
+    /// Mutuellement exclusif avec [`Self::model_path`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_paths: Option<Vec<PathBuf>>,
     /// Quantisation du modèle — informatif uniquement, baked in the GGUF filename.
     pub quantization: String,
     /// Accélérateur matériel à utiliser pour l'inférence.
@@ -306,28 +344,146 @@ const DEFAULT_CTX_SIZE: u32 = 4096;
 /// réutiliser lors des recharges de modèle (`reload_llm`).
 static LLAMA_BACKEND: std::sync::Mutex<Option<Arc<LlamaBackend>>> = std::sync::Mutex::new(None);
 
+/// Acquiert (ou initialise une seule fois) le `LlamaBackend` global.
+///
+/// Doit être appelé depuis un thread bloquant — `LlamaBackend::init()` lit des
+/// ressources système (backends GPU/CPU) et n'est pas conçu pour être exécuté
+/// sur une runtime async.
+fn acquire_backend() -> Result<Arc<LlamaBackend>, LlmError> {
+    let mut guard = LLAMA_BACKEND
+        .lock()
+        .map_err(|e| LlmError::InferenceError(format!("LLAMA_BACKEND poisoned: {e}")))?;
+    if let Some(existing) = guard.as_ref() {
+        return Ok(existing.clone());
+    }
+    let b = Arc::new(
+        LlamaBackend::init()
+            .map_err(|e| LlmError::InferenceError(format!("llama backend init failed: {e}")))?,
+    );
+    *guard = Some(b.clone());
+    Ok(b)
+}
+
+/// Charge un modèle depuis une liste explicite de chemins C via FFI direct
+/// vers `llama_cpp_sys_2::llama_model_load_from_splits`.
+///
+/// # Safety
+///
+/// - `ptrs` doit contenir des pointeurs non-null vers des chaînes C valides
+///   (terminées par `\0`), vivantes pour toute la durée de l'appel.
+/// - Les chemins doivent désigner des fichiers GGUF existants et lisibles —
+///   la validation est faite par l'appelant avant de construire les pointeurs.
+/// - Le pointeur `*mut llama_model` retourné est potentiellement null ;
+///   cette fonction le vérifie avant de construire le wrapper.
+/// - Le wrapper [`LlamaModel`] est `#[repr(transparent)]` au-dessus d'un
+///   `NonNull<llama_cpp_sys_2::llama_model>` (vérifié par un `const` assert
+///   ci-dessous). Le `transmute` respecte donc la représentation mémoire et
+///   produit un wrapper qui appellera `llama_model_free` à son `Drop`.
+fn load_model_from_splits_ffi(
+    ptrs: &mut [*const std::os::raw::c_char],
+    gpu_layers: u32,
+) -> Result<LlamaModel, LlmError> {
+    use std::ptr::NonNull;
+
+    const _: () = {
+        assert!(
+            std::mem::size_of::<LlamaModel>()
+                == std::mem::size_of::<NonNull<llama_cpp_sys_2::llama_model>>(),
+        );
+        assert!(
+            std::mem::align_of::<LlamaModel>()
+                == std::mem::align_of::<NonNull<llama_cpp_sys_2::llama_model>>(),
+        );
+    };
+
+    // SAFETY: `llama_model_default_params` is a pure accessor returning a
+    // value-type struct — no state, no invariants to uphold.
+    let mut params = unsafe { llama_cpp_sys_2::llama_model_default_params() };
+    params.n_gpu_layers = gpu_layers as i32;
+
+    // SAFETY:
+    // - `ptrs.as_mut_ptr()` points to `ptrs.len()` valid `*const c_char`
+    //   entries owned by the caller (backed by `CString`s kept alive for the
+    //   duration of the call).
+    // - `params` is a POD struct initialised by `llama_model_default_params`
+    //   plus a single integer field override.
+    let raw_model = unsafe {
+        llama_cpp_sys_2::llama_model_load_from_splits(ptrs.as_mut_ptr(), ptrs.len(), params)
+    };
+
+    let non_null = NonNull::new(raw_model).ok_or_else(|| {
+        LlmError::InferenceError("llama_model_load_from_splits returned a null pointer".into())
+    })?;
+
+    // SAFETY: `LlamaModel` is `#[repr(transparent)]` over
+    // `NonNull<llama_cpp_sys_2::llama_model>` (both layout-asserted above).
+    // The pointer is non-null and ownership transfers to the wrapper, whose
+    // `Drop` calls `llama_model_free`.
+    let model: LlamaModel = unsafe { std::mem::transmute(non_null) };
+    Ok(model)
+}
+
 impl EmbeddedBackend {
-    /// Charge le modèle depuis le fichier `.gguf` indiqué dans la config.
+    /// Charge le modèle selon la config fournie.
+    ///
+    /// Deux chemins d'exécution :
+    /// - [`EmbeddedBackendConfig::model_path`] (mono-fichier ou premier shard d'un
+    ///   split standard `<prefix>-NNNNN-of-NNNNN.gguf`) — délégué à
+    ///   `llama_cpp_2::LlamaModel::load_from_file`, qui détecte automatiquement
+    ///   les shards suivants du pattern standard.
+    /// - [`EmbeddedBackendConfig::model_paths`] (liste ordonnée explicite) —
+    ///   chaque chemin est vérifié puis transmis à
+    ///   `llama_cpp_sys_2::llama_model_load_from_splits` via FFI direct pour
+    ///   supporter les naming schemes custom.
+    ///
+    /// Les deux champs sont mutuellement exclusifs (fail-fast au démarrage).
     ///
     /// # Erreurs
     ///
-    /// - [`LlmError::ModelNotFound`] — `config.model_path` est introuvable sur le disque.
+    /// - [`LlmError::ConfigConflict`] — `model_path` et `model_paths` tous les
+    ///   deux renseignés, ni l'un ni l'autre, ou `model_paths` vide.
+    /// - [`LlmError::ModelNotFound`] — un chemin est introuvable sur le disque.
+    /// - [`LlmError::ModelShardMissing`] / [`LlmError::ShardIndexNotFirst`] —
+    ///   série split standard incomplète ou entrée pointant sur un shard autre
+    ///   que `-00001-of-NNNNN.gguf`.
     /// - [`LlmError::DeviceNotAvailable`] — accélérateur non compilé.
     /// - [`LlmError::InferenceError`] — initialisation du moteur échouée.
     pub async fn load(config: &EmbeddedBackendConfig) -> Result<Self, LlmError> {
         // Fail-fast : vérifie que l'accélérateur demandé est compilé dans ce binaire.
         config.device.check_compiled()?;
 
+        match (&config.model_path, &config.model_paths) {
+            (Some(_), Some(_)) => Err(LlmError::ConfigConflict {
+                backend: config.name.clone(),
+                reason: "model_path et model_paths sont mutuellement exclusifs".into(),
+            }),
+            (None, None) => Err(LlmError::ConfigConflict {
+                backend: config.name.clone(),
+                reason: "model_path OU model_paths est requis".into(),
+            }),
+            (None, Some(paths)) if paths.is_empty() => Err(LlmError::ConfigConflict {
+                backend: config.name.clone(),
+                reason: "model_paths ne peut pas être vide".into(),
+            }),
+            (Some(path), None) => Self::load_single_or_standard_split(config, path).await,
+            (None, Some(paths)) => Self::load_custom_splits(config, paths).await,
+        }
+    }
+
+    /// Chemin mono-fichier ou split standard `<prefix>-NNNNN-of-NNNNN.gguf`.
+    async fn load_single_or_standard_split(
+        config: &EmbeddedBackendConfig,
+        raw_path: &Path,
+    ) -> Result<Self, LlmError> {
         tracing::info!(
             backend = %config.name,
-            path = %config.model_path.display(),
+            path = %raw_path.display(),
             quantization = %config.quantization,
             device = %config.device.label(),
             "chargement du modèle local"
         );
 
-        let expanded_path = expand_tilde(&config.model_path);
-
+        let expanded_path = expand_tilde(raw_path);
         let canonical = expanded_path
             .canonicalize()
             .map_err(|_| LlmError::ModelNotFound {
@@ -358,22 +514,7 @@ impl EmbeddedBackend {
 
         // Chargement bloquant dans un thread dédié (llama.cpp est synchrone).
         let (backend, model) = tokio::task::spawn_blocking(move || {
-            // LlamaBackend::init() is a process-wide singleton. On reload,
-            // the previous backend is still alive (held by Arc in the old
-            // router/RuntimeHandle), so init() returns BackendAlreadyInitialized.
-            // We cache the backend in a static Mutex to reuse it safely.
-            let backend = {
-                let mut guard = LLAMA_BACKEND.lock().expect("LLAMA_BACKEND poisoned");
-                if let Some(existing) = guard.as_ref() {
-                    existing.clone()
-                } else {
-                    let b = Arc::new(LlamaBackend::init().map_err(|e| {
-                        LlmError::InferenceError(format!("llama backend init failed: {e}"))
-                    })?);
-                    *guard = Some(b.clone());
-                    b
-                }
-            };
+            let backend = acquire_backend()?;
 
             let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
 
@@ -390,6 +531,92 @@ impl EmbeddedBackend {
             model_id = %model_id,
             device = %device.label(),
             "modèle local prêt"
+        );
+
+        Ok(Self {
+            model: Arc::new(model),
+            backend,
+            name,
+            model_id,
+            device,
+        })
+    }
+
+    /// Chemin custom-splits : FFI direct vers `llama_model_load_from_splits`.
+    ///
+    /// Canonise chaque chemin, vérifie son existence avant tout appel FFI
+    /// (Principe #4 — Fail fast), puis exécute le chargement dans un
+    /// `spawn_blocking` (llama.cpp est synchrone).
+    async fn load_custom_splits(
+        config: &EmbeddedBackendConfig,
+        raw_paths: &[PathBuf],
+    ) -> Result<Self, LlmError> {
+        let mut canonical_paths: Vec<PathBuf> = Vec::with_capacity(raw_paths.len());
+        for p in raw_paths {
+            let expanded = expand_tilde(p);
+            let canonical = expanded
+                .canonicalize()
+                .map_err(|_| LlmError::ModelNotFound {
+                    path: expanded.clone(),
+                })?;
+            canonical_paths.push(canonical);
+        }
+
+        let Some(first) = canonical_paths.first().cloned() else {
+            return Err(LlmError::ConfigConflict {
+                backend: config.name.clone(),
+                reason: "model_paths ne peut pas être vide".into(),
+            });
+        };
+        let model_id = first
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
+
+        tracing::info!(
+            backend = %config.name,
+            paths_count = canonical_paths.len(),
+            first_path = %first.display(),
+            quantization = %config.quantization,
+            device = %config.device.label(),
+            "chargement modèle GGUF custom splits via FFI llama_model_load_from_splits"
+        );
+
+        let gpu_layers = config.device.gpu_layers();
+        let name = config.name.clone();
+        let device = config.device.clone();
+
+        let (backend, model) = tokio::task::spawn_blocking(move || -> Result<_, LlmError> {
+            let backend = acquire_backend()?;
+
+            let c_strings: Vec<std::ffi::CString> = canonical_paths
+                .iter()
+                .map(|p| {
+                    let s = p.to_str().ok_or_else(|| {
+                        LlmError::InferenceError(format!("non-UTF-8 path: {}", p.display()))
+                    })?;
+                    std::ffi::CString::new(s).map_err(|e| {
+                        LlmError::InferenceError(format!("CString conversion failed: {e}"))
+                    })
+                })
+                .collect::<Result<_, _>>()?;
+            let mut c_ptrs: Vec<*const std::os::raw::c_char> =
+                c_strings.iter().map(|c| c.as_ptr()).collect();
+
+            let model = load_model_from_splits_ffi(&mut c_ptrs, gpu_layers)?;
+            // Keep `c_strings` alive until the FFI call returns — they back the pointers.
+            drop(c_strings);
+
+            Ok::<_, LlmError>((backend, model))
+        })
+        .await
+        .map_err(|e| LlmError::InferenceError(format!("model load task failed: {e}")))??;
+
+        tracing::info!(
+            backend = %name,
+            model_id = %model_id,
+            device = %device.label(),
+            "modèle local prêt (custom splits)"
         );
 
         Ok(Self {
@@ -906,7 +1133,8 @@ mod tests {
         let config: EmbeddedBackendConfig =
             serde_json::from_str(json).expect("désérialisation doit réussir");
         assert_eq!(config.name, "local");
-        assert_eq!(config.model_path, PathBuf::from("/tmp/model.gguf"));
+        assert_eq!(config.model_path, Some(PathBuf::from("/tmp/model.gguf")));
+        assert!(config.model_paths.is_none());
         assert_eq!(config.quantization, "q4_k_m");
         assert_eq!(config.device, AcceleratorDevice::Cpu);
     }
@@ -957,7 +1185,8 @@ mod tests {
     async fn test_load_returns_model_not_found() {
         let config = EmbeddedBackendConfig {
             name: "local".into(),
-            model_path: PathBuf::from("/tmp/does-not-exist-xyz-apollia.gguf"),
+            model_path: Some(PathBuf::from("/tmp/does-not-exist-xyz-apollia.gguf")),
+            model_paths: None,
             quantization: "q4_k_m".into(),
             device: AcceleratorDevice::Cpu,
         };
@@ -1116,7 +1345,8 @@ mod tests {
 
         let config = EmbeddedBackendConfig {
             name: "local".into(),
-            model_path: dir.path().join("model-00001-of-00003.gguf"),
+            model_path: Some(dir.path().join("model-00001-of-00003.gguf")),
+            model_paths: None,
             quantization: "q4_k_m".into(),
             device: AcceleratorDevice::Cpu,
         };
@@ -1144,7 +1374,8 @@ mod tests {
 
         let config = EmbeddedBackendConfig {
             name: "local".into(),
-            model_path: dir.path().join("model-00002-of-00003.gguf"),
+            model_path: Some(dir.path().join("model-00002-of-00003.gguf")),
+            model_paths: None,
             quantization: "q4_k_m".into(),
             device: AcceleratorDevice::Cpu,
         };
@@ -1155,5 +1386,107 @@ mod tests {
             }
             other => panic!("expected ShardIndexNotFirst, got {other:?}"),
         }
+    }
+
+    // ─────────────────────────────────────────────
+    // STORY-517 — custom split tests
+    // ─────────────────────────────────────────────
+
+    fn cfg_custom(
+        model_path: Option<PathBuf>,
+        model_paths: Option<Vec<PathBuf>>,
+    ) -> EmbeddedBackendConfig {
+        EmbeddedBackendConfig {
+            name: "custom-split".into(),
+            model_path,
+            model_paths,
+            quantization: "Q4_K_M".into(),
+            device: AcceleratorDevice::Cpu,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_load_rejects_both_model_path_and_model_paths() {
+        let dir = tempfile::TempDir::new().expect("create tempdir");
+        let p = dir.path().join("a.gguf");
+        std::fs::write(&p, b"x").expect("write fixture");
+        let config = cfg_custom(Some(p.clone()), Some(vec![p]));
+        match EmbeddedBackend::load(&config).await {
+            Err(LlmError::ConfigConflict { backend, reason }) => {
+                assert_eq!(backend, "custom-split");
+                assert!(reason.contains("mutuellement exclusifs"));
+            }
+            other => panic!("expected ConfigConflict, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_load_rejects_neither_model_path_nor_model_paths() {
+        let config = cfg_custom(None, None);
+        match EmbeddedBackend::load(&config).await {
+            Err(LlmError::ConfigConflict { backend, reason }) => {
+                assert_eq!(backend, "custom-split");
+                assert!(reason.contains("requis"));
+            }
+            other => panic!("expected ConfigConflict, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_load_rejects_empty_model_paths() {
+        let config = cfg_custom(None, Some(vec![]));
+        match EmbeddedBackend::load(&config).await {
+            Err(LlmError::ConfigConflict { backend, reason }) => {
+                assert_eq!(backend, "custom-split");
+                assert!(reason.contains("vide"));
+            }
+            other => panic!("expected ConfigConflict, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_load_reports_missing_path_in_model_paths() {
+        let dir = tempfile::TempDir::new().expect("create tempdir");
+        let existing = dir.path().join("ok.gguf");
+        std::fs::write(&existing, b"x").expect("write fixture");
+        let missing = dir.path().join("missing.gguf");
+        let config = cfg_custom(None, Some(vec![existing, missing.clone()]));
+        match EmbeddedBackend::load(&config).await {
+            Err(LlmError::ModelNotFound { path }) => {
+                assert!(
+                    path.ends_with("missing.gguf"),
+                    "ModelNotFound path must end with missing.gguf, got {}",
+                    path.display()
+                );
+            }
+            other => panic!("expected ModelNotFound, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_serde_roundtrip_with_model_paths() {
+        let cfg_toml = r#"
+            name = "custom"
+            quantization = "Q4_K_M"
+            device = "cpu"
+            model_paths = ["/tmp/a.gguf", "/tmp/b.gguf"]
+        "#;
+        let cfg: EmbeddedBackendConfig = toml::from_str(cfg_toml).expect("parse toml");
+        assert!(cfg.model_path.is_none());
+        let paths = cfg.model_paths.as_ref().expect("model_paths present");
+        assert_eq!(paths.len(), 2);
+        assert_eq!(paths[0], PathBuf::from("/tmp/a.gguf"));
+        assert_eq!(paths[1], PathBuf::from("/tmp/b.gguf"));
+
+        let json = serde_json::to_value(&cfg).expect("serialize");
+        assert!(
+            json.get("model_path").is_none(),
+            "model_path must be omitted when None"
+        );
+        let paths_json = json
+            .get("model_paths")
+            .and_then(|v| v.as_array())
+            .expect("model_paths array");
+        assert_eq!(paths_json.len(), 2);
     }
 }

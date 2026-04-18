@@ -10,7 +10,9 @@ default = ["cloud"]
 # ── Backend local (inférence in-process via llama.cpp) ────────────────────────
 # ADR-042 : llama-cpp-2 remplace mistralrs pour le support de 30+ architectures
 # GGUF et les kernels Metal natifs (MoE inclus).
-local            = ["dep:llama-cpp-2", "dep:encoding_rs"]
+# `llama-cpp-sys-2` est requis pour appeler `llama_model_load_from_splits` en
+# FFI direct (naming scheme custom — non exposé par le wrapper safe en 0.1.140).
+local            = ["dep:llama-cpp-2", "dep:llama-cpp-sys-2", "dep:encoding_rs"]
 
 # CPU seul — explicitement déclaré pour la lisibilité TOML, équivaut à `local`.
 local-cpu        = ["local"]
@@ -44,6 +46,7 @@ async-openai   = { workspace = true, optional = true }
 reqwest        = { workspace = true, optional = true }
 # local backend [feature = "local"] — ADR-042
 llama-cpp-2    = { workspace = true, optional = true }
+llama-cpp-sys-2 = { workspace = true, optional = true }
 encoding_rs    = { workspace = true, optional = true }
 tokio-stream   = { workspace = true }
 tokio-util     = { workspace = true }

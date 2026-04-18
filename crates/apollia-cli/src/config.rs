@@ -181,12 +181,20 @@ pub fn parse_apollia_toml(path: &Path) -> Result<ApolliaCConfig, ConfigError> {
         .try_into()
         .map_err(|e: toml::de::Error| e)?;
 
-    // Normalise les chemins model_path des backends embarqués (~ → $HOME).
+    // Normalise les chemins des backends embarqués (~ → $HOME) — `model_path`
+    // mono-fichier/split standard et chaque entrée de `model_paths` custom.
     if let Some(ref mut llm) = config.llm {
         for _backend in &mut llm.backends {
             #[cfg(feature = "local")]
             if let BackendKind::Embedded(ref mut cfg) = _backend.kind {
-                cfg.model_path = expand_tilde(&cfg.model_path);
+                if let Some(path) = cfg.model_path.as_mut() {
+                    *path = expand_tilde(path);
+                }
+                if let Some(paths) = cfg.model_paths.as_mut() {
+                    for p in paths.iter_mut() {
+                        *p = expand_tilde(p);
+                    }
+                }
             }
         }
     }
@@ -237,13 +245,27 @@ pub fn validate_llm_config(config: &LlmConfig) -> Result<(), ConfigError> {
         match &backend.kind {
             #[cfg(feature = "local")]
             BackendKind::Embedded(cfg) => {
-                let expanded = expand_tilde(&cfg.model_path);
-                if !expanded.exists() {
-                    tracing::warn!(
-                        backend = %backend.name(),
-                        path = %expanded.display(),
-                        "model file not found — backend will be skipped"
-                    );
+                if let Some(path) = cfg.model_path.as_ref() {
+                    let expanded = expand_tilde(path);
+                    if !expanded.exists() {
+                        tracing::warn!(
+                            backend = %backend.name(),
+                            path = %expanded.display(),
+                            "model file not found — backend will be skipped"
+                        );
+                    }
+                }
+                if let Some(paths) = cfg.model_paths.as_ref() {
+                    for p in paths {
+                        let expanded = expand_tilde(p);
+                        if !expanded.exists() {
+                            tracing::warn!(
+                                backend = %backend.name(),
+                                path = %expanded.display(),
+                                "shard file not found — backend will be skipped"
+                            );
+                        }
+                    }
                 }
             }
 

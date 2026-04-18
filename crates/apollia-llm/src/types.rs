@@ -484,6 +484,19 @@ pub enum LlmError {
         /// Chemin fautif fourni par la config.
         path: PathBuf,
     },
+
+    /// Configuration LLM incohérente détectée au démarrage.
+    ///
+    /// Utilisée notamment pour signaler que `EmbeddedBackendConfig::model_path`
+    /// et `EmbeddedBackendConfig::model_paths` sont mutuellement exclusifs, ou
+    /// qu'aucun des deux n'a été renseigné.
+    #[error("invalid config for backend '{backend}': {reason}")]
+    ConfigConflict {
+        /// Nom logique du backend fautif (champ `name` de la config).
+        backend: String,
+        /// Description humaine du problème.
+        reason: String,
+    },
 }
 
 // ─────────────────────────────────────────────
@@ -733,6 +746,10 @@ mod tests {
             LlmError::ServiceUnavailable,
             LlmError::Unauthorized,
             LlmError::Cancelled,
+            LlmError::ConfigConflict {
+                backend: "local".into(),
+                reason: "mutuellement exclusifs".into(),
+            },
         ];
         for err in &errors {
             assert!(

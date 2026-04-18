@@ -327,6 +327,7 @@ dependencies = [
  "encoding_rs",
  "futures",
  "llama-cpp-2",
+ "llama-cpp-sys-2",
  "reqwest 0.12.28",
  "rusqlite",
  "serde",

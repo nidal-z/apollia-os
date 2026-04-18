@@ -120,7 +120,7 @@ fn backend_config_to_db(cfg: &BackendConfig, is_default: bool) -> LlmBackendConf
         BackendKind::Embedded(embedded) => LlmBackendConfig {
             name: embedded.name.clone(),
             provider: LlmProvider::LlamaCpp,
-            model: embedded.model_path.to_string_lossy().into_owned(),
+            model: embedded_model_descriptor(embedded),
             config_json: serde_json::to_value(embedded).unwrap_or_default(),
             enabled: true,
             is_default,
@@ -218,11 +218,34 @@ impl BackendConfig {
     fn model_path_hint(&self) -> String {
         match &self.kind {
             #[cfg(feature = "local")]
-            BackendKind::Embedded(cfg) => cfg.model_path.to_string_lossy().into_owned(),
+            BackendKind::Embedded(cfg) => embedded_model_descriptor(cfg),
             #[cfg(feature = "cloud")]
             BackendKind::Api(cfg) => cfg.api_url.clone(),
         }
     }
+}
+
+/// Résumé humain de l'emplacement du modèle pour un backend embarqué.
+///
+/// Utilisé à la fois pour :
+/// - `LlmBackendConfig::model` (colonne SQLite, clé d'identification)
+/// - `RuntimeEvent::LlmModelLoading.model_path` (événement d'observabilité)
+///
+/// Retourne le premier chemin renseigné (mono-fichier, premier shard standard,
+/// ou premier shard d'une liste explicite). Chaîne vide si la config est
+/// incohérente — le défaut sera bloqué par [`EmbeddedBackend::load`] au
+/// démarrage, qui retourne [`LlmError::ConfigConflict`] (Principe #4).
+#[cfg(feature = "local")]
+fn embedded_model_descriptor(cfg: &EmbeddedBackendConfig) -> String {
+    if let Some(p) = cfg.model_path.as_ref() {
+        return p.to_string_lossy().into_owned();
+    }
+    if let Some(paths) = cfg.model_paths.as_ref() {
+        if let Some(first) = paths.first() {
+            return first.to_string_lossy().into_owned();
+        }
+    }
+    String::new()
 }
 
 /// Discriminant de type de backend dans `[[llm.backends]]`.
@@ -964,15 +987,31 @@ async fn instantiate_embedded_backend(
     cfg: &LlmBackendConfig,
 ) -> Result<Arc<dyn CompletionModel>, LlmError> {
     use crate::backends::embedded::AcceleratorDevice;
+    use std::path::PathBuf;
 
-    let model_path_str = cfg
+    let model_path = cfg
         .config_json
         .get("model_path")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| LlmError::BackendUnavailable {
+        .map(PathBuf::from);
+
+    let model_paths = cfg
+        .config_json
+        .get("model_paths")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|item| item.as_str().map(PathBuf::from))
+                .collect::<Vec<_>>()
+        });
+
+    if model_path.is_none() && model_paths.is_none() {
+        return Err(LlmError::BackendUnavailable {
             backend: cfg.name.clone(),
-            reason: "config_json missing 'model_path' for llama-cpp backend".to_string(),
-        })?;
+            reason: "config_json missing 'model_path' or 'model_paths' for llama-cpp backend"
+                .to_string(),
+        });
+    }
 
     let device: AcceleratorDevice = cfg
         .config_json
@@ -983,7 +1022,8 @@ async fn instantiate_embedded_backend(
 
     let embedded_cfg = EmbeddedBackendConfig {
         name: cfg.name.clone(),
-        model_path: model_path_str.into(),
+        model_path,
+        model_paths,
         quantization: String::new(),
         device,
     };
