@@ -72,6 +72,11 @@
     "switch_to_operator": "Switch to Operator",
     "running_task_one": "1 agent running",
     "running_tasks": "{count} agents running",
+    "collapse_sidebar": "Collapse sidebar",
+    "expand_sidebar": "Expand sidebar",
+    "open_sidebar": "Open navigation",
+    "close_sidebar": "Close navigation",
+    "sidebar_label": "Main navigation",
     "connection": {
       "connecting": "Connecting...",
       "connected": "Runtime connected",

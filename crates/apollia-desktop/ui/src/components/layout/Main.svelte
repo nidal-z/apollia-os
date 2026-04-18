@@ -1,8 +1,10 @@
 <script lang="ts">
   import { fade } from "svelte/transition";
   import { onMount } from "svelte";
+  import { t } from "svelte-i18n";
   import { currentRoute, canGoBack, canGoForward, goBack, goForward } from "$lib/stores/navigation";
-  import { ChevronLeft, ChevronRight } from "lucide-svelte";
+  import { sidebarState, layoutActions } from "$lib/stores/layout";
+  import { ChevronLeft, ChevronRight, Menu } from "lucide-svelte";
   import Dashboard from "../../routes/Dashboard.svelte";
   import Agents from "../../routes/Agents.svelte";
   import Tasks from "../../routes/Tasks.svelte";
@@ -35,26 +37,37 @@
   });
 </script>
 
-<main class="flex flex-1 flex-col overflow-auto bg-background">
+<main class="flex min-w-0 flex-1 flex-col overflow-auto bg-background">
   <!-- Navigation bar -->
-  <div class="flex items-center gap-1 px-4 sm:px-6 lg:px-8 pt-6 pb-2">
+  <div class="flex items-center gap-1 px-4 sm:px-6 lg:px-8 pt-4 pb-2">
+    {#if $sidebarState === "drawer"}
+      <button
+        class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        onclick={() => layoutActions.openDrawer()}
+        aria-label={$t("nav.open_sidebar")}
+        aria-haspopup="dialog"
+        data-testid="topbar-sidebar-toggle"
+      >
+        <Menu size={20} strokeWidth={1.75} />
+      </button>
+    {/if}
     <button
-      class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
+      class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
       onclick={goBack}
       disabled={!$canGoBack}
       aria-label="Back (Cmd+[)"
       data-testid="nav-back"
     >
-      <ChevronLeft size={16} strokeWidth={1.75} />
+      <ChevronLeft size={18} strokeWidth={1.75} />
     </button>
     <button
-      class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
+      class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
       onclick={goForward}
       disabled={!$canGoForward}
       aria-label="Forward (Cmd+])"
       data-testid="nav-forward"
     >
-      <ChevronRight size={16} strokeWidth={1.75} />
+      <ChevronRight size={18} strokeWidth={1.75} />
     </button>
   </div>
 

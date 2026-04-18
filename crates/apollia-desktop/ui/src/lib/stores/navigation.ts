@@ -44,29 +44,5 @@ export function goForward() {
   currentRoute.set(next);
 }
 
-/** Sidebar collapsed state, persisted to localStorage. */
-function createSidebarStore() {
-  const stored = typeof localStorage !== "undefined" ? localStorage.getItem("apollia-sidebar-collapsed") : null;
-  const { subscribe, set, update } = writable(stored === "true");
-
-  return {
-    subscribe,
-    set(value: boolean) {
-      set(value);
-      if (typeof localStorage !== "undefined") {
-        localStorage.setItem("apollia-sidebar-collapsed", String(value));
-      }
-    },
-    toggle() {
-      update((v) => {
-        const next = !v;
-        if (typeof localStorage !== "undefined") {
-          localStorage.setItem("apollia-sidebar-collapsed", String(next));
-        }
-        return next;
-      });
-    },
-  };
-}
-
-export const sidebarCollapsed = createSidebarStore();
+// Sidebar state is owned by `./layout.ts` since US-SP42-003 (breakpoint-derived
+// three-way state `expanded | icon | drawer`, persisted under `apollia.ui.sidebar`).

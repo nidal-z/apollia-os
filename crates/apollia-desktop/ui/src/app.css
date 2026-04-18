@@ -28,6 +28,9 @@
     --ring: 240 91% 58%;
     --radius: 0.75rem;
 
+    /* Responsive layout (US-SP42-003) — 44 px minimum touch target (WCAG 2.5.5). */
+    --touch-target-min: 2.75rem;
+
     /* Semantic colors */
     --destructive: 0 72% 40%;
     --destructive-foreground: 0 0% 98%;

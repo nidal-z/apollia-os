@@ -8,7 +8,12 @@
     isCompanionRestoreVisible,
     type CompanionPosition,
   } from "$lib/stores/companion";
+  import { sidebarState } from "$lib/stores/layout";
   import ChatConversation from "../chat/ChatConversation.svelte";
+
+  // US-SP42-003 (E.40) — under `md`, the companion becomes full-screen so the
+  // chat remains usable and the close button stays visible even at 375 px.
+  const fullscreen = $derived($sidebarState === "drawer");
 
   // ── Panel state ────────────────────────────────────────────────────────────
 
@@ -173,39 +178,44 @@
   <div
     role="complementary"
     aria-label={$t("companion.aria_label")}
-    class="fixed flex flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl"
+    class="fixed flex flex-col overflow-hidden border border-border bg-background shadow-2xl"
+    class:inset-0={fullscreen}
+    class:rounded-xl={!fullscreen}
     style:z-index="65"
-    style:left="{computedPos.x}px"
-    style:top="{computedPos.y}px"
-    style:width="{size.width}px"
-    style:height="{size.height}px"
+    style:left={fullscreen ? undefined : `${computedPos.x}px`}
+    style:top={fullscreen ? undefined : `${computedPos.y}px`}
+    style:width={fullscreen ? undefined : `${size.width}px`}
+    style:height={fullscreen ? undefined : `${size.height}px`}
     data-testid="companion-panel"
+    data-fullscreen={fullscreen ? "true" : "false"}
   >
     <!-- Title bar (drag handle) -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="flex shrink-0 cursor-grab items-center gap-2 border-b border-border bg-muted/50 px-3 py-2 select-none active:cursor-grabbing"
-      onmousedown={onTitleMouseDown}
+      class="flex shrink-0 items-center gap-2 border-b border-border bg-muted/50 px-3 py-2 select-none"
+      class:cursor-grab={!fullscreen}
+      class:active:cursor-grabbing={!fullscreen}
+      onmousedown={fullscreen ? undefined : onTitleMouseDown}
     >
       <Bot size={16} class="shrink-0 text-primary" />
       <span class="flex-1 truncate text-sm font-medium text-foreground">
         {$t("companion.title")}
       </span>
       <button
-        class="flex h-6 w-6 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+        class="inline-flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors {fullscreen ? 'h-11 w-11' : 'h-6 w-6'}"
         onclick={handleMinimize}
         aria-label={$t("companion.minimize")}
         data-testid="companion-minimize"
       >
-        <Minus size={14} />
+        <Minus size={fullscreen ? 18 : 14} />
       </button>
       <button
-        class="flex h-6 w-6 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+        class="inline-flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors {fullscreen ? 'h-11 w-11' : 'h-6 w-6'}"
         onclick={handleClose}
         aria-label={$t("companion.close")}
         data-testid="companion-close"
       >
-        <X size={14} />
+        <X size={fullscreen ? 18 : 14} />
       </button>
     </div>
 
@@ -239,8 +249,9 @@
       {/if}
     </div>
 
-    <!-- Resize handle (bottom-right corner) -->
+    <!-- Resize handle (bottom-right corner) — disabled in fullscreen. -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
+    {#if !fullscreen}
     <div
       class="absolute bottom-0 right-0 h-4 w-4 cursor-se-resize opacity-30 hover:opacity-70 transition-opacity"
       onmousedown={onResizeMouseDown}
@@ -250,5 +261,6 @@
         <path d="M11 11L15 15M7 11L15 15M11 7L15 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" />
       </svg>
     </div>
+    {/if}
   </div>
 {/if}

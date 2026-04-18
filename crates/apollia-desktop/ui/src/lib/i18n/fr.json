@@ -72,6 +72,11 @@
     "switch_to_operator": "Passer en mode Opérateur",
     "running_task_one": "1 agent en cours",
     "running_tasks": "{count} agents en cours",
+    "collapse_sidebar": "Replier la sidebar",
+    "expand_sidebar": "Déplier la sidebar",
+    "open_sidebar": "Ouvrir la navigation",
+    "close_sidebar": "Fermer la navigation",
+    "sidebar_label": "Navigation principale",
     "connection": {
       "connecting": "Connexion...",
       "connected": "Runtime connecté",
