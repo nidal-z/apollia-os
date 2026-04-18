@@ -46,12 +46,12 @@
     <!-- Glass card -->
     <div class="glass-card glass-border w-full rounded-2xl p-10 text-center">
       <h1
-        class="mb-3 text-2xl font-bold text-foreground"
+        class="mb-4 text-display-xl text-foreground"
         data-testid="onboarding-title"
       >
         {$t("onboarding_welcome.title")}
       </h1>
-      <p class="mb-8 text-sm leading-relaxed text-muted-foreground">
+      <p class="mb-8 text-base leading-relaxed text-muted-foreground">
         {$t("onboarding_welcome.subtitle")}
       </p>
 

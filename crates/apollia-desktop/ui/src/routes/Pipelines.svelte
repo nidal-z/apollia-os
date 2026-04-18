@@ -15,7 +15,8 @@
   import EditPipelineDialog from "../components/pipelines/EditPipelineDialog.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
   import { TabBar } from "$lib/components/ui/tabs";
-  import EmptyState from "../components/common/EmptyState.svelte";
+  import { EmptyState } from "$lib/components/layout";
+  import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { LoadingSpinner } from "$lib/components/feedback";
 
@@ -171,11 +172,13 @@
     <!-- Active / History tab content -->
     {#if $pipelineRuns.length === 0}
       <EmptyState
-        icon={GitBranch}
-        title={$t('pipelines.empty_title')}
-        subtitle={$t('pipelines.empty_subtitle')}
-        ctaLabel={$t('pipelines.run_pipeline')}
-        ctaAction={() => (showNewRunDialog = true)}
+        icon={EMPTY_STATES.pipelines.icon}
+        title={$t(EMPTY_STATES.pipelines.titleKey)}
+        description={$t(EMPTY_STATES.pipelines.descriptionKey)}
+        primaryLabel={$t(EMPTY_STATES.pipelines.primaryCtaKey ?? '')}
+        primaryAction={() => (showNewRunDialog = true)}
+        secondaryLabel={$t(EMPTY_STATES.pipelines.secondaryCtaKey ?? '')}
+        secondaryAction={() => (showCreateDialog = true)}
         page="pipelines"
       />
     {:else if displayedRuns.length === 0}

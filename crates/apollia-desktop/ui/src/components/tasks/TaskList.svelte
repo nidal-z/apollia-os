@@ -16,8 +16,9 @@
   import { Select } from "$lib/components/ui/select";
   import { Textarea } from "$lib/components/ui/textarea";
   import { Dialog } from "$lib/components/ui/dialog";
-  import { ListChecks, Plus, Activity, CheckCircle, XCircle, Clock, AlertTriangle, Ban } from "lucide-svelte";
-  import EmptyState from "../common/EmptyState.svelte";
+  import { Plus, Activity, CheckCircle, XCircle, Clock, AlertTriangle, Ban } from "lucide-svelte";
+  import { EmptyState } from "$lib/components/layout";
+  import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
 
   const SKELETON_ROW_COUNT = 6;
 
@@ -193,11 +194,13 @@
     </div>
   {:else if !hasAnyTasks}
     <EmptyState
-      icon={ListChecks}
-      title={$t('tasks.empty_title')}
-      subtitle={$t('tasks.empty_subtitle')}
-      ctaLabel={mode === "operator" ? $t('tasks.empty_cta_operator') : $t('tasks.empty_cta_builder')}
-      ctaAction={mode === "operator" ? () => navigateTo("agents") : openNewTaskDialog}
+      icon={EMPTY_STATES.tasks.icon}
+      title={$t(EMPTY_STATES.tasks.titleKey)}
+      description={$t(EMPTY_STATES.tasks.descriptionKey)}
+      primaryLabel={mode === "operator" ? $t('tasks.empty_cta_operator') : $t(EMPTY_STATES.tasks.primaryCtaKey ?? '')}
+      primaryAction={mode === "operator" ? () => navigateTo("agents") : openNewTaskDialog}
+      secondaryLabel={mode === "operator" ? undefined : $t(EMPTY_STATES.tasks.secondaryCtaKey ?? '')}
+      secondaryAction={mode === "operator" ? undefined : () => navigateTo("agents")}
       page="tasks"
     />
   {:else if visibleTasks.length === 0}

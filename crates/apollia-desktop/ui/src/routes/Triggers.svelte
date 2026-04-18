@@ -8,13 +8,13 @@
   import { currentRoute } from "$lib/stores/navigation";
   import type { TriggerReloadResult, TriggerStatus } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
-  import { Timer } from "lucide-svelte";
   import TriggerRow from "../components/triggers/TriggerRow.svelte";
   import TriggerLogs from "../components/triggers/TriggerLogs.svelte";
   import CreateTriggerDialog from "../components/triggers/CreateTriggerDialog.svelte";
   import EditTriggerDialog from "../components/triggers/EditTriggerDialog.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
-  import EmptyState from "../components/common/EmptyState.svelte";
+  import { EmptyState } from "$lib/components/layout";
+  import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
 
   let reloading = $state(false);
@@ -159,9 +159,13 @@
   <!-- Trigger list grouped by agent, or empty state -->
   {#if $triggers.length === 0}
     <EmptyState
-      icon={Timer}
-      title={$t('triggers.empty_title')}
-      subtitle={$t('triggers.empty_subtitle')}
+      icon={EMPTY_STATES.triggers.icon}
+      title={$t(EMPTY_STATES.triggers.titleKey)}
+      description={$t(EMPTY_STATES.triggers.descriptionKey)}
+      primaryLabel={$uiMode === "builder" ? $t(EMPTY_STATES.triggers.primaryCtaKey ?? '') : undefined}
+      primaryAction={$uiMode === "builder" ? () => (showCreateDialog = true) : undefined}
+      secondaryLabel={$t(EMPTY_STATES.triggers.secondaryCtaKey ?? '')}
+      secondaryAction={handleReload}
       page="triggers"
     />
   {:else}

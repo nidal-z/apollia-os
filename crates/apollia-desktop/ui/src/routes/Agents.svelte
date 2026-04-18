@@ -19,7 +19,8 @@
   import AgentDetail from "../components/agents/AgentDetail.svelte";
   import CreateFromTemplateDialog from "../components/agents/CreateFromTemplateDialog.svelte";
   import MacSandboxBanner from "../components/common/MacSandboxBanner.svelte";
-  import EmptyState from "../components/common/EmptyState.svelte";
+  import { EmptyState } from "$lib/components/layout";
+  import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
   import type { ChatSessionSummary, CreateSessionRequest } from "$lib/types";
 
   const SKELETON_COUNT = 4;
@@ -92,8 +93,8 @@
   <!-- Header -->
   <div class="flex items-end justify-between">
     <div>
-      <h1 class="text-2xl font-semibold tracking-tight" data-testid="agents-header">{$t('agents.title')}</h1>
-      <p class="mt-1 text-sm text-muted-foreground" data-testid="agents-subtitle">{$t('agents.subtitle')}</p>
+      <h1 class="text-display-lg text-foreground" data-testid="agents-header">{$t('agents.title')}</h1>
+      <p class="mt-2 text-sm text-muted-foreground md:text-base" data-testid="agents-subtitle">{$t('agents.subtitle')}</p>
     </div>
     <div class="flex items-center gap-2">
       <Button size="sm" variant="outline" onclick={() => showCreateDialog = true} data-testid="btn-new-agent" class="gap-1.5">
@@ -206,11 +207,13 @@
     {#if allAssistants.length === 0 && allWorkers.length === 0}
       <div class="mt-6">
         <EmptyState
-          icon={Bot}
-          title={$t('agents.empty_title_install')}
-          subtitle={$t('agents.empty_subtitle_install')}
-          ctaLabel={$t('agents.install')}
-          ctaAction={pickAndInstallAgent}
+          icon={EMPTY_STATES.agents.icon}
+          title={$t(EMPTY_STATES.agents.titleKey)}
+          description={$t(EMPTY_STATES.agents.descriptionKey)}
+          primaryLabel={$t(EMPTY_STATES.agents.primaryCtaKey ?? '')}
+          primaryAction={pickAndInstallAgent}
+          secondaryLabel={$t(EMPTY_STATES.agents.secondaryCtaKey ?? '')}
+          secondaryAction={() => (showCreateDialog = true)}
           page="agents"
         />
       </div>

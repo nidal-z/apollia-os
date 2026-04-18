@@ -23,6 +23,7 @@
   import Projects from "../../routes/Projects.svelte";
   import Design from "../../routes/Design.svelte";
   import DesignMotion from "../../routes/DesignMotion.svelte";
+  import DesignEmptyStates from "../../routes/DesignEmptyStates.svelte";
 
   onMount(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -113,6 +114,8 @@
           <Design />
         {:else if $currentRoute === "design-motion"}
           <DesignMotion />
+        {:else if $currentRoute === "design-empty-states"}
+          <DesignEmptyStates />
         {/if}
       </PageTransition>
     {/key}

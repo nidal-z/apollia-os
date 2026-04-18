@@ -4,6 +4,8 @@
   import { Plus, ArrowLeft } from "lucide-svelte";
   import { uiMode } from "$lib/stores/mode";
   import { Button } from "$lib/components/ui/button";
+  import { EmptyState } from "$lib/components/layout";
+  import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
   import McpDisclaimerDialog, { isDisclaimerAccepted } from "../components/integrations/McpDisclaimerDialog.svelte";
   import OperatorConnectionCard from "../components/integrations/OperatorConnectionCard.svelte";
   import OperatorCatalogue from "../components/integrations/OperatorCatalogue.svelte";
@@ -195,9 +197,14 @@
       {:else if loadError}
         <p class="text-sm text-destructive" data-testid="connections-error">{loadError}</p>
       {:else if servers.length === 0}
-        <p class="text-sm text-muted-foreground" data-testid="connections-empty">
-          {$t("integrations.operator.no_connections")}
-        </p>
+        <EmptyState
+          icon={EMPTY_STATES.integrations.icon}
+          title={$t(EMPTY_STATES.integrations.titleKey)}
+          description={$t(EMPTY_STATES.integrations.descriptionKey)}
+          primaryLabel={$t(EMPTY_STATES.integrations.primaryCtaKey ?? '')}
+          primaryAction={handleAddConnection}
+          page="integrations"
+        />
       {:else}
         <div
           class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
@@ -253,9 +260,14 @@
       {:else if builderLoadError}
         <p class="text-sm text-destructive" data-testid="builder-error">{builderLoadError}</p>
       {:else if builderServers.length === 0}
-        <p class="text-sm text-muted-foreground" data-testid="builder-empty">
-          {$t("integrations.builder.no_servers")}
-        </p>
+        <EmptyState
+          icon={EMPTY_STATES.integrations.icon}
+          title={$t(EMPTY_STATES.integrations.titleKey)}
+          description={$t(EMPTY_STATES.integrations.descriptionKey)}
+          primaryLabel={$t(EMPTY_STATES.integrations.secondaryCtaKey ?? '')}
+          primaryAction={() => (builderRegistryOpen = true)}
+          page="integrations-builder"
+        />
       {:else}
         <div class="flex flex-col gap-2" data-testid="builder-servers-list">
           {#each builderServers as server (server.name)}

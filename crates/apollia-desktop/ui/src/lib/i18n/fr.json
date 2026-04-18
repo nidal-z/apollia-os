@@ -1869,5 +1869,49 @@
       "denied_title": "Opération refusée",
       "denied_message": "L'opération fichier a été refusée."
     }
+  },
+  "empty_states": {
+    "agents": {
+      "title": "Votre premier assistant n'attend qu'une installation",
+      "description": "Installez un agent Python ou partez d'un modèle. Apollia l'exécute en local, dans son propre sandbox — aucun aller-retour cloud.",
+      "primary_cta": "Installer un agent",
+      "secondary_cta": "Créer depuis un modèle"
+    },
+    "tasks": {
+      "title": "Votre flux de tâches est grand ouvert",
+      "description": "Quand un agent travaille, ses tâches atterrissent ici — exécutions, échecs, approbations, tout est tracé et rejouable.",
+      "primary_cta": "Lancer une tâche",
+      "secondary_cta_operator": "Parcourir les assistants"
+    },
+    "triggers": {
+      "title": "Laissez vos agents tourner tout seuls",
+      "description": "Les triggers lancent des tâches sur un cron, un fichier modifié ou un webhook. Déclarez-les dans apollia.toml ou créez-en un depuis le mode Builder.",
+      "primary_cta": "Créer un trigger",
+      "secondary_cta": "Recharger la config"
+    },
+    "pipelines": {
+      "title": "Enchaînez vos agents en workflows",
+      "description": "Les pipelines orchestrent des exécutions multi-agents avec fan-out, fan-in et human-in-the-loop. Lancez-en un pour le voir se dérouler ici.",
+      "primary_cta": "Lancer un pipeline",
+      "secondary_cta": "Définir un pipeline"
+    },
+    "chat": {
+      "title": "Entamez la conversation avec vos agents",
+      "description": "Posez une question, brainstormez, ou déléguez une tâche. Chaque message reste sur votre machine — local-first par conception.",
+      "primary_cta": "Nouveau chat",
+      "secondary_cta": "Voir les agents"
+    },
+    "notifications": {
+      "title": "Le silence est d'or, sauf quand il ne l'est pas",
+      "description": "Ajoutez un canal desktop ou webhook pour que vos agents vous préviennent quand ils ont besoin de vous ou terminent une longue exécution.",
+      "primary_cta": "Ajouter un canal",
+      "secondary_cta": "Voir les événements"
+    },
+    "integrations": {
+      "title": "Connectez votre premier outil",
+      "description": "Apollia parle MCP — parcourez le registre ou branchez un serveur custom pour étendre vos agents aux systèmes de fichiers, APIs et plus.",
+      "primary_cta": "Ajouter une connexion",
+      "secondary_cta": "Parcourir le registre"
+    }
   }
 }

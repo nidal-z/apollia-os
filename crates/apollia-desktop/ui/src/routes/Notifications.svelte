@@ -6,6 +6,8 @@
   import { Separator } from "$lib/components/ui/separator";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { Button } from "$lib/components/ui/button";
+  import { EmptyState } from "$lib/components/layout";
+  import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
   import NotificationChannelCard from "../components/notifications/NotificationChannelCard.svelte";
   import NotificationLog from "../components/notifications/NotificationLog.svelte";
   import GlobalEventsEditor from "../components/notifications/GlobalEventsEditor.svelte";
@@ -137,16 +139,14 @@
     <section>
       <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('notifications.channels_title')}</h2>
       {#if channels.length === 0}
-        <div
-          class="flex flex-col items-center justify-center gap-4 rounded-xl glass-surface glass-border border-dashed py-16"
-        >
-          <p class="text-muted-foreground">
-            {$t('notifications.empty_channels')}
-          </p>
-          <Button size="sm" variant="outline" onclick={() => (createDialogOpen = true)} data-testid="create-channel-empty-btn">
-            {$t('notifications.new_channel')}
-          </Button>
-        </div>
+        <EmptyState
+          icon={EMPTY_STATES.notifications.icon}
+          title={$t(EMPTY_STATES.notifications.titleKey)}
+          description={$t(EMPTY_STATES.notifications.descriptionKey)}
+          primaryLabel={$t(EMPTY_STATES.notifications.primaryCtaKey ?? '')}
+          primaryAction={() => (createDialogOpen = true)}
+          page="notifications"
+        />
       {:else}
         <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
           {#each channels as channel (channel.channel_id)}

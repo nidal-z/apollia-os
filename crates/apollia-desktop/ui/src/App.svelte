@@ -60,6 +60,8 @@
         navigateTo("design");
       } else if (window.location.hash === "#motion") {
         navigateTo("design-motion");
+      } else if (window.location.hash === "#design-empty-states") {
+        navigateTo("design-empty-states");
       }
     }
 

@@ -14,7 +14,9 @@
   import { uiMode } from "$lib/stores/mode";
   import { tourOpenChatPicker } from "$lib/stores/tour";
   import { projects } from "$lib/stores/projects";
-  import EmptyState from "../components/common/EmptyState.svelte";
+  import { EmptyState } from "$lib/components/layout";
+  import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
+  import { navigateTo } from "$lib/stores/navigation";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import ChatSessionCard from "../components/chat/ChatSessionCard.svelte";
 
@@ -144,8 +146,8 @@
   <div class="relative flex items-end justify-between overflow-hidden rounded-2xl bg-gradient-surface px-5 py-5 shadow-elev-1">
     <div class="pointer-events-none absolute inset-0 bg-gradient-accent opacity-60" aria-hidden="true"></div>
     <div class="relative">
-      <h1 class="text-2xl font-semibold tracking-tight" data-testid="chat-header">{$t("chat.title")}</h1>
-      <p class="mt-1 text-sm text-muted-foreground" data-testid="chat-subtitle">{$t("chat.subtitle")}</p>
+      <h1 class="text-display-lg text-foreground" data-testid="chat-header">{$t("chat.title")}</h1>
+      <p class="mt-2 text-sm text-muted-foreground md:text-base" data-testid="chat-subtitle">{$t("chat.subtitle")}</p>
     </div>
     <Button size="sm" onclick={openNewChatPicker} disabled={creating} data-testid="new-chat-button" class="relative gap-1.5">
       <Plus size={13} />
@@ -350,11 +352,13 @@
       </div>
     {:else if $activeChatSessions.length === 0 && $closedChatSessions.length === 0 && !showNewChatPicker && !selectedSessionId}
       <EmptyState
-        icon={MessageSquare}
-        title={$t("chat.empty_title")}
-        subtitle={$t("chat.empty_subtitle")}
-        ctaLabel={$t("chat.new_chat")}
-        ctaAction={openNewChatPicker}
+        icon={EMPTY_STATES.chat.icon}
+        title={$t(EMPTY_STATES.chat.titleKey)}
+        description={$t(EMPTY_STATES.chat.descriptionKey)}
+        primaryLabel={$t(EMPTY_STATES.chat.primaryCtaKey ?? '')}
+        primaryAction={openNewChatPicker}
+        secondaryLabel={$t(EMPTY_STATES.chat.secondaryCtaKey ?? '')}
+        secondaryAction={() => navigateTo("agents")}
         page="chat"
       />
     {:else if selectedSessionId}

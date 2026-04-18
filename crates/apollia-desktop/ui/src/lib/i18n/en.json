@@ -1869,5 +1869,49 @@
       "denied_title": "Operation denied",
       "denied_message": "The file operation was refused."
     }
+  },
+  "empty_states": {
+    "agents": {
+      "title": "Your first assistant is one install away",
+      "description": "Install a Python agent file or spin one up from a template. Apollia runs it locally, in its own sandbox — no cloud round-trip.",
+      "primary_cta": "Install an agent",
+      "secondary_cta": "Start from a template"
+    },
+    "tasks": {
+      "title": "Your task feed is wide open",
+      "description": "When an agent runs, its tasks land here — completions, failures, approvals, everything tracked and replayable.",
+      "primary_cta": "Dispatch a task",
+      "secondary_cta_operator": "Browse assistants"
+    },
+    "triggers": {
+      "title": "Let your agents run on their own",
+      "description": "Triggers launch tasks on a cron schedule, a file change, or a webhook. Declare them in apollia.toml or create one from the Builder view.",
+      "primary_cta": "Create a trigger",
+      "secondary_cta": "Reload from config"
+    },
+    "pipelines": {
+      "title": "Chain your agents into workflows",
+      "description": "Pipelines orchestrate multi-agent runs with fan-out, fan-in, and human-in-the-loop steps. Launch one to watch it unfold here.",
+      "primary_cta": "Run a pipeline",
+      "secondary_cta": "Define a new pipeline"
+    },
+    "chat": {
+      "title": "Start a conversation with your agents",
+      "description": "Ask a question, brainstorm, or hand off a task. Every message stays on your machine — local-first by design.",
+      "primary_cta": "Start a new chat",
+      "secondary_cta": "See installed agents"
+    },
+    "notifications": {
+      "title": "Silence is golden — until it isn't",
+      "description": "Add a desktop or webhook channel so your agents can reach you when they need attention or finish a long run.",
+      "primary_cta": "Add a channel",
+      "secondary_cta": "See notification events"
+    },
+    "integrations": {
+      "title": "Connect your first tool",
+      "description": "Apollia speaks MCP — browse the registry or plug in a custom server to extend your agents with file systems, APIs, and more.",
+      "primary_cta": "Add a connection",
+      "secondary_cta": "Browse the registry"
+    }
   }
 }

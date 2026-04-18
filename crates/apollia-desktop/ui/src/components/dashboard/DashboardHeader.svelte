@@ -29,10 +29,10 @@
   <!-- Soft primary wash — grounds the hero in the brand without overpowering. -->
   <div class="pointer-events-none absolute inset-0 bg-gradient-accent opacity-70" aria-hidden="true"></div>
   <div class="relative">
-    <h1 class="text-2xl font-semibold tracking-tight" data-testid="dashboard-greeting">
+    <h1 class="text-display-lg text-foreground" data-testid="dashboard-greeting">
       {$t(greetingKey())}
     </h1>
-    <p class="mt-1 text-sm text-muted-foreground" data-testid="dashboard-subtitle">
+    <p class="mt-2 text-sm text-muted-foreground md:text-base" data-testid="dashboard-subtitle">
       {$t('dashboard.subtitle')}
     </p>
   </div>

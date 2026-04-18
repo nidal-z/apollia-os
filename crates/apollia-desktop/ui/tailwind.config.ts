@@ -20,6 +20,27 @@ const config: Config = {
       fontFamily: {
         sans: ["Inter", ...defaultTheme.fontFamily.sans],
       },
+      // Display type scale (US-SP42-006) — hero titles & empty-state headlines.
+      // Values use `clamp(min, preferred, max)` so the scale breathes between the
+      // xs (375 px) and xl (1280 px) breakpoints without extra media queries.
+      fontSize: {
+        "display-xl": [
+          "clamp(3rem, 2rem + 3.2vw, 4.5rem)",
+          { lineHeight: "1.05", letterSpacing: "-0.03em", fontWeight: "700" },
+        ],
+        "display-lg": [
+          "clamp(2.25rem, 1.5rem + 2.2vw, 3.25rem)",
+          { lineHeight: "1.1", letterSpacing: "-0.025em", fontWeight: "700" },
+        ],
+        "display-md": [
+          "clamp(1.75rem, 1.25rem + 1.4vw, 2.25rem)",
+          { lineHeight: "1.15", letterSpacing: "-0.02em", fontWeight: "600" },
+        ],
+        "display-sm": [
+          "1.5rem",
+          { lineHeight: "1.2", letterSpacing: "-0.015em", fontWeight: "600" },
+        ],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
