@@ -2,6 +2,7 @@
 //!
 //! `model list` reads `~/.apollia/models/` directly — no runtime connection required.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use clap::Subcommand;
@@ -15,13 +16,99 @@ pub enum ModelCommand {
     List,
 }
 
-/// Information about a local `.gguf` model file.
+/// Résultat d'un scan du dossier `~/.apollia/models/`.
+///
+/// Représente soit un modèle GGUF mono-fichier, soit une série de shards
+/// regroupés par préfixe commun (format standard llama.cpp :
+/// `<prefix>-NNNNN-of-NNNNN.gguf`).
 #[derive(Debug)]
-pub struct ModelInfo {
-    /// File name (base name, no directory component).
-    pub name: String,
-    /// File size in bytes.
-    pub size_bytes: u64,
+pub enum ModelListing {
+    /// Modèle mono-fichier — comportement historique.
+    Single {
+        /// Nom de fichier complet (avec extension `.gguf`).
+        name: String,
+        /// Taille du fichier en octets.
+        size_bytes: u64,
+    },
+    /// Modèle GGUF split en plusieurs shards avec pattern standard.
+    Split {
+        /// Préfixe commun des shards (sans le suffixe `-NNNNN-of-NNNNN`).
+        prefix: String,
+        /// Nombre de shards effectivement présents dans le dossier.
+        shard_count: usize,
+        /// Nombre total de shards attendus (valeur du `-of-NNNNN`).
+        total: usize,
+        /// Taille cumulée de tous les shards présents, en octets.
+        size_bytes: u64,
+        /// Liste des noms de fichiers des shards présents, triée par index croissant.
+        shards: Vec<String>,
+        /// `true` si `shard_count < total` (série incomplète).
+        incomplete: bool,
+    },
+}
+
+impl ModelListing {
+    /// Clé de tri pour l'affichage (prefix pour [`ModelListing::Split`],
+    /// nom de fichier pour [`ModelListing::Single`]).
+    fn sort_key(&self) -> &str {
+        match self {
+            ModelListing::Single { name, .. } => name,
+            ModelListing::Split { prefix, .. } => prefix,
+        }
+    }
+
+    /// Taille cumulée en octets (fichier unique ou somme des shards).
+    fn size_bytes(&self) -> u64 {
+        match self {
+            ModelListing::Single { size_bytes, .. } => *size_bytes,
+            ModelListing::Split { size_bytes, .. } => *size_bytes,
+        }
+    }
+}
+
+/// Longueur (en octets ASCII) du suffixe `NNNNN-of-NNNNN` — sans le `-` de
+/// séparation avec le préfixe.
+const SHARD_SUFFIX_LEN: usize = 14;
+
+/// Métadonnées d'un shard détecté dans le scan initial.
+///
+/// Intermédiaire entre `fs::read_dir` et [`ModelListing::Split`] : permet
+/// d'agréger les entrées par préfixe commun avant de produire la liste finale.
+struct ShardEntry {
+    index: u32,
+    file_name: String,
+    size_bytes: u64,
+}
+
+/// Parse un nom de fichier GGUF pour en extraire `(prefix, index, total)`
+/// s'il suit le pattern standard `<prefix>-NNNNN-of-NNNNN.gguf`.
+///
+/// Retourne `None` pour tout autre format — fichier mono, indices non
+/// zero-padded, extension absente, etc. Ne touche pas le filesystem.
+///
+/// Ce parseur duplique volontairement la logique de
+/// `apollia_llm::backends::embedded::parse_shard_file_name` : la CLI ne
+/// dépend pas de `apollia-llm` et la règle du format shard est un invariant
+/// public du format GGUF.
+fn parse_shard_name(file_name: &str) -> Option<(String, u32, u32)> {
+    let stem = file_name.strip_suffix(".gguf")?;
+    if stem.len() < SHARD_SUFFIX_LEN + 2 {
+        return None;
+    }
+    let split_at = stem.len() - SHARD_SUFFIX_LEN;
+    let (prefix_with_dash, trailing) = stem.split_at(split_at);
+    let prefix = prefix_with_dash.strip_suffix('-')?;
+    if prefix.is_empty() {
+        return None;
+    }
+    let (idx_str, rest) = trailing.split_at(5);
+    let total_str = rest.strip_prefix("-of-")?;
+    if total_str.len() != 5 {
+        return None;
+    }
+    let index = idx_str.parse::<u32>().ok()?;
+    let total = total_str.parse::<u32>().ok()?;
+    Some((prefix.to_string(), index, total))
 }
 
 /// Execute a `model` subcommand.
@@ -57,16 +144,7 @@ fn run_list(json: bool) -> i32 {
     };
 
     if json {
-        let entries: Vec<serde_json::Value> = models
-            .iter()
-            .map(|m| {
-                serde_json::json!({
-                    "name":      m.name,
-                    "size_bytes": m.size_bytes,
-                    "size_mb":   (m.size_bytes as f64) / (1024.0 * 1024.0),
-                })
-            })
-            .collect();
+        let entries: Vec<serde_json::Value> = models.iter().map(listing_to_json).collect();
         let output = serde_json::json!({
             "models":    entries,
             "directory": models_dir.display().to_string(),
@@ -78,17 +156,70 @@ fn run_list(json: bool) -> i32 {
     } else {
         println!("  Models directory: {}", models_dir.display());
         println!();
-        println!("  {:<48} SIZE", "NAME");
+        println!("  {:<48} {:<28} SIZE", "NAME", "LAYOUT");
         if models.is_empty() {
             println!("  (no .gguf models found)");
         } else {
             for m in &models {
-                let size_mb = (m.size_bytes as f64) / (1024.0 * 1024.0);
-                println!("  {:<48} {size_mb:.1} MB", m.name);
+                print_listing_row(m);
             }
         }
     }
     exit_codes::SUCCESS
+}
+
+/// Serialize a single [`ModelListing`] as a JSON value for `--json` output.
+fn listing_to_json(m: &ModelListing) -> serde_json::Value {
+    let size_mb = (m.size_bytes() as f64) / (1024.0 * 1024.0);
+    match m {
+        ModelListing::Single { name, size_bytes } => serde_json::json!({
+            "kind":       "single",
+            "name":       name,
+            "size_bytes": size_bytes,
+            "size_mb":    size_mb,
+        }),
+        ModelListing::Split {
+            prefix,
+            shard_count,
+            total,
+            size_bytes,
+            shards,
+            incomplete,
+        } => serde_json::json!({
+            "kind":        "split",
+            "prefix":      prefix,
+            "shard_count": shard_count,
+            "total":       total,
+            "incomplete":  incomplete,
+            "size_bytes":  size_bytes,
+            "size_mb":     size_mb,
+            "shards":      shards,
+        }),
+    }
+}
+
+/// Render a single [`ModelListing`] as a human-readable row.
+fn print_listing_row(m: &ModelListing) {
+    let size_mb = (m.size_bytes() as f64) / (1024.0 * 1024.0);
+    match m {
+        ModelListing::Single { name, .. } => {
+            println!("  {:<48} {:<28} {size_mb:.1} MB", name, "mono");
+        }
+        ModelListing::Split {
+            prefix,
+            shard_count,
+            total,
+            incomplete,
+            ..
+        } => {
+            let layout = if *incomplete {
+                format!("{shard_count}/{total} shards (INCOMPLETE)")
+            } else {
+                format!("{shard_count} shards")
+            };
+            println!("  {prefix:<48} {layout:<28} {size_mb:.1} MB");
+        }
+    }
 }
 
 // ─────────────────────────────────────────────
@@ -111,31 +242,74 @@ fn home_dir() -> Option<PathBuf> {
     std::env::var("HOME").ok().map(PathBuf::from)
 }
 
-/// Scan `dir` for `*.gguf` files and return their names and sizes, sorted by name.
+/// Scan `dir` for `*.gguf` files, group shards by prefix and return a sorted
+/// list of [`ModelListing`].
 ///
-/// Returns an empty `Vec` — not an error — when `dir` does not exist.
-/// Any individual entry that cannot be read (permissions, broken symlink)
-/// propagates its `io::Error` immediately.
-pub fn list_gguf_files(dir: &Path) -> Result<Vec<ModelInfo>, std::io::Error> {
+/// - A file that does **not** match the shard pattern → [`ModelListing::Single`].
+/// - Files sharing the same `(prefix, total)` → aggregated [`ModelListing::Split`].
+/// - A series with fewer files than `total` (including an orphan shard without
+///   index `00001`) is flagged `incomplete = true` without raising an error —
+///   the CLI is resilient to partial downloads.
+///
+/// Returns an empty `Vec` — not an error — when `dir` does not exist. Any I/O
+/// failure on an individual entry (permissions, broken symlink, missing
+/// metadata) is propagated immediately.
+pub fn list_gguf_files(dir: &Path) -> Result<Vec<ModelListing>, std::io::Error> {
     if !dir.exists() {
         return Ok(vec![]);
     }
 
-    let mut models = Vec::new();
+    let mut out: Vec<ModelListing> = Vec::new();
+    let mut groups: HashMap<(String, u32), Vec<ShardEntry>> = HashMap::new();
+
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) == Some("gguf") {
-            let name = path
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default();
-            let size_bytes = entry.metadata()?.len();
-            models.push(ModelInfo { name, size_bytes });
+        if path.extension().and_then(|e| e.to_str()) != Some("gguf") {
+            continue;
+        }
+        let Some(file_name) = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(str::to_string)
+        else {
+            continue;
+        };
+        let size_bytes = entry.metadata()?.len();
+
+        match parse_shard_name(&file_name) {
+            Some((prefix, index, total)) => {
+                groups.entry((prefix, total)).or_default().push(ShardEntry {
+                    index,
+                    file_name,
+                    size_bytes,
+                });
+            }
+            None => out.push(ModelListing::Single {
+                name: file_name,
+                size_bytes,
+            }),
         }
     }
-    models.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(models)
+
+    for ((prefix, total), mut shards) in groups {
+        shards.sort_by_key(|s| s.index);
+        let shard_count = shards.len();
+        let total_usize = total as usize;
+        let size_bytes: u64 = shards.iter().map(|s| s.size_bytes).sum();
+        let shard_names: Vec<String> = shards.into_iter().map(|s| s.file_name).collect();
+        out.push(ModelListing::Split {
+            prefix,
+            shard_count,
+            total: total_usize,
+            size_bytes,
+            shards: shard_names,
+            incomplete: shard_count < total_usize,
+        });
+    }
+
+    out.sort_by(|a, b| a.sort_key().cmp(b.sort_key()));
+    Ok(out)
 }
 
 // ─────────────────────────────────────────────
@@ -147,24 +321,31 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
+    fn touch(dir: &Path, name: &str, bytes: &[u8]) {
+        std::fs::write(dir.join(name), bytes).expect("write fixture file");
+    }
+
     // GIVEN a directory with 2 .gguf files and 1 .txt file
     // WHEN list_gguf_files() is called
     // THEN only the 2 .gguf files are returned
     #[test]
-    fn test_ac6_model_list_scans_gguf_files() {
-        // GIVEN
-        let dir = TempDir::new().unwrap();
-        std::fs::write(dir.path().join("llama3.gguf"), b"fake model").unwrap();
-        std::fs::write(dir.path().join("mistral.gguf"), b"fake model data extra").unwrap();
-        std::fs::write(dir.path().join("readme.txt"), b"not a model").unwrap();
+    fn test_model_list_scans_gguf_files() {
+        let dir = TempDir::new().expect("tempdir");
+        touch(dir.path(), "llama3.gguf", b"fake model");
+        touch(dir.path(), "mistral.gguf", b"fake model data extra");
+        touch(dir.path(), "readme.txt", b"not a model");
 
-        // WHEN
-        let models = list_gguf_files(dir.path()).unwrap();
+        let models = list_gguf_files(dir.path()).expect("scan ok");
 
-        // THEN
         assert_eq!(models.len(), 2);
-        assert!(models.iter().any(|m| m.name.contains("llama3")));
-        assert!(models.iter().any(|m| m.name.contains("mistral")));
+        assert!(models.iter().any(|m| matches!(
+            m,
+            ModelListing::Single { name, .. } if name == "llama3.gguf"
+        )));
+        assert!(models.iter().any(|m| matches!(
+            m,
+            ModelListing::Single { name, .. } if name == "mistral.gguf"
+        )));
     }
 
     // GIVEN a non-existent directory
@@ -172,13 +353,10 @@ mod tests {
     // THEN an empty Vec is returned (not an io::Error)
     #[test]
     fn test_model_list_nonexistent_dir_returns_empty() {
-        // GIVEN
         let dir = PathBuf::from("/tmp/apollia-test-no-models-dir-xyz-999");
 
-        // WHEN
-        let models = list_gguf_files(&dir).unwrap();
+        let models = list_gguf_files(&dir).expect("scan ok");
 
-        // THEN
         assert!(models.is_empty());
     }
 
@@ -187,54 +365,274 @@ mod tests {
     // THEN an empty Vec is returned
     #[test]
     fn test_model_list_ignores_non_gguf_files() {
-        // GIVEN
-        let dir = TempDir::new().unwrap();
-        std::fs::write(dir.path().join("config.toml"), b"[config]").unwrap();
-        std::fs::write(dir.path().join("weights.bin"), b"binary").unwrap();
+        let dir = TempDir::new().expect("tempdir");
+        touch(dir.path(), "config.toml", b"[config]");
+        touch(dir.path(), "weights.bin", b"binary");
 
-        // WHEN
-        let models = list_gguf_files(dir.path()).unwrap();
+        let models = list_gguf_files(dir.path()).expect("scan ok");
 
-        // THEN
         assert!(models.is_empty());
     }
 
-    // GIVEN a directory with .gguf files in non-alphabetical order
+    // GIVEN a directory with mono-file models in non-alphabetical order
     // WHEN list_gguf_files() is called
-    // THEN results are sorted alphabetically by file name
+    // THEN results are sorted by file name
     #[test]
     fn test_model_list_sorted_by_name() {
-        // GIVEN
-        let dir = TempDir::new().unwrap();
-        std::fs::write(dir.path().join("zzz.gguf"), b"z").unwrap();
-        std::fs::write(dir.path().join("aaa.gguf"), b"a").unwrap();
-        std::fs::write(dir.path().join("mmm.gguf"), b"m").unwrap();
+        let dir = TempDir::new().expect("tempdir");
+        touch(dir.path(), "zzz.gguf", b"z");
+        touch(dir.path(), "aaa.gguf", b"a");
+        touch(dir.path(), "mmm.gguf", b"m");
 
-        // WHEN
-        let models = list_gguf_files(dir.path()).unwrap();
+        let models = list_gguf_files(dir.path()).expect("scan ok");
 
-        // THEN
         assert_eq!(models.len(), 3);
-        assert_eq!(models[0].name, "aaa.gguf");
-        assert_eq!(models[1].name, "mmm.gguf");
-        assert_eq!(models[2].name, "zzz.gguf");
+        assert_eq!(models[0].sort_key(), "aaa.gguf");
+        assert_eq!(models[1].sort_key(), "mmm.gguf");
+        assert_eq!(models[2].sort_key(), "zzz.gguf");
     }
 
-    // GIVEN a directory with a .gguf file
+    // GIVEN a single .gguf file with known contents
     // WHEN list_gguf_files() is called
-    // THEN the returned ModelInfo carries the correct file size
+    // THEN the Single listing carries the correct size
     #[test]
-    fn test_model_info_carries_size() {
-        // GIVEN
-        let dir = TempDir::new().unwrap();
+    fn test_model_listing_carries_size() {
+        let dir = TempDir::new().expect("tempdir");
         let content = b"fake gguf bytes 12345";
-        std::fs::write(dir.path().join("model.gguf"), content).unwrap();
+        touch(dir.path(), "model.gguf", content);
 
-        // WHEN
-        let models = list_gguf_files(dir.path()).unwrap();
+        let models = list_gguf_files(dir.path()).expect("scan ok");
 
-        // THEN
         assert_eq!(models.len(), 1);
-        assert_eq!(models[0].size_bytes, content.len() as u64);
+        match &models[0] {
+            ModelListing::Single { name, size_bytes } => {
+                assert_eq!(name, "model.gguf");
+                assert_eq!(*size_bytes, content.len() as u64);
+            }
+            other => panic!("expected Single, got {other:?}"),
+        }
+    }
+
+    // GIVEN 3 complete shards of the same split model
+    // WHEN list_gguf_files() is called
+    // THEN a single Split listing aggregates them
+    #[test]
+    fn test_split_complete_groups_as_one_entry() {
+        let dir = TempDir::new().expect("tempdir");
+        touch(dir.path(), "Llama-00001-of-00003.gguf", &[0u8; 1000]);
+        touch(dir.path(), "Llama-00002-of-00003.gguf", &[0u8; 1000]);
+        touch(dir.path(), "Llama-00003-of-00003.gguf", &[0u8; 1000]);
+
+        let models = list_gguf_files(dir.path()).expect("scan ok");
+
+        assert_eq!(models.len(), 1);
+        match &models[0] {
+            ModelListing::Split {
+                prefix,
+                shard_count,
+                total,
+                incomplete,
+                size_bytes,
+                shards,
+            } => {
+                assert_eq!(prefix, "Llama");
+                assert_eq!(*shard_count, 3);
+                assert_eq!(*total, 3);
+                assert!(!*incomplete);
+                assert_eq!(*size_bytes, 3000);
+                assert_eq!(
+                    shards,
+                    &vec![
+                        "Llama-00001-of-00003.gguf".to_string(),
+                        "Llama-00002-of-00003.gguf".to_string(),
+                        "Llama-00003-of-00003.gguf".to_string(),
+                    ]
+                );
+            }
+            other => panic!("expected Split, got {other:?}"),
+        }
+    }
+
+    // GIVEN 2 shards of a 3-shard series
+    // WHEN list_gguf_files() is called
+    // THEN the listing is marked incomplete
+    #[test]
+    fn test_split_incomplete_is_flagged() {
+        let dir = TempDir::new().expect("tempdir");
+        touch(dir.path(), "Llama-00001-of-00003.gguf", &[0u8; 1000]);
+        touch(dir.path(), "Llama-00002-of-00003.gguf", &[0u8; 1000]);
+
+        let models = list_gguf_files(dir.path()).expect("scan ok");
+
+        assert_eq!(models.len(), 1);
+        match &models[0] {
+            ModelListing::Split {
+                shard_count,
+                total,
+                incomplete,
+                ..
+            } => {
+                assert_eq!(*shard_count, 2);
+                assert_eq!(*total, 3);
+                assert!(*incomplete);
+            }
+            other => panic!("expected Split incomplete, got {other:?}"),
+        }
+    }
+
+    // GIVEN an orphan shard (index 00002 only)
+    // WHEN list_gguf_files() is called
+    // THEN it is reported as a split series marked incomplete, no error
+    #[test]
+    fn test_orphan_shard_without_first_is_incomplete() {
+        let dir = TempDir::new().expect("tempdir");
+        touch(dir.path(), "weird-00002-of-00003.gguf", &[0u8; 100]);
+
+        let models = list_gguf_files(dir.path()).expect("scan ok");
+
+        assert_eq!(models.len(), 1);
+        match &models[0] {
+            ModelListing::Split {
+                prefix,
+                shard_count,
+                total,
+                incomplete,
+                ..
+            } => {
+                assert_eq!(prefix, "weird");
+                assert_eq!(*shard_count, 1);
+                assert_eq!(*total, 3);
+                assert!(*incomplete);
+            }
+            other => panic!("expected Split incomplete, got {other:?}"),
+        }
+    }
+
+    // GIVEN a mixed directory of split and mono models
+    // WHEN list_gguf_files() is called
+    // THEN entries are sorted by display key (prefix for split, stem for mono)
+    #[test]
+    fn test_listing_sorted_by_display_key() {
+        let dir = TempDir::new().expect("tempdir");
+        touch(dir.path(), "Zeta-mono.gguf", &[0u8; 1]);
+        touch(dir.path(), "Alpha-00001-of-00002.gguf", &[0u8; 1]);
+        touch(dir.path(), "Alpha-00002-of-00002.gguf", &[0u8; 1]);
+        touch(dir.path(), "Mid.gguf", &[0u8; 1]);
+
+        let models = list_gguf_files(dir.path()).expect("scan ok");
+
+        assert_eq!(models.len(), 3);
+        assert_eq!(models[0].sort_key(), "Alpha");
+        assert_eq!(models[1].sort_key(), "Mid.gguf");
+        assert_eq!(models[2].sort_key(), "Zeta-mono.gguf");
+    }
+
+    // GIVEN names that do not match the shard pattern
+    // WHEN parse_shard_name() is called
+    // THEN None is returned for each of them
+    #[test]
+    fn test_parse_shard_name_negative_cases() {
+        assert!(parse_shard_name("model.gguf").is_none());
+        assert!(parse_shard_name("model-1-of-3.gguf").is_none());
+        assert!(parse_shard_name("model-00001-of-3.gguf").is_none());
+        assert!(parse_shard_name("model-00001-0f-00003.gguf").is_none());
+        assert!(parse_shard_name("-00001-of-00003.gguf").is_none());
+        assert!(parse_shard_name("model-00001-of-00003").is_none());
+    }
+
+    // GIVEN a valid shard file name
+    // WHEN parse_shard_name() is called
+    // THEN the tuple (prefix, index, total) is returned
+    #[test]
+    fn test_parse_shard_name_positive_cases() {
+        assert_eq!(
+            parse_shard_name("Llama-70B-Q5_K_M-00001-of-00009.gguf"),
+            Some(("Llama-70B-Q5_K_M".to_string(), 1, 9))
+        );
+        assert_eq!(
+            parse_shard_name("A-00042-of-00099.gguf"),
+            Some(("A".to_string(), 42, 99))
+        );
+    }
+
+    // GIVEN two different split series sharing a prefix but not a total
+    // WHEN list_gguf_files() is called
+    // THEN both are returned as separate Split entries
+    #[test]
+    fn test_two_series_same_prefix_different_total() {
+        let dir = TempDir::new().expect("tempdir");
+        touch(dir.path(), "Model-00001-of-00002.gguf", &[0u8; 10]);
+        touch(dir.path(), "Model-00002-of-00002.gguf", &[0u8; 10]);
+        touch(dir.path(), "Model-00001-of-00003.gguf", &[0u8; 10]);
+
+        let models = list_gguf_files(dir.path()).expect("scan ok");
+
+        assert_eq!(models.len(), 2);
+        for m in &models {
+            match m {
+                ModelListing::Split { prefix, .. } => assert_eq!(prefix, "Model"),
+                other => panic!("expected Split, got {other:?}"),
+            }
+        }
+    }
+
+    // GIVEN a Single listing and a Split listing
+    // WHEN size_bytes() is called
+    // THEN the correct sum is returned
+    #[test]
+    fn test_model_listing_size_bytes_accessor() {
+        let single = ModelListing::Single {
+            name: "foo.gguf".to_string(),
+            size_bytes: 42,
+        };
+        assert_eq!(single.size_bytes(), 42);
+
+        let split = ModelListing::Split {
+            prefix: "bar".to_string(),
+            shard_count: 2,
+            total: 2,
+            size_bytes: 200,
+            shards: vec![
+                "bar-00001-of-00002.gguf".to_string(),
+                "bar-00002-of-00002.gguf".to_string(),
+            ],
+            incomplete: false,
+        };
+        assert_eq!(split.size_bytes(), 200);
+    }
+
+    // GIVEN a mix of listings
+    // WHEN listing_to_json() serializes them
+    // THEN the JSON carries the documented kind-discriminated fields
+    #[test]
+    fn test_listing_to_json_shapes() {
+        let single = ModelListing::Single {
+            name: "Qwen.gguf".to_string(),
+            size_bytes: 2_570_000_000,
+        };
+        let v = listing_to_json(&single);
+        assert_eq!(v["kind"], "single");
+        assert_eq!(v["name"], "Qwen.gguf");
+        assert_eq!(v["size_bytes"], 2_570_000_000_u64);
+        assert!(v["size_mb"].as_f64().is_some());
+
+        let split = ModelListing::Split {
+            prefix: "Llama".to_string(),
+            shard_count: 2,
+            total: 3,
+            size_bytes: 2000,
+            shards: vec![
+                "Llama-00001-of-00003.gguf".to_string(),
+                "Llama-00002-of-00003.gguf".to_string(),
+            ],
+            incomplete: true,
+        };
+        let v = listing_to_json(&split);
+        assert_eq!(v["kind"], "split");
+        assert_eq!(v["prefix"], "Llama");
+        assert_eq!(v["shard_count"], 2);
+        assert_eq!(v["total"], 3);
+        assert_eq!(v["incomplete"], true);
+        assert_eq!(v["shards"].as_array().map(Vec::len), Some(2));
     }
 }
