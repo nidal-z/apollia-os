@@ -56,7 +56,7 @@
   function navigateToAgents() { navigateTo("agents"); }
 </script>
 
-<div class="max-w-6xl" data-testid="dashboard-page">
+<div class="mx-auto w-full max-w-6xl" data-testid="dashboard-page">
   <DashboardHeader />
 
   {#if $pendingCount > 0}

@@ -106,8 +106,10 @@
 
 <aside
   class="flex h-screen flex-col glass-panel border-r glass-border transition-[width] duration-200 ease-apple"
-  class:w-60={!collapsed}
-  class:w-16={collapsed}
+  class:w-48={!collapsed}
+  class:lg:w-60={!collapsed}
+  class:w-14={collapsed}
+  class:lg:w-16={collapsed}
   data-testid="sidebar"
 >
   <!-- Logo + Collapse toggle -->

@@ -88,7 +88,7 @@
   });
 </script>
 
-<div class="max-w-6xl" data-testid="agents-page">
+<div class="mx-auto w-full max-w-6xl" data-testid="agents-page">
   <!-- Header -->
   <div class="flex items-end justify-between">
     <div>

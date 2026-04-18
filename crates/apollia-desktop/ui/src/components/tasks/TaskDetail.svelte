@@ -83,7 +83,7 @@
   });
 </script>
 
-<Sheet open={open} onclose={onclose} class={wideMode ? "w-[760px]" : "w-[520px]"}>
+<Sheet open={open} onclose={onclose} class={wideMode ? "w-full sm:max-w-[760px]" : "w-full sm:max-w-[520px]"}>
   <div class="flex h-full min-h-0 flex-col" data-testid="task-detail">
     {#if !task}
       <div class="flex flex-1 items-center justify-center">

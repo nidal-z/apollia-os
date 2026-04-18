@@ -137,11 +137,17 @@
       </div>
     {:else}
       <div class="overflow-x-auto">
+        <!--
+          viewBox-driven : l'SVG s'étire de min-w-[480px] à la largeur conteneur,
+          préservant lisibilité des labels sous mobile via scroll horizontal.
+          CHART_WIDTH/CHART_HEIGHT sont des coordonnées viewBox, pas des pixels.
+        -->
         <svg
           viewBox="0 0 {CHART_WIDTH} {CHART_HEIGHT}"
-          class="w-full max-w-[600px]"
+          class="h-auto w-full min-w-[480px] max-w-2xl"
+          preserveAspectRatio="xMidYMid meet"
           role="img"
-          aria-label="LLM daily cost bar chart"
+          aria-label={$t('observability.llm_costs_title')}
         >
           {#each yTicks as tick (tick)}
             {@const y = MARGIN.top + INNER_HEIGHT - (tick / maxCost) * INNER_HEIGHT}
@@ -219,15 +225,15 @@
         </svg>
       </div>
 
-      <!-- Legend -->
+      <!-- Legend : labels tronqués + tooltip pour éviter overflow mobile. -->
       <div class="mt-4 flex flex-wrap gap-3">
         {#each backends as backend (backend)}
-          <div class="flex items-center gap-1.5">
+          <div class="flex min-w-0 items-center gap-1.5" title={backend}>
             <span
-              class="inline-block h-3 w-3 rounded-sm"
+              class="inline-block h-3 w-3 flex-shrink-0 rounded-sm"
               style="background-color: {backendColorMap[backend]}"
             ></span>
-            <span class="text-[11px] text-muted-foreground">{backend}</span>
+            <span class="truncate max-w-[9rem] text-[11px] text-muted-foreground">{backend}</span>
           </div>
         {/each}
       </div>

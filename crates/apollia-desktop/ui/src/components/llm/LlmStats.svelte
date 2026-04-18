@@ -72,8 +72,8 @@
     </p>
   {:else}
     <!-- Builder mode: full table with standard glass-card pattern -->
-    <div class="glass-card glass-border overflow-hidden rounded-lg" data-testid="llm-stats-table">
-      <table class="w-full text-[13px]">
+    <div class="glass-card glass-border overflow-x-auto rounded-lg" data-testid="llm-stats-table">
+      <table class="w-full min-w-[520px] text-[13px]">
         <thead class="border-b border-border bg-muted/50">
           <tr>
             <th class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">{$t('llm.table.backend')}</th>

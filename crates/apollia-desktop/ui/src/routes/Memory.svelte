@@ -165,7 +165,7 @@
   });
 </script>
 
-<div class="max-w-6xl space-y-6" data-testid="memory-page">
+<div class="mx-auto w-full max-w-6xl space-y-6" data-testid="memory-page">
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div>
@@ -265,8 +265,8 @@
         page="tools"
       />
     {:else}
-      <div class="rounded-xl glass-card glass-border overflow-hidden" data-testid="tools-list">
-        <table class="w-full text-sm">
+      <div class="rounded-xl glass-card glass-border overflow-x-auto" data-testid="tools-list">
+        <table class="w-full min-w-[480px] text-sm">
           <thead>
             <tr class="border-b border-border/50 text-left text-xs text-muted-foreground/60 uppercase tracking-wider">
               <th class="px-4 py-3 font-medium">{$t('memory.tools_col_name')}</th>

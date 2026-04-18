@@ -107,7 +107,7 @@
   }
 </script>
 
-<div class="max-w-6xl space-y-6" data-testid="pipelines-page">
+<div class="mx-auto w-full max-w-6xl space-y-6" data-testid="pipelines-page">
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div>

@@ -76,8 +76,8 @@
       <p class="text-muted-foreground">{$t('notifications.empty_history')}</p>
     </div>
   {:else}
-    <div class="glass-card glass-border rounded-lg overflow-hidden">
-      <table class="w-full text-[13px]">
+    <div class="glass-card glass-border rounded-lg overflow-x-auto">
+      <table class="w-full min-w-[520px] text-[13px]">
         <thead class="border-b border-border bg-muted/50">
           <tr>
             <th class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">

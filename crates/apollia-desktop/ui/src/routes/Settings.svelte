@@ -419,7 +419,7 @@
   });
 </script>
 
-<div class="max-w-6xl space-y-6" data-testid="settings-page">
+<div class="mx-auto w-full max-w-6xl space-y-6" data-testid="settings-page">
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div>
@@ -657,7 +657,7 @@
                 </div>
 
                 <!-- Trigger mode + Clipboard mode (2-col grid) -->
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-1.5">
                     <label class="text-sm text-muted-foreground" for="stt-trigger">{$t('settings.stt_trigger_mode')}</label>
                     <select
@@ -684,7 +684,7 @@
                 </div>
 
                 <!-- Max recording + Silence threshold (2-col grid) -->
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-1.5">
                     <label class="text-sm text-muted-foreground" for="stt-max-rec">{$t('settings.stt_max_recording')}</label>
                     <div class="relative">
@@ -764,7 +764,7 @@
           <div class="glass-card glass-border rounded-lg p-4" data-testid="stt-engine-status">
             <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.stt_engine_status_section')}</h3>
             <div class="space-y-2">
-              <div class="grid grid-cols-2 gap-2">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <span class="text-sm text-muted-foreground">{$t('settings.stt_engine_status')}</span>
                 <span class="text-sm font-mono text-foreground">
                   {#if status?.enabled}
@@ -780,7 +780,7 @@
                   {/if}
                 </span>
               </div>
-              <div class="grid grid-cols-2 gap-2">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <span class="text-sm text-muted-foreground">{$t('settings.stt_model_name')}</span>
                 <span class="text-sm font-mono text-foreground">
                   {#if status?.model_loaded}
@@ -793,11 +793,11 @@
                   {/if}
                 </span>
               </div>
-              <div class="grid grid-cols-2 gap-2">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <span class="text-sm text-muted-foreground">{$t('settings.stt_backend')}</span>
                 <span class="text-sm font-mono text-foreground">{status?.backend_name ?? "—"}</span>
               </div>
-              <div class="grid grid-cols-2 gap-2">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <span class="text-sm text-muted-foreground">{$t('settings.stt_acceleration')}</span>
                 <span class="text-sm font-mono text-foreground">
                   {#if status?.metal_enabled}
@@ -867,7 +867,7 @@
           <div class="glass-card glass-border rounded-lg p-4 space-y-4" data-testid="add-backend-form">
             <h3 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.llm_new_backend')}</h3>
 
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1.5">
                 <label class="text-sm text-muted-foreground" for="backend-name">{$t('settings.llm_backend_name')}</label>
                 <input
@@ -1066,7 +1066,7 @@
                 {:else}
                   <div class="space-y-2">
                     {#each section.entries as entry (entry.key)}
-                      <div class="grid grid-cols-2 gap-2">
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <span class="text-sm text-muted-foreground">{entry.key}</span>
                         <span class="text-sm font-mono text-foreground">{entry.value}</span>
                       </div>
@@ -1087,15 +1087,15 @@
           <div class="glass-card glass-border rounded-lg p-4" data-testid="system-info-section">
             <h3 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.system_info')}</h3>
             <div class="space-y-2">
-              <div class="grid grid-cols-2 gap-2">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <span class="text-sm text-muted-foreground">{$t('settings.system_version')}</span>
                 <span class="text-sm font-mono text-foreground">{systemInfo.version}</span>
               </div>
-              <div class="grid grid-cols-2 gap-2">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <span class="text-sm text-muted-foreground">{$t('settings.system_os')}</span>
                 <span class="text-sm font-mono text-foreground">{systemInfo.os}</span>
               </div>
-              <div class="grid grid-cols-2 gap-2">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <span class="text-sm text-muted-foreground">{$t('settings.system_python')}</span>
                 <span class="text-sm font-mono text-foreground">{systemInfo.python_path ?? $t('settings.system_python_not_found')}</span>
               </div>
@@ -1113,7 +1113,7 @@
             <p class="text-sm text-muted-foreground mb-3">
               {$t('settings.cli_description')}
             </p>
-            <div class="grid grid-cols-2 gap-2 mb-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
               <span class="text-sm text-muted-foreground">{$t('settings.cli_status')}</span>
               <span class="text-sm font-mono text-foreground">
                 {cliStatus.installed ? $t('settings.cli_installed') : $t('settings.cli_not_installed')}

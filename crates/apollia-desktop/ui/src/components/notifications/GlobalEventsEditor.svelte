@@ -76,7 +76,7 @@
     <p class="text-xs text-muted-foreground">{$t("common.loading")}</p>
   {:else}
     <div class="glass-card glass-border rounded-lg p-4">
-      <div class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+      <div class="grid grid-cols-1 xs:grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
         {#each ALL_EVENT_TYPES as event}
           <label class="flex items-center gap-2 text-sm" data-testid="global-event-{event}">
             <Checkbox

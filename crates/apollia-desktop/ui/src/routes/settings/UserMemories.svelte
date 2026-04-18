@@ -171,7 +171,7 @@
   onMount(loadProfile);
 </script>
 
-<div class="space-y-6" data-testid="user-memories-feedback">
+<div class="mx-auto w-full max-w-4xl space-y-6" data-testid="user-memories-feedback">
   <p class="text-sm text-muted-foreground">
     {$t("settings.memories_subtitle")}
   </p>

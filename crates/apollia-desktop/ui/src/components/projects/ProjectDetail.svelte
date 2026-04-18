@@ -237,7 +237,7 @@
   }
 </script>
 
-<Sheet {open} {onclose} class="w-[480px]">
+<Sheet {open} {onclose} class="w-full sm:max-w-[480px]">
   {#if loading || !project}
     <div class="flex flex-1 items-center justify-center py-16 text-muted-foreground text-sm">
       {#if loading}

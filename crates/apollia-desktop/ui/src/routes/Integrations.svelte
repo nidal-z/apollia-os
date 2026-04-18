@@ -160,7 +160,7 @@
 </script>
 
 {#if $uiMode === "operator"}
-  <div class="flex flex-col gap-6" data-testid="integrations-operator">
+  <div class="mx-auto w-full max-w-6xl flex flex-col gap-6" data-testid="integrations-operator">
     {#if catalogueOpen}
       <div class="flex items-center gap-3">
         <Button
@@ -215,7 +215,7 @@
     {/if}
   </div>
 {:else}
-  <div class="flex flex-col gap-6" data-testid="integrations-builder">
+  <div class="mx-auto w-full max-w-6xl flex flex-col gap-6" data-testid="integrations-builder">
     {#if builderRegistryOpen}
       <div class="flex items-center gap-3">
         <Button

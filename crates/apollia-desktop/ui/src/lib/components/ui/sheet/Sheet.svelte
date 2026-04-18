@@ -33,10 +33,10 @@
     transition:fade={{ duration: 200 }}
   ></div>
 
-  <!-- Panel -->
+  <!-- Panel : full-width sur mobile, largeur 400 px à partir de sm (voir breakpoints.md). -->
   <div
     class={cn(
-      "fixed inset-y-0 right-0 z-50 flex w-[400px] flex-col glass-panel border-l border-border shadow-lg",
+      "fixed inset-y-0 right-0 z-50 flex w-full sm:max-w-[400px] flex-col glass-panel border-l border-border shadow-lg",
       className,
     )}
     role="dialog"

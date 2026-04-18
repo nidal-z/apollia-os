@@ -102,7 +102,7 @@
   function handleLogsClick() { if (agent.id) { onlogs(agent.id); } }
 </script>
 
-<Sheet {open} {onclose} class="w-[560px]">
+<Sheet {open} {onclose} class="w-full sm:max-w-[560px]">
   <div class="flex h-full flex-col" data-testid="agent-detail-sheet" data-agent-name={agent.name}>
 
     <!-- ═══ HEADER — glass card with brand wash ═══ -->
@@ -187,7 +187,7 @@
       {/if}
 
       <!-- Info grid: mode + version details -->
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {#if agent.execution_mode}
           <div class="glass-card glass-border rounded-lg px-3.5 py-3" data-testid="agent-detail-execution-mode">
             <div class="flex items-center gap-2 mb-1.5">

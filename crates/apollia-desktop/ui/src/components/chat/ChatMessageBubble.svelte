@@ -46,7 +46,7 @@
   in:fly={{ y: 4, duration: 200 }}
 >
   <div
-    class="relative max-w-[72%] px-3.5 py-2.5 text-[13px] leading-relaxed {isUser
+    class="relative max-w-[85%] sm:max-w-[72%] px-3.5 py-2.5 text-[13px] leading-relaxed {isUser
       ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-sm'
       : 'bg-card/80 border border-border/30 rounded-2xl rounded-bl-sm text-foreground'}"
   >

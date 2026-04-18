@@ -37,7 +37,7 @@
 
 <main class="flex flex-1 flex-col overflow-auto bg-background">
   <!-- Navigation bar -->
-  <div class="flex items-center gap-1 px-8 pt-6 pb-2">
+  <div class="flex items-center gap-1 px-4 sm:px-6 lg:px-8 pt-6 pb-2">
     <button
       class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
       onclick={goBack}
@@ -58,8 +58,8 @@
     </button>
   </div>
 
-  <!-- Route content -->
-  <div class="flex-1 px-8 pb-8">
+  <!-- Route content : padding responsive + conteneur défini par chaque route. -->
+  <div class="flex-1 px-4 sm:px-6 lg:px-8 pb-8">
     {#key $currentRoute}
       <div transition:fade={{ duration: 150 }}>
         {#if $currentRoute === "dashboard"}

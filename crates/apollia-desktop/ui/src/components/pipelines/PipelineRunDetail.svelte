@@ -122,7 +122,7 @@
   });
 </script>
 
-<Sheet {open} onclose={onclose} class="w-[600px]">
+<Sheet {open} onclose={onclose} class="w-full sm:max-w-[600px]">
   <div class="flex h-full flex-col">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3">

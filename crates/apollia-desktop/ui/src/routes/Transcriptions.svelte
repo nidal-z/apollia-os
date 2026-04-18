@@ -39,7 +39,7 @@
   }
 </script>
 
-<div class="space-y-6" data-testid="transcriptions-page">
+<div class="mx-auto w-full max-w-6xl space-y-6" data-testid="transcriptions-page">
   <!-- Header -->
   <div class="flex items-start justify-between gap-4">
     <div>

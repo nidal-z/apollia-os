@@ -44,8 +44,8 @@
   </div>
 {:else}
   <!-- Standard glass-card table -->
-  <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="approval-history-table">
-    <table class="w-full text-[13px]">
+  <div class="glass-card glass-border rounded-lg overflow-x-auto" data-testid="approval-history-table">
+    <table class="w-full min-w-[600px] text-[13px]">
       <thead class="border-b border-border bg-muted/50">
         <tr>
           <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.task")}</th>
@@ -77,7 +77,7 @@
             <td class="px-3 py-2 text-[11px] text-muted-foreground">
               {formatWaitDuration(item.wait_duration_ms)}
             </td>
-            <td class="max-w-[200px] truncate px-3 py-2 text-[11px] text-muted-foreground">
+            <td class="max-w-[200px] truncate px-3 py-2 text-[11px] text-muted-foreground" title={item.reason ?? "-"}>
               {item.reason ?? "-"}
             </td>
             <td class="px-3 py-2 text-[11px] text-muted-foreground">

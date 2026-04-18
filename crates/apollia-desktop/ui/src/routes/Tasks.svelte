@@ -16,7 +16,7 @@
   }
 </script>
 
-<div class="max-w-6xl" data-testid="tasks-page">
+<div class="mx-auto w-full max-w-6xl" data-testid="tasks-page">
   <div class="flex items-end justify-between">
     <div>
       <h1 class="text-2xl font-semibold tracking-tight" data-testid="tasks-header">{$t('tasks.title')}</h1>

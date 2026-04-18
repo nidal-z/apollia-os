@@ -138,7 +138,7 @@
   }
 </script>
 
-<div class="max-w-6xl" data-testid="chat-page">
+<div class="mx-auto w-full max-w-6xl" data-testid="chat-page">
   <!-- Header -->
   <div class="flex items-end justify-between">
     <div>
@@ -358,8 +358,8 @@
     {:else if selectedSessionId}
       <!-- Two-column: session sidebar + conversation -->
       <div class="flex gap-0" style="height: calc(100vh - 180px);">
-        <!-- Session sidebar -->
-        <div class="w-60 shrink-0 flex flex-col border-r border-border/30 pr-2 overflow-hidden">
+        <!-- Session sidebar : caché sous md, largeur fluide au-dessus (voir breakpoints.md). -->
+        <div class="hidden md:flex w-48 lg:w-60 shrink-0 flex-col border-r border-border/30 pr-2 overflow-hidden">
           <!-- New chat button in sidebar -->
           <button
             class="mb-2 flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-medium

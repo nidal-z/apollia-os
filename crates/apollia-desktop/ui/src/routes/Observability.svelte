@@ -51,7 +51,7 @@
   });
 </script>
 
-<div class="max-w-6xl space-y-6" data-testid="observability-page">
+<div class="mx-auto w-full max-w-6xl space-y-6" data-testid="observability-page">
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div>

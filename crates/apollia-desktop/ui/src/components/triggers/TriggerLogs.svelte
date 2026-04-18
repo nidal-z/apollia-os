@@ -108,8 +108,8 @@
           {$t('triggers.no_logs')}
         </p>
       {:else}
-        <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="trigger-logs-table">
-          <table class="w-full text-[13px]">
+        <div class="glass-card glass-border rounded-lg overflow-x-auto" data-testid="trigger-logs-table">
+          <table class="w-full min-w-[520px] text-[13px]">
             <thead class="border-b border-border bg-muted/50">
               <tr>
                 <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.status')}</th>

@@ -96,7 +96,7 @@
   }
 </script>
 
-<div class="max-w-4xl space-y-6" data-testid="projects-page">
+<div class="mx-auto w-full max-w-4xl space-y-6" data-testid="projects-page">
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div>

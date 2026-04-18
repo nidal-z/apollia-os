@@ -201,7 +201,7 @@
       <label class="mb-2 block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         {$t("agents.select_template")}
       </label>
-      <div class="grid grid-cols-3 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {#each templates as tmpl}
           {@const isSelected = selectedType === tmpl.type}
           {@const isDisabled = sdkAvailable !== true}

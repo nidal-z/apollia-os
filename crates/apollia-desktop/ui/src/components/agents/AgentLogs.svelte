@@ -82,7 +82,7 @@
   });
 </script>
 
-<Sheet {open} {onclose} class="w-[480px]">
+<Sheet {open} {onclose} class="w-full sm:max-w-[480px]">
   <div class="flex h-full flex-col" data-testid="agent-logs-sheet">
 
     <!-- Header card -->

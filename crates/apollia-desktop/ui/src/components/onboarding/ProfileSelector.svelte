@@ -157,8 +157,16 @@
 
   .profile-cards {
     display: flex;
+    flex-direction: column;
     gap: 1.25rem;
     width: 100%;
+  }
+
+  /* Breakpoint Tailwind sm = 640 px — voir src/lib/design/breakpoints.md. */
+  @media (min-width: 640px) {
+    .profile-cards {
+      flex-direction: row;
+    }
   }
 
   .profile-card {
@@ -262,9 +270,4 @@
     cursor: not-allowed;
   }
 
-  @media (max-width: 560px) {
-    .profile-cards {
-      flex-direction: column;
-    }
-  }
 </style>

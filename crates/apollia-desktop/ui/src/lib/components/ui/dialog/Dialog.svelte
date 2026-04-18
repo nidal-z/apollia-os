@@ -24,10 +24,12 @@
     ...restProps
   }: Props = $props();
 
+  // Mobile-first : largeur pleine jusqu'à sm (640 px), puis largeur plafonnée.
+  // Seuil operator mobile = 375 px (voir src/lib/design/breakpoints.md).
   const sizeClasses: Record<string, string> = {
-    sm: "w-[440px]",
-    md: "w-[520px]",
-    lg: "w-[620px]",
+    sm: "w-full sm:max-w-[440px]",
+    md: "w-full sm:max-w-[520px]",
+    lg: "w-full sm:max-w-[620px]",
   };
 
   const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';

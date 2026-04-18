@@ -96,7 +96,7 @@
   </div>
 {:else}
   <div class="overflow-x-auto rounded-md glass-border glass-surface">
-    <table class="w-full text-sm" data-testid="memory-table">
+    <table class="w-full min-w-[640px] text-sm" data-testid="memory-table">
       <thead class="border-b border-border bg-muted/50">
         <tr>
           <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.type')}</th>

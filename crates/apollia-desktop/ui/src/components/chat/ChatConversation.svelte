@@ -589,7 +589,7 @@
 
         {#if isStreaming && sessionMode === "libre"}
           <div class="flex justify-start" data-testid="chat-message-streaming">
-            <div class="max-w-[72%] rounded-2xl rounded-bl-sm bg-card/80 border border-border/30 px-3.5 py-2.5 text-[13px] text-foreground">
+            <div class="max-w-full sm:max-w-[85%] sm:max-w-[72%] rounded-2xl rounded-bl-sm bg-card/80 border border-border/30 px-3.5 py-2.5 text-[13px] text-foreground">
               <StreamingText text={tokenBuffer} />
             </div>
           </div>
@@ -597,7 +597,7 @@
 
         {#if activeA2A}
           <div class="flex justify-start" data-testid="chat-a2a-delegating">
-            <div class="max-w-[85%] overflow-hidden rounded-lg border border-secondary/20 glass-surface px-2.5 py-2">
+            <div class="max-w-full sm:max-w-[85%] overflow-hidden rounded-lg border border-secondary/20 glass-surface px-2.5 py-2">
               <div class="flex items-center gap-1.5">
                 <Zap size={11} class="animate-pulse text-secondary" />
                 <span class="text-[11px] font-medium text-secondary/80">
@@ -644,7 +644,7 @@
 
         {#if liveToolChain.length > 0}
           <div class="flex justify-start" data-testid="chat-live-reasoning">
-            <div class="max-w-[85%] overflow-hidden rounded-lg border border-border/20 glass-surface px-2.5 py-2">
+            <div class="max-w-full sm:max-w-[85%] overflow-hidden rounded-lg border border-border/20 glass-surface px-2.5 py-2">
               <div class="mb-1.5 flex items-center gap-1.5">
                 <BrainCircuit size={10} class="text-primary/50" />
                 <span class="text-[10px] font-medium text-muted-foreground/60">{$t("chat.reasoning_live")}</span>
@@ -681,7 +681,7 @@
 
         {#if pendingApproval}
           <div class="flex justify-start" data-testid="chat-approval-inline">
-            <div class="max-w-[85%]">
+            <div class="max-w-full sm:max-w-[85%]">
               <ApprovalCard
                 sessionId={pendingApproval.sessionId}
                 messageId={pendingApproval.messageId}
@@ -694,7 +694,7 @@
 
         {#if pendingUserInput}
           <div class="flex justify-start" data-testid="chat-ask-user-inline">
-            <div class="max-w-[85%]">
+            <div class="max-w-full sm:max-w-[85%]">
               <AskUserCard
                 requestId={pendingUserInput.requestId}
                 {sessionId}
