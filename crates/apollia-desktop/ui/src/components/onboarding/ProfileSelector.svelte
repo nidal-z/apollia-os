@@ -179,10 +179,7 @@
     border-radius: 1.25rem;
     border: 2px solid rgba(52, 53, 245, 0.08);
     background: rgba(255, 255, 255, 0.82);
-    box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.5),
-      0 2px 8px -2px rgba(0, 0, 0, 0.04),
-      0 8px 24px -8px rgba(52, 53, 245, 0.06);
+    box-shadow: var(--shadow-elev-2);
     cursor: pointer;
     text-align: left;
     transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
@@ -191,10 +188,7 @@
   .profile-card:hover:not(:disabled) {
     transform: translateY(-3px);
     border-color: rgba(52, 53, 245, 0.28);
-    box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.6),
-      0 4px 16px -2px rgba(0, 0, 0, 0.06),
-      0 16px 40px -8px rgba(52, 53, 245, 0.12);
+    box-shadow: var(--shadow-elev-4);
   }
 
   .profile-card:disabled {
@@ -218,13 +212,13 @@
   }
 
   .card-icon-operator {
-    background: linear-gradient(135deg, #3435f5, #5b56f8);
-    box-shadow: 0 4px 12px -2px rgba(52, 53, 245, 0.35);
+    background: linear-gradient(135deg, hsl(var(--primary-gradient-from)), hsl(var(--primary-gradient-to)));
+    box-shadow: var(--shadow-primary-md);
   }
 
   .card-icon-builder {
-    background: linear-gradient(135deg, #7c5fd6, #9b7ff0);
-    box-shadow: 0 4px 12px -2px rgba(124, 95, 214, 0.35);
+    background: linear-gradient(135deg, hsl(var(--secondary)), hsl(260 60% 72%));
+    box-shadow: var(--shadow-primary-md);
   }
 
   .card-title {

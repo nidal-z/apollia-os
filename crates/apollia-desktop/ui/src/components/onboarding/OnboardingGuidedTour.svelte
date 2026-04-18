@@ -779,9 +779,7 @@
     border-radius: 50%;
     border: none;
     background: rgba(255, 255, 255, 0.92);
-    box-shadow:
-      0 0 0 1px rgba(52, 53, 245, 0.12),
-      0 4px 16px -2px rgba(0, 0, 0, 0.14);
+    box-shadow: var(--shadow-elev-2);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -792,9 +790,7 @@
   }
 
   .mic-btn:hover {
-    box-shadow:
-      0 0 0 1px rgba(52, 53, 245, 0.2),
-      0 6px 20px -2px rgba(0, 0, 0, 0.18);
+    box-shadow: var(--shadow-elev-3);
   }
 
   .mic-btn.active {
@@ -819,9 +815,7 @@
     padding: 1.75rem;
     width: 360px;
     max-width: calc(100vw - 2rem);
-    box-shadow:
-      0 0 0 1px rgba(52, 53, 245, 0.08),
-      0 16px 48px -8px rgba(0, 0, 0, 0.18);
+    box-shadow: var(--shadow-elev-4);
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
@@ -868,17 +862,17 @@
     padding: 0.5rem 0.875rem;
     border-radius: 0.5rem;
     border: none;
-    background: linear-gradient(135deg, #3435f5, #7c5fd6);
-    color: #fff;
+    background: linear-gradient(135deg, hsl(var(--primary-gradient-from)), hsl(var(--primary-gradient-to)));
+    color: hsl(var(--primary-foreground));
     font-size: 0.8125rem;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 2px 8px -1px rgba(52, 53, 245, 0.35);
+    box-shadow: var(--shadow-primary-sm);
     transition: transform 120ms ease, box-shadow 120ms ease;
   }
 
   .btn-confirm:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 14px -2px rgba(52, 53, 245, 0.45);
+    box-shadow: var(--shadow-primary-md);
   }
 </style>

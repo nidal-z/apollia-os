@@ -2,19 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════
+   Design tokens v2 — ADR-077
+   Sprint 42 — elevation, warmth dark, rim lights, primary
+   scale. The only source of truth for shadows / brand surfaces.
+   ═══════════════════════════════════════════════════════════ */
 @layer base {
   :root {
-    /* Apollia brand palette — blue/violet identity */
+    /* ── Brand palette — blue/violet identity ── */
     --primary: 240 91% 58%;
     --primary-foreground: 0 0% 100%;
+    --primary-hover: 240 91% 54%;
+    --primary-active: 240 91% 50%;
     --secondary: 260 60% 61%;
     --secondary-foreground: 0 0% 100%;
     --accent: 240 91% 58%;
     --accent-foreground: 0 0% 100%;
 
-    /* Warm sand/parchment — visible golden warmth */
+    /* ── Primary gradient (fixed hsl values for gradient stops) ── */
+    --primary-gradient-from: 240 91% 58%;
+    --primary-gradient-to: 260 60% 61%;
+
+    /* ── Surfaces — warm sand/parchment in light mode ── */
     --background: 38 28% 90%;
     --foreground: 230 15% 14%;
+    --surface-1: 40 35% 96%;       /* card elevated */
+    --surface-2: 38 30% 92%;       /* card resting */
+    --surface-3: 36 22% 86%;       /* recessed / inset */
     --card: 40 35% 96%;
     --card-foreground: 230 15% 14%;
     --popover: 40 35% 96%;
@@ -22,16 +36,22 @@
     --muted: 36 20% 85%;
     --muted-foreground: 220 10% 40%;
 
-    /* Borders & inputs */
+    /* ── Borders, inputs, ring ── */
     --border: 36 16% 80%;
     --input: 36 14% 84%;
     --ring: 240 91% 58%;
     --radius: 0.75rem;
 
-    /* Responsive layout (US-SP42-003) — 44 px minimum touch target (WCAG 2.5.5). */
+    /* ── Glass borders (F.74/F.75) ── */
+    --glass-border-light: 220 80% 58% / 0.10;
+    --glass-border-light-hover: 220 80% 58% / 0.18;
+    --glass-border-dark: 260 40% 70% / 0.12;
+    --glass-border-dark-hover: 260 40% 70% / 0.22;
+
+    /* ── Responsive layout (US-SP42-003) ── */
     --touch-target-min: 2.75rem;
 
-    /* Semantic colors */
+    /* ── Semantic colors ── */
     --destructive: 0 72% 40%;
     --destructive-foreground: 0 0% 98%;
     --info: 213 94% 47%;
@@ -41,7 +61,7 @@
     --success: 152 56% 28%;
     --success-foreground: 152 56% 20%;
 
-    /* Chart palette — 8 distinguishable colors */
+    /* ── Chart palette — 8 distinguishable colors ── */
     --chart-1: #7c3aed;
     --chart-2: #3b82f6;
     --chart-3: #10b981;
@@ -50,29 +70,78 @@
     --chart-6: #ec4899;
     --chart-7: #06b6d4;
     --chart-8: #84cc16;
+
+    /* ═════════════════════════════════════════════════════════
+       Elevation scale (light) — multi-layer shadows + inset
+       rim light for materiality (F.19, F.20, F.55).
+       ═════════════════════════════════════════════════════════ */
+    --shadow-elev-0:
+      0 1px 0 rgba(120, 100, 60, 0.04),
+      inset 0 1px 0 rgba(255, 252, 240, 0.5);
+    --shadow-elev-1:
+      0 1px 2px rgba(120, 100, 60, 0.06),
+      0 2px 6px -1px rgba(120, 100, 60, 0.05),
+      inset 0 1px 0 rgba(255, 252, 240, 0.6);
+    --shadow-elev-2:
+      0 1px 2px rgba(120, 100, 60, 0.06),
+      0 4px 12px rgba(120, 100, 60, 0.08),
+      inset 0 1px 0 rgba(255, 252, 240, 0.6);
+    --shadow-elev-3:
+      0 2px 4px rgba(120, 100, 60, 0.07),
+      0 10px 28px -6px rgba(120, 100, 60, 0.12),
+      inset 0 1px 0 rgba(255, 252, 240, 0.7);
+    --shadow-elev-4:
+      0 4px 8px rgba(120, 100, 60, 0.09),
+      0 24px 56px -12px rgba(52, 53, 245, 0.18),
+      inset 0 1px 0 rgba(255, 252, 240, 0.8);
+
+    /* ── Primary-tinted shadows for CTAs ── */
+    --shadow-primary-sm: 0 2px 8px -1px hsl(240 91% 58% / 0.30);
+    --shadow-primary-md: 0 4px 16px -2px hsl(240 91% 58% / 0.35);
+    --shadow-primary-lg: 0 6px 24px -2px hsl(240 91% 58% / 0.40);
+    --shadow-primary-xl: 0 12px 48px -8px hsl(260 60% 61% / 0.35);
+
+    /* ── Semantic shadows ── */
+    --shadow-success-md: 0 4px 16px -2px hsl(152 56% 35% / 0.35);
+    --shadow-destructive-md: 0 4px 16px -2px hsl(0 72% 40% / 0.30);
+
+    /* ── Backdrop (modal/sheet) ── */
+    --backdrop: rgba(0, 0, 0, 0.40);
+    --backdrop-subtle: rgba(0, 0, 0, 0.25);
   }
 
   .dark {
-    /* Warm charcoal — subtle warmth, not pure neutral */
-    --background: 240 12% 9%;
-    --foreground: 0 0% 93%;
-    --card: 240 10% 12%;
-    --card-foreground: 0 0% 93%;
-    --popover: 240 10% 12%;
-    --popover-foreground: 0 0% 93%;
-    --muted: 240 8% 16%;
-    --muted-foreground: 240 5% 58%;
+    /* ═════════════════════════════════════════════════════════
+       Warm charcoal — measurable warmth decalage vs pure grey.
+       Target: hsl(28 8% 9%) — bruni, pas neutre (F.33, F.34).
+       ═════════════════════════════════════════════════════════ */
+    --background: 28 8% 9%;
+    --foreground: 32 15% 92%;
+    --surface-1: 28 10% 14%;       /* card elevated */
+    --surface-2: 28 9% 12%;        /* card resting */
+    --surface-3: 28 8% 10%;        /* recessed */
+    --card: 28 10% 14%;
+    --card-foreground: 32 15% 92%;
+    --popover: 28 10% 14%;
+    --popover-foreground: 32 15% 92%;
+    --muted: 28 7% 18%;
+    --muted-foreground: 30 8% 62%;
 
-    --border: 240 6% 20%;
-    --input: 240 6% 17%;
-    --ring: 240 91% 58%;
+    --border: 28 8% 22%;
+    --input: 28 7% 18%;
+    --ring: 240 91% 62%;
 
     --primary: 240 91% 62%;
     --primary-foreground: 0 0% 100%;
+    --primary-hover: 240 91% 66%;
+    --primary-active: 240 91% 58%;
     --secondary: 260 60% 65%;
     --secondary-foreground: 0 0% 100%;
     --accent: 240 91% 62%;
     --accent-foreground: 0 0% 100%;
+
+    --primary-gradient-from: 240 91% 62%;
+    --primary-gradient-to: 260 60% 65%;
 
     --destructive: 0 65% 58%;
     --destructive-foreground: 0 0% 98%;
@@ -83,7 +152,6 @@
     --success: 152 50% 50%;
     --success-foreground: 152 50% 82%;
 
-    /* Chart palette — brighter for dark backgrounds */
     --chart-1: #a78bfa;
     --chart-2: #60a5fa;
     --chart-3: #34d399;
@@ -92,6 +160,41 @@
     --chart-6: #f472b6;
     --chart-7: #22d3ee;
     --chart-8: #a3e635;
+
+    /* ═════════════════════════════════════════════════════════
+       Elevation scale (dark) — rim light warm instead of black
+       on black. F.55 : rim visible in dark (>= 12% opacity).
+       ═════════════════════════════════════════════════════════ */
+    --shadow-elev-0:
+      0 1px 0 rgba(0, 0, 0, 0.20),
+      inset 0 1px 0 hsl(32 30% 70% / 0.10);
+    --shadow-elev-1:
+      0 1px 2px rgba(0, 0, 0, 0.35),
+      0 2px 6px -1px rgba(0, 0, 0, 0.25),
+      inset 0 1px 0 hsl(32 30% 70% / 0.12);
+    --shadow-elev-2:
+      0 2px 4px rgba(0, 0, 0, 0.35),
+      0 6px 16px -2px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 hsl(32 30% 70% / 0.14);
+    --shadow-elev-3:
+      0 4px 8px rgba(0, 0, 0, 0.40),
+      0 14px 36px -8px rgba(0, 0, 0, 0.50),
+      inset 0 1px 0 hsl(32 30% 70% / 0.16);
+    --shadow-elev-4:
+      0 8px 16px rgba(0, 0, 0, 0.45),
+      0 28px 72px -16px rgba(52, 53, 245, 0.35),
+      inset 0 1px 0 hsl(32 30% 70% / 0.18);
+
+    --shadow-primary-sm: 0 2px 8px -1px hsl(240 91% 62% / 0.45);
+    --shadow-primary-md: 0 4px 16px -2px hsl(240 91% 62% / 0.50);
+    --shadow-primary-lg: 0 6px 24px -2px hsl(240 91% 62% / 0.55);
+    --shadow-primary-xl: 0 12px 48px -8px hsl(260 60% 65% / 0.50);
+
+    --shadow-success-md: 0 4px 16px -2px hsl(152 50% 55% / 0.45);
+    --shadow-destructive-md: 0 4px 16px -2px hsl(0 65% 58% / 0.45);
+
+    --backdrop: hsl(28 10% 5% / 0.70);
+    --backdrop-subtle: hsl(28 10% 5% / 0.50);
   }
 }
 
@@ -108,7 +211,7 @@
 
 /* ═══════════════════════════════════════════════════════════
    Warm Glassmorphism — layered glass with subtle brand wash.
-   Each layer uses a very subtle primary tint for warmth.
+   Anchored on shadow tokens — never hardcode a box-shadow here.
    ═══════════════════════════════════════════════════════════ */
 @layer components {
   /* ── Panel layer — sidebar, sheets, overlays (heaviest blur) ── */
@@ -121,7 +224,7 @@
   .dark .glass-panel {
     background:
       linear-gradient(135deg, rgba(52, 53, 245, 0.04) 0%, rgba(124, 95, 214, 0.025) 100%),
-      rgba(18, 18, 28, 0.90);
+      hsl(28 10% 11% / 0.88);
     @apply backdrop-blur-2xl;
   }
 
@@ -131,21 +234,13 @@
       linear-gradient(145deg, rgba(52, 53, 245, 0.025) 0%, rgba(124, 95, 214, 0.012) 100%),
       rgba(250, 246, 236, 0.90);
     @apply backdrop-blur-xl;
-    box-shadow:
-      0 0 0 1px rgba(255, 252, 240, 0.7) inset,
-      0 1px 2px rgba(120, 100, 60, 0.06),
-      0 4px 12px -2px rgba(120, 100, 60, 0.05),
-      0 12px 36px -8px rgba(52, 53, 245, 0.05);
+    box-shadow: var(--shadow-elev-2);
   }
   .dark .glass-card {
     background:
       linear-gradient(145deg, rgba(52, 53, 245, 0.05) 0%, rgba(124, 95, 214, 0.03) 100%),
-      rgba(24, 24, 36, 0.78);
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.05) inset,
-      0 1px 2px rgba(0, 0, 0, 0.15),
-      0 4px 16px -2px rgba(0, 0, 0, 0.18),
-      0 12px 36px -8px rgba(52, 53, 245, 0.07);
+      hsl(28 10% 14% / 0.78);
+    box-shadow: var(--shadow-elev-2);
   }
 
   /* ── Card hover — lift with warm glow ── */
@@ -155,19 +250,8 @@
                 transform 0.25s cubic-bezier(0.2, 0, 0, 1);
   }
   .glass-card-hover:hover {
-    box-shadow:
-      0 0 0 1px rgba(255, 252, 240, 0.85) inset,
-      0 2px 4px rgba(120, 100, 60, 0.06),
-      0 8px 20px -4px rgba(120, 100, 60, 0.07),
-      0 20px 50px -10px rgba(52, 53, 245, 0.10);
+    box-shadow: var(--shadow-elev-3);
     transform: translateY(-1px);
-  }
-  .dark .glass-card-hover:hover {
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.07) inset,
-      0 2px 4px rgba(0, 0, 0, 0.2),
-      0 8px 20px -4px rgba(0, 0, 0, 0.18),
-      0 20px 50px -10px rgba(52, 53, 245, 0.12);
   }
 
   /* ── Surface layer — frosted containers, tags, table headers ── */
@@ -176,7 +260,7 @@
     @apply backdrop-blur-md;
   }
   .dark .glass-surface {
-    background: rgba(30, 30, 44, 0.40);
+    background: hsl(28 9% 16% / 0.50);
     @apply backdrop-blur-md;
   }
 
@@ -186,25 +270,88 @@
     @apply backdrop-blur-sm;
   }
   .dark .glass-inset {
-    background: rgba(255, 255, 255, 0.05);
+    /* F.55 : needs to be visible — min 12 % opacity. */
+    background: hsl(32 40% 78% / 0.12);
     @apply backdrop-blur-sm;
   }
 
   /* ── Borders — visible brand tint ── */
   .glass-border {
     @apply border;
-    border-color: rgba(52, 53, 245, 0.08);
+    border-color: hsl(var(--glass-border-light));
+    transition: border-color 150ms ease;
+  }
+  .glass-border:hover {
+    border-color: hsl(var(--glass-border-light-hover));
   }
   .dark .glass-border {
-    border-color: rgba(124, 95, 214, 0.10);
+    border-color: hsl(var(--glass-border-dark));
+  }
+  .dark .glass-border:hover {
+    border-color: hsl(var(--glass-border-dark-hover));
   }
 
   .glass-border-subtle {
     @apply border;
-    border-color: rgba(52, 53, 245, 0.05);
+    border-color: hsl(var(--glass-border-light) / 0.6);
   }
   .dark .glass-border-subtle {
-    border-color: rgba(124, 95, 214, 0.06);
+    border-color: hsl(var(--glass-border-dark) / 0.6);
+  }
+
+  /* ═════════════════════════════════════════════════════════
+     Primary utilities (F.41, A.1.10) — 3 canonical expositions
+     ═════════════════════════════════════════════════════════ */
+  .bg-primary-solid {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    box-shadow: var(--shadow-primary-sm);
+    transition: background-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+  }
+  .bg-primary-solid:hover:not(:disabled) {
+    background-color: hsl(var(--primary-hover));
+    box-shadow: var(--shadow-primary-md);
+  }
+  .bg-primary-solid:active:not(:disabled) {
+    background-color: hsl(var(--primary-active));
+  }
+
+  .bg-primary-gradient {
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--primary-gradient-from)),
+      hsl(var(--primary-gradient-to))
+    );
+    color: hsl(var(--primary-foreground));
+    box-shadow: var(--shadow-primary-md);
+    transition: box-shadow 150ms ease, transform 150ms ease;
+  }
+  .bg-primary-gradient:hover:not(:disabled) {
+    box-shadow: var(--shadow-primary-lg);
+    transform: translateY(-1px);
+  }
+  .bg-primary-gradient:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .border-primary-subtle {
+    border: 1px solid hsl(var(--primary) / 0.25);
+    transition: border-color 150ms ease;
+  }
+  .border-primary-subtle:hover {
+    border-color: hsl(var(--primary) / 0.50);
+  }
+
+  /* ═════════════════════════════════════════════════════════
+     Backdrop (modal, sheet) — F.56
+     ═════════════════════════════════════════════════════════ */
+  .app-backdrop {
+    background-color: var(--backdrop);
+    @apply backdrop-blur-md;
+  }
+  .app-backdrop-subtle {
+    background-color: var(--backdrop-subtle);
+    @apply backdrop-blur-sm;
   }
 
   /* ── Interactive press feedback ── */
@@ -265,8 +412,8 @@
 }
 
 @keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(52, 53, 245, 0); }
-  50% { box-shadow: 0 0 20px -4px rgba(52, 53, 245, 0.15); }
+  0%, 100% { box-shadow: var(--shadow-elev-0); }
+  50%      { box-shadow: var(--shadow-primary-md); }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -276,8 +423,8 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.22); }
-.dark ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.10); }
-.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
+.dark ::-webkit-scrollbar-thumb { background: hsl(32 30% 70% / 0.14); }
+.dark ::-webkit-scrollbar-thumb:hover { background: hsl(32 30% 70% / 0.24); }
 
 /* Apollia resolved color aliases — for inline style and var() usage */
 :root {
@@ -293,6 +440,16 @@
   --apollia-info-foreground: hsl(var(--info-foreground));
   --apollia-warning-foreground: hsl(var(--warning-foreground));
   --apollia-success-foreground: hsl(var(--success-foreground));
+}
+
+/* ─── Avatar shadow helper ──────────────────────────────────
+ * Pair with `style="--agent-hue: {hue}"` to express a coloured
+ * shadow driven by agent identity without an inline box-shadow. */
+.agent-avatar-shadow {
+  box-shadow: 0 2px 8px -1px hsl(var(--agent-hue, 240) 60% 38% / 0.30);
+}
+.agent-avatar-shadow-lg {
+  box-shadow: 0 3px 10px -2px hsl(var(--agent-hue, 240) 60% 38% / 0.35);
 }
 
 /* ─── Tour ring-pulse ───────────────────────────────────────────────────────

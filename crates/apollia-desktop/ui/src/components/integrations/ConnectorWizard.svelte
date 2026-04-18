@@ -352,11 +352,12 @@
     </Button>
 
     {#if currentStep < totalSteps}
-      <Button size="sm" onclick={goNext} data-testid="wizard-next-btn">
+      <Button variant="primary-solid" size="sm" onclick={goNext} data-testid="wizard-next-btn">
         {$t("integrations.wizard.next")}
       </Button>
     {:else}
       <Button
+        variant="primary-gradient"
         size="sm"
         onclick={finalize}
         disabled={finalizing || !canInstall}

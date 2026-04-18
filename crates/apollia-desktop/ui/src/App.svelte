@@ -20,6 +20,7 @@
   import { createSSEConnection } from "$lib/stores/sse";
   import { initTheme } from "$lib/stores/theme";
   import { onboardingStore } from "$lib/stores/onboarding";
+  import { navigateTo } from "$lib/stores/navigation";
   import type { OnboardingPhase } from "$lib/types";
 
   // Phases that represent an in-progress (but not yet started) onboarding.
@@ -52,6 +53,12 @@
   onMount(() => {
     initTheme();
     const cleanup = createSSEConnection();
+
+    // Design token showcase — #design hash routes to the preview page.
+    // Internal-facing, not advertised in the sidebar.
+    if (typeof window !== "undefined" && window.location.hash === "#design") {
+      navigateTo("design");
+    }
 
     onboardingStore
       .refreshState()

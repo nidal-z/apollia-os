@@ -199,9 +199,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow:
-      0 4px 16px -2px rgba(52, 53, 245, 0.25),
-      0 8px 32px -8px rgba(124, 95, 214, 0.2);
+    box-shadow: var(--shadow-primary-md), var(--shadow-primary-xl);
   }
 
   .llm-setup-title {
@@ -257,17 +255,13 @@
   }
 
   .llm-option-primary {
-    background: linear-gradient(135deg, #3435f5, #7c5fd6);
+    background: linear-gradient(135deg, hsl(var(--primary-gradient-from)), hsl(var(--primary-gradient-to)));
     color: white;
-    box-shadow:
-      0 4px 16px -2px rgba(52, 53, 245, 0.3),
-      0 8px 32px -8px rgba(124, 95, 214, 0.2);
+    box-shadow: var(--shadow-primary-md), var(--shadow-primary-xl);
   }
 
   .llm-option-primary:hover:not(:disabled) {
-    box-shadow:
-      0 6px 20px -2px rgba(52, 53, 245, 0.4),
-      0 12px 40px -8px rgba(124, 95, 214, 0.3);
+    box-shadow: var(--shadow-primary-lg), var(--shadow-primary-xl);
   }
 
   .llm-option-secondary {
@@ -275,16 +269,12 @@
     backdrop-filter: blur(20px);
     border: 1px solid rgba(52, 53, 245, 0.08);
     color: #374151;
-    box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.5),
-      0 1px 2px rgba(0, 0, 0, 0.03);
+    box-shadow: var(--shadow-elev-1);
   }
 
   .llm-option-secondary:hover:not(:disabled) {
     border-color: rgba(52, 53, 245, 0.15);
-    box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.5),
-      0 4px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-elev-2);
   }
 
   .option-icon-wrap {
@@ -360,7 +350,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3);
+    box-shadow: var(--shadow-success-md);
     animation: pop-in 300ms ease;
   }
 

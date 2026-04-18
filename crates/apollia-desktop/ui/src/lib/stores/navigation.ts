@@ -1,7 +1,7 @@
 import { writable, derived, get } from "svelte/store";
 
 /** Routes disponibles dans l'application desktop. */
-export type Route = "dashboard" | "agents" | "tasks" | "chat" | "approvals" | "integrations" | "llm" | "triggers" | "pipelines" | "projects" | "memory" | "transcriptions" | "notifications" | "observability" | "settings" | "onboarding";
+export type Route = "dashboard" | "agents" | "tasks" | "chat" | "approvals" | "integrations" | "llm" | "triggers" | "pipelines" | "projects" | "memory" | "transcriptions" | "notifications" | "observability" | "settings" | "onboarding" | "design";
 
 /** Store réactif de la route active. Default = 'dashboard'. */
 export const currentRoute = writable<Route>("dashboard");

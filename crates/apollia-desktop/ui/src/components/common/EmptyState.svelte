@@ -31,6 +31,6 @@
     <p class="max-w-md text-center text-sm text-muted-foreground/60">{subtitle}</p>
   {/if}
   {#if ctaLabel && ctaAction}
-    <Button variant="outline" onclick={ctaAction} class="mt-2">{ctaLabel}</Button>
+    <Button variant="primary-gradient" onclick={ctaAction} class="mt-2">{ctaLabel}</Button>
   {/if}
 </div>

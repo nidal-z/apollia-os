@@ -88,33 +88,28 @@
   }
 
   .welcome-logo {
+    --logo-shadow-rest:
+      0 0 0 1px hsl(var(--primary) / 0.20),
+      var(--shadow-primary-md),
+      var(--shadow-primary-xl);
+    --logo-shadow-active:
+      0 0 0 1px hsl(var(--primary) / 0.35),
+      var(--shadow-primary-lg),
+      var(--shadow-primary-xl);
     width: 4.5rem;
     height: 4.5rem;
     border-radius: 1.25rem;
-    background: linear-gradient(135deg, #3435f5, #7c5fd6);
+    background: linear-gradient(135deg, hsl(var(--primary-gradient-from)), hsl(var(--primary-gradient-to)));
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow:
-      0 0 0 1px rgba(124, 95, 214, 0.2),
-      0 4px 20px -4px rgba(52, 53, 245, 0.5),
-      0 16px 48px -8px rgba(124, 95, 214, 0.3);
+    box-shadow: var(--logo-shadow-rest);
     animation: logo-pulse 3s ease-in-out infinite;
   }
 
   @keyframes logo-pulse {
-    0%, 100% {
-      box-shadow:
-        0 0 0 1px rgba(124, 95, 214, 0.2),
-        0 4px 20px -4px rgba(52, 53, 245, 0.5),
-        0 16px 48px -8px rgba(124, 95, 214, 0.3);
-    }
-    50% {
-      box-shadow:
-        0 0 0 1px rgba(124, 95, 214, 0.35),
-        0 4px 28px -2px rgba(52, 53, 245, 0.65),
-        0 20px 60px -6px rgba(124, 95, 214, 0.45);
-    }
+    0%, 100% { box-shadow: var(--logo-shadow-rest); }
+    50%      { box-shadow: var(--logo-shadow-active); }
   }
 
   .welcome-tagline {
@@ -152,23 +147,19 @@
     padding: 0.875rem 2.5rem;
     border-radius: 0.875rem;
     border: none;
-    background: linear-gradient(135deg, #3435f5, #7c5fd6);
-    color: #ffffff;
+    background: linear-gradient(135deg, hsl(var(--primary-gradient-from)), hsl(var(--primary-gradient-to)));
+    color: hsl(var(--primary-foreground));
     font-size: 0.9375rem;
     font-weight: 600;
     cursor: pointer;
     transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
-    box-shadow:
-      0 4px 16px -2px rgba(52, 53, 245, 0.4),
-      0 8px 32px -8px rgba(124, 95, 214, 0.3);
+    box-shadow: var(--shadow-primary-md), var(--shadow-primary-xl);
     min-width: 10rem;
   }
 
   .welcome-cta:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow:
-      0 6px 24px -2px rgba(52, 53, 245, 0.5),
-      0 12px 40px -6px rgba(124, 95, 214, 0.4);
+    box-shadow: var(--shadow-primary-lg), var(--shadow-primary-xl);
   }
 
   .welcome-cta:active:not(:disabled) {

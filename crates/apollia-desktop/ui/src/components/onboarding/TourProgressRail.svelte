@@ -101,9 +101,7 @@
     gap: 0;
     background: rgba(255, 255, 255, 0.88);
     border-radius: 2rem;
-    box-shadow:
-      0 0 0 1px rgba(52, 53, 245, 0.08),
-      0 4px 16px -4px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-elev-2);
   }
 
   .step-item {
@@ -146,9 +144,11 @@
   }
 
   .step-item.current .step-dot {
-    background: #3435f5;
-    border: 2.5px solid #3435f5;
-    box-shadow: 0 0 0 3px rgba(52, 53, 245, 0.25);
+    --rail-dot-rest: 0 0 0 3px hsl(var(--primary) / 0.25);
+    --rail-dot-pulse: 0 0 0 4px hsl(var(--primary) / 0.15);
+    background: hsl(var(--primary));
+    border: 2.5px solid hsl(var(--primary));
+    box-shadow: var(--rail-dot-rest);
     animation: rail-pulse 2s ease-in-out infinite;
   }
 
@@ -160,11 +160,11 @@
   @keyframes rail-pulse {
     0%, 100% {
       transform: scale(1);
-      box-shadow: 0 0 0 3px rgba(52, 53, 245, 0.25);
+      box-shadow: var(--rail-dot-rest);
     }
     50% {
       transform: scale(1.2);
-      box-shadow: 0 0 0 4px rgba(52, 53, 245, 0.15);
+      box-shadow: var(--rail-dot-pulse);
     }
   }
 

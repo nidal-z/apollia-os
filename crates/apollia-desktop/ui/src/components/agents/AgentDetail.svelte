@@ -114,8 +114,8 @@
         <div class="flex items-center gap-3">
           <!-- Colored avatar matching dashboard -->
           <div
-            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white"
-            style="background: hsl({hue}, 60%, 48%); box-shadow: 0 3px 10px -2px hsla({hue}, 60%, 38%, 0.35);"
+            class="agent-avatar-shadow-lg flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white"
+            style="--agent-hue: {hue}; background: hsl({hue}, 60%, 48%);"
           >
             {agent.name.charAt(0).toUpperCase()}
           </div>

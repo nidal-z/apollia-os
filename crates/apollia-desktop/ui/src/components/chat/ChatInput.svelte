@@ -78,9 +78,8 @@
     <button
       onclick={send}
       disabled={disabled || !value.trim()}
-      class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg
-        bg-primary text-primary-foreground
-        transition-all hover:bg-primary/90 active:scale-[0.96]
+      class="bg-primary-solid inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg
+        active:scale-[0.96]
         disabled:pointer-events-none disabled:opacity-30"
       data-testid="chat-send-button"
     >

@@ -104,8 +104,8 @@
         <!-- Title row: avatar + name + status | expand + close -->
         <div class="flex items-center gap-3 px-4 pt-4 pb-0">
           <div
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
-            style="background: hsl({hue}, 60%, 48%); box-shadow: 0 2px 8px -1px hsla({hue}, 60%, 38%, 0.25);"
+            class="agent-avatar-shadow flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
+            style="--agent-hue: {hue}; background: hsl({hue}, 60%, 48%);"
           >
             {(task.agent_name || "?").charAt(0).toUpperCase()}
           </div>

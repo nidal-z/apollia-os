@@ -153,8 +153,8 @@
     <!-- Row 1: avatar + name + badge -->
     <div class="flex items-center gap-2.5">
       <div
-        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
-        style="background: hsl({hue}, 60%, 48%); box-shadow: 0 2px 8px -1px hsla({hue}, 60%, 38%, 0.3);"
+        class="agent-avatar-shadow flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
+        style="--agent-hue: {hue}; background: hsl({hue}, 60%, 48%);"
         data-testid="agent-avatar"
       >
         {agent.name.charAt(0).toUpperCase()}
@@ -275,7 +275,7 @@
         </Button>
       {/if}
       {#if !isRunning && isInstalled && agent.install_path}
-        <Button size="sm" variant="ghost" class="h-6 px-2 text-[11px] gap-1" onclick={handleStart} disabled={startLoading} data-testid="agent-start-btn">
+        <Button size="sm" variant="primary-solid" class="h-6 px-2 text-[11px] gap-1" onclick={handleStart} disabled={startLoading} data-testid="agent-start-btn">
           <Play size={10} /> {startLoading ? $t("agents.starting_agent") : $t("agents.start")}
         </Button>
       {/if}

@@ -29,6 +29,8 @@ const config: Config = {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          hover: "hsl(var(--primary-hover))",
+          active: "hsl(var(--primary-active))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -50,6 +52,11 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        surface: {
+          1: "hsl(var(--surface-1))",
+          2: "hsl(var(--surface-2))",
+          3: "hsl(var(--surface-3))",
+        },
         info: {
           DEFAULT: "hsl(var(--info))",
           foreground: "hsl(var(--info-foreground))",
@@ -65,6 +72,21 @@ const config: Config = {
       },
       backdropBlur: {
         xs: "2px",
+      },
+      backgroundImage: {
+        "primary-gradient":
+          "linear-gradient(135deg, hsl(var(--primary-gradient-from)), hsl(var(--primary-gradient-to)))",
+      },
+      boxShadow: {
+        "elev-0": "var(--shadow-elev-0)",
+        "elev-1": "var(--shadow-elev-1)",
+        "elev-2": "var(--shadow-elev-2)",
+        "elev-3": "var(--shadow-elev-3)",
+        "elev-4": "var(--shadow-elev-4)",
+        "primary-sm": "var(--shadow-primary-sm)",
+        "primary-md": "var(--shadow-primary-md)",
+        "primary-lg": "var(--shadow-primary-lg)",
+        "primary-xl": "var(--shadow-primary-xl)",
       },
       borderRadius: {
         lg: "var(--radius)",

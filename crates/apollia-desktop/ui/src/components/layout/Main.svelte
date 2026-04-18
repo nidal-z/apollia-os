@@ -21,6 +21,7 @@
   import Transcriptions from "../../routes/Transcriptions.svelte";
   import Integrations from "../../routes/Integrations.svelte";
   import Projects from "../../routes/Projects.svelte";
+  import Design from "../../routes/Design.svelte";
 
   onMount(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -107,6 +108,8 @@
           <Settings />
         {:else if $currentRoute === "onboarding"}
           <Onboarding />
+        {:else if $currentRoute === "design"}
+          <Design />
         {/if}
       </div>
     {/key}

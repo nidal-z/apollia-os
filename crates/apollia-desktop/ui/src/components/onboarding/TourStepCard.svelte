@@ -169,10 +169,7 @@
     background: #ffffff;
     border-radius: 12px;
     padding: 1.25rem;
-    box-shadow:
-      0 0 0 1px rgba(52, 53, 245, 0.08),
-      0 4px 16px -2px rgba(0, 0, 0, 0.1),
-      0 16px 48px -8px rgba(52, 53, 245, 0.12);
+    box-shadow: var(--shadow-elev-4);
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
@@ -272,14 +269,14 @@
   }
 
   .nav-btn-next {
-    background: linear-gradient(135deg, #3435f5, #7c5fd6);
-    color: #ffffff;
-    box-shadow: 0 2px 8px -1px rgba(52, 53, 245, 0.35);
+    background: linear-gradient(135deg, hsl(var(--primary-gradient-from)), hsl(var(--primary-gradient-to)));
+    color: hsl(var(--primary-foreground));
+    box-shadow: var(--shadow-primary-sm);
   }
 
   .nav-btn-next:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 4px 14px -2px rgba(52, 53, 245, 0.45);
+    box-shadow: var(--shadow-primary-md);
   }
 
   .nav-btn-next:active:not(:disabled) {

@@ -153,7 +153,7 @@
     <div class="mt-3 flex gap-2">
       <Button
         size="sm"
-        variant="outline"
+        variant="primary-solid"
         onclick={handleFire}
         disabled={firing || !trigger.enabled}
         data-testid="trigger-fire-{trigger.id}"

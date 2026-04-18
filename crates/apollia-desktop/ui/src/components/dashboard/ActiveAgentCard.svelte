@@ -45,8 +45,8 @@
       <!-- Row 1: avatar + name + status -->
       <div class="flex items-center gap-2.5">
         <div
-          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
-          style="background: hsl({hue}, 60%, 48%); box-shadow: 0 2px 8px -1px hsla({hue}, 60%, 38%, 0.3);"
+          class="agent-avatar-shadow flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
+          style="--agent-hue: {hue}; background: hsl({hue}, 60%, 48%);"
         >
           {agent.name.charAt(0).toUpperCase()}
         </div>

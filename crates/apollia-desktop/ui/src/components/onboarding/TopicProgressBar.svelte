@@ -95,10 +95,10 @@
   }
 
   .topic-item.active .topic-circle {
-    background: #3435f5;
-    color: white;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
     animation: pulse 1.5s ease-in-out infinite;
-    box-shadow: 0 0 12px rgba(52, 53, 245, 0.4);
+    box-shadow: var(--shadow-primary-sm);
   }
 
   .topic-item.completed .topic-circle {
