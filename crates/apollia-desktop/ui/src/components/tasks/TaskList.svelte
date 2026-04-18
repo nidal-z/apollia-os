@@ -224,7 +224,7 @@
         <button
           animate:flip={{ duration: 250 }}
           in:fly={{ y: 4, duration: 150, delay: Math.min(i, 10) * 20 }}
-          class="group flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors duration-150 hover:bg-primary/5"
+          class="list-item-spring group flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-primary/5"
           data-testid="task-row"
           data-task-id={task.id}
           data-task-status={task.status}

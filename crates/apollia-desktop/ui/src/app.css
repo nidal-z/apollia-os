@@ -108,6 +108,38 @@
     /* ── Backdrop (modal/sheet) ── */
     --backdrop: rgba(0, 0, 0, 0.40);
     --backdrop-subtle: rgba(0, 0, 0, 0.25);
+
+    /* ═════════════════════════════════════════════════════════
+       Motion tokens (US-SP42-005) — durations + easing curves.
+       JS counterparts live in `lib/design/motion.ts`.
+       ═════════════════════════════════════════════════════════ */
+    --motion-fast: 120ms;
+    --motion-base: 200ms;
+    --motion-slow: 320ms;
+    --ease-apple: cubic-bezier(0.2, 0, 0, 1);
+    --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-accel: cubic-bezier(0.4, 0, 1, 1);
+
+    /* ═════════════════════════════════════════════════════════
+       Canonical gradients (F.35) — reuse across hero, header,
+       accents. Always expressed as `linear-gradient(...)` so
+       they can drop into `background` or `background-image`.
+       ═════════════════════════════════════════════════════════ */
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(var(--primary-gradient-from)) 0%,
+      hsl(var(--primary-gradient-to)) 100%
+    );
+    --gradient-surface: linear-gradient(
+      180deg,
+      hsl(var(--surface-1)) 0%,
+      hsl(var(--surface-2)) 100%
+    );
+    --gradient-accent: linear-gradient(
+      135deg,
+      hsl(var(--primary) / 0.10) 0%,
+      hsl(var(--secondary) / 0.05) 100%
+    );
   }
 
   .dark {
@@ -195,6 +227,13 @@
 
     --backdrop: hsl(28 10% 5% / 0.70);
     --backdrop-subtle: hsl(28 10% 5% / 0.50);
+
+    /* Dark accent gradient — warmer wash for empty states / backgrounds. */
+    --gradient-accent: linear-gradient(
+      135deg,
+      hsl(var(--primary) / 0.16) 0%,
+      hsl(var(--secondary) / 0.10) 100%
+    );
   }
 }
 
@@ -243,15 +282,21 @@
     box-shadow: var(--shadow-elev-2);
   }
 
-  /* ── Card hover — lift with warm glow ── */
+  /* ── Card hover — lift with warm glow (spring-like, US-SP42-005) ── */
   .glass-card-hover {
     @apply glass-card;
-    transition: box-shadow 0.25s cubic-bezier(0.2, 0, 0, 1),
-                transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+    transition:
+      box-shadow var(--motion-slow) var(--ease-apple),
+      transform var(--motion-base) var(--ease-apple);
+    will-change: transform;
   }
   .glass-card-hover:hover {
     box-shadow: var(--shadow-elev-3);
-    transform: translateY(-1px);
+    transform: translateY(-1px) scale(1.005);
+  }
+  .glass-card-hover:active {
+    transform: translateY(0) scale(0.998);
+    transition-duration: var(--motion-fast);
   }
 
   /* ── Surface layer — frosted containers, tags, table headers ── */
@@ -359,6 +404,69 @@
   [role="button"]:not([disabled]):active {
     transform: scale(0.98);
   }
+
+  /* ═════════════════════════════════════════════════════════
+     Gradient utilities (F.35, US-SP42-005)
+     ═════════════════════════════════════════════════════════ */
+  .bg-gradient-primary {
+    background-image: var(--gradient-primary);
+  }
+  .bg-gradient-surface {
+    background-image: var(--gradient-surface);
+  }
+  .bg-gradient-accent {
+    background-image: var(--gradient-accent);
+  }
+
+  /* ═════════════════════════════════════════════════════════
+     List-item spring (F.46) — applied on row/row-like controls
+     that live inside nav / tables / long scrollable lists.
+     Uses a cubic-bezier that *feels* springy without pulling a
+     JS spring every frame.
+     ═════════════════════════════════════════════════════════ */
+  .list-item-spring {
+    transition:
+      transform var(--motion-fast) var(--ease-apple),
+      background-color var(--motion-fast) var(--ease-standard),
+      color var(--motion-fast) var(--ease-standard),
+      box-shadow var(--motion-base) var(--ease-apple);
+    will-change: transform;
+  }
+  .list-item-spring:hover:not(:disabled):not([aria-disabled="true"]) {
+    transform: translateX(2px) scale(1.01);
+  }
+  .list-item-spring:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: translateX(1px) scale(0.995);
+  }
+
+  /* ═════════════════════════════════════════════════════════
+     Divider fade edges (F.42, F.71) — gradient-fade horizontal
+     rule. Used where a plain separator feels too hard (chat
+     surfaces, long feeds).
+     ═════════════════════════════════════════════════════════ */
+  .divider-fade {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--border)) 18%,
+      hsl(var(--border)) 82%,
+      transparent 100%
+    );
+    border: 0;
+  }
+  .divider-fade-vertical {
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      hsl(var(--border)) 18%,
+      hsl(var(--border)) 82%,
+      transparent 100%
+    );
+    border: 0;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -416,15 +524,42 @@
   50%      { box-shadow: var(--shadow-primary-md); }
 }
 
+/* Shimmer — translucent band slides across a muted background. */
+@keyframes shimmerSlide {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+
+/* Spin — plain rotate, reused by the LoadingSpinner component. */
+@keyframes spinnerRotate {
+  to { transform: rotate(360deg); }
+}
+
 /* ═══════════════════════════════════════════════════════════
-   Custom scrollbars — thin, warm
+   Custom scrollbars (F.53) — 6px rail, translucent thumb with
+   hover state. Firefox fallback via `scrollbar-*` properties.
    ═══════════════════════════════════════════════════════════ */
+/* Firefox — `thin` keeps the native implementation but narrows it. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.16) transparent;
+}
+.dark * {
+  scrollbar-color: hsl(32 30% 70% / 0.18) transparent;
+}
+
+/* WebKit / Blink — fully custom. */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.22); }
-.dark ::-webkit-scrollbar-thumb { background: hsl(32 30% 70% / 0.14); }
-.dark ::-webkit-scrollbar-thumb:hover { background: hsl(32 30% 70% / 0.24); }
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.14);
+  border-radius: 3px;
+  transition: background 150ms ease;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.26); }
+::-webkit-scrollbar-corner { background: transparent; }
+.dark ::-webkit-scrollbar-thumb { background: hsl(32 30% 70% / 0.16); }
+.dark ::-webkit-scrollbar-thumb:hover { background: hsl(32 30% 70% / 0.28); }
 
 /* Apollia resolved color aliases — for inline style and var() usage */
 :root {
@@ -473,4 +608,24 @@
 @keyframes tour-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%      { opacity: 0.4; transform: scale(1.08); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Reduced motion (US-SP42-005) — honour OS preference by
+   collapsing every animation and transition to a near-instant
+   step. Spring transforms become static.
+   ═══════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+  .list-item-spring:hover,
+  .list-item-spring:active {
+    transform: none !important;
+  }
 }

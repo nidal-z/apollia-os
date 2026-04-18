@@ -4,6 +4,7 @@
   import { Sparkles, ArrowRight, Clock } from "lucide-svelte";
   import { navigateTo } from "$lib/stores/navigation";
   import { onboardingStore } from "$lib/stores/onboarding";
+  import { LoadingSpinner } from "$lib/components/feedback";
 
   let starting = $state(false);
 
@@ -62,7 +63,7 @@
           disabled={starting}
         >
           {#if starting}
-            <span class="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground"></span>
+            <LoadingSpinner size={16} tone="current" />
             {$t("onboarding_welcome.starting")}
           {:else}
             <ArrowRight size={16} strokeWidth={2} />

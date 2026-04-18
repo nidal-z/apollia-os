@@ -60,6 +60,16 @@ export const primaryGradient = {
   css: "linear-gradient(135deg, hsl(var(--primary-gradient-from)), hsl(var(--primary-gradient-to)))",
 } as const;
 
+/** Canonical gradients (US-SP42-005) — full `var()` references. */
+export const gradient = {
+  /** Primary → secondary, 135° — hero CTAs, promoted cards. */
+  primary: "var(--gradient-primary)",
+  /** Surface-1 → surface-2, vertical — hero backgrounds, panel tops. */
+  surface: "var(--gradient-surface)",
+  /** Primary/secondary tinted wash — empty states, accent surfaces. */
+  accent: "var(--gradient-accent)",
+} as const;
+
 export type ElevationKey = keyof typeof elevation;
 export type PrimaryShadowKey = keyof typeof primaryShadow;
 export type SurfaceKey = keyof typeof surface;
@@ -71,6 +81,7 @@ export const tokens = {
   glassBorder,
   backdrop,
   primaryGradient,
+  gradient,
 } as const;
 
 export default tokens;

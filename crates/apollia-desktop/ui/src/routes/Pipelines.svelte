@@ -17,6 +17,7 @@
   import { TabBar } from "$lib/components/ui/tabs";
   import EmptyState from "../components/common/EmptyState.svelte";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
+  import { LoadingSpinner } from "$lib/components/feedback";
 
   type PipelineTab = "active" | "history" | "definitions";
 
@@ -139,7 +140,10 @@
   {#if activeTab === "definitions"}
     <!-- Definitions tab content -->
     {#if loadingDefs}
-      <p class="py-8 text-center text-sm text-muted-foreground">{$t("common.loading")}</p>
+      <div class="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+        <LoadingSpinner size={16} tone="muted" label={$t("common.loading")} />
+        <span>{$t("common.loading")}</span>
+      </div>
     {:else if definitions.length === 0}
       <div
         class="flex flex-col items-center justify-center gap-2 rounded-xl glass-surface glass-border border-dashed py-12"

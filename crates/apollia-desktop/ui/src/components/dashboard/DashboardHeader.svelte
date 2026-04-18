@@ -22,8 +22,13 @@
   });
 </script>
 
-<div class="flex items-end justify-between" data-testid="dashboard-header">
-  <div>
+<div
+  class="relative flex items-end justify-between overflow-hidden rounded-2xl bg-gradient-surface px-5 py-5 shadow-elev-1"
+  data-testid="dashboard-header"
+>
+  <!-- Soft primary wash — grounds the hero in the brand without overpowering. -->
+  <div class="pointer-events-none absolute inset-0 bg-gradient-accent opacity-70" aria-hidden="true"></div>
+  <div class="relative">
     <h1 class="text-2xl font-semibold tracking-tight" data-testid="dashboard-greeting">
       {$t(greetingKey())}
     </h1>
@@ -31,7 +36,7 @@
       {$t('dashboard.subtitle')}
     </p>
   </div>
-  <div class="flex items-center gap-1.5 rounded-full glass-surface glass-border-subtle px-3 py-1.5">
+  <div class="relative flex items-center gap-1.5 rounded-full glass-surface glass-border-subtle px-3 py-1.5">
     <span class="inline-flex h-1.5 w-1.5 rounded-full bg-success"></span>
     <span class="text-xs text-muted-foreground" data-testid="dashboard-summary">
       {$t('dashboard.summary', { values: { agents: activeCount, tasks: todayTaskCount() } })}

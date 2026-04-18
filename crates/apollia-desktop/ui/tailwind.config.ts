@@ -76,6 +76,18 @@ const config: Config = {
       backgroundImage: {
         "primary-gradient":
           "linear-gradient(135deg, hsl(var(--primary-gradient-from)), hsl(var(--primary-gradient-to)))",
+        "gradient-primary": "var(--gradient-primary)",
+        "gradient-surface": "var(--gradient-surface)",
+        "gradient-accent": "var(--gradient-accent)",
+      },
+      transitionDuration: {
+        fast: "var(--motion-fast)",
+        base: "var(--motion-base)",
+        slow: "var(--motion-slow)",
+      },
+      animation: {
+        "shimmer-slide": "shimmerSlide 1.4s linear infinite",
+        "spinner-rotate": "spinnerRotate 0.7s linear infinite",
       },
       boxShadow: {
         "elev-0": "var(--shadow-elev-0)",

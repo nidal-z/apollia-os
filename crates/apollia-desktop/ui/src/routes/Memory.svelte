@@ -13,7 +13,7 @@
   import EmptyState from "../components/common/EmptyState.svelte";
   import { Database, Wrench, Brain } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
-  import { Skeleton } from "$lib/components/ui/skeleton";
+  import { LoadingShimmer } from "$lib/components/feedback";
   import { addToast } from "$lib/components/ui/toast/store";
 
   type Tab = "user_memory" | "memory" | "tools";
@@ -238,10 +238,10 @@
 
       {#if loadingMemory}
         <div class="space-y-2 py-4">
-          <Skeleton width="100%" height="2.5rem" />
-          <Skeleton width="100%" height="2.5rem" />
-          <Skeleton width="100%" height="2.5rem" />
-          <Skeleton width="80%" height="2.5rem" />
+          <LoadingShimmer width="100%" height="2.5rem" />
+          <LoadingShimmer width="100%" height="2.5rem" />
+          <LoadingShimmer width="100%" height="2.5rem" />
+          <LoadingShimmer width="80%" height="2.5rem" />
         </div>
       {:else}
         <MemoryTable {entries} {searching} ondelete={handleDelete} />
@@ -253,9 +253,9 @@
   {#if activeTab === "tools"}
     {#if loadingTools}
       <div class="space-y-2 py-4">
-        <Skeleton width="100%" height="2.5rem" />
-        <Skeleton width="100%" height="2.5rem" />
-        <Skeleton width="100%" height="2.5rem" />
+        <LoadingShimmer width="100%" height="2.5rem" />
+        <LoadingShimmer width="100%" height="2.5rem" />
+        <LoadingShimmer width="100%" height="2.5rem" />
       </div>
     {:else if tools.length === 0}
       <EmptyState

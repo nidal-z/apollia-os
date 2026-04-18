@@ -2,7 +2,8 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { MessageSquare, Plus, Loader2, Bot, X, ChevronDown, Zap } from "lucide-svelte";
+  import { MessageSquare, Plus, Bot, X, ChevronDown, Zap } from "lucide-svelte";
+  import { LoadingSpinner } from "$lib/components/feedback";
   import { connectionStatus } from "$lib/stores/sse";
   import { activeChatSessions, closedChatSessions, pendingChatSessionId } from "$lib/stores/chat";
   import { chatSessions } from "$lib/stores/sse";
@@ -140,12 +141,13 @@
 
 <div class="mx-auto w-full max-w-6xl" data-testid="chat-page">
   <!-- Header -->
-  <div class="flex items-end justify-between">
-    <div>
+  <div class="relative flex items-end justify-between overflow-hidden rounded-2xl bg-gradient-surface px-5 py-5 shadow-elev-1">
+    <div class="pointer-events-none absolute inset-0 bg-gradient-accent opacity-60" aria-hidden="true"></div>
+    <div class="relative">
       <h1 class="text-2xl font-semibold tracking-tight" data-testid="chat-header">{$t("chat.title")}</h1>
       <p class="mt-1 text-sm text-muted-foreground" data-testid="chat-subtitle">{$t("chat.subtitle")}</p>
     </div>
-    <Button size="sm" onclick={openNewChatPicker} disabled={creating} data-testid="new-chat-button" class="gap-1.5">
+    <Button size="sm" onclick={openNewChatPicker} disabled={creating} data-testid="new-chat-button" class="relative gap-1.5">
       <Plus size={13} />
       {$t("chat.new_chat")}
     </Button>
@@ -219,7 +221,7 @@
             disabled={creating}
             data-testid="pick-libre"
           >
-            {#if creating}<Loader2 size={12} class="animate-spin" />{:else}<MessageSquare size={12} />{/if}
+            {#if creating}<LoadingSpinner size={12} tone="current" />{:else}<MessageSquare size={12} />{/if}
             {$t("chat.start")}
           </button>
 

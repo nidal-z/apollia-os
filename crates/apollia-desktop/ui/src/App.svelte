@@ -54,10 +54,13 @@
     initTheme();
     const cleanup = createSSEConnection();
 
-    // Design token showcase — #design hash routes to the preview page.
-    // Internal-facing, not advertised in the sidebar.
-    if (typeof window !== "undefined" && window.location.hash === "#design") {
-      navigateTo("design");
+    // Design showcase pages — internal-facing, not advertised in the sidebar.
+    if (typeof window !== "undefined") {
+      if (window.location.hash === "#design") {
+        navigateTo("design");
+      } else if (window.location.hash === "#motion") {
+        navigateTo("design-motion");
+      }
     }
 
     onboardingStore

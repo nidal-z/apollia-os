@@ -236,7 +236,7 @@
       {#each operatorNav as item}
         {@const isActive = $currentRoute === item.route}
         <button
-          class="relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {isActive
+          class="list-item-spring relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium {isActive
             ? 'bg-primary/10 text-primary'
             : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
           class:justify-center={!showLabels}

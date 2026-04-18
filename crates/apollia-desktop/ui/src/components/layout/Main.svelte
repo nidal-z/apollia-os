@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { fade } from "svelte/transition";
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { currentRoute, canGoBack, canGoForward, goBack, goForward } from "$lib/stores/navigation";
   import { sidebarState, layoutActions } from "$lib/stores/layout";
   import { ChevronLeft, ChevronRight, Menu } from "lucide-svelte";
+  import { PageTransition } from "$lib/components/motion";
   import Dashboard from "../../routes/Dashboard.svelte";
   import Agents from "../../routes/Agents.svelte";
   import Tasks from "../../routes/Tasks.svelte";
@@ -22,6 +22,7 @@
   import Integrations from "../../routes/Integrations.svelte";
   import Projects from "../../routes/Projects.svelte";
   import Design from "../../routes/Design.svelte";
+  import DesignMotion from "../../routes/DesignMotion.svelte";
 
   onMount(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -75,7 +76,7 @@
   <!-- Route content : padding responsive + conteneur défini par chaque route. -->
   <div class="flex-1 px-4 sm:px-6 lg:px-8 pb-8">
     {#key $currentRoute}
-      <div transition:fade={{ duration: 150 }}>
+      <PageTransition>
         {#if $currentRoute === "dashboard"}
           <Dashboard />
         {:else if $currentRoute === "agents"}
@@ -110,8 +111,10 @@
           <Onboarding />
         {:else if $currentRoute === "design"}
           <Design />
+        {:else if $currentRoute === "design-motion"}
+          <DesignMotion />
         {/if}
-      </div>
+      </PageTransition>
     {/key}
   </div>
 </main>
