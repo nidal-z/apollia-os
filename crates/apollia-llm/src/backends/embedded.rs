@@ -196,6 +196,103 @@ fn expand_tilde(path: &Path) -> PathBuf {
     }
 }
 
+/// Longueur du suffixe `NNNNN-of-NNNNN` (sans le tiret de séparation ni le `.gguf`).
+const SHARD_SUFFIX_LEN: usize = 14;
+
+/// Métadonnées extraites d'un nom de fichier GGUF shard standard.
+///
+/// Pattern reconnu : `<prefix>-NNNNN-of-MMMMM.gguf` (5 chiffres zero-padded).
+/// `prefix` ne contient PAS le suffixe `-NNNNN-of-MMMMM`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SplitInfo {
+    /// Préfixe commun utilisé comme `model_id` et pour reconstruire les chemins.
+    prefix: String,
+    /// Nombre total de shards (N dans `-of-NNNNN`).
+    total: u32,
+}
+
+/// Parse le nom de fichier brut pour y détecter le pattern shard standard
+/// `<prefix>-NNNNN-of-MMMMM.gguf`.
+///
+/// Retourne `None` pour tout autre format (mono-fichier, pattern non zero-padded,
+/// extension absente, etc.). Ne touche pas le filesystem.
+fn parse_shard_file_name(file_name: &str) -> Option<(String, u32, u32)> {
+    let stem = file_name.strip_suffix(".gguf")?;
+    if stem.len() < SHARD_SUFFIX_LEN + 2 {
+        return None;
+    }
+    let split_at = stem.len() - SHARD_SUFFIX_LEN;
+    let (prefix_with_dash, trailing) = stem.split_at(split_at);
+    let prefix = prefix_with_dash.strip_suffix('-')?;
+    if prefix.is_empty() {
+        return None;
+    }
+    let (idx_str, rest) = trailing.split_at(5);
+    let total_str = rest.strip_prefix("-of-")?;
+    if total_str.len() != 5 {
+        return None;
+    }
+    let index = idx_str.parse::<u32>().ok()?;
+    let total = total_str.parse::<u32>().ok()?;
+    Some((prefix.to_string(), index, total))
+}
+
+/// Détecte si `path` correspond au premier shard d'un modèle GGUF split standard
+/// et vérifie que tous les shards attendus existent dans le même dossier.
+///
+/// Retours :
+/// - `Ok(None)` → `path` ne matche pas le pattern (mono-fichier, comportement legacy).
+/// - `Ok(Some(SplitInfo))` → tous les shards existent, llama.cpp peut charger.
+/// - `Err(LlmError::ShardIndexNotFirst)` → `path` matche mais ne pointe pas sur le shard 00001.
+/// - `Err(LlmError::ModelShardMissing)` → série incomplète.
+///
+/// Le nom de fichier est parsé manuellement (pas de crate `regex`) pour garder
+/// la dépendance zéro. Le pattern équivalent est `^(.+)-(\d{5})-of-(\d{5})\.gguf$`.
+fn detect_split_shards(path: &Path) -> Result<Option<SplitInfo>, LlmError> {
+    let Some(file_name) = path.file_name().and_then(|s| s.to_str()) else {
+        return Ok(None);
+    };
+    let Some((prefix, given_index, total)) = parse_shard_file_name(file_name) else {
+        return Ok(None);
+    };
+
+    if given_index != 1 {
+        return Err(LlmError::ShardIndexNotFirst {
+            given_index,
+            path: path.to_path_buf(),
+        });
+    }
+
+    let Some(dir) = path.parent() else {
+        return Err(LlmError::ModelNotFound {
+            path: path.to_path_buf(),
+        });
+    };
+
+    let mut found = 0usize;
+    let mut first_missing: Option<PathBuf> = None;
+    for i in 1..=total {
+        let shard_name = format!("{prefix}-{i:05}-of-{total:05}.gguf");
+        let shard_path = dir.join(&shard_name);
+        if shard_path.exists() {
+            found += 1;
+        } else if first_missing.is_none() {
+            first_missing = Some(shard_path);
+        }
+    }
+
+    if let Some(expected) = first_missing {
+        return Err(LlmError::ModelShardMissing {
+            prefix,
+            expected,
+            total: total as usize,
+            found,
+        });
+    }
+
+    Ok(Some(SplitInfo { prefix, total }))
+}
+
 /// Nombre maximum de tokens à générer par défaut.
 const DEFAULT_MAX_TOKENS: u32 = 2048;
 
@@ -237,10 +334,23 @@ impl EmbeddedBackend {
                 path: expanded_path.clone(),
             })?;
 
-        let model_id = canonical
-            .file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default();
+        let split = detect_split_shards(&canonical)?;
+
+        let model_id = match &split {
+            Some(info) => {
+                tracing::info!(
+                    backend = %config.name,
+                    shards = info.total,
+                    prefix = %info.prefix,
+                    "GGUF split model detected (llama.cpp loads remaining shards automatically)"
+                );
+                info.prefix.clone()
+            }
+            None => canonical
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+        };
 
         let gpu_layers = config.device.gpu_layers();
         let name = config.name.clone();
@@ -856,5 +966,194 @@ mod tests {
             matches!(result, Err(LlmError::ModelNotFound { .. })),
             "expected ModelNotFound, got: {result:?}"
         );
+    }
+
+    #[test]
+    fn test_parse_shard_file_name_matches_standard_pattern() {
+        let parsed = parse_shard_file_name("Llama-70B-Q5_K_M-00001-of-00003.gguf");
+        assert_eq!(parsed, Some(("Llama-70B-Q5_K_M".to_string(), 1, 3)));
+    }
+
+    #[test]
+    fn test_parse_shard_file_name_matches_single_shard_edge_case() {
+        let parsed = parse_shard_file_name("Foo-00001-of-00001.gguf");
+        assert_eq!(parsed, Some(("Foo".to_string(), 1, 1)));
+    }
+
+    #[test]
+    fn test_parse_shard_file_name_rejects_non_gguf_extension() {
+        assert_eq!(
+            parse_shard_file_name("model-00001-of-00003.safetensors"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_parse_shard_file_name_rejects_mono_file() {
+        assert_eq!(parse_shard_file_name("Qwen3-8B-Q5_K_M.gguf"), None);
+    }
+
+    #[test]
+    fn test_parse_shard_file_name_rejects_non_zero_padded_numbers() {
+        let cases = [
+            "model-1-of-3.gguf",
+            "model-00001-of-3.gguf",
+            "model-1-of-00003.gguf",
+        ];
+        for name in cases {
+            assert_eq!(parse_shard_file_name(name), None, "{name} must not match");
+        }
+    }
+
+    #[test]
+    fn test_parse_shard_file_name_rejects_typos_and_malformed_separators() {
+        let cases = [
+            "model-00001-0f-00003.gguf",
+            "model-00001_of_00003.gguf",
+            "model00001-of-00003.gguf",
+            "-00001-of-00003.gguf",
+        ];
+        for name in cases {
+            assert_eq!(parse_shard_file_name(name), None, "{name} must not match");
+        }
+    }
+
+    #[test]
+    fn test_parse_shard_file_name_rejects_non_numeric_ranges() {
+        assert_eq!(parse_shard_file_name("model-0000a-of-00003.gguf"), None);
+        assert_eq!(parse_shard_file_name("model-00001-of-0000b.gguf"), None);
+    }
+
+    fn touch_shard(dir: &Path, name: &str) {
+        std::fs::write(dir.join(name), b"fake shard content").expect("write fixture file");
+    }
+
+    #[test]
+    fn test_detect_split_shards_returns_none_for_mono_file() {
+        let dir = tempfile::TempDir::new().expect("create tempdir");
+        touch_shard(dir.path(), "Qwen3-8B-Q5_K_M.gguf");
+        let result =
+            detect_split_shards(&dir.path().join("Qwen3-8B-Q5_K_M.gguf")).expect("detection ok");
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_detect_split_shards_returns_info_when_all_shards_present() {
+        let dir = tempfile::TempDir::new().expect("create tempdir");
+        for i in 1..=3 {
+            touch_shard(
+                dir.path(),
+                &format!("Llama-70B-Q5_K_M-{i:05}-of-00003.gguf"),
+            );
+        }
+        let result = detect_split_shards(&dir.path().join("Llama-70B-Q5_K_M-00001-of-00003.gguf"))
+            .expect("detection ok");
+        let info = result.expect("split must be detected");
+        assert_eq!(info.prefix, "Llama-70B-Q5_K_M");
+        assert_eq!(info.total, 3);
+    }
+
+    #[test]
+    fn test_detect_split_shards_reports_missing_shard_with_counts() {
+        let dir = tempfile::TempDir::new().expect("create tempdir");
+        touch_shard(dir.path(), "Llama-70B-Q5_K_M-00001-of-00003.gguf");
+        touch_shard(dir.path(), "Llama-70B-Q5_K_M-00002-of-00003.gguf");
+
+        let err = detect_split_shards(&dir.path().join("Llama-70B-Q5_K_M-00001-of-00003.gguf"))
+            .expect_err("must fail when third shard is missing");
+
+        match err {
+            LlmError::ModelShardMissing {
+                prefix,
+                total,
+                found,
+                expected,
+            } => {
+                assert_eq!(prefix, "Llama-70B-Q5_K_M");
+                assert_eq!(total, 3);
+                assert_eq!(found, 2);
+                assert!(expected
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .map(|s| s == "Llama-70B-Q5_K_M-00003-of-00003.gguf")
+                    .unwrap_or(false));
+            }
+            other => panic!("expected ModelShardMissing, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_detect_split_shards_rejects_non_first_shard() {
+        let dir = tempfile::TempDir::new().expect("create tempdir");
+        touch_shard(dir.path(), "model-00002-of-00003.gguf");
+
+        let err = detect_split_shards(&dir.path().join("model-00002-of-00003.gguf"))
+            .expect_err("must reject non-first shard");
+
+        match err {
+            LlmError::ShardIndexNotFirst { given_index, .. } => assert_eq!(given_index, 2),
+            other => panic!("expected ShardIndexNotFirst, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_detect_split_shards_handles_single_shard_edge_case() {
+        let dir = tempfile::TempDir::new().expect("create tempdir");
+        touch_shard(dir.path(), "Foo-00001-of-00001.gguf");
+
+        let info = detect_split_shards(&dir.path().join("Foo-00001-of-00001.gguf"))
+            .expect("detection ok")
+            .expect("split must be detected");
+        assert_eq!(info.prefix, "Foo");
+        assert_eq!(info.total, 1);
+    }
+
+    #[tokio::test]
+    async fn test_load_returns_model_shard_missing_before_ffi() {
+        let dir = tempfile::TempDir::new().expect("create tempdir");
+        touch_shard(dir.path(), "model-00001-of-00003.gguf");
+        touch_shard(dir.path(), "model-00002-of-00003.gguf");
+
+        let config = EmbeddedBackendConfig {
+            name: "local".into(),
+            model_path: dir.path().join("model-00001-of-00003.gguf"),
+            quantization: "q4_k_m".into(),
+            device: AcceleratorDevice::Cpu,
+        };
+        let started = std::time::Instant::now();
+        let result = EmbeddedBackend::load(&config).await;
+        let elapsed = started.elapsed();
+
+        match result {
+            Err(LlmError::ModelShardMissing { total, found, .. }) => {
+                assert_eq!(total, 3);
+                assert_eq!(found, 2);
+            }
+            other => panic!("expected ModelShardMissing, got {other:?}"),
+        }
+        assert!(
+            elapsed.as_millis() < 500,
+            "fail-fast violated: validation took {elapsed:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_returns_shard_index_not_first() {
+        let dir = tempfile::TempDir::new().expect("create tempdir");
+        touch_shard(dir.path(), "model-00002-of-00003.gguf");
+
+        let config = EmbeddedBackendConfig {
+            name: "local".into(),
+            model_path: dir.path().join("model-00002-of-00003.gguf"),
+            quantization: "q4_k_m".into(),
+            device: AcceleratorDevice::Cpu,
+        };
+        let result = EmbeddedBackend::load(&config).await;
+        match result {
+            Err(LlmError::ShardIndexNotFirst { given_index, .. }) => {
+                assert_eq!(given_index, 2);
+            }
+            other => panic!("expected ShardIndexNotFirst, got {other:?}"),
+        }
     }
 }

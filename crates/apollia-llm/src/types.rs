@@ -449,6 +449,41 @@ pub enum LlmError {
     /// Le nom doit correspondre à un backend déclaré dans `[[llm.backends]]`.
     #[error("backend '{0}' not found in configured backends")]
     BackendNotFound(String),
+
+    /// Un ou plusieurs shards GGUF attendus sont absents du dossier.
+    ///
+    /// Déclenché par `EmbeddedBackend::load` lorsque le chemin fourni correspond
+    /// à un shard split standard (`<prefix>-NNNNN-of-NNNNN.gguf`) mais que tous
+    /// les shards attendus ne sont pas présents sur le disque.
+    #[error(
+        "GGUF split incomplete: prefix={prefix}, {found}/{total} shards present, \
+         missing at least: {expected}"
+    )]
+    ModelShardMissing {
+        /// Préfixe commun des shards (sans le suffixe `-NNNNN-of-NNNNN`).
+        prefix: String,
+        /// Chemin du premier shard manquant détecté.
+        expected: PathBuf,
+        /// Nombre total de shards attendus (valeur du `-of-NNNNN`).
+        total: usize,
+        /// Nombre de shards effectivement trouvés dans le dossier.
+        found: usize,
+    },
+
+    /// La config pointe sur un shard autre que le premier (`-00001-of-NNNNN.gguf`).
+    ///
+    /// llama.cpp attend toujours le premier shard comme point d'entrée ;
+    /// charger un autre shard ne produit pas un modèle utilisable.
+    #[error(
+        "config points to shard {given_index} of {path:?} — use the first shard \
+         (`-00001-of-NNNNN.gguf`); llama.cpp loads the following shards automatically"
+    )]
+    ShardIndexNotFirst {
+        /// Index extrait du nom de fichier (valeur du premier nombre).
+        given_index: u32,
+        /// Chemin fautif fourni par la config.
+        path: PathBuf,
+    },
 }
 
 // ─────────────────────────────────────────────

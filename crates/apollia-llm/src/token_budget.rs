@@ -249,11 +249,13 @@ mod tests {
     #[test]
     fn to_token_budget_maps_fields_correctly() {
         // GIVEN tracker with known counters
-        let mut tracker = SessionBudgetTracker::default();
-        tracker.session_cost_usd = 0.05;
-        tracker.total_input_tokens = 200;
-        tracker.total_output_tokens = 100;
-        tracker.total_cache_read_tokens = 50;
+        let tracker = SessionBudgetTracker {
+            session_cost_usd: 0.05,
+            total_input_tokens: 200,
+            total_output_tokens: 100,
+            total_cache_read_tokens: 50,
+            ..Default::default()
+        };
 
         // WHEN converting to TokenBudget
         let budget = tracker.to_token_budget();
