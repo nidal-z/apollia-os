@@ -79,3 +79,4 @@
 | 2026-04-15 | ADR-070 | Memory namespace project-scoped : préfixage `project_id:namespace` pour isolation mémoire inter-projets | [docs/adr/ADR-070-memory-namespace-project-scoped.md](adr/ADR-070-memory-namespace-project-scoped.md) |
 | 2026-04-15 | ADR-071 | ContextBootstrap : convention de bootstrapping de contexte agent (2 méthodes abstraites, SDK 0.2.0+) | [docs/adr/ADR-071-context-bootstrap-convention.md](adr/ADR-071-context-bootstrap-convention.md) |
 | 2026-04-17 | ADR-072 | Outils web natifs : architecture 2-étages `web_search` + `web_read` (backends pluggables DDG + Brave, extraction `dom_smoothie`, opt-in, SSRF) | [docs/adr/ADR-072-web-tools-architecture.md](adr/ADR-072-web-tools-architecture.md) |
+| 2026-04-19 | ADR-075 | GGUF multi-file : auto-détection pattern standard `-NNNNN-of-NNNNN.gguf` + FFI `llama_model_load_from_splits` pour naming custom | [docs/adr/ADR-075-gguf-multi-file-loading.md](adr/ADR-075-gguf-multi-file-loading.md) |

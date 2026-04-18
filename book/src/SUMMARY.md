@@ -45,6 +45,7 @@
   - [Backends locaux et cloud](ch06-01-backends.md)
   - [ctx.llm : chat, complete, stream](ch06-02-api.md)
   - [La boucle ReAct](ch06-03-react-loop.md)
+  - [Modèles volumineux (shardés)](ch06-04-modeles-volumineux.md)
 
 - [Les garde-fous](ch07-00-guardrails.md)
   - [StepBudget](ch07-01-step-budget.md)

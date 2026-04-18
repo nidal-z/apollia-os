@@ -286,6 +286,105 @@ Pour la distribution (shaders baked dans le binaire, Xcode requis) :
 MISTRALRS_METAL_PRECOMPILE=1 cargo build --release --features local-metal
 ```
 
+### Modèles GGUF multi-fichiers (shards)
+
+Les modèles LLM volumineux (>30 GB quantisés, ex : Llama-70B, Mixtral-8x22B, DeepSeek-V3) sont distribués en plusieurs fichiers GGUF. Apollia supporte deux modes de chargement, mutuellement exclusifs.
+
+#### Mode standard — auto-détection du pattern `-NNNNN-of-NNNNN`
+
+Le pattern officiel llama.cpp est `<prefix>-NNNNN-of-MMMMM.gguf` (5 chiffres zero-padded, `NNNNN` = index 1-based, `MMMMM` = total). HuggingFace, Ollama et `llama-quantize --split` produisent directement ce format.
+
+Pointer `model_path` sur le **premier shard** suffit :
+
+```toml
+[[llm.backends]]
+type         = "embedded"
+name         = "llama-70b"
+model_path   = "~/.apollia/models/Llama-70B-Q5_K_M-00001-of-00003.gguf"
+quantization = "Q5_K_M"
+device       = "metal"
+```
+
+`EmbeddedBackend::load()` valide au démarrage que les `MMMMM` shards attendus existent dans le même dossier que le premier. llama.cpp charge ensuite automatiquement les shards suivants via `llama_load_model_from_file`.
+
+#### Mode custom — liste explicite de chemins
+
+Pour les naming schemes qui ne suivent pas le pattern standard (forks, conversions communautaires) :
+
+```toml
+[[llm.backends]]
+type         = "embedded"
+name         = "custom-split"
+model_paths  = [
+  "~/.apollia/models/mymodel_a.gguf",
+  "~/.apollia/models/mymodel_b.gguf",
+  "~/.apollia/models/mymodel_c.gguf",
+]
+quantization = "Q4_K_M"
+device       = "cpu"
+```
+
+L'ordre de la liste est respecté tel quel et passé à `llama_model_load_from_splits` via FFI direct (`llama-cpp-sys-2`). Apollia valide l'existence de chaque chemin avant l'appel FFI.
+
+> **Exclusivité.** `model_path` et `model_paths` sont mutuellement exclusifs. Exactement un des deux doit être renseigné ; la violation de cette règle déclenche `LlmError::ConfigConflict` au démarrage (Principe #4 — Fail fast).
+
+#### Erreurs possibles
+
+| Erreur                              | Cause                                                                                 | Action opérateur                                                                 |
+|-------------------------------------|---------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| `LlmError::ModelNotFound`           | Le chemin `model_path` (ou un élément de `model_paths`) n'existe pas sur le disque    | Vérifier le chemin ; `apollia model list` pour voir les fichiers présents        |
+| `LlmError::ModelShardMissing`       | Pattern standard détecté mais un shard de la série est absent du dossier              | Retélécharger le shard indiqué dans `expected` (premier manquant détecté)        |
+| `LlmError::ShardIndexNotFirst`      | `model_path` pointe sur `-NNNNN-of-...` avec `NNNNN > 1`                              | Pointer sur le shard `00001` ; llama.cpp charge les suivants automatiquement     |
+| `LlmError::ConfigConflict`          | `model_path` ET `model_paths` tous deux renseignés, aucun des deux, ou liste vide     | Renseigner exactement un des deux champs avec au moins une entrée                |
+| `LlmError::InferenceError("model load failed: …")` | llama.cpp rejette le contenu (fichier corrompu, quantisation incompatible, shard tronqué) | Vérifier l'intégrité du fichier (taille/hash) ; retélécharger si nécessaire      |
+
+#### Sortie `apollia model list` pour un modèle split
+
+Affichage humain :
+
+```
+$ apollia model list
+  Models directory: /Users/nidal/.apollia/models
+
+  NAME                                             LAYOUT                       SIZE
+  Llama-70B-Instruct-Q5_K_M                        3 shards                     49152.0 MB
+  Qwen3-8B-Q5_K_M.gguf                             mono                          5800.0 MB
+```
+
+Une série incomplète (premier shard présent, index suivants manquants) est rendue sans échouer la commande : `LAYOUT` passe à `2/3 shards (INCOMPLETE)`.
+
+Sortie JSON (`apollia model list --json`) :
+
+```json
+{
+  "models": [
+    {
+      "kind":        "split",
+      "prefix":      "Llama-70B-Instruct-Q5_K_M",
+      "shard_count": 3,
+      "total":       3,
+      "incomplete":  false,
+      "size_bytes":  51539607552,
+      "size_mb":     49152.0,
+      "shards": [
+        "Llama-70B-Instruct-Q5_K_M-00001-of-00003.gguf",
+        "Llama-70B-Instruct-Q5_K_M-00002-of-00003.gguf",
+        "Llama-70B-Instruct-Q5_K_M-00003-of-00003.gguf"
+      ]
+    },
+    {
+      "kind":       "single",
+      "name":       "Qwen3-8B-Q5_K_M.gguf",
+      "size_bytes": 6081740800,
+      "size_mb":    5800.0
+    }
+  ],
+  "directory": "/Users/nidal/.apollia/models"
+}
+```
+
+Décision architecturale : voir [ADR-075 — Chargement de modèles GGUF multi-fichiers](../adr/ADR-075-gguf-multi-file-loading.md).
+
 ---
 
 ## 7. OpenAICompatibleClient — Feature `cloud`
