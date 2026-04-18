@@ -281,17 +281,6 @@ export interface LlmBackendConfig {
   is_default: boolean;
 }
 
-/**
- * Vue de statut d'un backend LLM dérivée de `LlmBackendConfig`.
- * Conservée pour la compatibilité avec `LlmBackendCard`.
- */
-export interface LlmBackendStatus {
-  name: string;
-  backend_type: "embedded" | "api";
-  model: string;
-  status: "ready" | "loading" | "error";
-}
-
 /** Résultat d'un ping LLM. */
 export interface LlmPingResult {
   backend: string;

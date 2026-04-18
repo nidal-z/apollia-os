@@ -23,8 +23,7 @@
     "lucide-svelte": "^0.460.1",
     "marked": "^17.0.5",
     "svelte-i18n": "^4.0.1",
-    "tailwind-merge": "^2.6.0",
-    "tailwind-variants": "^0.3.0"
+    "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
