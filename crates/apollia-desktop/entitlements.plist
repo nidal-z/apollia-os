@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTD PropertyList-1.0.dtd">
+<!--
+  Apollia OS — hardened runtime entitlements (ADR-073).
+
+  PyO3 embeds a Python interpreter that executes dynamically compiled bytecode
+  and loads `libpython3.13.dylib` shipped from python-build-standalone (signed
+  by Astral, not by our Team ID). These three exceptions are the minimum set
+  required for the bundled Python to load under the hardened runtime.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>

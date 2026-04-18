@@ -70,6 +70,78 @@ fn load_toml_config(config: EmbeddedConfig) -> EmbeddedConfig {
     config
 }
 
+/// Point the embedded Python interpreter at the bundled `python-build-standalone`
+/// distribution shipped inside the app bundle, so PyO3 never resolves against the
+/// user's system Python.
+///
+/// Must be called **before** any PyO3 code (including `init_embedded()`), because
+/// PyO3's `auto-initialize` reads `PYTHONHOME` / `PYTHONPATH` only at first use.
+///
+/// Behaviour:
+/// - If a `python/` directory is found adjacent to the executable (macOS
+///   `Contents/Resources/python/`, Linux `../lib/apollia-os/python/` relative to
+///   `/usr/bin/`, or `../python/` relative to a dev `target/release/` layout),
+///   the interpreter is reconfigured against it.
+/// - If not found, logs a warning and leaves env vars alone (dev mode — the
+///   developer's Homebrew/pyenv Python takes over, same as before).
+fn setup_bundled_python() {
+    let exe = match std::env::current_exe() {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!(error = %e, "current_exe() failed — bundled Python skipped");
+            return;
+        }
+    };
+    let exe_dir = match exe.parent() {
+        Some(p) => p.to_path_buf(),
+        None => return,
+    };
+
+    // Candidate search order — first match wins.
+    let candidates: [std::path::PathBuf; 3] = [
+        // macOS: Contents/MacOS/apollia-desktop → Contents/Resources/python/
+        exe_dir.join("../Resources/python"),
+        // Linux AppImage / .deb: usr/bin/apollia-desktop → usr/lib/apollia-os/python/
+        exe_dir.join("../lib/apollia-os/python"),
+        // Dev build fallback: target/release/apollia-desktop → target/python-bundle/<triple>/python/
+        // (populated by packaging/build-python-bundle.sh during dev)
+        exe_dir.join("../../resources/python"),
+    ];
+
+    let python_root = match candidates.iter().find(|p| p.join("bin/python3.13").exists()) {
+        Some(p) => match p.canonicalize() {
+            Ok(abs) => abs,
+            Err(e) => {
+                tracing::warn!(path = %p.display(), error = %e, "canonicalize() failed on bundled Python");
+                return;
+            }
+        },
+        None => {
+            tracing::warn!(
+                "no bundled Python found adjacent to {} — falling back to system Python",
+                exe.display()
+            );
+            return;
+        }
+    };
+
+    let site_packages = python_root.join("lib/python3.13/site-packages");
+    std::env::set_var("PYTHONHOME", &python_root);
+    std::env::set_var("PYTHONPATH", &site_packages);
+
+    // Help dyld find libpython when the Python interpreter is invoked as a
+    // subprocess (e.g. by the PythonExecutor tool or `python3 -m venv`).
+    #[cfg(target_os = "macos")]
+    std::env::set_var("DYLD_FALLBACK_LIBRARY_PATH", python_root.join("lib"));
+    #[cfg(target_os = "linux")]
+    std::env::set_var("LD_LIBRARY_PATH", python_root.join("lib"));
+
+    tracing::info!(
+        python_root = %python_root.display(),
+        "bundled Python configured — PYTHONHOME/PYTHONPATH exported"
+    );
+}
+
 fn main() {
     // Initialize tracing so Rust logs appear in the terminal during development.
     // RUST_LOG controls verbosity (e.g. RUST_LOG=apollia=debug); defaults to info.
@@ -79,6 +151,9 @@ fn main() {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("apollia=info,warn")),
         )
         .init();
+
+    // Point PyO3 at the bundled Python BEFORE any Python runtime code runs.
+    setup_bundled_python();
 
     // OnceLocks shared between ProductionBackendFactory and main().
     // Populated after init_embedded() returns, before any HTTP request arrives.

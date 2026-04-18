@@ -50,3 +50,10 @@ docs/specs/
 CLAUDE.md
 # Dossier de démonstration — fichiers locaux non versionnés
 demo/
+
+# Python bundle cache (packaging)
+/target/python-bundle/
+
+# Staged Python bundle (rebuilt at release build time)
+/crates/apollia-desktop/resources/python/*
+!/crates/apollia-desktop/resources/python/.placeholder

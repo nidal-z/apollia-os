@@ -30,7 +30,7 @@ from apollia.testing import MockContext
 # ---------------------------------------------------------------------------
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_AGENT_PATH = _PROJECT_ROOT / "agents" / "onboarding-agent.py"
+_AGENT_PATH = _PROJECT_ROOT / "agents" / "system" / "onboarding-agent" / "agent.py"
 
 _spec = importlib.util.spec_from_file_location("onboarding_agent", str(_AGENT_PATH))
 if _spec is None or _spec.loader is None:

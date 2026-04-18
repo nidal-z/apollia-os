@@ -1,0 +1,21 @@
+# Apollia OS — "batteries included" Python site-packages bundled into the
+# desktop DMG/AppImage (ADR-074 §1.b).
+#
+# These packages are pre-installed in the bundled Python distribution so that
+# workers (excel, csv, pdf, …) can import them without any runtime pip install.
+#
+# Versioning policy for v0.1.0: pin exact versions to get reproducible builds
+# across CI and local dev. Upgrade on a schedule, not ad-hoc.
+
+# Data manipulation (excel-worker, csv-data-worker)
+pandas==2.2.3
+openpyxl==3.1.5
+python-dateutil==2.9.0.post0
+
+# PDF extraction (pdf-worker)
+pypdf==5.1.0
+
+# Web fetch + HTML parsing (web_read tool, veille-assistant)
+httpx==0.27.2
+beautifulsoup4==4.12.3
+markdownify==0.13.1

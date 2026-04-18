@@ -1,0 +1,32 @@
+# Apollia OS — agent bundle manifest (ADR-074)
+# Built-in system agent, embedded in the desktop binary at compile time.
+
+[agent]
+name = "onboarding-agent"
+version = "1.5.0"
+description = """\
+Agent d'onboarding conversationnel — fait connaissance avec l'utilisateur \
+de manière naturelle et peuple user-memory avec ses préférences et son \
+contexte de travail.\
+"""
+license = "MIT OR Apache-2.0"
+authors = ["Nidal Zoumita <nidal.zoumita@gmail.com>"]
+tags = ["onboarding", "conversational", "system"]
+
+[agent.manifest]
+agent_type = "system"
+execution_mode = "auto"
+tools_required = []
+tools_optional = []
+memory_namespace = "onboarding-agent"
+supports_streaming = false
+supports_a2a = false
+max_concurrent_tasks = 1
+dangerous_tools_allowed = false
+
+[agent.runtime]
+python = ">=3.11,<3.14"
+apollia_sdk = ">=0.3,<0.4"
+
+[agent.dependencies]
+packages = []

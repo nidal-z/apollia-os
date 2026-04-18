@@ -70,19 +70,23 @@
       {/if}
 
     {:else if question.type === "single_choice" && question.options}
-      <RadioGroup
-        value={value}
-        onchange={(v) => onvaluechange(v)}
-      >
+      <RadioGroup value={value}>
         {#each question.options as option}
-          <label
-            class="flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer
+          <div
+            class="flex items-center rounded-md px-2 py-1.5
                    hover:glass-inset transition-colors
-                   {disabled ? 'opacity-50 cursor-not-allowed' : ''}"
+                   {disabled ? 'opacity-50' : ''}"
           >
-            <RadioItem value={option} {disabled} />
-            <span class="text-[12px] text-foreground">{option}</span>
-          </label>
+            <RadioItem
+              value={option}
+              checked={value === option}
+              onchange={(v) => onvaluechange(v)}
+              {disabled}
+              class="gap-2"
+            >
+              <span class="text-[12px] text-foreground">{option}</span>
+            </RadioItem>
+          </div>
         {/each}
       </RadioGroup>
 
