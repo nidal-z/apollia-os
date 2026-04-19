@@ -5,6 +5,8 @@
   import ChatConfigPanelBody from "./ChatConfigPanelBody.svelte";
   import SessionMetricsPanel from "./SessionMetricsPanel.svelte";
   import MemoryInjectedPanel from "./MemoryInjectedPanel.svelte";
+  import ArtifactsPanel from "./ArtifactsPanel.svelte";
+  import { contextDrawerActiveTab } from "$lib/stores/chatLayout";
 
   interface Props {
     session: ChatSessionDetail | null;
@@ -18,7 +20,16 @@
   let { session, onupdated, onclose, showHeader = true }: Props = $props();
 
   type TabKey = "config" | "metrics" | "memory" | "artifacts";
-  let activeTab = $state<TabKey>("config");
+  // Bind the local state to the shared store so global shortcuts
+  // (e.g. Cmd+Shift+A) can jump to a specific tab from anywhere.
+  let activeTab = $state<TabKey>($contextDrawerActiveTab);
+  $effect(() => {
+    contextDrawerActiveTab.set(activeTab);
+  });
+  $effect(() => {
+    const v = $contextDrawerActiveTab;
+    if (v !== activeTab) activeTab = v;
+  });
 
   const tabs: { key: TabKey; label: string; testid: string }[] = [
     { key: "config", label: "Config", testid: "context-tab-config" },
@@ -115,13 +126,12 @@
       <SessionMetricsPanel sessionId={session.id} />
     {:else if activeTab === "memory" && session?.id}
       <MemoryInjectedPanel sessionId={session.id} />
+    {:else if activeTab === "artifacts" && session?.id}
+      <ArtifactsPanel sessionId={session.id} />
     {:else if activeTab === "artifacts"}
       <div class="flex h-full items-center justify-center px-6 py-10 text-center">
-        <p
-          class="text-xs text-muted-foreground/60 italic"
-          data-testid="context-drawer-placeholder-artifacts"
-        >
-          Artifacts panel — coming in US-SP42-031
+        <p class="text-xs text-muted-foreground/60 italic">
+          Aucune session active.
         </p>
       </div>
     {:else}

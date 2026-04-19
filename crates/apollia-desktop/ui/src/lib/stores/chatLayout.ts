@@ -62,6 +62,10 @@ export const chatViewport: Readable<Viewport> = readable<Viewport>(computeViewpo
 export const contextDrawerOpen = writable<boolean>(false);
 export const sessionsDrawerOpen = writable<boolean>(false);
 
+/** Active tab in the ContextDrawer. Writable so global shortcuts can jump to a specific tab. */
+export type ContextDrawerTab = "config" | "metrics" | "memory" | "artifacts";
+export const contextDrawerActiveTab = writable<ContextDrawerTab>("config");
+
 export const contextDrawerWidth = writable<number>(loadWidth());
 contextDrawerWidth.subscribe((w) => {
   if (typeof localStorage === "undefined") return;

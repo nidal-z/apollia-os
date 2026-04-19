@@ -15,6 +15,7 @@
   import { t } from "svelte-i18n";
   import { Send, Paperclip } from "lucide-svelte";
   import { tourPrefill } from "$lib/stores/tour";
+  import { chatInputAppend } from "$lib/stores/artifacts";
   import { ChatRateLimiter } from "$lib/chat/rateLimit";
   import {
     type PendingAttachment,
@@ -128,6 +129,15 @@
       }
     });
 
+    const unsubscribeAppend = chatInputAppend.subscribe((req) => {
+      if (req === null) return;
+      const suffix = value.length === 0 || value.endsWith("\n") ? "" : " ";
+      value = `${value}${suffix}${req.text}`;
+      autoResize();
+      textareaEl?.focus();
+      chatInputAppend.set(null);
+    });
+
     if (typeof window !== "undefined") {
       const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
       reduceMotion = mq.matches;
@@ -138,13 +148,17 @@
       return () => {
         mq.removeEventListener("change", handler);
         unsubscribe();
+        unsubscribeAppend();
         for (const att of untrack(() => attachments)) {
           if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);
         }
       };
     }
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      unsubscribeAppend();
+    };
   });
 
   $effect(() => {

@@ -192,6 +192,18 @@
     if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "k") {
       event.preventDefault();
       commandPaletteOpen.update((v) => !v);
+      return;
+    }
+    // US-SP42-031 — Cmd/Ctrl+Shift+A: toggle the artifacts tab of the context drawer.
+    if (mod && event.shiftKey && !event.altKey && event.key.toLowerCase() === "a") {
+      event.preventDefault();
+      void (async () => {
+        const { contextDrawerOpen, contextDrawerActiveTab } = await import(
+          "$lib/stores/chatLayout"
+        );
+        contextDrawerActiveTab.set("artifacts");
+        contextDrawerOpen.set(true);
+      })();
     }
   }
 

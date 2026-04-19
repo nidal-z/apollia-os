@@ -7,6 +7,7 @@
 //! resume task).
 
 pub mod agents;
+pub mod artifacts;
 pub mod chat;
 pub mod cli;
 pub mod config;
