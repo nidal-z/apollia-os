@@ -11,9 +11,18 @@
   interface Props {
     message: ChatMessageView;
     sessionId: string;
+    /** When false, the bubble is a continuation inside a group — no timestamp footer. */
+    showTimestamp?: boolean;
+    /** Visual density. "compact" clamps the max-width at 72 % for embedded contexts. */
+    variant?: "default" | "compact";
   }
 
-  let { message, sessionId }: Props = $props();
+  let {
+    message,
+    sessionId,
+    showTimestamp = true,
+    variant = "default",
+  }: Props = $props();
 
   const isUser = $derived(message.role === "user");
   const isOperator = $derived($uiMode === "operator");
@@ -25,6 +34,20 @@
 
   const hasToolCalls = $derived(
     message.tool_calls !== null && message.tool_calls.length > 0,
+  );
+
+  // Adaptive width — B.2. Compact variant falls back to 72 %.
+  const widthClass = $derived(
+    variant === "compact"
+      ? "max-w-[min(78ch,72%)]"
+      : "max-w-[min(82ch,92%)] lg:max-w-[min(78ch,80%)]",
+  );
+
+  // Relief — Warm Glass shadow + subtle border for agent, gradient accent for user.
+  const bubbleClass = $derived(
+    isUser
+      ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-2xl rounded-br-sm shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.35)]"
+      : "bg-card/80 border border-neutral/10 rounded-2xl rounded-bl-sm text-foreground shadow-[0_2px_10px_-4px_rgba(0,0,0,0.08)]",
   );
 
   let copied = $state(false);
@@ -47,24 +70,25 @@
   in:fly={{ y: 4, duration: 200 }}
 >
   <div
-    class="relative max-w-[85%] sm:max-w-[72%] px-3.5 py-2.5 text-[13px] leading-relaxed {isUser
-      ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-sm'
-      : 'bg-card/80 border border-border/30 rounded-2xl rounded-bl-sm text-foreground'}"
+    class="relative {widthClass} px-3.5 py-2.5 text-[13px] leading-relaxed {bubbleClass} {!isUser && message.content ? 'pr-10' : ''}"
   >
-    <!-- Copy button (assistant only) -->
+    <!-- Copy button — floating, backdrop-blur, always reachable on touch (B.61). -->
     {#if message.content && !isUser}
       <button
         onclick={handleCopy}
-        class="absolute -top-1.5 -right-1.5 h-5 w-5 rounded flex items-center justify-center
-          bg-card border border-border/40 text-muted-foreground/50
-          opacity-0 group-hover:opacity-100
-          hover:text-foreground transition-all shadow-sm"
+        class="absolute top-2 right-2 z-10 h-6 w-6 rounded-md flex items-center justify-center
+          bg-card/70 backdrop-blur-sm border border-border/40 text-muted-foreground/60
+          opacity-0 group-hover:opacity-100 focus-visible:opacity-100
+          hover:text-foreground hover:bg-card/90 transition-all shadow-sm
+          supports-[hover:none]:opacity-100"
         title={$t("chat.copy_message")}
+        data-testid="chat-message-copy-{message.id}"
+        aria-label={$t("chat.copy_message")}
       >
         {#if copied}
-          <Check size={10} class="text-success" />
+          <Check size={11} class="text-success" />
         {:else}
-          <Copy size={10} />
+          <Copy size={11} />
         {/if}
       </button>
     {/if}
@@ -86,7 +110,6 @@
         {isOperator}
       />
     {:else if message.metadata?.thinking_trace}
-      <!-- Standalone thinking trace (no tool calls — e.g. reasoning models) -->
       <details class="mt-2 rounded-lg border border-border/20 glass-surface text-[11px]" open>
         <summary class="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-muted-foreground/60 hover:bg-muted/25">
           <span class="text-[10px] italic">{$t("chat.thinking_label", { default: "Reasoning" })}</span>
@@ -98,8 +121,10 @@
       </details>
     {/if}
 
-    <p class="mt-1 text-[10px] {isUser ? 'text-primary-foreground/40 text-right' : 'text-muted-foreground/40 text-left'}">
-      {formattedTime}
-    </p>
+    {#if showTimestamp}
+      <p class="mt-1 text-[10px] {isUser ? 'text-primary-foreground/50 text-right' : 'text-muted-foreground/40 text-left'}">
+        {formattedTime}
+      </p>
+    {/if}
   </div>
 </div>

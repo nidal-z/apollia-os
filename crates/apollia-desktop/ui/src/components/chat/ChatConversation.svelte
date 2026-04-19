@@ -15,7 +15,8 @@
   import { uiMode } from "$lib/stores/mode";
   import { Badge } from "$lib/components/ui/badge";
   import type { ChatSessionDetail, ChatMessageView, ConversationStatsView, UserMemoryProfileView } from "$lib/types";
-  import ChatMessageBubble from "./ChatMessageBubble.svelte";
+  import MessageGroup from "./MessageGroup.svelte";
+  import { groupMessages } from "$lib/chat/groupMessages";
   import ChatInput from "./ChatInput.svelte";
   import StreamingText from "./StreamingText.svelte";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
@@ -115,6 +116,12 @@
   const hasCrossSessionRefs = $derived(
     (conversationStats?.cross_sessions_referenced ?? 0) > 0,
   );
+
+  // US-SP42-025 — group consecutive same-role messages within 5 minutes.
+  // Memoised by reference: messages array is replaced (not mutated) on every
+  // refresh, so $derived recomputes exactly when needed — no thrash during
+  // streaming (tokenBuffer changes don't affect the committed messages array).
+  const messageGroups = $derived(groupMessages(messages ?? []));
 
   let unlistenToken: UnlistenFn | undefined;
   let unlistenChanged: UnlistenFn | undefined;
@@ -632,7 +639,7 @@
     <div
       bind:this={messagesContainer}
       onscroll={handleScroll}
-      class="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+      class="flex-1 overflow-y-auto px-4 py-4 space-y-6"
     >
       {#if (messages ?? []).length === 0 && !isStreaming && !isProcessing}
         <div class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
@@ -647,10 +654,19 @@
           />
         {/if}
 
-        {#each messages ?? [] as message (message.id)}
+        {#each messageGroups as group (group.key)}
+          {@const firstMsg = group.messages[0]}
+          {@const isSingleCrossSession =
+            group.messages.length === 1 &&
+            firstMsg.role === "assistant" &&
+            Boolean(firstMsg.metadata?.cross_session)}
           <div class="relative">
-            <ChatMessageBubble {message} {sessionId} />
-            {#if $uiMode === "builder" && hasCrossSessionRefs && message.role === "assistant" && message.metadata?.cross_session}
+            <MessageGroup
+              {group}
+              {sessionId}
+              agentName={sessionAgentName}
+            />
+            {#if $uiMode === "builder" && hasCrossSessionRefs && isSingleCrossSession}
               <div
                 class="absolute -top-1 -right-1 flex items-center gap-1 rounded-full bg-secondary/20 px-2 py-0.5"
                 data-testid="cross-session-badge"
@@ -664,7 +680,7 @@
 
         {#if isStreaming && sessionMode === "libre"}
           <div class="flex justify-start" data-testid="chat-message-streaming">
-            <div class="max-w-full sm:max-w-[85%] sm:max-w-[72%] rounded-2xl rounded-bl-sm bg-card/80 border border-border/30 px-3.5 py-2.5 text-[13px] text-foreground">
+            <div class="max-w-[min(82ch,92%)] lg:max-w-[min(78ch,80%)] rounded-2xl rounded-bl-sm bg-card/80 border border-neutral/10 px-3.5 py-2.5 text-[13px] text-foreground shadow-[0_2px_10px_-4px_rgba(0,0,0,0.08)]">
               <StreamingText text={tokenBuffer} />
             </div>
           </div>
