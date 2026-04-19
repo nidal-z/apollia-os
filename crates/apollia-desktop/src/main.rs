@@ -601,6 +601,7 @@ fn main() {
             commands::chat::list_chats_by_project,
             commands::chat::orphan_project_chats,
             commands::chat::list_a2a_skills,
+            commands::chat::export_conversation,
             commands::user::get_user_profile,
             commands::user::update_user_profile,
             commands::user::get_user_memory,

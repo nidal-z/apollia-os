@@ -18,6 +18,9 @@
   import MessageGroup from "./MessageGroup.svelte";
   import { groupMessages } from "$lib/chat/groupMessages";
   import ChatInput from "./ChatInput.svelte";
+  import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+  import { exportConversation, type ExportFormat } from "$lib/chat/exportConversation";
+  import type { PendingAttachment } from "$lib/chat/attachments";
   import StreamingText from "./StreamingText.svelte";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
@@ -445,9 +448,30 @@
     userScrolledUp = scrollHeight - scrollTop - clientHeight > 60;
   }
 
-  async function handleSend(content: string): Promise<void> {
+  async function handleSend(content: string, attachments: PendingAttachment[] = []): Promise<void> {
+    // Attachments v1: inline small payloads as fenced blocks, reference larger
+    // files by absolute path. The backend sees a single user message — the
+    // authoritative tool-side ingestion happens via the filesystem HITL flow.
+    let payload = content;
+    if (attachments.length > 0) {
+      const parts: string[] = [];
+      if (content.trim()) parts.push(content);
+      for (const att of attachments) {
+        if (att.base64 && att.kind !== "image") {
+          parts.push(`\n<attachment name="${att.name}" mime="${att.mime}" size="${att.size}">\n${decodeBase64Utf8(att.base64)}\n</attachment>`);
+        } else if (att.absolutePath) {
+          parts.push(`\n<attachment name="${att.name}" path="${att.absolutePath}" size="${att.size}" />`);
+        } else if (att.kind === "image" && att.base64) {
+          parts.push(`\n<attachment name="${att.name}" mime="${att.mime}" encoding="base64">${att.base64}</attachment>`);
+        } else {
+          parts.push(`\n<attachment name="${att.name}" size="${att.size}" />`);
+        }
+      }
+      payload = parts.join("");
+    }
+
     const tempMsg: ChatMessageView = {
-      id: `temp-${Date.now()}`, role: "user", content,
+      id: `temp-${Date.now()}`, role: "user", content: payload,
       tool_calls: null, tool_name: null,
       seq: (messages ?? []).length, created_at: new Date().toISOString(),
     };
@@ -456,7 +480,7 @@
     await tick(); scrollToBottom(true);
 
     try {
-      await invoke<string>("send_chat_message", { sessionId, content });
+      await invoke<string>("send_chat_message", { sessionId, content: payload });
     } catch (err: unknown) {
       isProcessing = false;
       const errMsg: ChatMessageView = {
@@ -466,6 +490,69 @@
         seq: (messages ?? []).length, created_at: new Date().toISOString(),
       };
       messages = [...(messages ?? []), errMsg]; scrollToBottom();
+    }
+  }
+
+  // --- Slash-command plumbing (US-SP42-026) --------------------------------
+  const lastUserMessageText = $derived.by(() => {
+    const msgs = messages ?? [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i]!;
+      if (m.role === "user" && m.content.trim()) return m.content;
+    }
+    return null;
+  });
+
+  function decodeBase64Utf8(b64: string): string {
+    try {
+      const bin = atob(b64);
+      const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+      return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+    } catch {
+      return b64;
+    }
+  }
+
+  async function handleSlashCommand(cmdId: "clear" | "export" | "rename" | "memory" | "tools"): Promise<void> {
+    switch (cmdId) {
+      case "clear":
+        if (confirm($t("chat.close_confirm"))) await handleCloseSession();
+        return;
+      case "rename": {
+        const title = prompt($t("chat.rename_placeholder"), sessionDetail?.title ?? "");
+        if (title !== null && title.trim()) {
+          try { await invoke("rename_chat_session", { sessionId, title: title.trim() }); void refreshSession(); }
+          catch (err) { console.warn("rename_chat_session failed", err); }
+        }
+        return;
+      }
+      case "export":
+        await exportCurrentSession("markdown-with-tools");
+        return;
+      case "memory":
+        onconfigtoggle?.();
+        return;
+      case "tools":
+        onconfigtoggle?.();
+        return;
+    }
+  }
+
+  async function exportCurrentSession(format: ExportFormat): Promise<void> {
+    try {
+      const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
+      const { content, filename, mime } = exportConversation(detail, format);
+      const dest = await saveDialog({
+        defaultPath: filename,
+        filters: [{
+          name: format === "json" ? "JSON" : "Markdown",
+          extensions: [format === "json" ? "json" : "md"],
+        }],
+      });
+      if (!dest) return;
+      await invoke("export_conversation", { destPath: dest, content, mime });
+    } catch (err) {
+      console.warn("export_conversation failed", err);
     }
   }
 
@@ -817,7 +904,12 @@
     </div>
   {/if}
 
-  <ChatInput disabled={inputDisabled} onsend={handleSend} />
+  <ChatInput
+    disabled={inputDisabled}
+    onsend={handleSend}
+    lastUserMessage={lastUserMessageText}
+    oncommand={handleSlashCommand}
+  />
 </div>
 
 {#if !embedded && !onconfigtoggle}

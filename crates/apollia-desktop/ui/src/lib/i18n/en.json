@@ -1441,6 +1441,27 @@
     "delete_confirm": "Delete this conversation?",
     "copy_message": "Copy",
     "send_hint": "Enter to send",
+    "hints": {
+      "send": "to send",
+      "newline": "for new line",
+      "commands": "for commands"
+    },
+    "rate_limit": {
+      "too_fast": "Slow down…",
+      "too_many": "Too many messages — take a breath"
+    },
+    "attachments": {
+      "add": "Attach file",
+      "remove": "Remove attachment"
+    },
+    "commands": {
+      "menu_label": "Slash commands",
+      "clear": { "label": "Close session", "description": "End the current conversation." },
+      "export": { "label": "Export conversation", "description": "Save as Markdown with tool calls." },
+      "rename": { "label": "Rename", "description": "Set a custom title for this conversation." },
+      "memory": { "label": "Memory", "description": "Open the memory tab in the context drawer." },
+      "tools": { "label": "Tools", "description": "Open the tools panel in the context drawer." }
+    },
     "no_sessions": "No conversations",
     "close_confirm": "Close this session?",
     "context_loaded": "Context loaded",

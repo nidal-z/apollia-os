@@ -460,6 +460,27 @@ fn session_detail_to_flat(detail: SessionDetail) -> ChatSessionDetail {
     }
 }
 
+/// Writes exported conversation content to disk.
+///
+/// Thin IPC wrapper around [`std::fs::write`] — the frontend owns the
+/// formatting (Markdown / JSON / Markdown-with-tools) via
+/// `lib/chat/exportConversation.ts`, then calls this to persist at the
+/// path chosen via the native save dialog.
+///
+/// `_mime` is accepted for telemetry parity with the frontend caller but
+/// is not currently recorded; the extension in `dest_path` is authoritative.
+#[tauri::command]
+pub async fn export_conversation(
+    dest_path: String,
+    content: String,
+    #[allow(unused_variables)] mime: Option<String>,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || std::fs::write(&dest_path, content.as_bytes()))
+        .await
+        .map_err(|e| format!("export_conversation join: {e}"))?
+        .map_err(|e| format!("export_conversation write: {e}"))
+}
+
 /// Flat view of an A2A skill for the frontend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct A2ASkillView {

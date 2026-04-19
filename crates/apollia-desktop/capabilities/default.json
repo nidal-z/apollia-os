@@ -7,6 +7,7 @@
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-confirm",
+    "dialog:allow-save",
     "notification:default",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",

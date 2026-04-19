@@ -1441,6 +1441,27 @@
     "delete_confirm": "Supprimer cette conversation ?",
     "copy_message": "Copier",
     "send_hint": "Entrée pour envoyer",
+    "hints": {
+      "send": "pour envoyer",
+      "newline": "pour un saut de ligne",
+      "commands": "pour les commandes"
+    },
+    "rate_limit": {
+      "too_fast": "Ralentissez…",
+      "too_many": "Trop de messages — respirez"
+    },
+    "attachments": {
+      "add": "Joindre un fichier",
+      "remove": "Retirer la pièce jointe"
+    },
+    "commands": {
+      "menu_label": "Commandes slash",
+      "clear": { "label": "Fermer la session", "description": "Terminer la conversation en cours." },
+      "export": { "label": "Exporter la conversation", "description": "Enregistrer en Markdown avec les appels d'outils." },
+      "rename": { "label": "Renommer", "description": "Donner un titre personnalisé à cette conversation." },
+      "memory": { "label": "Mémoire", "description": "Ouvrir l'onglet mémoire du tiroir de contexte." },
+      "tools": { "label": "Outils", "description": "Ouvrir le panneau d'outils du tiroir de contexte." }
+    },
     "no_sessions": "Aucune conversation",
     "close_confirm": "Clôturer cette session ?",
     "context_loaded": "Contexte chargé",
