@@ -1,8 +1,9 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
-  import { FolderOpen, Plus, Trash2, Edit2, Eye } from "lucide-svelte";
+  import { FolderOpen, Plus, Trash2, Home } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+  import { Breadcrumbs, type BreadcrumbItem } from "$lib/components/ui/breadcrumbs";
   import { addToast } from "$lib/components/ui/toast/store";
   import { projects } from "$lib/stores/projects";
   import type { ProjectDetail, ProjectSummary } from "$lib/types";
@@ -94,9 +95,24 @@
     }
     void loadProjects();
   }
+
+  const breadcrumbItems = $derived<BreadcrumbItem[]>(
+    selectedProject && detailOpen
+      ? [
+          { label: $t("nav.home"), icon: Home },
+          { label: $t("projects.title") },
+          { label: selectedProject.name },
+        ]
+      : [
+          { label: $t("nav.home"), icon: Home },
+          { label: $t("projects.title") },
+        ],
+  );
 </script>
 
 <div class="mx-auto w-full max-w-4xl space-y-6" data-testid="projects-page">
+  <Breadcrumbs items={breadcrumbItems} />
+
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div>

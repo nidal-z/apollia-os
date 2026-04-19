@@ -13,6 +13,7 @@
   import EmptyState from "../components/common/EmptyState.svelte";
   import { Database, Wrench, Brain } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
+  import { DataTable, type Column } from "$lib/components/ui/data-table";
   import { LoadingShimmer } from "$lib/components/feedback";
   import { addToast } from "$lib/components/ui/toast/store";
 
@@ -251,13 +252,7 @@
 
   <!-- Tools Tab -->
   {#if activeTab === "tools"}
-    {#if loadingTools}
-      <div class="space-y-2 py-4">
-        <LoadingShimmer width="100%" height="2.5rem" />
-        <LoadingShimmer width="100%" height="2.5rem" />
-        <LoadingShimmer width="100%" height="2.5rem" />
-      </div>
-    {:else if tools.length === 0}
+    {#if !loadingTools && tools.length === 0}
       <EmptyState
         icon={Wrench}
         title={$t('memory.tools_empty_title')}
@@ -265,35 +260,36 @@
         page="tools"
       />
     {:else}
-      <div class="rounded-xl glass-card glass-border overflow-x-auto" data-testid="tools-list">
-        <table class="w-full min-w-[480px] text-sm">
-          <thead>
-            <tr class="border-b border-border/50 text-left text-xs text-muted-foreground/60 uppercase tracking-wider">
-              <th scope="col" class="px-4 py-3 font-medium">{$t('memory.tools_col_name')}</th>
-              <th scope="col" class="px-4 py-3 font-medium">{$t('memory.tools_col_kind')}</th>
-              <th scope="col" class="px-4 py-3 font-medium">{$t('memory.tools_col_version')}</th>
-              <th scope="col" class="px-4 py-3 font-medium hidden sm:table-cell">{$t('memory.tools_col_description')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each tools as tool (tool.name)}
-              {@const badge = kindBadge(tool.kind)}
-              <tr
-                class="border-b border-border/20 cursor-pointer transition-colors hover:bg-muted/30"
-                onclick={() => selectTool(tool.name)}
-                data-testid="tool-row"
-              >
-                <td class="px-4 py-3 font-medium">{tool.name}</td>
-                <td class="px-4 py-3">
-                  <Badge variant={badge.variant}>{badge.label}</Badge>
-                </td>
-                <td class="px-4 py-3 text-muted-foreground">{tool.version}</td>
-                <td class="px-4 py-3 text-muted-foreground truncate max-w-xs hidden sm:table-cell">{tool.description}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+      {#snippet nameCell(tool: ToolSummary)}
+        <span class="font-medium text-foreground">{tool.name}</span>
+      {/snippet}
+      {#snippet kindCell(tool: ToolSummary)}
+        {@const badge = kindBadge(tool.kind)}
+        <Badge variant={badge.variant}>{badge.label}</Badge>
+      {/snippet}
+      {#snippet versionCell(tool: ToolSummary)}
+        <span class="text-muted-foreground">{tool.version}</span>
+      {/snippet}
+      {#snippet descCell(tool: ToolSummary)}
+        <span class="text-muted-foreground truncate block max-w-xs">{tool.description}</span>
+      {/snippet}
+
+      {@const toolColumns = [
+        { key: "name", header: $t("memory.tools_col_name"), sortable: true, cell: nameCell },
+        { key: "kind", header: $t("memory.tools_col_kind"), sortable: true, width: "9rem", cell: kindCell },
+        { key: "version", header: $t("memory.tools_col_version"), sortable: true, width: "8rem", cell: versionCell },
+        { key: "description", header: $t("memory.tools_col_description"), hideOn: "sm", cell: descCell },
+      ] as Array<Column<ToolSummary>>}
+
+      <DataTable
+        data={tools}
+        columns={toolColumns}
+        rowKey={(t) => t.name}
+        loading={loadingTools}
+        onrowclick={(t) => selectTool(t.name)}
+        emptyLabel={$t('memory.tools_empty_title')}
+        class="min-w-0"
+      />
     {/if}
   {/if}
 </div>

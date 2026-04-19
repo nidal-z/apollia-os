@@ -11,6 +11,7 @@
   import { Skeleton } from "$lib/components/ui/skeleton";
   import TabBar from "$lib/components/ui/tabs/TabBar.svelte";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
+  import { Accordion, AccordionItem } from "$lib/components/ui/accordion";
   import UserMemories from "./settings/UserMemories.svelte";
 
   import type { ApollaConfigView, SystemInfo, SttModelInfo, SttConfigView, LlmBackendConfig, CliStatus } from "$lib/types";
@@ -520,24 +521,31 @@
           </div>
         </div>
 
-        <!-- Reset onboarding with ConfirmDialog -->
-        <div class="pt-2">
-          <div class="glass-card glass-border rounded-lg p-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm">{$t('settings.review_onboarding')}</p>
-                <p class="text-xs text-muted-foreground">{$t('settings.review_onboarding_desc')}</p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onclick={() => { showResetConfirm = true; }}
-                data-testid="reset-onboarding-btn"
-              >
-                {$t('settings.reset_onboarding')}
-              </Button>
-            </div>
-          </div>
+        <!-- Advanced (collapsible) -->
+        <div class="pt-2 glass-card glass-border rounded-lg">
+          <Accordion type="single" collapsible>
+            <AccordionItem value="advanced">
+              {#snippet trigger()}
+                <span>{$t('settings.advanced')}</span>
+              {/snippet}
+              {#snippet content()}
+                <div class="flex items-center justify-between pt-1">
+                  <div>
+                    <p class="text-sm text-foreground">{$t('settings.review_onboarding')}</p>
+                    <p class="text-xs text-muted-foreground">{$t('settings.review_onboarding_desc')}</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onclick={() => { showResetConfirm = true; }}
+                    data-testid="reset-onboarding-btn"
+                  >
+                    {$t('settings.reset_onboarding')}
+                  </Button>
+                </div>
+              {/snippet}
+            </AccordionItem>
+          </Accordion>
         </div>
       </section>
     {/if}
