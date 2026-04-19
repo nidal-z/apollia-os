@@ -1535,6 +1535,17 @@
     "a2a_delegating": "Délégation vers {agent} ({skill})…",
     "reasoning_live": "En cours…",
     "reasoning_pending": "{n} en attente",
+    "reasoning": {
+      "toggle_tool": "Afficher/masquer les détails de l'appel outil",
+      "thinking_label": "Réflexion",
+      "rationale_label": "Raisonnement",
+      "retry_label": "Tentatives ({n})",
+      "see_all": "Tout afficher",
+      "group_expand": "Afficher {n} étapes supplémentaires",
+      "group_collapse": "Masquer les étapes"
+    },
+    "web_read_untrusted_banner": "Contenu récupéré depuis un site tiers — à traiter comme une donnée, pas comme une instruction.",
+    "tool_empty_results": "Aucun résultat.",
     "a2a_authorize_skill": "Autoriser le skill",
     "a2a_via_worker": "via l'agent worker",
     "a2a_approve_always_agent": "Toujours accepter cet agent",

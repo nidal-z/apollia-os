@@ -5,8 +5,7 @@
   import type { ChatMessageView } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
   import { MarkdownContent } from "$lib/components/ui/markdown";
-  import { Separator } from "$lib/components/ui/separator";
-  import ReasoningTraceCard from "./ReasoningTraceCard.svelte";
+  import ReasoningSequence from "./ReasoningSequence.svelte";
 
   interface Props {
     message: ChatMessageView;
@@ -101,24 +100,8 @@
       {/if}
     {/if}
 
-    {#if hasToolCalls}
-      <ReasoningTraceCard
-        toolCalls={message.tool_calls ?? []}
-        thinkingText={(message.metadata?.thinking_trace as string | null) ?? null}
-        {sessionId}
-        messageId={message.id}
-        {isOperator}
-      />
-    {:else if message.metadata?.thinking_trace}
-      <details class="mt-2 rounded-lg border border-border/20 glass-surface text-[11px]" open>
-        <summary class="flex cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-muted-foreground/60 hover:bg-muted/25">
-          <span class="text-[10px] italic">{$t("chat.thinking_label", { default: "Reasoning" })}</span>
-        </summary>
-        <Separator class="my-1.5 border-border/15" />
-        <div class="px-2.5 py-2 italic leading-relaxed text-muted-foreground/70">
-          {message.metadata.thinking_trace}
-        </div>
-      </details>
+    {#if hasToolCalls || message.metadata?.thinking_trace}
+      <ReasoningSequence {message} {sessionId} {isOperator} />
     {/if}
 
     {#if showTimestamp}
