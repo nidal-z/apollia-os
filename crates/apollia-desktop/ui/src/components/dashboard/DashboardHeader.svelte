@@ -2,6 +2,7 @@
   import { t } from "svelte-i18n";
   import { agents } from "$lib/stores/agents";
   import { tasks } from "$lib/stores/tasks";
+  import { Card } from "$lib/components/ui/card";
 
   function greetingKey(): string {
     const hour = new Date().getHours();
@@ -22,8 +23,9 @@
   });
 </script>
 
-<div
-  class="relative flex items-end justify-between overflow-hidden rounded-2xl bg-gradient-surface px-5 py-5 shadow-elev-1"
+<Card
+  premium
+  class="relative flex items-end justify-between overflow-hidden px-5 py-5"
   data-testid="dashboard-header"
 >
   <!-- Soft primary wash — grounds the hero in the brand without overpowering. -->
@@ -42,4 +44,4 @@
       {$t('dashboard.summary', { values: { agents: activeCount, tasks: todayTaskCount() } })}
     </span>
   </div>
-</div>
+</Card>

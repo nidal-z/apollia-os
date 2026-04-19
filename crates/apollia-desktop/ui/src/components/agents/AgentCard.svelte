@@ -275,8 +275,9 @@
         </Button>
       {/if}
       {#if !isRunning && isInstalled && agent.install_path}
-        <Button size="sm" variant="primary-solid" class="h-6 px-2 text-[11px] gap-1" onclick={handleStart} disabled={startLoading} data-testid="agent-start-btn">
-          <Play size={10} /> {startLoading ? $t("agents.starting_agent") : $t("agents.start")}
+        <Button size="sm" variant="primary-solid" class="h-6 px-2 text-[11px] gap-1" onclick={handleStart} loading={startLoading} data-testid="agent-start-btn">
+          {#if !startLoading}<Play size={10} />{/if}
+          {startLoading ? $t("agents.starting_agent") : $t("agents.start")}
         </Button>
       {/if}
       {#if agent.id}

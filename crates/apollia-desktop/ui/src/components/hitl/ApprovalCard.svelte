@@ -136,7 +136,7 @@
           </h3>
           <code class="text-[11px] text-muted-foreground">{shortId(approval.task_id)}</code>
         </div>
-        <Badge variant={isOverThreshold ? "destructive" : "warning"}>
+        <Badge variant={isOverThreshold ? "gradient-destructive" : "gradient-warning"}>
           {formatElapsed(elapsedMs)}
         </Badge>
       </div>
