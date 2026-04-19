@@ -897,7 +897,15 @@
       "accept_failed": "Failed to accept insight",
       "reject_failed": "Failed to reject insight",
       "update_failed": "Failed to update insight",
-      "load_recent_failed": "Failed to load recent extractions"
+      "load_recent_failed": "Failed to load recent extractions",
+      "source_quote_label": "Source",
+      "reasoning_label": "Why this was extracted",
+      "reject_reason_label": "Rejection reason",
+      "reject_reason_placeholder": "Explain why this insight shouldn't be kept…",
+      "reject_all_disabled_hint": "reject each entry with a reason",
+      "tab_pending": "Pending",
+      "tab_rejected": "Rejected",
+      "rejected_empty": "No rejected insights yet."
     }
   },
   "notifications": {

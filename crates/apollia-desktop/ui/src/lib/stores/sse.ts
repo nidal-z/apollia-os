@@ -27,6 +27,7 @@ import type {
   ChatSessionSummary,
   PlanCacheHitEvent,
   InsightEntry,
+  RejectedInsightEntry,
 } from "$lib/types";
 import { onboardingStore } from "./onboarding";
 import { currentRoute, navigateTo } from "./navigation";
@@ -76,6 +77,13 @@ export const lastAgentMessage = writable<AgentMessage | null>(null);
 
 /** Insights extracted from the most recent session by LLM analysis. */
 export const extractedInsights = writable<InsightEntry[]>([]);
+
+/**
+ * Rejected insights kept in-memory for audit (US-SP42-042). Populated when the
+ * user rejects an insight with a reason; surfaced in the "Rejected" tab of
+ * InsightsFeedback so the rationale remains visible.
+ */
+export const rejectedInsights = writable<RejectedInsightEntry[]>([]);
 
 /** Real-time session LLM cost — updated on every TokenBudgetUpdated event. */
 export const sessionBudget = writable<SessionBudgetState | null>(null);

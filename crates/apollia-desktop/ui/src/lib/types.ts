@@ -894,6 +894,21 @@ export interface InsightEntry {
   category: "preference" | "habit" | "context";
   confidence: number;
   source: string;
+  /** Verbatim quote from the conversation that the insight was extracted from. */
+  source_quote?: string;
+  /** Short rationale provided by the extraction agent explaining why this insight was kept. */
+  extraction_reasoning?: string;
+}
+
+/** Outcome of a memory-write proposal (US-SP42-042). */
+export type MemoryWriteOutcome =
+  | { kind: "accepted" }
+  | { kind: "rejected"; reason: string };
+
+/** An insight that was rejected, kept for audit in the "Rejected" tab. */
+export interface RejectedInsightEntry extends InsightEntry {
+  rejected_reason: string;
+  rejected_at: string;
 }
 
 /** Événement de cache hit pour un plan d'exécution. */

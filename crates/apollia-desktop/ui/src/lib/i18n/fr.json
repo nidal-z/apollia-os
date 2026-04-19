@@ -897,7 +897,15 @@
       "accept_failed": "Échec de l'acceptation de l'insight",
       "reject_failed": "Échec du rejet de l'insight",
       "update_failed": "Échec de la mise à jour de l'insight",
-      "load_recent_failed": "Échec du chargement des extractions récentes"
+      "load_recent_failed": "Échec du chargement des extractions récentes",
+      "source_quote_label": "Source",
+      "reasoning_label": "Pourquoi cet insight a été extrait",
+      "reject_reason_label": "Raison du rejet",
+      "reject_reason_placeholder": "Expliquez pourquoi cet insight ne doit pas être conservé…",
+      "reject_all_disabled_hint": "rejeter chaque entrée avec une raison",
+      "tab_pending": "En attente",
+      "tab_rejected": "Rejetés",
+      "rejected_empty": "Aucun insight rejeté pour le moment."
     }
   },
   "notifications": {
