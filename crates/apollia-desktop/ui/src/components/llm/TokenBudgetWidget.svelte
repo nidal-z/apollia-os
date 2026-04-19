@@ -1,5 +1,6 @@
 <script lang="ts">
   import { sessionBudget } from "$lib/stores/sse";
+  import { t } from "svelte-i18n";
 
   /**
    * Formats a USD cost for display.
@@ -45,7 +46,7 @@
     {#if budget.threshold_exceeded}
       <span
         class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold leading-none"
-        aria-label="Cost threshold exceeded"
+        aria-label={$t("a11y.cost_threshold_exceeded")}
       >!</span>
     {/if}
   </div>

@@ -2,6 +2,7 @@
   import { cn } from "$lib/utils";
   import { fly } from "svelte/transition";
   import { X, CheckCircle, AlertCircle, Info } from "lucide-svelte";
+  import { t } from "svelte-i18n";
 
   interface Props {
     message: string;
@@ -83,7 +84,7 @@
     <button
       class="rounded-md p-0.5 text-muted-foreground hover:text-foreground transition-colors"
       onclick={handleDismiss}
-      aria-label="Dismiss"
+      aria-label={$t("a11y.dismiss")}
     >
       <X size={14} />
     </button>

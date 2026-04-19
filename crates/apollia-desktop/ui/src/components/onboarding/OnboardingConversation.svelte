@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import { Sparkles } from "lucide-svelte";
   import ChatConversation from "../chat/ChatConversation.svelte";
   import TopicProgressBar from "./TopicProgressBar.svelte";
@@ -103,8 +104,8 @@
     <div class="onboarding-logo-wrap">
       <Sparkles size={28} strokeWidth={1.5} class="text-white" />
     </div>
-    <h1 class="onboarding-title">Bienvenue</h1>
-    <p class="onboarding-subtitle">Faisons connaissance pour personnaliser votre exp&eacute;rience.</p>
+    <h1 class="onboarding-title">{$t("onboarding_welcome.welcome_heading")}</h1>
+    <p class="onboarding-subtitle">{$t("onboarding_welcome.welcome_subheading")}</p>
   </header>
 
   <main class="onboarding-chat-area">
@@ -119,12 +120,12 @@
       </div>
     {:else if !isLoading}
       <div class="onboarding-error">
-        <p>Impossible de d&eacute;marrer la conversation d'onboarding.</p>
+        <p>{$t("onboarding_welcome.start_failed")}</p>
         <button
           class="onboarding-error-btn"
           onclick={handleSkip}
         >
-          Continuer vers le tableau de bord
+          {$t("onboarding_welcome.continue_to_dashboard")}
         </button>
       </div>
     {/if}
@@ -132,14 +133,14 @@
     {#if isCompleted}
       <div class="onboarding-completion">
         <p class="onboarding-completion-text">
-          Merci ! Apollia est maintenant personnalis&eacute; pour vous.
+          {$t("onboarding_welcome.completion_text")}
         </p>
         <button
           class="onboarding-start-btn"
           data-testid="onboarding-start-btn"
           onclick={handleStartClick}
         >
-          Commencer
+          {$t("onboarding_welcome.start")}
         </button>
       </div>
     {/if}
@@ -153,7 +154,7 @@
         data-testid="onboarding-skip-btn"
         onclick={handleSkip}
       >
-        Passer pour l'instant
+        {$t("onboarding_welcome.skip_for_now")}
       </button>
     {/if}
   </footer>

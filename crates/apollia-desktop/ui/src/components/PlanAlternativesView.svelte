@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import { GitBranch, Zap } from "lucide-svelte";
   import { slide } from "svelte/transition";
   import { Button } from "$lib/components/ui/button";
@@ -65,7 +66,7 @@
   <!-- Header -->
   <div class="flex items-center gap-2 text-sm font-semibold text-foreground">
     <GitBranch class="h-4 w-4 text-primary" />
-    <span>Choisissez un plan d'exécution</span>
+    <span>{$t("chat.plan_alternatives.choose_plan")}</span>
   </div>
 
   <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -78,7 +79,7 @@
     >
       <div class="flex items-center justify-between">
         <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Plan A — conservateur
+          {$t("chat.plan_alternatives.plan_a_label")}
         </span>
         <span class="text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5">
           t={tempA}
@@ -89,7 +90,7 @@
         {#each planA.steps as step (step.step_id)}
           <li class="leading-snug">{step.description}</li>
         {:else}
-          <li class="text-muted-foreground italic">Aucune étape.</li>
+          <li class="text-muted-foreground italic">{$t("chat.plan_alternatives.no_steps")}</li>
         {/each}
       </ol>
 
@@ -101,7 +102,7 @@
         onclick={() => choosePlan("plan_a")}
         data-testid="choose-plan-a"
       >
-        {chosen === "plan_a" ? "✔ Sélectionné" : "Choisir Plan A"}
+        {chosen === "plan_a" ? $t("chat.plan_alternatives.selected_a") : $t("chat.plan_alternatives.choose_plan_a")}
       </Button>
     </div>
 
@@ -114,7 +115,7 @@
     >
       <div class="flex items-center justify-between">
         <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Plan B — exploratoire
+          {$t("chat.plan_alternatives.plan_b_label")}
         </span>
         <span class="text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5">
           t={tempB}
@@ -125,7 +126,7 @@
         {#each planB.steps as step (step.step_id)}
           <li class="leading-snug">{step.description}</li>
         {:else}
-          <li class="text-muted-foreground italic">Aucune étape.</li>
+          <li class="text-muted-foreground italic">{$t("chat.plan_alternatives.no_steps")}</li>
         {/each}
       </ol>
 
@@ -139,9 +140,9 @@
       >
         {#if chosen === "plan_b"}
           <Zap class="h-3 w-3 mr-1" />
-          Sélectionné
+          {$t("chat.plan_alternatives.selected_b")}
         {:else}
-          Choisir Plan B
+          {$t("chat.plan_alternatives.choose_plan_b")}
         {/if}
       </Button>
     </div>

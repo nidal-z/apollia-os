@@ -62,7 +62,7 @@
       class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
       onclick={goBack}
       disabled={!$canGoBack}
-      aria-label="Back (Cmd+[)"
+      aria-label={$t("a11y.back_shortcut")}
       data-testid="nav-back"
     >
       <ChevronLeft size={18} strokeWidth={1.75} />
@@ -71,7 +71,7 @@
       class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
       onclick={goForward}
       disabled={!$canGoForward}
-      aria-label="Forward (Cmd+])"
+      aria-label={$t("a11y.forward_shortcut")}
       data-testid="nav-forward"
     >
       <ChevronRight size={18} strokeWidth={1.75} />

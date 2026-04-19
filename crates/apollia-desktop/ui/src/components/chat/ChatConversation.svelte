@@ -529,7 +529,7 @@
       <button
         onclick={onclose}
         class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
-        aria-label="Close"
+        aria-label={$t("a11y.close")}
         data-testid="chat-close-button"
       >
         <X size={14} />

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
+  import { t } from "svelte-i18n";
 
   let isRecording = $state(true);
   let hotkey = $state("…");
@@ -126,7 +127,7 @@
       {/each}
     </div>
     <span class="hint">
-      {hotkey} pour arrêter · <kbd>Esc</kbd> pour annuler
+      {$t("chat.recording_hotkey_hint", { values: { hotkey } })}
     </span>
   </div>
 {/if}
@@ -198,12 +199,4 @@
     flex-shrink: 0;
   }
 
-  kbd {
-    font-family: inherit;
-    font-size: 10px;
-    color: inherit;
-    background: transparent;
-    border: none;
-    padding: 0;
-  }
 </style>

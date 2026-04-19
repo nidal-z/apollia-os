@@ -76,7 +76,7 @@
         <div class="mb-1 flex items-center gap-1.5">
           <BrainCircuit size={12} class="text-primary/50" />
           <span class="text-[10px] font-medium text-primary/50">
-            {isThinking && segment === segments[segments.length - 1] ? "Thinking..." : "Thought"}
+            {isThinking && segment === segments[segments.length - 1] ? $t("chat.thinking") : $t("chat.streaming_thought")}
           </span>
         </div>
         <span class="text-[12px] italic text-muted-foreground/70">{@html renderMarkdown(segment.content)}</span>

@@ -168,7 +168,7 @@
       <div class="flex items-center gap-1">
         {#if agent.agent_type === "worker"}
           <Badge variant="outline" class="text-[9px] px-1.5 py-0 border-secondary/40 text-secondary/80 gap-0.5" data-testid="agent-worker-badge">
-            <Zap size={8} />Worker
+            <Zap size={8} />{$t("common.worker_badge")}
           </Badge>
         {/if}
         {#if !isInstalled}

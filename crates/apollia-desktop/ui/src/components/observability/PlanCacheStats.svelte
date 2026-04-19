@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { t } from "svelte-i18n";
   import type { PlanCacheStats } from "$lib/types";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
@@ -56,7 +57,7 @@
     clearing = true;
     try {
       await invoke("clear_plan_cache");
-      addToast(`Cache purgé (${previousTotal} entrées supprimées)`, "success");
+      addToast($t("observability.plan_cache.toast_purged", { values: { count: previousTotal } }), "success");
       await loadStats();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -75,7 +76,7 @@
 <div data-testid="plan-cache-stats" class="space-y-6">
   <!-- Header with purge button -->
   <div class="flex items-center justify-between">
-    <h2 class="text-lg font-semibold">Plan Cache</h2>
+    <h2 class="text-lg font-semibold">{$t("observability.plan_cache.title")}</h2>
     <Button
       variant="destructive"
       size="sm"
@@ -84,7 +85,7 @@
       data-testid="plan-cache-clear-btn"
     >
       <Trash2 class="mr-2 h-4 w-4" />
-      Purger le cache
+      {$t("observability.plan_cache.purge_button")}
     </Button>
   </div>
 
@@ -100,8 +101,8 @@
   {:else if isEmpty}
     <EmptyState
       icon={Archive}
-      title="Aucun plan en cache"
-      subtitle="Les plans seront mis en cache automatiquement lors des prochaines exécutions orchestrées."
+      title={$t("observability.plan_cache.empty_title")}
+      subtitle={$t("observability.plan_cache.empty_subtitle")}
       page="plan-cache"
     />
 
@@ -115,7 +116,7 @@
       >
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
           <Database class="h-4 w-4" />
-          Total Entries
+          {$t("observability.plan_cache.total_entries")}
         </div>
         <p class="mt-2 text-2xl font-semibold">{stats.total_entries}</p>
       </div>
@@ -127,11 +128,11 @@
       >
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
           <TrendingUp class="h-4 w-4" />
-          Hit Rate
+          {$t("observability.plan_cache.hit_rate")}
         </div>
         <p class="mt-2 text-2xl font-semibold {hitRateColorClass}">
           {#if stats.cache_hits + stats.cache_misses === 0}
-            N/A
+            {$t("common.na")}
           {:else}
             {stats.hit_rate_pct.toFixed(1)}%
           {/if}
@@ -145,7 +146,7 @@
       >
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
           <CheckCircle class="h-4 w-4" />
-          Cache Hits
+          {$t("observability.plan_cache.cache_hits")}
         </div>
         <p class="mt-2 text-2xl font-semibold">{stats.cache_hits}</p>
       </div>
@@ -157,7 +158,7 @@
       >
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
           <XCircle class="h-4 w-4" />
-          Cache Misses
+          {$t("observability.plan_cache.cache_misses")}
         </div>
         <p class="mt-2 text-2xl font-semibold">{stats.cache_misses}</p>
       </div>
@@ -169,10 +170,10 @@
     open={confirmVisible}
     onclose={closePurgeDialog}
     onconfirm={confirmPurge}
-    title="Purger le cache de plans"
-    message="Voulez-vous vider les {stats?.total_entries ?? 0} entrées du cache ? Les prochaines exécutions orchestrées devront régénérer leurs plans via LLM."
-    confirmLabel="Purger"
-    cancelLabel="Annuler"
+    title={$t("observability.plan_cache.dialog_title")}
+    message={$t("observability.plan_cache.dialog_message", { values: { count: stats?.total_entries ?? 0 } })}
+    confirmLabel={$t("observability.plan_cache.dialog_confirm")}
+    cancelLabel={$t("common.cancel")}
     loading={clearing}
     data-testid="plan-cache-purge-dialog"
   />

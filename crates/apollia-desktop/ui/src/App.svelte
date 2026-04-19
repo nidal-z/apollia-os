@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { get } from "svelte/store";
-  import { isLoading } from "svelte-i18n";
+  import { isLoading, t } from "svelte-i18n";
   import Sidebar from "./components/layout/Sidebar.svelte";
   import Main from "./components/layout/Main.svelte";
   import { SkipToContent } from "$lib/components/layout";
@@ -108,7 +108,7 @@
       class="flex h-screen w-screen items-center justify-center bg-background text-foreground"
       data-testid="app-loading"
     >
-      <p class="text-sm text-muted-foreground">Loading…</p>
+      <p class="text-sm text-muted-foreground">{$t("common.loading")}</p>
     </div>
   {:else if $onboardingStore.completed || $onboardingStore.phase === "done"}
     <CompanionContextProvider>

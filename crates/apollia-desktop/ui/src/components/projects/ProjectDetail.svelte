@@ -264,7 +264,7 @@
       <button
         class="ml-auto h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
         onclick={onclose}
-        aria-label="Close"
+        aria-label={$t("a11y.close")}
       >
         <X size={16} strokeWidth={1.75} />
       </button>
@@ -295,7 +295,7 @@
       {#if project.workspace_path}
         <section class="space-y-1.5">
           <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-            Workspace
+            {$t("projects.workspace_label")}
           </p>
           <p class="text-sm font-mono text-muted-foreground bg-muted/40 px-3 py-1.5 rounded-md truncate">
             {project.workspace_path}
@@ -347,7 +347,7 @@
                 <span class="truncate">{agent.name}</span>
               </button>
             {:else}
-              <p class="text-xs text-muted-foreground px-2 py-1">Aucun agent disponible</p>
+              <p class="text-xs text-muted-foreground px-2 py-1">{$t("projects.no_agents_available")}</p>
             {/each}
           </div>
         {/if}
@@ -395,7 +395,7 @@
                 <span class="text-[10px] text-muted-foreground/60 font-mono">{pt.type}</span>
               </button>
             {:else}
-              <p class="text-xs text-muted-foreground px-2 py-1">Tous les providers sont déjà ajoutés</p>
+              <p class="text-xs text-muted-foreground px-2 py-1">{$t("projects.all_providers_added")}</p>
             {/each}
           </div>
         {/if}

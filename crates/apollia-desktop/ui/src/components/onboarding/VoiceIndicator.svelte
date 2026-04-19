@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
+
   interface Props {
     /** Whether the STT engine is available. When false, nothing is rendered. */
     sttAvailable: boolean;
@@ -28,7 +30,7 @@
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
-      aria-label="Microphone"
+      aria-label={$t("a11y.microphone")}
     >
       <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3Z" />
       <path d="M19 10v2a7 7 0 0 1-14 0v-2" />

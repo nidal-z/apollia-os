@@ -357,7 +357,7 @@
                 <Input
                   id="step-{index}-id"
                   class="h-8 px-2 py-1.5 text-xs {stepIdErrors[index] ? 'border-destructive' : ''}"
-                  placeholder="extract, validate, generate..."
+                  placeholder={$t("pipelines.field_steps_placeholder")}
                   bind:value={step.id}
                   data-testid="pipeline-step-{index}-id"
                 />
@@ -472,14 +472,14 @@
                     </Select>
                     <Input
                       class="h-8 flex-1 px-2 py-1 text-xs"
-                      placeholder="field"
+                      placeholder={$t("pipelines.field_condition_field_placeholder")}
                       aria-label={$t("pipelines.field_condition_field")}
                       bind:value={step.conditionField}
                       data-testid="pipeline-step-{index}-condition-field"
                     />
                     <Input
                       class="h-8 flex-1 px-2 py-1 text-xs"
-                      placeholder="value"
+                      placeholder={$t("pipelines.field_condition_value_placeholder")}
                       aria-label={$t("pipelines.field_condition_value")}
                       bind:value={step.conditionValue}
                       data-testid="pipeline-step-{index}-condition-value"

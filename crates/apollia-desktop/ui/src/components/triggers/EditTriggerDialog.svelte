@@ -297,11 +297,11 @@
           bind:value={sourceType}
           data-testid="edit-trigger-source-select"
         >
-          <option value="cron">Cron</option>
-          <option value="interval">Interval</option>
-          <option value="oneshot">Oneshot</option>
-          <option value="file_watch">File Watch</option>
-          <option value="webhook">Webhook</option>
+          <option value="cron">{$t("triggers.field_type_cron")}</option>
+          <option value="interval">{$t("triggers.field_type_interval")}</option>
+          <option value="oneshot">{$t("triggers.field_type_oneshot")}</option>
+          <option value="file_watch">{$t("triggers.field_type_file_watch")}</option>
+          <option value="webhook">{$t("triggers.field_type_webhook")}</option>
         </Select>
       </div>
 

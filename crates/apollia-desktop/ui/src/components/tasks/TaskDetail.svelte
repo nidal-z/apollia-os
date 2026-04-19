@@ -138,7 +138,7 @@
             <button
               class="rounded-md p-1.5 text-muted-foreground hover:bg-white/10 hover:text-foreground transition-colors"
               onclick={onclose}
-              aria-label="Close"
+              aria-label={$t("a11y.close")}
               data-testid="sheet-close"
             >
               <X size={15} />

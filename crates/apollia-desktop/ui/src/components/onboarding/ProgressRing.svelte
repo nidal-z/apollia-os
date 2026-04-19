@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from "svelte-i18n";
+
   interface Props {
     /** Total number of segments in the ring. */
     segments: number;
@@ -33,7 +35,7 @@
   width={size}
   height={size}
   viewBox="0 0 {size} {size}"
-  aria-label="{pct}% completed"
+  aria-label={$t("a11y.progress_completed", { values: { pct } })}
   data-testid="progress-ring"
 >
   <!-- Background track -->

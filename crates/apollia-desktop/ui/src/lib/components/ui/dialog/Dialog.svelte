@@ -3,6 +3,7 @@
   import { scale, fade } from "svelte/transition";
   import { X } from "lucide-svelte";
   import { tick } from "svelte";
+  import { t } from "svelte-i18n";
 
   interface Props {
     open: boolean;
@@ -121,7 +122,7 @@
           <button
             class="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             onclick={onclose}
-            aria-label="Close"
+            aria-label={$t("a11y.close")}
             data-testid="dialog-close"
           >
             <X size={16} />
@@ -131,7 +132,7 @@
         <button
           class="absolute right-4 top-4 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors z-10"
           onclick={onclose}
-          aria-label="Close"
+          aria-label={$t("a11y.close")}
           data-testid="dialog-close"
         >
           <X size={16} />

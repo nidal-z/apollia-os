@@ -198,7 +198,7 @@
                         <span class="font-mono text-xs text-foreground">{key}</span>
                         <span
                           class="font-mono text-xs text-muted-foreground"
-                          aria-label="value redacted"
+                          aria-label={$t("a11y.value_redacted")}
                         >
                           ***
                         </span>

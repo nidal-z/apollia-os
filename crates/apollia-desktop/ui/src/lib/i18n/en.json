@@ -31,7 +31,14 @@
       "error": "ERROR"
     },
     "back": "Back",
-    "optional": "optional"
+    "optional": "optional",
+    "workspace": "Workspace",
+    "thought": "Thought",
+    "na": "N/A",
+    "placeholder_field": "field",
+    "placeholder_value": "value",
+    "default_badge": "DEFAULT",
+    "worker_badge": "Worker"
   },
   "companion": {
     "toggle_label": "Apollia Help",
@@ -57,7 +64,19 @@
       "nav_forward": "Go forward in history",
       "open_hints": "Show keyboard shortcuts",
       "close_modal": "Close dialog"
-    }
+    },
+    "close": "Close",
+    "dismiss": "Dismiss",
+    "dismiss_warning": "Dismiss warning",
+    "actions_menu": "Actions",
+    "clear_search": "Clear search",
+    "microphone": "Microphone",
+    "value_redacted": "Value redacted",
+    "cost_threshold_exceeded": "Cost threshold exceeded",
+    "progress_completed": "{pct}% completed",
+    "back_shortcut": "Back (⌘[)",
+    "forward_shortcut": "Forward (⌘])",
+    "logo_alt": "Apollia"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -682,7 +701,10 @@
     "field_cycle_detected": "Cycle detected in the pipeline",
     "add_step": "Add step",
     "remove_step": "Remove",
-    "step_label": "Step"
+    "step_label": "Step",
+    "field_steps_placeholder": "extract, validate, generate...",
+    "field_condition_field_placeholder": "field",
+    "field_condition_value_placeholder": "value"
   },
   "memory": {
     "title": "Memory",
@@ -872,6 +894,10 @@
     "field_type": "Type",
     "field_type_desktop": "Desktop",
     "field_type_webhook": "Webhook",
+    "field_type_cron": "Cron",
+    "field_type_interval": "Interval",
+    "field_type_oneshot": "One-shot",
+    "field_type_file_watch": "File watch",
     "field_enabled": "Enabled",
     "field_url": "Webhook URL",
     "field_url_placeholder": "https://hooks.example.com/notify",
@@ -928,6 +954,20 @@
       "exit": "Exit",
       "arguments": "Arguments",
       "no_details": "No detailed data available."
+    },
+    "plan_cache": {
+      "title": "Plan cache",
+      "purge_button": "Purge cache",
+      "empty_title": "No plan cached",
+      "empty_subtitle": "Plans are cached automatically during upcoming orchestrated runs.",
+      "total_entries": "Total entries",
+      "hit_rate": "Hit rate",
+      "cache_hits": "Hits",
+      "cache_misses": "Misses",
+      "dialog_title": "Purge plan cache",
+      "dialog_message": "Clear {count} cache entries? Upcoming orchestrated runs will need to regenerate their plans via the LLM.",
+      "dialog_confirm": "Purge",
+      "toast_purged": "Cache purged ({count} entries removed)"
     }
   },
   "settings": {
@@ -1414,6 +1454,18 @@
     "legend_memory": "Memory",
     "legend_summary": "Summary",
     "legend_free": "Free",
+    "streaming_thought": "Thought",
+    "recording_hotkey_hint": "{hotkey} to stop · Esc to cancel",
+    "plan_alternatives": {
+      "choose_plan": "Choose an execution plan",
+      "plan_a_label": "Plan A — conservative",
+      "plan_b_label": "Plan B — exploratory",
+      "no_steps": "No steps.",
+      "selected_a": "✔ Selected",
+      "selected_b": "Selected",
+      "choose_plan_a": "Choose Plan A",
+      "choose_plan_b": "Choose Plan B"
+    },
     "rename_session": "Rename",
     "rename_placeholder": "Conversation name…",
     "rename_confirm": "Rename",
@@ -1459,7 +1511,14 @@
     "configure": "Configure Apollia OS",
     "skip": "Later",
     "starting": "Starting…",
-    "badge": "Onboarding"
+    "badge": "Onboarding",
+    "welcome_heading": "Welcome",
+    "welcome_subheading": "Let's get to know each other so we can tailor your experience.",
+    "start_failed": "Couldn't start the onboarding conversation.",
+    "continue_to_dashboard": "Continue to dashboard",
+    "start": "Start",
+    "skip_for_now": "Skip for now",
+    "completion_text": "Thanks! Apollia is now personalized for you."
   },
   "tools": {
     "labels": {
@@ -1854,7 +1913,10 @@
     "workspace_required": "A workspace folder is required",
     "workspace_hint": "The folder the agent will work in, scanned by context providers (git, tree, APOLLIA.md).",
     "browse": "Browse",
-    "pick_workspace": "Choose workspace folder"
+    "pick_workspace": "Choose workspace folder",
+    "workspace_label": "Workspace",
+    "no_agents_available": "No agent available",
+    "all_providers_added": "All providers already added"
   },
   "hitl": {
     "fs": {

@@ -44,7 +44,7 @@
     <button
       class="shrink-0 text-warning/60 hover:text-warning transition-colors"
       onclick={dismiss}
-      aria-label="Dismiss warning"
+      aria-label={$t("a11y.dismiss_warning")}
     >
       ✕
     </button>

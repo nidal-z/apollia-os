@@ -31,7 +31,14 @@
       "error": "ERREUR"
     },
     "back": "Retour",
-    "optional": "optionnel"
+    "optional": "optionnel",
+    "workspace": "Espace de travail",
+    "thought": "Réflexion",
+    "na": "N/A",
+    "placeholder_field": "champ",
+    "placeholder_value": "valeur",
+    "default_badge": "PAR DÉFAUT",
+    "worker_badge": "Worker"
   },
   "companion": {
     "toggle_label": "Aide Apollia",
@@ -57,7 +64,19 @@
       "nav_forward": "Avancer d'une page",
       "open_hints": "Afficher les raccourcis",
       "close_modal": "Fermer la boîte de dialogue"
-    }
+    },
+    "close": "Fermer",
+    "dismiss": "Masquer",
+    "dismiss_warning": "Masquer l'avertissement",
+    "actions_menu": "Actions",
+    "clear_search": "Effacer la recherche",
+    "microphone": "Microphone",
+    "value_redacted": "Valeur masquée",
+    "cost_threshold_exceeded": "Seuil de coût dépassé",
+    "progress_completed": "{pct} % terminé",
+    "back_shortcut": "Précédent (⌘[)",
+    "forward_shortcut": "Suivant (⌘])",
+    "logo_alt": "Apollia"
   },
   "nav": {
     "dashboard": "Tableau de bord",
@@ -682,7 +701,10 @@
     "field_cycle_detected": "Cycle détecté dans le pipeline",
     "add_step": "Ajouter une étape",
     "remove_step": "Supprimer",
-    "step_label": "Étape"
+    "step_label": "Étape",
+    "field_steps_placeholder": "extract, validate, generate...",
+    "field_condition_field_placeholder": "champ",
+    "field_condition_value_placeholder": "valeur"
   },
   "memory": {
     "title": "Mémoire",
@@ -872,6 +894,10 @@
     "field_type": "Type",
     "field_type_desktop": "Desktop",
     "field_type_webhook": "Webhook",
+    "field_type_cron": "Cron",
+    "field_type_interval": "Intervalle",
+    "field_type_oneshot": "Unique",
+    "field_type_file_watch": "Surveillance fichier",
     "field_enabled": "Activé",
     "field_url": "URL du webhook",
     "field_url_placeholder": "https://hooks.example.com/notify",
@@ -928,6 +954,20 @@
       "exit": "Sortie",
       "arguments": "Arguments",
       "no_details": "Aucune donnée détaillée disponible."
+    },
+    "plan_cache": {
+      "title": "Cache de plans",
+      "purge_button": "Purger le cache",
+      "empty_title": "Aucun plan en cache",
+      "empty_subtitle": "Les plans seront mis en cache automatiquement lors des prochaines exécutions orchestrées.",
+      "total_entries": "Entrées totales",
+      "hit_rate": "Taux de succès",
+      "cache_hits": "Hits",
+      "cache_misses": "Misses",
+      "dialog_title": "Purger le cache de plans",
+      "dialog_message": "Voulez-vous vider les {count} entrées du cache ? Les prochaines exécutions orchestrées devront régénérer leurs plans via LLM.",
+      "dialog_confirm": "Purger",
+      "toast_purged": "Cache purgé ({count} entrées supprimées)"
     }
   },
   "settings": {
@@ -1414,6 +1454,18 @@
     "legend_memory": "Mémoire",
     "legend_summary": "Résumé",
     "legend_free": "Libre",
+    "streaming_thought": "Réflexion",
+    "recording_hotkey_hint": "{hotkey} pour arrêter · Esc pour annuler",
+    "plan_alternatives": {
+      "choose_plan": "Choisissez un plan d'exécution",
+      "plan_a_label": "Plan A — conservateur",
+      "plan_b_label": "Plan B — exploratoire",
+      "no_steps": "Aucune étape.",
+      "selected_a": "✔ Sélectionné",
+      "selected_b": "Sélectionné",
+      "choose_plan_a": "Choisir Plan A",
+      "choose_plan_b": "Choisir Plan B"
+    },
     "rename_session": "Renommer",
     "rename_placeholder": "Nom de la conversation…",
     "rename_confirm": "Renommer",
@@ -1459,7 +1511,14 @@
     "configure": "Configurer Apollia OS",
     "skip": "Plus tard",
     "starting": "Démarrage…",
-    "badge": "Onboarding"
+    "badge": "Onboarding",
+    "welcome_heading": "Bienvenue",
+    "welcome_subheading": "Faisons connaissance pour personnaliser votre expérience.",
+    "start_failed": "Impossible de démarrer la conversation d'onboarding.",
+    "continue_to_dashboard": "Continuer vers le tableau de bord",
+    "start": "Commencer",
+    "skip_for_now": "Passer pour l'instant",
+    "completion_text": "Merci ! Apollia est maintenant personnalisé pour vous."
   },
   "tools": {
     "labels": {
@@ -1854,7 +1913,10 @@
     "workspace_required": "Un dossier de travail est requis",
     "workspace_hint": "Le dossier dans lequel l'agent opère, scanné par les providers de contexte (git, arborescence, APOLLIA.md).",
     "browse": "Parcourir",
-    "pick_workspace": "Choisir le dossier de travail"
+    "pick_workspace": "Choisir le dossier de travail",
+    "workspace_label": "Espace de travail",
+    "no_agents_available": "Aucun agent disponible",
+    "all_providers_added": "Tous les providers sont déjà ajoutés"
   },
   "hitl": {
     "fs": {

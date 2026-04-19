@@ -486,14 +486,14 @@
                       </Select>
                       <Input
                         class="h-8 flex-1 px-2 py-1 text-xs"
-                        placeholder="field"
+                        placeholder={$t("pipelines.field_condition_field_placeholder")}
                         aria-label={$t("pipelines.field_condition_field")}
                         bind:value={step.conditionField}
                         data-testid="edit-pipeline-step-{index}-condition-field"
                       />
                       <Input
                         class="h-8 flex-1 px-2 py-1 text-xs"
-                        placeholder="value"
+                        placeholder={$t("pipelines.field_condition_value_placeholder")}
                         aria-label={$t("pipelines.field_condition_value")}
                         bind:value={step.conditionValue}
                         data-testid="edit-pipeline-step-{index}-condition-value"

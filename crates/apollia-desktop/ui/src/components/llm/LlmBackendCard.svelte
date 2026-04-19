@@ -104,7 +104,7 @@
         <div class="flex items-center gap-1.5">
           {#if backend.is_default}
             <Badge variant="outline" class="border-primary text-primary text-[10px]">
-              DEFAULT
+              {$t("common.default_badge")}
             </Badge>
           {/if}
           <Badge variant={TYPE_BADGE_VARIANT[backendType]} data-testid="llm-backend-type-badge">

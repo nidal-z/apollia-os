@@ -158,7 +158,7 @@
           class="p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:bg-muted/50"
           data-testid="entry-menu"
           onclick={(e: MouseEvent) => { e.stopPropagation(); isMenuOpen = !isMenuOpen; isCategoryMenuOpen = false; }}
-          aria-label="Actions"
+          aria-label={$t("a11y.actions_menu")}
         >
           <MoreHorizontal size={14} />
         </button>
