@@ -21,6 +21,7 @@ pub mod mailbox;
 pub mod registry;
 pub mod router;
 pub mod session;
+pub mod session_metrics;
 pub mod shutdown;
 pub mod stt;
 pub mod supervisor;
@@ -62,6 +63,7 @@ pub use chat::ChatSessionManagerHandle;
 
 // Session config
 pub use session::SessionConfig;
+pub use session_metrics::{SessionMetricsActor, SessionMetricsStore};
 
 // STT engine
 pub use stt::{SttEngineError, SttEngineHandle, SttStatus, TranscriptSource};

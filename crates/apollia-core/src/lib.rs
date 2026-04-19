@@ -32,6 +32,7 @@ pub mod retry_attempt;
 pub mod result;
 pub mod review;
 pub mod sandbox;
+pub mod session_metrics;
 pub mod stt_config;
 pub mod task;
 pub mod token_budget;
@@ -64,6 +65,9 @@ pub use result::{
 };
 pub use review::{ReviewIssue, ReviewReport};
 pub use sandbox::SandboxProfile;
+pub use session_metrics::{
+    BudgetAlertLevel, SessionMetrics, SessionThresholds, SummarizationEvent, ToolTiming,
+};
 pub use stt_config::{SttConfigError, SttConfigRepository, SttConfigRow};
 pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, TextPart};
 pub use token_budget::TokenBudget;

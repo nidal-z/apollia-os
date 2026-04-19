@@ -1158,6 +1158,22 @@ pub enum RuntimeEvent {
         /// Preview du contenu avant/après pour affichage dans la modal.
         preview: FilesystemPreview,
     },
+
+    // ── Session metrics (US-SP42-047 Pattern P11) ───
+    /// Agrégat des métriques de session mis à jour.
+    ///
+    /// Émis par `SessionMetricsActor` à chaque changement notable — nouvel appel LLM,
+    /// fin d'outil, événement de summarization ou franchissement d'un seuil de budget.
+    /// Le payload complet est transporté pour permettre au frontend de rafraîchir
+    /// l'intégralité du panneau sans re-requêter le backend.
+    SessionMetricsUpdated {
+        /// Identifiant de session (chat session ou task id).
+        session_id: String,
+        /// Snapshot complet des métriques courantes.
+        metrics: crate::session_metrics::SessionMetrics,
+        /// Niveau d'alerte courant en fonction des seuils configurés.
+        alert: crate::session_metrics::BudgetAlertLevel,
+    },
 }
 
 /// Preview du contenu d'une opération filesystem pour la modal HITL.

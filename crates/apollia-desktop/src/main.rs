@@ -419,6 +419,16 @@ fn main() {
             // bridge EventBus → Tauri events (replaces polling).
             events::spawn_event_bridge(app.handle().clone(), runtime_handle.event_sender.clone());
 
+            // Session metrics aggregator (US-SP42-047 Pattern P11).
+            let metrics_store = apollia_runtime::session_metrics::spawn_detached(
+                runtime_handle.event_sender.subscribe(),
+                runtime_handle.event_sender.clone(),
+                apollia_core::session_metrics::SessionThresholds::default(),
+                0,
+                0,
+            );
+            app.manage(metrics_store);
+
             // Register the global STT hotkey with the full SttFlow pipeline
             // when STT is enabled and the engine loaded successfully.
             if let Some(ref stt_cfg) = stt_config_for_hotkey {
@@ -523,6 +533,8 @@ fn main() {
             commands::tasks::list_tasks,
             commands::tasks::submit_task,
             commands::tasks::get_task_timeline,
+            commands::session::get_session_metrics,
+            commands::session::list_session_metrics_ids,
             commands::hitl::list_pending_approvals,
             commands::hitl::list_resolved_approvals,
             commands::hitl::resume_task,

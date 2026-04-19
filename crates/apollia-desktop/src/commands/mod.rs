@@ -24,6 +24,7 @@ pub mod pipelines;
 pub mod plan_alternatives;
 pub mod projects;
 pub mod review;
+pub mod session;
 pub mod stt;
 pub mod tasks;
 pub mod tools;

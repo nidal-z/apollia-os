@@ -1548,3 +1548,43 @@ export interface InjectedEntry {
   /** Clamped to [0, 1]. */
   relevance_score: number;
 }
+
+// ── Session metrics (US-SP42-047 Pattern P11) ────────────────────────────────
+
+/** Timing d'un appel outil avec delta par rapport au hint statique. */
+export interface ToolTiming {
+  tool_name: string;
+  expected_ms: number | null;
+  actual_ms: number;
+  delta_pct: number | null;
+}
+
+/** Événement de compaction du contexte. */
+export interface SummarizationEvent {
+  messages_summarized_count: number;
+  tokens_saved: number;
+  summary_excerpt: string;
+}
+
+/** Snapshot agrégé des métriques d'une session. */
+export interface SessionMetrics {
+  tokens_in: number;
+  tokens_out: number;
+  tokens_cached: number;
+  tokens_meta: number;
+  context_window_used: number;
+  context_window_max: number;
+  token_budget: number;
+  tool_timings: ToolTiming[];
+  summarization_events: SummarizationEvent[];
+}
+
+/** Niveau d'alerte sur le budget tokens. */
+export type BudgetAlertLevel = "ok" | "warning" | "block";
+
+/** Payload du runtime event `SessionMetricsUpdated`. */
+export interface SessionMetricsUpdatedEvent {
+  session_id: string;
+  metrics: SessionMetrics;
+  alert: BudgetAlertLevel;
+}

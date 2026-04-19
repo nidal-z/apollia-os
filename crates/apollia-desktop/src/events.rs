@@ -320,6 +320,9 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
 
         // ── Meta LLM Orchestrator (ADR-073) ───────────────────────────────
         RuntimeEvent::MetaLlmBudgetExceeded { .. } => "llm-changed",
+
+        // ── Session metrics (US-SP42-047) ─────────────────────────────────
+        RuntimeEvent::SessionMetricsUpdated { .. } => "session-metrics",
     }
 }
 

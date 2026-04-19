@@ -7,6 +7,14 @@
     sessionMetricsStore,
   } from "$lib/stores/chatMetrics";
   import {
+    hydrateSessionMetrics,
+    initSessionMetricsListener,
+    sessionMetricsFor,
+  } from "$lib/stores/sessionMetricsV2";
+  import ContextWindowBar from "./ContextWindowBar.svelte";
+  import ToolTimingList from "./ToolTimingList.svelte";
+  import SummarizedMessagesBanner from "./SummarizedMessagesBanner.svelte";
+  import {
     estimateCost,
     resolvePricing,
     costToTokensEquivalent,
@@ -20,8 +28,32 @@
 
   const metrics = $derived(sessionMetricsStore(sessionId));
 
+  // P11 — live snapshot driven by `SessionMetricsUpdated` runtime events.
+  const slot = $derived(sessionMetricsFor(sessionId));
+  const alertLevel = $derived($slot.alert);
+  const p11 = $derived($slot.metrics);
+
+  let toastShown = $state<null | "warning" | "block">(null);
+  $effect(() => {
+    if (alertLevel === "ok") {
+      toastShown = null;
+      return;
+    }
+    if (toastShown === alertLevel) return;
+    toastShown = alertLevel;
+    // Toast non-bloquant : on pousse dans `console` + une div aria-live ci-dessous.
+    // Le système de notifications Tauri gère déjà les alertes bloquantes.
+    if (typeof window !== "undefined" && alertLevel === "block") {
+      console.warn(
+        `[session-metrics] budget bloqué pour la session ${sessionId}`,
+      );
+    }
+  });
+
   onMount(() => {
     void refreshSessionMetrics(sessionId, true);
+    initSessionMetricsListener();
+    void hydrateSessionMetrics(sessionId);
   });
 
   // Pricing resolution — use backend `cost_usd` when present, otherwise
@@ -222,6 +254,55 @@
       </ul>
     {/if}
   </section>
+
+  <!-- P11 — Context window bar (US-SP42-047) -->
+  {#if p11.context_window_max > 0}
+    <section
+      class="glass-card glass-border rounded-lg p-3"
+      data-testid="p11-context-section"
+    >
+      <ContextWindowBar
+        used={p11.context_window_used}
+        max={p11.context_window_max}
+      />
+    </section>
+  {/if}
+
+  <!-- P11 — Budget alert toast (aria-live for a11y) -->
+  {#if alertLevel !== "ok"}
+    <div
+      role="status"
+      aria-live="polite"
+      class="rounded-md border px-3 py-2 text-[11px]"
+      class:border-warning={alertLevel === "warning"}
+      class:text-warning={alertLevel === "warning"}
+      class:border-destructive={alertLevel === "block"}
+      class:text-destructive={alertLevel === "block"}
+      data-testid="budget-alert-toast"
+      data-level={alertLevel}
+    >
+      {#if alertLevel === "warning"}
+        ⚠︎ Budget tokens session proche de la limite.
+      {:else}
+        ⛔ Budget tokens session atteint — nouvelles actions bloquantes.
+      {/if}
+    </div>
+  {/if}
+
+  <!-- P11 — Tool timings -->
+  {#if p11.tool_timings.length > 0}
+    <section class="glass-card glass-border rounded-lg p-3">
+      <header class="mb-2 text-[11px] font-medium text-primary">
+        Tool timings
+      </header>
+      <ToolTimingList timings={p11.tool_timings} />
+    </section>
+  {/if}
+
+  <!-- P11 — Summarization breakdown -->
+  {#if p11.summarization_events.length > 0}
+    <SummarizedMessagesBanner events={p11.summarization_events} />
+  {/if}
 
   <!-- Mini context pill (replaces header ContextIndicator - B.13) -->
   <div
