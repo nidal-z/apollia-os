@@ -35,5 +35,6 @@ pub use types::RecentSessionSummary;
 pub use types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ChatSessionConfig, ExchangeState,
     FsHitlDecision, MessageId, PendingChatApprovals, ProjectContextProvider, SessionDetail,
-    SessionId, SessionInfo, SessionStatus, ToolCallRecord, ToolCallStatus, ToolDecision,
+    SessionId, SessionInfo, SessionMetrics, SessionStatus, ToolCallRecord, ToolCallStatus,
+    ToolDecision, ToolStatEntry,
 };

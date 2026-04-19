@@ -4,7 +4,9 @@
 //! zéro logique métier dans cette couche. Si le chat n'est pas disponible
 //! (runtime sans LLM, erreur SQLite), une erreur explicite est retournée.
 
-use apollia_runtime::chat::{ChatMode, SessionDetail, SessionInfo, SessionStatus, ToolDecision};
+use apollia_runtime::chat::{
+    ChatMode, SessionDetail, SessionInfo, SessionMetrics, SessionStatus, ToolDecision,
+};
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -148,6 +150,27 @@ pub async fn get_chat_session(
         .ok_or_else(|| "session not found".to_string())?;
 
     Ok(session_detail_to_flat(detail))
+}
+
+/// Returns aggregated session metrics for the metrics panel (US-SP42-030).
+///
+/// The backend accumulates metrics in-memory on each exchange. Returns a
+/// zero-filled default when no exchange has yet completed so the UI can
+/// render the panel with empty values instead of an error.
+#[tauri::command]
+pub async fn chat_session_metrics(
+    state: State<'_, RuntimeHandle>,
+    session_id: String,
+) -> Result<SessionMetrics, String> {
+    let manager = state
+        .chat_manager
+        .as_ref()
+        .ok_or_else(|| "chat subsystem not available".to_string())?;
+
+    Ok(manager
+        .get_session_metrics(session_id.clone())
+        .await
+        .unwrap_or_else(|| SessionMetrics::new(session_id)))
 }
 
 /// Closes a chat session.

@@ -31,7 +31,8 @@ use super::repository::{AppendMessageParams, ChatSessionRepository};
 use super::types::{
     ChatError, ChatMessage, ChatMode, ChatRole, ChatSession, ExchangeState, MessageId,
     PendingChatApprovals, PendingFilesystemApprovals, ProjectContextProvider, RecentSessionSummary,
-    SessionDetail, SessionId, SessionInfo, SessionStatus, ToolCallRecord, ToolDecision,
+    SessionDetail, SessionId, SessionInfo, SessionMetrics, SessionStatus, ToolCallRecord,
+    ToolDecision,
 };
 use crate::a2a::A2AInvoker;
 use crate::api::routes_agents::AgentLoader;
@@ -264,6 +265,13 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Result<(), ChatError>>,
     },
+    /// Fetch aggregated metrics for a session (tokens, cost, tool stats, context window).
+    GetSessionMetrics {
+        /// Target session.
+        session_id: SessionId,
+        /// Response channel (returns `None` when session is unknown).
+        reply: oneshot::Sender<Option<SessionMetrics>>,
+    },
     /// Shut down the actor.
     Shutdown,
 }
@@ -310,6 +318,10 @@ struct ChatSessionManager {
         String,
         tokio::sync::oneshot::Sender<apollia_tools::tools::ask_user::AskUserOutput>,
     >,
+    /// Per-session aggregated metrics (US-SP42-030).
+    ///
+    /// In-memory only — rebuilt from history on session resume. Not persisted.
+    metrics: HashMap<SessionId, SessionMetrics>,
 }
 
 impl ChatSessionManager {
@@ -528,6 +540,10 @@ impl ChatSessionManager {
                     // and deliver the answers. Since the executor is already
                     // listening on the oneshot, we use a dedicated resolution map.
                     let result = self.resolve_user_input_internal(&request_id, answers);
+                    let _ = reply.send(result);
+                }
+                ChatCommand::GetSessionMetrics { session_id, reply } => {
+                    let result = self.metrics.get(&session_id).cloned();
                     let _ = reply.send(result);
                 }
                 ChatCommand::Shutdown => {
@@ -1086,6 +1102,54 @@ impl ChatSessionManager {
             tokens = response.tokens_used.prompt_tokens + response.tokens_used.completion_tokens,
             "Chat exchange complete"
         );
+
+        // ── US-SP42-030 — accumulate session metrics ─────────────────────
+        let entry = self
+            .metrics
+            .entry(session_id.to_string())
+            .or_insert_with(|| SessionMetrics::new(session_id.to_string()));
+        let now_ts = now_rfc3339();
+        if entry.started_at.is_none() {
+            entry.started_at = Some(now_ts.clone());
+        }
+        entry.updated_at = Some(now_ts);
+        entry.prompt_tokens = entry
+            .prompt_tokens
+            .saturating_add(response.tokens_used.prompt_tokens);
+        entry.completion_tokens = entry
+            .completion_tokens
+            .saturating_add(response.tokens_used.completion_tokens);
+        entry.cache_read_input_tokens = entry
+            .cache_read_input_tokens
+            .saturating_add(response.tokens_used.cache_read_input_tokens);
+        entry.cache_write_input_tokens = entry
+            .cache_write_input_tokens
+            .saturating_add(response.tokens_used.cache_write_input_tokens);
+        entry.cost_usd = match (entry.cost_usd, response.tokens_used.cost_usd) {
+            (Some(a), Some(b)) => Some(a + b),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
+        };
+        entry.budget_max_steps = self.runtime_budget.max_steps as u32;
+        entry.steps_used = entry.steps_used.saturating_add(1);
+        entry.context_window_size =
+            super::builtin_agent::DEFAULT_CONTEXT_WINDOW_SIZE as u32;
+        entry.messages_in_history = session.history.len() as u32;
+        entry.exchanges_count = entry.exchanges_count.saturating_add(1);
+        entry.record_tool_calls(&session
+            .history
+            .last()
+            .and_then(|m| m.tool_calls.clone())
+            .unwrap_or_default());
+        if entry.llm_backend.is_none() {
+            entry.llm_backend = session.llm_backend.clone();
+        }
+
+        // Emit a lightweight runtime event so the UI can trigger a refetch.
+        // The event bridge forwards it as a generic `runtime-event` with
+        // `event_type = "ChatResponseCompleted"`, and the frontend's metrics
+        // store throttles subsequent `chat_session_metrics` calls to max 2/s.
     }
 
     /// Handle a failed ReAct exchange.
@@ -1794,6 +1858,7 @@ impl ChatSessionManagerHandle {
             project_repo,
             pending_user_inputs: pending_user_inputs.clone(),
             pending_user_replies: HashMap::new(),
+            metrics: HashMap::new(),
         };
 
         // Restore active sessions from SQLite before entering the actor loop
@@ -2240,6 +2305,26 @@ impl ChatSessionManagerHandle {
             .map_err(|_| ChatError::InternalError("actor reply dropped".into()))?
     }
 
+    /// Fetch aggregated metrics for a session.
+    ///
+    /// Returns `None` when the session is unknown or no exchange has completed
+    /// yet. Accumulated in-memory from each [`ChatAgentResponse`] — cleared on
+    /// actor restart.
+    pub async fn get_session_metrics(&self, session_id: SessionId) -> Option<SessionMetrics> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let sent = self
+            .tx
+            .send(ChatCommand::GetSessionMetrics {
+                session_id,
+                reply: reply_tx,
+            })
+            .await;
+        if sent.is_err() {
+            return None;
+        }
+        reply_rx.await.ok().flatten()
+    }
+
     pub async fn shutdown(&self) {
         let _ = self.tx.send(ChatCommand::Shutdown).await;
     }
@@ -2571,6 +2656,7 @@ mod tests {
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
             pending_user_replies: HashMap::new(),
+            metrics: HashMap::new(),
             user_memory: None,
             enrichment_extractor: None,
             tx,
@@ -2700,6 +2786,7 @@ mod tests {
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
             pending_user_replies: HashMap::new(),
+            metrics: HashMap::new(),
             user_memory: None,
             enrichment_extractor: None,
             tx,
@@ -2761,6 +2848,7 @@ mod tests {
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
             pending_user_replies: HashMap::new(),
+            metrics: HashMap::new(),
             user_memory: None,
             enrichment_extractor: None,
             tx,
@@ -2800,6 +2888,7 @@ mod tests {
             pending_fs_approvals: PendingFilesystemApprovals::new(),
             pending_user_inputs: apollia_tools::tools::ask_user::PendingUserInputs::new(),
             pending_user_replies: HashMap::new(),
+            metrics: HashMap::new(),
             user_memory: None,
             enrichment_extractor: None,
             tx,

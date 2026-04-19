@@ -589,6 +589,7 @@ fn main() {
             commands::chat::create_chat_session,
             commands::chat::list_chat_sessions,
             commands::chat::get_chat_session,
+            commands::chat::chat_session_metrics,
             commands::chat::close_chat_session,
             commands::chat::delete_chat_session,
             commands::chat::rename_chat_session,

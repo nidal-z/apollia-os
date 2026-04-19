@@ -247,6 +247,108 @@ pub enum ToolDecision {
     AlwaysAccept,
 }
 
+/// Per-tool aggregated statistics within a session.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ToolStatEntry {
+    /// Tool name (scoped, e.g. `"bash"` or `"native:read_file"`).
+    pub tool_name: String,
+    /// Number of invocations (any status).
+    pub calls: u32,
+    /// Number of invocations that ended with `Refused` status.
+    pub refused: u32,
+    /// Number of invocations that ended with `Executed` status.
+    pub executed: u32,
+}
+
+/// Aggregated metrics for a chat session.
+///
+/// Accumulated by the [`ChatSessionManager`] on each `ExchangeComplete`.
+/// Backend-local: never persisted in SQLite — rebuilt from memory on restart
+/// (US-SP42-030 minimal slice; persistence is a future concern).
+///
+/// `cost_usd` is `None` when the backend does not report pricing (e.g. local
+/// `EmbeddedBackend`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SessionMetrics {
+    /// Target session.
+    pub session_id: SessionId,
+    /// Input tokens consumed (prompt + cache reads + cache writes).
+    pub prompt_tokens: u32,
+    /// Output tokens generated.
+    pub completion_tokens: u32,
+    /// Cached input tokens read (subset of `prompt_tokens`).
+    pub cache_read_input_tokens: u32,
+    /// Cached input tokens written (subset of `prompt_tokens`).
+    pub cache_write_input_tokens: u32,
+    /// Estimated cost in USD (`None` for local backends).
+    pub cost_usd: Option<f64>,
+    /// Step budget in effect for this session (max steps).
+    pub budget_max_steps: u32,
+    /// Steps consumed so far (exchanges producing assistant responses).
+    pub steps_used: u32,
+    /// Context window size (sliding window on history).
+    pub context_window_size: u32,
+    /// Current history length (messages kept in memory).
+    pub messages_in_history: u32,
+    /// Aggregated per-tool statistics.
+    pub tool_stats: Vec<ToolStatEntry>,
+    /// Number of exchanges completed.
+    pub exchanges_count: u32,
+    /// RFC-3339 timestamp of the first assistant response (session start — LLM time).
+    pub started_at: Option<String>,
+    /// RFC-3339 timestamp of the last update.
+    pub updated_at: Option<String>,
+    /// Cumulative active duration in milliseconds (LLM + tool execution time estimates).
+    #[serde(default)]
+    pub active_duration_ms: u64,
+    /// Backend/model name associated with the session (for pricing resolution).
+    pub llm_backend: Option<String>,
+}
+
+impl SessionMetrics {
+    /// Create an empty metrics record for a session.
+    pub fn new(session_id: impl Into<SessionId>) -> Self {
+        Self {
+            session_id: session_id.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Increment per-tool counters from a list of tool call records.
+    pub fn record_tool_calls(&mut self, calls: &[ToolCallRecord]) {
+        for call in calls {
+            let entry = self
+                .tool_stats
+                .iter_mut()
+                .find(|e| e.tool_name == call.tool_name);
+            match entry {
+                Some(e) => {
+                    e.calls += 1;
+                    match call.status {
+                        ToolCallStatus::Executed => e.executed += 1,
+                        ToolCallStatus::Refused => e.refused += 1,
+                        _ => {}
+                    }
+                }
+                None => {
+                    let mut e = ToolStatEntry {
+                        tool_name: call.tool_name.clone(),
+                        calls: 1,
+                        refused: 0,
+                        executed: 0,
+                    };
+                    match call.status {
+                        ToolCallStatus::Executed => e.executed = 1,
+                        ToolCallStatus::Refused => e.refused = 1,
+                        _ => {}
+                    }
+                    self.tool_stats.push(e);
+                }
+            }
+        }
+    }
+}
+
 /// Errors that can occur in the chat subsystem.
 #[derive(Debug, thiserror::Error)]
 pub enum ChatError {
@@ -833,5 +935,53 @@ mod tests {
         assert_eq!(restored.id, "sess-1");
         assert_eq!(restored.mode, ChatMode::Agent);
         assert_eq!(restored.agent_name.as_deref(), Some("test-agent"));
+    }
+
+    #[test]
+    fn session_metrics_records_mixed_tool_outcomes() {
+        // GIVEN a session metrics entry and 3 tool calls across 2 distinct tools
+        let mut metrics = SessionMetrics::new("sess-42");
+        let calls = vec![
+            ToolCallRecord {
+                tool_name: "bash".into(),
+                input: serde_json::json!({"cmd": "ls"}),
+                output: Some("ok".into()),
+                status: ToolCallStatus::Executed,
+            },
+            ToolCallRecord {
+                tool_name: "bash".into(),
+                input: serde_json::json!({"cmd": "rm -rf /"}),
+                output: None,
+                status: ToolCallStatus::Refused,
+            },
+            ToolCallRecord {
+                tool_name: "read_file".into(),
+                input: serde_json::json!({"path": "/etc/hosts"}),
+                output: Some("…".into()),
+                status: ToolCallStatus::Executed,
+            },
+        ];
+
+        // WHEN we aggregate
+        metrics.record_tool_calls(&calls);
+
+        // THEN tool_stats has 2 entries with correct counters
+        assert_eq!(metrics.tool_stats.len(), 2);
+        let bash = metrics
+            .tool_stats
+            .iter()
+            .find(|e| e.tool_name == "bash")
+            .expect("bash entry");
+        assert_eq!(bash.calls, 2);
+        assert_eq!(bash.executed, 1);
+        assert_eq!(bash.refused, 1);
+        let read = metrics
+            .tool_stats
+            .iter()
+            .find(|e| e.tool_name == "read_file")
+            .expect("read_file entry");
+        assert_eq!(read.calls, 1);
+        assert_eq!(read.executed, 1);
+        assert_eq!(read.refused, 0);
     }
 }

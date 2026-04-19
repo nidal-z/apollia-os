@@ -339,6 +339,10 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
         const p = inner ?? (event.payload as Record<string, unknown>);
         if (p.session_id) {
           clearGlobalBuffer(String(p.session_id));
+          // US-SP42-030 — refresh SessionMetrics (throttled inside store).
+          void import("./chatMetrics").then((m) =>
+            m.refreshSessionMetrics(String(p.session_id)),
+          );
         }
       } else if (event.event_type === "ChatToolCallCompleted") {
         const inner =
@@ -355,6 +359,11 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
           void sendToolFailureNotification(
             String(p.session_id ?? ""),
             String(p.tool_name),
+          );
+        }
+        if (p.session_id) {
+          void import("./chatMetrics").then((m) =>
+            m.refreshSessionMetrics(String(p.session_id)),
           );
         }
       } else if (event.event_type === "ChatError") {

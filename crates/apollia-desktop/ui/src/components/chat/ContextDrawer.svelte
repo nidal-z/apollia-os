@@ -3,6 +3,8 @@
   import { Settings2, X } from "lucide-svelte";
   import type { ChatSessionDetail } from "$lib/types";
   import ChatConfigPanelBody from "./ChatConfigPanelBody.svelte";
+  import SessionMetricsPanel from "./SessionMetricsPanel.svelte";
+  import MemoryInjectedPanel from "./MemoryInjectedPanel.svelte";
 
   interface Props {
     session: ChatSessionDetail | null;
@@ -15,20 +17,38 @@
 
   let { session, onupdated, onclose, showHeader = true }: Props = $props();
 
-  /**
-   * Drawer tabs. Config is the only active panel today; Metrics/Artifacts/Memory
-   * are placeholders for US-SP42-030 / US-SP42-031 and intentionally stubbed so
-   * the shape of the API stays stable when those stories land.
-   */
-  type TabKey = "config" | "metrics" | "artifacts" | "memory";
+  type TabKey = "config" | "metrics" | "memory" | "artifacts";
   let activeTab = $state<TabKey>("config");
 
   const tabs: { key: TabKey; label: string; testid: string }[] = [
     { key: "config", label: "Config", testid: "context-tab-config" },
     { key: "metrics", label: "Metrics", testid: "context-tab-metrics" },
-    { key: "artifacts", label: "Artifacts", testid: "context-tab-artifacts" },
     { key: "memory", label: "Memory", testid: "context-tab-memory" },
+    { key: "artifacts", label: "Artifacts", testid: "context-tab-artifacts" },
   ];
+
+  /**
+   * Keyboard navigation between tabs — ArrowLeft / ArrowRight (WAI-ARIA
+   * tablist pattern). Focus moves with the active tab so screen readers
+   * announce the new panel.
+   */
+  function handleTabKey(e: KeyboardEvent): void {
+    const idx = tabs.findIndex((t) => t.key === activeTab);
+    if (idx < 0) return;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      e.preventDefault();
+      activeTab = tabs[(idx + 1) % tabs.length].key;
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      e.preventDefault();
+      activeTab = tabs[(idx - 1 + tabs.length) % tabs.length].key;
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      activeTab = tabs[0].key;
+    } else if (e.key === "End") {
+      e.preventDefault();
+      activeTab = tabs[tabs.length - 1].key;
+    }
+  }
 </script>
 
 <div class="flex h-full min-h-0 flex-col" data-testid="context-drawer">
@@ -51,16 +71,20 @@
     </div>
   {/if}
 
-  <!-- Tabs -->
+  <!-- Tabs — WAI-ARIA tablist with arrow-key navigation. -->
   <div
     role="tablist"
+    aria-label="Context drawer tabs"
     class="flex shrink-0 gap-0.5 border-b border-border/30 px-3 py-1.5 overflow-x-auto scrollbar-none"
     data-testid="context-drawer-tabs"
+    onkeydown={handleTabKey}
   >
     {#each tabs as tab (tab.key)}
       <button
         role="tab"
         aria-selected={activeTab === tab.key}
+        aria-controls="context-panel-{tab.key}"
+        tabindex={activeTab === tab.key ? 0 : -1}
         class="shrink-0 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors
           {activeTab === tab.key
             ? 'bg-primary/10 text-primary'
@@ -74,7 +98,12 @@
   </div>
 
   <!-- Tab panels — scroll inside drawer, not the shell. -->
-  <div class="flex-1 min-h-0 overflow-y-auto">
+  <div
+    class="flex-1 min-h-0 overflow-y-auto"
+    role="tabpanel"
+    id="context-panel-{activeTab}"
+    aria-labelledby={activeTab}
+  >
     {#if activeTab === "config"}
       <ChatConfigPanelBody
         {session}
@@ -82,12 +111,23 @@
         {onclose}
         showHeader={false}
       />
+    {:else if activeTab === "metrics" && session?.id}
+      <SessionMetricsPanel sessionId={session.id} />
+    {:else if activeTab === "memory" && session?.id}
+      <MemoryInjectedPanel sessionId={session.id} />
+    {:else if activeTab === "artifacts"}
+      <div class="flex h-full items-center justify-center px-6 py-10 text-center">
+        <p
+          class="text-xs text-muted-foreground/60 italic"
+          data-testid="context-drawer-placeholder-artifacts"
+        >
+          Artifacts panel — coming in US-SP42-031
+        </p>
+      </div>
     {:else}
       <div class="flex h-full items-center justify-center px-6 py-10 text-center">
-        <p class="text-xs text-muted-foreground/60 italic" data-testid="context-drawer-placeholder-{activeTab}">
-          {activeTab === "metrics" ? "Metrics panel — coming in US-SP42-030" :
-           activeTab === "artifacts" ? "Artifacts panel — coming in US-SP42-031" :
-           "Memory panel — coming in US-SP42-030"}
+        <p class="text-xs text-muted-foreground/60 italic">
+          Aucune session active.
         </p>
       </div>
     {/if}

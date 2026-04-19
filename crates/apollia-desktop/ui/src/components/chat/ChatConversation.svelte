@@ -7,7 +7,7 @@
   import { LoadingSpinner } from "$lib/components/feedback";
   import { Spinner } from "$lib/components/ui/progress";
   import {
-    currentSession, chatTokenBuffer, useUserMemory, memoryEntryCount,
+    currentSession, chatTokenBuffer, memoryEntryCount,
     chatConversationStats, globalTokenBuffers,
     clearGlobalBuffer, removePendingChatApproval,
     getPendingChatApprovalForSession,
@@ -23,7 +23,6 @@
   import StreamingText from "./StreamingText.svelte";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
-  import SummarizedMessagesBanner from "./SummarizedMessagesBanner.svelte";
   import ApprovalCard from "./ApprovalCard.svelte";
   import AskUserCard from "./AskUserCard.svelte";
   import HitlFilesystemModal from "./HitlFilesystemModal.svelte";
@@ -112,15 +111,8 @@
     isProcessing || isStreaming || sessionStatus === "closed",
   );
 
-  const summaryText = $derived.by(() => {
-    const prompt = sessionDetail?.system_prompt ?? "";
-    const marker = "Previous context summary:\n";
-    const idx = prompt.indexOf(marker);
-    if (idx < 0) return null;
-    return prompt.slice(idx + marker.length).trim() || null;
-  });
-
-  const summarizedCount = $derived(conversationStats?.summarized_count ?? 0);
+  // US-SP42-030 — summaryText / summarizedCount derivations removed; the
+  // banner moved to ContextDrawer > Memory tab (MemoryInjectedPanel).
 
   const hasCrossSessionRefs = $derived(
     (conversationStats?.cross_sessions_referenced ?? 0) > 0,
@@ -690,11 +682,12 @@
     />
   {/if}
 
-  <!-- Context indicator -->
-  <ContextIndicator
-    memoryEntryCount={$memoryEntryCount}
-    isInjected={$useUserMemory && (conversationStats?.user_memory_injected ?? false)}
-  />
+  <!-- Context indicator — US-SP42-030: removed from header (B.13). The pill
+       now lives in the Metrics tab of the ContextDrawer, and a mini variant
+       is rendered below the input (see footer near ChatInput). -->
+  {#if sessionId}
+    <ContextIndicator {sessionId} variant="footer" />
+  {/if}
 
   <!-- Messages -->
   {#if loading}
@@ -718,12 +711,8 @@
           <p class="text-xs">{$t("chat.first_message_placeholder")}</p>
         </div>
       {:else}
-        {#if summarizedCount > 0 && summaryText}
-          <SummarizedMessagesBanner
-            summarizedCount={summarizedCount}
-            summaryText={summaryText}
-          />
-        {/if}
+        <!-- SummarizedMessagesBanner moved to ContextDrawer's Memory tab
+             (US-SP42-030) — no longer rendered inline in the message list. -->
 
         {#each messageGroups as group (group.key)}
           {@const firstMsg = group.messages[0]}
