@@ -1412,6 +1412,12 @@
     "first_message_placeholder": "Send your first message...",
     "agent_processing": "Agent processing...",
     "thinking": "Thinking...",
+    "status": {
+      "thinking": "Thinking",
+      "streaming_thought": "Thought",
+      "interrupted": "Interrupted",
+      "libre": "Free"
+    },
     "tool_executing": "Executing {tool}...",
     "config_title": "Configuration",
     "config_save": "Apply",

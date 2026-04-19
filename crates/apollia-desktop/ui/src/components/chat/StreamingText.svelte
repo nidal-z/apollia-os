@@ -1,55 +1,21 @@
 <script lang="ts">
   import { renderMarkdown } from "$lib/utils/markdown";
   import "$lib/components/ui/markdown/markdown-prose.css";
-  import { BrainCircuit } from "lucide-svelte";
   import { t } from "svelte-i18n";
+  import { parseStream, isThinking as isThinkingBlocks } from "$lib/chat/streamParser";
+  import ThinkingBadge from "./ThinkingBadge.svelte";
+  import StreamingCursor from "./StreamingCursor.svelte";
 
   interface Props {
     text: string;
+    /** Stream status — `streaming` shows the cursor, `interrupted` shows an inline marker. */
+    status?: "streaming" | "interrupted" | "done";
   }
 
-  let { text }: Props = $props();
+  let { text, status = "streaming" }: Props = $props();
 
-  /** Split text into segments: thinking blocks and regular content. */
-  const segments = $derived.by(() => {
-    const result: { type: "think" | "text"; content: string }[] = [];
-    let cursor = 0;
-    const src = text;
-    const tagOpen = "<think>";
-    const tagClose = "</think>";
-
-    while (cursor < src.length) {
-      const start = src.indexOf(tagOpen, cursor);
-      if (start === -1) {
-        // No more think blocks — rest is regular text.
-        const rest = src.slice(cursor);
-        if (rest) result.push({ type: "text", content: rest });
-        break;
-      }
-      // Push text before <think>
-      if (start > cursor) {
-        result.push({ type: "text", content: src.slice(cursor, start) });
-      }
-      const end = src.indexOf(tagClose, start + tagOpen.length);
-      if (end === -1) {
-        // Unclosed <think> — still streaming thinking content.
-        const thinkContent = src.slice(start + tagOpen.length);
-        if (thinkContent) result.push({ type: "think", content: thinkContent });
-        cursor = src.length;
-      } else {
-        const thinkContent = src.slice(start + tagOpen.length, end);
-        if (thinkContent) result.push({ type: "think", content: thinkContent });
-        cursor = end + tagClose.length;
-      }
-    }
-    return result;
-  });
-
-  /** Whether we're currently inside a thinking block (unclosed). */
-  const isThinking = $derived(
-    text.includes("<think>") &&
-    (text.lastIndexOf("<think>") > text.lastIndexOf("</think>"))
-  );
+  const blocks = $derived(parseStream(text));
+  const thinkingNow = $derived(isThinkingBlocks(blocks));
 
   async function handleClick(event: MouseEvent): Promise<void> {
     const target = event.target as HTMLElement;
@@ -70,20 +36,76 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <span class="inline apollia-prose" data-testid="chat-streaming-text" onclick={handleClick}>
-  {#each segments as segment (segment)}
-    {#if segment.type === "think"}
-      <div class="my-1.5 rounded-lg border border-primary/10 bg-primary/5 px-3 py-2">
-        <div class="mb-1 flex items-center gap-1.5">
-          <BrainCircuit size={12} class="text-primary/50" />
-          <span class="text-[10px] font-medium text-primary/50">
-            {isThinking && segment === segments[segments.length - 1] ? $t("chat.thinking") : $t("chat.streaming_thought")}
-          </span>
-        </div>
-        <span class="text-[12px] italic text-muted-foreground/70">{@html renderMarkdown(segment.content)}</span>
-      </div>
+  {#each blocks as block, idx (idx)}
+    {#if block.type === "thinking"}
+      <span class="thinking-segment" data-testid="streaming-thinking-segment">
+        <span class="thinking-header">
+          {#if !block.closed && thinkingNow && status === "streaming"}
+            <ThinkingBadge />
+          {:else}
+            <span class="thinking-label">{$t("chat.status.streaming_thought")}</span>
+          {/if}
+        </span>
+        <span class="thinking-content">{@html renderMarkdown(block.content)}</span>
+      </span>
+    {:else if block.type === "tool"}
+      <span class="tool-segment" data-testid="streaming-tool-segment">
+        {@html renderMarkdown(block.content)}
+      </span>
     {:else}
-      {@html renderMarkdown(segment.content)}
+      {@html renderMarkdown(block.content)}
     {/if}
   {/each}
-  <span class="inline-block w-0.5 h-4 bg-primary animate-pulse align-text-bottom"></span>
+
+  {#if status === "streaming"}
+    <StreamingCursor />
+  {:else if status === "interrupted"}
+    <span class="interrupted" data-testid="streaming-interrupted">
+      · {$t("chat.status.interrupted")}
+    </span>
+  {/if}
 </span>
+
+<style>
+  .thinking-segment {
+    display: block;
+    margin: 0.375rem 0;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid hsl(var(--primary) / 0.1);
+    background-color: hsl(var(--primary) / 0.04);
+  }
+
+  .thinking-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.25rem;
+  }
+
+  .thinking-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: hsl(var(--primary) / 0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .thinking-content {
+    display: block;
+    font-size: 12px;
+    font-style: italic;
+    color: hsl(var(--muted-foreground) / 0.75);
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  }
+
+  .tool-segment {
+    display: inline;
+  }
+
+  .interrupted {
+    margin-left: 0.25rem;
+    font-size: 11px;
+    color: hsl(var(--muted-foreground) / 0.7);
+    font-style: italic;
+  }
+</style>
