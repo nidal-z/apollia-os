@@ -5,11 +5,38 @@
   interface Props {
     open: boolean;
     onclose: () => void;
+    width?: "sm" | "md" | "lg";
+    side?: "left" | "right";
     class?: string;
     children?: import("svelte").Snippet;
   }
 
-  let { open, onclose, class: className = "", children }: Props = $props();
+  let {
+    open,
+    onclose,
+    width = "md",
+    side = "right",
+    class: className = "",
+    children,
+  }: Props = $props();
+
+  // Pixel widths mirror Dialog scale (US-SP42-012). `min(…, 90vw)` keeps
+  // the panel from overflowing narrow viewports.
+  const widthClasses: Record<NonNullable<Props["width"]>, string> = {
+    sm: "w-full md:w-[min(360px,90vw)]",
+    md: "w-full md:w-[min(480px,90vw)]",
+    lg: "w-full md:w-[min(640px,90vw)]",
+  };
+
+  const widthPx: Record<NonNullable<Props["width"]>, number> = {
+    sm: 360,
+    md: 480,
+    lg: 640,
+  };
+
+  const sidePosition = side === "left" ? "left-0 border-r" : "right-0 border-l";
+  const flyX = side === "left" ? -widthPx[width] : widthPx[width];
+  const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === "Escape") {
@@ -25,25 +52,29 @@
 {#if open}
   <!-- Backdrop -->
   <div
-    class="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm"
+    class="fixed inset-0 backdrop-warm"
+    style="z-index: var(--z-backdrop);"
     role="button"
     tabindex="-1"
     onclick={handleBackdropClick}
     onkeydown={handleKeydown}
-    transition:fade={{ duration: 200 }}
+    transition:fade={{ duration: 300 }}
   ></div>
 
-  <!-- Panel : full-width sur mobile, largeur 400 px à partir de sm (voir breakpoints.md). -->
+  <!-- Panel -->
   <div
     class={cn(
-      "fixed inset-y-0 right-0 z-50 flex w-full sm:max-w-[400px] flex-col glass-panel border-l border-border shadow-lg",
+      "fixed inset-y-0 flex flex-col glass-panel shadow-lg border-border",
+      sidePosition,
+      widthClasses[width],
       className,
     )}
+    style="z-index: var(--z-overlay);"
     role="dialog"
     tabindex="-1"
     aria-modal="true"
     onkeydown={handleKeydown}
-    transition:fly={{ x: 400, duration: 250, easing: (t) => 1 - Math.pow(1 - t, 3) }}
+    transition:fly={{ x: flyX, duration: 300, easing: easeOutCubic }}
   >
     {@render children?.()}
   </div>

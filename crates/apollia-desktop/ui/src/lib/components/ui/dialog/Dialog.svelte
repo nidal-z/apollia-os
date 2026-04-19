@@ -1,14 +1,16 @@
 <script lang="ts">
   import { cn } from "$lib/utils";
-  import { scale, fade } from "svelte/transition";
+  import { scale, fade, type TransitionConfig } from "svelte/transition";
+  import { backOut } from "svelte/easing";
   import { X } from "lucide-svelte";
   import { tick } from "svelte";
   import { t } from "svelte-i18n";
+  import { prefersReducedMotion } from "$lib/design/motion";
 
   interface Props {
     open: boolean;
     onclose: () => void;
-    size?: "sm" | "md" | "lg";
+    size?: "sm" | "md" | "lg" | "xl";
     title?: string;
     class?: string;
     children?: import("svelte").Snippet;
@@ -25,12 +27,13 @@
     ...restProps
   }: Props = $props();
 
-  // Mobile-first : largeur pleine jusqu'à sm (640 px), puis largeur plafonnée.
-  // Seuil operator mobile = 375 px (voir src/lib/design/breakpoints.md).
-  const sizeClasses: Record<string, string> = {
-    sm: "w-full sm:max-w-[440px]",
-    md: "w-full sm:max-w-[520px]",
-    lg: "w-full sm:max-w-[620px]",
+  // `w-[min(Xpx,90vw)]` keeps the panel ≤ viewport on small screens while
+  // locking a comfortable max width on desktop (US-SP42-012).
+  const sizeClasses: Record<NonNullable<Props["size"]>, string> = {
+    sm: "w-[min(440px,90vw)]",
+    md: "w-[min(560px,90vw)]",
+    lg: "w-[min(720px,90vw)]",
+    xl: "w-[min(920px,90vw)]",
   };
 
   const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -70,6 +73,15 @@
     }
   }
 
+  // Spring scale entrance — swaps to plain fade when the user requests
+  // reduced motion (US-SP42-005 § prefers-reduced-motion).
+  function dialogTransition(node: Element): TransitionConfig {
+    if (prefersReducedMotion()) {
+      return fade(node, { duration: 300 });
+    }
+    return scale(node, { start: 0.97, duration: 300, easing: backOut });
+  }
+
   $effect(() => {
     if (open && !wasOpen) {
       previouslyFocused = document.activeElement as HTMLElement | null;
@@ -90,27 +102,29 @@
 {#if open}
   <!-- Backdrop -->
   <div
-    class="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm"
+    class="fixed inset-0 backdrop-warm"
+    style="z-index: var(--z-backdrop);"
     role="presentation"
-    transition:fade={{ duration: 200 }}
+    transition:fade={{ duration: 300 }}
   ></div>
 
   <!-- Dialog -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    class="fixed inset-0 flex items-center justify-center p-4"
+    style="z-index: var(--z-overlay);"
     role="dialog"
     aria-modal="true"
     aria-label={title}
     onkeydown={handleKeydown}
     onclick={handleDialogClick}
-    transition:scale={{ start: 0.97, duration: 200 }}
+    transition:dialogTransition
     {...restProps}
   >
     <div
       bind:this={dialogContentRef}
       class={cn(
-        "relative max-h-[85vh] overflow-y-auto rounded-lg border border-border bg-card text-card-foreground shadow-lg",
+        "relative max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-card text-card-foreground shadow-lg",
         sizeClasses[size],
         className,
       )}

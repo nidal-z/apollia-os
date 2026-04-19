@@ -136,6 +136,15 @@
     --ease-apple: cubic-bezier(0.2, 0, 0, 1);
     --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
     --ease-accel: cubic-bezier(0.4, 0, 1, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    /* ═════════════════════════════════════════════════════════
+       Z-index stack (US-SP42-012 — F.56) — single source of
+       truth so overlays/tooltips never collide.
+       ═════════════════════════════════════════════════════════ */
+    --z-backdrop: 40;
+    --z-overlay: 50;
+    --z-tooltip: 70;
 
     /* ═════════════════════════════════════════════════════════
        Hover tokens (US-SP42-009) — canonical lift/scale/glow.
@@ -521,6 +530,16 @@
   .app-backdrop-subtle {
     background-color: var(--backdrop-subtle);
     @apply backdrop-blur-sm;
+  }
+
+  /* Warm modal backdrop (US-SP42-012 — F.56). Warm cast vs the neutral
+     `app-backdrop` so overlays feel anchored in the parchment palette. */
+  .backdrop-warm {
+    background-color: rgba(60, 40, 20, 0.40);
+    @apply backdrop-blur-md;
+  }
+  .dark .backdrop-warm {
+    background-color: rgba(20, 14, 8, 0.55);
   }
 
   /* ── Interactive press feedback ── */

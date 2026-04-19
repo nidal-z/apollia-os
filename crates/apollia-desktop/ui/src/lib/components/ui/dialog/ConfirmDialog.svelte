@@ -1,5 +1,6 @@
 <script lang="ts">
   import Dialog from "./Dialog.svelte";
+  import DialogFooter from "./DialogFooter.svelte";
   import { Button } from "$lib/components/ui/button";
   import { Loader2 } from "lucide-svelte";
 
@@ -31,7 +32,7 @@
 <Dialog {open} {onclose} size="sm" {title} data-testid={dataTestId}>
   <p class="text-sm text-muted-foreground">{message}</p>
 
-  <div class="mt-6 flex justify-end gap-2">
+  <DialogFooter>
     <Button
       variant="outline"
       onclick={onclose}
@@ -50,5 +51,5 @@
       {/if}
       {confirmLabel}
     </Button>
-  </div>
+  </DialogFooter>
 </Dialog>
