@@ -22,6 +22,7 @@ pub mod registry;
 pub mod router;
 pub mod session;
 pub mod session_metrics;
+pub mod session_replay;
 pub mod shutdown;
 pub mod stt;
 pub mod supervisor;

@@ -79,6 +79,8 @@ pub enum MetaRoutine {
     GenerateRiskAssessment,
     /// Vérification de possibles hallucinations.
     GenerateHallucinationCheck,
+    /// Score de risque d'hallucination agrégé au niveau session (US-SP42-048).
+    GenerateHallucinationRisk,
 }
 
 impl MetaRoutine {
@@ -103,6 +105,9 @@ impl MetaRoutine {
             Self::GenerateHallucinationCheck => {
                 include_str!("../prompts/meta/hallucination_check.md")
             }
+            Self::GenerateHallucinationRisk => {
+                include_str!("../prompts/meta/hallucination_risk.md")
+            }
         }
     }
 
@@ -114,7 +119,7 @@ impl MetaRoutine {
     }
 
     /// Toutes les variantes — utile pour itérer côté Settings UI et tests.
-    pub const ALL: [MetaRoutine; 10] = [
+    pub const ALL: [MetaRoutine; 11] = [
         Self::GenerateToolCallRationale,
         Self::GenerateThinkingSummary,
         Self::GenerateSessionSummary,
@@ -125,6 +130,7 @@ impl MetaRoutine {
         Self::GenerateAlternativeBranches,
         Self::GenerateRiskAssessment,
         Self::GenerateHallucinationCheck,
+        Self::GenerateHallucinationRisk,
     ];
 }
 

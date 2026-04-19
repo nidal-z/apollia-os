@@ -22,5 +22,8 @@ pub use confidence_parser::{
     SourceType,
 };
 pub use error_analyzer::{classify_llm_error, classify_tool_error, enrich_with_llm};
-pub use hallucination_detector::{detect_hallucination, HeuristicReport, SchemaValidator};
+pub use hallucination_detector::{
+    compute_session_hallucination_risk, detect_hallucination, HallucinationRisk, HeuristicReport,
+    SchemaValidator, SessionHallucinationInputs,
+};
 pub use risk_analyzer::analyze as analyze_risk;

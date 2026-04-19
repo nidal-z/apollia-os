@@ -7,6 +7,13 @@
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { Clock } from "lucide-svelte";
 
+  interface Props {
+    /** Drill-down callback — fires with the correlation id (step_id / tool_id / hitl_id). */
+    onDrillDown?: (correlationId: string) => void;
+  }
+
+  let { onDrillDown }: Props = $props();
+
   const WINDOW_OPTIONS: { label: string; minutes: number }[] = [
     { label: "30min", minutes: 30 },
     { label: "1h", minutes: 60 },
@@ -15,7 +22,7 @@
     { label: "24h", minutes: 1440 },
   ];
 
-  const TYPE_FILTERS = ["task", "tool", "llm", "hitl"] as const;
+  const TYPE_FILTERS = ["task", "tool", "llm", "hitl", "memory", "a2a", "error"] as const;
   type EventTypeFilter = (typeof TYPE_FILTERS)[number];
 
   const TYPE_ICONS: Record<string, string> = {
@@ -23,6 +30,9 @@
     tool: "\u{1F527}",
     llm: "\u{1F916}",
     hitl: "\u{270B}",
+    memory: "\u{1F9E0}",
+    a2a: "\u{1F517}",
+    error: "\u{26A0}",
   };
 
   const TYPE_COLORS: Record<string, string> = {
@@ -30,6 +40,19 @@
     tool: "bg-warning/10 text-warning border-warning/30",
     llm: "bg-accent/10 text-accent-foreground border-accent/30",
     hitl: "bg-destructive/10 text-destructive border-destructive/30",
+    memory: "bg-primary/10 text-primary border-primary/30",
+    a2a: "bg-success/10 text-success border-success/30",
+    error: "bg-destructive/10 text-destructive border-destructive/30",
+  };
+
+  const SCRUBBER_MARKER_COLORS: Record<string, string> = {
+    task: "hsl(var(--info))",
+    tool: "hsl(var(--warning))",
+    llm: "hsl(var(--accent-foreground))",
+    hitl: "hsl(var(--destructive))",
+    memory: "hsl(var(--primary))",
+    a2a: "hsl(var(--success))",
+    error: "hsl(var(--destructive))",
   };
 
   const REFRESH_INTERVAL_MS = 15_000;
@@ -40,11 +63,24 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let expandedIndices = $state<Set<number>>(new Set());
+  let scrubberCursor = $state(0);
+  let hoverIndex = $state<number | null>(null);
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
   let filteredEvents = $derived(
     events.filter((e) => enabledTypes.has(e.event_type as EventTypeFilter)),
   );
+
+  // Extract correlation id from event.detail for drill-down (US-SP42-048).
+  function correlationIdFor(event: GlobalTimelineEvent): string | null {
+    const detail = event.detail as Record<string, unknown>;
+    const candidates = ["step_id", "tool_call_id", "hitl_id", "correlation_id"];
+    for (const key of candidates) {
+      const raw = detail?.[key];
+      if (typeof raw === "string" && raw.length > 0) return raw;
+    }
+    return null;
+  }
 
   async function loadTimeline(): Promise<void> {
     try {
@@ -60,12 +96,12 @@
     }
   }
 
-  function toggleType(t: EventTypeFilter) {
+  function toggleType(tf: EventTypeFilter) {
     const next = new Set(enabledTypes);
-    if (next.has(t)) {
-      next.delete(t);
+    if (next.has(tf)) {
+      next.delete(tf);
     } else {
-      next.add(t);
+      next.add(tf);
     }
     enabledTypes = next;
   }
@@ -78,6 +114,13 @@
       next.add(index);
     }
     expandedIndices = next;
+  }
+
+  function handleMarkerClick(event: GlobalTimelineEvent, index: number) {
+    scrubberCursor = index;
+    const corr = correlationIdFor(event);
+    if (corr) onDrillDown?.(corr);
+    else toggleExpand(index);
   }
 
   function formatTimestamp(iso: string): string {
@@ -149,6 +192,40 @@
     </div>
   </div>
 
+  <!-- Horizontal scrubber with event markers (US-SP42-048) -->
+  {#if !loading && !error && filteredEvents.length > 0}
+    <div class="scrubber" data-testid="timeline-scrubber">
+      <div class="scrubber-track">
+        {#each filteredEvents as event, index (event.timestamp + "-" + index)}
+          <button
+            class="scrubber-marker"
+            class:active={scrubberCursor === index}
+            style:left="{(index / Math.max(1, filteredEvents.length - 1)) * 100}%"
+            style:background-color={SCRUBBER_MARKER_COLORS[event.event_type] ?? "hsl(var(--muted))"}
+            data-testid="scrubber-marker-{index}"
+            aria-label={event.summary}
+            onclick={() => handleMarkerClick(event, index)}
+            onmouseenter={() => (hoverIndex = index)}
+            onmouseleave={() => (hoverIndex = null)}
+          ></button>
+        {/each}
+      </div>
+
+      {#if hoverIndex !== null && filteredEvents[hoverIndex]}
+        <div
+          class="scrubber-preview"
+          data-testid="scrubber-preview"
+          style:left="{(hoverIndex / Math.max(1, filteredEvents.length - 1)) * 100}%"
+        >
+          <span class="preview-time">
+            {formatTimestamp(filteredEvents[hoverIndex].timestamp)}
+          </span>
+          <span class="preview-summary">{filteredEvents[hoverIndex].summary}</span>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   <!-- Events list -->
   {#if loading}
     <div class="space-y-2">
@@ -170,7 +247,8 @@
         <!-- glass-card-hover event cards -->
         <button
           class="flex w-full items-start gap-3 glass-card-hover px-3.5 py-2.5 text-left"
-          onclick={() => toggleExpand(index)}
+          class:ring-primary={scrubberCursor === index}
+          onclick={() => handleMarkerClick(event, index)}
           data-testid="timeline-event-{index}"
         >
           <span class="mt-0.5 text-sm">{TYPE_ICONS[event.event_type] ?? "\u{2022}"}</span>
@@ -179,6 +257,11 @@
             <div class="flex items-center gap-2">
               <span class="text-[13px] font-medium">{event.summary}</span>
               <Badge variant="secondary" class="text-[10px] capitalize">{event.event_type}</Badge>
+              {#if correlationIdFor(event)}
+                <Badge variant="outline" class="text-[10px] font-mono">
+                  {correlationIdFor(event)}
+                </Badge>
+              {/if}
             </div>
             <span class="text-[11px] text-muted-foreground">{formatTimestamp(event.timestamp)}</span>
           </div>
@@ -197,3 +280,59 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .scrubber {
+    position: relative;
+    height: 2.5rem;
+    padding: 0.75rem 0;
+  }
+  .scrubber-track {
+    position: relative;
+    width: 100%;
+    height: 3px;
+    border-radius: 9999px;
+    background-color: hsl(var(--border));
+  }
+  .scrubber-marker {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 2px solid hsl(var(--background));
+    padding: 0;
+    cursor: pointer;
+    transition: transform 120ms ease;
+  }
+  .scrubber-marker:hover,
+  .scrubber-marker.active {
+    transform: translate(-50%, -50%) scale(1.4);
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.25);
+  }
+  .scrubber-preview {
+    position: absolute;
+    bottom: 100%;
+    transform: translateX(-50%);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    background-color: hsl(var(--popover));
+    border: 1px solid hsl(var(--border));
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-bottom: 0.25rem;
+    box-shadow: 0 4px 12px hsl(var(--foreground) / 0.08);
+  }
+  .preview-time {
+    color: hsl(var(--muted-foreground));
+    font-variant-numeric: tabular-nums;
+  }
+  .preview-summary {
+    font-weight: 500;
+  }
+</style>

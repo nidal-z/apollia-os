@@ -121,6 +121,121 @@ pub fn analysis_from_report(report: &HeuristicReport, raw_output: &str) -> Error
     .with_hallucination(true)
 }
 
+// ─────────────────────────────────────────────
+// Session-level aggregation (US-SP42-048 — Pattern P12)
+// ─────────────────────────────────────────────
+
+/// Inputs agrégés au niveau session pour calculer un score de risque global.
+///
+/// Le runtime remplit cette struct à partir :
+/// - des flags P3 accumulés par `detect_hallucination` sur les outputs d'outils ;
+/// - des gaps d'assertions sans citation (P10) ;
+/// - des contradictions détectées entre thinkings successifs (P11).
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct SessionHallucinationInputs {
+    /// Nombre de flags P3 positifs (empty/null/schema violations).
+    pub heuristic_flag_count: u32,
+    /// Nombre d'outputs d'outils observés dans la session (dénominateur).
+    pub total_tool_outputs: u32,
+    /// Nombre d'assertions sans citation (P10).
+    pub assertion_citation_gaps: u32,
+    /// Nombre total d'assertions (dénominateur pour le ratio).
+    pub total_assertions: u32,
+    /// Nombre de contradictions thinking détectées (P11).
+    pub thinking_contradictions: u32,
+}
+
+/// Score agrégé 0-100 + courts facteurs explicatifs. Produit par l'heuristique
+/// toujours-on [`compute_session_hallucination_risk`] ; peut être écrasé par la
+/// routine LLM `GenerateHallucinationRisk` si l'opt-in est actif.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct HallucinationRisk {
+    /// Score 0-100.
+    pub score: u8,
+    /// Facteurs top (≤ 5), phrases courtes.
+    pub factors: Vec<String>,
+}
+
+impl HallucinationRisk {
+    /// Safe fallback quand aucun signal n'est disponible (score 0, pas de facteurs).
+    pub fn zero() -> Self {
+        Self {
+            score: 0,
+            factors: Vec::new(),
+        }
+    }
+
+    /// Parse une sortie LLM (tolère les backticks Markdown).
+    pub fn parse(raw: &str) -> Result<Self, serde_json::Error> {
+        let clean = raw
+            .trim()
+            .trim_start_matches("```json")
+            .trim_start_matches("```")
+            .trim_end_matches("```")
+            .trim();
+        let mut parsed: HallucinationRisk = serde_json::from_str(clean)?;
+        if parsed.score > 100 {
+            parsed.score = 100;
+        }
+        if parsed.factors.len() > 5 {
+            parsed.factors.truncate(5);
+        }
+        Ok(parsed)
+    }
+}
+
+/// Heuristique déterministe — calcule un score 0-100 à partir des signaux
+/// de session. Toujours-on : coût zéro, aucun LLM.
+///
+/// # Formule
+///
+/// - 40 points pondérés par le ratio `heuristic_flag_count / total_tool_outputs`.
+/// - 40 points pondérés par le ratio `assertion_citation_gaps / total_assertions`.
+/// - 20 points pondérés par `min(1.0, thinking_contradictions / 3.0)`.
+pub fn compute_session_hallucination_risk(
+    inputs: &SessionHallucinationInputs,
+) -> HallucinationRisk {
+    let tool_ratio = if inputs.total_tool_outputs == 0 {
+        0.0
+    } else {
+        f64::from(inputs.heuristic_flag_count) / f64::from(inputs.total_tool_outputs)
+    };
+    let citation_ratio = if inputs.total_assertions == 0 {
+        0.0
+    } else {
+        f64::from(inputs.assertion_citation_gaps) / f64::from(inputs.total_assertions)
+    };
+    let contradiction_ratio = (f64::from(inputs.thinking_contradictions) / 3.0).min(1.0);
+
+    let raw = (tool_ratio * 40.0) + (citation_ratio * 40.0) + (contradiction_ratio * 20.0);
+    let score = raw.round().clamp(0.0, 100.0) as u8;
+
+    let mut factors: Vec<String> = Vec::new();
+    if inputs.heuristic_flag_count > 0 {
+        factors.push(format!(
+            "{} suspect tool output{}",
+            inputs.heuristic_flag_count,
+            if inputs.heuristic_flag_count > 1 { "s" } else { "" }
+        ));
+    }
+    if inputs.assertion_citation_gaps > 0 {
+        factors.push(format!(
+            "{} unsupported assertion{}",
+            inputs.assertion_citation_gaps,
+            if inputs.assertion_citation_gaps > 1 { "s" } else { "" }
+        ));
+    }
+    if inputs.thinking_contradictions > 0 {
+        factors.push(format!(
+            "{} thinking contradiction{}",
+            inputs.thinking_contradictions,
+            if inputs.thinking_contradictions > 1 { "s" } else { "" }
+        ));
+    }
+
+    HallucinationRisk { score, factors }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -201,5 +316,60 @@ mod tests {
         assert_eq!(a.category, ErrorCategory::HallucinationSuspected);
         assert!(a.hallucination_suspected);
         assert!(!a.human_message.is_empty());
+    }
+
+    /// GIVEN a session with no signals
+    /// WHEN compute_session_hallucination_risk()
+    /// THEN score is 0 and factors is empty.
+    #[test]
+    fn session_risk_zero_when_no_signals() {
+        let risk = compute_session_hallucination_risk(&SessionHallucinationInputs::default());
+        assert_eq!(risk.score, 0);
+        assert!(risk.factors.is_empty());
+    }
+
+    /// GIVEN all signals saturated
+    /// WHEN compute_session_hallucination_risk()
+    /// THEN score is 100 and factors enumerate contributors.
+    #[test]
+    fn session_risk_saturates_at_100() {
+        let inputs = SessionHallucinationInputs {
+            heuristic_flag_count: 5,
+            total_tool_outputs: 5,
+            assertion_citation_gaps: 10,
+            total_assertions: 10,
+            thinking_contradictions: 5,
+        };
+        let risk = compute_session_hallucination_risk(&inputs);
+        assert_eq!(risk.score, 100);
+        assert_eq!(risk.factors.len(), 3);
+    }
+
+    /// GIVEN only one empty tool output out of four
+    /// WHEN compute_session_hallucination_risk()
+    /// THEN score is around 10 (25% × 40 points).
+    #[test]
+    fn session_risk_partial_tool_flags() {
+        let inputs = SessionHallucinationInputs {
+            heuristic_flag_count: 1,
+            total_tool_outputs: 4,
+            ..Default::default()
+        };
+        let risk = compute_session_hallucination_risk(&inputs);
+        assert_eq!(risk.score, 10);
+        assert_eq!(risk.factors.len(), 1);
+    }
+
+    /// GIVEN a well-formed LLM response
+    /// WHEN HallucinationRisk::parse()
+    /// THEN struct is returned with clamped values.
+    #[test]
+    fn hallucination_risk_parses_and_clamps() {
+        let raw = r#"```json
+{"score": 150, "factors": ["a", "b", "c", "d", "e", "f", "g"]}
+```"#;
+        let parsed = HallucinationRisk::parse(raw).expect("parse ok");
+        assert_eq!(parsed.score, 100);
+        assert_eq!(parsed.factors.len(), 5);
     }
 }

@@ -601,6 +601,57 @@ export interface TimelineParams {
   window_minutes: number;
 }
 
+// ─────────────────────────────────────────────
+// Session meta-layer (US-SP42-048 — Pattern P12)
+// ─────────────────────────────────────────────
+
+/** Catégorie d'événement session affichée dans le scrubber. */
+export type SessionEventKind = "tool" | "memory" | "hitl" | "a2a" | "error";
+
+/** Événement persisté pour le scrubber + replay. */
+export interface SessionEvent {
+  ts: string;
+  kind: SessionEventKind;
+  label: string;
+  correlation_id: string | null;
+  payload_json: unknown;
+}
+
+/** État de lecture du replay, piloté depuis `SessionReplayControls`. */
+export interface ReplayState {
+  cursor: number;
+  total: number;
+  playing: boolean;
+  speed: number;
+}
+
+/** Score de risque d'hallucination agrégé au niveau session. */
+export interface HallucinationRisk {
+  score: number;
+  factors: string[];
+}
+
+/** Inputs transmis à `compute_session_meta`. */
+export interface SessionHallucinationInputs {
+  heuristic_flag_count: number;
+  total_tool_outputs: number;
+  assertion_citation_gaps: number;
+  total_assertions: number;
+  thinking_contradictions: number;
+}
+
+/** Suggestion actionnable retournée par `GenerateNextSteps` (string courte). */
+export type NextStep = string;
+
+/** Réponse agrégée du meta-layer de session. */
+export interface SessionMeta {
+  hallucination_risk: HallucinationRisk;
+  event_count: number;
+  summary: string | null;
+  title: string | null;
+  next_steps: NextStep[] | null;
+}
+
 /** Entrée de l'audit trail. */
 export interface AuditTrailEntry {
   id: string;
