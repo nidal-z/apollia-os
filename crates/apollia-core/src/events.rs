@@ -845,6 +845,20 @@ pub enum RuntimeEvent {
         threshold_exceeded: bool,
     },
 
+    // ── Meta LLM Orchestrator events (ADR-073) ───
+    /// Émis par `MetaLlmOrchestrator` quand le budget tokens/session est dépassé.
+    ///
+    /// Permet au frontend de masquer les artefacts de transparence restants
+    /// pour cette session et d'afficher un indicateur budget épuisé.
+    MetaLlmBudgetExceeded {
+        /// Identifiant de session associé au budget.
+        session_id: String,
+        /// Tokens consommés cumulés depuis le début de la session.
+        tokens_used: u64,
+        /// Budget configuré (tokens/session, défaut 10_000).
+        budget: u64,
+    },
+
     // ── Context Manager events ───────────────────
     /// Émis par `ContextManager` quand l'historique de conversation a été compacté.
     ///
@@ -1343,6 +1357,12 @@ mod tests {
                 total_cache_read_tokens: 240,
                 threshold_usd: 0.50,
                 threshold_exceeded: false,
+            },
+            // ── Meta LLM Orchestrator ─────────────────────────
+            RuntimeEvent::MetaLlmBudgetExceeded {
+                session_id: "sess-meta".into(),
+                tokens_used: 10_500,
+                budget: 10_000,
             },
             // ── Context Manager ───────────────────────────────
             RuntimeEvent::ContextCompacted {

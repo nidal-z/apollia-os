@@ -51,6 +51,9 @@ encoding_rs    = { workspace = true, optional = true }
 tokio-stream   = { workspace = true }
 tokio-util     = { workspace = true }
 chrono         = { workspace = true }
+# MetaLlmOrchestrator — ADR-073
+lru            = { workspace = true }
+sha2           = { workspace = true }
 
 [dev-dependencies]
 toml     = { workspace = true }

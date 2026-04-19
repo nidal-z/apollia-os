@@ -10,6 +10,7 @@
 //! disponibles quelle que soit la feature activée.
 
 pub mod backends;
+pub mod meta_orchestrator;
 pub mod pricing;
 pub mod repository;
 pub mod retry;
@@ -18,6 +19,11 @@ pub mod routing_level;
 pub mod token_budget;
 pub mod tool_helper;
 pub mod types;
+
+pub use meta_orchestrator::{
+    MetaLlmBudget, MetaLlmOrchestrator, MetaLlmSettings, MetaOrchestratorHandle, MetaRoutine,
+    DEFAULT_SESSION_BUDGET_TOKENS,
+};
 
 pub use repository::{
     spawn_subscriber as spawn_llm_subscriber, LlmCallRecord, LlmCallRepository, LlmCostSummary,
