@@ -14,6 +14,8 @@
 
 pub mod error_analyzer;
 pub mod hallucination_detector;
+pub mod risk_analyzer;
 
 pub use error_analyzer::{classify_llm_error, classify_tool_error, enrich_with_llm};
 pub use hallucination_detector::{detect_hallucination, HeuristicReport, SchemaValidator};
+pub use risk_analyzer::analyze as analyze_risk;

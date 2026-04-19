@@ -744,6 +744,18 @@ pub enum RuntimeEvent {
         session_id: String,
     },
 
+    // ── HITL rejection (US-SP42-045) ─────────────
+    /// Le HITL a été rejeté par l'opérateur avec une raison obligatoire.
+    ///
+    /// Émis par le runtime après `PendingApprovals::resolve` côté refus ;
+    /// propagé à l'agent via `approval_outcome` côté SDK.
+    HitlRejected {
+        /// Identifiant de la requête HITL (task_id ou request_id).
+        request_id: String,
+        /// Motif textuel fourni par l'opérateur (non vide, trimmé).
+        reason: String,
+    },
+
     // ── Plan Cache events ────────────────────────
     /// Un plan a été récupéré depuis le cache au lieu d'être généré par le Reasoner.
     PlanCacheHit {
@@ -1497,6 +1509,10 @@ mod tests {
             RuntimeEvent::ChatUserInputResolved {
                 request_id: "req-001".into(),
                 session_id: "sess-001".into(),
+            },
+            RuntimeEvent::HitlRejected {
+                request_id: "req-001".into(),
+                reason: "Cost too high for this session.".into(),
             },
             // ── Plan Cache ────────────────────────
             RuntimeEvent::PlanCacheHit {

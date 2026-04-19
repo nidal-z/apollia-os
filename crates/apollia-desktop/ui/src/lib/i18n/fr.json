@@ -2165,6 +2165,31 @@
     "all_providers_added": "Tous les providers sont déjà ajoutés"
   },
   "hitl": {
+    "impact": {
+      "low": "Impact faible",
+      "medium": "Impact modéré",
+      "high": "Impact élevé",
+      "critical": "Impact critique"
+    },
+    "section": {
+      "why": "Pourquoi l'agent demande",
+      "risk": "Évaluation des risques",
+      "if_approved": "Si vous approuvez",
+      "if_rejected": "Si vous refusez"
+    },
+    "risk": {
+      "categories_label": "Catégories",
+      "mitigations_label": "Précautions",
+      "fallback_approved": "L'agent poursuivra l'action.",
+      "fallback_rejected": "L'agent sera bloqué et devra emprunter une autre voie."
+    },
+    "reject": {
+      "reason_required": "Expliquez pourquoi (min {min} caractères).",
+      "reason_placeholder": "Indiquez à l'agent la raison du refus…",
+      "open": "Refuser…",
+      "confirm": "Confirmer le refus",
+      "cancel": "Annuler"
+    },
     "fs": {
       "title": "Opération fichier nécessite une approbation",
       "subtitle": "L'assistant souhaite effectuer l'action suivante sur votre système de fichiers.",

@@ -195,7 +195,8 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::TaskInputRequired { .. }
         | RuntimeEvent::TaskResumed { .. }
         | RuntimeEvent::TaskApprovalTimeout { .. }
-        | RuntimeEvent::HitlFilesystemRequired { .. } => "approval-changed",
+        | RuntimeEvent::HitlFilesystemRequired { .. }
+        | RuntimeEvent::HitlRejected { .. } => "approval-changed",
 
         // ── LLM ──────────────────────────────────────────────────────────
         RuntimeEvent::LlmModelLoading { .. }

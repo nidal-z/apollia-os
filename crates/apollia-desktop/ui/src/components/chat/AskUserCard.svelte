@@ -19,9 +19,11 @@
   import { HelpCircle } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import { Button } from "$lib/components/ui/button";
+  import { Textarea } from "$lib/components/ui/textarea";
   import AskUserQuestion from "./AskUserQuestion.svelte";
   import AskUserSummary from "./AskUserSummary.svelte";
   import ApprovalTimer from "./ApprovalTimer.svelte";
+  import RiskBadge, { type ImpactLevel } from "../hitl/RiskBadge.svelte";
 
   interface UserQuestion {
     id: string;
@@ -40,6 +42,29 @@
     skipped: boolean;
   }
 
+  /**
+   * Structured HITL context surfaced on the card (US-SP42-045).
+   * When provided, the card renders Why / Risk / If-approved / If-rejected
+   * blocks on top of the question list. When omitted, the legacy v2 layout
+   * is preserved.
+   */
+  interface HitlContext {
+    /** Agent thinking excerpt shown in the "Why" section. */
+    contextThinking?: string | null;
+    /** Coarse-grained impact level (drives the risk badge colour). */
+    estimatedImpact: ImpactLevel;
+    /** Structured risk breakdown (always-on static analyzer). */
+    riskAnalysis: {
+      categories: string[];
+      severity: number;
+      mitigations: string[];
+    };
+    /** Plain-text narration of what happens if the user approves. */
+    consequencesIfApproved?: string | null;
+    /** Plain-text narration of what happens if the user rejects. */
+    consequencesIfRejected?: string | null;
+  }
+
   interface Props {
     requestId: string;
     questions: UserQuestion[];
@@ -48,6 +73,8 @@
     startedAtMs?: number;
     /** Per-question character budget for open questions. 0 = unlimited. */
     charLimit?: number;
+    /** Optional HITL context for Why / Risk / Consequences sections. */
+    hitl?: HitlContext | null;
   }
 
   let {
@@ -56,7 +83,15 @@
     context = null,
     startedAtMs = Date.now(),
     charLimit = 2_000,
+    hitl = null,
   }: Props = $props();
+
+  const MIN_REJECT_REASON_LENGTH = 10;
+  let showRejectForm = $state(false);
+  let rejectReason = $state("");
+  const rejectReasonValid = $derived(
+    rejectReason.trim().length >= MIN_REJECT_REASON_LENGTH,
+  );
 
   // ── Per-question state ───────────────────────────────────────────────────
   let openValues = $state<Record<string, string>>({});
@@ -141,6 +176,29 @@
     await sendAnswers(buildAnswers(false, true));
   }
 
+  /**
+   * Reject the HITL request. Forces a non-empty reason (min
+   * `MIN_REJECT_REASON_LENGTH` chars) — the textarea is mandatory.
+   * The reason is forwarded to the agent via `approval_outcome`
+   * (SDK-side) and emitted on the event bus as `HitlRejected`.
+   */
+  async function handleRejectConfirm(): Promise<void> {
+    if (!rejectReasonValid) return;
+    isProcessing = true;
+    error = null;
+    try {
+      await invoke("respond_user_input_rejected", {
+        requestId,
+        reason: rejectReason.trim(),
+      });
+      submittedAnswers = buildAnswers(true);
+      isSubmitted = true;
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : String(err);
+      isProcessing = false;
+    }
+  }
+
   // ── A11y — initial focus + keyboard handlers ─────────────────────────────
   onMount(async () => {
     await tick();
@@ -219,6 +277,80 @@
       <p class="mt-1 text-[11px] italic text-muted-foreground">{context}</p>
     {/if}
 
+    <!-- HITL structured context (US-SP42-045) -->
+    {#if hitl}
+      <div class="mt-2 space-y-1.5" data-testid="ask-user-hitl-context">
+        <!-- Why + Risk badge row -->
+        <div class="flex items-start justify-between gap-2">
+          {#if hitl.contextThinking}
+            <div class="flex-1">
+              <div class="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {$t("hitl.section.why")}
+              </div>
+              <p class="mt-0.5 text-[11px] text-foreground">
+                {hitl.contextThinking}
+              </p>
+            </div>
+          {/if}
+          <RiskBadge
+            level={hitl.estimatedImpact}
+            severity={hitl.riskAnalysis.severity}
+          />
+        </div>
+
+        <!-- Risk categories + mitigations -->
+        {#if hitl.riskAnalysis.categories.length > 0 || hitl.riskAnalysis.mitigations.length > 0}
+          <details class="rounded-md bg-muted/40 px-2 py-1" data-testid="ask-user-risk-details">
+            <summary class="cursor-pointer text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {$t("hitl.section.risk")}
+            </summary>
+            {#if hitl.riskAnalysis.categories.length > 0}
+              <div class="mt-1 flex flex-wrap gap-1" data-testid="ask-user-risk-categories">
+                {#each hitl.riskAnalysis.categories as cat}
+                  <span class="rounded border border-border/40 bg-background/60 px-1.5 py-0.5 font-mono text-[10px]">
+                    {cat}
+                  </span>
+                {/each}
+              </div>
+            {/if}
+            {#if hitl.riskAnalysis.mitigations.length > 0}
+              <ul class="mt-1 list-inside list-disc space-y-0.5 text-[11px] text-muted-foreground">
+                {#each hitl.riskAnalysis.mitigations as mit}
+                  <li>{mit}</li>
+                {/each}
+              </ul>
+            {/if}
+          </details>
+        {/if}
+
+        <!-- If approved / If rejected -->
+        <div class="grid gap-1.5 sm:grid-cols-2">
+          <div
+            class="rounded-md border border-success/30 bg-success/5 px-2 py-1"
+            data-testid="ask-user-if-approved"
+          >
+            <div class="text-[10px] font-semibold uppercase tracking-wide text-success">
+              {$t("hitl.section.if_approved")}
+            </div>
+            <p class="mt-0.5 text-[11px] text-foreground">
+              {hitl.consequencesIfApproved ?? $t("hitl.risk.fallback_approved")}
+            </p>
+          </div>
+          <div
+            class="rounded-md border border-destructive/30 bg-destructive/5 px-2 py-1"
+            data-testid="ask-user-if-rejected"
+          >
+            <div class="text-[10px] font-semibold uppercase tracking-wide text-destructive">
+              {$t("hitl.section.if_rejected")}
+            </div>
+            <p class="mt-0.5 text-[11px] text-foreground">
+              {hitl.consequencesIfRejected ?? $t("hitl.risk.fallback_rejected")}
+            </p>
+          </div>
+        </div>
+      </div>
+    {/if}
+
     <!-- Questions — scroll max 480 px -->
     <div class="mt-1 max-h-[480px] overflow-y-auto pr-1">
       {#each questions as question, i (question.id)}
@@ -243,6 +375,33 @@
       {/each}
     </div>
 
+    <!-- Reject reason form (HITL only, mandatory textarea) -->
+    {#if hitl && showRejectForm}
+      <div
+        class="mt-2 rounded-md border border-destructive/30 bg-destructive/5 p-2"
+        data-testid="ask-user-reject-form"
+      >
+        <label
+          for="ask-user-reject-reason-{requestId}"
+          class="mb-1 block text-[11px] font-medium text-destructive"
+        >
+          {$t("hitl.reject.reason_required", {
+            values: { min: MIN_REJECT_REASON_LENGTH },
+          })}
+        </label>
+        <Textarea
+          id="ask-user-reject-reason-{requestId}"
+          bind:value={rejectReason}
+          rows={2}
+          placeholder={$t("hitl.reject.reason_placeholder")}
+          data-testid="ask-user-reject-reason"
+        />
+        <p class="mt-1 text-[10px] text-muted-foreground">
+          {rejectReason.trim().length} / {MIN_REJECT_REASON_LENGTH}
+        </p>
+      </div>
+    {/if}
+
     <!-- Error -->
     {#if error}
       <p class="mt-1.5 text-[10px] text-destructive" role="alert">{error}</p>
@@ -250,6 +409,49 @@
 
     <!-- Actions -->
     <div class="mt-2 flex flex-wrap items-center justify-end gap-2">
+      {#if hitl && showRejectForm}
+        <Button
+          variant="ghost"
+          size="sm"
+          class="text-[11px] h-7 px-3"
+          disabled={isProcessing}
+          onclick={() => {
+            showRejectForm = false;
+            rejectReason = "";
+          }}
+          data-testid="ask-user-reject-cancel"
+        >
+          {$t("hitl.reject.cancel")}
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          class="text-[11px] h-7 px-3"
+          disabled={isProcessing || !rejectReasonValid}
+          onclick={handleRejectConfirm}
+          data-testid="ask-user-reject-confirm"
+        >
+          {#if isProcessing}
+            <Spinner class="mr-1.5 h-3 w-3" />
+          {/if}
+          {$t("hitl.reject.confirm")}
+        </Button>
+      {:else}
+      {#if hitl}
+        <Button
+          variant="ghost"
+          size="sm"
+          class="text-[11px] h-7 px-3 text-destructive hover:bg-destructive/10"
+          disabled={isProcessing}
+          onclick={() => {
+            showRejectForm = true;
+            rejectReason = "";
+          }}
+          data-testid="ask-user-reject-open"
+        >
+          {$t("hitl.reject.open")}
+        </Button>
+      {/if}
       <Button
         variant="ghost"
         size="sm"
@@ -284,6 +486,7 @@
         {/if}
         {$t("chat.ask_user_submit")}
       </Button>
+      {/if}
     </div>
   </div>
 {/if}

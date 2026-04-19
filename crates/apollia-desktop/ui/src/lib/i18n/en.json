@@ -2165,6 +2165,31 @@
     "all_providers_added": "All providers already added"
   },
   "hitl": {
+    "impact": {
+      "low": "Low impact",
+      "medium": "Medium impact",
+      "high": "High impact",
+      "critical": "Critical impact"
+    },
+    "section": {
+      "why": "Why the agent is asking",
+      "risk": "Risk assessment",
+      "if_approved": "If you approve",
+      "if_rejected": "If you reject"
+    },
+    "risk": {
+      "categories_label": "Categories",
+      "mitigations_label": "Mitigations",
+      "fallback_approved": "The agent will proceed with the action.",
+      "fallback_rejected": "The agent will be blocked and must choose a different approach."
+    },
+    "reject": {
+      "reason_required": "Please explain why (min {min} characters).",
+      "reason_placeholder": "Tell the agent why you are refusing…",
+      "open": "Reject…",
+      "confirm": "Confirm reject",
+      "cancel": "Cancel"
+    },
     "fs": {
       "title": "File operation requires approval",
       "subtitle": "The assistant wants to perform the following action on your filesystem.",
