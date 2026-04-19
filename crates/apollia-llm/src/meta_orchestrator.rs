@@ -21,6 +21,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use apollia_core::decision_point::{DecisionKind, DecisionPoint};
 use apollia_core::events::{EventBusSender, RuntimeEvent, ToolCallRationale};
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
@@ -105,6 +106,13 @@ impl MetaRoutine {
         }
     }
 
+    /// `true` si la routine doit rester désactivée même quand le master toggle
+    /// est on — l'utilisateur doit l'activer explicitement via `per_routine`
+    /// (ex. `routines.decision_branches` pour `GenerateAlternativeBranches`).
+    pub fn is_opt_in_by_default(self) -> bool {
+        matches!(self, Self::GenerateAlternativeBranches)
+    }
+
     /// Toutes les variantes — utile pour itérer côté Settings UI et tests.
     pub const ALL: [MetaRoutine; 10] = [
         Self::GenerateToolCallRationale,
@@ -157,11 +165,16 @@ impl Default for MetaLlmSettings {
 
 impl MetaLlmSettings {
     /// Indique si la routine doit être exécutée pour cette config.
+    ///
+    /// Certaines routines sont opt-in strict même avec master `enabled = true` —
+    /// elles coûtent un appel LLM par occurrence (ex. `GenerateAlternativeBranches`,
+    /// US-SP42-041) et doivent être activées explicitement via `per_routine`.
     pub fn is_routine_enabled(&self, routine: MetaRoutine) -> bool {
         if !self.enabled {
             return false;
         }
-        self.per_routine.get(&routine).copied().unwrap_or(true)
+        let default = !routine.is_opt_in_by_default();
+        self.per_routine.get(&routine).copied().unwrap_or(default)
     }
 }
 
@@ -428,6 +441,35 @@ impl MetaOrchestratorHandle {
             .await
             .ok()??;
         ToolCallRationale::parse(&raw).ok()
+    }
+
+    /// Génère un [`DecisionPoint`] structuré depuis une trace de thinking.
+    ///
+    /// Appelle la routine `GenerateAlternativeBranches` qui renvoie un JSON
+    /// `{ chosen, alternatives: [{ label, rejected_reason, confidence_delta }] }`.
+    /// Retourne `None` si la routine est désactivée (opt-in `routines.decision_branches`,
+    /// default off), si le budget est épuisé, si l'appel LLM échoue, ou si la
+    /// réponse ne parse pas. Au plus 3 alternatives sont conservées.
+    ///
+    /// L'UI doit afficher un fallback silencieux (aucun panneau) dans ces cas.
+    pub async fn generate_decision_point(
+        &self,
+        turn_id: &str,
+        kind: DecisionKind,
+        thinking_raw: &str,
+        chosen_action: &str,
+        session_id: impl Into<String>,
+    ) -> Option<DecisionPoint> {
+        let inputs = serde_json::json!({
+            "turn_id": turn_id,
+            "thinking": thinking_raw,
+            "chosen_action": chosen_action,
+        });
+        let raw = self
+            .run(MetaRoutine::GenerateAlternativeBranches, inputs, session_id)
+            .await
+            .ok()??;
+        DecisionPoint::parse(&raw, turn_id, kind).ok()
     }
 
     /// Retourne la config courante.
@@ -959,6 +1001,118 @@ mod tests {
         for r in MetaRoutine::ALL {
             assert!(!s.is_routine_enabled(r));
         }
+    }
+
+    // ─── US-SP42-041 — DecisionPoint extraction ───
+
+    /// GIVEN un orchestrator avec `GenerateAlternativeBranches` désactivée
+    ///   (opt-in par défaut off, même avec master=on)
+    /// WHEN generate_decision_point() est appelé
+    /// THEN retourne None sans appel LLM
+    #[tokio::test]
+    async fn decision_point_opt_in_default_off() {
+        let (backend, calls) = CountingBackend::new();
+        let router = router_with(backend as Arc<dyn CompletionModel>);
+        // master=on mais pas de per_routine override → GenerateAlternativeBranches OFF
+        let handle = MetaLlmOrchestrator::spawn(router, None, enabled_settings());
+
+        let dp = handle
+            .generate_decision_point(
+                "turn-1",
+                DecisionKind::ToolChoice,
+                "let me think…",
+                "read_file",
+                "sess-opt",
+            )
+            .await;
+
+        assert!(dp.is_none(), "opt-in routine must be off by default");
+        assert_eq!(calls.load(AtomicOrdering::SeqCst), 0);
+    }
+
+    /// GIVEN un orchestrator avec la routine explicitement activée et un
+    ///   backend qui renvoie un JSON DecisionPoint valide
+    /// WHEN generate_decision_point() est appelé
+    /// THEN un DecisionPoint parsé est retourné avec ses 2 alternatives
+    #[tokio::test]
+    async fn decision_point_parses_structured_payload() {
+        struct FixedBackend {
+            calls: Arc<AtomicUsize>,
+        }
+        #[async_trait::async_trait]
+        impl CompletionModel for FixedBackend {
+            async fn complete(
+                &self,
+                _req: CompletionRequest,
+            ) -> Result<CompletionResponse, LlmError> {
+                self.calls.fetch_add(1, AtomicOrdering::SeqCst);
+                Ok(CompletionResponse {
+                    content: r#"{"chosen":"read_file","alternatives":[
+                        {"label":"bash","rejected_reason":"overkill","confidence_delta":-0.3},
+                        {"label":"grep","rejected_reason":"path known","confidence_delta":-0.5}
+                    ]}"#
+                    .into(),
+                    tool_calls: vec![],
+                    usage: TokenUsage {
+                        prompt_tokens: 50,
+                        completion_tokens: 50,
+                        cost_usd: None,
+                        ..Default::default()
+                    },
+                    finish_reason: FinishReason::Stop,
+                    latency_ms: 1,
+                    ttft_ms: None,
+                })
+            }
+            async fn stream(
+                &self,
+                _req: CompletionRequest,
+            ) -> Result<
+                Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>,
+                LlmError,
+            > {
+                Ok(Box::pin(futures::stream::empty()))
+            }
+            fn is_available(&self) -> bool {
+                true
+            }
+            fn backend_name(&self) -> &str {
+                "fixed"
+            }
+            fn model_id(&self) -> &str {
+                "fixed"
+            }
+        }
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let router = router_with(Arc::new(FixedBackend {
+            calls: calls.clone(),
+        }) as Arc<dyn CompletionModel>);
+
+        let mut settings = enabled_settings();
+        settings
+            .per_routine
+            .insert(MetaRoutine::GenerateAlternativeBranches, true);
+        let handle = MetaLlmOrchestrator::spawn(router, None, settings);
+
+        let dp = handle
+            .generate_decision_point(
+                "turn-77",
+                DecisionKind::ToolChoice,
+                "I should read the file before running bash…",
+                "read_file",
+                "sess-dp",
+            )
+            .await
+            .expect("decision point expected");
+
+        assert_eq!(dp.turn_id, "turn-77");
+        assert_eq!(dp.kind, DecisionKind::ToolChoice);
+        assert_eq!(dp.chosen, "read_file");
+        assert_eq!(dp.alternatives.len(), 2);
+        assert_eq!(dp.alternatives[0].label, "bash");
+        assert!(dp.alternatives[0].confidence_delta < 0.0);
+        assert_eq!(calls.load(AtomicOrdering::SeqCst), 1);
     }
 
     // ─── US-SP42-037 — ThinkingSummary parsing ───

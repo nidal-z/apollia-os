@@ -1058,6 +1058,18 @@ pub enum RuntimeEvent {
         choice: crate::plan_alternatives::PlanChoice,
     },
 
+    // ── Decision branches (US-SP42-041 — Pattern P5) ─────────────────────
+    /// Un point de décision significatif a été capturé avec ses alternatives.
+    ///
+    /// Émis après la phase thinking quand la routine méta
+    /// `GenerateAlternativeBranches` a extrait le choix effectué + les pistes
+    /// rejetées. Opt-in : uniquement si `routines.decision_branches` est
+    /// activé dans [`crate::decision_point::DecisionPoint`].
+    DecisionPointRecorded {
+        /// Le point de décision, chosen + alternatives (≤ 3).
+        point: crate::decision_point::DecisionPoint,
+    },
+
     // ── HITL filesystem events ───────────────────────────────────────────
     /// Une opération filesystem par un agent nécessite une approbation humaine.
     ///

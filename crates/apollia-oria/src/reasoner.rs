@@ -12,9 +12,11 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use apollia_core::decision_point::DecisionKind;
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::plan_alternatives::{PlanAlternatives, TaskPlan, TaskPlanStep};
 use apollia_core::{AIPPart, ORIAConfig};
+use apollia_llm::meta_orchestrator::MetaOrchestratorHandle;
 use apollia_llm::{ChatMessage, CompletionModel, CompletionRequest};
 
 use crate::observer::ContextBundle;
@@ -131,6 +133,11 @@ pub struct Reasoner {
     /// Optional EventBus pour émettre `ThinkingStarted` / `ThinkingEnded` autour
     /// de la phase Reasoner (US-SP42-037). Injecté via [`Reasoner::with_event_bus`].
     event_bus: Option<EventBusSender>,
+    /// Optional handle vers le `MetaLlmOrchestrator` — utilisé pour extraire
+    /// les branches alternatives de la trace de thinking et émettre un
+    /// `DecisionPointRecorded` (US-SP42-041, Pattern P5). Opt-in via le
+    /// toggle `routines.decision_branches`.
+    meta_orchestrator: Option<MetaOrchestratorHandle>,
 }
 
 impl Reasoner {
@@ -143,6 +150,7 @@ impl Reasoner {
             model,
             max_steps,
             event_bus: None,
+            meta_orchestrator: None,
         }
     }
 
@@ -151,6 +159,16 @@ impl Reasoner {
     #[must_use]
     pub fn with_event_bus(mut self, bus: EventBusSender) -> Self {
         self.event_bus = Some(bus);
+        self
+    }
+
+    /// Attache un `MetaOrchestratorHandle` pour activer l'extraction des
+    /// branches alternatives du thinking (US-SP42-041). Opt-in : la routine
+    /// `GenerateAlternativeBranches` doit être activée dans `MetaLlmSettings`
+    /// (par défaut off). Sans ce handle, aucun `DecisionPointRecorded` n'est émis.
+    #[must_use]
+    pub fn with_meta_orchestrator(mut self, handle: MetaOrchestratorHandle) -> Self {
+        self.meta_orchestrator = Some(handle);
         self
     }
 
@@ -192,6 +210,52 @@ impl Reasoner {
                 raw_content,
                 tokens,
             });
+        }
+    }
+
+    /// Extrait les branches alternatives du thinking via la routine méta
+    /// `GenerateAlternativeBranches` puis émet `DecisionPointRecorded`.
+    ///
+    /// Silencieux (no-op) si :
+    /// - aucun `MetaOrchestratorHandle` n'est branché,
+    /// - aucun `EventBusSender` n'est branché,
+    /// - la routine est désactivée / budget épuisé / timeout / parse échoue.
+    ///
+    /// Kind utilisé : [`DecisionKind::ToolChoice`] — le step racine d'un plan
+    /// représente le choix d'outil principal de ce tour.
+    async fn maybe_emit_decision_point(
+        &self,
+        turn_id: &str,
+        thinking_raw: &str,
+        plan: &ExecutionPlan,
+    ) {
+        let Some(orchestrator) = &self.meta_orchestrator else {
+            return;
+        };
+        let Some(bus) = &self.event_bus else {
+            return;
+        };
+        let chosen = plan
+            .steps
+            .first()
+            .map(|s| {
+                s.tool_hint
+                    .clone()
+                    .unwrap_or_else(|| s.description.clone())
+            })
+            .unwrap_or_else(|| "(no step)".to_owned());
+
+        if let Some(point) = orchestrator
+            .generate_decision_point(
+                turn_id,
+                DecisionKind::ToolChoice,
+                thinking_raw,
+                &chosen,
+                turn_id,
+            )
+            .await
+        {
+            let _ = bus.send(RuntimeEvent::DecisionPointRecorded { point });
         }
     }
 
@@ -309,7 +373,13 @@ impl Reasoner {
                         steps = plan.steps.len(),
                         "ExecutionPlan ready"
                     );
-                    self.emit_thinking_ended(&turn_id, start_instant, last_raw, total_tokens);
+                    self.emit_thinking_ended(
+                        &turn_id,
+                        start_instant,
+                        last_raw.clone(),
+                        total_tokens,
+                    );
+                    self.maybe_emit_decision_point(&turn_id, &last_raw, &plan).await;
                     return Ok(plan);
                 }
                 Err(e) => {

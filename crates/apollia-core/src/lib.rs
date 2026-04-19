@@ -17,6 +17,7 @@
 pub mod budget;
 pub mod config;
 pub mod context;
+pub mod decision_point;
 pub mod error_analysis;
 pub mod events;
 pub mod llm_backend;
@@ -45,6 +46,7 @@ pub use config::{
     VertexConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
+pub use decision_point::{ConsideredAlternative, DecisionKind, DecisionPoint};
 pub use error_analysis::{ErrorAnalysis, ErrorCategory};
 pub use events::{AgentId, EventBusSender, FilesystemPreview, RuntimeEvent, TaskId, ToolCallRationale};
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};

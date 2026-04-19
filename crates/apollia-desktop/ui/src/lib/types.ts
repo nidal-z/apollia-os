@@ -1453,3 +1453,33 @@ export interface ThinkingState {
   tokens: number;
   summary: ThinkingSummary | null;
 }
+
+// ── US-SP42-041 — Decision branches (Pattern P5) ───────────────────────────
+
+/** Coarse kind of significant decision the agent made this turn. */
+export type DecisionKind =
+  | "tool_choice"
+  | "agent_delegate"
+  | "memory_write"
+  | "significant";
+
+/** One alternative path the agent weighed but did not take. */
+export interface ConsideredAlternative {
+  label: string;
+  rejected_reason: string;
+  /** Signed gap in confidence vs the chosen path — expected ≤ 0. */
+  confidence_delta: number;
+}
+
+/** Decision point captured from the thinking trace (≤ 3 alternatives). */
+export interface DecisionPoint {
+  turn_id: string;
+  kind: DecisionKind;
+  chosen: string;
+  alternatives: ConsideredAlternative[];
+}
+
+/** Payload of the `DecisionPointRecorded` runtime event. */
+export interface DecisionPointRecordedEvent {
+  point: DecisionPoint;
+}
