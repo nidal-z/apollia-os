@@ -415,6 +415,7 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<Result<Ev
             message_id,
             tool_name,
             input_preview,
+            rationale,
         } if sid == session_id => (
             SseChatEvent {
                 event: "tool_call_started".into(),
@@ -422,6 +423,7 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<Result<Ev
                     "message_id": message_id,
                     "tool_name": tool_name,
                     "input_preview": input_preview,
+                    "rationale": rationale,
                 }),
             },
             false,

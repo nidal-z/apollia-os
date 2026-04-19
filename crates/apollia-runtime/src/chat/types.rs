@@ -216,6 +216,10 @@ pub struct ToolCallRecord {
     pub output: Option<String>,
     /// Current status of the tool call.
     pub status: ToolCallStatus,
+    /// Meta-LLM narration of the call (US-SP42-038). Persisted so the UI
+    /// can re-render rationale when reopening a past session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rationale: Option<apollia_core::ToolCallRationale>,
 }
 
 /// Lifecycle status of a tool call.
@@ -1055,18 +1059,21 @@ mod tests {
                 input: serde_json::json!({"cmd": "ls"}),
                 output: Some("ok".into()),
                 status: ToolCallStatus::Executed,
+                rationale: None,
             },
             ToolCallRecord {
                 tool_name: "bash".into(),
                 input: serde_json::json!({"cmd": "rm -rf /"}),
                 output: None,
                 status: ToolCallStatus::Refused,
+                rationale: None,
             },
             ToolCallRecord {
                 tool_name: "read_file".into(),
                 input: serde_json::json!({"path": "/etc/hosts"}),
                 output: Some("…".into()),
                 status: ToolCallStatus::Executed,
+                rationale: None,
             },
         ];
 

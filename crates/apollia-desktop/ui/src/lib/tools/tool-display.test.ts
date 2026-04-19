@@ -4,6 +4,7 @@ import {
   resolveOutputParams,
   truncatePath,
   truncateString,
+  formatRationale,
 } from "./tool-display";
 import type { ToolCallView } from "$lib/types";
 import {
@@ -319,5 +320,61 @@ describe("truncateString", () => {
 
   test("handles exact-length string without truncation", () => {
     expect(truncateString("hello", 5)).toBe("hello");
+  });
+});
+
+describe("formatRationale", () => {
+  test("returns null for nullish input", () => {
+    expect(formatRationale(null)).toBeNull();
+    expect(formatRationale(undefined)).toBeNull();
+  });
+
+  test("truncates long values in inputs_recap and keeps order", () => {
+    const r = formatRationale({
+      summary: "why",
+      inputs_recap: [
+        ["path", "a".repeat(80)],
+        ["offset", "0"],
+      ],
+      expected_outcome: "what",
+      performance_hint: null,
+    });
+    expect(r).not.toBeNull();
+    expect(r!.inputs_recap.length).toBe(2);
+    expect(r!.inputs_recap[0][0]).toBe("path");
+    expect(r!.inputs_recap[0][1].length).toBeLessThanOrEqual(41);
+  });
+
+  test("caps recap to 4 entries", () => {
+    const many: Array<[string, string]> = Array.from({ length: 10 }, (_, i) => [
+      `k${i}`,
+      `v${i}`,
+    ]);
+    const r = formatRationale({
+      summary: "s",
+      inputs_recap: many,
+      expected_outcome: "e",
+      performance_hint: null,
+    });
+    expect(r!.inputs_recap.length).toBe(4);
+  });
+
+  test("trims performance_hint and drops empty hint", () => {
+    expect(
+      formatRationale({
+        summary: "s",
+        inputs_recap: [],
+        expected_outcome: "e",
+        performance_hint: "   ",
+      })!.performance_hint,
+    ).toBeNull();
+    expect(
+      formatRationale({
+        summary: "s",
+        inputs_recap: [],
+        expected_outcome: "e",
+        performance_hint: "  200ms  ",
+      })!.performance_hint,
+    ).toBe("200ms");
   });
 });

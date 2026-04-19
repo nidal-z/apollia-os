@@ -43,7 +43,7 @@ pub use config::{
     VertexConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
-pub use events::{AgentId, EventBusSender, FilesystemPreview, RuntimeEvent, TaskId};
+pub use events::{AgentId, EventBusSender, FilesystemPreview, RuntimeEvent, TaskId, ToolCallRationale};
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
 pub use manifest::{AgentManifest, AgentSkill, MemoryConfig};
 pub use notebook::{CellType, JupyterCell, NotebookEditOp};

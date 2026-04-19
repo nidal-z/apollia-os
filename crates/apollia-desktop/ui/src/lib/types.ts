@@ -686,6 +686,20 @@ export interface ToolCallView {
   duration_ms?: number | null;
   /** Process exit code, available when the tool produces one (e.g. bash_executor). */
   exit_code?: number | null;
+  /** Meta-LLM narration generated before execution (US-SP42-038, opt-in). */
+  rationale?: ToolCallRationale | null;
+}
+
+/** Structured meta-LLM narration attached to a tool call (US-SP42-038). */
+export interface ToolCallRationale {
+  /** One short sentence (<= 25 words) on WHY the agent calls this tool. */
+  summary: string;
+  /** 2-4 key `[key, short_value]` entries in agent-specified order. */
+  inputs_recap: Array<[string, string]>;
+  /** One short sentence on WHAT the agent expects from the call. */
+  expected_outcome: string;
+  /** Optional performance hint (expected duration or faster alternative). */
+  performance_hint?: string | null;
 }
 
 /** Requête de création d'une session de chat. */

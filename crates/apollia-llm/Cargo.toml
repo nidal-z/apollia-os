@@ -54,7 +54,8 @@ chrono         = { workspace = true }
 # MetaLlmOrchestrator — ADR-073
 lru            = { workspace = true }
 sha2           = { workspace = true }
+# tool_performance_hints — US-SP42-038
+toml           = { workspace = true }
 
 [dev-dependencies]
-toml     = { workspace = true }
 tempfile = "3"

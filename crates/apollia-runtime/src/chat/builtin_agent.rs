@@ -19,7 +19,7 @@ use apollia_core::{ORIAConfig, RuntimeEvent};
 use apollia_llm::types::{
     ChatMessage as LlmChatMessage, CompletionRequest, StreamChunk, TokenUsage, ToolCall, ToolSpec,
 };
-use apollia_llm::{LlmRouter, ObservabilityConfig, ToolInvoker};
+use apollia_llm::{LlmRouter, MetaOrchestratorHandle, ObservabilityConfig, ToolInvoker};
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_oria::budget::StepBudget;
 use apollia_oria::context_manager::ContextManager;
@@ -671,6 +671,11 @@ pub struct BuiltInChatAgent {
     /// Gestionnaire de fenêtre de contexte — compacte `llm_messages` dans la boucle ReAct
     /// quand les messages accumulés dépassent le seuil de la fenêtre du modèle.
     context_manager: ContextManager,
+    /// Handle optionnel vers le `MetaLlmOrchestrator` — utilisé pour produire la
+    /// `ToolCallRationale` narrée avant chaque exécution d'outil (US-SP42-038).
+    /// Absent par défaut pour compatibilité descendante ; injecté par le manager
+    /// lorsque le master-toggle "Explain tool calls" est actif.
+    meta_handle: Option<MetaOrchestratorHandle>,
 }
 
 impl BuiltInChatAgent {
@@ -691,7 +696,15 @@ impl BuiltInChatAgent {
             user_memory,
             a2a_invoker,
             context_manager: ContextManager::from_config(&ORIAConfig::default()),
+            meta_handle: None,
         }
+    }
+
+    /// Attache un `MetaOrchestratorHandle` pour générer les `ToolCallRationale`
+    /// (US-SP42-038). Noop si `None`.
+    pub fn with_meta_handle(mut self, handle: Option<MetaOrchestratorHandle>) -> Self {
+        self.meta_handle = handle;
+        self
     }
 
     /// Build the effective system prompt with optional user memory injection.
@@ -994,6 +1007,7 @@ impl BuiltInChatAgent {
                                         input: call.arguments.clone(),
                                         output: Some(refusal.to_string()),
                                         status: ToolCallStatus::Refused,
+                                        rationale: None,
                                     });
                                 }
                             }
@@ -1241,11 +1255,29 @@ impl BuiltInChatAgent {
         let input_preview =
             truncate_preview(&serde_json::to_string(&call.arguments).unwrap_or_default());
 
+        // Generate the opt-in rationale *before* execution so the UI can
+        // surface it immediately. Falls back to `None` when the meta handle
+        // is absent, the routine is disabled, the budget is exhausted, or
+        // the call fails / times out (see MetaOrchestratorHandle docs).
+        let rationale = if let Some(handle) = self.meta_handle.as_ref() {
+            handle
+                .generate_tool_call_rationale(
+                    &call.name,
+                    &call.arguments,
+                    "",
+                    session_id.to_string(),
+                )
+                .await
+        } else {
+            None
+        };
+
         let _ = self.event_bus.send(RuntimeEvent::ChatToolCallStarted {
             session_id: session_id.to_string(),
             message_id: message_id.to_string(),
             tool_name: call.name.clone(),
             input_preview,
+            rationale: rationale.clone(),
         });
 
         let result = self.tool_invoker.invoke(&call.name, &call.arguments).await;
@@ -1278,6 +1310,7 @@ impl BuiltInChatAgent {
             input: call.arguments.clone(),
             output: Some(output.clone()),
             status: ToolCallStatus::Executed,
+            rationale,
         };
 
         // Truncate output for LLM context to avoid flooding the context window.

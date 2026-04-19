@@ -65,6 +65,42 @@ impl PartialEq<&str> for AgentId {
     }
 }
 
+/// Narration structurée attachée à un appel d'outil (US-SP42-038).
+///
+/// Générée par [`MetaRoutine::GenerateToolCallRationale`] *avant* l'exécution
+/// et transportée dans [`RuntimeEvent::ChatToolCallStarted`] pour que le
+/// frontend puisse l'afficher sans attendre la fin de l'outil.
+///
+/// Vit dans `apollia-core` pour que `RuntimeEvent` puisse y référer sans
+/// créer de dépendance circulaire avec `apollia-llm`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolCallRationale {
+    /// Phrase narrative (<= 25 mots) expliquant le pourquoi de l'appel.
+    pub summary: String,
+    /// Récapitulatif compact des paramètres clés, ordre préservé.
+    #[serde(default)]
+    pub inputs_recap: Vec<(String, String)>,
+    /// Résultat attendu de l'outil (1 phrase).
+    pub expected_outcome: String,
+    /// Hint de performance (ex. "Durée attendue: 2s" ou suggestion d'outil
+    /// plus rapide) — absent si aucun hint pertinent.
+    #[serde(default)]
+    pub performance_hint: Option<String>,
+}
+
+impl ToolCallRationale {
+    /// Désérialise une réponse brute du LLM (trim + strip backticks Markdown).
+    pub fn parse(raw: &str) -> Result<Self, serde_json::Error> {
+        let clean = raw
+            .trim()
+            .trim_start_matches("```json")
+            .trim_start_matches("```")
+            .trim_end_matches("```")
+            .trim();
+        serde_json::from_str(clean)
+    }
+}
+
 /// Identifiant unique d'une tâche dans le runtime (UUID v4).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -601,6 +637,9 @@ pub enum RuntimeEvent {
         tool_name: String,
         /// Aperçu tronqué des arguments d'entrée.
         input_preview: String,
+        /// Narration meta-LLM expliquant l'intention de l'appel (opt-in, US-SP42-038).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        rationale: Option<ToolCallRationale>,
     },
     /// Un appel outil s'est terminé dans une session de chat.
     ChatToolCallCompleted {
@@ -1285,6 +1324,7 @@ mod tests {
                 message_id: "msg-004".into(),
                 tool_name: "bash_executor".into(),
                 input_preview: "ls -la".into(),
+                rationale: None,
             },
             RuntimeEvent::ChatToolCallCompleted {
                 session_id: "sess-001".into(),
@@ -1689,5 +1729,79 @@ mod pipeline_event_tests {
         ];
         // THEN
         assert_eq!(events.len(), 9);
+    }
+}
+
+#[cfg(test)]
+mod tool_call_rationale_tests {
+    use super::*;
+
+    // GIVEN un JSON complet produit par le LLM
+    // WHEN ToolCallRationale::parse()
+    // THEN tous les champs sont désérialisés
+    #[test]
+    fn rationale_parses_full_payload() {
+        let raw = r#"{
+            "summary": "Lire le fichier de config avant l'édition.",
+            "inputs_recap": [["path", "/tmp/cfg.toml"], ["offset", "0"]],
+            "expected_outcome": "Obtenir le contenu courant pour décider l'édition.",
+            "performance_hint": "Durée attendue: 50ms"
+        }"#;
+        let r = ToolCallRationale::parse(raw).expect("parse ok");
+        assert_eq!(r.inputs_recap.len(), 2);
+        assert_eq!(r.inputs_recap[0].0, "path");
+        assert!(r.performance_hint.is_some());
+    }
+
+    // GIVEN un JSON sans performance_hint ni inputs_recap (optionnels)
+    // WHEN parse()
+    // THEN valeurs par défaut (None / vec vide)
+    #[test]
+    fn rationale_defaults_optional_fields() {
+        let raw = r#"{
+            "summary": "s",
+            "expected_outcome": "o"
+        }"#;
+        let r = ToolCallRationale::parse(raw).expect("parse ok");
+        assert!(r.inputs_recap.is_empty());
+        assert!(r.performance_hint.is_none());
+    }
+
+    // GIVEN une réponse avec fences Markdown
+    // WHEN parse()
+    // THEN les fences sont strippées
+    #[test]
+    fn rationale_strips_markdown_fences() {
+        let raw = "```json\n{\"summary\":\"s\",\"expected_outcome\":\"o\"}\n```";
+        let r = ToolCallRationale::parse(raw).expect("parse ok");
+        assert_eq!(r.summary, "s");
+    }
+
+    // GIVEN une rationale attachée à un ChatToolCallStarted
+    // WHEN roundtrip JSON serde
+    // THEN les champs sont préservés
+    #[test]
+    fn chat_tool_call_started_roundtrips_with_rationale() {
+        let rationale = ToolCallRationale {
+            summary: "why".into(),
+            inputs_recap: vec![("k".into(), "v".into())],
+            expected_outcome: "what".into(),
+            performance_hint: Some("hint".into()),
+        };
+        let evt = RuntimeEvent::ChatToolCallStarted {
+            session_id: "s".into(),
+            message_id: "m".into(),
+            tool_name: "bash_executor".into(),
+            input_preview: "ls".into(),
+            rationale: Some(rationale.clone()),
+        };
+        let json = serde_json::to_string(&evt).expect("serialize");
+        let back: RuntimeEvent = serde_json::from_str(&json).expect("deserialize");
+        match back {
+            RuntimeEvent::ChatToolCallStarted { rationale: Some(r), .. } => {
+                assert_eq!(r, rationale);
+            }
+            _ => panic!("wrong variant"),
+        }
     }
 }

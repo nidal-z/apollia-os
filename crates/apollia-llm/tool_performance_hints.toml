@@ -1,0 +1,43 @@
+# Hints de performance par outil natif — US-SP42-038.
+#
+# `expected_duration_ms` : p50 estimé ; sert à afficher un hint informatif
+#   avant exécution ("Durée attendue: Xms").
+# `faster_alternative` (optionnel) : phrase courte suggérant un outil plus
+#   rapide selon le contexte (ex. file_grep → file_glob si pattern de chemin).
+
+[tools.file_read]
+expected_duration_ms = 50
+
+[tools.file_write]
+expected_duration_ms = 60
+
+[tools.file_edit]
+expected_duration_ms = 80
+
+[tools.file_list]
+expected_duration_ms = 100
+
+[tools.file_glob]
+expected_duration_ms = 150
+
+[tools.file_grep]
+expected_duration_ms = 400
+faster_alternative = "file_glob si le motif porte sur des chemins, pas du contenu"
+
+[tools.bash_executor]
+expected_duration_ms = 1500
+
+[tools.python_executor]
+expected_duration_ms = 2000
+
+[tools.http_fetch]
+expected_duration_ms = 800
+
+[tools.web_search]
+expected_duration_ms = 1200
+
+[tools.web_read]
+expected_duration_ms = 1500
+
+[tools.memory_search]
+expected_duration_ms = 120

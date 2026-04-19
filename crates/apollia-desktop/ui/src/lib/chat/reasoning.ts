@@ -8,7 +8,7 @@
  * `ReasoningCard.svelte`.
  */
 
-import type { ChatMessageView, ToolCallView } from "$lib/types";
+import type { ChatMessageView, ToolCallRationale, ToolCallView } from "$lib/types";
 
 export type ReasoningStatus =
   | "pending"
@@ -47,6 +47,7 @@ export type ReasoningItem =
       output: string | null;
       duration_ms?: number | null;
       exit_code?: number | null;
+      rationale?: ToolCallRationale | null;
     })
   | (ReasoningItemBase & {
       kind: "web_search";
@@ -182,6 +183,7 @@ export function toReasoningItem(
     output: toolCall.output,
     duration_ms: toolCall.duration_ms,
     exit_code: toolCall.exit_code,
+    rationale: toolCall.rationale ?? null,
   };
 }
 

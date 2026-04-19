@@ -1,4 +1,4 @@
-import type { ToolCallView } from "$lib/types";
+import type { ToolCallRationale, ToolCallView } from "$lib/types";
 import {
   FileText,
   FilePen,
@@ -439,6 +439,53 @@ function extractHostname(url: string): string {
   } catch {
     return truncateString(url, 30);
   }
+}
+
+/**
+ * Flattens a {@link ToolCallRationale} into a display-friendly shape.
+ *
+ * Used by the operator-mode `ReasoningCard` tool renderer and the builder
+ * rationale header. Preserves the narrator's key ordering for `inputs_recap`
+ * and truncates long values so the UI stays scannable.
+ */
+export interface FormattedRationale {
+  /** Narrative summary (<= 25 words, truncated at 160 chars). */
+  summary: string;
+  /** Expected outcome sentence (truncated at 160 chars). */
+  expected_outcome: string;
+  /** Key/value pairs with values truncated at 40 chars. */
+  inputs_recap: Array<[string, string]>;
+  /** Performance hint sentence if any, trimmed. */
+  performance_hint: string | null;
+}
+
+export function formatRationale(
+  rationale: ToolCallRationale | null | undefined,
+): FormattedRationale | null {
+  if (!rationale) return null;
+  const recap = Array.isArray(rationale.inputs_recap)
+    ? rationale.inputs_recap
+        .slice(0, 4)
+        .map(
+          ([k, v]) => [String(k), truncateString(String(v ?? ""), 40)] as [
+            string,
+            string,
+          ],
+        )
+    : [];
+  return {
+    summary: truncateString((rationale.summary ?? "").trim(), 160),
+    expected_outcome: truncateString(
+      (rationale.expected_outcome ?? "").trim(),
+      160,
+    ),
+    inputs_recap: recap,
+    performance_hint:
+      typeof rationale.performance_hint === "string" &&
+      rationale.performance_hint.trim().length > 0
+        ? rationale.performance_hint.trim()
+        : null,
+  };
 }
 
 /** Resolves display info for MCP tool calls following the `mcp:server/tool` naming pattern. */

@@ -21,7 +21,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use apollia_core::events::{EventBusSender, RuntimeEvent};
+use apollia_core::events::{EventBusSender, RuntimeEvent, ToolCallRationale};
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -400,6 +400,34 @@ impl MetaOrchestratorHandle {
         };
         self.tx.send(cmd).await.map_err(|_| LlmError::Cancelled)?;
         rx.await.map_err(|_| LlmError::Cancelled)?
+    }
+
+    /// Génère un [`ToolCallRationale`] structuré pour un appel d'outil.
+    ///
+    /// Retourne `Ok(None)` si la routine est désactivée / le budget est
+    /// épuisé / l'appel LLM a échoué ou dépassé le timeout / la réponse
+    /// n'a pas pu être parsée en JSON conforme au schéma. L'UI doit
+    /// afficher un fallback statique dans ces cas-là.
+    pub async fn generate_tool_call_rationale(
+        &self,
+        tool_name: &str,
+        arguments: &serde_json::Value,
+        context: &str,
+        session_id: impl Into<String>,
+    ) -> Option<ToolCallRationale> {
+        let performance_hint_default =
+            crate::tool_performance_hints::format_hint(tool_name).unwrap_or_default();
+        let inputs = serde_json::json!({
+            "tool_name": tool_name,
+            "arguments": serde_json::to_string(arguments).unwrap_or_default(),
+            "context": context,
+            "performance_hint_default": performance_hint_default,
+        });
+        let raw = self
+            .run(MetaRoutine::GenerateToolCallRationale, inputs, session_id)
+            .await
+            .ok()??;
+        ToolCallRationale::parse(&raw).ok()
     }
 
     /// Retourne la config courante.

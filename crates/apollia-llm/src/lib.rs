@@ -18,6 +18,7 @@ pub mod router;
 pub mod routing_level;
 pub mod token_budget;
 pub mod tool_helper;
+pub mod tool_performance_hints;
 pub mod types;
 
 pub use meta_orchestrator::{

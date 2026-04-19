@@ -693,6 +693,7 @@ mod tests {
                 message_id: "m".into(),
                 tool_name: "t".into(),
                 input_preview: "i".into(),
+                rationale: None,
             },
             RuntimeEvent::ChatToolCallCompleted {
                 session_id: "s".into(),

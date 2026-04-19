@@ -33,8 +33,10 @@
     resolveToolDisplay,
     buildBashInputDisplay,
     buildHttpInputDisplay,
+    formatRationale,
   } from "$lib/tools/tool-display";
   import type { ToolCallView } from "$lib/types";
+  import PerformanceHint from "./PerformanceHint.svelte";
 
   interface Props {
     item: ReasoningItem;
@@ -154,6 +156,12 @@
   );
   const argsPreview = $derived(truncateJson(argsJson));
 
+  // Structured rationale (US-SP42-038). Opt-in — `null` when the user has
+  // disabled "Explain tool calls" or the meta-LLM fallback kicked in.
+  const rationale = $derived(
+    item.kind === "tool_call" ? formatRationale(item.rationale) : null,
+  );
+
   // ---- web_read content preview ----
   const READ_PREVIEW_CHARS = 500;
   let showFullRead = $state(false);
@@ -201,9 +209,10 @@
     {#snippet title()}
       {#if skin === "operator" && toolDisplay}
         <span class="text-[13px] font-medium text-foreground">
-          {$t(toolDisplay.descriptionKey, {
-            values: toolDisplay.templateParams,
-          })}
+          {rationale?.summary ??
+            $t(toolDisplay.descriptionKey, {
+              values: toolDisplay.templateParams,
+            })}
         </span>
       {:else}
         {item.tool}
@@ -214,8 +223,33 @@
       {#if (item.status === "error" || item.status === "rejected") && item.exit_code != null}
         <span class="text-[10px] text-destructive">exit {item.exit_code}</span>
       {/if}
+      {#if rationale?.performance_hint}
+        <PerformanceHint hint={rationale.performance_hint} />
+      {/if}
     {/snippet}
     {#snippet body()}
+      {#if skin === "builder" && rationale}
+        <div
+          class="mb-1.5 rounded border border-border/30 bg-muted/20 px-2 py-1.5 text-[11px] leading-relaxed"
+          data-testid="tool-rationale-header"
+        >
+          <p class="font-medium text-foreground/90">{rationale.summary}</p>
+          {#if rationale.inputs_recap.length > 0}
+            <ul class="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+              {#each rationale.inputs_recap as [k, v] (k)}
+                <li class="font-mono">
+                  <span class="opacity-60">{k}</span>
+                  <span class="mx-0.5 opacity-40">=</span>
+                  <span class="text-foreground/80">{v}</span>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+          <p class="mt-1 text-[10px] italic text-muted-foreground">
+            → {rationale.expected_outcome}
+          </p>
+        </div>
+      {/if}
       {#if skin === "builder"}
         {#if bashDisplay !== null}
           <pre
