@@ -25,6 +25,13 @@ export const thinkingStates: Readable<Record<string, ThinkingState>> = {
   subscribe: states.subscribe,
 };
 
+/**
+ * Turn id of the most recently started turn (or `null` before the first
+ * `ThinkingStarted`). Used by `<InjectedMemorySheet />` to resolve the
+ * injection window for the current conversation.
+ */
+export const latestTurnId = writable<string | null>(null);
+
 /** Derived accessor for a single turn's state, or `null`. */
 export function thinkingForTurn(
   turnId: string,
@@ -44,6 +51,7 @@ export function handleThinkingStarted(event: ThinkingStartedEvent): void {
       summary: null,
     },
   }));
+  latestTurnId.set(event.turn_id);
 }
 
 export function handleThinkingEnded(event: ThinkingEndedEvent): void {

@@ -23,6 +23,9 @@
   import StreamingMessage from "./StreamingMessage.svelte";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
+  import InjectedMemorySheet from "../memory/InjectedMemorySheet.svelte";
+  import { latestTurnId } from "$lib/stores/thinking";
+  import type { InjectedEntry } from "$lib/types";
   import ApprovalCard from "./ApprovalCard.svelte";
   import AskUserCard from "./AskUserCard.svelte";
   import HitlFilesystemModal from "./HitlFilesystemModal.svelte";
@@ -107,6 +110,15 @@
   let unreadWhileScrolled = $state(0);
   let tokenBuffer = $state("");
   let configOpen = $state(false);
+  let injectedSheetOpen = $state(false);
+  const currentTurnId = $derived($latestTurnId);
+  function openInjectedSheet() {
+    injectedSheetOpen = true;
+  }
+  function handleInjectedEntrySelect(_entry: InjectedEntry) {
+    // InsightsPanel navigation wiring lands with US-SP42-044; until then,
+    // opening the sheet + showing the entry is sufficient for P7.
+  }
   let sessionDetail = $state<ChatSessionDetail | null>(null);
 
   /** US-SP42-029 B.27 — soft-close / archive confirmation modal. */
@@ -776,8 +788,15 @@
        now lives in the Metrics tab of the ContextDrawer, and a mini variant
        is rendered below the input (see footer near ChatInput). -->
   {#if sessionId}
-    <ContextIndicator {sessionId} variant="footer" />
+    <ContextIndicator {sessionId} variant="footer" onclick={openInjectedSheet} />
   {/if}
+
+  <InjectedMemorySheet
+    open={injectedSheetOpen}
+    turnId={currentTurnId}
+    onclose={() => (injectedSheetOpen = false)}
+    onentryselect={handleInjectedEntrySelect}
+  />
 
   <!-- Agent disparu inline banner (US-SP42-034). Rendered above the
        messages so the transcript stays readable. -->

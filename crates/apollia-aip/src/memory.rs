@@ -12,6 +12,7 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
 use apollia_memory::episodic::EpisodicMemory;
+use apollia_memory::injection_tracker::{global_record, preview, InjectedEntry};
 use apollia_memory::manager::{MemoryAccess, MemoryManager};
 use apollia_memory::search::{MemorySearch, SearchSource};
 use apollia_memory::semantic::SemanticMemory;
@@ -57,6 +58,13 @@ pub struct MemoryInterface {
     /// `None` when `user_memory_read_only` is `false` or when user memory
     /// is not available in the current runtime environment.
     user_manager: Option<Arc<Mutex<MemoryManager>>>,
+    /// Current turn id — set by the runtime before each agent turn so that
+    /// `recall_entry()` / `recall_all()` can record their results into the
+    /// global injection tracker (Sprint 42 Pattern P7).
+    ///
+    /// `None` outside of a turn (e.g. during bootstrap) — injections are then
+    /// not tracked.
+    current_turn_id: Arc<Mutex<Option<String>>>,
 }
 
 #[pymethods]
@@ -217,15 +225,35 @@ impl MemoryInterface {
     ///
     /// Returns a dict with keys `{key, value, confidence, source, updated_at, expires_at}`
     /// or `None` if the key does not exist or is expired.
-    fn recall_entry<'py>(&self, py: Python<'py>, key: String) -> PyResult<Bound<'py, PyAny>> {
+    #[pyo3(signature = (key, injection_reason=None))]
+    fn recall_entry<'py>(
+        &self,
+        py: Python<'py>,
+        key: String,
+        injection_reason: Option<String>,
+    ) -> PyResult<Bound<'py, PyAny>> {
         let manager = Arc::clone(&self.manager);
         let namespace = self.namespace.clone();
+        let turn_id = self.current_turn_id.lock().ok().and_then(|g| g.clone());
+        let ns_for_log = namespace.clone();
+        let key_for_log = key.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result =
-                tokio::task::spawn_blocking(move || recall_entry_inner(&manager, &namespace, &key))
-                    .await
-                    .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
+            let result = tokio::task::spawn_blocking({
+                let manager = Arc::clone(&manager);
+                let namespace = namespace.clone();
+                let key = key.clone();
+                move || recall_entry_inner(&manager, &namespace, &key)
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
+
+            if let (Some(turn), Ok(Some(ref json_val))) = (turn_id.as_ref(), result.as_ref()) {
+                let reason = injection_reason
+                    .clone()
+                    .unwrap_or_else(|| format!("Matched query: {key_for_log}"));
+                record_injected_entry(turn, &ns_for_log, json_val, reason, None);
+            }
 
             match result {
                 Ok(Some(json_val)) => Python::with_gil(|py| {
@@ -250,21 +278,36 @@ impl MemoryInterface {
     ///
     /// Returns `list[dict]` with the same structure as `recall_entry()`.
     /// `limit` caps the result count (defaults to 100).
-    #[pyo3(signature = (limit=None))]
+    #[pyo3(signature = (limit=None, injection_reason=None))]
     fn recall_all<'py>(
         &self,
         py: Python<'py>,
         limit: Option<usize>,
+        injection_reason: Option<String>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let manager = Arc::clone(&self.manager);
         let namespace = self.namespace.clone();
         let limit = limit.unwrap_or(100);
+        let turn_id = self.current_turn_id.lock().ok().and_then(|g| g.clone());
+        let ns_for_log = namespace.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            let result =
-                tokio::task::spawn_blocking(move || recall_all_inner(&manager, &namespace, limit))
-                    .await
-                    .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
+            let result = tokio::task::spawn_blocking({
+                let manager = Arc::clone(&manager);
+                let namespace = namespace.clone();
+                move || recall_all_inner(&manager, &namespace, limit)
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("spawn_blocking failed: {e}")))?;
+
+            if let (Some(turn), Ok(ref items)) = (turn_id.as_ref(), result.as_ref()) {
+                let reason = injection_reason
+                    .clone()
+                    .unwrap_or_else(|| "Matched query: recall_all".to_string());
+                for item in items.iter() {
+                    record_injected_entry(turn, &ns_for_log, item, reason.clone(), None);
+                }
+            }
 
             match result {
                 Ok(items) => Python::with_gil(|py| {
@@ -325,8 +368,87 @@ impl MemoryInterface {
             agent_id,
             user_memory_read_only,
             user_manager: user_manager.map(|m| Arc::new(Mutex::new(m))),
+            current_turn_id: Arc::new(Mutex::new(None)),
         })
     }
+
+    /// Sets (or clears) the current turn id used to correlate injections.
+    ///
+    /// The runtime should call this at turn boundaries so that
+    /// `recall_entry()` / `recall_all()` record into the correct turn. A
+    /// `None` value clears the tracking window.
+    pub fn set_turn_id(&self, turn_id: Option<String>) {
+        if let Ok(mut guard) = self.current_turn_id.lock() {
+            *guard = turn_id;
+        }
+    }
+
+    /// Current turn id (test helper).
+    #[doc(hidden)]
+    pub fn current_turn_id(&self) -> Option<String> {
+        self.current_turn_id.lock().ok().and_then(|g| g.clone())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Injection tracking helpers (Sprint 42 — Pattern P7)
+// ---------------------------------------------------------------------------
+
+/// Extracts `id`, textual `value`/`content`, and relevance fields from a
+/// semantic/episodic JSON value and records them into the global injection
+/// tracker.
+///
+/// Errors are swallowed (fire-and-forget) — injection tracking must never
+/// break an agent's recall path.
+fn record_injected_entry(
+    turn_id: &str,
+    namespace: &str,
+    json_val: &serde_json::Value,
+    injection_reason: String,
+    extra_score: Option<f32>,
+) {
+    let id = json_val
+        .get("id")
+        .and_then(|v| v.as_str())
+        .or_else(|| json_val.get("key").and_then(|v| v.as_str()))
+        .unwrap_or("")
+        .to_string();
+    if id.is_empty() {
+        return;
+    }
+
+    let content = json_val
+        .get("content")
+        .and_then(|v| v.as_str())
+        .or_else(|| json_val.get("value").and_then(|v| v.as_str()))
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| json_val.to_string());
+
+    let relevance_score = extra_score
+        .or_else(|| {
+            json_val
+                .get("confidence")
+                .and_then(|v| v.as_f64())
+                .map(|v| v as f32)
+        })
+        .or_else(|| {
+            json_val
+                .get("importance")
+                .and_then(|v| v.as_f64())
+                .map(|v| v as f32)
+        })
+        .unwrap_or(0.0);
+
+    global_record(
+        turn_id,
+        InjectedEntry {
+            id,
+            content_preview: preview(&content, 160),
+            namespace: namespace.to_string(),
+            injection_reason,
+            relevance_score: relevance_score.clamp(0.0, 1.0),
+        },
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -585,7 +707,66 @@ fn check_write_access(mgr: &MemoryManager, namespace: &str) -> Result<(), Memory
 #[cfg(test)]
 mod tests {
     use super::*;
+    use apollia_memory::injection_tracker::{global_entries_for, global_tracker_clear};
     use tempfile::TempDir;
+
+    #[test]
+    fn set_turn_id_round_trips() {
+        // GIVEN an interface with no turn set
+        let (iface, _dir) = setup_interface("ns-turn");
+        assert!(iface.current_turn_id().is_none());
+
+        // WHEN a turn id is assigned and later cleared
+        iface.set_turn_id(Some("turn-42".to_string()));
+        // THEN the interface reports it
+        assert_eq!(iface.current_turn_id(), Some("turn-42".to_string()));
+
+        iface.set_turn_id(None);
+        assert!(iface.current_turn_id().is_none());
+    }
+
+    #[test]
+    fn record_injected_entry_pushes_to_tracker_with_fallback_reason() {
+        // GIVEN a cleared global tracker
+        global_tracker_clear();
+        let json = serde_json::json!({
+            "id": "sem-abc",
+            "key": "budget",
+            "value": "15000",
+            "confidence": 0.8,
+        });
+
+        // WHEN an entry is recorded with the fallback reason pattern
+        record_injected_entry(
+            "turn-p7-aip",
+            "agent-x",
+            &json,
+            "Matched query: budget".to_string(),
+            None,
+        );
+
+        // THEN the tracker exposes the entry with preview/namespace/reason/score
+        let entries = global_entries_for("turn-p7-aip");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].id, "sem-abc");
+        assert_eq!(entries[0].namespace, "agent-x");
+        assert_eq!(entries[0].content_preview, "15000");
+        assert_eq!(entries[0].injection_reason, "Matched query: budget");
+        assert!((entries[0].relevance_score - 0.8).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn record_injected_entry_skips_when_id_missing() {
+        // GIVEN a cleared tracker
+        global_tracker_clear();
+
+        // WHEN the JSON has no id/key fields
+        let json = serde_json::json!({ "value": "orphan" });
+        record_injected_entry("turn-orphan", "ns", &json, "r".to_string(), None);
+
+        // THEN nothing is recorded
+        assert!(global_entries_for("turn-orphan").is_empty());
+    }
 
     fn setup_interface(namespace: &str) -> (MemoryInterface, TempDir) {
         let dir = TempDir::new().expect("create temp dir");

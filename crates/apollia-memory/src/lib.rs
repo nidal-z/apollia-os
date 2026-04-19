@@ -15,6 +15,7 @@
 
 pub mod episodic;
 pub mod file_timestamp_cache;
+pub mod injection_tracker;
 pub mod manager;
 pub mod plan_choice_store;
 pub mod procedural;

@@ -7,6 +7,7 @@
 use std::path::PathBuf;
 
 use apollia_memory::episodic::EpisodicMemory;
+use apollia_memory::injection_tracker::{global_entries_for, InjectedEntry};
 use apollia_memory::procedural::ProceduralMemory;
 use apollia_memory::search::{MemorySearch, SearchSource};
 use apollia_memory::semantic::SemanticMemory;
@@ -320,9 +321,20 @@ pub async fn delete_memory_entry(namespace: String, entry_id: String) -> Result<
         .map_err(|e| format!("failed to delete entry: {e}"))
 }
 
+/// Returns the memory entries the agent injected into a specific turn.
+///
+/// Backs the `<InjectedMemorySheet />` panel (Sprint 42 Pattern P7 —
+/// memory injection visibility). Reads from the process-local injection
+/// tracker populated by the PyO3 `recall_entry()` / `recall_all()` wrappers.
+#[tauri::command]
+pub async fn get_injected_memory_entries(turn_id: String) -> Result<Vec<InjectedEntry>, String> {
+    Ok(global_entries_for(&turn_id))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use apollia_memory::injection_tracker::{global_record, global_tracker_clear, InjectedEntry};
 
     #[test]
     fn test_memory_entry_serializes() {
@@ -419,6 +431,66 @@ mod tests {
         assert!(result.is_ok());
         let path = result.expect("path");
         assert!(path.to_str().expect("utf8").contains(".apollia/memory"));
+    }
+
+    #[tokio::test]
+    async fn test_get_injected_memory_entries_returns_tracked_entries() {
+        // GIVEN a turn with two injected entries recorded in the global tracker
+        global_tracker_clear();
+        let turn = "turn-p7-test";
+        global_record(
+            turn,
+            InjectedEntry {
+                id: "sem-1".to_string(),
+                content_preview: "client dupont budget 15000".to_string(),
+                namespace: "agent-x".to_string(),
+                injection_reason: "Matched query: budget client".to_string(),
+                relevance_score: 0.92,
+            },
+        );
+        global_record(
+            turn,
+            InjectedEntry {
+                id: "ep-1".to_string(),
+                content_preview: "Devis envoyé à Dupont".to_string(),
+                namespace: "agent-x".to_string(),
+                injection_reason: "Contexte devis".to_string(),
+                relevance_score: 0.71,
+            },
+        );
+
+        // WHEN the Tauri command is invoked
+        let entries = get_injected_memory_entries(turn.to_string())
+            .await
+            .expect("command should succeed");
+
+        // THEN both entries are returned with preserved fields
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].id, "sem-1");
+        assert_eq!(entries[0].namespace, "agent-x");
+        assert_eq!(entries[0].injection_reason, "Matched query: budget client");
+        assert!((entries[0].relevance_score - 0.92).abs() < f32::EPSILON);
+        assert_eq!(entries[1].id, "ep-1");
+
+        // AND the JSON payload matches the frontend contract
+        let json = serde_json::to_value(&entries).expect("serialize");
+        assert_eq!(json[0]["content_preview"], "client dupont budget 15000");
+        let score = json[0]["relevance_score"].as_f64().expect("score is number");
+        assert!((score - 0.92).abs() < 1e-4);
+    }
+
+    #[tokio::test]
+    async fn test_get_injected_memory_entries_unknown_turn_is_empty() {
+        // GIVEN a cleared tracker
+        global_tracker_clear();
+
+        // WHEN the command is invoked for a turn that was never tracked
+        let entries = get_injected_memory_entries("never-seen".to_string())
+            .await
+            .expect("command should succeed");
+
+        // THEN the response is empty (not an error)
+        assert!(entries.is_empty());
     }
 
     #[test]

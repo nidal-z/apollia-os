@@ -68,23 +68,32 @@ class MemoryInterface:
     def recall_entry(
         self,
         key: str,
+        injection_reason: str | None = None,
     ) -> Awaitable[dict[str, object] | None]:
         """Retrieve a semantic entry with full metadata.
 
         Returns a dict with keys: key, value, confidence, source,
         updated_at, expires_at. Returns None if the key does not exist
         or is expired.
+
+        ``injection_reason`` is surfaced to the operator UI (Sprint 42
+        Pattern P7 — memory injection visibility). When omitted, the
+        runtime falls back to ``"Matched query: <key>"``.
         """
         ...
 
     def recall_all(
         self,
         limit: int | None = None,
+        injection_reason: str | None = None,
     ) -> Awaitable[list[dict[str, object]]]:
         """List all semantic entries in the agent namespace.
 
         Returns dicts with the same structure as recall_entry().
         limit defaults to 100.
+
+        ``injection_reason`` applies to *every* entry surfaced by this
+        call; provide a coarse rationale (e.g. ``"session bootstrap"``).
         """
         ...
 

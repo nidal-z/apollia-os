@@ -1498,3 +1498,20 @@ export interface DecisionPoint {
 export interface DecisionPointRecordedEvent {
   point: DecisionPoint;
 }
+
+// ── US-SP42-043 — Memory injection visibility (Pattern P7) ─────────────────
+
+/**
+ * Memory entry the agent injected into a specific turn.
+ *
+ * Populated by the PyO3 `recall_entry()` / `recall_all()` wrappers and
+ * surfaced via the Tauri command `get_injected_memory_entries(turn_id)`.
+ */
+export interface InjectedEntry {
+  id: string;
+  content_preview: string;
+  namespace: string;
+  injection_reason: string;
+  /** Clamped to [0, 1]. */
+  relevance_score: number;
+}
