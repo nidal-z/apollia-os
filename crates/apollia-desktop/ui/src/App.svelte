@@ -20,10 +20,29 @@
   import { companionStore } from "$lib/stores/companion";
   import { Tooltip } from "bits-ui";
   import { createSSEConnection } from "$lib/stores/sse";
-  import { initTheme } from "$lib/stores/theme";
+  import { initTheme, themeMode } from "$lib/stores/theme";
   import { onboardingStore } from "$lib/stores/onboarding";
   import { navigateTo } from "$lib/stores/navigation";
   import type { OnboardingPhase } from "$lib/types";
+  import { Command } from "$lib/components/ui/command";
+  import type { CommandPaletteGroup } from "$lib/components/ui/command";
+  import {
+    commandPaletteOpen,
+    commands,
+    registerCommand,
+  } from "$lib/stores/commandPalette";
+  import {
+    LayoutDashboard,
+    Bot,
+    ListChecks,
+    MessageSquare,
+    Settings,
+    Plug,
+    Moon,
+    HelpCircle,
+    Play,
+    Square,
+  } from "lucide-svelte";
 
   // Phases that represent an in-progress (but not yet started) onboarding.
   const IN_PROGRESS_PHASES = new Set<OnboardingPhase>([
@@ -51,6 +70,130 @@
 
   let ready = $state(false);
   let displayMode = $state<OnboardingDisplayMode>("phase");
+
+  const isMac = typeof navigator !== "undefined" && navigator.platform.includes("Mac");
+
+  // Seed commands: navigation, agent lifecycle stubs, theme, help.
+  // Registered once App mounts; cleanup unregisters.
+  function buildSeedCommands() {
+    return [
+      {
+        id: "nav.dashboard",
+        label: get(t)("command.seed.nav_dashboard"),
+        group: get(t)("command.group.navigation"),
+        icon: LayoutDashboard,
+        keywords: ["home", "dashboard"],
+        action: () => navigateTo("dashboard"),
+      },
+      {
+        id: "nav.agents",
+        label: get(t)("command.seed.nav_agents"),
+        group: get(t)("command.group.navigation"),
+        icon: Bot,
+        keywords: ["agents", "assistants"],
+        action: () => navigateTo("agents"),
+      },
+      {
+        id: "nav.tasks",
+        label: get(t)("command.seed.nav_tasks"),
+        group: get(t)("command.group.navigation"),
+        icon: ListChecks,
+        keywords: ["tasks", "activity"],
+        action: () => navigateTo("tasks"),
+      },
+      {
+        id: "nav.chat",
+        label: get(t)("command.seed.nav_chat"),
+        group: get(t)("command.group.navigation"),
+        icon: MessageSquare,
+        keywords: ["chat", "conversation"],
+        action: () => navigateTo("chat"),
+      },
+      {
+        id: "nav.integrations",
+        label: get(t)("command.seed.nav_integrations"),
+        group: get(t)("command.group.navigation"),
+        icon: Plug,
+        keywords: ["integrations", "mcp", "connections"],
+        action: () => navigateTo("integrations"),
+      },
+      {
+        id: "nav.settings",
+        label: get(t)("command.seed.nav_settings"),
+        group: get(t)("command.group.navigation"),
+        icon: Settings,
+        keywords: ["settings", "preferences"],
+        action: () => navigateTo("settings"),
+      },
+      {
+        id: "agents.start_all",
+        label: get(t)("command.seed.agents_start_all"),
+        group: get(t)("command.group.agents"),
+        icon: Play,
+        keywords: ["start", "run", "all", "agents"],
+        action: () => {
+          window.dispatchEvent(new CustomEvent("apollia:agents:start-all"));
+        },
+      },
+      {
+        id: "agents.stop_all",
+        label: get(t)("command.seed.agents_stop_all"),
+        group: get(t)("command.group.agents"),
+        icon: Square,
+        keywords: ["stop", "halt", "all", "agents"],
+        action: () => {
+          window.dispatchEvent(new CustomEvent("apollia:agents:stop-all"));
+        },
+      },
+      {
+        id: "theme.toggle_dark",
+        label: get(t)("command.seed.toggle_dark"),
+        group: get(t)("command.group.preferences"),
+        icon: Moon,
+        keywords: ["dark", "light", "theme", "mode"],
+        action: () => {
+          const current = get(themeMode);
+          themeMode.set(current === "dark" ? "light" : "dark");
+        },
+      },
+      {
+        id: "help.palette_docs",
+        label: get(t)("command.seed.palette_docs"),
+        group: get(t)("command.group.help"),
+        icon: HelpCircle,
+        shortcut: ["?"],
+        keywords: ["help", "shortcuts", "palette", "docs"],
+        action: () => {
+          window.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "?", bubbles: true }),
+          );
+        },
+      },
+    ];
+  }
+
+  // Grouping for the Command component — order determines visual order.
+  const paletteGroups = $derived.by<CommandPaletteGroup[]>(() => {
+    const list = $commands;
+    const buckets = new Map<string, CommandPaletteGroup>();
+    for (const cmd of list) {
+      const g = buckets.get(cmd.group);
+      if (g) {
+        g.items.push(cmd);
+      } else {
+        buckets.set(cmd.group, { label: cmd.group, items: [cmd] });
+      }
+    }
+    return Array.from(buckets.values());
+  });
+
+  function handleGlobalKeydown(event: KeyboardEvent) {
+    const mod = isMac ? event.metaKey : event.ctrlKey;
+    if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      commandPaletteOpen.update((v) => !v);
+    }
+  }
 
   onMount(() => {
     initTheme();
@@ -84,8 +227,34 @@
 
     void companionStore.initFromMemory();
 
-    return cleanup;
+    window.addEventListener("keydown", handleGlobalKeydown);
+
+    // Defer seed registration until svelte-i18n has loaded labels,
+    // otherwise `get(t)(...)` returns the raw key. `isLoading` flips
+    // to false once `en.json` / `fr.json` are parsed.
+    const stopI18n = isLoading.subscribe((loading) => {
+      if (!loading) {
+        const seeds = buildSeedCommands();
+        unregisterSeeds = registerCommand(...seeds);
+        stopI18n();
+      }
+    });
+
+    return () => {
+      cleanup?.();
+      window.removeEventListener("keydown", handleGlobalKeydown);
+      unregisterSeeds?.();
+      stopI18n();
+    };
   });
+
+  let unregisterSeeds: (() => void) | undefined;
+
+  function handlePaletteExecute(id: string) {
+    // Telemetry hook — currently logs; real backend wiring lives in the
+    // observability pipeline (`apollia.ui.command.executed`).
+    console.debug("[command-palette] executed", id);
+  }
 
   function handleResume(): void {
     displayMode = "phase";
@@ -172,4 +341,12 @@
     <ExtractionNotifier />
     <ToastContainer />
   {/if}
+
+  <!-- Global Cmd+K / Ctrl+K palette. Always mounted so it survives route
+       changes and onboarding display-mode transitions. -->
+  <Command
+    bind:open={$commandPaletteOpen}
+    groups={paletteGroups}
+    onexecute={handlePaletteExecute}
+  />
 </Tooltip.Provider>

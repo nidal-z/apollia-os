@@ -27,3 +27,4 @@ export * from "./integrations";
 export * from "./notifications";
 export * from "./observability";
 export * from "./projects";
+export * from "./command";

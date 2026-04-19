@@ -2002,5 +2002,27 @@
     "placeholder": "Select an option…",
     "search_placeholder": "Search…",
     "empty": "No results found"
+  },
+  "command": {
+    "placeholder": "Type a command or search… (Cmd+K)",
+    "empty": "No matching commands",
+    "group": {
+      "navigation": "Navigation",
+      "agents": "Agents",
+      "preferences": "Preferences",
+      "help": "Help"
+    },
+    "seed": {
+      "nav_dashboard": "Go to Dashboard",
+      "nav_agents": "Go to Agents",
+      "nav_tasks": "Go to Tasks",
+      "nav_chat": "Go to Chat",
+      "nav_integrations": "Go to Integrations",
+      "nav_settings": "Go to Settings",
+      "agents_start_all": "Start all agents",
+      "agents_stop_all": "Stop all agents",
+      "toggle_dark": "Toggle dark mode",
+      "palette_docs": "Open command palette docs"
+    }
   }
 }

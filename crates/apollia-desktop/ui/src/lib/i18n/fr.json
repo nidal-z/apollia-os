@@ -2002,5 +2002,27 @@
     "placeholder": "Sélectionner une option…",
     "search_placeholder": "Rechercher…",
     "empty": "Aucun résultat"
+  },
+  "command": {
+    "placeholder": "Tapez une commande ou recherchez… (Cmd+K)",
+    "empty": "Aucune commande correspondante",
+    "group": {
+      "navigation": "Navigation",
+      "agents": "Agents",
+      "preferences": "Préférences",
+      "help": "Aide"
+    },
+    "seed": {
+      "nav_dashboard": "Aller au tableau de bord",
+      "nav_agents": "Aller aux agents",
+      "nav_tasks": "Aller aux tâches",
+      "nav_chat": "Aller au chat",
+      "nav_integrations": "Aller aux intégrations",
+      "nav_settings": "Aller aux paramètres",
+      "agents_start_all": "Démarrer tous les agents",
+      "agents_stop_all": "Arrêter tous les agents",
+      "toggle_dark": "Basculer mode sombre",
+      "palette_docs": "Afficher l'aide de la palette"
+    }
   }
 }
