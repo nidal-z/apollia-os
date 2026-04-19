@@ -249,6 +249,9 @@ impl FileRead {
             dangerous: false,
             is_read_only: true,
             risk_score: 0,
+            approval_risk_level: None,
+            impact_description: None,
+            reject_reason_required: false,
         }
     }
 }

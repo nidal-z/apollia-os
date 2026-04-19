@@ -269,6 +269,11 @@ pub async fn send_chat_message(
 }
 
 /// Resolves a pending tool approval in a chat session.
+///
+/// `reason` is forwarded to the agent when `decision == "refuse"` so it can
+/// adapt its plan; it is ignored for `accept`. `scope` is only meaningful for
+/// `always_accept` and defaults to [`AlwaysAcceptScope::ThisSession`] — the
+/// safest sticky option (cf. `ApprovalCardV2`).
 #[tauri::command]
 pub async fn authorize_chat_tool(
     state: State<'_, RuntimeHandle>,
@@ -276,13 +281,15 @@ pub async fn authorize_chat_tool(
     message_id: String,
     tool_name: String,
     decision: String,
+    reason: Option<String>,
+    scope: Option<apollia_runtime::chat::AlwaysAcceptScope>,
 ) -> Result<(), String> {
     let manager = state
         .chat_manager
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
 
-    let tool_decision = parse_tool_decision(&decision)?;
+    let tool_decision = parse_tool_decision(&decision, reason, scope)?;
 
     manager
         .resolve_tool(session_id, message_id, tool_name, tool_decision)
@@ -412,11 +419,18 @@ fn parse_session_status(s: &str) -> Result<SessionStatus, String> {
     })
 }
 
-fn parse_tool_decision(s: &str) -> Result<ToolDecision, String> {
+fn parse_tool_decision(
+    s: &str,
+    reason: Option<String>,
+    scope: Option<apollia_runtime::chat::AlwaysAcceptScope>,
+) -> Result<ToolDecision, String> {
+    use apollia_runtime::chat::AlwaysAcceptScope;
     match s {
         "accept" => Ok(ToolDecision::Accept),
-        "refuse" => Ok(ToolDecision::Refuse),
-        "always_accept" => Ok(ToolDecision::AlwaysAccept),
+        "refuse" => Ok(ToolDecision::Refuse { reason }),
+        "always_accept" => Ok(ToolDecision::AlwaysAccept {
+            scope: scope.unwrap_or_else(AlwaysAcceptScope::safe_default),
+        }),
         _ => Err(format!(
             "invalid tool decision: '{s}' (expected 'accept', 'refuse', or 'always_accept')"
         )),
@@ -585,17 +599,53 @@ mod tests {
 
     #[test]
     fn test_parse_tool_decision_valid() {
-        assert_eq!(parse_tool_decision("accept").unwrap(), ToolDecision::Accept);
-        assert_eq!(parse_tool_decision("refuse").unwrap(), ToolDecision::Refuse);
+        use apollia_runtime::chat::AlwaysAcceptScope;
         assert_eq!(
-            parse_tool_decision("always_accept").unwrap(),
-            ToolDecision::AlwaysAccept
+            parse_tool_decision("accept", None, None).unwrap(),
+            ToolDecision::Accept
+        );
+        assert_eq!(
+            parse_tool_decision("refuse", None, None).unwrap(),
+            ToolDecision::Refuse { reason: None }
+        );
+        assert_eq!(
+            parse_tool_decision("always_accept", None, None).unwrap(),
+            ToolDecision::AlwaysAccept {
+                scope: AlwaysAcceptScope::ThisSession
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_tool_decision_carries_reason_and_scope() {
+        use apollia_runtime::chat::AlwaysAcceptScope;
+        // GIVEN operator rejects with a typed reason
+        let d = parse_tool_decision("refuse", Some("out of scope".into()), None).unwrap();
+        assert_eq!(
+            d,
+            ToolDecision::Refuse {
+                reason: Some("out of scope".into())
+            }
+        );
+
+        // GIVEN operator picks a project-wide always-accept
+        let d = parse_tool_decision(
+            "always_accept",
+            None,
+            Some(AlwaysAcceptScope::ThisProject),
+        )
+        .unwrap();
+        assert_eq!(
+            d,
+            ToolDecision::AlwaysAccept {
+                scope: AlwaysAcceptScope::ThisProject
+            }
         );
     }
 
     #[test]
     fn test_parse_tool_decision_invalid() {
-        let result = parse_tool_decision("maybe");
+        let result = parse_tool_decision("maybe", None, None);
         assert!(result.is_err());
     }
 

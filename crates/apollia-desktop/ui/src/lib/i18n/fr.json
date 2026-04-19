@@ -513,7 +513,52 @@
     "chat_tools_title": "Chat — Approbations d'outils",
     "chat_no_pending": "Aucune approbation d'outil en attente",
     "chat_session_label": "Session",
-    "chat_open_session": "Ouvrir la session"
+    "chat_open_session": "Ouvrir la session",
+    "args_preview": "Arguments",
+    "risk": {
+      "low": "Faible",
+      "medium": "Modéré",
+      "high": "Élevé",
+      "critical": "Critique"
+    },
+    "timer": {
+      "waiting_since": "Agent en attente depuis {elapsed}",
+      "remaining": "· {remaining} restant"
+    },
+    "action": {
+      "approve": "Approuver",
+      "reject": "Refuser",
+      "confirm_reject": "Confirmer le refus",
+      "always_accept": "Toujours accepter",
+      "confirm_always": "Confirmer",
+      "stop_agent": "Arrêter l'agent",
+      "stop": "Stopper"
+    },
+    "reject": {
+      "reason_required": "Motif requis (min {min} caractères)",
+      "reason_optional": "Motif (facultatif)",
+      "placeholder": "Expliquez pourquoi vous refusez…"
+    },
+    "scope": {
+      "open_disclosure": "Changer la portée du « toujours accepter »",
+      "current": "Portée : {scope}",
+      "this_tool": "Cet outil uniquement",
+      "this_tool_desc": "Approuve cet outil précis jusqu'à la fin de la session.",
+      "this_session": "Cette session",
+      "this_session_desc": "Approuve les actions similaires jusqu'à la fin de cette session.",
+      "this_agent": "Cet agent",
+      "this_agent_desc": "Approuve les actions similaires chaque fois que cet agent s'exécute.",
+      "this_project": "Ce projet",
+      "this_project_desc": "Approuve les actions similaires dans ce workspace projet.",
+      "global": "Globalement",
+      "global_desc": "Approuve les actions similaires partout sur cette machine."
+    },
+    "toast": {
+      "auto_denied": "Approbation refusée automatiquement après expiration."
+    },
+    "nested": {
+      "breadcrumb_label": "Contexte des approbations imbriquées"
+    }
   },
   "llm": {
     "title": "Backends LLM",
@@ -1437,6 +1482,7 @@
     "ask_user_skip": "Passer",
     "ask_user_answered": "{count} réponse(s) envoyée(s)",
     "ask_user_skipped_label": "Question passée",
+    "ask_user_skip_default": "Utiliser la valeur par défaut",
     "config_no_instructions": "Aucune instruction définie",
     "config_no_tools": "Aucun outil disponible",
     "config_authorized": "autorisé",
@@ -2066,8 +2112,14 @@
       "always_allow_session": "Toujours autoriser cette session",
       "always_allow_title": "Toujours autoriser pour cette session",
       "always_allow_desc": "Cela ignorera l'approbation pour toutes les opérations {op} au niveau de risque {level} pour le reste de la session.",
-      "critical_confirm_label": "Tapez CONFIRMER pour continuer",
+      "critical_confirm_word": "CONFIRMER",
+      "critical_confirm_label": "Tapez {word} pour continuer",
       "critical_confirm_placeholder": "CONFIRMER",
+      "reject_reason_label": "Motif (partagé avec l'agent)",
+      "reject_reason_placeholder": "Expliquez pourquoi vous refusez…",
+      "deny_confirm": "Confirmer le refus",
+      "always_allow_confirm": "Confirmer « toujours autoriser »",
+      "auto_denied": "Opération refusée automatiquement après 5 minutes sans réponse.",
       "timeout_warning": "Cette demande sera automatiquement refusée dans {secs}s.",
       "denied_title": "Opération refusée",
       "denied_message": "L'opération fichier a été refusée."

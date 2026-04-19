@@ -216,18 +216,21 @@ impl NativeChatToolInvoker {
             .await
             .ok()
             .and_then(|r| r.ok())
-            .unwrap_or(super::types::FsHitlDecision::Deny);
+            .unwrap_or_else(super::types::FsHitlDecision::deny);
 
         match decision {
             super::types::FsHitlDecision::Approve => Ok(()),
-            super::types::FsHitlDecision::Deny => {
-                Err("User denied filesystem operation".to_string())
-            }
-            super::types::FsHitlDecision::AlwaysAllowSession {
+            super::types::FsHitlDecision::Deny { reason } => Err(reason.unwrap_or_else(
+                || "User denied filesystem operation".to_string(),
+            )),
+            super::types::FsHitlDecision::AlwaysAllow {
+                scope: _,
                 op: rule_op,
                 level: rule_level,
             } => {
-                // Persist the allow rule in the session store.
+                // The current session always stores a local rule regardless of
+                // the requested scope — broader scopes (project, global) are
+                // persisted by the desktop layer before this point is reached.
                 if let Some(ref rules) = self.fs_allow_rules {
                     let mut guard = rules.lock().expect("fs_allow_rules lock poisoned");
                     guard.insert(format!("{rule_op}:{rule_level}"));
@@ -963,7 +966,7 @@ impl BuiltInChatAgent {
                                 message_id.to_string(),
                                 call.name.clone(),
                             );
-                            let decision = rx.await.unwrap_or(ToolDecision::Refuse);
+                            let decision = rx.await.unwrap_or(ToolDecision::refuse());
 
                             match decision {
                                 ToolDecision::Accept => {
@@ -973,7 +976,7 @@ impl BuiltInChatAgent {
                                         .push(LlmChatMessage::tool_result(&call.id, &tool_result));
                                     all_tool_calls.push(record);
                                 }
-                                ToolDecision::AlwaysAccept => {
+                                ToolDecision::AlwaysAccept { .. } => {
                                     authorized.insert(call.name.clone());
                                     newly_authorized.push(call.name.clone());
                                     let (record, tool_result) =
@@ -982,7 +985,7 @@ impl BuiltInChatAgent {
                                         .push(LlmChatMessage::tool_result(&call.id, &tool_result));
                                     all_tool_calls.push(record);
                                 }
-                                ToolDecision::Refuse => {
+                                ToolDecision::Refuse { .. } => {
                                     let refusal = "Outil refusé par l'utilisateur";
                                     llm_messages
                                         .push(LlmChatMessage::tool_result(&call.id, refusal));
@@ -1978,7 +1981,7 @@ mod tests {
             let approvals = approvals.clone();
             async move {
                 tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                approvals.resolve(&key, ToolDecision::Refuse);
+                approvals.resolve(&key, ToolDecision::refuse());
             }
         });
 
@@ -2046,7 +2049,7 @@ mod tests {
             let approvals = approvals.clone();
             async move {
                 tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                approvals.resolve(&key, ToolDecision::AlwaysAccept);
+                approvals.resolve(&key, ToolDecision::always_accept_default());
             }
         });
 

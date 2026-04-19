@@ -7,7 +7,7 @@
 //! `resume_task` délègue à l'API REST `POST /api/v1/tasks/{id}/resume` qui gère
 //! la persistance, l'émission d'événements et la résolution du oneshot channel.
 
-use apollia_runtime::chat::FsHitlDecision;
+use apollia_runtime::chat::{AlwaysAcceptScope, FsHitlDecision};
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -16,16 +16,37 @@ use super::http_post_json;
 
 /// Décision filesystem sérialisée depuis le frontend.
 ///
-/// Correspond exactement à [`FsHitlDecision`] côté Rust, avec un discriminant
-/// serde snake_case pour la désérialisation JSON depuis Tauri.
+/// Correspond à [`FsHitlDecision`] côté Rust. Le discriminant `decision` est
+/// exprimé en snake_case ; le scope d'un "always accept" est un champ séparé
+/// (`scope`) pour rester rétro-compatible avec les builds antérieurs qui
+/// n'envoyaient que `op`+`level`.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "decision", rename_all = "snake_case")]
 pub enum HitlFilesystemDecisionInput {
     /// L'utilisateur approuve l'opération pour cette invocation.
     Approve,
     /// L'utilisateur refuse — l'opération est annulée.
-    Deny,
-    /// L'utilisateur approuve pour toute la session pour cette combinaison op+level.
+    /// `reason` est requis côté frontend quand le manifest outil le demande ;
+    /// il est transmis à l'agent via `FsHitlDecision::Deny { reason }`.
+    Deny {
+        /// Raison textuelle saisie par l'opérateur (optionnelle).
+        #[serde(default)]
+        reason: Option<String>,
+    },
+    /// L'utilisateur approuve **et** installe une règle « toujours accepter ».
+    /// Le scope précise la portée ; par défaut (`None` côté JS) on applique
+    /// [`AlwaysAcceptScope::ThisSession`].
+    AlwaysAllow {
+        /// Opération filesystem (ex. `"write"`).
+        op: String,
+        /// Niveau de risque (ex. `"medium"`).
+        level: String,
+        /// Scope du "always accept". Absent ⇒ session uniquement.
+        #[serde(default)]
+        scope: Option<AlwaysAcceptScope>,
+    },
+    /// Legacy variant kept for older frontends — equivalent to `AlwaysAllow`
+    /// with `scope = ThisSession`.
     AlwaysAllowSession {
         /// Opération filesystem (ex. `"write"`).
         op: String,
@@ -56,9 +77,20 @@ pub async fn respond_hitl_filesystem(
 
     let fs_decision = match decision {
         HitlFilesystemDecisionInput::Approve => FsHitlDecision::Approve,
-        HitlFilesystemDecisionInput::Deny => FsHitlDecision::Deny,
+        HitlFilesystemDecisionInput::Deny { reason } => FsHitlDecision::Deny { reason },
+        HitlFilesystemDecisionInput::AlwaysAllow { op, level, scope } => {
+            FsHitlDecision::AlwaysAllow {
+                scope: scope.unwrap_or_else(AlwaysAcceptScope::safe_default),
+                op,
+                level,
+            }
+        }
         HitlFilesystemDecisionInput::AlwaysAllowSession { op, level } => {
-            FsHitlDecision::AlwaysAllowSession { op, level }
+            FsHitlDecision::AlwaysAllow {
+                scope: AlwaysAcceptScope::ThisSession,
+                op,
+                level,
+            }
         }
     };
 
@@ -380,6 +412,80 @@ mod tests {
 
         // THEN the validation passes
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_hitl_fs_decision_deny_with_reason_deserialises() {
+        // GIVEN a frontend JSON payload that carries a reject reason
+        let json = r#"{ "decision": "deny", "reason": "not safe" }"#;
+        // WHEN deserialised
+        let decoded: HitlFilesystemDecisionInput =
+            serde_json::from_str(json).expect("should deserialise");
+        // THEN the reason is preserved on the Deny variant
+        match decoded {
+            HitlFilesystemDecisionInput::Deny { reason } => {
+                assert_eq!(reason.as_deref(), Some("not safe"));
+            }
+            _ => panic!("expected Deny variant"),
+        }
+    }
+
+    #[test]
+    fn test_hitl_fs_decision_deny_without_reason_is_none() {
+        // GIVEN a frontend payload without a reason field
+        let json = r#"{ "decision": "deny" }"#;
+        // WHEN deserialised
+        let decoded: HitlFilesystemDecisionInput =
+            serde_json::from_str(json).expect("should deserialise");
+        // THEN reason defaults to None (no validation error)
+        match decoded {
+            HitlFilesystemDecisionInput::Deny { reason } => assert!(reason.is_none()),
+            _ => panic!("expected Deny variant"),
+        }
+    }
+
+    #[test]
+    fn test_hitl_fs_decision_always_allow_with_scope() {
+        // GIVEN an always-allow with an explicit scope picked by the operator
+        let json = r#"{
+            "decision": "always_allow",
+            "op": "write",
+            "level": "high",
+            "scope": "this_project"
+        }"#;
+        // WHEN deserialised
+        let decoded: HitlFilesystemDecisionInput =
+            serde_json::from_str(json).expect("should deserialise");
+        // THEN both op/level and scope are carried on the struct
+        match decoded {
+            HitlFilesystemDecisionInput::AlwaysAllow { op, level, scope } => {
+                assert_eq!(op, "write");
+                assert_eq!(level, "high");
+                assert_eq!(scope, Some(AlwaysAcceptScope::ThisProject));
+            }
+            other => panic!("expected AlwaysAllow, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_hitl_fs_decision_always_allow_session_legacy_path() {
+        // GIVEN the legacy discriminant still used by older frontends
+        let json = r#"{
+            "decision": "always_allow_session",
+            "op": "delete",
+            "level": "medium"
+        }"#;
+        // WHEN deserialised
+        let decoded: HitlFilesystemDecisionInput =
+            serde_json::from_str(json).expect("should deserialise");
+        // THEN the legacy variant is accepted for backward compatibility
+        match decoded {
+            HitlFilesystemDecisionInput::AlwaysAllowSession { op, level } => {
+                assert_eq!(op, "delete");
+                assert_eq!(level, "medium");
+            }
+            other => panic!("expected AlwaysAllowSession, got {other:?}"),
+        }
     }
 
     #[test]

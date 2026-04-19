@@ -1212,8 +1212,9 @@ impl ChatSessionManager {
             )));
         }
 
-        // If AlwaysAccept, persist authorization
-        if decision == ToolDecision::AlwaysAccept {
+        // If AlwaysAccept, persist authorization (scope-agnostic at this layer —
+        // the scope is surfaced via tracing and the approval event only).
+        if decision.is_always_accept() {
             let now = now_rfc3339();
             if let Err(e) = self.repository.authorize_tool(session_id, tool_name, &now) {
                 warn!(error = %e, "Failed to persist tool authorization");
@@ -1221,11 +1222,31 @@ impl ChatSessionManager {
             session.authorized_tools.insert(tool_name.to_string());
         }
 
-        let decision_str = match &decision {
-            ToolDecision::Accept => "accept",
-            ToolDecision::Refuse => "refuse",
-            ToolDecision::AlwaysAccept => "always_accept",
-        };
+        // Trace-log the enriched metadata (reason / scope) without breaking
+        // the existing `log_tool_approval` SQL schema.
+        match &decision {
+            ToolDecision::Refuse { reason: Some(r) } => {
+                tracing::info!(
+                    session_id,
+                    message_id,
+                    tool_name,
+                    reject_reason = %r,
+                    "chat tool rejected with reason"
+                );
+            }
+            ToolDecision::AlwaysAccept { scope } => {
+                tracing::info!(
+                    session_id,
+                    message_id,
+                    tool_name,
+                    always_accept_scope = ?scope,
+                    "chat tool always-accept rule installed"
+                );
+            }
+            _ => {}
+        }
+
+        let decision_str = decision.as_str();
 
         let resolved_at = now_rfc3339();
 

@@ -848,7 +848,6 @@
             <div class="max-w-full sm:max-w-[85%]">
               <AskUserCard
                 requestId={pendingUserInput.requestId}
-                {sessionId}
                 questions={pendingUserInput.questions}
                 context={pendingUserInput.context}
               />

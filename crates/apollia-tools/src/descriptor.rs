@@ -36,6 +36,53 @@ pub struct ToolDescriptor {
     /// Used for audit trail enrichment and approval-gate decisions.
     #[serde(default)]
     pub risk_score: u8,
+    /// Coarse-grained risk level surfaced in the approval UI
+    /// (badge colour, nested-approval treatment).
+    /// If `None`, the UI derives a level from `risk_score` (0-3 low, 4-6 medium,
+    /// 7-8 high, 9-10 critical).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval_risk_level: Option<ApprovalRiskLevel>,
+    /// Human-readable, pre-rendered impact description displayed inside the
+    /// approval card (e.g. "Deletes the file permanently").
+    /// Falls back to a generic sentence derived from the manifest name if
+    /// `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub impact_description: Option<String>,
+    /// When `true`, the frontend must require a textual reject reason before
+    /// resolving the approval. Defaults to `false`.
+    #[serde(default)]
+    pub reject_reason_required: bool,
+}
+
+/// Coarse-grained risk classification surfaced in approval UIs.
+///
+/// Ordered from least to most impactful. The desktop shell colours the badge
+/// (green/yellow/orange/red) and requires extra confirmation for `Critical`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApprovalRiskLevel {
+    /// Pure read or idempotent action with negligible blast radius.
+    Low,
+    /// Mutating action whose effect is easily reversible.
+    Medium,
+    /// Mutating action that touches user data, credentials, or network state.
+    High,
+    /// Destructive or irreversible action (data deletion, privileged exec, …).
+    Critical,
+}
+
+impl ApprovalRiskLevel {
+    /// Best-effort classification from the `risk_score` field when no explicit
+    /// level is declared by the tool author.
+    #[must_use]
+    pub fn from_risk_score(score: u8) -> Self {
+        match score {
+            0..=3 => Self::Low,
+            4..=6 => Self::Medium,
+            7..=8 => Self::High,
+            _ => Self::Critical,
+        }
+    }
 }
 
 impl ToolDescriptor {
@@ -138,6 +185,9 @@ mod tests {
             dangerous: false,
             is_read_only: false,
             risk_score: 0,
+            approval_risk_level: None,
+            impact_description: None,
+            reject_reason_required: false,
         }
     }
 
@@ -262,6 +312,51 @@ mod tests {
         // THEN — fields absent in JSON → default values
         assert!(!d.is_read_only);
         assert_eq!(d.risk_score, 0);
+        assert!(d.approval_risk_level.is_none());
+        assert!(d.impact_description.is_none());
+        assert!(!d.reject_reason_required);
+    }
+
+    #[test]
+    fn test_approval_risk_level_from_score() {
+        // GIVEN / WHEN / THEN — monotonic mapping across the score domain
+        assert_eq!(ApprovalRiskLevel::from_risk_score(0), ApprovalRiskLevel::Low);
+        assert_eq!(ApprovalRiskLevel::from_risk_score(3), ApprovalRiskLevel::Low);
+        assert_eq!(
+            ApprovalRiskLevel::from_risk_score(4),
+            ApprovalRiskLevel::Medium
+        );
+        assert_eq!(
+            ApprovalRiskLevel::from_risk_score(6),
+            ApprovalRiskLevel::Medium
+        );
+        assert_eq!(
+            ApprovalRiskLevel::from_risk_score(7),
+            ApprovalRiskLevel::High
+        );
+        assert_eq!(
+            ApprovalRiskLevel::from_risk_score(9),
+            ApprovalRiskLevel::Critical
+        );
+        assert_eq!(
+            ApprovalRiskLevel::from_risk_score(10),
+            ApprovalRiskLevel::Critical
+        );
+    }
+
+    #[test]
+    fn test_approval_fields_serialize_when_set() {
+        // GIVEN — descriptor with explicit approval fields
+        let mut d = make_valid_descriptor();
+        d.approval_risk_level = Some(ApprovalRiskLevel::High);
+        d.impact_description = Some("Deletes the file permanently".to_string());
+        d.reject_reason_required = true;
+        // WHEN
+        let json = serde_json::to_value(&d).expect("serialisation échouée");
+        // THEN
+        assert_eq!(json["approval_risk_level"], "high");
+        assert_eq!(json["impact_description"], "Deletes the file permanently");
+        assert_eq!(json["reject_reason_required"], true);
     }
 
     #[test]

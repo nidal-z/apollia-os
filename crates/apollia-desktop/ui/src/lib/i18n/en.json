@@ -513,7 +513,52 @@
     "chat_tools_title": "Chat — Tool Approvals",
     "chat_no_pending": "No pending chat tool approvals",
     "chat_session_label": "Session",
-    "chat_open_session": "Open session"
+    "chat_open_session": "Open session",
+    "args_preview": "Arguments",
+    "risk": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "critical": "Critical"
+    },
+    "timer": {
+      "waiting_since": "Agent waiting since {elapsed}",
+      "remaining": "· {remaining} left"
+    },
+    "action": {
+      "approve": "Approve",
+      "reject": "Reject",
+      "confirm_reject": "Confirm reject",
+      "always_accept": "Always accept",
+      "confirm_always": "Confirm always",
+      "stop_agent": "Stop the agent",
+      "stop": "Stop"
+    },
+    "reject": {
+      "reason_required": "Reason required (min {min} characters)",
+      "reason_optional": "Reason (optional)",
+      "placeholder": "Explain why you are rejecting this…"
+    },
+    "scope": {
+      "open_disclosure": "Change scope for always-accept",
+      "current": "Scope: {scope}",
+      "this_tool": "Only this tool",
+      "this_tool_desc": "Approve this specific tool for the rest of the session.",
+      "this_session": "This session",
+      "this_session_desc": "Approve matching actions until this chat session ends.",
+      "this_agent": "This agent",
+      "this_agent_desc": "Approve matching actions whenever this agent runs.",
+      "this_project": "This project",
+      "this_project_desc": "Approve matching actions inside the current project workspace.",
+      "global": "Globally",
+      "global_desc": "Approve matching actions everywhere on this machine."
+    },
+    "toast": {
+      "auto_denied": "Approval auto-denied after timeout."
+    },
+    "nested": {
+      "breadcrumb_label": "Nested approval context"
+    }
   },
   "llm": {
     "title": "LLM Backends",
@@ -1437,6 +1482,7 @@
     "ask_user_skip": "Skip",
     "ask_user_answered": "{count} answer(s) submitted",
     "ask_user_skipped_label": "Skipped",
+    "ask_user_skip_default": "Skip with default",
     "config_no_instructions": "No instructions defined",
     "config_no_tools": "No tools available",
     "config_authorized": "authorized",
@@ -2066,8 +2112,14 @@
       "always_allow_session": "Always allow this session",
       "always_allow_title": "Always allow for this session",
       "always_allow_desc": "This will skip approval for all {op} operations at {level} risk level for the rest of the session.",
-      "critical_confirm_label": "Type CONFIRM to proceed",
+      "critical_confirm_word": "CONFIRM",
+      "critical_confirm_label": "Type {word} to proceed",
       "critical_confirm_placeholder": "CONFIRM",
+      "reject_reason_label": "Reason (shared with the agent)",
+      "reject_reason_placeholder": "Explain why you are refusing…",
+      "deny_confirm": "Confirm deny",
+      "always_allow_confirm": "Confirm always allow",
+      "auto_denied": "Operation auto-denied after 5 minutes without a response.",
       "timeout_warning": "This request will be automatically denied in {secs}s.",
       "denied_title": "Operation denied",
       "denied_message": "The file operation was refused."

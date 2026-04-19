@@ -237,14 +237,63 @@ pub enum ToolCallStatus {
 }
 
 /// User decision on a tool approval request.
+///
+/// The enum mirrors the three buttons surfaced by `ApprovalCardV2`
+/// (approve / reject / always-accept). `Refuse` optionally carries a free-form
+/// reason forwarded to the agent so it can adapt its plan, and `AlwaysAccept`
+/// carries the sticky scope picked by the operator.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ToolDecision {
     /// Approve this single invocation.
     Accept,
-    /// Refuse this single invocation.
-    Refuse,
-    /// Approve this and all future invocations of the same tool in this session.
-    AlwaysAccept,
+    /// Refuse this single invocation. `reason` is `None` when the operator
+    /// declines without providing a justification (or when the manifest does
+    /// not flag `reject_reason_required`).
+    Refuse {
+        /// Free-form reason shared with the agent.
+        #[serde(default)]
+        reason: Option<String>,
+    },
+    /// Approve this invocation **and** install an "always accept" rule whose
+    /// stickiness is controlled by `scope` (cf. [`AlwaysAcceptScope`]).
+    AlwaysAccept {
+        /// Scope picked by the operator. Defaults to
+        /// [`AlwaysAcceptScope::ThisSession`] for safety.
+        #[serde(default = "AlwaysAcceptScope::safe_default")]
+        scope: AlwaysAcceptScope,
+    },
+}
+
+impl ToolDecision {
+    /// Convenience: "plain refuse" without a reason (legacy call-sites).
+    #[must_use]
+    pub fn refuse() -> Self {
+        Self::Refuse { reason: None }
+    }
+
+    /// Convenience: "always accept" with the safe default scope.
+    #[must_use]
+    pub fn always_accept_default() -> Self {
+        Self::AlwaysAccept {
+            scope: AlwaysAcceptScope::safe_default(),
+        }
+    }
+
+    /// Returns `true` if this decision is an `AlwaysAccept` of any scope.
+    #[must_use]
+    pub fn is_always_accept(&self) -> bool {
+        matches!(self, Self::AlwaysAccept { .. })
+    }
+
+    /// Serde-friendly identifier used for log rows / event payloads.
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Accept => "accept",
+            Self::Refuse { .. } => "refuse",
+            Self::AlwaysAccept { .. } => "always_accept",
+        }
+    }
 }
 
 /// Per-tool aggregated statistics within a session.
@@ -432,17 +481,17 @@ impl PendingChatApprovals {
         }
     }
 
-    /// Timeout a pending approval by sending `ToolDecision::Refuse`.
+    /// Timeout a pending approval by sending a plain `Refuse` (no reason).
     ///
     /// Returns `true` if the key was found and refused, `false` otherwise.
     pub fn timeout(&self, key: &str) -> bool {
-        self.resolve(key, ToolDecision::Refuse)
+        self.resolve(key, ToolDecision::refuse())
     }
 
     /// Start a background timeout task that auto-refuses after `duration`.
     ///
     /// If the approval is still pending when the timer fires, it is resolved
-    /// with [`ToolDecision::Refuse`] and a [`RuntimeEvent::ChatApprovalTimeout`]
+    /// with [`ToolDecision::refuse()`] and a [`RuntimeEvent::ChatApprovalTimeout`]
     /// is emitted on the EventBus.
     ///
     /// If the approval has already been resolved before the timeout, this is a no-op.
@@ -463,7 +512,7 @@ impl PendingChatApprovals {
             let still_pending = {
                 let mut map = inner.lock().expect("PendingChatApprovals lock poisoned");
                 if let Some(tx) = map.remove(&key) {
-                    let _ = tx.send(ToolDecision::Refuse);
+                    let _ = tx.send(ToolDecision::refuse());
                     true
                 } else {
                     false
@@ -505,11 +554,70 @@ pub enum FsHitlDecision {
     /// Approve this specific operation.
     Approve,
     /// Deny this specific operation.
-    Deny,
-    /// Approve this operation and auto-approve similar ops for the rest of the session.
     ///
-    /// `op` and `level` identify the rule scope (e.g., `"write"` + `"medium"`).
-    AlwaysAllowSession { op: String, level: String },
+    /// `reason` is required when the caller tool flagged `reject_reason_required`
+    /// and is forwarded to the agent so it can adapt its plan. Callers that do
+    /// not require a reason pass `None`.
+    Deny { reason: Option<String> },
+    /// Approve this operation and also install an "always accept" rule.
+    ///
+    /// The rule scope is encoded by [`AlwaysAcceptScope`] — from the most
+    /// restrictive (this tool only) to the most permissive (global).
+    ///
+    /// `op` and `level` identify the filesystem rule bucket (e.g., `"write"` +
+    /// `"medium"`). They are kept alongside the scope so `PrefixRuleEngine` can
+    /// persist the correct row.
+    AlwaysAllow {
+        /// Scope picked by the operator in the approval card.
+        scope: AlwaysAcceptScope,
+        /// Filesystem operation bucket (`write` / `delete` / `chmod` / `read`).
+        op: String,
+        /// Risk level bucket (`medium` / `high` / `critical`).
+        level: String,
+    },
+}
+
+impl FsHitlDecision {
+    /// Convenience constructor: Deny without a reason (legacy code path).
+    #[must_use]
+    pub fn deny() -> Self {
+        Self::Deny { reason: None }
+    }
+}
+
+/// Scope of a user-issued "always accept" approval.
+///
+/// Ordered from least to most permissive. The persistence layer is free to
+/// interpret each scope differently:
+///
+/// - `ThisTool` and `ThisAgent` land in `PrefixRuleEngine` with a matching
+///   `tool_name` predicate.
+/// - `ThisSession` stays in-memory for the current `ChatManager` session.
+/// - `ThisProject` is persisted in `apollia.toml` (or equivalent).
+/// - `Global` is persisted in the user-wide `permissions.db`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AlwaysAcceptScope {
+    /// Auto-approve only this exact tool name for the rest of the session.
+    ThisTool,
+    /// Auto-approve matching ops for the rest of the current chat session.
+    /// This is the **default** scope — least sticky, safest.
+    ThisSession,
+    /// Auto-approve matching ops whenever the requesting agent runs.
+    ThisAgent,
+    /// Auto-approve matching ops inside the current project workspace.
+    ThisProject,
+    /// Auto-approve matching ops machine-wide.
+    Global,
+}
+
+impl AlwaysAcceptScope {
+    /// Safe default picked by the UI when the operator clicks "Always accept"
+    /// without opening the scope disclosure.
+    #[must_use]
+    pub fn safe_default() -> Self {
+        Self::ThisSession
+    }
 }
 
 /// Thread-safe store for pending filesystem HITL requests.
@@ -566,7 +674,7 @@ impl PendingFilesystemApprovals {
             .lock()
             .expect("PendingFilesystemApprovals lock poisoned");
         for (_, tx) in map.drain() {
-            let _ = tx.send(FsHitlDecision::Deny);
+            let _ = tx.send(FsHitlDecision::deny());
         }
     }
 }
@@ -721,7 +829,7 @@ mod tests {
         // THEN the receiver gets Refuse
         assert!(timed_out);
         let decision = rx.await.expect("receiver should get a decision");
-        assert_eq!(decision, ToolDecision::Refuse);
+        assert_eq!(decision, ToolDecision::refuse());
     }
 
     #[test]
@@ -802,12 +910,12 @@ mod tests {
 
         // WHEN register puis resolve(Refuse)
         let rx = approvals.register("sess-1::msg-1::bash".to_string());
-        let resolved = approvals.resolve("sess-1::msg-1::bash", ToolDecision::Refuse);
+        let resolved = approvals.resolve("sess-1::msg-1::bash", ToolDecision::refuse());
 
         // THEN receiver gets Refuse
         assert!(resolved);
         let decision = rx.await.expect("decision");
-        assert_eq!(decision, ToolDecision::Refuse);
+        assert_eq!(decision, ToolDecision::refuse());
     }
 
     #[tokio::test]
@@ -817,12 +925,12 @@ mod tests {
 
         // WHEN register puis resolve(AlwaysAccept)
         let rx = approvals.register("sess-1::msg-1::bash".to_string());
-        let resolved = approvals.resolve("sess-1::msg-1::bash", ToolDecision::AlwaysAccept);
+        let resolved = approvals.resolve("sess-1::msg-1::bash", ToolDecision::always_accept_default());
 
         // THEN receiver gets AlwaysAccept
         assert!(resolved);
         let decision = rx.await.expect("decision");
-        assert_eq!(decision, ToolDecision::AlwaysAccept);
+        assert_eq!(decision, ToolDecision::always_accept_default());
     }
 
     #[tokio::test]
@@ -844,7 +952,7 @@ mod tests {
 
         // THEN receiver gets Refuse after timeout
         let decision = rx.await.expect("decision");
-        assert_eq!(decision, ToolDecision::Refuse);
+        assert_eq!(decision, ToolDecision::refuse());
 
         // AND ChatApprovalTimeout event is emitted
         let event = event_rx.recv().await.expect("event");

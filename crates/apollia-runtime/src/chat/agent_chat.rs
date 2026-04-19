@@ -220,17 +220,20 @@ impl AgentChatExecutor {
             "agent_action".to_string(),
         );
 
-        let decision = rx.await.unwrap_or(ToolDecision::Refuse);
+        let decision = rx.await.unwrap_or(ToolDecision::refuse());
 
-        match decision {
-            ToolDecision::Refuse => {
-                let content = "Opération refusée par l'utilisateur".to_string();
+        match &decision {
+            ToolDecision::Refuse { reason } => {
+                let content = match reason {
+                    Some(r) => format!("Opération refusée par l'utilisateur : {r}"),
+                    None => "Opération refusée par l'utilisateur".to_string(),
+                };
                 self.emit_completed(&session.id, message_id, &content);
                 Ok(build_response(content, vec![]))
             }
 
-            ToolDecision::Accept | ToolDecision::AlwaysAccept => {
-                let newly_authorized = if decision == ToolDecision::AlwaysAccept {
+            ToolDecision::Accept | ToolDecision::AlwaysAccept { .. } => {
+                let newly_authorized = if decision.is_always_accept() {
                     vec!["agent_action".to_string()]
                 } else {
                     vec![]
@@ -743,7 +746,7 @@ mod tests {
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
             let key = format!("{sid}::msg-hitl::agent_action");
-            approvals_clone.resolve(&key, ToolDecision::Refuse);
+            approvals_clone.resolve(&key, ToolDecision::refuse());
         });
 
         // WHEN execute is called
@@ -812,7 +815,7 @@ mod tests {
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
             let key = format!("{sid}::msg-hitl3::agent_action");
-            approvals_clone.resolve(&key, ToolDecision::AlwaysAccept);
+            approvals_clone.resolve(&key, ToolDecision::always_accept_default());
         });
 
         // WHEN execute is called

@@ -1,11 +1,31 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
+  /**
+   * Filesystem HITL modal — refonte US-SP42-032.
+   *
+   * Findings addressed:
+   *   - B.16.a : progress bar timeout (via ApprovalTimer)
+   *   - B.16.b : toast on auto-deny so the operator sees why the action failed
+   *   - B.16.c : convention "close = deny" conservée, documentée dans DS
+   *   - B.16.d : i18n du mot CONFIRM via `hitl.fs.critical_confirm_word`
+   *   - B.16.f : autofocus sur Deny (destructif par défaut) + trap via Dialog
+   *   - B.51   : scope "always allow" exposé via ApprovalScopeSelect
+   *
+   * The heavy lifting of the decision is still `respond_hitl_filesystem`
+   * on the Rust side ; only the UI shell changes.
+   */
+
+  import { onMount, onDestroy, tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
   import { AlertTriangle, FileText, ShieldAlert, Trash2 } from "lucide-svelte";
   import Dialog from "$lib/components/ui/dialog/Dialog.svelte";
   import { Button } from "$lib/components/ui/button";
+  import { Textarea } from "$lib/components/ui/textarea";
+  import { addToast } from "$lib/components/ui/toast/store";
+  import ApprovalRiskBadge, { type ApprovalRiskLevel } from "./ApprovalRiskBadge.svelte";
+  import ApprovalTimer from "./ApprovalTimer.svelte";
+  import ApprovalScopeSelect, { type AlwaysAcceptScope } from "./ApprovalScopeSelect.svelte";
 
   interface Props {
     /** Chat session — only requests for this session will open the modal. */
@@ -43,46 +63,36 @@
     preview: FilesystemPreview;
   }
 
-  // ── Component state ────────────────────────────────────────────────────────
+  const TIMEOUT_MS = 300_000;
+
+  // ── Component state ──────────────────────────────────────────────────────
   let open = $state(false);
   let pending = $state<HitlFsPayload | null>(null);
   let processing = $state(false);
   let error = $state<string | null>(null);
-  /** Input for critical confirmation — user must type "CONFIRM". */
+  let startedAt = $state<number>(Date.now());
   let criticalInput = $state("");
-  /** Countdown in seconds before auto-deny. */
-  let timeoutSecs = $state(300);
+  let showRejectReason = $state(false);
+  let rejectReason = $state("");
+  let showScope = $state(false);
+  let scope = $state<AlwaysAcceptScope>("this_session");
 
   let unlistenFn: UnlistenFn | undefined;
-  let countdownInterval: ReturnType<typeof setInterval> | undefined;
 
-  // ── Derived ───────────────────────────────────────────────────────────────
+  // ── Derived ──────────────────────────────────────────────────────────────
   const isCritical = $derived(pending?.level === "critical");
-  const canApprove = $derived(
-    !processing && (!isCritical || criticalInput.trim().toUpperCase() === "CONFIRM"),
+  const riskLevel: ApprovalRiskLevel = $derived(
+    (pending?.level as ApprovalRiskLevel | undefined) ?? "medium",
   );
 
-  const levelClass = $derived.by(() => {
-    switch (pending?.level) {
-      case "critical":
-        return "bg-destructive/10 text-destructive border-destructive/30";
-      case "high":
-        return "bg-orange-500/10 text-orange-500 border-orange-500/30";
-      default:
-        return "bg-warning/10 text-warning border-warning/30";
-    }
-  });
-
-  const levelLabel = $derived.by(() => {
-    switch (pending?.level) {
-      case "critical":
-        return $t("hitl.fs.level_critical");
-      case "high":
-        return $t("hitl.fs.level_high");
-      default:
-        return $t("hitl.fs.level_medium");
-    }
-  });
+  /** i18n-aware CONFIRM comparison (B.16.d). Falls back to literal "CONFIRM". */
+  const confirmWord = $derived(
+    ($t("hitl.fs.critical_confirm_word") as string | undefined) ?? "CONFIRM",
+  );
+  const canApprove = $derived(
+    !processing &&
+      (!isCritical || criticalInput.trim().toUpperCase() === confirmWord.toUpperCase()),
+  );
 
   const opLabel = $derived.by(() => {
     switch (pending?.op) {
@@ -110,7 +120,7 @@
     }
   });
 
-  // ── Lifecycle ──────────────────────────────────────────────────────────────
+  // ── Lifecycle ────────────────────────────────────────────────────────────
   onMount(async () => {
     unlistenFn = await listen<HitlFsPayload>("hitl-fs-required", (event) => {
       if (event.payload.session_id !== sessionId) return;
@@ -120,16 +130,23 @@
 
   onDestroy(() => {
     unlistenFn?.();
-    stopCountdown();
   });
 
-  function openModal(payload: HitlFsPayload): void {
+  async function openModal(payload: HitlFsPayload): Promise<void> {
     pending = payload;
     open = true;
     processing = false;
     error = null;
     criticalInput = "";
-    startCountdown();
+    rejectReason = "";
+    showRejectReason = false;
+    showScope = false;
+    startedAt = Date.now();
+    // B.16.f — autofocus Deny (destructive default) once the dialog renders.
+    await tick();
+    document
+      .querySelector<HTMLButtonElement>("[data-testid='hitl-fs-deny']")
+      ?.focus();
   }
 
   function closeModal(): void {
@@ -138,39 +155,26 @@
     processing = false;
     error = null;
     criticalInput = "";
-    stopCountdown();
+    rejectReason = "";
+    showRejectReason = false;
+    showScope = false;
   }
 
-  function startCountdown(): void {
-    timeoutSecs = 300;
-    stopCountdown();
-    countdownInterval = setInterval(() => {
-      timeoutSecs -= 1;
-      if (timeoutSecs <= 0) {
-        stopCountdown();
-        // Auto-deny on timeout
-        if (pending) {
-          void sendDecision("deny");
-        }
-      }
-    }, 1000);
+  function handleAutoDeny(): void {
+    if (!pending || processing) return;
+    // B.16.b — surface the auto-deny so the operator notices the timeout
+    addToast($t("hitl.fs.auto_denied"), "urgent");
+    void sendDecision("deny", null);
   }
 
-  function stopCountdown(): void {
-    if (countdownInterval !== undefined) {
-      clearInterval(countdownInterval);
-      countdownInterval = undefined;
-    }
-  }
-
-  // ── Decision handling ──────────────────────────────────────────────────────
+  // ── Decision handling ────────────────────────────────────────────────────
   async function sendDecision(
-    kind: "approve" | "deny" | "always_allow_session",
+    kind: "approve" | "deny" | "always_allow",
+    reason: string | null = null,
   ): Promise<void> {
     if (!pending || processing) return;
     processing = true;
     error = null;
-    stopCountdown();
 
     const requestId = pending.request_id;
     const op = pending.op;
@@ -180,9 +184,9 @@
     if (kind === "approve") {
       decision = { decision: "approve" };
     } else if (kind === "deny") {
-      decision = { decision: "deny" };
+      decision = { decision: "deny", reason };
     } else {
-      decision = { decision: "always_allow_session", op, level };
+      decision = { decision: "always_allow", op, level, scope };
     }
 
     try {
@@ -193,41 +197,56 @@
       processing = false;
     }
   }
+
+  function handleDenyClick(): void {
+    if (showRejectReason) {
+      void sendDecision("deny", rejectReason.trim() || null);
+    } else if (isCritical) {
+      showRejectReason = true;
+    } else {
+      void sendDecision("deny", null);
+    }
+  }
 </script>
 
 <Dialog
   {open}
-  onclose={() => sendDecision("deny")}
+  onclose={() => sendDecision("deny", null)}
   size="lg"
   title={$t("hitl.fs.title")}
   data-testid="hitl-fs-modal"
 >
   {#if pending}
     <!-- Subtitle -->
-    <p class="mb-4 text-sm text-muted-foreground">{$t("hitl.fs.subtitle")}</p>
+    <p class="mb-3 text-sm text-muted-foreground">{$t("hitl.fs.subtitle")}</p>
 
-    <!-- Op + level row -->
+    <!-- Op + level row (risk badge + op) -->
     <div class="mb-3 flex items-center gap-2">
-      <!-- Level badge -->
-      <span
-        class="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold {levelClass}"
-        data-testid="hitl-fs-level"
-      >
-        <AlertTriangle class="h-3 w-3" />
-        {levelLabel}
-      </span>
-      <!-- Op badge -->
+      <ApprovalRiskBadge level={riskLevel} />
       <span
         class="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-foreground"
         data-testid="hitl-fs-op"
       >
-        <OpIcon class="h-3 w-3" />
+        <OpIcon class="h-3 w-3" aria-hidden="true" />
         {opLabel}
       </span>
+      <!-- Legacy alert icon kept for visual familiarity (non-critical) -->
+      {#if !isCritical}
+        <AlertTriangle class="h-3 w-3 text-warning" aria-hidden="true" />
+      {/if}
+    </div>
+
+    <!-- Timer + progress bar (B.16.a) -->
+    <div class="mb-3">
+      <ApprovalTimer
+        startedAt={startedAt}
+        totalMs={TIMEOUT_MS}
+        onExpired={handleAutoDeny}
+      />
     </div>
 
     <!-- Path -->
-    <div class="mb-4">
+    <div class="mb-3">
       <p class="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         {$t("hitl.fs.path_label")}
       </p>
@@ -237,10 +256,10 @@
       >{pending.path}</code>
     </div>
 
-    <!-- Preview -->
+    <!-- Preview — unchanged scenarios (diff / content / mode) -->
     {#if pending.preview.kind === "diff"}
       {@const diff = pending.preview}
-      <div class="mb-4">
+      <div class="mb-3">
         <p class="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           {$t("hitl.fs.preview_diff")}
         </p>
@@ -266,7 +285,7 @@
       </div>
     {:else if pending.preview.kind === "content"}
       {@const content = pending.preview}
-      <div class="mb-4">
+      <div class="mb-3">
         <p class="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           {$t("hitl.fs.preview_content")}
           <span class="ml-1 font-normal normal-case text-muted-foreground/60">
@@ -283,7 +302,7 @@
       </div>
     {:else if pending.preview.kind === "mode"}
       {@const mode = pending.preview}
-      <div class="mb-4">
+      <div class="mb-3">
         <p class="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           {$t("hitl.fs.preview_mode")}
         </p>
@@ -301,17 +320,17 @@
       </div>
     {/if}
 
-    <!-- Critical: confirmation input -->
+    <!-- Critical: CONFIRM input (i18n-aware via `hitl.fs.critical_confirm_word`) -->
     {#if isCritical}
-      <div class="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-3">
+      <div class="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-3">
         <label class="mb-1.5 block text-[11px] font-medium text-destructive" for="hitl-fs-critical-input">
-          {$t("hitl.fs.critical_confirm_label")}
+          {$t("hitl.fs.critical_confirm_label", { values: { word: confirmWord } })}
         </label>
         <input
           id="hitl-fs-critical-input"
           type="text"
           bind:value={criticalInput}
-          placeholder={$t("hitl.fs.critical_confirm_placeholder")}
+          placeholder={confirmWord}
           class="w-full rounded-md border border-destructive/30 bg-background px-3 py-1.5 font-mono text-sm outline-none focus:border-destructive/60"
           data-testid="hitl-fs-critical-input"
           autocomplete="off"
@@ -320,16 +339,37 @@
       </div>
     {/if}
 
-    <!-- Timeout warning -->
-    {#if timeoutSecs <= 30}
-      <p class="mb-3 text-[11px] text-warning" data-testid="hitl-fs-timeout">
-        {$t("hitl.fs.timeout_warning", { values: { secs: timeoutSecs } })}
-      </p>
+    <!-- Reject reason (critical only or operator-invoked) -->
+    {#if showRejectReason}
+      <div class="mb-3 rounded-md border border-destructive/30 bg-destructive/5 p-2">
+        <label
+          for="hitl-fs-reject-reason"
+          class="mb-1 block text-[11px] font-medium text-destructive"
+        >
+          {$t("hitl.fs.reject_reason_label")}
+        </label>
+        <Textarea
+          id="hitl-fs-reject-reason"
+          bind:value={rejectReason}
+          rows={2}
+          placeholder={$t("hitl.fs.reject_reason_placeholder")}
+          data-testid="hitl-fs-reject-reason"
+        />
+      </div>
+    {/if}
+
+    <!-- Always allow scope disclosure -->
+    {#if showScope}
+      <div class="mb-3" data-testid="hitl-fs-scope">
+        <ApprovalScopeSelect bind:value={scope} disabled={processing} />
+      </div>
     {/if}
 
     <!-- Error -->
     {#if error}
-      <p class="mb-3 text-[11px] text-destructive" data-testid="hitl-fs-error">{error}</p>
+      <p class="mb-2 text-[11px] text-destructive" role="alert" data-testid="hitl-fs-error">
+        {error}
+      </p>
     {/if}
 
     <!-- Action buttons -->
@@ -349,23 +389,30 @@
         size="sm"
         class="h-8 px-4 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
         disabled={processing}
-        onclick={() => sendDecision("deny")}
+        onclick={handleDenyClick}
         data-testid="hitl-fs-deny"
       >
-        {$t("hitl.fs.deny")}
+        {showRejectReason ? $t("hitl.fs.deny_confirm") : $t("hitl.fs.deny")}
       </Button>
       <Button
         variant="ghost"
         size="sm"
         class="ml-auto h-8 px-3 text-[11px] text-primary"
         disabled={!canApprove}
-        onclick={() => sendDecision("always_allow_session")}
+        onclick={() => {
+          if (showScope) {
+            void sendDecision("always_allow");
+          } else {
+            showScope = true;
+          }
+        }}
         data-testid="hitl-fs-always-allow"
+        aria-expanded={showScope}
         title={$t("hitl.fs.always_allow_desc", {
-          values: { op: opLabel, level: levelLabel },
+          values: { op: opLabel, level: $t(`approvals.risk.${riskLevel}`) },
         })}
       >
-        {$t("hitl.fs.always_allow_session")}
+        {showScope ? $t("hitl.fs.always_allow_confirm") : $t("hitl.fs.always_allow_session")}
       </Button>
     </div>
   {/if}

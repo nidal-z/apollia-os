@@ -82,6 +82,9 @@ impl A2AToolsProvider {
                     dangerous: false,
                     is_read_only: false,
                     risk_score: 0,
+                    approval_risk_level: None,
+                    impact_description: None,
+                    reject_reason_required: false,
                 }
             })
             .collect()

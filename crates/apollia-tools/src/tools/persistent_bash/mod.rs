@@ -102,6 +102,9 @@ impl PersistentBashExecutor {
             // A persistent shell mutates external state and must never be parallelised.
             is_read_only: false,
             risk_score: 8,
+            approval_risk_level: None,
+            impact_description: None,
+            reject_reason_required: false,
         }
     }
 
