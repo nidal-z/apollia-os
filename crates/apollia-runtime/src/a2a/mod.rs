@@ -5,9 +5,16 @@
 //! type-erasée [`A2aDelegateFn`], la factory [`make_delegate_fn`], et l'orchestrateur
 //! de haut niveau [`invoker::A2AInvoker`].
 
+pub mod compatibility;
 pub mod invoker;
 pub mod sidechain;
+pub mod telemetry;
 pub mod tools_provider;
+
+pub use compatibility::{check_compatibility, A2ACompatibilityWarning, CompatSeverity, SemVer};
+pub use telemetry::{
+    A2ASkillTelemetry, A2AStepProvenance, InvocationRecord, TelemetryHandle, TelemetryStore,
+};
 
 pub use invoker::{
     A2AAgentCard, A2AError, A2AInvocationResult, A2AInvoker, A2ASkillInfo, RuntimeContextConfig,

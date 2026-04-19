@@ -20,12 +20,12 @@
   import { t } from "svelte-i18n";
   import { Users, ChevronDown, Dot } from "lucide-svelte";
   import { Popover } from "$lib/components/ui/popover";
-  import type { AgentListItem, A2ASkillView } from "$lib/types";
+  import type { AgentListItem, A2ASkillListing } from "$lib/types";
   import A2AWorkerSkillChip from "./A2AWorkerSkillChip.svelte";
 
   let open = $state(false);
   let agents = $state<AgentListItem[]>([]);
-  let skills = $state<A2ASkillView[]>([]);
+  let skills = $state<A2ASkillListing[]>([]);
   let loading = $state(false);
   let unlisten: UnlistenFn | undefined;
 
@@ -38,7 +38,7 @@
   );
 
   const skillsByAgent = $derived.by(() => {
-    const map = new Map<string, A2ASkillView[]>();
+    const map = new Map<string, A2ASkillListing[]>();
     for (const s of skills) {
       if (!map.has(s.agent_name)) map.set(s.agent_name, []);
       map.get(s.agent_name)!.push(s);
@@ -51,7 +51,7 @@
     try {
       const [a, s] = await Promise.all([
         invoke<AgentListItem[]>("list_agents").catch(() => [] as AgentListItem[]),
-        invoke<A2ASkillView[]>("list_a2a_skills").catch(() => [] as A2ASkillView[]),
+        invoke<A2ASkillListing[]>("list_a2a_skills").catch(() => [] as A2ASkillListing[]),
       ]);
       agents = a;
       skills = s;

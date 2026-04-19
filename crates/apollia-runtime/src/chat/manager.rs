@@ -224,6 +224,27 @@ pub enum ChatCommand {
         /// Response channel.
         reply: oneshot::Sender<Vec<crate::a2a::SkillListing>>,
     },
+    /// Snapshot A2A skill telemetry — US-SP42-044.
+    ListA2ASkillTelemetry {
+        /// Response channel.
+        reply: oneshot::Sender<Vec<crate::a2a::A2ASkillTelemetry>>,
+    },
+    /// Retrieve A2A step provenance entries, optionally filtered by skill id.
+    ListA2AStepProvenance {
+        /// Optional skill id filter.
+        skill_id: Option<String>,
+        /// Response channel.
+        reply: oneshot::Sender<Vec<crate::a2a::A2AStepProvenance>>,
+    },
+    /// Check compatibility of a skill against a required semver version.
+    CheckA2ACompatibility {
+        /// Skill id to check.
+        skill_id: String,
+        /// Required semver version (e.g. `"1.5.0"`).
+        required_version: String,
+        /// Response channel.
+        reply: oneshot::Sender<Option<crate::a2a::A2ACompatibilityWarning>>,
+    },
     /// Resolve a pending filesystem HITL request.
     ///
     /// Called by the `respond_hitl_filesystem` Tauri command when the user
@@ -485,6 +506,53 @@ impl ChatSessionManager {
                         });
                     } else {
                         let _ = reply.send(Vec::new());
+                    }
+                }
+                ChatCommand::ListA2ASkillTelemetry { reply } => {
+                    if let Some(ref a2a) = self.a2a_invoker {
+                        let a2a = a2a.clone();
+                        tokio::spawn(async move {
+                            let out = match a2a.telemetry() {
+                                Some(t) => t.all_telemetry().await,
+                                None => Vec::new(),
+                            };
+                            let _ = reply.send(out);
+                        });
+                    } else {
+                        let _ = reply.send(Vec::new());
+                    }
+                }
+                ChatCommand::ListA2AStepProvenance { skill_id, reply } => {
+                    if let Some(ref a2a) = self.a2a_invoker {
+                        let a2a = a2a.clone();
+                        tokio::spawn(async move {
+                            let out = match a2a.telemetry() {
+                                Some(t) => t.steps_for(skill_id.as_deref()).await,
+                                None => Vec::new(),
+                            };
+                            let _ = reply.send(out);
+                        });
+                    } else {
+                        let _ = reply.send(Vec::new());
+                    }
+                }
+                ChatCommand::CheckA2ACompatibility {
+                    skill_id,
+                    required_version,
+                    reply,
+                } => {
+                    if let Some(ref a2a) = self.a2a_invoker {
+                        let a2a = a2a.clone();
+                        tokio::spawn(async move {
+                            let out = a2a
+                                .check_skill_compatibility(&skill_id, &required_version)
+                                .await
+                                .ok()
+                                .flatten();
+                            let _ = reply.send(out);
+                        });
+                    } else {
+                        let _ = reply.send(None);
                     }
                 }
                 ChatCommand::ReloadLlm { router } => {
@@ -2304,6 +2372,62 @@ impl ChatSessionManagerHandle {
             return Vec::new();
         }
         reply_rx.await.unwrap_or_default()
+    }
+
+    /// List aggregated A2A skill telemetry (US-SP42-044).
+    pub async fn list_a2a_skill_telemetry(&self) -> Vec<crate::a2a::A2ASkillTelemetry> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .tx
+            .send(ChatCommand::ListA2ASkillTelemetry { reply: reply_tx })
+            .await
+            .is_err()
+        {
+            return Vec::new();
+        }
+        reply_rx.await.unwrap_or_default()
+    }
+
+    /// List A2A step provenance entries, optionally filtered by skill id.
+    pub async fn list_a2a_step_provenance(
+        &self,
+        skill_id: Option<String>,
+    ) -> Vec<crate::a2a::A2AStepProvenance> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .tx
+            .send(ChatCommand::ListA2AStepProvenance {
+                skill_id,
+                reply: reply_tx,
+            })
+            .await
+            .is_err()
+        {
+            return Vec::new();
+        }
+        reply_rx.await.unwrap_or_default()
+    }
+
+    /// Check compatibility of a skill against a required semver version.
+    pub async fn check_a2a_compatibility(
+        &self,
+        skill_id: String,
+        required_version: String,
+    ) -> Option<crate::a2a::A2ACompatibilityWarning> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .tx
+            .send(ChatCommand::CheckA2ACompatibility {
+                skill_id,
+                required_version,
+                reply: reply_tx,
+            })
+            .await
+            .is_err()
+        {
+            return None;
+        }
+        reply_rx.await.unwrap_or(None)
     }
 
     /// List recently resolved chat tool approvals from the approval log.

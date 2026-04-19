@@ -12,7 +12,10 @@ use tracing::info;
 
 use apollia_core::{A2AConfig, AIPResult, ProcessState, RuntimeEvent};
 
-use crate::a2a::{make_delegate_fn, A2aDelegateFn};
+use crate::a2a::telemetry::{
+    make_excerpt, A2AStepProvenance, InvocationRecord, TelemetryHandle,
+};
+use crate::a2a::{check_compatibility, make_delegate_fn, A2aDelegateFn};
 use crate::coordinator::ExecutionBackend;
 use crate::eventbus::EventBusSender;
 use crate::registry::{AgentEntry, AgentRegistryHandle};
@@ -206,6 +209,8 @@ pub struct A2AInvoker {
     config: A2AConfig,
     /// Logger de sidechains — `None` si la base SQLite n'est pas disponible.
     sidechain_logger: Option<crate::a2a::sidechain::SidechainLogger>,
+    /// Store de télémétrie A2A — `None` si l'observabilité par skill est désactivée.
+    telemetry: Option<TelemetryHandle>,
 }
 
 impl A2AInvoker {
@@ -229,6 +234,7 @@ impl A2AInvoker {
             event_bus,
             config,
             sidechain_logger: None,
+            telemetry: None,
         }
     }
 
@@ -238,6 +244,17 @@ impl A2AInvoker {
     pub fn with_sidechain_logger(mut self, logger: crate::a2a::sidechain::SidechainLogger) -> Self {
         self.sidechain_logger = Some(logger);
         self
+    }
+
+    /// Attache un [`TelemetryHandle`] pour agréger la télémétrie par skill (US-SP42-044).
+    pub fn with_telemetry(mut self, telemetry: TelemetryHandle) -> Self {
+        self.telemetry = Some(telemetry);
+        self
+    }
+
+    /// Retourne le [`TelemetryHandle`] attaché, si disponible.
+    pub fn telemetry(&self) -> Option<&TelemetryHandle> {
+        self.telemetry.as_ref()
     }
 
     /// Retourne le [`SidechainLogger`] attaché, si disponible.
@@ -463,6 +480,28 @@ impl A2AInvoker {
             skill_id: skill_id.to_string(),
         });
 
+        // Step-level telemetry & provenance (US-SP42-044).
+        let step_id = format!(
+            "a2a-{skill_id}-{}-{}",
+            agent_name,
+            uuid::Uuid::new_v4().simple()
+        );
+        let input_excerpt = make_excerpt(&input.to_string());
+        let worker_version = target.manifest.version.clone();
+        let timestamp_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        let _ = self.event_bus.send(RuntimeEvent::A2ASkillInvoked {
+            step_id: step_id.clone(),
+            skill_id: skill_id.to_string(),
+            agent_name: agent_name.clone(),
+            version: worker_version.clone(),
+            input_excerpt: input_excerpt.clone(),
+            caller: caller.to_string(),
+            parent_step: None,
+        });
+
         let start = Instant::now();
 
         let delegate_result =
@@ -481,6 +520,48 @@ impl A2AInvoker {
             status: status.to_string(),
             duration_ms,
         });
+
+        // Step telemetry / provenance emission (US-SP42-044).
+        let (success, output_excerpt) = match &delegate_result {
+            Ok(r) => (true, Some(make_excerpt(&r.output))),
+            Err(_) => (false, None),
+        };
+        let _ = self.event_bus.send(RuntimeEvent::A2ASkillCompleted {
+            step_id: step_id.clone(),
+            skill_id: skill_id.to_string(),
+            agent_name: agent_name.clone(),
+            duration_ms,
+            success,
+            tokens_delta: 0,
+            output_excerpt: output_excerpt.clone(),
+        });
+        if let Some(telemetry) = &self.telemetry {
+            telemetry
+                .record_invocation(
+                    &agent_name,
+                    skill_id,
+                    &worker_version,
+                    InvocationRecord {
+                        duration_ms,
+                        success,
+                        tokens: 0,
+                        timestamp_ms,
+                    },
+                )
+                .await;
+            telemetry
+                .record_step(A2AStepProvenance {
+                    step_id: step_id.clone(),
+                    input_excerpt: input_excerpt.clone(),
+                    output_excerpt,
+                    agent_from: caller.to_string(),
+                    agent_to: agent_name.clone(),
+                    parent_step: None,
+                    skill_id: skill_id.to_string(),
+                    timestamp_ms,
+                })
+                .await;
+        }
 
         let delegate = match delegate_result {
             Ok(r) => r,
@@ -595,6 +676,79 @@ impl A2AInvoker {
         Ok(skills)
     }
 
+    /// Vérifie la compatibilité semver entre `required_version` et la version
+    /// advertised par le Worker qui fournit `skill_id`.
+    ///
+    /// Émet un [`RuntimeEvent::A2ACompatibilityWarning`] sur l'EventBus si un
+    /// mismatch est détecté. Retourne `Ok(None)` si les versions sont compatibles.
+    pub async fn check_skill_compatibility(
+        &self,
+        skill_id: &str,
+        required_version: &str,
+    ) -> Result<Option<crate::a2a::A2ACompatibilityWarning>, A2AError> {
+        let entries = self
+            .registry
+            .list_agents()
+            .await
+            .map_err(|e| A2AError::RegistryError(e.to_string()))?;
+
+        let pool: Vec<&AgentEntry> = entries
+            .iter()
+            .filter(|e| {
+                e.manifest.supports_a2a
+                    && matches!(
+                        e.process_state,
+                        ProcessState::Active | ProcessState::Degraded
+                    )
+            })
+            .collect();
+
+        let target = pool
+            .iter()
+            .find(|e| e.manifest.skills.iter().any(|s| s.id == skill_id));
+        let Some(target) = target else {
+            return Ok(None);
+        };
+
+        let alternatives: Vec<(String, String)> = pool
+            .iter()
+            .filter(|e| {
+                e.manifest.name != target.manifest.name
+                    && e.manifest.skills.iter().any(|s| s.id == skill_id)
+            })
+            .map(|e| (e.manifest.name.clone(), e.manifest.version.clone()))
+            .collect();
+
+        let Some(warning) = check_compatibility(
+            skill_id,
+            &target.manifest.name,
+            required_version,
+            &target.manifest.version,
+        ) else {
+            return Ok(None);
+        };
+
+        let enriched = crate::a2a::compatibility::with_alternative(warning, &alternatives);
+
+        let severity_str = match enriched.severity {
+            crate::a2a::CompatSeverity::Warning => "warning",
+            crate::a2a::CompatSeverity::Incompatible => "incompatible",
+        };
+        let _ = self
+            .event_bus
+            .send(RuntimeEvent::A2ACompatibilityWarning {
+                skill_id: enriched.skill_id.clone(),
+                agent_name: enriched.agent_name.clone(),
+                required_version: enriched.required_version.clone(),
+                advertised_version: enriched.advertised_version.clone(),
+                severity: severity_str.to_string(),
+                message: enriched.message.clone(),
+                alternative_agent: enriched.alternative_agent.clone(),
+            });
+
+        Ok(Some(enriched))
+    }
+
     /// Construit la configuration de contexte d'exécution pour un agent invoqué via A2A.
     ///
     /// Retourne une [`RuntimeContextConfig`] avec `user_memory_read_only = true`,
@@ -620,6 +774,7 @@ impl A2AInvoker {
             event_bus,
             config,
             sidechain_logger: None,
+            telemetry: None,
         }
     }
 }

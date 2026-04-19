@@ -548,6 +548,118 @@ pub async fn list_a2a_skills(state: State<'_, RuntimeHandle>) -> Result<Vec<A2AS
         .collect())
 }
 
+/// Aggregated A2A skill telemetry returned to the UI (US-SP42-044).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct A2ASkillTelemetryView {
+    pub skill_name: String,
+    pub version: String,
+    pub invocations: u64,
+    pub avg_latency_ms: u64,
+    pub success_rate: f64,
+    pub tokens_consumed: u64,
+}
+
+/// Step-level provenance entry for drill-down from TimelineGlobal.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct A2AStepProvenanceView {
+    pub step_id: String,
+    pub input_excerpt: String,
+    pub output_excerpt: Option<String>,
+    pub agent_from: String,
+    pub agent_to: String,
+    pub parent_step: Option<String>,
+    pub skill_id: String,
+    pub timestamp_ms: u64,
+}
+
+/// Compatibility warning returned to the UI.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct A2ACompatibilityWarningView {
+    pub skill_id: String,
+    pub agent_name: String,
+    pub required_version: String,
+    pub advertised_version: String,
+    /// `"warning"` or `"incompatible"`.
+    pub severity: String,
+    pub message: String,
+    pub alternative_agent: Option<String>,
+}
+
+/// Lists aggregated telemetry for each A2A skill (rolling window).
+#[tauri::command]
+pub async fn list_a2a_skill_telemetry(
+    state: State<'_, RuntimeHandle>,
+) -> Result<Vec<A2ASkillTelemetryView>, String> {
+    let Some(manager) = state.chat_manager.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let rows = manager.list_a2a_skill_telemetry().await;
+    Ok(rows
+        .into_iter()
+        .map(|t| A2ASkillTelemetryView {
+            skill_name: t.skill_name,
+            version: t.version,
+            invocations: t.invocations,
+            avg_latency_ms: t.avg_latency_ms,
+            success_rate: t.success_rate,
+            tokens_consumed: t.tokens_consumed,
+        })
+        .collect())
+}
+
+/// Lists A2A step provenance entries, optionally filtered by skill id.
+#[tauri::command]
+pub async fn list_a2a_step_provenance(
+    state: State<'_, RuntimeHandle>,
+    skill_id: Option<String>,
+) -> Result<Vec<A2AStepProvenanceView>, String> {
+    let Some(manager) = state.chat_manager.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let rows = manager.list_a2a_step_provenance(skill_id).await;
+    Ok(rows
+        .into_iter()
+        .map(|s| A2AStepProvenanceView {
+            step_id: s.step_id,
+            input_excerpt: s.input_excerpt,
+            output_excerpt: s.output_excerpt,
+            agent_from: s.agent_from,
+            agent_to: s.agent_to,
+            parent_step: s.parent_step,
+            skill_id: s.skill_id,
+            timestamp_ms: s.timestamp_ms,
+        })
+        .collect())
+}
+
+/// Checks semver compatibility between the director's required version and
+/// the active worker advertised version for a given skill.
+#[tauri::command]
+pub async fn check_a2a_compatibility(
+    state: State<'_, RuntimeHandle>,
+    skill_id: String,
+    required_version: String,
+) -> Result<Option<A2ACompatibilityWarningView>, String> {
+    let Some(manager) = state.chat_manager.as_ref() else {
+        return Ok(None);
+    };
+    let out = manager
+        .check_a2a_compatibility(skill_id, required_version)
+        .await;
+    Ok(out.map(|w| A2ACompatibilityWarningView {
+        skill_id: w.skill_id,
+        agent_name: w.agent_name,
+        required_version: w.required_version,
+        advertised_version: w.advertised_version,
+        severity: match w.severity {
+            apollia_runtime::a2a::CompatSeverity::Warning => "warning".to_string(),
+            apollia_runtime::a2a::CompatSeverity::Incompatible => "incompatible".to_string(),
+        },
+        message: w.message,
+        alternative_agent: w.alternative_agent,
+    }))
+}
+
 /// Convert a [`ChatRole`] to its string representation.
 fn role_to_string(role: &apollia_runtime::chat::ChatRole) -> String {
     match role {

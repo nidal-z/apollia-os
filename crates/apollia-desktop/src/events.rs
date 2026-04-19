@@ -278,7 +278,10 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         // ── A2A invocations ──────────────────────────────────────────────
         RuntimeEvent::A2AInvocationStarted { .. }
         | RuntimeEvent::A2AInvocationCompleted { .. }
-        | RuntimeEvent::A2AGuardTriggered { .. } => "a2a",
+        | RuntimeEvent::A2AGuardTriggered { .. }
+        | RuntimeEvent::A2ASkillInvoked { .. }
+        | RuntimeEvent::A2ASkillCompleted { .. }
+        | RuntimeEvent::A2ACompatibilityWarning { .. } => "a2a",
 
         // ── File path extraction ─────────────────────────────────────────
         RuntimeEvent::BashFilePathsExtracted { .. } => "task-changed",

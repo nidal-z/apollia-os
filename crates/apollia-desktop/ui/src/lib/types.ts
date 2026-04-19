@@ -1,9 +1,42 @@
 /** Skill exposé par un worker agent via A2A. */
-export interface A2ASkillView {
+export interface A2ASkillListing {
   skill_id: string;
   agent_name: string;
   skill_name: string;
   description: string;
+}
+
+/** Télémétrie agrégée d'un skill A2A sur la fenêtre glissante (US-SP42-044). */
+export interface A2ASkillTelemetry {
+  skill_name: string;
+  version: string;
+  invocations: number;
+  avg_latency_ms: number;
+  success_rate: number;
+  tokens_consumed: number;
+}
+
+/** Provenance d'un step dans une chaîne A2A. */
+export interface A2AStepProvenance {
+  step_id: string;
+  input_excerpt: string;
+  output_excerpt?: string | null;
+  agent_from: string;
+  agent_to: string;
+  parent_step?: string | null;
+  skill_id: string;
+  timestamp_ms: number;
+}
+
+/** Warning de compatibilité semver entre required et advertised. */
+export interface A2ACompatibilityWarning {
+  skill_id: string;
+  agent_name: string;
+  required_version: string;
+  advertised_version: string;
+  severity: "warning" | "incompatible";
+  message: string;
+  alternative_agent?: string | null;
 }
 
 /** Agent pré-installé découvert dans le répertoire agents/. */

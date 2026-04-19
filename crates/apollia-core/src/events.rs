@@ -808,6 +808,62 @@ pub enum RuntimeEvent {
         detail: String,
     },
 
+    // ── A2A Skill telemetry (US-SP42-044) ─────────
+    /// Un skill A2A vient d'être invoqué — émis avant la soumission effective.
+    ///
+    /// Destiné à l'agrégation télémétrique par skill et à l'alimentation de
+    /// [`A2AStepProvenance`] dans la timeline globale.
+    A2ASkillInvoked {
+        /// Identifiant unique du step dans la chaîne A2A.
+        step_id: String,
+        /// Identifiant du skill invoqué.
+        skill_id: String,
+        /// Nom de l'agent Worker cible.
+        agent_name: String,
+        /// Version advertised du Worker.
+        version: String,
+        /// Extrait de l'entrée tronqué à 240 caractères.
+        input_excerpt: String,
+        /// Nom de l'agent initiateur (caller).
+        caller: String,
+        /// Step parent dans la chaîne A2A, `None` pour la racine.
+        parent_step: Option<String>,
+    },
+    /// Un skill A2A vient de terminer — émis après réception du résultat.
+    A2ASkillCompleted {
+        /// Identifiant du step corrélé à [`RuntimeEvent::A2ASkillInvoked`].
+        step_id: String,
+        /// Identifiant du skill invoqué.
+        skill_id: String,
+        /// Nom de l'agent Worker cible.
+        agent_name: String,
+        /// Durée en millisecondes.
+        duration_ms: u64,
+        /// `true` si l'invocation a réussi.
+        success: bool,
+        /// Delta de tokens consommés par cette invocation (0 si inconnu).
+        tokens_delta: u64,
+        /// Extrait de la sortie tronqué à 240 caractères. `None` en cas d'échec sans output.
+        output_excerpt: Option<String>,
+    },
+    /// Mismatch de compatibilité semver entre la version requise et advertised.
+    A2ACompatibilityWarning {
+        /// Identifiant du skill concerné.
+        skill_id: String,
+        /// Nom du Worker cible.
+        agent_name: String,
+        /// Version requise par le Director.
+        required_version: String,
+        /// Version advertised par le Worker.
+        advertised_version: String,
+        /// `"warning"` pour minor mismatch, `"incompatible"` pour major mismatch.
+        severity: String,
+        /// Message humain.
+        message: String,
+        /// Nom d'un Worker alternatif compatible si détecté.
+        alternative_agent: Option<String>,
+    },
+
     // ── Onboarding events ────────────────────────
     /// Émis au premier lancement quand la UserMemory est vide.
     ///
