@@ -1997,5 +1997,10 @@
   "toast": {
     "dismiss": "Fermer la notification",
     "more": "+{count} autres"
+  },
+  "combobox": {
+    "placeholder": "Sélectionner une option…",
+    "search_placeholder": "Rechercher…",
+    "empty": "Aucun résultat"
   }
 }
