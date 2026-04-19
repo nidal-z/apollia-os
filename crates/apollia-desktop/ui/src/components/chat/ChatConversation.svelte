@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
-  import { X, Bot, MessageSquare, Settings2, XCircle, Link, Zap, BrainCircuit, Check } from "lucide-svelte";
+  import { X, Bot, MessageSquare, Settings2, XCircle, Link, Zap, BrainCircuit, Check, Menu, MoreHorizontal } from "lucide-svelte";
   import { LoadingSpinner } from "$lib/components/feedback";
   import { Spinner } from "$lib/components/ui/progress";
   import {
@@ -32,9 +32,35 @@
     embedded?: boolean;
     /** When true, hide the config button in the header. */
     hideConfig?: boolean;
+    /**
+     * When provided (US-SP42-022), the Settings button toggles the shell's
+     * ContextDrawer instead of opening the internal Sheet. The internal Sheet
+     * is suppressed in this mode — the parent owns the config panel.
+     */
+    onconfigtoggle?: () => void;
+    /**
+     * When provided (US-SP42-022 responsive), renders a hamburger button in
+     * the header that opens the shell's sessions overlay on small viewports.
+     */
+    onsessionsopen?: () => void;
+    /**
+     * When true (US-SP42-022 B.22), collapses header actions into an overflow
+     * menu on narrow viewports (<md).
+     */
+    collapseActions?: boolean;
   }
 
-  let { sessionId, onclose, embedded = false, hideConfig = false }: Props = $props();
+  let {
+    sessionId,
+    onclose,
+    embedded = false,
+    hideConfig = false,
+    onconfigtoggle,
+    onsessionsopen,
+    collapseActions = true,
+  }: Props = $props();
+
+  let overflowOpen = $state(false);
 
   let messages = $state<ChatMessageView[]>([]);
   let sessionMode = $state<"libre" | "agent">("libre");
@@ -482,27 +508,40 @@
   <!-- Header — slim bar (hidden in embedded mode) -->
   {#if !embedded}
   <div class="flex items-center justify-between border-b border-border/30 px-4 py-2.5">
-    <div class="flex items-center gap-2.5">
-      {#if sessionMode === "agent"}
-        <Bot size={15} class="text-primary" />
-      {:else}
-        <MessageSquare size={15} class="text-muted-foreground" />
+    <div class="flex items-center gap-2 min-w-0">
+      {#if onsessionsopen}
+        <button
+          onclick={onsessionsopen}
+          class="md:hidden h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors shrink-0"
+          aria-label="Open sessions"
+          data-testid="chat-open-sessions-button"
+        >
+          <Menu size={14} />
+        </button>
       {/if}
-      <span class="text-[13px] font-medium">{headerTitle}</span>
+      {#if sessionMode === "agent"}
+        <Bot size={15} class="text-primary shrink-0" />
+      {:else}
+        <MessageSquare size={15} class="text-muted-foreground shrink-0" />
+      {/if}
+      <span class="text-[13px] font-medium truncate">{headerTitle}</span>
       {#if sessionStatus === "closed"}
-        <Badge variant="secondary" class="text-[9px] px-1.5 py-0">{$t("chat.status_closed")}</Badge>
+        <Badge variant="secondary" class="text-[9px] px-1.5 py-0 shrink-0">{$t("chat.status_closed")}</Badge>
       {:else if sessionStatus === "processing"}
-        <span class="flex items-center gap-1 text-[11px] text-primary/70">
+        <span class="flex items-center gap-1 text-[11px] text-primary/70 shrink-0">
           <Spinner size={11} />
-          {$t("chat.thinking")}
+          <span class="hidden sm:inline">{$t("chat.thinking")}</span>
         </span>
       {/if}
     </div>
+
+    <!-- Expanded actions @ md+, overflow menu <md when collapseActions -->
     <div class="flex items-center gap-0.5">
+      <!-- Always-visible config button at md+ -->
       {#if !hideConfig}
       <button
-        onclick={() => (configOpen = true)}
-        class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
+        onclick={() => { onconfigtoggle ? onconfigtoggle() : (configOpen = true); }}
+        class="{collapseActions ? 'hidden md:inline-flex' : 'inline-flex'} h-7 w-7 items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
         aria-label={$t("chat.config_title")}
         data-testid="chat-config-button"
       >
@@ -512,7 +551,7 @@
       {#if sessionStatus !== "closed"}
         <button
           onclick={handleCloseSession}
-          class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-warning hover:bg-warning/10 transition-colors"
+          class="{collapseActions ? 'hidden md:inline-flex' : 'inline-flex'} h-7 w-7 items-center justify-center rounded-md text-muted-foreground/60 hover:text-warning hover:bg-warning/10 transition-colors"
           aria-label={$t("chat.close_session")}
           data-testid="chat-close-session-button"
         >
@@ -527,6 +566,49 @@
       >
         <X size={14} />
       </button>
+
+      <!-- Overflow menu <md when collapseActions is on (B.22) -->
+      {#if collapseActions && (!hideConfig || sessionStatus !== "closed")}
+        <div class="relative md:hidden">
+          <button
+            onclick={() => (overflowOpen = !overflowOpen)}
+            class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
+            aria-label="More actions"
+            aria-expanded={overflowOpen}
+            data-testid="chat-header-overflow-button"
+          >
+            <MoreHorizontal size={14} />
+          </button>
+          {#if overflowOpen}
+            <div
+              class="absolute right-0 top-full mt-1 z-20 min-w-[9rem] rounded-md border border-border/50 bg-card shadow-elev-2 py-1 animate-fade-in"
+              role="menu"
+              data-testid="chat-header-overflow-menu"
+            >
+              {#if !hideConfig}
+                <button
+                  role="menuitem"
+                  onclick={() => { overflowOpen = false; onconfigtoggle ? onconfigtoggle() : (configOpen = true); }}
+                  class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
+                  data-testid="chat-header-overflow-config"
+                >
+                  <Settings2 size={12} /> {$t("chat.config_title")}
+                </button>
+              {/if}
+              {#if sessionStatus !== "closed"}
+                <button
+                  role="menuitem"
+                  onclick={() => { overflowOpen = false; handleCloseSession(); }}
+                  class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60 text-warning"
+                  data-testid="chat-header-overflow-close-session"
+                >
+                  <XCircle size={12} /> {$t("chat.close_session")}
+                </button>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
   </div>
   {/if}
@@ -722,7 +804,7 @@
   <ChatInput disabled={inputDisabled} onsend={handleSend} />
 </div>
 
-{#if !embedded}
+{#if !embedded && !onconfigtoggle}
 <ChatConfigPanel
   open={configOpen}
   session={sessionDetail}

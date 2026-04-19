@@ -19,6 +19,15 @@
   import { navigateTo } from "$lib/stores/navigation";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import ChatSessionCard from "../components/chat/ChatSessionCard.svelte";
+  import ChatShell from "../components/chat/ChatShell.svelte";
+  import ContextDrawer from "../components/chat/ContextDrawer.svelte";
+  import {
+    contextDrawerOpen,
+    toggleContextDrawer,
+    openSessionsDrawer,
+    closeSessionsDrawer,
+  } from "$lib/stores/chatLayout";
+  import { currentSession } from "$lib/stores/chat";
 
   let selectedSessionId = $state<string | null>(null);
   let creating = $state(false);
@@ -362,57 +371,77 @@
         page="chat"
       />
     {:else if selectedSessionId}
-      <!-- Two-column: session sidebar + conversation -->
-      <div class="flex gap-0" style="height: calc(100vh - 180px);">
-        <!-- Session sidebar : caché sous md, largeur fluide au-dessus (voir breakpoints.md). -->
-        <div class="hidden md:flex w-48 lg:w-60 shrink-0 flex-col border-r border-border/30 pr-2 overflow-hidden">
-          <!-- New chat button in sidebar -->
-          <button
-            class="mb-2 flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-medium
-              text-muted-foreground bg-muted/30 hover:bg-muted/50 hover:text-foreground
-              transition-all active:scale-[0.98] w-full"
-            onclick={openNewChatPicker}
-            data-testid="sidebar-new-chat"
-          >
-            <Plus size={12} />
-            {$t("chat.new_chat")}
-          </button>
+      <!-- 3-column shell (US-SP42-022): Sessions / Conversation / ContextDrawer. -->
+      <div class="overflow-hidden rounded-lg glass-border border" style="height: calc(100vh - 180px);">
+        <ChatShell>
+          {#snippet sessions()}
+            <div class="flex h-full min-h-0 flex-col">
+              <!-- Sticky header (B.48) — "New chat" + section title stay visible during scroll. -->
+              <div class="sticky top-0 z-10 shrink-0 bg-background/80 backdrop-blur px-2 pt-2 pb-1 border-b border-border/20">
+                <button
+                  class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-medium
+                    text-muted-foreground bg-muted/30 hover:bg-muted/50 hover:text-foreground
+                    transition-all active:scale-[0.98] w-full"
+                  onclick={openNewChatPicker}
+                  data-testid="sidebar-new-chat"
+                >
+                  <Plus size={12} />
+                  {$t("chat.new_chat")}
+                </button>
+              </div>
+              <div class="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
+                {#if $activeChatSessions.length > 0}
+                  <p class="px-3 pt-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary/50">{$t("chat.active_sessions")}</p>
+                  <div class="space-y-1">
+                    {#each $activeChatSessions as session (session.id)}
+                      <ChatSessionCard
+                        {session}
+                        selected={selectedSessionId === session.id}
+                        onclick={(id) => { navigateToSession(id); closeSessionsDrawer(); }}
+                        ondelete={handleDeleteSession}
+                        onrename={handleRenameSession}
+                      />
+                    {/each}
+                  </div>
+                {/if}
 
-          {#if $activeChatSessions.length > 0}
-            <p class="px-3 pt-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary/50">{$t("chat.active_sessions")}</p>
-            <div class="space-y-1">
-              {#each $activeChatSessions as session (session.id)}
-                <ChatSessionCard
-                  {session}
-                  selected={selectedSessionId === session.id}
-                  onclick={navigateToSession}
-                  ondelete={handleDeleteSession}
-                  onrename={handleRenameSession}
-                />
-              {/each}
+                {#if $closedChatSessions.length > 0}
+                  <p class="px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40">{$t("chat.closed_sessions")}</p>
+                  <div class="space-y-1">
+                    {#each $closedChatSessions as session (session.id)}
+                      <ChatSessionCard
+                        {session}
+                        selected={selectedSessionId === session.id}
+                        onclick={(id) => { navigateToSession(id); closeSessionsDrawer(); }}
+                        ondelete={handleDeleteSession}
+                        onrename={handleRenameSession}
+                      />
+                    {/each}
+                  </div>
+                {/if}
+              </div>
             </div>
-          {/if}
+          {/snippet}
 
-          {#if $closedChatSessions.length > 0}
-            <p class="px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40">{$t("chat.closed_sessions")}</p>
-            <div class="space-y-1 overflow-y-auto">
-              {#each $closedChatSessions as session (session.id)}
-                <ChatSessionCard
-                  {session}
-                  selected={selectedSessionId === session.id}
-                  onclick={navigateToSession}
-                  ondelete={handleDeleteSession}
-                  onrename={handleRenameSession}
-                />
-              {/each}
+          {#snippet conversation()}
+            <div class="flex h-full min-h-0 flex-col glass-card">
+              <ChatConversation
+                sessionId={selectedSessionId!}
+                onclose={closeConversation}
+                onconfigtoggle={toggleContextDrawer}
+                onsessionsopen={openSessionsDrawer}
+              />
             </div>
-          {/if}
-        </div>
+          {/snippet}
 
-        <!-- Conversation — glass card -->
-        <div class="flex-1 min-w-0 ml-2 glass-card glass-border rounded-lg overflow-hidden">
-          <ChatConversation sessionId={selectedSessionId} onclose={closeConversation} />
-        </div>
+          {#snippet context()}
+            <ContextDrawer
+              session={$currentSession}
+              onupdated={() => { /* ChatConversation subscribes to runtime events */ }}
+              onclose={() => contextDrawerOpen.set(false)}
+            />
+          {/snippet}
+        </ChatShell>
       </div>
     {:else}
       <!-- Session list (no session selected) — card list style -->

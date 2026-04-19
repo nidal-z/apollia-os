@@ -74,6 +74,21 @@ export type ElevationKey = keyof typeof elevation;
 export type PrimaryShadowKey = keyof typeof primaryShadow;
 export type SurfaceKey = keyof typeof surface;
 
+/**
+ * Chat shell layout bounds (US-SP42-022).
+ *
+ * Canonical widths for the 3-column chat shell — Sessions, Conversation,
+ * ContextDrawer. Values are in CSS pixels; keep in sync with the story AC:
+ * Sessions 260–320 px, Conversation elastic, ContextDrawer 320–420 px.
+ */
+export const chatLayout = {
+  sessionsMinPx: 260,
+  sessionsMaxPx: 320,
+  contextMinPx: 320,
+  contextMaxPx: 420,
+  contextDefaultPx: 352,
+} as const;
+
 export const tokens = {
   elevation,
   primaryShadow,
@@ -82,6 +97,7 @@ export const tokens = {
   backdrop,
   primaryGradient,
   gradient,
+  chatLayout,
 } as const;
 
 export default tokens;
