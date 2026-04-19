@@ -659,6 +659,37 @@ pub enum RuntimeEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         analysis: Option<crate::error_analysis::ErrorAnalysis>,
     },
+    /// Un appel outil est en cours de retry après un échec transient (US-SP42-040).
+    ///
+    /// Émis par [`apollia_oria::resilience::ResilienceLayer::execute_with_observability`]
+    /// avant chaque nouvelle tentative. Permet à l'UI d'afficher un badge "Retry Nx"
+    /// en temps réel sur la carte d'appel outil concernée.
+    ToolCallRetrying {
+        /// Identifiant logique de l'appel outil (corrèle les attempts successives).
+        tool_call_id: String,
+        /// Nom de l'outil invoqué.
+        tool_name: String,
+        /// Numéro de la nouvelle tentative (1-based, `2` pour le premier retry).
+        attempt: u32,
+        /// Analyse structurée de l'erreur qui a déclenché ce retry.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<crate::error_analysis::ErrorAnalysis>,
+    },
+
+    /// Le router LLM a basculé vers un backend secondaire (US-SP42-040).
+    ///
+    /// Émis par [`crate::events::RuntimeEvent`] via `LlmRouter::complete_with_fallback`
+    /// quand le backend primaire échoue de manière non-recoverable et qu'une
+    /// cible secondaire est disponible. L'UI affiche un banner discret.
+    LlmFallbackTriggered {
+        /// Nom du backend qui a échoué.
+        from_provider: String,
+        /// Nom du backend qui a pris le relais.
+        to_provider: String,
+        /// Raison humaine (libellé de catégorie ou message court).
+        reason: String,
+    },
+
     /// Une approbation humaine est requise pour un appel outil dans le chat.
     ChatApprovalRequired {
         /// Identifiant de la session.

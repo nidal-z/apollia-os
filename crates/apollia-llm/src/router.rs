@@ -662,6 +662,62 @@ impl LlmRouter {
         Ok(response)
     }
 
+    /// Invoque le backend primaire puis, en cas d'échec non récupérable,
+    /// bascule sur le premier backend secondaire disponible (US-SP42-040).
+    ///
+    /// Émet [`RuntimeEvent::LlmFallbackTriggered`] sur le bus à chaque bascule
+    /// réussie. Le basculement est silencieux du point de vue fonctionnel —
+    /// l'appelant reçoit soit la réponse du primaire, soit la réponse du
+    /// premier fallback qui répond, soit la dernière erreur observée.
+    pub async fn complete_with_fallback(
+        &self,
+        primary: &str,
+        fallbacks: &[&str],
+        req: CompletionRequest,
+        bus: Option<&EventBusSender>,
+        obs: &ObservabilityConfig,
+    ) -> Result<CompletionResponse, LlmError> {
+        let primary_result = self
+            .complete_with_observability(Some(primary), req.clone(), bus, obs)
+            .await;
+
+        let primary_err = match primary_result {
+            Ok(response) => return Ok(response),
+            Err(e) => e,
+        };
+
+        let mut last_err = primary_err;
+        for &candidate in fallbacks {
+            if candidate == primary || !self.backends.contains_key(candidate) {
+                continue;
+            }
+            if let Some(b) = bus {
+                let _ = b.send(RuntimeEvent::LlmFallbackTriggered {
+                    from_provider: primary.to_string(),
+                    to_provider: candidate.to_string(),
+                    reason: last_err.to_string(),
+                });
+            }
+            tracing::warn!(
+                from = %primary,
+                to = %candidate,
+                reason = %last_err,
+                "LLM primary failed, attempting fallback"
+            );
+            match self
+                .complete_with_observability(Some(candidate), req.clone(), bus, obs)
+                .await
+            {
+                Ok(response) => return Ok(response),
+                Err(e) => {
+                    last_err = e;
+                }
+            }
+        }
+
+        Err(last_err)
+    }
+
     /// Ouvre un stream de [`StreamChunk`]s depuis le backend résolu.
     ///
     /// Résout le backend (par nom ou défaut), appelle `backend.stream(req)`,
@@ -1654,6 +1710,89 @@ mod tests {
             matches!(router.route_fast(), Err(LlmError::RoutingConfigMissing)),
             "route_fast() must return RoutingConfigMissing when routing is None"
         );
+    }
+
+    // US-SP42-040 — primary fails, secondary succeeds, LlmFallbackTriggered emitted
+    #[tokio::test]
+    async fn router_emits_fallback_event_on_primary_failure() {
+        use apollia_core::events::RuntimeEvent;
+        use tokio::sync::broadcast;
+
+        struct FailingBackend {
+            name: String,
+        }
+        #[async_trait::async_trait]
+        impl CompletionModel for FailingBackend {
+            async fn complete(
+                &self,
+                _req: CompletionRequest,
+            ) -> Result<CompletionResponse, LlmError> {
+                Err(LlmError::InferenceError("primary down".to_string()))
+            }
+            async fn stream(
+                &self,
+                _req: CompletionRequest,
+            ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError>
+            {
+                Err(LlmError::InferenceError("primary down".to_string()))
+            }
+            fn is_available(&self) -> bool {
+                true
+            }
+            fn backend_name(&self) -> &str {
+                &self.name
+            }
+            fn model_id(&self) -> &str {
+                &self.name
+            }
+        }
+
+        // GIVEN a router with a failing primary and a healthy secondary
+        let mut backends: HashMap<String, Arc<dyn CompletionModel>> = HashMap::new();
+        backends.insert(
+            "primary".into(),
+            Arc::new(FailingBackend {
+                name: "primary".into(),
+            }),
+        );
+        backends.insert("secondary".into(), make_mock_backend("secondary"));
+        let router = make_test_router(backends, "primary");
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
+        let req = CompletionRequest {
+            messages: vec![crate::types::ChatMessage::user("hi")],
+            ..Default::default()
+        };
+
+        // WHEN complete_with_fallback
+        let response = router
+            .complete_with_fallback(
+                "primary",
+                &["secondary"],
+                req,
+                Some(&tx),
+                &ObservabilityConfig::default(),
+            )
+            .await
+            .expect("fallback should succeed");
+
+        // THEN response comes from secondary
+        assert_eq!(response.content, "mock response");
+
+        // AND LlmFallbackTriggered was emitted
+        let mut saw_fallback = false;
+        while let Ok(evt) = rx.try_recv() {
+            if let RuntimeEvent::LlmFallbackTriggered {
+                from_provider,
+                to_provider,
+                ..
+            } = evt
+            {
+                assert_eq!(from_provider, "primary");
+                assert_eq!(to_provider, "secondary");
+                saw_fallback = true;
+            }
+        }
+        assert!(saw_fallback, "LlmFallbackTriggered should have been emitted");
     }
 
     // GIVEN routing config { precise: "claude-opus-4-6", fast: "claude-opus-4-6" }

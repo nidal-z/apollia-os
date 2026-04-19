@@ -1008,6 +1008,7 @@ impl BuiltInChatAgent {
                                         output: Some(refusal.to_string()),
                                         status: ToolCallStatus::Refused,
                                         rationale: None,
+                                        retry_attempts: Vec::new(),
                                     });
                                 }
                             }
@@ -1358,6 +1359,7 @@ impl BuiltInChatAgent {
             output: Some(output.clone()),
             status: ToolCallStatus::Executed,
             rationale,
+            retry_attempts: Vec::new(),
         };
 
         // Truncate output for LLM context to avoid flooding the context window.

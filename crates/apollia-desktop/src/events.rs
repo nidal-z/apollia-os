@@ -203,6 +203,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::LlmModelFailed { .. }
         | RuntimeEvent::LlmCallCompleted { .. }
         | RuntimeEvent::LlmCallFailed { .. }
+        | RuntimeEvent::LlmFallbackTriggered { .. }
         | RuntimeEvent::TokenBudgetUpdated { .. } => "llm-changed",
 
         // ── Triggers ─────────────────────────────────────────────────────
@@ -248,6 +249,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::ChatError { .. }
         | RuntimeEvent::ChatToolCallStarted { .. }
         | RuntimeEvent::ChatToolCallCompleted { .. }
+        | RuntimeEvent::ToolCallRetrying { .. }
         | RuntimeEvent::ChatApprovalRequired { .. }
         | RuntimeEvent::ChatApprovalResolved { .. }
         | RuntimeEvent::ChatApprovalTimeout { .. }

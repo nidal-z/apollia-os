@@ -688,6 +688,31 @@ export interface ToolCallView {
   exit_code?: number | null;
   /** Meta-LLM narration generated before execution (US-SP42-038, opt-in). */
   rationale?: ToolCallRationale | null;
+  /** Retry chain captured for this invocation (US-SP42-040, Pattern P4). */
+  retry_attempts?: RetryAttempt[];
+}
+
+/** Outcome of a single attempt in a retry / fallback chain (US-SP42-040). */
+export type AttemptOutcome =
+  | { kind: "success" }
+  | { kind: "failed" }
+  | { kind: "timed_out" }
+  | { kind: "fallback"; to: string };
+
+/** One attempt in a retry / fallback chain captured for a tool call. */
+export interface RetryAttempt {
+  attempt_number: number;
+  started_at: number;
+  ended_at: number;
+  outcome: AttemptOutcome;
+  reason?: ErrorAnalysis | null;
+}
+
+/** LLM fallback snapshot — emitted when the router switches provider. */
+export interface LlmFallback {
+  from_provider: string;
+  to_provider: string;
+  reason: string;
 }
 
 /** Structured meta-LLM narration attached to a tool call (US-SP42-038). */

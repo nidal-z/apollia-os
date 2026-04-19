@@ -26,6 +26,7 @@ pub mod observability;
 pub mod pending_approvals;
 pub mod plan_alternatives;
 pub mod process;
+pub mod retry_attempt;
 pub mod result;
 pub mod review;
 pub mod sandbox;
@@ -53,6 +54,7 @@ pub use observability::{truncate_with_marker, ObservabilityConfig};
 pub use pending_approvals::{PendingApprovalError, PendingApprovals};
 pub use plan_alternatives::{ChosenPlan, PlanAlternatives, PlanChoice, TaskPlan, TaskPlanStep};
 pub use process::ProcessState;
+pub use retry_attempt::{AttemptOutcome, LlmFallback, RetryAttempt};
 pub use result::{
     AIPArtifact, AIPError, AIPResult, InputRequiredData, InputResponseData, TaskStatus,
 };

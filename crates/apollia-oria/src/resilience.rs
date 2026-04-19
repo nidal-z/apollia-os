@@ -12,9 +12,19 @@
 
 use std::collections::HashMap;
 use std::future::Future;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use apollia_core::error_analysis::{ErrorAnalysis, ErrorCategory};
+use apollia_core::events::{EventBusSender, RuntimeEvent};
+use apollia_core::retry_attempt::{AttemptOutcome, RetryAttempt};
 use rand::Rng;
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
 
 /// Classification of errors to determine circuit breaker behavior.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -327,6 +337,120 @@ impl ResilienceLayer {
         }
 
         unreachable!("loop always returns")
+    }
+
+    /// Variant of [`execute`](Self::execute) that captures each attempt as a
+    /// [`RetryAttempt`] and emits [`RuntimeEvent::ToolCallRetrying`] before
+    /// every new attempt (US-SP42-040 — Pattern P4).
+    ///
+    /// Returns the final outcome together with the chain of attempts. The
+    /// chain always ends with either [`AttemptOutcome::Success`] or
+    /// [`AttemptOutcome::Failed`] / [`AttemptOutcome::TimedOut`], never with
+    /// an implicit truncation.
+    pub async fn execute_with_observability<F, Fut, T>(
+        &mut self,
+        tool_name: &str,
+        tool_call_id: &str,
+        retry_policy: &RetryPolicy,
+        error_classifier: impl Fn(&str) -> ErrorClass,
+        bus: Option<&EventBusSender>,
+        operation: F,
+    ) -> (Result<T, ResilienceError>, Vec<RetryAttempt>)
+    where
+        F: Fn() -> Fut,
+        Fut: Future<Output = Result<T, String>>,
+    {
+        let mut attempts: Vec<RetryAttempt> = Vec::new();
+
+        if let Err(e) = self.pre_check(tool_name) {
+            return (Err(e), attempts);
+        }
+
+        for attempt in 1..=retry_policy.max_attempts {
+            let started_at = now_ms();
+            let start_instant = Instant::now();
+
+            if attempt > 1 {
+                if let Some(b) = bus {
+                    let last_reason = attempts
+                        .last()
+                        .and_then(|a| a.reason.clone());
+                    let _ = b.send(RuntimeEvent::ToolCallRetrying {
+                        tool_call_id: tool_call_id.to_string(),
+                        tool_name: tool_name.to_string(),
+                        attempt,
+                        reason: last_reason,
+                    });
+                }
+            }
+
+            match operation().await {
+                Ok(value) => {
+                    let _ = self.record_success(tool_name);
+                    attempts.push(RetryAttempt::new(
+                        attempt,
+                        started_at,
+                        now_ms(),
+                        AttemptOutcome::Success,
+                    ));
+                    return (Ok(value), attempts);
+                }
+                Err(err_msg) => {
+                    let error_class = error_classifier(&err_msg);
+                    let outcome = if err_msg.to_lowercase().contains("timeout") {
+                        AttemptOutcome::TimedOut
+                    } else {
+                        AttemptOutcome::Failed
+                    };
+                    let analysis = ErrorAnalysis::new(
+                        map_error_class_to_category(&error_class, &outcome),
+                        err_msg.clone(),
+                        err_msg.clone(),
+                    );
+                    attempts.push(
+                        RetryAttempt::new(attempt, started_at, now_ms(), outcome)
+                            .with_reason(analysis),
+                    );
+
+                    if error_class != ErrorClass::Transient {
+                        return (Err(ResilienceError::ExecutionFailed(err_msg)), attempts);
+                    }
+
+                    if attempt < retry_policy.max_attempts {
+                        let delay = retry_policy.calculate_delay(attempt);
+                        tracing::warn!(
+                            tool = %tool_name,
+                            tool_call_id = %tool_call_id,
+                            attempt = attempt,
+                            delay_ms = delay.as_millis() as u64,
+                            elapsed_ms = start_instant.elapsed().as_millis() as u64,
+                            "transient error, retrying after backoff"
+                        );
+                        tokio::time::sleep(delay).await;
+                    } else {
+                        let _ = self.record_failure(tool_name, &ErrorClass::Transient);
+                        return (
+                            Err(ResilienceError::ExecutionFailed(err_msg)),
+                            attempts,
+                        );
+                    }
+                }
+            }
+        }
+
+        unreachable!("loop always returns")
+    }
+}
+
+fn map_error_class_to_category(class: &ErrorClass, outcome: &AttemptOutcome) -> ErrorCategory {
+    if matches!(outcome, AttemptOutcome::TimedOut) {
+        return ErrorCategory::Timeout;
+    }
+    match class {
+        ErrorClass::Transient => ErrorCategory::ToolFailure,
+        ErrorClass::Permanent => ErrorCategory::ToolFailure,
+        ErrorClass::BudgetExceeded => ErrorCategory::ToolFailure,
+        ErrorClass::SandboxViolation => ErrorCategory::PermissionDenied,
     }
 }
 
@@ -839,6 +963,67 @@ mod tests {
         assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
         // AND circuit breaker not affected
         assert_eq!(layer.get("t").unwrap().failure_count(), 0);
+    }
+
+    // US-SP42-040 — fail twice then succeed, attempts captured with outcomes + event emitted
+    #[tokio::test]
+    async fn test_execute_with_observability_fail_twice_then_success() {
+        use apollia_core::events::RuntimeEvent;
+        use apollia_core::retry_attempt::AttemptOutcome;
+        use tokio::sync::broadcast;
+
+        // GIVEN a resilience layer, a bus, and an op that fails 2x then succeeds
+        let mut layer = make_layer(5);
+        layer.register_tool("t");
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
+        let call_count = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let cc = call_count.clone();
+
+        // WHEN execute_with_observability with max_attempts=3
+        let (result, attempts) = layer
+            .execute_with_observability(
+                "t",
+                "call-42",
+                &fast_retry_policy(3),
+                transient_classifier,
+                Some(&tx),
+                || {
+                    let cc = cc.clone();
+                    async move {
+                        let n = cc.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        if n < 2 {
+                            Err("transient boom".to_string())
+                        } else {
+                            Ok(7u32)
+                        }
+                    }
+                },
+            )
+            .await;
+
+        // THEN success, 3 attempts captured, last one is Success
+        assert_eq!(result.unwrap(), 7);
+        assert_eq!(attempts.len(), 3);
+        assert!(matches!(attempts[0].outcome, AttemptOutcome::Failed));
+        assert!(matches!(attempts[1].outcome, AttemptOutcome::Failed));
+        assert!(matches!(attempts[2].outcome, AttemptOutcome::Success));
+        assert!(attempts[0].reason.is_some());
+
+        // AND 2 ToolCallRetrying events were emitted (one before attempt 2 and 3)
+        let mut retries = 0;
+        while let Ok(evt) = rx.try_recv() {
+            if let RuntimeEvent::ToolCallRetrying {
+                tool_call_id,
+                attempt,
+                ..
+            } = evt
+            {
+                assert_eq!(tool_call_id, "call-42");
+                assert!(attempt >= 2);
+                retries += 1;
+            }
+        }
+        assert_eq!(retries, 2);
     }
 
     // All retries exhausted, failure recorded on circuit breaker

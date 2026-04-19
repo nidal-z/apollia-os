@@ -37,6 +37,7 @@
   } from "$lib/tools/tool-display";
   import type { ToolCallView } from "$lib/types";
   import PerformanceHint from "./PerformanceHint.svelte";
+  import RetryTimeline from "./RetryTimeline.svelte";
 
   interface Props {
     item: ReasoningItem;
@@ -162,6 +163,13 @@
     item.kind === "tool_call" ? formatRationale(item.rationale) : null,
   );
 
+  // Structured retry chain (US-SP42-040). Non-empty only when the resilience
+  // layer recorded at least one attempt for this invocation.
+  const retryAttempts = $derived(
+    item.kind === "tool_call" ? (item.retry_attempts ?? []) : [],
+  );
+  const retryCount = $derived(Math.max(0, retryAttempts.length - 1));
+
   // ---- web_read content preview ----
   const READ_PREVIEW_CHARS = 500;
   let showFullRead = $state(false);
@@ -226,6 +234,9 @@
       {#if rationale?.performance_hint}
         <PerformanceHint hint={rationale.performance_hint} />
       {/if}
+      {#if retryCount > 0}
+        <RetryTimeline attempts={retryAttempts} skin="operator" />
+      {/if}
     {/snippet}
     {#snippet body()}
       {#if skin === "builder" && rationale}
@@ -282,6 +293,9 @@
         <p class="text-[11px] text-destructive">
           {item.output.split("\n")[0]?.slice(0, 160) ?? ""}
         </p>
+      {/if}
+      {#if retryAttempts.length > 0 && (skin === "builder" || retryCount > 0)}
+        <RetryTimeline attempts={retryAttempts} skin={skin} />
       {/if}
     {/snippet}
   </ReasoningCardShell>

@@ -8,7 +8,12 @@
  * `ReasoningCard.svelte`.
  */
 
-import type { ChatMessageView, ToolCallRationale, ToolCallView } from "$lib/types";
+import type {
+  ChatMessageView,
+  RetryAttempt as StructuredRetryAttempt,
+  ToolCallRationale,
+  ToolCallView,
+} from "$lib/types";
 
 export type ReasoningStatus =
   | "pending"
@@ -48,6 +53,8 @@ export type ReasoningItem =
       duration_ms?: number | null;
       exit_code?: number | null;
       rationale?: ToolCallRationale | null;
+      /** Structured retry chain (US-SP42-040). Empty on first-try success. */
+      retry_attempts?: StructuredRetryAttempt[];
     })
   | (ReasoningItemBase & {
       kind: "web_search";
@@ -184,6 +191,7 @@ export function toReasoningItem(
     duration_ms: toolCall.duration_ms,
     exit_code: toolCall.exit_code,
     rationale: toolCall.rationale ?? null,
+    retry_attempts: toolCall.retry_attempts ?? [],
   };
 }
 

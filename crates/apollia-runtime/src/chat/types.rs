@@ -220,6 +220,10 @@ pub struct ToolCallRecord {
     /// can re-render rationale when reopening a past session.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rationale: Option<apollia_core::ToolCallRationale>,
+    /// Retry chain captured for this invocation (US-SP42-040 — Pattern P4).
+    /// Empty on first-try success; each element represents one attempt.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub retry_attempts: Vec<apollia_core::RetryAttempt>,
 }
 
 /// Lifecycle status of a tool call.
@@ -1060,6 +1064,7 @@ mod tests {
                 output: Some("ok".into()),
                 status: ToolCallStatus::Executed,
                 rationale: None,
+                retry_attempts: Vec::new(),
             },
             ToolCallRecord {
                 tool_name: "bash".into(),
@@ -1067,6 +1072,7 @@ mod tests {
                 output: None,
                 status: ToolCallStatus::Refused,
                 rationale: None,
+                retry_attempts: Vec::new(),
             },
             ToolCallRecord {
                 tool_name: "read_file".into(),
@@ -1074,6 +1080,7 @@ mod tests {
                 output: Some("…".into()),
                 status: ToolCallStatus::Executed,
                 rationale: None,
+                retry_attempts: Vec::new(),
             },
         ];
 
