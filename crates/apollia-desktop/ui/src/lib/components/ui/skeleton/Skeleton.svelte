@@ -37,7 +37,7 @@
 </script>
 
 <div
-  class={cn("animate-pulse rounded-md bg-muted", variantClass, className)}
+  class={cn("skeleton-shimmer rounded-md", variantClass, className)}
   style:width={width}
   style:height={height}
   aria-hidden="true"

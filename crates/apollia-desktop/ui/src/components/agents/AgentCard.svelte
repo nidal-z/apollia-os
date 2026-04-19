@@ -218,7 +218,7 @@
       <span class="text-[11px] text-muted-foreground">
         {agent.enabled ? $t("agents.auto_start_enabled") : $t("agents.auto_start_disabled")}
       </span>
-      <Toggle checked={agent.enabled} onchange={handleToggleEnabled} disabled={toggleLoading} size="sm" aria-label={agent.enabled ? $t("agents.auto_start_enabled") : $t("agents.auto_start_disabled")} data-testid="agent-enabled-toggle" />
+      <Toggle checked={agent.enabled} onchange={handleToggleEnabled} loading={toggleLoading} size="sm" aria-label={agent.enabled ? $t("agents.auto_start_enabled") : $t("agents.auto_start_disabled")} data-testid="agent-enabled-toggle" />
     </div>
   {/if}
 
