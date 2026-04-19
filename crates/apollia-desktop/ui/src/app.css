@@ -48,6 +48,14 @@
     --glass-border-dark: 260 40% 70% / 0.12;
     --glass-border-dark-hover: 260 40% 70% / 0.22;
 
+    /* ── Canonical glass tokens (US-SP42-010 — F.74, F.75)
+       Resolved per theme. Use `hsl(var(--glass-border))` or
+       `hsl(var(--glass-inset))` directly rather than the
+       paired `-light` / `-dark` variants. */
+    --glass-border: var(--glass-border-light);
+    --glass-border-hover: var(--glass-border-light-hover);
+    --glass-inset: 220 80% 58% / 0.06;
+
     /* ── Responsive layout (US-SP42-003) ── */
     --touch-target-min: 2.75rem;
 
@@ -168,8 +176,15 @@
     --background: 28 8% 9%;
     --foreground: 32 15% 92%;
     --surface-1: 28 10% 14%;       /* card elevated */
-    --surface-2: 28 9% 12%;        /* card resting */
+    --surface-2: 28 11% 13%;       /* card resting — warmer than neutral grey (F.74, F.75) */
     --surface-3: 28 8% 10%;        /* recessed */
+
+    /* Canonical glass tokens — dark resolution (US-SP42-010). */
+    --glass-border: var(--glass-border-dark);
+    --glass-border-hover: var(--glass-border-dark-hover);
+    /* Dark inset: warm highlight ≥ 12 % so the recess remains
+       visible on surface-1 dark (F.55, F.74). */
+    --glass-inset: 32 40% 78% / 0.14;
     --card: 28 10% 14%;
     --card-foreground: 32 15% 92%;
     --popover: 28 10% 14%;
@@ -336,39 +351,26 @@
     @apply backdrop-blur-md;
   }
 
-  /* ── Inset layer — hover states, nested elements ── */
+  /* ── Inset layer — hover states, nested elements. Resolves via
+     `--glass-inset` so the rim stays visible in both themes. ── */
   .glass-inset {
-    background: rgba(52, 53, 245, 0.04);
-    @apply backdrop-blur-sm;
-  }
-  .dark .glass-inset {
-    /* F.55 : needs to be visible — min 12 % opacity. */
-    background: hsl(32 40% 78% / 0.12);
+    background: hsl(var(--glass-inset));
     @apply backdrop-blur-sm;
   }
 
-  /* ── Borders — visible brand tint ── */
+  /* ── Borders — visible brand tint, resolved via canonical token. ── */
   .glass-border {
     @apply border;
-    border-color: hsl(var(--glass-border-light));
+    border-color: hsl(var(--glass-border));
     transition: border-color 150ms ease;
   }
   .glass-border:hover {
-    border-color: hsl(var(--glass-border-light-hover));
-  }
-  .dark .glass-border {
-    border-color: hsl(var(--glass-border-dark));
-  }
-  .dark .glass-border:hover {
-    border-color: hsl(var(--glass-border-dark-hover));
+    border-color: hsl(var(--glass-border-hover));
   }
 
   .glass-border-subtle {
     @apply border;
-    border-color: hsl(var(--glass-border-light) / 0.6);
-  }
-  .dark .glass-border-subtle {
-    border-color: hsl(var(--glass-border-dark) / 0.6);
+    border-color: hsl(var(--glass-border) / 0.6);
   }
 
   /* ═════════════════════════════════════════════════════════

@@ -64,6 +64,8 @@
         navigateTo("design-motion");
       } else if (window.location.hash === "#design-empty-states") {
         navigateTo("design-empty-states");
+      } else if (window.location.hash === "#design-dark-mode") {
+        navigateTo("design-dark-mode");
       }
     }
 
@@ -108,7 +110,7 @@
       class="flex h-screen w-screen items-center justify-center bg-background text-foreground"
       data-testid="app-loading"
     >
-      <p class="text-sm text-muted-foreground">{$t("common.loading")}</p>
+      <p class="text-sm text-muted-foreground">{$isLoading ? "Chargement…" : $t("common.loading")}</p>
     </div>
   {:else if $onboardingStore.completed || $onboardingStore.phase === "done"}
     <CompanionContextProvider>

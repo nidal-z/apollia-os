@@ -578,11 +578,11 @@
             <ChatMessageBubble {message} {sessionId} />
             {#if $uiMode === "builder" && hasCrossSessionRefs && message.role === "assistant" && message.metadata?.cross_session}
               <div
-                class="absolute -top-1 -right-1 flex items-center gap-1 rounded-full bg-[#7c5fd6]/20 px-2 py-0.5"
+                class="absolute -top-1 -right-1 flex items-center gap-1 rounded-full bg-secondary/20 px-2 py-0.5"
                 data-testid="cross-session-badge"
               >
-                <Link size={9} class="text-[#7c5fd6]" />
-                <span class="text-[9px] font-medium text-[#7c5fd6]">{$t("chat.past_session")}</span>
+                <Link size={9} class="text-secondary" />
+                <span class="text-[9px] font-medium text-secondary">{$t("chat.past_session")}</span>
               </div>
             {/if}
           </div>

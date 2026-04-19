@@ -29,6 +29,7 @@ const WHITELIST_FILES = new Set([
   "routes/Design.svelte",
   "routes/DesignMotion.svelte",
   "routes/DesignEmptyStates.svelte",
+  "routes/DesignDarkMode.svelte",
 ]);
 
 // Literal brand / technical tokens that don't translate.

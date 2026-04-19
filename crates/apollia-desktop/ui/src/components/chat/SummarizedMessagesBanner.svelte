@@ -14,7 +14,7 @@
 </script>
 
 <div
-  class="rounded-lg border border-[#7c5fd6]/20 bg-white/[0.05] px-4 py-2"
+  class="rounded-lg border border-secondary/20 glass-inset px-4 py-2"
   data-testid="summarized-banner"
 >
   <button
@@ -33,7 +33,7 @@
 
   {#if isExpanded}
     <div
-      class="mt-2 rounded bg-white/[0.03] px-3 py-2"
+      class="mt-2 rounded glass-inset px-3 py-2"
       transition:slide={{ duration: 300 }}
       data-testid="summarized-banner-content"
     >

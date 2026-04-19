@@ -24,6 +24,7 @@
   import Design from "../../routes/Design.svelte";
   import DesignMotion from "../../routes/DesignMotion.svelte";
   import DesignEmptyStates from "../../routes/DesignEmptyStates.svelte";
+  import DesignDarkMode from "../../routes/DesignDarkMode.svelte";
 
   onMount(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -120,6 +121,8 @@
           <DesignMotion />
         {:else if $currentRoute === "design-empty-states"}
           <DesignEmptyStates />
+        {:else if $currentRoute === "design-dark-mode"}
+          <DesignDarkMode />
         {/if}
       </PageTransition>
     {/key}

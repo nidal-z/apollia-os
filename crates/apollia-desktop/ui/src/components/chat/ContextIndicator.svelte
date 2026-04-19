@@ -25,7 +25,7 @@
     data-testid="context-indicator"
     title={$t("chat.context_tooltip")}
   >
-    <Brain size={12} class="text-[#7c5fd6]/60" />
-    <span class="text-[10px] text-[#7c5fd6]/60">{label}</span>
+    <Brain size={12} class="text-secondary/60" />
+    <span class="text-[10px] text-secondary/60">{label}</span>
   </div>
 {/if}

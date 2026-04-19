@@ -259,7 +259,7 @@
         </p>
         <div class="flex items-center justify-between rounded-lg px-3 py-2 glass-surface">
           <div class="flex items-center gap-2.5">
-            <Brain class="h-3.5 w-3.5 text-[#7c5fd6]" />
+            <Brain class="h-3.5 w-3.5 text-secondary" />
             <span class="text-xs font-medium">{memoryToggleLabel}</span>
           </div>
           <Toggle
@@ -283,45 +283,45 @@
           >
             {#if contextBarSegments.messagesPct > 0}
               <div
-                class="h-full bg-[#3435f5]"
+                class="h-full bg-primary"
                 style="width: {contextBarSegments.messagesPct}%"
                 title={$t("chat.context_messages", { values: { pct: Math.round(contextBarSegments.messagesPct) } })}
               ></div>
             {/if}
             {#if contextBarSegments.memoryPct > 0}
               <div
-                class="h-full bg-[#7c5fd6]"
+                class="h-full bg-secondary"
                 style="width: {contextBarSegments.memoryPct}%"
                 title={$t("chat.context_memory", { values: { pct: Math.round(contextBarSegments.memoryPct) } })}
               ></div>
             {/if}
             {#if contextBarSegments.summaryPct > 0}
               <div
-                class="h-full bg-[#f59e0b]"
+                class="h-full bg-warning"
                 style="width: {contextBarSegments.summaryPct}%"
                 title={$t("chat.context_summary", { values: { pct: Math.round(contextBarSegments.summaryPct) } })}
               ></div>
             {/if}
             <div
-              class="h-full bg-[#6b7280]/30 flex-1"
+              class="h-full bg-muted-foreground/30 flex-1"
               title={$t("chat.context_free", { values: { pct: Math.round(contextBarSegments.freePct) } })}
             ></div>
           </div>
           <div class="flex items-center gap-3 text-[9px] text-muted-foreground/50">
             <span class="flex items-center gap-1">
-              <span class="inline-block h-1.5 w-1.5 rounded-full bg-[#3435f5]"></span>
+              <span class="inline-block h-1.5 w-1.5 rounded-full bg-primary"></span>
               {$t("chat.legend_messages")}
             </span>
             <span class="flex items-center gap-1">
-              <span class="inline-block h-1.5 w-1.5 rounded-full bg-[#7c5fd6]"></span>
+              <span class="inline-block h-1.5 w-1.5 rounded-full bg-secondary"></span>
               {$t("chat.legend_memory")}
             </span>
             <span class="flex items-center gap-1">
-              <span class="inline-block h-1.5 w-1.5 rounded-full bg-[#f59e0b]"></span>
+              <span class="inline-block h-1.5 w-1.5 rounded-full bg-warning"></span>
               {$t("chat.legend_summary")}
             </span>
             <span class="flex items-center gap-1">
-              <span class="inline-block h-1.5 w-1.5 rounded-full bg-[#6b7280]/30"></span>
+              <span class="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/30"></span>
               {$t("chat.legend_free")}
             </span>
           </div>
