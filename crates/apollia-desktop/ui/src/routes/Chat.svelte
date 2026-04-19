@@ -158,6 +158,7 @@
                 onclose={closeConversation}
                 onconfigtoggle={toggleContextDrawer}
                 onsessionsopen={openSessionsDrawer}
+                ondelete={handleDeleteSession}
               />
             </div>
           {/snippet}

@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
-  import { X, Bot, MessageSquare, Settings2, XCircle, Link, Zap, BrainCircuit, Check, Menu, MoreHorizontal } from "lucide-svelte";
+  import { X, MessageSquare, Link, Zap, BrainCircuit, Check } from "lucide-svelte";
   import { LoadingSpinner } from "$lib/components/feedback";
   import { Spinner } from "$lib/components/ui/progress";
   import {
@@ -13,7 +13,6 @@
     getPendingChatApprovalForSession,
   } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
-  import { Badge } from "$lib/components/ui/badge";
   import type { ChatSessionDetail, ChatMessageView, ConversationStatsView, UserMemoryProfileView } from "$lib/types";
   import MessageGroup from "./MessageGroup.svelte";
   import { groupMessages } from "$lib/chat/groupMessages";
@@ -28,6 +27,10 @@
   import ApprovalCard from "./ApprovalCard.svelte";
   import AskUserCard from "./AskUserCard.svelte";
   import HitlFilesystemModal from "./HitlFilesystemModal.svelte";
+  import ChatConversationHeader from "./ChatConversationHeader.svelte";
+  import ScrollToBottomButton from "./ScrollToBottomButton.svelte";
+  import CloseSessionDialog from "./CloseSessionDialog.svelte";
+  import { toggleArchived } from "$lib/stores/chatSessions";
 
   interface Props {
     sessionId: string;
@@ -52,6 +55,8 @@
      * menu on narrow viewports (<md).
      */
     collapseActions?: boolean;
+    /** Called when the user confirms deletion from the header menu (US-SP42-029). */
+    ondelete?: (sessionId: string) => void;
   }
 
   let {
@@ -62,9 +67,8 @@
     onconfigtoggle,
     onsessionsopen,
     collapseActions = true,
+    ondelete,
   }: Props = $props();
-
-  let overflowOpen = $state(false);
 
   let messages = $state<ChatMessageView[]>([]);
   let sessionMode = $state<"libre" | "agent">("libre");
@@ -76,9 +80,17 @@
   let loadError = $state<string | null>(null);
   let messagesContainer = $state<HTMLDivElement | undefined>(undefined);
   let userScrolledUp = $state(false);
+  /** US-SP42-029 B.8 — floating "jump to latest" button visibility + unread count. */
+  let showScrollToBottom = $state(false);
+  let unreadWhileScrolled = $state(0);
   let tokenBuffer = $state("");
   let configOpen = $state(false);
   let sessionDetail = $state<ChatSessionDetail | null>(null);
+
+  /** US-SP42-029 B.27 — soft-close / archive confirmation modal. */
+  let closeDialogOpen = $state(false);
+  let closeDialogMode = $state<"close" | "archive">("close");
+  let closeDialogLoading = $state(false);
 
   /** Pending tool approval — shown inline when the LLM requests a tool call. */
   let pendingApproval = $state<{
@@ -95,12 +107,6 @@
   } | null>(null);
 
   let conversationStats = $state<ConversationStatsView | null>(null);
-
-  const headerTitle = $derived(
-    sessionMode === "agent" && sessionAgentName
-      ? sessionAgentName
-      : $t("chat.mode_libre"),
-  );
 
   const inputDisabled = $derived(
     isProcessing || isStreaming || sessionStatus === "closed",
@@ -339,6 +345,16 @@
     );
   });
 
+  // Track new messages that land while the user is scrolled up (US-SP42-029 B.8).
+  let lastSeenMessageCount = $state(0);
+  $effect(() => {
+    const count = messages.length;
+    if (userScrolledUp && count > lastSeenMessageCount) {
+      unreadWhileScrolled += count - lastSeenMessageCount;
+    }
+    lastSeenMessageCount = count;
+  });
+
   // Live A2A duration timer — updates every second while delegation is active.
   $effect(() => {
     if (!a2aStartTime) return;
@@ -355,6 +371,10 @@
   $effect(() => {
     if (sessionId !== previousSessionId) {
       previousSessionId = sessionId;
+      unreadWhileScrolled = 0;
+      showScrollToBottom = false;
+      userScrolledUp = false;
+      lastSeenMessageCount = 0;
       isStreaming = false;
       isProcessing = false;
       tokenBuffer = "";
@@ -442,10 +462,24 @@
     });
   }
 
+  /** Scroll observer (US-SP42-029 B.8). Shows floating button when the user
+   *  scrolls more than ~200px above the bottom, resets unread counter on catch-up. */
   function handleScroll(): void {
     if (!messagesContainer) return;
     const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
-    userScrolledUp = scrollHeight - scrollTop - clientHeight > 60;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    userScrolledUp = distanceFromBottom > 60;
+    showScrollToBottom = distanceFromBottom > 200;
+    if (!userScrolledUp) {
+      unreadWhileScrolled = 0;
+    }
+  }
+
+  function jumpToLatest(): void {
+    userScrolledUp = false;
+    unreadWhileScrolled = 0;
+    showScrollToBottom = false;
+    scrollToBottom(true);
   }
 
   async function handleSend(content: string, attachments: PendingAttachment[] = []): Promise<void> {
@@ -516,13 +550,12 @@
   async function handleSlashCommand(cmdId: "clear" | "export" | "rename" | "memory" | "tools"): Promise<void> {
     switch (cmdId) {
       case "clear":
-        if (confirm($t("chat.close_confirm"))) await handleCloseSession();
+        requestCloseSession();
         return;
       case "rename": {
         const title = prompt($t("chat.rename_placeholder"), sessionDetail?.title ?? "");
         if (title !== null && title.trim()) {
-          try { await invoke("rename_chat_session", { sessionId, title: title.trim() }); void refreshSession(); }
-          catch (err) { console.warn("rename_chat_session failed", err); }
+          await handleRename(title.trim());
         }
         return;
       }
@@ -556,11 +589,48 @@
     }
   }
 
-  async function handleCloseSession(): Promise<void> {
-    try { await invoke("close_chat_session", { sessionId }); }
-    catch (err: unknown) { console.warn("close_chat_session IPC not available:", err); }
-    void refreshSession();
+  /** Opens the confirmation modal — user must confirm before close/archive fires. */
+  function requestCloseSession(): void {
+    closeDialogMode = sessionStatus === "closed" ? "archive" : "close";
+    closeDialogOpen = true;
   }
+
+  function requestArchiveSession(): void {
+    closeDialogMode = "archive";
+    closeDialogOpen = true;
+  }
+
+  async function confirmCloseOrArchive(): Promise<void> {
+    closeDialogLoading = true;
+    try {
+      if (closeDialogMode === "close") {
+        try { await invoke("close_chat_session", { sessionId }); }
+        catch (err: unknown) { console.warn("close_chat_session IPC not available:", err); }
+        void refreshSession();
+      } else {
+        // Archive is client-side (US-SP42-023 deviation — backend persistence pending).
+        toggleArchived(sessionId);
+      }
+    } finally {
+      closeDialogLoading = false;
+      closeDialogOpen = false;
+    }
+  }
+
+  function handleDeleteSession(): void {
+    if (!ondelete) return;
+    ondelete(sessionId);
+  }
+
+  async function handleRename(title: string): Promise<void> {
+    try {
+      await invoke("rename_chat_session", { sessionId, title });
+      void refreshSession();
+    } catch (err) {
+      console.warn("rename_chat_session failed", err);
+    }
+  }
+
 
   /**
    * Restore streaming & approval state from global stores when the component
@@ -599,112 +669,25 @@
 </script>
 
 <div class="flex h-full flex-col" data-testid="chat-conversation">
-  <!-- Header — slim bar (hidden in embedded mode) -->
+  <!-- US-SP42-029 — Two-level header (hidden in embedded mode). -->
   {#if !embedded}
-  <div class="flex items-center justify-between border-b border-border/30 px-4 py-2.5">
-    <div class="flex items-center gap-2 min-w-0">
-      {#if onsessionsopen}
-        <button
-          onclick={onsessionsopen}
-          class="md:hidden h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors shrink-0"
-          aria-label="Open sessions"
-          data-testid="chat-open-sessions-button"
-        >
-          <Menu size={14} />
-        </button>
-      {/if}
-      {#if sessionMode === "agent"}
-        <Bot size={15} class="text-primary shrink-0" />
-      {:else}
-        <MessageSquare size={15} class="text-muted-foreground shrink-0" />
-      {/if}
-      <span class="text-[13px] font-medium truncate">{headerTitle}</span>
-      {#if sessionStatus === "closed"}
-        <Badge variant="secondary" class="text-[9px] px-1.5 py-0 shrink-0">{$t("chat.status_closed")}</Badge>
-      {:else if sessionStatus === "processing"}
-        <span class="flex items-center gap-1 text-[11px] text-primary/70 shrink-0">
-          <Spinner size={11} />
-          <span class="hidden sm:inline">{$t("chat.thinking")}</span>
-        </span>
-      {/if}
-    </div>
-
-    <!-- Expanded actions @ md+, overflow menu <md when collapseActions -->
-    <div class="flex items-center gap-0.5">
-      <!-- Always-visible config button at md+ -->
-      {#if !hideConfig}
-      <button
-        onclick={() => { onconfigtoggle ? onconfigtoggle() : (configOpen = true); }}
-        class="{collapseActions ? 'hidden md:inline-flex' : 'inline-flex'} h-7 w-7 items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
-        aria-label={$t("chat.config_title")}
-        data-testid="chat-config-button"
-      >
-        <Settings2 size={14} />
-      </button>
-      {/if}
-      {#if sessionStatus !== "closed"}
-        <button
-          onclick={handleCloseSession}
-          class="{collapseActions ? 'hidden md:inline-flex' : 'inline-flex'} h-7 w-7 items-center justify-center rounded-md text-muted-foreground/60 hover:text-warning hover:bg-warning/10 transition-colors"
-          aria-label={$t("chat.close_session")}
-          data-testid="chat-close-session-button"
-        >
-          <XCircle size={14} />
-        </button>
-      {/if}
-      <button
-        onclick={onclose}
-        class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
-        aria-label={$t("a11y.close")}
-        data-testid="chat-close-button"
-      >
-        <X size={14} />
-      </button>
-
-      <!-- Overflow menu <md when collapseActions is on (B.22) -->
-      {#if collapseActions && (!hideConfig || sessionStatus !== "closed")}
-        <div class="relative md:hidden">
-          <button
-            onclick={() => (overflowOpen = !overflowOpen)}
-            class="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/40 transition-colors"
-            aria-label="More actions"
-            aria-expanded={overflowOpen}
-            data-testid="chat-header-overflow-button"
-          >
-            <MoreHorizontal size={14} />
-          </button>
-          {#if overflowOpen}
-            <div
-              class="absolute right-0 top-full mt-1 z-20 min-w-[9rem] rounded-md border border-border/50 bg-card shadow-elev-2 py-1 animate-fade-in"
-              role="menu"
-              data-testid="chat-header-overflow-menu"
-            >
-              {#if !hideConfig}
-                <button
-                  role="menuitem"
-                  onclick={() => { overflowOpen = false; onconfigtoggle ? onconfigtoggle() : (configOpen = true); }}
-                  class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60"
-                  data-testid="chat-header-overflow-config"
-                >
-                  <Settings2 size={12} /> {$t("chat.config_title")}
-                </button>
-              {/if}
-              {#if sessionStatus !== "closed"}
-                <button
-                  role="menuitem"
-                  onclick={() => { overflowOpen = false; handleCloseSession(); }}
-                  class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/60 text-warning"
-                  data-testid="chat-header-overflow-close-session"
-                >
-                  <XCircle size={12} /> {$t("chat.close_session")}
-                </button>
-              {/if}
-            </div>
-          {/if}
-        </div>
-      {/if}
-    </div>
-  </div>
+    <ChatConversationHeader
+      session={sessionDetail}
+      stats={conversationStats}
+      {sessionMode}
+      {sessionAgentName}
+      {sessionStatus}
+      {hideConfig}
+      {collapseActions}
+      onclose={onclose}
+      onconfigtoggle={onconfigtoggle ? onconfigtoggle : () => (configOpen = true)}
+      {onsessionsopen}
+      onrename={handleRename}
+      onexport={(format) => exportCurrentSession(format)}
+      oncloseSession={requestCloseSession}
+      onarchive={requestArchiveSession}
+      ondelete={handleDeleteSession}
+    />
   {/if}
 
   <!-- Context indicator -->
@@ -723,10 +706,11 @@
       <p class="text-xs text-destructive">{loadError}</p>
     </div>
   {:else}
+    <div class="relative flex-1 min-h-0">
     <div
       bind:this={messagesContainer}
       onscroll={handleScroll}
-      class="flex-1 overflow-y-auto px-4 py-4 space-y-6"
+      class="h-full overflow-y-auto px-4 py-4 space-y-6"
     >
       {#if (messages ?? []).length === 0 && !isStreaming && !isProcessing}
         <div class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
@@ -902,6 +886,12 @@
         {/if}
       {/if}
     </div>
+    <ScrollToBottomButton
+      visible={showScrollToBottom}
+      unreadCount={unreadWhileScrolled}
+      onclick={jumpToLatest}
+    />
+    </div>
   {/if}
 
   <ChatInput
@@ -920,5 +910,13 @@
   onupdated={() => void refreshSession()}
 />
 {/if}
+
+<CloseSessionDialog
+  open={closeDialogOpen}
+  mode={closeDialogMode}
+  loading={closeDialogLoading}
+  onclose={() => (closeDialogOpen = false)}
+  onconfirm={() => void confirmCloseOrArchive()}
+/>
 
 <HitlFilesystemModal {sessionId} />
