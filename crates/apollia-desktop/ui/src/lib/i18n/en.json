@@ -1684,6 +1684,33 @@
       "busy": "Busy",
       "offline": "Offline",
       "error": "Error"
+    },
+    "session_not_found": {
+      "title": "Conversation not found",
+      "description": "This conversation no longer exists. It may have been deleted or the link is out of date.",
+      "back": "Back to sessions",
+      "new_chat": "Start a new chat"
+    },
+    "session_corrupted": {
+      "title": "This session can't be read",
+      "description": "The local database returned an unexpected error. Export the raw payload before deleting so we can investigate.",
+      "export_raw": "Export raw data",
+      "delete": "Delete session"
+    },
+    "runtime_disconnected": {
+      "lost": "Runtime connection lost — reconnecting…",
+      "reconnecting": "Reconnecting to the runtime (attempt {attempt})…",
+      "retry": "Retry now"
+    },
+    "agent_unavailable": {
+      "message": "Agent « {agent} » is no longer installed. Messages sent in this conversation will fail until you reinstall it.",
+      "manage": "Manage agents"
+    },
+    "empty_sessions": {
+      "title": "No conversations yet",
+      "description": "Start a new chat to talk with your agents or the LLM in free mode.",
+      "new_chat": "New chat",
+      "getting_started": "Getting started"
     }
   },
   "transcriptions": {

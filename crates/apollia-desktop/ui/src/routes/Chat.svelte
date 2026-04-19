@@ -10,15 +10,15 @@
   import { Skeleton } from "$lib/components/ui/skeleton";
   import type { ChatSessionSummary } from "$lib/types";
   import { tourOpenChatPicker } from "$lib/stores/tour";
-  import { EmptyState } from "$lib/components/layout";
-  import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
-  import { navigateTo } from "$lib/stores/navigation";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import ChatSessionCard from "../components/chat/ChatSessionCard.svelte";
   import ChatSessionsSidebar from "../components/chat/ChatSessionsSidebar.svelte";
   import ChatShell from "../components/chat/ChatShell.svelte";
   import ContextDrawer from "../components/chat/ContextDrawer.svelte";
+  import EmptySessionsState from "../components/chat/EmptySessionsState.svelte";
   import QuickPicker from "../components/chat/QuickPicker.svelte";
+  import RuntimeDisconnectedBanner from "../components/chat/RuntimeDisconnectedBanner.svelte";
+  import { startRuntimeHealthMonitor } from "$lib/stores/runtimeHealth";
   import {
     decoratedSessions,
     markSessionRead,
@@ -175,11 +175,13 @@
     });
     const uninstall = installChatShortcuts(SHORTCUT_BINDINGS);
     const unregisterHelp = registerShortcuts(SHORTCUT_BINDINGS.map(describeBinding));
+    const stopHealthMonitor = startRuntimeHealthMonitor();
     return () => {
       unsub();
       unsubTour();
       uninstall();
       unregisterHelp();
+      stopHealthMonitor();
     };
   });
 
@@ -243,6 +245,9 @@
 />
 <ShortcutsHelpDialog bind:open={showShortcutsHelp} />
 
+<!-- Runtime health banner (US-SP42-034) — stays mounted across sub-states. -->
+<RuntimeDisconnectedBanner />
+
 <div class="mx-auto w-full max-w-6xl" data-testid="chat-page">
   <!-- Header -->
   <div class="relative flex items-end justify-between overflow-hidden rounded-2xl bg-gradient-surface px-5 py-5 shadow-elev-1">
@@ -282,16 +287,7 @@
         {/each}
       </div>
     {:else if $activeChatSessions.length === 0 && $closedChatSessions.length === 0 && !showNewChatPicker && !selectedSessionId}
-      <EmptyState
-        icon={EMPTY_STATES.chat.icon}
-        title={$t(EMPTY_STATES.chat.titleKey)}
-        description={$t(EMPTY_STATES.chat.descriptionKey)}
-        primaryLabel={$t(EMPTY_STATES.chat.primaryCtaKey ?? '')}
-        primaryAction={() => openNewChatPicker()}
-        secondaryLabel={$t(EMPTY_STATES.chat.secondaryCtaKey ?? '')}
-        secondaryAction={() => navigateTo("agents")}
-        page="chat"
-      />
+      <EmptySessionsState onnewChat={() => openNewChatPicker()} />
     {:else if selectedSessionId}
       <!-- 3-column shell (US-SP42-022): Sessions / Conversation / ContextDrawer. -->
       <div class="overflow-hidden rounded-lg glass-border border" style="height: calc(100vh - 180px);">
@@ -314,6 +310,7 @@
                 onconfigtoggle={toggleContextDrawer}
                 onsessionsopen={openSessionsDrawer}
                 ondelete={handleDeleteSession}
+                onnewChat={() => { closeConversation(); openNewChatPicker(); }}
               />
             </div>
           {/snippet}

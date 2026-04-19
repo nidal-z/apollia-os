@@ -15,9 +15,7 @@
     ChevronDown,
     ChevronRight,
     Sparkles,
-    Bot,
     MessageSquare,
-    BookOpen,
   } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { LoadingSpinner } from "$lib/components/feedback";
@@ -34,8 +32,8 @@
   } from "$lib/stores/agentStatus";
   import { CHAT_TEMPLATES, type ChatTemplate } from "$lib/templates/chatTemplates";
   import { projects } from "$lib/stores/projects";
-  import { navigateTo } from "$lib/stores/navigation";
   import AgentStatusCard from "./AgentStatusCard.svelte";
+  import EmptyAgentsState from "./EmptyAgentsState.svelte";
   import TemplateCard from "./TemplateCard.svelte";
   import { focusTrap } from "$lib/shortcuts/focusTrap";
 
@@ -335,32 +333,8 @@
           {/each}
         </div>
       {:else}
-        <!-- Empty state (B.59) -->
-        <div
-          class="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border/50 bg-muted/20 px-4 py-6 text-center"
-          data-testid="quickpicker-empty-agents"
-        >
-          <Bot size={18} class="text-muted-foreground/60" />
-          <p class="text-[12px] text-muted-foreground">
-            {$t("chat.quickpicker.empty_agents")}
-          </p>
-          <div class="flex gap-2">
-            <Button size="sm" onclick={() => navigateTo("agents")}>
-              {$t("chat.quickpicker.install_agent")}
-            </Button>
-            <a
-              href="https://github.com/nidal-z/apollia-os/wiki/Agents"
-              target="_blank"
-              rel="noreferrer"
-              class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px]
-                text-muted-foreground hover:text-foreground
-                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-            >
-              <BookOpen size={11} />
-              {$t("chat.quickpicker.docs_link")}
-            </a>
-          </div>
-        </div>
+        <!-- Empty state (B.59) — extracted to EmptyAgentsState for reuse. -->
+        <EmptyAgentsState />
       {/if}
     {/if}
   </section>

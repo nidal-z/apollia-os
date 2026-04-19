@@ -30,6 +30,12 @@
   import ScrollToBottomButton from "./ScrollToBottomButton.svelte";
   import CloseSessionDialog from "./CloseSessionDialog.svelte";
   import { toggleArchived } from "$lib/stores/chatSessions";
+  import { classifySessionError } from "$lib/stores/runtimeHealth";
+  import { agents } from "$lib/stores/sse";
+  import SessionNotFound from "./SessionNotFound.svelte";
+  import AgentUnavailableBanner from "./AgentUnavailableBanner.svelte";
+  import { AlertOctagon } from "lucide-svelte";
+  import { Button } from "$lib/components/ui/button";
 
   interface Props {
     sessionId: string;
@@ -56,6 +62,11 @@
     collapseActions?: boolean;
     /** Called when the user confirms deletion from the header menu (US-SP42-029). */
     ondelete?: (sessionId: string) => void;
+    /**
+     * Called when the user triggers "new chat" from an error state
+     * (session not found) — lets the parent open the QuickPicker.
+     */
+    onnewChat?: () => void;
   }
 
   let {
@@ -67,6 +78,7 @@
     onsessionsopen,
     collapseActions = true,
     ondelete,
+    onnewChat,
   }: Props = $props();
 
   let messages = $state<ChatMessageView[]>([]);
@@ -77,6 +89,17 @@
   let isProcessing = $state(false);
   let loading = $state(true);
   let loadError = $state<string | null>(null);
+  const loadErrorKind = $derived<"none" | "not_found" | "corrupted" | "other">(
+    loadError === null ? "none" : classifySessionError(loadError),
+  );
+  /** True when the current session references an agent that is no longer
+   *  present in the `$agents` list (uninstalled mid-session). */
+  const agentUnavailable = $derived(
+    sessionMode === "agent" &&
+      sessionAgentName !== null &&
+      $agents.length > 0 &&
+      !$agents.some((a) => a.name === sessionAgentName),
+  );
   let messagesContainer = $state<HTMLDivElement | undefined>(undefined);
   let userScrolledUp = $state(false);
   /** US-SP42-029 B.8 — floating "jump to latest" button visibility + unread count. */
@@ -623,6 +646,47 @@
     }
   }
 
+  async function exportCorruptedSessionRaw(): Promise<void> {
+    // The UX contract is "give me something to send to support". We dump
+    // whatever the backend was able to surface — even if only the raw
+    // error — into a JSON envelope so the user can forward it.
+    let raw: unknown = null;
+    try {
+      raw = await invoke("get_chat_session_raw", { sessionId });
+    } catch {
+      raw = null;
+    }
+    const envelope = {
+      session_id: sessionId,
+      captured_at: new Date().toISOString(),
+      load_error: loadError,
+      raw,
+    };
+    try {
+      // Browser-native download — works inside the Tauri webview without
+      // pulling an extra plugin dependency. The user picks the destination
+      // via the OS "Save as" dialog emitted by the anchor click.
+      const blob = new Blob([JSON.stringify(envelope, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `apollia-session-${sessionId.slice(0, 8)}-raw.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.warn("export corrupted session failed", err);
+    }
+  }
+
+  function deleteCorruptedSession(): void {
+    if (ondelete) ondelete(sessionId);
+    else onclose();
+  }
+
 
   /**
    * Restore streaming & approval state from global stores when the component
@@ -689,13 +753,72 @@
     <ContextIndicator {sessionId} variant="footer" />
   {/if}
 
+  <!-- Agent disparu inline banner (US-SP42-034). Rendered above the
+       messages so the transcript stays readable. -->
+  {#if !loading && loadErrorKind === "none" && agentUnavailable && sessionAgentName}
+    <AgentUnavailableBanner agentName={sessionAgentName} />
+  {/if}
+
   <!-- Messages -->
   {#if loading}
     <div class="flex flex-1 items-center justify-center">
       <LoadingSpinner size={16} tone="muted" />
     </div>
-  {:else if loadError}
-    <div class="flex flex-1 items-center justify-center px-6">
+  {:else if loadErrorKind === "not_found"}
+    <SessionNotFound
+      sessionId={sessionId}
+      onback={onclose}
+      onnewChat={() => (onnewChat ? onnewChat() : onclose())}
+    />
+  {:else if loadErrorKind === "corrupted"}
+    <div
+      class="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center"
+      role="alert"
+      aria-live="assertive"
+      data-testid="session-corrupted"
+    >
+      <div
+        class="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/15 text-destructive"
+        aria-hidden="true"
+      >
+        <AlertOctagon size={22} />
+      </div>
+      <div class="max-w-md">
+        <p class="text-sm font-medium text-destructive">
+          {$t("chat.session_corrupted.title")}
+        </p>
+        <p class="mt-1 text-xs text-muted-foreground">
+          {$t("chat.session_corrupted.description")}
+        </p>
+        <p class="mt-2 font-mono text-[10px] text-muted-foreground/60">
+          {loadError}
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onclick={exportCorruptedSessionRaw}
+          data-testid="session-corrupted-export"
+        >
+          {$t("chat.session_corrupted.export_raw")}
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          onclick={deleteCorruptedSession}
+          data-testid="session-corrupted-delete"
+        >
+          {$t("chat.session_corrupted.delete")}
+        </Button>
+      </div>
+    </div>
+  {:else if loadErrorKind === "other"}
+    <div
+      class="flex flex-1 items-center justify-center px-6"
+      role="alert"
+      aria-live="polite"
+    >
       <p class="text-xs text-destructive">{loadError}</p>
     </div>
   {:else}

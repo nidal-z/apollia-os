@@ -1684,6 +1684,33 @@
       "busy": "Occupé",
       "offline": "Hors ligne",
       "error": "Erreur"
+    },
+    "session_not_found": {
+      "title": "Conversation introuvable",
+      "description": "Cette conversation n'existe plus. Elle a peut-être été supprimée ou le lien est obsolète.",
+      "back": "Retour aux sessions",
+      "new_chat": "Créer un nouveau chat"
+    },
+    "session_corrupted": {
+      "title": "Session illisible",
+      "description": "La base locale a retourné une erreur inattendue. Exporte les données brutes avant de supprimer pour qu'on puisse investiguer.",
+      "export_raw": "Exporter données brutes",
+      "delete": "Supprimer"
+    },
+    "runtime_disconnected": {
+      "lost": "Connexion runtime perdue — reconnexion…",
+      "reconnecting": "Reconnexion au runtime (tentative {attempt})…",
+      "retry": "Réessayer"
+    },
+    "agent_unavailable": {
+      "message": "Agent « {agent} » n'est plus installé. Les messages envoyés dans cette conversation échoueront tant qu'il n'est pas réinstallé.",
+      "manage": "Gérer les agents"
+    },
+    "empty_sessions": {
+      "title": "Aucune conversation",
+      "description": "Démarre un nouveau chat pour discuter avec tes agents ou le LLM en mode libre.",
+      "new_chat": "Nouveau chat",
+      "getting_started": "Premiers pas"
     }
   },
   "transcriptions": {
