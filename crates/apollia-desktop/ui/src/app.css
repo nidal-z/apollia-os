@@ -130,6 +130,15 @@
     --ease-accel: cubic-bezier(0.4, 0, 1, 1);
 
     /* ═════════════════════════════════════════════════════════
+       Hover tokens (US-SP42-009) — canonical lift/scale/glow.
+       All interactive cards derive their hover from these so
+       behaviour stays uniform across persona surfaces.
+       ═════════════════════════════════════════════════════════ */
+    --hover-surface-lift: -2px;
+    --hover-scale: 1.01;
+    --hover-glow-primary: 0 8px 24px -6px hsl(var(--primary) / 0.30);
+
+    /* ═════════════════════════════════════════════════════════
        Canonical gradients (F.35) — reuse across hero, header,
        accents. Always expressed as `linear-gradient(...)` so
        they can drop into `background` or `background-image`.
@@ -238,6 +247,8 @@
     --shadow-primary-lg: 0 6px 24px -2px hsl(240 91% 62% / 0.55);
     --shadow-primary-xl: 0 12px 48px -8px hsl(260 60% 65% / 0.50);
 
+    --hover-glow-primary: 0 8px 24px -6px hsl(var(--primary) / 0.45);
+
     --shadow-success-md: 0 4px 16px -2px hsl(152 50% 55% / 0.45);
     --shadow-destructive-md: 0 4px 16px -2px hsl(0 65% 58% / 0.45);
 
@@ -308,7 +319,7 @@
   }
   .glass-card-hover:hover {
     box-shadow: var(--shadow-elev-3);
-    transform: translateY(-1px) scale(1.005);
+    transform: translateY(var(--hover-surface-lift)) scale(var(--hover-scale));
   }
   .glass-card-hover:active {
     transform: translateY(0) scale(0.998);
@@ -358,6 +369,101 @@
   }
   .dark .glass-border-subtle {
     border-color: hsl(var(--glass-border-dark) / 0.6);
+  }
+
+  /* ═════════════════════════════════════════════════════════
+     Hover utilities (US-SP42-009) — `.hover-lift` for cards,
+     `.hover-glow` for CTAs. Both respect prefers-reduced-motion
+     via the global rule at the bottom of this file.
+     ═════════════════════════════════════════════════════════ */
+  .hover-lift {
+    transition:
+      transform var(--motion-base) var(--ease-apple),
+      box-shadow var(--motion-base) var(--ease-apple);
+    will-change: transform;
+  }
+  .hover-lift:hover:not(:disabled):not([aria-disabled="true"]) {
+    transform: translateY(var(--hover-surface-lift)) scale(var(--hover-scale));
+    box-shadow: var(--shadow-elev-3);
+  }
+  .hover-lift:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: translateY(0) scale(0.998);
+    transition-duration: var(--motion-fast);
+  }
+
+  .hover-glow {
+    transition: box-shadow var(--motion-base) var(--ease-apple),
+                transform var(--motion-base) var(--ease-apple);
+  }
+  .hover-glow:hover:not(:disabled):not([aria-disabled="true"]) {
+    box-shadow: var(--hover-glow-primary);
+    transform: translateY(-1px);
+  }
+  .hover-glow:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: translateY(0);
+    transition-duration: var(--motion-fast);
+  }
+
+  /* ═════════════════════════════════════════════════════════
+     Glass relief levels (US-SP42-009) — 3 canonical levels
+     aligned with elevation shadows. Aliases on top of the
+     existing `.glass-card` / `.glass-panel` primitives:
+       level-1 → cards (shadow-elev-2)
+       level-2 → panels/sheets (shadow-elev-3)
+       level-3 → modals/popovers (shadow-elev-4)
+     ═════════════════════════════════════════════════════════ */
+  .glass-level-1 {
+    background:
+      linear-gradient(145deg, rgba(52, 53, 245, 0.025) 0%, rgba(124, 95, 214, 0.012) 100%),
+      rgba(250, 246, 236, 0.90);
+    @apply backdrop-blur-[8px];
+    box-shadow: var(--shadow-elev-2);
+  }
+  .dark .glass-level-1 {
+    background:
+      linear-gradient(145deg, rgba(52, 53, 245, 0.05) 0%, rgba(124, 95, 214, 0.03) 100%),
+      hsl(28 10% 14% / 0.78);
+    box-shadow: var(--shadow-elev-2);
+  }
+
+  .glass-level-2 {
+    background:
+      linear-gradient(135deg, rgba(52, 53, 245, 0.03) 0%, rgba(124, 95, 214, 0.015) 100%),
+      rgba(246, 240, 228, 0.92);
+    @apply backdrop-blur-[12px];
+    box-shadow: var(--shadow-elev-3);
+  }
+  .dark .glass-level-2 {
+    background:
+      linear-gradient(135deg, rgba(52, 53, 245, 0.05) 0%, rgba(124, 95, 214, 0.03) 100%),
+      hsl(28 10% 12% / 0.88);
+    box-shadow: var(--shadow-elev-3);
+  }
+
+  .glass-level-3 {
+    background:
+      linear-gradient(135deg, rgba(52, 53, 245, 0.035) 0%, rgba(124, 95, 214, 0.02) 100%),
+      rgba(248, 243, 232, 0.95);
+    @apply backdrop-blur-[20px];
+    box-shadow: var(--shadow-elev-4);
+  }
+  .dark .glass-level-3 {
+    background:
+      linear-gradient(135deg, rgba(52, 53, 245, 0.06) 0%, rgba(124, 95, 214, 0.035) 100%),
+      hsl(28 10% 13% / 0.92);
+    box-shadow: var(--shadow-elev-4);
+  }
+
+  /* ═════════════════════════════════════════════════════════
+     Placeholder contrast (US-SP42-009, A.4.4) — force min
+     opacity so placeholders remain legible ≥ AA against
+     surface-1 in both themes.
+     ═════════════════════════════════════════════════════════ */
+  ::placeholder {
+    opacity: 0.70;
+  }
+  .dark ::placeholder {
+    opacity: 0.60;
   }
 
   /* ═════════════════════════════════════════════════════════
@@ -735,7 +841,11 @@
     scroll-behavior: auto !important;
   }
   .list-item-spring:hover,
-  .list-item-spring:active {
+  .list-item-spring:active,
+  .hover-lift:hover,
+  .hover-lift:active,
+  .hover-glow:hover,
+  .hover-glow:active {
     transform: none !important;
   }
 }

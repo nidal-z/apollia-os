@@ -187,12 +187,12 @@
     <div class="glass-card glass-border rounded-lg overflow-hidden" data-testid="task-list-skeleton">
       {#each { length: SKELETON_ROW_COUNT } as _, i}
         <div class="flex items-center gap-3 px-4 py-3 {i > 0 ? 'border-t border-border/40' : ''}">
-          <Skeleton class="h-3 w-3 rounded-full" />
-          <Skeleton class="h-3 w-24" />
-          <Skeleton class="h-4 w-16 rounded-full" />
-          <Skeleton class="h-3 flex-1" />
-          <Skeleton class="h-3 w-12" />
-          <Skeleton class="h-3 w-14" />
+          <Skeleton variant="avatar" class="h-3 w-3" />
+          <Skeleton variant="text" class="h-3 w-24" />
+          <Skeleton variant="text" class="h-4 w-16 rounded-full" />
+          <Skeleton variant="text" class="h-3 flex-1" />
+          <Skeleton variant="text" class="h-3 w-12" />
+          <Skeleton variant="text" class="h-3 w-14" />
         </div>
       {/each}
     </div>

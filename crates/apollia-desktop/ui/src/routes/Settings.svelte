@@ -451,9 +451,9 @@
 
   {#if loading}
     <div class="space-y-4 py-4">
-      <Skeleton width="100%" height="3rem" />
-      <Skeleton width="100%" height="8rem" />
-      <Skeleton width="100%" height="8rem" />
+      <Skeleton variant="table-row" />
+      <Skeleton variant="card" height="8rem" />
+      <Skeleton variant="card" height="8rem" />
     </div>
   {:else}
     <!-- Tab: Preferences -->

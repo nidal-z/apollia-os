@@ -4,6 +4,7 @@
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
   import { X, Loader2, Bot, MessageSquare, Settings2, XCircle, Link, Zap, BrainCircuit, Check } from "lucide-svelte";
+  import { LoadingSpinner } from "$lib/components/feedback";
   import {
     currentSession, chatTokenBuffer, useUserMemory, memoryEntryCount,
     chatConversationStats, globalTokenBuffers,
@@ -547,7 +548,7 @@
   <!-- Messages -->
   {#if loading}
     <div class="flex flex-1 items-center justify-center">
-      <Loader2 size={16} class="animate-spin text-muted-foreground" />
+      <LoadingSpinner size={16} tone="muted" />
     </div>
   {:else if loadError}
     <div class="flex flex-1 items-center justify-center px-6">

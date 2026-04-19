@@ -125,14 +125,14 @@
       {#each { length: SKELETON_COUNT } as _}
         <div class="glass-card glass-border rounded-lg p-3.5">
           <div class="flex items-center gap-2.5">
-            <Skeleton class="h-8 w-8 rounded-lg" />
+            <Skeleton variant="avatar" class="h-8 w-8 rounded-lg" />
             <div class="flex-1 space-y-1.5">
-              <Skeleton class="h-4 w-[60%]" />
-              <Skeleton class="h-3 w-[40%]" />
+              <Skeleton variant="text" class="w-[60%]" />
+              <Skeleton variant="text" class="h-3 w-[40%]" />
             </div>
           </div>
-          <Skeleton class="mt-2.5 h-8 w-full" />
-          <Skeleton class="mt-2 h-6 w-[50%]" />
+          <Skeleton variant="card" class="mt-2.5 h-8" />
+          <Skeleton variant="text" class="mt-2 h-6 w-[50%]" />
         </div>
       {/each}
     </div>

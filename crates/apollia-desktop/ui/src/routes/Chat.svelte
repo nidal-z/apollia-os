@@ -343,10 +343,10 @@
       <div class="space-y-1">
         {#each { length: 4 } as _}
           <div class="flex items-center gap-3 rounded-lg px-3 py-2.5">
-            <Skeleton class="h-3.5 w-3.5 rounded" />
-            <Skeleton class="h-3.5 w-28" />
-            <Skeleton class="h-3 flex-1" />
-            <Skeleton class="h-3 w-12" />
+            <Skeleton variant="avatar" class="h-3.5 w-3.5 rounded" />
+            <Skeleton variant="text" class="h-3.5 w-28" />
+            <Skeleton variant="text" class="h-3 flex-1" />
+            <Skeleton variant="text" class="h-3 w-12" />
           </div>
         {/each}
       </div>

@@ -3,6 +3,7 @@
   import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
   import { t } from "svelte-i18n";
   import { Sheet } from "$lib/components/ui/sheet";
+  import { LoadingSpinner } from "$lib/components/feedback";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Textarea } from "$lib/components/ui/textarea";
@@ -241,7 +242,7 @@
   {#if loading || !project}
     <div class="flex flex-1 items-center justify-center py-16 text-muted-foreground text-sm">
       {#if loading}
-        <Loader2 size={20} class="animate-spin mr-2" />
+        <LoadingSpinner size={20} tone="muted" class="mr-2" />
         {$t("common.loading")}
       {:else}
         {$t("projects.not_found")}

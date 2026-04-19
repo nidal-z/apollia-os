@@ -120,8 +120,8 @@
   <!-- Loading -->
   {#if loading}
     <div class="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
-      <Skeleton width="100%" height="6rem" />
-      <Skeleton width="100%" height="6rem" />
+      <Skeleton variant="card" height="6rem" />
+      <Skeleton variant="card" height="6rem" />
     </div>
   {:else if error}
     <div

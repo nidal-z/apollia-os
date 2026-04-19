@@ -11,7 +11,7 @@
 </script>
 
 <button
-  class="group flex w-full items-center gap-3 rounded-lg glass-card glass-border px-4 py-3 transition-all duration-200 hover:bg-warning/5"
+  class="group hover-lift flex w-full items-center gap-3 rounded-lg glass-card glass-border px-4 py-3 hover:bg-warning/5"
   onclick={() => navigateTo("approvals")}
   data-testid="pending-actions"
 >

@@ -134,9 +134,9 @@
 
   {#if loading}
     <div class="space-y-3">
-      <Skeleton width="100%" height="4rem" />
-      <Skeleton width="100%" height="4rem" />
-      <Skeleton width="60%" height="1rem" />
+      <Skeleton variant="card" />
+      <Skeleton variant="card" />
+      <Skeleton variant="text" width="60%" />
     </div>
   {:else if error}
     <p class="text-sm text-destructive">{error}</p>

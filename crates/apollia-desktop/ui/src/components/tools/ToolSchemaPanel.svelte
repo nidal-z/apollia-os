@@ -14,7 +14,8 @@
   import { Badge } from "$lib/components/ui/badge";
   import JsonViewer from "../common/JsonViewer.svelte";
   import EmptyState from "../common/EmptyState.svelte";
-  import { FileQuestion, Loader2 } from "lucide-svelte";
+  import { FileQuestion } from "lucide-svelte";
+  import { LoadingSpinner } from "$lib/components/feedback";
 
   interface Props {
     toolName: string;
@@ -95,7 +96,7 @@
   >
     {#if loading}
       <div class="flex flex-1 items-center justify-center" data-testid="tool-schema-loading">
-        <Loader2 size={24} class="animate-spin text-muted-foreground" />
+        <LoadingSpinner size={24} tone="muted" />
       </div>
     {:else if !descriptor || loadError}
       <EmptyState
