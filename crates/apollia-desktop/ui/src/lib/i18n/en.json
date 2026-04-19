@@ -1403,6 +1403,11 @@
     "start": "Start",
     "no_active_agents": "No active agents available",
     "input_placeholder": "Type your message...",
+    "placeholder_suggestions": {
+      "s1": "Ask the agent to summarise the last run...",
+      "s2": "What should we focus on next?",
+      "s3": "Draft a plan for tomorrow's sprint..."
+    },
     "first_message_placeholder": "Send your first message...",
     "agent_processing": "Agent processing...",
     "thinking": "Thinking...",

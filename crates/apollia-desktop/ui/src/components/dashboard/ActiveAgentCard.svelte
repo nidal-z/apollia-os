@@ -2,6 +2,7 @@
   import { t } from "svelte-i18n";
   import type { AgentListItem } from "$lib/types";
   import { tasks } from "$lib/stores/tasks";
+  import { Avatar } from "$lib/components/ui/avatar";
   import { Badge } from "$lib/components/ui/badge";
   import { CheckCircle, AlertTriangle, Zap } from "lucide-svelte";
 
@@ -21,11 +22,6 @@
   let completedCount = $derived(agentTasks.filter((t) => t.status === "completed").length);
   let failedCount = $derived(agentTasks.filter((t) => t.status === "failed").length);
 
-  function avatarHue(name: string): number {
-    return name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
-  }
-
-  const hue = $derived(avatarHue(agent.name));
 </script>
 
 <button
@@ -44,12 +40,7 @@
     <div class="px-3.5 pt-3 pb-2.5 flex-1 flex flex-col">
       <!-- Row 1: avatar + name + status -->
       <div class="flex items-center gap-2.5">
-        <div
-          class="agent-avatar-shadow flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
-          style="--agent-hue: {hue}; background: hsl({hue}, 60%, 48%);"
-        >
-          {agent.name.charAt(0).toUpperCase()}
-        </div>
+        <Avatar name={agent.name} size="md" ring />
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
             <span class="truncate text-[13px] font-medium group-hover:text-primary transition-colors" data-testid="active-agent-name">

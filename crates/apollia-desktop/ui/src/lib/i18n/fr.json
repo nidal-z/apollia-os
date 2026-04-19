@@ -1403,6 +1403,11 @@
     "start": "Démarrer",
     "no_active_agents": "Aucun agent actif disponible",
     "input_placeholder": "Tapez votre message...",
+    "placeholder_suggestions": {
+      "s1": "Demande à l'agent de résumer la dernière exécution...",
+      "s2": "Sur quoi concentrer nos efforts ensuite ?",
+      "s3": "Prépare un plan pour le sprint de demain..."
+    },
     "first_message_placeholder": "Envoyez votre premier message...",
     "agent_processing": "Agent en cours...",
     "thinking": "Réflexion en cours...",

@@ -89,15 +89,6 @@
     (conversationStats?.cross_sessions_referenced ?? 0) > 0,
   );
 
-  const avatarHue = $derived.by(() => {
-    if (!sessionAgentName) return 220;
-    let hash = 0;
-    for (let i = 0; i < sessionAgentName.length; i++) {
-      hash = sessionAgentName.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return Math.abs(hash) % 360;
-  });
-
   let unlistenToken: UnlistenFn | undefined;
   let unlistenChanged: UnlistenFn | undefined;
   let unlistenA2A: UnlistenFn | undefined;

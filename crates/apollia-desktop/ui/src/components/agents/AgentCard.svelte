@@ -4,6 +4,7 @@
   import { t } from "svelte-i18n";
   import type { AgentListItem } from "$lib/types";
   import { agents } from "$lib/stores/agents";
+  import { Avatar } from "$lib/components/ui/avatar";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Toggle } from "$lib/components/ui/toggle";
@@ -43,11 +44,6 @@
   let startLoading = $state(false);
   let actionError = $state<string | null>(null);
 
-  function avatarHue(name: string): number {
-    return name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
-  }
-
-  const hue = $derived(avatarHue(agent.name));
   const isInstalled = $derived(agent.installed_at !== null);
   const runtimeStatus = $derived(agent.runtime_status as RuntimeState | null);
   const isRunning = $derived(runtimeStatus === "active" || runtimeStatus === "degraded");
@@ -152,13 +148,7 @@
   <div class="px-3.5 pt-3 pb-2.5 flex-1 flex flex-col">
     <!-- Row 1: avatar + name + badge -->
     <div class="flex items-center gap-2.5">
-      <div
-        class="agent-avatar-shadow flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
-        style="--agent-hue: {hue}; background: hsl({hue}, 60%, 48%);"
-        data-testid="agent-avatar"
-      >
-        {agent.name.charAt(0).toUpperCase()}
-      </div>
+      <Avatar name={agent.name} size="md" ring data-testid="agent-avatar" />
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
           <span class="truncate text-[13px] font-medium" data-testid="agent-name">{agent.name}</span>

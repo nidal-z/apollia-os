@@ -8,6 +8,7 @@
   import { tasks } from "$lib/stores/tasks";
   import { uiMode } from "$lib/stores/mode";
   import { Sheet } from "$lib/components/ui/sheet";
+  import { Avatar } from "$lib/components/ui/avatar";
   import { Badge } from "$lib/components/ui/badge";
   import {
     Activity, CheckCircle, XCircle, Clock, AlertTriangle, Ban,
@@ -56,10 +57,6 @@
   let wideMode = $state(false);
   let mode = $derived($uiMode);
 
-  function avatarHue(name: string): number {
-    return name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
-  }
-
   function formatDurationLong(ms: number | undefined): string {
     if (ms === undefined || ms === null) return "-";
     if (ms < 1000) return `${ms}ms`;
@@ -91,7 +88,6 @@
       </div>
     {:else}
       {@const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.submitted}
-      {@const hue = avatarHue(task.agent_name || task.agent_id)}
 
       <!-- ── Header strip (shrink-0, never scrolls) ───────────────────── -->
       <div
@@ -103,12 +99,7 @@
 
         <!-- Title row: avatar + name + status | expand + close -->
         <div class="flex items-center gap-3 px-4 pt-4 pb-0">
-          <div
-            class="agent-avatar-shadow flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white"
-            style="--agent-hue: {hue}; background: hsl({hue}, 60%, 48%);"
-          >
-            {(task.agent_name || "?").charAt(0).toUpperCase()}
-          </div>
+          <Avatar name={task.agent_name || task.agent_id} fallback={(task.agent_name || "?").charAt(0).toUpperCase()} size="md" ring />
 
           <div class="min-w-0 flex-1">
             <span class="block text-sm font-medium truncate" data-testid="task-detail-title">

@@ -5,6 +5,7 @@
   import { uiMode } from "$lib/stores/mode";
   import { navigateTo } from "$lib/stores/navigation";
   import { Sheet } from "$lib/components/ui/sheet";
+  import { Avatar } from "$lib/components/ui/avatar";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Toggle } from "$lib/components/ui/toggle";
@@ -53,11 +54,6 @@
     ...agent.tools_required.map((t) => ({ name: t, required: true })),
     ...agent.tools_optional.map((t) => ({ name: t, required: false })),
   ]);
-
-  function avatarHue(name: string): number {
-    return name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
-  }
-  const hue = $derived(avatarHue(agent.name));
 
   function executionModeLabel(mode: string | null): string {
     switch (mode) {
@@ -113,12 +109,7 @@
       <div class="px-4 py-4">
         <div class="flex items-center gap-3">
           <!-- Colored avatar matching dashboard -->
-          <div
-            class="agent-avatar-shadow-lg flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white"
-            style="--agent-hue: {hue}; background: hsl({hue}, 60%, 48%);"
-          >
-            {agent.name.charAt(0).toUpperCase()}
-          </div>
+          <Avatar name={agent.name} size="lg" ring />
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
               <h2 class="truncate text-base font-medium" data-testid="agent-detail-name">{agent.name}</h2>
