@@ -1993,5 +1993,9 @@
       "primary_cta": "Add a connection",
       "secondary_cta": "Browse the registry"
     }
+  },
+  "toast": {
+    "dismiss": "Dismiss notification",
+    "more": "+{count} more"
   }
 }

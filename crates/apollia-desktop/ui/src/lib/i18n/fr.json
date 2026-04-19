@@ -1993,5 +1993,9 @@
       "primary_cta": "Ajouter une connexion",
       "secondary_cta": "Parcourir le registre"
     }
+  },
+  "toast": {
+    "dismiss": "Fermer la notification",
+    "more": "+{count} autres"
   }
 }

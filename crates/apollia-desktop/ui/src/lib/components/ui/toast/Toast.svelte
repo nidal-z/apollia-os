@@ -1,15 +1,17 @@
 <script lang="ts">
   import { cn } from "$lib/utils";
   import { fly } from "svelte/transition";
-  import { X, CheckCircle, AlertCircle, Info } from "lucide-svelte";
+  import { X, CheckCircle, AlertCircle, Info, Loader2 } from "lucide-svelte";
   import { t } from "svelte-i18n";
+  import type { ToastVariant } from "./store";
 
   interface Props {
     message: string;
-    variant?: "success" | "error" | "info";
+    variant?: ToastVariant;
     visible?: boolean;
     ondismiss?: () => void;
     autoDismiss?: number;
+    showProgress?: boolean;
     actionLabel?: string;
     onaction?: () => void;
     "data-testid"?: string;
@@ -20,27 +22,75 @@
     variant = "info",
     visible = $bindable(true),
     ondismiss,
-    autoDismiss = 4000,
+    autoDismiss,
+    showProgress = false,
     actionLabel,
     onaction,
     ...restProps
   }: Props = $props();
 
-  const variantConfig = {
-    success: { icon: CheckCircle, classes: "text-emerald-600 dark:text-emerald-400" },
-    error: { icon: AlertCircle, classes: "text-red-600 dark:text-red-400" },
-    info: { icon: Info, classes: "text-sky-600 dark:text-sky-400" },
+  const resolvedDuration = $derived(
+    autoDismiss ?? (variant === "loading" ? 0 : 4000),
+  );
+
+  const iconByVariant = {
+    success: CheckCircle,
+    error: AlertCircle,
+    info: Info,
+    loading: Loader2,
+    urgent: AlertCircle,
+  } as const;
+
+  const iconClassByVariant: Record<ToastVariant, string> = {
+    success: "text-emerald-600 dark:text-emerald-400",
+    error: "text-destructive",
+    info: "text-sky-600 dark:text-sky-400",
+    loading: "text-primary animate-spin",
+    urgent: "text-destructive",
   };
 
+  const progressColorByVariant: Record<ToastVariant, string> = {
+    success: "rgb(16 185 129)",
+    error: "hsl(var(--destructive))",
+    info: "rgb(14 165 233)",
+    loading: "hsl(var(--primary))",
+    urgent: "hsl(var(--destructive))",
+  };
+
+  const isUrgent = $derived(variant === "urgent");
+  const ariaRole = $derived(
+    variant === "error" || variant === "urgent" ? "alert" : "status",
+  );
+  const ariaLive = $derived(
+    variant === "error" || variant === "urgent" ? "assertive" : "polite",
+  );
+
+  let paused = $state(false);
+  let remaining = $state(0);
+  let startedAt = $state(0);
+
   $effect(() => {
-    if (visible && autoDismiss > 0) {
-      const timer = setTimeout(() => {
-        visible = false;
-        ondismiss?.();
-      }, autoDismiss);
-      return () => clearTimeout(timer);
-    }
+    if (!visible || resolvedDuration <= 0 || paused) return;
+    const duration = remaining > 0 ? remaining : resolvedDuration;
+    startedAt = Date.now();
+    const timer = setTimeout(() => {
+      visible = false;
+      ondismiss?.();
+    }, duration);
+    return () => clearTimeout(timer);
   });
+
+  function handlePause() {
+    if (resolvedDuration <= 0 || paused) return;
+    const elapsed = Date.now() - startedAt;
+    remaining = Math.max(0, (remaining > 0 ? remaining : resolvedDuration) - elapsed);
+    paused = true;
+  }
+
+  function handleResume() {
+    if (!paused) return;
+    paused = false;
+  }
 
   function handleDismiss() {
     visible = false;
@@ -52,25 +102,28 @@
     handleDismiss();
   }
 
-  const config = $derived(variantConfig[variant]);
+  const IconComponent = $derived(iconByVariant[variant]);
+  const iconClass = $derived(iconClassByVariant[variant]);
+  const progressColor = $derived(progressColorByVariant[variant]);
 </script>
 
 {#if visible}
   <div
     class={cn(
-      "pointer-events-auto flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-lg",
+      "pointer-events-auto relative flex items-center gap-3 overflow-hidden rounded-lg border border-border bg-card px-4 py-3 shadow-lg",
+      isUrgent && "bg-destructive/10 border-destructive/40",
     )}
-    role="alert"
+    role={ariaRole}
+    aria-live={ariaLive}
+    aria-atomic="true"
     transition:fly={{ y: -8, duration: 200 }}
+    onmouseenter={handlePause}
+    onmouseleave={handleResume}
+    onfocusin={handlePause}
+    onfocusout={handleResume}
     {...restProps}
   >
-    {#if variant === "success"}
-      <CheckCircle size={18} class={config.classes} />
-    {:else if variant === "error"}
-      <AlertCircle size={18} class={config.classes} />
-    {:else}
-      <Info size={18} class={config.classes} />
-    {/if}
+    <IconComponent size={18} class={iconClass} aria-hidden="true" />
     <p class="flex-1 text-sm text-card-foreground">{message}</p>
     {#if actionLabel}
       <button
@@ -81,12 +134,42 @@
         {actionLabel}
       </button>
     {/if}
-    <button
-      class="rounded-md p-0.5 text-muted-foreground hover:text-foreground transition-colors"
-      onclick={handleDismiss}
-      aria-label={$t("a11y.dismiss")}
-    >
-      <X size={14} />
-    </button>
+    {#if variant !== "loading"}
+      <button
+        class="rounded-md p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+        onclick={handleDismiss}
+        aria-label={$t("toast.dismiss")}
+      >
+        <X size={14} />
+      </button>
+    {/if}
+
+    {#if showProgress && resolvedDuration > 0}
+      <span
+        class="toast-progress"
+        style="--toast-duration: {resolvedDuration}ms; --toast-progress-color: {progressColor}; animation-play-state: {paused ? 'paused' : 'running'};"
+        aria-hidden="true"
+      ></span>
+    {/if}
   </div>
 {/if}
+
+<style>
+  .toast-progress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    width: 100%;
+    background-color: var(--toast-progress-color);
+    transform-origin: left center;
+    animation: toast-progress var(--toast-duration) linear forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toast-progress {
+      animation: none;
+      transform: scaleX(1);
+    }
+  }
+</style>

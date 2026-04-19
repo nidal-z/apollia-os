@@ -143,6 +143,7 @@
        truth so overlays/tooltips never collide.
        ═════════════════════════════════════════════════════════ */
     --z-backdrop: 40;
+    --z-toast: 40;
     --z-overlay: 50;
     --z-tooltip: 70;
 
@@ -770,6 +771,12 @@
 /* Spin — plain rotate, reused by the LoadingSpinner component. */
 @keyframes spinnerRotate {
   to { transform: rotate(360deg); }
+}
+
+/* Toast progress — 2px bar collapses from full width to zero over autoDismiss ms. */
+@keyframes toast-progress {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
 }
 
 /* ═══════════════════════════════════════════════════════════
