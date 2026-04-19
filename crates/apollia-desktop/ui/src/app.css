@@ -793,6 +793,12 @@
   to { transform: rotate(360deg); }
 }
 
+/* Progress bar indeterminate — 30 % fill travels across track in 1.5 s (US-SP42-019). */
+@keyframes progress-indeterminate {
+  0%   { left: -30%; }
+  100% { left: 100%; }
+}
+
 /* Toast progress — 2px bar collapses from full width to zero over autoDismiss ms. */
 @keyframes toast-progress {
   from { transform: scaleX(1); }

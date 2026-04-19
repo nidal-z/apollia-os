@@ -16,6 +16,7 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import { Toggle } from "$lib/components/ui/toggle";
   import { Dialog } from "$lib/components/ui/dialog";
+  import { DatePicker, TimePicker } from "$lib/components/ui/date-picker";
 
   interface Props {
     open: boolean;
@@ -45,6 +46,11 @@
   let cronSchedule = $state("");
   let intervalEvery = $state("");
   let oneshotFireAt = $state("");
+  let oneshotDate = $state("");
+  let oneshotTime = $state("");
+  $effect(() => {
+    oneshotFireAt = oneshotDate && oneshotTime ? `${oneshotDate}T${oneshotTime}` : "";
+  });
   let fileWatchPath = $state("");
   let fileWatchCreate = $state(true);
   let fileWatchModify = $state(true);
@@ -99,6 +105,8 @@
     cronSchedule = "";
     intervalEvery = "";
     oneshotFireAt = "";
+    oneshotDate = "";
+    oneshotTime = "";
     fileWatchPath = "";
     fileWatchCreate = true;
     fileWatchModify = true;
@@ -113,9 +121,14 @@
       case "interval":
         intervalEvery = (cfg.every as string) ?? (cfg.seconds != null ? `${cfg.seconds}s` : "");
         break;
-      case "oneshot":
-        oneshotFireAt = (cfg.fire_at as string) ?? "";
+      case "oneshot": {
+        const fa = (cfg.fire_at as string) ?? "";
+        oneshotFireAt = fa;
+        const [d, t] = fa.split("T");
+        oneshotDate = d ?? "";
+        oneshotTime = (t ?? "").slice(0, 5);
         break;
+      }
       case "file_watch":
         fileWatchPath = (cfg.path as string) ?? "";
         if (Array.isArray(cfg.events)) {
@@ -333,12 +346,17 @@
       {:else if sourceType === "oneshot"}
         <div>
           <label class="mb-1 block text-[11px] text-muted-foreground" for="edit-trigger-fire-at">{$t("triggers.field_fire_at")}</label>
-          <Input
-            id="edit-trigger-fire-at"
-            type="datetime-local"
-            bind:value={oneshotFireAt}
-            data-testid="edit-trigger-fire-at-input"
-          />
+          <div class="grid grid-cols-2 gap-2">
+            <DatePicker
+              id="edit-trigger-fire-at"
+              bind:value={oneshotDate}
+              data-testid="edit-trigger-fire-at-input"
+            />
+            <TimePicker
+              bind:value={oneshotTime}
+              data-testid="edit-trigger-fire-at-time-input"
+            />
+          </div>
         </div>
       {:else if sourceType === "file_watch"}
         <div>

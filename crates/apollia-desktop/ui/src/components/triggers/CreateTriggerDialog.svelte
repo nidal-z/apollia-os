@@ -19,6 +19,7 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import { Toggle } from "$lib/components/ui/toggle";
   import { Dialog } from "$lib/components/ui/dialog";
+  import { DatePicker, TimePicker } from "$lib/components/ui/date-picker";
 
   interface Props {
     open: boolean;
@@ -46,6 +47,11 @@
   let cronSchedule = $state("");
   let intervalEvery = $state("");
   let oneshotFireAt = $state("");
+  let oneshotDate = $state("");
+  let oneshotTime = $state("");
+  $effect(() => {
+    oneshotFireAt = oneshotDate && oneshotTime ? `${oneshotDate}T${oneshotTime}` : "";
+  });
   let fileWatchPath = $state("");
   let fileWatchCreate = $state(true);
   let fileWatchModify = $state(true);
@@ -162,6 +168,8 @@
     cronSchedule = "";
     intervalEvery = "";
     oneshotFireAt = "";
+    oneshotDate = "";
+    oneshotTime = "";
     fileWatchPath = "";
     fileWatchCreate = true;
     fileWatchModify = true;
@@ -337,13 +345,19 @@
     {:else if sourceType === "oneshot"}
       <div>
         <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-fire-at">{$t("triggers.field_fire_at")}</label>
-        <Input
-          id="trigger-fire-at"
-          type="datetime-local"
-          class={sourceError && sourceType === 'oneshot' ? 'border-destructive' : ''}
-          bind:value={oneshotFireAt}
-          data-testid="trigger-fire-at-input"
-        />
+        <div class="grid grid-cols-2 gap-2">
+          <DatePicker
+            id="trigger-fire-at"
+            class={sourceError && sourceType === 'oneshot' ? 'border-destructive' : ''}
+            bind:value={oneshotDate}
+            data-testid="trigger-fire-at-input"
+          />
+          <TimePicker
+            class={sourceError && sourceType === 'oneshot' ? 'border-destructive' : ''}
+            bind:value={oneshotTime}
+            data-testid="trigger-fire-at-time-input"
+          />
+        </div>
       </div>
     {:else if sourceType === "file_watch"}
       <div>
