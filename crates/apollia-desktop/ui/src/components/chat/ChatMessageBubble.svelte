@@ -4,7 +4,8 @@
   import { Copy, Check } from "lucide-svelte";
   import type { ChatMessageView } from "$lib/types";
   import { uiMode } from "$lib/stores/mode";
-  import { MarkdownContent } from "$lib/components/ui/markdown";
+  import MessageRenderer from "./MessageRenderer.svelte";
+  import type { Citation } from "$lib/chat/confidenceParser";
   import ReasoningSequence from "./ReasoningSequence.svelte";
   import LinkPreviewList from "./LinkPreviewList.svelte";
 
@@ -97,7 +98,10 @@
       {#if isUser}
         <p class="whitespace-pre-wrap break-words">{message.content}</p>
       {:else}
-        <MarkdownContent content={message.content} />
+        <MessageRenderer
+          content={message.content}
+          citations={(message.metadata?.citations as Citation[] | undefined) ?? []}
+        />
         <LinkPreviewList content={message.content} />
       {/if}
     {/if}

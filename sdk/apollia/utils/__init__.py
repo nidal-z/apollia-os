@@ -1,5 +1,13 @@
 """Parsing and formatting utilities for Apollia agents."""
 
+from apollia.utils.assertion import (
+    AssertionSpec,
+    Citation,
+    ConfidenceLevel,
+    SourceType,
+    assert_with_confidence,
+    build_citation_payload,
+)
 from apollia.utils.formatting import (
     aip_result_text,
     format_as_json,
@@ -20,7 +28,13 @@ from apollia.utils.parsing import (
 
 __all__ = [
     "ActionParseError",
+    "AssertionSpec",
+    "Citation",
+    "ConfidenceLevel",
+    "SourceType",
     "aip_result_text",
+    "assert_with_confidence",
+    "build_citation_payload",
     "extract_code_block",
     "extract_json",
     "extract_xml_tag",
