@@ -10,6 +10,7 @@
     TriggerSourceInput,
     TriggerDefinitionView,
   } from "$lib/types";
+  import { Clock } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Select } from "$lib/components/ui/select";
@@ -313,6 +314,7 @@
         <label class="mb-1 block text-[11px] text-muted-foreground" for="trigger-schedule">{$t("triggers.field_schedule")}</label>
         <Input
           id="trigger-schedule"
+          icon={Clock}
           class="font-mono {sourceError && sourceType === 'cron' ? 'border-destructive' : ''}"
           placeholder={$t("triggers.field_schedule_placeholder")}
           bind:value={cronSchedule}

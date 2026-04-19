@@ -65,35 +65,45 @@
             <p class="text-xs text-muted-foreground">{envVar.description}</p>
           {/if}
 
-          <div class="relative">
+          {#if envVar.is_secret}
             <Input
               id={`env-${envVar.name}`}
               type={inputType(envVar)}
               value={values[envVar.name] ?? ""}
               oninput={(e) => onchange(envVar.name, (e.currentTarget as HTMLInputElement).value)}
-              placeholder={envVar.is_secret ? "••••••••" : envVar.name}
+              placeholder="••••••••"
               autocomplete="off"
-              class={envVar.is_secret ? "pr-10" : ""}
+              data-testid={`env-input-${envVar.name}`}
+            >
+              {#snippet trailing()}
+                <button
+                  type="button"
+                  class="text-muted-foreground transition-colors hover:text-foreground"
+                  onclick={() => toggleReveal(envVar.name)}
+                  aria-label={revealed[envVar.name]
+                    ? $t("integrations.wizard.hide_value")
+                    : $t("integrations.wizard.show_value")}
+                  data-testid={`env-toggle-${envVar.name}`}
+                >
+                  {#if revealed[envVar.name]}
+                    <EyeOff size={14} />
+                  {:else}
+                    <Eye size={14} />
+                  {/if}
+                </button>
+              {/snippet}
+            </Input>
+          {:else}
+            <Input
+              id={`env-${envVar.name}`}
+              type="text"
+              value={values[envVar.name] ?? ""}
+              oninput={(e) => onchange(envVar.name, (e.currentTarget as HTMLInputElement).value)}
+              placeholder={envVar.name}
+              autocomplete="off"
               data-testid={`env-input-${envVar.name}`}
             />
-            {#if envVar.is_secret}
-              <button
-                type="button"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                onclick={() => toggleReveal(envVar.name)}
-                aria-label={revealed[envVar.name]
-                  ? $t("integrations.wizard.hide_value")
-                  : $t("integrations.wizard.show_value")}
-                data-testid={`env-toggle-${envVar.name}`}
-              >
-                {#if revealed[envVar.name]}
-                  <EyeOff size={14} />
-                {:else}
-                  <Eye size={14} />
-                {/if}
-              </button>
-            {/if}
-          </div>
+          {/if}
         </div>
       {/each}
     </div>

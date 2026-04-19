@@ -28,10 +28,6 @@
     placeholder ?? $t("integrations.catalogue.search_placeholder"),
   );
 
-  /**
-   * Sync when the parent externally resets `value` to something we
-   * did not emit ourselves (e.g. the "clear all" button in FilterBar).
-   */
   $effect(() => {
     if (value !== lastEmitted) {
       inputValue = value;
@@ -39,7 +35,6 @@
     }
   });
 
-  /** Debounce: emit the current query 200 ms after the last keystroke. */
   $effect(() => {
     const pending = inputValue;
     const timer = setTimeout(() => {
@@ -51,7 +46,6 @@
     return () => clearTimeout(timer);
   });
 
-  /** Clear the field immediately and restore focus to the input. */
   function clearSearch(): void {
     inputValue = "";
     lastEmitted = "";
@@ -60,34 +54,30 @@
   }
 </script>
 
-<div class="relative" bind:this={containerEl} data-testid="catalogue-search-bar">
-  <Search
-    size={15}
-    class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-    aria-hidden="true"
-  />
+<div bind:this={containerEl} data-testid="catalogue-search-bar">
   <Input
     type="text"
-    class="pl-9{inputValue.length > 0 ? ' pr-9' : ''}"
     value={inputValue}
     placeholder={resolvedPlaceholder}
+    icon={Search}
     oninput={(e) => {
       inputValue = (e.currentTarget as HTMLInputElement).value;
     }}
     data-testid="catalogue-search-input"
     aria-label={resolvedPlaceholder}
-  />
-  {#if inputValue.length > 0}
-    <button
-      type="button"
-      class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center justify-center rounded p-0.5
-             text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none
-             focus-visible:ring-1 focus-visible:ring-ring"
-      onclick={clearSearch}
-      aria-label={$t("integrations.catalogue.search_clear")}
-      data-testid="catalogue-search-clear"
-    >
-      <X size={14} />
-    </button>
-  {/if}
+  >
+    {#snippet trailing()}
+      {#if inputValue.length > 0}
+        <button
+          type="button"
+          class="flex items-center justify-center rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          onclick={clearSearch}
+          aria-label={$t("integrations.catalogue.search_clear")}
+          data-testid="catalogue-search-clear"
+        >
+          <X size={14} />
+        </button>
+      {/if}
+    {/snippet}
+  </Input>
 </div>

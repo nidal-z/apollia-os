@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Search } from "lucide-svelte";
   import { t } from "svelte-i18n";
   import { Input } from "$lib/components/ui/input";
 
@@ -47,25 +48,26 @@
   }
 </script>
 
-<div class="relative">
-  <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-    &#x1F50D;
-  </span>
+<div class="w-full sm:w-64">
   <Input
     type="text"
     placeholder={$t('memory.search_placeholder')}
     aria-label={$t('memory.search_placeholder')}
-    class="w-full sm:w-64 pl-9 pr-8"
     value={internalValue}
     oninput={handleInput}
-  />
-  {#if internalValue.length > 0}
-    <button
-      class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-      onclick={handleClear}
-      aria-label={$t("a11y.clear_search")}
-    >
-      &times;
-    </button>
-  {/if}
+    icon={Search}
+  >
+    {#snippet trailing()}
+      {#if internalValue.length > 0}
+        <button
+          type="button"
+          class="text-muted-foreground hover:text-foreground"
+          onclick={handleClear}
+          aria-label={$t("a11y.clear_search")}
+        >
+          &times;
+        </button>
+      {/if}
+    {/snippet}
+  </Input>
 </div>
