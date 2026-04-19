@@ -1516,7 +1516,47 @@
     "project_selector": "Projet",
     "no_project": "Sans projet",
     "move_to_project": "Déplacer vers un projet...",
-    "remove_from_project": "Retirer du projet"
+    "remove_from_project": "Retirer du projet",
+    "quickpicker": {
+      "title": "Démarrer une conversation",
+      "prompt_label": "Que veux-tu faire ?",
+      "prompt_placeholder": "Décris ce dont tu as besoin — ex. « relis mes changements », ou choisis un modèle ci-dessous…",
+      "submit_hint": "Cmd+Entrée pour démarrer un chat libre",
+      "start_free": "Chat libre",
+      "templates_section": "Modèles",
+      "agents_section": "Agents",
+      "empty_agents": "Aucun agent n'est installé. Installes-en un pour commencer à déléguer.",
+      "install_agent": "Installer un agent",
+      "docs_link": "Documentation"
+    },
+    "template": {
+      "dev_review": {
+        "title": "Revue de code",
+        "description": "Relire les changements en cours et détecter les tests manquants."
+      },
+      "spec_writing": {
+        "title": "Rédaction de spec",
+        "description": "Co-écrire une spec technique avec des questions de clarification."
+      },
+      "research": {
+        "title": "Recherche",
+        "description": "Rassembler des sources et résumer l'état de l'art."
+      },
+      "debug": {
+        "title": "Débogage",
+        "description": "Isoler un bug pas à pas et remonter à la cause."
+      },
+      "ops_playbook": {
+        "title": "Runbook ops",
+        "description": "Exécuter un runbook opérationnel avec garde-fous."
+      }
+    },
+    "agent_status": {
+      "online": "En ligne",
+      "busy": "Occupé",
+      "offline": "Hors ligne",
+      "error": "Erreur"
+    }
   },
   "transcriptions": {
     "title": "Transcriptions",

@@ -259,6 +259,83 @@ pub async fn list_agents(
     Ok(items)
 }
 
+/// Snapshot léger du statut live de tous les agents.
+///
+/// Projette l'état runtime (`ProcessState`) vers les 4 statuts exposés au
+/// QuickPicker (`online` / `busy` / `offline` / `error`). Utilisé pour un
+/// polling rapide par le frontend sans charger le payload complet de
+/// [`list_agents`].
+///
+/// Mapping :
+/// - `Active`   → `"online"`
+/// - `Degraded` → `"error"` (dernier run a échoué)
+/// - `Stopping` | `Stopped` | non chargé → `"offline"`
+/// - `Initializing` → `"busy"`
+#[derive(Debug, Serialize)]
+pub struct AgentStatusSnapshot {
+    /// Nom unique de l'agent.
+    pub name: String,
+    /// Statut normalisé pour l'UI : `online` | `busy` | `offline` | `error`.
+    pub status: String,
+}
+
+#[tauri::command]
+pub async fn agent_status_snapshot(
+    runtime: State<'_, RuntimeHandle>,
+    repo: State<'_, Arc<std::sync::Mutex<AgentRepository>>>,
+) -> Result<Vec<AgentStatusSnapshot>, String> {
+    let installed = tokio::task::spawn_blocking({
+        let repo = Arc::clone(&repo);
+        move || {
+            let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
+            repo.list().map_err(|e| e.to_string())
+        }
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
+
+    let runtime_entries = runtime
+        .registry_handle
+        .list_agents()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let mut items: Vec<AgentStatusSnapshot> = Vec::new();
+
+    for agent in &installed {
+        let status = runtime_entries
+            .iter()
+            .find(|e| e.manifest.name == agent.name)
+            .map(|e| process_state_to_ui_status(&e.process_state))
+            .unwrap_or_else(|| "offline".to_string());
+        items.push(AgentStatusSnapshot {
+            name: agent.name.clone(),
+            status,
+        });
+    }
+
+    for entry in &runtime_entries {
+        if !installed.iter().any(|i| i.name == entry.manifest.name) {
+            items.push(AgentStatusSnapshot {
+                name: entry.manifest.name.clone(),
+                status: process_state_to_ui_status(&entry.process_state),
+            });
+        }
+    }
+
+    Ok(items)
+}
+
+fn process_state_to_ui_status(state: &ProcessState) -> String {
+    match state {
+        ProcessState::Active => "online",
+        ProcessState::Degraded => "error",
+        ProcessState::Initializing => "busy",
+        ProcessState::Stopping | ProcessState::Stopped => "offline",
+    }
+    .to_string()
+}
+
 /// Démarre un agent depuis un fichier Python.
 ///
 /// Délègue à `POST /api/v1/agents` car le chargement Python nécessite

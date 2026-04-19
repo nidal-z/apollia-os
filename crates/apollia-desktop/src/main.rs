@@ -508,6 +508,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::agents::list_agents,
+            commands::agents::agent_status_snapshot,
             commands::agents::list_agent_messages,
             commands::agents::start_agent,
             commands::agents::stop_agent,

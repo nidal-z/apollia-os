@@ -1516,7 +1516,47 @@
     "project_selector": "Project",
     "no_project": "No project",
     "move_to_project": "Move to project...",
-    "remove_from_project": "Remove from project"
+    "remove_from_project": "Remove from project",
+    "quickpicker": {
+      "title": "Start a conversation",
+      "prompt_label": "What do you want to do?",
+      "prompt_placeholder": "Describe what you need — e.g. \"review my changes\", or pick a template below…",
+      "submit_hint": "Cmd+Enter to start a free chat",
+      "start_free": "Start free chat",
+      "templates_section": "Templates",
+      "agents_section": "Agents",
+      "empty_agents": "No agents are installed yet. Install one to start delegating work.",
+      "install_agent": "Install an agent",
+      "docs_link": "Documentation"
+    },
+    "template": {
+      "dev_review": {
+        "title": "Dev review",
+        "description": "Review pending changes and surface missing tests."
+      },
+      "spec_writing": {
+        "title": "Spec writing",
+        "description": "Co-author a technical spec with clarifying questions."
+      },
+      "research": {
+        "title": "Research",
+        "description": "Gather sources and summarise the current state of the art."
+      },
+      "debug": {
+        "title": "Debug",
+        "description": "Walk through a bug step by step and isolate the cause."
+      },
+      "ops_playbook": {
+        "title": "Ops playbook",
+        "description": "Execute an operational runbook with safety checks."
+      }
+    },
+    "agent_status": {
+      "online": "Online",
+      "busy": "Busy",
+      "offline": "Offline",
+      "error": "Error"
+    }
   },
   "transcriptions": {
     "title": "Transcriptions",
