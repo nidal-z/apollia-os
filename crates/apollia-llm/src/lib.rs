@@ -22,7 +22,7 @@ pub mod types;
 
 pub use meta_orchestrator::{
     MetaLlmBudget, MetaLlmOrchestrator, MetaLlmSettings, MetaOrchestratorHandle, MetaRoutine,
-    DEFAULT_SESSION_BUDGET_TOKENS,
+    ThinkingContradiction, ThinkingQuality, ThinkingSummary, DEFAULT_SESSION_BUDGET_TOKENS,
 };
 
 pub use repository::{

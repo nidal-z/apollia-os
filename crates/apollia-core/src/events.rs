@@ -845,6 +845,36 @@ pub enum RuntimeEvent {
         threshold_exceeded: bool,
     },
 
+    // ── Thinking / Reasoning transparency events (US-SP42-037) ───
+    /// Émis au début de la phase Reasoner — l'agent commence à "réfléchir".
+    ///
+    /// Permet au frontend d'afficher un indicateur de thinking en streaming.
+    /// Le `turn_id` corrèle cet événement avec `ThinkingEnded` et les éventuels
+    /// résumés produits par `MetaRoutine::GenerateThinkingSummary`.
+    ThinkingStarted {
+        /// Identifiant du tour de conversation (souvent le `task_id`).
+        turn_id: String,
+        /// Timestamp Unix en millisecondes du début de la phase thinking.
+        ts_ms: u64,
+    },
+    /// Émis à la fin de la phase Reasoner — le raisonnement est terminé.
+    ///
+    /// Transporte le raw content produit par le LLM, la durée et un estimé
+    /// du nombre de tokens consommés. Le frontend peut l'utiliser pour
+    /// afficher un panneau "Thinking raw" et déclencher la narration méta.
+    ThinkingEnded {
+        /// Identifiant du tour de conversation (souvent le `task_id`).
+        turn_id: String,
+        /// Timestamp Unix en millisecondes de fin de la phase thinking.
+        ts_ms: u64,
+        /// Durée totale de la phase thinking en millisecondes.
+        duration_ms: u64,
+        /// Contenu brut produit par le LLM pendant la phase thinking.
+        raw_content: String,
+        /// Nombre de tokens consommés pendant la phase thinking (estimation).
+        tokens: u32,
+    },
+
     // ── Meta LLM Orchestrator events (ADR-073) ───
     /// Émis par `MetaLlmOrchestrator` quand le budget tokens/session est dépassé.
     ///
@@ -1357,6 +1387,18 @@ mod tests {
                 total_cache_read_tokens: 240,
                 threshold_usd: 0.50,
                 threshold_exceeded: false,
+            },
+            // ── Thinking / Reasoning transparency ─────────────
+            RuntimeEvent::ThinkingStarted {
+                turn_id: "turn-001".into(),
+                ts_ms: 1_700_000_000_000,
+            },
+            RuntimeEvent::ThinkingEnded {
+                turn_id: "turn-001".into(),
+                ts_ms: 1_700_000_001_500,
+                duration_ms: 1_500,
+                raw_content: "Let me think about this...".into(),
+                tokens: 120,
             },
             // ── Meta LLM Orchestrator ─────────────────────────
             RuntimeEvent::MetaLlmBudgetExceeded {

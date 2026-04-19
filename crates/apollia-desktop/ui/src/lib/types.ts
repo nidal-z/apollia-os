@@ -1350,3 +1350,46 @@ export interface CliStatus {
   version: string;
   needs_privilege: boolean;
 }
+
+// ── US-SP42-037 — Thinking / Reasoning transparency ────────────────────────
+
+/** Payload of the `ThinkingStarted` runtime event. */
+export interface ThinkingStartedEvent {
+  turn_id: string;
+  ts_ms: number;
+}
+
+/** Payload of the `ThinkingEnded` runtime event. */
+export interface ThinkingEndedEvent {
+  turn_id: string;
+  ts_ms: number;
+  duration_ms: number;
+  raw_content: string;
+  tokens: number;
+}
+
+/** Quality assessment produced by `MetaRoutine::GenerateThinkingSummary`. */
+export type ThinkingQuality = "low" | "medium" | "high";
+
+/** Reference to a prior turn whose reasoning contradicts the current one. */
+export interface ThinkingContradiction {
+  turn_id: string;
+  excerpt: string;
+}
+
+/** Structured summary of a thinking trace (produced by the meta LLM). */
+export interface ThinkingSummary {
+  summary: string;
+  quality: ThinkingQuality;
+  contradiction_with_previous: ThinkingContradiction | null;
+}
+
+/** Per-turn thinking state managed client-side. */
+export interface ThinkingState {
+  turn_id: string;
+  started_ms: number;
+  ended_ms: number | null;
+  raw_content: string;
+  tokens: number;
+  summary: ThinkingSummary | null;
+}

@@ -12,6 +12,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::plan_alternatives::{PlanAlternatives, TaskPlan, TaskPlanStep};
 use apollia_core::{AIPPart, ORIAConfig};
 use apollia_llm::{ChatMessage, CompletionModel, CompletionRequest};
@@ -127,6 +128,9 @@ RÉPONDRE UNIQUEMENT EN JSON VALIDE."#;
 pub struct Reasoner {
     model: Arc<dyn CompletionModel>,
     max_steps: u32,
+    /// Optional EventBus pour émettre `ThinkingStarted` / `ThinkingEnded` autour
+    /// de la phase Reasoner (US-SP42-037). Injecté via [`Reasoner::with_event_bus`].
+    event_bus: Option<EventBusSender>,
 }
 
 impl Reasoner {
@@ -135,7 +139,60 @@ impl Reasoner {
     /// `max_steps` borne la taille du plan que le LLM est autorisé à générer.
     /// Il est typiquement dérivé du `StepBudget` de l'agent via `from_capped()`.
     pub fn new(model: Arc<dyn CompletionModel>, max_steps: u32) -> Self {
-        Self { model, max_steps }
+        Self {
+            model,
+            max_steps,
+            event_bus: None,
+        }
+    }
+
+    /// Attache un `EventBusSender` pour émettre les événements de transparence
+    /// `ThinkingStarted` / `ThinkingEnded` (US-SP42-037).
+    #[must_use]
+    pub fn with_event_bus(mut self, bus: EventBusSender) -> Self {
+        self.event_bus = Some(bus);
+        self
+    }
+
+    /// Timestamp Unix en millisecondes — utilisé pour horodater les events thinking.
+    fn now_ms() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64
+    }
+
+    /// Émet `ThinkingStarted` sur le bus si configuré — silencieux si le bus est absent.
+    fn emit_thinking_started(&self, turn_id: &str) -> (u64, std::time::Instant) {
+        let ts = Self::now_ms();
+        let start = std::time::Instant::now();
+        if let Some(bus) = &self.event_bus {
+            let _ = bus.send(RuntimeEvent::ThinkingStarted {
+                turn_id: turn_id.to_owned(),
+                ts_ms: ts,
+            });
+        }
+        (ts, start)
+    }
+
+    /// Émet `ThinkingEnded` avec le raw content et les tokens consommés.
+    fn emit_thinking_ended(
+        &self,
+        turn_id: &str,
+        start: std::time::Instant,
+        raw_content: String,
+        tokens: u32,
+    ) {
+        if let Some(bus) = &self.event_bus {
+            let duration_ms = start.elapsed().as_millis() as u64;
+            let _ = bus.send(RuntimeEvent::ThinkingEnded {
+                turn_id: turn_id.to_owned(),
+                ts_ms: Self::now_ms(),
+                duration_ms,
+                raw_content,
+                tokens,
+            });
+        }
     }
 
     /// Génère un plan d'exécution initial depuis le [`ContextBundle`].
@@ -204,6 +261,10 @@ impl Reasoner {
         temperature: Option<f32>,
     ) -> Result<ExecutionPlan, ReasonerError> {
         let mut last_error = String::new();
+        let turn_id = ctx.task.task_id.as_str().to_owned();
+        let (_start_ts, start_instant) = self.emit_thinking_started(&turn_id);
+        let mut total_tokens: u32 = 0;
+        let mut last_raw = String::new();
 
         for attempt in 0..MAX_ATTEMPTS {
             let system = self.build_system_prompt(ctx);
@@ -217,7 +278,7 @@ impl Reasoner {
                 )
             };
 
-            let response = self
+            let response = match self
                 .model
                 .complete(CompletionRequest {
                     messages: vec![ChatMessage::system(system), ChatMessage::user(user)],
@@ -225,7 +286,21 @@ impl Reasoner {
                     ..Default::default()
                 })
                 .await
-                .map_err(|e| ReasonerError::LlmFailed(e.to_string()))?;
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    self.emit_thinking_ended(
+                        &turn_id,
+                        start_instant,
+                        last_raw.clone(),
+                        total_tokens,
+                    );
+                    return Err(ReasonerError::LlmFailed(e.to_string()));
+                }
+            };
+
+            total_tokens = total_tokens.saturating_add(response.usage.completion_tokens);
+            last_raw.clone_from(&response.content);
 
             match self.parse_and_validate(&response.content, &ctx.task.task_id) {
                 Ok(plan) => {
@@ -234,6 +309,7 @@ impl Reasoner {
                         steps = plan.steps.len(),
                         "ExecutionPlan ready"
                     );
+                    self.emit_thinking_ended(&turn_id, start_instant, last_raw, total_tokens);
                     return Ok(plan);
                 }
                 Err(e) => {
@@ -243,6 +319,7 @@ impl Reasoner {
             }
         }
 
+        self.emit_thinking_ended(&turn_id, start_instant, last_raw, total_tokens);
         Err(ReasonerError::PlanParseError {
             attempts: MAX_ATTEMPTS,
             reason: last_error,
@@ -847,6 +924,81 @@ mod tests {
             2,
             "mock should have been called exactly twice"
         );
+    }
+
+    // ─── US-SP42-037 — ThinkingStarted / ThinkingEnded emission ───
+
+    /// GIVEN un Reasoner branché sur un EventBus et un mock qui retourne un plan valide
+    /// WHEN reasoner.plan(&ctx).await est appelé
+    /// THEN exactement un `ThinkingStarted` suivi d'un `ThinkingEnded` sont émis
+    ///   ET le `turn_id` des events correspond au `task_id` du ContextBundle
+    ///   ET `ThinkingEnded.raw_content` transporte le dernier contenu LLM
+    #[tokio::test]
+    async fn emits_thinking_started_and_ended_on_success() {
+        use apollia_core::events::RuntimeEvent;
+        use tokio::sync::broadcast;
+
+        // GIVEN
+        let model = MockCompletionModel::sequence(vec![VALID_PLAN_2_STEPS]);
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
+        let reasoner = Reasoner::new(model, 10).with_event_bus(tx);
+        let mut ctx = ContextBundle::default();
+        ctx.task.task_id = "turn-xyz".into();
+
+        // WHEN
+        let plan = reasoner.plan(&ctx).await.expect("plan ok");
+        assert_eq!(plan.steps.len(), 2);
+
+        // THEN — ThinkingStarted puis ThinkingEnded avec le bon turn_id
+        let started = rx.recv().await.expect("started");
+        match started {
+            RuntimeEvent::ThinkingStarted { turn_id, ts_ms } => {
+                assert_eq!(turn_id, "turn-xyz");
+                assert!(ts_ms > 0);
+            }
+            other => panic!("expected ThinkingStarted, got {other:?}"),
+        }
+        let ended = rx.recv().await.expect("ended");
+        match ended {
+            RuntimeEvent::ThinkingEnded {
+                turn_id,
+                raw_content,
+                ..
+            } => {
+                assert_eq!(turn_id, "turn-xyz");
+                assert!(raw_content.contains("steps"));
+            }
+            other => panic!("expected ThinkingEnded, got {other:?}"),
+        }
+    }
+
+    /// GIVEN un Reasoner branché sur un EventBus et un mock qui retourne du JSON invalide
+    /// WHEN reasoner.plan(&ctx).await échoue après MAX_ATTEMPTS
+    /// THEN `ThinkingEnded` est quand même émis (garantie de fin de phase)
+    #[tokio::test]
+    async fn emits_thinking_ended_on_parse_failure() {
+        use apollia_core::events::RuntimeEvent;
+        use tokio::sync::broadcast;
+
+        let model = MockCompletionModel::sequence(vec!["not json", "nope", "still no"]);
+        let (tx, mut rx) = broadcast::channel::<RuntimeEvent>(16);
+        let reasoner = Reasoner::new(model, 10).with_event_bus(tx);
+        let ctx = ContextBundle::default();
+
+        let _ = reasoner.plan(&ctx).await;
+
+        // Drain until we see ThinkingEnded — there must be exactly one.
+        let mut saw_started = false;
+        let mut saw_ended = false;
+        while let Ok(evt) = rx.try_recv() {
+            match evt {
+                RuntimeEvent::ThinkingStarted { .. } => saw_started = true,
+                RuntimeEvent::ThinkingEnded { .. } => saw_ended = true,
+                _ => {}
+            }
+        }
+        assert!(saw_started, "ThinkingStarted should have been emitted");
+        assert!(saw_ended, "ThinkingEnded must fire on failure path too");
     }
 
     /// GIVEN un mock qui fournit des plans avec des steps ayant des descriptions

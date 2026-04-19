@@ -272,6 +272,62 @@ fn canonical_json(value: &serde_json::Value) -> String {
 }
 
 // ─────────────────────────────────────────────
+// Thinking summary (US-SP42-037)
+// ─────────────────────────────────────────────
+
+/// Niveau de qualité estimé d'une trace de thinking par [`MetaRoutine::GenerateThinkingSummary`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ThinkingQuality {
+    /// Raisonnement vague, hésitant, ou contradictoire avec lui-même.
+    Low,
+    /// Cohérent mais superficiel — saute aux conclusions sans examiner d'alternatives.
+    Medium,
+    /// Raisonnement explicite, alternatives pondérées, décisions ancrées dans le contexte.
+    High,
+}
+
+/// Contradiction détectée entre la trace courante et un tour précédent.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ThinkingContradiction {
+    /// Identifiant du tour précédent avec lequel il y a contradiction.
+    pub turn_id: String,
+    /// Court extrait (≤ 30 mots) du raisonnement précédent concerné.
+    pub excerpt: String,
+}
+
+/// Sortie structurée de [`MetaRoutine::GenerateThinkingSummary`].
+///
+/// Le prompt `thinking_summary.md` demande au LLM de retourner ce JSON.
+/// Utiliser [`ThinkingSummary::parse`] pour désérialiser la réponse brute
+/// (tolère les backticks Markdown éventuels).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ThinkingSummary {
+    /// Résumé en langage naturel du point de décision clé (1-2 phrases).
+    pub summary: String,
+    /// Qualité estimée du raisonnement.
+    pub quality: ThinkingQuality,
+    /// Contradiction détectée avec un tour précédent, ou `None`.
+    #[serde(default)]
+    pub contradiction_with_previous: Option<ThinkingContradiction>,
+}
+
+impl ThinkingSummary {
+    /// Désérialise une réponse brute du LLM (trim + strip des backticks Markdown).
+    ///
+    /// Retourne `Err` si le JSON est invalide ou si les champs requis sont absents.
+    pub fn parse(raw: &str) -> Result<Self, serde_json::Error> {
+        let clean = raw
+            .trim()
+            .trim_start_matches("```json")
+            .trim_start_matches("```")
+            .trim_end_matches("```")
+            .trim();
+        serde_json::from_str(clean)
+    }
+}
+
+// ─────────────────────────────────────────────
 // Prompt rendering
 // ─────────────────────────────────────────────
 
@@ -875,6 +931,49 @@ mod tests {
         for r in MetaRoutine::ALL {
             assert!(!s.is_routine_enabled(r));
         }
+    }
+
+    // ─── US-SP42-037 — ThinkingSummary parsing ───
+
+    /// GIVEN une réponse JSON valide avec tous les champs
+    /// WHEN ThinkingSummary::parse()
+    /// THEN les champs sont désérialisés correctement
+    #[test]
+    fn thinking_summary_parses_full_payload() {
+        let raw = r#"{
+            "summary": "Chose to read the config before editing.",
+            "quality": "high",
+            "contradiction_with_previous": {
+                "turn_id": "turn-3",
+                "excerpt": "I already read the config."
+            }
+        }"#;
+        let ts = ThinkingSummary::parse(raw).expect("parse ok");
+        assert_eq!(ts.quality, ThinkingQuality::High);
+        let c = ts.contradiction_with_previous.expect("some contradiction");
+        assert_eq!(c.turn_id, "turn-3");
+    }
+
+    /// GIVEN une réponse avec backticks Markdown et contradiction nulle
+    /// WHEN ThinkingSummary::parse()
+    /// THEN les fences sont strippées et contradiction_with_previous = None
+    #[test]
+    fn thinking_summary_strips_backticks_and_allows_null_contradiction() {
+        let raw = "```json\n{\"summary\":\"s\",\"quality\":\"medium\",\"contradiction_with_previous\":null}\n```";
+        let ts = ThinkingSummary::parse(raw).expect("parse ok");
+        assert_eq!(ts.quality, ThinkingQuality::Medium);
+        assert!(ts.contradiction_with_previous.is_none());
+    }
+
+    /// GIVEN une réponse où contradiction_with_previous est absent
+    /// WHEN ThinkingSummary::parse()
+    /// THEN serde default donne None
+    #[test]
+    fn thinking_summary_defaults_missing_contradiction_to_none() {
+        let raw = r#"{"summary":"s","quality":"low"}"#;
+        let ts = ThinkingSummary::parse(raw).expect("parse ok");
+        assert_eq!(ts.quality, ThinkingQuality::Low);
+        assert!(ts.contradiction_with_previous.is_none());
     }
 
     // GIVEN prompt template avec placeholders et inputs correspondants

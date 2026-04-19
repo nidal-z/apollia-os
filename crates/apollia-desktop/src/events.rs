@@ -304,6 +304,12 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
 
         // ── Workspace / file read ─────────────────────────────────────────
         RuntimeEvent::FileModifiedSinceRead { .. } => "system",
+
+        // ── Thinking / Reasoning transparency (US-SP42-037) ───────────────
+        RuntimeEvent::ThinkingStarted { .. } | RuntimeEvent::ThinkingEnded { .. } => "chat-changed",
+
+        // ── Meta LLM Orchestrator (ADR-073) ───────────────────────────────
+        RuntimeEvent::MetaLlmBudgetExceeded { .. } => "llm-changed",
     }
 }
 
