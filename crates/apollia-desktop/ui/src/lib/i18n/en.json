@@ -93,6 +93,7 @@
     "approvals": "Approvals",
     "llm": "LLM",
     "triggers": "Triggers",
+    "automations": "Automations",
     "pipelines": "Pipelines",
     "memory": "Memory",
     "notifications": "Notifications",
@@ -594,9 +595,48 @@
       "total": "Total"
     }
   },
+  "automations": {
+    "title": "Automations",
+    "subtitle": "Rules that run your assistants automatically.",
+    "new": "Create an automation",
+    "run_now": "Run now",
+    "running": "Starting…",
+    "view_history": "View history",
+    "advanced_link": "Open the advanced builder view",
+    "target_prefix": "Assistant",
+    "paused_hint": "Paused — enable it in the advanced view to run on schedule.",
+    "fired_toast": "Automation started — task {taskId}",
+    "templates_coming_soon": "Template gallery coming soon.",
+    "custom_tooltip": "Custom schedule defined in builder mode: {expr}",
+    "last_run_failed": "Last run failed",
+    "success_stat": "Success {rate}% ({fires}/{total})",
+    "skipped_stat": "Skipped {count}",
+    "skipped_tooltip": "Skipped because a run was already in progress.",
+    "success_tooltip": "{fires} successful runs out of {total} total.",
+    "last_run": "Last run {when}",
+    "error_tooltip": "Last run failed {when}",
+    "status": {
+      "active": "Active",
+      "paused": "Paused",
+      "error": "Error"
+    },
+    "relative": {
+      "seconds": "{n}s ago",
+      "minutes": "{n}m ago",
+      "hours": "{n}h ago",
+      "days": "{n}d ago"
+    },
+    "empty": {
+      "title": "No automations yet",
+      "description": "Automations run your assistants on a schedule, when a file changes, or when a webhook fires.",
+      "primary": "Create an automation",
+      "secondary": "Browse templates"
+    }
+  },
   "triggers": {
     "title": "Triggers",
     "subtitle": "Automatic rules that start your assistants",
+    "builder_mode_badge": "Builder Mode",
     "reload": "Reload config",
     "reloading": "Reloading...",
     "reload_success": "Configuration reloaded ({count} active triggers)",

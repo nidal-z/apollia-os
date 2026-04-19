@@ -11,6 +11,7 @@
   import Approvals from "../../routes/Approvals.svelte";
   import Llm from "../../routes/Llm.svelte";
   import Triggers from "../../routes/Triggers.svelte";
+  import Automations from "../../routes/Automations.svelte";
   import Pipelines from "../../routes/Pipelines.svelte";
   import Memory from "../../routes/Memory.svelte";
   import Notifications from "../../routes/Notifications.svelte";
@@ -97,6 +98,8 @@
           <Llm />
         {:else if $currentRoute === "triggers"}
           <Triggers />
+        {:else if $currentRoute === "automations"}
+          <Automations />
         {:else if $currentRoute === "pipelines"}
           <Pipelines />
         {:else if $currentRoute === "projects"}

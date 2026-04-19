@@ -50,6 +50,7 @@
     { route: "projects", labelKey: "nav.projects", icon: FolderOpen },
     { route: "tasks", labelKey: "nav.activity", icon: ListChecks },
     { route: "chat", labelKey: "nav.chat", icon: MessageSquare },
+    { route: "automations", labelKey: "nav.automations", icon: Timer },
     { route: "integrations", labelKey: "nav.connections", icon: Plug },
     { route: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
   ];

@@ -122,7 +122,17 @@
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-2xl font-semibold" data-testid="triggers-header">{$t('triggers.title')}</h1>
+      <div class="flex items-center gap-2">
+        <h1 class="text-2xl font-semibold" data-testid="triggers-header">{$t('triggers.title')}</h1>
+        {#if $uiMode === "builder"}
+          <span
+            class="rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+            data-testid="triggers-builder-badge"
+          >
+            {$t('triggers.builder_mode_badge')}
+          </span>
+        {/if}
+      </div>
       <p class="text-xs text-muted-foreground" data-testid="triggers-subtitle">{$t('triggers.subtitle')}</p>
     </div>
     <div class="flex items-center gap-2">

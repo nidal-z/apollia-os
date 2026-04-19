@@ -83,7 +83,7 @@
     <!-- Sheet panel -->
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
     <div
-      class="h-full w-full max-w-md overflow-auto border-l glass-panel glass-border p-6 shadow-lg"
+      class="h-full w-[90vw] sm:max-w-md overflow-auto border-l glass-panel glass-border p-6 shadow-lg"
       onclick={handlePanelClick}
     >
       <!-- Header -->

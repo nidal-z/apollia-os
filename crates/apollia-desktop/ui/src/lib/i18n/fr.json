@@ -93,6 +93,7 @@
     "approvals": "Approbations",
     "llm": "LLM",
     "triggers": "Triggers",
+    "automations": "Automatisations",
     "pipelines": "Pipelines",
     "memory": "Mémoire",
     "notifications": "Notifications",
@@ -594,9 +595,48 @@
       "total": "Total"
     }
   },
+  "automations": {
+    "title": "Automatisations",
+    "subtitle": "Règles qui lancent vos assistants automatiquement.",
+    "new": "Créer une automatisation",
+    "run_now": "Lancer maintenant",
+    "running": "Lancement…",
+    "view_history": "Voir l'historique",
+    "advanced_link": "Ouvrir la vue builder avancée",
+    "target_prefix": "Assistant",
+    "paused_hint": "En pause — réactivez-la en mode avancé pour qu'elle s'exécute selon sa planification.",
+    "fired_toast": "Automatisation lancée — tâche {taskId}",
+    "templates_coming_soon": "Galerie de modèles bientôt disponible.",
+    "custom_tooltip": "Planification avancée définie en mode builder : {expr}",
+    "last_run_failed": "Dernière exécution en échec",
+    "success_stat": "Succès {rate} % ({fires}/{total})",
+    "skipped_stat": "Ignoré {count}",
+    "skipped_tooltip": "Ignoré car une exécution était déjà en cours.",
+    "success_tooltip": "{fires} exécutions réussies sur {total} au total.",
+    "last_run": "Dernière exécution il y a {when}",
+    "error_tooltip": "Dernière exécution en échec il y a {when}",
+    "status": {
+      "active": "Active",
+      "paused": "En pause",
+      "error": "En erreur"
+    },
+    "relative": {
+      "seconds": "{n} s",
+      "minutes": "{n} min",
+      "hours": "{n} h",
+      "days": "{n} j"
+    },
+    "empty": {
+      "title": "Aucune automatisation",
+      "description": "Les automatisations lancent vos assistants selon une planification, un fichier qui change, ou un webhook reçu.",
+      "primary": "Créer une automatisation",
+      "secondary": "Parcourir les modèles"
+    }
+  },
   "triggers": {
     "title": "Triggers",
     "subtitle": "Règles automatiques qui démarrent vos assistants",
+    "builder_mode_badge": "Mode Builder",
     "reload": "Recharger la config",
     "reloading": "Rechargement...",
     "reload_success": "Configuration rechargée ({count} triggers actifs)",
