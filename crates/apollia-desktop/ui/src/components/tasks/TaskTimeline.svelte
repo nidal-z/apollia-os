@@ -47,16 +47,16 @@
     hitl_suspended: "bg-warning",
     hitl_resolved: "bg-success",
     task_completed: "bg-success",
-    step_observation: "bg-[#7c5fd6]",
-    plan_cache_hit: "bg-[#3435f5]",
+    step_observation: "bg-secondary",
+    plan_cache_hit: "bg-primary",
   };
 
   const MODEL_BADGE_COLORS: Record<string, string> = {
-    "gpt-4o": "bg-[#3435f5]/20 text-[#3435f5]",
-    "gpt-4o-mini": "bg-[#3435f5]/15 text-[#3435f5]/80",
-    "haiku": "bg-[#7c5fd6]/20 text-[#7c5fd6]",
-    "sonnet": "bg-[#7c5fd6]/20 text-[#7c5fd6]",
-    "opus": "bg-[#7c5fd6]/25 text-[#7c5fd6]",
+    "gpt-4o": "bg-primary/20 text-primary",
+    "gpt-4o-mini": "bg-primary/15 text-primary/80",
+    "haiku": "bg-secondary/20 text-secondary",
+    "sonnet": "bg-secondary/20 text-secondary",
+    "opus": "bg-secondary/25 text-secondary",
   };
 
   const DEFAULT_MODEL_BADGE = "bg-muted text-muted-foreground";
@@ -65,12 +65,12 @@
     direct: {
       operator: "Simple",
       builder: "Direct",
-      color: "bg-[#3435f5]/20 text-[#3435f5]",
+      color: "bg-primary/20 text-primary",
     },
     orchestrated: {
       operator: "Complex",
       builder: "Orchestrated",
-      color: "bg-[#7c5fd6]/20 text-[#7c5fd6]",
+      color: "bg-secondary/20 text-secondary",
     },
   };
 
@@ -641,12 +641,12 @@
     <!-- Cache hit banner -->
     {#if hasCacheHit && cacheHitEvent && cacheHitEvent.type === "plan_cache_hit"}
       <div
-        class="mb-3 flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#3435f5]/5 to-transparent py-2 px-3"
+        class="mb-3 flex items-center gap-2 rounded-lg bg-gradient-to-r from-primary/5 to-transparent py-2 px-3"
         data-testid="timeline-cache-hit"
         title={$t('tasks.cache_hit_tooltip')}
         in:fly={{ y: 3, duration: 100 }}
       >
-        <Zap size={13} class="shrink-0 text-[#3435f5]" />
+        <Zap size={13} class="shrink-0 text-primary" />
         <span class="text-xs text-foreground/70">
           {$uiMode === "builder" ? $t('tasks.cache_hit_builder') : $t('tasks.cache_hit_operator')}
         </span>
@@ -667,7 +667,7 @@
           <!-- Step observation entry -->
           {#if event.type === "step_observation"}
             <div class="flex items-start gap-2">
-              <Brain size={13} class="mt-0.5 shrink-0 text-[#7c5fd6]" />
+              <Brain size={13} class="mt-0.5 shrink-0 text-secondary" />
               <div class="min-w-0 flex-1">
                 <div class="flex items-baseline gap-2">
                   <span class="text-xs text-foreground/70">{eventSummary(event)}</span>

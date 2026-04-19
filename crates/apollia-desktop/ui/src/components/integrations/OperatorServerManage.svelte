@@ -1,7 +1,8 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
-  import { Loader2, Wrench } from "lucide-svelte";
+  import { Wrench } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
   import { Sheet } from "$lib/components/ui/sheet";
   import { Button } from "$lib/components/ui/button";
   import { formatRelativeTime } from "$lib/utils";
@@ -177,7 +178,7 @@
 
     {#if loading}
       <div class="flex items-center gap-2 text-sm text-muted-foreground" data-testid="manage-loading">
-        <Loader2 size={14} class="animate-spin" />
+        <Spinner size={14} />
         <span>{$t("common.loading")}</span>
       </div>
     {:else if fetchError}
@@ -247,7 +248,7 @@
         />
         {#if approvalPending}
           <p class="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
-            <Loader2 size={11} class="animate-spin" />
+            <Spinner size={11} />
             {$t("integrations.manage.approval_saving")}
           </p>
         {/if}
@@ -261,7 +262,7 @@
       <!-- Test result inline feedback -->
       {#if testState === "ok" && testStatus}
         <p
-          class="text-sm text-emerald-600 dark:text-emerald-400"
+          class="text-sm text-success"
           data-testid="manage-test-ok"
         >
           {$t("integrations.manage.test_ok", {
@@ -292,7 +293,7 @@
             data-testid="manage-test-btn"
           >
             {#if testState === "testing"}
-              <Loader2 size={14} class="mr-1.5 animate-spin" />
+              <Spinner size={14} class="mr-1.5" />
               {$t("integrations.manage.test_testing")}
             {:else}
               {$t("integrations.manage.test_button")}
@@ -307,7 +308,7 @@
             data-testid="manage-reconnect-btn"
           >
             {#if reconnecting}
-              <Loader2 size={14} class="mr-1.5 animate-spin" />
+              <Spinner size={14} class="mr-1.5" />
               {$t("integrations.manage.reconnecting")}
             {:else}
               {$t("integrations.manage.reconnect_button")}
@@ -358,7 +359,7 @@
                 data-testid="manage-disconnect-confirm-btn"
               >
                 {#if disconnecting}
-                  <Loader2 size={14} class="mr-1.5 animate-spin" />
+                  <Spinner size={14} class="mr-1.5" />
                   {$t("integrations.manage.disconnecting")}
                 {:else}
                   {$t("integrations.manage.disconnect_confirm")}

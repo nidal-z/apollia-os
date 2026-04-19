@@ -190,7 +190,7 @@
             </div>
             <div class="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
-                class="h-full rounded-full bg-emerald-500 transition-all"
+                class="h-full rounded-full bg-success transition-all"
                 style="width: {totalStepCount > 0 ? (completedStepCount / totalStepCount) * 100 : 0}%"
               ></div>
             </div>
@@ -208,7 +208,7 @@
                   {#if i < detail.step_runs.length - 1}
                     <div
                       class="absolute left-[7px] top-5 h-full w-px {step.status === 'completed'
-                        ? 'bg-emerald-500'
+                        ? 'bg-success'
                         : 'bg-border'}"
                     ></div>
                   {/if}
@@ -217,7 +217,7 @@
                   <div class="relative z-10 flex h-4 w-4 shrink-0 items-center justify-center text-xs">
                     <span
                       class="{step.status === 'completed'
-                        ? 'text-emerald-500'
+                        ? 'text-success'
                         : step.status === 'running'
                           ? 'text-primary animate-pulse'
                           : step.status === 'failed'
@@ -251,7 +251,7 @@
                       {/if}
                       {#if detail?.status === "waiting_approval"}
                         <button
-                          class="ml-auto text-xs text-amber-600 underline dark:text-amber-400"
+                          class="ml-auto text-xs text-warning underline"
                           onclick={(e) => { e.stopPropagation(); navigateToApprovals(); }}
                         >
                           {$t('pipelines.view_approvals')}

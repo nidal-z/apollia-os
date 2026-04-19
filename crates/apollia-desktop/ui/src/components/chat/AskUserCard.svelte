@@ -2,7 +2,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { slide } from "svelte/transition";
-  import { HelpCircle, Loader2 } from "lucide-svelte";
+  import { HelpCircle } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
   import { Button } from "$lib/components/ui/button";
   import AskUserQuestion from "./AskUserQuestion.svelte";
   import AskUserSummary from "./AskUserSummary.svelte";
@@ -152,7 +153,7 @@
         data-testid="ask-user-submit"
       >
         {#if isProcessing}
-          <Loader2 class="mr-1.5 h-3 w-3 animate-spin" />
+          <Spinner class="mr-1.5 h-3 w-3" />
         {/if}
         {$t("chat.ask_user_submit")}
       </Button>

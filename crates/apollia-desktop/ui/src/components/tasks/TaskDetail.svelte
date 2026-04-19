@@ -15,6 +15,7 @@
     Timer, Calendar, ChevronDown, ChevronRight,
     Maximize2, Minimize2, X,
   } from "lucide-svelte";
+  import { Separator } from "$lib/components/ui/separator";
   import TaskTimeline from "./TaskTimeline.svelte";
   import SmartOutput from "../common/SmartOutput.svelte";
 
@@ -229,7 +230,8 @@
               <span class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">{$t('tasks.technical_details')}</span>
             </button>
             {#if technicalExpanded}
-              <div class="border-t border-border/40 px-4 py-3">
+              <div class="px-4 py-3">
+                <Separator class="mb-3" />
                 <div class="flex items-center gap-2 text-xs">
                   <span class="text-muted-foreground/60">{$t('tasks.id_label')}:</span>
                   <code class="text-[10px] font-mono text-foreground/70 break-all">{task.id}</code>

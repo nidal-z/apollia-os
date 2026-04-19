@@ -2,7 +2,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-dialog";
   import { t } from "svelte-i18n";
-  import { Sparkles, HardDrive, Cloud, ChevronRight, Loader2, Check, AlertCircle } from "lucide-svelte";
+  import { Sparkles, HardDrive, Cloud, ChevronRight, Check, AlertCircle } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
 
   interface Props {
     /** Called when the LLM is configured (or skipped). */
@@ -116,7 +117,7 @@
         </div>
         <div class="option-action">
           {#if configuring}
-            <Loader2 size={16} class="animate-spin text-white/70" />
+            <Spinner size={16} />
           {:else}
             <ChevronRight size={16} class="text-white/50" />
           {/if}
@@ -140,7 +141,7 @@
           <span class="option-title">{$t("onboarding_v2.llm_setup.later_title")}</span>
           <span class="option-desc">{$t("onboarding_v2.llm_setup.later_desc")}</span>
         </div>
-        <ChevronRight size={16} class="text-gray-400" />
+        <ChevronRight size={16} class="text-muted-foreground/70" />
       </button>
 
       {#if error}
@@ -171,7 +172,7 @@
     position: fixed;
     inset: 0;
     z-index: 50;
-    background: #FFF8F0;
+    background: hsl(var(--background));
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -195,7 +196,7 @@
     width: 3.5rem;
     height: 3.5rem;
     border-radius: 1rem;
-    background: linear-gradient(135deg, #3435f5, #7c5fd6);
+    background: var(--gradient-primary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -205,13 +206,13 @@
   .llm-setup-title {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #1a1a2e;
+    color: hsl(var(--foreground));
     margin: 0;
   }
 
   .llm-setup-subtitle {
     font-size: 0.875rem;
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
     margin: 0;
     text-align: center;
     line-height: 1.5;
@@ -219,7 +220,7 @@
   }
 
   .llm-setup-subtitle strong {
-    color: #4B5563;
+    color: hsl(var(--foreground) / 0.8);
   }
 
   .llm-setup-content {
@@ -265,15 +266,15 @@
   }
 
   .llm-option-secondary {
-    background: rgba(255, 255, 255, 0.72);
+    background: hsl(var(--card) / 0.72);
     backdrop-filter: blur(20px);
-    border: 1px solid rgba(52, 53, 245, 0.08);
-    color: #374151;
+    border: 1px solid hsl(var(--primary) / 0.08);
+    color: hsl(var(--foreground));
     box-shadow: var(--shadow-elev-1);
   }
 
   .llm-option-secondary:hover:not(:disabled) {
-    border-color: rgba(52, 53, 245, 0.15);
+    border-color: hsl(var(--primary) / 0.15);
     box-shadow: var(--shadow-elev-2);
   }
 
@@ -288,12 +289,12 @@
   }
 
   .option-icon-local {
-    background: rgba(255, 255, 255, 0.2);
+    background: hsl(var(--card) / 0.2);
   }
 
   .option-icon-cloud {
-    background: rgba(52, 53, 245, 0.08);
-    color: #7c5fd6;
+    background: hsl(var(--primary) / 0.08);
+    color: hsl(var(--secondary));
   }
 
   .option-text {
@@ -321,7 +322,7 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    color: #9CA3AF;
+    color: hsl(var(--muted-foreground) / 0.7);
     font-size: 0.75rem;
     padding: 0.25rem 0;
   }
@@ -331,7 +332,7 @@
     content: "";
     flex: 1;
     height: 1px;
-    background: #E5E7EB;
+    background: hsl(var(--border));
   }
 
   .llm-setup-success {
@@ -346,7 +347,7 @@
     width: 3.5rem;
     height: 3.5rem;
     border-radius: 50%;
-    background: linear-gradient(135deg, #22c55e, #16a34a);
+    background: linear-gradient(135deg, hsl(var(--success)), hsl(var(--success) / 0.8));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -357,7 +358,7 @@
   .success-text {
     font-size: 1rem;
     font-weight: 600;
-    color: #16a34a;
+    color: hsl(var(--success));
     margin: 0;
   }
 
@@ -367,8 +368,8 @@
     gap: 0.5rem;
     padding: 0.625rem 1rem;
     border-radius: 0.75rem;
-    background: #FEF2F2;
-    color: #DC2626;
+    background: hsl(var(--destructive) / 0.05);
+    color: hsl(var(--destructive));
     font-size: 0.8125rem;
   }
 
@@ -382,13 +383,13 @@
 
   .llm-setup-hint {
     font-size: 0.75rem;
-    color: #9CA3AF;
+    color: hsl(var(--muted-foreground) / 0.7);
     text-align: center;
     margin: 0;
   }
 
   .llm-setup-hint a {
-    color: #7c5fd6;
+    color: hsl(var(--secondary));
     text-decoration: none;
   }
 
@@ -399,7 +400,7 @@
   .btn-skip {
     background: none;
     border: none;
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
     font-size: 0.8125rem;
     cursor: pointer;
     padding: 0.25rem 0.5rem;
@@ -408,7 +409,7 @@
 
   .btn-skip:hover {
     text-decoration: underline;
-    color: #4B5563;
+    color: hsl(var(--foreground) / 0.8);
   }
 
   @keyframes pop-in {

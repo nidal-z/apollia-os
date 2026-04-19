@@ -9,6 +9,7 @@
   } from "$lib/types";
   import type { UIMode } from "$lib/stores/mode";
   import { Skeleton } from "$lib/components/ui/skeleton";
+  import { Badge } from "$lib/components/ui/badge";
   import { addToast } from "$lib/components/ui/toast/store";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import UserMemoryEntryCard from "../../components/memory/UserMemoryEntryCard.svelte";
@@ -37,16 +38,16 @@
   let isDeleting = $state(false);
 
   const CATEGORY_COLORS: Record<string, string> = {
-    preferences: "#3435f5",
-    habits: "#7c5fd6",
-    context: "#f59e0b",
+    preferences: "hsl(var(--primary))",
+    habits: "hsl(var(--secondary))",
+    context: "hsl(var(--warning))",
   };
 
-  const SOURCE_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
-    onboarding: { bg: "bg-[#3435f5]/15", text: "text-[#3435f5]" },
-    chat_inference: { bg: "bg-amber-500/15", text: "text-amber-600" },
-    user_explicit: { bg: "bg-emerald-500/15", text: "text-emerald-600" },
-    agent_observation: { bg: "bg-purple-500/15", text: "text-purple-600" },
+  const SOURCE_BADGE_VARIANT: Record<string, "primary" | "warning" | "success" | "info"> = {
+    onboarding: "primary",
+    chat_inference: "warning",
+    user_explicit: "success",
+    agent_observation: "info",
   };
 
   const CATEGORIES = ["preferences", "habits", "context"] as const;
@@ -196,13 +197,13 @@
   {:else}
     <!-- Source legend -->
     <div class="flex flex-wrap gap-3" data-testid="source-legend">
-      {#each Object.entries(SOURCE_BADGE_COLORS) as [source, colors]}
+      {#each Object.keys(SOURCE_BADGE_VARIANT) as source}
         {@const count = visibleEntries.filter((e) => e.source === source).length}
         {#if count > 0}
           <div class="flex items-center gap-1.5">
-            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium {colors.bg} {colors.text}">
+            <Badge variant={SOURCE_BADGE_VARIANT[source] ?? "neutral"} class="text-[10px] px-2 py-0.5">
               {sourceBadgeLabel(source)}
-            </span>
+            </Badge>
             <span class="text-[10px] text-muted-foreground/60">{count}</span>
           </div>
         {/if}

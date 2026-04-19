@@ -58,11 +58,11 @@
     data-testid="recent-extractions"
   >
     <div class="flex items-center gap-2">
-      <Sparkles size={14} class="text-[#7c5fd6]" />
+      <Sparkles size={14} class="text-secondary" />
       <h3 class="text-xs font-medium uppercase tracking-wider text-muted-foreground/60">
         {sectionTitle}
       </h3>
-      <span class="rounded-full bg-[#7c5fd6]/15 px-1.5 text-[10px] font-medium text-[#7c5fd6]">
+      <span class="rounded-full bg-secondary/15 px-1.5 text-[10px] font-medium text-secondary">
         {recentInsights.length}
       </span>
     </div>

@@ -8,7 +8,8 @@
     buildHttpInputDisplay,
   } from "$lib/tools/tool-display";
   import { t } from "svelte-i18n";
-  import { Loader2, Check, X } from "lucide-svelte";
+  import { Check, X } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
   import WebSearchResultsCard from "./WebSearchResultsCard.svelte";
   import WebReadCard from "./WebReadCard.svelte";
 
@@ -78,7 +79,7 @@
 
     <span class="ml-auto flex flex-shrink-0 items-center gap-1">
       {#if isPending}
-        <Loader2 class="h-3 w-3 animate-spin text-muted-foreground" />
+        <Spinner class="h-3 w-3 text-muted-foreground" />
       {:else if isExecuted}
         <Check class="h-3 w-3 text-success" />
         {#if toolCall.duration_ms != null}

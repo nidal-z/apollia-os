@@ -54,7 +54,7 @@
     position: absolute;
     inset: 0;
     border-radius: 50%;
-    border: 1.5px solid rgba(52, 53, 245, 0.5);
+    border: 1.5px solid hsl(var(--primary) / 0.5);
     opacity: 0;
     transform: scale(1);
     pointer-events: none;
@@ -89,11 +89,11 @@
     z-index: 1;
     width: 1rem;
     height: 1rem;
-    color: #3435f5;
+    color: hsl(var(--primary));
     transition: color 120ms ease;
   }
 
   .voice-indicator.recording .mic-icon {
-    color: #e53e3e;
+    color: hsl(var(--destructive));
   }
 </style>

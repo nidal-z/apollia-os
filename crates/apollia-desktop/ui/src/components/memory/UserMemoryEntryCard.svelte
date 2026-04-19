@@ -17,11 +17,15 @@
 
   let { entry, onupdate, ondelete, onrecategorize, onvalidate }: Props = $props();
 
-  const CATEGORY_COLORS: Record<string, string> = {
-    preferences: "#3435f5",
-    habits: "#7c5fd6",
-    context: "#f59e0b",
-  };
+  function categoryClass(cat: string): string {
+    return (
+      ({
+        preferences: "bg-primary",
+        habits: "bg-secondary",
+        context: "bg-warning",
+      } as Record<string, string>)[cat] ?? "bg-muted"
+    );
+  }
 
   const SOURCE_LABELS: Record<string, string> = {
     onboarding: "source_onboarding",
@@ -76,9 +80,9 @@
   }
 
   function confidenceColor(confidence: number): string {
-    if (confidence >= 0.8) return "bg-emerald-500";
-    if (confidence >= 0.5) return "bg-amber-500";
-    return "bg-red-500";
+    if (confidence >= 0.8) return "bg-success";
+    if (confidence >= 0.5) return "bg-warning";
+    return "bg-destructive";
   }
 
   function handleClickOutside(): void {
@@ -99,8 +103,7 @@
       <div class="flex items-center gap-2 flex-wrap mb-1">
         <span class="font-medium text-sm text-foreground">{entry.key}</span>
         <span
-          class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
-          style="background-color: {CATEGORY_COLORS[entry.category] ?? '#6b7280'}"
+          class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium text-white {categoryClass(entry.category)}"
         >
           {entry.category}
         </span>
@@ -109,7 +112,7 @@
         </Badge>
         {#if entry.confidence >= 0.95}
           <span
-            class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-500/15 text-emerald-600"
+            class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-success/15 text-success"
             data-testid="validated-badge-{entry.key}"
           >
             {$t("memory.user_memory.badge_validated")}
@@ -172,7 +175,7 @@
           >
             {#if onvalidate && entry.confidence < 0.95}
               <button
-                class="w-full text-left px-3 py-1.5 text-xs text-emerald-600 hover:bg-muted/50 transition-colors"
+                class="w-full text-left px-3 py-1.5 text-xs text-success hover:bg-muted/50 transition-colors"
                 onclick={handleValidate}
                 data-testid="validate-memory-{entry.key}"
               >
@@ -213,7 +216,7 @@
                 disabled={cat === entry.category}
                 onclick={() => selectCategory(cat)}
               >
-                <span class="inline-block w-2 h-2 rounded-full mr-2" style="background-color: {CATEGORY_COLORS[cat]}"></span>
+                <span class="inline-block w-2 h-2 rounded-full mr-2 {categoryClass(cat)}"></span>
                 {cat}
               </button>
             {/each}

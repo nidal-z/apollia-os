@@ -6,12 +6,12 @@
     Mic,
     Check,
     ChevronRight,
-    Loader2,
     AlertCircle,
     Sparkles,
     MemoryStick,
     MonitorCog,
   } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
   import { t } from "svelte-i18n";
   import { onboardingStore } from "$lib/stores/onboarding";
 
@@ -157,14 +157,14 @@
 
     {#if loading}
       <div class="scan-loading" data-testid="scan-loading">
-        <Loader2 size={20} class="animate-spin text-indigo-500" />
+        <Spinner size={20} />
         <span>{$t("onboarding_v2.ai_setup.scanning")}</span>
       </div>
     {:else}
       <!-- LLM section -->
       <section class="setup-section" data-testid="llm-section">
         <div class="section-header">
-          <HardDrive size={15} strokeWidth={2} class="text-indigo-500" />
+          <HardDrive size={15} strokeWidth={2} class="text-primary" />
           <span class="section-title">{$t("onboarding_v2.ai_setup.llm_section.title")}</span>
           {#if llmSuccess}
             <span class="section-badge-ok">
@@ -199,7 +199,7 @@
                 >
                   <div class="model-icon">
                     {#if selectedGguf?.path === model.path && llmConfiguring}
-                      <Loader2 size={14} class="animate-spin" />
+                      <Spinner size={14} />
                     {:else}
                       <Cpu size={14} strokeWidth={1.75} />
                     {/if}
@@ -211,7 +211,7 @@
                   {#if model.recommended}
                     <span class="badge-recommended">{$t("onboarding_v2.ai_setup.llm_section.recommended")}</span>
                   {/if}
-                  <ChevronRight size={14} class="text-gray-300" />
+                  <ChevronRight size={14} class="text-muted-foreground/50" />
                 </button>
               </li>
             {/each}
@@ -227,7 +227,7 @@
       <!-- STT section -->
       <section class="setup-section" data-testid="stt-section">
         <div class="section-header">
-          <Mic size={15} strokeWidth={2} class="text-violet-500" />
+          <Mic size={15} strokeWidth={2} class="text-secondary" />
           <span class="section-title">{$t("onboarding_v2.ai_setup.stt_section.title")}</span>
           <label class="toggle-label">
             <input
@@ -266,9 +266,9 @@
                     <span class="badge-recommended badge-recommended-stt">{$t("onboarding_v2.ai_setup.stt_section.recommended")}</span>
                   {/if}
                   {#if selectedWhisper?.path === model.path}
-                    <Check size={14} strokeWidth={2.5} class="text-violet-500" />
+                    <Check size={14} strokeWidth={2.5} class="text-secondary" />
                   {:else}
-                    <ChevronRight size={14} class="text-gray-300" />
+                    <ChevronRight size={14} class="text-muted-foreground/50" />
                   {/if}
                 </button>
               </li>
@@ -294,7 +294,7 @@
         data-testid="ai-setup-continue"
       >
         {#if advancing}
-          <Loader2 size={15} class="animate-spin" />
+          <Spinner size={15} />
           {$t("onboarding_v2.ai_setup.loading")}
         {:else}
           {$t("onboarding_v2.ai_setup.continue")}
@@ -322,7 +322,7 @@
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    background: #FFF8F0;
+    background: hsl(var(--background));
     overflow-y: auto;
     opacity: 0;
     transition: opacity 300ms ease-in;
@@ -354,7 +354,7 @@
     width: 3.25rem;
     height: 3.25rem;
     border-radius: 1rem;
-    background: linear-gradient(135deg, #3435f5, #7c5fd6);
+    background: var(--gradient-primary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -365,14 +365,14 @@
   .ai-setup-title {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #1a1a2e;
+    color: hsl(var(--foreground));
     margin: 0;
     letter-spacing: -0.02em;
   }
 
   .ai-setup-subtitle {
     font-size: 0.8125rem;
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
     margin: 0;
     line-height: 1.55;
   }
@@ -391,15 +391,15 @@
     gap: 0.3rem;
     font-size: 0.6875rem;
     font-weight: 500;
-    color: #6B7280;
-    background: rgba(107, 114, 128, 0.08);
+    color: hsl(var(--muted-foreground));
+    background: hsl(var(--muted-foreground) / 0.08);
     padding: 0.25rem 0.625rem;
     border-radius: 99px;
   }
 
   .sys-chip-gpu {
-    color: #7c5fd6;
-    background: rgba(124, 95, 214, 0.1);
+    color: hsl(var(--secondary));
+    background: hsl(var(--secondary) / 0.1);
   }
 
   /* Loading */
@@ -410,13 +410,13 @@
     gap: 0.625rem;
     padding: 1.5rem 0;
     font-size: 0.875rem;
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
   }
 
   /* Sections */
   .setup-section {
-    background: rgba(255, 255, 255, 0.72);
-    border: 1px solid rgba(52, 53, 245, 0.07);
+    background: hsl(var(--card) / 0.72);
+    border: 1px solid hsl(var(--primary) / 0.07);
     border-radius: 1rem;
     padding: 1rem;
     display: flex;
@@ -435,7 +435,7 @@
     flex: 1;
     font-size: 0.875rem;
     font-weight: 600;
-    color: #374151;
+    color: hsl(var(--foreground));
   }
 
   .section-badge-ok {
@@ -444,8 +444,8 @@
     gap: 0.25rem;
     font-size: 0.6875rem;
     font-weight: 600;
-    color: #16a34a;
-    background: rgba(34, 197, 94, 0.1);
+    color: hsl(var(--success));
+    background: hsl(var(--success) / 0.1);
     padding: 0.2rem 0.5rem;
     border-radius: 99px;
   }
@@ -467,16 +467,16 @@
     width: 100%;
     padding: 0.625rem 0.75rem;
     border-radius: 0.625rem;
-    border: 1px solid rgba(52, 53, 245, 0.07);
-    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid hsl(var(--primary) / 0.07);
+    background: hsl(var(--card) / 0.6);
     cursor: pointer;
     text-align: left;
     transition: background 120ms ease, border-color 120ms ease;
   }
 
   .model-row:hover:not(:disabled) {
-    background: rgba(52, 53, 245, 0.04);
-    border-color: rgba(52, 53, 245, 0.15);
+    background: hsl(var(--primary) / 0.04);
+    border-color: hsl(var(--primary) / 0.15);
   }
 
   .model-row:disabled {
@@ -485,25 +485,25 @@
   }
 
   .model-row.is-selected {
-    border-color: rgba(52, 53, 245, 0.3);
-    background: rgba(52, 53, 245, 0.04);
+    border-color: hsl(var(--primary) / 0.3);
+    background: hsl(var(--primary) / 0.04);
   }
 
   .model-icon {
     width: 1.75rem;
     height: 1.75rem;
     border-radius: 0.4rem;
-    background: rgba(52, 53, 245, 0.08);
+    background: hsl(var(--primary) / 0.08);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #3435f5;
+    color: hsl(var(--primary));
     flex-shrink: 0;
   }
 
   .model-icon-stt {
-    background: rgba(124, 95, 214, 0.1);
-    color: #7c5fd6;
+    background: hsl(var(--secondary) / 0.1);
+    color: hsl(var(--secondary));
   }
 
   .model-info {
@@ -517,7 +517,7 @@
   .model-name {
     font-size: 0.8125rem;
     font-weight: 500;
-    color: #1a1a2e;
+    color: hsl(var(--foreground));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -525,7 +525,7 @@
 
   .model-meta {
     font-size: 0.6875rem;
-    color: #9CA3AF;
+    color: hsl(var(--muted-foreground) / 0.7);
   }
 
   .capitalize {
@@ -537,16 +537,16 @@
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #3435f5;
-    background: rgba(52, 53, 245, 0.08);
+    color: hsl(var(--primary));
+    background: hsl(var(--primary) / 0.08);
     padding: 0.2rem 0.45rem;
     border-radius: 99px;
     flex-shrink: 0;
   }
 
   .badge-recommended-stt {
-    color: #7c5fd6;
-    background: rgba(124, 95, 214, 0.1);
+    color: hsl(var(--secondary));
+    background: hsl(var(--secondary) / 0.1);
   }
 
   /* Success row (after LLM configured) */
@@ -560,7 +560,7 @@
     width: 1.5rem;
     height: 1.5rem;
     border-radius: 50%;
-    background: linear-gradient(135deg, #22c55e, #16a34a);
+    background: linear-gradient(135deg, hsl(var(--success)), hsl(var(--success) / 0.8));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -570,7 +570,7 @@
   .success-filename {
     font-size: 0.8125rem;
     font-weight: 500;
-    color: #16a34a;
+    color: hsl(var(--success));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -595,7 +595,7 @@
     width: 2.25rem;
     height: 1.25rem;
     border-radius: 99px;
-    background: #D1D5DB;
+    background: hsl(var(--muted));
     position: relative;
     transition: background 150ms ease;
   }
@@ -614,7 +614,7 @@
   }
 
   .toggle-track.on {
-    background: #7c5fd6;
+    background: hsl(var(--secondary));
   }
 
   .toggle-track.on::after {
@@ -624,7 +624,7 @@
   /* Empty hints */
   .empty-hint {
     font-size: 0.8125rem;
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
     margin: 0;
     line-height: 1.55;
   }
@@ -632,17 +632,17 @@
   .empty-hint code {
     font-family: monospace;
     font-size: 0.8em;
-    background: rgba(107, 114, 128, 0.1);
+    background: hsl(var(--muted-foreground) / 0.1);
     padding: 0.1em 0.3em;
     border-radius: 0.25rem;
-    color: #4B5563;
+    color: hsl(var(--foreground) / 0.8);
   }
 
   .inline-link {
     background: none;
     border: none;
     padding: 0;
-    color: #3435f5;
+    color: hsl(var(--primary));
     cursor: pointer;
     font-size: inherit;
     text-decoration: underline;
@@ -655,9 +655,9 @@
     align-items: center;
     gap: 0.375rem;
     font-size: 0.8125rem;
-    color: #DC2626;
-    background: rgba(220, 38, 38, 0.05);
-    border: 1px solid rgba(220, 38, 38, 0.15);
+    color: hsl(var(--destructive));
+    background: hsl(var(--destructive) / 0.05);
+    border: 1px solid hsl(var(--destructive) / 0.15);
     border-radius: 0.5rem;
     padding: 0.5rem 0.75rem;
     margin: 0;
@@ -681,7 +681,7 @@
     padding: 0.75rem 1.5rem;
     border-radius: 0.875rem;
     border: none;
-    background: linear-gradient(135deg, #3435f5, #7c5fd6);
+    background: var(--gradient-primary);
     color: white;
     font-size: 0.9375rem;
     font-weight: 600;
@@ -703,7 +703,7 @@
   .btn-skip {
     background: none;
     border: none;
-    color: #9CA3AF;
+    color: hsl(var(--muted-foreground) / 0.7);
     font-size: 0.8125rem;
     cursor: pointer;
     padding: 0.25rem 0.5rem;
@@ -711,7 +711,7 @@
   }
 
   .btn-skip:hover:not(:disabled) {
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
   }
 
   .btn-skip:disabled {

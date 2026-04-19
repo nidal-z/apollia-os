@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { Bot, MessageSquare, Trash2, Pencil, Check, X, Loader2, FolderOpen } from "lucide-svelte";
+  import { Bot, MessageSquare, Trash2, Pencil, Check, X, FolderOpen } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
   import { projects } from "$lib/stores/projects";
   import type { ChatSessionSummary } from "$lib/types";
 
@@ -275,7 +276,7 @@
         <!-- Status indicator -->
         {#if isProcessing}
           <span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-medium bg-amber-500/10 text-amber-600">
-            <Loader2 size={9} class="animate-spin" />
+            <Spinner size={9} />
             {$t("chat.status_processing")}
           </span>
         {:else if isClosed}

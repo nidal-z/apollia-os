@@ -1,8 +1,9 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { CheckCircle2, Loader2, XCircle } from "lucide-svelte";
+  import { CheckCircle2, XCircle } from "lucide-svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { Button } from "$lib/components/ui/button";
+  import { Spinner } from "$lib/components/ui/progress";
   import type { McpConnectionTestResultView, McpServerConfigInput } from "$lib/types";
 
   interface Props {
@@ -39,7 +40,7 @@
     data-testid="test-connection-btn"
   >
     {#if testing}
-      <Loader2 size={14} class="mr-2 animate-spin" />
+      <Spinner size={14} class="mr-2" />
       {$t("integrations.wizard.test_testing")}
     {:else}
       {$t("integrations.wizard.test_button")}

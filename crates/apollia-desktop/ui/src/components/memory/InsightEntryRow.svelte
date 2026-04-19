@@ -17,11 +17,15 @@
 
   let { insight, onremove, onupdate }: Props = $props();
 
-  const CATEGORY_COLORS: Record<string, string> = {
-    preference: "#3435f5",
-    habit: "#7c5fd6",
-    context: "#f59e0b",
-  };
+  function categoryClass(cat: string): string {
+    return (
+      ({
+        preference: "bg-primary",
+        habit: "bg-secondary",
+        context: "bg-warning",
+      } as Record<string, string>)[cat] ?? "bg-muted"
+    );
+  }
 
   const CATEGORIES = ["preference", "habit", "context"] as const;
 
@@ -107,7 +111,7 @@
           {$t("memory.insights.cancel")}
         </button>
         <button
-          class="rounded-md px-2.5 py-1 text-xs font-medium text-white bg-[#3435f5] hover:bg-[#3435f5]/90 transition-colors disabled:opacity-40"
+          class="rounded-md px-2.5 py-1 text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors disabled:opacity-40"
           onclick={saveEdit}
           disabled={editText.trim() === ""}
           data-testid="insight-save"
@@ -125,8 +129,7 @@
         </div>
         <div class="flex items-center gap-2">
           <span
-            class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium text-white"
-            style="background-color: {CATEGORY_COLORS[insight.category] ?? '#6b7280'}"
+            class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium text-white {categoryClass(insight.category)}"
           >
             {$t(`memory.insights.category_${insight.category}`)}
           </span>
@@ -135,7 +138,7 @@
             <div class="h-0.5 w-16 rounded-full bg-muted/50 overflow-hidden">
               <div
                 class="h-full rounded-full"
-                style="width: {insight.confidence * 100}%; background: linear-gradient(to right, #3435f5, #7c5fd6)"
+                style="width: {insight.confidence * 100}%; background: linear-gradient(to right, hsl(var(--primary)), hsl(var(--secondary)))"
               ></div>
             </div>
             <span
@@ -150,7 +153,7 @@
       <!-- Action buttons -->
       <div class="flex items-center gap-1 shrink-0">
         <button
-          class="rounded-md p-1.5 text-emerald-500 hover:bg-emerald-500/10 transition-colors"
+          class="rounded-md p-1.5 text-success hover:bg-success/10 transition-colors"
           onclick={acceptInsight}
           aria-label={$t("memory.insights.accept")}
           title={$t("memory.insights.accept")}
@@ -159,7 +162,7 @@
           <Check size={14} />
         </button>
         <button
-          class="rounded-md p-1.5 text-[#3435f5] hover:bg-[#3435f5]/10 transition-colors"
+          class="rounded-md p-1.5 text-primary hover:bg-primary/10 transition-colors"
           onclick={startEdit}
           aria-label={$t("memory.insights.edit")}
           title={$t("memory.insights.edit")}

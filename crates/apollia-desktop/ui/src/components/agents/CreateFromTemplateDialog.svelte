@@ -6,7 +6,8 @@
   import { Input } from "$lib/components/ui/input";
   import { Dialog } from "$lib/components/ui/dialog";
   import { addToast } from "$lib/components/ui/toast/store";
-  import { Brain, MessageCircle, GitBranch, AlertTriangle, Loader2, Sparkles } from "lucide-svelte";
+  import { Brain, MessageCircle, GitBranch, AlertTriangle, Sparkles } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
 
   interface Props {
     open: boolean;
@@ -23,7 +24,8 @@
     titleKey: string;
     descKey: string;
     icon: typeof Brain;
-    color: string;
+    iconBg: string;
+    iconText: string;
     borderSelected: string;
     bgSelected: string;
   }> = [
@@ -32,27 +34,30 @@
       titleKey: "agents.template_react_title",
       descKey: "agents.template_react_desc",
       icon: Brain,
-      color: "#3B82F6",
-      borderSelected: "border-[#3B82F6]",
-      bgSelected: "bg-[#3B82F6]/10",
+      iconBg: "bg-primary/10",
+      iconText: "text-primary",
+      borderSelected: "border-primary",
+      bgSelected: "bg-primary/10",
     },
     {
       type: "conversational",
       titleKey: "agents.template_conversational_title",
       descKey: "agents.template_conversational_desc",
       icon: MessageCircle,
-      color: "#8B5CF6",
-      borderSelected: "border-[#8B5CF6]",
-      bgSelected: "bg-[#8B5CF6]/10",
+      iconBg: "bg-secondary/10",
+      iconText: "text-secondary",
+      borderSelected: "border-secondary",
+      bgSelected: "bg-secondary/10",
     },
     {
       type: "orchestrated",
       titleKey: "agents.template_orchestrated_title",
       descKey: "agents.template_orchestrated_desc",
       icon: GitBranch,
-      color: "#3B82F6",
-      borderSelected: "border-[#7C5FD6]",
-      bgSelected: "bg-[#7C5FD6]/10",
+      iconBg: "bg-secondary/10",
+      iconText: "text-secondary",
+      borderSelected: "border-secondary",
+      bgSelected: "bg-secondary/10",
     },
   ];
 
@@ -191,7 +196,7 @@
     <!-- SDK loading -->
     {#if sdkAvailable === null}
       <div class="flex items-center gap-2 text-xs text-muted-foreground">
-        <Loader2 size={14} class="animate-spin" />
+        <Spinner size={14} />
         {$t("agents.sdk_checking")}
       </div>
     {/if}
@@ -216,16 +221,14 @@
           >
             <!-- SDK badge -->
             <span
-              class="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
-              style="background: rgba(139, 92, 246, 0.2); color: #a78bfa;"
+              class="absolute right-2 top-2 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide bg-secondary/20 text-secondary"
             >
               {$t("agents.template_badge_sdk")}
             </span>
 
             <!-- Icon -->
             <div
-              class="mb-2.5 flex h-8 w-8 items-center justify-center rounded-md"
-              style="background: {tmpl.color}20; color: {tmpl.color};"
+              class="mb-2.5 flex h-8 w-8 items-center justify-center rounded-md {tmpl.iconBg} {tmpl.iconText}"
             >
               <svelte:component this={tmpl.icon} size={16} />
             </div>
@@ -293,7 +296,7 @@
         class="gap-1.5"
       >
         {#if isCreating}
-          <Loader2 size={13} class="animate-spin" />
+          <Spinner size={13} />
           {$t("agents.creating")}
         {:else}
           <Sparkles size={13} />

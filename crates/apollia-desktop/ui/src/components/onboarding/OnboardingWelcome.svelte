@@ -1,7 +1,8 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { Sparkles, Loader2 } from "lucide-svelte";
+  import { Sparkles } from "lucide-svelte";
   import { onboardingStore } from "$lib/stores/onboarding";
+  import { Spinner } from "$lib/components/ui/progress";
 
   let advancing = $state(false);
   let error = $state<string | null>(null);
@@ -51,7 +52,7 @@
       data-testid="onboarding-welcome-cta"
     >
       {#if advancing}
-        <Loader2 size={18} strokeWidth={2} class="animate-spin" />
+        <Spinner size={18} />
         {$t("onboarding_v2.welcome.loading")}
       {:else}
         {$t("onboarding_v2.welcome.cta")}
@@ -68,7 +69,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #0d0d1f 0%, #131320 45%, #1a1030 100%);
+    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--background)) 45%, hsl(var(--background)) 100%);
     opacity: 0;
     transition: opacity 400ms ease-in;
   }
@@ -115,7 +116,7 @@
   .welcome-tagline {
     font-size: 1.75rem;
     font-weight: 700;
-    color: #ffffff;
+    color: white;
     margin: 0;
     line-height: 1.2;
     letter-spacing: -0.02em;
@@ -123,19 +124,19 @@
 
   .welcome-subtitle {
     font-size: 0.9375rem;
-    color: rgba(255, 255, 255, 0.55);
+    color: hsl(var(--foreground) / 0.55);
     margin: 0;
     line-height: 1.6;
   }
 
   .welcome-error {
     font-size: 0.8125rem;
-    color: #f87171;
+    color: hsl(var(--destructive) / 0.85);
     margin: 0;
     padding: 0.5rem 0.875rem;
     border-radius: 0.5rem;
-    background: rgba(248, 113, 113, 0.1);
-    border: 1px solid rgba(248, 113, 113, 0.2);
+    background: hsl(var(--destructive) / 0.05);
+    border: 1px solid hsl(var(--destructive) / 0.15);
   }
 
   .welcome-cta {

@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { Save, Cpu, Settings2, TriangleAlert, Brain, ChevronDown } from "lucide-svelte";
+  import { Separator } from "$lib/components/ui/separator";
   import { Button } from "$lib/components/ui/button";
   import { Toggle } from "$lib/components/ui/toggle";
   import { Sheet } from "$lib/components/ui/sheet";
@@ -338,7 +339,8 @@
 
     <!-- Footer -->
     {#if !isReadOnly}
-      <div class="border-t glass-border-subtle px-5 py-4">
+      <div class="px-5 py-4">
+        <Separator />
         <Button
           class="w-full bg-primary"
           onclick={handleSave}

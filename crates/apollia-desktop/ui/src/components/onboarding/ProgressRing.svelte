@@ -45,7 +45,7 @@
       cy={cy}
       r={radius}
       fill="none"
-      stroke="rgba(52,53,245,0.10)"
+      stroke="hsl(var(--primary) / 0.10)"
       stroke-width={strokeWidth}
       stroke-dasharray="{segmentDash} {circumference - segmentDash}"
       stroke-dashoffset={-(segmentArc * i)}
@@ -60,7 +60,7 @@
       cy={cy}
       r={radius}
       fill="none"
-      stroke={i === completed - 1 ? "#3435f5" : "#7c5fd6"}
+      stroke={i === completed - 1 ? "hsl(var(--primary))" : "hsl(var(--secondary))"}
       stroke-width={strokeWidth}
       stroke-dasharray="{segmentDash} {circumference - segmentDash}"
       stroke-dashoffset={-(segmentArc * i)}
@@ -80,7 +80,7 @@
     dominant-baseline="central"
     font-size={size * 0.2}
     font-weight="700"
-    fill="#1a1a2e"
+    fill="hsl(var(--foreground))"
   >{pct}%</text>
 </svg>
 

@@ -5,6 +5,7 @@
   import type { AgentMessage } from "$lib/types";
   import { lastAgentMessage } from "$lib/stores/sse";
   import { ArrowRight, ArrowLeft, MessageSquare } from "lucide-svelte";
+  import { Skeleton } from "$lib/components/ui/skeleton";
 
   interface Props {
     agentName: string;
@@ -81,7 +82,7 @@
   {#if loading}
     <div class="space-y-2">
       {#each Array(3) as _}
-        <div class="animate-pulse rounded-lg bg-white/5 h-16"></div>
+        <Skeleton variant="card" class="h-16 w-full" />
       {/each}
     </div>
   {:else if messages.length === 0}
@@ -101,12 +102,12 @@
         >
           <div class="flex items-center gap-2">
             {#if isOutgoing(msg)}
-              <ArrowRight size={14} style="color: #3435f5;" class="shrink-0" />
+              <ArrowRight size={14} class="shrink-0 text-primary" />
               <span class="text-sm font-medium text-foreground truncate">
                 {$t('agent_detail.message_sent_to', { values: { agent: msg.to_agent } })}
               </span>
             {:else}
-              <ArrowLeft size={14} style="color: #7c5fd6;" class="shrink-0" />
+              <ArrowLeft size={14} class="shrink-0 text-secondary" />
               <span class="text-sm font-medium text-foreground truncate">
                 {$t('agent_detail.message_received_from', { values: { agent: msg.from_agent } })}
               </span>

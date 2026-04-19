@@ -99,7 +99,7 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    background: rgba(255, 255, 255, 0.88);
+    background: hsl(var(--card) / 0.88);
     border-radius: 2rem;
     box-shadow: var(--shadow-elev-2);
   }
@@ -123,7 +123,7 @@
   }
 
   .step-item.completed:not(:last-child)::after {
-    background: #22c55e;
+    background: hsl(var(--success));
   }
 
   .step-dot {
@@ -138,8 +138,8 @@
   }
 
   .step-item.completed .step-dot {
-    background: #22c55e;
-    color: #ffffff;
+    background: hsl(var(--success));
+    color: white;
     border: none;
   }
 
@@ -154,7 +154,7 @@
 
   .step-item.future .step-dot {
     background: transparent;
-    border: 1.5px dashed #d1d5db;
+    border: 1.5px dashed hsl(var(--muted));
   }
 
   @keyframes rail-pulse {
@@ -177,7 +177,7 @@
   .step-label {
     font-size: 0.6875rem;
     font-weight: 600;
-    color: #3435f5;
+    color: hsl(var(--primary));
     white-space: nowrap;
     line-height: 1;
   }
@@ -185,7 +185,7 @@
   .step-sub {
     font-size: 0.5625rem;
     font-weight: 500;
-    color: rgba(52, 53, 245, 0.6);
+    color: hsl(var(--primary) / 0.6);
     white-space: nowrap;
     line-height: 1;
   }

@@ -12,9 +12,10 @@
   import { pendingChatSessionId } from "$lib/stores/chat";
   import {
     FolderOpen, FileText, Puzzle, Eye, Trash2, Upload, Plus,
-    ChevronDown, ChevronUp, X, Loader2, MessageSquare, Bot,
+    ChevronDown, ChevronUp, X, MessageSquare, Bot,
     ToggleLeft, ToggleRight, GitBranch, FolderTree, ScrollText,
   } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
   import type {
     ProjectDetail, WorkspaceSnapshotView, ChatSessionSummary, AgentListItem,
   } from "$lib/types";
@@ -448,7 +449,7 @@
           </p>
           <Button size="sm" variant="ghost" onclick={pickAndUploadDocument} disabled={uploading}>
             {#if uploading}
-              <Loader2 size={12} class="animate-spin mr-1" />
+              <Spinner size={12} class="mr-1" />
             {:else}
               <Upload size={12} class="mr-1" />
             {/if}
@@ -525,7 +526,7 @@
         {#if snapshotOpen}
           {#if snapshotLoading}
             <div class="flex items-center gap-2 py-4 justify-center text-sm text-muted-foreground">
-              <Loader2 size={14} class="animate-spin" />
+              <Spinner size={14} />
               {$t("common.loading")}
             </div>
           {:else if snapshot && snapshot.sections.length > 0}

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
-  import { Loader2, FileAudio, AlertCircle } from "lucide-svelte";
+  import { FileAudio, AlertCircle } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
   import { Button } from "$lib/components/ui/button";
   import { sttStatus, transcribeFile } from "$lib/stores/stt";
 
@@ -55,7 +56,7 @@
     data-testid="transcribe-file-button"
   >
     {#if transcribing}
-      <Loader2 size={15} strokeWidth={1.75} class="animate-spin" />
+      <Spinner size={15} />
       {$t("transcriptions.transcribing")}
     {:else}
       <FileAudio size={15} strokeWidth={1.75} />

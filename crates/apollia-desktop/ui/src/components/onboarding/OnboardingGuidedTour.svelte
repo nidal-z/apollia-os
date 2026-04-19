@@ -736,15 +736,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 248, 240, 0.9);
+    background: hsl(var(--background) / 0.9);
   }
 
   .loading-spinner {
     width: 2rem;
     height: 2rem;
     border-radius: 50%;
-    border: 2.5px solid rgba(52, 53, 245, 0.2);
-    border-top-color: #3435f5;
+    border: 2.5px solid hsl(var(--primary) / 0.2);
+    border-top-color: hsl(var(--primary));
     animation: spin 0.8s linear infinite;
   }
 
@@ -756,7 +756,7 @@
     padding: 0.5rem 1.25rem;
     border-radius: 0.5rem;
     border: none;
-    background: #3435f5;
+    background: hsl(var(--primary));
     color: #fff;
     font-size: 0.875rem;
     font-weight: 600;
@@ -778,7 +778,7 @@
     height: 2.75rem;
     border-radius: 50%;
     border: none;
-    background: rgba(255, 255, 255, 0.92);
+    background: hsl(var(--card) / 0.92);
     box-shadow: var(--shadow-elev-2);
     cursor: pointer;
     display: flex;
@@ -794,7 +794,7 @@
   }
 
   .mic-btn.active {
-    background: rgba(52, 53, 245, 0.06);
+    background: hsl(var(--primary) / 0.06);
     transform: scale(1.08);
   }
 
@@ -824,13 +824,13 @@
   .confirm-title {
     font-size: 1rem;
     font-weight: 700;
-    color: #1a1a2e;
+    color: hsl(var(--foreground));
     margin: 0;
   }
 
   .confirm-body {
     font-size: 0.875rem;
-    color: #4b5563;
+    color: hsl(var(--foreground) / 0.8);
     margin: 0;
     line-height: 1.55;
   }
@@ -849,7 +849,7 @@
     background: transparent;
     font-size: 0.8125rem;
     font-weight: 600;
-    color: #6b7280;
+    color: hsl(var(--muted-foreground));
     cursor: pointer;
     transition: background 120ms ease;
   }

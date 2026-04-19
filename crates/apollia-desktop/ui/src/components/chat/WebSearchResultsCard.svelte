@@ -14,7 +14,8 @@
    */
 
   import type { ToolCallView } from "$lib/types";
-  import { Loader2, Check, X, ExternalLink, Compass } from "lucide-svelte";
+  import { Check, X, ExternalLink, Compass } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
   import { t } from "svelte-i18n";
 
   let { toolCall }: { toolCall: ToolCallView } = $props();
@@ -87,7 +88,7 @@
 
     <span class="ml-auto flex flex-shrink-0 items-center gap-1">
       {#if isPending}
-        <Loader2 class="h-3 w-3 animate-spin text-muted-foreground" />
+        <Spinner class="h-3 w-3 text-muted-foreground" />
       {:else if isExecuted}
         <Check class="h-3 w-3 text-success" />
         {#if toolCall.duration_ms != null}

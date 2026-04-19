@@ -44,17 +44,21 @@
   let deleteTarget = $state<UserMemoryEntryView | null>(null);
   let isDeleting = $state(false);
 
-  const CATEGORY_COLORS: Record<string, string> = {
-    preferences: "#3435f5",
-    habits: "#7c5fd6",
-    context: "#f59e0b",
-  };
+  function categoryClass(cat: string): string {
+    return (
+      ({
+        preferences: "bg-primary",
+        habits: "bg-secondary",
+        context: "bg-warning",
+      } as Record<string, string>)[cat] ?? "bg-muted"
+    );
+  }
 
-  const SOURCE_COLORS: Record<string, string> = {
-    onboarding: "#10b981",
-    chat_inference: "#3435f5",
-    user_explicit: "#7c5fd6",
-    agent_observation: "#f59e0b",
+  const SOURCE_CSS_VARS: Record<string, string> = {
+    onboarding: "hsl(var(--success))",
+    chat_inference: "hsl(var(--primary))",
+    user_explicit: "hsl(var(--secondary))",
+    agent_observation: "hsl(var(--warning))",
   };
 
   const CATEGORIES = ["preferences", "habits", "context"] as const;
@@ -224,10 +228,10 @@
 
   function sourceArcData(stats: UserMemoryProfileView["stats"]): { key: string; count: number; color: string }[] {
     return [
-      { key: "onboarding", count: stats.by_source.onboarding, color: SOURCE_COLORS.onboarding },
-      { key: "chat_inference", count: stats.by_source.chat_inference, color: SOURCE_COLORS.chat_inference },
-      { key: "user_explicit", count: stats.by_source.user_explicit, color: SOURCE_COLORS.user_explicit },
-      { key: "agent_observation", count: stats.by_source.agent_observation, color: SOURCE_COLORS.agent_observation },
+      { key: "onboarding", count: stats.by_source.onboarding, color: SOURCE_CSS_VARS.onboarding },
+      { key: "chat_inference", count: stats.by_source.chat_inference, color: SOURCE_CSS_VARS.chat_inference },
+      { key: "user_explicit", count: stats.by_source.user_explicit, color: SOURCE_CSS_VARS.user_explicit },
+      { key: "agent_observation", count: stats.by_source.agent_observation, color: SOURCE_CSS_VARS.agent_observation },
     ].filter((s) => s.count > 0);
   }
 
@@ -292,8 +296,8 @@
             {@const count = profile.stats.by_category[cat]}
             {#if count > 0}
               <div
-                class="h-full transition-all relative group/seg"
-                style="width: {categoryBarWidth(count, profile.stats.total)}; background-color: {CATEGORY_COLORS[cat]}"
+                class="h-full transition-all relative group/seg {categoryClass(cat)}"
+                style="width: {categoryBarWidth(count, profile.stats.total)}"
                 title="{cat}: {count}"
               >
                 <span class="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover/seg:block text-[10px] bg-background border border-border rounded px-1.5 py-0.5 whitespace-nowrap shadow-sm">
@@ -306,7 +310,7 @@
         <div class="flex gap-3 mt-2">
           {#each CATEGORIES as cat}
             <div class="flex items-center gap-1">
-              <span class="w-2 h-2 rounded-full" style="background-color: {CATEGORY_COLORS[cat]}"></span>
+              <span class="w-2 h-2 rounded-full {categoryClass(cat)}"></span>
               <span class="text-[10px] text-muted-foreground">{cat}</span>
             </div>
           {/each}
@@ -399,8 +403,7 @@
         <div>
           <div class="flex items-center gap-2 mb-3">
             <span
-              class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
-              style="background-color: {CATEGORY_COLORS[cat]}"
+              class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-white {categoryClass(cat)}"
             >
               {sectionLabel(cat)}
             </span>

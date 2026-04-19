@@ -160,7 +160,7 @@
               <td class="px-3 py-2 text-right">{formatDuration(entry.duration_ms)}</td>
               <td class="px-3 py-2 text-right">
                 {#if entry.exit_code !== null}
-                  <span class={entry.exit_code === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
+                  <span class={entry.exit_code === 0 ? "text-success" : "text-destructive"}>
                     {entry.exit_code}
                   </span>
                 {:else}

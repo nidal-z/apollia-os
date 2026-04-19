@@ -166,7 +166,7 @@
     z-index: 62;
     width: 360px;
     max-width: calc(100vw - 32px);
-    background: #ffffff;
+    background: hsl(var(--card));
     border-radius: 12px;
     padding: 1.25rem;
     box-shadow: var(--shadow-elev-4);
@@ -187,7 +187,7 @@
   .step-counter {
     font-size: 0.75rem;
     font-weight: 600;
-    color: #9ca3af;
+    color: hsl(var(--muted-foreground) / 0.7);
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
@@ -201,7 +201,7 @@
     border: none;
     background: none;
     border-radius: 0.375rem;
-    color: #9ca3af;
+    color: hsl(var(--muted-foreground) / 0.7);
     cursor: pointer;
     transition: background 120ms ease, color 120ms ease;
     padding: 0;
@@ -209,13 +209,13 @@
 
   .skip-btn:hover {
     background: rgba(0, 0, 0, 0.06);
-    color: #6b7280;
+    color: hsl(var(--muted-foreground));
   }
 
   .card-title {
     font-size: 1rem;
     font-weight: 700;
-    color: #1a1a2e;
+    color: hsl(var(--foreground));
     margin: 0;
     line-height: 1.3;
     letter-spacing: -0.01em;
@@ -223,7 +223,7 @@
 
   .card-description {
     font-size: 0.875rem;
-    color: #4b5563;
+    color: hsl(var(--foreground) / 0.8);
     margin: 0;
     line-height: 1.55;
   }
@@ -260,7 +260,7 @@
 
   .nav-btn-prev {
     background: transparent;
-    color: #6b7280;
+    color: hsl(var(--muted-foreground));
     border: 1px solid rgba(0, 0, 0, 0.1);
   }
 

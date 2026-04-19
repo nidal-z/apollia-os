@@ -2,7 +2,8 @@
   import { t } from "svelte-i18n";
   import type { ToolCallView } from "$lib/types";
   import { slide } from "svelte/transition";
-  import { Wrench, Check, X, Loader2, ChevronDown, ChevronUp } from "lucide-svelte";
+  import { Wrench, Check, X, ChevronDown, ChevronUp } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
 
   interface Props {
     toolCall: ToolCallView;
@@ -51,7 +52,7 @@
     <span class="font-medium text-foreground">{toolCall.tool_name}</span>
     <span class="ml-auto">
       {#if isPending}
-        <Loader2 class="h-3 w-3 animate-spin text-muted-foreground" />
+        <Spinner class="h-3 w-3 text-muted-foreground" />
       {:else if isExecuted}
         <Check class="h-3 w-3 text-success" />
       {:else if isRefused}

@@ -3,6 +3,7 @@
   import { t } from "svelte-i18n";
   import { Mic, CheckCircle2, XCircle, Cpu } from "lucide-svelte";
   import { Badge } from "$lib/components/ui/badge";
+  import { Skeleton } from "$lib/components/ui/skeleton";
   import EmptyState from "../components/common/EmptyState.svelte";
   import TranscriptCard from "../components/stt/TranscriptCard.svelte";
   import TranscribeFileDialog from "../components/stt/TranscribeFileDialog.svelte";
@@ -106,9 +107,9 @@
     <div class="grid gap-3">
       {#each { length: 3 } as _}
         <div class="glass-card glass-border rounded-xl p-4">
-          <div class="h-3 w-24 rounded bg-muted animate-pulse"></div>
-          <div class="mt-3 h-4 w-full rounded bg-muted animate-pulse"></div>
-          <div class="mt-2 h-4 w-3/4 rounded bg-muted animate-pulse"></div>
+          <Skeleton class="h-3 w-24" />
+          <Skeleton class="mt-3 h-4 w-full" />
+          <Skeleton class="mt-2 h-4 w-3/4" />
         </div>
       {/each}
     </div>

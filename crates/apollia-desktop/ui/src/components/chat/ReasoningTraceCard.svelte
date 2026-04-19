@@ -6,8 +6,9 @@
     ChevronRight,
     Check,
     X,
-    Loader2,
   } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
+  import { Separator } from "$lib/components/ui/separator";
   import { slide } from "svelte/transition";
   import { t } from "svelte-i18n";
   import BuilderToolCard from "./BuilderToolCard.svelte";
@@ -86,7 +87,7 @@
     <!-- Status icon -->
     <div class="flex-shrink-0">
       {#if pendingCount > 0}
-        <Loader2 size={11} class="animate-spin text-primary/60" />
+        <Spinner size={11} class="text-primary/60" />
       {:else}
         <BrainCircuit size={11} class="text-muted-foreground/50" />
       {/if}
@@ -139,8 +140,9 @@
   {#if isExpanded}
     <div
       transition:slide={{ duration: 150 }}
-      class="space-y-1.5 border-t border-border/15 px-2 pb-2 pt-1.5"
+      class="space-y-1.5 px-2 pb-2 pt-1.5"
     >
+      <Separator class="my-1.5" />
       <!-- Optional thinking/reasoning text from message metadata -->
       {#if thinkingText}
         <div

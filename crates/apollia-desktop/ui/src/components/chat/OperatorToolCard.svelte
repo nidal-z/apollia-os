@@ -2,7 +2,8 @@
   import type { ToolCallView } from "$lib/types";
   import { resolveToolDisplay } from "$lib/tools/tool-display";
   import { t } from "svelte-i18n";
-  import { Loader2, Check, X } from "lucide-svelte";
+  import { Check, X } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
 
   let { toolCall }: { toolCall: ToolCallView } = $props();
 
@@ -48,7 +49,7 @@
 
     <span class="ml-auto flex-shrink-0">
       {#if isPending}
-        <Loader2 class="h-3 w-3 animate-spin text-muted-foreground" />
+        <Spinner class="h-3 w-3 text-muted-foreground" />
       {:else if isExecuted}
         <Check class="h-3 w-3 text-success" />
       {:else if isRefused}

@@ -3,8 +3,9 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "svelte-i18n";
-  import { X, Loader2, Bot, MessageSquare, Settings2, XCircle, Link, Zap, BrainCircuit, Check } from "lucide-svelte";
+  import { X, Bot, MessageSquare, Settings2, XCircle, Link, Zap, BrainCircuit, Check } from "lucide-svelte";
   import { LoadingSpinner } from "$lib/components/feedback";
+  import { Spinner } from "$lib/components/ui/progress";
   import {
     currentSession, chatTokenBuffer, useUserMemory, memoryEntryCount,
     chatConversationStats, globalTokenBuffers,
@@ -492,7 +493,7 @@
         <Badge variant="secondary" class="text-[9px] px-1.5 py-0">{$t("chat.status_closed")}</Badge>
       {:else if sessionStatus === "processing"}
         <span class="flex items-center gap-1 text-[11px] text-primary/70">
-          <Loader2 size={11} class="animate-spin" />
+          <Spinner size={11} />
           {$t("chat.thinking")}
         </span>
       {/if}
@@ -606,7 +607,7 @@
                     <div class="flex items-center gap-1.5">
                       <div class="flex-shrink-0">
                         {#if step.status === "running"}
-                          <Loader2 size={9} class="animate-spin text-secondary/60" />
+                          <Spinner size={9} class="text-secondary/60" />
                         {:else if step.status === "done"}
                           <Check size={9} class="text-success/70" />
                         {:else}
@@ -646,7 +647,7 @@
                   <div class="flex items-center gap-1.5">
                     <div class="flex-shrink-0">
                       {#if step.status === "running"}
-                        <Loader2 size={9} class="animate-spin text-primary/60" />
+                        <Spinner size={9} class="text-primary/60" />
                       {:else if step.status === "done"}
                         <Check size={9} class="text-success/70" />
                       {:else}
@@ -665,7 +666,7 @@
         {:else if activeToolName}
           <div class="flex justify-start" data-testid="chat-tool-executing">
             <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
-              <Loader2 size={11} class="animate-spin" />
+              <Spinner size={11} />
               <span>{$t("chat.tool_executing", { values: { tool: activeToolName } })}</span>
             </div>
           </div>
@@ -700,7 +701,7 @@
         {#if isProcessing && sessionMode === "agent"}
           <div class="flex justify-start" data-testid="chat-agent-loading">
             <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
-              <Loader2 size={11} class="animate-spin" />
+              <Spinner size={11} />
               <span>{$t("chat.agent_processing")}</span>
             </div>
           </div>
@@ -709,7 +710,7 @@
         {#if isProcessing && sessionMode === "libre"}
           <div class="flex justify-start">
             <div class="flex items-center gap-1.5 rounded-lg bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground">
-              <Loader2 size={11} class="animate-spin" />
+              <Spinner size={11} />
               <span>{$t("chat.thinking")}</span>
             </div>
           </div>

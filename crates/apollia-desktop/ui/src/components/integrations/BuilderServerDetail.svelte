@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
-  import { Loader2 } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
   import { Sheet } from "$lib/components/ui/sheet";
   import { Button } from "$lib/components/ui/button";
   import { TabBar } from "$lib/components/ui/tabs";
@@ -120,7 +120,7 @@
         class="flex flex-1 items-center gap-2 px-6 text-sm text-muted-foreground"
         data-testid="builder-detail-loading"
       >
-        <Loader2 size={14} class="animate-spin" />
+        <Spinner size={14} />
         <span>{$t("common.loading")}</span>
       </div>
     {:else if fetchError}
@@ -247,7 +247,7 @@
               data-testid="builder-restart-btn"
             >
               {#if restarting}
-                <Loader2 size={14} class="mr-1.5 animate-spin" />
+                <Spinner size={14} class="mr-1.5" />
                 {$t("integrations.builder.detail.restarting")}
               {:else}
                 {$t("integrations.builder.detail.restart_button")}
@@ -296,7 +296,7 @@
                 data-testid="builder-remove-confirm-btn"
               >
                 {#if removing}
-                  <Loader2 size={14} class="mr-1.5 animate-spin" />
+                  <Spinner size={14} class="mr-1.5" />
                   {$t("integrations.builder.detail.removing")}
                 {:else}
                   {$t("integrations.builder.detail.remove_confirm")}

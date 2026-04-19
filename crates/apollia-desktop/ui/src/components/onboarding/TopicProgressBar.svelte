@@ -64,12 +64,12 @@
   .topic-connector {
     width: 2rem;
     height: 2px;
-    background: #9CA3AF;
+    background: hsl(var(--muted-foreground) / 0.7);
     transition: background 300ms ease;
   }
 
   .topic-connector.completed {
-    background: #7c5fd6;
+    background: hsl(var(--secondary));
   }
 
   .topic-item {
@@ -90,7 +90,7 @@
   }
 
   .topic-item.pending .topic-circle {
-    background: #9CA3AF;
+    background: hsl(var(--muted-foreground) / 0.7);
     color: white;
   }
 
@@ -102,23 +102,23 @@
   }
 
   .topic-item.completed .topic-circle {
-    background: #7c5fd6;
+    background: hsl(var(--secondary));
     color: white;
   }
 
   .topic-label {
     font-size: 0.6875rem;
     font-weight: 500;
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
   }
 
   .topic-item.active .topic-label {
-    color: #3435f5;
+    color: hsl(var(--primary));
     font-weight: 600;
   }
 
   .topic-item.completed .topic-label {
-    color: #7c5fd6;
+    color: hsl(var(--secondary));
     font-weight: 600;
   }
 

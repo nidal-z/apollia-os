@@ -176,7 +176,7 @@
     position: fixed;
     inset: 0;
     z-index: 50;
-    background: #FFF8F0;
+    background: hsl(var(--background));
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -200,7 +200,7 @@
     width: 3.5rem;
     height: 3.5rem;
     border-radius: 1rem;
-    background: linear-gradient(135deg, #3435f5, #7c5fd6);
+    background: var(--gradient-primary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -210,13 +210,13 @@
   .onboarding-title {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #1a1a2e;
+    color: hsl(var(--foreground));
     margin: 0;
   }
 
   .onboarding-subtitle {
     font-size: 0.875rem;
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
     margin: 0;
   }
 
@@ -236,9 +236,9 @@
     flex: 1;
     min-height: 0;
     border-radius: 1rem;
-    background: rgba(255, 255, 255, 0.72);
+    background: hsl(var(--card) / 0.72);
     backdrop-filter: blur(20px);
-    border: 1px solid rgba(52, 53, 245, 0.06);
+    border: 1px solid hsl(var(--primary) / 0.06);
     box-shadow: var(--shadow-elev-2);
     overflow: hidden;
     display: flex;
@@ -252,14 +252,14 @@
     justify-content: center;
     gap: 1rem;
     padding: 3rem 1rem;
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
     font-size: 0.875rem;
   }
 
   .onboarding-error-btn {
     padding: 0.5rem 1.25rem;
     border-radius: 0.75rem;
-    background: #3435f5;
+    background: hsl(var(--primary));
     color: white;
     font-size: 0.875rem;
     font-weight: 600;
@@ -269,7 +269,7 @@
   }
 
   .onboarding-error-btn:hover {
-    background: #2a2bd4;
+    background: hsl(var(--primary));
   }
 
   .onboarding-completion {
@@ -283,14 +283,14 @@
   .onboarding-completion-text {
     font-size: 0.9375rem;
     font-weight: 600;
-    color: #7c5fd6;
+    color: hsl(var(--secondary));
     margin: 0;
   }
 
   .onboarding-start-btn {
     padding: 0.625rem 2rem;
     border-radius: 0.75rem;
-    background: linear-gradient(135deg, #3435f5, #7c5fd6);
+    background: var(--gradient-primary);
     color: white;
     font-size: 0.875rem;
     font-weight: 600;
@@ -317,7 +317,7 @@
   .btn-skip {
     background: none;
     border: none;
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
     font-size: 0.8125rem;
     cursor: pointer;
     text-decoration: none;
@@ -327,7 +327,7 @@
 
   .btn-skip:hover {
     text-decoration: underline;
-    color: #4B5563;
+    color: hsl(var(--foreground) / 0.8);
   }
 
   /* Confetti animation */

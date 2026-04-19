@@ -172,7 +172,7 @@
     position: fixed;
     inset: 0;
     z-index: 50;
-    background: #FFF8F0;
+    background: hsl(var(--background));
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -196,7 +196,7 @@
     width: 3.5rem;
     height: 3.5rem;
     border-radius: 1rem;
-    background: linear-gradient(135deg, #3435f5, #7c5fd6);
+    background: var(--gradient-primary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -207,13 +207,13 @@
   .graduation-title {
     font-size: 1.625rem;
     font-weight: 700;
-    color: #1a1a2e;
+    color: hsl(var(--foreground));
     margin: 0;
   }
 
   .graduation-subtitle {
     font-size: 0.875rem;
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
     margin: 0;
   }
 
@@ -222,9 +222,9 @@
   .stats-card {
     width: 100%;
     max-width: 480px;
-    background: rgba(255, 255, 255, 0.8);
+    background: hsl(var(--card) / 0.8);
     backdrop-filter: blur(20px);
-    border: 1px solid rgba(52, 53, 245, 0.08);
+    border: 1px solid hsl(var(--primary) / 0.08);
     border-radius: 1rem;
     padding: 1.25rem;
     box-shadow: var(--shadow-elev-2);
@@ -239,24 +239,24 @@
   }
 
   .stat-icon {
-    color: #7c5fd6;
+    color: hsl(var(--secondary));
     flex-shrink: 0;
   }
 
   .stat-label {
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
     flex: 1;
   }
 
   .stat-value--profile {
     font-weight: 600;
-    color: #3435f5;
+    color: hsl(var(--primary));
     font-size: 0.875rem;
   }
 
   .stat-divider {
     height: 1px;
-    background: rgba(52, 53, 245, 0.06);
+    background: hsl(var(--primary) / 0.06);
     margin: 0.875rem 0;
   }
 
@@ -275,19 +275,19 @@
   }
 
   :global(.stat-cell-icon) {
-    color: #7c5fd6;
+    color: hsl(var(--secondary));
   }
 
   .stat-cell-number {
     font-size: 1.375rem;
     font-weight: 700;
-    color: #1a1a2e;
+    color: hsl(var(--foreground));
     line-height: 1;
   }
 
   .stat-cell-label {
     font-size: 0.6875rem;
-    color: #9CA3AF;
+    color: hsl(var(--muted-foreground) / 0.7);
     line-height: 1.3;
   }
 
@@ -309,8 +309,8 @@
     gap: 0.375rem;
     padding: 0.875rem 0.5rem;
     border-radius: 0.875rem;
-    background: rgba(255, 255, 255, 0.72);
-    border: 1px solid rgba(52, 53, 245, 0.08);
+    background: hsl(var(--card) / 0.72);
+    border: 1px solid hsl(var(--primary) / 0.08);
     cursor: pointer;
     transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
     text-align: center;
@@ -319,22 +319,22 @@
   .quick-card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-elev-3);
-    border-color: rgba(52, 53, 245, 0.18);
+    border-color: hsl(var(--primary) / 0.18);
   }
 
   :global(.quick-card-icon) {
-    color: #3435f5;
+    color: hsl(var(--primary));
   }
 
   .quick-card-title {
     font-size: 0.8125rem;
     font-weight: 600;
-    color: #1a1a2e;
+    color: hsl(var(--foreground));
   }
 
   .quick-card-desc {
     font-size: 0.6875rem;
-    color: #9CA3AF;
+    color: hsl(var(--muted-foreground) / 0.7);
     line-height: 1.3;
   }
 
@@ -348,8 +348,8 @@
     width: 100%;
     max-width: 480px;
     padding: 0.875rem 1rem;
-    background: rgba(255, 255, 255, 0.72);
-    border: 1px solid rgba(52, 53, 245, 0.08);
+    background: hsl(var(--card) / 0.72);
+    border: 1px solid hsl(var(--primary) / 0.08);
     border-radius: 0.875rem;
     cursor: pointer;
     animation: card-in 0.35s ease 0.25s both;
@@ -365,26 +365,26 @@
   .companion-toggle-label {
     font-size: 0.875rem;
     font-weight: 600;
-    color: #1a1a2e;
+    color: hsl(var(--foreground));
   }
 
   .companion-toggle-desc {
     font-size: 0.75rem;
-    color: #9CA3AF;
+    color: hsl(var(--muted-foreground) / 0.7);
   }
 
   .toggle-track {
     width: 2.5rem;
     height: 1.375rem;
     border-radius: 9999px;
-    background: #E5E7EB;
+    background: hsl(var(--border));
     position: relative;
     flex-shrink: 0;
     transition: background 200ms ease;
   }
 
   .toggle-track--on {
-    background: #3435f5;
+    background: hsl(var(--primary));
   }
 
   .toggle-thumb {
@@ -411,7 +411,7 @@
     gap: 0.5rem;
     padding: 0.75rem 2.5rem;
     border-radius: 0.875rem;
-    background: linear-gradient(135deg, #3435f5, #7c5fd6);
+    background: var(--gradient-primary);
     color: white;
     font-size: 0.9375rem;
     font-weight: 600;

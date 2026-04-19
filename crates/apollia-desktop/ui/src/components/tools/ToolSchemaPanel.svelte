@@ -62,9 +62,9 @@
   );
 
   const KIND_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-    native: { bg: "bg-[#3435f5]", text: "text-white", label: "Native" },
-    mcp: { bg: "bg-[#7c5fd6]", text: "text-white", label: "MCP" },
-    python: { bg: "bg-amber-400", text: "text-black", label: "Python" },
+    native: { bg: "bg-primary", text: "text-primary-foreground", label: "Native" },
+    mcp: { bg: "bg-secondary", text: "text-secondary-foreground", label: "MCP" },
+    python: { bg: "bg-warning", text: "text-warning-foreground", label: "Python" },
   };
 
   function kindStyle(kind: string): { bg: string; text: string; label: string } {
@@ -129,7 +129,7 @@
       {/if}
 
       <!-- Input Schema -->
-      <div class="glass-card glass-border rounded-xl p-4 bg-white/5 backdrop-blur-md border border-white/10">
+      <div class="glass-card glass-border rounded-xl p-4">
         <p class="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/60">{inputLabel}</p>
         {#if descriptor.input_schema}
           <div data-testid="tool-schema-json">
@@ -141,7 +141,7 @@
       </div>
 
       <!-- Output Schema -->
-      <div class="glass-card glass-border rounded-xl p-4 bg-white/5 backdrop-blur-md border border-white/10">
+      <div class="glass-card glass-border rounded-xl p-4">
         <p class="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/60">{outputLabel}</p>
         {#if descriptor.output_schema}
           <div data-testid="tool-schema-json">
@@ -153,7 +153,7 @@
       </div>
 
       <!-- Permissions -->
-      <div class="glass-card glass-border rounded-xl p-4 bg-white/5 backdrop-blur-md border border-white/10">
+      <div class="glass-card glass-border rounded-xl p-4">
         <p class="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/60">{permissionsLabel}</p>
         {#if descriptor.permissions.length > 0}
           <div class="flex flex-wrap gap-1.5">

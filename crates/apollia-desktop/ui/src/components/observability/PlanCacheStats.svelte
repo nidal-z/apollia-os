@@ -28,9 +28,9 @@
     if (stats === null) return "text-muted-foreground";
     if (stats.cache_hits + stats.cache_misses === 0)
       return "text-muted-foreground";
-    if (stats.hit_rate_pct > 50) return "text-green-400";
-    if (stats.hit_rate_pct >= 20) return "text-amber-400";
-    return "text-red-400";
+    if (stats.hit_rate_pct > 50) return "text-success";
+    if (stats.hit_rate_pct >= 20) return "text-warning";
+    return "text-destructive";
   });
 
   async function loadStats(): Promise<void> {
@@ -93,7 +93,7 @@
   {#if loading}
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       {#each Array(4) as _}
-        <Skeleton class="h-24 rounded-xl bg-white/5" />
+        <Skeleton class="h-24 rounded-xl" />
       {/each}
     </div>
 
@@ -111,7 +111,7 @@
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       <!-- Total Entries -->
       <div
-        class="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl"
+        class="rounded-xl glass-card glass-border p-4"
         data-testid="plan-cache-total"
       >
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
@@ -123,7 +123,7 @@
 
       <!-- Hit Rate -->
       <div
-        class="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl"
+        class="rounded-xl glass-card glass-border p-4"
         data-testid="plan-cache-hit-rate"
       >
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
@@ -141,7 +141,7 @@
 
       <!-- Cache Hits -->
       <div
-        class="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl"
+        class="rounded-xl glass-card glass-border p-4"
         data-testid="plan-cache-hits"
       >
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
@@ -153,7 +153,7 @@
 
       <!-- Cache Misses -->
       <div
-        class="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl"
+        class="rounded-xl glass-card glass-border p-4"
         data-testid="plan-cache-misses"
       >
         <div class="flex items-center gap-2 text-xs text-muted-foreground">

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { Terminal, Code2, Loader2 } from "lucide-svelte";
+  import { Terminal, Code2 } from "lucide-svelte";
+  import { Spinner } from "$lib/components/ui/progress";
   import { onboardingStore } from "$lib/stores/onboarding";
   import { uiMode } from "$lib/stores/mode";
 
@@ -56,7 +57,7 @@
       >
         <div class="card-icon card-icon-operator">
           {#if selecting === "operator"}
-            <Loader2 size={24} strokeWidth={1.75} class="animate-spin" />
+            <Spinner size={24} />
           {:else}
             <Terminal size={24} strokeWidth={1.75} />
           {/if}
@@ -75,7 +76,7 @@
       >
         <div class="card-icon card-icon-builder">
           {#if selecting === "builder"}
-            <Loader2 size={24} strokeWidth={1.75} class="animate-spin" />
+            <Spinner size={24} />
           {:else}
             <Code2 size={24} strokeWidth={1.75} />
           {/if}
@@ -105,7 +106,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #FFF8F0;
+    background: hsl(var(--background));
     opacity: 0;
     transition: opacity 350ms ease-in;
   }
@@ -134,25 +135,25 @@
   .profile-title {
     font-size: 1.625rem;
     font-weight: 700;
-    color: #1a1a2e;
+    color: hsl(var(--foreground));
     margin: 0;
     letter-spacing: -0.02em;
   }
 
   .profile-subtitle {
     font-size: 0.9375rem;
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
     margin: 0;
   }
 
   .profile-error {
     font-size: 0.8125rem;
-    color: #dc2626;
+    color: hsl(var(--destructive));
     margin: 0;
     padding: 0.5rem 0.875rem;
     border-radius: 0.5rem;
-    background: rgba(220, 38, 38, 0.06);
-    border: 1px solid rgba(220, 38, 38, 0.15);
+    background: hsl(var(--destructive) / 0.05);
+    border: 1px solid hsl(var(--destructive) / 0.15);
   }
 
   .profile-cards {
@@ -177,8 +178,8 @@
     gap: 0.75rem;
     padding: 1.75rem;
     border-radius: 1.25rem;
-    border: 2px solid rgba(52, 53, 245, 0.08);
-    background: rgba(255, 255, 255, 0.82);
+    border: 2px solid hsl(var(--primary) / 0.08);
+    background: hsl(var(--card) / 0.82);
     box-shadow: var(--shadow-elev-2);
     cursor: pointer;
     text-align: left;
@@ -187,7 +188,7 @@
 
   .profile-card:hover:not(:disabled) {
     transform: translateY(-3px);
-    border-color: rgba(52, 53, 245, 0.28);
+    border-color: hsl(var(--primary) / 0.28);
     box-shadow: var(--shadow-elev-4);
   }
 
@@ -197,7 +198,7 @@
   }
 
   .profile-card.is-selecting {
-    border-color: rgba(52, 53, 245, 0.4);
+    border-color: hsl(var(--primary) / 0.4);
     opacity: 1;
   }
 
@@ -224,27 +225,27 @@
   .card-title {
     font-size: 1.125rem;
     font-weight: 700;
-    color: #1a1a2e;
+    color: hsl(var(--foreground));
     margin: 0;
   }
 
   .card-desc {
     font-size: 0.875rem;
-    color: #4B5563;
+    color: hsl(var(--foreground) / 0.8);
     margin: 0;
     line-height: 1.5;
   }
 
   .card-examples {
     font-size: 0.8125rem;
-    color: #9CA3AF;
+    color: hsl(var(--muted-foreground) / 0.7);
     margin: 0;
     font-style: italic;
   }
 
   .both-profiles-link {
     font-size: 0.8125rem;
-    color: #9CA3AF;
+    color: hsl(var(--muted-foreground) / 0.7);
     background: none;
     border: none;
     cursor: pointer;
@@ -256,7 +257,7 @@
   }
 
   .both-profiles-link:hover:not(:disabled) {
-    color: #6B7280;
+    color: hsl(var(--muted-foreground));
   }
 
   .both-profiles-link:disabled {
