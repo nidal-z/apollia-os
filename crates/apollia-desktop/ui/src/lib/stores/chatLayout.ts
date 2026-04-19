@@ -61,6 +61,16 @@ export const chatViewport: Readable<Viewport> = readable<Viewport>(computeViewpo
 
 export const contextDrawerOpen = writable<boolean>(false);
 export const sessionsDrawerOpen = writable<boolean>(false);
+/**
+ * Sessions sidebar collapsed state (`lg+` only — `Cmd+B` toggle from
+ * US-SP42-033). On smaller viewports the sidebar is a drawer governed by
+ * `sessionsDrawerOpen`; the collapsed flag is ignored.
+ */
+export const sessionsSidebarCollapsed = writable<boolean>(false);
+
+export function toggleSessionsSidebar(): void {
+  sessionsSidebarCollapsed.update((c) => !c);
+}
 
 /** Active tab in the ContextDrawer. Writable so global shortcuts can jump to a specific tab. */
 export type ContextDrawerTab = "config" | "metrics" | "memory" | "artifacts";

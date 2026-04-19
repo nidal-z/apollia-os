@@ -7,7 +7,7 @@
    * traps focus within its root, and persists expansion state to
    * `localStorage` so power users keep their preferred layout.
    */
-  import { onMount, tick } from "svelte";
+  import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import {
@@ -37,6 +37,7 @@
   import { navigateTo } from "$lib/stores/navigation";
   import AgentStatusCard from "./AgentStatusCard.svelte";
   import TemplateCard from "./TemplateCard.svelte";
+  import { focusTrap } from "$lib/shortcuts/focusTrap";
 
   interface Props {
     /** Initial project binding for the created session. */
@@ -50,9 +51,8 @@
   let { defaultProjectId = null, oncreated, onclose }: Props = $props();
 
   // ─── State ────────────────────────────────────────────────────────────────
-  let rootEl = $state<HTMLDivElement | null>(null);
-  let textareaEl = $state<HTMLTextAreaElement | null>(null);
-  let previouslyFocused: HTMLElement | null = null;
+  // Focus management is owned by `use:focusTrap` on the root — no DOM
+  // refs needed beyond what the action grabs internally.
 
   let prompt = $state("");
   let creating = $state(false);
@@ -92,16 +92,15 @@
   }
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────
+  // Focus management (initial autofocus + restore on close) is owned by
+  // `use:focusTrap` on the root — this hook only seeds backend state.
   onMount(() => {
-    previouslyFocused = document.activeElement as HTMLElement | null;
-    void tick().then(() => textareaEl?.focus());
     void invoke<AgentListItem[]>("list_agents")
       .then((list) => agents.set(list))
       .catch(() => { /* SSE will eventually populate */ });
     const stopPolling = startAgentStatusPolling();
     return () => {
       stopPolling();
-      previouslyFocused?.focus();
     };
   });
 
@@ -170,14 +169,13 @@
   }
 
   // ─── Keyboard ─────────────────────────────────────────────────────────────
+  // Tab cycling and focus restoration are handled by `use:focusTrap` on
+  // the root — this handler only covers Escape (close) and the textarea
+  // submit chord.
   function handleRootKeydown(event: KeyboardEvent): void {
     if (event.key === "Escape") {
       event.preventDefault();
       onclose();
-      return;
-    }
-    if (event.key === "Tab") {
-      trapTab(event);
     }
   }
 
@@ -190,39 +188,16 @@
       void createFreeChat(prompt);
     }
   }
-
-  /** Cycle Tab focus within the picker — required by B.58 focus trap. */
-  function trapTab(event: KeyboardEvent): void {
-    if (!rootEl) return;
-    const focusables = Array.from(
-      rootEl.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      ),
-    ).filter((el) => el.offsetParent !== null);
-
-    if (focusables.length === 0) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    const active = document.activeElement as HTMLElement | null;
-
-    if (event.shiftKey && active === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && active === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  }
 </script>
 
 <div
-  bind:this={rootEl}
   class="glass-card glass-border animate-fade-in rounded-lg p-4"
   role="dialog"
   aria-modal="false"
   aria-label={$t("chat.quickpicker.title")}
   tabindex="-1"
   onkeydown={handleRootKeydown}
+  use:focusTrap={{ initialFocus: "textarea" }}
   data-testid="quickpicker"
 >
   <!-- Header -->
@@ -270,7 +245,6 @@
   <label class="block">
     <span class="sr-only">{$t("chat.quickpicker.prompt_label")}</span>
     <textarea
-      bind:this={textareaEl}
       bind:value={prompt}
       onkeydown={handleTextareaKeydown}
       rows="3"

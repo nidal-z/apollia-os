@@ -25,14 +25,146 @@
   } from "$lib/stores/chatSessions";
   import {
     contextDrawerOpen,
+    contextDrawerActiveTab,
     toggleContextDrawer,
+    toggleSessionsSidebar,
     openSessionsDrawer,
     closeSessionsDrawer,
   } from "$lib/stores/chatLayout";
   import { currentSession } from "$lib/stores/chat";
+  import {
+    installChatShortcuts,
+    describeBinding,
+    type ShortcutBinding,
+    MOD_LABEL,
+  } from "$lib/shortcuts/chatShortcuts";
+  import { focusMessage } from "$lib/shortcuts/messageNav";
+  import { commandPaletteOpen } from "$lib/stores/commandPalette";
+  import { registerShortcuts } from "$lib/stores/shortcuts";
+  import CommandPalette from "../components/chat/CommandPalette.svelte";
+  import ShortcutsHelpDialog from "../components/chat/ShortcutsHelpDialog.svelte";
 
   let selectedSessionId = $state<string | null>(null);
   let showNewChatPicker = $state(false);
+  let showShortcutsHelp = $state(false);
+
+  // ── Shortcut registry (US-SP42-033, B.29) ──────────────────────────────
+  // One central place declares every chat-route hotkey. Bindings are keyed
+  // on `event.code` so AZERTY/QWERTY layouts share the same physical keys.
+  const SHORTCUT_BINDINGS: ShortcutBinding[] = [
+    {
+      id: "chat.new",
+      chord: { code: "KeyN", modifiers: ["mod"] },
+      group: "chat.shortcut_group.chat",
+      descriptionKey: "chat.shortcut.new_chat",
+      keys: [MOD_LABEL, "N"],
+      run: () => openNewChatPicker(),
+    },
+    {
+      id: "chat.send",
+      chord: { code: "Enter", modifiers: ["mod"] },
+      group: "chat.shortcut_group.chat",
+      descriptionKey: "chat.shortcut.send",
+      keys: [MOD_LABEL, "Enter"],
+      // Cmd+Enter is consumed by ChatInput when the textarea is focused;
+      // this binding is a no-op fallback so it shows up in the Help dialog.
+      allowInTextarea: true,
+      run: () => false,
+    },
+    {
+      id: "chat.palette",
+      chord: { code: "KeyK", modifiers: ["mod"] },
+      group: "chat.shortcut_group.navigation",
+      descriptionKey: "chat.shortcut.palette",
+      keys: [MOD_LABEL, "K"],
+      allowInTextarea: true,
+      run: () => commandPaletteOpen.update((v) => !v),
+    },
+    {
+      id: "chat.search",
+      chord: { code: "KeyF", modifiers: ["mod"] },
+      group: "chat.shortcut_group.navigation",
+      descriptionKey: "chat.shortcut.search_sidebar",
+      keys: [MOD_LABEL, "F"],
+      run: () => {
+        document
+          .querySelector<HTMLInputElement>("[data-testid='session-search-input']")
+          ?.focus();
+      },
+    },
+    {
+      id: "chat.toggle_sidebar",
+      chord: { code: "KeyB", modifiers: ["mod"] },
+      group: "chat.shortcut_group.panels",
+      descriptionKey: "chat.shortcut.toggle_sidebar",
+      keys: [MOD_LABEL, "B"],
+      run: () => toggleSessionsSidebar(),
+    },
+    {
+      id: "chat.toggle_context",
+      chord: { code: "KeyD", modifiers: ["mod", "shift"] },
+      group: "chat.shortcut_group.panels",
+      descriptionKey: "chat.shortcut.toggle_context",
+      keys: [MOD_LABEL, "Shift", "D"],
+      run: () => toggleContextDrawer(),
+    },
+    {
+      id: "chat.toggle_artifacts",
+      chord: { code: "KeyA", modifiers: ["mod", "shift"] },
+      group: "chat.shortcut_group.panels",
+      descriptionKey: "chat.shortcut.toggle_artifacts",
+      keys: [MOD_LABEL, "Shift", "A"],
+      run: () => {
+        contextDrawerActiveTab.set("artifacts");
+        contextDrawerOpen.update((o) => !o);
+      },
+    },
+    {
+      id: "chat.help",
+      chord: { code: "Slash", modifiers: ["mod"] },
+      group: "chat.shortcut_group.navigation",
+      descriptionKey: "chat.shortcut.help",
+      keys: [MOD_LABEL, "/"],
+      allowInTextarea: true,
+      run: () => (showShortcutsHelp = !showShortcutsHelp),
+    },
+    {
+      id: "chat.next_message",
+      chord: { code: "KeyJ", forbid: ["mod", "shift", "alt"] },
+      group: "chat.shortcut_group.messages",
+      descriptionKey: "chat.shortcut.next_message",
+      keys: ["J"],
+      run: () => focusMessage(1),
+    },
+    {
+      id: "chat.prev_message",
+      chord: { code: "KeyK", forbid: ["mod", "shift", "alt"] },
+      group: "chat.shortcut_group.messages",
+      descriptionKey: "chat.shortcut.prev_message",
+      keys: ["K"],
+      run: () => focusMessage(-1),
+    },
+    {
+      id: "chat.stop_or_close",
+      chord: { code: "Escape" },
+      group: "chat.shortcut_group.chat",
+      descriptionKey: "chat.shortcut.stop_or_close",
+      keys: ["Esc"],
+      run: () => {
+        if ($commandPaletteOpen) {
+          commandPaletteOpen.set(false);
+          return;
+        }
+        if (showShortcutsHelp) {
+          showShortcutsHelp = false;
+          return;
+        }
+        // Streaming abort + per-modal Esc are handled by the owning
+        // components — fall through so they keep working.
+        return false;
+      },
+    },
+  ];
 
   onMount(() => {
     const unsub = pendingChatSessionId.subscribe((id) => {
@@ -41,23 +173,38 @@
     const unsubTour = tourOpenChatPicker.subscribe((open) => {
       if (open) { openNewChatPicker(); tourOpenChatPicker.set(false); }
     });
-    const handleGlobalNewChat = (ev: KeyboardEvent) => {
-      const mod = navigator.platform.toLowerCase().includes("mac") ? ev.metaKey : ev.ctrlKey;
-      if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === "n") {
-        ev.preventDefault();
-        openNewChatPicker();
-      }
-    };
-    window.addEventListener("keydown", handleGlobalNewChat);
+    const uninstall = installChatShortcuts(SHORTCUT_BINDINGS);
+    const unregisterHelp = registerShortcuts(SHORTCUT_BINDINGS.map(describeBinding));
     return () => {
       unsub();
       unsubTour();
-      window.removeEventListener("keydown", handleGlobalNewChat);
+      uninstall();
+      unregisterHelp();
     };
   });
 
-  function openNewChatPicker() { showNewChatPicker = true; }
-  function closeNewChatPicker() { showNewChatPicker = false; }
+  // The preset payload is currently informational — QuickPicker has no
+  // preset prop yet (see story US-SP42-024 follow-up). We accept and
+  // ignore it so the palette wiring stays forward-compatible.
+  function openNewChatPicker(_preset?: { templateId?: string; agentName?: string }) {
+    showNewChatPicker = true;
+  }
+  function closeNewChatPicker() {
+    showNewChatPicker = false;
+  }
+
+  function openSessionFromPalette(id: string): void {
+    selectedSessionId = id;
+    markSessionRead(id);
+  }
+
+  function appendSlashCommand(cmdId: string): void {
+    // Surface the slash token in the active textarea so it lands in the
+    // existing command pipeline (`SlashCommandMenu` reuses `chatInputAppend`).
+    void import("$lib/stores/artifacts").then(({ requestChatInputAppend }) => {
+      requestChatInputAppend(`/${cmdId} `);
+    });
+  }
 
   function handleSessionCreated(session: ChatSessionSummary): void {
     selectedSessionId = session.id;
@@ -88,6 +235,14 @@
   }
 </script>
 
+<!-- Chat-route command palette enrichment + Help dialog (US-SP42-033). -->
+<CommandPalette
+  onselectSession={openSessionFromPalette}
+  onnewChat={openNewChatPicker}
+  onslashCommand={appendSlashCommand}
+/>
+<ShortcutsHelpDialog bind:open={showShortcutsHelp} />
+
 <div class="mx-auto w-full max-w-6xl" data-testid="chat-page">
   <!-- Header -->
   <div class="relative flex items-end justify-between overflow-hidden rounded-2xl bg-gradient-surface px-5 py-5 shadow-elev-1">
@@ -96,7 +251,7 @@
       <h1 class="text-display-lg text-foreground" data-testid="chat-header">{$t("chat.title")}</h1>
       <p class="mt-2 text-sm text-muted-foreground md:text-base" data-testid="chat-subtitle">{$t("chat.subtitle")}</p>
     </div>
-    <Button size="sm" onclick={openNewChatPicker} data-testid="new-chat-button" class="relative gap-1.5">
+    <Button size="sm" onclick={() => openNewChatPicker()} data-testid="new-chat-button" class="relative gap-1.5">
       <Plus size={13} />
       {$t("chat.new_chat")}
     </Button>
@@ -132,7 +287,7 @@
         title={$t(EMPTY_STATES.chat.titleKey)}
         description={$t(EMPTY_STATES.chat.descriptionKey)}
         primaryLabel={$t(EMPTY_STATES.chat.primaryCtaKey ?? '')}
-        primaryAction={openNewChatPicker}
+        primaryAction={() => openNewChatPicker()}
         secondaryLabel={$t(EMPTY_STATES.chat.secondaryCtaKey ?? '')}
         secondaryAction={() => navigateTo("agents")}
         page="chat"
@@ -144,7 +299,7 @@
           {#snippet sessions()}
             <ChatSessionsSidebar
               {selectedSessionId}
-              onNewChat={openNewChatPicker}
+              onNewChat={() => openNewChatPicker()}
               onSelect={(id) => { navigateToSession(id); closeSessionsDrawer(); }}
               onDelete={handleDeleteSession}
               onRename={handleRenameSession}

@@ -24,6 +24,7 @@
     contextDrawerWidth,
     sessionsPaneMode,
     sessionsDrawerOpen,
+    sessionsSidebarCollapsed,
     closeSessionsDrawer,
     setContextDrawerWidth,
   } from "$lib/stores/chatLayout";
@@ -76,8 +77,10 @@
 </script>
 
 <div class="flex h-full min-h-0 w-full" data-testid="chat-shell">
-  <!-- Sessions rail — inline @ md+ (sticky @ md, full column @ lg+). -->
-  {#if $sessionsPaneMode !== "drawer"}
+  <!-- Sessions rail — inline @ md+ (sticky @ md, full column @ lg+).
+       Collapsed via Cmd+B (US-SP42-033) on `lg` only — collapsing on
+       narrower viewports is meaningless because the rail is sticky/drawer. -->
+  {#if $sessionsPaneMode !== "drawer" && !($sessionsPaneMode === "column" && $sessionsSidebarCollapsed)}
     <aside
       class="shrink-0 flex flex-col border-r border-border/30 bg-background/40 min-h-0"
       style="width: clamp({chatLayout.sessionsMinPx}px, 22vw, {chatLayout.sessionsMaxPx}px);"

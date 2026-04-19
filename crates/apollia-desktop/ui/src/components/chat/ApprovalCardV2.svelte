@@ -44,6 +44,7 @@
   import ApprovalRiskBadge, { type ApprovalRiskLevel } from "./ApprovalRiskBadge.svelte";
   import ApprovalTimer from "./ApprovalTimer.svelte";
   import ApprovalScopeSelect, { type AlwaysAcceptScope } from "./ApprovalScopeSelect.svelte";
+  import { focusTrap } from "$lib/shortcuts/focusTrap";
 
   // Design-wise the card mirrors the frame provided by ReasoningCardShell
   // (left status bar, compact header, collapsible body). We re-implement the
@@ -176,11 +177,12 @@
     onExpired?.();
   }
 
-  // ── A11y — focus management (alertdialog behaviour) ──────────────────────
+  // ── A11y — focus management ──────────────────────────────────────────────
+  // Tab cycling is handled by `use:focusTrap` on the root (US-SP42-033).
+  // We still explicitly focus the primary action so screen readers
+  // announce the approve button right after the card mounts.
   onMount(async () => {
     await tick();
-    // Move focus into the card so keyboard users land inside the dialog
-    // without trapping them (non-modal alertdialog).
     const firstBtn = rootEl?.querySelector<HTMLButtonElement>(
       "[data-testid='approval-v2-approve']",
     );
@@ -225,7 +227,8 @@
   <div
     bind:this={rootEl}
     role="alertdialog"
-    aria-modal="false"
+    aria-modal="true"
+    use:focusTrap={{ initialFocus: "[data-testid='approval-v2-approve']" }}
     aria-labelledby="approval-title-{manifest.tool_name}"
     aria-describedby="approval-impact-{manifest.tool_name}"
     data-testid={testid ?? `approval-card-v2-${manifest.tool_name}`}

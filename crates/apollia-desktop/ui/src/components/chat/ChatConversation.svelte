@@ -704,6 +704,7 @@
       bind:this={messagesContainer}
       onscroll={handleScroll}
       class="h-full overflow-y-auto px-4 py-4 space-y-6"
+      data-testid="chat-messages-list"
     >
       {#if (messages ?? []).length === 0 && !isStreaming && !isProcessing}
         <div class="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
@@ -720,7 +721,7 @@
             group.messages.length === 1 &&
             firstMsg.role === "assistant" &&
             Boolean(firstMsg.metadata?.cross_session)}
-          <div class="relative">
+          <div class="relative" data-message-id={group.key} tabindex="-1">
             <MessageGroup
               {group}
               {sessionId}

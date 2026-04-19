@@ -1423,6 +1423,36 @@
     "title": "Chat",
     "subtitle": "Conversations with your agents and the LLM",
     "new_chat": "New chat",
+    "untitled_session": "Untitled session",
+    "command_group": {
+      "sessions": "Recent sessions",
+      "templates": "Templates",
+      "agents": "Agents",
+      "slash": "Slash commands"
+    },
+    "command": {
+      "start_with_agent": "Start a new chat with this agent"
+    },
+    "shortcut": {
+      "new_chat": "New chat",
+      "send": "Send message",
+      "palette": "Open command palette",
+      "search_sidebar": "Focus sidebar search",
+      "toggle_sidebar": "Toggle sessions sidebar",
+      "toggle_context": "Toggle context drawer",
+      "toggle_artifacts": "Toggle artifacts panel",
+      "help": "Keyboard shortcuts",
+      "next_message": "Next message",
+      "prev_message": "Previous message",
+      "edit_last": "Edit last message",
+      "stop_or_close": "Stop streaming / close modal"
+    },
+    "shortcut_group": {
+      "chat": "Chat",
+      "navigation": "Navigation",
+      "panels": "Panels",
+      "messages": "Messages"
+    },
     "empty_title": "No conversations",
     "empty_subtitle": "Start a new conversation with an agent or in free mode.",
     "active_sessions": "Active sessions",

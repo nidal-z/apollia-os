@@ -1423,6 +1423,36 @@
     "title": "Chat",
     "subtitle": "Conversations avec vos agents et le LLM",
     "new_chat": "Nouveau chat",
+    "untitled_session": "Session sans titre",
+    "command_group": {
+      "sessions": "Sessions récentes",
+      "templates": "Modèles",
+      "agents": "Agents",
+      "slash": "Commandes slash"
+    },
+    "command": {
+      "start_with_agent": "Démarrer une conversation avec cet agent"
+    },
+    "shortcut": {
+      "new_chat": "Nouveau chat",
+      "send": "Envoyer le message",
+      "palette": "Ouvrir la palette de commandes",
+      "search_sidebar": "Focus recherche barre latérale",
+      "toggle_sidebar": "Afficher/masquer la barre des sessions",
+      "toggle_context": "Afficher/masquer le panneau de contexte",
+      "toggle_artifacts": "Afficher/masquer le panneau d'artefacts",
+      "help": "Raccourcis clavier",
+      "next_message": "Message suivant",
+      "prev_message": "Message précédent",
+      "edit_last": "Éditer le dernier message",
+      "stop_or_close": "Arrêter le streaming / fermer la modale"
+    },
+    "shortcut_group": {
+      "chat": "Chat",
+      "navigation": "Navigation",
+      "panels": "Panneaux",
+      "messages": "Messages"
+    },
     "empty_title": "Aucune conversation",
     "empty_subtitle": "Démarrez une nouvelle conversation avec un agent ou en mode libre.",
     "active_sessions": "Sessions actives",
