@@ -19,8 +19,13 @@
   import { navigateTo } from "$lib/stores/navigation";
   import ChatConversation from "../components/chat/ChatConversation.svelte";
   import ChatSessionCard from "../components/chat/ChatSessionCard.svelte";
+  import ChatSessionsSidebar from "../components/chat/ChatSessionsSidebar.svelte";
   import ChatShell from "../components/chat/ChatShell.svelte";
   import ContextDrawer from "../components/chat/ContextDrawer.svelte";
+  import {
+    decoratedSessions,
+    markSessionRead,
+  } from "$lib/stores/chatSessions";
   import {
     contextDrawerOpen,
     toggleContextDrawer,
@@ -129,7 +134,10 @@
     finally { creating = false; }
   }
 
-  function navigateToSession(sessionId: string) { selectedSessionId = sessionId; }
+  function navigateToSession(sessionId: string) {
+    selectedSessionId = sessionId;
+    markSessionRead(sessionId);
+  }
   function closeConversation() { selectedSessionId = null; }
 
   async function handleDeleteSession(sessionId: string): Promise<void> {
@@ -375,52 +383,13 @@
       <div class="overflow-hidden rounded-lg glass-border border" style="height: calc(100vh - 180px);">
         <ChatShell>
           {#snippet sessions()}
-            <div class="flex h-full min-h-0 flex-col">
-              <!-- Sticky header (B.48) — "New chat" + section title stay visible during scroll. -->
-              <div class="sticky top-0 z-10 shrink-0 bg-background/80 backdrop-blur px-2 pt-2 pb-1 border-b border-border/20">
-                <button
-                  class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-medium
-                    text-muted-foreground bg-muted/30 hover:bg-muted/50 hover:text-foreground
-                    transition-all active:scale-[0.98] w-full"
-                  onclick={openNewChatPicker}
-                  data-testid="sidebar-new-chat"
-                >
-                  <Plus size={12} />
-                  {$t("chat.new_chat")}
-                </button>
-              </div>
-              <div class="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
-                {#if $activeChatSessions.length > 0}
-                  <p class="px-3 pt-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary/50">{$t("chat.active_sessions")}</p>
-                  <div class="space-y-1">
-                    {#each $activeChatSessions as session (session.id)}
-                      <ChatSessionCard
-                        {session}
-                        selected={selectedSessionId === session.id}
-                        onclick={(id) => { navigateToSession(id); closeSessionsDrawer(); }}
-                        ondelete={handleDeleteSession}
-                        onrename={handleRenameSession}
-                      />
-                    {/each}
-                  </div>
-                {/if}
-
-                {#if $closedChatSessions.length > 0}
-                  <p class="px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40">{$t("chat.closed_sessions")}</p>
-                  <div class="space-y-1">
-                    {#each $closedChatSessions as session (session.id)}
-                      <ChatSessionCard
-                        {session}
-                        selected={selectedSessionId === session.id}
-                        onclick={(id) => { navigateToSession(id); closeSessionsDrawer(); }}
-                        ondelete={handleDeleteSession}
-                        onrename={handleRenameSession}
-                      />
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-            </div>
+            <ChatSessionsSidebar
+              {selectedSessionId}
+              onNewChat={openNewChatPicker}
+              onSelect={(id) => { navigateToSession(id); closeSessionsDrawer(); }}
+              onDelete={handleDeleteSession}
+              onRename={handleRenameSession}
+            />
           {/snippet}
 
           {#snippet conversation()}
@@ -445,12 +414,14 @@
       </div>
     {:else}
       <!-- Session list (no session selected) — card list style -->
-      {#if $activeChatSessions.length > 0}
+      {@const activeDecorated = $decoratedSessions.filter((s) => !s.archived && s.status !== "closed")}
+      {@const closedDecorated = $decoratedSessions.filter((s) => !s.archived && s.status === "closed")}
+      {#if activeDecorated.length > 0}
         <p class="px-1 pb-2 text-[10px] font-semibold uppercase tracking-wider text-primary/50" data-testid="chat-active-section">
           {$t("chat.active_sessions")}
         </p>
         <div class="glass-card glass-border rounded-lg overflow-hidden divide-y divide-border/20 shadow-sm" data-testid="chat-active-list">
-          {#each $activeChatSessions as session (session.id)}
+          {#each activeDecorated as session (session.id)}
             <ChatSessionCard
               {session}
               onclick={navigateToSession}
@@ -461,12 +432,12 @@
         </div>
       {/if}
 
-      {#if $closedChatSessions.length > 0}
+      {#if closedDecorated.length > 0}
         <p class="px-1 pt-4 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40" data-testid="chat-closed-section">
           {$t("chat.closed_sessions")}
         </p>
         <div class="glass-card glass-border rounded-lg overflow-hidden divide-y divide-border/20" data-testid="chat-closed-list">
-          {#each $closedChatSessions as session (session.id)}
+          {#each closedDecorated as session (session.id)}
             <ChatSessionCard
               {session}
               onclick={navigateToSession}
