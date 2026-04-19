@@ -434,6 +434,7 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<Result<Ev
             tool_name,
             success,
             output_preview,
+            analysis,
         } if sid == session_id => (
             SseChatEvent {
                 event: "tool_call_completed".into(),
@@ -442,6 +443,7 @@ fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<Result<Ev
                     "tool_name": tool_name,
                     "success": success,
                     "output_preview": output_preview,
+                    "analysis": analysis,
                 }),
             },
             false,

@@ -1245,6 +1245,43 @@ impl BuiltInChatAgent {
         result.trim().to_string()
     }
 
+    /// Build the [`ErrorAnalysis`] attached to a `ChatToolCallCompleted` event.
+    ///
+    /// On failure, classifies the raw output via [`crate::analyzers::classify_tool_error`]
+    /// and, if the user has opted in, enriches the message via the meta-LLM.
+    /// On success, runs only the hallucination heuristic (zero-cost) and
+    /// returns `Some(...)` only when the heuristic flags the output.
+    async fn build_error_analysis(
+        &self,
+        session_id: &str,
+        tool_name: &str,
+        output: &str,
+        success: bool,
+    ) -> Option<apollia_core::ErrorAnalysis> {
+        use crate::analyzers::{classify_tool_error, detect_hallucination, enrich_with_llm};
+        use crate::analyzers::hallucination_detector::analysis_from_report;
+
+        if !success {
+            let analysis = classify_tool_error(output);
+            let analysis = if let Some(handle) = self.meta_handle.as_ref() {
+                let context = format!("tool={tool_name}");
+                enrich_with_llm(handle, analysis, &context, session_id).await
+            } else {
+                analysis
+            };
+            return Some(analysis);
+        }
+
+        // Success path: only flag if heuristic fires (no schema validators
+        // wired up yet — that comes with US-SP42-048 / per-tool registry).
+        let report = detect_hallucination(output, None);
+        if report.is_suspect() {
+            Some(analysis_from_report(&report, output))
+        } else {
+            None
+        }
+    }
+
     /// Execute a single tool call via the [`ToolInvoker`], emitting events.
     async fn execute_tool_call(
         &self,
@@ -1297,12 +1334,22 @@ impl BuiltInChatAgent {
         };
 
         let output_preview = truncate_preview(&output);
+
+        // ── US-SP42-039 Pattern P3 ─────────────────────────────────────
+        // Always-on : run the static error classifier (on failure) and the
+        // hallucination heuristic (on every output). Opt-in: when the
+        // analysis falls back to `Unknown`, ask the meta-LLM to humanise
+        // the message via `MetaRoutine::GenerateErrorExplanation`.
+        let analysis = self
+            .build_error_analysis(session_id, &call.name, &output, success)
+            .await;
         let _ = self.event_bus.send(RuntimeEvent::ChatToolCallCompleted {
             session_id: session_id.to_string(),
             message_id: message_id.to_string(),
             tool_name: call.name.clone(),
             success,
             output_preview: Some(output_preview),
+            analysis,
         });
 
         let record = ToolCallRecord {

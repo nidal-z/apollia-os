@@ -568,6 +568,7 @@ mod tests {
             tool_name: "bash_executor".into(),
             success: false,
             output_preview: Some("exit_code: 1".into()),
+            analysis: None,
         };
         // WHEN
         let notif = map_event(DEFAULT_BASE_URL, &event).expect("doit retourner Some");
@@ -595,6 +596,7 @@ mod tests {
             tool_name: "bash_executor".into(),
             success: true,
             output_preview: Some("output".into()),
+            analysis: None,
         };
         // WHEN / THEN — no notification for successful tool calls
         assert!(map_event(DEFAULT_BASE_URL, &event).is_none());

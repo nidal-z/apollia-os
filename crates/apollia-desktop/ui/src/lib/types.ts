@@ -1382,6 +1382,27 @@ export interface ThinkingEndedEvent {
   tokens: number;
 }
 
+/** Coarse error category used by `<ErrorCard />` to pick icon + color. */
+export type ErrorCategory =
+  | "tool_failure"
+  | "llm_error"
+  | "timeout"
+  | "null_output"
+  | "malformed_output"
+  | "permission_denied"
+  | "network_error"
+  | "hallucination_suspected"
+  | "unknown";
+
+/** Structured error analysis attached to failure-bearing runtime events. */
+export interface ErrorAnalysis {
+  category: ErrorCategory;
+  human_message: string;
+  suggested_action?: string | null;
+  hallucination_suspected: boolean;
+  technical_details: string;
+}
+
 /** Quality assessment produced by `MetaRoutine::GenerateThinkingSummary`. */
 export type ThinkingQuality = "low" | "medium" | "high";
 

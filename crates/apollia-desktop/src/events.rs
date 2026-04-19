@@ -202,6 +202,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::LlmModelReady { .. }
         | RuntimeEvent::LlmModelFailed { .. }
         | RuntimeEvent::LlmCallCompleted { .. }
+        | RuntimeEvent::LlmCallFailed { .. }
         | RuntimeEvent::TokenBudgetUpdated { .. } => "llm-changed",
 
         // ── Triggers ─────────────────────────────────────────────────────
@@ -701,6 +702,7 @@ mod tests {
                 tool_name: "t".into(),
                 success: true,
                 output_preview: None,
+                analysis: None,
             },
             RuntimeEvent::ChatApprovalRequired {
                 session_id: "s".into(),

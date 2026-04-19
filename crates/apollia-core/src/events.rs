@@ -653,6 +653,11 @@ pub enum RuntimeEvent {
         success: bool,
         /// Aperçu tronqué de la sortie (si disponible).
         output_preview: Option<String>,
+        /// Analyse structurée d'erreur (US-SP42-039 Pattern P3) : présent
+        /// uniquement quand `success = false` ou que le détecteur a flaggé
+        /// une hallucination malgré un succès apparent.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        analysis: Option<crate::error_analysis::ErrorAnalysis>,
     },
     /// Une approbation humaine est requise pour un appel outil dans le chat.
     ChatApprovalRequired {
@@ -914,6 +919,25 @@ pub enum RuntimeEvent {
         tokens: u32,
     },
 
+    /// Un appel LLM a échoué — émis par `complete_with_observability()` quand
+    /// la requête au backend retourne une erreur (timeout, auth, quota, etc.).
+    /// Porte une [`crate::error_analysis::ErrorAnalysis`] pour humaniser
+    /// l'erreur côté UI (US-SP42-039 Pattern P3).
+    LlmCallFailed {
+        /// Nom logique du backend qui a échoué.
+        backend: String,
+        /// Identifiant du modèle visé.
+        model: String,
+        /// Identifiant de la tâche ayant déclenché l'appel (`None` hors task).
+        task_id: Option<String>,
+        /// Identifiant du step ORIA ayant déclenché l'appel.
+        step_id: Option<String>,
+        /// Message brut de l'erreur (pour les détails techniques).
+        error: String,
+        /// Analyse structurée — toujours présente.
+        analysis: crate::error_analysis::ErrorAnalysis,
+    },
+
     // ── Meta LLM Orchestrator events (ADR-073) ───
     /// Émis par `MetaLlmOrchestrator` quand le budget tokens/session est dépassé.
     ///
@@ -1156,6 +1180,18 @@ mod tests {
                 latency_ms: 250,
                 cost_usd: Some(0.001),
             },
+            RuntimeEvent::LlmCallFailed {
+                backend: "anthropic".into(),
+                model: "claude-sonnet-4-20250514".into(),
+                task_id: Some("task-42".into()),
+                step_id: None,
+                error: "rate limit exceeded".into(),
+                analysis: crate::error_analysis::ErrorAnalysis::new(
+                    crate::error_analysis::ErrorCategory::LlmError,
+                    "The AI service rate-limited the request.",
+                    "rate limit exceeded",
+                ),
+            },
             RuntimeEvent::TriggerFired {
                 trigger_id: "rapport-hebdo".into(),
                 agent: "rapport-agent".into(),
@@ -1332,6 +1368,7 @@ mod tests {
                 tool_name: "bash_executor".into(),
                 success: true,
                 output_preview: Some("file.txt".into()),
+                analysis: None,
             },
             RuntimeEvent::ChatApprovalRequired {
                 session_id: "sess-001".into(),
