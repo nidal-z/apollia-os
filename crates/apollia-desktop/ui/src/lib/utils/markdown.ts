@@ -1,37 +1,17 @@
+/**
+ * Markdown renderer for chat content (US-SP42-035).
+ *
+ * Code blocks are emitted as *hydration placeholders*: the first render
+ * returns the escaped source text, and `hydrateCodeBlocks` (driven from
+ * `MarkdownContent.svelte`) replaces each block with a Shiki-highlighted
+ * version once the highlighter finishes loading dynamically.
+ *
+ * This keeps the initial bundle small (Shiki's WASM + themes + languages are
+ * loaded on demand), preserves first-paint, and respects `principle 1`
+ * (no outbound traffic — Shiki bundles grammars locally via Vite).
+ */
 import { Marked } from "marked";
 import DOMPurify from "dompurify";
-import hljs from "highlight.js/lib/core";
-
-// Register only the languages we need
-import typescript from "highlight.js/lib/languages/typescript";
-import javascript from "highlight.js/lib/languages/javascript";
-import python from "highlight.js/lib/languages/python";
-import rust from "highlight.js/lib/languages/rust";
-import bash from "highlight.js/lib/languages/bash";
-import json from "highlight.js/lib/languages/json";
-import xml from "highlight.js/lib/languages/xml";
-import css from "highlight.js/lib/languages/css";
-import sql from "highlight.js/lib/languages/sql";
-import yaml from "highlight.js/lib/languages/yaml";
-import toml from "highlight.js/lib/languages/ini";
-
-hljs.registerLanguage("typescript", typescript);
-hljs.registerLanguage("ts", typescript);
-hljs.registerLanguage("javascript", javascript);
-hljs.registerLanguage("js", javascript);
-hljs.registerLanguage("python", python);
-hljs.registerLanguage("rust", rust);
-hljs.registerLanguage("bash", bash);
-hljs.registerLanguage("shell", bash);
-hljs.registerLanguage("sh", bash);
-hljs.registerLanguage("json", json);
-hljs.registerLanguage("html", xml);
-hljs.registerLanguage("xml", xml);
-hljs.registerLanguage("css", css);
-hljs.registerLanguage("sql", sql);
-hljs.registerLanguage("yaml", yaml);
-hljs.registerLanguage("yml", yaml);
-hljs.registerLanguage("toml", toml);
 
 function escapeHtml(text: string): string {
   return text
@@ -41,38 +21,25 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function highlightCode(code: string, lang: string): string {
-  if (lang && hljs.getLanguage(lang)) {
-    try {
-      return hljs.highlight(code, { language: lang }).value;
-    } catch {
-      // fall through
-    }
-  }
-  try {
-    return hljs.highlightAuto(code).value;
-  } catch {
-    return escapeHtml(code);
-  }
-}
-
 const marked = new Marked({
   gfm: true,
   breaks: false,
   renderer: {
     code({ text, lang }) {
       const language = lang ?? "";
-      const highlighted = highlightCode(text, language);
       const encodedCode = encodeURIComponent(text);
       const label = language
         ? `<span class="apollia-code-lang">${escapeHtml(language)}</span>`
         : "";
+      // Escape the raw text for the first paint; the Shiki hydrator replaces
+      // this span with syntax-highlighted markup asynchronously.
+      const escaped = escapeHtml(text);
       return `<div class="apollia-code-block group/code">
         ${label}
         <button class="apollia-code-copy" data-copy-code data-code="${encodedCode}" title="Copy">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </button>
-        <pre><code class="hljs${language ? ` language-${escapeHtml(language)}` : ""}">${highlighted}</code></pre>
+        <pre><code class="apollia-code-raw${language ? ` language-${escapeHtml(language)}` : ""}" data-shiki-lang="${escapeHtml(language)}" data-shiki-code="${encodedCode}">${escaped}</code></pre>
       </div>`;
     },
 
@@ -98,6 +65,7 @@ const ALLOWED_TAGS = [
 const ALLOWED_ATTR = [
   "class", "href", "target", "rel", "title",
   "data-copy-code", "data-code",
+  "data-shiki-lang", "data-shiki-code",
   "type", "checked", "disabled",
   // SVG attributes
   "width", "height", "viewBox", "fill", "stroke",

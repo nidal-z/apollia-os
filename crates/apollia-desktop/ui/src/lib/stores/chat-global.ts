@@ -4,52 +4,24 @@
  * This file is intentionally isolated from `sse.ts` and `chat.ts` to avoid
  * circular dependency issues.  Both `sse.ts` (producer) and `chat.ts` /
  * component code (consumer) may safely import from here.
+ *
+ * Token-buffer management was extracted to `./chatTokenBuffers.ts` in
+ * US-SP42-035 to add LRU + TTL semantics; we re-export the public surface
+ * unchanged so existing callers keep working.
  */
 import { writable, derived, get } from "svelte/store";
 import type { PendingChatApproval } from "$lib/types";
 
 // ─── Global streaming state ──────────────────────────────────────────────────
 
-/**
- * Per-session token buffer — accumulates streamed tokens even when the
- * ChatConversation component is not mounted.
- *
- * Key = session ID, value = accumulated token text.
- */
-export const globalTokenBuffers = writable<Record<string, string>>({});
-
-/**
- * Per-session streaming flag — true while the backend is actively streaming
- * tokens for a given session.
- */
-export const globalStreamingSessions = writable<Set<string>>(new Set());
-
-/** Append a token to a session's global buffer. */
-export function appendGlobalToken(sessionId: string, token: string): void {
-  globalTokenBuffers.update((buffers) => ({
-    ...buffers,
-    [sessionId]: (buffers[sessionId] ?? "") + token,
-  }));
-  globalStreamingSessions.update((s) => {
-    const next = new Set(s);
-    next.add(sessionId);
-    return next;
-  });
-}
-
-/** Clear a session's global buffer (call when streaming completes or component consumes it). */
-export function clearGlobalBuffer(sessionId: string): void {
-  globalTokenBuffers.update((buffers) => {
-    const next = { ...buffers };
-    delete next[sessionId];
-    return next;
-  });
-  globalStreamingSessions.update((s) => {
-    const next = new Set(s);
-    next.delete(sessionId);
-    return next;
-  });
-}
+export {
+  globalTokenBuffers,
+  globalStreamingSessions,
+  appendGlobalToken,
+  clearGlobalBuffer,
+  closeSessionBuffer,
+  getBuffer,
+} from "./chatTokenBuffers";
 
 // ─── Global chat approval state ──────────────────────────────────────────────
 

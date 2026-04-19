@@ -693,6 +693,7 @@ fn main() {
             commands::projects::toggle_project_provider,
             // Review
             commands::review::start_code_review,
+            commands::link_preview::link_preview,
             // CLI install
             commands::cli::get_cli_status,
             commands::cli::install_cli,

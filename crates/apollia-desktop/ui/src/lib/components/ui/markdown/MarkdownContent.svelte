@@ -1,5 +1,6 @@
 <script lang="ts">
   import { renderMarkdown } from "$lib/utils/markdown";
+  import { hydrateCodeBlocks } from "$lib/utils/shikiHydrator";
   import "./markdown-prose.css";
 
   interface Props {
@@ -10,6 +11,17 @@
   let { content, class: className = "" }: Props = $props();
 
   const rendered = $derived(renderMarkdown(content));
+
+  let container = $state<HTMLDivElement | undefined>();
+
+  // Shiki hydration — fires after every render pass.  Idempotent: blocks
+  // already highlighted (class `apollia-code-hi`) are skipped so streaming
+  // content does not double-highlight.
+  $effect(() => {
+    void rendered; // depend on rendered output
+    if (!container) return;
+    void hydrateCodeBlocks(container);
+  });
 
   async function handleClick(event: MouseEvent): Promise<void> {
     const target = event.target as HTMLElement;
@@ -31,6 +43,10 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="apollia-prose {className}" onclick={handleClick}>
+<div
+  bind:this={container}
+  class="apollia-prose {className}"
+  onclick={handleClick}
+>
   {@html rendered}
 </div>

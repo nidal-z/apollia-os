@@ -34,6 +34,7 @@
   let enabledTools = $state(new Set<string>());
   let collapsedGroups = $state(new Set<string>());
   let selectedBackend = $state<string | null>(null);
+  let stepBudget = $state<number | null>(null);
   let saving = $state(false);
   let saveError = $state<string | null>(null);
 
@@ -42,6 +43,33 @@
   const isReadOnly = $derived(isClosed || isProcessing);
 
   const selectedTools = $derived(Array.from(enabledTools));
+
+  // Validation — US-SP42-035 (B.65).
+  // step_budget is persisted client-side (per-session localStorage) until
+  // backend enforcement lands in a follow-up story; validation still applies.
+  const systemPromptError = $derived.by(() => {
+    if (systemPrompt.length > 4000) return $t("chat.config.errors.system_prompt_too_long");
+    return null;
+  });
+  const stepBudgetError = $derived.by(() => {
+    if (stepBudget === null) return null;
+    if (!Number.isFinite(stepBudget)) return $t("chat.config.errors.step_budget_invalid");
+    if (stepBudget <= 0) return $t("chat.config.errors.step_budget_positive");
+    if (stepBudget > 200) return $t("chat.config.errors.step_budget_too_large");
+    return null;
+  });
+  const llmBackendError = $derived.by(() => {
+    if ($llmBackends.length === 0) return null; // nothing to require
+    if (!selectedBackend) return $t("chat.config.errors.llm_required");
+    return null;
+  });
+  const hasValidationErrors = $derived(
+    systemPromptError !== null || stepBudgetError !== null || llmBackendError !== null,
+  );
+
+  function stepBudgetStorageKey(sessionId: string): string {
+    return `apollia.chat.step_budget.${sessionId}`;
+  }
 
   const memoryToggleLabel = $derived(
     $uiMode === "builder"
@@ -68,10 +96,17 @@
     enabledTools = new Set(session.available_tools ?? []);
     selectedBackend = session.llm_backend ?? null;
     saveError = null;
+    try {
+      const stored = window.localStorage.getItem(stepBudgetStorageKey(session.id));
+      stepBudget = stored !== null ? Number.parseInt(stored, 10) : null;
+    } catch {
+      stepBudget = null;
+    }
   }
 
   async function handleSave(): Promise<void> {
     if (!session || isReadOnly) return;
+    if (hasValidationErrors) return; // belt-and-suspenders; button also disabled
     saving = true;
     saveError = null;
     try {
@@ -81,6 +116,16 @@
         llm_backend: selectedBackend,
       };
       await invoke("update_chat_session", { sessionId: session.id, update });
+      try {
+        const key = stepBudgetStorageKey(session.id);
+        if (stepBudget !== null) {
+          window.localStorage.setItem(key, String(stepBudget));
+        } else {
+          window.localStorage.removeItem(key);
+        }
+      } catch {
+        // sessionStorage may be unavailable (private mode); non-fatal.
+      }
       onupdated();
       onclose?.();
     } catch (err: unknown) {
@@ -153,6 +198,14 @@
       {/if}
     </div>
 
+    <!-- LLM provider error — inline feedback for required validation. -->
+    {#if llmBackendError}
+      <p
+        class="text-[10px] text-destructive -mt-2"
+        data-testid="config-llm-error"
+      >{llmBackendError}</p>
+    {/if}
+
     <!-- Instructions section -->
     <div class="glass-card glass-border rounded-xl p-3.5 space-y-2.5">
       <label class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50" for="config-prompt">
@@ -164,13 +217,56 @@
           bg-transparent resize-none outline-none transition-all
           focus:ring-2 focus:ring-primary/30 focus:border-primary/40
           placeholder:text-muted-foreground/50
-          disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled:opacity-50 disabled:cursor-not-allowed
+          aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-destructive/40"
         rows="4"
         placeholder={$t("chat.system_prompt_placeholder")}
         bind:value={systemPrompt}
+        aria-invalid={systemPromptError !== null}
         disabled={isReadOnly}
         data-testid="config-system-prompt"
       ></textarea>
+      {#if systemPromptError}
+        <p class="text-[10px] text-destructive" data-testid="config-system-prompt-error">
+          {systemPromptError}
+        </p>
+      {/if}
+    </div>
+
+    <!-- Step budget (B.65) — client-side persistence until runtime wiring lands. -->
+    <div class="glass-card glass-border rounded-xl p-3.5 space-y-2.5">
+      <label class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50" for="config-step-budget">
+        {$t("chat.step_budget_label")}
+      </label>
+      <input
+        id="config-step-budget"
+        type="number"
+        min="1"
+        max="200"
+        step="1"
+        class="w-full rounded-lg glass-surface glass-border border px-3.5 py-2.5 text-xs text-foreground
+          bg-transparent outline-none transition-all
+          focus:ring-2 focus:ring-primary/30 focus:border-primary/40
+          placeholder:text-muted-foreground/50
+          disabled:opacity-50 disabled:cursor-not-allowed
+          aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-destructive/40"
+        placeholder={$t("chat.step_budget_placeholder")}
+        value={stepBudget ?? ""}
+        oninput={(e) => {
+          const raw = (e.currentTarget as HTMLInputElement).value;
+          stepBudget = raw === "" ? null : Number.parseInt(raw, 10);
+        }}
+        aria-invalid={stepBudgetError !== null}
+        disabled={isReadOnly}
+        data-testid="config-step-budget"
+      />
+      {#if stepBudgetError}
+        <p class="text-[10px] text-destructive" data-testid="config-step-budget-error">
+          {stepBudgetError}
+        </p>
+      {:else}
+        <p class="text-[10px] text-muted-foreground/50">{$t("chat.step_budget_hint")}</p>
+      {/if}
     </div>
 
     <!-- Tools section (libre mode only) -->
@@ -324,7 +420,7 @@
   {#if !isReadOnly}
     <div class="px-5 py-4">
       <Separator />
-      <Button class="w-full bg-primary" onclick={handleSave} disabled={saving} data-testid="config-save">
+      <Button class="w-full bg-primary" onclick={handleSave} disabled={saving || hasValidationErrors} data-testid="config-save">
         <Save class="mr-2 h-4 w-4" />
         {saving ? $t("common.submitting") : $t("chat.config_save")}
       </Button>

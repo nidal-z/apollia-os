@@ -88,13 +88,52 @@
   let attachments = $state<PendingAttachment[]>([]);
   let rateStatus = $state<string | null>(null);
   let rateTone = $state<"neutral" | "warn">("neutral");
-  let rateTimer: number | undefined;
 
   let slashPrefix = $state<string | null>(null);
   let slashCommands = $state<SlashCommand[]>([]);
   let slashIndex = $state(0);
 
   const limiter = new ChatRateLimiter();
+
+  // US-SP42-035 (B.67): reactive rate-limit state so the Send button can be
+  // pre-disabled and a visible countdown is shown until the cooldown elapses.
+  let rateBlockedMs = $state<number>(0);
+  let rateBlockedReason = $state<"too_fast" | "too_many" | null>(null);
+  let rateBlockTimer: ReturnType<typeof setInterval> | undefined;
+
+  function refreshRateState(): void {
+    const check = limiter.check();
+    if (check.allowed) {
+      rateBlockedMs = 0;
+      rateBlockedReason = null;
+      rateStatus = null;
+      rateTone = "neutral";
+    } else {
+      rateBlockedMs = check.retryAfterMs ?? 0;
+      rateBlockedReason = check.reason ?? null;
+      rateStatus = check.reason === "too_fast"
+        ? $t("chat.rate_limit.too_fast_countdown", {
+            default: "Wait {s}s before sending again",
+            values: { s: Math.ceil(rateBlockedMs / 1000) },
+          })
+        : $t("chat.rate_limit.too_many_countdown", {
+            default: "Rate limit reached — retry in {s}s",
+            values: { s: Math.ceil(rateBlockedMs / 1000) },
+          });
+      rateTone = "warn";
+    }
+  }
+
+  function ensureRateBlockTimer(): void {
+    if (rateBlockTimer !== undefined) return;
+    rateBlockTimer = setInterval(() => {
+      refreshRateState();
+      if (rateBlockedReason === null && rateBlockTimer !== undefined) {
+        clearInterval(rateBlockTimer);
+        rateBlockTimer = undefined;
+      }
+    }, 200);
+  }
 
   const shouldRotate = $derived(
     !reduceMotion &&
@@ -110,7 +149,9 @@
   );
 
   const canSend = $derived(
-    !disabled && (value.trim().length > 0 || attachments.length > 0),
+    !disabled &&
+      (value.trim().length > 0 || attachments.length > 0) &&
+      rateBlockedReason === null,
   );
 
   onMount(() => {
@@ -260,28 +301,20 @@
 
     const check = limiter.check();
     if (!check.allowed) {
-      showRateStatus(check.reason!, check.retryAfterMs ?? 500);
+      refreshRateState();
+      ensureRateBlockTimer();
       return;
     }
     limiter.record();
+    // After a successful send, the min-interval cooldown kicks in — surface it.
+    refreshRateState();
+    ensureRateBlockTimer();
 
     const payload = attachments;
     onsend(trimmed, payload);
     value = "";
     attachments = [];
     if (textareaEl) textareaEl.style.height = "auto";
-  }
-
-  function showRateStatus(reason: "too_fast" | "too_many", retryMs: number) {
-    rateTone = "warn";
-    rateStatus = reason === "too_fast"
-      ? $t("chat.rate_limit.too_fast")
-      : $t("chat.rate_limit.too_many");
-    window.clearTimeout(rateTimer);
-    rateTimer = window.setTimeout(() => {
-      rateStatus = null;
-      rateTone = "neutral";
-    }, Math.max(1200, retryMs));
   }
 
   function runCommand(cmd: SlashCommand) {

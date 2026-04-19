@@ -1498,6 +1498,18 @@
     "config_title": "Configuration",
     "config_save": "Appliquer",
     "config_hint": "Configurer les outils et instructions",
+    "step_budget_label": "Budget d'étapes",
+    "step_budget_placeholder": "Valeur par défaut du runtime",
+    "step_budget_hint": "Nombre maximum d'étapes de raisonnement par tour (1–200). Laisser vide pour utiliser la valeur par défaut du runtime.",
+    "config": {
+      "errors": {
+        "llm_required": "Sélectionnez un fournisseur LLM avant d'enregistrer.",
+        "system_prompt_too_long": "Le prompt système est trop long (max 4000 caractères).",
+        "step_budget_invalid": "Le budget doit être un nombre entier.",
+        "step_budget_positive": "Le budget doit être strictement supérieur à zéro.",
+        "step_budget_too_large": "Le budget ne peut pas dépasser 200."
+      }
+    },
     "tool_collapse": "réduire",
     "tool_expand": "voir tout",
     "tool_show_result": "Voir le résultat",

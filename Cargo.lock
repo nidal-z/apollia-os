@@ -268,6 +268,7 @@ dependencies = [
  "pyo3",
  "reqwest 0.12.28",
  "rusqlite",
+ "scraper",
  "serde",
  "serde_json",
  "sysinfo",
@@ -282,6 +283,7 @@ dependencies = [
  "toml 0.8.23",
  "tracing",
  "tracing-subscriber",
+ "url",
  "uuid",
  "wiremock",
 ]

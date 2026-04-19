@@ -45,13 +45,46 @@
   });
   const items = $derived(buildReasoningSequence(nonPendingMessage));
 
-  const overflow = $derived(items.length > COLLAPSE_ITEM_THRESHOLD);
-  let expandedGroup = $state(false);
+  // US-SP42-035 (B.55): cap visible reasoning items, paginate by 30 on demand.
+  // Persist `visibleCount` per-message in sessionStorage so scroll-back through
+  // a conversation preserves the user's pagination state within the tab.
+  const PAGE_SIZE = 30;
+  const storageKey = $derived(`apollia.reasoning.visibleCount.${message.id}`);
+
+  function loadVisibleCount(): number {
+    if (typeof sessionStorage === "undefined") return COLLAPSE_ITEM_THRESHOLD;
+    const raw = sessionStorage.getItem(storageKey);
+    if (!raw) return COLLAPSE_ITEM_THRESHOLD;
+    const n = Number.parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : COLLAPSE_ITEM_THRESHOLD;
+  }
+
+  let visibleCount = $state<number>(loadVisibleCount());
+
+  const overflow = $derived(items.length > visibleCount);
+  const hiddenCount = $derived(Math.max(items.length - visibleCount, 0));
   const visibleItems = $derived(
-    overflow && !expandedGroup
-      ? items.slice(0, COLLAPSE_ITEM_THRESHOLD)
-      : items,
+    overflow ? items.slice(0, visibleCount) : items,
   );
+
+  function showMore(): void {
+    visibleCount = Math.min(visibleCount + PAGE_SIZE, items.length);
+    persistVisibleCount();
+  }
+
+  function collapse(): void {
+    visibleCount = COLLAPSE_ITEM_THRESHOLD;
+    persistVisibleCount();
+  }
+
+  function persistVisibleCount(): void {
+    if (typeof sessionStorage === "undefined") return;
+    try {
+      sessionStorage.setItem(storageKey, String(visibleCount));
+    } catch {
+      // quota / private mode — ignore.
+    }
+  }
 
   const skin = $derived<"builder" | "operator">(
     isOperator ? "operator" : "builder",
@@ -65,26 +98,31 @@
       <ReasoningCard {item} {skin} />
     {/each}
 
-    <!-- Collapse-if-too-many toggle -->
+    <!-- Pagination: show +30 at a time, then collapse back to initial view. -->
     {#if overflow}
       <button
         type="button"
         class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/25"
-        onclick={() => (expandedGroup = !expandedGroup)}
-        aria-expanded={expandedGroup}
+        onclick={showMore}
+        data-testid="reasoning-show-more"
       >
-        {#if expandedGroup}
-          <ChevronDown size={11} />
-          {$t("chat.reasoning.group_collapse", {
-            default: "Hide steps",
-          })}
-        {:else}
-          <ChevronRight size={11} />
-          {$t("chat.reasoning.group_expand", {
-            default: "Show {n} more steps",
-            values: { n: items.length - COLLAPSE_ITEM_THRESHOLD },
-          })}
-        {/if}
+        <ChevronRight size={11} />
+        {$t("chat.reasoning.group_expand", {
+          default: "Show {n} more steps",
+          values: { n: Math.min(hiddenCount, PAGE_SIZE) },
+        })}
+      </button>
+    {:else if visibleCount > COLLAPSE_ITEM_THRESHOLD && items.length > COLLAPSE_ITEM_THRESHOLD}
+      <button
+        type="button"
+        class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/25"
+        onclick={collapse}
+        data-testid="reasoning-collapse"
+      >
+        <ChevronDown size={11} />
+        {$t("chat.reasoning.group_collapse", {
+          default: "Hide steps",
+        })}
       </button>
     {/if}
 

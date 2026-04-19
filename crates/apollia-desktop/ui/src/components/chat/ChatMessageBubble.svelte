@@ -6,6 +6,7 @@
   import { uiMode } from "$lib/stores/mode";
   import { MarkdownContent } from "$lib/components/ui/markdown";
   import ReasoningSequence from "./ReasoningSequence.svelte";
+  import LinkPreviewList from "./LinkPreviewList.svelte";
 
   interface Props {
     message: ChatMessageView;
@@ -46,7 +47,7 @@
   const bubbleClass = $derived(
     isUser
       ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-2xl rounded-br-sm shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.35)]"
-      : "bg-card/80 border border-neutral/10 rounded-2xl rounded-bl-sm text-foreground shadow-[0_2px_10px_-4px_rgba(0,0,0,0.08)]",
+      : "bg-card/80 border border-border/40 rounded-2xl rounded-bl-sm text-foreground shadow-[0_2px_10px_-4px_rgba(0,0,0,0.08)]",
   );
 
   let copied = $state(false);
@@ -97,6 +98,7 @@
         <p class="whitespace-pre-wrap break-words">{message.content}</p>
       {:else}
         <MarkdownContent content={message.content} />
+        <LinkPreviewList content={message.content} />
       {/if}
     {/if}
 

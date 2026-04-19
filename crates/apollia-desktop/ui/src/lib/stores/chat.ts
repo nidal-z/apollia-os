@@ -22,6 +22,8 @@ export {
   pendingChatApprovalCount,
   appendGlobalToken,
   clearGlobalBuffer,
+  closeSessionBuffer,
+  getBuffer,
   addPendingChatApproval,
   removePendingChatApproval,
   getPendingChatApprovalForSession,
@@ -34,9 +36,6 @@ export const currentSession = writable<
 
 /** Session ID to open automatically when navigating to Chat (set by other pages like Agents). */
 export const pendingChatSessionId = writable<string | null>(null);
-
-/** Token buffer for streaming responses in the active conversation. */
-export const chatTokenBuffer = writable<string>("");
 
 /** Whether user memory injection is enabled for the current session. */
 export const useUserMemory = writable<boolean>(true);

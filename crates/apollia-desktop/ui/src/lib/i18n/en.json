@@ -1498,6 +1498,18 @@
     "config_title": "Configuration",
     "config_save": "Apply",
     "config_hint": "Configure tools and instructions",
+    "step_budget_label": "Step budget",
+    "step_budget_placeholder": "Runtime default",
+    "step_budget_hint": "Maximum reasoning steps per turn (1–200). Leave empty to use the runtime default.",
+    "config": {
+      "errors": {
+        "llm_required": "Select an LLM provider before saving.",
+        "system_prompt_too_long": "System prompt is too long (max 4000 characters).",
+        "step_budget_invalid": "Step budget must be a whole number.",
+        "step_budget_positive": "Step budget must be greater than zero.",
+        "step_budget_too_large": "Step budget cannot exceed 200."
+      }
+    },
     "tool_collapse": "collapse",
     "tool_expand": "show all",
     "tool_show_result": "Show result",

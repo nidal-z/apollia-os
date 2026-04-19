@@ -7,9 +7,9 @@
   import { LoadingSpinner } from "$lib/components/feedback";
   import { Spinner } from "$lib/components/ui/progress";
   import {
-    currentSession, chatTokenBuffer, memoryEntryCount,
+    currentSession, memoryEntryCount,
     chatConversationStats, globalTokenBuffers,
-    clearGlobalBuffer, removePendingChatApproval,
+    clearGlobalBuffer, closeSessionBuffer, removePendingChatApproval,
     getPendingChatApprovalForSession,
   } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
@@ -20,7 +20,7 @@
   import { save as saveDialog } from "@tauri-apps/plugin-dialog";
   import { exportConversation, type ExportFormat } from "$lib/chat/exportConversation";
   import type { PendingAttachment } from "$lib/chat/attachments";
-  import StreamingText from "./StreamingText.svelte";
+  import StreamingMessage from "./StreamingMessage.svelte";
   import ChatConfigPanel from "./ChatConfigPanel.svelte";
   import ContextIndicator from "./ContextIndicator.svelte";
   import ApprovalCard from "./ApprovalCard.svelte";
@@ -168,6 +168,32 @@
   let liveToolChain = $state<
     { name: string; status: "running" | "done" | "refused"; startedAt: number; durationMs?: number }[]
   >([]);
+
+  // Dedup tool-name entries in the live chain (B.52).  Keep the latest status
+  // + cumulative duration, track invocation count so repeat calls surface
+  // compactly as "tool_name · ×N".
+  const groupedLiveToolChain = $derived.by(() => {
+    const byName = new Map<
+      string,
+      { name: string; status: "running" | "done" | "refused"; count: number; totalDurationMs: number }
+    >();
+    for (const step of liveToolChain) {
+      const existing = byName.get(step.name);
+      if (existing) {
+        existing.status = step.status;
+        existing.count += 1;
+        existing.totalDurationMs += step.durationMs ?? 0;
+      } else {
+        byName.set(step.name, {
+          name: step.name,
+          status: step.status,
+          count: 1,
+          totalDurationMs: step.durationMs ?? 0,
+        });
+      }
+    }
+    return Array.from(byName.values());
+  });
 
   onMount(async () => {
     await loadSession();
@@ -412,7 +438,7 @@
     unlistenA2A?.();
     unlistenTaskChanged?.();
     currentSession.set(null);
-    chatTokenBuffer.set("");
+    closeSessionBuffer(sessionId);
   });
 
   async function loadSession(): Promise<void> {
@@ -433,7 +459,7 @@
 
   async function finalizeStreaming(): Promise<void> {
     await new Promise((r) => setTimeout(r, 80));
-    isStreaming = false; isProcessing = false; tokenBuffer = ""; chatTokenBuffer.set(""); liveToolChain = [];
+    isStreaming = false; isProcessing = false; tokenBuffer = ""; liveToolChain = [];
     clearGlobalBuffer(sessionId);
     try {
       const detail = await invoke<ChatSessionDetail>("get_chat_session", { sessionId });
@@ -525,7 +551,7 @@
       seq: (messages ?? []).length, created_at: new Date().toISOString(),
     };
     messages = [...(messages ?? []), tempMsg];
-    isProcessing = true; tokenBuffer = ""; chatTokenBuffer.set(""); liveToolChain = [];
+    isProcessing = true; tokenBuffer = ""; liveToolChain = [];
     await tick(); scrollToBottom(true);
 
     try {
@@ -862,12 +888,12 @@
           </div>
         {/each}
 
-        {#if isStreaming && sessionMode === "libre"}
-          <div class="flex justify-start" data-testid="chat-message-streaming">
-            <div class="max-w-[min(82ch,92%)] lg:max-w-[min(78ch,80%)] rounded-2xl rounded-bl-sm bg-card/80 border border-neutral/10 px-3.5 py-2.5 text-[13px] text-foreground shadow-[0_2px_10px_-4px_rgba(0,0,0,0.08)]">
-              <StreamingText text={tokenBuffer} />
-            </div>
-          </div>
+        {#if isStreaming}
+          <!-- Streaming bubble is isolated in its own component so only this
+               subtree re-renders per token (US-SP42-035 / B.66). The committed
+               MessageGroup list above depends on the immutable `messages`
+               array, so it does NOT re-render on each token. -->
+          <StreamingMessage text={tokenBuffer} {sessionMode} />
         {/if}
 
         {#if activeA2A}
@@ -925,7 +951,7 @@
                 <span class="text-[10px] font-medium text-muted-foreground/60">{$t("chat.reasoning_live")}</span>
               </div>
               <div class="space-y-0.5">
-                {#each liveToolChain as step, i (i)}
+                {#each groupedLiveToolChain as step (step.name)}
                   <div class="flex items-center gap-1.5">
                     <div class="flex-shrink-0">
                       {#if step.status === "running"}
@@ -937,8 +963,11 @@
                       {/if}
                     </div>
                     <span class="truncate font-mono text-[11px] text-muted-foreground">{step.name}</span>
-                    {#if step.durationMs !== undefined}
-                      <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/40">{step.durationMs}ms</span>
+                    {#if step.count > 1}
+                      <span class="flex-shrink-0 text-[10px] text-muted-foreground/50">×{step.count}</span>
+                    {/if}
+                    {#if step.totalDurationMs > 0}
+                      <span class="ml-auto flex-shrink-0 text-[10px] text-muted-foreground/40">{step.totalDurationMs}ms</span>
                     {/if}
                   </div>
                 {/each}
