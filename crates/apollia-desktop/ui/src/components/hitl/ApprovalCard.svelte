@@ -231,6 +231,7 @@
       bind:value={rejectReason}
       rows={3}
       placeholder={$t("approvals.reject_placeholder")}
+      aria-label={$t("approvals.reject_placeholder")}
       data-testid="approval-reject-reason"
     />
     <p class="mt-1 text-[11px] text-muted-foreground">

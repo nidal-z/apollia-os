@@ -339,7 +339,7 @@
           <thead>
             <tr class="border-b glass-border-subtle glass-surface">
               {#each columns as col}
-                <th class="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                   {humanizeKey(col)}
                 </th>
               {/each}

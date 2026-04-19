@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "audit:a11y": "node scripts/audit-a11y.mjs && node scripts/audit-a11y-forms.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

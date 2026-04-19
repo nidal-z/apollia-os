@@ -46,6 +46,19 @@
     "no_session": "Aucune session active.",
     "shortcut_hint": "Appuyez sur ⌘K pour ouvrir"
   },
+  "a11y": {
+    "skip_to_content": "Aller au contenu principal",
+    "main_landmark": "Contenu principal",
+    "keyboard_shortcuts": "Raccourcis clavier",
+    "keyboard_shortcuts_hint": "Appuyer sur ? pour afficher les raccourcis",
+    "step_label": "Étape {current} sur {total}",
+    "shortcut": {
+      "nav_back": "Revenir en arrière",
+      "nav_forward": "Avancer d'une page",
+      "open_hints": "Afficher les raccourcis",
+      "close_modal": "Fermer la boîte de dialogue"
+    }
+  },
   "nav": {
     "dashboard": "Tableau de bord",
     "home": "Accueil",
@@ -392,6 +405,7 @@
     "header_duration": "Durée",
     "header_time": "Heure",
     "all_agents": "Tous les agents",
+    "filter_by_agent": "Filtrer par agent",
     "new_task": "Nouvelle tâche",
     "no_match": "Aucune tâche ne correspond aux filtres actuels.",
     "count_suffix": "tâches",
@@ -662,6 +676,9 @@
     "field_depends_on_invalid": "L'étape « {dep} » n'existe pas",
     "field_fallback_for": "Fallback pour",
     "field_condition": "Condition",
+    "field_condition_operator": "Opérateur de condition",
+    "field_condition_field": "Champ de condition",
+    "field_condition_value": "Valeur de condition",
     "field_cycle_detected": "Cycle détecté dans le pipeline",
     "add_step": "Ajouter une étape",
     "remove_step": "Supprimer",
@@ -756,6 +773,7 @@
       "add_key_required": "La clé est obligatoire",
       "edit_save": "Enregistrer",
       "edit_cancel": "Annuler",
+      "edit_value_label": "Valeur mémoire",
       "menu_validate": "Valider",
       "menu_edit": "Modifier",
       "menu_delete": "Supprimer",

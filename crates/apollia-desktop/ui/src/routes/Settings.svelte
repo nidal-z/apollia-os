@@ -926,6 +926,7 @@
                   type="button"
                   role="switch"
                   aria-checked={newBackend.enabled}
+                  aria-label={$t('settings.llm_backend_enabled')}
                   onclick={() => { newBackend.enabled = !newBackend.enabled; }}
                   class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors {newBackend.enabled ? 'bg-primary' : 'bg-muted'}"
                 >
@@ -939,6 +940,7 @@
                   type="button"
                   role="switch"
                   aria-checked={newBackend.is_default}
+                  aria-label={$t('settings.llm_backend_default')}
                   onclick={() => { newBackend.is_default = !newBackend.is_default; }}
                   class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors {newBackend.is_default ? 'bg-primary' : 'bg-muted'}"
                 >

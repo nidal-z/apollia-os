@@ -80,16 +80,16 @@
       <table class="w-full min-w-[520px] text-[13px]">
         <thead class="border-b border-border bg-muted/50">
           <tr>
-            <th class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">
+            <th scope="col" class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">
               {$t('notifications.table.timestamp')}
             </th>
-            <th class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">
+            <th scope="col" class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">
               {$t('notifications.table.channel')}
             </th>
-            <th class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">
+            <th scope="col" class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">
               {$t('notifications.table.event')}
             </th>
-            <th class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">
+            <th scope="col" class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">
               {$t('notifications.table.status')}
             </th>
           </tr>

@@ -158,7 +158,11 @@
   </div>
 
   <!-- Agent filter -->
-  <Select class="h-8 w-auto text-xs" bind:value={filterAgentId}>
+  <Select
+    class="h-8 w-auto text-xs"
+    bind:value={filterAgentId}
+    aria-label={$t('tasks.filter_by_agent')}
+  >
     <option value="">{$t('tasks.all_agents')}</option>
     {#each uniqueAgents as agent}
       <option value={agent.id}>{agent.name}</option>

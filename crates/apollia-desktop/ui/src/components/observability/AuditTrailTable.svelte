@@ -141,11 +141,11 @@
       <table class="w-full min-w-[620px] text-[13px]">
         <thead class="border-b border-border bg-muted/50">
           <tr>
-            <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.timestamp')}</th>
-            <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.tool')}</th>
-            <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.agent')}</th>
-            <th class="text-right px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.duration')}</th>
-            <th class="text-right px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.exit')}</th>
+            <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.timestamp')}</th>
+            <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.tool')}</th>
+            <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.agent')}</th>
+            <th scope="col" class="text-right px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.duration')}</th>
+            <th scope="col" class="text-right px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('observability.table.exit')}</th>
           </tr>
         </thead>
         <tbody>

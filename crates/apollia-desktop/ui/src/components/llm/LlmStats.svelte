@@ -76,11 +76,11 @@
       <table class="w-full min-w-[520px] text-[13px]">
         <thead class="border-b border-border bg-muted/50">
           <tr>
-            <th class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">{$t('llm.table.backend')}</th>
-            <th class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">{$t('llm.table.model')}</th>
-            <th class="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground">{$t('llm.table.calls')}</th>
-            <th class="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground">{$t('llm.table.tokens')}</th>
-            <th class="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground">{$t('llm.table.cost_usd')}</th>
+            <th scope="col" class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">{$t('llm.table.backend')}</th>
+            <th scope="col" class="px-3 py-2 text-left text-[11px] font-medium text-muted-foreground">{$t('llm.table.model')}</th>
+            <th scope="col" class="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground">{$t('llm.table.calls')}</th>
+            <th scope="col" class="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground">{$t('llm.table.tokens')}</th>
+            <th scope="col" class="px-3 py-2 text-right text-[11px] font-medium text-muted-foreground">{$t('llm.table.cost_usd')}</th>
           </tr>
         </thead>
         <tbody>

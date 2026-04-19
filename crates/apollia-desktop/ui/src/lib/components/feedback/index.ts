@@ -1,4 +1,5 @@
+import KeyboardHint from "./KeyboardHint.svelte";
 import LoadingShimmer from "./LoadingShimmer.svelte";
 import LoadingSpinner from "./LoadingSpinner.svelte";
 
-export { LoadingShimmer, LoadingSpinner };
+export { KeyboardHint, LoadingShimmer, LoadingSpinner };

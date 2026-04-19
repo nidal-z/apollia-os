@@ -54,6 +54,7 @@
   <Input
     type="text"
     placeholder={$t('memory.search_placeholder')}
+    aria-label={$t('memory.search_placeholder')}
     class="w-full sm:w-64 pl-9 pr-8"
     value={internalValue}
     oninput={handleInput}

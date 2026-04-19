@@ -95,6 +95,7 @@
         bind:value={rejectReason}
         rows={2}
         placeholder={$t("permissions.reject_reason_placeholder")}
+        aria-label={$t("permissions.reject_reason_placeholder")}
         data-testid="permission-reject-reason"
       />
       <p class="text-[10px] text-muted-foreground">

@@ -231,12 +231,14 @@
             <button
               class="rounded p-0.5 text-primary hover:bg-primary/10 transition-colors"
               onclick={confirmEdit}
+              aria-label={$t("common.save")}
             >
               <Check size={13} />
             </button>
             <button
               class="rounded p-0.5 text-muted-foreground hover:bg-muted/60 transition-colors"
               onclick={cancelEdit}
+              aria-label={$t("common.cancel")}
             >
               <X size={13} />
             </button>

@@ -201,7 +201,7 @@
       <!-- Events per-channel -->
       {#if globalEvents.length > 0}
         <div>
-          <label class="mb-1 block text-[11px] text-muted-foreground">{$t("notifications.field_events")}</label>
+          <p class="mb-1 block text-[11px] text-muted-foreground">{$t("notifications.field_events")}</p>
           <p class="mb-2 text-xs text-muted-foreground">{$t("notifications.field_events_hint")}</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
             {#each globalEvents as event}

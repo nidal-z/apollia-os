@@ -99,15 +99,15 @@
     <table class="w-full min-w-[640px] text-sm" data-testid="memory-table">
       <thead class="border-b border-border bg-muted/50">
         <tr>
-          <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.type')}</th>
-          <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.key')}</th>
-          <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.value')}</th>
+          <th scope="col" class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.type')}</th>
+          <th scope="col" class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.key')}</th>
+          <th scope="col" class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.value')}</th>
           {#if searching}
-            <th class="px-4 py-2 text-left font-medium text-muted-foreground"><GlossaryTerm term="bm25" label={$t('memory.table.score')} /></th>
+            <th scope="col" class="px-4 py-2 text-left font-medium text-muted-foreground"><GlossaryTerm term="bm25" label={$t('memory.table.score')} /></th>
           {/if}
-          <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.date')}</th>
-          <th class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.ttl')}</th>
-          <th class="px-4 py-2 text-right font-medium text-muted-foreground">{$t('memory.table.actions')}</th>
+          <th scope="col" class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.date')}</th>
+          <th scope="col" class="px-4 py-2 text-left font-medium text-muted-foreground">{$t('memory.table.ttl')}</th>
+          <th scope="col" class="px-4 py-2 text-right font-medium text-muted-foreground">{$t('memory.table.actions')}</th>
         </tr>
       </thead>
       <tbody>

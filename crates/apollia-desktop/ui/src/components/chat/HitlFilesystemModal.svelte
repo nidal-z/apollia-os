@@ -304,10 +304,11 @@
     <!-- Critical: confirmation input -->
     {#if isCritical}
       <div class="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-3">
-        <label class="mb-1.5 block text-[11px] font-medium text-destructive">
+        <label class="mb-1.5 block text-[11px] font-medium text-destructive" for="hitl-fs-critical-input">
           {$t("hitl.fs.critical_confirm_label")}
         </label>
         <input
+          id="hitl-fs-critical-input"
           type="text"
           bind:value={criticalInput}
           placeholder={$t("hitl.fs.critical_confirm_placeholder")}

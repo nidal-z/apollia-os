@@ -252,7 +252,12 @@
     <div class="flex items-center gap-3 border-b border-border px-5 py-4">
       <FolderOpen size={20} strokeWidth={1.5} class="shrink-0 text-primary/70" />
       {#if editing}
-        <Input bind:value={editName} class="flex-1 h-8 text-sm font-medium" autofocus />
+        <Input
+          bind:value={editName}
+          class="flex-1 h-8 text-sm font-medium"
+          autofocus
+          aria-label={$t("projects.field_name")}
+        />
       {:else}
         <h2 class="flex-1 text-base font-semibold truncate">{project.name}</h2>
       {/if}
@@ -274,7 +279,11 @@
           {$t("projects.field_description")}
         </p>
         {#if editing}
-          <Input bind:value={editDescription} placeholder={$t("projects.field_description_placeholder")} />
+          <Input
+            bind:value={editDescription}
+            placeholder={$t("projects.field_description_placeholder")}
+            aria-label={$t("projects.field_description")}
+          />
         {:else}
           <p class="text-sm text-muted-foreground">
             {project.description ?? $t("projects.no_description")}
@@ -305,6 +314,7 @@
             rows={5}
             class="resize-none text-sm"
             placeholder={$t("projects.field_instructions_placeholder")}
+            aria-label={$t("projects.field_instructions")}
           />
         {:else if project.instructions}
           <p class="text-sm whitespace-pre-wrap rounded-md bg-muted/50 px-3 py-2">

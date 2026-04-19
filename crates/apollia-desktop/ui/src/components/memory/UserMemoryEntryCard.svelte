@@ -119,7 +119,11 @@
 
       {#if isEditing}
         <div class="mt-2 space-y-2">
-          <Textarea bind:value={editValue} class="text-sm" />
+          <Textarea
+            bind:value={editValue}
+            class="text-sm"
+            aria-label={$t("memory.user_memory.edit_value_label")}
+          />
           <div class="flex gap-2">
             <Button size="sm" onclick={saveEdit} disabled={editValue.trim() === ""}>
               {$t("memory.user_memory.edit_save")}

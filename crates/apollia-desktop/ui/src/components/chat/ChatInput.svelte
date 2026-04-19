@@ -81,6 +81,7 @@
       class="bg-primary-solid inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg
         active:scale-[0.96]
         disabled:pointer-events-none disabled:opacity-30"
+      aria-label={$t("chat.send")}
       data-testid="chat-send-button"
     >
       <Send size={15} />

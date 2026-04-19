@@ -269,10 +269,10 @@
         <table class="w-full min-w-[480px] text-sm">
           <thead>
             <tr class="border-b border-border/50 text-left text-xs text-muted-foreground/60 uppercase tracking-wider">
-              <th class="px-4 py-3 font-medium">{$t('memory.tools_col_name')}</th>
-              <th class="px-4 py-3 font-medium">{$t('memory.tools_col_kind')}</th>
-              <th class="px-4 py-3 font-medium">{$t('memory.tools_col_version')}</th>
-              <th class="px-4 py-3 font-medium hidden sm:table-cell">{$t('memory.tools_col_description')}</th>
+              <th scope="col" class="px-4 py-3 font-medium">{$t('memory.tools_col_name')}</th>
+              <th scope="col" class="px-4 py-3 font-medium">{$t('memory.tools_col_kind')}</th>
+              <th scope="col" class="px-4 py-3 font-medium">{$t('memory.tools_col_version')}</th>
+              <th scope="col" class="px-4 py-3 font-medium hidden sm:table-cell">{$t('memory.tools_col_description')}</th>
             </tr>
           </thead>
           <tbody>

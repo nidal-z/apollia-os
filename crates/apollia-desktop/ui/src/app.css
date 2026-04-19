@@ -61,6 +61,15 @@
     --success: 152 56% 28%;
     --success-foreground: 152 56% 20%;
 
+    /* ── Text tokens (US-SP42-007) — verified ≥ 4.5:1 on surface-1.
+       Status colours are shifted darker than their bg counterparts so
+       a success/warning/danger label stays legible as prose.
+    */
+    --text-muted: 220 10% 34%;
+    --text-success: 152 60% 22%;
+    --text-warning: 30 90% 22%;
+    --text-danger: 0 72% 36%;
+
     /* ── Chart palette — 8 distinguishable colors ── */
     --chart-1: #7c3aed;
     --chart-2: #3b82f6;
@@ -183,6 +192,13 @@
     --warning-foreground: 45 90% 82%;
     --success: 152 50% 50%;
     --success-foreground: 152 50% 82%;
+
+    /* Text tokens dark — tuned against surface-1 dark (~hsl(28 10% 14%)).
+       Each combination measured ≥ 4.5:1 with contrast-ratio.com. */
+    --text-muted: 30 8% 72%;
+    --text-success: 152 55% 68%;
+    --text-warning: 40 95% 72%;
+    --text-danger: 0 75% 72%;
 
     --chart-1: #a78bfa;
     --chart-2: #60a5fa;
@@ -404,6 +420,100 @@
   [role="button"]:not([disabled]):active {
     transform: scale(0.98);
   }
+
+  /* ═════════════════════════════════════════════════════════
+     Global focus rings (US-SP42-007 — F.2, F.43, D.52)
+     Every natively focusable element gets a primary ring on
+     :focus-visible. Components that render a custom shadow on
+     focus (buttons / inputs with their own variants) can opt
+     out by adding `focus:!ring-0` — but by default they now
+     inherit the token-driven ring, so shadowy focus states
+     stop drifting across primitives.
+     ═════════════════════════════════════════════════════════ */
+  :where(
+    a,
+    button,
+    [role="button"],
+    [role="tab"],
+    [role="menuitem"],
+    [role="option"],
+    [role="link"],
+    [role="switch"],
+    [role="checkbox"],
+    [role="radio"],
+    [tabindex]:not([tabindex="-1"]),
+    input,
+    select,
+    textarea,
+    summary
+  ):focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+    border-radius: calc(var(--radius) - 0.25rem);
+  }
+  /* Inputs already render their own border — reuse the ring via `ring`. */
+  :where(input, select, textarea):focus-visible {
+    box-shadow:
+      0 0 0 2px hsl(var(--background)),
+      0 0 0 4px hsl(var(--ring) / 0.80);
+  }
+
+  /* Reusable helper for cases where we need to apply the ring explicitly
+     (custom wrappers around native focusables). */
+  .focus-ring:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+  }
+
+  /* ═════════════════════════════════════════════════════════
+     Skip-to-content link (F.77) — visually hidden until it
+     receives focus, then pins to top-left on top of every-
+     thing so keyboard users can reach <main> in one press.
+     ═════════════════════════════════════════════════════════ */
+  .skip-to-content {
+    position: fixed;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 100;
+    transform: translateY(-150%);
+    transition: transform var(--motion-base) var(--ease-apple);
+    padding: 0.5rem 0.875rem;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    border-radius: calc(var(--radius) - 0.25rem);
+    font-size: 0.875rem;
+    font-weight: 500;
+    box-shadow: var(--shadow-primary-md);
+  }
+  .skip-to-content:focus,
+  .skip-to-content:focus-visible {
+    transform: translateY(0);
+  }
+
+  /* ═════════════════════════════════════════════════════════
+     Inline prose links (F.60) — dotted underline resolves to
+     solid on hover, with a comfortable offset.
+     ═════════════════════════════════════════════════════════ */
+  .link-inline {
+    color: hsl(var(--primary));
+    text-decoration-line: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 4px;
+    transition: text-decoration-color var(--motion-fast) var(--ease-standard);
+  }
+  .link-inline:hover {
+    text-decoration-style: solid;
+  }
+
+  /* ═════════════════════════════════════════════════════════
+     Text utility classes driven by a11y-verified contrast
+     tokens (F.59). Prefer these to raw Tailwind `text-muted-
+     foreground` / `text-green-600` / … in prose contexts.
+     ═════════════════════════════════════════════════════════ */
+  .text-muted-a11y   { color: hsl(var(--text-muted)); }
+  .text-success-a11y { color: hsl(var(--text-success)); }
+  .text-warning-a11y { color: hsl(var(--text-warning)); }
+  .text-danger-a11y  { color: hsl(var(--text-danger)); }
 
   /* ═════════════════════════════════════════════════════════
      Gradient utilities (F.35, US-SP42-005)

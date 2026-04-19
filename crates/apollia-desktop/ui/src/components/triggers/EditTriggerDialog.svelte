@@ -242,7 +242,7 @@
 
       <!-- Target: Agent / Pipeline -->
       <div>
-        <label class="mb-1 block text-[11px] text-muted-foreground">{$t("triggers.field_target")}</label>
+        <p class="mb-1 block text-[11px] text-muted-foreground">{$t("triggers.field_target")}</p>
         <div class="mb-2 flex gap-3">
           <RadioItem
             value="agent"
@@ -264,6 +264,7 @@
         {#if targetKind === "agent"}
           <Select
             bind:value={selectedAgent}
+            aria-label={$t("triggers.field_target_agent")}
             data-testid="edit-trigger-agent-select"
           >
             <option value="" disabled>— {$t("triggers.field_target_agent")} —</option>
@@ -274,6 +275,7 @@
         {:else}
           <Select
             bind:value={selectedPipeline}
+            aria-label={$t("triggers.field_target_pipeline")}
             data-testid="edit-trigger-pipeline-select"
           >
             <option value="" disabled>— {$t("triggers.field_target_pipeline")} —</option>
@@ -349,7 +351,7 @@
           />
         </div>
         <div>
-          <label class="mb-1 block text-[11px] text-muted-foreground">{$t("triggers.field_events")}</label>
+          <p class="mb-1 block text-[11px] text-muted-foreground">{$t("triggers.field_events")}</p>
           <div class="flex gap-4">
             <label class="flex items-center gap-1.5 text-sm">
               <Checkbox bind:checked={fileWatchCreate} data-testid="edit-trigger-event-create" />

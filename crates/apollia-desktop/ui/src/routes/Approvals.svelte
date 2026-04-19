@@ -224,13 +224,13 @@
           <table class="w-full min-w-[600px] text-[13px]">
             <thead class="border-b border-border bg-muted/50">
               <tr>
-                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.type")}</th>
-                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.id")}</th>
-                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.label")}</th>
-                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.result")}</th>
-                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.wait")}</th>
-                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.detail")}</th>
-                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.date")}</th>
+                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.type")}</th>
+                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.id")}</th>
+                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.label")}</th>
+                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.result")}</th>
+                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.wait")}</th>
+                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.detail")}</th>
+                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t("approvals.table.date")}</th>
               </tr>
             </thead>
             <tbody>

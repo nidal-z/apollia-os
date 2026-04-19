@@ -112,10 +112,10 @@
           <table class="w-full min-w-[520px] text-[13px]">
             <thead class="border-b border-border bg-muted/50">
               <tr>
-                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.status')}</th>
-                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.agent_label')}</th>
-                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.task_label')}</th>
-                <th class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.time')}</th>
+                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.status')}</th>
+                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.agent_label')}</th>
+                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.task_label')}</th>
+                <th scope="col" class="text-left px-3 py-2 text-[11px] text-muted-foreground font-medium">{$t('triggers.time')}</th>
               </tr>
             </thead>
             <tbody>

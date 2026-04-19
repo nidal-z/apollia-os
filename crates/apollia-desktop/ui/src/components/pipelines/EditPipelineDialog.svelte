@@ -333,7 +333,7 @@
       <!-- Steps section -->
       <div>
         <div class="mb-2 flex items-center justify-between">
-          <label class="block text-[11px] text-muted-foreground">{$t("pipelines.field_steps_label")}</label>
+          <p class="block text-[11px] text-muted-foreground">{$t("pipelines.field_steps_label")}</p>
           <Button size="sm" variant="outline" onclick={addStep} data-testid="edit-add-step-btn">
             {$t("pipelines.add_step")}
           </Button>
@@ -411,7 +411,7 @@
                 <!-- Depends on -->
                 {#if otherStepIds(index).length > 0}
                   <div>
-                    <label class="mb-0.5 block text-[11px] text-muted-foreground">{$t("pipelines.field_depends_on")}</label>
+                    <p class="mb-0.5 block text-[11px] text-muted-foreground">{$t("pipelines.field_depends_on")}</p>
                     <div class="flex flex-wrap gap-2">
                       {#each otherStepIds(index) as depId}
                         <label class="flex items-center gap-1 text-xs">
@@ -475,6 +475,7 @@
                       <Select
                         class="px-2 py-1 text-xs"
                         bind:value={step.conditionWhen}
+                        aria-label={$t("pipelines.field_condition_operator")}
                         data-testid="edit-pipeline-step-{index}-condition-when"
                       >
                         <option value="contains">contains</option>
@@ -486,12 +487,14 @@
                       <Input
                         class="h-8 flex-1 px-2 py-1 text-xs"
                         placeholder="field"
+                        aria-label={$t("pipelines.field_condition_field")}
                         bind:value={step.conditionField}
                         data-testid="edit-pipeline-step-{index}-condition-field"
                       />
                       <Input
                         class="h-8 flex-1 px-2 py-1 text-xs"
                         placeholder="value"
+                        aria-label={$t("pipelines.field_condition_value")}
                         bind:value={step.conditionValue}
                         data-testid="edit-pipeline-step-{index}-condition-value"
                       />

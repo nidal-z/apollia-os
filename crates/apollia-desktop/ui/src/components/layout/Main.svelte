@@ -40,7 +40,11 @@
   });
 </script>
 
-<main class="flex min-w-0 flex-1 flex-col overflow-auto bg-background">
+<main
+  id="main-content"
+  class="flex min-w-0 flex-1 flex-col overflow-auto bg-background focus:outline-none"
+  aria-label={$t("a11y.main_landmark")}
+>
   <!-- Navigation bar -->
   <div class="flex items-center gap-1 px-4 sm:px-6 lg:px-8 pt-4 pb-2">
     {#if $sidebarState === "drawer"}

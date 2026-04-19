@@ -247,23 +247,25 @@
   })}
   data-testid="connector-wizard"
 >
-  <!-- Step progress indicator -->
-  <div
+  <!-- Step progress indicator (US-SP42-007 — C.I.13) -->
+  <ol
     class="mb-6 flex flex-wrap items-center gap-1"
-    role="list"
     aria-label={$t("integrations.wizard.step_progress")}
   >
     {#each visibleSteps as step, i (step)}
-      <div class="flex items-center gap-1" role="listitem">
+      <li
+        class="flex items-center gap-1"
+        aria-current={i + 1 === currentStep ? "step" : undefined}
+      >
         <div
           class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium transition-colors duration-150"
           class:bg-primary={i + 1 <= currentStep}
           class:text-primary-foreground={i + 1 <= currentStep}
           class:bg-muted={i + 1 > currentStep}
           class:text-muted-foreground={i + 1 > currentStep}
-          aria-current={i + 1 === currentStep ? "step" : undefined}
+          aria-label={$t("a11y.step_label", { values: { current: i + 1, total: totalSteps } })}
         >
-          {i + 1}
+          <span aria-hidden="true">{i + 1}</span>
         </div>
         <span
           class="hidden text-xs transition-colors duration-150 sm:inline"
@@ -274,11 +276,11 @@
           {$t(`integrations.wizard.step_${step}`)}
         </span>
         {#if i < visibleSteps.length - 1}
-          <div class="mx-1.5 h-px w-4 bg-border"></div>
+          <div class="mx-1.5 h-px w-4 bg-border" aria-hidden="true"></div>
         {/if}
-      </div>
+      </li>
     {/each}
-  </div>
+  </ol>
 
   <!-- Step content area -->
   <div class="min-h-[180px]">

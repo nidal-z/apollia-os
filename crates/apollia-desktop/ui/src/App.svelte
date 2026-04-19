@@ -4,6 +4,8 @@
   import { isLoading } from "svelte-i18n";
   import Sidebar from "./components/layout/Sidebar.svelte";
   import Main from "./components/layout/Main.svelte";
+  import { SkipToContent } from "$lib/components/layout";
+  import KeyboardHintOverlay from "./components/common/KeyboardHintOverlay.svelte";
   import OnboardingWelcome from "./components/onboarding/OnboardingWelcome.svelte";
   import ProfileSelector from "./components/onboarding/ProfileSelector.svelte";
   import OnboardingAiSetup from "./components/onboarding/OnboardingAiSetup.svelte";
@@ -93,6 +95,14 @@
 </script>
 
 <Tooltip.Provider delayDuration={200}>
+  <!-- Keyboard-first entry points (US-SP42-007 F.77 / E.45) — visible on
+       focus only. Wait until svelte-i18n has loaded before rendering,
+       otherwise `$t(...)` throws "Cannot format a message without
+       first setting the initial locale." -->
+  {#if !$isLoading}
+    <SkipToContent />
+    <KeyboardHintOverlay />
+  {/if}
   {#if $isLoading || !ready}
     <div
       class="flex h-screen w-screen items-center justify-center bg-background text-foreground"

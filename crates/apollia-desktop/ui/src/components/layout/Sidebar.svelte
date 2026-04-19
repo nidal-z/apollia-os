@@ -178,6 +178,41 @@
       document.body.style.overflow = original;
     };
   });
+
+  // ── A11y : keyboard navigation across nav buttons (ArrowUp/Down) ───────────
+  //
+  // The sidebar is a vertical list of links. WAI-ARIA pattern `listbox`/
+  // `navigation` both accept arrow keys — we keep the default Tab flow
+  // (one stop per button) AND layer arrow-nav on top so power users can
+  // jump around quickly (US-SP42-007 E.46).
+  let navRef: HTMLElement | null = $state(null);
+
+  function handleNavKeydown(event: KeyboardEvent) {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" &&
+        event.key !== "Home" && event.key !== "End") return;
+    if (!navRef) return;
+
+    const buttons = Array.from(
+      navRef.querySelectorAll<HTMLButtonElement>('button[data-nav-item="true"]'),
+    );
+    if (buttons.length === 0) return;
+
+    const currentIndex = buttons.findIndex((btn) => btn === document.activeElement);
+    let nextIndex = currentIndex;
+    if (event.key === "ArrowDown") {
+      nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % buttons.length;
+    } else if (event.key === "ArrowUp") {
+      nextIndex = currentIndex < 0
+        ? buttons.length - 1
+        : (currentIndex - 1 + buttons.length) % buttons.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = buttons.length - 1;
+    }
+    event.preventDefault();
+    buttons[nextIndex]?.focus();
+  }
 </script>
 
 {#snippet sidebarInner(drawer: boolean)}
@@ -227,9 +262,16 @@
   <Separator />
 
   <!-- Navigation -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions
+       The keydown handler only captures arrow/Home/End to move
+       focus between child buttons (US-SP42-007 E.46). It does not
+       make <nav> itself interactive. -->
   <nav
+    bind:this={navRef}
     class="flex flex-1 flex-col overflow-y-auto p-2"
     class:p-3={showLabels}
+    aria-label={$t("nav.sidebar_label")}
+    onkeydown={handleNavKeydown}
     data-testid="sidebar-nav"
   >
     {#if isOperator}
@@ -241,6 +283,9 @@
             : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
           class:justify-center={!showLabels}
           class:px-2={!showLabels}
+          data-nav-item="true"
+          aria-current={isActive ? "page" : undefined}
+          aria-label={showLabels ? undefined : $t(item.labelKey)}
           data-testid="nav-{item.route}"
           onclick={() => navigate(item.route)}
           title={showLabels ? undefined : $t(item.labelKey)}
@@ -281,11 +326,14 @@
         {#each group.items as item}
           {@const isActive = $currentRoute === item.route}
           <button
-            class="relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {isActive
+            class="list-item-spring relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium {isActive
               ? 'bg-primary/10 text-primary'
               : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
             class:justify-center={!showLabels}
             class:px-2={!showLabels}
+            data-nav-item="true"
+            aria-current={isActive ? "page" : undefined}
+            aria-label={showLabels ? undefined : $t(item.labelKey)}
             data-testid="nav-{item.route}"
             onclick={() => navigate(item.route)}
             title={showLabels ? undefined : $t(item.labelKey)}
@@ -329,11 +377,14 @@
 
     <!-- Settings -->
     <button
-      class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {$currentRoute === settingsItem.route
+      class="list-item-spring flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium {$currentRoute === settingsItem.route
         ? 'bg-primary/10 text-primary'
         : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
       class:justify-center={!showLabels}
       class:px-2={!showLabels}
+      data-nav-item="true"
+      aria-current={$currentRoute === settingsItem.route ? "page" : undefined}
+      aria-label={showLabels ? undefined : $t(settingsItem.labelKey)}
       data-testid="nav-{settingsItem.route}"
       onclick={() => navigate(settingsItem.route)}
       title={showLabels ? undefined : $t(settingsItem.labelKey)}
@@ -469,6 +520,7 @@
     class:lg:w-60={isExpanded}
     class:w-14={isIcon}
     class:lg:w-16={isIcon}
+    aria-label={$t("nav.sidebar_label")}
     data-testid="sidebar"
     data-state={currentState}
   >

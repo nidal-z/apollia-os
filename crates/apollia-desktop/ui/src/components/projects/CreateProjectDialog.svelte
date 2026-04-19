@@ -146,8 +146,8 @@
     <!-- Template selector -->
     {#if templates.length > 0}
       <div class="space-y-1.5">
-        <label class="text-sm font-medium">{$t("projects.choose_template")}</label>
-        <div class="flex gap-2">
+        <p class="text-sm font-medium" id="template-group-caption">{$t("projects.choose_template")}</p>
+        <div class="flex gap-2" role="radiogroup" aria-labelledby="template-group-caption">
           {#each templates as template (template.id)}
             <button
               type="button"

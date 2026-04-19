@@ -46,6 +46,19 @@
     "no_session": "No active session.",
     "shortcut_hint": "Press ⌘K to open"
   },
+  "a11y": {
+    "skip_to_content": "Skip to content",
+    "main_landmark": "Main content",
+    "keyboard_shortcuts": "Keyboard shortcuts",
+    "keyboard_shortcuts_hint": "Press ? to list keyboard shortcuts",
+    "step_label": "Step {current} of {total}",
+    "shortcut": {
+      "nav_back": "Go back in history",
+      "nav_forward": "Go forward in history",
+      "open_hints": "Show keyboard shortcuts",
+      "close_modal": "Close dialog"
+    }
+  },
   "nav": {
     "dashboard": "Dashboard",
     "home": "Home",
@@ -392,6 +405,7 @@
     "header_duration": "Duration",
     "header_time": "Time",
     "all_agents": "All agents",
+    "filter_by_agent": "Filter by agent",
     "new_task": "New Task",
     "no_match": "No tasks match the current filters.",
     "count_suffix": "tasks",
@@ -662,6 +676,9 @@
     "field_depends_on_invalid": "Step \"{dep}\" does not exist",
     "field_fallback_for": "Fallback for",
     "field_condition": "Condition",
+    "field_condition_operator": "Condition operator",
+    "field_condition_field": "Condition field",
+    "field_condition_value": "Condition value",
     "field_cycle_detected": "Cycle detected in the pipeline",
     "add_step": "Add step",
     "remove_step": "Remove",
@@ -756,6 +773,7 @@
       "add_key_required": "Key is required",
       "edit_save": "Save",
       "edit_cancel": "Cancel",
+      "edit_value_label": "Memory value",
       "menu_validate": "Validate",
       "menu_edit": "Edit",
       "menu_delete": "Delete",
