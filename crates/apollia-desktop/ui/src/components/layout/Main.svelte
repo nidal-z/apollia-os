@@ -9,6 +9,7 @@
   import Agents from "../../routes/Agents.svelte";
   import Tasks from "../../routes/Tasks.svelte";
   import Approvals from "../../routes/Approvals.svelte";
+  import Inbox from "../../routes/Inbox.svelte";
   import Llm from "../../routes/Llm.svelte";
   import Triggers from "../../routes/Triggers.svelte";
   import Automations from "../../routes/Automations.svelte";
@@ -96,6 +97,8 @@
           <Chat />
         {:else if $currentRoute === "approvals"}
           <Approvals />
+        {:else if $currentRoute === "inbox"}
+          <Inbox />
         {:else if $currentRoute === "llm"}
           <Llm />
         {:else if $currentRoute === "triggers"}

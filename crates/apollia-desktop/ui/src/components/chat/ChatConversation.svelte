@@ -1003,7 +1003,7 @@
         {/if}
 
         {#if pendingApproval}
-          <div class="flex justify-start" data-testid="chat-approval-inline">
+          <div class="flex flex-col items-start gap-1" data-testid="chat-approval-inline">
             <div class="max-w-full sm:max-w-[85%]">
               <ApprovalCard
                 sessionId={pendingApproval.sessionId}
@@ -1012,6 +1012,23 @@
                 inputPreview={pendingApproval.inputPreview}
               />
             </div>
+            <button
+              type="button"
+              class="text-[11px] text-primary hover:underline"
+              onclick={() => {
+                const pa = pendingApproval;
+                if (!pa) return;
+                const id = `chat:${pa.sessionId}:${pa.messageId}:${pa.toolName}`;
+                if (typeof window !== "undefined") {
+                  history.replaceState(null, "", `#inbox?item=${encodeURIComponent(id)}`);
+                }
+                // Lazy import keeps the chat bundle clean.
+                import("$lib/stores/navigation").then((m) => m.navigateTo("inbox"));
+              }}
+              data-testid="chat-approval-open-inbox"
+            >
+              {$t("inbox.open_in_inbox")} →
+            </button>
           </div>
         {/if}
 

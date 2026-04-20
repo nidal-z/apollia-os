@@ -52,7 +52,7 @@
     { route: "chat", labelKey: "nav.chat", icon: MessageSquare },
     { route: "automations", labelKey: "nav.automations", icon: Timer },
     { route: "integrations", labelKey: "nav.connections", icon: Plug },
-    { route: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
+    { route: "inbox", labelKey: "nav.inbox_operator", icon: ShieldCheck },
   ];
 
   const builderNavGroups: NavGroup[] = [
@@ -64,7 +64,7 @@
         { route: "projects", labelKey: "nav.projects", icon: FolderOpen },
         { route: "tasks", labelKey: "nav.tasks", icon: ListChecks },
         { route: "chat", labelKey: "nav.chat", icon: MessageSquare },
-        { route: "approvals", labelKey: "nav.approvals", icon: ShieldCheck },
+        { route: "inbox", labelKey: "nav.inbox_builder", icon: ShieldCheck },
       ],
     },
     {
@@ -300,7 +300,7 @@
           {/if}
           {#if showLabels}
             <span>{$t(item.labelKey)}</span>
-            {#if item.route === "approvals" && ($pendingCount + $pendingChatApprovalCount) > 0}
+            {#if item.route === "inbox" && ($pendingCount + $pendingChatApprovalCount) > 0}
               <Badge variant="destructive" class="ml-auto text-[10px] px-1.5 py-0" data-testid="approvals-badge"
                 >{$pendingCount + $pendingChatApprovalCount}</Badge
               >
@@ -348,7 +348,7 @@
             {/if}
             {#if showLabels}
               <span>{$t(item.labelKey)}</span>
-              {#if item.route === "approvals" && ($pendingCount + $pendingChatApprovalCount) > 0}
+              {#if item.route === "inbox" && ($pendingCount + $pendingChatApprovalCount) > 0}
                 <Badge variant="destructive" class="ml-auto text-[10px] px-1.5 py-0" data-testid="approvals-badge"
                   >{$pendingCount + $pendingChatApprovalCount}</Badge
                 >
