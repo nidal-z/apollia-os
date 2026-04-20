@@ -11,76 +11,79 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
+  import { Plus, Pencil, Trash2, Star, CheckCircle2, XCircle, PauseCircle } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+  import Dialog from "$lib/components/ui/dialog/Dialog.svelte";
+  import DialogFooter from "$lib/components/ui/dialog/DialogFooter.svelte";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
+  import LlmBackendDialog from "../../components/settings/LlmBackendDialog.svelte";
   import { llmBackendsStore, settingsLoaders } from "$lib/stores/settings";
+  import { addToast } from "$lib/components/ui/toast";
   import type { LlmBackendConfig } from "$lib/types";
 
   let actionError = $state<string | null>(null);
-  let showAddForm = $state(false);
-  let addSaving = $state(false);
-  let newBackend = $state({
-    name: "",
-    provider: "llama-cpp" as LlmBackendConfig["provider"],
-    model: "",
-    config_json: "{}",
-    enabled: true,
-    is_default: false,
-  });
+  let dialogOpen = $state(false);
+  let editingBackend = $state<LlmBackendConfig | null>(null);
+
+  // Delete confirmation
+  let deleteTarget = $state<LlmBackendConfig | null>(null);
+  let deleteConfirmText = $state("");
+  let deleting = $state(false);
 
   async function refresh() {
     await settingsLoaders.llmBackends(true);
   }
 
-  async function handleDelete(name: string) {
-    actionError = null;
-    try {
-      await invoke("delete_llm_backend", { name });
-      await refresh();
-    } catch (err) {
-      actionError = err instanceof Error ? err.message : String(err);
-    }
+  function openAdd() {
+    editingBackend = null;
+    dialogOpen = true;
   }
 
-  async function handleSetDefault(name: string) {
-    actionError = null;
-    try {
-      await invoke("set_default_llm_backend", { name });
-      await refresh();
-    } catch (err) {
-      actionError = err instanceof Error ? err.message : String(err);
-    }
+  function openEdit(b: LlmBackendConfig) {
+    editingBackend = b;
+    dialogOpen = true;
   }
 
-  async function handleAdd() {
+  function askDelete(b: LlmBackendConfig) {
+    deleteTarget = b;
+    deleteConfirmText = "";
     actionError = null;
-    addSaving = true;
+  }
+
+  const requiresConfirmType = $derived(!!deleteTarget?.is_default);
+  const canConfirmDelete = $derived(
+    !!deleteTarget && (!requiresConfirmType || deleteConfirmText === "DELETE"),
+  );
+
+  async function confirmDelete() {
+    if (!deleteTarget || !canConfirmDelete) return;
+    deleting = true;
+    actionError = null;
     try {
-      let parsedConfig: Record<string, unknown> = {};
-      try {
-        parsedConfig = JSON.parse(newBackend.config_json);
-      } catch {
-        actionError = "config_json must be valid JSON";
-        return;
-      }
-      await invoke("create_llm_backend", {
-        payload: {
-          name: newBackend.name,
-          provider: newBackend.provider,
-          model: newBackend.model,
-          config_json: parsedConfig,
-          enabled: newBackend.enabled,
-          is_default: newBackend.is_default,
-        },
-      });
-      showAddForm = false;
-      newBackend = { name: "", provider: "llama-cpp", model: "", config_json: "{}", enabled: true, is_default: false };
+      await invoke("delete_llm_backend", { name: deleteTarget.name });
+      addToast($t("settings.llm.delete_toast", { values: { name: deleteTarget.name } }), "success");
+      deleteTarget = null;
       await refresh();
     } catch (err) {
       actionError = err instanceof Error ? err.message : String(err);
     } finally {
-      addSaving = false;
+      deleting = false;
     }
+  }
+
+  async function handleSetDefault(b: LlmBackendConfig) {
+    actionError = null;
+    try {
+      await invoke("set_default_llm_backend", { name: b.name });
+      await refresh();
+    } catch (err) {
+      actionError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  function statusOf(b: LlmBackendConfig): { kind: "connected" | "disabled" | "unknown"; label: string } {
+    if (!b.enabled) return { kind: "disabled", label: $t("settings.llm.status_disabled") };
+    return { kind: "connected", label: $t("settings.llm.status_configured") };
   }
 
   onMount(() => {
@@ -93,107 +96,97 @@
 {:else}
   <section class="space-y-4" data-testid="llm-backends-section">
     <div class="flex items-center justify-between">
-      <p class="text-sm text-muted-foreground">{$t('settings.llm_backends_subtitle')}</p>
-      <Button size="sm" onclick={() => { showAddForm = !showAddForm; actionError = null; }} data-testid="add-backend-btn">
-        {showAddForm ? $t('common.cancel') : $t('settings.llm_add_backend')}
+      <p class="text-sm text-muted-foreground">{$t("settings.llm_backends_subtitle")}</p>
+      <Button size="sm" onclick={openAdd} data-testid="add-backend-btn">
+        <Plus class="h-4 w-4 mr-1" />
+        {$t("settings.llm_add_backend")}
       </Button>
     </div>
 
     {#if actionError}
-      <div class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">{actionError}</div>
-    {/if}
-
-    {#if showAddForm}
-      <div class="glass-card glass-border rounded-lg p-4 space-y-4" data-testid="add-backend-form">
-        <h3 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('settings.llm_new_backend')}</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-1.5">
-            <label class="text-sm text-muted-foreground" for="backend-name">{$t('settings.llm_backend_name')}</label>
-            <input id="backend-name" type="text" placeholder="local-code" bind:value={newBackend.name}
-              class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-              data-testid="backend-name-input" />
-          </div>
-          <div class="space-y-1.5">
-            <label class="text-sm text-muted-foreground" for="backend-provider">{$t('settings.llm_backend_provider')}</label>
-            <select id="backend-provider" bind:value={newBackend.provider}
-              class="flex h-9 w-full appearance-none rounded-md border border-border bg-background px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-              data-testid="backend-provider-select">
-              <option value="llama-cpp">llama-cpp (local)</option>
-              <option value="openai">OpenAI</option>
-              <option value="mistral">Mistral</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="ollama">Ollama</option>
-            </select>
-          </div>
-        </div>
-        <div class="space-y-1.5">
-          <label class="text-sm text-muted-foreground" for="backend-model">{$t('settings.llm_backend_model')}</label>
-          <input id="backend-model" type="text" placeholder="qwen3-0.6b-q8_0" bind:value={newBackend.model}
-            class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-            data-testid="backend-model-input" />
-        </div>
-        <div class="space-y-1.5">
-          <label class="text-sm text-muted-foreground" for="backend-config">{$t('settings.llm_backend_config_json')}</label>
-          <textarea id="backend-config" rows={3} bind:value={newBackend.config_json}
-            class="flex w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-            data-testid="backend-config-input"></textarea>
-        </div>
-        <div class="flex items-center gap-6">
-          <label class="flex cursor-pointer items-center gap-2">
-            <button type="button" role="switch" aria-checked={newBackend.enabled} aria-label={$t('settings.llm_backend_enabled')}
-              onclick={() => { newBackend.enabled = !newBackend.enabled; }}
-              class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors {newBackend.enabled ? 'bg-primary' : 'bg-muted'}">
-              <span class="inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform {newBackend.enabled ? 'translate-x-4.5' : 'translate-x-0.5'}"></span>
-            </button>
-            <span class="text-sm text-muted-foreground">{$t('settings.llm_backend_enabled')}</span>
-          </label>
-          <label class="flex cursor-pointer items-center gap-2">
-            <button type="button" role="switch" aria-checked={newBackend.is_default} aria-label={$t('settings.llm_backend_default')}
-              onclick={() => { newBackend.is_default = !newBackend.is_default; }}
-              class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors {newBackend.is_default ? 'bg-primary' : 'bg-muted'}">
-              <span class="inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform {newBackend.is_default ? 'translate-x-4.5' : 'translate-x-0.5'}"></span>
-            </button>
-            <span class="text-sm text-muted-foreground">{$t('settings.llm_backend_default')}</span>
-          </label>
-        </div>
-        <Button onclick={handleAdd} disabled={addSaving || !newBackend.name || !newBackend.model} data-testid="add-backend-save-btn">
-          {addSaving ? $t('common.saving') : $t('settings.llm_add_backend')}
-        </Button>
+      <div class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+        {actionError}
       </div>
     {/if}
 
     {#if $llmBackendsStore.error}
-      <div class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">{$llmBackendsStore.error}</div>
+      <div class="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+        {$llmBackendsStore.error}
+      </div>
     {:else if ($llmBackendsStore.data ?? []).length === 0}
-      <div class="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground" data-testid="llm-backends-empty">
-        {$t('settings.llm_no_backends')}
+      <div
+        class="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground"
+        data-testid="llm-backends-empty"
+      >
+        {$t("settings.llm_no_backends")}
       </div>
     {:else}
-      <div class="space-y-2" data-testid="llm-backends-list">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3" data-testid="llm-backends-list">
         {#each ($llmBackendsStore.data ?? []) as backend (backend.name)}
-          <div class="glass-card glass-border flex items-center justify-between rounded-lg px-4 py-3" data-testid="llm-backend-row-{backend.name}">
-            <div class="flex items-center gap-3">
-              <div>
-                <div class="flex items-center gap-2">
-                  <span class="text-sm font-mono font-medium">{backend.name}</span>
+          {@const status = statusOf(backend)}
+          <div
+            class="glass-card glass-border rounded-lg p-4 flex flex-col gap-3"
+            data-testid="llm-backend-card-{backend.name}"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-sm font-mono font-medium truncate">{backend.name}</span>
                   {#if backend.is_default}
-                    <span class="inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">default</span>
-                  {/if}
-                  {#if !backend.enabled}
-                    <span class="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">disabled</span>
+                    <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                      <Star class="h-3 w-3" />
+                      {$t("settings.llm.badge_default")}
+                    </span>
                   {/if}
                 </div>
-                <p class="text-xs text-muted-foreground">{backend.provider} · {backend.model}</p>
+                <p class="mt-0.5 text-xs text-muted-foreground">
+                  {backend.provider} · <span class="font-mono">{backend.model}</span>
+                </p>
+              </div>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  class="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  title={$t("settings.llm.edit")}
+                  aria-label={$t("settings.llm.edit")}
+                  onclick={() => openEdit(backend)}
+                  data-testid="edit-backend-{backend.name}"
+                >
+                  <Pencil class="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  class="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  title={$t("common.delete")}
+                  aria-label={$t("common.delete")}
+                  onclick={() => askDelete(backend)}
+                  data-testid="delete-backend-{backend.name}"
+                >
+                  <Trash2 class="h-4 w-4" />
+                </button>
               </div>
             </div>
-            <div class="flex items-center gap-2">
+
+            <div class="flex items-center justify-between text-xs">
+              <span class="inline-flex items-center gap-1.5">
+                {#if status.kind === "connected"}
+                  <CheckCircle2 class="h-3.5 w-3.5 text-success" />
+                {:else if status.kind === "disabled"}
+                  <PauseCircle class="h-3.5 w-3.5 text-muted-foreground" />
+                {:else}
+                  <XCircle class="h-3.5 w-3.5 text-destructive" />
+                {/if}
+                <span class="text-muted-foreground">{status.label}</span>
+              </span>
               {#if !backend.is_default}
-                <Button size="sm" variant="outline" onclick={() => handleSetDefault(backend.name)} data-testid="set-default-{backend.name}">
-                  {$t('settings.llm_set_default')}
-                </Button>
-                <Button size="sm" variant="destructive" onclick={() => handleDelete(backend.name)} data-testid="delete-backend-{backend.name}">
-                  {$t('common.delete')}
-                </Button>
+                <button
+                  type="button"
+                  class="text-primary hover:underline"
+                  onclick={() => handleSetDefault(backend)}
+                  data-testid="set-default-{backend.name}"
+                >
+                  {$t("settings.llm_set_default")}
+                </button>
               {/if}
             </div>
           </div>
@@ -202,3 +195,56 @@
     {/if}
   </section>
 {/if}
+
+<LlmBackendDialog
+  open={dialogOpen}
+  backend={editingBackend}
+  onclose={() => (dialogOpen = false)}
+  onsaved={() => {
+    dialogOpen = false;
+    void refresh();
+  }}
+/>
+
+<!-- Delete confirm dialog -->
+<Dialog
+  open={!!deleteTarget}
+  onclose={() => (deleteTarget = null)}
+  size="sm"
+  title={$t("settings.llm.delete_title")}
+  data-testid="llm-delete-dialog"
+>
+  {#if deleteTarget}
+    <p class="text-sm text-muted-foreground">
+      {$t("settings.llm.delete_message", { values: { name: deleteTarget.name } })}
+    </p>
+    {#if requiresConfirmType}
+      <div class="mt-4 space-y-1.5">
+        <label for="llm-delete-confirm" class="text-xs font-medium text-foreground">
+          {$t("settings.llm.delete_type_prompt")}
+        </label>
+        <input
+          id="llm-delete-confirm"
+          type="text"
+          placeholder="DELETE"
+          class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          bind:value={deleteConfirmText}
+          data-testid="llm-delete-confirm-input"
+        />
+      </div>
+    {/if}
+  {/if}
+  <DialogFooter>
+    <Button variant="outline" onclick={() => (deleteTarget = null)} data-testid="llm-delete-cancel">
+      {$t("common.cancel")}
+    </Button>
+    <Button
+      variant="destructive"
+      onclick={confirmDelete}
+      disabled={deleting || !canConfirmDelete}
+      data-testid="llm-delete-confirm-btn"
+    >
+      {deleting ? $t("common.loading") : $t("common.delete")}
+    </Button>
+  </DialogFooter>
+</Dialog>
