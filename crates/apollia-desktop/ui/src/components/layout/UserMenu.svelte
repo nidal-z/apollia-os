@@ -1,0 +1,147 @@
+<script lang="ts">
+  /**
+   * Topbar user menu (US-SP42-077). Avatar/initials trigger → dropdown
+   * with Settings, Keyboard shortcuts, Reset Onboarding, About, Quit.
+   *
+   * NOTE: there is no dedicated `DropdownMenu` primitive in the codebase
+   * yet — the shared `Popover` already supports the required semantics
+   * (portal, transition, keyboard dismissal) and is used here.
+   */
+  import { t } from "svelte-i18n";
+  import { invoke } from "@tauri-apps/api/core";
+  import { UserRound, Settings, Keyboard, RotateCcw, Info, LogOut } from "lucide-svelte";
+  import { Popover } from "$lib/components/ui/popover";
+  import { navigateTo } from "$lib/stores/navigation";
+  import { onboardingStore } from "$lib/stores/onboarding";
+
+  let open = $state(false);
+  let confirmingReset = $state(false);
+
+  function close() {
+    open = false;
+  }
+
+  function goSettings() {
+    navigateTo("settings");
+    close();
+  }
+
+  function goShortcuts() {
+    // US-SP42-082 ships a dedicated shortcuts page. Until then we land
+    // on the main settings panel — the keyboard help overlay (`?`) is
+    // always available as a companion surface.
+    navigateTo("settings");
+    close();
+  }
+
+  async function resetOnboarding() {
+    if (!confirmingReset) {
+      confirmingReset = true;
+      return;
+    }
+    try {
+      await invoke("reset_onboarding");
+      onboardingStore.setRequired?.();
+      navigateTo("onboarding");
+    } finally {
+      confirmingReset = false;
+      close();
+    }
+  }
+
+  function showAbout() {
+    // Minimal about surface — a full dialog can land later (US-SP42-xxx).
+    alert(`${$t('userMenu.about_title')}\n\nApollia OS`);
+    close();
+  }
+
+  async function quit() {
+    try {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      await getCurrentWindow().close();
+    } catch {
+      // Web/dev fallback: no-op.
+    }
+  }
+</script>
+
+<Popover bind:open side="bottom" align="end" class="min-w-[220px] p-1">
+  {#snippet trigger()}
+    <button
+      type="button"
+      class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-muted/50 text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+      aria-label={$t('userMenu.open_label')}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      data-testid="topbar-user-menu"
+    >
+      <UserRound size={18} strokeWidth={1.75} />
+    </button>
+  {/snippet}
+  {#snippet content()}
+    <ul class="flex flex-col gap-0.5" role="menu" data-testid="topbar-user-menu-content">
+      <li role="none">
+        <button
+          role="menuitem"
+          type="button"
+          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-muted"
+          onclick={goSettings}
+          data-testid="user-menu-settings"
+        >
+          <Settings size={14} strokeWidth={1.75} />
+          <span>{$t('userMenu.settings')}</span>
+        </button>
+      </li>
+      <li role="none">
+        <button
+          role="menuitem"
+          type="button"
+          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-muted"
+          onclick={goShortcuts}
+          data-testid="user-menu-shortcuts"
+        >
+          <Keyboard size={14} strokeWidth={1.75} />
+          <span>{$t('userMenu.shortcuts')}</span>
+        </button>
+      </li>
+      <li role="separator" aria-orientation="horizontal" class="my-1 h-px bg-border"></li>
+      <li role="none">
+        <button
+          role="menuitem"
+          type="button"
+          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-muted"
+          onclick={resetOnboarding}
+          data-testid="user-menu-reset-onboarding"
+        >
+          <RotateCcw size={14} strokeWidth={1.75} />
+          <span>{confirmingReset ? $t('userMenu.reset_confirm') : $t('userMenu.reset_onboarding')}</span>
+        </button>
+      </li>
+      <li role="none">
+        <button
+          role="menuitem"
+          type="button"
+          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-muted"
+          onclick={showAbout}
+          data-testid="user-menu-about"
+        >
+          <Info size={14} strokeWidth={1.75} />
+          <span>{$t('userMenu.about')}</span>
+        </button>
+      </li>
+      <li role="separator" aria-orientation="horizontal" class="my-1 h-px bg-border"></li>
+      <li role="none">
+        <button
+          role="menuitem"
+          type="button"
+          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive/10"
+          onclick={quit}
+          data-testid="user-menu-quit"
+        >
+          <LogOut size={14} strokeWidth={1.75} />
+          <span>{$t('userMenu.quit')}</span>
+        </button>
+      </li>
+    </ul>
+  {/snippet}
+</Popover>

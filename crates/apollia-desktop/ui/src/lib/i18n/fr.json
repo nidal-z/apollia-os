@@ -142,6 +142,40 @@
     },
     "projects": "Projets"
   },
+  "topbar": {
+    "home_aria": "Accueil Apollia",
+    "back_to": "Retour à {label}",
+    "back_to_with_count": "Retour à {label} ({count} dans l'historique)",
+    "forward_to": "Aller à {label}",
+    "search": {
+      "placeholder": "Rechercher…",
+      "aria_label": "Ouvrir la palette de commandes"
+    },
+    "connection": {
+      "reconnecting": "Reconnexion…",
+      "offline": "Hors ligne",
+      "reconnecting_title": "Reconnexion au runtime",
+      "reconnecting_detail": "Le flux d'événements a été interrompu — nouvelle tentative en cours.",
+      "offline_title": "Runtime hors ligne",
+      "offline_detail": "Le runtime est injoignable. Relancez la connexion ou consultez les journaux."
+    },
+    "route": {
+      "design": "Design",
+      "design_motion": "Motion",
+      "design_empty_states": "États vides",
+      "design_dark_mode": "Mode sombre"
+    }
+  },
+  "userMenu": {
+    "open_label": "Ouvrir le menu utilisateur",
+    "settings": "Paramètres",
+    "shortcuts": "Raccourcis clavier",
+    "reset_onboarding": "Réinitialiser l'onboarding",
+    "reset_confirm": "Cliquez encore pour confirmer",
+    "about": "À propos",
+    "about_title": "À propos d'Apollia",
+    "quit": "Quitter"
+  },
   "trust": {
     "verified": {
       "label": "Vérifié par Apollia",

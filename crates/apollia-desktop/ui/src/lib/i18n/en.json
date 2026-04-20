@@ -142,6 +142,40 @@
     },
     "projects": "Projects"
   },
+  "topbar": {
+    "home_aria": "Apollia home",
+    "back_to": "Back to {label}",
+    "back_to_with_count": "Back to {label} ({count} in history)",
+    "forward_to": "Forward to {label}",
+    "search": {
+      "placeholder": "Search…",
+      "aria_label": "Open command palette"
+    },
+    "connection": {
+      "reconnecting": "Reconnecting…",
+      "offline": "Offline",
+      "reconnecting_title": "Reconnecting to runtime",
+      "reconnecting_detail": "The runtime event stream dropped — retrying automatically.",
+      "offline_title": "Runtime offline",
+      "offline_detail": "The runtime is unreachable. Retry the connection or inspect the logs."
+    },
+    "route": {
+      "design": "Design",
+      "design_motion": "Motion",
+      "design_empty_states": "Empty states",
+      "design_dark_mode": "Dark mode"
+    }
+  },
+  "userMenu": {
+    "open_label": "Open user menu",
+    "settings": "Settings",
+    "shortcuts": "Keyboard shortcuts",
+    "reset_onboarding": "Reset onboarding",
+    "reset_confirm": "Click again to confirm",
+    "about": "About",
+    "about_title": "About Apollia",
+    "quit": "Quit"
+  },
   "trust": {
     "verified": {
       "label": "Verified by Apollia",

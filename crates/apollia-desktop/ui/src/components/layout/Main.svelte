@@ -1,10 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
-  import { currentRoute, canGoBack, canGoForward, goBack, goForward } from "$lib/stores/navigation";
-  import { sidebarState, layoutActions } from "$lib/stores/layout";
-  import { ChevronLeft, ChevronRight, Menu } from "lucide-svelte";
+  import { currentRoute, goBack, goForward } from "$lib/stores/navigation";
   import { PageTransition } from "$lib/components/motion";
+  import Topbar from "./Topbar.svelte";
   import Dashboard from "../../routes/Dashboard.svelte";
   import Agents from "../../routes/Agents.svelte";
   import Tasks from "../../routes/Tasks.svelte";
@@ -52,41 +51,10 @@
   class="flex min-w-0 flex-1 flex-col overflow-auto bg-background focus:outline-none"
   aria-label={$t("a11y.main_landmark")}
 >
-  <!-- Navigation bar -->
-  <div class="flex items-center gap-1 px-4 sm:px-6 lg:px-8 pt-4 pb-2">
-    {#if $sidebarState === "drawer"}
-      <button
-        class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        onclick={() => layoutActions.openDrawer()}
-        aria-label={$t("nav.open_sidebar")}
-        aria-haspopup="dialog"
-        data-testid="topbar-sidebar-toggle"
-      >
-        <Menu size={20} strokeWidth={1.75} />
-      </button>
-    {/if}
-    <button
-      class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
-      onclick={goBack}
-      disabled={!$canGoBack}
-      aria-label={$t("a11y.back_shortcut")}
-      data-testid="nav-back"
-    >
-      <ChevronLeft size={18} strokeWidth={1.75} />
-    </button>
-    <button
-      class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
-      onclick={goForward}
-      disabled={!$canGoForward}
-      aria-label={$t("a11y.forward_shortcut")}
-      data-testid="nav-forward"
-    >
-      <ChevronRight size={18} strokeWidth={1.75} />
-    </button>
-  </div>
+  <Topbar />
 
   <!-- Route content : padding responsive + conteneur défini par chaque route. -->
-  <div class="flex-1 px-4 sm:px-6 lg:px-8 pb-8">
+  <div class="flex-1 px-4 sm:px-6 lg:px-8 py-6">
     {#key $currentRoute}
       <PageTransition>
         {#if $currentRoute === "dashboard"}

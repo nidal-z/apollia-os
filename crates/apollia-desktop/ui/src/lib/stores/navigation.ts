@@ -13,11 +13,22 @@ const futureRoutes = writable<Route[]>([]);
 export const canGoBack = derived(pastRoutes, ($past) => $past.length > 0);
 export const canGoForward = derived(futureRoutes, ($future) => $future.length > 0);
 
+/** Previous route if any (last entry of past stack). */
+export const previousRoute = derived(pastRoutes, ($past) =>
+  $past.length > 0 ? $past[$past.length - 1] : null,
+);
+/** Next route if any (last entry of future stack). */
+export const nextRoute = derived(futureRoutes, ($future) =>
+  $future.length > 0 ? $future[$future.length - 1] : null,
+);
+/** Size of the back history (for long-press tooltip "Back (N in history)"). */
+export const backHistorySize = derived(pastRoutes, ($past) => $past.length);
+
 /** Navigate to a route, pushing current to history. */
 export function navigateTo(route: Route) {
   const current = get(currentRoute);
   if (route === current) return;
-  pastRoutes.update((p) => [...p, current]);
+  pastRoutes.update((p) => [...p, current].slice(-10));
   futureRoutes.set([]);
   currentRoute.set(route);
 }
