@@ -32,6 +32,7 @@ pub mod session;
 pub mod session_meta;
 pub mod stt;
 pub mod tasks;
+pub mod templates;
 pub mod tools;
 pub mod triggers;
 pub mod updates;

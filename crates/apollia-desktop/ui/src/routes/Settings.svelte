@@ -13,6 +13,7 @@
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { Accordion, AccordionItem } from "$lib/components/ui/accordion";
   import UserMemories from "./settings/UserMemories.svelte";
+  import { showCommunityTemplates } from "$lib/templates/preferences";
 
   import type { ApollaConfigView, SystemInfo, SttModelInfo, SttConfigView, LlmBackendConfig, CliStatus } from "$lib/types";
   import { refreshSttStatus, sttStatus } from "$lib/stores/stt";
@@ -519,6 +520,23 @@
               </button>
             {/each}
           </div>
+        </div>
+
+        <!-- Template gallery preferences (US-SP42-058) -->
+        <div class="space-y-2" data-testid="templates-preferences">
+          <h3 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">{$t('templates.title')}</h3>
+          <label class="flex items-start justify-between gap-3 rounded-lg border border-border/60 p-3">
+            <span class="flex-1">
+              <span class="block text-sm text-foreground">{$t('templates.settings.community_toggle_label')}</span>
+              <span class="mt-0.5 block text-xs text-muted-foreground">{$t('templates.settings.community_toggle_hint')}</span>
+            </span>
+            <input
+              type="checkbox"
+              class="mt-1 h-4 w-4 accent-primary"
+              bind:checked={$showCommunityTemplates}
+              data-testid="templates-community-toggle"
+            />
+          </label>
         </div>
 
         <!-- Advanced (collapsible) -->

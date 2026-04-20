@@ -1,0 +1,21 @@
+# Pipeline template — Spec → user story (US-SP42-058).
+kind = "pipeline"
+name = "Spec to user story"
+description = "Chain spec-assistant → review-assistant to turn a draft spec into an implementable story."
+
+[[steps]]
+id = "draft"
+agent = "spec-assistant"
+prompt = "Write the first draft of the user story from the provided spec."
+
+[[steps]]
+id = "review"
+agent = "review-assistant"
+prompt = "Review the draft: check testable acceptance criteria, dependencies, and effort estimate."
+depends_on = ["draft"]
+
+[[steps]]
+id = "finalize"
+agent = "spec-assistant"
+prompt = "Apply the review feedback and produce the final story."
+depends_on = ["review"]

@@ -1,0 +1,10 @@
+kind = "automation"
+name = "Competitor watch"
+
+[source]
+kind = "cron"
+expression = "0 10 * * *"
+
+[target]
+agent = "spec-assistant"
+prompt = "Search the web for news from our tracked competitors over the last 24h. Produce a concise signal vs. noise digest with source links."

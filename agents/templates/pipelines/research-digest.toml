@@ -1,0 +1,19 @@
+kind = "pipeline"
+name = "Research to digest"
+description = "Fan out web search across topics, then fan in the results into a single brief."
+
+[[steps]]
+id = "search-a"
+agent = "spec-assistant"
+prompt = "Search the web for the first topic. Extract 3 findings with sources."
+
+[[steps]]
+id = "search-b"
+agent = "spec-assistant"
+prompt = "Search the web for the second topic. Extract 3 findings with sources."
+
+[[steps]]
+id = "merge"
+agent = "spec-assistant"
+prompt = "Combine both research passes into a 1-page brief: context, key findings, open questions."
+depends_on = ["search-a", "search-b"]

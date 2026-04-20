@@ -1,0 +1,10 @@
+kind = "automation"
+name = "Daily standup briefing"
+
+[source]
+kind = "cron"
+expression = "30 8 * * MON-FRI"
+
+[target]
+agent = "dev-assistant"
+prompt = "Summarize what I did yesterday (commits, closed issues, merged PRs) and propose 3 bullets for today's standup."

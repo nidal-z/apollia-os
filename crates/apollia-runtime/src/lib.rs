@@ -26,6 +26,7 @@ pub mod session_replay;
 pub mod shutdown;
 pub mod stt;
 pub mod supervisor;
+pub mod templates;
 pub mod timeout_watcher;
 pub mod workspace;
 

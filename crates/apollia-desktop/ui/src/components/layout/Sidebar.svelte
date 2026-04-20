@@ -37,6 +37,7 @@
     Sparkles,
     Mic,
     FolderOpen,
+    LayoutGrid,
     X,
   } from "lucide-svelte";
   import type { ComponentType } from "svelte";
@@ -51,6 +52,7 @@
     { route: "tasks", labelKey: "nav.activity", icon: ListChecks },
     { route: "chat", labelKey: "nav.chat", icon: MessageSquare },
     { route: "automations", labelKey: "nav.automations", icon: Timer },
+    { route: "templates", labelKey: "nav.templates", icon: LayoutGrid },
     { route: "integrations", labelKey: "nav.connections", icon: Plug },
     { route: "inbox", labelKey: "nav.inbox_operator", icon: ShieldCheck },
   ];
@@ -74,6 +76,7 @@
         { route: "triggers", labelKey: "nav.triggers", icon: Timer },
         { route: "pipelines", labelKey: "nav.pipelines", icon: GitBranch },
         { route: "integrations", labelKey: "nav.mcp_servers", icon: Plug },
+        { route: "templates", labelKey: "nav.templates", icon: LayoutGrid },
       ],
     },
     {

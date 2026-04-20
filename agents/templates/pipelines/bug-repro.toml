@@ -1,0 +1,21 @@
+kind = "pipeline"
+name = "Bug reproduction"
+description = "Reduce a bug report to a minimal repro, then propose a fix plan with HITL checkpoints."
+
+[[steps]]
+id = "understand"
+agent = "dev-assistant"
+prompt = "Read the bug report. Restate the expected vs. observed behaviour and list unknowns."
+
+[[steps]]
+id = "repro"
+agent = "dev-assistant"
+prompt = "Produce a minimal reproduction script or failing test."
+depends_on = ["understand"]
+requires_approval = true
+
+[[steps]]
+id = "fix-plan"
+agent = "review-assistant"
+prompt = "Outline a fix plan with risk assessment. Do not apply the change yet."
+depends_on = ["repro"]

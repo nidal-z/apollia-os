@@ -99,6 +99,7 @@
     "llm": "LLM",
     "triggers": "Triggers",
     "automations": "Automatisations",
+    "templates": "Modèles",
     "pipelines": "Pipelines",
     "memory": "Mémoire",
     "notifications": "Notifications",
@@ -2759,6 +2760,62 @@
       "agents_stop_all": "Arrêter tous les agents",
       "toggle_dark": "Basculer mode sombre",
       "palette_docs": "Afficher l'aide de la palette"
+    }
+  },
+  "templates": {
+    "title": "Modèles",
+    "subtitle": "Automatisations, assistants et pipelines prêts à l'emploi.",
+    "use_toast": "Ouverture de {title}…",
+    "use_error": "Impossible d'utiliser le modèle : {message}",
+    "tabs": {
+      "automations": "Automatisations",
+      "agents": "Assistants",
+      "pipelines": "Pipelines"
+    },
+    "category": {
+      "productivity": "Productivité",
+      "dev": "Dev",
+      "communication": "Communication",
+      "creative": "Créatif",
+      "analysis": "Analyse",
+      "system": "Système"
+    },
+    "difficulty": {
+      "simple": "Simple",
+      "intermediate": "Intermédiaire",
+      "advanced": "Avancé"
+    },
+    "source": {
+      "official": "Officiels Apollia",
+      "community": "Communauté"
+    },
+    "filters": {
+      "search_placeholder": "Rechercher un modèle…",
+      "category_label": "Catégorie",
+      "difficulty_label": "Difficulté",
+      "source_label": "Source",
+      "reset": "Réinitialiser les filtres"
+    },
+    "preview": {
+      "uses": "Utilise : {list}",
+      "no_dependencies": "Aucune dépendance"
+    },
+    "card": {
+      "use_cta": "Utiliser ce modèle"
+    },
+    "detail": {
+      "dependencies": "Dépendances",
+      "requires": "Nécessite : {name}",
+      "show_code": "Voir le code",
+      "hide_code": "Masquer le code"
+    },
+    "empty": {
+      "title": "Aucun modèle ne correspond",
+      "description": "Retire des filtres ou change d'onglet pour voir plus de modèles."
+    },
+    "settings": {
+      "community_toggle_label": "Afficher les modèles communautaires",
+      "community_toggle_hint": "Prévisualise les modèles partagés par la communauté (désactivé par défaut)."
     }
   }
 }

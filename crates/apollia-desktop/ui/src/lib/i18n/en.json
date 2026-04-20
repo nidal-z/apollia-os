@@ -99,6 +99,7 @@
     "llm": "LLM",
     "triggers": "Triggers",
     "automations": "Automations",
+    "templates": "Templates",
     "pipelines": "Pipelines",
     "memory": "Memory",
     "notifications": "Notifications",
@@ -2759,6 +2760,62 @@
       "agents_stop_all": "Stop all agents",
       "toggle_dark": "Toggle dark mode",
       "palette_docs": "Open command palette docs"
+    }
+  },
+  "templates": {
+    "title": "Templates",
+    "subtitle": "Ready-to-use automations, assistants, and pipelines.",
+    "use_toast": "Opening {title}…",
+    "use_error": "Couldn't use the template: {message}",
+    "tabs": {
+      "automations": "Automations",
+      "agents": "Assistants",
+      "pipelines": "Pipelines"
+    },
+    "category": {
+      "productivity": "Productivity",
+      "dev": "Dev",
+      "communication": "Communication",
+      "creative": "Creative",
+      "analysis": "Analysis",
+      "system": "System"
+    },
+    "difficulty": {
+      "simple": "Simple",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced"
+    },
+    "source": {
+      "official": "Official",
+      "community": "Community"
+    },
+    "filters": {
+      "search_placeholder": "Search templates…",
+      "category_label": "Category",
+      "difficulty_label": "Difficulty",
+      "source_label": "Source",
+      "reset": "Reset filters"
+    },
+    "preview": {
+      "uses": "Uses: {list}",
+      "no_dependencies": "No dependencies"
+    },
+    "card": {
+      "use_cta": "Use this template"
+    },
+    "detail": {
+      "dependencies": "Dependencies",
+      "requires": "Requires: {name}",
+      "show_code": "Show the code",
+      "hide_code": "Hide the code"
+    },
+    "empty": {
+      "title": "No templates match these filters",
+      "description": "Clear filters or switch tab to see more templates."
+    },
+    "settings": {
+      "community_toggle_label": "Show community templates",
+      "community_toggle_hint": "Preview templates contributed by the community (disabled by default)."
     }
   }
 }

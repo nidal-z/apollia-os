@@ -24,6 +24,7 @@
   import Transcriptions from "../../routes/Transcriptions.svelte";
   import Integrations from "../../routes/Integrations.svelte";
   import Connections from "../../routes/Connections.svelte";
+  import Templates from "../../routes/Templates.svelte";
   import { uiMode } from "$lib/stores/mode";
   import Projects from "../../routes/Projects.svelte";
   import Design from "../../routes/Design.svelte";
@@ -124,6 +125,8 @@
           {:else}
             <Integrations />
           {/if}
+        {:else if $currentRoute === "templates"}
+          <Templates />
         {:else if $currentRoute === "settings"}
           <Settings />
         {:else if $currentRoute === "settings-permission-rules"}

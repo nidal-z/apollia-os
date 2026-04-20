@@ -726,6 +726,10 @@ fn main() {
             // Pipelines (registry)
             commands::pipelines::install_pipeline,
             commands::pipelines::list_pipeline_registry,
+            // Templates gallery (US-SP42-058)
+            commands::templates::templates_list,
+            commands::templates::templates_get,
+            commands::templates::templates_instantiate,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

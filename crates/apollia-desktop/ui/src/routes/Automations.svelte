@@ -85,9 +85,13 @@
   }
 
   function handleBrowseTemplates() {
-    // US-SP42-058 ships the template gallery — until then we surface a
-    // breadcrumb via the toast so the operator knows the CTA is live.
-    addToast($t("automations.templates_coming_soon"), "info");
+    // US-SP42-058 — deep-link to the gallery scoped to automations.
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.search = "?kind=automation";
+      window.history.replaceState({}, "", url.toString());
+    }
+    currentRoute.set("templates");
   }
 
   function handleSwitchAdvanced() {
