@@ -253,7 +253,7 @@
     }
   }
 
-  async function handleAlwaysAccept(item: InboxItem) {
+  async function handleAlwaysAccept(item: InboxItem, scope?: string) {
     submitting = true;
     try {
       if (item.kind === "task") {
@@ -264,6 +264,7 @@
           messageId: item.source.messageId,
           toolName: item.source.toolName,
           decision: "always_accept",
+          scope: scope ?? "session_only",
         });
       }
       addToast($t("inbox.toast.always_accepted"), "success");

@@ -660,6 +660,113 @@
       "bulk_rejected": "{count} actions refusées"
     }
   },
+  "permissions": {
+    "preview": {
+      "lazy_hint": "Aperçu non calculé — cliquer pour charger",
+      "load": "Charger l’aperçu",
+      "loading": "Chargement de l’aperçu…",
+      "fs": {
+        "action": {
+          "create": "Créer",
+          "update": "Modifier",
+          "delete": "Supprimer",
+          "chmod": "Droits"
+        },
+        "show_more": "Afficher {count} lignes supplémentaires"
+      },
+      "bash": {
+        "command": "Commande",
+        "dry_run_output": "Sortie du dry-run",
+        "detected": "Commandes détectées",
+        "warnings": "Avertissements",
+        "no_dry_run_title": "Cette commande ne peut pas être simulée",
+        "no_dry_run_body": "Exécution réelle requise — consultez l’analyse statique ci-dessous."
+      },
+      "mcp": {
+        "parameters": "Paramètres",
+        "col_name": "Nom",
+        "col_type": "Type",
+        "col_required": "Requis",
+        "col_description": "Description",
+        "required": "Requis",
+        "output": "Schéma de sortie",
+        "example": "Exemple d’appel"
+      },
+      "network": {
+        "headers": "En-têtes",
+        "body_size": "Taille estimée du corps",
+        "body_excerpt": "Extrait du corps"
+      }
+    },
+    "impact": {
+      "label": "Impact estimé",
+      "if_approved": "Si vous approuvez",
+      "if_refused": "Si vous refusez"
+    },
+    "error": {
+      "unknown_title": "Erreur inattendue",
+      "unknown_body": "Aucun détail disponible.",
+      "unknown_action": "Consultez les logs, ou réessayez l’action.",
+      "suggested_action": "Essayez :",
+      "learn_more": "En savoir plus"
+    },
+    "actions": {
+      "accept": "Approuver",
+      "refuse": "Refuser"
+    },
+    "always": {
+      "button": "Toujours autoriser",
+      "tooltip": "Ne plus demander la confirmation pour cette action exacte",
+      "scope": {
+        "label": "Portée de la règle",
+        "example_label": "Exemple —",
+        "session_only": {
+          "label": "Dans cette session uniquement",
+          "help": "La règle expire à la fin de la session en cours.",
+          "example": "Accepter les appels futurs pour cet outil jusqu’à la fermeture de la session."
+        },
+        "agent_tool_pair": {
+          "label": "Pour cet assistant et cet outil, à l’avenir",
+          "help": "La règle s’applique quand cet agent précis appelle cet outil précis.",
+          "example": "Seul l’assistant Dev peut appeler `bash:git` sans demander."
+        },
+        "tool_global": {
+          "label": "Pour cet outil, sur tous les assistants",
+          "help": "Tous les assistants qui appellent cet outil sauteront la demande.",
+          "example": "N’importe quel assistant peut appeler `mcp:linear.search` sans demander."
+        },
+        "all_always": {
+          "label": "Tout accepter automatiquement (pas recommandé)",
+          "help": "Toutes les demandes de permission futures seront auto-approuvées.",
+          "example": "Apollia ne vous demandera plus jamais d’approbation.",
+          "danger": "C’est le réglage le plus dangereux. Vous perdez tous les garde-fous.",
+          "confirm_title": "Tout auto-approuver ?",
+          "confirm_body": "Ceci désactive toutes les demandes de permission, tous assistants et outils confondus. Vous pourrez toujours révoquer depuis Paramètres → Règles de permission.",
+          "confirm_action": "Je comprends, activer"
+        }
+      }
+    },
+    "rules": {
+      "title": "Règles de permission",
+      "subtitle": "Règles qui auto-approuvent les actions futures. Révoquez celles qui ne sont plus de confiance.",
+      "empty_title": "Aucune règle d’auto-approbation",
+      "empty_subtitle": "Les règles apparaissent ici quand vous choisissez « Toujours autoriser ».",
+      "col_tool": "Outil",
+      "col_scope": "Portée",
+      "col_agent": "Agent",
+      "col_created": "Créée le",
+      "revoke": "Révoquer",
+      "revoke_all": "Révoquer toutes les règles",
+      "revoke_all_confirm_title": "Révoquer toutes les règles d’auto-approbation ?",
+      "revoke_all_confirm_body": "Les futures actions redemanderont l’approbation. Action irréversible.",
+      "revoke_all_type_prompt": "Tapez votre nom pour confirmer",
+      "manage_link": "Gérer mes règles",
+      "toast": {
+        "revoked": "Règle révoquée",
+        "revoked_all": "Toutes les règles révoquées"
+      }
+    }
+  },
   "approvals": {
     "title": "Approbations",
     "subtitle": "Examinez et répondez aux demandes de vos assistants",

@@ -19,6 +19,7 @@
   import Observability from "../../routes/Observability.svelte";
   import Chat from "../../routes/Chat.svelte";
   import Settings from "../../routes/Settings.svelte";
+  import SettingsPermissionRules from "../../routes/SettingsPermissionRules.svelte";
   import Onboarding from "../../routes/Onboarding.svelte";
   import Transcriptions from "../../routes/Transcriptions.svelte";
   import Integrations from "../../routes/Integrations.svelte";
@@ -125,6 +126,8 @@
           {/if}
         {:else if $currentRoute === "settings"}
           <Settings />
+        {:else if $currentRoute === "settings-permission-rules"}
+          <SettingsPermissionRules />
         {:else if $currentRoute === "onboarding"}
           <Onboarding />
         {:else if $currentRoute === "design"}

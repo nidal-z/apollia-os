@@ -660,6 +660,113 @@
       "bulk_rejected": "{count} actions rejected"
     }
   },
+  "permissions": {
+    "preview": {
+      "lazy_hint": "Preview not calculated yet — click to load",
+      "load": "Load preview",
+      "loading": "Loading preview…",
+      "fs": {
+        "action": {
+          "create": "Create",
+          "update": "Update",
+          "delete": "Delete",
+          "chmod": "Chmod"
+        },
+        "show_more": "Show {count} more lines"
+      },
+      "bash": {
+        "command": "Command",
+        "dry_run_output": "Dry-run output",
+        "detected": "Detected commands",
+        "warnings": "Warnings",
+        "no_dry_run_title": "This command can't be simulated",
+        "no_dry_run_body": "Real execution is required — review static analysis below."
+      },
+      "mcp": {
+        "parameters": "Parameters",
+        "col_name": "Name",
+        "col_type": "Type",
+        "col_required": "Required",
+        "col_description": "Description",
+        "required": "Required",
+        "output": "Output schema",
+        "example": "Example call"
+      },
+      "network": {
+        "headers": "Headers",
+        "body_size": "Estimated body size",
+        "body_excerpt": "Body excerpt"
+      }
+    },
+    "impact": {
+      "label": "Estimated impact",
+      "if_approved": "If you approve",
+      "if_refused": "If you refuse"
+    },
+    "error": {
+      "unknown_title": "Unexpected error",
+      "unknown_body": "No details available.",
+      "unknown_action": "Check the logs, or retry the action.",
+      "suggested_action": "Try:",
+      "learn_more": "Learn more"
+    },
+    "actions": {
+      "accept": "Approve",
+      "refuse": "Refuse"
+    },
+    "always": {
+      "button": "Always allow",
+      "tooltip": "Skip confirmation for this exact action in the future",
+      "scope": {
+        "label": "Scope of the rule",
+        "example_label": "Example —",
+        "session_only": {
+          "label": "In this session only",
+          "help": "The rule expires when the current session ends.",
+          "example": "Accept future calls for this tool until the session closes."
+        },
+        "agent_tool_pair": {
+          "label": "For this assistant and this tool, going forward",
+          "help": "The rule applies when this specific agent calls this specific tool.",
+          "example": "Only the Dev assistant may call `bash:git` without asking."
+        },
+        "tool_global": {
+          "label": "For this tool, across every assistant",
+          "help": "Every assistant that calls this tool will skip the prompt.",
+          "example": "Any assistant can call `mcp:linear.search` without asking."
+        },
+        "all_always": {
+          "label": "Accept everything automatically (not recommended)",
+          "help": "All future permission prompts will be auto-approved.",
+          "example": "Apollia will never ask you for approval again.",
+          "danger": "This is the most dangerous setting. You will lose every safety gate.",
+          "confirm_title": "Auto-approve everything?",
+          "confirm_body": "This disables every permission prompt across all assistants and tools. You can still revoke it later from Settings → Permission rules.",
+          "confirm_action": "I understand, enable"
+        }
+      }
+    },
+    "rules": {
+      "title": "Permission rules",
+      "subtitle": "Rules that auto-approve future actions. Revoke any you no longer trust.",
+      "empty_title": "No auto-approval rules",
+      "empty_subtitle": "Rules appear here when you choose “Always allow”.",
+      "col_tool": "Tool",
+      "col_scope": "Scope",
+      "col_agent": "Agent",
+      "col_created": "Created",
+      "revoke": "Revoke",
+      "revoke_all": "Revoke all rules",
+      "revoke_all_confirm_title": "Revoke every auto-approval rule?",
+      "revoke_all_confirm_body": "Future actions will ask for approval again. This cannot be undone.",
+      "revoke_all_type_prompt": "Type your name to confirm",
+      "manage_link": "Manage my rules",
+      "toast": {
+        "revoked": "Rule revoked",
+        "revoked_all": "All rules revoked"
+      }
+    }
+  },
   "approvals": {
     "title": "Approvals",
     "subtitle": "Review and respond to assistant requests",
