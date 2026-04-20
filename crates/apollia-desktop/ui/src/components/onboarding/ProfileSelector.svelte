@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { Terminal, Code2 } from "lucide-svelte";
+  import { Sparkles, Code2 } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import { onboardingStore } from "$lib/stores/onboarding";
   import { uiMode } from "$lib/stores/mode";
@@ -59,11 +59,16 @@
           {#if selecting === "operator"}
             <Spinner size={24} />
           {:else}
-            <Terminal size={24} strokeWidth={1.75} />
+            <Sparkles size={24} strokeWidth={1.75} />
           {/if}
         </div>
         <h2 class="card-title">{$t("onboarding_v2.profile.operator_title")}</h2>
         <p class="card-desc">{$t("onboarding_v2.profile.operator_desc")}</p>
+        <ul class="card-bullets" data-testid="profile-operator-bullets">
+          <li>{$t("onboarding_v2.profile.operator_bullet_1")}</li>
+          <li>{$t("onboarding_v2.profile.operator_bullet_2")}</li>
+          <li>{$t("onboarding_v2.profile.operator_bullet_3")}</li>
+        </ul>
         <p class="card-examples">{$t("onboarding_v2.profile.operator_examples")}</p>
       </button>
 
@@ -83,6 +88,11 @@
         </div>
         <h2 class="card-title">{$t("onboarding_v2.profile.builder_title")}</h2>
         <p class="card-desc">{$t("onboarding_v2.profile.builder_desc")}</p>
+        <ul class="card-bullets" data-testid="profile-builder-bullets">
+          <li>{$t("onboarding_v2.profile.builder_bullet_1")}</li>
+          <li>{$t("onboarding_v2.profile.builder_bullet_2")}</li>
+          <li>{$t("onboarding_v2.profile.builder_bullet_3")}</li>
+        </ul>
         <p class="card-examples">{$t("onboarding_v2.profile.builder_examples")}</p>
       </button>
     </div>
@@ -234,6 +244,18 @@
     color: hsl(var(--foreground) / 0.8);
     margin: 0;
     line-height: 1.5;
+  }
+
+  .card-bullets {
+    list-style: disc;
+    padding-left: 1.125rem;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.8125rem;
+    color: hsl(var(--foreground) / 0.75);
+    line-height: 1.45;
   }
 
   .card-examples {

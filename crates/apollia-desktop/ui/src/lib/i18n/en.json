@@ -2324,9 +2324,15 @@
       "subtitle": "Choose the path that fits your use case.",
       "operator_title": "Operator",
       "operator_desc": "You use ready-made AI agents to automate your workflows.",
+      "operator_bullet_1": "No code required to get started",
+      "operator_bullet_2": "Guided tours and ready-made templates",
+      "operator_bullet_3": "Connect your tools (Gmail, Notion, GitHub…)",
       "operator_examples": "Automation · Assistants · Business pipelines",
       "builder_title": "Builder",
       "builder_desc": "You develop and deploy custom Python agents.",
+      "builder_bullet_1": "Full control over agent code and prompts",
+      "builder_bullet_2": "Exhaustive observability of runs and tokens",
+      "builder_bullet_3": "Native MCP, A2A and Python SDK",
       "builder_examples": "LangGraph · CrewAI · Custom agents",
       "both_profiles": "Both",
       "selecting": "Configuring…"
@@ -2334,7 +2340,16 @@
     "resume_bar": {
       "step_label": "Step {current} of {total}",
       "resume_btn": "Resume",
-      "dismiss_btn": "Later"
+      "dismiss_btn": "Later",
+      "toggle_collapsed": "Toggle resume bar"
+    },
+    "coach_widget": {
+      "title": "Coach",
+      "aria_label": "Onboarding coach",
+      "close": "Close coach",
+      "send": "Send",
+      "input_placeholder": "Ask the coach…",
+      "placeholder": "Stuck on a step? Ask a question here and the coach will guide you."
     },
     "graduation": {
       "title": "You're ready!",
@@ -2444,6 +2459,38 @@
         "observability": "Observability",
         "graduation": "Finish"
       }
+    }
+  },
+  "tours": {
+    "first_chat": {
+      "step_1_title": "Type a message",
+      "step_1_body": "Ask a question in plain language — the agent replies locally, without leaving your machine.",
+      "step_2_title": "Send the message",
+      "step_2_body": "Hit send (or press Enter) to dispatch your prompt to the selected agent.",
+      "step_3_title": "Watch the reasoning",
+      "step_3_body": "Open the thinking panel to see the agent's plan, tool calls and intermediate steps."
+    },
+    "first_automation": {
+      "step_1_title": "Create an automation",
+      "step_1_body": "Click here to turn a repeated task into an automation that runs on its own.",
+      "step_2_title": "Pick a trigger",
+      "step_2_body": "Choose when it runs: on a schedule, a file change, a webhook or a keyword.",
+      "step_3_title": "Save and try it",
+      "step_3_body": "Save the automation — it appears in your list and can be launched or edited anytime."
+    },
+    "first_memory": {
+      "step_1_title": "Browse your memory",
+      "step_1_body": "Agents store durable facts here. You keep full control: edit, forget, export at will.",
+      "step_2_title": "Add an entry",
+      "step_2_body": "Pin something the agents should remember about you or your projects."
+    },
+    "first_inbox": {
+      "step_1_title": "Your approvals inbox",
+      "step_1_body": "Agents queue sensitive actions here until you confirm them.",
+      "step_2_title": "Preview the impact",
+      "step_2_body": "Every request shows exactly what will happen before you decide.",
+      "step_3_title": "Approve or refine",
+      "step_3_body": "Approve, deny, or enable 'always allow' for a trusted scope."
     }
   },
   "permissions": {

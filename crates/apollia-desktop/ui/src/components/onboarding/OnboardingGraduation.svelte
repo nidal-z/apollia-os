@@ -262,8 +262,15 @@
 
   .stat-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr;
     gap: 0.75rem;
+  }
+
+  /* Tailwind sm breakpoint (640 px) — see src/lib/design/breakpoints.md. */
+  @media (min-width: 640px) {
+    .stat-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
   }
 
   .stat-cell {

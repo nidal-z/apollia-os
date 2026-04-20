@@ -1,6 +1,11 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { t } from "svelte-i18n";
+  import { ChevronDown, ChevronUp } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+
+  /** Persistence key for the user-collapsed state. */
+  const COLLAPSED_KEY = "apollia.onboarding.resume_bar.collapsed";
 
   interface Props {
     /** Index of the current onboarding phase (1-based). */
@@ -14,19 +19,53 @@
   }
 
   let { currentStep, totalSteps, onresume, ondismiss }: Props = $props();
+
+  let collapsed = $state(false);
+
+  onMount(() => {
+    try {
+      collapsed = localStorage.getItem(COLLAPSED_KEY) === "true";
+    } catch {
+      // Storage disabled — default to expanded.
+    }
+  });
+
+  function toggleCollapsed(): void {
+    collapsed = !collapsed;
+    try {
+      localStorage.setItem(COLLAPSED_KEY, collapsed ? "true" : "false");
+    } catch {
+      // No-op.
+    }
+  }
 </script>
 
-<div class="resume-bar" data-testid="onboarding-resume-bar" role="banner">
+<div class="resume-bar" class:is-collapsed={collapsed} data-testid="onboarding-resume-bar" role="banner">
   <span class="step-label">
     {$t("onboarding_v2.resume_bar.step_label", { values: { current: currentStep, total: totalSteps } })}
   </span>
   <div class="actions">
-    <Button variant="primary-gradient" size="sm" onclick={onresume}>
-      {$t("onboarding_v2.resume_bar.resume_btn")}
-    </Button>
-    <Button variant="ghost" size="sm" onclick={ondismiss}>
-      {$t("onboarding_v2.resume_bar.dismiss_btn")}
-    </Button>
+    {#if !collapsed}
+      <Button variant="primary-gradient" size="sm" onclick={onresume}>
+        {$t("onboarding_v2.resume_bar.resume_btn")}
+      </Button>
+      <Button variant="ghost" size="sm" onclick={ondismiss}>
+        {$t("onboarding_v2.resume_bar.dismiss_btn")}
+      </Button>
+    {/if}
+    <button
+      class="collapse-btn"
+      onclick={toggleCollapsed}
+      aria-label={$t("onboarding_v2.resume_bar.toggle_collapsed")}
+      aria-expanded={!collapsed}
+      data-testid="onboarding-resume-bar-collapse"
+    >
+      {#if collapsed}
+        <ChevronDown size={16} strokeWidth={2} />
+      {:else}
+        <ChevronUp size={16} strokeWidth={2} />
+      {/if}
+    </button>
   </div>
 </div>
 
@@ -41,6 +80,11 @@
     border-bottom: 1px solid hsl(var(--primary) / 0.1);
     flex-shrink: 0;
     gap: 0.75rem;
+    transition: height 200ms ease;
+  }
+
+  .resume-bar.is-collapsed {
+    height: 28px;
   }
 
   .step-label {
@@ -54,5 +98,22 @@
     align-items: center;
     gap: 0.5rem;
     flex-shrink: 0;
+  }
+
+  .collapse-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: none;
+    background: transparent;
+    border-radius: 0.375rem;
+    color: hsl(var(--muted-foreground));
+    cursor: pointer;
+  }
+
+  .collapse-btn:hover {
+    background: hsl(var(--muted-foreground) / 0.08);
   }
 </style>

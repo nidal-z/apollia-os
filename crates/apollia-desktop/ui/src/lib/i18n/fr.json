@@ -2324,9 +2324,15 @@
       "subtitle": "Choisissez le parcours adapté à votre usage.",
       "operator_title": "Opérateur",
       "operator_desc": "Vous utilisez des agents IA prêts à l'emploi pour automatiser vos workflows.",
+      "operator_bullet_1": "Aucun code requis pour démarrer",
+      "operator_bullet_2": "Tours guidés et templates prêts à l'emploi",
+      "operator_bullet_3": "Connectez vos outils (Gmail, Notion, GitHub…)",
       "operator_examples": "Automatisation · Assistants · Pipelines métier",
       "builder_title": "Builder",
       "builder_desc": "Vous développez et déployez des agents Python personnalisés.",
+      "builder_bullet_1": "Contrôle total du code et des prompts",
+      "builder_bullet_2": "Observabilité exhaustive des runs et des tokens",
+      "builder_bullet_3": "MCP, A2A et SDK Python natifs",
       "builder_examples": "LangGraph · CrewAI · Agents custom",
       "both_profiles": "Les deux",
       "selecting": "Configuration…"
@@ -2334,7 +2340,16 @@
     "resume_bar": {
       "step_label": "Étape {current} sur {total}",
       "resume_btn": "Reprendre",
-      "dismiss_btn": "Plus tard"
+      "dismiss_btn": "Plus tard",
+      "toggle_collapsed": "Afficher / masquer la barre"
+    },
+    "coach_widget": {
+      "title": "Coach",
+      "aria_label": "Coach d'onboarding",
+      "close": "Fermer le coach",
+      "send": "Envoyer",
+      "input_placeholder": "Posez une question au coach…",
+      "placeholder": "Bloqué sur une étape ? Posez une question ici et le coach vous guidera."
     },
     "graduation": {
       "title": "Vous êtes prêt !",
@@ -2444,6 +2459,38 @@
         "observability": "Observabilité",
         "graduation": "Fin"
       }
+    }
+  },
+  "tours": {
+    "first_chat": {
+      "step_1_title": "Tapez un message",
+      "step_1_body": "Posez une question en langage naturel — l'agent répond localement, sans sortir de votre machine.",
+      "step_2_title": "Envoyez le message",
+      "step_2_body": "Cliquez sur envoyer (ou Entrée) pour transmettre votre prompt à l'agent sélectionné.",
+      "step_3_title": "Observez le raisonnement",
+      "step_3_body": "Ouvrez le panneau de pensée pour voir le plan de l'agent, ses appels d'outils et ses étapes intermédiaires."
+    },
+    "first_automation": {
+      "step_1_title": "Créez une automatisation",
+      "step_1_body": "Cliquez ici pour transformer une tâche répétitive en automatisation qui s'exécute seule.",
+      "step_2_title": "Choisissez un déclencheur",
+      "step_2_body": "Définissez quand elle s'exécute : planification, modification de fichier, webhook ou mot-clé.",
+      "step_3_title": "Sauvegardez et testez",
+      "step_3_body": "Sauvegardez l'automatisation — elle apparaît dans votre liste et peut être lancée ou éditée à tout moment."
+    },
+    "first_memory": {
+      "step_1_title": "Parcourez votre mémoire",
+      "step_1_body": "Les agents y stockent des faits durables. Vous gardez le contrôle : éditer, oublier, exporter à volonté.",
+      "step_2_title": "Ajoutez une entrée",
+      "step_2_body": "Épinglez ce que les agents doivent retenir de vous ou de vos projets."
+    },
+    "first_inbox": {
+      "step_1_title": "Votre boîte d'approbations",
+      "step_1_body": "Les agents y mettent en file les actions sensibles jusqu'à votre confirmation.",
+      "step_2_title": "Visualisez l'impact",
+      "step_2_body": "Chaque demande montre exactement ce qui va se passer avant que vous décidiez.",
+      "step_3_title": "Approuvez ou affinez",
+      "step_3_body": "Approuvez, refusez, ou activez « toujours autoriser » pour un périmètre de confiance."
     }
   },
   "permissions": {
