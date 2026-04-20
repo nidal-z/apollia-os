@@ -27,6 +27,26 @@ const ONBOARDING_AGENT_TOML: &str =
 /// and the `[agent].version` in `manifest.toml`.
 const ONBOARDING_AGENT_VERSION: &str = "1.5.0";
 
+/// Source code of the Apollia Guide agent (US-SP42-057).
+const APOLLIA_GUIDE_PY: &str = include_str!("../../../agents/system/apollia-guide/agent.py");
+
+/// Manifest metadata for the Apollia Guide agent.
+const APOLLIA_GUIDE_TOML: &str =
+    include_str!("../../../agents/system/apollia-guide/manifest.toml");
+
+/// Knowledge base — capabilities sheet. Bundled so the agent works offline
+/// on the very first launch without any post-install download step.
+const APOLLIA_GUIDE_CAPABILITIES_MD: &str =
+    include_str!("../../../agents/system/apollia-guide/knowledge/capabilities.md");
+
+/// Knowledge base — tutorials with suggested action buttons per intent.
+const APOLLIA_GUIDE_TUTORIALS_MD: &str =
+    include_str!("../../../agents/system/apollia-guide/knowledge/tutorials.md");
+
+/// Bundled version — must match `manifest()["version"]` in `agent.py` and
+/// `[agent].version` in `manifest.toml`.
+const APOLLIA_GUIDE_VERSION: &str = "0.1.0";
+
 /// Ensures the built-in agents are extracted and registered in the repository.
 ///
 /// Called once at boot, before the auto-load loop. Idempotent: skips agents
@@ -34,6 +54,9 @@ const ONBOARDING_AGENT_VERSION: &str = "1.5.0";
 pub fn ensure_bundled_agents(repo: &AgentRepository, data_dir: &Path) {
     if let Err(e) = provision_onboarding_agent(repo, data_dir) {
         tracing::warn!(error = %e, "failed to provision bundled onboarding-agent");
+    }
+    if let Err(e) = provision_apollia_guide_agent(repo, data_dir) {
+        tracing::warn!(error = %e, "failed to provision bundled apollia-guide");
     }
 }
 
@@ -118,6 +141,107 @@ fn onboarding_manifest() -> AgentManifest {
         network_allowlist: None,
         dangerous_tools_allowed: false,
         tags: vec!["onboarding".to_string(), "conversational".to_string()],
+        skills: Vec::new(),
+        execution_mode: "conversational".to_string(),
+        system_prompt: None,
+        tools_requiring_approval: Vec::new(),
+        llm_backend: None,
+        packages: vec![],
+        memory_config: None,
+        agent_type: Some("system".to_string()),
+        examples: vec![],
+        limitations: vec![],
+        setup_notes: None,
+    }
+}
+
+/// Extracts the Apollia Guide agent bundle (code + manifest + knowledge
+/// base) and registers it as a non-uninstallable system agent.
+fn provision_apollia_guide_agent(
+    repo: &AgentRepository,
+    data_dir: &Path,
+) -> Result<(), BundledAgentError> {
+    let agent_name = "apollia-guide";
+
+    if let Some(existing) = repo.get(agent_name)? {
+        if existing.version == APOLLIA_GUIDE_VERSION {
+            tracing::debug!(name = %agent_name, "apollia-guide already at current version");
+            return Ok(());
+        }
+        tracing::info!(
+            name = %agent_name,
+            installed = %existing.version,
+            bundled = %APOLLIA_GUIDE_VERSION,
+            "upgrading bundled apollia-guide"
+        );
+    }
+
+    let agent_dir = data_dir.join("agents").join(agent_name);
+    let knowledge_dir = agent_dir.join("knowledge");
+    std::fs::create_dir_all(&knowledge_dir).map_err(|e| BundledAgentError::Io(agent_name, e))?;
+
+    let agent_path = agent_dir.join("agent.py");
+    std::fs::write(&agent_path, APOLLIA_GUIDE_PY)
+        .map_err(|e| BundledAgentError::Io(agent_name, e))?;
+
+    std::fs::write(agent_dir.join("manifest.toml"), APOLLIA_GUIDE_TOML)
+        .map_err(|e| BundledAgentError::Io(agent_name, e))?;
+
+    std::fs::write(
+        knowledge_dir.join("capabilities.md"),
+        APOLLIA_GUIDE_CAPABILITIES_MD,
+    )
+    .map_err(|e| BundledAgentError::Io(agent_name, e))?;
+    std::fs::write(
+        knowledge_dir.join("tutorials.md"),
+        APOLLIA_GUIDE_TUTORIALS_MD,
+    )
+    .map_err(|e| BundledAgentError::Io(agent_name, e))?;
+
+    let now = now_rfc3339();
+    let agent = InstalledAgent {
+        name: agent_name.to_string(),
+        version: APOLLIA_GUIDE_VERSION.to_string(),
+        install_path: agent_path.clone(),
+        source_path: agent_path,
+        manifest: apollia_guide_manifest(),
+        enabled: true,
+        installed_at: now.clone(),
+        updated_at: now,
+    };
+    repo.save(&agent)?;
+    tracing::info!(name = %agent_name, version = %APOLLIA_GUIDE_VERSION, "bundled apollia-guide provisioned");
+    Ok(())
+}
+
+/// Mirrors the `manifest()` dict from `agents/system/apollia-guide/agent.py`.
+fn apollia_guide_manifest() -> AgentManifest {
+    AgentManifest {
+        name: "apollia-guide".to_string(),
+        version: APOLLIA_GUIDE_VERSION.to_string(),
+        description: "Conversational coach for Apollia OS — knows product \
+                      capabilities and suggests actionable deep-links."
+            .to_string(),
+        tools_required: Vec::new(),
+        tools_optional: vec![
+            "navigate".to_string(),
+            "read_memory_namespace".to_string(),
+            "get_user_integrations".to_string(),
+            "get_installed_agents".to_string(),
+        ],
+        supports_streaming: false,
+        supports_a2a: false,
+        memory_namespace: Some("apollia-guide".to_string()),
+        shared_memory_namespaces: Vec::new(),
+        max_concurrent_tasks: 1,
+        step_budget: None,
+        network_allowlist: None,
+        dangerous_tools_allowed: false,
+        tags: vec![
+            "coach".to_string(),
+            "system".to_string(),
+            "guide".to_string(),
+        ],
         skills: Vec::new(),
         execution_mode: "conversational".to_string(),
         system_prompt: None,
@@ -221,6 +345,46 @@ mod tests {
         assert_eq!(agent.version, ONBOARDING_AGENT_VERSION);
         assert!(agent.enabled);
         assert_eq!(agent.install_path, agent_py);
+    }
+
+    #[test]
+    fn apollia_guide_manifest_is_system_tier() {
+        let m = apollia_guide_manifest();
+        assert_eq!(m.name, "apollia-guide");
+        assert_eq!(m.agent_type.as_deref(), Some("system"));
+        assert!(!m.dangerous_tools_allowed);
+        assert!(m.tools_required.is_empty());
+    }
+
+    #[test]
+    fn apollia_guide_embedded_toml_matches_version() {
+        let parsed: toml::Value = toml::from_str(APOLLIA_GUIDE_TOML)
+            .expect("apollia-guide manifest.toml must be valid TOML");
+        let version = parsed
+            .get("agent")
+            .and_then(|a| a.get("version"))
+            .and_then(|v| v.as_str())
+            .expect("manifest.toml must contain [agent].version");
+        assert_eq!(version, APOLLIA_GUIDE_VERSION);
+    }
+
+    #[test]
+    fn apollia_guide_bundle_is_provisioned_with_knowledge() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let db_path = tmp.path().join("agents.db");
+        let repo = AgentRepository::open(&db_path).expect("open repo");
+
+        ensure_bundled_agents(&repo, tmp.path());
+
+        let agent_py = tmp.path().join("agents/apollia-guide/agent.py");
+        let caps = tmp.path().join("agents/apollia-guide/knowledge/capabilities.md");
+        let tuts = tmp.path().join("agents/apollia-guide/knowledge/tutorials.md");
+        assert!(agent_py.exists());
+        assert!(caps.exists(), "capabilities.md must be extracted");
+        assert!(tuts.exists(), "tutorials.md must be extracted");
+
+        let stored = repo.get("apollia-guide").expect("get").expect("exists");
+        assert_eq!(stored.version, APOLLIA_GUIDE_VERSION);
     }
 
     #[test]

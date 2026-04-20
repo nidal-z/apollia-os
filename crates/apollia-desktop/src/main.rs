@@ -554,6 +554,8 @@ fn main() {
             commands::llm::get_cost_alert_threshold,
             commands::llm::reload_llm,
             commands::meta_automation::meta_parse_automation,
+            commands::apollia_coach::apollia_coach_invoke,
+            commands::apollia_coach::apollia_guide_bootstrap,
             commands::meta_digest::meta_generate_daily_digest,
             commands::mcp_coaching::meta_generate_capabilities_coaching,
             commands::triggers::list_triggers,

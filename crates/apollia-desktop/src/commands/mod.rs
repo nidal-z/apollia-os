@@ -7,6 +7,7 @@
 //! resume task).
 
 pub mod agents;
+pub mod apollia_coach;
 pub mod artifacts;
 pub mod chat;
 pub mod cli;

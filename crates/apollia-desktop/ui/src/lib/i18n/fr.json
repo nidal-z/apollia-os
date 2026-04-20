@@ -105,6 +105,8 @@
     "observability": "Observabilité",
     "transcriptions": "Transcriptions",
     "chat": "Chat",
+    "apollia_guide": "Apollia",
+    "apollia_guide_tooltip": "Demandez comment utiliser Apollia",
     "settings": "Paramètres",
     "connections": "Connexions",
     "mcp_servers": "Serveurs MCP",

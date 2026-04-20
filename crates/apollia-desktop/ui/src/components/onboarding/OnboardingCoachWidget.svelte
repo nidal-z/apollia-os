@@ -1,13 +1,21 @@
 <script lang="ts">
   /**
    * `OnboardingCoachWidget` — floating, draggable, dismissable coach widget
-   * surfaced during onboarding. Placeholder implementation: real LLM calls
-   * land with US-SP42-057.
+   * surfaced during onboarding. Backed by the `apollia_coach_invoke` IPC
+   * command (US-SP42-057) which routes through the user's configured LLM
+   * with a stage-aware `CoachContext`. Never spawns a separate model.
    *
-   * Story: US-SP42-055.
+   * Story: US-SP42-055 + US-SP42-057.
    */
   import { t } from 'svelte-i18n';
+  import { invoke } from '@tauri-apps/api/core';
   import { MessageCircle, X, Send } from 'lucide-svelte';
+  import {
+    sanitizeActionButtons,
+    executeActionButton,
+    type RawActionButton,
+    type SafeActionButton,
+  } from '$lib/apolliaGuide/actionButtons';
 
   interface Props {
     /** Onboarding stage identifier (welcome, profile_choice, ai_setup, …). */
@@ -23,6 +31,7 @@
   interface CoachMessage {
     role: 'user' | 'assistant';
     content: string;
+    actions?: SafeActionButton[];
   }
 
   let messages = $state<CoachMessage[]>([]);
@@ -30,6 +39,8 @@
   let position = $state({ x: 24, y: 24 });
   let dragging = $state(false);
   let dragOffset = { x: 0, y: 0 };
+  let pending = $state(false);
+  let coachError = $state<string | null>(null);
 
   function handlePointerDown(e: PointerEvent): void {
     dragging = true;
@@ -50,19 +61,48 @@
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
   }
 
-  function handleSend(): void {
+  interface CoachInvokeResponse {
+    text: string;
+    actionButtons: RawActionButton[];
+  }
+
+  async function handleSend(): Promise<void> {
     const text = draft.trim();
-    if (text === '') return;
-    // TODO(US-SP42-057): replace stub with real Coach meta-chat call.
-    messages = [
-      ...messages,
-      { role: 'user', content: text },
-      {
-        role: 'assistant',
-        content: `Placeholder — US-SP42-057 Coach integration pending (stage=${stage}, step=${currentStep}).`,
-      },
-    ];
+    if (text === '' || pending) return;
+
+    const history = messages.map((m) => ({ role: m.role, content: m.content }));
+    messages = [...messages, { role: 'user', content: text }];
     draft = '';
+    pending = true;
+    coachError = null;
+
+    try {
+      const response = await invoke<CoachInvokeResponse>('apollia_coach_invoke', {
+        request: {
+          mode: 'onboarding',
+          context: {
+            onboarding_stage: stage,
+            current_route: currentStep,
+          },
+          history,
+          userMessage: text,
+        },
+      });
+      const actions = sanitizeActionButtons(response.actionButtons);
+      messages = [
+        ...messages,
+        { role: 'assistant', content: response.text, actions },
+      ];
+    } catch (e) {
+      coachError = typeof e === 'string' ? e : (e as Error).message ?? 'Unknown error';
+    } finally {
+      pending = false;
+    }
+  }
+
+  async function runAction(btn: SafeActionButton): Promise<void> {
+    await executeActionButton(btn);
+    ondismiss?.();
   }
 
   function handleKeydown(e: KeyboardEvent): void {
@@ -109,7 +149,26 @@
     {:else}
       {#each messages as msg, i (i)}
         <div class="coach-msg coach-msg--{msg.role}">{msg.content}</div>
+        {#if msg.role === 'assistant' && msg.actions && msg.actions.length > 0}
+          <div class="coach-actions" data-testid="coach-widget-actions">
+            {#each msg.actions as btn (btn.label)}
+              <button
+                class="coach-action-btn"
+                onclick={() => runAction(btn)}
+                data-testid="coach-action-{btn.target}"
+              >
+                {btn.label}
+              </button>
+            {/each}
+          </div>
+        {/if}
       {/each}
+    {/if}
+    {#if pending}
+      <div class="coach-msg coach-msg--assistant coach-msg--pending" aria-live="polite">…</div>
+    {/if}
+    {#if coachError}
+      <div class="coach-error" role="alert" data-testid="coach-widget-error">{coachError}</div>
     {/if}
   </div>
 
@@ -268,5 +327,39 @@
 
   .coach-send:hover {
     box-shadow: var(--shadow-primary-md);
+  }
+
+  .coach-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    align-self: flex-start;
+    margin-top: -0.25rem;
+  }
+
+  .coach-action-btn {
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.3125rem 0.625rem;
+    border-radius: 999px;
+    border: 1px solid hsl(var(--secondary) / 0.45);
+    background: hsl(var(--secondary) / 0.12);
+    color: hsl(var(--foreground));
+    cursor: pointer;
+  }
+
+  .coach-action-btn:hover {
+    background: hsl(var(--secondary) / 0.22);
+  }
+
+  .coach-msg--pending {
+    opacity: 0.6;
+    font-style: italic;
+  }
+
+  .coach-error {
+    font-size: 0.75rem;
+    color: hsl(var(--destructive));
+    padding: 0.25rem 0.5rem;
   }
 </style>

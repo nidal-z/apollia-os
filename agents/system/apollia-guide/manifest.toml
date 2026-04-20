@@ -1,0 +1,40 @@
+# Apollia OS — apollia-guide bundle manifest (ADR-073/ADR-074 — US-SP42-057)
+# Built-in system agent, embedded in the desktop binary at compile time.
+# Non-uninstallable, auto-provisioned at first launch.
+
+[agent]
+name = "apollia-guide"
+version = "0.1.0"
+description = """\
+Conversational coach for Apollia OS — knows every product capability, \
+tutorials, and can propose actionable deep-links. Reuses the user's \
+configured LLM backend (never a separate model, never cloud unless the \
+user already opted-in). Knowledge base embedded from agents/system/\
+apollia-guide/knowledge/.\
+"""
+license = "MIT OR Apache-2.0"
+authors = ["Nidal Zoumita <nidal.zoumita@gmail.com>"]
+tags = ["coach", "system", "guide", "meta"]
+
+[agent.manifest]
+agent_type = "system"
+execution_mode = "auto"
+tools_required = []
+tools_optional = [
+    "navigate",
+    "read_memory_namespace",
+    "get_user_integrations",
+    "get_installed_agents",
+]
+memory_namespace = "apollia-guide"
+supports_streaming = false
+supports_a2a = false
+max_concurrent_tasks = 1
+dangerous_tools_allowed = false
+
+[agent.runtime]
+python = ">=3.11,<3.14"
+apollia_sdk = ">=0.3,<0.4"
+
+[agent.dependencies]
+packages = []

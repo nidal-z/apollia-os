@@ -99,6 +99,20 @@
     layoutActions.closeDrawer();
   }
 
+  /**
+   * Open the Apollia Guide meta-chat (US-SP42-057). Deep-links to the chat
+   * surface with `?agent=apollia-guide&mode=guide` so `Chat.svelte` can
+   * open (or resume) the pinned guide session and paint the warm shell.
+   */
+  function openApolliaGuide() {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.search = "?agent=apollia-guide&mode=guide";
+      window.history.replaceState({}, "", url.toString());
+    }
+    navigate("chat");
+  }
+
   function toggleMode() {
     uiMode.update((m) => (m === "operator" ? "builder" : "operator"));
   }
@@ -366,6 +380,26 @@
         {/if}
       {/each}
     {/if}
+
+    <!-- Apollia Guide — dedicated meta-chat entry (US-SP42-057).
+         Deep-links to the chat surface in "guide" mode (warm-tinted shell).
+         Query is preserved in window.location.search so Chat.svelte can
+         pick it up on mount and open the pinned apollia-guide session. -->
+    <button
+      class="list-item-spring relative mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary/10 hover:text-foreground"
+      class:justify-center={!showLabels}
+      class:px-2={!showLabels}
+      data-nav-item="true"
+      data-testid="nav-apollia-guide"
+      onclick={openApolliaGuide}
+      title={showLabels ? undefined : $t("nav.apollia_guide_tooltip")}
+      aria-label={showLabels ? undefined : $t("nav.apollia_guide_tooltip")}
+    >
+      <Sparkles size={18} strokeWidth={1.75} class="shrink-0 text-secondary" />
+      {#if showLabels}
+        <span>{$t("nav.apollia_guide")}</span>
+      {/if}
+    </button>
 
     <div class="flex-1"></div>
 
