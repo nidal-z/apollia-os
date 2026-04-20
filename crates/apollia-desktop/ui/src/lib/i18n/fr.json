@@ -1,4 +1,16 @@
 {
+  "next_steps": {
+    "title": "Prochaines étapes",
+    "refresh": "Actualiser",
+    "dismiss": "Masquer la suggestion",
+    "empty": "Pas de suggestion pour le moment — réessayez après quelques actions.",
+    "error": "Impossible de charger les suggestions. Essayez d'actualiser.",
+    "fallback_hint": "LLM indisponible — suggestions génériques affichées.",
+    "feedback_label": "Cette suggestion vous est-elle utile ?",
+    "feedback_useful": "Utile",
+    "feedback_not_useful": "Pas utile",
+    "session_title": "Et maintenant ?"
+  },
   "common": {
     "loading": "Chargement...",
     "error": "Une erreur est survenue",

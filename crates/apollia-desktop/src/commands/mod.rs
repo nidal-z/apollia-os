@@ -19,6 +19,7 @@ pub mod mcp;
 pub mod mcp_coaching;
 pub mod meta_automation;
 pub mod meta_digest;
+pub mod meta_next_steps;
 pub(crate) mod ssrf;
 pub mod memory;
 pub mod notifications;

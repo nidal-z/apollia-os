@@ -18,6 +18,8 @@
   import PendingActionsBlock from "../components/dashboard/PendingActionsBlock.svelte";
   import CompletedTodayBlock from "../components/dashboard/CompletedTodayBlock.svelte";
   import MyAssistantsBlock from "../components/dashboard/MyAssistantsBlock.svelte";
+  import NextStepsPanel from "../components/common/NextStepsPanel.svelte";
+  import { GLOBAL_SCOPE, type NextStepsFacts } from "$lib/stores/nextSteps";
 
   // Builder-mode (legacy layout preserved).
   import DashboardHeader from "../components/dashboard/DashboardHeader.svelte";
@@ -114,6 +116,20 @@
     automationsFailed: 0,
     firstFailureLabel: null,
     topAssistant,
+  });
+
+  // Facts passed to the Next Steps panel (US-SP42-059). Recent messages are
+  // left empty on the Dashboard — the session-scoped panel fills them.
+  const nextStepsFacts = $derived<NextStepsFacts>({
+    recentMessages: [],
+    toolsUsed: [],
+    memoriesCreated: 0,
+    memoriesRecalled: 0,
+    inboxPending: $pendingCount + $pendingChatApprovalCount,
+    tasksFailed: tasksFailed24h,
+    tasksCompleted: tasksCompleted24h,
+    automationsFailing: 0,
+    signals: topAssistant ? [`top_assistant:${topAssistant}`] : [],
   });
 
   // ── Inbox items adapter (light — just enough for the compact preview) ──────
@@ -219,16 +235,13 @@
         <PendingActionsBlock items={inboxItems} {totalPending} limit={PENDING_BLOCK_LIMIT} />
         <CompletedTodayBlock tasks={$tasks} limit={COMPLETED_TODAY_LIMIT} />
         <MyAssistantsBlock agents={installedAssistants} />
-        <!-- Next Steps panel (US-SP42-059) — stub until the meta command lands. -->
-        <section
-          class="glass-card glass-border rounded-lg p-4"
-          data-testid="next-steps-block"
-        >
-          <h2 class="mb-3 text-sm font-medium uppercase tracking-wider text-muted-foreground">
-            {$t('dashboard.next_steps_title')}
-          </h2>
-          <p class="text-xs text-muted-foreground">{$t('dashboard.next_steps_empty')}</p>
-        </section>
+        <NextStepsPanel
+          scopeKey={GLOBAL_SCOPE}
+          context="global_context"
+          mode="operator"
+          facts={nextStepsFacts}
+          title={$t('dashboard.next_steps_title')}
+        />
       </div>
     {/if}
   </div>

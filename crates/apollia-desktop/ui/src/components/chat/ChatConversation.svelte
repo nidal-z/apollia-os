@@ -32,6 +32,8 @@
   import ChatConversationHeader from "./ChatConversationHeader.svelte";
   import ScrollToBottomButton from "./ScrollToBottomButton.svelte";
   import CloseSessionDialog from "./CloseSessionDialog.svelte";
+  import NextStepsPanel from "../common/NextStepsPanel.svelte";
+  import { sessionScope, type NextStepsFacts } from "$lib/stores/nextSteps";
   import { toggleArchived } from "$lib/stores/chatSessions";
   import { classifySessionError } from "$lib/stores/runtimeHealth";
   import { agents } from "$lib/stores/sse";
@@ -760,6 +762,30 @@
       isProcessing = true;
     }
   }
+
+  // ── Next Steps (US-SP42-059) ─────────────────────────────────────────
+  // Rendered only when the session is closed — acts as a debrief panel.
+  const sessionEndScope = $derived(sessionScope(sessionId));
+  const nextStepsFacts = $derived<NextStepsFacts>({
+    recentMessages: messages
+      .slice(-8)
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => `${m.role}: ${m.content.slice(0, 240)}`),
+    toolsUsed: Array.from(
+      new Set(
+        messages
+          .flatMap((m) => m.tool_calls ?? [])
+          .map((tc) => tc.tool_name),
+      ),
+    ).slice(0, 12),
+    memoriesCreated: 0,
+    memoriesRecalled: $memoryEntryCount ?? 0,
+    inboxPending: 0,
+    tasksFailed: 0,
+    tasksCompleted: 0,
+    automationsFailing: 0,
+    signals: [],
+  });
 </script>
 
 <div class="flex h-full flex-col" data-testid="chat-conversation">
@@ -1068,6 +1094,18 @@
       unreadCount={unreadWhileScrolled}
       onclick={jumpToLatest}
     />
+    </div>
+  {/if}
+
+  {#if sessionStatus === "closed" && !loading && loadErrorKind === "none"}
+    <div class="border-t border-border/20 bg-background/40 px-4 py-3" data-testid="chat-next-steps">
+      <NextStepsPanel
+        scopeKey={sessionEndScope}
+        context="session_end"
+        mode={$uiMode === "builder" ? "builder" : "operator"}
+        facts={nextStepsFacts}
+        title={$t("next_steps.session_title")}
+      />
     </div>
   {/if}
 

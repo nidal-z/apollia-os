@@ -557,6 +557,7 @@ fn main() {
             commands::apollia_coach::apollia_coach_invoke,
             commands::apollia_coach::apollia_guide_bootstrap,
             commands::meta_digest::meta_generate_daily_digest,
+            commands::meta_next_steps::meta_generate_next_steps,
             commands::mcp_coaching::meta_generate_capabilities_coaching,
             commands::triggers::list_triggers,
             commands::triggers::set_trigger_enabled,

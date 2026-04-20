@@ -1,4 +1,16 @@
 {
+  "next_steps": {
+    "title": "Next steps",
+    "refresh": "Refresh",
+    "dismiss": "Dismiss suggestion",
+    "empty": "No suggestion right now — try again after a few actions.",
+    "error": "Could not load suggestions. Try refreshing.",
+    "fallback_hint": "LLM offline — showing generic suggestions.",
+    "feedback_label": "Was this suggestion useful?",
+    "feedback_useful": "Useful",
+    "feedback_not_useful": "Not useful",
+    "session_title": "What's next?"
+  },
   "common": {
     "loading": "Loading...",
     "error": "An error occurred",

@@ -5,11 +5,17 @@
 //! commandes Tauri côté desktop (US-SP42-050).
 
 pub mod apollia_coach;
+pub mod next_steps;
 pub mod parse_automation;
 
 pub use apollia_coach::{
     invoke_apollia_coach, ActionButton, ApolliaCoachError, CoachAction, CoachContext, CoachMode,
     CoachResponse, CoachTurn,
+};
+pub use next_steps::{
+    generate_next_steps, heuristic_fallback as next_steps_fallback, NextStep, NextStepAction,
+    NextStepButton, NextStepsContext, NextStepsError, NextStepsFacts, NextStepsMode,
+    NextStepsRequest, NextStepsResponse,
 };
 pub use parse_automation::{
     parse_automation, AgentMatch, Confidence, ParsedAutomation, ParsedSchedule,
