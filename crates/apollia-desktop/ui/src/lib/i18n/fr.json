@@ -2955,6 +2955,36 @@
       "palette_docs": "Afficher l'aide de la palette"
     }
   },
+  "commandPalette": {
+    "placeholder": {
+      "all": "Rechercher pages, actions, sessions…",
+      "actions": "Exécuter une action…"
+    },
+    "groups": {
+      "recent": "Récemment utilisés",
+      "pages": "Pages",
+      "actions": "Actions",
+      "sessions": "Sessions",
+      "settings": "Paramètres",
+      "help": "Aide"
+    },
+    "actions": {
+      "createAgent": "Créer un agent",
+      "createTrigger": "Créer un trigger",
+      "runPipeline": "Lancer un pipeline…",
+      "toggleMode": "Basculer mode Opérateur / Builder",
+      "toggleCompanion": "Basculer le Companion"
+    },
+    "help": {
+      "shortcuts": "Afficher les raccourcis clavier",
+      "about": "À propos d'Apollia",
+      "docs": "Ouvrir la documentation",
+      "resetOnboarding": "Réinitialiser l'onboarding",
+      "quit": "Quitter",
+      "toggleDevConsole": "Basculer la console dev"
+    },
+    "tip": "Astuce : Cmd+K"
+  },
   "templates": {
     "title": "Modèles",
     "subtitle": "Automatisations, assistants et pipelines prêts à l'emploi.",

@@ -1,4 +1,4 @@
-/** Command palette keys (US-SP42-017). */
+/** Command palette keys (US-SP42-017 + US-SP42-078). */
 export const COMMAND_KEYS = {
   placeholder: "command.placeholder",
   empty: "command.empty",
@@ -20,4 +20,36 @@ export const COMMAND_KEYS = {
     toggleDark: "command.seed.toggle_dark",
     paletteDocs: "command.seed.palette_docs",
   },
+} as const;
+
+/** Command palette v2 keys (US-SP42-078). */
+export const COMMAND_PALETTE_KEYS = {
+  placeholder: {
+    all: "commandPalette.placeholder.all",
+    actions: "commandPalette.placeholder.actions",
+  },
+  groups: {
+    recent: "commandPalette.groups.recent",
+    pages: "commandPalette.groups.pages",
+    actions: "commandPalette.groups.actions",
+    sessions: "commandPalette.groups.sessions",
+    settings: "commandPalette.groups.settings",
+    help: "commandPalette.groups.help",
+  },
+  actions: {
+    createAgent: "commandPalette.actions.createAgent",
+    createTrigger: "commandPalette.actions.createTrigger",
+    runPipeline: "commandPalette.actions.runPipeline",
+    toggleMode: "commandPalette.actions.toggleMode",
+    toggleCompanion: "commandPalette.actions.toggleCompanion",
+  },
+  help: {
+    shortcuts: "commandPalette.help.shortcuts",
+    about: "commandPalette.help.about",
+    docs: "commandPalette.help.docs",
+    resetOnboarding: "commandPalette.help.resetOnboarding",
+    quit: "commandPalette.help.quit",
+    toggleDevConsole: "commandPalette.help.toggleDevConsole",
+  },
+  tip: "commandPalette.tip",
 } as const;

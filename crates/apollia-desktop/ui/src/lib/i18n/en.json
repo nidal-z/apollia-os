@@ -2955,6 +2955,36 @@
       "palette_docs": "Open command palette docs"
     }
   },
+  "commandPalette": {
+    "placeholder": {
+      "all": "Search pages, actions, sessions…",
+      "actions": "Run an action…"
+    },
+    "groups": {
+      "recent": "Recently used",
+      "pages": "Pages",
+      "actions": "Actions",
+      "sessions": "Sessions",
+      "settings": "Settings",
+      "help": "Help"
+    },
+    "actions": {
+      "createAgent": "Create agent",
+      "createTrigger": "Create trigger",
+      "runPipeline": "Run pipeline…",
+      "toggleMode": "Toggle Operator / Builder mode",
+      "toggleCompanion": "Toggle Companion"
+    },
+    "help": {
+      "shortcuts": "Open Keyboard shortcuts",
+      "about": "About Apollia",
+      "docs": "Open documentation",
+      "resetOnboarding": "Reset Onboarding",
+      "quit": "Quit",
+      "toggleDevConsole": "Toggle dev console"
+    },
+    "tip": "Tip: Cmd+K"
+  },
   "templates": {
     "title": "Templates",
     "subtitle": "Ready-to-use automations, assistants, and pipelines.",
