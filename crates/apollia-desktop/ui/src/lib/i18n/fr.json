@@ -1459,7 +1459,35 @@
   },
   "settings": {
     "title": "Paramètres",
-    "subtitle": "Préférences de l'application et configuration du runtime",
+    "subtitle": "Configurez langue, thème, backends IA, mémoire, raccourcis et plus",
+    "nav": {
+      "aria_label": "Sections des paramètres",
+      "cluster_personalization": "Personnalisation",
+      "cluster_ai": "IA",
+      "cluster_system": "Système",
+      "cluster_danger": "Zone de danger",
+      "appearance": "Apparence",
+      "profile": "Profil",
+      "stt": "Reconnaissance vocale",
+      "llm": "Backends LLM",
+      "configuration": "Configuration",
+      "system": "Informations système",
+      "memories": "Mémoires",
+      "shortcuts": "Raccourcis",
+      "danger": "Zone de danger"
+    },
+    "shortcuts": {
+      "subtitle": "Raccourcis clavier disponibles dans Apollia.",
+      "command_palette": "Ouvrir la palette de commandes",
+      "new_task": "Créer une nouvelle tâche",
+      "toggle_artifacts": "Afficher/masquer le panneau des artefacts",
+      "nav_back": "Naviguer en arrière",
+      "nav_forward": "Naviguer en avant",
+      "keyboard_overlay": "Afficher l'aperçu des raccourcis clavier"
+    },
+    "danger": {
+      "subtitle": "Opérations irréversibles ou perturbatrices. À utiliser avec précaution."
+    },
     "preferences": "Préférences",
     "runtime_config": "Configuration du runtime",
     "advanced": "Avancé",

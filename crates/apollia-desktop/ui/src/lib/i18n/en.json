@@ -1459,7 +1459,35 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Application preferences and runtime configuration",
+    "subtitle": "Configure language, theme, AI backends, memory, shortcuts and more",
+    "nav": {
+      "aria_label": "Settings sections",
+      "cluster_personalization": "Personalization",
+      "cluster_ai": "AI",
+      "cluster_system": "System",
+      "cluster_danger": "Danger Zone",
+      "appearance": "Appearance",
+      "profile": "Profile",
+      "stt": "Speech-to-Text",
+      "llm": "LLM backends",
+      "configuration": "Configuration",
+      "system": "System info",
+      "memories": "Memories",
+      "shortcuts": "Shortcuts",
+      "danger": "Danger Zone"
+    },
+    "shortcuts": {
+      "subtitle": "Keyboard shortcuts available across Apollia.",
+      "command_palette": "Open command palette",
+      "new_task": "Create a new task",
+      "toggle_artifacts": "Toggle the artifacts panel",
+      "nav_back": "Navigate back",
+      "nav_forward": "Navigate forward",
+      "keyboard_overlay": "Show keyboard shortcuts overlay"
+    },
+    "danger": {
+      "subtitle": "Irreversible or disruptive operations. Proceed carefully."
+    },
     "preferences": "Preferences",
     "runtime_config": "Runtime configuration",
     "advanced": "Advanced",
