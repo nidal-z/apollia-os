@@ -1,114 +1,57 @@
 <script lang="ts">
+  /**
+   * Sidebar — Apollia OS main navigation (US-SP42-079 refonte).
+   *
+   * Structure:
+   *   [Logo + ModeChip]      ← identity + mode switch
+   *   [NavGrouped scrollable] ← semantic groups, overflow-y in the middle
+   *   [Bottom actions fixed]  ← settings / running tasks / onboarding
+   *
+   * Removed in this revision:
+   *   - Connection status block  → relocated to Topbar (US-SP42-077)
+   *   - Companion toggle         → relocated to Topbar (US-SP42-077)
+   *   - Inline search            → replaced by Cmd+K (US-SP42-078)
+   */
   import { fade, fly } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
   import { t } from "svelte-i18n";
   import { currentRoute, navigateTo, type Route } from "$lib/stores/navigation";
-  import {
-    sidebarState,
-    drawerOpen,
-    layoutActions,
-  } from "$lib/stores/layout";
-  import { connectionStatus } from "$lib/stores/sse";
+  import { sidebarState, drawerOpen, layoutActions } from "$lib/stores/layout";
   import { pendingCount } from "$lib/stores/hitl";
-  import { activeChatCount, pendingChatApprovalCount } from "$lib/stores/chat";
+  import { activeChatCount, pendingChatApprovalCount, openNewChatRequested } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
-  import { showOnboardingBadge, onboardingStore } from "$lib/stores/onboarding";
-  import CompanionToggle from "../companion/CompanionToggle.svelte";
+  import { showOnboardingBadge } from "$lib/stores/onboarding";
   import { runningTasks, tasksRunningCount } from "$lib/stores/tasks";
-  import { openNewChatRequested } from "$lib/stores/chat";
   import {
-    LayoutDashboard,
-    Bot,
-    ListChecks,
-    MessageSquare,
-    ShieldCheck,
-    Plug,
-    Brain,
-    Timer,
-    GitBranch,
-    Database,
-    Bell,
-    Activity,
     Settings,
-    Layers,
     PanelLeftClose,
     PanelLeftOpen,
     Sparkles,
-    Mic,
-    FolderOpen,
-    LayoutGrid,
     Plus,
     X,
   } from "lucide-svelte";
-  import type { ComponentType } from "svelte";
+  import { operatorGroups, type NavGroup } from "$lib/navigation/operatorNav";
+  import { builderGroups } from "$lib/navigation/builderNav";
+  import SidebarLink from "./SidebarLink.svelte";
+  import SidebarBadge from "./SidebarBadge.svelte";
+  import SidebarGroup from "./SidebarGroup.svelte";
+  import ModeChip from "./ModeChip.svelte";
 
-  type NavItem = { route: Route; labelKey: string; icon: ComponentType };
-  type NavGroup = { labelKey: string; items: NavItem[] };
+  // ── Nav data — memoised per mode so an unrelated store change does not
+  //    rebuild the groups array. ────────────────────────────────────────────
+  const groups: NavGroup[] = $derived(
+    $uiMode === "operator" ? operatorGroups : builderGroups,
+  );
 
-  const operatorNav: NavItem[] = [
-    { route: "dashboard", labelKey: "nav.home", icon: LayoutDashboard },
-    { route: "agents", labelKey: "nav.my_assistants", icon: Bot },
-    { route: "projects", labelKey: "nav.projects", icon: FolderOpen },
-    { route: "tasks", labelKey: "nav.activity", icon: ListChecks },
-    { route: "chat", labelKey: "nav.chat", icon: MessageSquare },
-    { route: "automations", labelKey: "nav.automations", icon: Timer },
-    { route: "templates", labelKey: "nav.templates", icon: LayoutGrid },
-    { route: "integrations", labelKey: "nav.connections", icon: Plug },
-    { route: "inbox", labelKey: "nav.inbox_operator", icon: ShieldCheck },
-  ];
-
-  const builderNavGroups: NavGroup[] = [
-    {
-      labelKey: "nav.operations",
-      items: [
-        { route: "dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
-        { route: "agents", labelKey: "nav.agents", icon: Bot },
-        { route: "projects", labelKey: "nav.projects", icon: FolderOpen },
-        { route: "tasks", labelKey: "nav.tasks", icon: ListChecks },
-        { route: "chat", labelKey: "nav.chat", icon: MessageSquare },
-        { route: "inbox", labelKey: "nav.inbox_builder", icon: ShieldCheck },
-      ],
-    },
-    {
-      labelKey: "nav.infrastructure",
-      items: [
-        { route: "llm", labelKey: "nav.llm", icon: Brain },
-        { route: "triggers", labelKey: "nav.triggers", icon: Timer },
-        { route: "pipelines", labelKey: "nav.pipelines", icon: GitBranch },
-        { route: "integrations", labelKey: "nav.mcp_servers", icon: Plug },
-        { route: "templates", labelKey: "nav.templates", icon: LayoutGrid },
-      ],
-    },
-    {
-      labelKey: "nav.data",
-      items: [
-        { route: "memory", labelKey: "nav.memory", icon: Database },
-        { route: "transcriptions", labelKey: "nav.transcriptions", icon: Mic },
-        { route: "notifications", labelKey: "nav.notifications", icon: Bell },
-        { route: "observability", labelKey: "nav.observability", icon: Activity },
-      ],
-    },
-  ];
-
-  const settingsItem: NavItem = {
-    route: "settings",
-    labelKey: "nav.settings",
-    icon: Settings,
-  };
+  const settingsRoute: Route = "settings";
 
   function navigate(route: Route) {
     navigateTo(route);
-    // Route change auto-closes the drawer (AC US-SP42-003).
     layoutActions.closeDrawer();
   }
 
-  /**
-   * Open the Apollia Guide meta-chat (US-SP42-057). Deep-links to the chat
-   * surface with `?agent=apollia-guide&mode=guide` so `Chat.svelte` can
-   * open (or resume) the pinned guide session and paint the warm shell.
-   */
   function openApolliaGuide() {
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -118,34 +61,23 @@
     navigate("chat");
   }
 
-  function toggleMode() {
-    uiMode.update((m) => (m === "operator" ? "builder" : "operator"));
-  }
-
   function startNewChat() {
     navigate("chat");
     openNewChatRequested.set(Date.now());
   }
-
-  const CONNECTION_KEYS: Record<string, string> = {
-    connecting: "nav.connection.connecting",
-    connected: "nav.connection.connected",
-    reconnecting: "nav.connection.reconnecting",
-    error: "nav.connection.error",
-  };
 
   const isOperator = $derived($uiMode === "operator");
   const currentState = $derived($sidebarState);
   const isDrawer = $derived(currentState === "drawer");
   const isIcon = $derived(currentState === "icon");
   const isExpanded = $derived(currentState === "expanded");
-  // For the drawer, the aside is rendered expanded inside the overlay.
   const showLabels = $derived(isExpanded || (isDrawer && $drawerOpen));
+  const collapsed = $derived(!showLabels);
   const runningCount = $derived($runningTasks.length);
   const inFlightCount = $derived($tasksRunningCount);
+  const approvalsCount = $derived($pendingCount + $pendingChatApprovalCount);
 
-  // Pulse animation when the in-flight count changes (+1/-1). We toggle a
-  // short-lived class for ~400ms then reset. Keeps the badge calm at rest.
+  // Pulse when the in-flight count changes — short-lived class.
   let pulseKey = $state(0);
   let lastInFlight = 0;
   $effect(() => {
@@ -160,13 +92,11 @@
   });
 
   // ── A11y : focus trap + autofocus + route-change auto-close ────────────────
-
   let drawerRef: HTMLElement | null = $state(null);
   let previouslyFocused: HTMLElement | null = null;
 
   $effect(() => {
-    // Close the drawer as soon as the route changes.
-    $currentRoute; // subscribe
+    $currentRoute;
     if (!isDrawer) return;
     layoutActions.closeDrawer();
   });
@@ -174,7 +104,6 @@
   $effect(() => {
     if (!(isDrawer && $drawerOpen)) return;
     previouslyFocused = document.activeElement as HTMLElement | null;
-    // Defer focus to next tick so the drawer is mounted.
     const id = requestAnimationFrame(() => {
       const focusable = drawerRef?.querySelector<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
@@ -210,7 +139,6 @@
     }
   }
 
-  // Scroll lock while the drawer is open.
   $effect(() => {
     if (!(isDrawer && $drawerOpen)) return;
     const original = document.body.style.overflow;
@@ -220,32 +148,31 @@
     };
   });
 
-  // ── A11y : keyboard navigation across nav buttons (ArrowUp/Down) ───────────
-  //
-  // The sidebar is a vertical list of links. WAI-ARIA pattern `listbox`/
-  // `navigation` both accept arrow keys — we keep the default Tab flow
-  // (one stop per button) AND layer arrow-nav on top so power users can
-  // jump around quickly (US-SP42-007 E.46).
+  // ── Arrow-key navigation across nav buttons (E.46) ─────────────────────────
   let navRef: HTMLElement | null = $state(null);
 
   function handleNavKeydown(event: KeyboardEvent) {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp" &&
-        event.key !== "Home" && event.key !== "End") return;
+    if (
+      event.key !== "ArrowDown" &&
+      event.key !== "ArrowUp" &&
+      event.key !== "Home" &&
+      event.key !== "End"
+    )
+      return;
     if (!navRef) return;
-
     const buttons = Array.from(
       navRef.querySelectorAll<HTMLButtonElement>('button[data-nav-item="true"]'),
     );
     if (buttons.length === 0) return;
-
     const currentIndex = buttons.findIndex((btn) => btn === document.activeElement);
     let nextIndex = currentIndex;
     if (event.key === "ArrowDown") {
       nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % buttons.length;
     } else if (event.key === "ArrowUp") {
-      nextIndex = currentIndex < 0
-        ? buttons.length - 1
-        : (currentIndex - 1 + buttons.length) % buttons.length;
+      nextIndex =
+        currentIndex < 0
+          ? buttons.length - 1
+          : (currentIndex - 1 + buttons.length) % buttons.length;
     } else if (event.key === "Home") {
       nextIndex = 0;
     } else if (event.key === "End") {
@@ -254,42 +181,66 @@
     event.preventDefault();
     buttons[nextIndex]?.focus();
   }
+
+  // Resolve the urgency tone for the approvals badge. Over 30 min → urgent.
+  // We do not track age here (would require extra store wiring); default
+  // is `urgent` since any pending approval blocks an agent.
+  const approvalsTone: "urgent" | "attention" = $derived(
+    approvalsCount > 0 ? "urgent" : "attention",
+  );
 </script>
 
 {#snippet sidebarInner(drawer: boolean)}
-  <!-- Logo + Collapse toggle -->
+  <!-- Header : logo + mode chip -->
   <div
-    class="flex items-center gap-2.5 px-4 py-5"
-    class:justify-center={isIcon && !drawer}
+    class="flex items-center gap-2 px-4 py-4"
+    class:justify-center={collapsed && !drawer}
+    class:flex-col={collapsed && !drawer}
   >
-    <img src="/logo.svg" alt="Apollia" width="32" height="32" class="h-8 w-8 shrink-0" />
-    {#if showLabels}
-      <span class="text-lg font-semibold text-foreground" data-testid="sidebar-logo">Apollia OS</span>
-      {#if drawer}
-        <button
-          class="ml-auto inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          onclick={() => layoutActions.closeDrawer()}
-          title={$t("nav.close_sidebar")}
-          aria-label={$t("nav.close_sidebar")}
-          data-testid="sidebar-drawer-close"
+    <div class="flex items-center gap-2">
+      <img
+        src="/logo.svg"
+        alt="Apollia"
+        width="28"
+        height="28"
+        class="h-7 w-7 shrink-0"
+      />
+      {#if showLabels}
+        <span class="text-base font-semibold text-foreground" data-testid="sidebar-logo"
+          >Apollia OS</span
         >
-          <X size={18} strokeWidth={1.75} />
-        </button>
-      {:else if isExpanded}
-        <button
-          class="ml-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          onclick={() => layoutActions.toggleSidebar()}
-          title={$t("nav.collapse_sidebar")}
-          data-testid="sidebar-collapse-btn"
-        >
-          <PanelLeftClose size={16} strokeWidth={1.75} />
-        </button>
       {/if}
+    </div>
+    {#if showLabels}
+      <div class="ml-auto flex items-center gap-1">
+        <ModeChip {collapsed} />
+        {#if drawer}
+          <button
+            class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            onclick={() => layoutActions.closeDrawer()}
+            title={$t("nav.close_sidebar")}
+            aria-label={$t("nav.close_sidebar")}
+            data-testid="sidebar-drawer-close"
+          >
+            <X size={18} strokeWidth={1.75} />
+          </button>
+        {:else if isExpanded}
+          <button
+            class="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            onclick={() => layoutActions.toggleSidebar()}
+            title={$t("nav.collapse_sidebar")}
+            data-testid="sidebar-collapse-btn"
+          >
+            <PanelLeftClose size={16} strokeWidth={1.75} />
+          </button>
+        {/if}
+      </div>
+    {:else}
+      <ModeChip {collapsed} />
     {/if}
   </div>
 
-  {#if isIcon && !drawer}
-    <!-- Expand toggle is only meaningful at lg+ ; hidden at md (forced icon). -->
+  {#if collapsed && !drawer}
     <button
       class="mx-auto mb-2 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors lg:inline-flex hidden"
       onclick={() => layoutActions.toggleSidebar()}
@@ -302,14 +253,11 @@
 
   <Separator />
 
-  <!-- Navigation -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions
-       The keydown handler only captures arrow/Home/End to move
-       focus between child buttons (US-SP42-007 E.46). It does not
-       make <nav> itself interactive. -->
+  <!-- Scrollable nav region -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <nav
     bind:this={navRef}
-    class="flex flex-1 flex-col overflow-y-auto p-2"
+    class="sidebar-scroll flex flex-1 flex-col gap-0.5 overflow-y-auto p-2"
     class:p-3={showLabels}
     aria-label={$t("nav.sidebar_label")}
     onkeydown={handleNavKeydown}
@@ -318,11 +266,11 @@
     {#if isOperator}
       <button
         class="list-item-spring mb-1 flex w-full items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-        class:justify-center={!showLabels}
-        class:px-2={!showLabels}
+        class:justify-center={collapsed}
+        class:px-2={collapsed}
         data-testid="sidebar-new-chat-btn"
         onclick={startNewChat}
-        title={showLabels ? $t("chat.new_chat") : $t("chat.new_chat")}
+        title={$t("chat.new_chat")}
         aria-label={$t("chat.new_chat")}
       >
         <Plus size={16} strokeWidth={2} class="shrink-0" />
@@ -330,187 +278,142 @@
           <span>{$t("chat.new_chat")}</span>
         {/if}
       </button>
-      {#each operatorNav as item}
-        {@const isActive = $currentRoute === item.route}
-        <button
-          class="list-item-spring relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium {isActive
-            ? 'bg-primary/10 text-primary'
-            : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
-          class:justify-center={!showLabels}
-          class:px-2={!showLabels}
-          data-nav-item="true"
-          aria-current={isActive ? "page" : undefined}
-          aria-label={showLabels ? undefined : $t(item.labelKey)}
-          data-testid="nav-{item.route}"
-          onclick={() => navigate(item.route)}
-          title={showLabels ? undefined : $t(item.labelKey)}
-        >
-          <item.icon size={18} strokeWidth={1.75} class="shrink-0" />
-          {#if !showLabels && item.route === "tasks" && runningCount > 0}
-            <span class="absolute -top-0.5 right-0.5 flex h-2 w-2" data-testid="running-tasks-nav-badge">
-              <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
-              <span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
-            </span>
-          {/if}
-          {#if showLabels}
-            <span>{$t(item.labelKey)}</span>
-            {#if item.route === "inbox" && ($pendingCount + $pendingChatApprovalCount) > 0}
-              <Badge variant="destructive" class="ml-auto text-[10px] px-1.5 py-0" data-testid="approvals-badge"
-                >{$pendingCount + $pendingChatApprovalCount}</Badge
-              >
-            {/if}
-            {#if item.route === "chat" && $activeChatCount > 0}
-              <Badge variant="secondary" class="ml-auto text-[10px] px-1.5 py-0" data-testid="chat-badge"
-                >{$activeChatCount}</Badge
-              >
-            {/if}
-            {#if item.route === "tasks" && inFlightCount > 0}
-              <Badge
-                variant="info"
-                class="ml-auto text-[10px] px-1.5 py-0 {pulseKey > 0 ? 'animate-pulse' : ''}"
-                data-testid="tasks-running-badge"
-                title={$t("nav.running_tasks_count_tooltip")}
-                aria-label={$t("nav.running_tasks_count_tooltip")}
-                >{inFlightCount}</Badge
-              >
-            {/if}
-          {/if}
-        </button>
-      {/each}
-    {:else}
-      {#each builderNavGroups as group, groupIndex}
-        {#if showLabels}
-          <span
-            class="mb-1 mt-3 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60"
-            data-testid="nav-group-{group.labelKey.split('.')[1]}"
-            >{$t(group.labelKey)}</span
-          >
-        {:else if groupIndex > 0}
-          <Separator class="my-1.5" />
-        {/if}
-        {#each group.items as item}
-          {@const isActive = $currentRoute === item.route}
-          <button
-            class="list-item-spring relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium {isActive
-              ? 'bg-primary/10 text-primary'
-              : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
-            class:justify-center={!showLabels}
-            class:px-2={!showLabels}
-            data-nav-item="true"
-            aria-current={isActive ? "page" : undefined}
-            aria-label={showLabels ? undefined : $t(item.labelKey)}
-            data-testid="nav-{item.route}"
-            onclick={() => navigate(item.route)}
-            title={showLabels ? undefined : $t(item.labelKey)}
-          >
-            <item.icon size={18} strokeWidth={1.75} class="shrink-0" />
-            {#if !showLabels && item.route === "tasks" && runningCount > 0}
-              <span class="absolute -top-0.5 right-0.5 flex h-2 w-2" data-testid="running-tasks-nav-badge">
-                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
-                <span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
-              </span>
-            {/if}
-            {#if showLabels}
-              <span>{$t(item.labelKey)}</span>
-              {#if item.route === "inbox" && ($pendingCount + $pendingChatApprovalCount) > 0}
-                <Badge variant="destructive" class="ml-auto text-[10px] px-1.5 py-0" data-testid="approvals-badge"
-                  >{$pendingCount + $pendingChatApprovalCount}</Badge
-                >
-              {/if}
-              {#if item.route === "chat" && $activeChatCount > 0}
-                <Badge variant="secondary" class="ml-auto text-[10px] px-1.5 py-0" data-testid="chat-badge"
-                  >{$activeChatCount}</Badge
-                >
-              {/if}
-            {/if}
-          </button>
-        {/each}
-        {#if showLabels && groupIndex < builderNavGroups.length - 1}
-          <Separator class="my-2" />
-        {/if}
-      {/each}
     {/if}
 
-    <!-- Apollia Guide — dedicated meta-chat entry (US-SP42-057).
-         Deep-links to the chat surface in "guide" mode (warm-tinted shell).
-         Query is preserved in window.location.search so Chat.svelte can
-         pick it up on mount and open the pinned apollia-guide session. -->
+    {#each groups as group, groupIndex (group.labelKey)}
+      <SidebarGroup
+        label={$t(group.labelKey)}
+        {collapsed}
+        testId={`nav-group-${group.labelKey.split(".").pop()}`}
+      >
+        {#each group.items as item (item.route)}
+          {@const isActive = $currentRoute === item.route}
+          <SidebarLink
+            icon={item.icon}
+            label={$t(item.labelKey)}
+            active={isActive}
+            {collapsed}
+            testId={`nav-${item.route}`}
+            onSelect={() => navigate(item.route)}
+          >
+            {#snippet indicator()}
+              {#if item.route === "tasks" && runningCount > 0}
+                <span
+                  class="absolute -top-0.5 right-0.5 flex h-2 w-2"
+                  data-testid="running-tasks-nav-badge"
+                >
+                  <span
+                    class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"
+                  ></span>
+                  <span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
+                </span>
+              {/if}
+            {/snippet}
+            {#snippet badge()}
+              {#if item.route === "inbox" && approvalsCount > 0}
+                <SidebarBadge
+                  count={approvalsCount}
+                  tone={approvalsTone}
+                  testId="approvals-badge"
+                  ariaLabel={$t("sidebar.badge.approvals", {
+                    values: { count: approvalsCount },
+                  })}
+                />
+              {:else if item.route === "chat" && $activeChatCount > 0}
+                <SidebarBadge
+                  count={$activeChatCount}
+                  tone="info"
+                  testId="chat-badge"
+                  ariaLabel={$t("sidebar.badge.chats", {
+                    values: { count: $activeChatCount },
+                  })}
+                />
+              {:else if item.route === "tasks" && inFlightCount > 0}
+                <SidebarBadge
+                  count={inFlightCount}
+                  tone="info"
+                  pulse={pulseKey > 0}
+                  testId="tasks-running-badge"
+                  ariaLabel={$t("sidebar.badge.tasks_running", {
+                    values: { count: inFlightCount },
+                  })}
+                />
+              {/if}
+            {/snippet}
+          </SidebarLink>
+        {/each}
+      </SidebarGroup>
+      {#if collapsed && groupIndex < groups.length - 1}
+        <Separator class="my-1.5" />
+      {/if}
+    {/each}
+
+    <!-- Apollia Guide — pinned meta-chat entry (US-SP42-057). -->
     <button
-      class="list-item-spring relative mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary/10 hover:text-foreground"
-      class:justify-center={!showLabels}
-      class:px-2={!showLabels}
+      class="list-item-spring relative mt-2 flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary/10 hover:text-foreground"
+      class:justify-center={collapsed}
+      class:px-2={collapsed}
       data-nav-item="true"
       data-testid="nav-apollia-guide"
       onclick={openApolliaGuide}
-      title={showLabels ? undefined : $t("nav.apollia_guide_tooltip")}
-      aria-label={showLabels ? undefined : $t("nav.apollia_guide_tooltip")}
+      title={collapsed ? $t("nav.apollia_guide_tooltip") : undefined}
+      aria-label={collapsed ? $t("nav.apollia_guide_tooltip") : undefined}
     >
       <Sparkles size={18} strokeWidth={1.75} class="shrink-0 text-secondary" />
       {#if showLabels}
         <span>{$t("nav.apollia_guide")}</span>
       {/if}
     </button>
+  </nav>
 
-    <div class="flex-1"></div>
+  <!-- Fixed bottom actions -->
+  <div
+    class="mt-auto flex flex-shrink-0 flex-col gap-0.5 border-t border-border/60 p-2"
+    class:p-3={showLabels}
+    data-testid="sidebar-bottom-actions"
+  >
+    <SidebarLink
+      icon={Settings}
+      label={$t("nav.settings")}
+      active={$currentRoute === settingsRoute}
+      {collapsed}
+      testId="nav-settings"
+      onSelect={() => navigate(settingsRoute)}
+    />
 
-    <Separator class="my-2" />
-
-    <!-- Companion toggle (post-onboarding only) -->
-    {#if $onboardingStore.completed || $onboardingStore.phase === "done"}
-      <CompanionToggle collapsed={!showLabels} />
-    {/if}
-
-    <!-- Settings -->
-    <button
-      class="list-item-spring flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium {$currentRoute === settingsItem.route
-        ? 'bg-primary/10 text-primary'
-        : 'text-muted-foreground hover:bg-primary/[0.04] hover:text-foreground'}"
-      class:justify-center={!showLabels}
-      class:px-2={!showLabels}
-      data-nav-item="true"
-      aria-current={$currentRoute === settingsItem.route ? "page" : undefined}
-      aria-label={showLabels ? undefined : $t(settingsItem.labelKey)}
-      data-testid="nav-{settingsItem.route}"
-      onclick={() => navigate(settingsItem.route)}
-      title={showLabels ? undefined : $t(settingsItem.labelKey)}
-    >
-      <settingsItem.icon size={18} strokeWidth={1.75} class="shrink-0" />
-      {#if showLabels}
-        <span>{$t(settingsItem.labelKey)}</span>
-      {/if}
-    </button>
-
-    <!-- Running tasks indicator -->
     {#if runningCount > 0}
       <button
-        class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-primary/80 transition-colors hover:bg-primary/[0.06]"
-        class:justify-center={!showLabels}
-        class:px-2={!showLabels}
+        class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-xs font-medium text-primary/80 transition-colors hover:bg-primary/[0.06]"
+        class:justify-center={collapsed}
+        class:px-2={collapsed}
         data-testid="running-tasks-indicator"
         onclick={() => navigate("tasks")}
-        title={showLabels ? undefined : `${runningCount} running`}
+        title={collapsed ? `${runningCount} running` : undefined}
       >
         <span class="relative flex h-2 w-2 shrink-0">
-          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"></span>
+          <span
+            class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60"
+          ></span>
           <span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
         </span>
         {#if showLabels}
-          <span class="text-xs">
-            {runningCount === 1 ? $t('nav.running_task_one') : $t('nav.running_tasks', { values: { count: runningCount } })}
+          <span>
+            {runningCount === 1
+              ? $t("nav.running_task_one")
+              : $t("nav.running_tasks", { values: { count: runningCount } })}
           </span>
         {/if}
       </button>
     {/if}
 
-    <!-- Onboarding badge -->
     {#if $showOnboardingBadge}
       <button
         class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-secondary transition-colors hover:bg-secondary/10"
-        class:justify-center={!showLabels}
-        class:px-2={!showLabels}
+        class:justify-center={collapsed}
+        class:px-2={collapsed}
         data-testid="onboarding-badge"
         onclick={() => navigate("onboarding")}
-        title={showLabels ? undefined : $t("onboarding_welcome.badge")}
+        title={collapsed ? $t("onboarding_welcome.badge") : undefined}
       >
         <Sparkles size={18} strokeWidth={1.75} class="shrink-0" />
         {#if showLabels}
@@ -519,59 +422,11 @@
         {/if}
       </button>
     {/if}
-
-    <!-- Mode toggle -->
-    {#if showLabels}
-      <button
-        class="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-primary/[0.04] hover:text-foreground"
-        data-testid="mode-toggle"
-        onclick={toggleMode}
-        title={isOperator ? $t("nav.switch_to_builder") : $t("nav.switch_to_operator")}
-      >
-        <Layers size={18} strokeWidth={1.75} />
-        <span class="text-xs">{isOperator ? $t("nav.switch_to_builder") : $t("nav.switch_to_operator")}</span>
-      </button>
-    {:else}
-      <button
-        class="mt-1 flex w-full items-center justify-center rounded-md px-2 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-primary/[0.04] hover:text-foreground"
-        data-testid="mode-toggle"
-        onclick={toggleMode}
-        title={isOperator ? $t("nav.switch_to_builder") : $t("nav.switch_to_operator")}
-      >
-        <Layers size={18} strokeWidth={1.75} />
-      </button>
-    {/if}
-  </nav>
-
-  <Separator />
-
-  <!-- Connection indicator -->
-  <div
-    class="flex items-center gap-2 px-4 py-3"
-    class:justify-center={!showLabels}
-    class:px-2={!showLabels}
-    data-testid="connection-status"
-    data-status={$connectionStatus}
-  >
-    {#if $connectionStatus === "connected"}
-      <span class="h-2 w-2 shrink-0 rounded-full bg-success" data-testid="connection-dot"></span>
-    {:else if $connectionStatus === "reconnecting"}
-      <span class="h-2 w-2 shrink-0 animate-pulse rounded-full bg-warning" data-testid="connection-dot"></span>
-    {:else}
-      <span class="h-2 w-2 shrink-0 rounded-full bg-destructive" data-testid="connection-dot"></span>
-    {/if}
-    {#if showLabels}
-      <span class="text-xs text-muted-foreground" data-testid="connection-label"
-        >{$t(CONNECTION_KEYS[$connectionStatus] ?? 'common.unknown')}</span
-      >
-    {/if}
   </div>
 {/snippet}
 
 {#if isDrawer}
-  <!-- Drawer : overlay render under md — hidden from the layout flow until opened. -->
   {#if $drawerOpen}
-    <!-- Backdrop -->
     <div
       class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
       role="button"
@@ -582,7 +437,6 @@
       transition:fade={{ duration: 180 }}
       data-testid="sidebar-drawer-backdrop"
     ></div>
-    <!-- Drawer panel (div + role="dialog" to satisfy a11y — `aside` refuses interactive roles). -->
     <div
       bind:this={drawerRef}
       class="fixed inset-y-0 left-0 z-50 flex w-64 max-w-[85vw] flex-col glass-panel border-r glass-border shadow-xl"
@@ -605,6 +459,7 @@
     class:lg:w-60={isExpanded}
     class:w-14={isIcon}
     class:lg:w-16={isIcon}
+    role="navigation"
     aria-label={$t("nav.sidebar_label")}
     data-testid="sidebar"
     data-state={currentState}
@@ -612,3 +467,27 @@
     {@render sidebarInner(false)}
   </aside>
 {/if}
+
+<style>
+  /* Hide the scrollbar until the user interacts with the nav region. */
+  .sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 120ms ease;
+  }
+  .sidebar-scroll:hover,
+  .sidebar-scroll:focus-within {
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .sidebar-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 3px;
+  }
+  .sidebar-scroll:hover::-webkit-scrollbar-thumb,
+  .sidebar-scroll:focus-within::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+  }
+</style>

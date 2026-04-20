@@ -142,6 +142,29 @@
     },
     "projects": "Projets"
   },
+  "sidebar": {
+    "group": {
+      "core": "Essentiel",
+      "collaboration": "Collaboration"
+    },
+    "mode": {
+      "chip_aria": "Mode courant : {mode}. Ouvrir le sélecteur de mode.",
+      "chip_tooltip": "Mode : {current} — clic pour passer en {other}",
+      "operator": {
+        "label": "Opérateur",
+        "description": "Vue simplifiée : lancer et surveiller les assistants."
+      },
+      "builder": {
+        "label": "Builder",
+        "description": "Vue technique : LLMs, triggers, pipelines, mémoire."
+      }
+    },
+    "badge": {
+      "approvals": "{count} approbations en attente, urgent",
+      "chats": "{count} conversations actives",
+      "tasks_running": "{count} tâches en cours"
+    }
+  },
   "topbar": {
     "home_aria": "Accueil Apollia",
     "back_to": "Retour à {label}",
