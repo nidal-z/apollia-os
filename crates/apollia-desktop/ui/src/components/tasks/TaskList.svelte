@@ -4,7 +4,7 @@
   import { flip } from "svelte/animate";
   import { t } from "svelte-i18n";
   import type { TaskSummary } from "$lib/types";
-  import { tasks } from "$lib/stores/tasks";
+  import { tasks, openNewTaskRequested } from "$lib/stores/tasks";
   import { agents } from "$lib/stores/agents";
   import { connectionStatus } from "$lib/stores/sse";
   import { uiMode } from "$lib/stores/mode";
@@ -18,6 +18,7 @@
   import { Dialog } from "$lib/components/ui/dialog";
   import { Plus, Activity, CheckCircle, XCircle, Clock, AlertTriangle, Ban } from "lucide-svelte";
   import { EmptyState } from "$lib/components/layout";
+  import { BuilderOnly } from "$lib/components/shared";
   import { EMPTY_STATES } from "$lib/i18n/strings/empty-states";
 
   const SKELETON_ROW_COUNT = 6;
@@ -139,6 +140,17 @@
   }
 
   let inputCharCount = $derived(newTaskInput.length);
+
+  // Open the dialog when an external actor (sidebar CTA, FAB, Cmd+T
+  // command palette entry) flips the shared signal.
+  let lastOpenSignal = 0;
+  $effect(() => {
+    const value = $openNewTaskRequested;
+    if (value && value !== lastOpenSignal) {
+      lastOpenSignal = value;
+      openNewTaskDialog();
+    }
+  });
 </script>
 
 <!-- Toolbar: tabs + filter + new task -->
@@ -201,10 +213,10 @@
       icon={EMPTY_STATES.tasks.icon}
       title={$t(EMPTY_STATES.tasks.titleKey)}
       description={$t(EMPTY_STATES.tasks.descriptionKey)}
-      primaryLabel={mode === "operator" ? $t('tasks.empty_cta_operator') : $t(EMPTY_STATES.tasks.primaryCtaKey ?? '')}
-      primaryAction={mode === "operator" ? () => navigateTo("agents") : openNewTaskDialog}
-      secondaryLabel={mode === "operator" ? undefined : $t(EMPTY_STATES.tasks.secondaryCtaKey ?? '')}
-      secondaryAction={mode === "operator" ? undefined : () => navigateTo("agents")}
+      primaryLabel={mode === "operator" ? $t('tasks.create_task_cta') : $t(EMPTY_STATES.tasks.primaryCtaKey ?? '')}
+      primaryAction={openNewTaskDialog}
+      secondaryLabel={mode === "operator" ? $t('tasks.empty_cta_operator') : $t(EMPTY_STATES.tasks.secondaryCtaKey ?? '')}
+      secondaryAction={() => navigateTo("agents")}
       page="tasks"
     />
   {:else if visibleTasks.length === 0}
@@ -243,7 +255,9 @@
           <!-- Agent name + short ID -->
           <span class="w-32 shrink-0 truncate">
             <span class="text-xs font-medium">{task.agent_name || task.agent_id}</span>
-            <code class="ml-1 text-[9px] text-muted-foreground/40">{shortId(task.id)}</code>
+            <BuilderOnly>
+              <code class="ml-1 text-[9px] text-muted-foreground/40">{shortId(task.id)}</code>
+            </BuilderOnly>
           </span>
 
           <!-- Status badge -->

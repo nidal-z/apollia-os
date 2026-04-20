@@ -8,6 +8,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Toggle } from "$lib/components/ui/toggle";
+  import { BuilderOnly } from "$lib/components/shared";
   import { Play, Square, MessageSquare, Trash2, RefreshCw, Zap } from "lucide-svelte";
 
   interface Props {
@@ -152,7 +153,9 @@
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
           <span class="truncate text-[13px] font-medium" data-testid="agent-name">{agent.name}</span>
-          <span class="shrink-0 text-[10px] text-muted-foreground/50" data-testid="agent-version">v{agent.version}</span>
+          <BuilderOnly>
+            <span class="shrink-0 text-[10px] text-muted-foreground/50" data-testid="agent-version">v{agent.version}</span>
+          </BuilderOnly>
         </div>
       </div>
       <div class="flex items-center gap-1">

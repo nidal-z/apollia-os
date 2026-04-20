@@ -4,7 +4,12 @@
   import { t } from "svelte-i18n";
   import { Plus } from "lucide-svelte";
   import { connectionStatus } from "$lib/stores/sse";
-  import { activeChatSessions, closedChatSessions, pendingChatSessionId } from "$lib/stores/chat";
+  import {
+    activeChatSessions,
+    closedChatSessions,
+    pendingChatSessionId,
+    openNewChatRequested,
+  } from "$lib/stores/chat";
   import { chatSessions } from "$lib/stores/sse";
   import { Button } from "$lib/components/ui/button";
   import { Skeleton } from "$lib/components/ui/skeleton";
@@ -191,6 +196,18 @@
   function openNewChatPicker(_preset?: { templateId?: string; agentName?: string }) {
     showNewChatPicker = true;
   }
+
+  // External triggers (sidebar button, command palette) push Date.now() into
+  // this store; we open the picker on every change. Initialise lastSignal to
+  // the current value so mounting the route doesn't immediately open it.
+  let lastNewChatSignal = $state(0);
+  $effect(() => {
+    const v = $openNewChatRequested;
+    if (v && v !== lastNewChatSignal) {
+      lastNewChatSignal = v;
+      openNewChatPicker();
+    }
+  });
   function closeNewChatPicker() {
     showNewChatPicker = false;
   }

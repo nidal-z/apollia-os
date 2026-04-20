@@ -16,7 +16,8 @@
   import { Separator } from "$lib/components/ui/separator";
   import { showOnboardingBadge, onboardingStore } from "$lib/stores/onboarding";
   import CompanionToggle from "../companion/CompanionToggle.svelte";
-  import { runningTasks } from "$lib/stores/tasks";
+  import { runningTasks, tasksRunningCount } from "$lib/stores/tasks";
+  import { openNewChatRequested } from "$lib/stores/chat";
   import {
     LayoutDashboard,
     Bot,
@@ -38,6 +39,7 @@
     Mic,
     FolderOpen,
     LayoutGrid,
+    Plus,
     X,
   } from "lucide-svelte";
   import type { ComponentType } from "svelte";
@@ -120,6 +122,11 @@
     uiMode.update((m) => (m === "operator" ? "builder" : "operator"));
   }
 
+  function startNewChat() {
+    navigate("chat");
+    openNewChatRequested.set(Date.now());
+  }
+
   const CONNECTION_KEYS: Record<string, string> = {
     connecting: "nav.connection.connecting",
     connected: "nav.connection.connected",
@@ -135,6 +142,22 @@
   // For the drawer, the aside is rendered expanded inside the overlay.
   const showLabels = $derived(isExpanded || (isDrawer && $drawerOpen));
   const runningCount = $derived($runningTasks.length);
+  const inFlightCount = $derived($tasksRunningCount);
+
+  // Pulse animation when the in-flight count changes (+1/-1). We toggle a
+  // short-lived class for ~400ms then reset. Keeps the badge calm at rest.
+  let pulseKey = $state(0);
+  let lastInFlight = 0;
+  $effect(() => {
+    if (inFlightCount !== lastInFlight) {
+      lastInFlight = inFlightCount;
+      pulseKey += 1;
+      const n = pulseKey;
+      setTimeout(() => {
+        if (n === pulseKey) pulseKey = 0;
+      }, 400);
+    }
+  });
 
   // ── A11y : focus trap + autofocus + route-change auto-close ────────────────
 
@@ -293,6 +316,20 @@
     data-testid="sidebar-nav"
   >
     {#if isOperator}
+      <button
+        class="list-item-spring mb-1 flex w-full items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+        class:justify-center={!showLabels}
+        class:px-2={!showLabels}
+        data-testid="sidebar-new-chat-btn"
+        onclick={startNewChat}
+        title={showLabels ? $t("chat.new_chat") : $t("chat.new_chat")}
+        aria-label={$t("chat.new_chat")}
+      >
+        <Plus size={16} strokeWidth={2} class="shrink-0" />
+        {#if showLabels}
+          <span>{$t("chat.new_chat")}</span>
+        {/if}
+      </button>
       {#each operatorNav as item}
         {@const isActive = $currentRoute === item.route}
         <button
@@ -325,6 +362,16 @@
             {#if item.route === "chat" && $activeChatCount > 0}
               <Badge variant="secondary" class="ml-auto text-[10px] px-1.5 py-0" data-testid="chat-badge"
                 >{$activeChatCount}</Badge
+              >
+            {/if}
+            {#if item.route === "tasks" && inFlightCount > 0}
+              <Badge
+                variant="info"
+                class="ml-auto text-[10px] px-1.5 py-0 {pulseKey > 0 ? 'animate-pulse' : ''}"
+                data-testid="tasks-running-badge"
+                title={$t("nav.running_tasks_count_tooltip")}
+                aria-label={$t("nav.running_tasks_count_tooltip")}
+                >{inFlightCount}</Badge
               >
             {/if}
           {/if}

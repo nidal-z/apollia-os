@@ -18,6 +18,7 @@
   import { Separator } from "$lib/components/ui/separator";
   import TaskTimeline from "./TaskTimeline.svelte";
   import SmartOutput from "../common/SmartOutput.svelte";
+  import { BuilderOnly } from "$lib/components/shared";
 
   interface Props {
     taskId: string;
@@ -106,7 +107,9 @@
             <span class="block text-sm font-medium truncate" data-testid="task-detail-title">
               {task.agent_name || task.agent_id}
             </span>
-            <code class="text-[10px] text-muted-foreground/40 font-mono">{task.id.slice(0, 12)}</code>
+            <BuilderOnly>
+              <code class="text-[10px] text-muted-foreground/40 font-mono">{task.id.slice(0, 12)}</code>
+            </BuilderOnly>
           </div>
 
           <Badge variant={cfg.variant} class="shrink-0 text-[9px] px-1.5 py-0">

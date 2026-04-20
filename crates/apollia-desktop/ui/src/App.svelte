@@ -42,7 +42,10 @@
     HelpCircle,
     Play,
     Square,
+    Plus,
   } from "lucide-svelte";
+  import { openNewTaskRequested } from "$lib/stores/tasks";
+  import { openNewChatRequested } from "$lib/stores/chat";
 
   // Phases that represent an in-progress (but not yet started) onboarding.
   const IN_PROGRESS_PHASES = new Set<OnboardingPhase>([
@@ -126,6 +129,30 @@
         action: () => navigateTo("settings"),
       },
       {
+        id: "chat.new",
+        label: get(t)("chat.new_chat"),
+        group: get(t)("command.group.navigation"),
+        icon: MessageSquare,
+        shortcut: isMac ? ["⌘", "K"] : ["Ctrl", "K"],
+        keywords: ["chat", "new", "conversation", "nouveau"],
+        action: () => {
+          navigateTo("chat");
+          openNewChatRequested.set(Date.now());
+        },
+      },
+      {
+        id: "tasks.new",
+        label: get(t)("tasks.create_task_cta"),
+        group: get(t)("command.group.navigation"),
+        icon: Plus,
+        shortcut: isMac ? ["⌘", "T"] : ["Ctrl", "T"],
+        keywords: ["task", "new", "create", "tâche", "nouveau"],
+        action: () => {
+          navigateTo("tasks");
+          openNewTaskRequested.set(Date.now());
+        },
+      },
+      {
         id: "agents.start_all",
         label: get(t)("command.seed.agents_start_all"),
         group: get(t)("command.group.agents"),
@@ -192,6 +219,20 @@
     if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "k") {
       event.preventDefault();
       commandPaletteOpen.update((v) => !v);
+      return;
+    }
+    // A.1.13 — Cmd/Ctrl+T: create a new task (navigates to /tasks and opens dialog).
+    if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "t") {
+      const target = event.target as HTMLElement | null;
+      const isEditing =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+      if (isEditing) return;
+      event.preventDefault();
+      navigateTo("tasks");
+      openNewTaskRequested.set(Date.now());
       return;
     }
     // US-SP42-031 — Cmd/Ctrl+Shift+A: toggle the artifacts tab of the context drawer.
