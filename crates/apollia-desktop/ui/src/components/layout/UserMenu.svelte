@@ -8,45 +8,37 @@
    * (portal, transition, keyboard dismissal) and is used here.
    */
   import { t } from "svelte-i18n";
-  import { invoke } from "@tauri-apps/api/core";
   import { UserRound, Settings, Keyboard, RotateCcw, Info, LogOut } from "lucide-svelte";
   import { Popover } from "$lib/components/ui/popover";
-  import { navigateTo } from "$lib/stores/navigation";
-  import { onboardingStore } from "$lib/stores/onboarding";
+  import { navigateToSettings } from "$lib/router";
 
   let open = $state(false);
-  let confirmingReset = $state(false);
 
   function close() {
     open = false;
   }
 
   function goSettings() {
-    navigateTo("settings");
+    navigateToSettings();
     close();
   }
 
   function goShortcuts() {
-    // US-SP42-082 ships a dedicated shortcuts page. Until then we land
-    // on the main settings panel — the keyboard help overlay (`?`) is
-    // always available as a companion surface.
-    navigateTo("settings");
+    navigateToSettings("shortcuts");
     close();
   }
 
-  async function resetOnboarding() {
-    if (!confirmingReset) {
-      confirmingReset = true;
-      return;
-    }
-    try {
-      await invoke("reset_onboarding");
-      onboardingStore.setRequired?.();
-      navigateTo("onboarding");
-    } finally {
-      confirmingReset = false;
-      close();
-    }
+  function goDangerResetOnboarding() {
+    navigateToSettings("danger");
+    // The Danger page listens to ?focus=… to scroll + focus the card.
+    // We can't set query string mid-app, so we rely on an inline anchor:
+    // scroll happens via hash after sub-route mounts.
+    setTimeout(() => {
+      const el = document.getElementById("reset-onboarding");
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      (el?.querySelector("button") as HTMLButtonElement | null)?.focus();
+    }, 150);
+    close();
   }
 
   function showAbout() {
@@ -110,11 +102,11 @@
           role="menuitem"
           type="button"
           class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-muted"
-          onclick={resetOnboarding}
+          onclick={goDangerResetOnboarding}
           data-testid="user-menu-reset-onboarding"
         >
           <RotateCcw size={14} strokeWidth={1.75} />
-          <span>{confirmingReset ? $t('userMenu.reset_confirm') : $t('userMenu.reset_onboarding')}</span>
+          <span>{$t('userMenu.reset_onboarding')}</span>
         </button>
       </li>
       <li role="none">

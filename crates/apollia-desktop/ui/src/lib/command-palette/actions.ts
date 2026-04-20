@@ -43,6 +43,7 @@ import {
 } from "lucide-svelte";
 import type { ComponentType } from "svelte";
 import { navigateTo, type Route } from "$lib/stores/navigation";
+import { navigateToSettings } from "$lib/router";
 import { uiMode, type UIMode } from "$lib/stores/mode";
 import { themeMode } from "$lib/stores/theme";
 import { companionStore } from "$lib/stores/companion";
@@ -247,6 +248,56 @@ export function buildPaletteActions(): PaletteAction[] {
       kind: "help",
       execute: () =>
         window.dispatchEvent(new KeyboardEvent("keydown", { key: "?", bubbles: true })),
+    },
+    {
+      id: "settings.shortcuts.open",
+      label: tr("commandPalette.help.openShortcutsPage"),
+      keywords: ["keyboard", "shortcuts", "page", "settings", "cheatsheet"],
+      icon: Keyboard,
+      kind: "settings",
+      execute: () => {
+        navigateToSettings("shortcuts");
+      },
+    },
+    {
+      id: "settings.danger.reset_onboarding",
+      label: tr("commandPalette.danger.resetOnboarding"),
+      keywords: ["reset", "onboarding", "danger", "welcome"],
+      icon: RefreshCcw,
+      kind: "settings",
+      execute: () => {
+        navigateToSettings("danger");
+      },
+    },
+    {
+      id: "settings.danger.clear_memories",
+      label: tr("commandPalette.danger.clearMemories"),
+      keywords: ["clear", "delete", "memories", "danger"],
+      icon: Brain,
+      kind: "settings",
+      execute: () => {
+        navigateToSettings("danger");
+      },
+    },
+    {
+      id: "settings.danger.clear_logs",
+      label: tr("commandPalette.danger.clearLogs"),
+      keywords: ["clear", "delete", "logs", "danger"],
+      icon: Terminal,
+      kind: "settings",
+      execute: () => {
+        navigateToSettings("danger");
+      },
+    },
+    {
+      id: "settings.danger.factory_reset",
+      label: tr("commandPalette.danger.factoryReset"),
+      keywords: ["factory", "reset", "wipe", "danger"],
+      icon: RefreshCcw,
+      kind: "settings",
+      execute: () => {
+        navigateToSettings("danger");
+      },
     },
     {
       id: "help.about",

@@ -1597,15 +1597,94 @@
     },
     "shortcuts": {
       "subtitle": "Keyboard shortcuts available across Apollia.",
+      "search_placeholder": "Search shortcuts…",
+      "search_aria": "Search keyboard shortcuts",
+      "no_results": "No shortcut matches \"{query}\".",
       "command_palette": "Open command palette",
       "new_task": "Create a new task",
       "toggle_artifacts": "Toggle the artifacts panel",
       "nav_back": "Navigate back",
       "nav_forward": "Navigate forward",
-      "keyboard_overlay": "Show keyboard shortcuts overlay"
+      "keyboard_overlay": "Show keyboard shortcuts overlay",
+      "category": {
+        "global": "Global",
+        "navigation": "Navigation",
+        "chat": "Chat",
+        "settings": "Settings",
+        "companion": "Companion",
+        "approvals": "Approvals"
+      },
+      "scope": {
+        "global": "Available everywhere",
+        "chat": "Inside Chat",
+        "settings": "Inside Settings",
+        "dialog": "Inside a dialog",
+        "approvals": "Inside the Approvals queue"
+      },
+      "items": {
+        "palette_open": "Open the Command Palette",
+        "palette_actions": "Open the palette (actions only)",
+        "help_overlay": "Show the keyboard shortcuts overlay",
+        "app_quit": "Quit Apollia",
+        "nav_back": "Navigate back",
+        "nav_forward": "Navigate forward",
+        "nav_sidebar": "Toggle the sidebar",
+        "nav_fields": "Move focus between fields",
+        "chat_new": "Start a new chat",
+        "chat_send": "Send the current message",
+        "chat_artifacts": "Toggle the artifacts panel",
+        "chat_stop": "Cancel the current generation",
+        "settings_save": "Save the current settings panel",
+        "settings_close": "Close dialog or sheet",
+        "companion_toggle": "Show or hide the Companion",
+        "companion_move": "Move the Companion across the screen",
+        "companion_focus": "Focus the Companion input",
+        "approvals_accept": "Accept the current approval",
+        "approvals_refuse": "Refuse the current approval",
+        "approvals_next": "Jump to next / previous approval"
+      }
     },
     "danger": {
-      "subtitle": "Irreversible or disruptive operations. Proceed carefully."
+      "title": "Danger Zone",
+      "subtitle": "Irreversible or disruptive operations. Proceed carefully.",
+      "banner": "These actions are irreversible. Make sure you have what you need before continuing.",
+      "last_resort": "Last resort",
+      "continue": "Continue",
+      "restart_prompt": "The app needs to restart to take effect. Restart now?",
+      "type_to_confirm": "Type {word} below to unlock the destructive action.",
+      "confirm_input_aria": "Type {word} to confirm",
+      "reset_onboarding": {
+        "title": "Reset Onboarding",
+        "description": "Clears the onboarding flag so the Welcome wizard runs on next launch.",
+        "button": "Reset Onboarding",
+        "dialog_title": "Reset onboarding?",
+        "dialog_desc": "This will clear the onboarding flag and take you back to the Welcome wizard. No data is deleted.",
+        "success": "Onboarding state cleared. Next launch will show Welcome."
+      },
+      "clear_memories": {
+        "title": "Clear Memories",
+        "description": "Deletes everything the system has learned about you (preferences, habits, context).",
+        "button": "Clear Memories",
+        "dialog_title": "Clear every memory?",
+        "dialog_desc": "All user memory entries across preferences, habits and context will be removed. Agents will lose learned personalization.",
+        "success": "{count} memory entries cleared."
+      },
+      "clear_logs": {
+        "title": "Clear Logs",
+        "description": "Removes the local log directory. Useful before sharing the app or to recover disk space.",
+        "button": "Clear Logs",
+        "dialog_title": "Clear logs?",
+        "dialog_desc": "Every log file under ~/.apollia/logs will be removed. Ongoing sessions keep logging to fresh files.",
+        "success": "Logs cleared."
+      },
+      "factory_reset": {
+        "title": "Factory Reset",
+        "description": "Wipe the entire Apollia configuration, memories, sessions, models and credentials. The app will restart empty.",
+        "button": "Factory Reset",
+        "dialog_title": "Factory reset this install?",
+        "dialog_desc": "Every file under ~/.apollia will be deleted. You will start from a blank Welcome wizard. This cannot be undone.",
+        "warning": "This deletes memories, chats, agents, credentials, models and config. There is no backup."
+      }
     },
     "preferences": "Preferences",
     "runtime_config": "Runtime configuration",
@@ -3054,11 +3133,18 @@
     },
     "help": {
       "shortcuts": "Open Keyboard shortcuts",
+      "openShortcutsPage": "Open Keyboard Shortcuts page",
       "about": "About Apollia",
       "docs": "Open documentation",
       "resetOnboarding": "Reset Onboarding",
       "quit": "Quit",
       "toggleDevConsole": "Toggle dev console"
+    },
+    "danger": {
+      "resetOnboarding": "Reset Onboarding",
+      "clearMemories": "Clear Memories",
+      "clearLogs": "Clear Logs",
+      "factoryReset": "Factory Reset"
     },
     "tip": "Tip: Cmd+K"
   },

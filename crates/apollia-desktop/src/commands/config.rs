@@ -276,6 +276,51 @@ pub async fn reset_onboarding() -> Result<(), String> {
     Ok(())
 }
 
+/// Résout `~/.apollia/`.
+fn apollia_home() -> PathBuf {
+    let home = std::env::var("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir());
+    home.join(".apollia")
+}
+
+/// Supprime le dossier des logs (`~/.apollia/logs/`).
+///
+/// Si le dossier n'existe pas, la commande est un no-op et retourne `Ok(())`.
+#[tauri::command]
+pub async fn clear_logs() -> Result<(), String> {
+    let logs = apollia_home().join("logs");
+    if logs.exists() {
+        tokio::fs::remove_dir_all(&logs)
+            .await
+            .map_err(|e| format!("failed to remove logs directory: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Réinitialisation usine : supprime **tout** le contenu de `~/.apollia/`.
+///
+/// Action destructive irréversible : supprime config, mémoire, sessions,
+/// logs, modèles et identifiants. L'utilisateur est invité à redémarrer
+/// après l'appel.
+#[tauri::command]
+pub async fn factory_reset() -> Result<(), String> {
+    let home = apollia_home();
+    if home.exists() {
+        tokio::fs::remove_dir_all(&home)
+            .await
+            .map_err(|e| format!("failed to remove apollia home: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Redémarre l'application. Appelée après une action destructive
+/// nécessitant un cold-start (reset onboarding, factory reset).
+#[tauri::command]
+pub async fn app_restart(app: tauri::AppHandle) -> Result<(), String> {
+    app.restart();
+}
+
 /// Informations système affichées dans la section Avancé de Settings.
 #[derive(Debug, Serialize)]
 pub struct SystemInfo {

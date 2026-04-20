@@ -1597,15 +1597,94 @@
     },
     "shortcuts": {
       "subtitle": "Raccourcis clavier disponibles dans Apollia.",
+      "search_placeholder": "Rechercher un raccourci…",
+      "search_aria": "Rechercher un raccourci clavier",
+      "no_results": "Aucun raccourci ne correspond à « {query} ».",
       "command_palette": "Ouvrir la palette de commandes",
       "new_task": "Créer une nouvelle tâche",
       "toggle_artifacts": "Afficher/masquer le panneau des artefacts",
       "nav_back": "Naviguer en arrière",
       "nav_forward": "Naviguer en avant",
-      "keyboard_overlay": "Afficher l'aperçu des raccourcis clavier"
+      "keyboard_overlay": "Afficher l'aperçu des raccourcis clavier",
+      "category": {
+        "global": "Global",
+        "navigation": "Navigation",
+        "chat": "Chat",
+        "settings": "Réglages",
+        "companion": "Companion",
+        "approvals": "Approbations"
+      },
+      "scope": {
+        "global": "Disponible partout",
+        "chat": "Dans le Chat",
+        "settings": "Dans les Réglages",
+        "dialog": "Dans une fenêtre",
+        "approvals": "Dans la file d'approbations"
+      },
+      "items": {
+        "palette_open": "Ouvrir la palette de commandes",
+        "palette_actions": "Palette — actions uniquement",
+        "help_overlay": "Afficher l'aperçu des raccourcis",
+        "app_quit": "Quitter Apollia",
+        "nav_back": "Revenir en arrière",
+        "nav_forward": "Aller en avant",
+        "nav_sidebar": "Afficher/masquer la barre latérale",
+        "nav_fields": "Passer d'un champ à l'autre",
+        "chat_new": "Nouveau chat",
+        "chat_send": "Envoyer le message courant",
+        "chat_artifacts": "Afficher/masquer les artefacts",
+        "chat_stop": "Annuler la génération en cours",
+        "settings_save": "Enregistrer l'onglet Réglages courant",
+        "settings_close": "Fermer la fenêtre ou le panneau",
+        "companion_toggle": "Afficher/masquer le Companion",
+        "companion_move": "Déplacer le Companion à l'écran",
+        "companion_focus": "Focaliser la saisie du Companion",
+        "approvals_accept": "Accepter l'approbation courante",
+        "approvals_refuse": "Refuser l'approbation courante",
+        "approvals_next": "Approbation suivante / précédente"
+      }
     },
     "danger": {
-      "subtitle": "Opérations irréversibles ou perturbatrices. À utiliser avec précaution."
+      "title": "Zone dangereuse",
+      "subtitle": "Opérations irréversibles ou perturbatrices. À utiliser avec précaution.",
+      "banner": "Ces actions sont irréversibles. Assurez-vous d'avoir ce dont vous avez besoin avant de continuer.",
+      "last_resort": "Dernier recours",
+      "continue": "Continuer",
+      "restart_prompt": "L'application doit redémarrer pour appliquer l'action. Redémarrer maintenant ?",
+      "type_to_confirm": "Saisissez {word} ci-dessous pour déverrouiller l'action destructive.",
+      "confirm_input_aria": "Saisissez {word} pour confirmer",
+      "reset_onboarding": {
+        "title": "Réinitialiser l'onboarding",
+        "description": "Efface le drapeau d'onboarding : le wizard de bienvenue s'affichera au prochain lancement.",
+        "button": "Réinitialiser l'onboarding",
+        "dialog_title": "Réinitialiser l'onboarding ?",
+        "dialog_desc": "Le drapeau d'onboarding sera effacé et vous serez ramené au wizard de bienvenue. Aucune donnée n'est supprimée.",
+        "success": "Onboarding réinitialisé. Le wizard s'affichera au prochain démarrage."
+      },
+      "clear_memories": {
+        "title": "Effacer les mémoires",
+        "description": "Supprime tout ce que le système a appris sur vous (préférences, habitudes, contexte).",
+        "button": "Effacer les mémoires",
+        "dialog_title": "Effacer toutes les mémoires ?",
+        "dialog_desc": "Toutes les entrées de mémoire utilisateur (préférences, habitudes, contexte) seront supprimées. Les agents perdront leur personnalisation.",
+        "success": "{count} entrées de mémoire supprimées."
+      },
+      "clear_logs": {
+        "title": "Effacer les logs",
+        "description": "Supprime le dossier local des logs. Utile avant de partager l'app ou pour libérer de l'espace.",
+        "button": "Effacer les logs",
+        "dialog_title": "Effacer les logs ?",
+        "dialog_desc": "Tous les fichiers sous ~/.apollia/logs seront supprimés. Les sessions en cours continueront de logger dans de nouveaux fichiers.",
+        "success": "Logs effacés."
+      },
+      "factory_reset": {
+        "title": "Réinitialisation d'usine",
+        "description": "Efface toute la configuration, les mémoires, sessions, modèles et identifiants Apollia. L'app redémarrera vide.",
+        "button": "Réinitialisation d'usine",
+        "dialog_title": "Réinitialiser complètement cette installation ?",
+        "dialog_desc": "Tous les fichiers sous ~/.apollia seront supprimés. Vous repartirez d'un wizard de bienvenue vierge. Cette action est irréversible.",
+        "warning": "Supprime mémoires, chats, agents, identifiants, modèles et config. Aucune sauvegarde."
+      }
     },
     "preferences": "Préférences",
     "runtime_config": "Configuration du runtime",
@@ -3054,11 +3133,18 @@
     },
     "help": {
       "shortcuts": "Afficher les raccourcis clavier",
+      "openShortcutsPage": "Ouvrir la page Raccourcis",
       "about": "À propos d'Apollia",
       "docs": "Ouvrir la documentation",
       "resetOnboarding": "Réinitialiser l'onboarding",
       "quit": "Quitter",
       "toggleDevConsole": "Basculer la console dev"
+    },
+    "danger": {
+      "resetOnboarding": "Réinitialiser l'onboarding",
+      "clearMemories": "Effacer les mémoires",
+      "clearLogs": "Effacer les logs",
+      "factoryReset": "Réinitialisation d'usine"
     },
     "tip": "Astuce : Cmd+K"
   },

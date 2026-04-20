@@ -8,10 +8,14 @@
 </script>
 
 <script lang="ts">
+  import { t } from "svelte-i18n";
   import { uiMode } from "$lib/stores/mode";
   import UserMemories from "./UserMemories.svelte";
 </script>
 
-<section data-testid="memories-section-system">
+<section class="space-y-4" data-testid="memories-section-system">
+  <header>
+    <h1 class="text-xl font-semibold">{$t("settings.memories")}</h1>
+  </header>
   <UserMemories mode={$uiMode} />
 </section>

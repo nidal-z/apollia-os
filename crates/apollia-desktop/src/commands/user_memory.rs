@@ -442,6 +442,37 @@ pub async fn delete_user_memory_entry(
     .map_err(|e| format!("spawn_blocking failed: {e}"))?
 }
 
+/// Deletes every user memory entry across all categories.
+///
+/// Returns the count of removed entries. Destructive — called from the
+/// Settings/Danger page (US-SP42-082).
+#[tauri::command]
+pub async fn clear_user_memory(state: State<'_, RuntimeHandle>) -> Result<usize, String> {
+    let repo = get_repo(&state)?;
+
+    tokio::task::spawn_blocking(move || {
+        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
+        let mut removed = 0usize;
+        for &cat in &[
+            UserMemoryCategory::Preferences,
+            UserMemoryCategory::Habits,
+            UserMemoryCategory::Context,
+        ] {
+            let batch = repo
+                .recall(cat, MAX_RECALL_PER_CATEGORY)
+                .map_err(|e| e.to_string())?;
+            for entry in batch {
+                if repo.forget(&entry.key).is_ok() {
+                    removed += 1;
+                }
+            }
+        }
+        Ok::<usize, String>(removed)
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+}
+
 /// Searches user memory via FTS5 full-text search.
 ///
 /// Returns up to [`MAX_SEARCH_RESULTS`] entries sorted by BM25 relevance.
