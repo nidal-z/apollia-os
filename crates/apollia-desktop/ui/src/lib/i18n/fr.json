@@ -1460,6 +1460,17 @@
   "settings": {
     "title": "Paramètres",
     "subtitle": "Configurez langue, thème, backends IA, mémoire, raccourcis et plus",
+    "unsaved_changes": "Modifications non enregistrées",
+    "unsaved_dialog_title": "Modifications non enregistrées",
+    "unsaved_dialog_message": "Cette section contient des modifications non enregistrées. Abandonner et continuer, enregistrer et continuer, ou rester ici ?",
+    "unsaved_dialog_discard": "Abandonner",
+    "unsaved_dialog_save_continue": "Enregistrer et continuer",
+    "unsaved_dialog_stay": "Rester",
+    "save_toast_success": "Paramètres enregistrés",
+    "save_toast_error": "Échec de l'enregistrement : {error}",
+    "save_status_saved": "Enregistré",
+    "save_status_saving": "Enregistrement…",
+    "save_status_retry": "Échec — réessayer",
     "nav": {
       "aria_label": "Sections des paramètres",
       "cluster_personalization": "Personnalisation",

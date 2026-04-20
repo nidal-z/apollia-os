@@ -51,6 +51,33 @@ export function goToSettingsSubRoute(route: string | null | undefined): Settings
   return target;
 }
 
+/**
+ * Install a guard that decides whether a sub-route change is allowed to
+ * commit. Returning `false` cancels the navigation — the guard is then
+ * expected to either resolve the blocker (discard/save) and re-navigate, or
+ * restore the store to its previous value (which it already is, since the
+ * guard runs before the store is updated). Returns an uninstall function.
+ */
+type NavigationGuard = (from: SettingsSubRoute, to: SettingsSubRoute) => boolean;
+let navigationGuard: NavigationGuard | null = null;
+
+export function installSettingsNavigationGuard(guard: NavigationGuard): () => void {
+  navigationGuard = guard;
+  return () => {
+    if (navigationGuard === guard) navigationGuard = null;
+  };
+}
+
+/** Navigate, consulting the installed guard. */
+export function requestSettingsSubRoute(route: string | null | undefined): SettingsSubRoute | null {
+  const current = get(settingsSubRoute);
+  const target = isSettingsSubRoute(route) ? route : DEFAULT_SETTINGS_SUB_ROUTE;
+  if (target === current) return target;
+  if (navigationGuard && !navigationGuard(current, target)) return null;
+  settingsSubRoute.set(target);
+  return target;
+}
+
 // ─── Shared data stores ──────────────────────────────────────────────
 // Each sub-route fetches its own data lazily. Stores are shared so that
 // switching between sub-routes does not re-fetch already-loaded data.

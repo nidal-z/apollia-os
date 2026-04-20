@@ -9,39 +9,66 @@
 
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { t } from "svelte-i18n";
   import { Button } from "$lib/components/ui/button";
   import SettingSectionSkeleton from "../../components/settings/SettingSectionSkeleton.svelte";
   import { refreshSttStatus, sttStatus } from "$lib/stores/stt";
   import { sttModelsStore, sttConfigStore, settingsLoaders } from "$lib/stores/settings";
+  import { settingsDirtyStore } from "$lib/stores/settingsDirty";
+  import { useSettingsForm, registerSettingsForm } from "$lib/settings/useSettingsForm";
   import type { SttConfigView } from "$lib/types";
 
   // Local editable copy, synced from the shared store on load.
   let sttConfig = $state<SttConfigView | null>(null);
   let sttConfigSaved = $state(false);
-  let sttSaving = $state(false);
-  let sttSaveError = $state<string | null>(null);
+
+  // `settingsDirtyStore` is the source of truth for dirty / savingState; the
+  // sub-route only derives its local view from it.
+  const sttState = $derived($settingsDirtyStore.stt ?? {
+    dirty: false,
+    savingState: "idle" as const,
+    lastError: null,
+    autoSave: "explicit" as const,
+  });
+  const sttSaving = $derived(sttState.savingState === "saving");
+  const sttSaveError = $derived(sttState.lastError);
+
+  type SttForm = ReturnType<typeof useSettingsForm<SttConfigView>>;
+  let form: SttForm | null = null;
+  let unregister: (() => void) | null = null;
 
   $effect(() => {
     const loaded = $sttConfigStore.data;
-    if (loaded && !sttConfig) sttConfig = { ...loaded };
+    if (loaded && !sttConfig) {
+      sttConfig = { ...loaded };
+      form = useSettingsForm<SttConfigView>({
+        route: "stt",
+        initial: { ...loaded },
+        autoSave: "explicit",
+        onSave: async (values) => {
+          await invoke("update_stt_config", { config: values });
+          sttConfigSaved = true;
+        },
+      });
+      unregister = registerSettingsForm<SttConfigView>("stt", form);
+    }
+  });
+
+  // Mirror every edit to sttConfig into the form's live snapshot so it can
+  // compute the dirty diff and (for debounced mode) schedule auto-saves.
+  $effect(() => {
+    if (sttConfig && form) form.sync($state.snapshot(sttConfig) as SttConfigView);
   });
 
   async function save() {
-    if (!sttConfig) return;
-    sttSaving = true;
-    sttSaveError = null;
-    sttConfigSaved = false;
-    try {
-      await invoke("update_stt_config", { config: sttConfig });
-      sttConfigSaved = true;
-    } catch (err) {
-      sttSaveError = err instanceof Error ? err.message : String(err);
-    } finally {
-      sttSaving = false;
-    }
+    if (!form) return;
+    await form.save();
   }
+
+  onDestroy(() => {
+    unregister?.();
+  });
 
   // ─── Hotkey capture ─────────────────────────────────
   let hotkeyRecording = $state(false);
@@ -324,11 +351,22 @@
         </div>
 
         <div class="mt-5 flex items-center gap-3">
-          <Button onclick={save} disabled={sttSaving} data-testid="stt-save-btn">
+          <Button
+            onclick={save}
+            disabled={sttSaving || !sttState.dirty}
+            loading={sttSaving}
+            data-testid="stt-save-btn"
+          >
             {sttSaving ? $t('settings.stt_saving') : $t('settings.stt_save')}
           </Button>
-          {#if sttSaveError}
-            <span class="text-sm text-destructive">{$t('settings.stt_save_error')}: {sttSaveError}</span>
+          {#if sttState.savingState === "saved"}
+            <span class="text-sm text-emerald-600 dark:text-emerald-400" data-testid="stt-save-status-saved">
+              {$t('settings.save_status_saved')}
+            </span>
+          {:else if sttSaveError}
+            <span class="text-sm text-destructive" data-testid="stt-save-status-error">
+              {$t('settings.save_status_retry')}: {sttSaveError}
+            </span>
           {/if}
         </div>
       </div>

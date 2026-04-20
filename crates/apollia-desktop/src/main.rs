@@ -420,13 +420,23 @@ fn main() {
             events::spawn_event_bridge(app.handle().clone(), runtime_handle.event_sender.clone());
 
             // Session metrics aggregator (US-SP42-047 Pattern P11).
-            let metrics_store = apollia_runtime::session_metrics::spawn_detached(
-                runtime_handle.event_sender.subscribe(),
-                runtime_handle.event_sender.clone(),
-                apollia_core::session_metrics::SessionThresholds::default(),
-                0,
-                0,
-            );
+            // .setup() runs outside any Tokio context; enter the Tauri async
+            // runtime before calling spawn_detached so tokio::spawn is valid.
+            let metrics_store = {
+                // .setup() runs outside any Tokio context; enter the Tauri
+                // async runtime so tokio::spawn inside spawn_detached is valid.
+                let rt_handle = tauri::async_runtime::handle();
+                let _guard = match &rt_handle {
+                    tauri::async_runtime::RuntimeHandle::Tokio(h) => Some(h.enter()),
+                };
+                apollia_runtime::session_metrics::spawn_detached(
+                    runtime_handle.event_sender.subscribe(),
+                    runtime_handle.event_sender.clone(),
+                    apollia_core::session_metrics::SessionThresholds::default(),
+                    0,
+                    0,
+                )
+            };
             app.manage(metrics_store);
 
             // Register the global STT hotkey with the full SttFlow pipeline

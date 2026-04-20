@@ -1460,6 +1460,17 @@
   "settings": {
     "title": "Settings",
     "subtitle": "Configure language, theme, AI backends, memory, shortcuts and more",
+    "unsaved_changes": "Unsaved changes",
+    "unsaved_dialog_title": "Unsaved changes",
+    "unsaved_dialog_message": "You have unsaved changes in this section. Discard and continue, save and continue, or stay here?",
+    "unsaved_dialog_discard": "Discard",
+    "unsaved_dialog_save_continue": "Save & Continue",
+    "unsaved_dialog_stay": "Stay",
+    "save_toast_success": "Settings saved",
+    "save_toast_error": "Save failed: {error}",
+    "save_status_saved": "Saved",
+    "save_status_saving": "Saving…",
+    "save_status_retry": "Save failed — retry",
     "nav": {
       "aria_label": "Settings sections",
       "cluster_personalization": "Personalization",
