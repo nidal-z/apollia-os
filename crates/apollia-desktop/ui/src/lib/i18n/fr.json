@@ -32,6 +32,7 @@
       "error": "ERREUR"
     },
     "back": "Retour",
+    "next": "Suivant",
     "optional": "optionnel",
     "workspace": "Espace de travail",
     "thought": "Réflexion",
@@ -631,6 +632,41 @@
       "description": "Les automatisations lancent vos assistants selon une planification, un fichier qui change, ou un webhook reçu.",
       "primary": "Créer une automatisation",
       "secondary": "Parcourir les modèles"
+    },
+    "wizard": {
+      "title": "Créer une automatisation",
+      "step_describe": "Décrire",
+      "step_schedule": "Planifier",
+      "step_agent": "Assistant",
+      "step_preview": "Aperçu",
+      "describe_prompt": "Que voulez-vous automatiser ?",
+      "placeholder_1": "Ex. Tous les matins à 8 h, demande à spec-assistant de résumer mes specs",
+      "placeholder_2": "Ex. Chaque lundi à 9 h, review-assistant fait un point d'équipe",
+      "placeholder_3": "Ex. Toutes les 30 minutes, dev-assistant regarde les PRs ouvertes",
+      "browse_templates": "Parcourir les modèles",
+      "parsing": "Analyse…",
+      "fallback_error": "Nous n'avons pas pu comprendre automatiquement. Essayez une formulation plus simple, ou choisissez un modèle.",
+      "schedule_intro": "Vérifiez la planification avant de continuer. Vous pouvez l'ajuster en langage naturel.",
+      "next_run": "Prochaine exécution : {when}",
+      "needs_clarification": "Précisez :",
+      "refine_label": "Ajustez en langage naturel",
+      "refine_placeholder": "Ex. plutôt à 9 h",
+      "agent_intro": "Choisissez l'assistant qui exécute cette automatisation.",
+      "agent_pick": "Choisir un assistant",
+      "agent_select_aria": "Assistant cible",
+      "agent_inferred": "Reconnu automatiquement : {agent}",
+      "preview_intro": "Tout est prêt. Activez pour démarrer la planification.",
+      "preview_label": "Automatisation",
+      "preview_payload": "Consigne : {payload}",
+      "activate": "Activer cette automatisation",
+      "switch_advanced": "Mode avancé"
+    },
+    "delete": {
+      "title": "Supprimer cette automatisation ?",
+      "message": "L'automatisation « {id} » a été exécutée {count} fois.",
+      "history_note": "L'historique d'exécution sera conservé, mais la règle ne se déclenchera plus.",
+      "skip_next": "Ne plus me demander",
+      "confirm": "Supprimer"
     }
   },
   "triggers": {

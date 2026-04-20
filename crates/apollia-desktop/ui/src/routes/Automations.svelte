@@ -19,10 +19,17 @@
   import AutomationEmptyState from "../components/automations/AutomationEmptyState.svelte";
   import TriggerLogs from "../components/triggers/TriggerLogs.svelte";
   import CreateTriggerDialog from "../components/triggers/CreateTriggerDialog.svelte";
+  import AutomationWizard from "../components/automations/AutomationWizard.svelte";
+  import DeleteAutomationDialog from "../components/automations/DeleteAutomationDialog.svelte";
   import { addToast } from "$lib/components/ui/toast/store";
+  import { invoke } from "@tauri-apps/api/core";
 
   let logsTriggerId = $state<string | null>(null);
-  let showCreateDialog = $state(false);
+  let showWizard = $state(false);
+  let showAdvancedDialog = $state(false);
+  let deleteCandidate = $state<{ id: string; fireCount: number } | null>(null);
+  let deleting = $state(false);
+  const DELETE_SKIP_KEY = "apollia.delete_automation.skip";
 
   /** Group triggers by agent, remembering insertion order. */
   const grouped = $derived.by(() => {
@@ -74,13 +81,69 @@
   }
 
   function handleCreate() {
-    showCreateDialog = true;
+    showWizard = true;
   }
 
   function handleBrowseTemplates() {
     // US-SP42-058 ships the template gallery — until then we surface a
     // breadcrumb via the toast so the operator knows the CTA is live.
     addToast($t("automations.templates_coming_soon"), "info");
+  }
+
+  function handleSwitchAdvanced() {
+    showWizard = false;
+    showAdvancedDialog = true;
+  }
+
+  $effect(() => {
+    // Listen for delete requests emitted by automation cards / context menus.
+    // Decoupled via `window` event so cards (and future UI like context menus)
+    // don't need to know about the route-level dialog state.
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ triggerId: string }>).detail;
+      if (detail?.triggerId) handleRequestDelete(detail.triggerId);
+    };
+    window.addEventListener("apollia:automation_delete_request", handler);
+    return () => window.removeEventListener("apollia:automation_delete_request", handler);
+  });
+
+  function handleRequestDelete(triggerId: string) {
+    const trig = $triggers.find((t) => t.id === triggerId);
+    const fireCount = trig?.fire_count ?? 0;
+    if (localStorage.getItem(DELETE_SKIP_KEY) === "1") {
+      void performDelete(triggerId);
+      return;
+    }
+    deleteCandidate = { id: triggerId, fireCount };
+  }
+
+  async function performDelete(triggerId: string) {
+    deleting = true;
+    try {
+      await invoke("delete_trigger", { triggerId });
+      addToast(
+        $t("triggers.deleted_toast", { values: { id: triggerId } }),
+        "success",
+      );
+    } catch (err) {
+      addToast(
+        $t("triggers.delete_error", {
+          values: { message: err instanceof Error ? err.message : String(err) },
+        }),
+        "error",
+      );
+    } finally {
+      deleting = false;
+      deleteCandidate = null;
+    }
+  }
+
+  async function handleConfirmDelete(skipNext: boolean) {
+    if (!deleteCandidate) return;
+    if (skipNext) {
+      localStorage.setItem(DELETE_SKIP_KEY, "1");
+    }
+    await performDelete(deleteCandidate.id);
   }
 
   function switchToBuilder() {
@@ -153,8 +216,29 @@
   />
 {/if}
 
-<CreateTriggerDialog
-  open={showCreateDialog}
-  onclose={() => (showCreateDialog = false)}
-  oncreated={() => (showCreateDialog = false)}
+<AutomationWizard
+  open={showWizard}
+  onclose={() => (showWizard = false)}
+  oncreated={(id) => {
+    showWizard = false;
+    addToast($t("triggers.created_toast", { values: { id } }), "success");
+  }}
+  onswitchadvanced={handleSwitchAdvanced}
 />
+
+<CreateTriggerDialog
+  open={showAdvancedDialog}
+  onclose={() => (showAdvancedDialog = false)}
+  oncreated={() => (showAdvancedDialog = false)}
+/>
+
+{#if deleteCandidate}
+  <DeleteAutomationDialog
+    open={true}
+    automationId={deleteCandidate.id}
+    fireCount={deleteCandidate.fireCount}
+    loading={deleting}
+    onclose={() => (deleteCandidate = null)}
+    onconfirm={handleConfirmDelete}
+  />
+{/if}

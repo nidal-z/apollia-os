@@ -553,6 +553,7 @@ fn main() {
             commands::llm::get_llm_cost_stats,
             commands::llm::get_cost_alert_threshold,
             commands::llm::reload_llm,
+            commands::meta_automation::meta_parse_automation,
             commands::triggers::list_triggers,
             commands::triggers::set_trigger_enabled,
             commands::triggers::fire_trigger,

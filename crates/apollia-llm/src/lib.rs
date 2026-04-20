@@ -10,6 +10,7 @@
 //! disponibles quelle que soit la feature activée.
 
 pub mod backends;
+pub mod meta;
 pub mod meta_orchestrator;
 pub mod pricing;
 pub mod repository;
@@ -20,6 +21,11 @@ pub mod token_budget;
 pub mod tool_helper;
 pub mod tool_performance_hints;
 pub mod types;
+
+pub use meta::parse_automation::{
+    parse_automation as parse_automation_description, AgentMatch as ParsedAgentMatch,
+    Confidence as ParseAutomationConfidence, ParsedAutomation, ParsedSchedule,
+};
 
 pub use meta_orchestrator::{
     MetaLlmBudget, MetaLlmOrchestrator, MetaLlmSettings, MetaOrchestratorHandle, MetaRoutine,

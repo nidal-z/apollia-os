@@ -32,6 +32,7 @@
       "error": "ERROR"
     },
     "back": "Back",
+    "next": "Next",
     "optional": "optional",
     "workspace": "Workspace",
     "thought": "Thought",
@@ -631,6 +632,41 @@
       "description": "Automations run your assistants on a schedule, when a file changes, or when a webhook fires.",
       "primary": "Create an automation",
       "secondary": "Browse templates"
+    },
+    "wizard": {
+      "title": "Create an automation",
+      "step_describe": "Describe",
+      "step_schedule": "Schedule",
+      "step_agent": "Assistant",
+      "step_preview": "Preview",
+      "describe_prompt": "What would you like to automate?",
+      "placeholder_1": "E.g. Every morning at 8am, ask spec-assistant to summarize my specs",
+      "placeholder_2": "E.g. Every Monday at 9am, review-assistant runs the team stand-up",
+      "placeholder_3": "E.g. Every 30 minutes, dev-assistant checks open PRs",
+      "browse_templates": "Browse templates",
+      "parsing": "Parsing…",
+      "fallback_error": "We couldn't understand automatically. Try a simpler phrasing, or pick a template.",
+      "schedule_intro": "Check the schedule before moving on. You can refine it in plain language.",
+      "next_run": "Next run: {when}",
+      "needs_clarification": "Please clarify:",
+      "refine_label": "Refine in plain language",
+      "refine_placeholder": "E.g. actually 9am",
+      "agent_intro": "Pick the assistant that will run this automation.",
+      "agent_pick": "Pick an assistant",
+      "agent_select_aria": "Target assistant",
+      "agent_inferred": "Recognized automatically: {agent}",
+      "preview_intro": "All set. Activate to start the schedule.",
+      "preview_label": "Automation",
+      "preview_payload": "Prompt: {payload}",
+      "activate": "Activate this automation",
+      "switch_advanced": "Advanced mode"
+    },
+    "delete": {
+      "title": "Delete this automation?",
+      "message": "The automation \"{id}\" has been executed {count} times.",
+      "history_note": "History will be kept, but the rule will no longer fire.",
+      "skip_next": "Don't ask again",
+      "confirm": "Delete"
     }
   },
   "triggers": {
