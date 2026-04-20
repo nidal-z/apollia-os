@@ -1,16 +1,28 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
   import { invoke } from "@tauri-apps/api/core";
+  import {
+    BookOpen,
+    KeyRound,
+    PlugZap,
+    Sparkles,
+  } from "lucide-svelte";
   import { Dialog } from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
-  import McpDisclaimerDialog, {
-    isDisclaimerAccepted,
-  } from "./McpDisclaimerDialog.svelte";
-  import WizardStepInfo from "./WizardStepInfo.svelte";
+  import { Stepper } from "$lib/components/ui/stepper";
+  import WizardStepDisclaimer, {
+    DISCLAIMER_ITEMS,
+    isDisclaimerVersionAccepted,
+    recordDisclaimerAcceptance,
+  } from "./WizardStepDisclaimer.svelte";
   import WizardStepAuth from "./WizardStepAuth.svelte";
-  import WizardStepParams from "./WizardStepParams.svelte";
   import WizardStepTest from "./WizardStepTest.svelte";
-  import WizardStepConfirm from "./WizardStepConfirm.svelte";
+  import WizardStepCoaching from "./WizardStepCoaching.svelte";
+  import {
+    isFirstConnectionTourDone,
+    markFirstConnectionTourDone,
+  } from "$lib/tour/FirstConnectionTour";
+  import FirstConnectionTourRunner from "./FirstConnectionTourRunner.svelte";
   import type {
     McpServerConfigInput,
     RegistryEnvVarView,
@@ -20,58 +32,79 @@
   interface Props {
     server: RegistryServerView;
     open: boolean;
+    /** When true, expose "bypass test" escape hatch + skip disclaimer re-prompt logic. */
+    builder?: boolean;
     onclose: () => void;
     oncomplete: () => void;
+    /** Called with a pre-filled prompt when the user clicks "Try" on a coaching card. */
+    ontryprompt?: (prompt: string) => void;
   }
 
-  let { server, open, onclose, oncomplete }: Props = $props();
+  let {
+    server,
+    open,
+    builder = false,
+    onclose,
+    oncomplete,
+    ontryprompt = () => {},
+  }: Props = $props();
 
-  type WizardStep = "info" | "auth" | "params" | "test" | "confirm";
+  type WizardStep = "disclaimer" | "auth" | "test" | "coaching";
 
-  // Disclaimer gate: show the disclaimer dialog first if never accepted.
-  let showDisclaimer = $state(false);
-  let disclaimerPassed = $state(false);
+  // ── Disclaimer state (step 1) ───────────────────────────────────────────────
+  let disclaimerChecks = $state<Record<string, boolean>>({});
+  let disclaimerVersionOk = $state(false);
 
-  $effect(() => {
-    if (open) {
-      if (!isDisclaimerAccepted()) {
-        showDisclaimer = true;
-        disclaimerPassed = false;
-      } else {
-        disclaimerPassed = true;
-      }
-    } else {
-      showDisclaimer = false;
-      disclaimerPassed = false;
-    }
-  });
+  const disclaimerComplete = $derived(
+    DISCLAIMER_ITEMS.every((key) => {
+      const short = key.replace("i18n:integrations.disclaimer.items.", "");
+      return disclaimerChecks[short] === true;
+    }),
+  );
 
-  // Per-step form data, reset each time the wizard opens.
-  let currentStep = $state(1);
+  // ── Auth / Test / Coaching state ────────────────────────────────────────────
+  let currentStepIndex = $state(0);
   let envValues = $state<Record<string, string>>({});
-  let argValues = $state<Record<string, string>>({});
   let approvalLevel = $state<"auto" | "ask" | "readonly">("ask");
+  let testSucceeded = $state(false);
+  let testBypassed = $state(false);
   let finalizing = $state(false);
   let finalizeError = $state<string | null>(null);
+  let showFirstTour = $state(false);
 
   $effect(() => {
     if (open) {
-      currentStep = 1;
+      currentStepIndex = 0;
       envValues = {};
-      argValues = {};
       approvalLevel = "ask";
+      testSucceeded = false;
+      testBypassed = false;
       finalizeError = null;
+      // Pre-check disclaimer if current version is already accepted.
+      void isDisclaimerVersionAccepted().then((v) => {
+        disclaimerVersionOk = v;
+        if (v) {
+          // Auto-populate so the user doesn't have to re-click.
+          disclaimerChecks = {
+            code_on_machine: true,
+            external_data: true,
+            revocable: true,
+            read_capabilities: true,
+          };
+        } else {
+          disclaimerChecks = {};
+        }
+      });
     }
   });
 
-  // Remote takes precedence over package when both are present (more modern transport).
+  // ── Connection mode derivation (remote takes precedence over package) ───────
   const remote = $derived(server.remotes[0] ?? null);
   const pkg = $derived(server.packages?.[0] ?? null);
   const connectionMode = $derived<"remote" | "package" | null>(
     remote ? "remote" : pkg ? "package" : null,
   );
 
-  /// Remote headers mapped to RegistryEnvVarView so WizardStepAuth can render them uniformly.
   const remoteHeadersAsEnvVars = $derived.by((): RegistryEnvVarView[] => {
     if (!remote) return [];
     return remote.headers.map((h) => ({
@@ -82,33 +115,62 @@
     }));
   });
 
-  // Derive the ordered list of visible steps based on the server's metadata.
-  const visibleSteps = $derived.by((): WizardStep[] => {
-    const steps: WizardStep[] = ["info"];
-    if (connectionMode === "remote") {
-      if (remote && remote.headers.some((h) => h.isRequired || h.isSecret)) {
-        steps.push("auth");
-      }
-    } else if (pkg?.environment_variables?.length) {
-      steps.push("auth");
-    }
-    if (connectionMode === "package" && pkg?.package_arguments?.length) {
-      steps.push("params");
-    }
-    steps.push("test", "confirm");
-    return steps;
+  const authEnvVars = $derived.by((): RegistryEnvVarView[] => {
+    if (connectionMode === "remote") return remoteHeadersAsEnvVars;
+    if (connectionMode === "package") return pkg?.environment_variables ?? [];
+    return [];
   });
 
-  const totalSteps = $derived(visibleSteps.length);
-  const currentStepName = $derived(visibleSteps[currentStep - 1] ?? "info");
+  const hasWriteTools = $derived.by((): boolean => {
+    // Heuristic fallback until backend exposes `enrichment.capabilities.has_write`:
+    // assume a server has write tools unless it is an explicit read-only category.
+    const ro = new Set(["search", "analytics"]);
+    const cat = server.enrichment?.category ?? server.category ?? "";
+    return !ro.has(cat);
+  });
 
-  /// Whether this server can be connected (has a remote endpoint or an installable package).
   const canInstall = $derived(connectionMode !== null);
 
-  /// Build a config object from current form values.
-  /// When `forTest` is true, secret values are inlined (raw) so the test endpoint
-  /// can use them without a secret store. When false, secrets use
-  /// `${APOLLIA_SECRET:*}` placeholders for persistence.
+  // ── Ordered wizard steps ────────────────────────────────────────────────────
+  const steps: readonly WizardStep[] = [
+    "disclaimer",
+    "auth",
+    "test",
+    "coaching",
+  ] as const;
+
+  const stepperSteps = $derived([
+    { label: $t("integrations.wizard.step_disclaimer"), icon: BookOpen },
+    { label: $t("integrations.wizard.step_auth"), icon: KeyRound },
+    { label: $t("integrations.wizard.step_test"), icon: PlugZap },
+    { label: $t("integrations.wizard.step_coaching"), icon: Sparkles },
+  ]);
+
+  const currentStep = $derived(steps[currentStepIndex]);
+  const totalSteps = steps.length;
+
+  // Required-field completion for the auth step: every required var must have a value.
+  const authComplete = $derived.by((): boolean => {
+    const required = authEnvVars.filter((v) => v.is_required);
+    return required.every((v) => (envValues[v.name] ?? "").trim() !== "");
+  });
+
+  const canAdvance = $derived.by((): boolean => {
+    switch (currentStep) {
+      case "disclaimer":
+        return disclaimerComplete;
+      case "auth":
+        return authComplete;
+      case "test":
+        return testSucceeded || testBypassed;
+      case "coaching":
+        return canInstall && !finalizing;
+      default:
+        return false;
+    }
+  });
+
+  // ── Config builder ──────────────────────────────────────────────────────────
   function buildConfig(forTest: boolean): McpServerConfigInput | null {
     if (connectionMode === "remote" && remote) {
       const env: Record<string, string> = {};
@@ -140,9 +202,7 @@
         command: pkg.runtime_hint ?? "npx",
         args: [
           pkg.identifier,
-          ...(pkg.package_arguments ?? []).map(
-            (a, i) => argValues[a.value_hint ?? String(i)] ?? "",
-          ),
+          ...(pkg.package_arguments ?? []).map((_, i) => String(i)),
         ],
         env,
         transport: pkg.transport_type ?? "stdio",
@@ -153,43 +213,55 @@
     return null;
   }
 
-  // Config with placeholder secrets — used for finalize (persist to mcp.toml).
-  const builtConfig = $derived(buildConfig(false));
-  // Config with raw secret values — used for the ephemeral connection test.
   const testConfig = $derived(buildConfig(true));
+  const builtConfig = $derived(buildConfig(false));
 
-  function goNext(): void {
-    if (currentStep < totalSteps) currentStep += 1;
+  // ── Navigation ──────────────────────────────────────────────────────────────
+  async function goNext(): Promise<void> {
+    if (!canAdvance) return;
+    if (currentStep === "disclaimer" && !disclaimerVersionOk) {
+      await recordDisclaimerAcceptance();
+      disclaimerVersionOk = true;
+    }
+    if (currentStepIndex < totalSteps - 1) currentStepIndex += 1;
   }
 
   function goBack(): void {
-    if (currentStep > 1) currentStep -= 1;
+    if (currentStepIndex > 0) currentStepIndex -= 1;
   }
 
-  function handleClose(): void {
-    showDisclaimer = false;
-    disclaimerPassed = false;
-    onclose();
-  }
-
-  function handleDisclaimerAccept(): void {
-    showDisclaimer = false;
-    disclaimerPassed = true;
-  }
-
-  function handleDisclaimerClose(): void {
-    showDisclaimer = false;
-    if (!disclaimerPassed) {
-      onclose();
-    }
+  function handleDisclaimerChange(key: string, value: boolean): void {
+    disclaimerChecks = { ...disclaimerChecks, [key]: value };
   }
 
   function handleEnvChange(key: string, value: string): void {
     envValues = { ...envValues, [key]: value };
   }
 
-  function handleArgChange(key: string, value: string): void {
-    argValues = { ...argValues, [key]: value };
+  function handleTestSuccess(): void {
+    testSucceeded = true;
+  }
+
+  function handleFixAuth(): void {
+    testSucceeded = false;
+    testBypassed = false;
+    currentStepIndex = steps.indexOf("auth");
+  }
+
+  function handleBypass(): void {
+    if (!builder) return;
+    testBypassed = true;
+  }
+
+  function handleRequestClose(): void {
+    if (
+      currentStepIndex > 0 &&
+      currentStep !== "coaching" &&
+      !confirm($t("integrations.wizard.confirm_exit"))
+    ) {
+      return;
+    }
+    onclose();
   }
 
   async function finalize(): Promise<void> {
@@ -197,7 +269,6 @@
     finalizing = true;
     finalizeError = null;
     try {
-      // Persist secrets in the OS keyring before writing the config.
       if (connectionMode === "remote" && remote) {
         for (const header of remote.headers) {
           const val = envValues[header.name];
@@ -222,146 +293,138 @@
         }
       }
       await invoke("add_mcp_server", { config: builtConfig });
-      handleClose();
       oncomplete();
+      // Launch the 4-step first-connection tour on the first successful setup.
+      if (!isFirstConnectionTourDone()) {
+        showFirstTour = true;
+      } else {
+        onclose();
+      }
     } catch (err: unknown) {
       finalizeError = err instanceof Error ? err.message : String(err);
     } finally {
       finalizing = false;
     }
   }
+
+  function handleTourClose(): void {
+    markFirstConnectionTourDone();
+    showFirstTour = false;
+    onclose();
+  }
 </script>
 
-<McpDisclaimerDialog
-  open={showDisclaimer}
-  onaccept={handleDisclaimerAccept}
-  onclose={handleDisclaimerClose}
-/>
-
 <Dialog
-  open={open && disclaimerPassed && !showDisclaimer}
-  onclose={handleClose}
+  open={open && !showFirstTour}
+  onclose={handleRequestClose}
   size="lg"
   title={$t("integrations.wizard.title", {
     values: { name: server.title ?? server.name },
   })}
   data-testid="connector-wizard"
 >
-  <!-- Step progress indicator (US-SP42-007 — C.I.13) -->
-  <ol
-    class="mb-6 flex flex-wrap items-center gap-1"
-    aria-label={$t("integrations.wizard.step_progress")}
-  >
-    {#each visibleSteps as step, i (step)}
-      <li
-        class="flex items-center gap-1"
-        aria-current={i + 1 === currentStep ? "step" : undefined}
-      >
-        <div
-          class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium transition-colors duration-150"
-          class:bg-primary={i + 1 <= currentStep}
-          class:text-primary-foreground={i + 1 <= currentStep}
-          class:bg-muted={i + 1 > currentStep}
-          class:text-muted-foreground={i + 1 > currentStep}
-          aria-label={$t("a11y.step_label", { values: { current: i + 1, total: totalSteps } })}
-        >
-          <span aria-hidden="true">{i + 1}</span>
-        </div>
-        <span
-          class="hidden text-xs transition-colors duration-150 sm:inline"
-          class:text-foreground={i + 1 === currentStep}
-          class:font-medium={i + 1 === currentStep}
-          class:text-muted-foreground={i + 1 !== currentStep}
-        >
-          {$t(`integrations.wizard.step_${step}`)}
-        </span>
-        {#if i < visibleSteps.length - 1}
-          <div class="mx-1.5 h-px w-4 bg-border" aria-hidden="true"></div>
-        {/if}
-      </li>
-    {/each}
-  </ol>
+  <!-- Stepper -->
+  <div class="mb-6">
+    <Stepper steps={stepperSteps} current={currentStepIndex} />
+  </div>
 
-  <!-- Step content area -->
-  <div class="min-h-[180px]">
-    {#if currentStepName === "info"}
-      <WizardStepInfo {server} />
-    {:else if currentStepName === "auth"}
-      {#if connectionMode === "remote"}
-        <WizardStepAuth
-          envVars={remoteHeadersAsEnvVars}
-          enrichment={server.enrichment}
-          values={envValues}
-          onchange={handleEnvChange}
+  <!-- Step content -->
+  <div class="min-h-[220px]">
+    {#if currentStep === "disclaimer"}
+      <WizardStepDisclaimer
+        checks={disclaimerChecks}
+        onchange={handleDisclaimerChange}
+      />
+    {:else if currentStep === "auth"}
+      <WizardStepAuth
+        envVars={authEnvVars}
+        enrichment={server.enrichment}
+        values={envValues}
+        onchange={handleEnvChange}
+      />
+    {:else if currentStep === "test"}
+      {#if testConfig}
+        <WizardStepTest
+          config={testConfig}
+          allowBypass={builder}
+          onsuccess={handleTestSuccess}
+          onfixauth={handleFixAuth}
+          onbypass={handleBypass}
         />
-      {:else if connectionMode === "package" && pkg}
-        <WizardStepAuth
-          envVars={pkg.environment_variables ?? []}
-          enrichment={server.enrichment}
-          values={envValues}
-          onchange={handleEnvChange}
-        />
+      {:else}
+        <div
+          class="space-y-2 rounded-md border border-border bg-muted/40 p-4"
+          data-testid="wizard-step-test-unavailable"
+        >
+          <p class="text-sm text-muted-foreground">
+            {$t("integrations.wizard.test_unavailable")}
+          </p>
+        </div>
       {/if}
-    {:else if currentStepName === "params" && connectionMode === "package" && pkg}
-      <WizardStepParams
-        args={pkg.package_arguments ?? []}
-        values={argValues}
-        onchange={handleArgChange}
-      />
-    {:else if currentStepName === "test" && testConfig}
-      <WizardStepTest config={testConfig} />
-    {:else if currentStepName === "test" && !testConfig}
-      <div class="space-y-2 rounded-md border border-border bg-muted/40 p-4" data-testid="wizard-step-test-unavailable">
-        <p class="text-sm text-muted-foreground">
-          {$t("integrations.wizard.test_unavailable")}
-        </p>
-      </div>
-    {:else if currentStepName === "confirm" && canInstall}
-      <WizardStepConfirm
-        {approvalLevel}
-        onchange={(level: "auto" | "ask" | "readonly") => {
-          approvalLevel = level;
-        }}
-      />
-    {:else if currentStepName === "confirm" && !canInstall}
-      <div class="space-y-3 rounded-md border border-border bg-muted/40 p-4" data-testid="wizard-no-package">
-        <p class="text-sm font-medium text-foreground">
-          {$t("integrations.wizard.no_package_title")}
-        </p>
-        <p class="text-sm text-muted-foreground">
-          {$t("integrations.wizard.no_package_body")}
-        </p>
-      </div>
+    {:else if currentStep === "coaching"}
+      {#if canInstall}
+        <WizardStepCoaching
+          serverName={server.name}
+          serverTitle={server.title}
+          {hasWriteTools}
+          {approvalLevel}
+          onchange={(l) => (approvalLevel = l)}
+          ontry={ontryprompt}
+        />
+      {:else}
+        <div
+          class="space-y-3 rounded-md border border-border bg-muted/40 p-4"
+          data-testid="wizard-no-package"
+        >
+          <p class="text-sm font-medium text-foreground">
+            {$t("integrations.wizard.no_package_title")}
+          </p>
+          <p class="text-sm text-muted-foreground">
+            {$t("integrations.wizard.no_package_body")}
+          </p>
+        </div>
+      {/if}
     {/if}
   </div>
 
   {#if finalizeError}
-    <p class="mt-3 text-sm text-destructive" data-testid="wizard-finalize-error">
+    <p
+      class="mt-3 text-sm text-destructive"
+      data-testid="wizard-finalize-error"
+    >
       {finalizeError}
     </p>
   {/if}
 
   <!-- Navigation bar -->
-  <div class="mt-6 flex items-center justify-between border-t border-border pt-4">
+  <div
+    class="mt-6 flex items-center justify-between border-t border-border pt-4 sticky bottom-0 bg-background"
+  >
     <Button
       variant="outline"
       size="sm"
       onclick={goBack}
-      disabled={currentStep === 1}
+      disabled={currentStepIndex === 0}
       data-testid="wizard-back-btn"
     >
       {$t("common.back")}
     </Button>
 
-    {#if currentStep < totalSteps}
-      <Button variant="primary-solid" size="sm" onclick={goNext} data-testid="wizard-next-btn">
+    {#if currentStep !== "coaching"}
+      <Button
+        variant="primary-solid"
+        size="sm"
+        onclick={() => void goNext()}
+        disabled={!canAdvance}
+        data-testid="wizard-next-btn"
+      >
         {$t("integrations.wizard.next")}
       </Button>
     {:else}
       <Button
         variant="primary-gradient"
         size="sm"
-        onclick={finalize}
+        onclick={() => void finalize()}
         disabled={finalizing || !canInstall}
         data-testid="wizard-confirm-btn"
       >
@@ -372,3 +435,7 @@
     {/if}
   </div>
 </Dialog>
+
+{#if showFirstTour}
+  <FirstConnectionTourRunner onclose={handleTourClose} />
+{/if}

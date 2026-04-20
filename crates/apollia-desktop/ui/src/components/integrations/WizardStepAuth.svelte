@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from "svelte-i18n";
-  import { Eye, EyeOff, ExternalLink } from "lucide-svelte";
+  import { Eye, EyeOff, ExternalLink, Lock } from "lucide-svelte";
   import { Input } from "$lib/components/ui/input";
   import type { ConnectorEnrichmentView, RegistryEnvVarView } from "$lib/types";
 
@@ -63,6 +63,13 @@
 
           {#if envVar.description}
             <p class="text-xs text-muted-foreground">{envVar.description}</p>
+          {/if}
+
+          {#if envVar.is_secret}
+            <p class="flex items-center gap-1 text-[11px] text-muted-foreground" data-testid={`env-encrypted-note-${envVar.name}`}>
+              <Lock size={10} aria-hidden="true" />
+              {$t("integrations.wizard.encrypted_locally")}
+            </p>
           {/if}
 
           {#if envVar.is_secret}

@@ -554,6 +554,7 @@ fn main() {
             commands::llm::get_cost_alert_threshold,
             commands::llm::reload_llm,
             commands::meta_automation::meta_parse_automation,
+            commands::mcp_coaching::meta_generate_capabilities_coaching,
             commands::triggers::list_triggers,
             commands::triggers::set_trigger_enabled,
             commands::triggers::fire_trigger,

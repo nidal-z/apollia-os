@@ -15,6 +15,7 @@ pub mod hitl;
 pub mod link_preview;
 pub mod llm;
 pub mod mcp;
+pub mod mcp_coaching;
 pub mod meta_automation;
 pub(crate) mod ssrf;
 pub mod memory;
