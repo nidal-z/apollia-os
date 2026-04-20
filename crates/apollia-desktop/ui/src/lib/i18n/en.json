@@ -121,6 +121,79 @@
     },
     "projects": "Projects"
   },
+  "trust": {
+    "verified": {
+      "label": "Verified by Apollia",
+      "tooltip": "Connector verified and validated by Apollia"
+    },
+    "community": {
+      "label": "Community",
+      "tooltip": "Maintained by the community — reliability verified by contributors"
+    },
+    "unverified": {
+      "label": "Unverified",
+      "tooltip": "This connector has not been validated — use with caution"
+    },
+    "unknown": {
+      "label": "Unknown trust",
+      "tooltip": "Trust level unknown for this connector"
+    }
+  },
+  "connections": {
+    "add_connection": "Add connection",
+    "hero": {
+      "title": "Connections",
+      "subtitle": "Add tools to your assistants",
+      "tablist_label": "Connections segments",
+      "segment_active": "My active connections",
+      "segment_suggested": "Suggested for you",
+      "segment_catalogue": "All catalogue"
+    },
+    "filters": {
+      "search_label": "Search a connection",
+      "search_placeholder": "Search a connection…",
+      "clear_search": "Clear search",
+      "category_label": "Category",
+      "status_label": "Status",
+      "status": {
+        "all": "All",
+        "installed": "Installed",
+        "not_installed": "Not installed"
+      },
+      "chip_query": "\"{q}\"",
+      "clear_category": "Clear category",
+      "clear_status": "Clear status",
+      "clear_all": "Clear all"
+    },
+    "card": {
+      "cta_connect": "Connect",
+      "cta_manage": "Manage",
+      "cta_reconnect": "Reconnect",
+      "installed": "Installed",
+      "tools_available": "{count} tools available"
+    },
+    "health": {
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "error": "Error"
+    },
+    "error": {
+      "title": "Error details",
+      "unknown": "Unknown error — check the logs.",
+      "retry": "Retry",
+      "view_logs": "View logs",
+      "consult_docs": "Consult docs"
+    },
+    "empty": {
+      "no_connections_title": "No connections yet",
+      "no_connections_description": "Add a connection to extend your assistants' capabilities.",
+      "no_results_title": "No results for \"{query}\"",
+      "no_results_description": "Try different keywords or clear the active filters.",
+      "no_suggestions_title": "No suggestions yet",
+      "no_suggestions_description": "Install assistants to receive tailored recommendations.",
+      "browse_catalogue": "Browse catalogue"
+    }
+  },
   "integrations": {
     "title_operator": "Connections",
     "title_builder": "MCP Servers",

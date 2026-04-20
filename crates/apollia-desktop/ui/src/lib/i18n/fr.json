@@ -121,6 +121,79 @@
     },
     "projects": "Projets"
   },
+  "trust": {
+    "verified": {
+      "label": "Vérifié par Apollia",
+      "tooltip": "Connecteur vérifié et validé par Apollia"
+    },
+    "community": {
+      "label": "Communauté",
+      "tooltip": "Maintenu par la communauté — fiabilité vérifiée par les contributeurs"
+    },
+    "unverified": {
+      "label": "Non vérifié",
+      "tooltip": "Ce connecteur n'a pas été validé — utilisez-le avec prudence"
+    },
+    "unknown": {
+      "label": "Confiance inconnue",
+      "tooltip": "Niveau de confiance inconnu pour ce connecteur"
+    }
+  },
+  "connections": {
+    "add_connection": "Ajouter une connexion",
+    "hero": {
+      "title": "Connexions",
+      "subtitle": "Ajoutez des outils à vos assistants",
+      "tablist_label": "Segments des connexions",
+      "segment_active": "Mes connexions actives",
+      "segment_suggested": "Suggestions pour vous",
+      "segment_catalogue": "Tout le catalogue"
+    },
+    "filters": {
+      "search_label": "Rechercher une connexion",
+      "search_placeholder": "Rechercher une connexion…",
+      "clear_search": "Effacer la recherche",
+      "category_label": "Catégorie",
+      "status_label": "Statut",
+      "status": {
+        "all": "Tous",
+        "installed": "Installés",
+        "not_installed": "À installer"
+      },
+      "chip_query": "« {q} »",
+      "clear_category": "Effacer la catégorie",
+      "clear_status": "Effacer le statut",
+      "clear_all": "Tout effacer"
+    },
+    "card": {
+      "cta_connect": "Connecter",
+      "cta_manage": "Gérer",
+      "cta_reconnect": "Reconnecter",
+      "installed": "Installé",
+      "tools_available": "{count} outils disponibles"
+    },
+    "health": {
+      "healthy": "En service",
+      "degraded": "Dégradé",
+      "error": "Erreur"
+    },
+    "error": {
+      "title": "Détails de l'erreur",
+      "unknown": "Erreur inconnue — consultez les logs.",
+      "retry": "Réessayer",
+      "view_logs": "Voir logs",
+      "consult_docs": "Consulter docs"
+    },
+    "empty": {
+      "no_connections_title": "Pas encore de connexions",
+      "no_connections_description": "Ajoutez une connexion pour étendre les capacités de vos assistants.",
+      "no_results_title": "Aucun résultat pour « {query} »",
+      "no_results_description": "Essayez d'autres mots-clés ou effacez les filtres actifs.",
+      "no_suggestions_title": "Pas de suggestions pour le moment",
+      "no_suggestions_description": "Installez des assistants pour recevoir des recommandations adaptées.",
+      "browse_catalogue": "Parcourir le catalogue"
+    }
+  },
   "integrations": {
     "title_operator": "Connexions",
     "title_builder": "Serveurs MCP",

@@ -21,6 +21,8 @@
   import Onboarding from "../../routes/Onboarding.svelte";
   import Transcriptions from "../../routes/Transcriptions.svelte";
   import Integrations from "../../routes/Integrations.svelte";
+  import Connections from "../../routes/Connections.svelte";
+  import { uiMode } from "$lib/stores/mode";
   import Projects from "../../routes/Projects.svelte";
   import Design from "../../routes/Design.svelte";
   import DesignMotion from "../../routes/DesignMotion.svelte";
@@ -113,7 +115,11 @@
         {:else if $currentRoute === "observability"}
           <Observability />
         {:else if $currentRoute === "integrations"}
-          <Integrations />
+          {#if $uiMode === "operator"}
+            <Connections />
+          {:else}
+            <Integrations />
+          {/if}
         {:else if $currentRoute === "settings"}
           <Settings />
         {:else if $currentRoute === "onboarding"}
