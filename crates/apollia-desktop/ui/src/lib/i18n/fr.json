@@ -60,6 +60,7 @@
     "toggle_label": "Aide Apollia",
     "no_llm_tooltip": "Configurez un modèle LLM pour activer l'aide contextuelle",
     "restore": "Restaurer le Companion",
+    "restore_unread": "{count} messages non lus",
     "aria_label": "Companion Apollia",
     "title": "Companion",
     "minimize": "Réduire le Companion",
@@ -67,7 +68,55 @@
     "starting": "Démarrage du Companion…",
     "retry": "Réessayer",
     "no_session": "Aucune session active.",
-    "shortcut_hint": "Appuyez sur ⌘K pour ouvrir"
+    "shortcut_hint": "Appuyez sur ⌘K pour ouvrir",
+    "drag": {
+      "handle_aria": "Déplacer le Companion",
+      "resize_aria": "Redimensionner le Companion"
+    },
+    "session": {
+      "connecting": "Connexion à l'agent…",
+      "creating": "Création de la session…",
+      "ready": "Prêt",
+      "input_disabled_hint": "Session en cours de démarrage — la saisie sera disponible bientôt.",
+      "timeout_toast_title": "La session prend plus de temps que prévu"
+    },
+    "error": {
+      "possible_causes": "Causes possibles",
+      "technical_details": "Détails techniques",
+      "copy_code": "Copier le code d'erreur",
+      "copied": "Copié",
+      "retry": "Réessayer",
+      "open_settings": "Ouvrir les paramètres",
+      "close_companion": "Fermer le Companion",
+      "network": {
+        "title": "Le Companion n'a pas pu se connecter",
+        "message": "Le runtime local n'est probablement pas joignable.",
+        "cause_1": "Le runtime Apollia n'est pas démarré",
+        "cause_2": "Un pare-feu bloque le trafic localhost",
+        "cause_3": "Le backend LLM configuré est hors ligne"
+      },
+      "permissions": {
+        "title": "Permission refusée",
+        "message": "Le Companion ne peut pas accéder à une ressource nécessaire.",
+        "cause_1": "Une permission requise a été révoquée",
+        "cause_2": "Le jeton de session a expiré",
+        "cause_3": "L'espace de travail actif est en lecture seule"
+      },
+      "timeout": {
+        "title": "Délai de connexion dépassé",
+        "message": "L'agent n'a pas répondu à temps. Réessayer suffit souvent.",
+        "cause_1": "Le modèle est en cours de chargement",
+        "cause_2": "Latence réseau inhabituellement élevée",
+        "cause_3": "Le runtime est occupé par une autre tâche"
+      },
+      "internal": {
+        "title": "Le Companion a rencontré un problème",
+        "message": "Une erreur est survenue au démarrage de la session.",
+        "cause_1": "Un service requis n'est pas initialisé",
+        "cause_2": "La configuration est invalide",
+        "cause_3": "Une erreur interne est survenue"
+      }
+    }
   },
   "a11y": {
     "skip_to_content": "Aller au contenu principal",

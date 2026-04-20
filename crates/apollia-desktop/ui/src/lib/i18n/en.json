@@ -60,6 +60,7 @@
     "toggle_label": "Apollia Help",
     "no_llm_tooltip": "Configure an LLM model to enable contextual help",
     "restore": "Restore Companion",
+    "restore_unread": "{count} unread messages",
     "aria_label": "Apollia Companion",
     "title": "Companion",
     "minimize": "Minimize Companion",
@@ -67,7 +68,55 @@
     "starting": "Starting Companion…",
     "retry": "Retry",
     "no_session": "No active session.",
-    "shortcut_hint": "Press ⌘K to open"
+    "shortcut_hint": "Press ⌘K to open",
+    "drag": {
+      "handle_aria": "Drag to move Companion",
+      "resize_aria": "Resize Companion"
+    },
+    "session": {
+      "connecting": "Connecting to agent…",
+      "creating": "Creating session…",
+      "ready": "Ready",
+      "input_disabled_hint": "Session starting — input will unlock once ready.",
+      "timeout_toast_title": "Session is taking longer than expected"
+    },
+    "error": {
+      "possible_causes": "Possible causes",
+      "technical_details": "Technical details",
+      "copy_code": "Copy error code",
+      "copied": "Copied",
+      "retry": "Retry",
+      "open_settings": "Open Settings",
+      "close_companion": "Close Companion",
+      "network": {
+        "title": "Companion couldn't connect",
+        "message": "This usually means the local runtime isn't reachable.",
+        "cause_1": "The Apollia runtime is not running",
+        "cause_2": "A firewall is blocking localhost traffic",
+        "cause_3": "The configured LLM backend is offline"
+      },
+      "permissions": {
+        "title": "Permission denied",
+        "message": "Companion can't access a resource it needs.",
+        "cause_1": "A required permission was revoked",
+        "cause_2": "The session token expired",
+        "cause_3": "The active workspace is read-only"
+      },
+      "timeout": {
+        "title": "Connection timed out",
+        "message": "The agent didn't respond in time. This often clears up on retry.",
+        "cause_1": "The model is loading and not yet warm",
+        "cause_2": "Network latency is unusually high",
+        "cause_3": "The runtime is busy with another task"
+      },
+      "internal": {
+        "title": "Companion ran into a problem",
+        "message": "Something went wrong starting the session.",
+        "cause_1": "A required service hasn't initialised",
+        "cause_2": "Configuration is invalid",
+        "cause_3": "An internal error occurred"
+      }
+    }
   },
   "a11y": {
     "skip_to_content": "Skip to content",

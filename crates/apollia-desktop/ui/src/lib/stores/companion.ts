@@ -6,17 +6,46 @@
  * localStorage. The enabled preference is persisted in UserMemory so it
  * survives application reinstalls.
  */
-import { writable, get } from "svelte/store";
+import { writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  COMPANION_MIN_SIZE,
+  clampPosition,
+  clampSize,
+  validateGeometry,
+  type Position,
+  type Size,
+  type Viewport,
+} from "$lib/companion/snapGeometry";
 
-export interface CompanionPosition {
-  x: number;
-  y: number;
-}
+export type CompanionPosition = Position;
+export type CompanionSize = Size;
 
-export interface CompanionSize {
-  width: number;
-  height: number;
+/** Lifecycle stage of the embedded chat session. */
+export type CompanionSessionStatus =
+  | "idle"
+  | "connecting"
+  | "creating"
+  | "ready";
+
+/** Error category — drives icon, title, and suggested actions. */
+export type CompanionErrorKind =
+  | "network"
+  | "permissions"
+  | "timeout"
+  | "internal";
+
+export type CompanionErrorCode =
+  | "ERR_COMPANION_CONN_TIMEOUT"
+  | "ERR_COMPANION_SESSION_FAIL"
+  | "ERR_COMPANION_AGENT_UNAVAILABLE"
+  | "ERR_COMPANION_UNKNOWN";
+
+export interface CompanionError {
+  kind: CompanionErrorKind;
+  code: CompanionErrorCode;
+  message: string;
+  technicalDetails?: string;
 }
 
 export interface CompanionState {
@@ -39,9 +68,21 @@ export interface CompanionState {
   currentRoute: string;
   /** Contextual help text for the current route, populated by `updateContext`. */
   currentContext: string;
+  /** Lifecycle of the embedded chat session. */
+  sessionStatus: CompanionSessionStatus;
+  /** Structured error populated when session creation fails. */
+  error: CompanionError | null;
+  /** Unread message count displayed on the restore button. */
+  unreadCount: number;
+  /** `true` while the restore button should run its one-shot pulse animation. */
+  restorePulseActive: boolean;
 }
 
 const STORAGE_KEY = "apollia_companion";
+const GEOMETRY_KEY = "companionGeometry";
+
+/** Timeout after which a session-creation attempt falls back to an error. */
+export const COMPANION_SESSION_TIMEOUT_MS = 10_000;
 
 const DEFAULT_COMPANION_STATE: CompanionState = {
   enabled: false,
@@ -52,57 +93,144 @@ const DEFAULT_COMPANION_STATE: CompanionState = {
   size: { width: 380, height: 520 },
   currentRoute: "dashboard",
   currentContext: "",
+  sessionStatus: "idle",
+  error: null,
+  unreadCount: 0,
+  restorePulseActive: true,
 };
 
-/** Clamps a position so the panel stays within the visible viewport. */
-function clampPosition(
+function viewport(): Viewport {
+  return { width: window.innerWidth, height: window.innerHeight };
+}
+
+function isAutoPosition(pos: CompanionPosition): boolean {
+  return pos.x === -1 && pos.y === -1;
+}
+
+function safeClampPosition(
   pos: CompanionPosition,
   size: CompanionSize,
 ): CompanionPosition {
-  if (pos.x === -1 && pos.y === -1) return pos;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  return {
-    x: Math.max(0, Math.min(pos.x, vw - size.width)),
-    y: Math.max(0, Math.min(pos.y, vh - size.height)),
-  };
+  if (isAutoPosition(pos)) return pos;
+  if (typeof window === "undefined") return pos;
+  return clampPosition(pos, size, viewport());
+}
+
+function safeClampSize(size: CompanionSize): CompanionSize {
+  if (typeof window === "undefined") {
+    return {
+      width: Math.max(COMPANION_MIN_SIZE.width, size.width),
+      height: Math.max(COMPANION_MIN_SIZE.height, size.height),
+    };
+  }
+  return clampSize(size, viewport());
 }
 
 /**
  * Reads persisted geometry from localStorage, falling back to defaults.
- * `enabled` and `currentContext` are always initialised to their defaults
- * so they are never restored from the local cache.
+ * Geometry is stored under {@link GEOMETRY_KEY}; legacy state blobs stored
+ * under {@link STORAGE_KEY} are still honoured for backwards compatibility.
  */
 function loadFromStorage(): CompanionState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_COMPANION_STATE };
-    const parsed = JSON.parse(raw) as Partial<CompanionState>;
-    const merged: CompanionState = {
-      ...DEFAULT_COMPANION_STATE,
-      ...parsed,
-      enabled: false,
-      currentContext: "",
-    };
-    merged.position = clampPosition(merged.position, merged.size);
-    return merged;
+    const state: CompanionState = { ...DEFAULT_COMPANION_STATE };
+
+    const geoRaw = localStorage.getItem(GEOMETRY_KEY);
+    if (geoRaw) {
+      const geo = JSON.parse(geoRaw) as {
+        position?: Position;
+        size?: Size;
+      };
+      if (geo.size) state.size = geo.size;
+      if (geo.position) state.position = geo.position;
+    } else {
+      const legacy = localStorage.getItem(STORAGE_KEY);
+      if (legacy) {
+        const parsed = JSON.parse(legacy) as Partial<CompanionState>;
+        if (parsed.size) state.size = parsed.size;
+        if (parsed.position) state.position = parsed.position;
+      }
+    }
+
+    if (!isAutoPosition(state.position) && typeof window !== "undefined") {
+      const validated = validateGeometry(
+        { position: state.position, size: state.size },
+        viewport(),
+      );
+      state.position = validated.position;
+      state.size = validated.size;
+    } else {
+      state.size = safeClampSize(state.size);
+    }
+    return state;
   } catch {
     return { ...DEFAULT_COMPANION_STATE };
   }
 }
 
-/**
- * Writes panel geometry to localStorage.
- * `enabled` and `currentContext` are excluded: they are owned by UserMemory
- * and the IPC layer respectively.
- */
-function saveToStorage(state: CompanionState): void {
+/** Writes panel geometry to `localStorage.companionGeometry`. */
+function saveGeometry(state: CompanionState): void {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { enabled: _e, currentContext: _ctx, ...rest } = state;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(rest));
+    const payload = { position: state.position, size: state.size };
+    localStorage.setItem(GEOMETRY_KEY, JSON.stringify(payload));
   } catch {
     // Silently ignore quota errors or missing localStorage (SSR/tests).
+  }
+}
+
+function buildError(err: unknown): CompanionError {
+  const message = err instanceof Error ? err.message : String(err);
+  const lower = message.toLowerCase();
+
+  if (lower.includes("timeout") || lower.includes("timed out")) {
+    return {
+      kind: "timeout",
+      code: "ERR_COMPANION_CONN_TIMEOUT",
+      message,
+      technicalDetails: err instanceof Error ? err.stack : undefined,
+    };
+  }
+  if (
+    lower.includes("network") ||
+    lower.includes("fetch") ||
+    lower.includes("connect")
+  ) {
+    return {
+      kind: "network",
+      code: "ERR_COMPANION_AGENT_UNAVAILABLE",
+      message,
+      technicalDetails: err instanceof Error ? err.stack : undefined,
+    };
+  }
+  if (lower.includes("session")) {
+    return {
+      kind: "internal",
+      code: "ERR_COMPANION_SESSION_FAIL",
+      message,
+      technicalDetails: err instanceof Error ? err.stack : undefined,
+    };
+  }
+  return {
+    kind: "internal",
+    code: "ERR_COMPANION_UNKNOWN",
+    message,
+    technicalDetails: err instanceof Error ? err.stack : undefined,
+  };
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  message: string,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -114,11 +242,17 @@ function createCompanionStore() {
 
   const { subscribe, update, set } = writable<CompanionState>(initial);
 
-  /** Applies a state mutation and persists geometry to localStorage. */
+  /** Applies a state mutation; callers that change geometry must persist. */
   function mutate(fn: (s: CompanionState) => CompanionState): void {
+    update((s) => fn(s));
+  }
+
+  function mutateGeometry(
+    fn: (s: CompanionState) => CompanionState,
+  ): void {
     update((s) => {
       const next = fn(s);
-      saveToStorage(next);
+      saveGeometry(next);
       return next;
     });
   }
@@ -153,12 +287,10 @@ function createCompanionStore() {
       mutate((s) => ({ ...s, visible: !s.visible, minimized: false }));
     },
 
-    /** Shows the companion panel without changing the enabled preference. */
     openCompanion(): void {
       mutate((s) => ({ ...s, visible: true, minimized: false }));
     },
 
-    /** Hides the companion panel without destroying the session. */
     closeCompanion(): void {
       mutate((s) => ({ ...s, visible: false }));
     },
@@ -170,64 +302,92 @@ function createCompanionStore() {
 
     /** Restores the panel from its collapsed icon state. */
     restoreCompanion(): void {
-      mutate((s) => ({ ...s, minimized: false }));
+      mutate((s) => ({
+        ...s,
+        minimized: false,
+        unreadCount: 0,
+        restorePulseActive: false,
+      }));
     },
 
-    /** Updates the tracked application route without fetching context. */
+    /** Increments the unread count shown on the restore button. */
+    incrementUnread(): void {
+      mutate((s) => ({ ...s, unreadCount: s.unreadCount + 1 }));
+    },
+
     updateRoute(route: string): void {
       mutate((s) => ({ ...s, currentRoute: route }));
     },
 
     /** Stores the position after a drag operation, clamping to viewport. */
     setPosition(pos: CompanionPosition): void {
-      mutate((s) => ({
+      mutateGeometry((s) => ({
         ...s,
-        position: clampPosition(pos, s.size),
+        position: safeClampPosition(pos, s.size),
       }));
     },
 
     /** Stores the size after a resize, clamped to min/max bounds. */
     setSize(size: CompanionSize): void {
-      const clamped: CompanionSize = {
-        width: Math.max(300, Math.min(600, size.width)),
-        height: Math.max(400, Math.min(800, size.height)),
-      };
-      mutate((s) => ({ ...s, size: clamped }));
+      mutateGeometry((s) => {
+        const clamped = safeClampSize(size);
+        const position = safeClampPosition(s.position, clamped);
+        return { ...s, size: clamped, position };
+      });
     },
 
-    /** Stores the active session identifier. */
     setSessionId(id: string | null): void {
       mutate((s) => ({ ...s, sessionId: id }));
     },
 
-    /**
-     * Creates a new companion chat session via IPC for the given route and
-     * stores the returned session id in the companion state.
-     */
-    async createSession(route?: string): Promise<string> {
-      const result = await invoke<{ session_id: string }>(
-        "create_companion_session",
-        { context: route ?? null },
-      );
-      const { session_id } = result;
-      mutate((s) => ({ ...s, sessionId: session_id }));
-      return session_id;
+    /** Manually clears the current error state. */
+    clearError(): void {
+      mutate((s) => ({ ...s, error: null }));
     },
 
     /**
-     * Fetches the contextual help text for the given route from the backend,
-     * stores it in `currentContext`, updates `currentRoute`, and refreshes
-     * the active session's system prompt when a session is open.
+     * Creates a new companion chat session via IPC for the given route and
+     * stores the returned session id in the companion state. Applies a
+     * {@link COMPANION_SESSION_TIMEOUT_MS} wall-clock timeout and maps any
+     * failure to a structured {@link CompanionError}.
      */
+    async createSession(route?: string): Promise<string> {
+      mutate((s) => ({
+        ...s,
+        sessionStatus: "connecting",
+        error: null,
+      }));
+      try {
+        mutate((s) => ({ ...s, sessionStatus: "creating" }));
+        const result = await withTimeout(
+          invoke<{ session_id: string }>("create_companion_session", {
+            context: route ?? null,
+          }),
+          COMPANION_SESSION_TIMEOUT_MS,
+          "Session creation timed out",
+        );
+        const { session_id } = result;
+        mutate((s) => ({
+          ...s,
+          sessionId: session_id,
+          sessionStatus: "ready",
+          error: null,
+        }));
+        return session_id;
+      } catch (err) {
+        const error = buildError(err);
+        mutate((s) => ({ ...s, sessionStatus: "idle", error }));
+        throw err;
+      }
+    },
+
     async updateContext(route: string): Promise<void> {
       try {
         const text = await invoke<string>("get_companion_context", { route });
         let currentSessionId: string | null = null;
         update((s) => {
           currentSessionId = s.sessionId;
-          const next = { ...s, currentRoute: route, currentContext: text };
-          saveToStorage(next);
-          return next;
+          return { ...s, currentRoute: route, currentContext: text };
         });
         if (currentSessionId) {
           await invoke("update_chat_session", {
@@ -240,10 +400,6 @@ function createCompanionStore() {
       }
     },
 
-    /**
-     * Reads `companion_enabled` from UserMemory and initialises the store.
-     * Should be called once at application startup, after the runtime is ready.
-     */
     async initFromMemory(): Promise<void> {
       try {
         const entries = await invoke<Array<{ key: string; value: string }>>(
@@ -268,7 +424,12 @@ function createCompanionStore() {
     reset(): void {
       const next = { ...DEFAULT_COMPANION_STATE };
       set(next);
-      saveToStorage(next);
+      try {
+        localStorage.removeItem(GEOMETRY_KEY);
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // ignore
+      }
     },
   };
 
@@ -277,12 +438,10 @@ function createCompanionStore() {
 
 export const companionStore = createCompanionStore();
 
-/** Whether the minimized floating restore button should be visible. */
 export function isCompanionRestoreVisible(state: CompanionState): boolean {
   return state.visible && state.minimized;
 }
 
-/** Whether the full companion panel should be rendered. */
 export function isCompanionPanelVisible(state: CompanionState): boolean {
   return state.visible && !state.minimized;
 }
