@@ -325,7 +325,7 @@
     role="complementary"
     aria-label={$t("companion.aria_label")}
     class="fixed flex flex-col overflow-hidden border border-border bg-background shadow-2xl focus:outline-none"
-    class:inset-0={fullscreen}
+    class:companion-fullscreen={fullscreen}
     class:rounded-xl={!fullscreen}
     class:companion-snap={snapAnimating}
     style:z-index="65"
@@ -442,5 +442,15 @@
     transition:
       left 150ms cubic-bezier(0.34, 1.56, 0.64, 1),
       top 150ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  /* Fullscreen uses `dvh` (dynamic viewport) so mobile URL-bar toggling
+     doesn't cut off the close button. Falls back to `100vh` on browsers
+     without dvh support. */
+  .companion-fullscreen {
+    inset: 0;
+    height: 100vh;
+    height: 100dvh;
+    width: 100vw;
+    width: 100dvw;
   }
 </style>

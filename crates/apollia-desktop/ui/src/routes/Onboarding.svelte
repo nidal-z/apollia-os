@@ -1,12 +1,48 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "svelte-i18n";
   import { Sparkles, ArrowRight, Clock } from "lucide-svelte";
   import { navigateTo } from "$lib/stores/navigation";
   import { onboardingStore } from "$lib/stores/onboarding";
   import { LoadingSpinner } from "$lib/components/feedback";
+  import OnboardingOfflineBanner from "../components/onboarding/OnboardingOfflineBanner.svelte";
 
   let starting = $state(false);
+  let offline = $state(false);
+  let retrying = $state(false);
+
+  const ASSET_FETCH_TIMEOUT_MS = 8_000;
+
+  // Best-effort probe — fetch a lightweight asset (logo) through the
+  // network stack so we can surface an offline banner even when the
+  // onboarding flow itself renders entirely from bundled assets.
+  async function probeNetwork(): Promise<void> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ASSET_FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch("/logo.svg?probe=1", {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      offline = !res.ok;
+    } catch {
+      offline = true;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function retryProbe() {
+    if (retrying) return;
+    retrying = true;
+    await probeNetwork();
+    retrying = false;
+  }
+
+  onMount(() => {
+    void probeNetwork();
+  });
 
   async function startOnboarding(): Promise<void> {
     if (starting) return;
@@ -34,7 +70,10 @@
   class="flex min-h-[calc(100vh-5rem)] items-center justify-center"
   data-testid="onboarding-screen"
 >
-  <div class="animate-fade-in flex w-full max-w-lg flex-col items-center">
+  <div class="animate-fade-in flex w-full max-w-lg flex-col items-center gap-4">
+    {#if offline}
+      <OnboardingOfflineBanner onRetry={retryProbe} {retrying} />
+    {/if}
     <!-- Logo with glow pulse -->
     <div
       class="mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary animate-glow-pulse"

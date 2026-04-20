@@ -1591,7 +1591,9 @@
       "system": "System info",
       "memories": "Memories",
       "shortcuts": "Shortcuts",
-      "danger": "Danger Zone"
+      "danger": "Danger Zone",
+      "mobile_open": "Sections",
+      "mobile_title": "Settings sections"
     },
     "shortcuts": {
       "subtitle": "Keyboard shortcuts available across Apollia.",
@@ -2434,7 +2436,10 @@
     "continue_to_dashboard": "Continue to dashboard",
     "start": "Start",
     "skip_for_now": "Skip for now",
-    "completion_text": "Thanks! Apollia is now personalized for you."
+    "completion_text": "Thanks! Apollia is now personalized for you.",
+    "offline_title": "Unable to load latest. Using local cache.",
+    "offline_body": "We couldn't reach the network in time. The onboarding flow still works with bundled assets.",
+    "offline_retry": "Retry"
   },
   "tools": {
     "labels": {

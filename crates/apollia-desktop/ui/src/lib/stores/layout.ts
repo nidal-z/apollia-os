@@ -20,7 +20,10 @@ type SidebarPreference = "expanded" | "collapsed";
 
 type Viewport = "sm" | "md" | "lg";
 
-const STORAGE_KEY = "apollia.ui.sidebar";
+// Legacy single-key storage — migrated on first load.
+const LEGACY_KEY = "apollia.ui.sidebar";
+// Per-breakpoint key prefix (US-SP42-081). Values : `open | collapsed | hidden`.
+const STATE_KEY_PREFIX = "apollia.ui.sidebarState_";
 // Breakpoints canoniques — voir `src/lib/design/breakpoints.md`.
 const MD_QUERY = "(min-width: 768px)";
 const LG_QUERY = "(min-width: 1024px)";
@@ -32,19 +35,52 @@ function computeViewport(): Viewport {
   return "sm";
 }
 
-function loadPreference(): SidebarPreference {
-  if (typeof localStorage === "undefined") return "expanded";
-  const raw = localStorage.getItem(STORAGE_KEY);
-  return raw === "collapsed" ? "collapsed" : "expanded";
+type PersistedState = "open" | "collapsed" | "hidden";
+
+function stateKey(v: Viewport): string {
+  return `${STATE_KEY_PREFIX}${v}`;
 }
 
-function savePreference(pref: SidebarPreference): void {
+function migrateLegacy(): void {
   if (typeof localStorage === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEY, pref);
+    const legacy = localStorage.getItem(LEGACY_KEY);
+    if (!legacy) return;
+    const mapped: PersistedState = legacy === "collapsed" ? "collapsed" : "open";
+    if (!localStorage.getItem(stateKey("lg"))) {
+      localStorage.setItem(stateKey("lg"), mapped);
+    }
+    localStorage.removeItem(LEGACY_KEY);
+  } catch {
+    // noop
+  }
+}
+
+function loadState(v: Viewport): PersistedState {
+  if (typeof localStorage === "undefined") {
+    return v === "sm" ? "hidden" : "open";
+  }
+  const raw = localStorage.getItem(stateKey(v));
+  if (raw === "open" || raw === "collapsed" || raw === "hidden") return raw;
+  return v === "sm" ? "hidden" : "open";
+}
+
+function saveState(v: Viewport, state: PersistedState): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(stateKey(v), state);
   } catch {
     // Quota or disabled storage — silently ignore.
   }
+}
+
+function loadPreference(): SidebarPreference {
+  migrateLegacy();
+  return loadState("lg") === "collapsed" ? "collapsed" : "expanded";
+}
+
+function savePreference(pref: SidebarPreference): void {
+  saveState("lg", pref === "collapsed" ? "collapsed" : "open");
 }
 
 /** Store read-only de la viewport courante, mis à jour via `matchMedia`. */
@@ -65,6 +101,13 @@ const preference = writable<SidebarPreference>(loadPreference());
 preference.subscribe((p) => savePreference(p));
 
 const drawerOpenInternal = writable(false);
+
+// Persist drawer open state under sm — `hidden` when closed, `open` when open.
+drawerOpenInternal.subscribe((open) => {
+  if (typeof window === "undefined") return;
+  if (computeViewport() !== "sm") return;
+  saveState("sm", open ? "open" : "hidden");
+});
 
 /**
  * État sidebar dérivé de la viewport et de la préférence utilisateur.

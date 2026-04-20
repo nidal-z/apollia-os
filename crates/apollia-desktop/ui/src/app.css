@@ -176,6 +176,16 @@
       hsl(var(--primary) / 0.10) 0%,
       hsl(var(--secondary) / 0.05) 100%
     );
+
+    /* ═════════════════════════════════════════════════════════
+       Onboarding surface tokens (US-SP42-081) — the onboarding
+       flow keeps a slightly warmer backdrop than the standard
+       app surface to evoke a welcome. Resolved per theme so the
+       flow tracks `prefers-color-scheme` / `[data-theme]`.
+       ═════════════════════════════════════════════════════════ */
+    --onboarding-bg: hsl(var(--background));
+    --onboarding-card-bg: hsl(var(--surface-1));
+    --onboarding-card-border: hsl(var(--border));
   }
 
   .dark {

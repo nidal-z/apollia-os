@@ -1591,7 +1591,9 @@
       "system": "Informations système",
       "memories": "Mémoires",
       "shortcuts": "Raccourcis",
-      "danger": "Zone de danger"
+      "danger": "Zone de danger",
+      "mobile_open": "Sections",
+      "mobile_title": "Sections des paramètres"
     },
     "shortcuts": {
       "subtitle": "Raccourcis clavier disponibles dans Apollia.",
@@ -2434,7 +2436,10 @@
     "continue_to_dashboard": "Continuer vers le tableau de bord",
     "start": "Commencer",
     "skip_for_now": "Passer pour l'instant",
-    "completion_text": "Merci ! Apollia est maintenant personnalisé pour vous."
+    "completion_text": "Merci ! Apollia est maintenant personnalisé pour vous.",
+    "offline_title": "Impossible de charger la dernière version. Cache local utilisé.",
+    "offline_body": "Le réseau n'a pas répondu à temps. L'onboarding fonctionne néanmoins avec les ressources locales.",
+    "offline_retry": "Réessayer"
   },
   "tools": {
     "labels": {
